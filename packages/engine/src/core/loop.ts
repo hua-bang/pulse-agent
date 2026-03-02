@@ -36,6 +36,7 @@ export interface LoopOptions {
   onCompacted?: (newMessages: ModelMessage[], event?: CompactionEvent) => void;
   onResponse?: (messages: StepResult<ToolSet>['response']['messages']) => void;
   abortSignal?: AbortSignal;
+  runContext?: Record<string, any>;
 
   tools?: Record<string, Tool>;
 
@@ -229,7 +230,8 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       // Prepare tool execution context
       const toolExecutionContext = {
         onClarificationRequest: options?.onClarificationRequest,
-        abortSignal: options?.abortSignal
+        abortSignal: options?.abortSignal,
+        runContext: options?.runContext,
       };
 
       if (options?.abortSignal?.aborted) {

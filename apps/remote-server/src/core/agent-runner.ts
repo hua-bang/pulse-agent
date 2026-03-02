@@ -32,6 +32,114 @@ export interface ExecuteAgentTurnResult {
   compactions: CompactionSnapshot[];
 }
 
+interface RunChannelInfo {
+  platform: 'feishu' | 'discord' | 'telegram' | 'web' | 'internal' | 'unknown';
+  kind?: 'group' | 'dm' | 'thread' | 'channel' | 'chat' | 'user' | 'internal';
+  channelId?: string;
+  userId?: string;
+  isThread?: boolean;
+}
+
+function buildRunContext(input: {
+  sessionId: string;
+  userText: string;
+  platformKey: string;
+}): Record<string, any> {
+  const channel = parseChannelInfo(input.platformKey);
+  return {
+    sessionId: input.sessionId,
+    userText: input.userText,
+    platformKey: input.platformKey,
+    channel: channel ?? undefined,
+  };
+}
+
+function parseChannelInfo(platformKey: string): RunChannelInfo | undefined {
+  const normalized = platformKey.trim();
+  if (!normalized) {
+    return undefined;
+  }
+
+  const feishuGroup = /^feishu:group:([^:]+):([^:]+)$/.exec(normalized);
+  if (feishuGroup) {
+    return {
+      platform: 'feishu',
+      kind: 'group',
+      channelId: feishuGroup[1],
+      userId: feishuGroup[2],
+    };
+  }
+
+  const feishuDm = /^feishu:([^:]+)$/.exec(normalized);
+  if (feishuDm) {
+    return {
+      platform: 'feishu',
+      kind: 'dm',
+      channelId: feishuDm[1],
+      userId: feishuDm[1],
+    };
+  }
+
+  const discordThread = /^discord:thread:([^:]+)$/.exec(normalized);
+  if (discordThread) {
+    return {
+      platform: 'discord',
+      kind: 'thread',
+      channelId: discordThread[1],
+      isThread: true,
+    };
+  }
+
+  const discordChannel = /^discord:channel:([^:]+):([^:]+)$/.exec(normalized);
+  if (discordChannel) {
+    return {
+      platform: 'discord',
+      kind: 'channel',
+      channelId: discordChannel[1],
+      userId: discordChannel[2],
+      isThread: false,
+    };
+  }
+
+  const discordDm = /^discord:([^:]+)$/.exec(normalized);
+  if (discordDm) {
+    return {
+      platform: 'discord',
+      kind: 'dm',
+      userId: discordDm[1],
+    };
+  }
+
+  const telegram = /^telegram:(.+)$/.exec(normalized);
+  if (telegram) {
+    return {
+      platform: 'telegram',
+      kind: 'chat',
+      channelId: telegram[1],
+    };
+  }
+
+  const web = /^web:(.+)$/.exec(normalized);
+  if (web) {
+    return {
+      platform: 'web',
+      kind: 'user',
+      userId: web[1],
+    };
+  }
+
+  const internal = /^internal:(.+)$/.exec(normalized);
+  if (internal) {
+    return {
+      platform: 'internal',
+      kind: 'internal',
+      channelId: internal[1],
+    };
+  }
+
+  return { platform: 'unknown' };
+}
+
 export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<ExecuteAgentTurnResult> {
   const session = await sessionStore.getOrCreate(input.platformKey, input.forceNewSession, input.memoryKey);
   const sessionId = session.sessionId;
@@ -42,15 +150,23 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
 
   context.messages.push({ role: 'user', content: input.userText });
 
+  const runContext = buildRunContext({
+    sessionId,
+    userText: input.userText,
+    platformKey: input.platformKey,
+  });
+
   const resultText = await runWithAgentContexts(
     {
       platformKey: input.platformKey,
       memoryKey: input.memoryKey,
       sessionId,
       userText: input.userText,
+      source: input.source,
     },
     async () => engine.run(context, {
       model: modelOverride,
+      runContext,
       abortSignal: input.abortSignal,
       onText: callbacks.onText,
       onToolCall: callbacks.onToolCall,
@@ -93,6 +209,7 @@ export async function runWithAgentContexts<T>(
     memoryKey: string;
     sessionId: string;
     userText: string;
+    source: string;
   },
   run: () => Promise<T>,
 ): Promise<T> {

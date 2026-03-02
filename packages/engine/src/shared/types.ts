@@ -64,6 +64,7 @@ export interface ClarificationRequest {
 export interface ToolExecutionContext {
   onClarificationRequest?: (request: ClarificationRequest) => Promise<string>;
   abortSignal?: AbortSignal;
+  runContext?: Record<string, any>;
 }
 
 export interface Tool<Input = any, Output = any> {
