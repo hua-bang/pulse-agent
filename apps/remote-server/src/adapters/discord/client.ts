@@ -3,6 +3,7 @@ import { getDiscordProxyDispatcher } from './proxy.js';
 import { isDiscordThreadChannelType } from './platform-key.js';
 
 const DEFAULT_DISCORD_API_BASE_URL = 'https://discord.com/api/v10';
+const DEFAULT_DISCORD_USER_AGENT = 'PulseAgentBot (https://github.com/agent-teams, 1.0)';
 const DISCORD_MESSAGE_LIMIT = 2000;
 const CHANNEL_TYPE_CACHE_TTL_MS = 5 * 60 * 1000;
 const TRANSIENT_RETRY_DELAY_MS = 350;
@@ -44,6 +45,7 @@ interface ChannelRequestOptions {
 export class DiscordClient {
   private readonly baseUrl: string;
   private readonly botToken: string;
+  private readonly userAgent: string;
   private readonly channelTypeCache = new Map<string, ChannelTypeCacheEntry>();
   private readonly joinedThreadIds = new Set<string>();
 
@@ -53,6 +55,7 @@ export class DiscordClient {
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.botToken = botToken;
+    this.userAgent = resolveDiscordUserAgent();
   }
 
   async editOriginalResponse(applicationId: string, interactionToken: string, content: string): Promise<void> {
@@ -292,8 +295,14 @@ export class DiscordClient {
     });
   }
 
-  private async request<T>(path: string, init: RequestInit, useBotAuthorization = false): Promise<T> {
+  private async request<T>(path: string, init: RequestInit, useBotAuthorization = false, attempt = 0): Promise<T> {
     const headers = new Headers(init.headers);
+    if (!headers.has('accept')) {
+      headers.set('accept', 'application/json');
+    }
+    if (!headers.has('user-agent')) {
+      headers.set('user-agent', this.userAgent);
+    }
     if (useBotAuthorization) {
       this.ensureBotToken();
       headers.set('authorization', `Bot ${this.botToken}`);
@@ -307,7 +316,16 @@ export class DiscordClient {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Discord API request failed (${response.status} ${response.statusText}): ${body}`);
+      const contentType = response.headers.get('content-type');
+      if (response.status === 429 && attempt < 1) {
+        const retryAfterMs = getRetryAfterMs(response, body);
+        if (retryAfterMs !== null) {
+          await wait(retryAfterMs);
+          return this.request(path, init, useBotAuthorization, attempt + 1);
+        }
+      }
+      const formattedBody = formatDiscordErrorBody(body, contentType);
+      throw new Error(`Discord API request failed (${response.status} ${response.statusText}): ${formattedBody}`);
     }
 
     if (response.status === 204) {
@@ -425,6 +443,48 @@ function buildChannelMessagePayload(content: string, replyToMessageId?: string):
   }
 
   return payload;
+}
+
+function resolveDiscordUserAgent(): string {
+  const fromEnv = process.env.DISCORD_USER_AGENT?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+
+  return DEFAULT_DISCORD_USER_AGENT;
+}
+
+function getRetryAfterMs(response: Response, body: string): number | null {
+  const headerValue = response.headers.get('retry-after');
+  if (headerValue) {
+    const headerSeconds = Number.parseFloat(headerValue);
+    if (!Number.isNaN(headerSeconds)) {
+      return Math.max(0, Math.ceil(headerSeconds * 1000));
+    }
+  }
+
+  try {
+    const parsed = JSON.parse(body) as { retry_after?: number };
+    if (typeof parsed.retry_after === 'number') {
+      return Math.max(0, Math.ceil(parsed.retry_after * 1000));
+    }
+  } catch {
+    // Ignore JSON parsing errors for non-JSON bodies.
+  }
+
+  return null;
+}
+
+function formatDiscordErrorBody(body: string, contentType: string | null): string {
+  if (!body) {
+    return '(empty response body)';
+  }
+
+  if (contentType && contentType.includes('text/html')) {
+    return 'HTML error page (possibly blocked by proxy/Cloudflare)';
+  }
+
+  return body.length > 1000 ? `${body.slice(0, 1000)}...` : body;
 }
 
 function wait(ms: number): Promise<void> {
