@@ -50,6 +50,15 @@ export interface ForkSessionResult {
   reason?: string;
 }
 
+export interface SessionDetail {
+  id: string;
+  platformKey: string;
+  ownerKey?: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: unknown[];
+}
+
 /**
  * Lightweight session store for the remote server.
  *
@@ -100,6 +109,26 @@ class RemoteSessionStore {
     } catch {
       return null;
     }
+  }
+
+  async getSessionDetail(platformKey: string, sessionId: string, ownerKey?: string): Promise<SessionDetail | null> {
+    const session = await this.readSession(sessionId);
+    if (!session) {
+      return null;
+    }
+
+    if (!this.canAccessSession(session, platformKey, ownerKey)) {
+      return null;
+    }
+
+    return {
+      id: session.id,
+      platformKey: session.platformKey,
+      ownerKey: session.ownerKey,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      messages: this.cloneMessages(session.messages),
+    };
   }
 
   private async writeSession(session: RemoteSession): Promise<void> {

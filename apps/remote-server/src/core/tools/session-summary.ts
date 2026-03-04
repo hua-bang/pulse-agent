@@ -1,0 +1,175 @@
+import z from 'zod';
+import type { Tool } from 'pulse-coder-engine';
+import { sessionStore } from '../session-store.js';
+
+const toolSchema = z.object({
+  days: z.number().int().min(1).max(30).default(3).describe('Number of days to summarize, counting back from today (UTC).'),
+  sessionId: z.string().optional().describe('Optional explicit session id. Defaults to current session.'),
+  includeUserMessages: z.boolean().optional().describe('Include user messages in the output. Defaults to true.'),
+  includeAssistantMessages: z.boolean().optional().describe('Include assistant messages in the output. Defaults to true.'),
+  maxMessagesPerSession: z.number().int().min(5).max(500).optional().describe('Cap message count per session (newest first). Defaults to 200.'),
+});
+
+type ToolInput = z.infer<typeof toolSchema>;
+
+type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
+
+interface SessionMessage {
+  role?: MessageRole;
+  content?: unknown;
+}
+
+interface SessionSummary {
+  sessionId: string;
+  createdAt: number;
+  updatedAt: number;
+  messageCount: number;
+  excerpt: string[];
+}
+
+interface ToolResult {
+  ok: boolean;
+  platformKey: string;
+  ownerKey?: string;
+  since: string;
+  until: string;
+  matchedSessions: number;
+  sessions: SessionSummary[];
+}
+
+const DEFAULT_MAX_MESSAGES = 200;
+
+export const sessionSummaryTool: Tool<ToolInput, ToolResult> = {
+  name: 'session_summary',
+  description: 'Summarize recent sessions for the current user by reading stored session messages.',
+  inputSchema: toolSchema,
+  execute: async (input, context) => {
+    const runContext = context?.runContext || {};
+    const platformKey = typeof runContext.platformKey === 'string' ? runContext.platformKey : '';
+    if (!platformKey) {
+      throw new Error('session_summary requires runContext.platformKey');
+    }
+
+    const ownerKey = typeof runContext.ownerKey === 'string' ? runContext.ownerKey : undefined;
+    const days = input.days ?? 3;
+    const includeUser = input.includeUserMessages !== false;
+    const includeAssistant = input.includeAssistantMessages !== false;
+    const maxMessages = input.maxMessagesPerSession ?? DEFAULT_MAX_MESSAGES;
+
+    const now = new Date();
+    const sinceDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1)));
+    const untilDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    const sinceMs = sinceDate.getTime();
+    const untilMs = untilDate.getTime();
+
+    let summaries: SessionSummary[] = [];
+
+    if (input.sessionId) {
+      const detail = await sessionStore.getSessionDetail(platformKey, input.sessionId, ownerKey);
+      if (detail) {
+        summaries = [buildSessionSummary(detail, includeUser, includeAssistant, maxMessages)];
+      }
+    } else {
+      const sessions = await sessionStore.listSessions(platformKey, 50);
+      const candidates = sessions.filter((session) => session.updatedAt >= sinceMs && session.updatedAt <= untilMs);
+      const details = await Promise.all(
+        candidates.map((session) => sessionStore.getSessionDetail(platformKey, session.id, ownerKey)),
+      );
+      summaries = details
+        .filter((detail): detail is NonNullable<typeof detail> => Boolean(detail))
+        .map((detail) => buildSessionSummary(detail, includeUser, includeAssistant, maxMessages));
+    }
+
+    return {
+      ok: true,
+      platformKey,
+      ownerKey,
+      since: sinceDate.toISOString().slice(0, 10),
+      until: untilDate.toISOString().slice(0, 10),
+      matchedSessions: summaries.length,
+      sessions: summaries,
+    };
+  },
+};
+
+function buildSessionSummary(
+  session: { id: string; createdAt: number; updatedAt: number; messages: unknown[] },
+  includeUser: boolean,
+  includeAssistant: boolean,
+  maxMessages: number,
+): SessionSummary {
+  const rawMessages = session.messages || [];
+  const filtered = rawMessages
+    .map((message) => normalizeMessage(message))
+    .filter((message) => {
+      if (!message) return false;
+      if (message.role === 'user') return includeUser;
+      if (message.role === 'assistant') return includeAssistant;
+      return false;
+    })
+    .slice(-maxMessages);
+
+  const excerpt = filtered.map((message) => {
+    const role = message.role ?? 'unknown';
+    const text = summarizeContent(message.content);
+    return `${role}: ${text}`.trim();
+  });
+
+  return {
+    sessionId: session.id,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    messageCount: rawMessages.length,
+    excerpt,
+  };
+}
+
+function normalizeMessage(message: unknown): SessionMessage | null {
+  if (!message || typeof message !== 'object') {
+    return null;
+  }
+  const candidate = message as { role?: unknown; content?: unknown };
+  if (typeof candidate.role !== 'string') {
+    return null;
+  }
+  return {
+    role: candidate.role as MessageRole,
+    content: candidate.content,
+  };
+}
+
+function summarizeContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return trimText(content);
+  }
+
+  if (Array.isArray(content)) {
+    const parts = content
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && 'text' in item) {
+          const text = (item as { text?: unknown }).text;
+          return typeof text === 'string' ? text : '';
+        }
+        return '';
+      })
+      .filter((part) => part.trim().length > 0);
+    return trimText(parts.join(' '));
+  }
+
+  if (content && typeof content === 'object') {
+    try {
+      return trimText(JSON.stringify(content));
+    } catch {
+      return trimText(String(content));
+    }
+  }
+
+  return trimText(String(content ?? ''));
+}
+
+function trimText(text: string, max = 240): string {
+  const normalized = text.trim().replace(/\s+/g, ' ');
+  if (!normalized) return '(empty)';
+  return normalized.length > max ? `${normalized.slice(0, max)}...` : normalized;
+}
