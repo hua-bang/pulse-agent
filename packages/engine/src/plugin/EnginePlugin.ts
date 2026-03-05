@@ -142,6 +142,10 @@ export interface EnginePluginContext {
   /** Returns a snapshot of all tools registered by plugins so far. */
   getTools(): Record<string, any>;
 
+  getEngineInstance(): {
+    tools: Record<string, any>;
+  };
+
   // Hook registration (replaces the old registerRunHook)
   registerHook<K extends EngineHookName>(hookName: K, handler: EngineHookMap[K]): void;
 
