@@ -32,7 +32,6 @@ export { builtInMCPPlugin } from './mcp-plugin';
 export { builtInSkillsPlugin, BuiltInSkillRegistry } from './skills-plugin';
 export { builtInPlanModePlugin, BuiltInPlanModeService } from './plan-mode-plugin';
 export { builtInToolSearchPlugin } from './tool-search-plugin';
-export type { ToolSearchDeferredSummary } from './tool-search-plugin';
 export { builtInTaskTrackingPlugin, TaskListService } from './task-tracking-plugin';
 export type { TaskStatus, WorkTask, WorkTaskListSnapshot } from './task-tracking-plugin';
 export { builtInAgentTeamsPlugin } from './agent-teams-plugin';
