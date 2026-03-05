@@ -1,7 +1,7 @@
 import type { EventEmitter } from 'events';
 import type { ModelMessage } from 'ai';
 
-import type { Context, SystemPromptOption } from '../shared/types.js';
+import type { Context, PulseEngineInstance, SystemPromptOption } from '../shared/types.js';
 
 // ---------------------------------------------------------------------------
 // Hook input / result types
@@ -142,9 +142,7 @@ export interface EnginePluginContext {
   /** Returns a snapshot of all tools registered by plugins so far. */
   getTools(): Record<string, any>;
 
-  getEngineInstance(): {
-    tools: Record<string, any>;
-  };
+  getEngineInstance(): PulseEngineInstance;
 
   // Hook registration (replaces the old registerRunHook)
   registerHook<K extends EngineHookName>(hookName: K, handler: EngineHookMap[K]): void;
