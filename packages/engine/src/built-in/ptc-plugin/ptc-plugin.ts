@@ -1,5 +1,5 @@
 import type { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
-import type { SystemPromptOption, Tool } from '../../shared/types';
+import type { SystemPromptOption, Tool, ToolExecutionContext } from '../../shared/types';
 
 type ToolWithPtc = Tool & {
   ptc?: {
@@ -58,6 +58,112 @@ function normalizeCallerList(raw: unknown): string[] {
       .map((item) => item.trim())
       .filter((item) => item.length > 0),
   );
+}
+
+function normalizeCallerToken(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function addCallerToken(target: Set<string>, value: unknown): void {
+  const normalized = normalizeCallerToken(value);
+  if (normalized) {
+    target.add(normalized);
+  }
+}
+
+function resolveCallerSelectors(runContext?: Record<string, any>): string[] {
+  if (!runContext || typeof runContext !== 'object') {
+    return [];
+  }
+
+  const selectors = new Set<string>();
+
+  addCallerToken(selectors, runContext.caller);
+  addCallerToken(selectors, runContext.callerType);
+  addCallerToken(selectors, runContext.caller_type);
+  addCallerToken(selectors, runContext.platform);
+  addCallerToken(selectors, runContext.platformKey);
+  addCallerToken(selectors, runContext.platform_key);
+  addCallerToken(selectors, runContext.source);
+
+  if (Array.isArray(runContext.callers)) {
+    for (const caller of runContext.callers) {
+      addCallerToken(selectors, caller);
+    }
+  }
+
+  const channel = runContext.channel;
+  if (channel && typeof channel === 'object') {
+    const channelInfo = channel as Record<string, any>;
+    const platform = normalizeCallerToken(channelInfo.platform);
+    const kind = normalizeCallerToken(channelInfo.kind);
+    const channelId = normalizeCallerToken(channelInfo.channelId ?? channelInfo.channel_id);
+    const userId = normalizeCallerToken(channelInfo.userId ?? channelInfo.user_id);
+
+    if (platform) {
+      selectors.add(platform);
+    }
+
+    if (kind) {
+      selectors.add(kind);
+    }
+
+    if (platform && kind) {
+      selectors.add(`${platform}:${kind}`);
+    }
+
+    if (channelId) {
+      selectors.add(channelId);
+      if (platform && kind) {
+        selectors.add(`${platform}:${kind}:${channelId}`);
+      }
+    }
+
+    if (userId) {
+      selectors.add(userId);
+      if (platform) {
+        selectors.add(`${platform}:${userId}`);
+      }
+    }
+  }
+
+  return [...selectors];
+}
+
+function isCallerAllowed(allowedCallers: string[], callerSelectors: string[]): boolean {
+  if (allowedCallers.length === 0) {
+    return true;
+  }
+
+  const selectorSet = new Set<string>();
+  for (const selector of callerSelectors) {
+    const normalized = normalizeCallerToken(selector);
+    if (normalized) {
+      selectorSet.add(normalized);
+    }
+  }
+
+  for (const allowed of allowedCallers) {
+    const normalized = normalizeCallerToken(allowed);
+    if (!normalized) {
+      continue;
+    }
+
+    if (normalized === '*') {
+      return true;
+    }
+
+    if (selectorSet.has(normalized)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function appendSystemPrompt(base: SystemPromptOption | undefined, append: string): SystemPromptOption {
@@ -132,17 +238,27 @@ function buildPromptHint(snapshot: PtcSnapshot, maxTools: number): string {
 
   return [
     'PTC plugin active.',
-    `PTC caller types: ${snapshot.callerTypes.join(', ')}`,
+    `PTC caller types: ${snapshot.callerTypes.length > 0 ? snapshot.callerTypes.join(', ') : '(none)'}`,
     `Tools exposed to callers: ${visibleNames.join(', ')}${suffix}`,
   ].join('\n');
 }
 
 class PtcService {
+  private callerSelectors: string[] = [];
+
   private snapshot: PtcSnapshot = {
     active: false,
     callerTypes: [],
     exposedToolNames: [],
   };
+
+  setCallerSelectors(selectors: string[]): void {
+    this.callerSelectors = selectors;
+  }
+
+  getCallerSelectors(): string[] {
+    return this.callerSelectors;
+  }
 
   setSnapshot(snapshot: PtcSnapshot): void {
     this.snapshot = snapshot;
@@ -166,38 +282,53 @@ export const builtInPtcPlugin: EnginePlugin = {
     const service = new PtcService();
     context.registerService(PTC_SERVICE_NAME, service);
 
-    context.registerHook('beforeRun', () => {
+    context.registerHook('beforeRun', ({ runContext }) => {
+      const callerSelectors = resolveCallerSelectors(runContext);
+      service.setCallerSelectors(callerSelectors);
       service.setSnapshot({
         active: true,
-        callerTypes: [],
+        callerTypes: callerSelectors,
         exposedToolNames: [],
       });
     });
 
     context.registerHook('beforeLLMCall', ({ tools, systemPrompt }) => {
-      const nextTools: Record<string, Tool> = { ...tools };
+      const callerSelectors = service.getCallerSelectors();
+      const nextTools: Record<string, Tool> = {};
       const exposedToolNames: string[] = [];
-      const callerTypes: string[] = [];
 
       for (const [toolName, originalTool] of Object.entries(tools)) {
         const tool = originalTool as ToolWithPtc;
         const allowedCallers = resolveAllowedCallers(context, config, toolName, tool);
         if (!allowedCallers) {
+          nextTools[toolName] = tool;
+          exposedToolNames.push(toolName);
+          continue;
+        }
+
+        if (!isCallerAllowed(allowedCallers, callerSelectors)) {
           continue;
         }
 
         nextTools[toolName] = {
           ...tool,
           allowed_callers: allowedCallers,
+          execute: async (input: unknown, executionContext?: ToolExecutionContext) => {
+            const runtimeSelectors = resolveCallerSelectors(executionContext?.runContext);
+            const selectors = runtimeSelectors.length > 0 ? runtimeSelectors : callerSelectors;
+            if (!isCallerAllowed(allowedCallers, selectors)) {
+              throw new Error(`[PTC] Tool "${toolName}" is not allowed for the current caller.`);
+            }
+            return await tool.execute(input, executionContext);
+          },
         } as Tool;
 
         exposedToolNames.push(toolName);
-        callerTypes.push(...allowedCallers);
       }
 
       const snapshot: PtcSnapshot = {
         active: true,
-        callerTypes: unique(callerTypes),
+        callerTypes: callerSelectors,
         exposedToolNames,
       };
       service.setSnapshot(snapshot);
@@ -211,6 +342,7 @@ export const builtInPtcPlugin: EnginePlugin = {
         systemPrompt: appendSystemPrompt(systemPrompt, buildPromptHint(snapshot, config.appendPromptMaxTools)),
       };
     });
+
 
     context.logger.info('[PTC] Built-in PTC plugin initialized', {
       strict: config.strict,
