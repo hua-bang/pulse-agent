@@ -6,6 +6,7 @@ import { sessionStore } from './core/session-store.js';
 import { memoryIntegration } from './core/memory-integration.js';
 import { worktreeIntegration } from './core/worktree/integration.js';
 import { startDiscordGateway } from './adapters/discord/gateway-manager.js';
+import { registerDiscordApplicationCommands } from './adapters/discord/application-commands.js';
 
 async function main() {
   // Initialize session store (creates directories if needed, loads index)
@@ -18,6 +19,10 @@ async function main() {
   await worktreeIntegration.initialize();
 
   await engine.initialize();
+
+  await registerDiscordApplicationCommands().catch((err) => {
+    console.error('[discord] Failed to register application commands:', err);
+  });
 
   startDiscordGateway();
 

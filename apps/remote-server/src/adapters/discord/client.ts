@@ -42,6 +42,26 @@ interface ChannelRequestOptions {
   replyToMessageId?: string;
 }
 
+type DiscordApplicationCommandOptionType = 3;
+
+export interface DiscordApplicationCommandOption {
+  type: DiscordApplicationCommandOptionType;
+  name: string;
+  description: string;
+  required?: boolean;
+  max_length?: number;
+}
+
+export interface DiscordApplicationCommandCreate {
+  name: string;
+  description: string;
+  options?: DiscordApplicationCommandOption[];
+}
+
+interface DiscordApplicationInfo {
+  id: string;
+}
+
 export class DiscordClient {
   private readonly baseUrl: string;
   private readonly botToken: string;
@@ -186,6 +206,57 @@ export class DiscordClient {
       `/channels/${encodeURIComponent(channelId)}/thread-members/@me`,
       {
         method: 'PUT',
+      },
+      true,
+    );
+  }
+
+  async getApplicationId(): Promise<string> {
+    this.ensureBotToken();
+    const app = await this.request<DiscordApplicationInfo>(
+      '/oauth2/applications/@me',
+      {
+        method: 'GET',
+      },
+      true,
+    );
+
+    const applicationId = app.id?.trim();
+    if (!applicationId) {
+      throw new Error('Discord application id is missing from /oauth2/applications/@me response');
+    }
+
+    return applicationId;
+  }
+
+  async upsertGlobalApplicationCommand(
+    applicationId: string,
+    command: DiscordApplicationCommandCreate,
+  ): Promise<void> {
+    this.ensureBotToken();
+    await this.request<void>(
+      `/applications/${encodeURIComponent(applicationId)}/commands`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(command),
+      },
+      true,
+    );
+  }
+
+  async upsertGuildApplicationCommand(
+    applicationId: string,
+    guildId: string,
+    command: DiscordApplicationCommandCreate,
+  ): Promise<void> {
+    this.ensureBotToken();
+    await this.request<void>(
+      `/applications/${encodeURIComponent(applicationId)}/guilds/${encodeURIComponent(guildId)}/commands`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(command),
       },
       true,
     );

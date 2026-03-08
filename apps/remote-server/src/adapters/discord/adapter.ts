@@ -527,11 +527,59 @@ function extractInteractionText(interaction: DiscordInteraction): string {
     return args;
   }
 
+  if (commandName === 'restart') {
+    return buildRestartCommandText(interaction.data?.options ?? []);
+  }
+
   if (PASSTHROUGH_SLASH_COMMANDS.has(commandName)) {
     return args ? `/${commandName} ${args}` : `/${commandName}`;
   }
 
   return args || commandName;
+}
+
+function buildRestartCommandText(options: DiscordCommandOption[]): string {
+  const modeRaw = findOptionValue(options, 'mode');
+  const branchRaw = findOptionValue(options, 'branch');
+
+  const mode = modeRaw ? modeRaw.toLowerCase() : '';
+  const branch = branchRaw?.trim() || '';
+
+  if (mode === 'status') {
+    return '/restart status';
+  }
+
+  if (mode === 'update') {
+    return branch ? `/restart update ${branch}` : '/restart update';
+  }
+
+  if (!mode && branch) {
+    return `/restart update ${branch}`;
+  }
+
+  if (mode) {
+    return branch ? `/restart ${mode} ${branch}` : `/restart ${mode}`;
+  }
+
+  return '/restart';
+}
+
+function findOptionValue(options: DiscordCommandOption[], targetName: string): string | undefined {
+  for (const option of options) {
+    const optionName = option.name?.trim().toLowerCase();
+    if (optionName === targetName && option.value !== undefined && option.value !== null) {
+      return String(option.value);
+    }
+
+    if (option.options && option.options.length > 0) {
+      const nested = findOptionValue(option.options, targetName);
+      if (nested !== undefined) {
+        return nested;
+      }
+    }
+  }
+
+  return undefined;
 }
 
 function collectOptionTokens(options: DiscordCommandOption[]): string[] {

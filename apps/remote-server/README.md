@@ -103,6 +103,8 @@ DISCORD_BOT_TOKEN=your_discord_bot_token
 # DISCORD_GATEWAY_URL=wss://gateway.discord.gg/?v=10&encoding=json
 # DISCORD_PROXY_URL=http://127.0.0.1:7890
 # DISCORD_DM_GATEWAY_ENABLED=true
+# DISCORD_COMMAND_REGISTER_ENABLED=true
+# DISCORD_COMMAND_GUILD_IDS=123456789012345678,987654321098765432
 ```
 
 ### 3) Guild usage (no HTTPS required)
@@ -118,7 +120,10 @@ DISCORD_GUILD_REQUIRE_MENTION=false
 ### 4) Slash commands (optional, requires HTTPS interactions endpoint)
 
 - `/ask <text>` for prompts in guild channels.
-- Optional pass-through commands: `/help`, `/new`, `/compact`, `/resume`, `/status`, `/soul`, etc.
+- Optional pass-through commands: `/help`, `/new`, `/compact`, `/resume`, `/status`, `/restart`, `/soul`, etc.
+- `/restart` is auto-registered on startup when `DISCORD_COMMAND_REGISTER_ENABLED=true`.
+- Slash option mapping: `mode=status` -> `/restart status`, `mode=update branch=<name>` -> `/restart update <name>`.
+- For faster propagation during development, set `DISCORD_COMMAND_GUILD_IDS`; global registration may take up to ~1 hour.
 
 ### 5) DM usage
 
