@@ -1,0 +1,8 @@
+{
+  "name": "wechat-article-search-skill",
+  "private": true,
+  "type": "commonjs",
+  "dependencies": {
+    "cheerio": "^1.1.2"
+  }
+}

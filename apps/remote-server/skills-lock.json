@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "wechat-article-search": {
+      "source": "openclaw/skills",
+      "sourceType": "github",
+      "computedHash": "4e231aa884ce2a1e9c78ccbee25829e1e54235cda39077eef8cd99aad46e6d37"
+    }
+  }
+}
