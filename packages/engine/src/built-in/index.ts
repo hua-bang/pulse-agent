@@ -11,6 +11,7 @@ import { builtInTaskTrackingPlugin } from './task-tracking-plugin';
 import { builtInRoleSoulPlugin } from './role-soul-plugin';
 import { SubAgentPlugin } from './sub-agent-plugin';
 import { builtInAgentTeamsPlugin } from './agent-teams-plugin';
+import { builtInPtcPlugin } from './ptc-plugin';
 
 /**
  * 默认内置插件列表
@@ -25,6 +26,7 @@ export const builtInPlugins = [
   new SubAgentPlugin(),
   builtInAgentTeamsPlugin,
   builtInRoleSoulPlugin,
+  builtInPtcPlugin,
 ];
 
 /**

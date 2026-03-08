@@ -5,7 +5,6 @@ type ToolWithPtc = Tool & {
   ptc?: {
     allowed_callers?: string[];
   };
-  allowed_callers?: string[];
 };
 
 type PtcConfig = {
@@ -17,7 +16,7 @@ type PtcConfig = {
 
 type PtcSnapshot = {
   active: boolean;
-  callerTypes: string[];
+  callerSelectors: string[];
   exposedToolNames: string[];
 };
 
@@ -82,55 +81,17 @@ function resolveCallerSelectors(runContext?: Record<string, any>): string[] {
   }
 
   const selectors = new Set<string>();
+  const rawSelectors = runContext.callerSelectors;
+
+  if (typeof rawSelectors === 'string') {
+    addCallerToken(selectors, rawSelectors);
+  } else if (Array.isArray(rawSelectors)) {
+    for (const selector of rawSelectors) {
+      addCallerToken(selectors, selector);
+    }
+  }
 
   addCallerToken(selectors, runContext.caller);
-  addCallerToken(selectors, runContext.callerType);
-  addCallerToken(selectors, runContext.caller_type);
-  addCallerToken(selectors, runContext.platform);
-  addCallerToken(selectors, runContext.platformKey);
-  addCallerToken(selectors, runContext.platform_key);
-  addCallerToken(selectors, runContext.source);
-
-  if (Array.isArray(runContext.callers)) {
-    for (const caller of runContext.callers) {
-      addCallerToken(selectors, caller);
-    }
-  }
-
-  const channel = runContext.channel;
-  if (channel && typeof channel === 'object') {
-    const channelInfo = channel as Record<string, any>;
-    const platform = normalizeCallerToken(channelInfo.platform);
-    const kind = normalizeCallerToken(channelInfo.kind);
-    const channelId = normalizeCallerToken(channelInfo.channelId ?? channelInfo.channel_id);
-    const userId = normalizeCallerToken(channelInfo.userId ?? channelInfo.user_id);
-
-    if (platform) {
-      selectors.add(platform);
-    }
-
-    if (kind) {
-      selectors.add(kind);
-    }
-
-    if (platform && kind) {
-      selectors.add(`${platform}:${kind}`);
-    }
-
-    if (channelId) {
-      selectors.add(channelId);
-      if (platform && kind) {
-        selectors.add(`${platform}:${kind}:${channelId}`);
-      }
-    }
-
-    if (userId) {
-      selectors.add(userId);
-      if (platform) {
-        selectors.add(`${platform}:${userId}`);
-      }
-    }
-  }
 
   return [...selectors];
 }
@@ -212,7 +173,7 @@ function resolveAllowedCallers(
   tool: ToolWithPtc,
 ): string[] | undefined {
   if (tool.allowed_callers !== undefined && !Array.isArray(tool.allowed_callers)) {
-    failOrWarn(context, config.strict, `Tool "${toolName}" has invalid allowed_callers at top level.`);
+    failOrWarn(context, config.strict, `Tool "${toolName}" has invalid allowed_callers.`);
   }
 
   if (tool.ptc?.allowed_callers !== undefined && !Array.isArray(tool.ptc.allowed_callers)) {
@@ -238,7 +199,7 @@ function buildPromptHint(snapshot: PtcSnapshot, maxTools: number): string {
 
   return [
     'PTC plugin active.',
-    `PTC caller types: ${snapshot.callerTypes.length > 0 ? snapshot.callerTypes.join(', ') : '(none)'}`,
+    `PTC caller selectors: ${snapshot.callerSelectors.length > 0 ? snapshot.callerSelectors.join(', ') : '(none)'}`,
     `Tools exposed to callers: ${visibleNames.join(', ')}${suffix}`,
   ].join('\n');
 }
@@ -248,7 +209,7 @@ class PtcService {
 
   private snapshot: PtcSnapshot = {
     active: false,
-    callerTypes: [],
+    callerSelectors: [],
     exposedToolNames: [],
   };
 
@@ -287,7 +248,7 @@ export const builtInPtcPlugin: EnginePlugin = {
       service.setCallerSelectors(callerSelectors);
       service.setSnapshot({
         active: true,
-        callerTypes: callerSelectors,
+        callerSelectors,
         exposedToolNames: [],
       });
     });
@@ -300,35 +261,30 @@ export const builtInPtcPlugin: EnginePlugin = {
       for (const [toolName, originalTool] of Object.entries(tools)) {
         const tool = originalTool as ToolWithPtc;
         const allowedCallers = resolveAllowedCallers(context, config, toolName, tool);
-        if (!allowedCallers) {
-          nextTools[toolName] = tool;
+
+        if (!allowedCallers || isCallerAllowed(allowedCallers, callerSelectors)) {
+          nextTools[toolName] = {
+            ...tool,
+            execute: async (input: unknown, executionContext?: ToolExecutionContext) => {
+              if (!allowedCallers) {
+                return await tool.execute(input, executionContext);
+              }
+
+              const runtimeSelectors = resolveCallerSelectors(executionContext?.runContext);
+              const selectors = runtimeSelectors.length > 0 ? runtimeSelectors : callerSelectors;
+              if (!isCallerAllowed(allowedCallers, selectors)) {
+                throw new Error(`[PTC] Tool "${toolName}" is not allowed for the current caller.`);
+              }
+              return await tool.execute(input, executionContext);
+            },
+          } as Tool;
           exposedToolNames.push(toolName);
-          continue;
         }
-
-        if (!isCallerAllowed(allowedCallers, callerSelectors)) {
-          continue;
-        }
-
-        nextTools[toolName] = {
-          ...tool,
-          allowed_callers: allowedCallers,
-          execute: async (input: unknown, executionContext?: ToolExecutionContext) => {
-            const runtimeSelectors = resolveCallerSelectors(executionContext?.runContext);
-            const selectors = runtimeSelectors.length > 0 ? runtimeSelectors : callerSelectors;
-            if (!isCallerAllowed(allowedCallers, selectors)) {
-              throw new Error(`[PTC] Tool "${toolName}" is not allowed for the current caller.`);
-            }
-            return await tool.execute(input, executionContext);
-          },
-        } as Tool;
-
-        exposedToolNames.push(toolName);
       }
 
       const snapshot: PtcSnapshot = {
         active: true,
-        callerTypes: callerSelectors,
+        callerSelectors,
         exposedToolNames,
       };
       service.setSnapshot(snapshot);
@@ -342,7 +298,6 @@ export const builtInPtcPlugin: EnginePlugin = {
         systemPrompt: appendSystemPrompt(systemPrompt, buildPromptHint(snapshot, config.appendPromptMaxTools)),
       };
     });
-
 
     context.logger.info('[PTC] Built-in PTC plugin initialized', {
       strict: config.strict,
