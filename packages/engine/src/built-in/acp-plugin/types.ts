@@ -1,5 +1,7 @@
 import type { ToolExecutionContext } from '../../shared/types';
 
+export type AcpTransport = 'http' | 'stdio';
+
 export interface AcpClientConfig {
   baseUrl: string;
   apiKey?: string;
@@ -9,6 +11,33 @@ export interface AcpClientConfig {
   sessionPromptPath: string;
   sessionCancelPath: string;
   initializeOptional: boolean;
+}
+
+export interface AcpStdioConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  timeoutMs: number;
+}
+
+export interface AcpClientStatus {
+  configured: boolean;
+  timeoutMs: number;
+  transport: AcpTransport;
+  baseUrl?: string;
+  command?: string;
+  env?: Record<string, string>;
+  cwd?: string;
+}
+
+export interface AcpClient {
+  isConfigured(): boolean;
+  getStatus(): AcpClientStatus;
+  ensureInitialized(): Promise<void>;
+  createSession(input: AcpNewSessionInput): Promise<AcpNewSessionResult>;
+  prompt(input: AcpPromptInput): Promise<AcpPromptResult>;
+  cancel(input: AcpCancelInput): Promise<{ ok: boolean; raw: unknown }>;
 }
 
 export interface AcpSessionBinding {
@@ -67,11 +96,36 @@ export interface EnsureSessionResult {
   reused: boolean;
 }
 
-export interface AcpBridgeStatus {
-  configured: boolean;
-  baseUrl?: string;
-  timeoutMs: number;
+export interface AcpBridgeStatus extends AcpClientStatus {
   defaultTarget: string;
+}
+
+export interface AcpBridgeService {
+  getStatus(): AcpBridgeStatus;
+  ensureBoundSession(input: EnsureSessionInput): Promise<EnsureSessionResult>;
+  promptWithBoundSession(input: {
+    remoteSessionId: string;
+    prompt: string;
+    target?: string;
+    metadata?: Record<string, unknown>;
+    forceNewSession?: boolean;
+  }): Promise<{
+    binding: AcpSessionBinding;
+    reusedSession: boolean;
+    text: string;
+    finishReason?: string;
+    raw: unknown;
+  }>;
+  cancelBoundSession(input: {
+    remoteSessionId: string;
+    reason?: string;
+    dropBinding?: boolean;
+  }): Promise<{
+    found: boolean;
+    canceled: boolean;
+    binding?: AcpSessionBinding;
+    raw?: unknown;
+  }>;
 }
 
 export type AcpToolExecutionContext = ToolExecutionContext | undefined;

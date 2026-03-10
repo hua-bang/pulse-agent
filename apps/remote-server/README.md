@@ -76,12 +76,24 @@ These tools map each `runContext.sessionId` (remote-server session) to one ACP s
 Minimal setup:
 
 ```bash
-# required
-export ACP_BRIDGE_BASE_URL=http://127.0.0.1:8787
+# stdio (recommended for codex/claude-code)
+export ACP_TRANSPORT=stdio
+export ACP_STDIO_COMMAND=/path/to/acp-agent
+# optional: comma-separated args and env pairs
+# export ACP_STDIO_ARGS=--flag1,--flag2=value
+# export ACP_STDIO_ENV=KEY=value,FOO=bar
 
-# optional
+# defaults
 export ACP_DEFAULT_TARGET=codex
+```
+
+HTTP bridge setup (optional fallback):
+
+```bash
+export ACP_TRANSPORT=http
+export ACP_BRIDGE_BASE_URL=http://127.0.0.1:8787
 export ACP_BRIDGE_API_KEY=your_token
+export ACP_DEFAULT_TARGET=codex
 ```
 
 Quick test via internal endpoint:
@@ -93,7 +105,6 @@ curl -sS -X POST \
   http://127.0.0.1:3000/internal/agent/run \
   -d '{"text":"Use acp_status first, then call acp_prompt with prompt=hello from remote-server ACP bridge and target=codex"}'
 ```
-
 
 - `POST /webhooks/feishu`
 - `POST /webhooks/discord`
