@@ -28,8 +28,19 @@ Useful package targets:
 - `pnpm --filter pulse-sandbox test`
 - `pnpm --filter pulse-coder-memory-plugin test`
 - `pnpm --filter @pulse-coder/remote-server build`
+- `pnpm --filter @pulse-coder/remote-server dev`
 
 Note: `apps/coder-demo` uses a placeholder test script, so app-level test runs may fail until it is replaced.
+
+## Remote server notes (`apps/remote-server`)
+- Entry point: `apps/remote-server/src/index.ts` bootstraps session store, memory integration, worktree binding, and engine.
+- HTTP server: `apps/remote-server/src/server.ts` mounts `/health`, webhook routes, and `/internal/*` routes.
+- Dispatcher: `apps/remote-server/src/core/dispatcher.ts` owns signature verification, fast ack, command parsing, and streaming.
+- Sessions: stored in `~/.pulse-coder/remote-sessions` with `index.json` + `sessions/*.json`.
+- Memory logs: stored in `~/.pulse-coder/remote-memory` via `pulse-coder-memory-plugin`.
+- Worktree binding: stored in `~/.pulse-coder/worktree-state` via `pulse-coder-plugin-kit`.
+- Internal API: `/internal/agent/run` is loopback-only and requires `INTERNAL_API_SECRET`.
+- Platform adapters: Feishu and Discord are mounted; Telegram/Web adapters exist but are not enabled by default.
 
 ## Coding Style & Naming Conventions
 Use TypeScript with strict mode and keep style consistent with neighboring files:

@@ -27,7 +27,12 @@ async function main() {
   const host = (process.env.HOST ?? '0.0.0.0').trim() || '0.0.0.0';
 
   console.log(`[remote-server] Starting on ${host}:${port}`);
-  serve({ fetch: app.fetch, port, hostname: host });
+  serve({
+    fetch: app.fetch,
+    port,
+    hostname: host,
+    overrideGlobalObjects: false,
+  });
   console.log(`[remote-server] Listening on http://${host}:${port}`);
   console.log(`[remote-server] Endpoints:`);
   console.log(`  GET  /health`);

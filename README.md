@@ -68,6 +68,19 @@ The engine auto-loads:
 - clarification flow via `clarify` tool,
 - built-in `run_js` tool from `pulse-sandbox`.
 
+### 6) Remote server runtime (`apps/remote-server`)
+`apps/remote-server` hosts the engine behind HTTP/webhooks for Feishu/Discord (Telegram/Web adapters exist but are not mounted by default).
+
+Key components:
+- Entry + server: `apps/remote-server/src/index.ts` and `apps/remote-server/src/server.ts`.
+- Dispatcher: `apps/remote-server/src/core/dispatcher.ts` handles signature verification, fast ack, slash commands, and streaming.
+- Agent runs: `apps/remote-server/src/core/agent-runner.ts` builds run context, resolves model overrides, and persists sessions.
+- Memory: `apps/remote-server/src/core/memory-integration.ts` records daily logs to `~/.pulse-coder/remote-memory`.
+- Sessions: `apps/remote-server/src/core/session-store.ts` stores sessions in `~/.pulse-coder/remote-sessions`.
+- Worktrees: `apps/remote-server/src/core/worktree/integration.ts` stores binding state in `~/.pulse-coder/worktree-state`.
+- Internal API: `apps/remote-server/src/routes/internal.ts` exposes `/internal/agent/run` plus Discord gateway status/restart (loopback-only + `INTERNAL_API_SECRET`).
+- Tools: `apps/remote-server/src/core/engine-singleton.ts` registers cron, deferred demo, Twitter list fetcher, session summary, and PTC demo tools.
+
 ---
 
 ## Built-in tools
@@ -122,6 +135,11 @@ pnpm run build
 ### 4) Start CLI
 ```bash
 pnpm start
+```
+
+### 5) Remote server (optional)
+```bash
+pnpm --filter @pulse-coder/remote-server dev
 ```
 
 ---
@@ -236,6 +254,7 @@ pnpm --filter pulse-coder-cli test
 pnpm --filter pulse-sandbox test
 pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter pulse-agent-test test
+pnpm --filter @pulse-coder/remote-server dev
 ```
 
 Notes:

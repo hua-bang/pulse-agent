@@ -48,6 +48,7 @@ pnpm --filter pulse-coder-cli test
 pnpm --filter pulse-sandbox test
 pnpm --filter pulse-coder-memory-plugin test
 pnpm --filter @pulse-coder/remote-server build
+pnpm --filter @pulse-coder/remote-server dev
 ```
 
 Notes:
@@ -90,6 +91,36 @@ CLI adds:
 
 Task tracking adds:
 - `task_create`, `task_get`, `task_list`, `task_update`.
+
+### Remote server runtime (`apps/remote-server`)
+Entry and server:
+- `apps/remote-server/src/index.ts` initializes session store, memory plugin, worktree binding, engine, Discord gateway, then starts the Hono server.
+- `apps/remote-server/src/server.ts` mounts `/health`, webhook routes, and `/internal/*` routes (web API routes are present but currently commented out).
+
+Dispatcher and agent execution:
+- `apps/remote-server/src/core/dispatcher.ts` verifies/acks webhooks, handles slash commands, prevents concurrent runs per `platformKey`, and streams output via adapter `StreamHandle` callbacks.
+- `apps/remote-server/src/core/agent-runner.ts` builds the per-run context, resolves model overrides, runs the engine, persists session state, and records daily memory logs.
+- `apps/remote-server/src/core/clarification-queue.ts` routes clarification prompts/answers for both webhook and gateway flows.
+
+State and configuration:
+- Sessions persist under `~/.pulse-coder/remote-sessions` (`index.json` + `sessions/*.json`).
+- Memory logs use `pulse-coder-memory-plugin` at `~/.pulse-coder/remote-memory`.
+- Worktree binding state uses `~/.pulse-coder/worktree-state`.
+- Model overrides are read from `.pulse-coder/config.json` or `$PULSE_CODER_MODEL_CONFIG` (`apps/remote-server/src/core/model-config.ts`).
+
+Platform adapters:
+- Feishu: `apps/remote-server/src/adapters/feishu/*` (event parsing, dedupe, cards, image replies).
+- Discord: webhooks in `adapters/discord/adapter.ts` and DM gateway in `adapters/discord/gateway.ts`.
+- Telegram and Web adapters exist but are not mounted by default.
+
+Internal automation:
+- `POST /internal/agent/run` runs an agent turn and can notify Feishu/Discord targets.
+- `GET /internal/discord/gateway/status` and `POST /internal/discord/gateway/restart` manage the gateway.
+- Internal routes are loopback-only and require `INTERNAL_API_SECRET`.
+
+Remote server tools:
+- Registered in `apps/remote-server/src/core/engine-singleton.ts` (cron scheduler, deferred demo, Twitter list fetcher, session summary, and PTC demo tools).
+- Some tools are `defer_loading: true` and only load after tool search discovery.
 
 ## Configuration
 
