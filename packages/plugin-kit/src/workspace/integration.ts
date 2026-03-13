@@ -25,6 +25,18 @@ export interface CreateWorkspaceIntegrationOptions extends FileWorkspaceServiceO
   resolver?: WorkspaceResolver;
 }
 
+export interface ResolveCurrentWorkspaceInput {
+  service: FileWorkspacePluginService;
+  resolver?: WorkspaceResolver;
+  runContext?: WorkspaceRunContext;
+  engineRunContext?: Record<string, any>;
+}
+
+export interface GetWorkspaceInput {
+  runContext?: WorkspaceRunContext;
+  engineRunContext?: Record<string, any>;
+}
+
 export interface WorkspaceRunContextAdapter {
   withContext<T>(context: WorkspaceRunContext, run: () => Promise<T>): Promise<T>;
   getContext(): WorkspaceRunContext | undefined;
@@ -36,6 +48,23 @@ export interface WorkspaceIntegration {
   initialize(): Promise<void>;
   withRunContext<T>(context: WorkspaceRunContext, run: () => Promise<T>): Promise<T>;
   getRunContext(): WorkspaceRunContext | undefined;
+  getWorkspace(input?: GetWorkspaceInput): Promise<WorkspaceContext | null>;
+}
+
+export async function resolveCurrentWorkspace(
+  input: ResolveCurrentWorkspaceInput,
+): Promise<WorkspaceContext | null> {
+  const resolver = input.resolver ?? defaultWorkspaceResolver;
+  const identity = await resolver({
+    runContext: input.runContext,
+    engineRunContext: input.engineRunContext,
+  });
+
+  if (!identity) {
+    return null;
+  }
+
+  return input.service.ensureWorkspace(identity);
 }
 
 export function createWorkspaceIntegration(options: CreateWorkspaceIntegrationOptions = {}): WorkspaceIntegration {
@@ -66,6 +95,13 @@ export function createWorkspaceIntegration(options: CreateWorkspaceIntegrationOp
     initialize: () => workspaceService.initialize(),
     withRunContext: (context, run) => adapter.withContext(context, run),
     getRunContext: () => adapter.getContext(),
+    getWorkspace: (input) =>
+      resolveCurrentWorkspace({
+        service: workspaceService,
+        resolver,
+        runContext: input?.runContext ?? adapter.getContext(),
+        engineRunContext: input?.engineRunContext,
+      }),
   };
 }
 
