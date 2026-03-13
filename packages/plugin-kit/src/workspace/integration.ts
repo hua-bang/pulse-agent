@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'async_hooks';
-import type { EnginePlugin, SystemPromptOption } from 'pulse-coder-engine';
+import type { EnginePlugin, SystemPromptOption, Tool } from 'pulse-coder-engine';
 import type {
   FileWorkspaceServiceOptions,
   WorkspaceContext,
@@ -13,6 +13,7 @@ const DEFAULT_PROMPT = [
   '## Workspace Binding',
   'This runtime has a bound workspace for the current session.',
   '- Use workspace paths for artifacts, logs, and configuration.',
+  '- workspace.root is NOT the git worktree path; use it only for artifacts/config/logs.',
   '- If a command result suggests another workspace, treat that as unexpected and return to the bound workspace.',
 ].join('\n');
 
@@ -23,6 +24,7 @@ export interface CreateWorkspaceIntegrationOptions extends FileWorkspaceServiceO
   pluginVersion?: string;
   promptHeader?: string;
   resolver?: WorkspaceResolver;
+  tools?: Record<string, Tool>;
 }
 
 export interface ResolveCurrentWorkspaceInput {
@@ -75,6 +77,7 @@ export function createWorkspaceIntegration(options: CreateWorkspaceIntegrationOp
     pluginVersion,
     promptHeader,
     resolver,
+    tools,
     ...serviceOptions
   } = options;
 
@@ -87,6 +90,7 @@ export function createWorkspaceIntegration(options: CreateWorkspaceIntegrationOp
     version: pluginVersion,
     promptHeader,
     resolver,
+    tools,
   });
 
   return {
@@ -112,6 +116,7 @@ export interface CreateWorkspaceEnginePluginOptions {
   version?: string;
   promptHeader?: string;
   resolver?: WorkspaceResolver;
+  tools?: Record<string, Tool>;
 }
 
 export function createWorkspaceEnginePlugin(options: CreateWorkspaceEnginePluginOptions): EnginePlugin {
@@ -125,6 +130,9 @@ export function createWorkspaceEnginePlugin(options: CreateWorkspaceEnginePlugin
     version: pluginVersion,
     async initialize(context) {
       context.registerService('workspaceService', options.service);
+      if (options.tools && Object.keys(options.tools).length > 0) {
+        context.registerTools(options.tools);
+      }
 
       context.registerHook('beforeRun', async ({ systemPrompt, runContext }) => {
         const identity = await resolver({ runContext: options.getRunContext(), engineRunContext: runContext });
