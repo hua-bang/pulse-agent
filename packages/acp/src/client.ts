@@ -20,7 +20,7 @@ import type {
   AcpSessionStore,
   EnsureSessionInput,
   EnsureSessionResult,
-} from './types';
+} from './types.js';
 
 export const ACP_SERVICE_NAME = 'acpBridgeService';
 export const DEFAULT_TARGET = 'codex';
@@ -711,7 +711,7 @@ export class AcpHttpClient {
     try {
       await this.postJson(this.config.initializePath, {
         client: {
-          name: 'pulse-coder-engine/built-in-acp',
+          name: 'pulse-coder-acp',
           version: '0.1.0',
         },
         capabilities: {
@@ -978,7 +978,7 @@ export class AcpStdioClient implements AcpClient {
       'initialize',
       {
         client: {
-          name: 'pulse-coder-engine/built-in-acp',
+          name: 'pulse-coder-acp',
           version: '0.1.0',
         },
         capabilities: {

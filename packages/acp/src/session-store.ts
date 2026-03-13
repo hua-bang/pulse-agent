@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 
-import type { AcpSessionBinding, AcpSessionStore } from './types';
+import type { AcpSessionBinding, AcpSessionStore } from './types.js';
 
 interface AcpSessionStorePayload {
   sessions: Record<string, AcpSessionBinding | Record<string, AcpSessionBinding>>;

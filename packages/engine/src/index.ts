@@ -1,7 +1,7 @@
 export { Engine } from './Engine.js';
-export { Engine as PulseAgent } from './Engine.js'; // 添加 PulseAgent 别名
+export { Engine as PulseAgent } from './Engine.js';
 
-// 插件系统导出
+// Plugin system exports
 export type {
   EnginePlugin,
   EnginePluginContext,
@@ -23,10 +23,11 @@ export type {
 export type { UserConfigPlugin, UserConfigPluginLoadOptions } from './plugin/UserConfigPlugin.js';
 export { PluginManager } from './plugin/PluginManager.js';
 
-// 内置插件导出
+// Built-in plugin exports
 export {
   builtInPlugins,
   builtInAcpPlugin,
+  createAcpPlugin,
   builtInMCPPlugin,
   builtInSkillsPlugin,
   builtInPlanModePlugin,
@@ -60,7 +61,7 @@ export type {
   TeamRunOutput
 } from './built-in/index.js';
 
-// 原有导出保持不变
+// Existing exports
 export * from './shared/types.js';
 export { loop } from './core/loop.js';
 export type { LoopOptions, LoopHooks, CompactionEvent } from './core/loop.js';

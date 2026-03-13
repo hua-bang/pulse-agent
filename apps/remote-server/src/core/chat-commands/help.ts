@@ -20,6 +20,7 @@ export function buildHelpMessage(): string {
     '/memory on|off - 开关当前会话 memory',
     '/memory pin <id> - 置顶一条 memory',
     '/memory forget <id> - 删除一条 memory',
+    '/acp <prompt> [target=codex] [--new] - 转发到 ACP 目标',
     '/current - 查看当前绑定会话',
     '/detach - 断开当前会话绑定（不删除历史）',
     '/resume - 查看历史会话（最近 10 条）',

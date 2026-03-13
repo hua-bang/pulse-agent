@@ -1,4 +1,4 @@
-import type { ToolExecutionContext } from '../../shared/types';
+import type { ToolExecutionContext } from 'pulse-coder-engine';
 
 export type AcpTransport = 'http' | 'stdio' | 'multi';
 
