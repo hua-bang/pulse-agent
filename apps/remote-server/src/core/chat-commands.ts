@@ -24,6 +24,7 @@ import { handleInsightCommand } from './chat-commands/handlers/insight-commands.
 import { handleSkillsCommand } from './chat-commands/handlers/skills-commands.js';
 import { handleSoulCommand } from './chat-commands/handlers/soul-commands.js';
 import { handleAcpCommand } from './chat-commands/handlers/acp-commands.js';
+import { getAcpState } from './acp/state.js';
 import { getActiveRun } from './active-run-store.js';
 
 /**
@@ -127,10 +128,16 @@ export async function processIncomingCommand(incoming: IncomingMessage): Promise
     case 'acp':
       return await handleAcpCommand(incoming.platformKey, args);
 
-    default:
+    default: {
+      // In ACP mode, pass unrecognized slash commands through to the ACP agent as-is
+      const acpState = await getAcpState(incoming.platformKey);
+      if (acpState) {
+        return { type: 'transformed', text: incoming.text };
+      }
       return {
         type: 'handled',
         message: `⚠️ 未知命令: /${command}\n\n${buildHelpMessage()}`,
       };
+    }
   }
 }
