@@ -36,6 +36,14 @@ export async function processIncomingCommand(incoming: IncomingMessage): Promise
     return { type: 'none' };
   }
 
+  // //cmd → force-forward to ACP agent (strips one slash, e.g. //clear → /clear)
+  if (raw.startsWith('//')) {
+    const acpState = await getAcpState(incoming.platformKey);
+    if (acpState) {
+      return { type: 'transformed', text: raw.slice(1) };
+    }
+  }
+
   const tokens = raw.slice(1).split(/\s+/).filter((token) => token.length > 0);
   if (tokens.length === 0) {
     return {
