@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import type { Tool, ToolExecutionContext } from '../../shared/types';
+import type { Tool, ToolExecutionContext } from './engine-types.js';
 
-import type { AcpBridgeService } from './client';
+import type { AcpBridgeService } from './client.js';
 
 function readRunContextString(runContext: Record<string, unknown> | undefined, key: string): string | undefined {
   if (!runContext) {

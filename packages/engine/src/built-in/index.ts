@@ -1,9 +1,10 @@
 /**
  * Built-in plugins for Pulse Coder Engine
- * 引擎内置插件集合
+ * Engine built-in plugin registry
  */
 
-import { builtInAcpPlugin } from './acp-plugin';
+import { createAcpPlugin } from 'pulse-coder-acp';
+import type { EnginePlugin } from '../plugin/EnginePlugin';
 import { builtInMCPPlugin } from './mcp-plugin';
 import { builtInSkillsPlugin } from './skills-plugin';
 import { builtInPlanModePlugin } from './plan-mode-plugin';
@@ -14,12 +15,13 @@ import { SubAgentPlugin } from './sub-agent-plugin';
 import { builtInAgentTeamsPlugin } from './agent-teams-plugin';
 import { builtInPtcPlugin } from './ptc-plugin';
 
+const acpPluginInstance: EnginePlugin = createAcpPlugin() as EnginePlugin;
+
 /**
- * 默认内置插件列表
- * 这些插件会在引擎启动时自动加载
+ * Default built-in plugins.
  */
-export const builtInPlugins = [
-  builtInAcpPlugin,
+export const builtInPlugins: EnginePlugin[] = [
+  acpPluginInstance,
   builtInMCPPlugin,
   builtInSkillsPlugin,
   builtInToolSearchPlugin,
@@ -32,9 +34,10 @@ export const builtInPlugins = [
 ];
 
 /**
- * 单独导出各个内置插件，便于外部使用
+ * Export built-in plugins individually.
  */
-export { builtInAcpPlugin } from './acp-plugin';
+export { createAcpPlugin } from 'pulse-coder-acp';
+export const builtInAcpPlugin: EnginePlugin = acpPluginInstance;
 export { builtInMCPPlugin } from './mcp-plugin';
 export { builtInSkillsPlugin, BuiltInSkillRegistry } from './skills-plugin';
 export { builtInPlanModePlugin, BuiltInPlanModeService } from './plan-mode-plugin';

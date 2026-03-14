@@ -23,6 +23,7 @@ import { handleModelCommand } from './chat-commands/handlers/model-commands.js';
 import { handleInsightCommand } from './chat-commands/handlers/insight-commands.js';
 import { handleSkillsCommand } from './chat-commands/handlers/skills-commands.js';
 import { handleSoulCommand } from './chat-commands/handlers/soul-commands.js';
+import { handleAcpCommand } from './chat-commands/handlers/acp-commands.js';
 import { getActiveRun } from './active-run-store.js';
 
 /**
@@ -38,7 +39,7 @@ export async function processIncomingCommand(incoming: IncomingMessage): Promise
   if (tokens.length === 0) {
     return {
       type: 'handled',
-      message: '⚠️ 请输入命令，例如 `/new`、`/clear`、`/compact`、`/resume`、`/fork`、`/memory`、`/status`、`/stop`、`/skills`、`/wt`。',
+      message: '⚠️ 请输入命令，例如 `/new`、`/clear`、`/compact`、`/resume`、`/fork`、`/memory`、`/status`、`/stop`、`/skills`、`/wt`、`/acp`。',
     };
   }
 
@@ -122,6 +123,9 @@ export async function processIncomingCommand(incoming: IncomingMessage): Promise
 
     case 'soul':
       return await handleSoulCommand(incoming.platformKey, args);
+
+    case 'acp':
+      return await handleAcpCommand(incoming.platformKey, args);
 
     default:
       return {
