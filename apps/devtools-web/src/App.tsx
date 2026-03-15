@@ -37,6 +37,8 @@ interface LlmSpan {
   outputTokens?: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
+  usageRaw?: string;
+  usageTruncated?: boolean;
 }
 
 interface ToolSpan {
@@ -792,6 +794,7 @@ export default function App() {
                     <th>Output Tok</th>
                     <th>Cache Read</th>
                     <th>Cache Write</th>
+                    <th>Usage</th>
                     <th>Tools</th>
                   </tr>
                 </thead>
@@ -820,6 +823,19 @@ export default function App() {
                       <td>{span.outputTokens ?? 'n/a'}</td>
                       <td>{span.cacheReadTokens ?? 'n/a'}</td>
                       <td>{span.cacheWriteTokens ?? 'n/a'}</td>
+                      <td>
+                        {span.usageRaw ? (
+                          <details className="usage-details">
+                            <summary className="usage-summary">View</summary>
+                            <pre className="usage-block">
+                              {span.usageRaw}
+                              {span.usageTruncated ? '\n…(truncated)' : ''}
+                            </pre>
+                          </details>
+                        ) : (
+                          'n/a'
+                        )}
+                      </td>
                       <td>
                         {span.toolCalls?.length
                           ? span.toolCalls.map((call, idx) => (
