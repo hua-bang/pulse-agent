@@ -18,15 +18,20 @@ export const CoderAI = (process.env.USE_ANTHROPIC
 
 /**
  * Construct a LLMProviderFactory from a named ModelType using environment variables.
- * - 'claude' → ANTHROPIC_API_KEY / ANTHROPIC_API_URL
+ * Both types use the OpenAI-compatible SDK since most proxies expose models via
+ * the OpenAI-compatible endpoint (/v1/chat/completions).
+ *
  * - 'openai' → OPENAI_API_KEY / OPENAI_API_URL
+ * - 'claude' → ANTHROPIC_API_KEY / ANTHROPIC_API_URL (falls back to OPENAI_* if unset)
+ *
+ * The modelType is still meaningful for pre-processing (e.g. system message consolidation).
  */
 export function buildProvider(type: ModelType): LLMProviderFactory {
   if (type === 'claude') {
-    return createAnthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-      baseURL: process.env.ANTHROPIC_API_URL || 'https://api.anthropic.com/v1',
-    }) as LLMProviderFactory;
+    return createOpenAI({
+      apiKey: process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '',
+      baseURL: process.env.ANTHROPIC_API_URL || process.env.OPENAI_API_URL || 'https://api.openai.com/v1',
+    }).responses as LLMProviderFactory;
   }
   return createOpenAI({
     apiKey: process.env.OPENAI_API_KEY || '',
