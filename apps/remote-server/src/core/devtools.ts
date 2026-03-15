@@ -29,6 +29,11 @@ export interface DevtoolsLlmSpan {
   durationMs?: number;
   finishReason?: string;
   textLength?: number;
+  toolCalls?: Array<{
+    name: string;
+    inputSize?: number;
+    inputPreview?: string;
+  }>;
 }
 
 export interface DevtoolsToolSpan {
@@ -240,6 +245,26 @@ class DevtoolsStore {
     span.finishReason = finishReason;
     span.textLength = typeof text === 'string' ? text.length : undefined;
     this.touch(record, timestamp);
+  }
+
+  recordToolCall(runId: string, name: string, input: unknown): void {
+    const record = this.runs.get(runId);
+    if (!record) {
+      return;
+    }
+    const span = [...record.llmSpans].reverse().find((item) => item.endedAt === undefined) ?? record.llmSpans.at(-1);
+    if (!span) {
+      return;
+    }
+    if (!span.toolCalls) {
+      span.toolCalls = [];
+    }
+    span.toolCalls.push({
+      name,
+      inputSize: safeStringify(input).length,
+      inputPreview: buildPreview(input, 140),
+    });
+    this.touch(record);
   }
 
   recordToolStart(runId: string, name: string, input: unknown): void {

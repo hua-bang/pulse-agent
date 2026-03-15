@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { CompactionEvent } from 'pulse-coder-engine';
 import type { ClarificationRequest } from './types.js';
 import { engine } from './engine-singleton.js';
+import { devtoolsStore } from './devtools.js';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 import { sessionStore } from './session-store.js';
 import { memoryIntegration, recordDailyLogFromSuccessPath } from './memory-integration.js';
@@ -285,7 +286,12 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
         })(),
         abortSignal: input.abortSignal,
         onText: callbacks.onText,
-        onToolCall: callbacks.onToolCall,
+        onToolCall: (toolCall) => {
+          const name = toolCall?.toolName ?? toolCall?.name ?? 'unknown';
+          const input = toolCall?.args ?? toolCall?.input ?? {};
+          devtoolsStore.recordToolCall(runId, name, input);
+          callbacks.onToolCall?.(toolCall);
+        },
         onToolResult: callbacks.onToolResult,
         onResponse: (messages) => {
           for (const msg of messages) {
