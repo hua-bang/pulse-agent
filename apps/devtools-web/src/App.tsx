@@ -109,6 +109,30 @@ function sanitizeBaseUrl(value: string): string {
   return trimmed.replace(/\/$/, '');
 }
 
+function extractCachedTokens(raw?: string): number | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      const direct = (parsed as any).cachedInputTokens;
+      if (typeof direct === 'number' && Number.isFinite(direct)) {
+        return direct;
+      }
+      const details = (parsed as any).inputTokenDetails;
+      if (details && typeof details.cacheReadTokens === 'number') {
+        return details.cacheReadTokens;
+      }
+      const rawDetails = (parsed as any).raw?.input_tokens_details;
+      if (rawDetails && typeof rawDetails.cached_tokens === 'number') {
+        return rawDetails.cached_tokens;
+      }
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 export default function App() {
   const initialBaseUrl = sanitizeBaseUrl(localStorage.getItem('devtoolsBaseUrl') || DEFAULT_BASE_URL);
   const [baseUrl, setBaseUrl] = useState(initialBaseUrl);
@@ -817,7 +841,7 @@ export default function App() {
                     <th>Text Len</th>
                     <th>Input Tok</th>
                     <th>Output Tok</th>
-                    <th>Cache Read</th>
+                    <th>Cached Tok</th>
                     <th>Cache Write</th>
                     <th>Usage</th>
                     <th>Tools</th>
@@ -852,7 +876,7 @@ export default function App() {
                       <td>{span.textLength ?? 'n/a'}</td>
                       <td>{span.inputTokens ?? 'n/a'}</td>
                       <td>{span.outputTokens ?? 'n/a'}</td>
-                      <td>{span.cacheReadTokens ?? 'n/a'}</td>
+                      <td>{span.cacheReadTokens ?? extractCachedTokens(span.usageRaw) ?? 'n/a'}</td>
                       <td>{span.cacheWriteTokens ?? 'n/a'}</td>
                       <td>
                         {span.usageRaw ? (
