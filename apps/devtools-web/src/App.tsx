@@ -288,6 +288,26 @@ export default function App() {
       return fallback?.index;
     };
 
+    const hookPriority = (hookName?: string) => {
+      if (!hookName) return 35;
+      if (hookName.startsWith('beforeRun')) return 0;
+      if (hookName.startsWith('onCompacted')) return 5;
+      if (hookName.startsWith('beforeLLMCall')) return 10;
+      if (hookName.startsWith('onToolCall')) return 25;
+      if (hookName.startsWith('beforeToolCall')) return 30;
+      if (hookName.startsWith('afterToolCall')) return 50;
+      if (hookName.startsWith('afterLLMCall')) return 60;
+      if (hookName.startsWith('afterRun')) return 70;
+      return 35;
+    };
+
+    const eventPriority = (event: { type: string; hookName?: string }) => {
+      if (event.type === 'llm') return 20;
+      if (event.type === 'tool') return 40;
+      if (event.type === 'hook') return hookPriority(event.hookName);
+      return 45;
+    };
+
     const slowestLlm = llmSpans.reduce<LlmSpan | null>((acc, span) => {
       if (!acc || (span.durationMs ?? 0) > (acc.durationMs ?? 0)) {
         return span;
@@ -339,14 +359,15 @@ export default function App() {
         const tooltip = `TTFT: ${formatMetric(ttft)}\nStream: ${formatMetric(stream)}\nTool wait: ${formatMetric(toolWait)}`;
 
         return {
-        type: 'llm' as const,
-        label: `LLM #${span.index}`,
-        start: span.startedAt,
-        end: span.endedAt ?? now,
-        duration: span.durationMs ?? Math.max(0, now - span.startedAt),
-        turn: span.index,
-        tooltip,
-      };
+          type: 'llm' as const,
+          label: `LLM #${span.index}`,
+          start: span.startedAt,
+          end: span.endedAt ?? now,
+          duration: span.durationMs ?? Math.max(0, now - span.startedAt),
+          turn: span.index,
+          tooltip,
+          priority: 20,
+        };
       }),
       ...selectedRun.toolSpans.map((span) => ({
         type: 'tool' as const,
@@ -355,10 +376,11 @@ export default function App() {
         end: span.endedAt ?? now,
         duration: span.durationMs ?? Math.max(0, now - span.startedAt),
         turn: resolveTurn(span.startedAt),
+        priority: 40,
       })),
     ]
       .filter((event) => Number.isFinite(event.start) && Number.isFinite(event.end))
-      .sort((a, b) => a.start - b.start);
+      .sort((a, b) => (a.start !== b.start ? a.start - b.start : (a.priority ?? 0) - (b.priority ?? 0)));
 
     const timelineHooks = pluginHooks
       .map((hook, idx) => ({
@@ -368,11 +390,16 @@ export default function App() {
         end: hook.startedAt + hook.durationMs,
         duration: hook.durationMs,
         turn: resolveTurn(hook.startedAt),
+        hookName: hook.hookName,
+        priority: hookPriority(hook.hookName),
       }))
       .filter((event) => Number.isFinite(event.start) && Number.isFinite(event.end))
-      .sort((a, b) => a.start - b.start);
+      .sort((a, b) => (a.start !== b.start ? a.start - b.start : (a.priority ?? 0) - (b.priority ?? 0)));
 
-    const timelineAll = [...timelineLlmTool, ...timelineHooks].sort((a, b) => a.start - b.start);
+    const timelineAll = [...timelineLlmTool, ...timelineHooks].sort((a, b) => {
+      if (a.start !== b.start) return a.start - b.start;
+      return eventPriority(a) - eventPriority(b);
+    });
 
     const gapEvents: Array<{
       start: number;
