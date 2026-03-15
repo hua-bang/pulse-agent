@@ -37,6 +37,8 @@ export interface DevtoolsLlmSpan {
   outputTokens?: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
+  usageRaw?: string;
+  usageTruncated?: boolean;
   toolCalls?: Array<{
     name: string;
     inputSize?: number;
@@ -409,6 +411,17 @@ export class DevtoolsStore {
     }
     span.finishReason = finishReason;
     span.textLength = typeof text === 'string' ? text.length : undefined;
+    if (usage !== undefined) {
+      const rawUsage = safeStringify(usage);
+      const limit = 4000;
+      if (rawUsage.length > limit) {
+        span.usageRaw = `${rawUsage.slice(0, limit)}...`;
+        span.usageTruncated = true;
+      } else {
+        span.usageRaw = rawUsage;
+        span.usageTruncated = false;
+      }
+    }
     const usageTokens = extractUsageTokens(usage);
     if (usageTokens.inputTokens !== undefined) {
       span.inputTokens = usageTokens.inputTokens;

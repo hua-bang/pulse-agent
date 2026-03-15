@@ -507,6 +507,33 @@ th {
   white-space: nowrap;
 }
 
+.usage-details {
+  font-size: 12px;
+}
+
+.usage-summary {
+  cursor: pointer;
+  color: var(--accent);
+  list-style: none;
+}
+
+.usage-summary::-webkit-details-marker {
+  display: none;
+}
+
+.usage-block {
+  margin: 6px 0 0;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fbfaf8;
+  border: 1px solid var(--border);
+  font-family: "Source Code Pro", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow: auto;
+}
+
 .empty {
   color: var(--text-muted);
   font-size: 14px;
