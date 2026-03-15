@@ -171,6 +171,30 @@ main {
   font-size: 18px;
 }
 
+.detail-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 12px;
+  background: #f3f2f0;
+  border: 1px solid var(--border);
+  margin: 14px 0 6px;
+}
+
+.detail-tabs .tab-button {
+  background: transparent;
+  border-color: transparent;
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+.detail-tabs .tab-button.active {
+  background: #fff;
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
 .filter-row {
   display: grid;
   grid-template-columns: 1fr;
