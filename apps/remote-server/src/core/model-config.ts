@@ -4,6 +4,7 @@ import { join, resolve, dirname } from 'path';
 
 type ModelConfig = {
   current_model?: string;
+  provider_type?: 'openai' | 'claude';
   models?: Array<{
     name?: string;
   }>;
@@ -188,28 +189,34 @@ export async function getModelStatus(): Promise<ModelStatus> {
   };
 }
 
-export async function resolveModelForRun(_platformKey: string): Promise<string | undefined> {
+export async function resolveModelForRun(_platformKey: string): Promise<{ model?: string; modelType?: 'openai' | 'claude' }> {
   const envPath = process.env.PULSE_CODER_MODEL_CONFIG?.trim();
   const configPath = await findConfigPath();
   const path = envPath || configPath || null;
   if (!path) {
-    return undefined;
+    return {};
   }
 
   try {
     const stat = await fs.stat(path);
     if (cachedConfig && cachedConfig.path === path && cachedConfig.mtimeMs === stat.mtimeMs) {
-      return selectModel(cachedConfig.data) ?? undefined;
+      return {
+        model: selectModel(cachedConfig.data) ?? undefined,
+        modelType: cachedConfig.data?.provider_type,
+      };
     }
 
     const data = await loadConfigFromPath(path, { warn: true });
     if (!data) {
-      return undefined;
+      return {};
     }
     cachedConfig = { path, mtimeMs: stat.mtimeMs, data };
-    return selectModel(data) ?? undefined;
+    return {
+      model: selectModel(data) ?? undefined,
+      modelType: data.provider_type,
+    };
   } catch {
-    return undefined;
+    return {};
   }
 }
 
