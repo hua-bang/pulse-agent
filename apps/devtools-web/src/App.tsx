@@ -25,6 +25,11 @@ interface LlmSpan {
   durationMs?: number;
   finishReason?: string;
   textLength?: number;
+  toolCalls?: Array<{
+    name: string;
+    inputSize?: number;
+    inputPreview?: string;
+  }>;
 }
 
 interface ToolSpan {
@@ -208,6 +213,7 @@ export default function App() {
                   <th>Duration</th>
                   <th>Finish</th>
                   <th>Text Len</th>
+                  <th>Tools</th>
                 </tr>
               </thead>
               <tbody>
@@ -217,6 +223,15 @@ export default function App() {
                     <td>{formatDuration(span.durationMs)}</td>
                     <td>{span.finishReason || 'n/a'}</td>
                     <td>{span.textLength ?? 'n/a'}</td>
+                    <td>
+                      {span.toolCalls?.length
+                        ? span.toolCalls.map((call, idx) => (
+                            <span key={`${call.name}-${idx}`} className="tool-chip" title={call.inputPreview || ''}>
+                              {call.name}
+                            </span>
+                          ))
+                        : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -343,14 +358,19 @@ export default function App() {
           </div>
           <div className="list">
             {runs.length ? (
-              runs.map((run) => (
+              runs.map((run, index) => (
                 <button
                   key={run.runId}
                   className={`run-card ${run.runId === selectedId ? 'active' : ''}`}
+                  data-status={run.status}
+                  style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
                   onClick={() => setSelectedId(run.runId)}
                 >
                   <div className="run-meta">
-                    <span className={`status ${run.status}`}>{run.status}</span>
+                    <span className={`status ${run.status}`}>
+                      <span className="status-dot" />
+                      {run.status}
+                    </span>
                     <span>{formatDuration(run.durationMs || Date.now() - run.startedAt)}</span>
                   </div>
                   <strong>{run.userTextPreview || 'No user text'}</strong>

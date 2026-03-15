@@ -1,17 +1,19 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
 :root {
-  --bg: #0c171d;
-  --bg-soft: #13232d;
-  --panel: #152732;
-  --panel-alt: #12242d;
-  --accent: #ffaf53;
-  --accent-2: #7fe2ff;
-  --text: #e8f1f6;
-  --text-muted: #9bb0bd;
+  --bg: #0a0f12;
+  --bg-soft: #12181c;
+  --panel: #141c21;
+  --panel-alt: #10171b;
+  --accent: #f2a23b;
+  --accent-2: #2de1a2;
+  --text: #f4efe7;
+  --text-muted: #b7aca1;
   --danger: #ff6b6b;
-  --success: #4cd37c;
-  --shadow: rgba(0, 0, 0, 0.28);
+  --success: #48d18f;
+  --shadow: rgba(0, 0, 0, 0.4);
   --radius: 18px;
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(244, 239, 231, 0.08);
 }
 
 * {
@@ -20,12 +22,17 @@
 
 body {
   margin: 0;
-  font-family: "Space Grotesk", "Sora", "Avenir Next", "Segoe UI", sans-serif;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at 20% 20%, rgba(127, 226, 255, 0.15), transparent 42%),
-    radial-gradient(circle at 80% 0%, rgba(255, 167, 78, 0.2), transparent 45%),
-    linear-gradient(160deg, #0c171e 0%, #142533 55%, #10212a 100%);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 12% 18%, rgba(242, 162, 59, 0.16), transparent 45%),
+    radial-gradient(circle at 90% 12%, rgba(45, 225, 162, 0.14), transparent 48%),
+    linear-gradient(130deg, rgba(255, 255, 255, 0.04) 0%, transparent 52%),
+    linear-gradient(180deg, #0a0f12 0%, #0d1418 40%, #0b1115 100%),
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: auto, auto, auto, auto, 36px 36px, 36px 36px;
   min-height: 100vh;
 }
 
@@ -36,15 +43,15 @@ body {
 .app {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
   padding: 28px;
-  animation: fadeIn 0.4s ease;
+  animation: fadeIn 0.5s ease;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -61,7 +68,8 @@ header {
 
 .title-block h1 {
   margin: 0 0 6px;
-  font-size: clamp(26px, 3vw, 36px);
+  font-family: "Fraunces", serif;
+  font-size: clamp(28px, 3.2vw, 40px);
   letter-spacing: 0.02em;
 }
 
@@ -73,14 +81,15 @@ header {
 
 .controls {
   display: grid;
-  grid-template-columns: 1.5fr auto auto;
+  grid-template-columns: 1.4fr auto auto;
   gap: 12px;
   align-items: center;
-  background: var(--panel);
+  background: rgba(20, 28, 33, 0.84);
   border-radius: var(--radius);
   padding: 14px 16px;
   border: 1px solid var(--border);
-  box-shadow: 0 12px 30px var(--shadow);
+  box-shadow: 0 14px 32px var(--shadow);
+  backdrop-filter: blur(6px);
 }
 
 .controls input {
@@ -88,32 +97,78 @@ header {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid transparent;
-  background: #0c1a22;
+  background: #0b1114;
   color: var(--text);
   font-size: 14px;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
 .controls input:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: rgba(242, 162, 59, 0.7);
+  box-shadow: 0 0 0 3px rgba(242, 162, 59, 0.12);
 }
 
 .button {
   border: none;
-  padding: 10px 16px;
+  padding: 10px 18px;
   border-radius: 999px;
-  background: linear-gradient(120deg, var(--accent), #ffcc7a);
-  color: #2b1a06;
+  background: linear-gradient(120deg, var(--accent), #f6c16c);
+  color: #2c1a05;
   font-weight: 600;
   cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 16px rgba(242, 162, 59, 0.25);
+}
+
+.button:active {
+  transform: translateY(1px) scale(0.99);
 }
 
 .toggle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   color: var(--text-muted);
   font-size: 13px;
+}
+
+.toggle input {
+  appearance: none;
+  width: 42px;
+  height: 22px;
+  border-radius: 999px;
+  background: #0a0f12;
+  border: 1px solid var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease, border 0.2s ease;
+}
+
+.toggle input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.toggle input:checked {
+  background: rgba(45, 225, 162, 0.25);
+  border-color: rgba(45, 225, 162, 0.6);
+}
+
+.toggle input:checked::after {
+  transform: translateX(20px);
+  background: var(--accent-2);
 }
 
 main {
@@ -123,11 +178,12 @@ main {
 }
 
 .panel {
-  background: var(--panel);
+  background: rgba(20, 28, 33, 0.92);
   border-radius: var(--radius);
   padding: 18px;
   border: 1px solid var(--border);
-  box-shadow: 0 12px 30px var(--shadow);
+  box-shadow: 0 14px 32px var(--shadow);
+  backdrop-filter: blur(6px);
 }
 
 .panel-header {
@@ -152,6 +208,15 @@ main {
   padding-right: 6px;
 }
 
+.list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
 .run-card {
   border: 1px solid var(--border);
   background: var(--panel-alt);
@@ -160,19 +225,58 @@ main {
   cursor: pointer;
   display: grid;
   gap: 6px;
-  transition: transform 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.25s ease, border 0.25s ease, box-shadow 0.25s ease;
   text-align: left;
   color: inherit;
+  animation: riseIn 0.5s ease both;
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .run-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.4);
+}
+
+.run-card:focus-visible {
+  outline: 2px solid rgba(242, 162, 59, 0.7);
+  outline-offset: 2px;
 }
 
 .run-card.active {
-  border-color: var(--accent-2);
-  box-shadow: 0 12px 28px rgba(127, 226, 255, 0.2);
+  border-color: rgba(242, 162, 59, 0.6);
+  box-shadow: 0 18px 32px rgba(242, 162, 59, 0.18);
+}
+
+.run-card[data-status="running"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--accent-2), transparent);
+  animation: pulseBar 1.6s ease-in-out infinite;
+}
+
+@keyframes pulseBar {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.9;
+  }
 }
 
 .run-meta {
@@ -183,9 +287,32 @@ main {
 }
 
 .status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+  animation: statusPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
 }
 
 .status.running {
@@ -221,7 +348,7 @@ main {
 }
 
 .detail-card {
-  background: #0f2029;
+  background: #0f171b;
   border-radius: 14px;
   padding: 12px;
   border: 1px solid var(--border);
@@ -250,12 +377,12 @@ main {
 }
 
 .mono-block {
-  background: #0b1a22;
+  background: #0a1013;
   border-radius: 12px;
   padding: 12px;
   border: 1px solid var(--border);
   color: var(--text);
-  font-family: "JetBrains Mono", "Fira Code", monospace;
+  font-family: "IBM Plex Mono", "Fira Code", monospace;
   font-size: 12px;
   white-space: pre-wrap;
 }
@@ -273,12 +400,29 @@ td {
   border-bottom: 1px solid var(--border);
 }
 
+tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 th {
   color: var(--text-muted);
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(242, 162, 59, 0.12);
+  border: 1px solid rgba(242, 162, 59, 0.25);
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
 }
 
 .empty {
