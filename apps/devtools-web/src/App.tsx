@@ -418,33 +418,44 @@ export default function App() {
       if (a.start !== b.start) return a.start - b.start;
       return eventPriority(a) - eventPriority(b);
     });
-    const timelineAllFiltered = timelineAll.filter((event) => {
-      if (!event.turn || event.turn < 1) {
-        return rangeFrom <= 1;
-      }
-      return event.turn >= rangeFrom && event.turn <= rangeTo;
-    });
+    const filterByTurn = <T extends { turn?: number }>(events: T[]) =>
+      events.filter((event) => {
+        if (!event.turn || event.turn < 1) {
+          return rangeFrom <= 1;
+        }
+        return event.turn >= rangeFrom && event.turn <= rangeTo;
+      });
 
-    const groupedTimeline = new Map<number, typeof timelineAllFiltered>();
-    for (const event of timelineAllFiltered) {
-      const key = event.turn && event.turn > 0 ? event.turn : 0;
-      const bucket = groupedTimeline.get(key) ?? [];
-      bucket.push(event);
-      groupedTimeline.set(key, bucket);
-    }
-    const timelineRows: Array<
-      | { type: 'separator'; key: string; label: string }
-      | { type: 'event'; key: string; event: (typeof timelineAllFiltered)[number] }
-    > = [];
-    const turnKeys = Array.from(groupedTimeline.keys()).sort((a, b) => a - b);
-    for (const turnKey of turnKeys) {
-      const label = turnKey === 0 ? 'Pre-run' : `Turn T${turnKey}`;
-      timelineRows.push({ type: 'separator', key: `sep-${turnKey}`, label });
-      const events = groupedTimeline.get(turnKey) ?? [];
+    const buildTimelineRows = <T extends { turn?: number; type: string; start: number; label: string }>(events: T[]) => {
+      const grouped = new Map<number, T[]>();
       for (const event of events) {
-        timelineRows.push({ type: 'event', key: `${event.type}-${event.start}-${event.label}`, event });
+        const key = event.turn && event.turn > 0 ? event.turn : 0;
+        const bucket = grouped.get(key) ?? [];
+        bucket.push(event);
+        grouped.set(key, bucket);
       }
-    }
+      const rows: Array<
+        | { type: 'separator'; key: string; label: string }
+        | { type: 'event'; key: string; event: T }
+      > = [];
+      const turnKeys = Array.from(grouped.keys()).sort((a, b) => a - b);
+      for (const turnKey of turnKeys) {
+        const label = turnKey === 0 ? 'Pre-run' : `Turn T${turnKey}`;
+        rows.push({ type: 'separator', key: `sep-${turnKey}`, label });
+        const bucket = grouped.get(turnKey) ?? [];
+        for (const event of bucket) {
+          rows.push({ type: 'event', key: `${event.type}-${event.start}-${event.label}`, event });
+        }
+      }
+      return rows;
+    };
+
+    const timelineAllFiltered = filterByTurn(timelineAll);
+    const timelineRows = buildTimelineRows(timelineAllFiltered);
+    const timelineLlmToolFiltered = filterByTurn(timelineLlmTool);
+    const timelineLlmToolRows = buildTimelineRows(timelineLlmToolFiltered);
+    const timelineHooksFiltered = filterByTurn(timelineHooks);
+    const timelineHookRows = buildTimelineRows(timelineHooksFiltered);
 
     const gapEvents: Array<{
       start: number;
@@ -661,13 +672,61 @@ export default function App() {
 
             <section className="section">
               <h2>Timeline</h2>
-              {timelineLlmTool.length ? (
+              {maxTurn > 1 ? (
+                <div className="timeline-filter">
+                  <label>
+                    From
+                    <select
+                      value={rangeFrom}
+                      onChange={(event) =>
+                        setTimelineRange((current) => ({
+                          ...current,
+                          from: Number(event.target.value),
+                        }))
+                      }
+                    >
+                      {Array.from({ length: maxTurn }, (_, idx) => idx + 1).map((turn) => (
+                        <option key={`llm-from-${turn}`} value={turn}>
+                          T{turn}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    To
+                    <select
+                      value={rangeTo}
+                      onChange={(event) =>
+                        setTimelineRange((current) => ({
+                          ...current,
+                          to: Number(event.target.value),
+                        }))
+                      }
+                    >
+                      {Array.from({ length: maxTurn }, (_, idx) => idx + 1).map((turn) => (
+                        <option key={`llm-to-${turn}`} value={turn}>
+                          T{turn}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+              {timelineLlmToolFiltered.length ? (
                 <div className="timeline">
-                  {timelineLlmTool.map((event, idx) => {
+                  {timelineLlmToolRows.map((row) => {
+                    if (row.type === 'separator') {
+                      return (
+                        <div key={row.key} className="timeline-divider">
+                          <span>{row.label}</span>
+                        </div>
+                      );
+                    }
+                    const event = row.event;
                     const left = ((event.start - runStart) / runDuration) * 100;
                     const width = ((event.end - event.start) / runDuration) * 100;
                     return (
-                      <div key={`${event.type}-${idx}`} className={`timeline-row ${event.type}`}>
+                      <div key={row.key} className={`timeline-row ${event.type}`}>
                         <div className="timeline-label">{event.label}</div>
                         <div className="timeline-track" data-tooltip={event.tooltip}>
                           <div
@@ -972,13 +1031,61 @@ export default function App() {
 
             <section className="section">
               <h2>Hook Timeline</h2>
-              {timelineHooks.length ? (
+              {maxTurn > 1 ? (
+                <div className="timeline-filter">
+                  <label>
+                    From
+                    <select
+                      value={rangeFrom}
+                      onChange={(event) =>
+                        setTimelineRange((current) => ({
+                          ...current,
+                          from: Number(event.target.value),
+                        }))
+                      }
+                    >
+                      {Array.from({ length: maxTurn }, (_, idx) => idx + 1).map((turn) => (
+                        <option key={`hook-from-${turn}`} value={turn}>
+                          T{turn}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    To
+                    <select
+                      value={rangeTo}
+                      onChange={(event) =>
+                        setTimelineRange((current) => ({
+                          ...current,
+                          to: Number(event.target.value),
+                        }))
+                      }
+                    >
+                      {Array.from({ length: maxTurn }, (_, idx) => idx + 1).map((turn) => (
+                        <option key={`hook-to-${turn}`} value={turn}>
+                          T{turn}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+              {timelineHooksFiltered.length ? (
                 <div className="timeline">
-                  {timelineHooks.map((event, idx) => {
+                  {timelineHookRows.map((row) => {
+                    if (row.type === 'separator') {
+                      return (
+                        <div key={row.key} className="timeline-divider">
+                          <span>{row.label}</span>
+                        </div>
+                      );
+                    }
+                    const event = row.event;
                     const left = ((event.start - runStart) / runDuration) * 100;
                     const width = ((event.end - event.start) / runDuration) * 100;
                     return (
-                      <div key={`${event.type}-${idx}`} className={`timeline-row ${event.type}`}>
+                      <div key={row.key} className={`timeline-row ${event.type}`}>
                         <div className="timeline-label">{event.label}</div>
                         <div className="timeline-track">
                           <div
