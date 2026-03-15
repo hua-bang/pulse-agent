@@ -369,7 +369,12 @@ export default function App() {
           (span.firstChunkAt && span.endedAt ? Math.max(0, span.endedAt - span.firstChunkAt) : undefined);
         const toolTime = toolTimeForSpan(span);
         const toolWait = span.durationMs !== undefined ? Math.max(0, (span.durationMs ?? 0) - toolTime) : undefined;
-        const tooltip = `TTFT: ${formatMetric(ttft)}\nStream: ${formatMetric(stream)}\nTool wait: ${formatMetric(toolWait)}`;
+        const tooltip = [
+          `TTFT: ${formatMetric(ttft)}`,
+          `Stream: ${formatMetric(stream)}`,
+          `Tool wait: ${formatMetric(toolWait)}`,
+          `Tool exec: ${formatMetric(toolTime)}`,
+        ].join('\n');
 
         return {
           type: 'llm' as const,
@@ -1214,7 +1219,7 @@ export default function App() {
           {listError ? <div className="error">{listError}</div> : null}
         </section>
 
-        <section className="panel">
+        <section className="panel panel-detail">
           <h2>Details</h2>
           {renderDetail()}
         </section>

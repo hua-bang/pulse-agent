@@ -148,6 +148,7 @@ main {
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 20px;
+  min-height: 0;
 }
 
 .panel {
@@ -156,6 +157,7 @@ main {
   padding: 18px;
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  min-height: 0;
 }
 
 .panel-header {
@@ -169,6 +171,17 @@ main {
 .panel h2 {
   margin: 0 0 12px;
   font-size: 18px;
+}
+
+.panel-detail {
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-detail .detail {
+  overflow-y: auto;
+  padding-right: 6px;
+  max-height: calc(100vh - 240px);
 }
 
 .detail-tabs {
@@ -607,7 +620,7 @@ th {
   height: 10px;
   background: #f1f0ed;
   border-radius: 999px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .timeline-divider {
