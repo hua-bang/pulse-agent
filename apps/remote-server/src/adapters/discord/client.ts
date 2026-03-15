@@ -12,6 +12,20 @@ interface DiscordApiError {
   message?: string;
 }
 
+export interface DiscordMessageComponent {
+  type: 1;
+  components: DiscordButtonComponent[];
+}
+
+interface DiscordButtonComponent {
+  type: 2;
+  style: 1 | 2 | 3 | 4 | 5;
+  label?: string;
+  custom_id?: string;
+  url?: string;
+  disabled?: boolean;
+}
+
 interface DiscordApiEnvelope<T> {
   data?: T;
   errors?: DiscordApiError;
@@ -40,6 +54,7 @@ interface EnsureThreadMembershipOptions {
 interface ChannelRequestOptions {
   assumeThread?: boolean;
   replyToMessageId?: string;
+  components?: DiscordMessageComponent[];
 }
 
 type DiscordApplicationCommandOptionType = 3;
@@ -78,19 +93,35 @@ export class DiscordClient {
     this.userAgent = resolveDiscordUserAgent();
   }
 
-  async editOriginalResponse(applicationId: string, interactionToken: string, content: string): Promise<void> {
+  async editOriginalResponse(
+    applicationId: string,
+    interactionToken: string,
+    content: string,
+    components?: DiscordMessageComponent[],
+  ): Promise<void> {
     await this.request<void>(`/webhooks/${applicationId}/${interactionToken}/messages/@original`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content: limitDiscordContent(content) }),
+      body: JSON.stringify({ content: limitDiscordContent(content), components }),
     });
   }
 
-  async createFollowupMessage(applicationId: string, interactionToken: string, content: string): Promise<void> {
+  async deleteOriginalResponse(applicationId: string, interactionToken: string): Promise<void> {
+    await this.request<void>(`/webhooks/${applicationId}/${interactionToken}/messages/@original`, {
+      method: 'DELETE',
+    });
+  }
+
+  async createFollowupMessage(
+    applicationId: string,
+    interactionToken: string,
+    content: string,
+    components?: DiscordMessageComponent[],
+  ): Promise<void> {
     await this.request<void>(`/webhooks/${applicationId}/${interactionToken}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ content: limitDiscordContent(content) }),
+      body: JSON.stringify({ content: limitDiscordContent(content), components }),
     });
   }
 
@@ -279,7 +310,7 @@ export class DiscordClient {
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(buildChannelMessagePayload(content, options.replyToMessageId)),
+          body: JSON.stringify(buildChannelMessagePayload(content, options)),
         },
         true,
       ),
@@ -497,20 +528,28 @@ function limitDiscordContent(text: string): string {
   return `${normalized.slice(0, DISCORD_MESSAGE_LIMIT - 3)}...`;
 }
 
-function buildChannelMessagePayload(content: string, replyToMessageId?: string): { content: string; message_reference?: { message_id: string; fail_if_not_exists: boolean } } {
+function buildChannelMessagePayload(
+  content: string,
+  options: ChannelRequestOptions = {},
+): { content: string; message_reference?: { message_id: string; fail_if_not_exists: boolean }; components?: DiscordMessageComponent[] } {
   const payload: {
     content: string;
     message_reference?: { message_id: string; fail_if_not_exists: boolean };
+    components?: DiscordMessageComponent[];
   } = {
     content: limitDiscordContent(content),
   };
 
-  const trimmedReplyId = replyToMessageId?.trim();
+  const trimmedReplyId = options.replyToMessageId?.trim();
   if (trimmedReplyId) {
     payload.message_reference = {
       message_id: trimmedReplyId,
       fail_if_not_exists: false,
     };
+  }
+
+  if (options.components && options.components.length > 0) {
+    payload.components = options.components;
   }
 
   return payload;
