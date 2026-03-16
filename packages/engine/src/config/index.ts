@@ -28,12 +28,10 @@ export const CoderAI = (process.env.USE_ANTHROPIC
  */
 export function buildProvider(type: ModelType): LLMProviderFactory {
   if (type === 'claude') {
-    // Use .chat (→ /v1/chat/completions) since most proxies expose Claude
-    // via the standard OpenAI-compatible chat endpoint, not the Responses API.
-    return createOpenAI({
-      apiKey: process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY || '',
-      baseURL: process.env.ANTHROPIC_API_URL || process.env.OPENAI_API_URL || 'https://api.openai.com/v1',
-    }).chat as LLMProviderFactory;
+    return createAnthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY || '',
+      baseURL: process.env.ANTHROPIC_API_URL || 'https://api.anthropic.com/v1',
+    }) as LLMProviderFactory;
   }
   return createOpenAI({
     apiKey: process.env.OPENAI_API_KEY || '',
