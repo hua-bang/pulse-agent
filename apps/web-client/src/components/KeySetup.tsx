@@ -16,7 +16,7 @@ export function KeySetup({ onKeySet }: Props) {
       setError('请输入 API Key');
       return;
     }
-    localStorage.setItem('web_api_key', key);
+    try { localStorage.setItem('web_api_key', key); } catch { /* ignore */ }
     onKeySet(key);
   }
 

@@ -2,6 +2,16 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { postChat, openStream, postClarify } from '../api/client';
 import './ChatView.css';
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -68,8 +78,8 @@ export function ChatView({ apiKey, userId, onKeyInvalid }: Props) {
     setSending(true);
     setInput('');
 
-    addMessage({ id: crypto.randomUUID(), role: 'user', content: trimmed });
-    const assistantId = crypto.randomUUID();
+    addMessage({ id: generateId(), role: 'user', content: trimmed });
+    const assistantId = generateId();
     addMessage({ id: assistantId, role: 'assistant', content: '', streaming: true, toolCalls: [] });
 
     try {
