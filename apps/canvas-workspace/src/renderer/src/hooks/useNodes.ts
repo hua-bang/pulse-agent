@@ -65,16 +65,43 @@ export const useNodes = (
       const node: CanvasNode = {
         id: genId(),
         type,
-        title: type === "file" ? "Untitled File" : "Terminal",
+        title: type === "file" ? "Untitled" : "Terminal",
         x,
         y,
         width: type === "file" ? 420 : 480,
-        height: type === "file" ? 320 : 300,
+        height: type === "file" ? 360 : 300,
         data:
           type === "file"
-            ? { filePath: "", content: "" }
+            ? { filePath: "", content: "", saved: false, modified: false }
             : { sessionId: "" }
       };
+
+      // Auto-create note file for file nodes
+      if (type === "file") {
+        const api = window.canvasWorkspace?.file;
+        if (api) {
+          void api.createNote().then((res) => {
+            if (res.ok && res.filePath) {
+              setNodes((prev) =>
+                prev.map((n) =>
+                  n.id === node.id
+                    ? {
+                        ...n,
+                        title: res.fileName?.replace(/\.md$/, "") || n.title,
+                        data: {
+                          ...n.data,
+                          filePath: res.filePath
+                        }
+                      }
+                    : n
+                )
+              );
+              scheduleSave();
+            }
+          });
+        }
+      }
+
       setNodes((prev) => [...prev, node]);
       scheduleSave();
       return node;

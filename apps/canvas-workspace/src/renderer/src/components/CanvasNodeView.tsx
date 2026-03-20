@@ -98,8 +98,8 @@ export const CanvasNodeView = ({
         <span className={`node-type-badge node-type-badge--${node.type}`}>
           {node.type === "file" ? (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <path d="M4 2h5l4 4v8a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M9 2v4h4" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M3 3h10v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3z" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M5.5 7h5M5.5 9.5h3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
           ) : (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

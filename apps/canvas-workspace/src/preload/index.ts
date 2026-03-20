@@ -63,5 +63,21 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     delete: (id: string) =>
       ipcRenderer.invoke("canvas:delete", { id })
+  },
+
+  file: {
+    createNote: (name?: string) =>
+      ipcRenderer.invoke("file:createNote", { name }),
+
+    read: (filePath: string) =>
+      ipcRenderer.invoke("file:read", { filePath }),
+
+    write: (filePath: string, content: string) =>
+      ipcRenderer.invoke("file:write", { filePath, content }),
+
+    openDialog: () => ipcRenderer.invoke("file:openDialog"),
+
+    saveAsDialog: (defaultName: string, content: string) =>
+      ipcRenderer.invoke("file:saveAsDialog", { defaultName, content })
   }
 });

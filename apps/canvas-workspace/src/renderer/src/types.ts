@@ -12,6 +12,8 @@ export interface CanvasNode {
 export interface FileNodeData {
   filePath: string;
   content: string;
+  saved?: boolean;
+  modified?: boolean;
 }
 
 export interface TerminalNodeData {
@@ -30,6 +32,37 @@ export interface CanvasSaveData {
   nodes: CanvasNode[];
   transform: CanvasTransform;
   savedAt: string;
+}
+
+export interface FileApi {
+  createNote: (
+    name?: string
+  ) => Promise<{ ok: boolean; filePath?: string; fileName?: string; error?: string }>;
+  read: (
+    filePath: string
+  ) => Promise<{ ok: boolean; content?: string; error?: string }>;
+  write: (
+    filePath: string,
+    content: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  openDialog: () => Promise<{
+    ok: boolean;
+    canceled?: boolean;
+    filePath?: string;
+    fileName?: string;
+    content?: string;
+    error?: string;
+  }>;
+  saveAsDialog: (
+    defaultName: string,
+    content: string
+  ) => Promise<{
+    ok: boolean;
+    canceled?: boolean;
+    filePath?: string;
+    fileName?: string;
+    error?: string;
+  }>;
 }
 
 export interface CanvasWorkspaceApi {
@@ -59,6 +92,7 @@ export interface CanvasWorkspaceApi {
     list: () => Promise<{ ok: boolean; ids?: string[]; error?: string }>;
     delete: (id: string) => Promise<{ ok: boolean; error?: string }>;
   };
+  file: FileApi;
 }
 
 declare global {

@@ -47,8 +47,8 @@ export const NodeContextMenu = ({ x, y, onCreate, onClose }: Props) => {
       >
         <span className="context-menu-icon">{"\u2756"}</span>
         <span className="context-menu-label">
-          <strong>File</strong>
-          <small>Edit a local file</small>
+          <strong>Note</strong>
+          <small>Markdown note card</small>
         </span>
       </button>
       <button
