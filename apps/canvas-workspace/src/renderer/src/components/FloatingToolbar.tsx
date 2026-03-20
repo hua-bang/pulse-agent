@@ -62,7 +62,7 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("file")}
-          title="Add File Card"
+          title="Add Note Card"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <rect
@@ -74,7 +74,7 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
             />
           </svg>
-          <span className="toolbar-btn-label">File</span>
+          <span className="toolbar-btn-label">Note</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"

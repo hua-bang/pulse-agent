@@ -1,0 +1,112 @@
+import { ipcMain, dialog, BrowserWindow } from "electron";
+import { promises as fs } from "fs";
+import { join, basename } from "path";
+import { homedir } from "os";
+
+const NOTES_DIR = join(homedir(), ".pulse-coder", "canvas", "notes");
+
+const ensureNotesDir = async () => {
+  await fs.mkdir(NOTES_DIR, { recursive: true });
+};
+
+export const getNotesDir = () => NOTES_DIR;
+
+export const setupFileManagerIpc = () => {
+  // Create a new note file in the notes directory
+  ipcMain.handle(
+    "file:createNote",
+    async (_event, payload: { name?: string }) => {
+      try {
+        await ensureNotesDir();
+        const timestamp = Date.now();
+        const safeName = payload.name
+          ? payload.name.replace(/[^a-zA-Z0-9_\- ]/g, "").trim()
+          : "";
+        const fileName = safeName
+          ? `${safeName}.md`
+          : `note-${timestamp}.md`;
+        const filePath = join(NOTES_DIR, fileName);
+        await fs.writeFile(filePath, "", "utf-8");
+        return { ok: true, filePath, fileName };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    }
+  );
+
+  // Read a file
+  ipcMain.handle(
+    "file:read",
+    async (_event, payload: { filePath: string }) => {
+      try {
+        const content = await fs.readFile(payload.filePath, "utf-8");
+        return { ok: true, content };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    }
+  );
+
+  // Write a file
+  ipcMain.handle(
+    "file:write",
+    async (_event, payload: { filePath: string; content: string }) => {
+      try {
+        await fs.writeFile(payload.filePath, payload.content, "utf-8");
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    }
+  );
+
+  // Open file dialog
+  ipcMain.handle("file:openDialog", async (_event) => {
+    const win = BrowserWindow.getFocusedWindow();
+    const result = await dialog.showOpenDialog(win!, {
+      title: "Open File",
+      filters: [
+        { name: "Markdown", extensions: ["md", "markdown", "txt"] },
+        { name: "All Files", extensions: ["*"] }
+      ],
+      properties: ["openFile"]
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { ok: false, canceled: true };
+    }
+    const filePath = result.filePaths[0];
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      const fileName = basename(filePath);
+      return { ok: true, filePath, fileName, content };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+
+  // Save-as dialog
+  ipcMain.handle(
+    "file:saveAsDialog",
+    async (_event, payload: { defaultName?: string; content: string }) => {
+      const win = BrowserWindow.getFocusedWindow();
+      const result = await dialog.showSaveDialog(win!, {
+        title: "Save As",
+        defaultPath: payload.defaultName || "untitled.md",
+        filters: [
+          { name: "Markdown", extensions: ["md"] },
+          { name: "All Files", extensions: ["*"] }
+        ]
+      });
+      if (result.canceled || !result.filePath) {
+        return { ok: false, canceled: true };
+      }
+      try {
+        await fs.writeFile(result.filePath, payload.content, "utf-8");
+        const fileName = basename(result.filePath);
+        return { ok: true, filePath: result.filePath, fileName };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    }
+  );
+};

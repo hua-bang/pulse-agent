@@ -4,6 +4,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { setupPtyIpc, killAllPty } from "./pty-manager";
 import { setupCanvasStoreIpc } from "./canvas-store";
+import { setupFileManagerIpc } from "./file-manager";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(currentDir, "../preload/index.mjs");
@@ -94,6 +95,7 @@ app.whenReady().then(() => {
 
   setupPtyIpc();
   setupCanvasStoreIpc();
+  setupFileManagerIpc();
 
   createWindow();
 
