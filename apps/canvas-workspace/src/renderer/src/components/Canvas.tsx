@@ -200,6 +200,7 @@ useEffect(() => {
           <CanvasNodeView
             key={node.id}
             node={node}
+            allNodes={nodes}
             isDragging={draggingId === node.id}
             isResizing={resizingId === node.id}
             isSelected={selectedNodeId === node.id}

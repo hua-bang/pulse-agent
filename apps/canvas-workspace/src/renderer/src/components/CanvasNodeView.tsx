@@ -6,6 +6,7 @@ import { TerminalNodeBody } from "./TerminalNodeBody";
 
 interface Props {
   node: CanvasNode;
+  allNodes: CanvasNode[];
   isDragging: boolean;
   isResizing: boolean;
   isSelected: boolean;
@@ -24,6 +25,7 @@ interface Props {
 
 export const CanvasNodeView = ({
   node,
+  allNodes,
   isDragging,
   isResizing,
   isSelected,
@@ -127,7 +129,7 @@ export const CanvasNodeView = ({
         {node.type === "file" ? (
           <FileNodeBody node={node} onUpdate={onUpdate} />
         ) : (
-          <TerminalNodeBody node={node} onUpdate={onUpdate} />
+          <TerminalNodeBody node={node} allNodes={allNodes} onUpdate={onUpdate} />
         )}
       </div>
 
