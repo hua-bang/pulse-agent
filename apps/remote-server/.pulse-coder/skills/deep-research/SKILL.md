@@ -1,136 +1,158 @@
 ---
 name: deep-research
-description: Conduct comprehensive multi-round research using iterative web searches to gather, analyze, and synthesize information
-version: 1.2.0
+description: Conduct high-quality multi-round research with explicit evidence tracking, source scoring, and synthesis.
+version: 2.0.0
 author: Pulse Coder Team
 ---
 
 # Deep Research Skill
 
-This skill enables comprehensive research through iterative web searches, allowing you to explore topics in depth by conducting 5-10 rounds of focused searches.
+This skill is for serious research tasks where shallow summaries are not enough.
+Use it to build evidence-backed conclusions through iterative search, extraction, and validation.
 
 ## When to Use
 
 Use deep-research when you need to:
-- Gather comprehensive information on complex topics
-- Compare multiple approaches or solutions
-- Understand emerging technologies or trends
-- Research best practices across different sources
-- Investigate technical problems with multiple facets
-- Build a complete picture of a topic before making decisions
+- Build a reliable understanding of a complex topic.
+- Compare multiple approaches, vendors, or technical designs.
+- Validate claims with primary sources and recent updates.
+- Produce decision-ready output instead of a generic summary.
 
-## Research Process
+Do not use deep-research for simple factual lookups that need only 1-2 queries.
 
-### 1. Initial Exploration (Rounds 1-2)
-- Start with broad search queries to understand the topic landscape
-- Identify key concepts, technologies, and terminology
-- Note knowledge gaps and areas requiring deeper investigation
+## Research Quality Bar
 
-### 2. Focused Investigation (Rounds 3-6)
-- Refine queries based on initial findings
-- Dive deeper into specific subtopics
-- Compare different approaches or solutions
-- Gather technical details and implementation examples
-- Look for authoritative sources and documentation
+Always optimize for:
+- Coverage: enough breadth to avoid tunnel vision.
+- Depth: enough source detail to avoid summary-only output.
+- Verifiability: each key claim can be traced to sources.
+- Freshness: prefer recent material when recency matters.
+- Actionability: conclusions include practical implications.
 
-### 3. Synthesis & Validation (Rounds 7-10)
-- Cross-reference information from multiple sources
-- Validate findings with official documentation
-- Look for recent updates or changes (2024-2026)
-- Identify consensus vs. controversial aspects
-- Fill remaining knowledge gaps
+## Required Workflow
 
-## Using the Tavily Tool
+### 0) Frame the task first
+Before searching, identify:
+- Goal: what decision or understanding is needed.
+- Scope: topic boundaries, region, timeframe, language.
+- Output shape: comparison, recommendation, landscape, etc.
 
-The `tavily` tool is available for web searches:
+If critical constraints are missing, ask one concise clarification question.
 
-```typescript
-// Example usage
-await tavily.execute({
-  query: "your search query here",
-  maxResults: 5  // Optional, defaults to 5
-});
-```
+### 1) Search in rounds (default 6-10 rounds)
+Run iterative rounds and avoid repeating near-identical queries.
 
-## Search Strategy Tips
+Per round, briefly track:
+- Query used
+- Intent of this query
+- New findings (what changed vs prior rounds)
+- Open gaps to resolve next
 
-**Progressive Refinement**
-- Round 1-2: Broad overview queries
-- Round 3-5: Specific technical details
-- Round 6-8: Edge cases and best practices
-- Round 9-10: Recent updates and validation
+Suggested progression:
+- Rounds 1-2: landscape and terminology
+- Rounds 3-6: focused deep dives by subtopic
+- Rounds 7-10: cross-checking, edge cases, and updates
 
-**Query Formulation**
-- Use specific technical terms when available
-- Include year (2024-2026) for recent information
-- Combine technology names with action words (e.g., "implement", "compare", "best practices")
-- Ask about trade-offs and limitations
+If the user explicitly asks for very broad coverage (for example 30+ or 50+ rounds),
+use batching by subtopic and still maintain dedup and evidence quality.
 
-**Information Quality**
-- Prioritize official documentation
-- Look for recent blog posts from experts
-- Check GitHub repositories for real examples
-- Compare multiple sources for accuracy
+### 2) Source selection and scoring (required)
+For important claims, prefer sources in this order:
+1. Official docs, standards, maintainers, first-party publications
+2. Reputable technical analyses with concrete evidence
+3. Community posts only as supplementary context
 
-## Output Structure
+For each key source, judge quickly on:
+- Authority (official or expert)
+- Recency (is date still relevant)
+- Evidence density (examples, data, implementation detail)
+- Bias risk (marketing-only or unsupported claims)
 
-Present your research findings in this format:
+### 3) Extract beyond snippets when needed
+Search snippets are often insufficient.
+When a source is important but ambiguous, read/extract fuller content before concluding.
+
+### 4) Cross-validate before final claims
+Before finalizing, verify critical points across multiple independent sources.
+Explicitly flag:
+- Consensus points
+- Conflicts or disputed claims
+- Unknowns that remain unresolved
+
+### 5) Stop criteria
+Stop when all are true:
+- Core questions are answered
+- Major contradictions are addressed
+- Additional rounds produce low novelty
+
+Otherwise continue with targeted rounds.
+
+## Query Strategy Guidelines
+
+Use query patterns such as:
+- "<topic> official documentation"
+- "<topic> architecture tradeoffs"
+- "<topic> benchmark OR case study"
+- "<topic> limitations OR failure modes"
+- "<topic> 2025 OR 2026 update"
+
+Avoid low-value repetition:
+- Do not run semantically duplicate queries unless testing source drift.
+- Do not over-index on one domain unless it is primary documentation.
+
+## Output Format (Required)
+
+Return results in this structure:
 
 **Overview**
-- Brief summary of the topic
-- Key findings and main takeaways
+- Research objective and scope
+- 3-6 key takeaways
 
 **Detailed Findings**
-- Organized by subtopic or theme
-- Include specific technical details
-- Reference sources for important claims
+- Grouped by subtopic
+- Include concrete facts, not only opinions
+- Attach source links to important claims
 
-**Comparison & Trade-offs** (if applicable)
-- Different approaches or solutions
-- Pros and cons of each
-- Recommended scenarios for each option
+**Evidence Matrix**
+- Claim
+- Confidence (high/medium/low)
+- Supporting sources (2+ when possible)
+- Notes on caveats or conflicts
 
-**Implementation Guidance** (if applicable)
-- Step-by-step approach
-- Code examples or patterns
-- Common pitfalls to avoid
+**Comparison and Trade-offs** (when applicable)
+- Option A/B/C with pros, cons, and fit scenarios
+
+**Recommendations** (when applicable)
+- Clear, prioritized actions
+- Short rationale for each action
+
+**Gaps and Open Questions**
+- What is still uncertain
+- What to verify next if deeper research is needed
 
 **Sources**
-- List all URLs consulted
-- Group by relevance or topic
+- Group links by primary vs secondary
+- Prefer clean, non-duplicate URLs
 
-## Example Research Flow
+## Style and Reliability Rules
 
-**Topic: "Best practices for React Server Components in Next.js 14"**
+- Be explicit about uncertainty; do not fake confidence.
+- Distinguish facts from interpretation.
+- Do not present a single-source claim as settled truth.
+- If evidence is weak, say so and recommend next checks.
 
-Round 1: "React Server Components overview 2024"
-Round 2: "Next.js 14 Server Components features"
-Round 3: "Server Components vs Client Components when to use"
-Round 4: "React Server Components data fetching patterns"
-Round 5: "Next.js 14 Server Components performance"
-Round 6: "Server Components best practices 2024"
-Round 7: "Common mistakes React Server Components"
-Round 8: "Server Components with Suspense and streaming"
-Round 9: "Production experiences Server Components"
-Round 10: "Server Components migration guide"
+## Optional Post-Research Follow-up
 
-
-## Post-Research Follow-up (Required)
-
-After presenting research results, always ask exactly one follow-up question:
+After delivering research, optionally ask one follow-up question only when useful:
 - "Do you want me to generate a frontend static webpage for this research summary?"
 
-If the user says yes:
-- Do not hardcode a specific skill name in the response.
-- Detect available frontend-design and deployment related skills at runtime.
-- If relevant skills are available, invoke them together as needed to:
-  - Design a polished frontend page for the research output.
-  - Build and deploy a static webpage (plain HTML by default unless context requires otherwise).
-- The page should include:
-  - A concise overview section
-  - Expandable detailed sections (for example, using `<details>` blocks)
-  - A sources section with links
-- Return deployment details (`site_id`, path, URL, local verify result).
+If user says yes:
+- Detect available frontend and deployment skills at runtime.
+- Build a readable static page with:
+  - concise overview
+  - expandable details (for example via <details>)
+  - sources with links
+- Return deployment details: site_id, path, URL, local verify result.
 
-If the user says no:
-- End after offering a brief optional note that they can request webpage generation later.
+If user says no:
+- End cleanly, and mention webpage generation can be requested later.
