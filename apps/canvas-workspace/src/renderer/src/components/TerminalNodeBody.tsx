@@ -112,6 +112,8 @@ const writeCanvasContext = async (
     );
   }
 };
+
+const serializeBuffer = (term: Terminal): string => {
   const buf = term.buffer.active;
   const lines: string[] = [];
   const count = buf.length;
