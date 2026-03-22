@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import type { CanvasNode, TerminalNodeData } from "../types";
+import type { CanvasNode, TerminalNodeData, FileNodeData } from "../types";
 
 interface Props {
   node: CanvasNode;
@@ -12,6 +12,44 @@ interface Props {
 
 const SCROLLBACK_SAVE_INTERVAL = 2000;
 const MAX_SCROLLBACK_CHARS = 50000;
+
+const extractDescription = (content: string): string => {
+  const lines = content.split('\n').map(l => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    // skip markdown headings, use their text
+    const heading = line.match(/^#{1,3}\s+(.+)/);
+    if (heading) return heading[1];
+    // skip horizontal rules
+    if (/^[-*_]{3,}$/.test(line)) continue;
+    // return first meaningful line, strip inline markdown
+    return line.replace(/[*_`#>]/g, '').trim().slice(0, 80);
+  }
+  return '';
+};
+
+const buildCanvasContext = (nodes: CanvasNode[], workspaceFolder: string): string => {
+  const fileNodes = nodes.filter(n => n.type === 'file');
+  if (fileNodes.length === 0) return '';
+
+  const lines = [
+    '# Canvas Workspace Context',
+    '',
+    `Workspace: ${workspaceFolder}`,
+    '',
+    '## Files on Canvas',
+    '',
+  ];
+
+  for (const node of fileNodes) {
+    const d = node.data as FileNodeData;
+    const pathHint = d.filePath ? `\`${d.filePath}\`` : '(unsaved)';
+    const desc = extractDescription(d.content);
+    lines.push(`- **${node.title}** ${pathHint}${desc ? ` — ${desc}` : ''}`);
+  }
+
+  lines.push('', '> Use the file paths above to read content as needed.', '');
+  return lines.join('\n');
+};
 
 const serializeBuffer = (term: Terminal): string => {
   const buf = term.buffer.active;
@@ -138,13 +176,26 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, onUpdate }: Props
     }
 
     const spawnCwd = initialCwd.current || rootFolder || undefined;
+
+    // Write lightweight canvas context to CLAUDE.md / AGENTS.md before spawning
+    if (spawnCwd && allNodes && allNodes.length > 0) {
+      const context = buildCanvasContext(allNodes, spawnCwd);
+      if (context) {
+        const fileApi = window.canvasWorkspace?.file;
+        if (fileApi) {
+          await Promise.all([
+            fileApi.write(`${spawnCwd}/CLAUDE.md`, context),
+            fileApi.write(`${spawnCwd}/AGENTS.md`, context),
+          ]);
+          term.writeln(`\x1b[2m[canvas] Context written to CLAUDE.md / AGENTS.md\x1b[0m`);
+        }
+      }
+    }
+
     const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd);
     if (!result.ok) {
       term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
       return;
-    }
-    if (rootFolder && !initialCwd.current) {
-      term.writeln(`\x1b[2m[canvas] Context written to CLAUDE.md / AGENTS.md\x1b[0m`);
     }
 
     const removeData = api.onData(sessionId, (d: string) => {
