@@ -80,7 +80,38 @@ const upsertSection = (existing: string, id: string, section: string): string =>
   return trimmed ? `${trimmed}\n\n${block}\n` : `${block}\n`;
 };
 
-const serializeBuffer = (term: Terminal): string => {
+/** Commands that trigger lazy canvas context injection into CLAUDE.md / AGENTS.md */
+const AI_TOOL_PATTERN = /\b(claude|codex|pulse-coder|pulsecoder)\b/;
+
+const writeCanvasContext = async (
+  nodes: CanvasNode[],
+  cwd: string,
+  workspaceId?: string,
+  workspaceName?: string,
+  term?: Terminal,
+) => {
+  const context = buildCanvasContext(nodes, cwd, workspaceId, workspaceName);
+  if (!context) return;
+  const fileApi = window.canvasWorkspace?.file;
+  if (!fileApi) return;
+  const wsId = workspaceId ?? 'default';
+  const [claudeRead, agentsRead] = await Promise.all([
+    fileApi.read(`${cwd}/CLAUDE.md`),
+    fileApi.read(`${cwd}/AGENTS.md`),
+  ]);
+  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, context);
+  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, context);
+  await Promise.all([
+    fileApi.write(`${cwd}/CLAUDE.md`, claudeContent),
+    fileApi.write(`${cwd}/AGENTS.md`, agentsContent),
+  ]);
+  if (term) {
+    const action = (ok: boolean) => ok ? 'updated' : 'created';
+    term.writeln(
+      `\x1b[2m[canvas] CLAUDE.md ${action(claudeRead.ok)} / AGENTS.md ${action(agentsRead.ok)}\x1b[0m`
+    );
+  }
+};
   const buf = term.buffer.active;
   const lines: string[] = [];
   const count = buf.length;
@@ -206,32 +237,6 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
 
     const spawnCwd = initialCwd.current || rootFolder || undefined;
 
-    // Write lightweight canvas context to CLAUDE.md / AGENTS.md before spawning
-    // Append to existing files, or create them if they don't exist
-    if (spawnCwd && allNodes && allNodes.length > 0) {
-      const context = buildCanvasContext(allNodes, spawnCwd, workspaceId, workspaceName);
-      if (context) {
-        const fileApi = window.canvasWorkspace?.file;
-        if (fileApi) {
-          const wsId = workspaceId ?? 'default';
-          const [claudeRead, agentsRead] = await Promise.all([
-            fileApi.read(`${spawnCwd}/CLAUDE.md`),
-            fileApi.read(`${spawnCwd}/AGENTS.md`),
-          ]);
-          const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, context);
-          const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, context);
-          await Promise.all([
-            fileApi.write(`${spawnCwd}/CLAUDE.md`, claudeContent),
-            fileApi.write(`${spawnCwd}/AGENTS.md`, agentsContent),
-          ]);
-          const action = (ok: boolean) => ok ? 'updated' : 'created';
-          term.writeln(
-            `\x1b[2m[canvas] CLAUDE.md ${action(claudeRead.ok)} / AGENTS.md ${action(agentsRead.ok)}\x1b[0m`
-          );
-        }
-      }
-    }
-
     const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd);
     if (!result.ok) {
       term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
@@ -246,8 +251,25 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
       term.writeln(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`);
     });
 
+    // Track user input to detect AI tool commands (claude / codex / pulse-coder)
+    // and lazily inject canvas context into CLAUDE.md / AGENTS.md only then.
+    let inputBuf = '';
     term.onData((d: string) => {
       api.write(sessionId, d);
+      if (d === '\r' || d === '\n') {
+        const cmd = inputBuf.trim();
+        inputBuf = '';
+        if (AI_TOOL_PATTERN.test(cmd) && allNodes && allNodes.length > 0) {
+          void api.getCwd(sessionId).then((r) => {
+            const cwd = r.ok && r.cwd ? r.cwd : spawnCwd;
+            if (cwd) void writeCanvasContext(allNodes, cwd, workspaceId, workspaceName, term);
+          });
+        }
+      } else if (d === '\x7f') {
+        inputBuf = inputBuf.slice(0, -1);
+      } else if (d.length === 1 && d >= ' ') {
+        inputBuf += d;
+      }
     });
 
     term.onResize(({ cols, rows }) => {
