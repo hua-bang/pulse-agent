@@ -7,6 +7,8 @@ interface Props {
   node: CanvasNode;
   allNodes?: CanvasNode[];
   rootFolder?: string;
+  workspaceId?: string;
+  workspaceName?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
 }
 
@@ -27,14 +29,24 @@ const extractDescription = (content: string): string => {
   return '';
 };
 
-const buildCanvasContext = (nodes: CanvasNode[], workspaceFolder: string): string => {
+const buildCanvasContext = (
+  nodes: CanvasNode[],
+  workspaceFolder: string,
+  workspaceId?: string,
+  workspaceName?: string,
+): string => {
   const fileNodes = nodes.filter(n => n.type === 'file');
   if (fileNodes.length === 0) return '';
+
+  const label = workspaceName
+    ? `${workspaceName}${workspaceId ? ` (${workspaceId})` : ''}`
+    : (workspaceId ?? 'default');
 
   const lines = [
     '# Canvas Workspace Context',
     '',
-    `Workspace: ${workspaceFolder}`,
+    `Workspace: ${label}`,
+    `Folder: ${workspaceFolder}`,
     '',
     '## Files on Canvas',
     '',
@@ -69,7 +81,7 @@ const serializeBuffer = (term: Terminal): string => {
   return text;
 };
 
-export const TerminalNodeBody = ({ node, allNodes, rootFolder, onUpdate }: Props) => {
+export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, workspaceName, onUpdate }: Props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -180,7 +192,7 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, onUpdate }: Props
     // Write lightweight canvas context to CLAUDE.md / AGENTS.md before spawning
     // Append to existing files, or create them if they don't exist
     if (spawnCwd && allNodes && allNodes.length > 0) {
-      const context = buildCanvasContext(allNodes, spawnCwd);
+      const context = buildCanvasContext(allNodes, spawnCwd, workspaceId, workspaceName);
       if (context) {
         const fileApi = window.canvasWorkspace?.file;
         if (fileApi) {

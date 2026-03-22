@@ -205,6 +205,8 @@ useEffect(() => {
             node={node}
             allNodes={nodes}
             rootFolder={rootFolder}
+            workspaceId={canvasId}
+            workspaceName={canvasName}
             isDragging={draggingId === node.id}
             isResizing={resizingId === node.id}
             isSelected={selectedNodeId === node.id}
