@@ -1,11 +1,12 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import type { CanvasNode, FileNodeData, TerminalNodeData } from "../types";
+import type { CanvasNode, TerminalNodeData } from "../types";
 
 interface Props {
   node: CanvasNode;
-  allNodes: CanvasNode[];
+  allNodes?: CanvasNode[];
+  rootFolder?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
 }
 
@@ -30,7 +31,7 @@ const serializeBuffer = (term: Terminal): string => {
   return text;
 };
 
-export const TerminalNodeBody = ({ node, allNodes, onUpdate }: Props) => {
+export const TerminalNodeBody = ({ node, allNodes, rootFolder, onUpdate }: Props) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -45,9 +46,6 @@ export const TerminalNodeBody = ({ node, allNodes, onUpdate }: Props) => {
   dataRef.current = data;
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
-  const allNodesRef = useRef(allNodes);
-  allNodesRef.current = allNodes;
-  const [injecting, setInjecting] = useState(false);
   const initialScrollback = useRef(data.scrollback ?? "");
   const initialCwd = useRef(data.cwd ?? "");
 
@@ -64,75 +62,6 @@ export const TerminalNodeBody = ({ node, allNodes, onUpdate }: Props) => {
       }
     });
   }, []);
-
-  const injectCanvasContext = useCallback(async () => {
-    const term = termRef.current;
-    const api = window.canvasWorkspace;
-    if (!term || !api || injecting) return;
-    setInjecting(true);
-
-    try {
-      const allNodes = allNodesRef.current;
-      const fileNodes = allNodes.filter((n) => n.type === 'file');
-      const otherTerminals = allNodes.filter(
-        (n) => n.type === 'terminal' && n.id !== nodeIdRef.current
-      );
-
-      // Build markdown context
-      let md = `# Canvas Context\n\n_Generated: ${new Date().toLocaleString()}_\n\n`;
-
-      if (fileNodes.length > 0) {
-        md += `## File Nodes\n\n`;
-        for (const n of fileNodes) {
-          const d = n.data as FileNodeData;
-          md += `### ${n.title}\n`;
-          if (d.filePath) md += `_Path: ${d.filePath}_\n\n`;
-          md += (d.content?.trim() || '_Empty_') + '\n\n---\n\n';
-        }
-      }
-
-      if (otherTerminals.length > 0) {
-        md += `## Other Terminals\n\n`;
-        for (const n of otherTerminals) {
-          md += `- **${n.title}**\n`;
-        }
-        md += '\n';
-      }
-
-      if (fileNodes.length === 0 && otherTerminals.length === 0) {
-        md += '_No other nodes on canvas._\n';
-      }
-
-      // Write to .canvas-context.md in terminal CWD
-      const cwdResult = await api.pty.getCwd(sessionId);
-      const cwd = (cwdResult.ok && cwdResult.cwd) ? cwdResult.cwd : '.';
-      const contextPath = `${cwd}/.canvas-context.md`;
-      await api.file.write(contextPath, md);
-
-      // Display summary in terminal
-      term.writeln('\r\n\x1b[36m┌─ Canvas Context ─────────────────────────────┐\x1b[0m');
-      if (fileNodes.length > 0) {
-        for (const n of fileNodes) {
-          const label = n.title.slice(0, 38).padEnd(38);
-          term.writeln(`\x1b[36m│\x1b[0m  \x1b[33m📄\x1b[0m ${label} \x1b[36m│\x1b[0m`);
-        }
-      }
-      if (otherTerminals.length > 0) {
-        for (const n of otherTerminals) {
-          const label = n.title.slice(0, 38).padEnd(38);
-          term.writeln(`\x1b[36m│\x1b[0m  \x1b[32m💻\x1b[0m ${label} \x1b[36m│\x1b[0m`);
-        }
-      }
-      if (fileNodes.length === 0 && otherTerminals.length === 0) {
-        term.writeln(`\x1b[36m│\x1b[0m  \x1b[2m(no other nodes)\x1b[0m                            \x1b[36m│\x1b[0m`);
-      }
-      term.writeln(`\x1b[36m└── Written to: .canvas-context.md ────────────┘\x1b[0m\r\n`);
-    } catch (err) {
-      term.writeln(`\r\n\x1b[31m[canvas-context] Error: ${String(err)}\x1b[0m\r\n`);
-    } finally {
-      setInjecting(false);
-    }
-  }, [sessionId, injecting]);
 
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
@@ -203,11 +132,14 @@ export const TerminalNodeBody = ({ node, allNodes, onUpdate }: Props) => {
       return;
     }
 
-    const spawnCwd = initialCwd.current || undefined;
+    const spawnCwd = initialCwd.current || rootFolder || undefined;
     const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd);
     if (!result.ok) {
       term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
       return;
+    }
+    if (rootFolder && !initialCwd.current) {
+      term.writeln(`\x1b[2m[canvas] Context written to CLAUDE.md / AGENTS.md\x1b[0m`);
     }
 
     const removeData = api.onData(sessionId, (d: string) => {
@@ -242,7 +174,7 @@ export const TerminalNodeBody = ({ node, allNodes, onUpdate }: Props) => {
       removeExit();
       api.kill(sessionId);
     };
-  }, [sessionId, persistState]);
+  }, [sessionId, rootFolder, persistState]);
 
   useEffect(() => {
     void initTerminal();
@@ -298,18 +230,6 @@ export const TerminalNodeBody = ({ node, allNodes, onUpdate }: Props) => {
         className="terminal-xterm-container"
         onMouseDown={(e) => e.stopPropagation()}
       />
-      <button
-        className={`terminal-ctx-btn${injecting ? ' terminal-ctx-btn--active' : ''}`}
-        title="Inject canvas context into terminal"
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={injectCanvasContext}
-      >
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-          <rect x="1.5" y="1.5" width="8" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
-          <path d="M5.5 5h3M5.5 7.5h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          <path d="M10.5 8v5.5M10.5 13.5l-2-2M10.5 13.5l2-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      </button>
     </div>
   );
 };
