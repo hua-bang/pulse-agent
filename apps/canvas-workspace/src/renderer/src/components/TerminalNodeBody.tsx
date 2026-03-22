@@ -114,9 +114,7 @@ export const TerminalNodeBody = ({ node, onUpdate }: Props) => {
         .split("\n")
         .slice(-RESTORE_TAIL_LINES)
         .join("\r\n");
-      term.writeln("\x1b[2m--- session restored ---\x1b[0m");
       term.write(lastLines + "\r\n");
-      term.writeln("\x1b[2m--- new session ---\x1b[0m\r\n");
     }
 
     requestAnimationFrame(() => {
