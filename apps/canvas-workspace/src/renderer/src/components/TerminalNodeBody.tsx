@@ -110,7 +110,7 @@ export const TerminalNodeBody = ({ node, onUpdate }: Props) => {
 
     if (initialScrollback.current) {
       term.writeln("\x1b[2m--- session restored ---\x1b[0m");
-      term.writeln(initialScrollback.current);
+      term.write(initialScrollback.current.replace(/\n/g, "\r\n") + "\r\n");
       term.writeln("\x1b[2m--- new session ---\x1b[0m\r\n");
     }
 
