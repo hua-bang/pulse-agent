@@ -12,6 +12,7 @@ const App = () => {
     createWorkspace,
     renameWorkspace,
     deleteWorkspace,
+    setRootFolder,
   } = useWorkspaces();
 
   return (
@@ -26,6 +27,7 @@ const App = () => {
           onCreate={createWorkspace}
           onRename={renameWorkspace}
           onDelete={deleteWorkspace}
+          onSetRootFolder={setRootFolder}
         />
         <div className="canvas-viewport">
           {workspaces.map((ws) => (

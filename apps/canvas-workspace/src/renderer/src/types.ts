@@ -63,6 +63,12 @@ export interface FileApi {
     fileName?: string;
     error?: string;
   }>;
+  openFolderDialog: () => Promise<{
+    ok: boolean;
+    canceled?: boolean;
+    folderPath?: string;
+    error?: string;
+  }>;
 }
 
 export interface CanvasWorkspaceApi {

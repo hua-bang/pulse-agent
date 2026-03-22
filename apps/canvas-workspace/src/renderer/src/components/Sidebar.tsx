@@ -10,6 +10,7 @@ interface Props {
   onCreate: (name: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  onSetRootFolder: (id: string, folderPath: string | undefined) => void;
 }
 
 export const Sidebar = ({
@@ -21,6 +22,7 @@ export const Sidebar = ({
   onCreate,
   onRename,
   onDelete,
+  onSetRootFolder,
 }: Props) => {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -100,33 +102,58 @@ export const Sidebar = ({
                     }}
                   />
                 ) : (
-                  <button
-                    className={`sidebar-item${activeId === ws.id ? ' sidebar-item--active' : ''}`}
-                    onClick={() => onSelect(ws.id)}
-                    onDoubleClick={() => startRename(ws)}
-                    title="Double-click to rename"
-                  >
-                    <span className="sidebar-item-icon">
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-                        <rect
-                          x="2"
-                          y="2"
-                          width="12"
-                          height="12"
-                          rx="2"
-                          stroke="currentColor"
-                          strokeWidth="1.3"
-                        />
+                  <>
+                    <button
+                      className={`sidebar-item${activeId === ws.id ? ' sidebar-item--active' : ''}`}
+                      onClick={() => onSelect(ws.id)}
+                      onDoubleClick={() => startRename(ws)}
+                      title="Double-click to rename"
+                    >
+                      <span className="sidebar-item-icon">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                          <rect
+                            x="2"
+                            y="2"
+                            width="12"
+                            height="12"
+                            rx="2"
+                            stroke="currentColor"
+                            strokeWidth="1.3"
+                          />
+                          <path
+                            d="M5 6h6M5 9h4"
+                            stroke="currentColor"
+                            strokeWidth="1.2"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="sidebar-item-name">{ws.name}</span>
+                    </button>
+                    <button
+                      className={`sidebar-item-action${ws.rootFolder ? ' sidebar-item-action--set' : ''}`}
+                      onClick={async () => {
+                        if (ws.rootFolder) {
+                          onSetRootFolder(ws.id, undefined);
+                        } else {
+                          const res = await window.canvasWorkspace?.file.openFolderDialog();
+                          if (res?.ok && res.folderPath) {
+                            onSetRootFolder(ws.id, res.folderPath);
+                          }
+                        }
+                      }}
+                      title={ws.rootFolder ? `Root: ${ws.rootFolder}` : 'Set project root folder'}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
                         <path
-                          d="M5 6h6M5 9h4"
+                          d="M2 5a1 1 0 011-1h3l1.5 2H13a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1V5z"
                           stroke="currentColor"
-                          strokeWidth="1.2"
-                          strokeLinecap="round"
+                          strokeWidth="1.4"
+                          strokeLinejoin="round"
                         />
                       </svg>
-                    </span>
-                    <span className="sidebar-item-name">{ws.name}</span>
-                  </button>
+                    </button>
+                  </>
                 )}
 
                 {workspaces.length > 1 && renamingId !== ws.id && (
