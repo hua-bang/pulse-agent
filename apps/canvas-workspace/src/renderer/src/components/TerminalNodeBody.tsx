@@ -138,29 +138,33 @@ const writeCanvasContext = async (
 
   const wsId = workspaceId ?? 'default';
 
-  // 获取 canvas 存储目录
+  // 获取 canvas 存储目录（失败时降级为直接写模式）
   const dirRes = storeApi ? await storeApi.getDir(wsId) : null;
   const canvasDir = dirRes?.ok ? dirRes.dir : undefined;
-  if (!canvasDir) return;
 
   const context = buildCanvasContext(nodes, cwd, workspaceId, workspaceName, canvasDir);
   if (!context) return;
 
-  const label = workspaceName
-    ? `${workspaceName}${workspaceId ? ` (${workspaceId})` : ''}`
-    : wsId;
-
-  // 1. 完整 context 写入 canvas 目录下的 AGENTS.md
-  await writeCanvasAgentsMd(fileApi, canvasDir, context);
-
-  // 2. cwd 下只写轻量指针
-  const pointer = buildPointerSection(canvasDir, wsId, label);
   const [claudeRead, agentsRead] = await Promise.all([
     fileApi.read(`${cwd}/CLAUDE.md`),
     fileApi.read(`${cwd}/AGENTS.md`),
   ]);
-  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, pointer);
-  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, pointer);
+
+  let cwdSection: string;
+  if (canvasDir) {
+    // 有 canvas 目录：完整 context 写入 canvasDir/AGENTS.md，cwd 写轻量指针
+    await writeCanvasAgentsMd(fileApi, canvasDir, context);
+    const label = workspaceName
+      ? `${workspaceName}${workspaceId ? ` (${workspaceId})` : ''}`
+      : wsId;
+    cwdSection = buildPointerSection(canvasDir, wsId, label);
+  } else {
+    // 无 canvas 目录：直接把完整 context 写入 cwd 下的文件
+    cwdSection = context;
+  }
+
+  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, cwdSection);
+  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, cwdSection);
   await Promise.all([
     fileApi.write(`${cwd}/CLAUDE.md`, claudeContent),
     fileApi.write(`${cwd}/AGENTS.md`, agentsContent),
@@ -168,8 +172,9 @@ const writeCanvasContext = async (
 
   if (term) {
     const action = (ok: boolean) => ok ? 'updated' : 'created';
+    const canvasPart = canvasDir ? 'canvas/AGENTS.md updated · ' : '';
     term.writeln(
-      `\x1b[2m[canvas] canvas/AGENTS.md updated · CLAUDE.md ${action(claudeRead.ok)} / AGENTS.md ${action(agentsRead.ok)}\x1b[0m`
+      `\x1b[2m[canvas] ${canvasPart}CLAUDE.md ${action(claudeRead.ok)} / AGENTS.md ${action(agentsRead.ok)}\x1b[0m`
     );
   }
 };
