@@ -457,6 +457,7 @@ body {
   background: rgba(0, 0, 0, 0.03);
 }
 
+.node-focus,
 .node-close {
   width: 20px;
   height: 20px;
@@ -473,8 +474,14 @@ body {
   transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
 
+.canvas-node:hover .node-focus,
 .canvas-node:hover .node-close {
   opacity: 1;
+}
+
+.node-focus:hover {
+  background: var(--accent-light);
+  color: var(--accent);
 }
 
 .node-close:hover {

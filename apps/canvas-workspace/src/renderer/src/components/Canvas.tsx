@@ -4,7 +4,7 @@ import { useNodes } from "../hooks/useNodes";
 import { useNodeDrag } from "../hooks/useNodeDrag";
 import { useNodeResize } from "../hooks/useNodeResize";
 import { useCanvasContext } from "../hooks/useCanvasContext";
-import type { CanvasTransform } from "../types";
+import type { CanvasNode, CanvasTransform } from "../types";
 import { CanvasNodeView } from "./CanvasNodeView";
 import { NodeContextMenu } from "./NodeContextMenu";
 import { FloatingToolbar } from "./FloatingToolbar";
@@ -13,6 +13,8 @@ import { ZoomIndicator } from "./ZoomIndicator";
 export const Canvas = ({ canvasId, rootFolder, hidden }: { canvasId: string; rootFolder?: string; hidden?: boolean }) => {
   const [activeTool, setActiveTool] = useState("select");
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const animTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     transform,
@@ -138,6 +140,27 @@ useEffect(() => {
     setSelectedNodeId(nodeId);
   }, []);
 
+  const handleFocusNode = useCallback(
+    (node: CanvasNode) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const padding = 80;
+      const fitScale = Math.min(
+        (rect.width - padding * 2) / node.width,
+        (rect.height - padding * 2) / node.height
+      );
+      const targetScale = Math.min(Math.max(0.1, fitScale), 1.5);
+      const tx = rect.width / 2 - (node.x + node.width / 2) * targetScale;
+      const ty = rect.height / 2 - (node.y + node.height / 2) * targetScale;
+
+      setAnimating(true);
+      setTransform({ x: tx, y: ty, scale: targetScale });
+      if (animTimerRef.current) clearTimeout(animTimerRef.current);
+      animTimerRef.current = setTimeout(() => setAnimating(false), 380);
+    },
+    [setTransform]
+  );
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       canvasMouseDown(e);
@@ -196,7 +219,8 @@ useEffect(() => {
       <div
         className="canvas-transform"
         style={{
-          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`
+          transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+          transition: animating ? 'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : undefined
         }}
       >
         {nodes.map((node) => (
@@ -213,6 +237,7 @@ useEffect(() => {
             onUpdate={updateNode}
             onRemove={removeNode}
             onSelect={handleNodeSelect}
+            onFocus={handleFocusNode}
           />
         ))}
       </div>
