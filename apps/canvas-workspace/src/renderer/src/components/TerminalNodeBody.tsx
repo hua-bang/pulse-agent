@@ -90,6 +90,41 @@ const upsertSection = (existing: string, id: string, section: string): string =>
 /** Commands that trigger lazy canvas context injection into CLAUDE.md / AGENTS.md */
 const AI_TOOL_PATTERN = /\b(claude|codex|pulse-coder|pulsecoder)\b/;
 
+/** 写入 canvas/{wsId}/AGENTS.md 的完整画布上下文（含用户自定义内容）。 */
+const writeCanvasAgentsMd = async (
+  fileApi: NonNullable<typeof window.canvasWorkspace>['file'],
+  canvasDir: string,
+  context: string,
+): Promise<void> => {
+  const existing = await fileApi.read(`${canvasDir}/AGENTS.md`).then(r => (r.ok ? r.content ?? '' : ''));
+  // 保留用户在模板注释之外写的内容，追加/替换 [Auto-generated] 段落
+  const AUTO_START = '<!-- canvas:auto-start -->';
+  const AUTO_END = '<!-- canvas:auto-end -->';
+  const autoBlock = `${AUTO_START}\n${context}\n${AUTO_END}`;
+  const startIdx = existing.indexOf(AUTO_START);
+  const endIdx = existing.indexOf(AUTO_END);
+  let updated: string;
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    updated = existing.slice(0, startIdx) + autoBlock + existing.slice(endIdx + AUTO_END.length);
+  } else {
+    updated = existing.trimEnd()
+      ? `${existing.trimEnd()}\n\n${autoBlock}\n`
+      : `${autoBlock}\n`;
+  }
+  await fileApi.write(`${canvasDir}/AGENTS.md`, updated);
+};
+
+/** 生成写入 cwd/AGENTS.md 的轻量指针段落。 */
+const buildPointerSection = (canvasDir: string, wsId: string, label: string): string =>
+  [
+    `## Canvas Workspace (${label})`,
+    '',
+    `Canvas agent config: \`${canvasDir}/AGENTS.md\``,
+    '',
+    '> 读取上方文件获取画布结构、笔记列表和 Agent 指令。',
+    '',
+  ].join('\n');
+
 const writeCanvasContext = async (
   nodes: CanvasNode[],
   cwd: string,
@@ -103,40 +138,38 @@ const writeCanvasContext = async (
 
   const wsId = workspaceId ?? 'default';
 
-  // Resolve canvas storage dir for this workspace
+  // 获取 canvas 存储目录
   const dirRes = storeApi ? await storeApi.getDir(wsId) : null;
   const canvasDir = dirRes?.ok ? dirRes.dir : undefined;
+  if (!canvasDir) return;
 
   const context = buildCanvasContext(nodes, cwd, workspaceId, workspaceName, canvasDir);
   if (!context) return;
 
-  // Read canvas workspace AGENTS.md (per-workspace agent config)
-  const canvasAgentsContent = canvasDir
-    ? await fileApi.read(`${canvasDir}/AGENTS.md`).then(r => (r.ok ? r.content ?? '' : ''))
-    : '';
+  const label = workspaceName
+    ? `${workspaceName}${workspaceId ? ` (${workspaceId})` : ''}`
+    : wsId;
 
+  // 1. 完整 context 写入 canvas 目录下的 AGENTS.md
+  await writeCanvasAgentsMd(fileApi, canvasDir, context);
+
+  // 2. cwd 下只写轻量指针
+  const pointer = buildPointerSection(canvasDir, wsId, label);
   const [claudeRead, agentsRead] = await Promise.all([
     fileApi.read(`${cwd}/CLAUDE.md`),
     fileApi.read(`${cwd}/AGENTS.md`),
   ]);
-
-  // Build section: canvas context + workspace-level agent config (if any non-template content)
-  const hasAgentsConfig = canvasAgentsContent &&
-    canvasAgentsContent.replace(/<!--.*?-->/gs, '').trim().length > 0;
-  const section = hasAgentsConfig
-    ? `${context}\n## Canvas Agent Instructions\n\n${canvasAgentsContent.trim()}\n`
-    : context;
-
-  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, section);
-  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, section);
+  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, pointer);
+  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, pointer);
   await Promise.all([
     fileApi.write(`${cwd}/CLAUDE.md`, claudeContent),
     fileApi.write(`${cwd}/AGENTS.md`, agentsContent),
   ]);
+
   if (term) {
     const action = (ok: boolean) => ok ? 'updated' : 'created';
     term.writeln(
-      `\x1b[2m[canvas] CLAUDE.md ${action(claudeRead.ok)} / AGENTS.md ${action(agentsRead.ok)}\x1b[0m`
+      `\x1b[2m[canvas] canvas/AGENTS.md updated · CLAUDE.md ${action(claudeRead.ok)} / AGENTS.md ${action(agentsRead.ok)}\x1b[0m`
     );
   }
 };
