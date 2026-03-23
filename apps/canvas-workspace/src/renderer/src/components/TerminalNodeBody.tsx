@@ -37,9 +37,10 @@ const buildCanvasContext = (
   workspaceFolder: string,
   workspaceId?: string,
   workspaceName?: string,
+  canvasDir?: string,
 ): string => {
   const fileNodes = nodes.filter(n => n.type === 'file');
-  if (fileNodes.length === 0) return '';
+  if (fileNodes.length === 0 && !canvasDir) return '';
 
   const label = workspaceName
     ? `${workspaceName}${workspaceId ? ` (${workspaceId})` : ''}`
@@ -50,16 +51,22 @@ const buildCanvasContext = (
     '',
     `Workspace: ${label}`,
     `Folder: ${workspaceFolder}`,
-    '',
-    '## Files on Canvas',
-    '',
   ];
 
-  for (const node of fileNodes) {
-    const d = node.data as FileNodeData;
-    const pathHint = d.filePath ? `\`${d.filePath}\`` : '(unsaved)';
-    const desc = extractDescription(d.content);
-    lines.push(`- **${node.title}** ${pathHint}${desc ? ` — ${desc}` : ''}`);
+  if (canvasDir) {
+    lines.push(`Canvas dir: ${canvasDir}`);
+    lines.push(`Canvas data: ${canvasDir}/canvas.json`);
+    lines.push(`Notes dir: ${canvasDir}/notes/`);
+  }
+
+  if (fileNodes.length > 0) {
+    lines.push('', '## Files on Canvas', '');
+    for (const node of fileNodes) {
+      const d = node.data as FileNodeData;
+      const pathHint = d.filePath ? `\`${d.filePath}\`` : '(unsaved)';
+      const desc = extractDescription(d.content);
+      lines.push(`- **${node.title}** ${pathHint}${desc ? ` — ${desc}` : ''}`);
+    }
   }
 
   lines.push('', '> Use the file paths above to read content as needed.', '');
@@ -90,17 +97,38 @@ const writeCanvasContext = async (
   workspaceName?: string,
   term?: Terminal,
 ) => {
-  const context = buildCanvasContext(nodes, cwd, workspaceId, workspaceName);
-  if (!context) return;
+  const storeApi = window.canvasWorkspace?.store;
   const fileApi = window.canvasWorkspace?.file;
   if (!fileApi) return;
+
   const wsId = workspaceId ?? 'default';
+
+  // Resolve canvas storage dir for this workspace
+  const dirRes = storeApi ? await storeApi.getDir(wsId) : null;
+  const canvasDir = dirRes?.ok ? dirRes.dir : undefined;
+
+  const context = buildCanvasContext(nodes, cwd, workspaceId, workspaceName, canvasDir);
+  if (!context) return;
+
+  // Read canvas workspace AGENTS.md (per-workspace agent config)
+  const canvasAgentsContent = canvasDir
+    ? await fileApi.read(`${canvasDir}/AGENTS.md`).then(r => (r.ok ? r.content ?? '' : ''))
+    : '';
+
   const [claudeRead, agentsRead] = await Promise.all([
     fileApi.read(`${cwd}/CLAUDE.md`),
     fileApi.read(`${cwd}/AGENTS.md`),
   ]);
-  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, context);
-  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, context);
+
+  // Build section: canvas context + workspace-level agent config (if any non-template content)
+  const hasAgentsConfig = canvasAgentsContent &&
+    canvasAgentsContent.replace(/<!--.*?-->/gs, '').trim().length > 0;
+  const section = hasAgentsConfig
+    ? `${context}\n## Canvas Agent Instructions\n\n${canvasAgentsContent.trim()}\n`
+    : context;
+
+  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, section);
+  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, section);
   await Promise.all([
     fileApi.write(`${cwd}/CLAUDE.md`, claudeContent),
     fileApi.write(`${cwd}/AGENTS.md`, agentsContent),
