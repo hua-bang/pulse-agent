@@ -63,7 +63,52 @@ const ensureWorkspaceDir = async (id: string): Promise<void> => {
   }
 };
 
-export const setupCanvasStoreIpc = () => {
+/** Old global notes directory (pre-refactor). */
+const LEGACY_NOTES_DIR = join(STORE_DIR, 'notes');
+
+interface CanvasNode {
+  type: string;
+  data?: { filePath?: string; [k: string]: unknown };
+  [k: string]: unknown;
+}
+
+interface CanvasSaveData {
+  nodes?: CanvasNode[];
+  [k: string]: unknown;
+}
+
+/**
+ * Migrate file-node paths that still point to the old global notes dir
+ * into the per-workspace notes dir. Moves the actual files on disk and
+ * returns true when the data was modified (caller should re-save).
+ */
+const migrateNotePaths = async (
+  id: string,
+  data: CanvasSaveData,
+): Promise<boolean> => {
+  if (!Array.isArray(data.nodes)) return false;
+  const newNotesDir = join(STORE_DIR, id, 'notes');
+  let dirty = false;
+  for (const node of data.nodes) {
+    if (node.type !== 'file' || !node.data?.filePath) continue;
+    const fp: string = node.data.filePath;
+    if (!fp.startsWith(LEGACY_NOTES_DIR + '/') && !fp.startsWith(LEGACY_NOTES_DIR + '\\')) continue;
+    const fileName = fp.split(/[\\/]/).pop()!;
+    const newPath = join(newNotesDir, fileName);
+    try {
+      await fs.mkdir(newNotesDir, { recursive: true });
+      await fs.copyFile(fp, newPath);
+      await fs.unlink(fp).catch(() => undefined);
+    } catch {
+      // file may already be missing; still update the stored path
+    }
+    node.data = { ...node.data, filePath: newPath };
+    dirty = true;
+  }
+  return dirty;
+};
+
+
   ipcMain.handle(
     'canvas:save',
     async (_event, payload: { id: string; data: unknown }) => {
@@ -99,7 +144,14 @@ export const setupCanvasStoreIpc = () => {
         }
         const filePath = getFilePath(payload.id);
         const raw = await fs.readFile(filePath, 'utf-8');
-        return { ok: true, data: JSON.parse(raw) };
+        const data: CanvasSaveData = JSON.parse(raw);
+        if (payload.id !== MANIFEST_ID) {
+          const dirty = await migrateNotePaths(payload.id, data);
+          if (dirty) {
+            await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+          }
+        }
+        return { ok: true, data };
       } catch (err: unknown) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'ENOENT') return { ok: true, data: null };
