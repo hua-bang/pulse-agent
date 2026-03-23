@@ -52,13 +52,13 @@ const migrateIfNeeded = async (id: string): Promise<void> => {
   }
 };
 
-/** Ensure workspace directory exists and seed AGENTS.md on first creation. */
+/** Ensure workspace directory exists and seed AGENTS.md if absent. */
 const ensureWorkspaceDir = async (id: string): Promise<void> => {
   const dir = getWorkspaceDir(id);
-  const agentsPath = join(dir, 'AGENTS.md');
-  const isNew = await fs.access(dir).then(() => false).catch(() => true);
   await fs.mkdir(dir, { recursive: true });
-  if (isNew) {
+  const agentsPath = join(dir, 'AGENTS.md');
+  const hasAgents = await fs.access(agentsPath).then(() => true).catch(() => false);
+  if (!hasAgents) {
     await fs.writeFile(agentsPath, AGENTS_MD_TEMPLATE, 'utf-8');
   }
 };
@@ -108,7 +108,7 @@ const migrateNotePaths = async (
   return dirty;
 };
 
-
+export const setupCanvasStoreIpc = () => {
   ipcMain.handle(
     'canvas:save',
     async (_event, payload: { id: string; data: unknown }) => {
@@ -141,6 +141,7 @@ const migrateNotePaths = async (
       try {
         if (payload.id !== MANIFEST_ID) {
           await migrateIfNeeded(payload.id);
+          await ensureWorkspaceDir(payload.id);
         }
         const filePath = getFilePath(payload.id);
         const raw = await fs.readFile(filePath, 'utf-8');
