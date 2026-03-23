@@ -66,6 +66,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
     updateNode,
     removeNode,
     moveNode,
+    moveNodes,
     resizeNode,
     setTransformForSave
   } = useNodes(canvasId, handleRestoreTransform);
@@ -112,7 +113,9 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
 
   const { draggingId, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
     moveNode,
-    transform.scale
+    moveNodes,
+    transform.scale,
+    nodes
   );
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
     useNodeResize(resizeNode, transform.scale);

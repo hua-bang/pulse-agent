@@ -136,6 +136,19 @@ export const useNodes = (
     [updateNode]
   );
 
+  const moveNodes = useCallback(
+    (moves: Array<{ id: string; x: number; y: number }>) => {
+      setNodes((prev) =>
+        prev.map((n) => {
+          const m = moves.find((mv) => mv.id === n.id);
+          return m ? { ...n, x: m.x, y: m.y } : n;
+        })
+      );
+      scheduleSave();
+    },
+    [scheduleSave]
+  );
+
   const resizeNode = useCallback(
     (id: string, width: number, height: number) => {
       updateNode(id, { width, height });
@@ -150,6 +163,7 @@ export const useNodes = (
     updateNode,
     removeNode,
     moveNode,
+    moveNodes,
     resizeNode,
     setTransformForSave
   };
