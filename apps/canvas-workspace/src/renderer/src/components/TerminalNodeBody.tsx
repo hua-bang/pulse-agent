@@ -134,14 +134,14 @@ const writeCanvasContext = async (
 ) => {
   const storeApi = window.canvasWorkspace?.store;
   const fileApi = window.canvasWorkspace?.file;
-  if (!fileApi) return;
+  if (!storeApi || !fileApi) return;
 
   const wsId = workspaceId ?? 'default';
 
-  // 获取 canvas 存储目录
-  const dirRes = storeApi ? await storeApi.getDir(wsId) : null;
-  const canvasDir = dirRes?.ok ? dirRes.dir : undefined;
-  if (!canvasDir) return;
+  // getDir 在主进程会自动 mkdir + 初始化 AGENTS.md，目录不存在时新建
+  const dirRes = await storeApi.getDir(wsId);
+  if (!dirRes.ok) return;
+  const canvasDir: string = dirRes.dir;
 
   const context = buildCanvasContext(nodes, cwd, workspaceId, workspaceName, canvasDir);
   if (!context) return;
