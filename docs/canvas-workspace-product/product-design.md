@@ -23,10 +23,12 @@ Core scenarios:
 - File node: open/edit markdown or code file.
 - Terminal node: real shell session with scrollback.
 - Agent node: orchestrated coding agent with explicit context.
+- Frame node: Miro-style section/group for spatial organization.
 
 ### 3.3 Canvas Interaction
 - Pan/zoom with trackpad and mouse.
 - Drag to position tiles, resize where applicable.
+- Create frames to label and group sections (frame selection).
 - Multi-select and group; group becomes a movable cluster.
 - Snaplines and quick alignment helpers.
 - Search and jump to nodes.
