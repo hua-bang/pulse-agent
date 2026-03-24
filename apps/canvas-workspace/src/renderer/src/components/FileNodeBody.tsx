@@ -135,6 +135,7 @@ export const FileNodeBody = ({ node, onUpdate }: Props) => {
     content: data.content || '',
     onUpdate: ({ editor }) => {
       const markdown = getMarkdown(editor);
+      prevContentRef.current = markdown;
       setModified(true);
       onUpdate(nodeIdRef.current, {
         data: { ...dataRef.current, content: markdown, modified: true },
