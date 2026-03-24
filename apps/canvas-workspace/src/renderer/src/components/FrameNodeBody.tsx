@@ -7,11 +7,14 @@ interface Props {
 }
 
 const COLOR_PRESETS = [
-  { name: "Purple", value: "#9065b0" },
-  { name: "Blue", value: "#2383e2" },
-  { name: "Green", value: "#0f7b6c" },
-  { name: "Yellow", value: "#cb912f" },
   { name: "Red", value: "#e03e3e" },
+  { name: "Orange", value: "#d9730d" },
+  { name: "Yellow", value: "#cb912f" },
+  { name: "Green", value: "#0f7b6c" },
+  { name: "Cyan", value: "#2e9e9e" },
+  { name: "Blue", value: "#2383e2" },
+  { name: "Purple", value: "#9065b0" },
+  { name: "Pink", value: "#c84c8a" },
   { name: "Gray", value: "#787774" }
 ];
 
