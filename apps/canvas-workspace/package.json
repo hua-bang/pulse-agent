@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.pulse-coder.canvas-workspace",
-    "productName": "Canvas Workspace",
+    "productName": "Pulse Canvas",
     "copyright": "Copyright © 2025",
     "directories": {
       "output": "release",

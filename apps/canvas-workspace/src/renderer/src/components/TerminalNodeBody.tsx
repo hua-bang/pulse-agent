@@ -47,7 +47,7 @@ const buildCanvasContext = (
     : (workspaceId ?? 'default');
 
   const lines = [
-    '# Canvas Workspace Context',
+    '# Pulse Canvas Context',
     '',
     `Workspace: ${label}`,
     `Folder: ${workspaceFolder}`,
@@ -117,7 +117,7 @@ const writeCanvasAgentsMd = async (
 /** 生成写入 cwd/AGENTS.md 的轻量指针段落。 */
 const buildPointerSection = (canvasDir: string, wsId: string, label: string): string =>
   [
-    `## Canvas Workspace (${label})`,
+    `## Pulse Canvas (${label})`,
     '',
     `Canvas agent config: \`${canvasDir}/AGENTS.md\``,
     '',
