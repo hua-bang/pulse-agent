@@ -16,6 +16,7 @@ interface Props {
   isSelected: boolean;
   isHighlighted: boolean;
   canvasScale?: number;
+  canvasAnimating?: boolean;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -41,6 +42,7 @@ export const CanvasNodeView = ({
   isSelected,
   isHighlighted,
   canvasScale = 1,
+  canvasAnimating = false,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -127,6 +129,7 @@ export const CanvasNodeView = ({
         style={node.type === 'frame' ? {
           transform: `scale(${1 / canvasScale})`,
           transformOrigin: 'left bottom',
+          transition: canvasAnimating ? 'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : undefined,
         } : undefined}
       >
         <span className={`node-type-badge node-type-badge--${node.type}`}>
