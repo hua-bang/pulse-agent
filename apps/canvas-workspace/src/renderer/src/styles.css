@@ -1,3 +1,10 @@
+/* Allow --canvas-scale to be animated via CSS transition */
+@property --canvas-scale {
+  syntax: '<number>';
+  initial-value: 1;
+  inherits: true;
+}
+
 /* ---- Reset & Foundation ---- */
 
 :root {
@@ -435,6 +442,8 @@ body {
   border-bottom: none;
   padding: 0 8px;
   color: white;
+  transform: scale(calc(1 / var(--canvas-scale, 1)));
+  transform-origin: left bottom;
 }
 
 .canvas-node--frame .node-header .node-type-badge--frame,

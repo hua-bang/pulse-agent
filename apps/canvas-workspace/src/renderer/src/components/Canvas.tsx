@@ -321,8 +321,11 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
         className="canvas-transform"
         style={{
           transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-          transition: animating ? 'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)' : undefined
-        }}
+          '--canvas-scale': transform.scale,
+          transition: animating
+            ? 'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94), --canvas-scale 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            : undefined
+        } as React.CSSProperties}
       >
         {sortedNodes.map((node) => (
           <CanvasNodeView
@@ -336,8 +339,6 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
             isResizing={resizingId === node.id}
             isSelected={selectedNodeId === node.id}
             isHighlighted={highlightedId === node.id}
-            canvasScale={transform.scale}
-            canvasAnimating={animating}
             onDragStart={onDragStart}
             onResizeStart={onResizeStart}
             onUpdate={updateNode}
