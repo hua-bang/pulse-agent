@@ -7,12 +7,12 @@ interface Props {
 }
 
 const COLOR_PRESETS = [
-  { name: "Purple", value: "rgba(144, 101, 176, 0.10)" },
-  { name: "Blue", value: "rgba(35, 131, 226, 0.10)" },
-  { name: "Green", value: "rgba(15, 123, 108, 0.10)" },
-  { name: "Orange", value: "rgba(217, 115, 13, 0.10)" },
-  { name: "Red", value: "rgba(224, 62, 62, 0.10)" },
-  { name: "Gray", value: "rgba(55, 53, 47, 0.06)" }
+  { name: "Purple", value: "#9065b0" },
+  { name: "Blue", value: "#2383e2" },
+  { name: "Green", value: "#0f7b6c" },
+  { name: "Yellow", value: "#cb912f" },
+  { name: "Red", value: "#e03e3e" },
+  { name: "Gray", value: "#787774" }
 ];
 
 export const FrameNodeBody = ({ node, onUpdate }: Props) => {
@@ -26,13 +26,13 @@ export const FrameNodeBody = ({ node, onUpdate }: Props) => {
   );
 
   return (
-    <div className="frame-body" style={{ backgroundColor: data.color }}>
+    <div className="frame-body">
       <div className="frame-colors">
         {COLOR_PRESETS.map((preset) => (
           <button
             key={preset.name}
             className={`frame-color-swatch${data.color === preset.value ? ' frame-color-swatch--active' : ''}`}
-            style={{ backgroundColor: preset.value.replace('0.10', '0.45') }}
+            style={{ backgroundColor: preset.value }}
             title={preset.name}
             onClick={(e) => {
               e.stopPropagation();

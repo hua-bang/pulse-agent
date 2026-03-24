@@ -404,31 +404,62 @@ body {
   z-index: 100;
 }
 
-/* ---- Frame Node ---- */
+/* ---- Frame Node (Obsidian-style) ---- */
 
 .canvas-node--frame {
-  background: transparent;
-  border: 2px dashed rgba(144, 101, 176, 0.35);
+  background: color-mix(in srgb, var(--frame-color, #9065b0) 8%, transparent);
+  border: 2px solid color-mix(in srgb, var(--frame-color, #9065b0) 55%, transparent);
   box-shadow: none;
+  overflow: visible; /* allow floating label above the border */
 }
 
 .canvas-node--frame:hover {
-  border-color: rgba(144, 101, 176, 0.55);
+  border-color: var(--frame-color, #9065b0);
   box-shadow: none;
 }
 
 .canvas-node--frame.canvas-node--selected {
-  border-color: var(--accent-frame);
-  box-shadow: 0 0 0 2px rgba(144, 101, 176, 0.15);
+  border-color: var(--frame-color, #9065b0);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #9065b0) 20%, transparent);
 }
 
+/* Floating label above the frame — sits just above the top border */
 .canvas-node--frame .node-header {
-  background: transparent;
+  position: absolute;
+  top: -34px;
+  left: -2px; /* align with border edge */
+  height: 32px;
+  min-width: max-content;
+  background: var(--frame-color, #9065b0);
+  border-radius: 6px 6px 0 0;
   border-bottom: none;
+  padding: 0 8px;
+  color: white;
+}
+
+.canvas-node--frame .node-header .node-type-badge--frame,
+.canvas-node--frame .node-header .node-title {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.canvas-node--frame .node-header .node-focus,
+.canvas-node--frame .node-header .node-close {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.canvas-node--frame .node-header .node-focus:hover,
+.canvas-node--frame .node-header .node-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+/* Body fills entire frame area (header is out of flow) */
+.canvas-node--frame .node-body {
+  height: 100%;
 }
 
 .frame-body {
-  flex: 1;
+  height: 100%;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   min-height: 60px;
   position: relative;
@@ -436,10 +467,10 @@ body {
 
 .frame-colors {
   position: absolute;
-  bottom: 8px;
-  left: 8px;
+  bottom: 10px;
+  left: 10px;
   display: flex;
-  gap: 4px;
+  gap: 5px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -450,10 +481,10 @@ body {
 }
 
 .frame-color-swatch {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
   cursor: pointer;
   padding: 0;
   transition: transform 0.1s ease, border-color 0.1s ease;
@@ -461,12 +492,12 @@ body {
 
 .frame-color-swatch:hover {
   transform: scale(1.2);
-  border-color: rgba(0, 0, 0, 0.25);
+  border-color: rgba(255, 255, 255, 0.7);
 }
 
 .frame-color-swatch--active {
-  border-color: rgba(0, 0, 0, 0.4);
-  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.15);
+  border-color: white;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.2);
 }
 
 /* ---- Node Header ---- */

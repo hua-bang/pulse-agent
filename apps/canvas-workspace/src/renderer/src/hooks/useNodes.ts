@@ -75,7 +75,7 @@ export const useNodes = (
             ? { filePath: "", content: "", saved: false, modified: false }
             : type === "terminal"
               ? { sessionId: "" }
-              : { color: "rgba(144, 101, 176, 0.10)" }
+              : { color: "#9065b0" }
       };
 
       // Auto-create note file for file nodes

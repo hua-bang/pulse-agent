@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { CanvasNode } from "../types";
+import type { CanvasNode, FrameNodeData } from "../types";
 import type { ResizeEdge } from "../hooks/useNodeResize";
 import { FileNodeBody } from "./FileNodeBody";
 import { TerminalNodeBody } from "./TerminalNodeBody";
@@ -112,7 +112,10 @@ export const CanvasNodeView = ({
       style={{
         transform: `translate(${node.x}px, ${node.y}px)`,
         width: node.width,
-        height: node.height
+        height: node.height,
+        ...(node.type === 'frame'
+          ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
+          : {})
       }}
       onClick={handleNodeClick}
     >
