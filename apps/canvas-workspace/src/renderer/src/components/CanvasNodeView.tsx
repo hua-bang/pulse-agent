@@ -1,8 +1,9 @@
 import { useCallback } from "react";
-import type { CanvasNode } from "../types";
+import type { CanvasNode, FrameNodeData } from "../types";
 import type { ResizeEdge } from "../hooks/useNodeResize";
 import { FileNodeBody } from "./FileNodeBody";
 import { TerminalNodeBody } from "./TerminalNodeBody";
+import { FrameNodeBody, FrameColorPicker } from "./FrameNodeBody";
 
 interface Props {
   node: CanvasNode;
@@ -111,7 +112,10 @@ export const CanvasNodeView = ({
       style={{
         transform: `translate(${node.x}px, ${node.y}px)`,
         width: node.width,
-        height: node.height
+        height: node.height,
+        ...(node.type === 'frame'
+          ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
+          : {})
       }}
       onClick={handleNodeClick}
     >
@@ -122,10 +126,15 @@ export const CanvasNodeView = ({
               <path d="M3 3h10v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3z" stroke="currentColor" strokeWidth="1.3" />
               <path d="M5.5 7h5M5.5 9.5h3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
-          ) : (
+          ) : node.type === "terminal" ? (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
               <path d="M4.5 7l2 1.5-2 1.5M8 10.5h3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+              <rect x="4.5" y="4.5" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1" strokeDasharray="2 1.5" />
             </svg>
           )}
         </span>
@@ -138,6 +147,9 @@ export const CanvasNodeView = ({
         >
           {node.title}
         </span>
+        {node.type === "frame" && (
+          <FrameColorPicker node={node} onUpdate={onUpdate} />
+        )}
         <button className="node-focus" onClick={handleFocus} title="Focus">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" />
@@ -153,8 +165,10 @@ export const CanvasNodeView = ({
       <div className="node-body">
         {node.type === "file" ? (
           <FileNodeBody node={node} onUpdate={onUpdate} />
-        ) : (
+        ) : node.type === "terminal" ? (
           <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
+        ) : (
+          <FrameNodeBody node={node} onUpdate={onUpdate} />
         )}
       </div>
 
