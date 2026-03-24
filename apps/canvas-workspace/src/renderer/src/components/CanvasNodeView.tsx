@@ -119,7 +119,10 @@ export const CanvasNodeView = ({
       }}
       onClick={handleNodeClick}
     >
-      <div className="node-header" onMouseDown={handleHeaderMouseDown}>
+      <div
+        className="node-header"
+        onMouseDown={handleHeaderMouseDown}
+      >
         <span className={`node-type-badge node-type-badge--${node.type}`}>
           {node.type === "file" ? (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
