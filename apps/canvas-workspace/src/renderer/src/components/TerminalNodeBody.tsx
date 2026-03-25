@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import type { CanvasNode, TerminalNodeData, FileNodeData } from "../types";
@@ -217,6 +217,24 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
   const initialScrollback = useRef(data.scrollback ?? "");
   const initialCwd = useRef(data.cwd ?? "");
 
+  // @ mention state
+  const mentionOpenRef = useRef(false);
+  const mentionQueryRef = useRef('');
+  const mentionIndexRef = useRef(0);
+  const [mentionUI, setMentionUI] = useState<{ open: boolean; query: string; index: number }>({
+    open: false, query: '', index: 0,
+  });
+  const mentionCandidates = useMemo(() => {
+    if (!mentionUI.open) return [];
+    const q = mentionUI.query.toLowerCase();
+    return (allNodes || [])
+      .filter(n => n.id !== node.id && n.type !== 'terminal')
+      .filter(n => !q || n.title.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [mentionUI.open, mentionUI.query, allNodes, node.id]);
+  const mentionCandidatesRef = useRef(mentionCandidates);
+  mentionCandidatesRef.current = mentionCandidates;
+
   const persistState = useCallback(() => {
     const term = termRef.current;
     const scrollback = term
@@ -325,8 +343,84 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
     // and lazily inject canvas context into CLAUDE.md / AGENTS.md only then.
     let inputBuf = '';
     term.onData((d: string) => {
+      // --- @ mention mode ---
+      if (mentionOpenRef.current) {
+        if (d === '\x1b') {
+          // Escape: close mention
+          mentionOpenRef.current = false;
+          setMentionUI({ open: false, query: '', index: 0 });
+          return;
+        }
+        if (d === '\x1b[A') {
+          // Arrow up
+          mentionIndexRef.current = Math.max(0, mentionIndexRef.current - 1);
+          setMentionUI(prev => ({ ...prev, index: mentionIndexRef.current }));
+          return;
+        }
+        if (d === '\x1b[B') {
+          // Arrow down
+          mentionIndexRef.current = Math.min(
+            Math.max(0, mentionCandidatesRef.current.length - 1),
+            mentionIndexRef.current + 1
+          );
+          setMentionUI(prev => ({ ...prev, index: mentionIndexRef.current }));
+          return;
+        }
+        if (d === '\r' || d === '\n') {
+          // Enter: select highlighted node
+          const candidates = mentionCandidatesRef.current;
+          if (candidates.length > 0) {
+            const idx = Math.min(mentionIndexRef.current, candidates.length - 1);
+            const selected = candidates[idx];
+            const fd = selected.data as FileNodeData;
+            const insertText = fd?.filePath || selected.title;
+            const eraseLen = mentionQueryRef.current.length + 1; // +1 for the @
+            api.write(sessionId, '\x7f'.repeat(eraseLen) + insertText);
+          }
+          mentionOpenRef.current = false;
+          mentionQueryRef.current = '';
+          mentionIndexRef.current = 0;
+          setMentionUI({ open: false, query: '', index: 0 });
+          return;
+        }
+        if (d === '\x7f') {
+          // Backspace
+          if (mentionQueryRef.current.length > 0) {
+            mentionQueryRef.current = mentionQueryRef.current.slice(0, -1);
+            mentionIndexRef.current = 0;
+            setMentionUI(prev => ({ ...prev, query: mentionQueryRef.current, index: 0 }));
+            api.write(sessionId, d);
+          } else {
+            // Erased the @, exit mention mode
+            mentionOpenRef.current = false;
+            setMentionUI({ open: false, query: '', index: 0 });
+            api.write(sessionId, d);
+          }
+          return;
+        }
+        if (d.length === 1 && d >= ' ') {
+          // Printable char: extend the query
+          mentionQueryRef.current += d;
+          mentionIndexRef.current = 0;
+          setMentionUI(prev => ({ ...prev, query: mentionQueryRef.current, index: 0 }));
+          api.write(sessionId, d);
+        } else {
+          // Any other control key: close mention and pass through
+          mentionOpenRef.current = false;
+          setMentionUI({ open: false, query: '', index: 0 });
+          api.write(sessionId, d);
+        }
+        return;
+      }
+
+      // --- normal flow ---
       api.write(sessionId, d);
-      if (d === '\r' || d === '\n') {
+      if (d === '@') {
+        mentionOpenRef.current = true;
+        mentionQueryRef.current = '';
+        mentionIndexRef.current = 0;
+        setMentionUI({ open: true, query: '', index: 0 });
+      } else if (d === '\r' || d === '\n') {
         const cmd = inputBuf.trim();
         inputBuf = '';
         if (AI_TOOL_PATTERN.test(cmd) && allNodesRef.current && allNodesRef.current.length > 0) {
@@ -411,6 +505,17 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
     return () => observer.disconnect();
   }, []);
 
+  const handleMentionSelect = useCallback((n: CanvasNode) => {
+    const fd = n.data as FileNodeData;
+    const insertText = fd?.filePath || n.title;
+    const eraseLen = mentionQueryRef.current.length + 1;
+    window.canvasWorkspace?.pty?.write(sessionId, '\x7f'.repeat(eraseLen) + insertText);
+    mentionOpenRef.current = false;
+    mentionQueryRef.current = '';
+    mentionIndexRef.current = 0;
+    setMentionUI({ open: false, query: '', index: 0 });
+  }, [sessionId]);
+
   return (
     <div className="terminal-body-wrap">
       <div
@@ -418,6 +523,41 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
         className="terminal-xterm-container"
         onMouseDown={(e) => { e.stopPropagation(); onSelect?.(); }}
       />
+      {mentionUI.open && (
+        <div className="terminal-mention-dropdown">
+          <div className="terminal-mention-header">
+            <span className="terminal-mention-at">@</span>
+            <span className="terminal-mention-query">{mentionUI.query || 'nodes…'}</span>
+          </div>
+          {mentionCandidates.length === 0 ? (
+            <div className="terminal-mention-empty">No matching nodes</div>
+          ) : (
+            mentionCandidates.map((n, i) => {
+              const fd = n.data as FileNodeData;
+              const isActive = i === Math.min(mentionUI.index, mentionCandidates.length - 1);
+              return (
+                <div
+                  key={n.id}
+                  className={`terminal-mention-item${isActive ? ' terminal-mention-item--active' : ''}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleMentionSelect(n);
+                  }}
+                >
+                  <span className={`terminal-mention-badge terminal-mention-badge--${n.type}`} />
+                  <span className="terminal-mention-title">{n.title}</span>
+                  {fd?.filePath && (
+                    <span className="terminal-mention-path">
+                      {fd.filePath.split('/').pop()}
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 };

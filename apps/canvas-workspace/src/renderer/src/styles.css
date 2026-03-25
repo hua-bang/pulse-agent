@@ -1119,6 +1119,105 @@ body {
   padding: 0 4px;
 }
 
+/* ---- Terminal @ Mention Dropdown ---- */
+
+.terminal-mention-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  right: 8px;
+  margin-bottom: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+  overflow: hidden;
+  max-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-mention-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px 5px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.terminal-mention-at {
+  font-weight: 600;
+  color: var(--accent, #2383e2);
+}
+
+.terminal-mention-query {
+  font-family: 'SF Mono', Menlo, monospace;
+  color: var(--text-primary);
+}
+
+.terminal-mention-empty {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.terminal-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+
+.terminal-mention-item:hover,
+.terminal-mention-item--active {
+  background: var(--hover, rgba(35, 131, 226, 0.08));
+}
+
+.terminal-mention-badge {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.terminal-mention-badge--file {
+  background: #2383e2;
+}
+
+.terminal-mention-badge--frame {
+  background: #9065b0;
+}
+
+.terminal-mention-badge--terminal {
+  background: #0f7b6c;
+}
+
+.terminal-mention-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.terminal-mention-path {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', Menlo, monospace;
+  flex-shrink: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---- Context Menu ---- */
 
 .context-menu {
