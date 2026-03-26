@@ -229,7 +229,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
         );
         if (!isEditable && nodes.length > 0) {
           e.preventDefault();
-          const currentIndex = nodes.findIndex((n) => n.id === selectedNodeId);
+          const currentIndex = nodes.findIndex((n) => n.id === selectedNodeIds[0]);
           let nextIndex: number;
           if (e.shiftKey) {
             nextIndex = currentIndex <= 0 ? nodes.length - 1 : currentIndex - 1;
@@ -237,7 +237,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
             nextIndex = currentIndex >= nodes.length - 1 ? 0 : currentIndex + 1;
           }
           const nextNode = nodes[nextIndex];
-          setSelectedNodeId(nextNode.id);
+          setSelectedNodeIds([nextNode.id]);
           setHighlightedId(nextNode.id);
           handleFocusNode(nextNode);
         }
@@ -245,7 +245,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, selectedNodeId, handleFocusNode]);
+  }, [nodes, selectedNodeIds, handleFocusNode]);
 
   // Clear highlight after animation
   useEffect(() => {
