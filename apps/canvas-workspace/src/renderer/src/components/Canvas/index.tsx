@@ -5,11 +5,11 @@ import { useNodeDrag } from "../hooks/useNodeDrag";
 import { useNodeResize } from "../hooks/useNodeResize";
 import { useCanvasContext } from "../hooks/useCanvasContext";
 import type { CanvasNode, CanvasTransform } from "../types";
-import { CanvasNodeView } from "./CanvasNodeView";
-import { NodeContextMenu } from "./NodeContextMenu";
-import { FloatingToolbar } from "./FloatingToolbar";
-import { ZoomIndicator } from "./ZoomIndicator";
-import { SearchPalette } from "./SearchPalette";
+import { CanvasNodeView } from "../CanvasNodeView";
+import { NodeContextMenu } from "../NodeContextMenu";
+import { FloatingToolbar } from "../FloatingToolbar";
+import { ZoomIndicator } from "../ZoomIndicator";
+import { SearchPalette } from "../SearchPalette";
 
 export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId: string; canvasName?: string; rootFolder?: string; hidden?: boolean }) => {
   const [activeTool, setActiveTool] = useState("select");

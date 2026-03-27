@@ -9,7 +9,7 @@ import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import { Markdown } from 'tiptap-markdown';
 import type { CanvasNode, FileNodeData } from '../types';
-import { SlashCommandMenu, type SlashCommandDef } from './SlashCommandMenu';
+import { SlashCommandMenu, type SlashCommandDef } from '../SlashCommandMenu';
 
 interface Props {
   node: CanvasNode;
