@@ -88,7 +88,7 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
     }
 
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
-      if (e.type === 'keydown' && e.key === ';' && e.ctrlKey && !e.altKey && !e.metaKey) {
+      if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
         setPickerOpen(true);
         return false;
       }

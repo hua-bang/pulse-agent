@@ -66,7 +66,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
       <div className="node-mention-picker" onClick={(e) => e.stopPropagation()}>
         <div className="node-mention-header">
           <span className="node-mention-label">@ 引用节点</span>
-          <kbd className="node-mention-kbd">Ctrl+;</kbd>
+          <kbd className="node-mention-kbd">Ctrl/⌘+2</kbd>
         </div>
         <div className="node-mention-search">
           <input
