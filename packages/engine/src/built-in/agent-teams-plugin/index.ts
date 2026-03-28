@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
 
 import type { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
 import type { Tool } from '../../shared/types';
@@ -8,6 +9,7 @@ import { buildTaskGraph, validateTaskGraph } from './graph';
 import { routeRoles } from './router';
 import { runTaskGraph } from './scheduler';
 import { aggregateResults } from './aggregator';
+import { LocalArtifactStore } from './artifact-store';
 import type { TeamRole, TeamRunInput, TeamRunOutput, TaskGraph } from './types';
 
 const TEAM_RUN_INPUT_SCHEMA = z.object({
@@ -37,12 +39,15 @@ export const builtInAgentTeamsPlugin: EnginePlugin = {
   async initialize(context: EnginePluginContext): Promise<void> {
     const registry = new RoleRegistry();
 
+    const artifactStore = new LocalArtifactStore();
+
     const tool: Tool<TeamRunInput, TeamRunOutput> = {
       name: 'agent_teams_run',
       description: 'Run a fixed DAG agent team with role routing and aggregation.',
       defer_loading: true,
       inputSchema: TEAM_RUN_INPUT_SCHEMA,
       execute: async (input) => {
+        const runId = randomUUID();
         const roleTools = registry.resolveRoleTools(input.roleTools);
         const tools = context.getTools();
         const availableRoles = Object.keys(roleTools) as TeamRole[];
@@ -80,12 +85,14 @@ export const builtInAgentTeamsPlugin: EnginePlugin = {
           context,
           graph,
           task: input.task,
+          runId,
           maxConcurrency: input.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY,
           retries: input.retries ?? DEFAULT_RETRIES,
           nodeTimeoutMs: input.nodeTimeoutMs ?? DEFAULT_TIMEOUT_MS,
           roleTools,
           tools,
-          runContext: input.context
+          runContext: input.context,
+          artifactStore
         });
 
         return {

@@ -15,6 +15,7 @@ export interface TaskNode {
   input: string;
   optional?: boolean;
   tool?: string;
+  instruction?: string;
 }
 
 export interface TaskGraph {
