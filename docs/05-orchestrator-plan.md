@@ -112,6 +112,40 @@ team 任务不是一次性调用，而是有状态的多轮会话：
 - 与现有 `clarification-queue` 对齐，提升到编排层
 - 执行状态持久化（runId + 节点状态快照）
 
+#### 会话模型与 dispatcher 的冲突
+
+> **重要约束**：现有 dispatcher 基于"一条消息 → 一次完整 run → 结束"的模型，
+> `platformKey` 锁在 run 期间，run 完立即释放。
+> team 会话横跨多条消息，与这个模型天然冲突：
+>
+> ```
+> 现在：  消息1 → run → 结束
+>               消息2 → run → 结束
+>
+> team：  消息1 → session 开始（规划）
+>               消息2 → 路由到 session（确认）
+>               消息3 → 路由到 session（执行中反问）
+>               消息4 → session 结束
+> ```
+>
+> 支持完整会话生命周期需要改造 dispatcher 路由逻辑，增加
+> `hasActiveSession(platformKey)` 判断，将消息转发给已有 session 而非新开 agent run。
+> 这是改造难度最高的部分，放在完整版实现。
+
+#### 最小可行版本（Phase 2 第一步）
+
+跳过多轮澄清和执行中反问，先只做"一次性执行"：
+
+```
+/team <task>
+  → 直接调 orchestrator.run()（无多轮澄清）
+  → 实时打印节点进度
+  → 返回最终结果
+```
+
+dispatcher 完全不需要改造，session 概念暂不引入。
+等基础版稳定后，再迭代引入 OrchestratorSession 支持多轮交互。
+
 ### Phase 3：`apps/canvas-workspace` 可视化层
 
 **目标**：将 TaskGraph 映射为 Canvas 上的节点 + 边，支持可视化编排与实时执行监控。
