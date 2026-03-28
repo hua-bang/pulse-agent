@@ -92,9 +92,14 @@ async function ensureCodexRegistered(): Promise<void> {
 
     if (config.includes(marker)) return; // already present
 
+    // experimental_use_rmcp_client is required by older Codex versions for
+    // Streamable HTTP support; harmless on newer ones.
+    const needsFlag = !config.includes('experimental_use_rmcp_client');
+    const flag = needsFlag ? 'experimental_use_rmcp_client = true\n' : '';
     const entry = `\n${marker}\nurl = "${SERVER_URL}"\nenabled = true\n`;
+
     await fs.mkdir(join(homedir(), '.codex'), { recursive: true });
-    await fs.writeFile(configPath, config + entry, 'utf-8');
+    await fs.writeFile(configPath, flag + config + entry, 'utf-8');
     console.log('[MCP] Registered with Codex (~/.codex/config.toml)');
   } catch (err) {
     console.warn('[MCP] Could not register with Codex:', err);

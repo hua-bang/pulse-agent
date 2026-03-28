@@ -292,15 +292,23 @@ async function handleMCPRequest(body: string): Promise<unknown> {
 
   try {
     switch (method) {
-      case 'initialize':
+      case 'initialize': {
+        // Negotiate protocol version: accept what the client requests if we support it,
+        // otherwise respond with our latest supported version.
+        const SUPPORTED_VERSIONS = ['2025-03-26', '2024-11-05'];
+        const clientVersion = (params as { protocolVersion?: string } | undefined)?.protocolVersion ?? '';
+        const protocolVersion = SUPPORTED_VERSIONS.includes(clientVersion)
+          ? clientVersion
+          : '2025-03-26';
         return {
           jsonrpc: '2.0', id,
           result: {
-            protocolVersion: '2024-11-05',
+            protocolVersion,
             capabilities: { tools: {} },
             serverInfo: { name: 'canvas-workspace', version: '0.1.0' }
           }
         };
+      }
 
       case 'ping':
         return { jsonrpc: '2.0', id, result: {} };
