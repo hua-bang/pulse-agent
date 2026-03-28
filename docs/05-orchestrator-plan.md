@@ -185,7 +185,7 @@ apps/canvas-workspace    ← 可视化层，接入 orchestrator（Phase 3）
 - [x] 核心模块迁移（scheduler/graph/router/planner/artifact-store/aggregator）
 - [x] artifact cleanup 方法
 - [x] 聚合策略 `last`
-- [ ] agent-teams-plugin 改为 thin adapter（调用 orchestrator）
+- [x] agent-teams-plugin 改为 thin adapter（调用 orchestrator）
 - [ ] CLI 新增 `/team` 模式命令，接入 orchestrator
 - [ ] OrchestratorSession：会话生命周期管理（规划/确认/执行/暂停）
 - [ ] 执行状态持久化与断点续跑

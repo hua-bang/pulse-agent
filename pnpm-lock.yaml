@@ -275,6 +275,9 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
+      pulse-coder-orchestrator:
+        specifier: workspace:*
+        version: link:../orchestrator
       yaml:
         specifier: ^2.8.2
         version: 2.8.2
@@ -328,9 +331,6 @@ importers:
 
   packages/orchestrator:
     dependencies:
-      pulse-coder-engine:
-        specifier: workspace:*
-        version: link:../engine
       zod:
         specifier: ^4.3.6
         version: 4.3.6

@@ -41,7 +41,7 @@ export type { TaskStatus, WorkTask, WorkTaskListSnapshot } from './task-tracking
 export { builtInAgentTeamsPlugin } from './agent-teams-plugin';
 export { builtInRoleSoulPlugin } from './role-soul-plugin';
 export { builtInPtcPlugin } from './ptc-plugin';
-export type { TeamRole, TaskGraph, TaskNode, NodeResult, TeamRunInput, TeamRunOutput } from './agent-teams-plugin/types';
+export type { TeamRole, TaskGraph, TaskNode, NodeResult, OrchestrationInput as TeamRunInput, OrchestrationResult as TeamRunOutput } from 'pulse-coder-orchestrator';
 export type {
   PlanMode,
   PlanIntentLabel,
