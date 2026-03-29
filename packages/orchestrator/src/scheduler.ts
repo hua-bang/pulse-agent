@@ -56,6 +56,8 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
       return;
     }
 
+    logger.info(`Starting: ${node.id} (${node.role}) → ${agentName}`);
+
     // 收集上游 artifact 文件路径
     const depArtifacts = artifactStore
       ? node.deps
@@ -85,6 +87,7 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
 
     let lastError: unknown;
     for (let attempt = 0; attempt <= retries; attempt++) {
+      if (attempt > 0) logger.warn(`Retrying ${node.id} (attempt ${attempt + 1}/${retries + 1})`);
       try {
         await withTimeout(runOnce(), nodeTimeoutMs);
         result.status = 'success';
