@@ -137,7 +137,7 @@ class CoderCLI {
     }
   }
 
-  private createOrchestrator(): Orchestrator {
+  private createOrchestrator(activeNodes: Set<string>): Orchestrator {
     const runner = new EngineAgentRunner(() => this.agent.getTools());
 
     const llmCall = async (systemPrompt: string, userPrompt: string): Promise<string> => {
@@ -149,11 +149,24 @@ class CoderCLI {
       return result.text?.trim() ?? '';
     };
 
+    const cyan = '\x1b[36m';
+    const yellow = '\x1b[33m';
+    const red = '\x1b[31m';
+    const reset = '\x1b[0m';
+
     const logger: OrchestratorLogger = {
       debug: () => {},
-      info: (msg) => console.log(`\x1b[36m[orchestrator]\x1b[0m ${msg}`),
-      warn: (msg) => console.warn(`\x1b[33m[orchestrator]\x1b[0m ${msg}`),
-      error: (msg) => console.error(`\x1b[31m[orchestrator]\x1b[0m ${msg}`),
+      info: (msg) => {
+        // Track active nodes for heartbeat display
+        const startMatch = msg.match(/^Starting: (\S+)/);
+        if (startMatch) activeNodes.add(startMatch[1]);
+        const doneMatch = msg.match(/^Node (\S+)/);
+        if (doneMatch) activeNodes.delete(doneMatch[1]);
+
+        console.log(`${cyan}[orchestrator]${reset} ${msg}`);
+      },
+      warn: (msg) => console.warn(`${yellow}[orchestrator]${reset} ${msg}`),
+      error: (msg) => console.error(`${red}[orchestrator]${reset} ${msg}`),
     };
 
     return new Orchestrator({ runner, llmCall, logger });
@@ -183,10 +196,24 @@ class CoderCLI {
       return;
     }
 
-    console.log('\n\x1b[36m[orchestrator]\x1b[0m Starting team run...');
+    const cyan = '\x1b[36m';
+    const dim = '\x1b[2m';
+    const reset = '\x1b[0m';
 
-    const orchestrator = this.createOrchestrator();
+    console.log(`\n${cyan}[orchestrator]${reset} Starting team run...`);
+
+    const activeNodes = new Set<string>();
+    const orchestrator = this.createOrchestrator(activeNodes);
     const startTime = Date.now();
+
+    // Heartbeat: show elapsed time + active nodes every 5 seconds
+    const heartbeat = setInterval(() => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+      const active = activeNodes.size > 0
+        ? ` running: ${Array.from(activeNodes).join(', ')}`
+        : '';
+      process.stdout.write(`${dim}[orchestrator] ${elapsed}s elapsed${active}${reset}\n`);
+    }, 5000);
 
     try {
       const result = await orchestrator.run({
@@ -194,8 +221,10 @@ class CoderCLI {
         route: route ?? 'auto',
       });
 
+      clearInterval(heartbeat);
+
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`\n\x1b[36m[orchestrator]\x1b[0m Completed in ${elapsed}s — ${result.roles.length} roles, ${result.graph.nodes.length} nodes`);
+      console.log(`\n${cyan}[orchestrator]${reset} Completed in ${elapsed}s — ${result.roles.length} roles, ${result.graph.nodes.length} nodes`);
 
       // Print per-node summary
       for (const node of result.graph.nodes) {
@@ -209,7 +238,8 @@ class CoderCLI {
       // Print aggregated output
       console.log('\n' + result.aggregate);
     } catch (error: any) {
-      console.error(`\n\x1b[31m[orchestrator]\x1b[0m Error: ${error.message}`);
+      clearInterval(heartbeat);
+      console.error(`\n${cyan}[orchestrator]${reset} Error: ${error.message}`);
     }
   }
 
