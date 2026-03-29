@@ -66,6 +66,22 @@ export interface DevtoolsToolSpan {
   error?: string;
 }
 
+export interface DevtoolsMessageInfo {
+  role: string;
+  contentTypes: string[];
+  estimatedTokens: number;
+  textPreview?: string;
+  toolNames?: string[];
+}
+
+export interface DevtoolsContextSnapshot {
+  capturedAt: number;
+  totalMessages: number;
+  estimatedTotalTokens: number;
+  byRole: Record<string, { count: number; estimatedTokens: number }>;
+  messages: DevtoolsMessageInfo[];
+}
+
 export interface DevtoolsCompactionEvent {
   at: number;
   attempt: number;
@@ -88,6 +104,7 @@ export interface DevtoolsRunRecord extends DevtoolsRunSummary {
   compactionEvents: DevtoolsCompactionEvent[];
   pluginHooks: DevtoolsPluginHookSpan[];
   resultTextPreview?: string;
+  contextSnapshot?: DevtoolsContextSnapshot;
 }
 
 export interface DevtoolsPluginHookSpan {
@@ -185,6 +202,54 @@ function estimateTokensFromMessages(messages: Array<{ role?: string; content?: a
     }
   }
   return Math.ceil(totalChars / 4);
+}
+
+function buildMessageInfo(message: { role?: string; content?: any }): DevtoolsMessageInfo {
+  const role = String(message.role ?? 'unknown');
+  const content = message.content;
+  const contentTypes: string[] = [];
+  const toolNames: string[] = [];
+  let textPreview: string | undefined;
+  let charCount = role.length;
+
+  if (typeof content === 'string') {
+    contentTypes.push('text');
+    charCount += content.length;
+    if (content.length > 0) textPreview = content.slice(0, 120);
+  } else if (Array.isArray(content)) {
+    for (const part of content as any[]) {
+      const type = String(part?.type ?? 'unknown');
+      if (!contentTypes.includes(type)) contentTypes.push(type);
+      if (type === 'text' && typeof part.text === 'string') {
+        charCount += part.text.length;
+        if (!textPreview && part.text.length > 0) textPreview = part.text.slice(0, 120);
+      } else if (type === 'tool-call') {
+        const name = String(part.toolName ?? part.name ?? '');
+        if (name && !toolNames.includes(name)) toolNames.push(name);
+        charCount += safeStringify(part.args ?? part.input ?? {}).length;
+      } else if (type === 'tool-result') {
+        const resultStr = typeof part.content === 'string'
+          ? part.content
+          : safeStringify(part.content ?? part.result ?? '');
+        charCount += resultStr.length;
+        if (!textPreview && resultStr.length > 0) textPreview = resultStr.slice(0, 120);
+      } else {
+        charCount += safeStringify(part).length;
+      }
+    }
+  } else if (content !== undefined) {
+    charCount += safeStringify(content).length;
+  }
+
+  return {
+    role,
+    contentTypes,
+    estimatedTokens: Math.ceil(charCount / 4),
+    textPreview: textPreview
+      ? textPreview.length > 120 ? `${textPreview.slice(0, 120)}...` : textPreview
+      : undefined,
+    toolNames: toolNames.length > 0 ? toolNames : undefined,
+  };
 }
 
 function pickNumber(source: any, keys: string[]): number | undefined {
@@ -552,6 +617,28 @@ export class DevtoolsStore {
     this.touch(record, timestamp);
   }
 
+  recordContextSnapshot(runId: string, messages: Array<{ role?: string; content?: any }>): void {
+    const record = this.runs.get(runId);
+    if (!record) return;
+    const msgInfos = messages.map(buildMessageInfo);
+    const byRole: Record<string, { count: number; estimatedTokens: number }> = {};
+    let estimatedTotalTokens = 0;
+    for (const info of msgInfos) {
+      if (!byRole[info.role]) byRole[info.role] = { count: 0, estimatedTokens: 0 };
+      byRole[info.role].count++;
+      byRole[info.role].estimatedTokens += info.estimatedTokens;
+      estimatedTotalTokens += info.estimatedTokens;
+    }
+    record.contextSnapshot = {
+      capturedAt: now(),
+      totalMessages: messages.length,
+      estimatedTotalTokens,
+      byRole,
+      messages: msgInfos,
+    };
+    this.touch(record);
+  }
+
   updateRun(runId: string, update: DevtoolsRunUpdate): void {
     const record = this.runs.get(runId);
     if (!record) {
@@ -817,6 +904,7 @@ export function createDevtoolsIntegration(options: DevtoolsIntegrationOptions = 
       context.registerHook('afterRun', (input) => {
         const runId = runIdByContext.get(input.context);
         if (runId) {
+          store.recordContextSnapshot(runId, input.context.messages);
           store.finishRun(runId, input.result);
           runIdByContext.delete(input.context);
         }

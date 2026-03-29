@@ -74,6 +74,22 @@ interface CompactionEvent {
   strategy: 'summary' | 'summary-too-large' | 'fallback';
 }
 
+interface ContextMessageInfo {
+  role: string;
+  contentTypes: string[];
+  estimatedTokens: number;
+  textPreview?: string;
+  toolNames?: string[];
+}
+
+interface ContextSnapshot {
+  capturedAt: number;
+  totalMessages: number;
+  estimatedTotalTokens: number;
+  byRole: Record<string, { count: number; estimatedTokens: number }>;
+  messages: ContextMessageInfo[];
+}
+
 interface RunDetail extends RunSummary {
   endedAt?: number;
   userText?: string;
@@ -88,6 +104,7 @@ interface RunDetail extends RunSummary {
     durationMs: number;
   }>;
   resultTextPreview?: string;
+  contextSnapshot?: ContextSnapshot;
 }
 
 const DEFAULT_BASE_URL = '/api/devtools';
@@ -147,7 +164,7 @@ export default function App() {
   const [groupBy, setGroupBy] = useState<'none' | 'session'>('none');
   const [statusFilter, setStatusFilter] = useState<'all' | 'running' | 'finished'>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'duration' | 'lastEvent'>('recent');
-  const [detailTab, setDetailTab] = useState<'llm' | 'plugins' | 'timeline'>('llm');
+  const [detailTab, setDetailTab] = useState<'llm' | 'plugins' | 'timeline' | 'context'>('llm');
   const [timelineRange, setTimelineRange] = useState({ from: 1, to: 1 });
 
   const apiBase = useMemo(() => sanitizeBaseUrl(baseUrl), [baseUrl]);
@@ -626,6 +643,12 @@ export default function App() {
           >
             Engine Plugins
           </button>
+          <button
+            className={`tab-button ${detailTab === 'context' ? 'active' : ''}`}
+            onClick={() => setDetailTab('context')}
+          >
+            Context
+          </button>
         </div>
 
         {detailTab === 'llm' ? (
@@ -1059,6 +1082,84 @@ export default function App() {
                 </div>
               ) : (
                 <div className="empty">No idle gaps detected.</div>
+              )}
+            </section>
+          </>
+        ) : detailTab === 'context' ? (
+          <>
+            <section className="section">
+              <h2>Context Snapshot</h2>
+              {selectedRun.contextSnapshot ? (() => {
+                const snap = selectedRun.contextSnapshot;
+                const roleColors: Record<string, string> = {
+                  user: '#3b82f6',
+                  assistant: '#10b981',
+                  tool: '#f59e0b',
+                  system: '#8b5cf6',
+                };
+                const maxTokens = Math.max(...snap.messages.map((m) => m.estimatedTokens), 1);
+                return (
+                  <>
+                    <div className="hot-grid">
+                      <div className="hot-card">
+                        <div className="hot-label">Total messages</div>
+                        <div className="hot-value">{snap.totalMessages}</div>
+                      </div>
+                      <div className="hot-card">
+                        <div className="hot-label">Estimated tokens</div>
+                        <div className="hot-value">~{snap.estimatedTotalTokens.toLocaleString()}</div>
+                      </div>
+                      {Object.entries(snap.byRole).map(([role, stat]) => (
+                        <div className="hot-card" key={role}>
+                          <div className="hot-label" style={{ color: roleColors[role] ?? '#9ca3af' }}>
+                            {role}
+                          </div>
+                          <div className="hot-value">
+                            {stat.count} msg · ~{stat.estimatedTokens.toLocaleString()} tok
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="bar-block" style={{ marginTop: '1rem' }}>
+                      <div className="bar-title">Messages (by token weight)</div>
+                      {snap.messages.map((msg, idx) => (
+                        <div key={idx} className="bar-row" style={{ alignItems: 'flex-start', minHeight: 28 }}>
+                          <div className="bar-label" style={{ color: roleColors[msg.role] ?? '#9ca3af', fontWeight: 600, minWidth: 80 }}>
+                            #{idx + 1} {msg.role}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div className="bar-track">
+                              <div
+                                className="bar-fill"
+                                style={{
+                                  width: `${Math.max(4, (msg.estimatedTokens / maxTokens) * 100)}%`,
+                                  background: roleColors[msg.role] ?? '#6b7280',
+                                }}
+                              />
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                              {msg.contentTypes.map((ct) => (
+                                <span key={ct} className="pill" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>{ct}</span>
+                              ))}
+                              {msg.toolNames?.map((tn) => (
+                                <span key={tn} className="pill" style={{ fontSize: '0.65rem', padding: '1px 6px', opacity: 0.75 }}>{tn}</span>
+                              ))}
+                            </div>
+                            {msg.textPreview ? (
+                              <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {msg.textPreview}
+                              </div>
+                            ) : null}
+                          </div>
+                          <div className="bar-value">~{msg.estimatedTokens} tok</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })() : (
+                <div className="empty">No context snapshot yet. Snapshot is captured when the run finishes.</div>
               )}
             </section>
           </>
