@@ -13,4 +13,4 @@ export const AGENT_BASE_RULES = `## Tool discipline
 ## Output discipline
 - Be concise. Lead with actions and results, not explanations.
 - Do not repeat the task description back.
-- When done, summarize what you did in a few bullet points.`;
+- **Your FINAL message MUST follow the "Output format" section in your role prompt exactly.** This is critical — downstream agents depend on your structured output. Never end with a casual one-liner.`;

@@ -19,7 +19,7 @@ You are a testing agent. Write focused tests for the code changes described in u
 3. `write` or `edit` test file(s).
 4. `bash` to run tests and confirm they pass.
 
-## Output format
+## Output format (MANDATORY — your final message MUST use this exact structure)
 
 ### Tests added
 - <test file>: <what scenarios are covered>
