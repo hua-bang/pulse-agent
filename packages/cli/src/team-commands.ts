@@ -1,4 +1,3 @@
-import * as readline from 'readline';
 import { generateTextAI } from 'pulse-coder-engine';
 import { Orchestrator, EngineAgentRunner } from 'pulse-coder-orchestrator';
 import { TeamLead, InProcessDisplay } from 'pulse-coder-agent-teams';
@@ -12,6 +11,8 @@ const red = '\x1b[31m';
 const bold = '\x1b[1m';
 const dim = '\x1b[2m';
 const reset = '\x1b[0m';
+
+// ─── /team (DAG orchestrator) ─────────────────────────────────────
 
 function createOrchestrator(agent: PulseAgent, activeNodes: Set<string>): Orchestrator {
   const runner = new EngineAgentRunner(() => agent.getTools());
@@ -132,28 +133,35 @@ export async function runTeam(agent: PulseAgent, args: string[]): Promise<void> 
   }
 }
 
-export async function runAgentTeams(args: string[], rl: readline.Interface): Promise<void> {
-  // Parse --concurrency N
+// ─── /teams (independent engine teams) with session persistence ────
+
+interface TeamsArgs {
+  task: string;
+  concurrency: number;
+  cwd?: string;
+  verbose: boolean;
+}
+
+function parseTeamsArgs(args: string[]): TeamsArgs | null {
   let concurrency = 0;
   const concIdx = args.indexOf('--concurrency');
   if (concIdx !== -1 && args[concIdx + 1]) {
     concurrency = parseInt(args[concIdx + 1], 10);
     if (isNaN(concurrency) || concurrency < 1) {
       console.log('\n❌ --concurrency must be a positive integer');
-      return;
+      return null;
     }
   }
 
-  // Parse --cwd <dir>
   let cwd: string | undefined;
   const cwdIdx = args.indexOf('--cwd');
   if (cwdIdx !== -1 && args[cwdIdx + 1]) {
-    const { resolve } = await import('path');
-    const { existsSync, statSync } = await import('fs');
-    cwd = resolve(args[cwdIdx + 1]);
-    if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
+    const path = require('path');
+    const fs = require('fs');
+    cwd = path.resolve(args[cwdIdx + 1]);
+    if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
       console.log(`\n❌ --cwd path does not exist or is not a directory: ${cwd}`);
-      return;
+      return null;
     }
   }
 
@@ -168,65 +176,105 @@ export async function runAgentTeams(args: string[], rl: readline.Interface): Pro
   if (!task) {
     console.log('\n❌ Please provide a task description');
     console.log('Usage: /teams <task> [--concurrency N] [--cwd <dir>] [--verbose]');
-    return;
+    return null;
   }
 
-  const lead = new TeamLead({
-    teamName: `team-${Date.now()}`,
-    cwd,
-    logger: { debug() {}, info() {}, warn(m: string) { console.warn(m); }, error(m: string) { console.error(m); } },
-    defaultTeammateEngineOptions: { disableBuiltInPlugins: true },
-  });
+  return { task, concurrency, cwd, verbose };
+}
 
-  const display = new InProcessDisplay(lead.team, { showOutput: verbose });
-  display.start();
+/**
+ * Persistent teams session. Once started via `/teams`, stays alive so
+ * subsequent plain messages are routed as follow-ups. Exit with `/solo`.
+ */
+export class TeamsSession {
+  private lead: TeamLead;
+  private display: InProcessDisplay;
+  private concurrency: number;
+  private _active = false;
 
-  try {
-    await lead.initialize();
+  private constructor(lead: TeamLead, display: InProcessDisplay, concurrency: number) {
+    this.lead = lead;
+    this.display = display;
+    this.concurrency = concurrency;
+  }
 
-    console.log(`\n${bold}━━━ Agent Teams ━━━${reset}${concurrency ? `  ${dim}concurrency: ${concurrency}${reset}` : ''}${cwd ? `  ${dim}cwd: ${cwd}${reset}` : ''}`);
-    console.log(`${dim}  ${task}${reset}\n`);
-    console.log(`  ${bold}${cyan}[1]${reset} ${bold}Planning${reset}\n`);
+  get active(): boolean { return this._active; }
 
-    const { synthesis } = await lead.orchestrate(task, {
-      concurrency,
-      onPlan: async (plan: TeamPlan) => {
-        console.log(`  ${dim}Teammates: ${plan.teammates.map(t => t.name).join(', ')}${reset}`);
-        console.log(`  ${dim}Tasks: ${plan.tasks.length}${reset}\n`);
-        return true;
-      },
+  /**
+   * Start a new teams session: plan → spawn → execute → synthesize.
+   * Returns the session (now active) or null if args were invalid.
+   */
+  static async start(args: string[]): Promise<TeamsSession | null> {
+    const parsed = parseTeamsArgs(args);
+    if (!parsed) return null;
+
+    const { task, concurrency, cwd, verbose } = parsed;
+
+    const lead = new TeamLead({
+      teamName: `team-${Date.now()}`,
+      cwd,
+      logger: { debug() {}, info() {}, warn(m: string) { console.warn(m); }, error(m: string) { console.error(m); } },
+      defaultTeammateEngineOptions: { disableBuiltInPlugins: true },
     });
 
-    console.log('\n' + synthesis + '\n');
+    const display = new InProcessDisplay(lead.team, { showOutput: verbose });
+    display.start();
 
-    // Follow-up loop
-    while (true) {
-      const input = await new Promise<string>((resolve) =>
-        rl.question(`\n${cyan}Follow-up (empty to exit):${reset} `, resolve)
-      );
-      const trimmed = input.trim();
-      if (!trimmed || trimmed === 'exit' || trimmed === 'quit') break;
+    const session = new TeamsSession(lead, display, concurrency);
 
-      try {
-        console.log(`\n  ${bold}${cyan}[1]${reset} ${bold}Planning follow-up${reset}\n`);
-        const { synthesis: followUpSynthesis } = await lead.followUp(trimmed, {
-          concurrency,
-          onPlan: async (plan: TeamPlan) => {
-            console.log(`  ${dim}Tasks: ${plan.tasks.length}${reset}\n`);
-            return true;
-          },
-        });
-        console.log('\n' + followUpSynthesis + '\n');
-      } catch (err: any) {
-        console.error(`\n❌ Follow-up failed: ${err.message}`);
-      }
+    try {
+      await lead.initialize();
+
+      console.log(`\n${bold}━━━ Agent Teams ━━━${reset}${concurrency ? `  ${dim}concurrency: ${concurrency}${reset}` : ''}${cwd ? `  ${dim}cwd: ${cwd}${reset}` : ''}`);
+      console.log(`${dim}  ${task}${reset}\n`);
+      console.log(`  ${bold}${cyan}[1]${reset} ${bold}Planning${reset}\n`);
+
+      const { synthesis } = await lead.orchestrate(task, {
+        concurrency,
+        onPlan: async (plan: TeamPlan) => {
+          console.log(`  ${dim}Teammates: ${plan.teammates.map(t => t.name).join(', ')}${reset}`);
+          console.log(`  ${dim}Tasks: ${plan.tasks.length}${reset}\n`);
+          return true;
+        },
+      });
+
+      console.log('\n' + synthesis + '\n');
+      console.log(`${dim}Entered teams mode. Messages will be sent as follow-ups. Use /solo to exit.${reset}`);
+      session._active = true;
+      return session;
+    } catch (err: any) {
+      console.error(`\n❌ Agent teams failed: ${err.message}`);
+      await session.stop();
+      return null;
     }
+  }
 
-    await lead.team.cleanup();
-  } catch (err: any) {
-    console.error(`\n❌ Agent teams failed: ${err.message}`);
-    try { await lead.team.cleanup(); } catch { /* best effort */ }
-  } finally {
-    display.stop();
+  /**
+   * Send a follow-up message to the existing team.
+   */
+  async followUp(message: string): Promise<void> {
+    try {
+      console.log(`\n  ${bold}${cyan}[1]${reset} ${bold}Planning follow-up${reset}\n`);
+      const { synthesis } = await this.lead.followUp(message, {
+        concurrency: this.concurrency,
+        onPlan: async (plan: TeamPlan) => {
+          console.log(`  ${dim}Tasks: ${plan.tasks.length}${reset}\n`);
+          return true;
+        },
+      });
+      console.log('\n' + synthesis + '\n');
+    } catch (err: any) {
+      console.error(`\n❌ Follow-up failed: ${err.message}`);
+    }
+  }
+
+  /**
+   * Tear down the session, clean up team resources.
+   */
+  async stop(): Promise<void> {
+    this._active = false;
+    try { await this.lead.team.cleanup(); } catch { /* best effort */ }
+    this.display.stop();
+    console.log(`\n${dim}Exited teams mode.${reset}`);
   }
 }
