@@ -1,0 +1,398 @@
+import { randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import type { ILogger } from 'pulse-coder-engine';
+import { Mailbox } from './mailbox.js';
+import { TaskList } from './task-list.js';
+import { Teammate } from './teammate.js';
+import type {
+  TeamConfig,
+  TeamStatus,
+  TeamMemberInfo,
+  PersistedTeamConfig,
+  TeammateOptions,
+  TeammateStatus,
+  TeamHooks,
+  TeamEvent,
+  TeamEventHandler,
+  CreateTaskInput,
+} from './types.js';
+
+/**
+ * Team manages the lifecycle of an agent team.
+ *
+ * Architecture (mirroring Claude Code Agent Teams):
+ * - One Team Lead (the session that creates the team)
+ * - N Teammates (independent Engine instances)
+ * - Shared TaskList for coordination
+ * - Mailbox for inter-agent messaging
+ */
+export class Team {
+  readonly name: string;
+  readonly stateDir: string;
+
+  private _status: TeamStatus = 'idle';
+  private mailbox: Mailbox;
+  private taskList: TaskList;
+  private teammates: Map<string, Teammate> = new Map();
+  private logger: ILogger;
+  private hooks: TeamHooks;
+  private eventHandlers: TeamEventHandler[] = [];
+  private configPath: string;
+
+  constructor(config: TeamConfig, hooks?: TeamHooks) {
+    this.name = config.name;
+    this.logger = config.logger || console;
+    this.hooks = hooks || {};
+
+    // State directory
+    this.stateDir = config.stateDir || join(homedir(), '.pulse-coder', 'teams', this.name);
+    mkdirSync(this.stateDir, { recursive: true });
+
+    this.configPath = join(this.stateDir, 'config.json');
+    this.mailbox = new Mailbox(this.stateDir);
+    this.taskList = new TaskList(this.stateDir, this.hooks);
+
+    // Persist initial config
+    this.persistConfig();
+  }
+
+  get status(): TeamStatus {
+    return this._status;
+  }
+
+  get members(): TeamMemberInfo[] {
+    return Array.from(this.teammates.values()).map(t => ({
+      id: t.id,
+      name: t.name,
+      isLead: false,
+      status: t.status,
+    }));
+  }
+
+  // ─── Teammate Management ─────────────────────────────────────────
+
+  /**
+   * Spawn a new teammate with its own Engine instance.
+   */
+  async spawnTeammate(options: TeammateOptions): Promise<Teammate> {
+    if (this.teammates.has(options.id)) {
+      throw new Error(`Teammate with id '${options.id}' already exists`);
+    }
+
+    const teammate = new Teammate(
+      options,
+      this.mailbox,
+      this.taskList,
+      {
+        onStatusChange: (id, status) => this.onTeammateStatusChange(id, status),
+        onOutput: (id, text) => this.emit({
+          type: 'teammate:status',
+          timestamp: Date.now(),
+          data: { id, text },
+        }),
+      }
+    );
+
+    await teammate.initialize();
+    this.teammates.set(options.id, teammate);
+    this.persistConfig();
+
+    this.emit({
+      type: 'teammate:spawned',
+      timestamp: Date.now(),
+      data: { id: options.id, name: options.name },
+    });
+
+    this.logger.info(`Teammate spawned: ${options.name} (${options.id})`);
+    return teammate;
+  }
+
+  /**
+   * Spawn multiple teammates in parallel.
+   */
+  async spawnTeammates(optionsList: TeammateOptions[]): Promise<Teammate[]> {
+    return Promise.all(optionsList.map(opts => this.spawnTeammate(opts)));
+  }
+
+  /**
+   * Get a teammate by ID.
+   */
+  getTeammate(id: string): Teammate | undefined {
+    return this.teammates.get(id);
+  }
+
+  /**
+   * Get all teammates.
+   */
+  getTeammates(): Teammate[] {
+    return Array.from(this.teammates.values());
+  }
+
+  /**
+   * Request a teammate to shut down.
+   */
+  async shutdownTeammate(id: string): Promise<void> {
+    const teammate = this.teammates.get(id);
+    if (!teammate) throw new Error(`Teammate '${id}' not found`);
+
+    // Send shutdown request via mailbox
+    this.mailbox.send('lead', id, 'shutdown_request', 'Please shut down gracefully.');
+    await teammate.requestShutdown();
+
+    this.emit({
+      type: 'teammate:stopped',
+      timestamp: Date.now(),
+      data: { id, name: teammate.name },
+    });
+
+    this.logger.info(`Teammate shut down: ${teammate.name}`);
+  }
+
+  /**
+   * Shut down all teammates.
+   */
+  async shutdownAll(): Promise<void> {
+    const shutdowns = Array.from(this.teammates.keys()).map(id =>
+      this.shutdownTeammate(id).catch(err =>
+        this.logger.error(`Error shutting down ${id}`, err)
+      )
+    );
+    await Promise.all(shutdowns);
+  }
+
+  // ─── Task Management ─────────────────────────────────────────────
+
+  /**
+   * Create tasks in the shared task list (typically done by lead).
+   */
+  async createTasks(tasks: CreateTaskInput[], createdBy = 'lead'): Promise<void> {
+    for (const task of tasks) {
+      const created = await this.taskList.create(task, createdBy);
+      this.emit({
+        type: 'task:created',
+        timestamp: Date.now(),
+        data: { task: created },
+      });
+    }
+  }
+
+  /**
+   * Get the task list instance for direct access.
+   */
+  getTaskList(): TaskList {
+    return this.taskList;
+  }
+
+  /**
+   * Get the mailbox instance.
+   */
+  getMailbox(): Mailbox {
+    return this.mailbox;
+  }
+
+  // ─── Team Execution ──────────────────────────────────────────────
+
+  /**
+   * Run the team: dispatch tasks to teammates and wait for completion.
+   *
+   * This is the main execution loop:
+   * 1. Each teammate claims and works on tasks
+   * 2. When a task completes, dependent tasks become unblocked
+   * 3. Continues until all tasks are done or no progress can be made
+   */
+  async run(options?: { timeoutMs?: number }): Promise<{ results: Record<string, string>; stats: ReturnType<TaskList['stats']> }> {
+    this._status = 'running';
+    this.emit({ type: 'team:started', timestamp: Date.now(), data: { name: this.name } });
+
+    const timeoutMs = options?.timeoutMs || 30 * 60 * 1000; // 30min default
+    const startTime = Date.now();
+    const results: Record<string, string> = {};
+
+    // Start all teammates running in parallel
+    const runners = Array.from(this.teammates.values()).map(teammate =>
+      this.runTeammateLoop(teammate, results, startTime, timeoutMs)
+    );
+
+    await Promise.allSettled(runners);
+
+    const stats = this.taskList.stats();
+    this._status = stats.failed > 0 ? 'failed' : 'completed';
+
+    this.emit({ type: 'team:completed', timestamp: Date.now(), data: { stats } });
+    return { results, stats };
+  }
+
+  /**
+   * Internal loop for a single teammate: claim tasks, execute, repeat.
+   */
+  private async runTeammateLoop(
+    teammate: Teammate,
+    results: Record<string, string>,
+    startTime: number,
+    timeoutMs: number,
+  ): Promise<void> {
+    while (Date.now() - startTime < timeoutMs) {
+      // Check for unread messages first
+      const messages = teammate.readMessages();
+      for (const msg of messages) {
+        if (msg.type === 'shutdown_request') {
+          return;
+        }
+      }
+
+      // Try to claim a task
+      const task = await teammate.claimTask();
+      if (!task) {
+        // No task available - check if all done
+        if (this.taskList.isAllDone()) break;
+
+        // Check idle hook
+        if (this.hooks.onTeammateIdle) {
+          const feedback = await this.hooks.onTeammateIdle(teammate.id, teammate.name);
+          if (feedback) {
+            // Hook wants the teammate to keep working with feedback
+            await teammate.run(feedback);
+            continue;
+          }
+        }
+
+        // Wait briefly and retry
+        await new Promise(r => setTimeout(r, 1000));
+
+        // Check again
+        if (this.taskList.isAllDone()) break;
+
+        // No progress possible - check if all remaining tasks are blocked
+        const claimable = this.taskList.getClaimable();
+        const inProgress = this.taskList.getByStatus('in_progress');
+        if (claimable.length === 0 && inProgress.length === 0) break;
+
+        continue;
+      }
+
+      this.emit({
+        type: 'task:claimed',
+        timestamp: Date.now(),
+        data: { taskId: task.id, taskTitle: task.title, teammateId: teammate.id, teammateName: teammate.name },
+      });
+
+      // Execute the task
+      try {
+        const prompt = `Task: ${task.title}\n\nDescription: ${task.description}\n\nPlease complete this task. When done, use the team_complete_task tool to mark it complete with your result.`;
+        const output = await teammate.run(prompt);
+        results[task.id] = output;
+
+        // Auto-complete if teammate didn't use tool
+        const currentTask = this.taskList.get(task.id);
+        if (currentTask?.status === 'in_progress') {
+          await teammate.completeTask(task.id, output);
+        }
+
+        this.emit({
+          type: 'task:completed',
+          timestamp: Date.now(),
+          data: { taskId: task.id, taskTitle: task.title, teammateId: teammate.id },
+        });
+      } catch (err: any) {
+        this.logger.error(`Task ${task.id} failed`, err);
+        await teammate.failTask(task.id, err.message);
+
+        this.emit({
+          type: 'task:failed',
+          timestamp: Date.now(),
+          data: { taskId: task.id, taskTitle: task.title, error: err.message },
+        });
+      }
+    }
+  }
+
+  // ─── Cleanup ─────────────────────────────────────────────────────
+
+  /**
+   * Clean up team resources.
+   * Shuts down all teammates and removes state files.
+   */
+  async cleanup(): Promise<void> {
+    // Check for active teammates
+    const active = this.getTeammates().filter(t => t.status === 'running');
+    if (active.length > 0) {
+      throw new Error(
+        `Cannot clean up: ${active.length} teammate(s) still running. ` +
+        `Shut them down first: ${active.map(t => t.name).join(', ')}`
+      );
+    }
+
+    await this.shutdownAll();
+    this.mailbox.clearAll();
+    this.taskList.clear();
+
+    // Remove state directory
+    try {
+      rmSync(this.stateDir, { recursive: true, force: true });
+    } catch {
+      // Best effort
+    }
+
+    this.emit({ type: 'team:cleanup', timestamp: Date.now(), data: { name: this.name } });
+    this.logger.info(`Team cleaned up: ${this.name}`);
+  }
+
+  // ─── Events ──────────────────────────────────────────────────────
+
+  /**
+   * Subscribe to team events.
+   */
+  on(handler: TeamEventHandler): () => void {
+    this.eventHandlers.push(handler);
+    return () => {
+      this.eventHandlers = this.eventHandlers.filter(h => h !== handler);
+    };
+  }
+
+  private emit(event: TeamEvent): void {
+    for (const handler of this.eventHandlers) {
+      try {
+        handler(event);
+      } catch (err) {
+        this.logger.error('Event handler error', err as Error);
+      }
+    }
+  }
+
+  // ─── Teammate callbacks ───────────────────────────────────────────
+
+  private onTeammateStatusChange(id: string, status: TeammateStatus): void {
+    this.emit({
+      type: 'teammate:status',
+      timestamp: Date.now(),
+      data: { id, status },
+    });
+    this.persistConfig();
+  }
+
+  // ─── Persistence ─────────────────────────────────────────────────
+
+  private persistConfig(): void {
+    const config: PersistedTeamConfig = {
+      name: this.name,
+      createdAt: Date.now(),
+      members: this.members,
+    };
+    writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf-8');
+  }
+
+  /**
+   * Load an existing team from state dir.
+   */
+  static loadConfig(stateDir: string): PersistedTeamConfig | null {
+    const configPath = join(stateDir, 'config.json');
+    if (!existsSync(configPath)) return null;
+    try {
+      return JSON.parse(readFileSync(configPath, 'utf-8'));
+    } catch {
+      return null;
+    }
+  }
+}
