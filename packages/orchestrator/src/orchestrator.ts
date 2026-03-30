@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { OrchestrationInput, OrchestrationResult, TaskGraph, TeamRole } from './types';
+import type { OrchestrationInput, OrchestrationResult, TaskGraph, TeamRole, TaskTracker } from './types';
 import type { AgentRunner, OrchestratorLogger } from './runner';
 import type { ArtifactStore } from './artifact-store';
 import { LocalArtifactStore } from './artifact-store';
@@ -26,10 +26,12 @@ export interface OrchestratorOptions {
   runner: AgentRunner;
   artifactStore?: ArtifactStore;
   logger?: OrchestratorLogger;
-  /** 角色到 agent 名称的默认映射，可覆盖内置默认值 */
+  /** Role-to-agent name mapping, overrides built-in defaults */
   defaultRoleAgents?: Record<string, string>;
-  /** 调用 LLM 的函数，plan 模式下必须提供 */
+  /** LLM call function, required for plan mode */
   llmCall?: (systemPrompt: string, userPrompt: string) => Promise<string>;
+  /** Optional task tracker to sync node states to a shared task list */
+  taskTracker?: TaskTracker;
 }
 
 export class Orchestrator {
@@ -38,6 +40,7 @@ export class Orchestrator {
   private logger: OrchestratorLogger;
   private defaultRoleAgents: Record<string, string>;
   private llmCall?: (systemPrompt: string, userPrompt: string) => Promise<string>;
+  private taskTracker?: TaskTracker;
 
   constructor(options: OrchestratorOptions) {
     this.runner = options.runner;
@@ -45,6 +48,7 @@ export class Orchestrator {
     this.logger = options.logger ?? defaultLogger;
     this.defaultRoleAgents = { ...DEFAULT_ROLE_AGENTS, ...(options.defaultRoleAgents ?? {}) };
     this.llmCall = options.llmCall;
+    this.taskTracker = options.taskTracker;
   }
 
   async run(input: OrchestrationInput): Promise<OrchestrationResult> {

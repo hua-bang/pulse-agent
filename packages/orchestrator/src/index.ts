@@ -10,12 +10,13 @@ export type {
   AggregateStrategy,
   OrchestrationInput,
   OrchestrationResult,
+  TaskTracker,
 } from './types';
 
 export type { AgentRunner, AgentRunInput, OrchestratorLogger, NodeState, NodeStateEvent } from './runner';
 export { defaultLogger } from './runner';
 
-export type { ArtifactStore } from './artifact-store';
+export type { ArtifactStore, TaskStatus, TasksManifest } from './artifact-store';
 export { LocalArtifactStore } from './artifact-store';
 
 export { buildTaskGraph, validateTaskGraph } from './graph';

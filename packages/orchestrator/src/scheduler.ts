@@ -23,6 +23,12 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
 
   if (nodes.length === 0) return results;
 
+  // Initialize tasks manifest so sub-agents can read overall progress
+  const { artifactStore, runId, task } = options;
+  if (artifactStore) {
+    try { await artifactStore.initTasks(runId, task, nodes); } catch { /* non-fatal */ }
+  }
+
   const pending = new Set(nodes.map(n => n.id));
   const inFlight = new Map<string, Promise<void>>();
   const resolved = new Set<string>();
@@ -33,7 +39,7 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
   const nodeStates = new Map<string, NodeState>();
   for (const n of nodes) nodeStates.set(n.id, 'pending');
 
-  const emitState = (nodeId: string, state: NodeState) => {
+  const emitState = (nodeId: string, state: NodeState, extra?: { durationMs?: number; error?: string }) => {
     nodeStates.set(nodeId, state);
     const counts: Record<NodeState, number> = { pending: 0, running: 0, success: 0, failed: 0, skipped: 0 };
     for (const s of nodeStates.values()) counts[s]++;
@@ -45,6 +51,10 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
       total: nodes.length,
       counts,
     });
+    // Persist to tasks.json so sub-agents can read progress
+    if (artifactStore) {
+      artifactStore.updateTaskState(runId, nodeId, state, extra).catch(() => {});
+    }
   };
 
   const canRun = (node: TaskNode) =>
@@ -102,9 +112,13 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
         ).join('\n\n') + '\n--- End of upstream results ---\n\nUse the upstream results above to inform your work.'
       : '';
 
+    const tasksNote = artifactStore
+      ? `\n\n--- Team progress ---\nTo check overall team progress, read: ${artifactStore.getTasksPath(runId)}\n--- End of team progress ---`
+      : '';
+
     const taskInput = node.instruction
-      ? `${node.instruction}\n\n${node.input ?? task}${depNote}`
-      : `${node.input ?? task}${depNote}`;
+      ? `${node.instruction}\n\n${node.input ?? task}${depNote}${tasksNote}`
+      : `${node.input ?? task}${depNote}${tasksNote}`;
 
     const runOnce = async () => {
       result.attempts += 1;
@@ -128,7 +142,7 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
         }
 
         resolved.add(node.id);
-        emitState(node.id, 'success');
+        emitState(node.id, 'success', { durationMs: result.durationMs });
         logger.info(`Node ${node.id} (${node.role}) completed in ${result.durationMs}ms`);
         return;
       } catch (err) {
@@ -145,12 +159,12 @@ export async function runTaskGraph(options: ScheduleOptions): Promise<Record<str
       result.status = 'skipped';
       result.skippedReason = msg;
       resolved.add(node.id);
-      emitState(node.id, 'skipped');
+      emitState(node.id, 'skipped', { durationMs: result.durationMs, error: msg });
       logger.warn(`Node ${node.id} (${node.role}) failed (optional, skipped): ${msg}`);
     } else {
       result.status = 'failed';
       hardFailed.add(node.id);
-      emitState(node.id, 'failed');
+      emitState(node.id, 'failed', { durationMs: result.durationMs, error: msg });
       logger.error(`Node ${node.id} (${node.role}) failed: ${msg}`);
     }
     results[node.id] = result;

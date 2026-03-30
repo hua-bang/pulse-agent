@@ -40,6 +40,28 @@ export interface NodeResult {
 
 export type AggregateStrategy = 'concat' | 'last' | 'llm';
 
+/**
+ * Lightweight interface for task tracking integration.
+ * Orchestrator uses this to sync node states to an external task list,
+ * so that sub-agents can query overall progress via task_list tool.
+ * Matches the subset of TaskListService API used by the orchestrator.
+ */
+export interface TaskTracker {
+  createTasks(inputs: Array<{
+    title: string;
+    details?: string;
+    status?: string;
+    dependencies?: string[];
+    metadata?: Record<string, any>;
+  }>): Promise<Array<{ id: string }>>;
+  updateTask(input: {
+    id: string;
+    status?: string;
+    details?: string;
+    metadata?: Record<string, any>;
+  }): Promise<any>;
+}
+
 export interface OrchestrationInput {
   task: string;
   context?: Record<string, any>;
