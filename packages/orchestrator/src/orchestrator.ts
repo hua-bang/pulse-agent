@@ -94,6 +94,7 @@ export class Orchestrator {
       throw new Error(`Invalid TaskGraph: ${validation.errors.join('; ')}`);
     }
 
+    this.logger.onGraphReady?.(graph, roles);
     this.logger.info(`Executing graph with ${graph.nodes.length} nodes`);
 
     const results = await runTaskGraph({

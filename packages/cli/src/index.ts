@@ -5,7 +5,7 @@ import type { Context, TaskListService } from 'pulse-coder-engine';
 import { generateTextAI } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
 import { Orchestrator, EngineAgentRunner } from 'pulse-coder-orchestrator';
-import type { OrchestrationInput, OrchestratorLogger } from 'pulse-coder-orchestrator';
+import type { OrchestrationInput, OrchestratorLogger, TaskGraph, TeamRole } from 'pulse-coder-orchestrator';
 import { SessionCommands } from './session-commands.js';
 import { InputManager } from './input-manager.js';
 import { SkillCommands } from './skill-commands.js';
@@ -167,6 +167,38 @@ class CoderCLI {
       },
       warn: (msg) => console.warn(`${yellow}[orchestrator]${reset} ${msg}`),
       error: (msg) => console.error(`${red}[orchestrator]${reset} ${msg}`),
+      onGraphReady: (graph: TaskGraph, roles: TeamRole[]) => {
+        const dim = '\x1b[2m';
+        const bold = '\x1b[1m';
+        const rst = '\x1b[0m';
+
+        console.log(`\n${cyan}[orchestrator]${rst} ${bold}Execution Plan${rst}`);
+        console.log(`${cyan}[orchestrator]${rst} Roles: ${roles.join(', ')}`);
+        console.log(`${cyan}[orchestrator]${rst} Nodes:`);
+
+        // Build adjacency for display
+        for (const node of graph.nodes) {
+          const deps = node.deps.length > 0 ? ` (after: ${node.deps.join(', ')})` : ' (start)';
+          const opt = node.optional ? ` ${dim}[optional]${rst}` : '';
+          const input = node.input ? `\n${cyan}[orchestrator]${rst}   task: ${dim}${node.input.length > 80 ? node.input.slice(0, 80) + '...' : node.input}${rst}` : '';
+          console.log(`${cyan}[orchestrator]${rst}   - ${bold}${node.id}${rst} (${node.role})${deps}${opt}${input}`);
+        }
+
+        // Show DAG flow as a simple arrow chain
+        const layers: string[][] = [];
+        const placed = new Set<string>();
+        const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
+        while (placed.size < graph.nodes.length) {
+          const layer = graph.nodes
+            .filter(n => !placed.has(n.id) && n.deps.every(d => placed.has(d)))
+            .map(n => n.id);
+          if (layer.length === 0) break; // safety: avoid infinite loop on cycles
+          layers.push(layer);
+          layer.forEach(id => placed.add(id));
+        }
+        const flow = layers.map(l => l.length === 1 ? l[0] : `[${l.join(' | ')}]`).join(' → ');
+        console.log(`${cyan}[orchestrator]${rst} Flow: ${flow}\n`);
+      },
     };
 
     return new Orchestrator({ runner, llmCall, logger });

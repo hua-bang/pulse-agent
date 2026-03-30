@@ -20,6 +20,8 @@ export interface OrchestratorLogger {
   info(message: string, meta?: any): void;
   warn(message: string, meta?: any): void;
   error(message: string, error?: Error, meta?: any): void;
+  /** Called after graph is built and validated, before execution starts */
+  onGraphReady?(graph: import('./types').TaskGraph, roles: import('./types').TeamRole[]): void;
 }
 
 export const defaultLogger: OrchestratorLogger = {
