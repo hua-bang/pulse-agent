@@ -36,6 +36,8 @@ export class Team {
   private mailbox: Mailbox;
   private taskList: TaskList;
   private teammates: Map<string, Teammate> = new Map();
+  /** Teammates whose runTeammateLoop is currently executing. */
+  private activeLoops = new Set<string>();
   private logger: ILogger;
   private hooks: TeamHooks;
   private eventHandlers: TeamEventHandler[] = [];
@@ -52,7 +54,12 @@ export class Team {
 
     this.configPath = join(this.stateDir, 'config.json');
     this.mailbox = new Mailbox(this.stateDir);
-    this.taskList = new TaskList(this.stateDir, this.hooks);
+    this.taskList = new TaskList(
+      this.stateDir,
+      this.hooks,
+      // Work stealing guard: only steal from teammates whose loop has finished
+      (teammateId: string) => this.activeLoops.has(teammateId),
+    );
 
     // Persist initial config
     this.persistConfig();
@@ -285,6 +292,8 @@ export class Team {
     let idleWaitCount = 0;
     const maxIdleWaits = 300; // 5min of true idle (no in-progress tasks) before giving up
 
+    this.activeLoops.add(teammate.id);
+    try {
     while (Date.now() - startTime < timeoutMs) {
       // Step 1: Process incoming messages
       const messages = teammate.readMessages();
@@ -429,6 +438,9 @@ export class Team {
           data: { taskId: task.id, taskTitle: task.title, error: err.message },
         });
       }
+    }
+    } finally {
+      this.activeLoops.delete(teammate.id);
     }
   }
 
