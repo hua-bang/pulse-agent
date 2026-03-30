@@ -12,6 +12,8 @@ export const useNodes = (
 ) => {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transformRef = useRef<CanvasTransform>({ x: 0, y: 0, scale: 1 });
+  const onRestoreTransformRef = useRef(onRestoreTransform);
+  onRestoreTransformRef.current = onRestoreTransform;
 
   const scheduleSave = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -92,8 +94,8 @@ export const useNodes = (
           historyRef.current = [[]];
           historyIndexRef.current = 0;
         }
-        if (saved.transform && onRestoreTransform) {
-          onRestoreTransform(saved.transform);
+        if (saved.transform && onRestoreTransformRef.current) {
+          onRestoreTransformRef.current(saved.transform);
         }
       } else {
         historyRef.current = [[]];
@@ -101,7 +103,8 @@ export const useNodes = (
       }
       setLoaded(true);
     });
-  }, [canvasId, onRestoreTransform]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasId]);
 
   const addNode = useCallback(
     (type: CanvasNode['type'], x: number, y: number) => {
