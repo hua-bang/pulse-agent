@@ -149,6 +149,60 @@ export class TeamLead {
   }
 
   /**
+   * Follow-up: take a new instruction, plan additional tasks for the existing team, and run.
+   * Reuses existing teammates (spawns new ones only if the plan requires them).
+   */
+  async followUp(
+    instruction: string,
+    options?: {
+      onPlan?: (plan: Awaited<ReturnType<typeof planTeam>>) => Promise<boolean>;
+      timeoutMs?: number;
+      concurrency?: number;
+    },
+  ): Promise<{ plan: Awaited<ReturnType<typeof planTeam>>; results: Record<string, string>; synthesis: string }> {
+    // Plan with awareness of existing teammates
+    const existingNames = this.team.getTeammates().map(t => t.name);
+    const augmentedInstruction = existingNames.length > 0
+      ? `${instruction}\n\nNote: The following teammates already exist and can be reused: ${existingNames.join(', ')}. Prefer assigning tasks to existing teammates. Only create new teammates if a genuinely new role is needed.`
+      : instruction;
+
+    const plan = await planTeam(augmentedInstruction, { logger: this.logger });
+
+    if (options?.onPlan) {
+      const approved = await options.onPlan(plan);
+      if (!approved) {
+        throw new Error('Follow-up plan rejected by user');
+      }
+    }
+
+    // Spawn only new teammates (skip existing names)
+    const existingSet = new Set(existingNames);
+    const newTeammates = plan.teammates.filter(t => !existingSet.has(t.name));
+    if (newTeammates.length > 0) {
+      const newOptions = buildTeammateOptionsFromPlan(
+        { ...plan, teammates: newTeammates },
+        this.defaultTeammateEngineOptions,
+        this.logger,
+      );
+      await this.team.spawnTeammates(newOptions);
+    }
+
+    // Create new tasks (resolve assignee names to existing teammate IDs)
+    await this.createTasksFromPlan(plan);
+
+    // Run
+    const { results, stats } = await this.team.run({
+      timeoutMs: options?.timeoutMs,
+      concurrency: options?.concurrency,
+    });
+
+    // Synthesize
+    const synthesis = await this.synthesizeResults(instruction, results, stats);
+
+    return { plan, results, synthesis };
+  }
+
+  /**
    * Manual flow: just spawn teammates and create tasks.
    * Caller drives execution.
    */

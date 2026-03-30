@@ -131,6 +131,9 @@ async function runTeam(args: string[]) {
     console.log(`${c.dim}  Done in ${totalSec}s${c.reset}`);
     console.log('');
 
+    // ── Follow-up loop ──
+    await followUpLoop(lead, display, concurrency);
+
     await lead.team.cleanup();
   } catch (err: any) {
     console.error(`\n${c.red}Team run failed:${c.reset} ${err.message}`);
@@ -139,6 +142,49 @@ async function runTeam(args: string[]) {
   } finally {
     display.stop();
     loggerQuiet = false;
+  }
+}
+
+// ─── Follow-up conversation loop ──────────────────────────────────
+
+async function followUpLoop(
+  lead: TeamLead,
+  display: InProcessDisplay,
+  concurrency: number,
+): Promise<void> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  const ask = (prompt: string): Promise<string> =>
+    new Promise((resolve) => rl.question(prompt, resolve));
+
+  while (true) {
+    const input = await ask(`\n${c.cyan}Follow-up (empty to exit):${c.reset} `);
+    const trimmed = input.trim();
+
+    if (!trimmed || trimmed === 'exit' || trimmed === 'quit') {
+      rl.close();
+      return;
+    }
+
+    try {
+      console.log('');
+      printPhase(1, 'Planning follow-up');
+
+      const { synthesis } = await lead.followUp(trimmed, {
+        concurrency,
+        onPlan: async (plan) => {
+          printPlan(plan);
+          return true;
+        },
+      });
+
+      printPhase(5, 'Synthesis');
+      console.log('');
+      console.log(synthesis);
+      console.log('');
+    } catch (err: any) {
+      console.error(`${c.red}Follow-up failed:${c.reset} ${err.message}`);
+    }
   }
 }
 
