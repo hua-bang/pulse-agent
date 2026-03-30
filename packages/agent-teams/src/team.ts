@@ -387,14 +387,16 @@ export class Team {
       // Step 4: Execute the task
       try {
         // Build context-aware prompt
-        const taskContext = this.buildTaskContext(task.id);
+        const depContext = this.buildTaskContext(task.id);
+        const priorContext = this.buildPriorContext(task.id);
         const prompt = [
           `## Task: ${task.title}`,
           ``,
           task.description,
           ``,
           `Task ID: ${task.id}`,
-          taskContext ? `\n## Context from completed dependencies\n${taskContext}` : '',
+          priorContext ? `\n## Previous work by the team\n${priorContext}` : '',
+          depContext ? `\n## Context from dependencies\n${depContext}` : '',
           ``,
           `Complete this task thoroughly. When done, use the team_complete_task tool with task ID "${task.id}" and a result summary.`,
           `You can also use team_send_message to share findings with other teammates, or team_notify_lead to report to the lead.`,
@@ -442,6 +444,29 @@ export class Team {
     } finally {
       this.activeLoops.delete(teammate.id);
     }
+  }
+
+  /**
+   * Build a summary of previously completed tasks (not deps of this task).
+   * Gives follow-up tasks awareness of what the team already accomplished.
+   */
+  private buildPriorContext(taskId: string): string {
+    const task = this.taskList.get(taskId);
+    if (!task) return '';
+
+    const depSet = new Set(task.deps);
+    const priorTasks = this.taskList.getByStatus('completed')
+      .filter(t => t.id !== taskId && !depSet.has(t.id))
+      .slice(-10); // last 10 completed tasks
+
+    if (priorTasks.length === 0) return '';
+
+    return priorTasks.map(t => {
+      const result = t.result
+        ? (t.result.length > 500 ? t.result.slice(0, 500) + '...' : t.result)
+        : '(no output)';
+      return `- **${t.title}** (${t.assignee || 'unassigned'}): ${result}`;
+    }).join('\n');
   }
 
   /**
