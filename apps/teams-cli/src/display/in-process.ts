@@ -48,6 +48,10 @@ export class InProcessDisplay {
   private claimFlushTimer?: ReturnType<typeof setTimeout>;
   /** Original stderr.write, saved during mute. */
   private origStderrWrite?: typeof process.stderr.write;
+  /** Periodic status ticker interval. */
+  private tickerInterval?: ReturnType<typeof setInterval>;
+  /** Last ticker line length, for clearing. */
+  private lastTickerLen = 0;
 
   constructor(team: Team, options?: { showOutput?: boolean }) {
     this.team = team;
@@ -60,10 +64,55 @@ export class InProcessDisplay {
   }
 
   stop(): void {
+    this.stopTicker();
     this.flushSpawned();
     this.flushClaim();
     this.unsubscribe?.();
     this.unmuteStderr();
+  }
+
+  // ─── Periodic status ticker ─────────────────────────────────
+
+  private startTicker(): void {
+    if (this.tickerInterval) return;
+    this.tickerInterval = setInterval(() => this.printTicker(), 15_000);
+  }
+
+  private stopTicker(): void {
+    if (this.tickerInterval) {
+      clearInterval(this.tickerInterval);
+      this.tickerInterval = undefined;
+    }
+    this.clearTicker();
+  }
+
+  private clearTicker(): void {
+    if (this.lastTickerLen > 0) {
+      // Clear the previous ticker line
+      process.stdout.write(`\r${' '.repeat(this.lastTickerLen)}\r`);
+      this.lastTickerLen = 0;
+    }
+  }
+
+  private printTicker(): void {
+    if (this.runningTasks.size === 0) return;
+
+    const done = this.completedTasks + this.failedTasks;
+    const total = this.totalTasks;
+    const elapsed = this.teamStartTime ? this.fmtDuration(Date.now() - this.teamStartTime) : '';
+
+    const active = Array.from(this.runningTasks.entries()).map(([id, info]) => {
+      const secs = ((Date.now() - info.startTime) / 1000).toFixed(0);
+      const name = this.teammateStats.get(id)?.name || id;
+      return `${name}(${secs}s)`;
+    });
+
+    // Build a single-line status (no newline — will be overwritten)
+    const line = `  ⏳ ${done}/${total} done · ${active.join(', ')} · ${elapsed}`;
+
+    this.clearTicker();
+    process.stdout.write(line);
+    this.lastTickerLen = line.length;
   }
 
   /**
@@ -178,9 +227,11 @@ export class InProcessDisplay {
       // ── Team lifecycle ────────────────────────────────────
       case 'team:started':
         this.teamStartTime = event.timestamp;
+        this.startTicker();
         break;
 
       case 'team:completed':
+        this.stopTicker();
         this.printFinalReport(event.data.stats);
         break;
 
@@ -311,6 +362,7 @@ export class InProcessDisplay {
   }
 
   private log(msg: string): void {
+    this.clearTicker();
     process.stdout.write(msg + '\n');
   }
 }
