@@ -140,13 +140,13 @@ class AgentRunner {
     if (context && Object.keys(context).length > 0) {
       subContext.messages.push({
         role: 'user',
-        content: `上下文信息：\n${JSON.stringify(context, null, 2)}`
+        content: `Context:\n${JSON.stringify(context, null, 2)}`
       });
     }
 
     return await loop(subContext, {
       tools,
-      systemPrompt: `${AGENT_BASE_RULES}\n\n${config.systemPrompt}`,
+      systemPrompt: { append: `${AGENT_BASE_RULES}\n\n${config.systemPrompt}` },
       maxSteps,
       onText: callbacks?.onText,
       onToolCall: callbacks?.onToolCall,
