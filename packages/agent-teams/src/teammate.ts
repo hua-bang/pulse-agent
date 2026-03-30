@@ -94,11 +94,11 @@ export class Teammate {
       : '';
 
     const toolGuidance = `
-## Tool Usage Notes
-When using the bash tool, always quote regex patterns and special characters properly:
-- Use: \`grep -ri 'pattern' src/\` or \`rg 'pattern' src/\`
-- Wrap regex with single quotes: \`rg '(auth|login|session)' --type ts\`
-- Do NOT use unquoted parentheses or pipes in patterns — bash interprets them as shell syntax
+## Tool Usage Rules
+- To search code, use the \`grep\` tool (NOT bash + rg/grep). The grep tool handles pattern escaping automatically.
+- To read files, use the \`read\` tool. To list directories, use \`ls\`. To modify files, use \`edit\` or \`write\`.
+- Only use \`bash\` for commands that have no dedicated tool (e.g. git, npm, build commands).
+- NEVER type bare keywords as bash commands. \`bash("auth")\` does NOT search for "auth" — use \`grep({ pattern: "auth" })\` instead.
 `;
 
     const systemContext = this.spawnPrompt
