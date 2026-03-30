@@ -31,6 +31,7 @@ import type {
 export class Team {
   readonly name: string;
   readonly stateDir: string;
+  readonly cwd?: string;
 
   private _status: TeamStatus = 'idle';
   private mailbox: Mailbox;
@@ -45,6 +46,7 @@ export class Team {
 
   constructor(config: TeamConfig, hooks?: TeamHooks) {
     this.name = config.name;
+    this.cwd = config.cwd;
     this.logger = config.logger || console;
     this.hooks = hooks || {};
 
@@ -88,8 +90,13 @@ export class Team {
       throw new Error(`Teammate with id '${options.id}' already exists`);
     }
 
+    // Inherit team cwd if teammate doesn't specify its own
+    const optionsWithCwd = this.cwd && !options.cwd
+      ? { ...options, cwd: this.cwd }
+      : options;
+
     const teammate = new Teammate(
-      options,
+      optionsWithCwd,
       this.mailbox,
       this.taskList,
       {

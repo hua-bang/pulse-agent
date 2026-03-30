@@ -161,6 +161,7 @@ class CoderCLI {
           console.log('/team --route=auto <task> - Use keyword-based routing instead of LLM planning');
           console.log('/teams <task> - Run agent teams (independent engines, parallel execution)');
           console.log('/teams <task> --concurrency N - Limit parallel teammates');
+          console.log('/teams <task> --cwd <dir> - Set working directory for teammates');
           console.log('/save - Save current session explicitly');
           console.log('/exit - Exit the application');
           console.log('Esc (while processing) - Stop current response and accept next input');

@@ -15,6 +15,8 @@ export interface TeamConfig {
   name: string;
   /** Directory for team state (tasks, mailbox, config). Defaults to ~/.pulse-coder/teams/<name> */
   stateDir?: string;
+  /** Working directory for teammates. Passed through to spawned teammates. */
+  cwd?: string;
   /** Logger instance. */
   logger?: ILogger;
 }
@@ -55,6 +57,8 @@ export interface TeammateOptions {
   model?: string;
   /** Whether this teammate should start in plan mode (read-only until approved). */
   requirePlanApproval?: boolean;
+  /** Working directory for this teammate. Tools default to this path. */
+  cwd?: string;
   /** Logger instance. */
   logger?: ILogger;
 }

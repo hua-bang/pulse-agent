@@ -144,21 +144,36 @@ export async function runAgentTeams(args: string[], rl: readline.Interface): Pro
     }
   }
 
+  // Parse --cwd <dir>
+  let cwd: string | undefined;
+  const cwdIdx = args.indexOf('--cwd');
+  if (cwdIdx !== -1 && args[cwdIdx + 1]) {
+    const { resolve } = await import('path');
+    const { existsSync, statSync } = await import('fs');
+    cwd = resolve(args[cwdIdx + 1]);
+    if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
+      console.log(`\n❌ --cwd path does not exist or is not a directory: ${cwd}`);
+      return;
+    }
+  }
+
   const verbose = args.includes('--verbose') || args.includes('-v');
   const filteredArgs = args.filter((a, i) =>
     a !== '--verbose' && a !== '-v' &&
-    a !== '--concurrency' && (concIdx === -1 || i !== concIdx + 1)
+    a !== '--concurrency' && (concIdx === -1 || i !== concIdx + 1) &&
+    a !== '--cwd' && (cwdIdx === -1 || i !== cwdIdx + 1)
   );
   const task = filteredArgs.join(' ').trim();
 
   if (!task) {
     console.log('\n❌ Please provide a task description');
-    console.log('Usage: /teams <task> [--concurrency N] [--verbose]');
+    console.log('Usage: /teams <task> [--concurrency N] [--cwd <dir>] [--verbose]');
     return;
   }
 
   const lead = new TeamLead({
     teamName: `team-${Date.now()}`,
+    cwd,
     logger: { debug() {}, info() {}, warn(m: string) { console.warn(m); }, error(m: string) { console.error(m); } },
     defaultTeammateEngineOptions: { disableBuiltInPlugins: true },
   });
@@ -169,7 +184,7 @@ export async function runAgentTeams(args: string[], rl: readline.Interface): Pro
   try {
     await lead.initialize();
 
-    console.log(`\n${bold}━━━ Agent Teams ━━━${reset}${concurrency ? `  ${dim}concurrency: ${concurrency}${reset}` : ''}`);
+    console.log(`\n${bold}━━━ Agent Teams ━━━${reset}${concurrency ? `  ${dim}concurrency: ${concurrency}${reset}` : ''}${cwd ? `  ${dim}cwd: ${cwd}${reset}` : ''}`);
     console.log(`${dim}  ${task}${reset}\n`);
     console.log(`  ${bold}${cyan}[1]${reset} ${bold}Planning${reset}\n`);
 

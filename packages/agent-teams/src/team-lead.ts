@@ -28,6 +28,8 @@ export interface TeamLeadOptions {
   defaultTeammateEngineOptions?: EngineOptions;
   /** Model override for the lead. */
   model?: string;
+  /** Working directory for teammates. Defaults to process.cwd(). */
+  cwd?: string;
   /** Hooks. */
   hooks?: TeamHooks;
   /** Logger. */
@@ -63,6 +65,7 @@ export class TeamLead {
       {
         name: options.teamName,
         stateDir: options.stateDir,
+        cwd: options.cwd,
         logger: this.logger,
       },
       options.hooks,
