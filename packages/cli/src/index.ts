@@ -2,15 +2,11 @@ import { PulseAgent } from 'pulse-coder-engine';
 import { createJsExecutor, createRunJsTool } from 'pulse-sandbox/src';
 import * as readline from 'readline';
 import type { Context, TaskListService } from 'pulse-coder-engine';
-import { generateTextAI } from 'pulse-coder-engine';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
-import { Orchestrator, EngineAgentRunner } from 'pulse-coder-orchestrator';
-import { TeamLead, InProcessDisplay } from 'pulse-coder-agent-teams';
-import type { TeamPlan } from 'pulse-coder-agent-teams';
-import type { OrchestrationInput, OrchestratorLogger, TaskGraph, TeamRole } from 'pulse-coder-orchestrator';
 import { SessionCommands } from './session-commands.js';
 import { InputManager } from './input-manager.js';
 import { SkillCommands } from './skill-commands.js';
+import { runTeam, runAgentTeams } from './team-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
 
@@ -137,235 +133,6 @@ class CoderCLI {
       }
     } catch (error: any) {
       console.warn(`⚠️ Failed to switch task list binding: ${error?.message ?? String(error)}`);
-    }
-  }
-
-  private createOrchestrator(activeNodes: Set<string>): Orchestrator {
-    const runner = new EngineAgentRunner(() => this.agent.getTools());
-
-    const llmCall = async (systemPrompt: string, userPrompt: string): Promise<string> => {
-      const result = await generateTextAI(
-        [{ role: 'user', content: userPrompt }],
-        {},
-        { systemPrompt },
-      );
-      return result.text?.trim() ?? '';
-    };
-
-    const cyan = '\x1b[36m';
-    const yellow = '\x1b[33m';
-    const red = '\x1b[31m';
-    const reset = '\x1b[0m';
-
-    const logger: OrchestratorLogger = {
-      debug: () => {},
-      info: (msg) => {
-        // Track active nodes for heartbeat display
-        const startMatch = msg.match(/^Starting: (\S+)/);
-        if (startMatch) activeNodes.add(startMatch[1]);
-        const doneMatch = msg.match(/^Node (\S+)/);
-        if (doneMatch) activeNodes.delete(doneMatch[1]);
-
-        console.log(`${cyan}[orchestrator]${reset} ${msg}`);
-      },
-      warn: (msg) => console.warn(`${yellow}[orchestrator]${reset} ${msg}`),
-      error: (msg) => console.error(`${red}[orchestrator]${reset} ${msg}`),
-      onGraphReady: (graph: TaskGraph, roles: TeamRole[]) => {
-        const dim = '\x1b[2m';
-        const bold = '\x1b[1m';
-        const rst = '\x1b[0m';
-
-        console.log(`\n${cyan}[orchestrator]${rst} ${bold}Execution Plan${rst}`);
-        console.log(`${cyan}[orchestrator]${rst} Roles: ${roles.join(', ')}`);
-        console.log(`${cyan}[orchestrator]${rst} Nodes:`);
-
-        // Build adjacency for display
-        for (const node of graph.nodes) {
-          const deps = node.deps.length > 0 ? ` (after: ${node.deps.join(', ')})` : ' (start)';
-          const opt = node.optional ? ` ${dim}[optional]${rst}` : '';
-          const input = node.input ? `\n${cyan}[orchestrator]${rst}   task: ${dim}${node.input.length > 80 ? node.input.slice(0, 80) + '...' : node.input}${rst}` : '';
-          console.log(`${cyan}[orchestrator]${rst}   - ${bold}${node.id}${rst} (${node.role})${deps}${opt}${input}`);
-        }
-
-        // Show DAG flow as a simple arrow chain
-        const layers: string[][] = [];
-        const placed = new Set<string>();
-        const nodeMap = new Map(graph.nodes.map(n => [n.id, n]));
-        while (placed.size < graph.nodes.length) {
-          const layer = graph.nodes
-            .filter(n => !placed.has(n.id) && n.deps.every(d => placed.has(d)))
-            .map(n => n.id);
-          if (layer.length === 0) break; // safety: avoid infinite loop on cycles
-          layers.push(layer);
-          layer.forEach(id => placed.add(id));
-        }
-        const flow = layers.map(l => l.length === 1 ? l[0] : `[${l.join(' | ')}]`).join(' → ');
-        console.log(`${cyan}[orchestrator]${rst} Flow: ${flow}\n`);
-      },
-    };
-
-    return new Orchestrator({ runner, llmCall, logger });
-  }
-
-  private parseTeamArgs(args: string[]): { route?: OrchestrationInput['route']; task: string } {
-    let route: OrchestrationInput['route'] | undefined;
-    const rest: string[] = [];
-
-    for (const arg of args) {
-      if (arg.startsWith('--route=')) {
-        route = arg.slice('--route='.length) as OrchestrationInput['route'];
-      } else {
-        rest.push(arg);
-      }
-    }
-
-    return { route, task: rest.join(' ') };
-  }
-
-  async runTeam(args: string[]): Promise<void> {
-    const { route, task } = this.parseTeamArgs(args);
-    if (!task) {
-      console.log('\n❌ Please provide a task description');
-      console.log('Usage: /team <task>                  (default: LLM plans the DAG)');
-      console.log('       /team --route=auto <task>      (keyword-based routing)');
-      console.log('       /team --route=all <task>       (all roles participate)');
-      return;
-    }
-
-    const cyan = '\x1b[36m';
-    const dim = '\x1b[2m';
-    const reset = '\x1b[0m';
-
-    console.log(`\n${cyan}[orchestrator]${reset} Starting team run...`);
-
-    const activeNodes = new Set<string>();
-    const orchestrator = this.createOrchestrator(activeNodes);
-    const startTime = Date.now();
-
-    // Heartbeat: show elapsed time + active nodes every 5 seconds
-    const heartbeat = setInterval(() => {
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-      const active = activeNodes.size > 0
-        ? ` running: ${Array.from(activeNodes).join(', ')}`
-        : '';
-      process.stdout.write(`${dim}[orchestrator] ${elapsed}s elapsed${active}${reset}\n`);
-    }, 5000);
-
-    try {
-      const result = await orchestrator.run({
-        task,
-        ...(route ? { route } : {}),
-      });
-
-      clearInterval(heartbeat);
-
-      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`\n${cyan}[orchestrator]${reset} Completed in ${elapsed}s — ${result.roles.length} roles, ${result.graph.nodes.length} nodes`);
-
-      // Print per-node summary
-      for (const node of result.graph.nodes) {
-        const nr = result.results[node.id];
-        if (!nr) continue;
-        const icon = nr.status === 'success' ? '✓' : nr.status === 'skipped' ? '⊘' : '✗';
-        const dur = (nr.durationMs / 1000).toFixed(1);
-        console.log(`  ${icon} ${node.id} (${node.role}) ${nr.status} [${dur}s]`);
-      }
-
-      // Print aggregated output
-      console.log('\n' + result.aggregate);
-    } catch (error: any) {
-      clearInterval(heartbeat);
-      console.error(`\n${cyan}[orchestrator]${reset} Error: ${error.message}`);
-    }
-  }
-
-  async runAgentTeams(args: string[], rl: readline.Interface): Promise<void> {
-    // Parse --concurrency N
-    let concurrency = 0;
-    const concIdx = args.indexOf('--concurrency');
-    if (concIdx !== -1 && args[concIdx + 1]) {
-      concurrency = parseInt(args[concIdx + 1], 10);
-      if (isNaN(concurrency) || concurrency < 1) {
-        console.log('\n❌ --concurrency must be a positive integer');
-        return;
-      }
-    }
-
-    const verbose = args.includes('--verbose') || args.includes('-v');
-    const filteredArgs = args.filter((a, i) =>
-      a !== '--verbose' && a !== '-v' &&
-      a !== '--concurrency' && (concIdx === -1 || i !== concIdx + 1)
-    );
-    const task = filteredArgs.join(' ').trim();
-
-    if (!task) {
-      console.log('\n❌ Please provide a task description');
-      console.log('Usage: /teams <task> [--concurrency N] [--verbose]');
-      return;
-    }
-
-    const cyan = '\x1b[36m';
-    const bold = '\x1b[1m';
-    const dim = '\x1b[2m';
-    const reset = '\x1b[0m';
-
-    const lead = new TeamLead({
-      teamName: `team-${Date.now()}`,
-      logger: { debug() {}, info() {}, warn(m: string) { console.warn(m); }, error(m: string) { console.error(m); } },
-      defaultTeammateEngineOptions: { disableBuiltInPlugins: true },
-    });
-
-    const display = new InProcessDisplay(lead.team, { showOutput: verbose });
-    display.start();
-
-    try {
-      await lead.initialize();
-
-      console.log(`\n${bold}━━━ Agent Teams ━━━${reset}${concurrency ? `  ${dim}concurrency: ${concurrency}${reset}` : ''}`);
-      console.log(`${dim}  ${task}${reset}\n`);
-      console.log(`  ${bold}${cyan}[1]${reset} ${bold}Planning${reset}\n`);
-
-      const { synthesis } = await lead.orchestrate(task, {
-        concurrency,
-        onPlan: async (plan: TeamPlan) => {
-          // Print plan summary
-          console.log(`  ${dim}Teammates: ${plan.teammates.map(t => t.name).join(', ')}${reset}`);
-          console.log(`  ${dim}Tasks: ${plan.tasks.length}${reset}\n`);
-          return true;
-        },
-      });
-
-      console.log('\n' + synthesis + '\n');
-
-      // Follow-up loop
-      while (true) {
-        const input = await new Promise<string>((resolve) =>
-          rl.question(`\n${cyan}Follow-up (empty to exit):${reset} `, resolve)
-        );
-        const trimmed = input.trim();
-        if (!trimmed || trimmed === 'exit' || trimmed === 'quit') break;
-
-        try {
-          console.log(`\n  ${bold}${cyan}[1]${reset} ${bold}Planning follow-up${reset}\n`);
-          const { synthesis: followUpSynthesis } = await lead.followUp(trimmed, {
-            concurrency,
-            onPlan: async (plan: TeamPlan) => {
-              console.log(`  ${dim}Tasks: ${plan.tasks.length}${reset}\n`);
-              return true;
-            },
-          });
-          console.log('\n' + followUpSynthesis + '\n');
-        } catch (err: any) {
-          console.error(`\n❌ Follow-up failed: ${err.message}`);
-        }
-      }
-
-      await lead.team.cleanup();
-    } catch (err: any) {
-      console.error(`\n❌ Agent teams failed: ${err.message}`);
-      try { await lead.team.cleanup(); } catch { /* best effort */ }
-    } finally {
-      display.stop();
     }
   }
 
@@ -737,7 +504,7 @@ class CoderCLI {
           if (normalizedCommand === 'team') {
             isProcessing = true;
             try {
-              await this.runTeam(args);
+              await runTeam(this.agent, args);
             } finally {
               isProcessing = false;
               rl.prompt();
@@ -746,7 +513,7 @@ class CoderCLI {
           } else if (normalizedCommand === 'teams') {
             isProcessing = true;
             try {
-              await this.runAgentTeams(args, rl);
+              await runAgentTeams(args, rl);
             } finally {
               isProcessing = false;
               rl.prompt();
