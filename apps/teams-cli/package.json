@@ -1,0 +1,30 @@
+{
+  "name": "@pulse-coder/teams-cli",
+  "version": "0.0.1-alpha.1",
+  "description": "CLI for Pulse Coder Agent Teams – coordinate multiple AI agents collaboratively",
+  "type": "commonjs",
+  "main": "./dist/index.js",
+  "bin": {
+    "pulse-teams": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "preview": "tsup && node --enable-source-maps dist/index.js interactive",
+    "preview:run": "tsup && node --enable-source-maps dist/index.js run",
+    "preview:plan": "tsup && node --enable-source-maps dist/index.js plan",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pulse-coder-engine": "workspace:*",
+    "pulse-coder-agent-teams": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
