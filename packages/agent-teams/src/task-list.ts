@@ -12,13 +12,16 @@ export class TaskList {
   private filePath: string;
   private lockPath: string;
   private hooks?: TeamHooks;
+  /** Callback to check if a teammate is still active (running its loop). */
+  private isTeammateActive?: (teammateId: string) => boolean;
 
-  constructor(stateDir: string, hooks?: TeamHooks) {
+  constructor(stateDir: string, hooks?: TeamHooks, isTeammateActive?: (teammateId: string) => boolean) {
     this.dir = join(stateDir, 'tasks');
     mkdirSync(this.dir, { recursive: true });
     this.filePath = join(this.dir, 'tasks.json');
     this.lockPath = join(this.dir, 'tasks.lock');
     this.hooks = hooks;
+    this.isTeammateActive = isTeammateActive;
 
     // Initialize empty task list if not exists
     if (!existsSync(this.filePath)) {
@@ -94,13 +97,24 @@ export class TaskList {
         // Auto-claim priority:
         // 1. Tasks pre-assigned to me
         // 2. Unassigned tasks
-        // 3. Work stealing: tasks assigned to others (if allowSteal)
+        // 3. Work stealing: only from teammates whose loop has exited (not active)
         const allPending = tasks.filter(t =>
           t.status === 'pending' && this.isUnblocked(t, tasks)
         );
         const mine = allPending.find(t => t.assignee === teammateId);
         const unassigned = allPending.find(t => !t.assignee);
-        const stealable = allPending.find(t => t.assignee !== teammateId && t.assignee !== null);
+
+        // Only steal from teammates who are no longer active
+        let stealable: typeof allPending[0] | undefined;
+        if (!mine && !unassigned) {
+          stealable = allPending.find(t =>
+            t.assignee !== teammateId &&
+            t.assignee !== null &&
+            // Only steal if the assignee is no longer running their loop
+            (!this.isTeammateActive || !this.isTeammateActive(t.assignee!))
+          );
+        }
+
         const target = mine || unassigned || stealable;
 
         if (target) {

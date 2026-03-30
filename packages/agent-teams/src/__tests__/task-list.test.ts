@@ -101,14 +101,35 @@ describe('TaskList', () => {
     expect(claimed!.id).toBe(t1.id);
   });
 
-  it('should allow work stealing of pre-assigned tasks when no other options', async () => {
+  it('should allow work stealing when assignee is not active', async () => {
+    // Default taskList has no isTeammateActive callback → always allow steal
     await taskList.create({ title: 'T1', description: '', assignee: 'alice' }, 'lead');
 
-    // Bob can steal Alice's task (work stealing) when there are no unassigned tasks
     const claimed = await taskList.claim('bob');
     expect(claimed).not.toBeNull();
     expect(claimed!.title).toBe('T1');
-    expect(claimed!.assignee).toBe('bob'); // Reassigned to Bob
+    expect(claimed!.assignee).toBe('bob');
+  });
+
+  it('should NOT steal tasks from active teammates', async () => {
+    // Create a TaskList where alice is active
+    const guardedTaskList = new TaskList(dir, undefined, (id) => id === 'alice');
+    await guardedTaskList.create({ title: 'T1', description: '', assignee: 'alice' }, 'lead');
+
+    // Bob cannot steal — alice is still active
+    const claimed = await guardedTaskList.claim('bob');
+    expect(claimed).toBeNull();
+  });
+
+  it('should steal tasks from inactive teammates', async () => {
+    // Create a TaskList where alice is NOT active
+    const guardedTaskList = new TaskList(dir, undefined, (_id) => false);
+    await guardedTaskList.create({ title: 'T1', description: '', assignee: 'alice' }, 'lead');
+
+    // Bob can steal — alice's loop has exited
+    const claimed = await guardedTaskList.claim('bob');
+    expect(claimed).not.toBeNull();
+    expect(claimed!.assignee).toBe('bob');
   });
 
   it('should prioritize assigned tasks over unassigned ones', async () => {

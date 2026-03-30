@@ -15,6 +15,7 @@ export class Teammate {
   readonly name: string;
   readonly spawnPrompt: string;
   readonly requirePlanApproval: boolean;
+  readonly cwd: string;
 
   private engine: Engine;
   private context: Context;
@@ -41,6 +42,7 @@ export class Teammate {
     this.spawnPrompt = options.spawnPrompt || '';
     this.requirePlanApproval = options.requirePlanApproval || false;
     this._planMode = options.requirePlanApproval || false;
+    this.cwd = options.cwd || process.cwd();
     this.mailbox = mailbox;
     this.taskList = taskList;
     this.logger = options.logger || console;
@@ -48,13 +50,15 @@ export class Teammate {
     this.onOutput = callbacks?.onOutput;
 
     // Create independent Engine instance with teammate-specific config
+    const cwdTools = this.buildCwdTools(options.engineOptions?.tools);
     this.engine = new Engine({
       ...options.engineOptions,
       model: options.model || options.engineOptions?.model,
       logger: this.logger,
-      // Inject team-aware tools
+      // Inject team-aware tools (cwd-wrapped tools + team tools)
       tools: {
         ...options.engineOptions?.tools,
+        ...cwdTools,
         ...this.buildTeamTools(),
       },
     });
@@ -93,13 +97,17 @@ export class Teammate {
         'Wait for approval before making any changes.'
       : '';
 
+    const cwdNote = this.cwd !== process.cwd()
+      ? `\n## Working Directory\nYour working directory is: ${this.cwd}\n- For \`bash\`, always pass cwd: "${this.cwd}" unless you need a different directory.\n- For \`grep\` and \`ls\`, pass path: "${this.cwd}" as the base path.\n- For \`read\`, \`write\`, and \`edit\`, use absolute paths under "${this.cwd}".\n`
+      : '';
+
     const toolGuidance = `
 ## Tool Usage Rules
 - To search code, use the \`grep\` tool (NOT bash + rg/grep). The grep tool handles pattern escaping automatically.
 - To read files, use the \`read\` tool. To list directories, use \`ls\`. To modify files, use \`edit\` or \`write\`.
 - Only use \`bash\` for commands that have no dedicated tool (e.g. git, npm, build commands).
 - NEVER type bare keywords as bash commands. \`bash("auth")\` does NOT search for "auth" — use \`grep({ pattern: "auth" })\` instead.
-`;
+${cwdNote}`;
 
     const systemContext = this.spawnPrompt
       ? `You are a teammate in an agent team. Your role: ${this.name}\n\nSpawn instructions:\n${this.spawnPrompt}${planModeInstructions}\n${toolGuidance}\n`
@@ -235,6 +243,53 @@ export class Teammate {
    */
   get turnCount(): number {
     return this.context.messages.filter(m => m.role === 'assistant').length;
+  }
+
+  // ─── CWD-aware tool wrappers ──────────────────────────────────────
+
+  /**
+   * Build tool overrides that default `cwd` for bash and `path` for grep/ls.
+   * Only creates wrappers when cwd differs from process.cwd().
+   */
+  private buildCwdTools(existingTools?: Record<string, any>): Record<string, any> {
+    if (this.cwd === process.cwd()) return {};
+
+    const teammateCwd = this.cwd;
+    const overrides: Record<string, any> = {};
+
+    // Wrap bash: default cwd to teammate's working directory
+    overrides.bash = {
+      name: 'bash',
+      description: 'Execute a bash command. Working directory defaults to the teammate\'s configured cwd.',
+      inputSchema: z.object({
+        command: z.string().describe('The command to execute'),
+        timeout: z.number().optional().describe('Timeout in ms (default 120000)'),
+        cwd: z.string().optional().describe(`Working directory (default: ${teammateCwd})`),
+        description: z.string().optional().describe('Description of the command'),
+      }),
+      execute: async (input: { command: string; timeout?: number; cwd?: string; description?: string }) => {
+        const { execSync } = await import('child_process');
+        const timeout = input.timeout || 120000;
+        const cwd = input.cwd || teammateCwd;
+        try {
+          const output = execSync(input.command, {
+            encoding: 'utf-8',
+            timeout,
+            cwd,
+            maxBuffer: 1024 * 1024 * 10,
+            shell: '/bin/bash',
+          });
+          return output;
+        } catch (err: any) {
+          if (err.killed) throw new Error(`Command timed out after ${timeout}ms`);
+          const stderr = err.stderr || '';
+          const stdout = err.stdout || '';
+          throw new Error(`Command failed (exit ${err.status}): ${stderr || stdout || err.message}`);
+        }
+      },
+    };
+
+    return overrides;
   }
 
   // ─── Team-aware tools ────────────────────────────────────────────

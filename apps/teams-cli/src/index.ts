@@ -1,8 +1,7 @@
 import { createInterface } from 'node:readline';
 import { randomUUID } from 'node:crypto';
-import { Team, TeamLead } from 'pulse-coder-agent-teams';
+import { Team, TeamLead, InProcessDisplay } from 'pulse-coder-agent-teams';
 import type { TeamConfig, TeammateOptions, CreateTaskInput, TeamPlan } from 'pulse-coder-agent-teams';
-import { InProcessDisplay } from './display/in-process.js';
 
 // ─── ANSI Colors ──────────────────────────────────────────────────
 const c = {
@@ -74,9 +73,23 @@ async function runTeam(args: string[]) {
     }
   }
 
+  // Parse --cwd <dir>
+  let cwd: string | undefined;
+  const cwdIdx = args.indexOf('--cwd');
+  if (cwdIdx !== -1 && args[cwdIdx + 1]) {
+    const { resolve } = await import('path');
+    const { existsSync, statSync } = await import('fs');
+    cwd = resolve(args[cwdIdx + 1]);
+    if (!existsSync(cwd) || !statSync(cwd).isDirectory()) {
+      console.error(`Error: --cwd path does not exist or is not a directory: ${cwd}`);
+      process.exit(1);
+    }
+  }
+
   const filteredArgs = args.filter((a, i) =>
     a !== '--verbose' && a !== '-v' &&
-    a !== '--concurrency' && (concIdx === -1 || i !== concIdx + 1)
+    a !== '--concurrency' && (concIdx === -1 || i !== concIdx + 1) &&
+    a !== '--cwd' && (cwdIdx === -1 || i !== cwdIdx + 1)
   );
   const taskDescription = filteredArgs.join(' ');
 
@@ -92,6 +105,7 @@ async function runTeam(args: string[]) {
   const teamName = `team-${Date.now()}`;
   const lead = new TeamLead({
     teamName,
+    cwd,
     logger,
     defaultTeammateEngineOptions: { disableBuiltInPlugins: true },
   });
@@ -103,7 +117,7 @@ async function runTeam(args: string[]) {
     await lead.initialize();
 
     // ── Header ──
-    printBanner(taskDescription, concurrency);
+    printBanner(taskDescription, concurrency, cwd);
 
     // ── Phase 1: Plan ──
     printPhase(1, 'Planning');
@@ -113,15 +127,12 @@ async function runTeam(args: string[]) {
       concurrency,
       onPlan: async (plan) => {
         printPlan(plan);
-        printPhase(2, `Spawning ${plan.teammates.length} teammates`);
+        // Phase 2-5 are emitted by TeamLead via team:phase events
         return true;
       },
     });
 
-    // Phase 3 & 4 headers are shown by the display via events
-
-    // ── Synthesis ──
-    printPhase(5, 'Synthesis');
+    // ── Synthesis output ──
     console.log('');
     console.log(synthesis);
     console.log('');
@@ -131,6 +142,9 @@ async function runTeam(args: string[]) {
     console.log(`${c.dim}  Done in ${totalSec}s${c.reset}`);
     console.log('');
 
+    // ── Follow-up loop ──
+    await followUpLoop(lead, display, concurrency);
+
     await lead.team.cleanup();
   } catch (err: any) {
     console.error(`\n${c.red}Team run failed:${c.reset} ${err.message}`);
@@ -139,6 +153,49 @@ async function runTeam(args: string[]) {
   } finally {
     display.stop();
     loggerQuiet = false;
+  }
+}
+
+// ─── Follow-up conversation loop ──────────────────────────────────
+
+async function followUpLoop(
+  lead: TeamLead,
+  display: InProcessDisplay,
+  concurrency: number,
+): Promise<void> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  const ask = (prompt: string): Promise<string> =>
+    new Promise((resolve) => rl.question(prompt, resolve));
+
+  while (true) {
+    const input = await ask(`\n${c.cyan}Follow-up (empty to exit):${c.reset} `);
+    const trimmed = input.trim();
+
+    if (!trimmed || trimmed === 'exit' || trimmed === 'quit') {
+      rl.close();
+      return;
+    }
+
+    try {
+      console.log('');
+      printPhase(1, 'Planning follow-up');
+
+      const { synthesis } = await lead.followUp(trimmed, {
+        concurrency,
+        onPlan: async (plan) => {
+          printPlan(plan);
+          return true;
+        },
+      });
+
+      printPhase(5, 'Synthesis');
+      console.log('');
+      console.log(synthesis);
+      console.log('');
+    } catch (err: any) {
+      console.error(`${c.red}Follow-up failed:${c.reset} ${err.message}`);
+    }
   }
 }
 
@@ -361,11 +418,12 @@ async function interactiveMode() {
 
 // ─── Display helpers ──────────────────────────────────────────────
 
-function printBanner(task: string, concurrency?: number): void {
+function printBanner(task: string, concurrency?: number, cwd?: string): void {
   console.log('');
   console.log(`${c.bold}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   const concLabel = concurrency ? `${c.dim}  concurrency: ${concurrency}${c.reset}` : '';
-  console.log(`${c.bold}  Pulse Agent Teams${c.reset}${concLabel}`);
+  const cwdLabel = cwd ? `${c.dim}  cwd: ${cwd}${c.reset}` : '';
+  console.log(`${c.bold}  Pulse Agent Teams${c.reset}${concLabel}${cwdLabel}`);
   console.log(`${c.bold}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${c.reset}`);
   console.log(`${c.dim}  ${task}${c.reset}`);
   console.log('');
@@ -417,11 +475,13 @@ ${c.dim}Usage:${c.reset}
 
 ${c.dim}Options:${c.reset}
   --concurrency N                Max teammates running in parallel (default: all)
+  --cwd <dir>                    Working directory for teammates (default: current dir)
   --verbose, -v                  Show LLM output from teammates
 
 ${c.dim}Examples:${c.reset}
   pulse-teams run "Review this codebase for security issues"
   pulse-teams run "Audit the codebase" --concurrency 2
+  pulse-teams run "Build a REST API" --cwd /path/to/project
   pulse-teams plan "Refactor the auth module for testability"
 `);
 }

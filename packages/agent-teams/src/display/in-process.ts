@@ -1,4 +1,5 @@
-import type { Team, TeamEvent } from 'pulse-coder-agent-teams';
+import type { Team } from '../team.js';
+import type { TeamEvent } from '../types.js';
 
 // ─── ANSI helpers ─────────────────────────────────────────────────
 const c = {

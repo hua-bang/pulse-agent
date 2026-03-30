@@ -28,6 +28,8 @@ export interface TeamLeadOptions {
   defaultTeammateEngineOptions?: EngineOptions;
   /** Model override for the lead. */
   model?: string;
+  /** Working directory for teammates. Defaults to process.cwd(). */
+  cwd?: string;
   /** Hooks. */
   hooks?: TeamHooks;
   /** Logger. */
@@ -63,6 +65,7 @@ export class TeamLead {
       {
         name: options.teamName,
         stateDir: options.stateDir,
+        cwd: options.cwd,
         logger: this.logger,
       },
       options.hooks,
@@ -122,7 +125,7 @@ export class TeamLead {
     }
 
     // Phase 2: Spawn teammates
-    this.logger.info('Phase 2: Spawning teammates...');
+    this.emitPhase(2, `Spawning ${plan.teammates.length} teammates`);
     const teammateOptions = buildTeammateOptionsFromPlan(
       plan,
       this.defaultTeammateEngineOptions,
@@ -131,19 +134,73 @@ export class TeamLead {
     await this.team.spawnTeammates(teammateOptions);
 
     // Phase 3: Create tasks with dependencies
-    this.logger.info('Phase 3: Creating tasks...');
+    this.emitPhase(3, `Creating ${plan.tasks.length} tasks`);
     const taskIdByTitle = await this.createTasksFromPlan(plan);
 
     // Phase 4: Run
-    this.logger.info('Phase 4: Running team...');
+    this.emitPhase(4, 'Executing');
     const { results, stats } = await this.team.run({
       timeoutMs: options?.timeoutMs,
       concurrency: options?.concurrency,
     });
 
     // Phase 5: Synthesize
-    this.logger.info('Phase 5: Synthesizing results...');
+    this.emitPhase(5, 'Synthesizing results');
     const synthesis = await this.synthesizeResults(taskDescription, results, stats);
+
+    return { plan, results, synthesis };
+  }
+
+  /**
+   * Follow-up: take a new instruction, plan additional tasks for the existing team, and run.
+   * Reuses existing teammates (spawns new ones only if the plan requires them).
+   */
+  async followUp(
+    instruction: string,
+    options?: {
+      onPlan?: (plan: Awaited<ReturnType<typeof planTeam>>) => Promise<boolean>;
+      timeoutMs?: number;
+      concurrency?: number;
+    },
+  ): Promise<{ plan: Awaited<ReturnType<typeof planTeam>>; results: Record<string, string>; synthesis: string }> {
+    // Plan with awareness of existing teammates
+    const existingNames = this.team.getTeammates().map(t => t.name);
+    const augmentedInstruction = existingNames.length > 0
+      ? `${instruction}\n\nNote: The following teammates already exist and can be reused: ${existingNames.join(', ')}. Prefer assigning tasks to existing teammates. Only create new teammates if a genuinely new role is needed.`
+      : instruction;
+
+    const plan = await planTeam(augmentedInstruction, { logger: this.logger });
+
+    if (options?.onPlan) {
+      const approved = await options.onPlan(plan);
+      if (!approved) {
+        throw new Error('Follow-up plan rejected by user');
+      }
+    }
+
+    // Spawn only new teammates (skip existing names)
+    const existingSet = new Set(existingNames);
+    const newTeammates = plan.teammates.filter(t => !existingSet.has(t.name));
+    if (newTeammates.length > 0) {
+      const newOptions = buildTeammateOptionsFromPlan(
+        { ...plan, teammates: newTeammates },
+        this.defaultTeammateEngineOptions,
+        this.logger,
+      );
+      await this.team.spawnTeammates(newOptions);
+    }
+
+    // Create new tasks (resolve assignee names to existing teammate IDs)
+    await this.createTasksFromPlan(plan);
+
+    // Run
+    const { results, stats } = await this.team.run({
+      timeoutMs: options?.timeoutMs,
+      concurrency: options?.concurrency,
+    });
+
+    // Synthesize
+    const synthesis = await this.synthesizeResults(instruction, results, stats);
 
     return { plan, results, synthesis };
   }
@@ -187,6 +244,13 @@ export class TeamLead {
    */
   on(handler: TeamEventHandler): () => void {
     return this.team.on(handler);
+  }
+
+  /**
+   * Emit a phase event through the team's event system.
+   */
+  private emitPhase(num: number, label: string): void {
+    this.team.emit({ type: 'team:phase', timestamp: Date.now(), data: { phase: num, label } });
   }
 
   // ─── Plan approval ───────────────────────────────────────────────
