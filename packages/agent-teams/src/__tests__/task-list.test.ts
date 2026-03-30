@@ -92,6 +92,33 @@ describe('TaskList', () => {
     expect(taskList.isAllDone()).toBe(true);
   });
 
+  it('should allow pre-assigned teammate to claim their task', async () => {
+    const t1 = await taskList.create({ title: 'T1', description: '', assignee: 'alice' }, 'lead');
+
+    // Alice (assigned) can claim
+    const claimed = await taskList.claim('alice');
+    expect(claimed).not.toBeNull();
+    expect(claimed!.id).toBe(t1.id);
+  });
+
+  it('should prevent other teammates from claiming pre-assigned task', async () => {
+    await taskList.create({ title: 'T1', description: '', assignee: 'alice' }, 'lead');
+
+    // Bob cannot claim Alice's task
+    const claimed = await taskList.claim('bob');
+    expect(claimed).toBeNull();
+  });
+
+  it('should prioritize assigned tasks over unassigned ones', async () => {
+    await taskList.create({ title: 'Unassigned', description: '' }, 'lead');
+    const mine = await taskList.create({ title: 'Mine', description: '', assignee: 'alice' }, 'lead');
+
+    // Alice should get her assigned task first
+    const claimed = await taskList.claim('alice');
+    expect(claimed!.id).toBe(mine.id);
+    expect(claimed!.title).toBe('Mine');
+  });
+
   it('should report stats', async () => {
     await taskList.create({ title: 'T1', description: '' }, 'lead');
     await taskList.create({ title: 'T2', description: '' }, 'lead');

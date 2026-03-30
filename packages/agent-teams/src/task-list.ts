@@ -84,22 +84,26 @@ export class TaskList {
       if (taskId) {
         // Claim a specific task
         const task = tasks.find(t => t.id === taskId);
-        if (task && task.status === 'pending' && !task.assignee && this.isUnblocked(task, tasks)) {
+        if (task && task.status === 'pending' && this.canClaim(task, teammateId) && this.isUnblocked(task, tasks)) {
           task.status = 'in_progress';
           task.assignee = teammateId;
           task.updatedAt = Date.now();
           claimed = { ...task };
         }
       } else {
-        // Auto-claim: find first pending unblocked unassigned task
-        for (const task of tasks) {
-          if (task.status === 'pending' && !task.assignee && this.isUnblocked(task, tasks)) {
-            task.status = 'in_progress';
-            task.assignee = teammateId;
-            task.updatedAt = Date.now();
-            claimed = { ...task };
-            break;
-          }
+        // Auto-claim: prefer tasks assigned to this teammate, then unassigned tasks
+        const candidates = tasks.filter(t =>
+          t.status === 'pending' && this.canClaim(t, teammateId) && this.isUnblocked(t, tasks)
+        );
+        // Assigned-to-me tasks first
+        const mine = candidates.find(t => t.assignee === teammateId);
+        const target = mine || candidates.find(t => !t.assignee);
+
+        if (target) {
+          target.status = 'in_progress';
+          target.assignee = teammateId;
+          target.updatedAt = Date.now();
+          claimed = { ...target };
         }
       }
 
@@ -206,7 +210,7 @@ export class TaskList {
   getClaimable(): Task[] {
     const tasks = this.readTasks();
     return tasks.filter(t =>
-      t.status === 'pending' && !t.assignee && this.isUnblocked(t, tasks)
+      t.status === 'pending' && this.isUnblocked(t, tasks)
     );
   }
 
@@ -240,6 +244,15 @@ export class TaskList {
   }
 
   // ─── Internal ────────────────────────────────────────────────────
+
+  /**
+   * Check if a teammate can claim a task.
+   * - Unassigned tasks: anyone can claim.
+   * - Pre-assigned tasks: only the assigned teammate can claim.
+   */
+  private canClaim(task: Task, teammateId: string): boolean {
+    return !task.assignee || task.assignee === teammateId;
+  }
 
   private isUnblocked(task: Task, allTasks: Task[]): boolean {
     if (task.deps.length === 0) return true;
