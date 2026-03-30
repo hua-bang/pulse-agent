@@ -88,9 +88,9 @@ export class Team {
       {
         onStatusChange: (id, status) => this.onTeammateStatusChange(id, status),
         onOutput: (id, text) => this.emit({
-          type: 'teammate:status',
+          type: 'teammate:output',
           timestamp: Date.now(),
-          data: { id, text },
+          data: { id, name: options.name, text },
         }),
       }
     );
@@ -343,8 +343,22 @@ export class Team {
           `You can also use team_send_message to share findings with other teammates, or team_notify_lead to report to the lead.`,
         ].filter(Boolean).join('\n');
 
+        this.emit({
+          type: 'teammate:run_start',
+          timestamp: Date.now(),
+          data: { id: teammate.id, name: teammate.name, taskId: task.id, taskTitle: task.title },
+        });
+
+        const runStart = Date.now();
         const output = await teammate.run(prompt);
+        const durationMs = Date.now() - runStart;
         results[task.id] = output;
+
+        this.emit({
+          type: 'teammate:run_end',
+          timestamp: Date.now(),
+          data: { id: teammate.id, name: teammate.name, taskId: task.id, taskTitle: task.title, durationMs },
+        });
 
         // Auto-complete if teammate didn't use tool
         const currentTask = this.taskList.get(task.id);

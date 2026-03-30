@@ -48,10 +48,14 @@ async function main() {
  * Flow: LLM plans → confirm → spawn → execute → synthesize
  */
 async function runTeam(args: string[]) {
-  const taskDescription = args.join(' ');
+  // Parse flags
+  const verbose = args.includes('--verbose') || args.includes('-v');
+  const filteredArgs = args.filter(a => a !== '--verbose' && a !== '-v');
+  const taskDescription = filteredArgs.join(' ');
+
   if (!taskDescription) {
     console.error('Error: Please provide a task description.');
-    console.error('Usage: pulse-teams run "Your task description"');
+    console.error('Usage: pulse-teams run "Your task description" [--verbose]');
     process.exit(1);
   }
 
@@ -62,7 +66,7 @@ async function runTeam(args: string[]) {
     defaultTeammateEngineOptions: { disableBuiltInPlugins: true },
   });
 
-  const display = new InProcessDisplay(lead.team);
+  const display = new InProcessDisplay(lead.team, { showOutput: verbose });
   display.start();
 
   try {
