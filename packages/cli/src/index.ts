@@ -6,7 +6,7 @@ import { getAcpState, runAcp } from 'pulse-coder-acp';
 import { SessionCommands } from './session-commands.js';
 import { InputManager } from './input-manager.js';
 import { SkillCommands } from './skill-commands.js';
-import { runTeam, runAgentTeams } from './team-commands.js';
+import { runTeam, TeamsSession } from './team-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
 
@@ -29,6 +29,7 @@ const LOCAL_COMMANDS = new Set([
   'execute',
   'team',
   'teams',
+  'solo',
   'save',
   'exit',
 ]);
@@ -159,9 +160,10 @@ class CoderCLI {
           console.log('/execute - Switch to executing mode');
           console.log('/team <task> - Run a multi-agent team (LLM plans DAG by default)');
           console.log('/team --route=auto <task> - Use keyword-based routing instead of LLM planning');
-          console.log('/teams <task> - Run agent teams (independent engines, parallel execution)');
+          console.log('/teams <task> - Run agent teams (enters teams mode for follow-ups)');
           console.log('/teams <task> --concurrency N - Limit parallel teammates');
           console.log('/teams <task> --cwd <dir> - Set working directory for teammates');
+          console.log('/solo - Exit teams mode, return to normal agent');
           console.log('/save - Save current session explicitly');
           console.log('/exit - Exit the application');
           console.log('Esc (while processing) - Stop current response and accept next input');
@@ -362,6 +364,7 @@ class CoderCLI {
     let currentAbortController: AbortController | null = null;
     let isProcessing = false;
     const queuedInputs: string[] = [];
+    let teamsSession: TeamsSession | null = null;
 
     readline.emitKeypressEvents(process.stdin);
 
@@ -408,7 +411,8 @@ class CoderCLI {
       }
 
       console.log('\n💾 Saving current session...');
-      this.sessionCommands.saveContext(this.context).finally(() => {
+      const cleanupTeams = teamsSession?.active ? teamsSession.stop().catch(() => {}) : Promise.resolve();
+      cleanupTeams.then(() => this.sessionCommands.saveContext(this.context)).finally(() => {
         console.log('👋 Goodbye!');
         process.exit(0);
       });
@@ -514,11 +518,30 @@ class CoderCLI {
           } else if (normalizedCommand === 'teams') {
             isProcessing = true;
             try {
-              await runAgentTeams(args, rl);
+              const session = await TeamsSession.start(args);
+              if (session) {
+                teamsSession = session;
+                rl.setPrompt('teams> ');
+              }
             } finally {
               isProcessing = false;
               rl.prompt();
             }
+            return;
+          } else if (normalizedCommand === 'solo') {
+            if (teamsSession?.active) {
+              isProcessing = true;
+              try {
+                await teamsSession.stop();
+                teamsSession = null;
+                rl.setPrompt('> ');
+              } finally {
+                isProcessing = false;
+              }
+            } else {
+              console.log('\n⚠️ Not in teams mode. Use /teams <task> to start.');
+            }
+            rl.prompt();
             return;
           } else if (normalizedCommand === 'skills') {
             const transformedMessage = await this.skillCommands.transformSkillsCommandToMessage(args);
@@ -551,6 +574,20 @@ class CoderCLI {
             return;
           }
         }
+      }
+
+      // Teams mode: route plain messages as follow-ups
+      if (teamsSession?.active && !forceAcp) {
+        isProcessing = true;
+        try {
+          await teamsSession.followUp(messageInput);
+        } catch (err: any) {
+          console.error(`\n❌ Teams follow-up error: ${err.message}`);
+        } finally {
+          isProcessing = false;
+          rl.prompt();
+        }
+        return;
       }
 
       // Regular message processing
