@@ -241,6 +241,58 @@ export class TaskList {
   }
 
   /**
+   * Mark pending tasks whose dependencies have failed as failed (cascade).
+   * Also marks any remaining in_progress tasks as failed (e.g. after timeout).
+   * Returns the list of tasks that were marked failed.
+   */
+  failUnreachable(): Task[] {
+    const marked: Task[] = [];
+
+    const tasks = this.readTasks();
+
+    // First: mark any lingering in_progress tasks as failed (timeout cleanup)
+    for (const task of tasks) {
+      if (task.status === 'in_progress') {
+        task.status = 'failed';
+        task.result = 'Task was still in progress when the team run ended (timeout or shutdown).';
+        task.updatedAt = Date.now();
+        marked.push({ ...task });
+      }
+    }
+
+    // Then: cascade — repeatedly mark pending tasks whose deps include a failed task.
+    // Repeat because failing a task may unblock further cascades.
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const task of tasks) {
+        if (task.status !== 'pending') continue;
+        const hasFailedDep = task.deps.some(depId => {
+          const dep = tasks.find(t => t.id === depId);
+          return dep?.status === 'failed';
+        });
+        if (hasFailedDep) {
+          const failedDepNames = task.deps
+            .map(depId => tasks.find(t => t.id === depId))
+            .filter(t => t?.status === 'failed')
+            .map(t => t!.title);
+          task.status = 'failed';
+          task.result = `Skipped: dependency failed (${failedDepNames.join(', ')}).`;
+          task.updatedAt = Date.now();
+          marked.push({ ...task });
+          changed = true;
+        }
+      }
+    }
+
+    if (marked.length > 0) {
+      this.writeTasks(tasks);
+    }
+
+    return marked;
+  }
+
+  /**
    * Get summary stats.
    */
   stats(): { total: number; pending: number; in_progress: number; completed: number; failed: number } {

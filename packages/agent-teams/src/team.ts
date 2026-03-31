@@ -237,13 +237,18 @@ export class Team {
       await Promise.allSettled(runners);
     }
 
+    // Cascade-fail tasks that can never complete (failed deps, lingering in_progress)
+    const cascaded = this.taskList.failUnreachable();
+    for (const task of cascaded) {
+      this.emit({
+        type: 'task:failed',
+        timestamp: Date.now(),
+        data: { taskId: task.id, taskTitle: task.title, error: task.result || 'unreachable' },
+      });
+    }
+
     const stats = this.taskList.stats();
-    this._status =
-      stats.pending > 0 || stats.in_progress > 0
-        ? 'failed'   // timed out or stalled with unfinished work
-        : stats.failed > 0
-          ? 'failed'
-          : 'completed';
+    this._status = stats.failed > 0 ? 'failed' : 'completed';
 
     this.emit({ type: 'team:completed', timestamp: Date.now(), data: { stats } });
     return { results, stats };

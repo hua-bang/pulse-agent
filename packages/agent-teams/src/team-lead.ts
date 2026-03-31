@@ -345,13 +345,8 @@ export class TeamLead {
       ? `\n## Teammate Messages\n${remainingMessages.map(m => `- [from: ${m.from}] ${m.content}`).join('\n')}\n`
       : '';
 
-    const incomplete = stats.pending + stats.in_progress;
-    const statusLine = incomplete > 0
-      ? `${stats.completed}/${stats.total} completed, ${stats.failed} failed, ${incomplete} unfinished (${stats.pending} pending, ${stats.in_progress} still in progress)`
-      : `${stats.completed}/${stats.total} completed, ${stats.failed} failed`;
-
-    const incompleteInstructions = incomplete > 0
-      ? `\n- IMPORTANT: ${incomplete} task(s) did not finish. Clearly list which tasks are incomplete and explain the impact on the overall goal. Suggest next steps to complete the remaining work.`
+    const failedInstructions = stats.failed > 0
+      ? `\n- IMPORTANT: ${stats.failed} task(s) failed. Clearly list which tasks failed (including cascaded failures due to dependency issues), explain the impact, and suggest next steps.`
       : '';
 
     const synthesisPrompt = `You are the team lead. Your team has finished its run. Synthesize the results into a coherent summary.
@@ -359,14 +354,14 @@ export class TeamLead {
 ## Original Task
 ${originalTask}
 
-## Team Results (${statusLine})
+## Team Results (${stats.completed}/${stats.total} completed, ${stats.failed} failed)
 
 ${taskSummaries}
 ${messagesSection}
 ## Instructions
 - Provide a comprehensive synthesis of all teammates' findings/outputs.
 - Highlight key decisions, findings, and deliverables.
-- Note any failures or gaps.${incompleteInstructions}${remainingMessages.length > 0 ? '\n- Incorporate any relevant teammate messages listed above.' : ''}
+- Note any failures or gaps.${failedInstructions}${remainingMessages.length > 0 ? '\n- Incorporate any relevant teammate messages listed above.' : ''}
 - Keep it concise but thorough.`;
 
     this.context.messages.push({ role: 'user', content: synthesisPrompt });
