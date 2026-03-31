@@ -101,15 +101,20 @@ const writeCanvasAgentsMd = async (
   await fileApi.write(`${canvasDir}/AGENTS.md`, updated);
 };
 
-const buildPointerSection = (canvasDir: string, wsId: string, label: string): string =>
-  [
+const buildPointerSection = (canvasDir: string, wsId: string, label: string): string => {
+  const lines = [
     `## Pulse Canvas (${label})`,
     '',
     `Canvas agent config: \`${canvasDir}/AGENTS.md\``,
     '',
     '> 读取上方文件获取画布结构、笔记列表和 Agent 指令。',
     '',
-  ].join('\n');
+    `**Workspace Isolation:** Environment variable \`CURRENT_WORKSPACE_ID=${wsId}\` is injected into this terminal.`,
+    'Always use this workspace ID when calling canvas MCP tools to avoid cross-canvas reads/writes.',
+    '',
+  ];
+  return lines.join('\n');
+};
 
 export const writeCanvasContext = async (
   nodes: CanvasNode[],
