@@ -285,6 +285,17 @@ export class TaskList {
       }
     }
 
+    // Finally: mark any remaining pending tasks as failed (not reached due to
+    // timeout, not enough teammates, or other reasons).
+    for (const task of tasks) {
+      if (task.status === 'pending') {
+        task.status = 'failed';
+        task.result = 'Task was not reached before the team run ended.';
+        task.updatedAt = Date.now();
+        marked.push({ ...task });
+      }
+    }
+
     if (marked.length > 0) {
       this.writeTasks(tasks);
     }
