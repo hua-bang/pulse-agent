@@ -5,8 +5,9 @@ import { fileURLToPath } from "url";
 import { setupPtyIpc, killAllPty } from "./pty-manager";
 import { setupCanvasStoreIpc } from "./canvas-store";
 import { setupFileManagerIpc } from "./file-manager";
-import { startMCPServer } from "./mcp-server";
-import { ensureMCPRegistered } from "./mcp-registration";
+// MCP server disabled — canvas-cli is the preferred agent interface now.
+// import { startMCPServer } from "./mcp-server";
+// import { ensureMCPRegistered } from "./mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "./file-watcher";
 import { setupSkillInstallerIpc } from "./skill-installer";
 
@@ -102,8 +103,9 @@ app.whenReady().then(() => {
   setupFileManagerIpc();
   setupFileWatcherIpc();
   setupSkillInstallerIpc();
-  startMCPServer();
-  void ensureMCPRegistered();
+  // MCP server disabled — canvas-cli is the preferred agent interface now.
+  // startMCPServer();
+  // void ensureMCPRegistered();
 
   createWindow();
 
