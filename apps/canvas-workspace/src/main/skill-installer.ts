@@ -15,37 +15,39 @@ version: 1.0.0
 
 Interact with canvas workspaces via the \`pulse-canvas\` CLI. The canvas is a shared workspace between humans and agents.
 
+The current workspace ID is available via \`$PULSE_CANVAS_WORKSPACE_ID\` environment variable (auto-set by canvas). All \`node\` and \`context\` commands use it automatically — no need to pass workspace ID explicitly.
+
 ## Core Commands
 
 ### Read workspace context (start here)
 \`\`\`bash
-pulse-canvas context <workspaceId> --format json
+pulse-canvas context --format json
 \`\`\`
 Returns all nodes with structured info: file paths, frame groups, labels.
 
-### List workspaces
-\`\`\`bash
-pulse-canvas workspace list --format json
-\`\`\`
-
 ### List nodes
 \`\`\`bash
-pulse-canvas node list <workspaceId> --format json
+pulse-canvas node list --format json
 \`\`\`
 
 ### Read a node
 \`\`\`bash
-pulse-canvas node read <workspaceId> <nodeId> --format json
+pulse-canvas node read <nodeId> --format json
 \`\`\`
 
 ### Write to a node
 \`\`\`bash
-pulse-canvas node write <workspaceId> <nodeId> --content "..."
+pulse-canvas node write <nodeId> --content "..."
 \`\`\`
 
 ### Create a node
 \`\`\`bash
-pulse-canvas node create <workspaceId> --type file --title "Report" --data '{"content":"..."}'
+pulse-canvas node create --type file --title "Report" --data '{"content":"..."}'
+\`\`\`
+
+### List workspaces
+\`\`\`bash
+pulse-canvas workspace list --format json
 \`\`\`
 
 ## Usage Principles
