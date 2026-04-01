@@ -15,13 +15,18 @@ export const useNodes = (
   const onRestoreTransformRef = useRef(onRestoreTransform);
   onRestoreTransformRef.current = onRestoreTransform;
 
+  // Refs to break circular dependency: scheduleSave needs nodesRef/setNodes,
+  // but those come from useNodeHistory which takes scheduleSave as argument.
+  const nodesRefBridge = useRef<CanvasNode[]>([]);
+  const setNodesBridge = useRef<React.Dispatch<React.SetStateAction<CanvasNode[]>>>(() => {});
+
   const scheduleSave = useCallback(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       const api = window.canvasWorkspace?.store;
       if (!api) return;
       const payload: CanvasSaveData = {
-        nodes: nodesRef.current,
+        nodes: nodesRefBridge.current,
         transform: transformRef.current,
         savedAt: new Date().toISOString(),
       };
@@ -30,14 +35,14 @@ export const useNodes = (
         // update in-memory state so they appear on canvas.
         if (res?.mergedNodes && Array.isArray(res.mergedNodes)) {
           const merged = res.mergedNodes as CanvasNode[];
-          if (merged.length > nodesRef.current.length) {
-            nodesRef.current = merged;
-            setNodes(merged);
+          if (merged.length > nodesRefBridge.current.length) {
+            nodesRefBridge.current = merged;
+            setNodesBridge.current(merged);
           }
         }
       });
     }, SAVE_DEBOUNCE_MS);
-  }, [canvasId, setNodes, nodesRef]);
+  }, [canvasId]);
 
   const [loaded, setLoaded] = useState(false);
 
@@ -45,6 +50,10 @@ export const useNodes = (
     nodes, setNodes, nodesRef, historyRef, historyIndexRef,
     applyNodes, commitHistory, undo, redo,
   } = useNodeHistory(scheduleSave);
+
+  // Keep bridges in sync
+  nodesRefBridge.current = nodesRef.current;
+  setNodesBridge.current = setNodes;
 
   const setTransformForSave = useCallback(
     (t: CanvasTransform) => {
