@@ -22,7 +22,8 @@ export function getWorkspaceDir(workspaceId: string, storeDir?: string): string 
 export async function loadWorkspaceManifest(storeDir?: string): Promise<WorkspaceManifest> {
   try {
     const raw = await fs.readFile(manifestPath(storeDir), 'utf-8');
-    return JSON.parse(raw) as WorkspaceManifest;
+    const parsed = JSON.parse(raw) as WorkspaceManifest;
+    return { entries: parsed.entries ?? [] };
   } catch {
     return { entries: [] };
   }
@@ -60,7 +61,10 @@ export async function ensureWorkspaceDir(workspaceId: string, storeDir?: string)
 export async function loadCanvas(workspaceId: string, storeDir?: string): Promise<CanvasSaveData | null> {
   try {
     const raw = await fs.readFile(canvasPath(workspaceId, storeDir), 'utf-8');
-    return JSON.parse(raw) as CanvasSaveData;
+    const parsed = JSON.parse(raw) as CanvasSaveData;
+    // Normalize: ensure nodes is always an array
+    parsed.nodes = parsed.nodes ?? [];
+    return parsed;
   } catch {
     return null;
   }
