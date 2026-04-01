@@ -60,18 +60,18 @@ export const setupPtyIpc = () => {
 
       try {
         const shell = defaultShell();
-        const env: Record<string, string> = {
+        const spawnEnv: Record<string, string> = {
           ...(process.env as Record<string, string>),
         };
         if (workspaceId) {
-          env.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
+          spawnEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
         }
         const proc = pty.spawn(shell, [], {
           name: "xterm-256color",
           cols,
           rows,
           cwd: cwd || homedir(),
-          env,
+          env: spawnEnv
         });
 
         sessions.set(id, proc);

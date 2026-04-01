@@ -36,6 +36,13 @@ const buildCanvasContext = (
     `Folder: ${workspaceFolder}`,
   ];
 
+  if (workspaceId) {
+    lines.push('', '## Workspace Isolation');
+    lines.push('', `Environment variable \`PULSE_CANVAS_WORKSPACE_ID=${workspaceId}\` is injected into this terminal session.`);
+    lines.push('Use this to scope all canvas operations to the current workspace and avoid reading/writing nodes from other canvases.');
+    lines.push('When calling MCP canvas tools, always pass this workspace ID to ensure isolation.');
+  }
+
   if (canvasDir) {
     lines.push(`Canvas dir: ${canvasDir}`);
     lines.push(`Canvas data: ${canvasDir}/canvas.json`);
@@ -94,15 +101,20 @@ const writeCanvasAgentsMd = async (
   await fileApi.write(`${canvasDir}/AGENTS.md`, updated);
 };
 
-const buildPointerSection = (canvasDir: string, wsId: string, label: string): string =>
-  [
+const buildPointerSection = (canvasDir: string, wsId: string, label: string): string => {
+  const lines = [
     `## Pulse Canvas (${label})`,
     '',
     `Canvas agent config: \`${canvasDir}/AGENTS.md\``,
     '',
     '> 读取上方文件获取画布结构、笔记列表和 Agent 指令。',
     '',
-  ].join('\n');
+    `**Workspace Isolation:** Environment variable \`PULSE_CANVAS_WORKSPACE_ID=${wsId}\` is injected into this terminal.`,
+    'Always use this workspace ID when calling canvas MCP tools to avoid cross-canvas reads/writes.',
+    '',
+  ];
+  return lines.join('\n');
+};
 
 export const writeCanvasContext = async (
   nodes: CanvasNode[],

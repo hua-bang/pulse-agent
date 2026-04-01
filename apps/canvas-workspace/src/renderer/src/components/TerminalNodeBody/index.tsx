@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { CanvasNode, TerminalNodeData } from '../../types';
+import type { CanvasNode, FileNodeData, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { AI_TOOL_PATTERN, writeCanvasContext } from '../../utils/canvasContextWriter';
 import { NodeMentionPicker } from '../NodeMentionPicker';
@@ -192,7 +192,14 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
     setPickerOpen(false);
     const api = window.canvasWorkspace?.pty;
-    if (api) void api.write(sessionId, selected.title);
+    if (api) {
+      const filePath = selected.type === 'file'
+        ? (selected.data as FileNodeData).filePath
+        : undefined;
+      const label = filePath ? filePath.split('/').pop() : selected.title;
+      const mention = `@[${label}](canvas:${selected.id})`;
+      void api.write(sessionId, mention);
+    }
     termRef.current?.focus();
   }, [sessionId]);
 
