@@ -90,7 +90,7 @@ export const Sidebar = ({
     } else {
       setInstallStatus('partial');
       setInstallMessage(
-        `Skills installed. CLI install failed, run manually:\n${result.manualCommand ?? 'npm install -g @pulse-coder/canvas-cli'}`
+        `Skills installed. To enable CLI, run:\n${result.manualCommand ?? 'pnpm --filter @pulse-coder/canvas-cli build && pnpm link --global --filter @pulse-coder/canvas-cli'}`
       );
     }
   }, []);
@@ -243,7 +243,7 @@ export const Sidebar = ({
             </span>
           </button>
           {installMessage && (
-            <div className={`sidebar-install-message${installStatus === 'partial' ? ' sidebar-install-message--warn' : ''}`}>
+            <div className="sidebar-install-message">
               {installMessage}
             </div>
           )}

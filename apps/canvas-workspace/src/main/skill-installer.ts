@@ -2,10 +2,6 @@ import { ipcMain } from 'electron';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
 
 const SKILLS_DIR = join(homedir(), '.pulse-coder', 'skills', 'canvas');
 
@@ -70,16 +66,6 @@ async function installSkillFile(): Promise<{ ok: boolean; path: string; error?: 
   }
 }
 
-async function installCli(): Promise<{ ok: boolean; error?: string; command?: string }> {
-  const command = 'npm install -g @pulse-coder/canvas-cli';
-  try {
-    await execFileAsync('npm', ['install', '-g', '@pulse-coder/canvas-cli'], { timeout: 60_000 });
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: String(err), command };
-  }
-}
-
 export function setupSkillInstallerIpc(): void {
   ipcMain.handle('skills:install', async () => {
     const skillResult = await installSkillFile();
@@ -93,14 +79,14 @@ export function setupSkillInstallerIpc(): void {
       };
     }
 
-    const cliResult = await installCli();
+    // CLI is not published yet — provide local build instructions
     return {
       ok: true,
       skillsInstalled: true,
       skillsPath: skillResult.path,
-      cliInstalled: cliResult.ok,
-      manualCommand: cliResult.ok ? null : cliResult.command,
-      cliError: cliResult.ok ? null : cliResult.error,
+      cliInstalled: false,
+      manualCommand: 'cd <project-root> && pnpm --filter @pulse-coder/canvas-cli build && pnpm link --global --filter @pulse-coder/canvas-cli',
+      cliError: null,
     };
   });
 }
