@@ -51,10 +51,11 @@ Canvas 实时更新（PTY 输出 + TaskList 状态变更事件）
 │  - Team / TeamLead / Planner        │
 │  - TaskList / Mailbox               │
 ├─────────────────────────────────────┤
-│  Agent Runtimes (via PTY)           │  Execution Layer
-│  - pulse-agent (interactive CLI)    │
-│  - claude-code (interactive CLI)    │
-│  - codex (interactive CLI)          │
+│  Agent Runtimes                     │  Execution Layer
+│  - pulse-agent (in-process Engine)  │  ← base: direct API
+│  - pulse-agent (interactive CLI)    │  ← PTY + MCP
+│  - claude-code (interactive CLI)    │  ← PTY + MCP
+│  - codex (interactive CLI)          │  ← PTY + MCP
 └─────────────────────────────────────┘
 ```
 
@@ -87,26 +88,32 @@ Canvas 实时更新（PTY 输出 + TaskList 状态变更事件）
 
 ### Multi-Runtime Support
 
-All runtimes use the same execution model: interactive CLI session via real PTY.
+Two execution modes coexist:
+
+- **In-process Engine** (pulse-agent only): `Teammate` wraps `Engine.run()` directly, team tools injected as native tools. This is the existing agent-teams mechanism — retained as the base for programmatic/server-side use and testing.
+- **PTY + MCP** (all runtimes): Interactive CLI session via real PTY, team tools exposed via MCP server. Used in Canvas for visual orchestration.
 
 ```typescript
 type AgentNodeData = {
   teammateId: string;
   role: string;
   runtime: 'pulse-agent' | 'claude-code' | 'codex';
+  mode: 'in-process' | 'pty';  // in-process only available for pulse-agent
   model?: string;
   spawnPrompt?: string;
-  sessionId: string;       // PTY session ID (reuse pty-manager)
+  sessionId?: string;      // PTY session ID (pty mode only)
   status: 'idle' | 'running' | 'stopping' | 'stopped';
   currentTask?: { id: string; title: string };
 };
 ```
 
-| Runtime | Spawn Command | MCP Support |
-|---------|---------------|-------------|
-| pulse-agent | `pulse-agent` | ✅ via config |
-| claude-code | `claude` | ✅ via `--mcp-config` |
-| codex | `codex` | ✅ via config |
+| Runtime | In-Process | PTY + MCP | Communication |
+|---------|-----------|-----------|---------------|
+| pulse-agent | ✅ Engine.run() | ✅ interactive CLI | Direct API / MCP |
+| claude-code | — | ✅ interactive CLI | MCP |
+| codex | — | ✅ interactive CLI | MCP |
+
+In-process mode is the foundation. PTY + MCP is the extension layer for Canvas and multi-runtime support.
 
 ### Team MCP Server
 
