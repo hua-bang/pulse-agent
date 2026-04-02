@@ -14,12 +14,14 @@ import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
 import { SearchPalette } from '../SearchPalette';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
+import { WorkspaceAgent } from '../WorkspaceAgent';
 
 export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId: string; canvasName?: string; rootFolder?: string; hidden?: boolean }) => {
   const [activeTool, setActiveTool] = useState('select');
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [clipboardNodes, setClipboardNodes] = useState<CanvasNode[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [workspaceAgentOpen, setWorkspaceAgentOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoFitted = useRef(false);
@@ -49,6 +51,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
     nodes,
     loaded,
     addNode,
+    addNodeWithData,
     updateNode,
     removeNode,
     removeNodes,
@@ -245,6 +248,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
             onRemove={removeNode}
             onSelect={(id) => setSelectedNodeIds([id])}
             onFocus={handleFocusNode}
+            onAddNode={addNodeWithData}
           />
         ))}
       </div>
@@ -275,6 +279,42 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
           onClose={() => setSearchOpen(false)}
         />
       )}
+
+      <WorkspaceAgent
+        open={workspaceAgentOpen}
+        onToggle={() => setWorkspaceAgentOpen((v) => !v)}
+        nodes={nodes}
+        onCreateTeamFrame={(name, goal) => {
+          if (!containerRef.current) return;
+          const rect = containerRef.current.getBoundingClientRect();
+          const pos = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, containerRef.current);
+          const frame = addNodeWithData('frame', pos.x - 400, pos.y - 250, {
+            color: '#2383e2',
+            isTeam: true,
+            teamId: `team-${Date.now()}`,
+            teamName: name,
+            teamStatus: 'idle',
+            goal,
+          });
+          setSelectedNodeIds([frame.id]);
+        }}
+        onPlanTeam={(frameId) => {
+          const frame = nodes.find((n) => n.id === frameId);
+          if (!frame) return;
+          const fd = frame.data as import('../../types').FrameNodeData;
+          if (!fd.goal) return;
+          updateNode(frameId, { data: { ...fd, planStatus: 'generating' } });
+          const api = window.canvasWorkspace?.agentTeam;
+          if (!api) return;
+          api.planTeam(fd.goal).then((result) => {
+            if (result.ok && result.plan) {
+              updateNode(frameId, { data: { ...fd, plan: result.plan, planStatus: 'review' } });
+            } else {
+              updateNode(frameId, { data: { ...fd, planStatus: 'idle' } });
+            }
+          });
+        }}
+      />
     </div>
   );
 };

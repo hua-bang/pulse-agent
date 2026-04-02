@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { CanvasNode, FrameNodeData, AgentNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, AgentNodeData, AgentRuntime, TeamPlanData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
@@ -29,6 +29,7 @@ interface Props {
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
   onFocus: (node: CanvasNode) => void;
+  onAddNode?: (type: 'agent', x: number, y: number, data?: Partial<AgentNodeData>) => CanvasNode;
 }
 
 export const CanvasNodeView = ({
@@ -46,7 +47,8 @@ export const CanvasNodeView = ({
   onUpdate,
   onRemove,
   onSelect,
-  onFocus
+  onFocus,
+  onAddNode,
 }: Props) => {
   const handleHeaderMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -231,6 +233,43 @@ export const CanvasNodeView = ({
               api.stopTeam(teamId).then(() => {
                 onUpdate(node.id, { data: { ...node.data, teamStatus: 'idle' } });
               });
+            } : undefined}
+            onCreateAgentsFromPlan={onAddNode ? (plan: TeamPlanData) => {
+              const padding = 20;
+              const agentW = 500;
+              const agentH = 450;
+              const cols = Math.max(1, Math.floor((node.width - padding * 2) / (agentW + padding)));
+
+              plan.teammates.forEach((t, i) => {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                const x = node.x + padding + col * (agentW + padding);
+                const y = node.y + 120 + row * (agentH + padding); // 120px offset for frame header+bar+goal
+
+                onAddNode('agent', x, y, {
+                  name: t.name,
+                  role: t.role,
+                  runtime: 'pulse-agent' as AgentRuntime,
+                  isLead: i === 0,
+                  model: t.model,
+                  spawnPrompt: t.spawnPrompt,
+                  teamId: (node.data as FrameNodeData).teamId || `team-${node.id}`,
+                  teammateId: t.name,
+                  status: 'idle',
+                  mode: 'pty',
+                });
+              });
+
+              // Resize frame to fit agents
+              const totalRows = Math.ceil(plan.teammates.length / cols);
+              const neededH = 120 + totalRows * (agentH + padding) + padding;
+              const neededW = padding + cols * (agentW + padding);
+              if (neededW > node.width || neededH > node.height) {
+                onUpdate(node.id, {
+                  width: Math.max(node.width, neededW),
+                  height: Math.max(node.height, neededH),
+                });
+              }
             } : undefined}
           />
         )}

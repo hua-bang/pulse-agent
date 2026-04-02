@@ -263,10 +263,27 @@ export const useNodes = (
     [applyNodes, scheduleSave, canvasId, setNodes, nodesRef]
   );
 
+  const addNodeWithData = useCallback(
+    (type: CanvasNode['type'], x: number, y: number, dataPatch?: Partial<CanvasNode['data']>) => {
+      const node = createDefaultNode(type, x, y);
+      if (dataPatch) {
+        node.data = { ...node.data, ...dataPatch } as CanvasNode['data'];
+        // Use name as title for agent nodes
+        if (type === 'agent' && (dataPatch as any).name) {
+          node.title = (dataPatch as any).name;
+        }
+      }
+      applyNodes([...nodesRef.current, node]);
+      return node;
+    },
+    [applyNodes, nodesRef]
+  );
+
   return {
     nodes,
     loaded,
     addNode,
+    addNodeWithData,
     updateNode,
     removeNode,
     removeNodes,

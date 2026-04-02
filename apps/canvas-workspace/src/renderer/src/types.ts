@@ -24,6 +24,21 @@ export interface TerminalNodeData {
   cwd?: string;
 }
 
+export interface TeamPlanData {
+  teammates: Array<{
+    name: string;
+    role: string;
+    spawnPrompt: string;
+    model?: string;
+  }>;
+  tasks: Array<{
+    title: string;
+    description: string;
+    assignTo?: string;
+    depNames?: string[];
+  }>;
+}
+
 export interface FrameNodeData {
   color: string;
   label?: string;
@@ -32,6 +47,8 @@ export interface FrameNodeData {
   teamName?: string;
   teamStatus?: 'idle' | 'running' | 'completed' | 'failed';
   goal?: string;
+  plan?: TeamPlanData;
+  planStatus?: 'idle' | 'generating' | 'review' | 'approved' | 'rejected';
 }
 
 export type AgentRuntime = 'pulse-agent' | 'claude-code' | 'codex';
@@ -176,6 +193,7 @@ export interface AgentTeamApi {
   list: () => Promise<{ ok: boolean; agents?: Array<{ teammateId: string; runtime: string; status: string; sessionId: string }> }>;
   runTeam: (config: RunTeamConfig) => Promise<{ ok: boolean; teamStateDir?: string; error?: string }>;
   stopTeam: (teamId: string) => Promise<{ ok: boolean }>;
+  planTeam: (goal: string) => Promise<{ ok: boolean; plan?: TeamPlanData; error?: string }>;
   onOutput: (teammateId: string, callback: (data: string) => void) => () => void;
   onEvent: (callback: (event: unknown) => void) => () => void;
 }

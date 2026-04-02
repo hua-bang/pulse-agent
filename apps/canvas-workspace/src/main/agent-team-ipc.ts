@@ -6,6 +6,15 @@
 import { ipcMain } from 'electron';
 import type { AgentTeamManager, AgentRuntime, RunTeamConfig } from './agent-team-manager';
 
+let planTeamFn: typeof import('pulse-coder-agent-teams').planTeam | null = null;
+async function getPlanTeam() {
+  if (!planTeamFn) {
+    const mod = await import('pulse-coder-agent-teams');
+    planTeamFn = mod.planTeam;
+  }
+  return planTeamFn;
+}
+
 export function setupAgentTeamIpc(manager: AgentTeamManager): void {
   ipcMain.handle(
     'agent-team:spawn',
@@ -80,6 +89,19 @@ export function setupAgentTeamIpc(manager: AgentTeamManager): void {
     (_event, payload: { teamId: string }) => {
       manager.stopTeam(payload.teamId);
       return { ok: true };
+    },
+  );
+
+  ipcMain.handle(
+    'agent-team:plan-team',
+    async (_event, payload: { goal: string }) => {
+      try {
+        const planTeam = await getPlanTeam();
+        const plan = await planTeam(payload.goal);
+        return { ok: true, plan };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
     },
   );
 }

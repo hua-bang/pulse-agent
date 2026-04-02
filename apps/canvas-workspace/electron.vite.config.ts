@@ -5,7 +5,10 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
     build: {
-      outDir: "dist/main"
+      outDir: "dist/main",
+      rollupOptions: {
+        external: ['pulse-coder-agent-teams']
+      }
     }
   },
   preload: {

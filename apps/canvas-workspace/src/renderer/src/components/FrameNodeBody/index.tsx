@@ -1,11 +1,13 @@
 import { useCallback, useState } from "react";
-import type { CanvasNode, FrameNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, TeamPlanData } from "../../types";
+import { TeamPlanReview } from "../TeamPlanReview";
 
 interface Props {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   onRunTeam?: () => void;
   onStopTeam?: () => void;
+  onCreateAgentsFromPlan?: (plan: TeamPlanData) => void;
 }
 
 const TEAM_STATUS_LABELS: Record<string, string> = {
@@ -22,12 +24,49 @@ const TEAM_STATUS_COLORS: Record<string, string> = {
   failed: '#ef4444',
 };
 
-export const FrameNodeBody = ({ node, onUpdate, onRunTeam, onStopTeam }: Props) => {
+export const FrameNodeBody = ({ node, onUpdate, onRunTeam, onStopTeam, onCreateAgentsFromPlan }: Props) => {
   const data = node.data as FrameNodeData;
+
+  const handlePlanTeam = useCallback(async () => {
+    const api = window.canvasWorkspace?.agentTeam;
+    if (!api || !data.goal) return;
+
+    onUpdate(node.id, { data: { ...data, planStatus: 'generating' } });
+
+    try {
+      const result = await api.planTeam(data.goal);
+      if (result.ok && result.plan) {
+        onUpdate(node.id, { data: { ...data, plan: result.plan, planStatus: 'review' } });
+      } else {
+        onUpdate(node.id, { data: { ...data, planStatus: 'idle' } });
+      }
+    } catch {
+      onUpdate(node.id, { data: { ...data, planStatus: 'idle' } });
+    }
+  }, [node.id, data, onUpdate]);
+
+  const handleApprovePlan = useCallback(() => {
+    if (!data.plan) return;
+    onUpdate(node.id, { data: { ...data, planStatus: 'approved' } });
+    onCreateAgentsFromPlan?.(data.plan);
+  }, [node.id, data, onUpdate, onCreateAgentsFromPlan]);
+
+  const handleRejectPlan = useCallback((_feedback: string) => {
+    onUpdate(node.id, { data: { ...data, plan: undefined, planStatus: 'idle' } });
+  }, [node.id, data, onUpdate]);
+
+  const handleRegenerate = useCallback(() => {
+    onUpdate(node.id, { data: { ...data, plan: undefined, planStatus: 'idle' } });
+    // Trigger re-plan after state update
+    setTimeout(() => handlePlanTeam(), 50);
+  }, [data, node.id, onUpdate, handlePlanTeam]);
 
   if (!data.isTeam) {
     return <div className="frame-body" />;
   }
+
+  const canPlan = data.goal && (!data.planStatus || data.planStatus === 'idle' || data.planStatus === 'rejected');
+  const showPlanReview = data.plan && (data.planStatus === 'review' || data.planStatus === 'generating' || data.planStatus === 'approved');
 
   return (
     <div className="frame-body frame-body--team">
@@ -42,7 +81,19 @@ export const FrameNodeBody = ({ node, onUpdate, onRunTeam, onStopTeam }: Props) 
           </span>
         </div>
         <div className="frame-team-bar-right">
-          {(!data.teamStatus || data.teamStatus === 'idle' || data.teamStatus === 'completed' || data.teamStatus === 'failed') && onRunTeam && (
+          {canPlan && (
+            <button
+              className="agent-btn agent-btn--primary agent-btn--small"
+              onClick={(e) => { e.stopPropagation(); handlePlanTeam(); }}
+              title="AI Plan Team"
+            >
+              &#9733; Plan Team
+            </button>
+          )}
+          {data.planStatus === 'generating' && (
+            <span className="frame-team-planning-label">Planning...</span>
+          )}
+          {(!data.teamStatus || data.teamStatus === 'idle' || data.teamStatus === 'completed' || data.teamStatus === 'failed') && onRunTeam && data.planStatus === 'approved' && (
             <button
               className="agent-btn agent-btn--primary agent-btn--small"
               onClick={(e) => { e.stopPropagation(); onRunTeam(); }}
@@ -62,7 +113,18 @@ export const FrameNodeBody = ({ node, onUpdate, onRunTeam, onStopTeam }: Props) 
           )}
         </div>
       </div>
+
       <FrameGoalEditor node={node} onUpdate={onUpdate} />
+
+      {showPlanReview && data.plan && (
+        <TeamPlanReview
+          plan={data.plan}
+          planStatus={data.planStatus || 'review'}
+          onApprove={handleApprovePlan}
+          onReject={handleRejectPlan}
+          onRegenerate={handleRegenerate}
+        />
+      )}
     </div>
   );
 };

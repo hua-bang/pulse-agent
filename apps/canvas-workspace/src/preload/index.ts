@@ -152,6 +152,9 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     stopTeam: (teamId: string) =>
       ipcRenderer.invoke("agent-team:stop-team", { teamId }),
 
+    planTeam: (goal: string) =>
+      ipcRenderer.invoke("agent-team:plan-team", { goal }),
+
     onOutput: (teammateId: string, callback: (data: string) => void) => {
       const channel = `agent-team:output:${teammateId}`;
       const handler = (_event: Electron.IpcRendererEvent, data: string) =>
