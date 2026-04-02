@@ -142,6 +142,24 @@ export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
 }
 
+export interface AgentTeamApi {
+  spawn: (config: {
+    teammateId: string;
+    runtime: string;
+    cwd?: string;
+    model?: string;
+    spawnPrompt?: string;
+    teamStateDir?: string;
+  }) => Promise<{ ok: boolean; sessionId?: string; pid?: number; error?: string }>;
+  input: (teammateId: string, data: string) => void;
+  resize: (teammateId: string, cols: number, rows: number) => void;
+  stop: (teammateId: string) => Promise<{ ok: boolean }>;
+  stopAll: () => Promise<{ ok: boolean }>;
+  list: () => Promise<{ ok: boolean; agents?: Array<{ teammateId: string; runtime: string; status: string; sessionId: string }> }>;
+  onOutput: (teammateId: string, callback: (data: string) => void) => () => void;
+  onEvent: (callback: (event: unknown) => void) => () => void;
+}
+
 export interface CanvasWorkspaceApi {
   version: string;
   pty: {
@@ -175,6 +193,7 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  agentTeam: AgentTeamApi;
 }
 
 declare global {

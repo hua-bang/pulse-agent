@@ -843,6 +843,20 @@ body {
   50% { opacity: 0; }
 }
 
+/* Agent Terminal Container (real xterm) */
+
+.agent-terminal-container {
+  flex: 1;
+  min-height: 80px;
+  overflow: hidden;
+}
+
+.agent-terminal-xterm {
+  height: 100%;
+  padding: 4px;
+  background: #1e1e2e;
+}
+
 /* Agent Lead Actions */
 
 .agent-lead-actions {
@@ -886,6 +900,11 @@ body {
 
 .agent-btn--secondary:hover:not(:disabled) {
   background: var(--hover);
+}
+
+.agent-btn--small {
+  padding: 1px 8px;
+  font-size: 11px;
 }
 
 /* Agent Plan Review */

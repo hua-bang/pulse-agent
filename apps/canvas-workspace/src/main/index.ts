@@ -10,6 +10,8 @@ import { setupFileManagerIpc } from "./file-manager";
 // import { ensureMCPRegistered } from "./mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "./file-watcher";
 import { setupSkillInstallerIpc } from "./skill-installer";
+import { AgentTeamManager } from "./agent-team-manager";
+import { setupAgentTeamIpc } from "./agent-team-ipc";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(currentDir, "../preload/index.mjs");
@@ -19,6 +21,7 @@ const resolvedPreloadPath = existsSync(preloadPath)
   : preloadFallbackPath;
 const logDir = join(app.getPath("userData"), "logs");
 const logFile = join(logDir, "app.log");
+const agentTeamManager = new AgentTeamManager();
 
 const writeLog = async (level: string, message: string, details?: string) => {
   const timestamp = new Date().toISOString();
@@ -103,6 +106,8 @@ app.whenReady().then(() => {
   setupFileManagerIpc();
   setupFileWatcherIpc();
   setupSkillInstallerIpc();
+
+  setupAgentTeamIpc(agentTeamManager);
   // MCP server disabled — canvas-cli is the preferred agent interface now.
   // startMCPServer();
   // void ensureMCPRegistered();
@@ -117,6 +122,7 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  agentTeamManager.cleanup();
   killAllPty();
   teardownFileWatcher();
   if (process.platform !== "darwin") {

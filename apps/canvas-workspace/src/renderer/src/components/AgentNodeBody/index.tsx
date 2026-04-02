@@ -2,8 +2,7 @@ import { useState, useCallback } from 'react';
 import type { CanvasNode, AgentNodeData, AgentRuntime } from '../../types';
 import { AgentHeader } from './AgentHeader';
 import { AgentTaskPanel } from './AgentTaskPanel';
-import { AgentTerminalPlaceholder } from './AgentTerminalPlaceholder';
-import { AgentPlanReview } from './AgentPlanReview';
+import { AgentTerminal } from './AgentTerminal';
 import { AgentConfig } from './AgentConfig';
 
 interface Props {
@@ -30,12 +29,50 @@ export const AgentNodeBody = ({ node, onUpdate }: Props) => {
     [updateData]
   );
 
+  const handleStart = useCallback(async () => {
+    const api = window.canvasWorkspace?.agentTeam;
+    if (!api || !data.name) return;
+
+    const teammateId = data.teammateId || data.name || node.id;
+    updateData({ teammateId, status: 'running' });
+
+    try {
+      const result = await api.spawn({
+        teammateId,
+        runtime: data.runtime,
+        cwd: undefined, // will use homedir
+        model: data.model,
+        spawnPrompt: data.spawnPrompt,
+      });
+
+      if (!result.ok) {
+        updateData({ status: 'failed' });
+      }
+    } catch {
+      updateData({ status: 'failed' });
+    }
+  }, [data, node.id, updateData]);
+
+  const handleStop = useCallback(async () => {
+    const api = window.canvasWorkspace?.agentTeam;
+    const teammateId = data.teammateId || data.name;
+    if (!api || !teammateId) return;
+
+    await api.stop(teammateId);
+    updateData({ status: 'stopped' });
+  }, [data, updateData]);
+
+  const isRunning = data.status === 'running' || data.status === 'waiting';
+  const canStart = data.status === 'idle' || data.status === 'stopped' || data.status === 'failed' || data.status === 'completed';
+
   return (
     <div className="agent-node-body">
       <AgentHeader
         data={data}
         onRuntimeChange={handleRuntimeChange}
         onConfigToggle={() => setConfigOpen((v) => !v)}
+        onStart={canStart ? handleStart : undefined}
+        onStop={isRunning ? handleStop : undefined}
       />
 
       {configOpen && (
@@ -54,15 +91,10 @@ export const AgentNodeBody = ({ node, onUpdate }: Props) => {
         />
       )}
 
-      <AgentTerminalPlaceholder status={data.status} />
-
-      {data.isLead && data.status === 'idle' && (
-        <div className="agent-lead-actions">
-          <button className="agent-btn agent-btn--primary" disabled>
-            Run Team
-          </button>
-        </div>
-      )}
+      <AgentTerminal
+        teammateId={data.teammateId || data.name || ''}
+        status={data.status}
+      />
     </div>
   );
 };

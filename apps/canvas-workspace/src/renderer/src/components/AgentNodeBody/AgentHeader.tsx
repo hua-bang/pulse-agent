@@ -5,6 +5,8 @@ interface Props {
   data: AgentNodeData;
   onRuntimeChange: (runtime: AgentRuntime) => void;
   onConfigToggle: () => void;
+  onStart?: () => void;
+  onStop?: () => void;
 }
 
 const STATUS_COLORS: Record<AgentStatus, string> = {
@@ -33,7 +35,7 @@ const RUNTIME_LABELS: Record<AgentRuntime, string> = {
   'codex': 'Codex',
 };
 
-export const AgentHeader = ({ data, onRuntimeChange, onConfigToggle }: Props) => {
+export const AgentHeader = ({ data, onRuntimeChange, onConfigToggle, onStart, onStop }: Props) => {
   const handleRuntimeChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       onRuntimeChange(e.target.value as AgentRuntime);
@@ -64,6 +66,24 @@ export const AgentHeader = ({ data, onRuntimeChange, onConfigToggle }: Props) =>
           <option value="claude-code">{RUNTIME_LABELS['claude-code']}</option>
           <option value="codex">{RUNTIME_LABELS['codex']}</option>
         </select>
+        {onStart && (
+          <button
+            className="agent-btn agent-btn--primary agent-btn--small"
+            onClick={(e) => { e.stopPropagation(); onStart(); }}
+            title="Start Agent"
+          >
+            Start
+          </button>
+        )}
+        {onStop && (
+          <button
+            className="agent-btn agent-btn--secondary agent-btn--small"
+            onClick={(e) => { e.stopPropagation(); onStop(); }}
+            title="Stop Agent"
+          >
+            Stop
+          </button>
+        )}
         <button
           className="agent-config-btn"
           onClick={(e) => { e.stopPropagation(); onConfigToggle(); }}

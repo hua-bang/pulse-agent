@@ -108,5 +108,48 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
   skills: {
     install: () => ipcRenderer.invoke("skills:install")
-  }
+  },
+
+  agentTeam: {
+    spawn: (config: {
+      teammateId: string;
+      runtime: string;
+      cwd?: string;
+      model?: string;
+      spawnPrompt?: string;
+      teamStateDir?: string;
+    }) => ipcRenderer.invoke("agent-team:spawn", config),
+
+    input: (teammateId: string, data: string) =>
+      ipcRenderer.send("agent-team:input", { teammateId, data }),
+
+    resize: (teammateId: string, cols: number, rows: number) =>
+      ipcRenderer.send("agent-team:resize", { teammateId, cols, rows }),
+
+    stop: (teammateId: string) =>
+      ipcRenderer.invoke("agent-team:stop", { teammateId }),
+
+    stopAll: () => ipcRenderer.invoke("agent-team:stop-all"),
+
+    list: () => ipcRenderer.invoke("agent-team:list"),
+
+    onOutput: (teammateId: string, callback: (data: string) => void) => {
+      const channel = `agent-team:output:${teammateId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: string) =>
+        callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onEvent: (callback: (event: unknown) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: unknown) =>
+        callback(data);
+      ipcRenderer.on("agent-team:event", handler);
+      return () => {
+        ipcRenderer.removeListener("agent-team:event", handler);
+      };
+    },
+  },
 });
