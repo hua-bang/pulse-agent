@@ -10,6 +10,17 @@ export { TaskList } from './task-list.js';
 export { planTeam, buildTeammateOptionsFromPlan } from './planner.js';
 export type { PlannerOptions, TeamPlan } from './planner.js';
 
+// MCP
+export { createTeamMCPServer } from './mcp-server.js';
+export {
+  generateMCPConfig,
+  writeMCPConfigFile,
+  getMCPConfigPath,
+  setupMCPConfig,
+  getMCPArgs,
+} from './mcp-config.js';
+export type { MCPConfig, MCPServerConfig } from './mcp-config.js';
+
 // Display
 export { InProcessDisplay } from './display/in-process.js';
 

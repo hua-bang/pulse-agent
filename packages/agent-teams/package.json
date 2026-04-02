@@ -10,7 +10,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./mcp-server": {
+      "import": "./dist/mcp-server.js",
+      "require": "./dist/mcp-server.cjs"
     }
+  },
+  "bin": {
+    "team-mcp-server": "./dist/mcp-server.js"
   },
   "scripts": {
     "build": "tsup",
@@ -19,6 +26,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "pulse-coder-engine": "workspace:*",
     "zod": "^4.3.6"
   },
