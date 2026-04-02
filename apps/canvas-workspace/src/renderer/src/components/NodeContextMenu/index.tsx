@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 interface Props {
   x: number;
   y: number;
-  onCreate: (type: "file" | "terminal" | "frame") => void;
+  onCreate: (type: "file" | "terminal" | "frame" | "agent") => void;
   onClose: () => void;
 }
 
@@ -69,6 +69,19 @@ export const NodeContextMenu = ({ x, y, onCreate, onClose }: Props) => {
         <span className="context-menu-label">
           <strong>Frame</strong>
           <small>Visual container group</small>
+        </span>
+      </button>
+
+      <div className="context-menu-divider" />
+      <div className="context-menu-title">Agent</div>
+      <button
+        className="context-menu-item"
+        onClick={() => onCreate("agent")}
+      >
+        <span className="context-menu-icon">{"\u2726"}</span>
+        <span className="context-menu-label">
+          <strong>Agent</strong>
+          <small>AI agent teammate</small>
         </span>
       </button>
     </div>

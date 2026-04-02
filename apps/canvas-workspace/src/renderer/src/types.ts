@@ -1,12 +1,14 @@
+export type CanvasNodeType = 'file' | 'terminal' | 'frame' | 'agent';
+
 export interface CanvasNode {
   id: string;
-  type: "file" | "terminal" | "frame";
+  type: CanvasNodeType;
   title: string;
   x: number;
   y: number;
   width: number;
   height: number;
-  data: FileNodeData | TerminalNodeData | FrameNodeData;
+  data: FileNodeData | TerminalNodeData | FrameNodeData | AgentNodeData;
 }
 
 export interface FileNodeData {
@@ -25,6 +27,41 @@ export interface TerminalNodeData {
 export interface FrameNodeData {
   color: string;
   label?: string;
+  isTeam?: boolean;
+  teamId?: string;
+  teamName?: string;
+  teamStatus?: 'idle' | 'running' | 'completed' | 'failed';
+  goal?: string;
+}
+
+export type AgentRuntime = 'pulse-agent' | 'claude-code' | 'codex';
+export type AgentMode = 'in-process' | 'pty';
+export type AgentStatus = 'idle' | 'running' | 'waiting' | 'stopping' | 'stopped' | 'completed' | 'failed';
+
+export interface AgentTaskSummary {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  assignee?: string;
+}
+
+export interface AgentNodeData {
+  teammateId: string;
+  teamId: string;
+  name: string;
+  role: string;
+  runtime: AgentRuntime;
+  mode: AgentMode;
+  isLead: boolean;
+  model?: string;
+  spawnPrompt?: string;
+  sessionId?: string;
+  status: AgentStatus;
+  currentTask?: {
+    id: string;
+    title: string;
+  };
+  tasks?: AgentTaskSummary[];
 }
 
 export interface CanvasTransform {

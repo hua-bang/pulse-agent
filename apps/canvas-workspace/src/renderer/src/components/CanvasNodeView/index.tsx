@@ -1,9 +1,10 @@
 import { useCallback } from "react";
-import type { CanvasNode, FrameNodeData } from "../types";
-import type { ResizeEdge } from "../hooks/useNodeResize";
+import type { CanvasNode, FrameNodeData } from "../../types";
+import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
 import { FrameNodeBody, FrameColorPicker } from "../FrameNodeBody";
+import { AgentNodeBody } from "../AgentNodeBody";
 
 interface Props {
   node: CanvasNode;
@@ -134,6 +135,11 @@ export const CanvasNodeView = ({
               <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
               <path d="M4.5 7l2 1.5-2 1.5M8 10.5h3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
+          ) : node.type === "agent" ? (
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="5.5" r="2.5" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M3.5 13.5c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
           ) : (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
@@ -171,6 +177,8 @@ export const CanvasNodeView = ({
           <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} />
         ) : node.type === "terminal" ? (
           <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
+        ) : node.type === "agent" ? (
+          <AgentNodeBody node={node} onUpdate={onUpdate} />
         ) : (
           <FrameNodeBody node={node} onUpdate={onUpdate} />
         )}
