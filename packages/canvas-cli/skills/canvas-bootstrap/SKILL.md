@@ -98,7 +98,7 @@ File[2]: x = fx + FRAME_PAD,                        y = fy + FRAME_PAD + FILE_H 
 # Frame: x=50, y=50, w=996, h=408
 pulse-canvas node create --type frame --title "Historical Context" \
   --x 50 --y 50 --width 996 --height 408 \
-  --data '{"label":"Background and timeline","color":"#9065b0"}' --format json
+  --data '{"label":"Background and timeline","color":"#9575d4"}' --format json
 
 # Files inside Frame 1 (y = fy + FRAME_PAD = 50 + 24 = 74)
 pulse-canvas node create --type file --title "Timeline" \
@@ -175,12 +175,12 @@ Tell the user: what frames were created, what each contains, and key findings fr
 
 | Purpose | Hex |
 |---------|-----|
-| Overview / Summary | `#4a90d9` |
-| Research / Analysis | `#9065b0` |
-| Tasks / Actions | `#d94a4a` |
-| Implementation | `#4ad97a` |
-| Notes / Decisions | `#d9a54a` |
-| Data / Metrics | `#5bc0de` |
+| Overview / Summary | `#5594e8` |
+| Research / Analysis | `#9575d4` |
+| Tasks / Actions | `#e8615a` |
+| Implementation | `#3eb889` |
+| Notes / Decisions | `#e89545` |
+| Data / Metrics | `#35aec2` |
 
 ## Quality Rules
 
