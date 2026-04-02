@@ -7,12 +7,18 @@ const App = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const {
     workspaces,
+    folders,
     activeId,
     selectWorkspace,
     createWorkspace,
     renameWorkspace,
     deleteWorkspace,
     setRootFolder,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    toggleFolder,
+    moveWorkspace,
   } = useWorkspaces();
 
   return (
@@ -22,12 +28,18 @@ const App = () => {
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed((c) => !c)}
           workspaces={workspaces}
+          folders={folders}
           activeId={activeId}
           onSelect={selectWorkspace}
           onCreate={createWorkspace}
           onRename={renameWorkspace}
           onDelete={deleteWorkspace}
           onSetRootFolder={setRootFolder}
+          onCreateFolder={createFolder}
+          onRenameFolder={renameFolder}
+          onDeleteFolder={deleteFolder}
+          onToggleFolder={toggleFolder}
+          onMoveWorkspace={moveWorkspace}
         />
         <div className="canvas-viewport">
           {workspaces.map((ws) => (
