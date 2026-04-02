@@ -142,6 +142,24 @@ export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
 }
 
+export interface TeamMemberConfig {
+  teammateId: string;
+  name: string;
+  role: string;
+  runtime: AgentRuntime;
+  isLead: boolean;
+  model?: string;
+  spawnPrompt?: string;
+}
+
+export interface RunTeamConfig {
+  teamId: string;
+  teamName: string;
+  goal: string;
+  members: TeamMemberConfig[];
+  cwd?: string;
+}
+
 export interface AgentTeamApi {
   spawn: (config: {
     teammateId: string;
@@ -156,6 +174,8 @@ export interface AgentTeamApi {
   stop: (teammateId: string) => Promise<{ ok: boolean }>;
   stopAll: () => Promise<{ ok: boolean }>;
   list: () => Promise<{ ok: boolean; agents?: Array<{ teammateId: string; runtime: string; status: string; sessionId: string }> }>;
+  runTeam: (config: RunTeamConfig) => Promise<{ ok: boolean; teamStateDir?: string; error?: string }>;
+  stopTeam: (teamId: string) => Promise<{ ok: boolean }>;
   onOutput: (teammateId: string, callback: (data: string) => void) => () => void;
   onEvent: (callback: (event: unknown) => void) => () => void;
 }

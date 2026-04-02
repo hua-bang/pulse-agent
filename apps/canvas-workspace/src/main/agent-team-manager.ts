@@ -27,6 +27,24 @@ export interface AgentSpawnConfig {
   teamStateDir?: string;
 }
 
+export interface TeamMemberConfig {
+  teammateId: string;
+  name: string;
+  role: string;
+  runtime: AgentRuntime;
+  isLead: boolean;
+  model?: string;
+  spawnPrompt?: string;
+}
+
+export interface RunTeamConfig {
+  teamId: string;
+  teamName: string;
+  goal: string;
+  members: TeamMemberConfig[];
+  cwd?: string;
+}
+
 export interface ManagedAgent {
   teammateId: string;
   runtime: AgentRuntime;
@@ -96,6 +114,8 @@ function writeMCPConfigFile(stateDir: string, teammateId: string): string {
 
 export class AgentTeamManager {
   private agents = new Map<string, ManagedAgent>();
+  private teamAgents = new Map<string, Set<string>>(); // teamId → Set<teammateId>
+  private teamStateDirs = new Map<string, string>(); // teamId → stateDir
   private eventHandlers: Array<(event: AgentTeamEvent) => void> = [];
 
   /**
@@ -180,6 +200,18 @@ export class AgentTeamManager {
       data: { teammateId, runtime, sessionId, status: 'running' },
     });
 
+    // Send spawn prompt as initial input after a brief delay
+    // (wait for CLI to be ready to accept input)
+    if (config.spawnPrompt) {
+      const prompt = config.spawnPrompt;
+      setTimeout(() => {
+        const a = this.agents.get(teammateId);
+        if (a && a.status === 'running') {
+          a.ptyProcess.write(prompt + '\n');
+        }
+      }, 2000);
+    }
+
     return { sessionId, pid: proc.pid };
   }
 
@@ -253,6 +285,124 @@ export class AgentTeamManager {
       status: a.status,
       sessionId: a.sessionId,
     }));
+  }
+
+  /**
+   * Run a team: create shared state dir, initialize tasks from goal, spawn all members.
+   */
+  async runTeam(config: RunTeamConfig): Promise<{ teamStateDir: string }> {
+    const { teamId, teamName, goal, members, cwd } = config;
+
+    // Create team state directory
+    const stateDir = join(homedir(), '.pulse-coder', 'teams', teamId);
+    mkdirSync(join(stateDir, 'tasks'), { recursive: true });
+    mkdirSync(join(stateDir, 'mailbox'), { recursive: true });
+    mkdirSync(join(stateDir, 'mcp-configs'), { recursive: true });
+
+    // Write team config
+    const teamConfig = {
+      name: teamName,
+      teamId,
+      goal,
+      createdAt: Date.now(),
+      members: members.map(m => ({
+        id: m.teammateId,
+        name: m.name,
+        role: m.role,
+        isLead: m.isLead,
+        runtime: m.runtime,
+      })),
+    };
+    writeFileSync(join(stateDir, 'config.json'), JSON.stringify(teamConfig, null, 2), 'utf-8');
+
+    // Initialize empty task list if none exists
+    const tasksPath = join(stateDir, 'tasks', 'tasks.json');
+    if (!existsSync(tasksPath)) {
+      writeFileSync(tasksPath, JSON.stringify([], null, 2), 'utf-8');
+    }
+
+    this.teamStateDirs.set(teamId, stateDir);
+    this.teamAgents.set(teamId, new Set());
+
+    // Spawn all members
+    const lead = members.find(m => m.isLead) || members[0];
+    const spawnOrder = [lead, ...members.filter(m => m !== lead)];
+
+    for (const member of spawnOrder) {
+      const memberIds = this.teamAgents.get(teamId)!;
+      memberIds.add(member.teammateId);
+
+      // Build spawn prompt: lead gets the goal + team info, others get role
+      let prompt = member.spawnPrompt || '';
+      if (member.isLead) {
+        const teamInfo = members
+          .filter(m => !m.isLead)
+          .map(m => `- ${m.name} (${m.teammateId}): ${m.role}`)
+          .join('\n');
+        prompt = [
+          `You are the team lead "${member.name}" for team "${teamName}".`,
+          `Team Goal: ${goal}`,
+          teamInfo ? `\nTeam Members:\n${teamInfo}` : '',
+          '',
+          'Use team_create_task to create tasks for your team, team_list_tasks to monitor progress, and team_send_message to communicate with teammates.',
+          prompt ? `\nAdditional instructions: ${prompt}` : '',
+        ].filter(Boolean).join('\n');
+      } else {
+        prompt = [
+          `You are teammate "${member.name}" in team "${teamName}".`,
+          `Your role: ${member.role}`,
+          '',
+          'Use team_claim_task to pick up work, team_complete_task when done, and team_send_message / team_read_messages to communicate.',
+          prompt ? `\nAdditional instructions: ${prompt}` : '',
+        ].filter(Boolean).join('\n');
+      }
+
+      try {
+        await this.spawnAgent({
+          teammateId: member.teammateId,
+          runtime: member.runtime,
+          cwd,
+          model: member.model,
+          spawnPrompt: prompt,
+          teamStateDir: stateDir,
+        });
+      } catch (err) {
+        // Emit error but continue spawning others
+        this.emitToRenderer('agent-team:event', {
+          type: 'agent:spawn_failed',
+          timestamp: Date.now(),
+          data: { teammateId: member.teammateId, teamId, error: String(err) },
+        });
+      }
+    }
+
+    this.emitToRenderer('agent-team:event', {
+      type: 'team:started',
+      timestamp: Date.now(),
+      data: { teamId, teamName, memberCount: members.length, stateDir },
+    });
+
+    return { teamStateDir: stateDir };
+  }
+
+  /**
+   * Stop all agents in a team.
+   */
+  stopTeam(teamId: string): void {
+    const memberIds = this.teamAgents.get(teamId);
+    if (!memberIds) return;
+
+    for (const id of memberIds) {
+      this.stopAgent(id);
+    }
+
+    this.teamAgents.delete(teamId);
+
+    this.emitToRenderer('agent-team:event', {
+      type: 'team:stopped',
+      timestamp: Date.now(),
+      data: { teamId },
+    });
   }
 
   /**

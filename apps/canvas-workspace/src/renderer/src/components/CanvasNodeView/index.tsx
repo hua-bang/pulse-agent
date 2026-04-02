@@ -1,10 +1,11 @@
 import { useCallback } from "react";
-import type { CanvasNode, FrameNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, AgentNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
 import { FrameNodeBody, FrameColorPicker } from "../FrameNodeBody";
 import { AgentNodeBody } from "../AgentNodeBody";
+import { canvasToTeamConfig } from "../../utils/teamConfig";
 
 interface Props {
   node: CanvasNode;
@@ -158,7 +159,35 @@ export const CanvasNodeView = ({
           {node.title}
         </span>
         {node.type === "frame" && (
-          <FrameColorPicker node={node} onUpdate={onUpdate} />
+          <>
+            <button
+              className={`frame-team-toggle${(node.data as FrameNodeData).isTeam ? ' frame-team-toggle--active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                const fd = node.data as FrameNodeData;
+                const isTeam = !fd.isTeam;
+                onUpdate(node.id, {
+                  data: {
+                    ...fd,
+                    isTeam,
+                    teamId: isTeam ? (fd.teamId || `team-${node.id}`) : fd.teamId,
+                    teamName: isTeam ? (fd.teamName || node.title) : fd.teamName,
+                    teamStatus: isTeam ? (fd.teamStatus || 'idle') : fd.teamStatus,
+                  },
+                });
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              title={(node.data as FrameNodeData).isTeam ? 'Unmark as Team' : 'Mark as Team'}
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <circle cx="6" cy="5" r="2" stroke="currentColor" strokeWidth="1.2" />
+                <circle cx="11" cy="5" r="2" stroke="currentColor" strokeWidth="1.2" />
+                <path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <path d="M10 9.5c1.4.5 2.5 1.8 2.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </button>
+            <FrameColorPicker node={node} onUpdate={onUpdate} />
+          </>
         )}
         <button className="node-focus" onClick={handleFocus} title="Focus">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -180,7 +209,30 @@ export const CanvasNodeView = ({
         ) : node.type === "agent" ? (
           <AgentNodeBody node={node} onUpdate={onUpdate} />
         ) : (
-          <FrameNodeBody node={node} onUpdate={onUpdate} />
+          <FrameNodeBody
+            node={node}
+            onUpdate={onUpdate}
+            onRunTeam={(node.data as FrameNodeData).isTeam ? () => {
+              const api = window.canvasWorkspace?.agentTeam;
+              if (!api) return;
+              const config = canvasToTeamConfig(node, allNodes);
+              if (!config) return;
+              onUpdate(node.id, { data: { ...node.data, teamStatus: 'running' } });
+              api.runTeam(config).then((result) => {
+                if (!result.ok) {
+                  onUpdate(node.id, { data: { ...node.data, teamStatus: 'failed' } });
+                }
+              });
+            } : undefined}
+            onStopTeam={(node.data as FrameNodeData).isTeam ? () => {
+              const api = window.canvasWorkspace?.agentTeam;
+              const teamId = (node.data as FrameNodeData).teamId;
+              if (!api || !teamId) return;
+              api.stopTeam(teamId).then(() => {
+                onUpdate(node.id, { data: { ...node.data, teamStatus: 'idle' } });
+              });
+            } : undefined}
+          />
         )}
       </div>
 

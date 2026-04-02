@@ -133,6 +133,25 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     list: () => ipcRenderer.invoke("agent-team:list"),
 
+    runTeam: (config: {
+      teamId: string;
+      teamName: string;
+      goal: string;
+      members: Array<{
+        teammateId: string;
+        name: string;
+        role: string;
+        runtime: string;
+        isLead: boolean;
+        model?: string;
+        spawnPrompt?: string;
+      }>;
+      cwd?: string;
+    }) => ipcRenderer.invoke("agent-team:run-team", config),
+
+    stopTeam: (teamId: string) =>
+      ipcRenderer.invoke("agent-team:stop-team", { teamId }),
+
     onOutput: (teammateId: string, callback: (data: string) => void) => {
       const channel = `agent-team:output:${teammateId}`;
       const handler = (_event: Electron.IpcRendererEvent, data: string) =>

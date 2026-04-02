@@ -4,7 +4,7 @@
  */
 
 import { ipcMain } from 'electron';
-import type { AgentTeamManager, AgentRuntime } from './agent-team-manager';
+import type { AgentTeamManager, AgentRuntime, RunTeamConfig } from './agent-team-manager';
 
 export function setupAgentTeamIpc(manager: AgentTeamManager): void {
   ipcMain.handle(
@@ -60,6 +60,26 @@ export function setupAgentTeamIpc(manager: AgentTeamManager): void {
     'agent-team:list',
     () => {
       return { ok: true, agents: manager.listAgents() };
+    },
+  );
+
+  ipcMain.handle(
+    'agent-team:run-team',
+    async (_event, config: RunTeamConfig) => {
+      try {
+        const result = await manager.runTeam(config);
+        return { ok: true, teamStateDir: result.teamStateDir };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'agent-team:stop-team',
+    (_event, payload: { teamId: string }) => {
+      manager.stopTeam(payload.teamId);
+      return { ok: true };
     },
   );
 }

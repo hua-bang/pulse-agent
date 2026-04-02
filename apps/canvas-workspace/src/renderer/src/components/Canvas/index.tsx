@@ -6,6 +6,7 @@ import { useNodeResize } from '../../hooks/useNodeResize';
 import { useCanvasContext } from '../../hooks/useCanvasContext';
 import { useCanvasFit } from '../../hooks/useCanvasFit';
 import { useCanvasKeyboard } from '../../hooks/useCanvasKeyboard';
+import { useTeamEvents } from '../../hooks/useTeamEvents';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { NodeContextMenu } from '../NodeContextMenu';
@@ -75,6 +76,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
   }, [loaded, nodes, fitAllNodes]);
 
   useCanvasContext(rootFolder, nodes, canvasName);
+  useTeamEvents(nodes, updateNode);
 
   useCanvasKeyboard({
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
