@@ -294,7 +294,7 @@ export const Sidebar = ({
     <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
       {!collapsed && (
         <>
-          {/* Section header with add button */}
+          {/* Section header with add + collapse buttons */}
           <div className="sidebar-section-header">
             <span className="sidebar-section-title">Workspaces</span>
             <div className="sidebar-section-actions" ref={addMenuRef}>
@@ -305,6 +305,11 @@ export const Sidebar = ({
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button className="sidebar-section-btn" onClick={onToggle} title="Collapse sidebar">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
               {showAddMenu && (
@@ -508,19 +513,15 @@ export const Sidebar = ({
         </div>
       )}
 
-      <div className="sidebar-footer">
-        <button className="sidebar-toggle" onClick={onToggle} title="Toggle sidebar">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d={collapsed ? 'M6 3l5 5-5 5' : 'M10 3L5 8l5 5'}
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      </div>
+      {collapsed && (
+        <div className="sidebar-collapsed-toggle">
+          <button className="sidebar-toggle" onClick={onToggle} title="Expand sidebar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      )}
     </aside>
   );
 };

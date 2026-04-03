@@ -106,13 +106,10 @@ body {
   color: var(--text-warning, #b45309);
 }
 
-.sidebar-footer {
-  margin-top: auto;
-  padding: 8px;
+.sidebar-collapsed-toggle {
+  padding: 10px 8px;
   display: flex;
-  align-items: center;
-  border-top: 1px solid var(--border-light);
-  flex-shrink: 0;
+  justify-content: center;
 }
 
 .sidebar-brand {
@@ -223,8 +220,8 @@ body {
 }
 
 .sidebar-item-delete:hover {
-  background: rgba(224, 62, 62, 0.08);
-  color: #e03e3e;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
 }
 
 .sidebar-rename-input {
@@ -321,6 +318,9 @@ body {
 .sidebar-section-actions {
   margin-left: auto;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .sidebar-section-btn {
@@ -514,8 +514,8 @@ body {
 }
 
 .sidebar-folder-delete:hover {
-  background: rgba(224, 62, 62, 0.08);
-  color: #e03e3e;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-secondary);
 }
 
 .sidebar-folder-children {
@@ -540,7 +540,7 @@ body {
 /* ---- Drag Handle ---- */
 
 .sidebar-drag-handle {
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 14px;
@@ -548,7 +548,7 @@ body {
   flex-shrink: 0;
   color: var(--text-muted);
   cursor: grab;
-  opacity: 0;
+  opacity: 0.4;
   transition: opacity 0.1s;
   margin-right: 2px;
 }
@@ -557,14 +557,8 @@ body {
   cursor: grabbing;
 }
 
-.sidebar-item-row:hover .sidebar-drag-handle,
-.sidebar-folder-header:hover .sidebar-drag-handle {
-  display: flex;
-  opacity: 0.6;
-}
-
 .sidebar-drag-handle:hover {
-  opacity: 1 !important;
+  opacity: 1;
 }
 
 /* ---- Drag & Drop States ---- */
