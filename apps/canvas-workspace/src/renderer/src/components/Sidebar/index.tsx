@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, type DragEvent } from 'react';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
+import './index.css';
 
 interface Props {
   collapsed: boolean;

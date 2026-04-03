@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import './index.css';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useNodes } from '../../hooks/useNodes';
 import { useNodeDrag } from '../../hooks/useNodeDrag';

@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import './index.css';
 import { EditorContent } from '@tiptap/react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { useFileNodeEditor, getMarkdown } from '../../hooks/useFileNodeEditor';

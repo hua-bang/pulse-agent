@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import './index.css';
 import { createPortal } from 'react-dom';
 
 export interface SlashCommandDef {

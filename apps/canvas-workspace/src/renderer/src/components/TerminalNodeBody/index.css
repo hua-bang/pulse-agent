@@ -1,0 +1,29 @@
+.terminal-body-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.terminal-xterm-container {
+  height: 100%;
+  background: #fafaf9;
+  padding: 6px 4px 4px;
+  overflow: hidden;
+}
+
+.terminal-xterm-container .xterm {
+  height: 100%;
+}
+
+.terminal-xterm-container .xterm-viewport {
+  overflow-y: auto;
+  background: transparent !important;
+}
+
+.terminal-xterm-container .xterm-screen {
+  height: 100%;
+}
+
+.terminal-xterm-container .xterm-rows {
+  padding: 0 4px;
+}

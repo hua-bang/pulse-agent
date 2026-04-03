@@ -1,0 +1,24 @@
+.zoom-indicator {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  z-index: 500;
+  transition: background 0.1s, color 0.1s;
+}
+
+.zoom-indicator:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}

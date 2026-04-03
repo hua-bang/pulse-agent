@@ -1,0 +1,80 @@
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px;
+  gap: 2px;
+  height: 0;
+  overflow: hidden;
+  flex-shrink: 0;
+  border-bottom: none;
+  transition: height 0.15s ease, padding 0.15s ease, border-color 0.15s ease;
+}
+
+.canvas-node:hover .note-toolbar,
+.canvas-node--selected .note-toolbar {
+  height: 30px;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.note-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.note-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.note-toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.note-tool-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.note-tool-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.note-tool-btn--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.note-tool-btn--active:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.note-status {
+  font-size: 10px;
+  color: var(--accent-term);
+  font-weight: 500;
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease;
+}
+
+.note-status--modified {
+  color: var(--accent-file);
+}

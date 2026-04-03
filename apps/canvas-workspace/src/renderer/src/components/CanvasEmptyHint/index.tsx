@@ -1,3 +1,5 @@
+import './index.css';
+
 export const CanvasEmptyHint = () => (
   <div className="canvas-empty-hint">
     <div className="hint-icon">

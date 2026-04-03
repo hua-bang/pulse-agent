@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import './index.css';
 import type { Editor } from '@tiptap/react';
 import type { BubbleState } from '../../hooks/useFileNodeEditor';
 
