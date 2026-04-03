@@ -398,7 +398,7 @@ export const Sidebar = ({
                           </svg>
                         </span>
                         <span className="sidebar-folder-icon">
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             {isOpen ? (
                               <path d="M2 5.5A1.5 1.5 0 013.5 4H6l1.5 1.5h5A1.5 1.5 0 0114 7v4.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-6z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.1" />
                             ) : (
@@ -407,7 +407,6 @@ export const Sidebar = ({
                           </svg>
                         </span>
                         <span className="sidebar-folder-name">{folder.name}</span>
-                        <span className="sidebar-folder-count">{folderWorkspaces.length}</span>
                       </button>
                     )}
                     {renamingFolderId !== folder.id && (

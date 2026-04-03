@@ -134,6 +134,10 @@ body {
   flex-shrink: 0;
 }
 
+.sidebar-folder-toggle:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .sidebar-toggle:hover {
   background: rgba(0, 0, 0, 0.04);
 }
@@ -169,7 +173,7 @@ body {
   width: 100%;
 }
 
-.sidebar-item:hover {
+.sidebar-item:hover, .sidebar-item-row:hover {
   background: rgba(0, 0, 0, 0.04);
 }
 
@@ -213,6 +217,8 @@ body {
   justify-content: center;
   color: var(--text-muted);
   transition: background 0.1s, color 0.1s;
+  position: absolute;
+  right: 6px;
 }
 
 .sidebar-item-row:hover .sidebar-item-delete {
@@ -507,6 +513,8 @@ body {
   justify-content: center;
   color: var(--text-muted);
   transition: background 0.1s, color 0.1s;
+  position: absolute;
+  right: 12px;
 }
 
 .sidebar-folder-header:hover .sidebar-folder-delete {
