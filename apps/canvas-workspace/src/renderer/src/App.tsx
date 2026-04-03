@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import './App.css';
 import { Canvas } from './components/Canvas';
 import { Sidebar } from './components/Sidebar';
 import { useWorkspaces } from './hooks/useWorkspaces';

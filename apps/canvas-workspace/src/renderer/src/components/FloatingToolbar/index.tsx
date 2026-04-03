@@ -1,3 +1,5 @@
+import './index.css';
+
 interface Props {
   activeTool: string;
   onToolChange: (tool: string) => void;

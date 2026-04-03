@@ -1,0 +1,36 @@
+.canvas-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: default;
+  background: var(--bg-canvas);
+}
+
+.canvas-container--hand {
+  cursor: grab;
+}
+
+.canvas-container--hand:active {
+  cursor: grabbing;
+}
+
+.canvas-container--resizing {
+  cursor: nwse-resize;
+}
+
+.canvas-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(0, 0, 0, 0.12) 0.7px, transparent 0.7px);
+  background-size: 24px 24px;
+}
+
+.canvas-transform {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}

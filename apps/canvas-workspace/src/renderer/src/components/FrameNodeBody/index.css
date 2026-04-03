@@ -1,0 +1,126 @@
+.canvas-node--frame {
+  background: color-mix(in srgb, var(--frame-color, #9575d4) 8%, transparent);
+  border: 2px solid color-mix(in srgb, var(--frame-color, #9575d4) 55%, transparent);
+  box-shadow: none;
+  overflow: visible;
+}
+
+.canvas-node--frame:hover {
+  border-color: var(--frame-color, #9575d4);
+  box-shadow: none;
+}
+
+.canvas-node--frame.canvas-node--selected {
+  border-color: var(--frame-color, #9575d4);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #9575d4) 20%, transparent);
+}
+
+.canvas-node--frame .node-header {
+  position: absolute;
+  top: -34px;
+  left: -2px;
+  height: 32px;
+  min-width: max-content;
+  background: var(--frame-color, #9575d4);
+  border-radius: 6px 6px 0 0;
+  border-bottom: none;
+  padding: 0 8px;
+  color: white;
+  transform: scale(calc(1 / var(--canvas-scale, 1)));
+  transform-origin: left bottom;
+  z-index: 2;
+}
+
+.canvas-node--frame .node-header .node-type-badge--frame,
+.canvas-node--frame .node-header .node-title {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.canvas-node--frame .node-header .node-focus,
+.canvas-node--frame .node-header .node-close {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.canvas-node--frame .node-header .node-focus:hover,
+.canvas-node--frame .node-header .node-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.canvas-node--frame .node-body {
+  height: 100%;
+}
+
+.frame-body {
+  height: 100%;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  min-height: 60px;
+  position: relative;
+}
+
+.frame-color-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.node-header:hover .frame-color-trigger,
+.frame-color-trigger--open {
+  opacity: 1;
+}
+
+.frame-color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.5);
+  transition: border-color 0.15s ease;
+}
+
+.frame-color-trigger:hover .frame-color-dot {
+  border-color: white;
+}
+
+.frame-color-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border-light, rgba(0,0,0,0.08));
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  z-index: 20;
+  white-space: nowrap;
+}
+
+.frame-color-popover--open {
+  display: flex;
+}
+
+.frame-color-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.frame-color-swatch:hover {
+  transform: scale(1.25);
+  border-color: rgba(0, 0, 0, 0.25);
+}
+
+.frame-color-swatch--active {
+  border-color: rgba(0, 0, 0, 0.45);
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.12);
+}

@@ -1,3 +1,4 @@
+import "./index.css";
 import { useEffect, useRef } from "react";
 
 interface Props {

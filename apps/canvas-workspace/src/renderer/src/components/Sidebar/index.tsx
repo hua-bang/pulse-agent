@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, type DragEvent } from 'react';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
+import './index.css';
 
 interface Props {
   collapsed: boolean;
@@ -233,16 +234,6 @@ export const Sidebar = ({
       onDragEnd={handleWsDragEnd}
     >
       <div className="sidebar-item-row">
-        <span className="sidebar-drag-handle" title="Drag to move">
-          <svg width="10" height="14" viewBox="0 0 10 14" fill="none">
-            <circle cx="3" cy="3" r="1.2" fill="currentColor"/>
-            <circle cx="7" cy="3" r="1.2" fill="currentColor"/>
-            <circle cx="3" cy="7" r="1.2" fill="currentColor"/>
-            <circle cx="7" cy="7" r="1.2" fill="currentColor"/>
-            <circle cx="3" cy="11" r="1.2" fill="currentColor"/>
-            <circle cx="7" cy="11" r="1.2" fill="currentColor"/>
-          </svg>
-        </span>
         {renamingId === ws.id ? (
           <input
             ref={renameInputRef}
@@ -294,7 +285,7 @@ export const Sidebar = ({
     <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
       {!collapsed && (
         <>
-          {/* Section header with add button */}
+          {/* Section header with add + collapse buttons */}
           <div className="sidebar-section-header">
             <span className="sidebar-section-title">Workspaces</span>
             <div className="sidebar-section-actions" ref={addMenuRef}>
@@ -305,6 +296,12 @@ export const Sidebar = ({
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                   <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button className="sidebar-section-btn" onClick={onToggle} title="Collapse sidebar">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
+                  <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.3" />
                 </svg>
               </button>
               {showAddMenu && (
@@ -377,16 +374,6 @@ export const Sidebar = ({
                   }}
                 >
                   <div className="sidebar-folder-header">
-                    <span className="sidebar-drag-handle" title="Drag to reorder">
-                      <svg width="10" height="14" viewBox="0 0 10 14" fill="none">
-                        <circle cx="3" cy="3" r="1.2" fill="currentColor"/>
-                        <circle cx="7" cy="3" r="1.2" fill="currentColor"/>
-                        <circle cx="3" cy="7" r="1.2" fill="currentColor"/>
-                        <circle cx="7" cy="7" r="1.2" fill="currentColor"/>
-                        <circle cx="3" cy="11" r="1.2" fill="currentColor"/>
-                        <circle cx="7" cy="11" r="1.2" fill="currentColor"/>
-                      </svg>
-                    </span>
                     {renamingFolderId === folder.id ? (
                       <input
                         ref={renameFolderInputRef}
@@ -412,7 +399,7 @@ export const Sidebar = ({
                           </svg>
                         </span>
                         <span className="sidebar-folder-icon">
-                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                             {isOpen ? (
                               <path d="M2 5.5A1.5 1.5 0 013.5 4H6l1.5 1.5h5A1.5 1.5 0 0114 7v4.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-6z" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.1" />
                             ) : (
@@ -421,7 +408,6 @@ export const Sidebar = ({
                           </svg>
                         </span>
                         <span className="sidebar-folder-name">{folder.name}</span>
-                        <span className="sidebar-folder-count">{folderWorkspaces.length}</span>
                       </button>
                     )}
                     {renamingFolderId !== folder.id && (
@@ -508,19 +494,16 @@ export const Sidebar = ({
         </div>
       )}
 
-      <div className="sidebar-footer">
-        <button className="sidebar-toggle" onClick={onToggle} title="Toggle sidebar">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path
-              d={collapsed ? 'M6 3l5 5-5 5' : 'M10 3L5 8l5 5'}
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-      </div>
+      {collapsed && (
+        <div className="sidebar-collapsed-toggle">
+          <button className="sidebar-toggle" onClick={onToggle} title="Expand sidebar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M6 2.5v11" stroke="currentColor" strokeWidth="1.3" />
+            </svg>
+          </button>
+        </div>
+      )}
     </aside>
   );
 };

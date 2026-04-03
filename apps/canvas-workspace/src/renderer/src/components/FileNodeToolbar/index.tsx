@@ -1,3 +1,5 @@
+import './index.css';
+
 interface Props {
   onOpenFile: () => void;
   onSave: () => void;

@@ -1,0 +1,69 @@
+.floating-toolbar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  z-index: 500;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.toolbar-btn {
+  height: 32px;
+  min-width: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.toolbar-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+}
+
+.toolbar-btn--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.toolbar-btn--active:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.toolbar-btn--create {
+  gap: 5px;
+}
+
+.toolbar-btn-label {
+  font-size: 12px;
+  font-weight: 500;
+}

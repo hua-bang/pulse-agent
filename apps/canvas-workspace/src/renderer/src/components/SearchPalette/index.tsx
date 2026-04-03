@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./index.css";
 import type { CanvasNode } from "../types";
 
 interface SearchResult {
