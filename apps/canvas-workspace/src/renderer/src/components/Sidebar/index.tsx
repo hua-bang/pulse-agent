@@ -19,6 +19,7 @@ interface Props {
   onToggleFolder: (id: string) => void;
   onMoveWorkspace: (workspaceId: string, folderId: string | undefined) => void;
   onReorderFolder: (folderId: string, beforeFolderId: string | null) => void;
+  nodeCounts?: Record<string, number>;
 }
 
 /* ---- Drag data keys ---- */
@@ -42,6 +43,7 @@ export const Sidebar = ({
   onToggleFolder,
   onMoveWorkspace,
   onReorderFolder,
+  nodeCounts,
 }: Props) => {
   /* ---- Local state ---- */
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -260,6 +262,9 @@ export const Sidebar = ({
               </svg>
             </span>
             <span className="sidebar-item-name">{ws.name}</span>
+            {nodeCounts?.[ws.id] != null && nodeCounts[ws.id] > 0 && (
+              <span className="sidebar-node-count">{nodeCounts[ws.id]}</span>
+            )}
           </button>
         )}
         {workspaces.length > 1 && renamingId !== ws.id && (

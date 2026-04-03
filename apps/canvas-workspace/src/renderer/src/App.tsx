@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import './App.css';
 import { Canvas } from './components/Canvas';
 import { Sidebar } from './components/Sidebar';
@@ -6,6 +6,14 @@ import { useWorkspaces } from './hooks/useWorkspaces';
 
 const App = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [nodeCounts, setNodeCounts] = useState<Record<string, number>>({});
+
+  const handleNodeCountChange = useCallback((canvasId: string, count: number) => {
+    setNodeCounts(prev => {
+      if (prev[canvasId] === count) return prev;
+      return { ...prev, [canvasId]: count };
+    });
+  }, []);
   const {
     workspaces,
     folders,
@@ -43,10 +51,11 @@ const App = () => {
           onToggleFolder={toggleFolder}
           onMoveWorkspace={moveWorkspace}
           onReorderFolder={reorderFolder}
+          nodeCounts={nodeCounts}
         />
         <div className="canvas-viewport">
           {workspaces.map((ws) => (
-            <Canvas key={ws.id} canvasId={ws.id} canvasName={ws.name} rootFolder={ws.rootFolder} hidden={ws.id !== activeId} />
+            <Canvas key={ws.id} canvasId={ws.id} canvasName={ws.name} rootFolder={ws.rootFolder} hidden={ws.id !== activeId} onNodeCountChange={handleNodeCountChange} />
           ))}
         </div>
       </div>

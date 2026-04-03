@@ -426,6 +426,14 @@
   padding-left: 4px;
 }
 
+.sidebar-node-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 4px;
+}
+
 .sidebar-folder-delete {
   flex-shrink: 0;
   width: 22px;

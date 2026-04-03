@@ -15,7 +15,7 @@ import { ZoomIndicator } from '../ZoomIndicator';
 import { SearchPalette } from '../SearchPalette';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 
-export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId: string; canvasName?: string; rootFolder?: string; hidden?: boolean }) => {
+export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodeCountChange }: { canvasId: string; canvasName?: string; rootFolder?: string; hidden?: boolean; onNodeCountChange?: (canvasId: string, count: number) => void }) => {
   const [activeTool, setActiveTool] = useState('select');
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [clipboardNodes, setClipboardNodes] = useState<CanvasNode[]>([]);
@@ -74,6 +74,11 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden }: { canvasId:
       if (nodes.length > 0) fitAllNodes(nodes);
     }
   }, [loaded, nodes, fitAllNodes]);
+
+  // Report node count to parent
+  useEffect(() => {
+    onNodeCountChange?.(canvasId, nodes.length);
+  }, [canvasId, nodes.length, onNodeCountChange]);
 
   useCanvasContext(rootFolder, nodes, canvasName);
 
