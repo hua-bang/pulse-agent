@@ -143,6 +143,21 @@ const mergeExternalNodes = async (
     const diskNodes = Array.isArray(diskData.nodes) ? diskData.nodes : [];
     const memoryNodes = Array.isArray(inMemoryData.nodes) ? inMemoryData.nodes : [];
 
+    const memoryNodesRaw = Array.isArray(inMemoryData.nodes) ? inMemoryData.nodes : [];
+
+    // Hard safety: never let a save with an empty node list clobber a
+    // non-empty on-disk canvas. This shields against early-lifecycle
+    // flushSave calls that fire before the renderer has finished loading
+    // (e.g. on window close / StrictMode double-invoke / HMR reload),
+    // which would otherwise wipe the canvas because every disk id is
+    // already in the `known` set.
+    if (memoryNodesRaw.length === 0 && diskNodes.length > 0) {
+      console.warn(
+        `[canvas-store] refusing to overwrite ${diskNodes.length} on-disk nodes with empty memory for ${id}`,
+      );
+      return { ...inMemoryData, nodes: diskNodes };
+    }
+
     const diskById = new Map<string, CanvasNode>();
     for (const n of diskNodes) {
       if (n.id) diskById.set(n.id, n);

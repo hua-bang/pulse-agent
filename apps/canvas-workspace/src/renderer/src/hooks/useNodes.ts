@@ -15,7 +15,20 @@ export const useNodes = (
   const onRestoreTransformRef = useRef(onRestoreTransform);
   onRestoreTransformRef.current = onRestoreTransform;
 
+  /**
+   * Mirrors `loaded` state so `doSave`/`flushSave` (stable callbacks) can
+   * synchronously check it without re-creating on every render. We refuse
+   * any save before the initial load completes — otherwise an early
+   * `beforeunload` / unmount flushSave can persist an empty node list
+   * over the real data on disk.
+   */
+  const loadedRef = useRef(false);
+
   const doSave = useCallback(() => {
+    if (!loadedRef.current) {
+      console.debug(`[canvas] save skipped for ${canvasId}: not yet loaded`);
+      return;
+    }
     const api = window.canvasWorkspace?.store;
     if (!api) {
       console.warn('[canvas] save skipped: store API unavailable');
@@ -84,6 +97,10 @@ export const useNodes = (
     const unsubscribe = storeApi.onExternalUpdate(async (event) => {
       if (event.workspaceId !== canvasId) return;
       if (!Array.isArray(event.nodeIds) || event.nodeIds.length === 0) return;
+      // Drop events that arrive before the initial load completes —
+      // the upcoming load will read the latest disk state anyway, and
+      // operating on an empty nodesRef here would corrupt the view.
+      if (!loadedRef.current) return;
 
       const result = await storeApi.load(canvasId);
       if (!result.ok || !result.data || !Array.isArray(result.data.nodes)) return;
@@ -183,12 +200,15 @@ export const useNodes = (
   // }, [canvasId, applyNodes, nodesRef]);
 
   useEffect(() => {
+    // New canvas selected — block saves until this load finishes.
+    loadedRef.current = false;
     const api = window.canvasWorkspace?.store;
     if (!api) {
       const empty: CanvasNode[] = [];
       historyRef.current = [empty];
       historyIndexRef.current = 0;
       setNodes(empty);
+      loadedRef.current = true;
       setLoaded(true);
       return;
     }
@@ -211,6 +231,7 @@ export const useNodes = (
         historyRef.current = [[]];
         historyIndexRef.current = 0;
       }
+      loadedRef.current = true;
       setLoaded(true);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
