@@ -53,8 +53,14 @@ export function notifyCanvasUpdated(event: Omit<CanvasUpdateEvent, 'type' | 'sou
       return;
     }
 
-    // Short timeout — we don't want CLI commands to hang if Electron is wedged.
-    socket.setTimeout(200);
+    // Generous timeout: when the Electron main process is busy serving
+    // canvas:save traffic from the renderer (e.g. the scrollback autosave
+    // interval firing while an agent produces output), the server's
+    // `accept()` may be delayed well beyond the ~1ms a local Unix socket
+    // usually takes. A tight timeout here silently loses notifications
+    // exactly in the scenario they matter most. 2s is still short enough
+    // to not noticeably stall CLI commands if Electron isn't running.
+    socket.setTimeout(2000);
 
     socket.once('connect', () => {
       const payload: CanvasUpdateEvent = {

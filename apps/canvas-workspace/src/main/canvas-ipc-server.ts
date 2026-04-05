@@ -49,8 +49,9 @@ const broadcast = (event: CanvasUpdateEvent) => {
 
 const handleConnection = (socket: net.Socket) => {
   let buffer = '';
+  let gotLine = false;
   socket.setEncoding('utf-8');
-  socket.setTimeout(2000);
+  socket.setTimeout(5000);
 
   socket.on('data', (chunk: string) => {
     buffer += chunk;
@@ -64,9 +65,16 @@ const handleConnection = (socket: net.Socket) => {
         if (event && event.type === 'canvas:updated' && event.workspaceId) {
           broadcast(event);
         }
+        gotLine = true;
       } catch {
         // malformed line — ignore, keep reading
       }
+    }
+    // The client sends one event and closes — once we've processed a
+    // line, actively close our half so the client's `'close'` event
+    // fires promptly (and its inactivity timer doesn't falsely trip).
+    if (gotLine) {
+      socket.end();
     }
   });
 
