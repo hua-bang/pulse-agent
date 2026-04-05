@@ -12,10 +12,22 @@
  * webContents.send('canvas:external-update', payload).
  */
 import net from 'net';
-import { promises as fs, existsSync } from 'fs';
+import { promises as fs, existsSync, appendFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { homedir } from 'os';
 import { BrowserWindow } from 'electron';
+
+const DEBUG_LOG_PATH = join(homedir(), '.pulse-coder', 'canvas-ipc-server.log');
+let connectionSeq = 0;
+
+const debugLog = (msg: string): void => {
+  try {
+    const ts = new Date().toISOString();
+    appendFileSync(DEBUG_LOG_PATH, `[${ts}] pid=${process.pid} ${msg}\n`);
+  } catch {
+    // ignore — logging must never crash main
+  }
+};
 
 /**
  * Must stay in sync with `getIpcSocketPath` in
@@ -40,20 +52,27 @@ interface CanvasUpdateEvent {
 
 let server: net.Server | null = null;
 
-const broadcast = (event: CanvasUpdateEvent) => {
-  for (const win of BrowserWindow.getAllWindows()) {
+const broadcast = (event: CanvasUpdateEvent, connId: number) => {
+  const wins = BrowserWindow.getAllWindows();
+  debugLog(`conn#${connId} broadcast workspaceId=${event.workspaceId} nodeIds=${JSON.stringify(event.nodeIds)} kind=${event.kind ?? ''} windows=${wins.length}`);
+  for (const win of wins) {
     if (win.isDestroyed()) continue;
     win.webContents.send('canvas:external-update', event);
   }
 };
 
 const handleConnection = (socket: net.Socket) => {
+  const connId = ++connectionSeq;
+  const acceptedAt = Date.now();
+  debugLog(`conn#${connId} accepted`);
+
   let buffer = '';
   let gotLine = false;
   socket.setEncoding('utf-8');
   socket.setTimeout(5000);
 
   socket.on('data', (chunk: string) => {
+    debugLog(`conn#${connId} data +${chunk.length} bytes elapsed=${Date.now() - acceptedAt}ms`);
     buffer += chunk;
     let newlineIdx: number;
     while ((newlineIdx = buffer.indexOf('\n')) >= 0) {
@@ -63,27 +82,36 @@ const handleConnection = (socket: net.Socket) => {
       try {
         const event = JSON.parse(line) as CanvasUpdateEvent;
         if (event && event.type === 'canvas:updated' && event.workspaceId) {
-          broadcast(event);
+          broadcast(event, connId);
+        } else {
+          debugLog(`conn#${connId} line rejected (bad shape): ${line.slice(0, 120)}`);
         }
         gotLine = true;
-      } catch {
-        // malformed line — ignore, keep reading
+      } catch (err) {
+        debugLog(`conn#${connId} JSON parse failed: ${String(err)} line=${line.slice(0, 120)}`);
       }
     }
-    // The client sends one event and closes — once we've processed a
-    // line, actively close our half so the client's `'close'` event
-    // fires promptly (and its inactivity timer doesn't falsely trip).
     if (gotLine) {
       socket.end();
     }
   });
 
-  socket.once('timeout', () => socket.destroy());
-  socket.once('error', () => socket.destroy());
+  socket.once('timeout', () => {
+    debugLog(`conn#${connId} timeout after ${Date.now() - acceptedAt}ms`);
+    socket.destroy();
+  });
+  socket.once('error', (err) => {
+    debugLog(`conn#${connId} error: ${String(err)}`);
+    socket.destroy();
+  });
+  socket.once('close', (hadError) => {
+    debugLog(`conn#${connId} close hadError=${hadError} elapsed=${Date.now() - acceptedAt}ms`);
+  });
 };
 
 export const startCanvasIpcServer = async (): Promise<void> => {
   const socketPath = getIpcSocketPath();
+  debugLog(`startCanvasIpcServer path=${socketPath}`);
 
   // On POSIX, stale socket files from a previous crash block binding.
   if (process.platform !== 'win32') {
@@ -108,10 +136,12 @@ export const startCanvasIpcServer = async (): Promise<void> => {
     const srv = net.createServer(handleConnection);
     srv.once('error', (err) => {
       console.warn('[canvas-ipc] failed to start server:', err);
+      debugLog(`server error at listen: ${String(err)}`);
       reject(err);
     });
     srv.listen(socketPath, () => {
       server = srv;
+      debugLog(`server listening`);
       resolve();
     });
   });

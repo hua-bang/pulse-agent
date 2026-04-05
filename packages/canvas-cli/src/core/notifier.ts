@@ -11,6 +11,7 @@
  *   {"type":"canvas:updated","workspaceId":"...","nodeIds":["..."],"source":"cli"}
  */
 import net from 'net';
+import { appendFileSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform } from 'os';
 
@@ -31,6 +32,19 @@ export function getIpcSocketPath(): string {
   return join(homedir(), '.pulse-coder', 'canvas-ipc.sock');
 }
 
+const DEBUG_LOG_PATH = join(homedir(), '.pulse-coder', 'canvas-cli-notifier.log');
+
+const debugLog = (msg: string): void => {
+  try {
+    const ts = new Date().toISOString();
+    const pid = process.pid;
+    const ppid = process.ppid;
+    appendFileSync(DEBUG_LOG_PATH, `[${ts}] pid=${pid} ppid=${ppid} ${msg}\n`);
+  } catch {
+    // ignore — logging must never crash the CLI
+  }
+};
+
 /**
  * Send an update event to the Electron main process. Never throws; any
  * connection error is swallowed (Electron may simply not be running).
@@ -38,18 +52,24 @@ export function getIpcSocketPath(): string {
  */
 export function notifyCanvasUpdated(event: Omit<CanvasUpdateEvent, 'type' | 'source'>): Promise<void> {
   return new Promise((resolve) => {
+    const sockPath = getIpcSocketPath();
+    const startedAt = Date.now();
+    debugLog(`notify start workspaceId=${event.workspaceId} nodeIds=${JSON.stringify(event.nodeIds)} kind=${event.kind ?? ''} sock=${sockPath}`);
+
     let settled = false;
-    const done = () => {
+    const done = (reason: string) => {
       if (settled) return;
       settled = true;
+      debugLog(`notify done reason=${reason} elapsed=${Date.now() - startedAt}ms`);
       resolve();
     };
 
     let socket: net.Socket;
     try {
-      socket = net.createConnection(getIpcSocketPath());
-    } catch {
-      done();
+      socket = net.createConnection(sockPath);
+    } catch (err) {
+      debugLog(`notify createConnection threw: ${String(err)}`);
+      done('createConnection-threw');
       return;
     }
 
@@ -63,6 +83,7 @@ export function notifyCanvasUpdated(event: Omit<CanvasUpdateEvent, 'type' | 'sou
     socket.setTimeout(2000);
 
     socket.once('connect', () => {
+      debugLog(`notify socket connected elapsed=${Date.now() - startedAt}ms`);
       const payload: CanvasUpdateEvent = {
         type: 'canvas:updated',
         source: 'cli',
@@ -70,14 +91,24 @@ export function notifyCanvasUpdated(event: Omit<CanvasUpdateEvent, 'type' | 'sou
         nodeIds: event.nodeIds,
         kind: event.kind,
       };
-      socket.end(JSON.stringify(payload) + '\n');
+      const line = JSON.stringify(payload) + '\n';
+      socket.end(line, () => {
+        debugLog(`notify socket end-callback fired (bytes written=${line.length})`);
+      });
     });
 
-    socket.once('error', () => done());
-    socket.once('timeout', () => {
-      socket.destroy();
-      done();
+    socket.once('error', (err) => {
+      debugLog(`notify socket error: code=${(err as NodeJS.ErrnoException).code ?? ''} msg=${err.message}`);
+      done('error');
     });
-    socket.once('close', () => done());
+    socket.once('timeout', () => {
+      debugLog(`notify socket timeout fired`);
+      socket.destroy();
+      done('timeout');
+    });
+    socket.once('close', (hadError) => {
+      debugLog(`notify socket close hadError=${hadError}`);
+      done('close');
+    });
   });
 }
