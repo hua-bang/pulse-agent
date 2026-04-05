@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "prebuild": "pnpm --filter pulse-coder-engine build && SKIP_DTS=1 pnpm --filter pulse-coder-acp --filter pulse-coder-memory-plugin --filter pulse-coder-plugin-kit build",
+    "prebuild": "pnpm --filter pulse-coder-orchestrator build && pnpm --filter pulse-coder-engine build && SKIP_DTS=1 pnpm --filter pulse-coder-acp --filter pulse-coder-memory-plugin --filter pulse-coder-plugin-kit build",
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
     "start": "node dist/index.cjs",
