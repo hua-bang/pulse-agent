@@ -63,6 +63,96 @@ export const useNodes = (
     [scheduleSave]
   );
 
+  /**
+   * IDs of nodes recently touched by an external process (canvas-cli). The
+   * Canvas component reads this to render a transient "agent edited here"
+   * highlight. Entries expire after ~2.5s.
+   */
+  const [externallyEditedIds, setExternallyEditedIds] = useState<Set<string>>(() => new Set());
+  const externalClearTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  // Listen for canvas-cli writes bubbled up from the main process via the
+  // local IPC socket. When we hear about a change, pull the fresh nodes
+  // straight from disk (to handle arbitrary field updates including file
+  // content, terminal scrollback, frame label, etc) and merge them into
+  // our in-memory state WITHOUT calling scheduleSave — the disk is already
+  // authoritative for these ids, and re-saving would race against the CLI.
+  useEffect(() => {
+    const storeApi = window.canvasWorkspace?.store;
+    if (!storeApi?.onExternalUpdate) return;
+
+    const unsubscribe = storeApi.onExternalUpdate(async (event) => {
+      if (event.workspaceId !== canvasId) return;
+      if (!Array.isArray(event.nodeIds) || event.nodeIds.length === 0) return;
+
+      const result = await storeApi.load(canvasId);
+      if (!result.ok || !result.data || !Array.isArray(result.data.nodes)) return;
+      const diskNodes = result.data.nodes;
+      const diskById = new Map<string, CanvasNode>();
+      for (const n of diskNodes) diskById.set(n.id, n);
+
+      const changedIds = new Set(event.nodeIds);
+      const nextNodes: CanvasNode[] = [];
+      const seen = new Set<string>();
+      for (const cur of nodesRef.current) {
+        if (changedIds.has(cur.id)) {
+          const disk = diskById.get(cur.id);
+          if (disk) {
+            nextNodes.push(disk);
+          } else if (event.kind === 'delete') {
+            // drop
+          } else {
+            nextNodes.push(cur);
+          }
+        } else {
+          nextNodes.push(cur);
+        }
+        seen.add(cur.id);
+      }
+      // Append CLI-created nodes that weren't in memory yet
+      if (event.kind !== 'delete') {
+        for (const id of changedIds) {
+          if (seen.has(id)) continue;
+          const disk = diskById.get(id);
+          if (disk) nextNodes.push(disk);
+        }
+      }
+
+      // Apply directly without history / scheduleSave to avoid a write-back loop.
+      nodesRef.current = nextNodes;
+      setNodes(nextNodes);
+
+      // Mark the affected nodes as externally-edited for 2.5s so the Canvas
+      // component can render a transient highlight.
+      setExternallyEditedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of changedIds) next.add(id);
+        return next;
+      });
+      for (const id of changedIds) {
+        const existing = externalClearTimers.current.get(id);
+        if (existing) clearTimeout(existing);
+        const t = setTimeout(() => {
+          setExternallyEditedIds((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          externalClearTimers.current.delete(id);
+        }, 2500);
+        externalClearTimers.current.set(id, t);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      for (const t of externalClearTimers.current.values()) clearTimeout(t);
+      externalClearTimers.current.clear();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasId]);
+
   // File-watcher sync is temporarily disabled.  The fs.watch-based watcher
   // introduced race conditions with user edits (the onChanged callback could
   // call applyNodes with stale nodesRef.current, reverting in-flight changes).
@@ -285,6 +375,7 @@ export const useNodes = (
   return {
     nodes,
     loaded,
+    externallyEditedIds,
     addNode,
     updateNode,
     removeNode,

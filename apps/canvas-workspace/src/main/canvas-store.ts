@@ -66,8 +66,10 @@ const ensureWorkspaceDir = async (id: string): Promise<void> => {
 const LEGACY_NOTES_DIR = join(STORE_DIR, 'notes');
 
 interface CanvasNode {
+  id?: string;
   type: string;
   data?: { filePath?: string; [k: string]: unknown };
+  updatedAt?: number;
   [k: string]: unknown;
 }
 
@@ -117,14 +119,23 @@ const knownNodeIds = new Map<string, Set<string>>();
 /**
  * Merge external changes (e.g. from canvas-cli) into the data being saved.
  *
- * Only merges nodes whose IDs have NEVER been seen by Electron. This prevents
- * re-adding nodes that the user explicitly deleted in the UI.
+ * Two merge rules are applied, in order:
+ *
+ *   1. Per-node "newer wins" by `updatedAt`: if a node exists in both the
+ *      in-memory snapshot and the on-disk snapshot, the one with the greater
+ *      `updatedAt` wins. This protects canvas-cli writes from being clobbered
+ *      by stale renderer saves (e.g. the terminal scrollback autosave timer
+ *      firing right after the CLI updated a file node).
+ *
+ *   2. Add disk-only nodes whose IDs have NEVER been seen by Electron. This
+ *      is how canvas-cli creates show up. Disk-only nodes whose IDs *are*
+ *      known were deleted in the UI and must not be re-added.
  */
 const mergeExternalNodes = async (
   id: string,
   inMemoryData: CanvasSaveData,
 ): Promise<CanvasSaveData> => {
-  const known = knownNodeIds.get(id) ?? new Set();
+  const known = knownNodeIds.get(id) ?? new Set<string>();
 
   try {
     const raw = await fs.readFile(getFilePath(id), 'utf-8');
@@ -132,20 +143,39 @@ const mergeExternalNodes = async (
     const diskNodes = Array.isArray(diskData.nodes) ? diskData.nodes : [];
     const memoryNodes = Array.isArray(inMemoryData.nodes) ? inMemoryData.nodes : [];
 
-    const memoryIds = new Set(memoryNodes.map(n => n.id));
+    const diskById = new Map<string, CanvasNode>();
+    for (const n of diskNodes) {
+      if (n.id) diskById.set(n.id, n);
+    }
 
-    // Only add nodes that are truly new — never seen by Electron before
-    const externalNodes = diskNodes.filter(n => n.id && !memoryIds.has(n.id) && !known.has(n.id));
+    // Rule 1: for overlapping nodes, pick the newer `updatedAt`.
+    // A memory node without updatedAt is treated as "older than any
+    // timestamped disk version" — this is the common case where the CLI
+    // just wrote the disk copy with a timestamp.
+    const mergedExisting = memoryNodes.map((memNode) => {
+      if (!memNode.id) return memNode;
+      const diskNode = diskById.get(memNode.id);
+      if (!diskNode) return memNode;
+      const memTs = typeof memNode.updatedAt === 'number' ? memNode.updatedAt : 0;
+      const diskTs = typeof diskNode.updatedAt === 'number' ? diskNode.updatedAt : 0;
+      return diskTs > memTs ? diskNode : memNode;
+    });
 
-    if (externalNodes.length === 0) return inMemoryData;
+    // Rule 2: nodes only on disk and never-seen → CLI creates, add them.
+    const memoryIds = new Set(memoryNodes.map((n) => n.id).filter(Boolean) as string[]);
+    const externalNewNodes = diskNodes.filter(
+      (n) => n.id && !memoryIds.has(n.id) && !known.has(n.id),
+    );
 
-    // Mark newly merged nodes as known
-    for (const n of externalNodes) known.add(n.id);
+    // Record every id we've now observed so future saves can tell
+    // "CLI added" apart from "user deleted".
+    for (const n of mergedExisting) if (n.id) known.add(n.id);
+    for (const n of externalNewNodes) if (n.id) known.add(n.id);
     knownNodeIds.set(id, known);
 
     return {
       ...inMemoryData,
-      nodes: [...memoryNodes, ...externalNodes],
+      nodes: [...mergedExisting, ...externalNewNodes],
     };
   } catch {
     return inMemoryData;

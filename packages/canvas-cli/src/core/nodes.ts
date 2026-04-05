@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { NODE_CAPABILITIES, DEFAULT_NODE_DIMENSIONS } from './constants';
 import { loadCanvas, saveCanvas, ensureWorkspaceDir, getWorkspaceDir } from './store';
+import { notifyCanvasUpdated } from './notifier';
 import type {
   NodeType,
   NodeCapability,
@@ -68,8 +69,10 @@ export async function writeNode(
         await fs.writeFile(node.data.filePath, content, 'utf-8');
       }
       node.data.content = content;
+      node.updatedAt = Date.now();
       canvas.savedAt = new Date().toISOString();
       await saveCanvas(workspaceId, canvas, storeDir);
+      await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
       return { ok: true, data: undefined };
     }
     case 'frame': {
@@ -77,8 +80,10 @@ export async function writeNode(
         const patch = JSON.parse(content) as { label?: string; color?: string };
         if (patch.label !== undefined) node.data.label = patch.label;
         if (patch.color !== undefined) node.data.color = patch.color;
+        node.updatedAt = Date.now();
         canvas.savedAt = new Date().toISOString();
         await saveCanvas(workspaceId, canvas, storeDir);
+        await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
         return { ok: true, data: undefined };
       } catch {
         return { ok: false, error: 'Frame write expects JSON: { label?: string, color?: string }' };
@@ -176,11 +181,13 @@ export async function createNode(
     width: opts.width ?? def.width,
     height: opts.height ?? def.height,
     data: nodeData,
+    updatedAt: Date.now(),
   };
 
   canvas.nodes.push(newNode);
   canvas.savedAt = new Date().toISOString();
   await saveCanvas(workspaceId, canvas, storeDir);
+  await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'create' });
 
   return {
     ok: true,
@@ -207,6 +214,7 @@ export async function deleteNode(
   canvas.nodes.splice(idx, 1);
   canvas.savedAt = new Date().toISOString();
   await saveCanvas(workspaceId, canvas, storeDir);
+  await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'delete' });
 
   return { ok: true, data: undefined };
 }
