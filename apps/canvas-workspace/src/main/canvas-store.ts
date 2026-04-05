@@ -197,6 +197,25 @@ const mergeExternalNodes = async (
   }
 };
 
+/**
+ * Per-workspace save lock. Serializes concurrent `canvas:save` invocations
+ * for the same workspace so the read-merge-write sequence in each call
+ * cannot interleave with itself. This does NOT protect against external
+ * writers (canvas-cli); for that, `mergeExternalNodes` is called twice —
+ * once up front and again immediately before `writeFile`.
+ */
+const saveLocks = new Map<string, Promise<unknown>>();
+
+const withSaveLock = async <T>(id: string, fn: () => Promise<T>): Promise<T> => {
+  const prev = saveLocks.get(id) ?? Promise.resolve();
+  const next = prev.then(fn, fn);
+  const tracked = next.finally(() => {
+    if (saveLocks.get(id) === tracked) saveLocks.delete(id);
+  });
+  saveLocks.set(id, tracked);
+  return next;
+};
+
 export const setupCanvasStoreIpc = () => {
   ipcMain.handle(
     'canvas:save',
@@ -211,16 +230,27 @@ export const setupCanvasStoreIpc = () => {
           );
         } else {
           await ensureWorkspaceDir(payload.id);
-          // Merge CLI-added nodes before writing
-          const merged = await mergeExternalNodes(
-            payload.id,
-            payload.data as CanvasSaveData,
-          );
-          await fs.writeFile(
-            getFilePath(payload.id),
-            JSON.stringify(merged, null, 2),
-            'utf-8'
-          );
+          await withSaveLock(payload.id, async () => {
+            // First merge against current disk state. This picks up any
+            // CLI-added nodes (Rule 2) and resolves per-node conflicts
+            // (Rule 1).
+            const firstPass = await mergeExternalNodes(
+              payload.id,
+              payload.data as CanvasSaveData,
+            );
+            // Second merge, immediately before the write. Narrows the
+            // window where a canvas-cli write could land between our
+            // initial read and the writeFile below and be silently
+            // clobbered. Using `firstPass` as input ensures any CLI
+            // changes seen in the first read are preserved even if the
+            // second read somehow fails to include them.
+            const merged = await mergeExternalNodes(payload.id, firstPass);
+            await fs.writeFile(
+              getFilePath(payload.id),
+              JSON.stringify(merged, null, 2),
+              'utf-8'
+            );
+          });
         }
         return { ok: true };
       } catch (err) {
