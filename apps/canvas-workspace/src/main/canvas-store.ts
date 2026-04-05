@@ -1,5 +1,5 @@
-import { ipcMain } from "electron";
-import { promises as fs } from "fs";
+import { ipcMain, BrowserWindow } from "electron";
+import { promises as fs, watch as fsWatch, FSWatcher } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -216,6 +216,143 @@ const withSaveLock = async <T>(id: string, fn: () => Promise<T>): Promise<T> => 
   return next;
 };
 
+/**
+ * File-system-based external-update bus.
+ *
+ * Previous designs used a Unix domain socket and later a loopback TCP
+ * listener to let canvas-cli notify Electron of mutations. Both are
+ * denied by the macOS Seatbelt profile that CLI agents like Codex wrap
+ * their child processes in (`network-outbound` is limited to outgoing
+ * DNS/HTTPS; AF_UNIX connect and AF_INET connect to 127.0.0.1 both
+ * return EPERM). The only remaining channel the sandboxed CLI reliably
+ * has is the filesystem, which it already uses to persist the canvas.
+ *
+ * So we invert the model: the CLI just writes `canvas.json`, and the
+ * Electron main process watches that file. When its contents change
+ * for any reason other than our own save handler having just written
+ * the same content, we re-read it, diff against the last snapshot the
+ * main process knew about, and broadcast the changed node IDs to every
+ * renderer via the existing `canvas:external-update` IPC channel.
+ *
+ * Echo suppression: `canvas:save` updates `lastSnapshot` synchronously
+ * after its own `writeFile`, so when the watcher fires (async, 100ms
+ * debounced) for the renderer's own write, the disk content and the
+ * snapshot are identical, the diff is empty, and nothing is broadcast.
+ */
+const watchers = new Map<string, FSWatcher>();
+const watcherDebounce = new Map<string, NodeJS.Timeout>();
+const lastSnapshot = new Map<string, Map<string, CanvasNode>>();
+
+const nodesToMap = (nodes: CanvasNode[] | undefined): Map<string, CanvasNode> => {
+  const m = new Map<string, CanvasNode>();
+  if (!nodes) return m;
+  for (const n of nodes) if (n.id) m.set(n.id, n);
+  return m;
+};
+
+const diffSnapshots = (
+  before: Map<string, CanvasNode>,
+  after: Map<string, CanvasNode>,
+): string[] => {
+  const ids = new Set<string>();
+  for (const [id, node] of after) {
+    const prev = before.get(id);
+    if (!prev) { ids.add(id); continue; }
+    // Cheap timestamp check first, fall back to structural equality so
+    // we also catch updates that forgot to bump updatedAt.
+    if ((prev.updatedAt ?? 0) !== (node.updatedAt ?? 0)) {
+      ids.add(id);
+    } else if (JSON.stringify(prev) !== JSON.stringify(node)) {
+      ids.add(id);
+    }
+  }
+  for (const id of before.keys()) {
+    if (!after.has(id)) ids.add(id);
+  }
+  return Array.from(ids);
+};
+
+const broadcastExternalUpdate = (workspaceId: string, nodeIds: string[]) => {
+  const payload = {
+    type: 'canvas:updated' as const,
+    workspaceId,
+    nodeIds,
+    source: 'fs-watch' as const,
+  };
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send('canvas:external-update', payload);
+  }
+};
+
+const handleWatcherFire = async (workspaceId: string): Promise<void> => {
+  const filePath = getFilePath(workspaceId);
+  let data: CanvasSaveData;
+  try {
+    const raw = await fs.readFile(filePath, 'utf-8');
+    data = JSON.parse(raw);
+  } catch {
+    // Partial write or transient read failure — the next event will
+    // catch the final state.
+    return;
+  }
+  const newMap = nodesToMap(data.nodes);
+  const oldMap = lastSnapshot.get(workspaceId) ?? new Map<string, CanvasNode>();
+  const changedIds = diffSnapshots(oldMap, newMap);
+  if (changedIds.length === 0) return;
+  lastSnapshot.set(workspaceId, newMap);
+  // Keep knownNodeIds aligned with disk so `mergeExternalNodes` Rule 2
+  // (disk-only never-seen → append) doesn't re-add nodes that the
+  // watcher has already observed.
+  const known = knownNodeIds.get(workspaceId) ?? new Set<string>();
+  for (const id of newMap.keys()) known.add(id);
+  knownNodeIds.set(workspaceId, known);
+  broadcastExternalUpdate(workspaceId, changedIds);
+};
+
+const startWorkspaceWatcher = (workspaceId: string): void => {
+  if (watchers.has(workspaceId)) return;
+  const filePath = getFilePath(workspaceId);
+  let watcher: FSWatcher;
+  try {
+    watcher = fsWatch(filePath, { persistent: false });
+  } catch (err) {
+    console.warn(`[canvas-store] fs.watch failed for ${workspaceId}:`, err);
+    return;
+  }
+  watcher.on('change', () => {
+    const existing = watcherDebounce.get(workspaceId);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      watcherDebounce.delete(workspaceId);
+      void handleWatcherFire(workspaceId);
+    }, 100);
+    watcherDebounce.set(workspaceId, t);
+  });
+  watcher.on('error', (err) => {
+    console.warn(`[canvas-store] watcher error for ${workspaceId}:`, err);
+  });
+  watchers.set(workspaceId, watcher);
+};
+
+const stopWorkspaceWatcher = (workspaceId: string): void => {
+  const w = watchers.get(workspaceId);
+  if (w) {
+    try { w.close(); } catch { /* ignore */ }
+    watchers.delete(workspaceId);
+  }
+  const t = watcherDebounce.get(workspaceId);
+  if (t) {
+    clearTimeout(t);
+    watcherDebounce.delete(workspaceId);
+  }
+  lastSnapshot.delete(workspaceId);
+};
+
+export const teardownCanvasWatchers = (): void => {
+  for (const id of Array.from(watchers.keys())) stopWorkspaceWatcher(id);
+};
+
 export const setupCanvasStoreIpc = () => {
   ipcMain.handle(
     'canvas:save',
@@ -250,6 +387,11 @@ export const setupCanvasStoreIpc = () => {
               JSON.stringify(merged, null, 2),
               'utf-8'
             );
+            // Update the watcher's last-known snapshot to match what we
+            // just wrote. The debounced fs.watch callback will see an
+            // empty diff and skip broadcasting, suppressing the echo of
+            // our own write.
+            lastSnapshot.set(payload.id, nodesToMap(merged.nodes));
           });
         }
         return { ok: true };
@@ -284,9 +426,18 @@ export const setupCanvasStoreIpc = () => {
           // would drop it from the write. `mergeExternalNodes` itself keeps
           // `known` up to date whenever nodes are actually persisted.
           if (Array.isArray(data.nodes) && !knownNodeIds.has(payload.id)) {
-            const known = new Set(data.nodes.map((n: CanvasNode) => n.id).filter(Boolean));
+            const known = new Set(
+              data.nodes.map((n: CanvasNode) => n.id).filter((id): id is string => Boolean(id)),
+            );
             knownNodeIds.set(payload.id, known);
           }
+          // Seed / refresh the watcher's last-known snapshot and ensure
+          // the fs.watch listener is running for this workspace. Starting
+          // here (instead of at app launch) means we only watch workspaces
+          // the user has actually opened, and guarantees the canvas.json
+          // file already exists by the time we call fs.watch on it.
+          lastSnapshot.set(payload.id, nodesToMap(data.nodes));
+          startWorkspaceWatcher(payload.id);
         }
         return { ok: true, data };
       } catch (err: unknown) {
@@ -324,6 +475,8 @@ export const setupCanvasStoreIpc = () => {
     async (_event, payload: { id: string }) => {
       try {
         if (payload.id === MANIFEST_ID) return { ok: false, error: 'Cannot delete manifest' };
+        stopWorkspaceWatcher(payload.id);
+        knownNodeIds.delete(payload.id);
         const dir = getWorkspaceDir(payload.id);
         await fs.rm(dir, { recursive: true, force: true });
         // Also remove old flat file if it still exists
