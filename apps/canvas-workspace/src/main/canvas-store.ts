@@ -245,9 +245,15 @@ export const setupCanvasStoreIpc = () => {
           if (dirty) {
             await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
           }
-          // Record all loaded node IDs so we can distinguish
-          // "CLI added" from "user deleted" during merge-on-save
-          if (Array.isArray(data.nodes)) {
+          // Seed the known-id set the first time we load this workspace in
+          // this app session. Do NOT re-seed on subsequent loads — the
+          // external-update handler in the renderer calls `canvas:load` as
+          // a peek after canvas-cli writes, and re-seeding here would race
+          // with a concurrent `canvas:save`: the save's `mergeExternalNodes`
+          // would then see the CLI-added id already in `known` and Rule 2
+          // would drop it from the write. `mergeExternalNodes` itself keeps
+          // `known` up to date whenever nodes are actually persisted.
+          if (Array.isArray(data.nodes) && !knownNodeIds.has(payload.id)) {
             const known = new Set(data.nodes.map((n: CanvasNode) => n.id).filter(Boolean));
             knownNodeIds.set(payload.id, known);
           }
