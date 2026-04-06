@@ -55,11 +55,22 @@ function makeTerminalNode(id: string): CanvasNode {
   };
 }
 
+function makeAgentNode(id: string, agentType = 'claude-code', agentCommand = 'claude'): CanvasNode {
+  return {
+    id,
+    type: 'agent',
+    title: 'Test Agent',
+    x: 0, y: 0, width: 520, height: 360,
+    data: { sessionId: '', cwd: '/home/user', scrollback: '', agentType, agentCommand },
+  };
+}
+
 describe('getNodeCapabilities', () => {
   it('returns correct capabilities', () => {
     expect(getNodeCapabilities('file')).toEqual(['read', 'write']);
     expect(getNodeCapabilities('terminal')).toEqual(['read', 'exec']);
     expect(getNodeCapabilities('frame')).toEqual(['read', 'write']);
+    expect(getNodeCapabilities('agent')).toEqual(['read', 'exec']);
   });
 });
 
@@ -94,6 +105,15 @@ describe('readNode', () => {
     expect(result.label).toBe('Important');
     expect(result.color).toBe('#ff0000');
   });
+
+  it('reads agent node', async () => {
+    const node = makeAgentNode('a1', 'claude-code', 'claude');
+    const result = await readNode(node);
+    expect(result.type).toBe('agent');
+    expect(result.agentType).toBe('claude-code');
+    expect(result.agentCommand).toBe('claude');
+    expect(result.cwd).toBe('/home/user');
+  });
 });
 
 describe('writeNode', () => {
@@ -125,6 +145,14 @@ describe('writeNode', () => {
     await saveCanvas('ws-1', canvas, testDir);
 
     const result = await writeNode('ws-1', 't1', 'hello', testDir);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects write to agent node', async () => {
+    const canvas = makeCanvas([makeAgentNode('a1')]);
+    await saveCanvas('ws-1', canvas, testDir);
+
+    const result = await writeNode('ws-1', 'a1', 'hello', testDir);
     expect(result.ok).toBe(false);
   });
 
@@ -202,6 +230,28 @@ describe('createNode', () => {
     expect(canvas).not.toBeNull();
     expect(canvas!.nodes).toHaveLength(1);
     expect(canvas!.nodes[0].title).toBe('First');
+  });
+
+  it('creates an agent node with default preset', async () => {
+    const canvas = makeCanvas([]);
+    await saveCanvas('ws-1', canvas, testDir);
+
+    const result = await createNode('ws-1', {
+      type: 'agent',
+      title: 'My Agent',
+      data: { agentType: 'claude-code' },
+    }, testDir);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.data.type).toBe('agent');
+    expect(result.data.title).toBe('My Agent');
+
+    const updated = await loadCanvas('ws-1', testDir);
+    expect(updated!.nodes).toHaveLength(1);
+    expect(updated!.nodes[0].data.agentType).toBe('claude-code');
+    expect(updated!.nodes[0].data.agentCommand).toBe('claude');
   });
 
   it('creates file node with initial content', async () => {

@@ -5,6 +5,7 @@ import type { ResizeEdge } from "../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
 import { FrameNodeBody, FrameColorPicker } from "../FrameNodeBody";
+import { AgentNodeBody } from "../AgentNodeBody";
 
 interface Props {
   node: CanvasNode;
@@ -139,6 +140,10 @@ export const CanvasNodeView = ({
               <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
               <path d="M4.5 7l2 1.5-2 1.5M8 10.5h3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
+          ) : node.type === "agent" ? (
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8L8 1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
           ) : (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
@@ -176,6 +181,8 @@ export const CanvasNodeView = ({
           <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} />
         ) : node.type === "terminal" ? (
           <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
+        ) : node.type === "agent" ? (
+          <AgentNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
         ) : (
           <FrameNodeBody node={node} onUpdate={onUpdate} />
         )}
