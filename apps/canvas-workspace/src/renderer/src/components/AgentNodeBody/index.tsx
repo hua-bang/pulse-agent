@@ -4,7 +4,35 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import type { CanvasNode, AgentNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
-import { AGENT_REGISTRY, getAgentCommand } from '../../config/agentRegistry';
+import { AGENT_REGISTRY, getAgentCommand, type AgentDef } from '../../config/agentRegistry';
+
+/** Monoline SVG icon per agent, matching the app's stroke-icon style. */
+const AgentIcon = ({ id }: { id: string }) => {
+  switch (id) {
+    case 'claude-code':
+      return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M5.5 6.5L7.5 8.5 5.5 10.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M9 10.5h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
+        </svg>
+      );
+    case 'codex':
+      return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    default:
+      return (
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M4 13V8l4-5 4 5v5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M7 13v-3h2v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+  }
+};
 
 interface Props {
   node: CanvasNode;
@@ -260,40 +288,42 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
   }, []);
 
   if (!launched) {
+    const agentDef = AGENT_REGISTRY.find((a: AgentDef) => a.id === selectedAgent);
     return (
       <div className="agent-body-wrap">
         <div className="agent-picker">
           <div className="agent-picker-section">
-            <span className="agent-picker-label">Select Agent</span>
+            <span className="agent-picker-label">Agent</span>
             <div className="agent-card-list">
-              {AGENT_REGISTRY.map(a => (
+              {AGENT_REGISTRY.map((a: AgentDef) => (
                 <button
                   key={a.id}
-                  className={`agent-card${selectedAgent === a.id ? ' agent-card--selected' : ''}`}
+                  className={`agent-card${selectedAgent === a.id ? ' agent-card--active' : ''}`}
                   onClick={() => setSelectedAgent(a.id)}
                 >
-                  <span className="agent-card-icon">{a.icon}</span>
-                  <span className="agent-card-info">
-                    <span className="agent-card-name">{a.label}</span>
-                    <span className="agent-card-desc">{a.description}</span>
-                  </span>
+                  <span className="agent-card-icon"><AgentIcon id={a.id} /></span>
+                  <span className="agent-card-name">{a.label}</span>
+                  <span className="agent-card-desc">{a.description}</span>
                 </button>
               ))}
             </div>
           </div>
           <div className="agent-picker-section">
-            <span className="agent-picker-label">Working Directory</span>
+            <span className="agent-picker-label">Directory</span>
             <button className="agent-folder-btn" onClick={handlePickFolder}>
               <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
                 <path d="M2 4.5A1.5 1.5 0 013.5 3H6l1.5 1.5h5A1.5 1.5 0 0114 6v5.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-7z" stroke="currentColor" strokeWidth="1.2" />
               </svg>
               <span className="agent-folder-path">
-                {cwdInput ? truncatePath(cwdInput) : rootFolder ? truncatePath(rootFolder) : 'Select folder\u2026'}
+                {cwdInput ? truncatePath(cwdInput) : rootFolder ? truncatePath(rootFolder) : 'Choose folder\u2026'}
               </span>
             </button>
           </div>
           <button className="agent-launch-btn" onClick={handleLaunch}>
-            Launch Agent
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M4 3l9 5-9 5V3z" fill="currentColor" />
+            </svg>
+            Start {agentDef?.label ?? 'Agent'}
           </button>
         </div>
       </div>
