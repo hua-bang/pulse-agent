@@ -173,9 +173,9 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodesChange
   );
 
   const handleCreateNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'agent') => {
+    (type: 'file' | 'terminal' | 'frame' | 'agent', data?: Record<string, unknown>) => {
       if (!contextMenu) return;
-      const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
+      const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY, data);
       setSelectedNodeIds([node.id]);
       setContextMenu(null);
     },

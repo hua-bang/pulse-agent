@@ -15,12 +15,13 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };
     case 'terminal': return { sessionId: '' };
     case 'frame':    return { color: '#9575d4' };
-    case 'agent':    return { sessionId: '', agentType: 'claude-code', agentCommand: 'claude' };
+    case 'agent':    return { sessionId: '', agentType: 'codex', agentCommand: 'codex' };
   }
 };
 
-export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number): CanvasNode => {
+export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number, initialData?: Record<string, unknown>): CanvasNode => {
   const def = NODE_DEFAULTS[type];
+  const data = createNodeData(type);
   return {
     id: genId(),
     type,
@@ -29,6 +30,6 @@ export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number
     y,
     width: def.width,
     height: def.height,
-    data: createNodeData(type),
+    data: initialData ? { ...data, ...initialData } : data,
   };
 };

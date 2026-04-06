@@ -142,7 +142,11 @@ export const CanvasNodeView = ({
             </svg>
           ) : node.type === "agent" ? (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <path d="M8 1l1.8 3.6L14 5.4l-3 2.9.7 4.1L8 10.5l-3.7 1.9.7-4.1-3-2.9 4.2-.8L8 1z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              <rect x="3" y="6" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+              <circle cx="6.5" cy="9.5" r="1" fill="currentColor" />
+              <circle cx="9.5" cy="9.5" r="1" fill="currentColor" />
+              <path d="M8 6V4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <circle cx="8" cy="3" r="1" fill="currentColor" />
             </svg>
           ) : (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

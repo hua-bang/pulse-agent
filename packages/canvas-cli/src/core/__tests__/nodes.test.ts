@@ -55,7 +55,7 @@ function makeTerminalNode(id: string): CanvasNode {
   };
 }
 
-function makeAgentNode(id: string, agentType = 'claude-code', agentCommand = 'claude'): CanvasNode {
+function makeAgentNode(id: string, agentType = 'codex', agentCommand = 'codex'): CanvasNode {
   return {
     id,
     type: 'agent',
@@ -107,11 +107,11 @@ describe('readNode', () => {
   });
 
   it('reads agent node', async () => {
-    const node = makeAgentNode('a1', 'claude-code', 'claude');
+    const node = makeAgentNode('a1', 'codex', 'codex');
     const result = await readNode(node);
     expect(result.type).toBe('agent');
-    expect(result.agentType).toBe('claude-code');
-    expect(result.agentCommand).toBe('claude');
+    expect(result.agentType).toBe('codex');
+    expect(result.agentCommand).toBe('codex');
     expect(result.cwd).toBe('/home/user');
   });
 });
@@ -232,14 +232,13 @@ describe('createNode', () => {
     expect(canvas!.nodes[0].title).toBe('First');
   });
 
-  it('creates an agent node with default preset', async () => {
+  it('creates an agent node with default codex preset', async () => {
     const canvas = makeCanvas([]);
     await saveCanvas('ws-1', canvas, testDir);
 
     const result = await createNode('ws-1', {
       type: 'agent',
       title: 'My Agent',
-      data: { agentType: 'claude-code' },
     }, testDir);
 
     expect(result.ok).toBe(true);
@@ -250,6 +249,24 @@ describe('createNode', () => {
 
     const updated = await loadCanvas('ws-1', testDir);
     expect(updated!.nodes).toHaveLength(1);
+    expect(updated!.nodes[0].data.agentType).toBe('codex');
+    expect(updated!.nodes[0].data.agentCommand).toBe('codex');
+  });
+
+  it('creates an agent node with explicit agent type', async () => {
+    const canvas = makeCanvas([]);
+    await saveCanvas('ws-1', canvas, testDir);
+
+    const result = await createNode('ws-1', {
+      type: 'agent',
+      title: 'Claude Agent',
+      data: { agentType: 'claude-code' },
+    }, testDir);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const updated = await loadCanvas('ws-1', testDir);
     expect(updated!.nodes[0].data.agentType).toBe('claude-code');
     expect(updated!.nodes[0].data.agentCommand).toBe('claude');
   });

@@ -18,7 +18,7 @@ export const AgentNodeBody = ({ node, allNodes, rootFolder, workspaceId, workspa
     <div className="agent-body-wrap">
       <div className="agent-badge">
         <span className="agent-badge-dot" />
-        <span className="agent-badge-label">{data.agentType ?? 'claude-code'}</span>
+        <span className="agent-badge-label">{data.agentType ?? 'codex'}</span>
       </div>
       <TerminalNodeBody
         node={node}

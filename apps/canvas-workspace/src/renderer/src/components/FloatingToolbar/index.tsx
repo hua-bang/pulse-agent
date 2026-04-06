@@ -117,11 +117,12 @@ export const FloatingToolbar = ({
           onClick={() => onAddNode("agent")}
           title="Add Agent"
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path
-              d="M9 2l2.2 4.4 4.8 1-3.5 3.4.8 4.7L9 13.2l-4.3 2.3.8-4.7L2 7.4l4.8-1L9 2z"
-              stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"
-            />
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
+            <rect x="3" y="6" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+            <circle cx="6.5" cy="9.5" r="1" fill="currentColor" />
+            <circle cx="9.5" cy="9.5" r="1" fill="currentColor" />
+            <path d="M8 6V4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            <circle cx="8" cy="3" r="1" fill="currentColor" />
           </svg>
           <span className="toolbar-btn-label">Agent</span>
         </button>

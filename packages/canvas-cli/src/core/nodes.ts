@@ -52,8 +52,8 @@ export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
         capabilities,
         cwd: node.data.cwd ?? '',
         scrollback: node.data.scrollback ?? '',
-        agentType: node.data.agentType ?? 'claude-code',
-        agentCommand: node.data.agentCommand ?? 'claude',
+        agentType: node.data.agentType ?? 'codex',
+        agentCommand: node.data.agentCommand ?? 'codex',
       };
     default:
       return { type: node.type, capabilities };
@@ -170,9 +170,9 @@ export async function createNode(
       nodeData = { color: (inputData as Record<string, string>).color ?? '#9575d4', label: (inputData as Record<string, string>).label ?? '' };
       break;
     case 'agent': {
-      const agentType = (inputData as Record<string, string>).agentType ?? 'claude-code';
+      const agentType = (inputData as Record<string, string>).agentType ?? 'codex';
       const preset = AGENT_PRESETS[agentType];
-      const agentCommand = (inputData as Record<string, string>).agentCommand ?? preset?.command ?? 'claude';
+      const agentCommand = (inputData as Record<string, string>).agentCommand ?? preset?.command ?? 'codex';
       nodeData = { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '', agentType, agentCommand };
       break;
     }
