@@ -30,6 +30,6 @@ export const createDefaultNode = (type: CanvasNode['type'], x: number, y: number
     y,
     width: def.width,
     height: def.height,
-    data: initialData ? { ...data, ...initialData } : data,
+    data: (initialData ? { ...data, ...initialData } : data) as CanvasNode['data'],
   };
 };

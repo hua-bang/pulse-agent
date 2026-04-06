@@ -80,9 +80,11 @@ export const NodeContextMenu = ({ x, y, onCreate, onClose }: Props) => {
         </span>
       </button>
       <div
-        className="context-menu-item context-menu-item--submenu"
-        onMouseEnter={() => setAgentSubmenuOpen(true)}
-        onMouseLeave={() => setAgentSubmenuOpen(false)}
+        className={`context-menu-item context-menu-item--submenu${agentSubmenuOpen ? ' context-menu-item--submenu-open' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setAgentSubmenuOpen((v) => !v);
+        }}
       >
         <span className="context-menu-icon context-menu-icon--agent">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
