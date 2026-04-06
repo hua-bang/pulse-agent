@@ -50,11 +50,10 @@ export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
       return {
         type: 'agent',
         capabilities,
-        agentId: node.data.agentId ?? '',
-        prompt: node.data.prompt ?? '',
-        status: node.data.status ?? 'idle',
-        output: node.data.output ?? '',
-        error: node.data.error ?? '',
+        agentType: node.data.agentType ?? 'claude-code',
+        cwd: node.data.cwd ?? '',
+        scrollback: node.data.scrollback ?? '',
+        started: node.data.started ?? false,
       };
     default:
       return { type: node.type, capabilities };
@@ -105,23 +104,19 @@ export async function writeNode(
     case 'agent': {
       try {
         const patch = JSON.parse(content) as {
-          prompt?: string;
-          status?: string;
-          output?: string;
-          error?: string;
-          agentId?: string;
+          agentType?: string;
+          cwd?: string;
+          started?: boolean;
         };
-        if (patch.prompt !== undefined) node.data.prompt = patch.prompt;
-        if (patch.status !== undefined) node.data.status = patch.status as 'idle' | 'running' | 'done' | 'error';
-        if (patch.output !== undefined) node.data.output = patch.output;
-        if (patch.error !== undefined) node.data.error = patch.error;
-        if (patch.agentId !== undefined) node.data.agentId = patch.agentId;
+        if (patch.agentType !== undefined) node.data.agentType = patch.agentType as 'claude-code' | 'codex' | 'pulse-coder';
+        if (patch.cwd !== undefined) node.data.cwd = patch.cwd;
+        if (patch.started !== undefined) node.data.started = patch.started;
         node.updatedAt = Date.now();
         await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
         await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
         return { ok: true, data: undefined };
       } catch {
-        return { ok: false, error: 'Agent write expects JSON: { prompt?, status?, output?, error?, agentId? }' };
+        return { ok: false, error: 'Agent write expects JSON: { agentType?, cwd?, started? }' };
       }
     }
     default:
@@ -192,10 +187,10 @@ export async function createNode(
       break;
     case 'agent':
       nodeData = {
-        agentId: (inputData as Record<string, string>).agentId ?? '',
-        prompt: (inputData as Record<string, string>).prompt ?? '',
-        status: 'idle',
-        output: '',
+        agentType: (inputData as Record<string, string>).agentType ?? 'claude-code',
+        sessionId: '',
+        cwd: (inputData as Record<string, string>).cwd ?? '',
+        started: false,
       };
       break;
   }

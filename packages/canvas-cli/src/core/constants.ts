@@ -8,7 +8,7 @@ export const NODE_CAPABILITIES: Record<NodeType, NodeCapability[]> = {
   file: ['read', 'write'],
   terminal: ['read', 'exec'],
   frame: ['read', 'write'],
-  agent: ['read', 'write', 'exec'],
+  agent: ['read', 'exec'],
 };
 
 export const DEFAULT_NODE_DIMENSIONS: Record<NodeType, { title: string; width: number; height: number }> = {

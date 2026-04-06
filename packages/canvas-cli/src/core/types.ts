@@ -11,11 +11,8 @@ export interface CanvasNodeData {
   sessionId?: string;
   color?: string;
   label?: string;
-  agentId?: string;
-  prompt?: string;
-  status?: 'idle' | 'running' | 'done' | 'error';
-  output?: string;
-  error?: string;
+  agentType?: 'claude-code' | 'codex' | 'pulse-coder';
+  started?: boolean;
   [key: string]: unknown;
 }
 

@@ -29,12 +29,17 @@ export interface FrameNodeData {
   label?: string;
 }
 
+export type AgentType = 'claude-code' | 'codex' | 'pulse-coder';
+
 export interface AgentNodeData {
-  agentId: string;
-  prompt: string;
-  status: 'idle' | 'running' | 'done' | 'error';
-  output: string;
-  error?: string;
+  /** Which agent CLI to launch. */
+  agentType: AgentType;
+  /** PTY session id (same pattern as TerminalNodeData). */
+  sessionId: string;
+  scrollback?: string;
+  cwd?: string;
+  /** Whether the agent process has been launched in this session. */
+  started?: boolean;
 }
 
 export interface CanvasTransform {

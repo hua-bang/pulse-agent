@@ -184,7 +184,7 @@ export const CanvasNodeView = ({
         ) : node.type === "terminal" ? (
           <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
         ) : node.type === "agent" ? (
-          <AgentNodeBody node={node} onUpdate={onUpdate} />
+          <AgentNodeBody node={node} rootFolder={rootFolder} workspaceId={workspaceId} onUpdate={onUpdate} />
         ) : (
           <FrameNodeBody node={node} onUpdate={onUpdate} />
         )}

@@ -15,7 +15,7 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };
     case 'terminal': return { sessionId: '' };
     case 'frame':    return { color: '#9575d4' };
-    case 'agent':    return { agentId: '', prompt: '', status: 'idle', output: '' };
+    case 'agent':    return { agentType: 'claude-code', sessionId: '', started: false };
   }
 };
 
