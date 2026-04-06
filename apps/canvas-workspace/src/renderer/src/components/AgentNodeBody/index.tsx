@@ -32,6 +32,19 @@ const serializeBuffer = (term: Terminal): string => {
   return text;
 };
 
+/** Truncate a path for display, keeping the last N segments. */
+const truncatePath = (p: string, maxLen = 36): string => {
+  if (p.length <= maxLen) return p;
+  const parts = p.replace(/\/$/, '').split('/');
+  let result = parts[parts.length - 1];
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const next = parts[i] + '/' + result;
+    if (next.length > maxLen) return '\u2026/' + result;
+    result = next;
+  }
+  return result;
+};
+
 export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props) => {
   const data = node.data as AgentNodeData;
   const status = data.status ?? 'idle';
@@ -97,7 +110,31 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
       return;
     }
 
-    const removeData = api.onData(sessionId, (d: string) => { term.write(d); });
+    // Resolve the agent command to write once the shell is ready
+    const command = getAgentCommand(agentType);
+    const writeCommand = () => {
+      if (command) {
+        const args = dataRef.current.agentArgs ? ` ${dataRef.current.agentArgs}` : '';
+        api.write(sessionId, `${command}${args}\n`);
+      } else {
+        term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
+      }
+    };
+
+    // Wait for the shell to emit its first output (prompt) before writing
+    // the agent command. Writing immediately after spawn() would send the
+    // command while the shell is still sourcing init scripts, causing it to
+    // be lost or garbled.
+    let prompted = false;
+    const promptRemove = api.onData(sessionId, (d: string) => {
+      term.write(d);
+      if (!prompted) {
+        prompted = true;
+        promptRemove();
+        setTimeout(writeCommand, 100);
+      }
+    });
+
     const removeExit = api.onExit(sessionId, (code: number) => {
       term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
       onUpdateRef.current(nodeIdRef.current, {
@@ -110,15 +147,6 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
     });
 
     term.onResize(({ cols, rows }) => { api.resize(sessionId, cols, rows); });
-
-    // Launch the agent command
-    const command = getAgentCommand(agentType);
-    if (command) {
-      const args = dataRef.current.agentArgs ? ` ${dataRef.current.agentArgs}` : '';
-      api.write(sessionId, `${command}${args}\n`);
-    } else {
-      term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
-    }
 
     onUpdateRef.current(nodeIdRef.current, {
       data: { ...dataRef.current, agentType, cwd: spawnCwd ?? '', status: 'running', sessionId },
@@ -134,7 +162,7 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
     }, SCROLLBACK_SAVE_INTERVAL);
 
     cleanupRef.current = () => {
-      removeData();
+      if (!prompted) promptRemove();
       removeExit();
       api.kill(sessionId);
     };
@@ -182,7 +210,6 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
   }, [spawnAgent, selectedAgent, cwdInput]);
 
   const handleRestart = useCallback(() => {
-    // Clean up existing session
     if (saveTimerRef.current) clearInterval(saveTimerRef.current);
     cleanupRef.current?.();
     termRef.current?.dispose();
@@ -199,34 +226,47 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
     setLaunched(false);
   }, []);
 
-  const agentDef = AGENT_REGISTRY.find(a => a.id === selectedAgent);
+  const handlePickFolder = useCallback(async () => {
+    const api = window.canvasWorkspace?.dialog;
+    if (!api) return;
+    const result = await api.openFolder();
+    if (result.ok && !result.canceled && result.folderPath) {
+      setCwdInput(result.folderPath);
+    }
+  }, []);
 
   if (!launched) {
     return (
       <div className="agent-body-wrap">
         <div className="agent-picker">
-          <div className="agent-picker-field">
-            <label>Agent</label>
-            <select
-              value={selectedAgent}
-              onChange={(e) => setSelectedAgent(e.target.value)}
-            >
+          <div className="agent-picker-section">
+            <span className="agent-picker-label">Select Agent</span>
+            <div className="agent-card-list">
               {AGENT_REGISTRY.map(a => (
-                <option key={a.id} value={a.id}>{a.label}</option>
+                <button
+                  key={a.id}
+                  className={`agent-card${selectedAgent === a.id ? ' agent-card--selected' : ''}`}
+                  onClick={() => setSelectedAgent(a.id)}
+                >
+                  <span className="agent-card-icon">{a.icon}</span>
+                  <span className="agent-card-info">
+                    <span className="agent-card-name">{a.label}</span>
+                    <span className="agent-card-desc">{a.description}</span>
+                  </span>
+                </button>
               ))}
-            </select>
-            {agentDef && (
-              <span className="agent-picker-description">{agentDef.description}</span>
-            )}
+            </div>
           </div>
-          <div className="agent-picker-field">
-            <label>Working Directory</label>
-            <input
-              type="text"
-              placeholder={rootFolder || 'default'}
-              value={cwdInput}
-              onChange={(e) => setCwdInput(e.target.value)}
-            />
+          <div className="agent-picker-section">
+            <span className="agent-picker-label">Working Directory</span>
+            <button className="agent-folder-btn" onClick={handlePickFolder}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4.5A1.5 1.5 0 013.5 3H6l1.5 1.5h5A1.5 1.5 0 0114 6v5.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-7z" stroke="currentColor" strokeWidth="1.2" />
+              </svg>
+              <span className="agent-folder-path">
+                {cwdInput ? truncatePath(cwdInput) : rootFolder ? truncatePath(rootFolder) : 'Select folder\u2026'}
+              </span>
+            </button>
           </div>
           <button className="agent-launch-btn" onClick={handleLaunch}>
             Launch Agent
