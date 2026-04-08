@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "pnpm run build:core",
-    "build:core": "pnpm -r --filter \"./packages/*\" --filter \"@pulse-coder/remote-server\" --filter \"@pulse-coder/teams-cli\" build",
+    "build:core": "SKIP_DTS=1 pnpm -r --filter \"./packages/*\" --filter \"@pulse-coder/remote-server\" --filter \"@pulse-coder/teams-cli\" build",
     "build:all": "pnpm -r build",
     "dev": "pnpm run dev:core",
     "dev:core": "pnpm --parallel --filter \"./packages/*\" --filter \"@pulse-coder/remote-server\" --filter \"@pulse-coder/teams-cli\" dev",
