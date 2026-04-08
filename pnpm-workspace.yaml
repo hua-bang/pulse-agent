@@ -1,4 +1,5 @@
 packages:
-  - 'packages/*'
-  - 'apps/remote-server'
-  - 'apps/teams-cli'
+  - "packages/*"
+  - "apps/remote-server"
+  - "apps/teams-cli"
+  - "apps/canvas-workspace"
