@@ -1,13 +1,14 @@
 /**
  * Canvas Agent — the workspace-scoped AI Copilot.
  *
- * Uses the Vercel AI SDK directly (not the engine) to run an agentic loop
- * with canvas-specific tools. Runs in the Electron main process.
+ * Uses pulse-coder-engine's Engine class to run an agentic loop with
+ * canvas-specific tools + built-in filesystem tools (read, write, edit,
+ * grep, ls, bash). Runs in the Electron main process.
  */
 
-import { generateText, tool, stepCountIs, type ModelMessage, type Tool as AITool, type ToolSet } from 'ai';
+import { Engine } from 'pulse-coder-engine';
 import { createOpenAI } from '@ai-sdk/openai';
-import { z } from 'zod';
+import type { ModelMessage } from 'ai';
 import { buildWorkspaceSummary, formatSummaryForPrompt } from './context-builder';
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
@@ -21,7 +22,8 @@ const BASE_SYSTEM_PROMPT = `You are the Canvas Agent — the AI Copilot for this
 You are the single AI entry point for this workspace. You can:
 - Understand and explain everything on the canvas (files, terminals, agents, frames)
 - Create, update, delete, and organize canvas nodes
-- Read and write files directly
+- Read and write project files directly
+- Run shell commands
 - Generate documents, PRDs, and technical specs
 
 ## Context Strategy
@@ -37,11 +39,22 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`canvas_delete_node\`: Remove a node from the canvas
 - \`canvas_move_node\`: Reposition a node
 
+## Filesystem Tools (built-in)
+- \`read\`: Read file contents (with offset/limit support)
+- \`write\`: Write or create files
+- \`edit\`: Edit files with find & replace
+- \`grep\`: Search file contents by regex
+- \`ls\`: List directory contents
+- \`bash\`: Execute shell commands
+
+Use these alongside canvas_* tools for full workspace control.
+
 ## Guidelines
 - Be concise and direct
 - When creating file nodes, give them meaningful titles
 - When the user references a node by title, look it up in the summary below
 - For canvas-related tasks, use the canvas_* tools
+- For code-related tasks, use the filesystem tools (read, write, edit, grep, bash)
 
 `;
 
@@ -52,42 +65,35 @@ function buildSystemPrompt(summary: WorkspaceSummary | null): string {
   return BASE_SYSTEM_PROMPT + '\n## Current Canvas\n' + formatSummaryForPrompt(summary);
 }
 
-// ─── AI SDK tool adapter ───────────────────────────────────────────
-
-function buildAITools(workspaceId: string): ToolSet {
-  const rawTools = createCanvasTools(workspaceId);
-  const aiTools: ToolSet = {};
-
-  for (const [name, def] of Object.entries(rawTools)) {
-    aiTools[name] = tool({
-      description: def.description,
-      inputSchema: z.object({}).passthrough(),
-      execute: async (input: Record<string, unknown>) => {
-        return await def.execute(input);
-      },
-    });
-  }
-
-  return aiTools;
-}
-
 // ─── Canvas Agent ──────────────────────────────────────────────────
 
 export class CanvasAgent {
+  private engine: any; // Engine type from pulse-coder-engine (no .d.ts yet)
   private messages: ModelMessage[] = [];
   private sessionStore: SessionStore;
   private config: CanvasAgentConfig;
-  private aiTools: ToolSet = {};
 
   constructor(config: CanvasAgentConfig) {
     this.config = config;
     this.sessionStore = new SessionStore(config.workspaceId);
+
+    const canvasTools = createCanvasTools(config.workspaceId);
+
+    this.engine = new Engine({
+      disableBuiltInPlugins: true,
+      llmProvider: createOpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        baseURL: process.env.OPENAI_API_URL,
+      }),
+      model: config.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o',
+      tools: canvasTools,
+    });
   }
 
   async initialize(): Promise<void> {
     console.info(`[canvas-agent] Initializing for workspace: ${this.config.workspaceId}`);
 
-    this.aiTools = buildAITools(this.config.workspaceId);
+    await this.engine.initialize();
 
     // Start a new session
     await this.sessionStore.startSession();
@@ -104,31 +110,29 @@ export class CanvasAgent {
     const systemPrompt = buildSystemPrompt(summary);
 
     // Add user message
-    this.messages.push({ role: 'user', content: [{ type: 'text', text: message }] });
+    this.messages.push({ role: 'user', content: message } as ModelMessage);
     this.sessionStore.addMessage({ role: 'user', content: message, timestamp: Date.now() });
 
-    // Build the provider from env vars
-    const provider = createOpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-      baseURL: process.env.OPENAI_API_URL,
+    // Build the context — pass a mutable reference so onResponse/onCompacted can update it
+    const context = { messages: this.messages };
+
+    const resultText = await this.engine.run(context, {
+      systemPrompt,
+      maxSteps: 10,
+      onResponse: (msgs: ModelMessage[]) => {
+        for (const msg of msgs) {
+          this.messages.push(msg);
+        }
+      },
+      onCompacted: (newMessages: ModelMessage[]) => {
+        this.messages = newMessages;
+        context.messages = newMessages;
+      },
     });
 
-    const model = this.config.model
-      ?? process.env.OPENAI_MODEL
-      ?? 'gpt-4o';
+    const responseText = resultText || '(no response)';
 
-    const result = await generateText({
-      model: provider(model),
-      system: systemPrompt,
-      messages: this.messages,
-      tools: this.aiTools,
-      stopWhen: stepCountIs(10),
-    });
-
-    const responseText = result.text || '(no response)';
-
-    // Add assistant response
-    this.messages.push({ role: 'assistant', content: [{ type: 'text', text: responseText }] });
+    // Persist assistant response
     this.sessionStore.addMessage({ role: 'assistant', content: responseText, timestamp: Date.now() });
 
     return responseText;

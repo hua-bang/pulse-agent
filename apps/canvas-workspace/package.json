@@ -82,6 +82,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.21",
+    "pulse-coder-engine": "workspace:*",
     "ai": "^6.0.57",
     "zod": "^4.0.0",
     "@tiptap/extension-bubble-menu": "^3.20.4",

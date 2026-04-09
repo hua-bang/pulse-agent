@@ -3,12 +3,16 @@
  *
  * These tools operate directly on the canvas filesystem (canvas.json + notes/)
  * in the Electron main process. They do NOT go through the CLI.
+ *
+ * Tool interface matches pulse-coder-engine's Tool type:
+ *   { name, description, inputSchema (Zod), execute }
  */
 
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import { BrowserWindow } from 'electron';
+import { z } from 'zod';
 import {
   buildWorkspaceSummary,
   buildDetailedContext,
@@ -96,33 +100,28 @@ function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
   return { x: maxRight + 40, y: bestY };
 }
 
-// ─── Tool definitions ──────────────────────────────────────────────
+// ─── Canvas Tool type (matches Engine's Tool interface) ────────────
 
-export interface CanvasToolDefs {
-  [name: string]: {
-    description: string;
-    parameters: Record<string, unknown>;
-    execute: (input: Record<string, unknown>) => Promise<string>;
-  };
+export interface CanvasTool {
+  name: string;
+  description: string;
+  inputSchema: z.ZodType;
+  execute: (input: any) => Promise<string>;
 }
 
-export function createCanvasTools(workspaceId: string): CanvasToolDefs {
+// ─── Tool definitions ──────────────────────────────────────────────
+
+export function createCanvasTools(workspaceId: string): Record<string, CanvasTool> {
   return {
     canvas_read_context: {
+      name: 'canvas_read_context',
       description:
         'Read the current workspace context. Use detail="summary" (default) for a quick overview of all nodes, or detail="full" to include file contents and terminal scrollback.',
-      parameters: {
-        type: 'object',
-        properties: {
-          detail: {
-            type: 'string',
-            enum: ['summary', 'full'],
-            description: 'Level of detail. "summary" returns node list with metadata. "full" includes file contents and terminal scrollback.',
-          },
-        },
-      },
+      inputSchema: z.object({
+        detail: z.enum(['summary', 'full']).optional().describe('Level of detail. "summary" returns node list with metadata. "full" includes file contents and terminal scrollback.'),
+      }),
       execute: async (input) => {
-        const detail = (input.detail as string) ?? 'summary';
+        const detail = input.detail ?? 'summary';
         if (detail === 'full') {
           const ctx = await buildDetailedContext(workspaceId);
           if (!ctx) return 'Error: workspace not found';
@@ -135,15 +134,12 @@ export function createCanvasTools(workspaceId: string): CanvasToolDefs {
     },
 
     canvas_read_node: {
+      name: 'canvas_read_node',
       description:
         'Read the full content of a specific canvas node. For file nodes, returns the file content. For terminal/agent nodes, returns scrollback output.',
-      parameters: {
-        type: 'object',
-        properties: {
-          nodeId: { type: 'string', description: 'The ID of the node to read.' },
-        },
-        required: ['nodeId'],
-      },
+      inputSchema: z.object({
+        nodeId: z.string().describe('The ID of the node to read.'),
+      }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
         const detail = await readNodeDetail(workspaceId, nodeId);
@@ -153,20 +149,17 @@ export function createCanvasTools(workspaceId: string): CanvasToolDefs {
     },
 
     canvas_create_node: {
+      name: 'canvas_create_node',
       description:
         'Create a new node on the canvas. For file nodes, a notes file is automatically created in the workspace.',
-      parameters: {
-        type: 'object',
-        properties: {
-          type: { type: 'string', enum: ['file', 'terminal', 'frame', 'agent'], description: 'Node type.' },
-          title: { type: 'string', description: 'Node title.' },
-          content: { type: 'string', description: 'Initial content (for file nodes).' },
-          x: { type: 'number', description: 'X position (auto-placed if omitted).' },
-          y: { type: 'number', description: 'Y position (auto-placed if omitted).' },
-          data: { type: 'object', description: 'Additional node data (e.g. color/label for frames, cwd for terminals).' },
-        },
-        required: ['type'],
-      },
+      inputSchema: z.object({
+        type: z.enum(['file', 'terminal', 'frame', 'agent']).describe('Node type.'),
+        title: z.string().optional().describe('Node title.'),
+        content: z.string().optional().describe('Initial content (for file nodes).'),
+        x: z.number().optional().describe('X position (auto-placed if omitted).'),
+        y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+        data: z.record(z.string(), z.unknown()).optional().describe('Additional node data (e.g. color/label for frames, cwd for terminals).'),
+      }),
       execute: async (input) => {
         const nodeType = input.type as NodeType;
         const title = (input.title as string) ?? DEFAULT_DIMENSIONS[nodeType]?.title ?? 'Untitled';
@@ -248,18 +241,15 @@ export function createCanvasTools(workspaceId: string): CanvasToolDefs {
     },
 
     canvas_update_node: {
+      name: 'canvas_update_node',
       description:
         'Update an existing canvas node. For file nodes, updates the file content. For frame nodes, updates label/color.',
-      parameters: {
-        type: 'object',
-        properties: {
-          nodeId: { type: 'string', description: 'The ID of the node to update.' },
-          title: { type: 'string', description: 'New title (optional).' },
-          content: { type: 'string', description: 'New content for file nodes.' },
-          data: { type: 'object', description: 'Partial data update (e.g. label, color for frames).' },
-        },
-        required: ['nodeId'],
-      },
+      inputSchema: z.object({
+        nodeId: z.string().describe('The ID of the node to update.'),
+        title: z.string().optional().describe('New title (optional).'),
+        content: z.string().optional().describe('New content for file nodes.'),
+        data: z.record(z.string(), z.unknown()).optional().describe('Partial data update (e.g. label, color for frames).'),
+      }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
         const canvas = await loadCanvas(workspaceId);
@@ -299,14 +289,11 @@ export function createCanvasTools(workspaceId: string): CanvasToolDefs {
     },
 
     canvas_delete_node: {
+      name: 'canvas_delete_node',
       description: 'Delete a node from the canvas.',
-      parameters: {
-        type: 'object',
-        properties: {
-          nodeId: { type: 'string', description: 'The ID of the node to delete.' },
-        },
-        required: ['nodeId'],
-      },
+      inputSchema: z.object({
+        nodeId: z.string().describe('The ID of the node to delete.'),
+      }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
         const canvas = await loadCanvas(workspaceId);
@@ -327,16 +314,13 @@ export function createCanvasTools(workspaceId: string): CanvasToolDefs {
     },
 
     canvas_move_node: {
+      name: 'canvas_move_node',
       description: 'Move a node to a new position on the canvas.',
-      parameters: {
-        type: 'object',
-        properties: {
-          nodeId: { type: 'string', description: 'The ID of the node to move.' },
-          x: { type: 'number', description: 'New X position.' },
-          y: { type: 'number', description: 'New Y position.' },
-        },
-        required: ['nodeId', 'x', 'y'],
-      },
+      inputSchema: z.object({
+        nodeId: z.string().describe('The ID of the node to move.'),
+        x: z.number().describe('New X position.'),
+        y: z.number().describe('New Y position.'),
+      }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
         const canvas = await loadCanvas(workspaceId);
