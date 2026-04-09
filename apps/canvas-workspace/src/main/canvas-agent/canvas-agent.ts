@@ -129,11 +129,15 @@ export class CanvasAgent {
       maxSteps: 10,
       onText,
       onToolCall: onToolCall
-        ? (chunk: any) => { onToolCall({ name: chunk.toolName, args: chunk.args }); }
+        ? (chunk: any) => {
+            // AI SDK v6 uses `input` not `args`
+            onToolCall({ name: chunk.toolName, args: chunk.input ?? chunk.args });
+          }
         : undefined,
       onToolResult: onToolResult
         ? (chunk: any) => {
-            const result = chunk.result;
+            // AI SDK v6 uses `output` not `result`
+            const result = chunk.output ?? chunk.result;
             onToolResult({
               name: chunk.toolName,
               result: typeof result === 'string' ? result : JSON.stringify(result),

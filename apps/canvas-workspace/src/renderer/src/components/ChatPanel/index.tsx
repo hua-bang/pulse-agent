@@ -107,7 +107,11 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
   const [sessions, setSessions] = useState<AgentSessionInfo[]>([]);
   const [streamingTools, setStreamingTools] = useState<ToolCallStatus[]>([]);
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+  // Persist tool calls per message (msgIndex → tools). Not stored in message data.
+  const [messageTools, setMessageTools] = useState<Map<number, ToolCallStatus[]>>(new Map());
+  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const toolIdCounter = useRef(0);
+  const streamingMsgIdx = useRef(-1);
 
   // @ mention state
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -161,6 +165,8 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     setSessionMenuOpen(false);
     await window.canvasWorkspace.agent.newSession(workspaceId);
     setMessages([]);
+    setMessageTools(new Map());
+    setCollapsedSections(new Set());
   }, [workspaceId]);
 
   const handleLoadSession = useCallback(async (sessionId: string) => {
@@ -169,6 +175,8 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     if (result.ok && result.messages) {
       setMessages(result.messages);
     }
+    setMessageTools(new Map());
+    setCollapsedSections(new Set());
   }, [workspaceId]);
 
   // Scroll to bottom when messages or streaming tools change
@@ -286,6 +294,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
         setMessages(prev => {
           if (assistantIdx.current >= 0) return prev;
           assistantIdx.current = prev.length;
+          streamingMsgIdx.current = prev.length;
           return [...prev, { role: 'assistant' as const, content: '', timestamp: Date.now() }];
         });
       };
@@ -294,7 +303,12 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
       const unsubToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, (data) => {
         ensureAssistantMessage();
         toolCalls.push({ id: ++toolIdCounter.current, name: data.name, args: data.args, status: 'running' });
-        setStreamingTools([...toolCalls]);
+        const snapshot = [...toolCalls];
+        setStreamingTools(snapshot);
+        // Persist to messageTools
+        if (assistantIdx.current >= 0) {
+          setMessageTools(prev => new Map(prev).set(assistantIdx.current, snapshot));
+        }
       });
 
       const unsubToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, (data) => {
@@ -303,7 +317,11 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
           tc.status = 'done';
           tc.result = data.result;
         }
-        setStreamingTools([...toolCalls]);
+        const snapshot = [...toolCalls];
+        setStreamingTools(snapshot);
+        if (assistantIdx.current >= 0) {
+          setMessageTools(prev => new Map(prev).set(assistantIdx.current, snapshot));
+        }
       });
 
       // Subscribe to text deltas
@@ -324,8 +342,13 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
         unsubComplete();
         unsubToolCall();
         unsubToolResult();
+        // Collapse the tool section (don't clear — keep in messageTools)
+        if (assistantIdx.current >= 0 && toolCalls.length > 0) {
+          setCollapsedSections(prev => new Set(prev).add(assistantIdx.current));
+        }
         setStreamingTools([]);
         setExpandedTools(new Set());
+        streamingMsgIdx.current = -1;
 
         if (!completeResult.ok) {
           setMessages(prev => {
@@ -412,44 +435,82 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     });
   }, []);
 
-  const renderToolCalls = (tools: ToolCallStatus[]) => (
-    <div className="chat-tool-calls">
-      {tools.map((tc) => (
-        <div key={tc.id} className={`chat-tool-call chat-tool-call--${tc.status}`}>
-          <div
-            className="chat-tool-call-header"
-            onClick={tc.status === 'done' && tc.result ? () => toggleToolExpand(tc.id) : undefined}
-            style={tc.status === 'done' && tc.result ? { cursor: 'pointer' } : undefined}
-          >
-            <span className="chat-tool-call-icon">
-              {tc.status === 'running' ? (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
-                  <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
-                </svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
+  const toggleSection = useCallback((msgIdx: number) => {
+    setCollapsedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(msgIdx)) next.delete(msgIdx);
+      else next.add(msgIdx);
+      return next;
+    });
+  }, []);
+
+  const renderToolCalls = (tools: ToolCallStatus[], msgIdx: number, collapsed: boolean) => {
+    if (collapsed) {
+      return (
+        <div className="chat-tool-calls chat-tool-calls--collapsed" onClick={() => toggleSection(msgIdx)}>
+          <span className="chat-tool-call-icon">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="chat-tool-calls-summary">{tools.length} tool call{tools.length > 1 ? 's' : ''}</span>
+          <span className="chat-tool-call-chevron">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="chat-tool-calls">
+        {!loading && tools.length > 0 && (
+          <div className="chat-tool-calls-section-header" onClick={() => toggleSection(msgIdx)}>
+            <span className="chat-tool-calls-summary">{tools.length} tool call{tools.length > 1 ? 's' : ''}</span>
+            <span className="chat-tool-call-chevron chat-tool-call-chevron--open">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </span>
-            <span className="chat-tool-call-sig">{formatToolSignature(tc.name, tc.args)}</span>
-            {tc.status === 'done' && tc.result && (
-              <span className={`chat-tool-call-chevron${expandedTools.has(tc.id) ? ' chat-tool-call-chevron--open' : ''}`}>
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+          </div>
+        )}
+        {tools.map((tc) => (
+          <div key={tc.id} className={`chat-tool-call chat-tool-call--${tc.status}`}>
+            <div
+              className="chat-tool-call-header"
+              onClick={tc.status === 'done' && tc.result ? () => toggleToolExpand(tc.id) : undefined}
+              style={tc.status === 'done' && tc.result ? { cursor: 'pointer' } : undefined}
+            >
+              <span className="chat-tool-call-icon">
+                {tc.status === 'running' ? (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
+                    <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
               </span>
+              <span className="chat-tool-call-sig">{formatToolSignature(tc.name, tc.args)}</span>
+              {tc.status === 'done' && tc.result && (
+                <span className={`chat-tool-call-chevron${expandedTools.has(tc.id) ? ' chat-tool-call-chevron--open' : ''}`}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </span>
+              )}
+            </div>
+            {expandedTools.has(tc.id) && tc.result && (
+              <div className="chat-tool-call-result">
+                <pre>{tc.result.length > 2000 ? tc.result.slice(0, 2000) + '\n...(truncated)' : tc.result}</pre>
+              </div>
             )}
           </div>
-          {expandedTools.has(tc.id) && tc.result && (
-            <div className="chat-tool-call-result">
-              <pre>{tc.result.length > 2000 ? tc.result.slice(0, 2000) + '\n...(truncated)' : tc.result}</pre>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+        ))}
+      </div>
+    );
+  };
 
   const handleQuickAction = useCallback((prompt: string) => {
     if (prompt) {
@@ -562,6 +623,8 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
         <div className="chat-messages">
           {messages.map((msg, i) => {
             const isStreaming = loading && msg.role === 'assistant' && i === messages.length - 1;
+            const tools = isStreaming ? streamingTools : messageTools.get(i);
+            const isCollapsed = collapsedSections.has(i);
             return (
               <div key={i} className={`chat-message chat-message-${msg.role}`}>
                 {msg.role === 'assistant' && (
@@ -573,7 +636,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                   </div>
                 )}
                 <div className="chat-message-body">
-                  {isStreaming && streamingTools.length > 0 && renderToolCalls(streamingTools)}
+                  {msg.role === 'assistant' && tools && tools.length > 0 && renderToolCalls(tools, i, isCollapsed)}
                   {msg.role === 'assistant' ? (
                     isStreaming ? (
                       msg.content ? (
@@ -581,7 +644,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                           className="chat-message-content chat-md chat-md--streaming"
                           dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
                         />
-                      ) : streamingTools.length === 0 ? (
+                      ) : (!tools || tools.length === 0) ? (
                         <div className="chat-loading">
                           <div className="chat-loading-dot" />
                           <div className="chat-loading-dot" />
