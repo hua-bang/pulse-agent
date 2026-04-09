@@ -551,11 +551,16 @@
 
 /* ─── Tool call indicators ───────────────────────────────── */
 
+.chat-message-body {
+  flex: 1;
+  min-width: 0;
+}
+
 .chat-tool-calls {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 16px 4px 40px;
+  padding: 4px 0;
 }
 
 .chat-tool-call {

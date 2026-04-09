@@ -494,47 +494,49 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                     </svg>
                   </div>
                 )}
-                {msg.role === 'assistant' ? (
-                  isStreaming ? (
-                    <div className="chat-message-content chat-md chat-md--streaming">
-                      {msg.content}
+                <div className="chat-message-body">
+                  {isStreaming && streamingTools.length > 0 && (
+                    <div className="chat-tool-calls">
+                      {streamingTools.map((tc, idx) => (
+                        <div key={idx} className={`chat-tool-call chat-tool-call--${tc.status}`}>
+                          <span className="chat-tool-call-icon">
+                            {tc.status === 'running' ? (
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
+                                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
+                              </svg>
+                            ) : (
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </span>
+                          <span className="chat-tool-call-name">{tc.name}</span>
+                          {formatToolArgs(tc.name, tc.args) && (
+                            <span className="chat-tool-call-args">{formatToolArgs(tc.name, tc.args)}</span>
+                          )}
+                        </div>
+                      ))}
                     </div>
+                  )}
+                  {msg.role === 'assistant' ? (
+                    isStreaming ? (
+                      <div className="chat-message-content chat-md chat-md--streaming">
+                        {msg.content}
+                      </div>
+                    ) : (
+                      <div
+                        className="chat-message-content chat-md"
+                        dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
+                      />
+                    )
                   ) : (
-                    <div
-                      className="chat-message-content chat-md"
-                      dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
-                    />
-                  )
-                ) : (
-                  <div className="chat-message-content">{msg.content}</div>
-                )}
+                    <div className="chat-message-content">{msg.content}</div>
+                  )}
+                </div>
               </div>
             );
           })}
-          {streamingTools.length > 0 && (
-            <div className="chat-tool-calls">
-              {streamingTools.map((tc, i) => (
-                <div key={i} className={`chat-tool-call chat-tool-call--${tc.status}`}>
-                  <span className="chat-tool-call-icon">
-                    {tc.status === 'running' ? (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
-                        <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
-                      </svg>
-                    ) : (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                        <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="chat-tool-call-name">{tc.name}</span>
-                  {formatToolArgs(tc.name, tc.args) && (
-                    <span className="chat-tool-call-args">{formatToolArgs(tc.name, tc.args)}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-          {loading && !(messages.length > 0 && messages[messages.length - 1].role === 'assistant') && streamingTools.length === 0 && (
+          {loading && !(messages.length > 0 && messages[messages.length - 1].role === 'assistant') && (
             <div className="chat-message chat-message-assistant">
               <div className="chat-message-avatar">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -542,10 +544,36 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                   <path d="M4 14c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                 </svg>
               </div>
-              <div className="chat-loading">
-                <div className="chat-loading-dot" />
-                <div className="chat-loading-dot" />
-                <div className="chat-loading-dot" />
+              <div className="chat-message-body">
+                {streamingTools.length > 0 ? (
+                  <div className="chat-tool-calls">
+                    {streamingTools.map((tc, idx) => (
+                      <div key={idx} className={`chat-tool-call chat-tool-call--${tc.status}`}>
+                        <span className="chat-tool-call-icon">
+                          {tc.status === 'running' ? (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
+                              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
+                            </svg>
+                          ) : (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                              <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="chat-tool-call-name">{tc.name}</span>
+                        {formatToolArgs(tc.name, tc.args) && (
+                          <span className="chat-tool-call-args">{formatToolArgs(tc.name, tc.args)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="chat-loading">
+                    <div className="chat-loading-dot" />
+                    <div className="chat-loading-dot" />
+                    <div className="chat-loading-dot" />
+                  </div>
+                )}
               </div>
             </div>
           )}
