@@ -150,12 +150,15 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
         term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
         return;
       }
-      const promptFile = dataRef.current.promptFile;
-      const agentArgs = dataRef.current.agentArgs;
-      if (promptFile) {
-        // Safe prompt injection: read file into shell var, pass as single arg.
-        // Shell variables within double quotes are NOT re-expanded, so content
-        // with $, backticks, etc. is passed literally to the agent.
+      const { inlinePrompt, promptFile, agentArgs } = dataRef.current;
+      if (inlinePrompt) {
+        // Short prompt: pass directly as single-quoted CLI arg.
+        // Single-quoted strings have zero shell interpretation.
+        const escaped = inlinePrompt.replace(/'/g, "'\\''" );
+        api.write(sessionId, `${command} '${escaped}'\n`);
+      } else if (promptFile) {
+        // Long prompt: read file into shell var, pass as single arg.
+        // Shell variables in double quotes are NOT re-expanded.
         api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command} "$__prompt"\n`);
       } else if (agentArgs) {
         api.write(sessionId, `${command} ${agentArgs}\n`);

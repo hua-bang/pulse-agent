@@ -109,6 +109,9 @@ export interface CanvasTool {
   execute: (input: any) => Promise<string>;
 }
 
+/** Prompts shorter than this are passed directly as CLI args; longer ones go to a file. */
+const INLINE_PROMPT_THRESHOLD = 256;
+
 // ─── Tool definitions ──────────────────────────────────────────────
 
 export function createCanvasTools(workspaceId: string): Record<string, CanvasTool> {
@@ -211,14 +214,19 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             const status = validStatuses.includes(requestedStatus) ? requestedStatus : 'idle';
             const agentCwd = (extraData.cwd as string) ?? '';
             const prompt = (extraData.prompt as string) ?? '';
-            let agentArgs = (extraData.agentArgs as string) ?? '';
+            const agentArgs = (extraData.agentArgs as string) ?? '';
 
-            // Write prompt file to cwd — renderer will pipe it to the agent
+            // Short prompt → inline CLI arg; long prompt → file
+            let inlinePrompt = '';
             let promptFile = '';
             if (prompt && agentCwd) {
-              promptFile = '.canvas-agent-task.md';
-              await fs.mkdir(agentCwd, { recursive: true });
-              await fs.writeFile(join(agentCwd, promptFile), prompt, 'utf-8');
+              if (prompt.length <= INLINE_PROMPT_THRESHOLD) {
+                inlinePrompt = prompt;
+              } else {
+                promptFile = '.canvas-agent-task.md';
+                await fs.mkdir(agentCwd, { recursive: true });
+                await fs.writeFile(join(agentCwd, promptFile), prompt, 'utf-8');
+              }
             }
 
             nodeData = {
@@ -227,6 +235,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               agentType: (extraData.agentType as string) ?? 'claude-code',
               status,
               agentArgs,
+              inlinePrompt,
               promptFile,
             };
             break;
@@ -405,16 +414,21 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         const agentType = (input.agentType as string) ?? 'claude-code';
         const cwd = input.cwd as string;
         const prompt = (input.prompt as string) ?? '';
-        let agentArgs = (input.agentArgs as string) ?? '';
+        const agentArgs = (input.agentArgs as string) ?? '';
         const autoLaunch = input.autoLaunch ?? !!prompt;
         const title = (input.title as string) ?? DEFAULT_DIMENSIONS.agent.title;
 
-        // Write prompt file to cwd — renderer will pipe it to the agent
+        // Short prompt → inline CLI arg; long prompt → file
+        let inlinePrompt = '';
         let promptFile = '';
         if (prompt && cwd) {
-          promptFile = '.canvas-agent-task.md';
-          await fs.mkdir(cwd, { recursive: true });
-          await fs.writeFile(join(cwd, promptFile), prompt, 'utf-8');
+          if (prompt.length <= INLINE_PROMPT_THRESHOLD) {
+            inlinePrompt = prompt;
+          } else {
+            promptFile = '.canvas-agent-task.md';
+            await fs.mkdir(cwd, { recursive: true });
+            await fs.writeFile(join(cwd, promptFile), prompt, 'utf-8');
+          }
         }
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -437,6 +451,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             agentType,
             status: autoLaunch ? 'running' : 'idle',
             agentArgs,
+            inlinePrompt,
             promptFile,
           },
           updatedAt: Date.now(),

@@ -38,7 +38,9 @@ export interface AgentNodeData {
   agentType: string;
   status?: 'idle' | 'running' | 'done' | 'error';
   agentArgs?: string;
-  /** Relative path to a prompt file in cwd (e.g. '.canvas-agent-task.md'). */
+  /** Short prompt passed directly as a CLI argument. */
+  inlinePrompt?: string;
+  /** Relative path to a prompt file in cwd for long prompts. */
   promptFile?: string;
 }
 
