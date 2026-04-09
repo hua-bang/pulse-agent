@@ -312,18 +312,17 @@
 }
 
 /* Blinking cursor while streaming */
-.chat-md--streaming::after {
-  content: ' ...';
-  display: inline-block;
-  width: 0;
-  overflow: hidden;
-  vertical-align: bottom;
-  color: rgba(55, 53, 47, 0.35);
-  animation: chat-dots 1.4s steps(4, end) infinite;
+.chat-md--streaming > *:last-child::after {
+  content: '▍';
+  display: inline;
+  color: rgba(55, 53, 47, 0.3);
+  animation: chat-cursor-blink 1s step-end infinite;
+  margin-left: 2px;
+  font-weight: 400;
 }
 
-@keyframes chat-dots {
-  to { width: 1.5em; }
+@keyframes chat-cursor-blink {
+  50% { opacity: 0; }
 }
 
 /* ─── Loading ──────────────────────────────────────────────── */
