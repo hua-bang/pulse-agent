@@ -66,6 +66,11 @@ export async function generateContext(
         base.label = (readResult as NodeReadResult & { label?: string }).label ?? '';
         base.color = (readResult as NodeReadResult & { color?: string }).color ?? '';
         break;
+      case 'agent':
+        base.agentType = (readResult as NodeReadResult & { agentType?: string }).agentType ?? 'claude-code';
+        base.status = (readResult as NodeReadResult & { status?: string }).status ?? 'idle';
+        base.cwd = (readResult as NodeReadResult & { cwd?: string }).cwd ?? '';
+        break;
     }
 
     nodes.push(base);
@@ -85,6 +90,7 @@ export function formatContextAsText(ctx: CanvasContext): string {
   const fileNodes = ctx.nodes.filter(n => n.type === 'file');
   const terminalNodes = ctx.nodes.filter(n => n.type === 'terminal');
   const frameNodes = ctx.nodes.filter(n => n.type === 'frame');
+  const agentNodes = ctx.nodes.filter(n => n.type === 'agent');
 
   if (fileNodes.length > 0) {
     lines.push('', '## Files', '');
@@ -108,6 +114,15 @@ export function formatContextAsText(ctx: CanvasContext): string {
     for (const node of terminalNodes) {
       const cwd = node.cwd ? ` (cwd: \`${node.cwd}\`)` : '';
       lines.push(`- **${node.title}**${cwd}`);
+    }
+  }
+
+  if (agentNodes.length > 0) {
+    lines.push('', '## Agents', '');
+    for (const node of agentNodes) {
+      const info = `${node.agentType ?? 'unknown'}, ${node.status ?? 'idle'}`;
+      const cwd = node.cwd ? `, cwd: \`${node.cwd}\`` : '';
+      lines.push(`- **${node.title}** (${info}${cwd})`);
     }
   }
 

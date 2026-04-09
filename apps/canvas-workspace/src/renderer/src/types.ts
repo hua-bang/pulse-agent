@@ -116,6 +116,27 @@ export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
 }
 
+export interface AgentChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export interface AgentApi {
+  chat: (
+    workspaceId: string,
+    message: string
+  ) => Promise<{ ok: boolean; response?: string; error?: string }>;
+  getStatus: (
+    workspaceId: string
+  ) => Promise<{ ok: boolean; active: boolean; messageCount: number }>;
+  getHistory: (
+    workspaceId: string
+  ) => Promise<{ ok: boolean; messages?: AgentChatMessage[] }>;
+  activate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+  deactivate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
 export interface CanvasWorkspaceApi {
   version: string;
   pty: {
@@ -157,6 +178,7 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  agent: AgentApi;
 }
 
 declare global {

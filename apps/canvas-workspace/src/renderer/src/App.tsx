@@ -1,12 +1,14 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import './App.css';
 import { Canvas } from './components/Canvas';
+import { ChatPanel } from './components/ChatPanel';
 import { Sidebar } from './components/Sidebar';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import type { CanvasNode } from './types';
 
 const App = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>();
   const [deleteNodeId, setDeleteNodeId] = useState<string | undefined>();
@@ -40,6 +42,18 @@ const App = () => {
     moveWorkspace,
     reorderFolder,
   } = useWorkspaces();
+
+  // Keyboard shortcut: Cmd/Ctrl+Shift+A to toggle chat panel
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'a') {
+        e.preventDefault();
+        setChatPanelOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   return (
     <div className="app">
@@ -81,6 +95,12 @@ const App = () => {
             />
           ))}
         </div>
+        {chatPanelOpen && activeId && (
+          <ChatPanel
+            workspaceId={activeId}
+            onClose={() => setChatPanelOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

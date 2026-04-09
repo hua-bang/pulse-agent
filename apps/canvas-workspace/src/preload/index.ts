@@ -131,5 +131,22 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
   skills: {
     install: () => ipcRenderer.invoke("skills:install")
+  },
+
+  agent: {
+    chat: (workspaceId: string, message: string) =>
+      ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message }),
+
+    getStatus: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:status", { workspaceId }),
+
+    getHistory: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:history", { workspaceId }),
+
+    activate: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:activate", { workspaceId }),
+
+    deactivate: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:deactivate", { workspaceId }),
   }
 });
