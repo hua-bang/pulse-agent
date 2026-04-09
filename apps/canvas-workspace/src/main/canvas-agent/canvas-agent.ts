@@ -6,7 +6,7 @@
  * grep, ls, bash). Runs in the Electron main process.
  */
 
-import { Engine } from 'pulse-coder-engine';
+import { Engine, builtInSkillsPlugin } from 'pulse-coder-engine';
 import { createOpenAI } from '@ai-sdk/openai';
 import type { ModelMessage } from 'ai';
 import { buildWorkspaceSummary, formatSummaryForPrompt } from './context-builder';
@@ -47,6 +47,9 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`ls\`: List directory contents
 - \`bash\`: Execute shell commands
 
+## Skills
+- \`skill\`: Load a skill by name to get detailed step-by-step instructions for specialized tasks (e.g. canvas operations via pulse-canvas CLI, canvas-bootstrap for deep-research workspace creation)
+
 Use these alongside canvas_* tools for full workspace control.
 
 ## Guidelines
@@ -81,6 +84,9 @@ export class CanvasAgent {
 
     this.engine = new Engine({
       disableBuiltInPlugins: true,
+      enginePlugins: {
+        plugins: [builtInSkillsPlugin],
+      },
       llmProvider: createOpenAI({
         apiKey: process.env.OPENAI_API_KEY,
         baseURL: process.env.OPENAI_API_URL,

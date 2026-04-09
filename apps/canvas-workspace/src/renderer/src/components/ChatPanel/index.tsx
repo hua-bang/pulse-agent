@@ -99,6 +99,83 @@ const QUICK_ACTIONS = [
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
+// ─── @ Mention rendering ─────────────────────────────────────────
+const MENTION_RE = /@\[([^\]]+)\]/g;
+
+/**
+ * Render user message content with structured @[label] mention chips.
+ */
+function renderUserContent(content: string, nodes?: CanvasNode[]): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  const re = new RegExp(MENTION_RE.source, 'g');
+
+  while ((match = re.exec(content)) !== null) {
+    // Text before the mention
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+    const label = match[1];
+    // Try to resolve to a canvas node for type icon
+    const node = nodes?.find(n => n.title === label);
+    parts.push(
+      <span key={match.index} className="chat-mention-chip" data-node-type={node?.type}>
+        <span className="chat-mention-chip-icon">
+          {node?.type === 'terminal' ? (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M4 6l2 1.5L4 9" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : node?.type === 'agent' ? (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M3.5 12c0-1.9 1.6-3.5 3.5-3.5s3.5 1.6 3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          ) : node?.type === 'frame' ? (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M4.5 5h5M4.5 7.5h3" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            </svg>
+          )}
+        </span>
+        <span className="chat-mention-chip-label">{label}</span>
+      </span>
+    );
+    lastIndex = re.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : content;
+}
+
+/**
+ * Process markdown HTML to replace @[label] with mention chip markup.
+ */
+function renderMdWithMentions(content: string, nodes?: CanvasNode[]): string {
+  const html = md.render(content);
+  return html.replace(MENTION_RE, (_match, label: string) => {
+    const node = nodes?.find(n => n.title === label);
+    const nodeType = node?.type ?? 'file';
+    return `<span class="chat-mention-chip" data-node-type="${nodeType}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${
+      nodeType === 'terminal'
+        ? '<rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 6l2 1.5L4 9" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
+        : nodeType === 'agent'
+          ? '<circle cx="7" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 12c0-1.9 1.6-3.5 3.5-3.5s3.5 1.6 3.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>'
+          : nodeType === 'frame'
+            ? '<rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/>'
+            : '<rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5h5M4.5 7.5h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>'
+    }</svg></span><span class="chat-mention-chip-label">${label}</span></span>`;
+  });
+}
+
 export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeStart }: ChatPanelProps) => {
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -642,7 +719,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                       msg.content ? (
                         <div
                           className="chat-message-content chat-md chat-md--streaming"
-                          dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
+                          dangerouslySetInnerHTML={{ __html: renderMdWithMentions(msg.content, nodes) }}
                         />
                       ) : (!tools || tools.length === 0) ? (
                         <div className="chat-loading">
@@ -654,11 +731,11 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                     ) : (
                       <div
                         className="chat-message-content chat-md"
-                        dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
+                        dangerouslySetInnerHTML={{ __html: renderMdWithMentions(msg.content, nodes) }}
                       />
                     )
                   ) : (
-                    <div className="chat-message-content">{msg.content}</div>
+                    <div className="chat-message-content">{renderUserContent(msg.content, nodes)}</div>
                   )}
                 </div>
               </div>
