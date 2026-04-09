@@ -34,42 +34,34 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 ## Canvas Tools
 - \`canvas_read_context\`: Read workspace overview or full context
 - \`canvas_read_node\`: Read a single node's content in detail
-- \`canvas_create_node\`: Create new file/terminal/frame/agent nodes
+- \`canvas_create_node\`: Create new file/frame nodes (generic)
+- \`canvas_create_agent_node\`: **Create and launch an AI agent node** — preferred for agent creation
+- \`canvas_create_terminal_node\`: **Create a terminal node** — preferred for terminal creation
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
 - \`canvas_delete_node\`: Remove a node from the canvas
 - \`canvas_move_node\`: Reposition a node
 
-### Creating Terminal Nodes
-Use \`canvas_create_node\` with type="terminal". The terminal spawns an interactive shell automatically.
-- Set \`data.cwd\` to control the working directory (defaults to workspace root).
-- Example: \`{ type: "terminal", title: "Dev Server", data: { cwd: "/path/to/project" } }\`
+### Delegating Tasks to Agent Nodes
+Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
 
-### Creating Agent Nodes
-Use \`canvas_create_node\` with type="agent". Agent types: "claude-code", "codex", "pulse-coder".
-- Set \`data.agentType\` to choose the agent (default: "claude-code").
-- Set \`data.cwd\` for the agent's working directory.
-- Set \`data.status\` to "running" to auto-launch the agent immediately. If omitted (defaults to "idle"), the user picks the agent manually in the UI.
-- **Set \`data.prompt\` to inject task instructions and canvas context.** This writes a \`.canvas-agent-task.md\` file in the cwd and the agent is told to read it. Always compose a rich prompt that includes relevant canvas content so the agent has full context.
-- \`data.agentArgs\` overrides the auto-generated CLI arguments (rarely needed).
-
-When creating an agent node to perform a task:
-1. First read relevant canvas nodes with \`canvas_read_node\` to gather context.
-2. Compose a detailed \`data.prompt\` that includes the task description AND the relevant canvas content (file contents, terminal output, etc.).
-3. Set \`data.status\` to "running" so the agent auto-launches with the prompt.
+**Workflow:**
+1. Read relevant canvas nodes with \`canvas_read_node\` to gather context.
+2. Compose a detailed \`prompt\` that includes the task description AND the relevant canvas content.
+3. Call \`canvas_create_agent_node\` — the agent auto-launches with the prompt.
 
 Example:
 \`\`\`json
 {
-  "type": "agent",
-  "title": "Implement Feature",
-  "data": {
-    "agentType": "codex",
-    "cwd": "/path/to/project",
-    "status": "running",
-    "prompt": "## Task\\nImplement the login feature.\\n\\n## Context from Canvas\\n(PRD content here...)"
-  }
+  "title": "Codex: Implement Feature",
+  "agentType": "codex",
+  "cwd": "/path/to/project",
+  "prompt": "## Task\\nImplement the login feature.\\n\\n## Context from Canvas\\n(PRD content here...)"
 }
 \`\`\`
+
+### Creating Terminal Nodes
+Use \`canvas_create_terminal_node\` to spawn an interactive shell.
+The shell starts automatically. Set \`cwd\` for the working directory.
 
 ## Filesystem Tools (built-in)
 - \`read\`: Read file contents (with offset/limit support)
