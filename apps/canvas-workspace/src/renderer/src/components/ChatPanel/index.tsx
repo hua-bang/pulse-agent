@@ -577,9 +577,10 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                   {msg.role === 'assistant' ? (
                     isStreaming ? (
                       msg.content ? (
-                        <div className="chat-message-content chat-md chat-md--streaming">
-                          {msg.content}
-                        </div>
+                        <div
+                          className="chat-message-content chat-md chat-md--streaming"
+                          dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
+                        />
                       ) : streamingTools.length === 0 ? (
                         <div className="chat-loading">
                           <div className="chat-loading-dot" />
