@@ -101,6 +101,7 @@ const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
 // ─── @ Mention rendering ─────────────────────────────────────────
 const MENTION_RE = /@\[([^\]]+)\]/g;
+const MENTION_TEST = /@\[([^\]]+)\]/;
 
 /**
  * Render user message content with structured @[label] mention chips.
@@ -597,6 +598,30 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     }
   }, [sendMessage]);
 
+  // Sync mirror overlay scroll with textarea
+  const mirrorRef = useRef<HTMLDivElement>(null);
+  const syncScroll = useCallback(() => {
+    if (textareaRef.current && mirrorRef.current) {
+      mirrorRef.current.scrollTop = textareaRef.current.scrollTop;
+    }
+  }, []);
+
+  // Build mirror HTML: same text but @[label] replaced with chip markup
+  const buildMirrorHtml = useCallback((text: string): string => {
+    if (!text) return '<br>';
+    const escaped = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    const withChips = escaped.replace(/@\[([^\]]+)\]/g, (_m, label: string) => {
+      const node = nodes?.find(n => n.title === label);
+      const nodeType = node?.type ?? 'file';
+      return `<span class="chat-mention-chip chat-mention-chip--input" data-node-type="${nodeType}"><span class="chat-mention-chip-label">${label}</span></span>`;
+    });
+    // Preserve line breaks and trailing newline for height match
+    return withChips.replace(/\n/g, '<br>') + '<br>';
+  }, [nodes]);
+
   const hasMessages = messages.length > 0 || loading;
 
   return (
@@ -795,16 +820,25 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
           </div>
         )}
         <div className="chat-input-box">
-          <textarea
-            ref={textareaRef}
-            className="chat-input"
-            placeholder="Ask anything..."
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            rows={1}
-            disabled={loading}
-          />
+          <div className={`chat-input-wrapper${MENTION_TEST.test(input) ? ' chat-input-wrapper--has-mentions' : ''}`}>
+            <div
+              ref={mirrorRef}
+              className="chat-input-mirror"
+              aria-hidden="true"
+              dangerouslySetInnerHTML={{ __html: buildMirrorHtml(input) }}
+            />
+            <textarea
+              ref={textareaRef}
+              className="chat-input"
+              placeholder="Ask anything..."
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              onScroll={syncScroll}
+              rows={1}
+              disabled={loading}
+            />
+          </div>
           <div className="chat-input-footer">
             <div className="chat-input-footer-left" />
             <button

@@ -372,6 +372,38 @@
   border-color: rgba(55, 53, 47, 0.4);
 }
 
+.chat-input-wrapper {
+  position: relative;
+}
+
+.chat-input-mirror {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 12px 4px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  max-height: 120px;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  box-sizing: border-box;
+  pointer-events: none;
+  color: transparent;
+}
+
+/* When input has mentions, swap visibility: textarea transparent, mirror visible */
+.chat-input-wrapper--has-mentions .chat-input {
+  color: transparent;
+  caret-color: #37352f;
+}
+
+.chat-input-wrapper--has-mentions .chat-input-mirror {
+  color: #37352f;
+}
+
 .chat-input {
   display: block;
   width: 100%;
@@ -386,6 +418,8 @@
   background: transparent;
   color: #37352f;
   box-sizing: border-box;
+  position: relative;
+  z-index: 1;
 }
 
 .chat-input::placeholder {
@@ -824,4 +858,22 @@
 }
 .chat-mention-chip[data-node-type="frame"] .chat-mention-chip-icon {
   color: rgba(233, 168, 0, 0.7);
+}
+
+/* Input mirror chip variant — no icon, compact */
+.chat-mention-chip--input {
+  padding: 0 5px;
+  margin: 0;
+  gap: 0;
+  font-size: inherit;
+  line-height: inherit;
+  vertical-align: baseline;
+  border: none;
+  border-radius: 3px;
+  background: rgba(35, 131, 226, 0.08);
+  color: rgb(35, 131, 226);
+}
+.chat-mention-chip--input .chat-mention-chip-label {
+  font-weight: 500;
+  color: inherit;
 }
