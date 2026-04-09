@@ -47,7 +47,7 @@ Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pul
 **Workflow:**
 1. Read relevant canvas nodes with \`canvas_read_node\` to gather context.
 2. Compose a detailed \`prompt\` that includes the task description AND the relevant canvas content.
-3. Call \`canvas_create_agent_node\` — the agent auto-launches with the prompt.
+3. Call \`canvas_create_agent_node\` — the prompt is piped directly to the agent as its initial prompt.
 
 Example:
 \`\`\`json
@@ -62,6 +62,7 @@ Example:
 ### Creating Terminal Nodes
 Use \`canvas_create_terminal_node\` to spawn an interactive shell.
 The shell starts automatically. Set \`cwd\` for the working directory.
+Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm run dev", "docker compose up").
 
 ## Filesystem Tools (built-in)
 - \`read\`: Read file contents (with offset/limit support)

@@ -146,11 +146,21 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
     // Resolve the agent command to write once the shell is ready
     const command = getAgentCommand(agentType);
     const writeCommand = () => {
-      if (command) {
-        const args = dataRef.current.agentArgs ? ` ${dataRef.current.agentArgs}` : '';
-        api.write(sessionId, `${command}${args}\n`);
-      } else {
+      if (!command) {
         term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
+        return;
+      }
+      const promptFile = dataRef.current.promptFile;
+      const agentArgs = dataRef.current.agentArgs;
+      if (promptFile) {
+        // Safe prompt injection: read file into shell var, pass as single arg.
+        // Shell variables within double quotes are NOT re-expanded, so content
+        // with $, backticks, etc. is passed literally to the agent.
+        api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command} "$__prompt"\n`);
+      } else if (agentArgs) {
+        api.write(sessionId, `${command} ${agentArgs}\n`);
+      } else {
+        api.write(sessionId, `${command}\n`);
       }
     };
 

@@ -158,8 +158,8 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         '- **agent**: Creates an AI agent node (Claude Code, Codex, Pulse Coder). ' +
         'Set `data.agentType` ("claude-code" | "codex" | "pulse-coder"), `data.cwd` for the working directory, ' +
         'and `data.status` to "running" to auto-launch (default "idle" shows a picker). ' +
-        'Use `data.prompt` to inject a task/context — this is written to `.canvas-agent-task.md` in the cwd ' +
-        'and the agent is instructed to read it. Include relevant canvas content in the prompt so the agent knows the context. ' +
+        'Use `data.prompt` to inject a task/context — it is written to a file in the cwd and piped directly ' +
+        'to the agent as its initial prompt. Include relevant canvas content so the agent knows the context. ' +
         'Optional `data.agentArgs` overrides the auto-generated CLI arguments.',
       inputSchema: z.object({
         type: z.enum(['file', 'terminal', 'frame', 'agent']).describe('Node type.'),
@@ -213,12 +213,12 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             const prompt = (extraData.prompt as string) ?? '';
             let agentArgs = (extraData.agentArgs as string) ?? '';
 
-            // Write prompt file to cwd and auto-generate agentArgs
-            if (prompt && agentCwd && !agentArgs) {
-              const promptFile = join(agentCwd, '.canvas-agent-task.md');
+            // Write prompt file to cwd — renderer will pipe it to the agent
+            let promptFile = '';
+            if (prompt && agentCwd) {
+              promptFile = '.canvas-agent-task.md';
               await fs.mkdir(agentCwd, { recursive: true });
-              await fs.writeFile(promptFile, prompt, 'utf-8');
-              agentArgs = '"Read .canvas-agent-task.md and follow the instructions in it."';
+              await fs.writeFile(join(agentCwd, promptFile), prompt, 'utf-8');
             }
 
             nodeData = {
@@ -227,6 +227,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               agentType: (extraData.agentType as string) ?? 'claude-code',
               status,
               agentArgs,
+              promptFile,
             };
             break;
           }
@@ -382,7 +383,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         'Create and optionally auto-launch an AI agent node on the canvas. ' +
         'Use this when you need to delegate a task to another agent (Claude Code, Codex, Pulse Coder). ' +
         'Set `prompt` with task instructions and relevant canvas context so the agent knows what to do. ' +
-        'The prompt is written to `.canvas-agent-task.md` in the cwd and the agent is instructed to read it.',
+        'The prompt is piped directly to the agent as its initial prompt.',
       inputSchema: z.object({
         title: z.string().optional().describe('Node title (e.g. "Codex: Implement login").'),
         agentType: z.enum(['claude-code', 'codex', 'pulse-coder']).optional()
@@ -408,12 +409,12 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         const autoLaunch = input.autoLaunch ?? !!prompt;
         const title = (input.title as string) ?? DEFAULT_DIMENSIONS.agent.title;
 
-        // Write prompt file and auto-generate agentArgs
-        if (prompt && cwd && !agentArgs) {
-          const promptFile = join(cwd, '.canvas-agent-task.md');
+        // Write prompt file to cwd — renderer will pipe it to the agent
+        let promptFile = '';
+        if (prompt && cwd) {
+          promptFile = '.canvas-agent-task.md';
           await fs.mkdir(cwd, { recursive: true });
-          await fs.writeFile(promptFile, prompt, 'utf-8');
-          agentArgs = '"Read .canvas-agent-task.md and follow the instructions in it."';
+          await fs.writeFile(join(cwd, promptFile), prompt, 'utf-8');
         }
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -436,6 +437,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             agentType,
             status: autoLaunch ? 'running' : 'idle',
             agentArgs,
+            promptFile,
           },
           updatedAt: Date.now(),
         };
@@ -455,10 +457,12 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
       name: 'canvas_create_terminal_node',
       description:
         'Create and spawn an interactive terminal node on the canvas. ' +
-        'The shell starts automatically once the node is rendered.',
+        'The shell starts automatically. Use `command` to execute a command after the shell is ready ' +
+        '(e.g. "npm run dev", "docker compose up").',
       inputSchema: z.object({
         title: z.string().optional().describe('Node title (e.g. "Dev Server", "Build"). Defaults to "Terminal".'),
         cwd: z.string().optional().describe('Working directory for the shell. Defaults to workspace root.'),
+        command: z.string().optional().describe('Shell command to execute automatically after spawn (e.g. "npm run dev").'),
         x: z.number().optional().describe('X position (auto-placed if omitted).'),
         y: z.number().optional().describe('Y position (auto-placed if omitted).'),
       }),
@@ -468,6 +472,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
 
         const title = (input.title as string) ?? DEFAULT_DIMENSIONS.terminal.title;
         const cwd = (input.cwd as string) ?? '';
+        const initialCommand = (input.command as string) ?? '';
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const def = DEFAULT_DIMENSIONS.terminal;
@@ -483,7 +488,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           y: pos.y,
           width: def.width,
           height: def.height,
-          data: { sessionId: '', cwd },
+          data: { sessionId: '', cwd, initialCommand },
           updatedAt: Date.now(),
         };
 
