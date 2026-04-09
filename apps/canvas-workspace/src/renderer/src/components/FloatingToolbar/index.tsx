@@ -58,15 +58,13 @@ export const FloatingToolbar = ({
               title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
                 <path
-                  d="M3 4a2 2 0 012-2h8a2 2 0 012 2v6a2 2 0 01-2 2H8l-3 2.5V12H5a2 2 0 01-2-2V4z"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinejoin="round"
+                  d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5"
+                  stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
                 />
-                <circle cx="7" cy="7" r="0.8" fill="currentColor" />
-                <circle cx="9" cy="7" r="0.8" fill="currentColor" />
-                <circle cx="11" cy="7" r="0.8" fill="currentColor" />
+                <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
+                <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
               </svg>
             </button>
           </div>
