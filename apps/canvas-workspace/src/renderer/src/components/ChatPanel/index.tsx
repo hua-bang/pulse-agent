@@ -277,12 +277,22 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
 
       const sessionId = result.sessionId;
 
-      // Lazily create assistant message on first text delta
+      // Create assistant message lazily on first event (tool call or text delta)
       const assistantIdx = { current: -1 };
       const toolCalls: ToolCallStatus[] = [];
 
+      const ensureAssistantMessage = () => {
+        if (assistantIdx.current >= 0) return;
+        setMessages(prev => {
+          if (assistantIdx.current >= 0) return prev;
+          assistantIdx.current = prev.length;
+          return [...prev, { role: 'assistant' as const, content: '', timestamp: Date.now() }];
+        });
+      };
+
       // Subscribe to tool call events
       const unsubToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, (data) => {
+        ensureAssistantMessage();
         toolCalls.push({ id: ++toolIdCounter.current, name: data.name, args: data.args, status: 'running' });
         setStreamingTools([...toolCalls]);
       });
@@ -298,14 +308,10 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
 
       // Subscribe to text deltas
       const unsubDelta = window.canvasWorkspace.agent.onTextDelta(sessionId, (delta) => {
+        ensureAssistantMessage();
         setMessages(prev => {
-          if (assistantIdx.current < 0) {
-            // First delta — create the assistant message now
-            assistantIdx.current = prev.length;
-            return [...prev, { role: 'assistant' as const, content: delta, timestamp: Date.now() }];
-          }
           const idx = assistantIdx.current;
-          if (idx >= prev.length) return prev;
+          if (idx < 0 || idx >= prev.length) return prev;
           const updated = [...prev];
           updated[idx] = { ...updated[idx], content: updated[idx].content + delta };
           return updated;
@@ -570,9 +576,17 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                   {isStreaming && streamingTools.length > 0 && renderToolCalls(streamingTools)}
                   {msg.role === 'assistant' ? (
                     isStreaming ? (
-                      <div className="chat-message-content chat-md chat-md--streaming">
-                        {msg.content}
-                      </div>
+                      msg.content ? (
+                        <div className="chat-message-content chat-md chat-md--streaming">
+                          {msg.content}
+                        </div>
+                      ) : streamingTools.length === 0 ? (
+                        <div className="chat-loading">
+                          <div className="chat-loading-dot" />
+                          <div className="chat-loading-dot" />
+                          <div className="chat-loading-dot" />
+                        </div>
+                      ) : null
                     ) : (
                       <div
                         className="chat-message-content chat-md"
@@ -595,13 +609,11 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                 </svg>
               </div>
               <div className="chat-message-body">
-                {streamingTools.length > 0 ? renderToolCalls(streamingTools) : (
-                  <div className="chat-loading">
-                    <div className="chat-loading-dot" />
-                    <div className="chat-loading-dot" />
-                    <div className="chat-loading-dot" />
-                  </div>
-                )}
+                <div className="chat-loading">
+                  <div className="chat-loading-dot" />
+                  <div className="chat-loading-dot" />
+                  <div className="chat-loading-dot" />
+                </div>
               </div>
             </div>
           )}
