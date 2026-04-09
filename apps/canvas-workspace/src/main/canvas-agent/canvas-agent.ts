@@ -103,8 +103,9 @@ export class CanvasAgent {
 
   /**
    * Send a user message and get the agent's response.
+   * @param onText — optional callback receiving streaming text deltas
    */
-  async chat(message: string): Promise<string> {
+  async chat(message: string, onText?: (delta: string) => void): Promise<string> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
     const systemPrompt = buildSystemPrompt(summary);
@@ -119,6 +120,7 @@ export class CanvasAgent {
     const resultText = await this.engine.run(context, {
       systemPrompt,
       maxSteps: 10,
+      onText,
       onResponse: (msgs: ModelMessage[]) => {
         for (const msg of msgs) {
           this.messages.push(msg);

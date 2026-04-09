@@ -2,14 +2,20 @@
  * IPC handlers for the Canvas Agent.
  *
  * Channels:
- *   canvas-agent:chat     — send a message, get a response
+ *   canvas-agent:chat     — send a message, stream text deltas, get final response
  *   canvas-agent:status   — check if agent is active
  *   canvas-agent:history  — get current session messages
  *   canvas-agent:activate — explicitly start the agent
  *   canvas-agent:deactivate — stop the agent and archive session
+ *
+ * Streaming:
+ *   canvas-agent:chat returns { ok, sessionId } immediately.
+ *   Text deltas arrive on  `canvas-agent:text-delta:{sessionId}`.
+ *   Completion arrives on   `canvas-agent:chat-complete:{sessionId}`.
  */
 
 import { ipcMain } from 'electron';
+import { randomUUID } from 'crypto';
 import { CanvasAgentService } from './canvas-agent/service';
 
 let service: CanvasAgentService | null = null;
@@ -26,8 +32,33 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:chat',
-    async (_event, payload: { workspaceId: string; message: string }) => {
-      return await svc.chat(payload.workspaceId, payload.message);
+    async (event, payload: { workspaceId: string; message: string }) => {
+      const sessionId = randomUUID();
+      const sender = event.sender;
+
+      // Fire-and-forget: run the agent asynchronously, streaming text deltas
+      void (async () => {
+        try {
+          const result = await svc.chat(payload.workspaceId, payload.message, (delta) => {
+            if (!sender.isDestroyed()) {
+              sender.send(`canvas-agent:text-delta:${sessionId}`, delta);
+            }
+          });
+          if (!sender.isDestroyed()) {
+            sender.send(`canvas-agent:chat-complete:${sessionId}`, result);
+          }
+        } catch (err) {
+          if (!sender.isDestroyed()) {
+            sender.send(`canvas-agent:chat-complete:${sessionId}`, {
+              ok: false,
+              error: String(err),
+            });
+          }
+        }
+      })();
+
+      // Return immediately with the sessionId for the renderer to subscribe
+      return { ok: true, sessionId };
     },
   );
 

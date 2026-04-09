@@ -137,6 +137,31 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     chat: (workspaceId: string, message: string) =>
       ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message }),
 
+    onTextDelta: (sessionId: string, callback: (delta: string) => void) => {
+      const channel = `canvas-agent:text-delta:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, delta: string) =>
+        callback(delta);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onChatComplete: (
+      sessionId: string,
+      callback: (result: { ok: boolean; response?: string; error?: string }) => void
+    ) => {
+      const channel = `canvas-agent:chat-complete:${sessionId}`;
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        result: { ok: boolean; response?: string; error?: string }
+      ) => callback(result);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
     getStatus: (workspaceId: string) =>
       ipcRenderer.invoke("canvas-agent:status", { workspaceId }),
 

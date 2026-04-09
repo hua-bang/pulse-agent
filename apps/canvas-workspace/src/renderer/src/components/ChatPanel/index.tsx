@@ -98,21 +98,67 @@ export const ChatPanel = ({ workspaceId, onClose }: ChatPanelProps) => {
 
     try {
       const result = await window.canvasWorkspace.agent.chat(workspaceId, text);
-      if (result.ok && result.response) {
-        const assistantMsg: AgentChatMessage = {
-          role: 'assistant',
-          content: result.response,
-          timestamp: Date.now(),
-        };
-        setMessages(prev => [...prev, assistantMsg]);
-      } else {
+      if (!result.ok || !result.sessionId) {
         const errorMsg: AgentChatMessage = {
           role: 'assistant',
-          content: `Error: ${result.error ?? 'Unknown error'}`,
+          content: `Error: ${result.error ?? 'Failed to start chat'}`,
           timestamp: Date.now(),
         };
         setMessages(prev => [...prev, errorMsg]);
+        setLoading(false);
+        return;
       }
+
+      const sessionId = result.sessionId;
+
+      // Add a placeholder assistant message for streaming
+      const placeholderIdx = { current: -1 };
+      setMessages(prev => {
+        placeholderIdx.current = prev.length;
+        return [...prev, { role: 'assistant' as const, content: '', timestamp: Date.now() }];
+      });
+
+      // Subscribe to text deltas
+      const unsubDelta = window.canvasWorkspace.agent.onTextDelta(sessionId, (delta) => {
+        setMessages(prev => {
+          const idx = placeholderIdx.current;
+          if (idx < 0 || idx >= prev.length) return prev;
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], content: updated[idx].content + delta };
+          return updated;
+        });
+      });
+
+      // Subscribe to completion
+      const unsubComplete = window.canvasWorkspace.agent.onChatComplete(sessionId, (completeResult) => {
+        unsubDelta();
+        unsubComplete();
+
+        if (!completeResult.ok) {
+          setMessages(prev => {
+            const idx = placeholderIdx.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const updated = [...prev];
+            const existing = updated[idx].content;
+            updated[idx] = {
+              ...updated[idx],
+              content: existing || `Error: ${completeResult.error ?? 'Unknown error'}`,
+            };
+            return updated;
+          });
+        } else if (completeResult.response) {
+          // Replace with final complete text for accuracy
+          setMessages(prev => {
+            const idx = placeholderIdx.current;
+            if (idx < 0 || idx >= prev.length) return prev;
+            const updated = [...prev];
+            updated[idx] = { ...updated[idx], content: completeResult.response! };
+            return updated;
+          });
+        }
+
+        setLoading(false);
+      });
     } catch (err) {
       const errorMsg: AgentChatMessage = {
         role: 'assistant',
@@ -120,7 +166,6 @@ export const ChatPanel = ({ workspaceId, onClose }: ChatPanelProps) => {
         timestamp: Date.now(),
       };
       setMessages(prev => [...prev, errorMsg]);
-    } finally {
       setLoading(false);
     }
   }, [input, loading, workspaceId]);

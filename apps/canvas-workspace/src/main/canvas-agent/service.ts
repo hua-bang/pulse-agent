@@ -41,12 +41,13 @@ export class CanvasAgentService {
   /**
    * Send a chat message to the workspace's Canvas Agent.
    * Auto-activates the agent if not already active.
+   * @param onText — optional callback receiving streaming text deltas
    */
-  async chat(workspaceId: string, message: string): Promise<ChatResponse> {
+  async chat(workspaceId: string, message: string, onText?: (delta: string) => void): Promise<ChatResponse> {
     try {
       await this.activate(workspaceId);
       const agent = this.agents.get(workspaceId)!;
-      const response = await agent.chat(message);
+      const response = await agent.chat(message, onText);
       return { ok: true, response };
     } catch (err) {
       console.error(`[canvas-agent-service] chat error for ${workspaceId}:`, err);

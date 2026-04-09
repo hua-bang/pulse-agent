@@ -126,7 +126,15 @@ export interface AgentApi {
   chat: (
     workspaceId: string,
     message: string
-  ) => Promise<{ ok: boolean; response?: string; error?: string }>;
+  ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
+  onTextDelta: (
+    sessionId: string,
+    callback: (delta: string) => void
+  ) => () => void;
+  onChatComplete: (
+    sessionId: string,
+    callback: (result: { ok: boolean; response?: string; error?: string }) => void
+  ) => () => void;
   getStatus: (
     workspaceId: string
   ) => Promise<{ ok: boolean; active: boolean; messageCount: number }>;
