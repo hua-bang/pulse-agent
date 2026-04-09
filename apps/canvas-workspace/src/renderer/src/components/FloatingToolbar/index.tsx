@@ -4,6 +4,8 @@ interface Props {
   activeTool: string;
   onToolChange: (tool: string) => void;
   onAddNode: (type: "file" | "terminal" | "frame" | "agent") => void;
+  chatPanelOpen?: boolean;
+  onChatToggle?: () => void;
 }
 
 const tools = [
@@ -41,10 +43,35 @@ const tools = [
 export const FloatingToolbar = ({
   activeTool,
   onToolChange,
-  onAddNode
+  onAddNode,
+  chatPanelOpen,
+  onChatToggle,
 }: Props) => {
   return (
     <div className="floating-toolbar">
+      {onChatToggle && (
+        <>
+          <div className="toolbar-group">
+            <button
+              className={`toolbar-btn${chatPanelOpen ? " toolbar-btn--active" : ""}`}
+              onClick={onChatToggle}
+              title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
+                <path
+                  d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5"
+                  stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
+                />
+                <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
+                <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
+              </svg>
+            </button>
+          </div>
+          <div className="toolbar-divider" />
+        </>
+      )}
+
       <div className="toolbar-group">
         {tools.map((t) => (
           <button

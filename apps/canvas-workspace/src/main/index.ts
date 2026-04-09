@@ -10,6 +10,7 @@ import { setupFileManagerIpc } from "./file-manager";
 // import { ensureMCPRegistered } from "./mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "./file-watcher";
 import { setupSkillInstallerIpc } from "./skill-installer";
+import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(currentDir, "../preload/index.mjs");
@@ -103,6 +104,7 @@ app.whenReady().then(() => {
   setupFileManagerIpc();
   setupFileWatcherIpc();
   setupSkillInstallerIpc();
+  setupCanvasAgentIpc();
   // MCP server disabled — canvas-cli is the preferred agent interface now.
   // startMCPServer();
   // void ensureMCPRegistered();
@@ -120,6 +122,7 @@ app.on("window-all-closed", () => {
   killAllPty();
   teardownFileWatcher();
   teardownCanvasWatchers();
+  teardownCanvasAgent();
   if (process.platform !== "darwin") {
     app.quit();
   }

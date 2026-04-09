@@ -116,6 +116,61 @@ export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
 }
 
+export interface AgentChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export interface AgentSessionInfo {
+  sessionId: string;
+  date: string;
+  messageCount: number;
+  isCurrent: boolean;
+  preview?: string;
+}
+
+export interface AgentApi {
+  chat: (
+    workspaceId: string,
+    message: string
+  ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
+  onTextDelta: (
+    sessionId: string,
+    callback: (delta: string) => void
+  ) => () => void;
+  onChatComplete: (
+    sessionId: string,
+    callback: (result: { ok: boolean; response?: string; error?: string }) => void
+  ) => () => void;
+  onToolCall: (
+    sessionId: string,
+    callback: (data: { name: string; args: any }) => void
+  ) => () => void;
+  onToolResult: (
+    sessionId: string,
+    callback: (data: { name: string; result: string }) => void
+  ) => () => void;
+  getStatus: (
+    workspaceId: string
+  ) => Promise<{ ok: boolean; active: boolean; messageCount: number }>;
+  getHistory: (
+    workspaceId: string
+  ) => Promise<{ ok: boolean; messages?: AgentChatMessage[] }>;
+  listSessions: (
+    workspaceId: string
+  ) => Promise<{ ok: boolean; sessions?: AgentSessionInfo[]; error?: string }>;
+  newSession: (
+    workspaceId: string
+  ) => Promise<{ ok: boolean; error?: string }>;
+  loadSession: (
+    workspaceId: string,
+    sessionId: string
+  ) => Promise<{ ok: boolean; messages?: AgentChatMessage[]; error?: string }>;
+  activate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+  deactivate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
 export interface CanvasWorkspaceApi {
   version: string;
   pty: {
@@ -157,6 +212,7 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  agent: AgentApi;
 }
 
 declare global {

@@ -81,6 +81,10 @@
     }
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.21",
+    "pulse-coder-engine": "workspace:*",
+    "ai": "^6.0.57",
+    "zod": "^4.0.0",
     "@tiptap/extension-bubble-menu": "^3.20.4",
     "@tiptap/extension-image": "^3.20.5",
     "@tiptap/extension-placeholder": "^3.20.4",
@@ -93,10 +97,12 @@
     "node-pty": "^1.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tiptap-markdown": "^0.9.0"
+    "tiptap-markdown": "^0.9.0",
+    "markdown-it": "^14.1.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
+    "@types/markdown-it": "^14.1.0",
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

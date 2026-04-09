@@ -131,5 +131,76 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
   skills: {
     install: () => ipcRenderer.invoke("skills:install")
+  },
+
+  agent: {
+    chat: (workspaceId: string, message: string) =>
+      ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message }),
+
+    onTextDelta: (sessionId: string, callback: (delta: string) => void) => {
+      const channel = `canvas-agent:text-delta:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, delta: string) =>
+        callback(delta);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onChatComplete: (
+      sessionId: string,
+      callback: (result: { ok: boolean; response?: string; error?: string }) => void
+    ) => {
+      const channel = `canvas-agent:chat-complete:${sessionId}`;
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        result: { ok: boolean; response?: string; error?: string }
+      ) => callback(result);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolCall: (sessionId: string, callback: (data: { name: string; args: any }) => void) => {
+      const channel = `canvas-agent:tool-call:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { name: string; args: any }) =>
+        callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolResult: (sessionId: string, callback: (data: { name: string; result: string }) => void) => {
+      const channel = `canvas-agent:tool-result:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { name: string; result: string }) =>
+        callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    getStatus: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:status", { workspaceId }),
+
+    getHistory: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:history", { workspaceId }),
+
+    listSessions: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:sessions", { workspaceId }),
+
+    newSession: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:new-session", { workspaceId }),
+
+    loadSession: (workspaceId: string, sessionId: string) =>
+      ipcRenderer.invoke("canvas-agent:load-session", { workspaceId, sessionId }),
+
+    activate: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:activate", { workspaceId }),
+
+    deactivate: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:deactivate", { workspaceId }),
   }
 });
