@@ -130,17 +130,20 @@ export class CanvasAgent {
       onText,
       onToolCall: onToolCall
         ? (chunk: any) => {
-            // AI SDK v6 uses `input` not `args`
-            onToolCall({ name: chunk.toolName, args: chunk.input ?? chunk.args });
+            // AI SDK v6 uses `input`; older versions use `args`
+            const args = chunk.input ?? chunk.args;
+            console.info('[canvas-agent] tool-call chunk keys:', Object.keys(chunk), 'input:', chunk.input, 'args:', chunk.args);
+            onToolCall({ name: chunk.toolName, args });
           }
         : undefined,
       onToolResult: onToolResult
         ? (chunk: any) => {
-            // AI SDK v6 uses `output` not `result`
-            const result = chunk.output ?? chunk.result;
+            // AI SDK v6 uses `output`; older versions use `result`
+            const raw = chunk.output ?? chunk.result;
+            console.info('[canvas-agent] tool-result chunk keys:', Object.keys(chunk), 'output:', typeof chunk.output, 'result:', typeof chunk.result);
             onToolResult({
               name: chunk.toolName,
-              result: typeof result === 'string' ? result : JSON.stringify(result),
+              result: typeof raw === 'string' ? raw : JSON.stringify(raw),
             });
           }
         : undefined,
