@@ -158,7 +158,9 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         '- **agent**: Creates an AI agent node (Claude Code, Codex, Pulse Coder). ' +
         'Set `data.agentType` ("claude-code" | "codex" | "pulse-coder"), `data.cwd` for the working directory, ' +
         'and `data.status` to "running" to auto-launch (default "idle" shows a picker). ' +
-        'Optional `data.agentArgs` passes extra arguments to the agent command.',
+        'Use `data.prompt` to inject a task/context — this is written to `.canvas-agent-task.md` in the cwd ' +
+        'and the agent is instructed to read it. Include relevant canvas content in the prompt so the agent knows the context. ' +
+        'Optional `data.agentArgs` overrides the auto-generated CLI arguments.',
       inputSchema: z.object({
         type: z.enum(['file', 'terminal', 'frame', 'agent']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
@@ -168,7 +170,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
           '- terminal: { cwd?: string }\n' +
-          '- agent: { agentType?: "claude-code"|"codex"|"pulse-coder", cwd?: string, status?: "idle"|"running", agentArgs?: string }\n' +
+          '- agent: { agentType?: "claude-code"|"codex"|"pulse-coder", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }',
         ),
       }),
@@ -207,12 +209,24 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             const requestedStatus = (extraData.status as string) ?? 'idle';
             const validStatuses = ['idle', 'running'];
             const status = validStatuses.includes(requestedStatus) ? requestedStatus : 'idle';
+            const agentCwd = (extraData.cwd as string) ?? '';
+            const prompt = (extraData.prompt as string) ?? '';
+            let agentArgs = (extraData.agentArgs as string) ?? '';
+
+            // Write prompt file to cwd and auto-generate agentArgs
+            if (prompt && agentCwd && !agentArgs) {
+              const promptFile = join(agentCwd, '.canvas-agent-task.md');
+              await fs.mkdir(agentCwd, { recursive: true });
+              await fs.writeFile(promptFile, prompt, 'utf-8');
+              agentArgs = '"Read .canvas-agent-task.md and follow the instructions in it."';
+            }
+
             nodeData = {
               sessionId: '',
-              cwd: (extraData.cwd as string) ?? '',
+              cwd: agentCwd,
               agentType: (extraData.agentType as string) ?? 'claude-code',
               status,
-              agentArgs: (extraData.agentArgs as string) ?? '',
+              agentArgs,
             };
             break;
           }

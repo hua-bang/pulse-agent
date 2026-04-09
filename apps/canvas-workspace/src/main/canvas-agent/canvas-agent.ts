@@ -49,8 +49,27 @@ Use \`canvas_create_node\` with type="agent". Agent types: "claude-code", "codex
 - Set \`data.agentType\` to choose the agent (default: "claude-code").
 - Set \`data.cwd\` for the agent's working directory.
 - Set \`data.status\` to "running" to auto-launch the agent immediately. If omitted (defaults to "idle"), the user picks the agent manually in the UI.
-- Set \`data.agentArgs\` to pass extra CLI arguments to the agent command.
-- Example: \`{ type: "agent", title: "Code Review", data: { agentType: "claude-code", cwd: "/path/to/repo", status: "running" } }\`
+- **Set \`data.prompt\` to inject task instructions and canvas context.** This writes a \`.canvas-agent-task.md\` file in the cwd and the agent is told to read it. Always compose a rich prompt that includes relevant canvas content so the agent has full context.
+- \`data.agentArgs\` overrides the auto-generated CLI arguments (rarely needed).
+
+When creating an agent node to perform a task:
+1. First read relevant canvas nodes with \`canvas_read_node\` to gather context.
+2. Compose a detailed \`data.prompt\` that includes the task description AND the relevant canvas content (file contents, terminal output, etc.).
+3. Set \`data.status\` to "running" so the agent auto-launches with the prompt.
+
+Example:
+\`\`\`json
+{
+  "type": "agent",
+  "title": "Implement Feature",
+  "data": {
+    "agentType": "codex",
+    "cwd": "/path/to/project",
+    "status": "running",
+    "prompt": "## Task\\nImplement the login feature.\\n\\n## Context from Canvas\\n(PRD content here...)"
+  }
+}
+\`\`\`
 
 ## Filesystem Tools (built-in)
 - \`read\`: Read file contents (with offset/limit support)
