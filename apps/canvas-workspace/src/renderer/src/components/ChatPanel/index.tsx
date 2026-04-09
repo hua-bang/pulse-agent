@@ -12,9 +12,11 @@ interface ChatPanelProps {
 }
 
 interface ToolCallStatus {
+  id: number;
   name: string;
   args?: any;
   status: 'running' | 'done';
+  result?: string;
 }
 
 interface MentionItem {
@@ -24,17 +26,33 @@ interface MentionItem {
   path?: string;
 }
 
-function formatToolArgs(name: string, args: any): string {
-  if (!args) return '';
-  if (name === 'read' || name === 'write' || name === 'edit') return args.file_path || args.filePath || '';
-  if (name === 'bash') return args.command ? args.command.slice(0, 60) : '';
-  if (name === 'grep') return args.pattern || '';
-  if (name === 'ls') return args.path || '';
-  if (name === 'canvas_read_node') return args.nodeId || '';
-  if (name === 'canvas_create_node') return args.type || '';
-  if (name === 'canvas_update_node') return args.nodeId || '';
-  if (name === 'canvas_delete_node') return args.nodeId || '';
-  return '';
+function truncStr(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max - 3) + '...' : s;
+}
+
+function formatToolSignature(name: string, args: any): string {
+  if (!args) return `${name}()`;
+  const parts: string[] = [];
+  if (name === 'read' || name === 'write') {
+    if (args.file_path || args.filePath) parts.push(JSON.stringify(args.file_path || args.filePath));
+  } else if (name === 'edit') {
+    if (args.file_path || args.filePath) parts.push(JSON.stringify(args.file_path || args.filePath));
+    if (args.old_string) parts.push(JSON.stringify(truncStr(args.old_string, 30)));
+  } else if (name === 'bash') {
+    if (args.command) parts.push(JSON.stringify(truncStr(args.command, 60)));
+  } else if (name === 'grep') {
+    if (args.pattern) parts.push(JSON.stringify(args.pattern));
+    if (args.path) parts.push(JSON.stringify(args.path));
+  } else if (name === 'ls') {
+    if (args.path) parts.push(JSON.stringify(args.path));
+  } else {
+    for (const v of Object.values(args)) {
+      if (parts.length >= 3) break;
+      if (typeof v === 'string') parts.push(JSON.stringify(truncStr(v, 40)));
+      else if (typeof v === 'number') parts.push(String(v));
+    }
+  }
+  return `${name}(${parts.join(', ')})`;
 }
 
 const QUICK_ACTIONS = [
@@ -88,6 +106,8 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [sessions, setSessions] = useState<AgentSessionInfo[]>([]);
   const [streamingTools, setStreamingTools] = useState<ToolCallStatus[]>([]);
+  const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
+  const toolIdCounter = useRef(0);
 
   // @ mention state
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -263,13 +283,16 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
 
       // Subscribe to tool call events
       const unsubToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, (data) => {
-        toolCalls.push({ name: data.name, args: data.args, status: 'running' });
+        toolCalls.push({ id: ++toolIdCounter.current, name: data.name, args: data.args, status: 'running' });
         setStreamingTools([...toolCalls]);
       });
 
       const unsubToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, (data) => {
         const tc = toolCalls.find(t => t.name === data.name && t.status === 'running');
-        if (tc) tc.status = 'done';
+        if (tc) {
+          tc.status = 'done';
+          tc.result = data.result;
+        }
         setStreamingTools([...toolCalls]);
       });
 
@@ -296,6 +319,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
         unsubToolCall();
         unsubToolResult();
         setStreamingTools([]);
+        setExpandedTools(new Set());
 
         if (!completeResult.ok) {
           setMessages(prev => {
@@ -372,6 +396,54 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
       void sendMessage();
     }
   }, [sendMessage, mentionOpen, mentionItems, mentionIndex, selectMention]);
+
+  const toggleToolExpand = useCallback((id: number) => {
+    setExpandedTools(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const renderToolCalls = (tools: ToolCallStatus[]) => (
+    <div className="chat-tool-calls">
+      {tools.map((tc) => (
+        <div key={tc.id} className={`chat-tool-call chat-tool-call--${tc.status}`}>
+          <div
+            className="chat-tool-call-header"
+            onClick={tc.status === 'done' && tc.result ? () => toggleToolExpand(tc.id) : undefined}
+            style={tc.status === 'done' && tc.result ? { cursor: 'pointer' } : undefined}
+          >
+            <span className="chat-tool-call-icon">
+              {tc.status === 'running' ? (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
+                  <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+            <span className="chat-tool-call-sig">{formatToolSignature(tc.name, tc.args)}</span>
+            {tc.status === 'done' && tc.result && (
+              <span className={`chat-tool-call-chevron${expandedTools.has(tc.id) ? ' chat-tool-call-chevron--open' : ''}`}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </span>
+            )}
+          </div>
+          {expandedTools.has(tc.id) && tc.result && (
+            <div className="chat-tool-call-result">
+              <pre>{tc.result.length > 2000 ? tc.result.slice(0, 2000) + '\n...(truncated)' : tc.result}</pre>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   const handleQuickAction = useCallback((prompt: string) => {
     if (prompt) {
@@ -495,29 +567,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                   </div>
                 )}
                 <div className="chat-message-body">
-                  {isStreaming && streamingTools.length > 0 && (
-                    <div className="chat-tool-calls">
-                      {streamingTools.map((tc, idx) => (
-                        <div key={idx} className={`chat-tool-call chat-tool-call--${tc.status}`}>
-                          <span className="chat-tool-call-icon">
-                            {tc.status === 'running' ? (
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
-                                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
-                              </svg>
-                            ) : (
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </span>
-                          <span className="chat-tool-call-name">{tc.name}</span>
-                          {formatToolArgs(tc.name, tc.args) && (
-                            <span className="chat-tool-call-args">{formatToolArgs(tc.name, tc.args)}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {isStreaming && streamingTools.length > 0 && renderToolCalls(streamingTools)}
                   {msg.role === 'assistant' ? (
                     isStreaming ? (
                       <div className="chat-message-content chat-md chat-md--streaming">
@@ -545,29 +595,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                 </svg>
               </div>
               <div className="chat-message-body">
-                {streamingTools.length > 0 ? (
-                  <div className="chat-tool-calls">
-                    {streamingTools.map((tc, idx) => (
-                      <div key={idx} className={`chat-tool-call chat-tool-call--${tc.status}`}>
-                        <span className="chat-tool-call-icon">
-                          {tc.status === 'running' ? (
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
-                              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
-                            </svg>
-                          ) : (
-                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                              <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </span>
-                        <span className="chat-tool-call-name">{tc.name}</span>
-                        {formatToolArgs(tc.name, tc.args) && (
-                          <span className="chat-tool-call-args">{formatToolArgs(tc.name, tc.args)}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
+                {streamingTools.length > 0 ? renderToolCalls(streamingTools) : (
                   <div className="chat-loading">
                     <div className="chat-loading-dot" />
                     <div className="chat-loading-dot" />

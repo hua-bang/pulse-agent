@@ -564,17 +564,30 @@
 }
 
 .chat-tool-call {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 12px;
   line-height: 20px;
   color: rgba(55, 53, 47, 0.5);
-  padding: 2px 0;
+  padding: 1px 0;
 }
 
 .chat-tool-call--done {
   color: rgba(55, 53, 47, 0.45);
+}
+
+.chat-tool-call-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 0;
+  border-radius: 4px;
+}
+
+.chat-tool-call-header[style*="cursor"] {
+  transition: background 0.1s;
+}
+
+.chat-tool-call-header[style*="cursor"]:hover {
+  background: rgba(55, 53, 47, 0.04);
 }
 
 .chat-tool-call-icon {
@@ -582,8 +595,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 .chat-tool-call-spinner {
@@ -594,26 +607,49 @@
   to { transform: rotate(360deg); }
 }
 
-.chat-tool-call-name {
+.chat-tool-call-sig {
   font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
   font-size: 11.5px;
-  font-weight: 500;
-  color: rgba(55, 53, 47, 0.65);
-  flex-shrink: 0;
-}
-
-.chat-tool-call--done .chat-tool-call-name {
-  color: rgba(55, 53, 47, 0.45);
-}
-
-.chat-tool-call-args {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
-  font-size: 11px;
-  color: rgba(55, 53, 47, 0.35);
+  color: rgba(55, 53, 47, 0.55);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 200px;
+}
+
+.chat-tool-call--done .chat-tool-call-sig {
+  color: rgba(55, 53, 47, 0.4);
+}
+
+.chat-tool-call-chevron {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: rgba(55, 53, 47, 0.3);
+  transition: transform 0.15s;
+}
+
+.chat-tool-call-chevron--open {
+  transform: rotate(180deg);
+}
+
+.chat-tool-call-result {
+  margin: 2px 0 4px 19px;
+  padding: 6px 8px;
+  background: rgba(55, 53, 47, 0.03);
+  border: 1px solid rgba(55, 53, 47, 0.06);
+  border-radius: 6px;
+  overflow: auto;
+  max-height: 200px;
+}
+
+.chat-tool-call-result pre {
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(55, 53, 47, 0.6);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 /* ─── @ Mention popup ────────────────────────────────────── */
