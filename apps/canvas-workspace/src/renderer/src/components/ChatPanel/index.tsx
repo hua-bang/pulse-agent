@@ -9,6 +9,7 @@ interface ChatPanelProps {
   rootFolder?: string;
   onClose: () => void;
   onResizeStart?: (e: React.MouseEvent) => void;
+  onNodeFocus?: (nodeId: string) => void;
 }
 
 interface ToolCallStatus {
@@ -139,7 +140,7 @@ function renderUserContent(content: string, nodes?: CanvasNode[]): React.ReactNo
     // Try to resolve to a canvas node for type icon
     const node = nodes?.find(n => n.title === label);
     parts.push(
-      <span key={match.index} className="chat-mention-chip" data-node-type={node?.type}>
+      <span key={match.index} className="chat-mention-chip chat-mention-chip--clickable" data-node-type={node?.type} data-node-id={node?.id}>
         <span className="chat-mention-chip-icon">
           {node?.type === 'terminal' ? (
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
@@ -183,7 +184,8 @@ function renderMdWithMentions(content: string, nodes?: CanvasNode[]): string {
   return html.replace(MENTION_RE, (_match, label: string) => {
     const node = nodes?.find(n => n.title === label);
     const nodeType = node?.type ?? 'file';
-    return `<span class="chat-mention-chip" data-node-type="${nodeType}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${
+    const nodeId = node?.id ?? '';
+    return `<span class="chat-mention-chip chat-mention-chip--clickable" data-node-type="${nodeType}" data-node-id="${nodeId}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${
       nodeType === 'terminal'
         ? '<rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 6l2 1.5L4 9" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>'
         : nodeType === 'agent'
@@ -195,7 +197,7 @@ function renderMdWithMentions(content: string, nodes?: CanvasNode[]): string {
   });
 }
 
-export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeStart }: ChatPanelProps) => {
+export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeStart, onNodeFocus }: ChatPanelProps) => {
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -662,6 +664,16 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     document.execCommand('insertText', false, text);
   }, []);
 
+  // Event delegation: click on mention chip → focus canvas node
+  const handleMessageClick = useCallback((e: React.MouseEvent) => {
+    const chip = (e.target as HTMLElement).closest('.chat-mention-chip--clickable') as HTMLElement | null;
+    if (!chip) return;
+    const nodeId = chip.dataset.nodeId;
+    if (nodeId && onNodeFocus) {
+      onNodeFocus(nodeId);
+    }
+  }, [onNodeFocus]);
+
   const hasMessages = messages.length > 0 || loading;
 
   return (
@@ -762,7 +774,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
           </div>
         </div>
       ) : (
-        <div className="chat-messages">
+        <div className="chat-messages" onClick={handleMessageClick}>
           {messages.map((msg, i) => {
             const isStreaming = loading && msg.role === 'assistant' && i === messages.length - 1;
             const tools = isStreaming ? streamingTools : messageTools.get(i);

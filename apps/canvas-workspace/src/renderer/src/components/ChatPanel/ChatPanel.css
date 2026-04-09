@@ -788,6 +788,15 @@
   background: rgba(55, 53, 47, 0.1);
 }
 
+.chat-mention-chip--clickable {
+  cursor: pointer;
+}
+
+.chat-mention-chip--clickable:hover {
+  background: rgba(35, 131, 226, 0.1);
+  border-color: rgba(35, 131, 226, 0.25);
+}
+
 .chat-mention-chip-icon {
   display: inline-flex;
   align-items: center;
