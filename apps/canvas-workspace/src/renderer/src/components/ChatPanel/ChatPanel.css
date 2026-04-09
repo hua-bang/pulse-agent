@@ -164,27 +164,21 @@
   flex-shrink: 0;
 }
 
-.chat-session-menu-item--other-ws {
-  padding-left: 18px;
+.chat-session-menu-item--other-ws .chat-session-menu-item-text {
+  opacity: 0.85;
 }
 
-.chat-session-menu-group {
-  margin-bottom: 2px;
-}
-
-.chat-session-menu-group-name {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #787774;
-  padding: 5px 10px 2px;
-}
-
-.chat-session-menu-group-name svg {
+.chat-session-menu-item-ws {
+  font-size: 10px;
   color: #9b9a97;
+  background: rgba(55, 53, 47, 0.06);
+  border-radius: 3px;
+  padding: 1px 5px;
   flex-shrink: 0;
+  white-space: nowrap;
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-panel-action-btn {

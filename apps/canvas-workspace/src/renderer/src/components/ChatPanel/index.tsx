@@ -1,6 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import MarkdownIt from 'markdown-it';
-import type { AgentChatMessage, AgentSessionInfo, CrossWorkspaceSessionGroup, CanvasNode } from '../../types';
+import type { AgentChatMessage, AgentSessionInfo, CanvasNode } from '../../types';
+
+interface OtherWorkspaceSession extends AgentSessionInfo {
+  sourceWorkspaceId: string;
+  workspaceName: string;
+}
 import './ChatPanel.css';
 
 interface ChatPanelProps {
@@ -211,7 +216,7 @@ export const ChatPanel = ({ workspaceId, allWorkspaces, nodes, rootFolder, onClo
   const [loading, setLoading] = useState(false);
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [sessions, setSessions] = useState<AgentSessionInfo[]>([]);
-  const [otherWorkspaceGroups, setOtherWorkspaceGroups] = useState<CrossWorkspaceSessionGroup[]>([]);
+  const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>([]);
   const [streamingTools, setStreamingTools] = useState<ToolCallStatus[]>([]);
   const [expandedTools, setExpandedTools] = useState<Set<number>>(new Set());
   // Persist tool calls per message (msgIndex → tools). Not stored in message data.
@@ -284,11 +289,20 @@ export const ChatPanel = ({ workspaceId, allWorkspaces, nodes, rootFolder, onClo
       }
       const allResult = await window.canvasWorkspace.agent.listAllSessions(nameMap);
       if (allResult.ok && allResult.groups) {
-        // Filter out the current workspace — it's already shown separately
-        setOtherWorkspaceGroups(allResult.groups.filter(g => g.workspaceId !== workspaceId));
+        // Flatten into a single list with workspace metadata, exclude current workspace
+        const flat: OtherWorkspaceSession[] = [];
+        for (const g of allResult.groups) {
+          if (g.workspaceId === workspaceId) continue;
+          for (const s of g.sessions) {
+            flat.push({ ...s, sourceWorkspaceId: g.workspaceId, workspaceName: g.workspaceName });
+          }
+        }
+        // Sort by date descending (newest first)
+        flat.sort((a, b) => b.date.localeCompare(a.date));
+        setOtherSessions(flat);
       }
     } else {
-      setOtherWorkspaceGroups([]);
+      setOtherSessions([]);
     }
     setSessionMenuOpen(true);
   }, [sessionMenuOpen, workspaceId, allWorkspaces]);
@@ -781,36 +795,26 @@ export const ChatPanel = ({ workspaceId, allWorkspaces, nodes, rootFolder, onClo
                   </div>
                 </>
               )}
-              {otherWorkspaceGroups.length > 0 && (
+              {otherSessions.length > 0 && (
                 <>
                   <div className="chat-session-menu-divider" />
                   <div className="chat-session-menu-label">Other Workspaces</div>
                   <div className="chat-session-menu-list">
-                    {otherWorkspaceGroups.map((group) => (
-                      <div key={group.workspaceId} className="chat-session-menu-group">
-                        <div className="chat-session-menu-group-name">
-                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <rect x="1.5" y="2.5" width="9" height="7" rx="1" stroke="currentColor" strokeWidth="1" />
-                            <path d="M1.5 4.5h9" stroke="currentColor" strokeWidth="1" />
-                          </svg>
-                          <span>{group.workspaceName}</span>
-                        </div>
-                        {group.sessions.map((s) => (
-                          <button
-                            key={s.sessionId}
-                            className="chat-session-menu-item chat-session-menu-item--other-ws"
-                            onClick={() => void handleLoadSession(s.sessionId, group.workspaceId)}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <path d="M4 3.5h6M4 7h4M4 10.5h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-                            </svg>
-                            <span className="chat-session-menu-item-text">
-                              {s.preview || s.date}
-                            </span>
-                            <span className="chat-session-menu-item-count">{s.messageCount}</span>
-                          </button>
-                        ))}
-                      </div>
+                    {otherSessions.map((s) => (
+                      <button
+                        key={s.sessionId}
+                        className="chat-session-menu-item chat-session-menu-item--other-ws"
+                        onClick={() => void handleLoadSession(s.sessionId, s.sourceWorkspaceId)}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M4 3.5h6M4 7h4M4 10.5h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                        </svg>
+                        <span className="chat-session-menu-item-text">
+                          {s.preview || s.date}
+                        </span>
+                        <span className="chat-session-menu-item-ws">{s.workspaceName}</span>
+                        <span className="chat-session-menu-item-count">{s.messageCount}</span>
+                      </button>
                     ))}
                   </div>
                 </>
