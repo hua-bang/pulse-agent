@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import MarkdownIt from 'markdown-it';
 import type { AgentChatMessage } from '../../types';
 import './ChatPanel.css';
 
 interface ChatPanelProps {
   workspaceId: string;
   onClose: () => void;
+  onResizeStart?: (e: React.MouseEvent) => void;
 }
 
 const QUICK_ACTIONS = [
@@ -49,7 +51,9 @@ const QUICK_ACTIONS = [
   },
 ];
 
-export const ChatPanel = ({ workspaceId, onClose }: ChatPanelProps) => {
+const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
+
+export const ChatPanel = ({ workspaceId, onClose, onResizeStart }: ChatPanelProps) => {
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -189,13 +193,16 @@ export const ChatPanel = ({ workspaceId, onClose }: ChatPanelProps) => {
 
   return (
     <div className="chat-panel">
+      {onResizeStart && (
+        <div className="chat-panel-resize" onMouseDown={onResizeStart} />
+      )}
       <div className="chat-panel-header">
         <div className="chat-panel-title">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="8" cy="6" r="3" stroke="currentColor" strokeWidth="1.3" />
             <path d="M4 14c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
-          <span>Canvas Agent</span>
+          <span>Pulse Agent</span>
         </div>
         <div className="chat-panel-actions">
           <button className="chat-panel-action-btn" onClick={onClose} title="Close panel">
@@ -243,10 +250,17 @@ export const ChatPanel = ({ workspaceId, onClose }: ChatPanelProps) => {
                   </svg>
                 </div>
               )}
-              <div className="chat-message-content">{msg.content}</div>
+              {msg.role === 'assistant' ? (
+                <div
+                  className="chat-message-content chat-md"
+                  dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
+                />
+              ) : (
+                <div className="chat-message-content">{msg.content}</div>
+              )}
             </div>
           ))}
-          {loading && (
+          {loading && !messages.some((m, i) => i === messages.length - 1 && m.role === 'assistant' && m.content) && (
             <div className="chat-message chat-message-assistant">
               <div className="chat-message-avatar">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none">

@@ -53,6 +53,9 @@ importers:
       ai:
         specifier: ^6.0.57
         version: 6.0.57(zod@4.3.6)
+      markdown-it:
+        specifier: ^14.1.0
+        version: 14.1.1
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
@@ -75,6 +78,9 @@ importers:
       '@electron/rebuild':
         specifier: ^4.0.3
         version: 4.0.3
+      '@types/markdown-it':
+        specifier: ^14.1.0
+        version: 14.1.2
       '@types/node':
         specifier: ^20.14.9
         version: 20.19.33
