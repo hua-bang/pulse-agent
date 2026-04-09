@@ -57,6 +57,7 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
   workspaceNameRef.current = workspaceName;
   const initialScrollback = useRef(data.scrollback ?? '');
   const initialCwd = useRef(data.cwd ?? '');
+  const initialCommand = useRef(data.initialCommand ?? '');
 
   const persistState = useCallback(() => {
     const term = termRef.current;
@@ -113,10 +114,31 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
       return;
     }
 
-    const removeData = api.onData(sessionId, (d: string) => { term.write(d); });
     const removeExit = api.onExit(sessionId, (code: number) => {
       term.writeln(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`);
     });
+
+    // If an initial command is set, wait for the shell prompt before writing it.
+    // Otherwise attach the data listener immediately.
+    let removeData: (() => void) | null = null;
+    const cmdToRun = initialCommand.current;
+
+    if (cmdToRun) {
+      let prompted = false;
+      const promptRemove = api.onData(sessionId, (d: string) => {
+        term.write(d);
+        if (!prompted) {
+          prompted = true;
+          promptRemove();
+          removeData = api.onData(sessionId, (d2: string) => { term.write(d2); });
+          setTimeout(() => api.write(sessionId, `${cmdToRun}\n`), 100);
+          // Clear so it doesn't re-run on session restore
+          initialCommand.current = '';
+        }
+      });
+    } else {
+      removeData = api.onData(sessionId, (d: string) => { term.write(d); });
+    }
 
     let inputBuf = '';
     term.onData((d: string) => {
@@ -149,7 +171,7 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
     }, SCROLLBACK_SAVE_INTERVAL);
 
     cleanupRef.current = () => {
-      removeData();
+      removeData?.();
       removeExit();
       api.kill(sessionId);
     };

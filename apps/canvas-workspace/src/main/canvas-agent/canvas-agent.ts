@@ -34,10 +34,35 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 ## Canvas Tools
 - \`canvas_read_context\`: Read workspace overview or full context
 - \`canvas_read_node\`: Read a single node's content in detail
-- \`canvas_create_node\`: Create new file/terminal/frame/agent nodes
+- \`canvas_create_node\`: Create new file/frame nodes (generic)
+- \`canvas_create_agent_node\`: **Create and launch an AI agent node** — preferred for agent creation
+- \`canvas_create_terminal_node\`: **Create a terminal node** — preferred for terminal creation
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
 - \`canvas_delete_node\`: Remove a node from the canvas
 - \`canvas_move_node\`: Reposition a node
+
+### Delegating Tasks to Agent Nodes
+Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
+
+**Workflow:**
+1. Read relevant canvas nodes with \`canvas_read_node\` to gather context.
+2. Compose a detailed \`prompt\` that includes the task description AND the relevant canvas content.
+3. Call \`canvas_create_agent_node\` — the prompt is piped directly to the agent as its initial prompt.
+
+Example:
+\`\`\`json
+{
+  "title": "Codex: Implement Feature",
+  "agentType": "codex",
+  "cwd": "/path/to/project",
+  "prompt": "## Task\\nImplement the login feature.\\n\\n## Context from Canvas\\n(PRD content here...)"
+}
+\`\`\`
+
+### Creating Terminal Nodes
+Use \`canvas_create_terminal_node\` to spawn an interactive shell.
+The shell starts automatically. Set \`cwd\` for the working directory.
+Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm run dev", "docker compose up").
 
 ## Filesystem Tools (built-in)
 - \`read\`: Read file contents (with offset/limit support)

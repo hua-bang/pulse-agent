@@ -109,6 +109,9 @@ export interface CanvasTool {
   execute: (input: any) => Promise<string>;
 }
 
+/** Prompts shorter than this are passed directly as CLI args; longer ones go to a file. */
+const INLINE_PROMPT_THRESHOLD = 256;
+
 // ─── Tool definitions ──────────────────────────────────────────────
 
 export function createCanvasTools(workspaceId: string): Record<string, CanvasTool> {
@@ -151,14 +154,28 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     canvas_create_node: {
       name: 'canvas_create_node',
       description:
-        'Create a new node on the canvas. For file nodes, a notes file is automatically created in the workspace.',
+        'Create a new node on the canvas.\n' +
+        '- **file**: Creates a markdown note with a backing file. Use `content` for initial text.\n' +
+        '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
+        '- **frame**: Creates a grouping container. Use `data.color` (hex) and `data.label`.\n' +
+        '- **agent**: Creates an AI agent node (Claude Code, Codex, Pulse Coder). ' +
+        'Set `data.agentType` ("claude-code" | "codex" | "pulse-coder"), `data.cwd` for the working directory, ' +
+        'and `data.status` to "running" to auto-launch (default "idle" shows a picker). ' +
+        'Use `data.prompt` to inject a task/context — it is written to a file in the cwd and piped directly ' +
+        'to the agent as its initial prompt. Include relevant canvas content so the agent knows the context. ' +
+        'Optional `data.agentArgs` overrides the auto-generated CLI arguments.',
       inputSchema: z.object({
         type: z.enum(['file', 'terminal', 'frame', 'agent']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
         content: z.string().optional().describe('Initial content (for file nodes).'),
         x: z.number().optional().describe('X position (auto-placed if omitted).'),
         y: z.number().optional().describe('Y position (auto-placed if omitted).'),
-        data: z.record(z.string(), z.unknown()).optional().describe('Additional node data (e.g. color/label for frames, cwd for terminals).'),
+        data: z.record(z.string(), z.unknown()).optional().describe(
+          'Additional node data. Keys vary by type:\n' +
+          '- terminal: { cwd?: string }\n' +
+          '- agent: { agentType?: "claude-code"|"codex"|"pulse-coder", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
+          '- frame: { color?: string, label?: string }',
+        ),
       }),
       execute: async (input) => {
         const nodeType = input.type as NodeType;
@@ -191,14 +208,38 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               label: (extraData.label as string) ?? '',
             };
             break;
-          case 'agent':
+          case 'agent': {
+            const requestedStatus = (extraData.status as string) ?? 'idle';
+            const validStatuses = ['idle', 'running'];
+            const status = validStatuses.includes(requestedStatus) ? requestedStatus : 'idle';
+            const agentCwd = (extraData.cwd as string) ?? '';
+            const prompt = (extraData.prompt as string) ?? '';
+            const agentArgs = (extraData.agentArgs as string) ?? '';
+
+            // Short prompt → inline CLI arg; long prompt → file
+            let inlinePrompt = '';
+            let promptFile = '';
+            if (prompt && agentCwd) {
+              if (prompt.length <= INLINE_PROMPT_THRESHOLD) {
+                inlinePrompt = prompt;
+              } else {
+                promptFile = '.canvas-agent-task.md';
+                await fs.mkdir(agentCwd, { recursive: true });
+                await fs.writeFile(join(agentCwd, promptFile), prompt, 'utf-8');
+              }
+            }
+
             nodeData = {
               sessionId: '',
-              cwd: (extraData.cwd as string) ?? '',
+              cwd: agentCwd,
               agentType: (extraData.agentType as string) ?? 'claude-code',
-              status: 'idle',
+              status,
+              agentArgs,
+              inlinePrompt,
+              promptFile,
             };
             break;
+          }
         }
 
         // For file nodes, create a backing notes file
@@ -340,6 +381,138 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         broadcastUpdate(workspaceId, [nodeId]);
 
         return JSON.stringify({ ok: true, nodeId });
+      },
+    },
+
+    // ─── Dedicated agent node creation ──────────────────────────────
+
+    canvas_create_agent_node: {
+      name: 'canvas_create_agent_node',
+      description:
+        'Create and optionally auto-launch an AI agent node on the canvas. ' +
+        'Use this when you need to delegate a task to another agent (Claude Code, Codex, Pulse Coder). ' +
+        'Set `prompt` with task instructions and relevant canvas context so the agent knows what to do. ' +
+        'The prompt is piped directly to the agent as its initial prompt.',
+      inputSchema: z.object({
+        title: z.string().optional().describe('Node title (e.g. "Codex: Implement login").'),
+        agentType: z.enum(['claude-code', 'codex', 'pulse-coder']).optional()
+          .describe('Agent type. Defaults to "claude-code".'),
+        cwd: z.string().describe('Working directory for the agent.'),
+        prompt: z.string().optional()
+          .describe('Task instructions and context for the agent. Written to .canvas-agent-task.md in cwd. Include relevant canvas content (file contents, PRDs, terminal output, etc.) so the agent has full context.'),
+        autoLaunch: z.boolean().optional()
+          .describe('Set to true to launch the agent immediately (default: true when prompt is provided, false otherwise).'),
+        agentArgs: z.string().optional()
+          .describe('Override the auto-generated CLI arguments. Rarely needed when using prompt.'),
+        x: z.number().optional().describe('X position (auto-placed if omitted).'),
+        y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+      }),
+      execute: async (input) => {
+        const canvas = await loadCanvas(workspaceId);
+        if (!canvas) return 'Error: workspace not found';
+
+        const agentType = (input.agentType as string) ?? 'claude-code';
+        const cwd = input.cwd as string;
+        const prompt = (input.prompt as string) ?? '';
+        const agentArgs = (input.agentArgs as string) ?? '';
+        const autoLaunch = input.autoLaunch ?? !!prompt;
+        const title = (input.title as string) ?? DEFAULT_DIMENSIONS.agent.title;
+
+        // Short prompt → inline CLI arg; long prompt → file
+        let inlinePrompt = '';
+        let promptFile = '';
+        if (prompt && cwd) {
+          if (prompt.length <= INLINE_PROMPT_THRESHOLD) {
+            inlinePrompt = prompt;
+          } else {
+            promptFile = '.canvas-agent-task.md';
+            await fs.mkdir(cwd, { recursive: true });
+            await fs.writeFile(join(cwd, promptFile), prompt, 'utf-8');
+          }
+        }
+
+        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const def = DEFAULT_DIMENSIONS.agent;
+        const pos = (input.x != null && input.y != null)
+          ? { x: input.x as number, y: input.y as number }
+          : autoPlace(canvas.nodes);
+
+        const newNode: CanvasNode = {
+          id: nodeId,
+          type: 'agent',
+          title,
+          x: pos.x,
+          y: pos.y,
+          width: def.width,
+          height: def.height,
+          data: {
+            sessionId: '',
+            cwd,
+            agentType,
+            status: autoLaunch ? 'running' : 'idle',
+            agentArgs,
+            inlinePrompt,
+            promptFile,
+          },
+          updatedAt: Date.now(),
+        };
+
+        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
+        fresh.nodes.push(newNode);
+        await saveCanvas(workspaceId, fresh);
+        broadcastUpdate(workspaceId, [nodeId]);
+
+        return JSON.stringify({ ok: true, nodeId, agentType, title, autoLaunch });
+      },
+    },
+
+    // ─── Dedicated terminal node creation ───────────────────────────
+
+    canvas_create_terminal_node: {
+      name: 'canvas_create_terminal_node',
+      description:
+        'Create and spawn an interactive terminal node on the canvas. ' +
+        'The shell starts automatically. Use `command` to execute a command after the shell is ready ' +
+        '(e.g. "npm run dev", "docker compose up").',
+      inputSchema: z.object({
+        title: z.string().optional().describe('Node title (e.g. "Dev Server", "Build"). Defaults to "Terminal".'),
+        cwd: z.string().optional().describe('Working directory for the shell. Defaults to workspace root.'),
+        command: z.string().optional().describe('Shell command to execute automatically after spawn (e.g. "npm run dev").'),
+        x: z.number().optional().describe('X position (auto-placed if omitted).'),
+        y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+      }),
+      execute: async (input) => {
+        const canvas = await loadCanvas(workspaceId);
+        if (!canvas) return 'Error: workspace not found';
+
+        const title = (input.title as string) ?? DEFAULT_DIMENSIONS.terminal.title;
+        const cwd = (input.cwd as string) ?? '';
+        const initialCommand = (input.command as string) ?? '';
+
+        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const def = DEFAULT_DIMENSIONS.terminal;
+        const pos = (input.x != null && input.y != null)
+          ? { x: input.x as number, y: input.y as number }
+          : autoPlace(canvas.nodes);
+
+        const newNode: CanvasNode = {
+          id: nodeId,
+          type: 'terminal',
+          title,
+          x: pos.x,
+          y: pos.y,
+          width: def.width,
+          height: def.height,
+          data: { sessionId: '', cwd, initialCommand },
+          updatedAt: Date.now(),
+        };
+
+        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
+        fresh.nodes.push(newNode);
+        await saveCanvas(workspaceId, fresh);
+        broadcastUpdate(workspaceId, [nodeId]);
+
+        return JSON.stringify({ ok: true, nodeId, title });
       },
     },
   };

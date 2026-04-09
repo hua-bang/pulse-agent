@@ -22,6 +22,8 @@ export interface TerminalNodeData {
   sessionId: string;
   scrollback?: string;
   cwd?: string;
+  /** Shell command to execute automatically after the terminal spawns. */
+  initialCommand?: string;
 }
 
 export interface FrameNodeData {
@@ -36,6 +38,10 @@ export interface AgentNodeData {
   agentType: string;
   status?: 'idle' | 'running' | 'done' | 'error';
   agentArgs?: string;
+  /** Short prompt passed directly as a CLI argument. */
+  inlinePrompt?: string;
+  /** Relative path to a prompt file in cwd for long prompts. */
+  promptFile?: string;
 }
 
 export interface CanvasTransform {
