@@ -9,6 +9,7 @@ interface ChatPanelProps {
   rootFolder?: string;
   onClose: () => void;
   onResizeStart?: (e: React.MouseEvent) => void;
+  onNodeFocus?: (nodeId: string) => void;
 }
 
 interface ToolCallStatus {
@@ -99,7 +100,110 @@ const QUICK_ACTIONS = [
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
-export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeStart }: ChatPanelProps) => {
+// ─── @ Mention rendering ─────────────────────────────────────────
+const MENTION_RE = /@\[([^\]]+)\]/g;
+
+/** SVG icon markup for a given node type (HTML attributes use kebab-case). */
+function mentionIconSvg(nodeType: string): string {
+  switch (nodeType) {
+    case 'terminal':
+      return '<rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 6l2 1.5L4 9" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>';
+    case 'agent':
+      return '<circle cx="7" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 12c0-1.9 1.6-3.5 3.5-3.5s3.5 1.6 3.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>';
+    case 'frame':
+      return '<rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/>';
+    default: // file
+      return '<rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5h5M4.5 7.5h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>';
+  }
+}
+
+/** Serialize a contentEditable div back to plain text with @[label] syntax. */
+function serializeEditable(el: HTMLElement): string {
+  let text = '';
+  for (const child of el.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      text += child.textContent ?? '';
+    } else if (child instanceof HTMLElement) {
+      if (child.dataset.mention) {
+        text += `@[${child.dataset.mention}]`;
+      } else if (child.tagName === 'BR') {
+        text += '\n';
+      } else {
+        text += serializeEditable(child);
+      }
+    }
+  }
+  return text;
+}
+
+/**
+ * Render user message content with structured @[label] mention chips.
+ */
+function renderUserContent(content: string, nodes?: CanvasNode[]): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  const re = new RegExp(MENTION_RE.source, 'g');
+
+  while ((match = re.exec(content)) !== null) {
+    // Text before the mention
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index));
+    }
+    const label = match[1];
+    // Try to resolve to a canvas node for type icon
+    const node = nodes?.find(n => n.title === label);
+    parts.push(
+      <span key={match.index} className="chat-mention-chip chat-mention-chip--clickable" data-node-type={node?.type} data-node-id={node?.id}>
+        <span className="chat-mention-chip-icon">
+          {node?.type === 'terminal' ? (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M4 6l2 1.5L4 9" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : node?.type === 'agent' ? (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M3.5 12c0-1.9 1.6-3.5 3.5-3.5s3.5 1.6 3.5 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          ) : node?.type === 'frame' ? (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2" />
+            </svg>
+          ) : (
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M4.5 5h5M4.5 7.5h3" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+            </svg>
+          )}
+        </span>
+        <span className="chat-mention-chip-label">{label}</span>
+      </span>
+    );
+    lastIndex = re.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex));
+  }
+
+  return parts.length > 0 ? parts : content;
+}
+
+/**
+ * Process markdown HTML to replace @[label] with mention chip markup.
+ */
+function renderMdWithMentions(content: string, nodes?: CanvasNode[]): string {
+  const html = md.render(content);
+  return html.replace(MENTION_RE, (_match, label: string) => {
+    const node = nodes?.find(n => n.title === label);
+    const nodeType = node?.type ?? 'file';
+    const nodeId = node?.id ?? '';
+    return `<span class="chat-mention-chip chat-mention-chip--clickable" data-node-type="${nodeType}" data-node-id="${nodeId}"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg></span><span class="chat-mention-chip-label">${label}</span></span>`;
+  });
+}
+
+export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeStart, onNodeFocus }: ChatPanelProps) => {
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -118,11 +222,10 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
-  const [mentionStart, setMentionStart] = useState(-1); // cursor position of '@'
   const filesCacheRef = useRef<MentionItem[] | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editableRef = useRef<HTMLDivElement>(null);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
 
@@ -225,26 +328,25 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     return filtered.slice(0, 12);
   }, [nodes, rootFolder]);
 
-  // Auto-resize textarea + detect @ mention
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setInput(val);
-    const el = e.target;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  // Handle input in contentEditable + detect @ mention
+  const handleInput = useCallback(() => {
+    const el = editableRef.current;
+    if (!el) return;
+    setInput(serializeEditable(el));
 
-    // Detect @ mention trigger
-    const pos = el.selectionStart ?? val.length;
-    const textBefore = val.slice(0, pos);
+    // Detect @ mention trigger from cursor position
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.anchorNode || sel.anchorNode.nodeType !== Node.TEXT_NODE) {
+      setMentionOpen(false);
+      return;
+    }
+    const textBefore = (sel.anchorNode.textContent ?? '').slice(0, sel.anchorOffset);
     const atMatch = textBefore.match(/@([^\s@]*)$/);
 
     if (atMatch) {
-      const start = pos - atMatch[0].length;
-      const query = atMatch[1];
-      setMentionStart(start);
-      setMentionQuery(query);
+      setMentionQuery(atMatch[1]);
       setMentionIndex(0);
-      void buildMentionItems(query).then(items => {
+      void buildMentionItems(atMatch[1]).then(items => {
         setMentionItems(items);
         setMentionOpen(items.length > 0);
       });
@@ -266,8 +368,8 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     setInput('');
     setLoading(true);
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+    if (editableRef.current) {
+      editableRef.current.innerHTML = '';
     }
 
     try {
@@ -388,14 +490,60 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
   }, [input, loading, workspaceId]);
 
   const selectMention = useCallback((item: MentionItem) => {
-    // Replace @query with @[label]
-    const before = input.slice(0, mentionStart);
-    const after = input.slice(mentionStart + 1 + mentionQuery.length);
-    const newInput = `${before}@[${item.label}] ${after}`;
-    setInput(newInput);
+    const el = editableRef.current;
+    if (!el) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+
+    const { anchorNode, anchorOffset } = sel;
+    if (!anchorNode || anchorNode.nodeType !== Node.TEXT_NODE) return;
+
+    const text = anchorNode.textContent ?? '';
+    const before = text.slice(0, anchorOffset);
+    const atIdx = before.lastIndexOf('@');
+    if (atIdx < 0) return;
+
+    const beforeAt = text.slice(0, atIdx);
+    const afterCursor = text.slice(anchorOffset);
+
+    // Build chip element with icon + label
+    const nodeMatch = nodes?.find(n => n.title === item.label);
+    const nodeType = nodeMatch?.type ?? (item.nodeType ?? 'file');
+    const chip = document.createElement('span');
+    chip.className = 'chat-mention-chip chat-mention-chip--input';
+    chip.contentEditable = 'false';
+    chip.dataset.mention = item.label;
+    chip.dataset.nodeType = nodeType;
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'chat-mention-chip-icon';
+    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg>`;
+    chip.appendChild(iconSpan);
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'chat-mention-chip-label';
+    labelSpan.textContent = item.label;
+    chip.appendChild(labelSpan);
+
+    // Replace text node with: [beforeText][chip][ ][afterText]
+    const parent = anchorNode.parentNode!;
+    const frag = document.createDocumentFragment();
+    if (beforeAt) frag.appendChild(document.createTextNode(beforeAt));
+    frag.appendChild(chip);
+    const spaceNode = document.createTextNode(' ');
+    frag.appendChild(spaceNode);
+    if (afterCursor) frag.appendChild(document.createTextNode(afterCursor));
+    parent.replaceChild(frag, anchorNode);
+
+    // Move cursor after space
+    const range = document.createRange();
+    range.setStartAfter(spaceNode);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    setInput(serializeEditable(el));
     setMentionOpen(false);
-    textareaRef.current?.focus();
-  }, [input, mentionStart, mentionQuery]);
+    el.focus();
+  }, [nodes]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (mentionOpen && mentionItems.length > 0) {
@@ -516,9 +664,26 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     if (prompt) {
       void sendMessage(prompt);
     } else {
-      textareaRef.current?.focus();
+      editableRef.current?.focus();
     }
   }, [sendMessage]);
+
+  // Paste handler: strip HTML, insert plain text only
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
+  }, []);
+
+  // Event delegation: click on mention chip → focus canvas node
+  const handleMessageClick = useCallback((e: React.MouseEvent) => {
+    const chip = (e.target as HTMLElement).closest('.chat-mention-chip--clickable') as HTMLElement | null;
+    if (!chip) return;
+    const nodeId = chip.dataset.nodeId;
+    if (nodeId && onNodeFocus) {
+      onNodeFocus(nodeId);
+    }
+  }, [onNodeFocus]);
 
   const hasMessages = messages.length > 0 || loading;
 
@@ -620,7 +785,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
           </div>
         </div>
       ) : (
-        <div className="chat-messages">
+        <div className="chat-messages" onClick={handleMessageClick}>
           {messages.map((msg, i) => {
             const isStreaming = loading && msg.role === 'assistant' && i === messages.length - 1;
             const tools = isStreaming ? streamingTools : messageTools.get(i);
@@ -642,7 +807,7 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                       msg.content ? (
                         <div
                           className="chat-message-content chat-md chat-md--streaming"
-                          dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
+                          dangerouslySetInnerHTML={{ __html: renderMdWithMentions(msg.content, nodes) }}
                         />
                       ) : (!tools || tools.length === 0) ? (
                         <div className="chat-loading">
@@ -654,11 +819,11 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
                     ) : (
                       <div
                         className="chat-message-content chat-md"
-                        dangerouslySetInnerHTML={{ __html: md.render(msg.content) }}
+                        dangerouslySetInnerHTML={{ __html: renderMdWithMentions(msg.content, nodes) }}
                       />
                     )
                   ) : (
-                    <div className="chat-message-content">{msg.content}</div>
+                    <div className="chat-message-content">{renderUserContent(msg.content, nodes)}</div>
                   )}
                 </div>
               </div>
@@ -718,15 +883,15 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
           </div>
         )}
         <div className="chat-input-box">
-          <textarea
-            ref={textareaRef}
+          <div
+            ref={editableRef}
             className="chat-input"
-            placeholder="Ask anything..."
-            value={input}
-            onChange={handleInputChange}
+            contentEditable={!loading}
+            role="textbox"
+            data-placeholder="Ask anything..."
+            onInput={handleInput}
             onKeyDown={handleKeyDown}
-            rows={1}
-            disabled={loading}
+            onPaste={handlePaste}
           />
           <div className="chat-input-footer">
             <div className="chat-input-footer-left" />

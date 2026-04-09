@@ -140,6 +140,7 @@ const App = () => {
               rootFolder={workspaces.find(w => w.id === activeId)?.rootFolder}
               onClose={() => setChatPanelOpen(false)}
               onResizeStart={handleResizeStart}
+              onNodeFocus={setFocusNodeId}
             />
           </div>
         )}
