@@ -101,7 +101,25 @@ const md = new MarkdownIt({ html: false, linkify: true, breaks: true });
 
 // ─── @ Mention rendering ─────────────────────────────────────────
 const MENTION_RE = /@\[([^\]]+)\]/g;
-const MENTION_TEST = /@\[([^\]]+)\]/;
+
+/** Serialize a contentEditable div back to plain text with @[label] syntax. */
+function serializeEditable(el: HTMLElement): string {
+  let text = '';
+  for (const child of el.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) {
+      text += child.textContent ?? '';
+    } else if (child instanceof HTMLElement) {
+      if (child.dataset.mention) {
+        text += `@[${child.dataset.mention}]`;
+      } else if (child.tagName === 'BR') {
+        text += '\n';
+      } else {
+        text += serializeEditable(child);
+      }
+    }
+  }
+  return text;
+}
 
 /**
  * Render user message content with structured @[label] mention chips.
@@ -196,11 +214,10 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
   const [mentionQuery, setMentionQuery] = useState('');
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
-  const [mentionStart, setMentionStart] = useState(-1); // cursor position of '@'
   const filesCacheRef = useRef<MentionItem[] | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editableRef = useRef<HTMLDivElement>(null);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
 
@@ -303,26 +320,25 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     return filtered.slice(0, 12);
   }, [nodes, rootFolder]);
 
-  // Auto-resize textarea + detect @ mention
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setInput(val);
-    const el = e.target;
-    el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  // Handle input in contentEditable + detect @ mention
+  const handleInput = useCallback(() => {
+    const el = editableRef.current;
+    if (!el) return;
+    setInput(serializeEditable(el));
 
-    // Detect @ mention trigger
-    const pos = el.selectionStart ?? val.length;
-    const textBefore = val.slice(0, pos);
+    // Detect @ mention trigger from cursor position
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !sel.anchorNode || sel.anchorNode.nodeType !== Node.TEXT_NODE) {
+      setMentionOpen(false);
+      return;
+    }
+    const textBefore = (sel.anchorNode.textContent ?? '').slice(0, sel.anchorOffset);
     const atMatch = textBefore.match(/@([^\s@]*)$/);
 
     if (atMatch) {
-      const start = pos - atMatch[0].length;
-      const query = atMatch[1];
-      setMentionStart(start);
-      setMentionQuery(query);
+      setMentionQuery(atMatch[1]);
       setMentionIndex(0);
-      void buildMentionItems(query).then(items => {
+      void buildMentionItems(atMatch[1]).then(items => {
         setMentionItems(items);
         setMentionOpen(items.length > 0);
       });
@@ -344,8 +360,8 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     setInput('');
     setLoading(true);
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
+    if (editableRef.current) {
+      editableRef.current.innerHTML = '';
     }
 
     try {
@@ -466,14 +482,55 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
   }, [input, loading, workspaceId]);
 
   const selectMention = useCallback((item: MentionItem) => {
-    // Replace @query with @[label]
-    const before = input.slice(0, mentionStart);
-    const after = input.slice(mentionStart + 1 + mentionQuery.length);
-    const newInput = `${before}@[${item.label}] ${after}`;
-    setInput(newInput);
+    const el = editableRef.current;
+    if (!el) return;
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+
+    const { anchorNode, anchorOffset } = sel;
+    if (!anchorNode || anchorNode.nodeType !== Node.TEXT_NODE) return;
+
+    const text = anchorNode.textContent ?? '';
+    const before = text.slice(0, anchorOffset);
+    const atIdx = before.lastIndexOf('@');
+    if (atIdx < 0) return;
+
+    const beforeAt = text.slice(0, atIdx);
+    const afterCursor = text.slice(anchorOffset);
+
+    // Build chip element
+    const nodeMatch = nodes?.find(n => n.title === item.label);
+    const chip = document.createElement('span');
+    chip.className = 'chat-mention-chip chat-mention-chip--input';
+    chip.contentEditable = 'false';
+    chip.dataset.mention = item.label;
+    chip.dataset.nodeType = nodeMatch?.type ?? (item.nodeType ?? 'file');
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'chat-mention-chip-label';
+    labelSpan.textContent = item.label;
+    chip.appendChild(labelSpan);
+
+    // Replace text node with: [beforeText][chip][ ][afterText]
+    const parent = anchorNode.parentNode!;
+    const frag = document.createDocumentFragment();
+    if (beforeAt) frag.appendChild(document.createTextNode(beforeAt));
+    frag.appendChild(chip);
+    const spaceNode = document.createTextNode(' ');
+    frag.appendChild(spaceNode);
+    if (afterCursor) frag.appendChild(document.createTextNode(afterCursor));
+    parent.replaceChild(frag, anchorNode);
+
+    // Move cursor after space
+    const range = document.createRange();
+    range.setStartAfter(spaceNode);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    setInput(serializeEditable(el));
     setMentionOpen(false);
-    textareaRef.current?.focus();
-  }, [input, mentionStart, mentionQuery]);
+    el.focus();
+  }, [nodes]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (mentionOpen && mentionItems.length > 0) {
@@ -594,33 +651,16 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
     if (prompt) {
       void sendMessage(prompt);
     } else {
-      textareaRef.current?.focus();
+      editableRef.current?.focus();
     }
   }, [sendMessage]);
 
-  // Sync mirror overlay scroll with textarea
-  const mirrorRef = useRef<HTMLDivElement>(null);
-  const syncScroll = useCallback(() => {
-    if (textareaRef.current && mirrorRef.current) {
-      mirrorRef.current.scrollTop = textareaRef.current.scrollTop;
-    }
+  // Paste handler: strip HTML, insert plain text only
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text/plain');
+    document.execCommand('insertText', false, text);
   }, []);
-
-  // Build mirror HTML: same text but @[label] replaced with chip markup
-  const buildMirrorHtml = useCallback((text: string): string => {
-    if (!text) return '<br>';
-    const escaped = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    const withChips = escaped.replace(/@\[([^\]]+)\]/g, (_m, label: string) => {
-      const node = nodes?.find(n => n.title === label);
-      const nodeType = node?.type ?? 'file';
-      return `<span class="chat-mention-chip chat-mention-chip--input" data-node-type="${nodeType}"><span class="chat-mention-chip-label">${label}</span></span>`;
-    });
-    // Preserve line breaks and trailing newline for height match
-    return withChips.replace(/\n/g, '<br>') + '<br>';
-  }, [nodes]);
 
   const hasMessages = messages.length > 0 || loading;
 
@@ -820,25 +860,16 @@ export const ChatPanel = ({ workspaceId, nodes, rootFolder, onClose, onResizeSta
           </div>
         )}
         <div className="chat-input-box">
-          <div className={`chat-input-wrapper${MENTION_TEST.test(input) ? ' chat-input-wrapper--has-mentions' : ''}`}>
-            <div
-              ref={mirrorRef}
-              className="chat-input-mirror"
-              aria-hidden="true"
-              dangerouslySetInnerHTML={{ __html: buildMirrorHtml(input) }}
-            />
-            <textarea
-              ref={textareaRef}
-              className="chat-input"
-              placeholder="Ask anything..."
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              onScroll={syncScroll}
-              rows={1}
-              disabled={loading}
-            />
-          </div>
+          <div
+            ref={editableRef}
+            className="chat-input"
+            contentEditable={!loading}
+            role="textbox"
+            data-placeholder="Ask anything..."
+            onInput={handleInput}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+          />
           <div className="chat-input-footer">
             <div className="chat-input-footer-left" />
             <button
