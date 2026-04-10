@@ -9,7 +9,11 @@
 import { Engine, builtInSkillsPlugin } from 'pulse-coder-engine';
 import { createOpenAI } from '@ai-sdk/openai';
 import type { ModelMessage } from 'ai';
-import { buildWorkspaceSummary, formatSummaryForPrompt } from './context-builder';
+import {
+  buildWorkspaceSummary,
+  formatSummaryForPrompt,
+  resolveWorkspaceNames,
+} from './context-builder';
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import type { CanvasAgentConfig, CanvasAgentMessage, WorkspaceSummary } from './types';
@@ -88,29 +92,29 @@ Use these alongside canvas_* tools for full workspace control.
 
 function buildSystemPrompt(
   summary: WorkspaceSummary | null,
-  mentionedSummaries: WorkspaceSummary[] = [],
+  mentionedCanvases: Array<{ id: string; name: string }> = [],
 ): string {
   const base = summary
     ? BASE_SYSTEM_PROMPT + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
     : BASE_SYSTEM_PROMPT + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
 
-  if (mentionedSummaries.length === 0) return base;
+  if (mentionedCanvases.length === 0) return base;
 
   const lines: string[] = [
     '',
     '## Other Canvases Referenced by the User',
-    'The user has `@`-mentioned one or more other canvases (workspaces). ' +
-      'A lightweight summary of each is included below. To read the full content of ' +
-      'any referenced canvas (file contents, terminal scrollback, etc.), call ' +
-      '`canvas_read_context` with the `workspaceId` parameter set to the target ' +
-      'workspace. To read a single node from another canvas, call ' +
-      '`canvas_read_node` with both `workspaceId` and `nodeId`.',
+    'The user has `@`-mentioned the canvases listed below. No content is ' +
+      'pre-loaded — call `canvas_read_context` with the matching `workspaceId` ' +
+      '(detail="summary" for the node list, detail="full" for file contents ' +
+      'and terminal scrollback) when you actually need to read one. For a ' +
+      'single node, call `canvas_read_node` with both `workspaceId` and ' +
+      '`nodeId`. Only fetch what the user\'s request actually needs.',
     '',
   ];
-  for (const s of mentionedSummaries) {
-    lines.push(formatSummaryForPrompt(s));
-    lines.push('');
+  for (const c of mentionedCanvases) {
+    lines.push(`- **${c.name}** — workspaceId: \`${c.id}\``);
   }
+  lines.push('');
   return base + lines.join('\n');
 }
 
@@ -169,21 +173,19 @@ export class CanvasAgent {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
 
-    // Load summaries for any other canvases the user @-mentioned. Silently
-    // drop any that fail to load (deleted/renamed/etc.) so a stale mention
-    // never blocks a chat turn.
-    const mentionedSummaries: WorkspaceSummary[] = [];
+    // For any other canvases the user @-mentioned, we only inject the
+    // `{ id, name }` pair into the system prompt — the agent is expected to
+    // call `canvas_read_context({ workspaceId })` on demand if it actually
+    // needs that canvas's content.
+    let mentionedCanvases: Array<{ id: string; name: string }> = [];
     if (mentionedWorkspaceIds && mentionedWorkspaceIds.length > 0) {
       const unique = Array.from(new Set(mentionedWorkspaceIds)).filter(
         id => id && id !== this.config.workspaceId,
       );
-      for (const id of unique) {
-        const s = await buildWorkspaceSummary(id);
-        if (s) mentionedSummaries.push(s);
-      }
+      mentionedCanvases = await resolveWorkspaceNames(unique);
     }
 
-    const systemPrompt = buildSystemPrompt(summary, mentionedSummaries);
+    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases);
 
     // Add user message
     this.messages.push({ role: 'user', content: message } as ModelMessage);
