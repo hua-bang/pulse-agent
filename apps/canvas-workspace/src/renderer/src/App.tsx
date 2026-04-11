@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
+import { useLocation } from 'wouter';
 import './App.css';
 import { Canvas } from './components/Canvas';
 import { ChatPage, ChatPanel } from './components/chat';
@@ -10,13 +11,18 @@ const DEFAULT_CHAT_WIDTH = 420;
 const MIN_CHAT_WIDTH = 280;
 const MAX_CHAT_WIDTH = 600;
 
+const ROUTE_CANVAS = '/';
+const ROUTE_CHAT = '/chat';
+
 type ActiveView = 'canvas' | 'chat';
 
 const App = () => {
+  const [location, setLocation] = useLocation();
+  const activeView: ActiveView = location === ROUTE_CHAT ? 'chat' : 'canvas';
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
-  const [activeView, setActiveView] = useState<ActiveView>('canvas');
   const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>();
   const [deleteNodeId, setDeleteNodeId] = useState<string | undefined>();
@@ -56,12 +62,12 @@ const App = () => {
     // When entering the full-screen page, also close the right-side panel so
     // only one ChatView instance (and one set of IPC subscriptions) is live.
     setChatPanelOpen(false);
-    setActiveView('chat');
-  }, []);
+    setLocation(ROUTE_CHAT);
+  }, [setLocation]);
 
   const exitChatView = useCallback(() => {
-    setActiveView('canvas');
-  }, []);
+    setLocation(ROUTE_CANVAS);
+  }, [setLocation]);
 
   // Keyboard shortcuts:
   //   Cmd/Ctrl+Shift+A → toggle right-side chat panel (canvas view only)
@@ -77,8 +83,12 @@ const App = () => {
       }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault();
-        setActiveView(prev => (prev === 'chat' ? 'canvas' : 'chat'));
-        if (activeView !== 'chat') setChatPanelOpen(false);
+        if (activeView === 'chat') {
+          setLocation(ROUTE_CANVAS);
+        } else {
+          setChatPanelOpen(false);
+          setLocation(ROUTE_CHAT);
+        }
         return;
       }
       if (e.key === 'Escape' && activeView === 'chat') {
@@ -86,12 +96,12 @@ const App = () => {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName;
         if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
-        setActiveView('canvas');
+        setLocation(ROUTE_CANVAS);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeView]);
+  }, [activeView, setLocation]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -122,8 +132,8 @@ const App = () => {
   // Jumping to a node from the chat page: focus it AND return to canvas.
   const handleNodeFocusFromChatPage = useCallback((nodeId: string) => {
     setFocusNodeId(nodeId);
-    setActiveView('canvas');
-  }, []);
+    setLocation(ROUTE_CANVAS);
+  }, [setLocation]);
 
   const activeWorkspace = workspaces.find((ws) => ws.id === activeId);
 
