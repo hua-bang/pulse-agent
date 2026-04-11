@@ -50,6 +50,7 @@
 }
 
 .node-type-badge {
+  position: relative;
   width: 16px;
   height: 16px;
   border-radius: 3px;
@@ -57,6 +58,43 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+.node-status-dot {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1.5px solid var(--surface);
+  pointer-events: none;
+  box-sizing: content-box;
+}
+
+.node-status-dot--running {
+  background: #10b981;
+  animation: nodeStatusPulse 1.8s ease-in-out infinite;
+}
+
+.node-status-dot--done {
+  background: var(--text-muted);
+}
+
+.node-status-dot--error {
+  background: #e03e3e;
+}
+
+@keyframes nodeStatusPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.7;
+  }
 }
 
 .node-type-badge--file {

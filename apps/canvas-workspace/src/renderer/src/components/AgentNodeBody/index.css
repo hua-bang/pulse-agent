@@ -9,151 +9,258 @@
 .agent-picker {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 14px;
-  height: 100%;
+  gap: 10px;
+  padding: 12px;
   box-sizing: border-box;
 }
 
-.agent-picker-section {
+/* ── Segmented agent selector ── */
+
+.agent-segmented {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.agent-picker-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0.3px;
-  padding-left: 1px;
-}
-
-/* ── Agent cards ── */
-
-.agent-card-list {
-  display: flex;
-  gap: 6px;
-}
-
-.agent-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 4px 8px;
-  border: 1px solid var(--border);
+  gap: 2px;
+  padding: 2px;
+  background: var(--border-light);
   border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer;
-  text-align: center;
-  transition: border-color 0.12s, background 0.12s;
 }
 
-.agent-card:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
-}
-
-.agent-card--active {
-  border-color: var(--accent-border);
-  background: var(--accent-light);
-}
-
-.agent-card--active:hover {
-  border-color: var(--accent-border);
-  background: var(--accent-light);
-}
-
-.agent-card-icon {
-  color: var(--text-secondary);
+.agent-seg {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  gap: 6px;
   height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--border-light);
-  transition: color 0.12s, background 0.12s;
-}
-
-.agent-card--active .agent-card-icon {
-  color: var(--accent);
-  background: rgba(35, 131, 226, 0.10);
-}
-
-.agent-card-name {
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
-  color: var(--text);
-  line-height: 1.2;
-}
-
-.agent-card-desc {
-  font-size: 10px;
-  color: var(--text-muted);
-  line-height: 1.2;
-}
-
-/* ── Folder picker ── */
-
-.agent-folder-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: border-color 0.12s, background 0.12s;
-  font-size: 13px;
   font-family: var(--font);
-  text-align: left;
-}
-
-.agent-folder-btn:hover {
-  background: var(--surface-hover);
-}
-
-.agent-folder-path {
-  flex: 1;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s,
+    box-shadow 0.12s;
   min-width: 0;
+}
+
+.agent-seg:hover {
+  color: var(--text);
+}
+
+.agent-seg--active {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.agent-seg--active:hover {
+  color: var(--text);
+}
+
+.agent-seg-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-secondary);
 }
 
-/* ── Launch button ── */
+/* ── Prompt textarea ── */
 
-.agent-launch-btn {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 16px;
+.agent-prompt-input {
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
   font-size: 13px;
+  font-family: var(--font);
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  box-sizing: border-box;
+}
+
+.agent-prompt-input::placeholder {
+  color: var(--text-muted);
+}
+
+.agent-prompt-input:focus {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+/* ── Directory row ── */
+
+.agent-dir-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.agent-dir-row:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.agent-dir-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  border: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.agent-dir-icon:hover {
+  background: var(--border-light);
+  color: var(--text);
+}
+
+.agent-dir-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.agent-dir-input::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font);
+}
+
+/* ── Recent folder chips ── */
+
+.agent-recent-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: -4px;
+}
+
+.agent-recent-label {
+  font-size: 10px;
   font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  padding: 0 2px;
+}
+
+.agent-recent-chip {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-recent-chip:hover {
+  background: var(--accent-light);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* ── Launch row (preview + primary button) ── */
+
+.agent-launch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.agent-preview {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--border-light);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.agent-preview-sigil {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.agent-preview-cmd {
+  color: var(--text);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.agent-preview-cwd {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.agent-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
   font-family: var(--font);
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  flex-shrink: 0;
+  transition: filter 0.12s, box-shadow 0.12s, transform 0.08s;
+  box-shadow: 0 1px 2px rgba(35, 131, 226, 0.25);
 }
 
 .agent-launch-btn:hover {
-  background: var(--surface-hover);
-  border-color: var(--text-muted);
+  filter: brightness(1.08);
+  box-shadow: 0 2px 6px rgba(35, 131, 226, 0.3);
+}
+
+.agent-launch-btn:active {
+  transform: translateY(0.5px);
+  filter: brightness(0.96);
 }
 
 .agent-launch-btn svg {
-  color: var(--text-muted);
+  color: #ffffff;
 }
 
 /* ── Terminal (running state) ──────────────────────────── */
@@ -182,35 +289,33 @@
   padding: 0 4px;
 }
 
-/* ── Restart overlay ── */
-
-.agent-restart-overlay {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-}
+/* ── Restart button (top-right of running body) ── */
 
 .agent-restart-btn {
-  display: flex;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 10;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
+  gap: 4px;
+  padding: 3px 9px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   font-family: var(--font);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .agent-restart-btn:hover {
-  background: var(--surface-hover);
+  background: var(--surface);
   border-color: var(--text-muted);
   color: var(--text);
 }
