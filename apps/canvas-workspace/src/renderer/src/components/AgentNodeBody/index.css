@@ -4,159 +4,262 @@
   height: 100%;
 }
 
-/* ── Picker (idle state) ───────────────────────────────── */
+/* ── Picker (idle state) ──────────────────────────────── */
 
 .agent-picker {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 14px;
+  padding: 12px;
   height: 100%;
   box-sizing: border-box;
 }
 
-.agent-picker-section {
+/* Single "launcher card" that fills the body: textarea hero on top,
+ * toolbar chrome at the bottom. Mirrors modern AI chat input patterns. */
+.agent-launcher-card {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  min-height: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.agent-picker-label {
+.agent-launcher-card:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+/* ── Hero prompt textarea ── */
+
+.agent-launcher-prompt {
+  flex: 1;
+  min-height: 72px;
+  padding: 14px 16px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font);
+  line-height: 1.55;
+  resize: none;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.agent-launcher-prompt::placeholder {
+  color: var(--text-muted);
+}
+
+/* ── Toolbar (bottom of the card) ── */
+
+.agent-launcher-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 10px 10px;
+  border-top: 1px solid var(--border-light);
+  background: var(--surface-hover);
+}
+
+/* Agent pills row */
+
+.agent-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.agent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0.3px;
-  padding-left: 1px;
-}
-
-/* ── Agent cards ── */
-
-.agent-card-list {
-  display: flex;
-  gap: 6px;
-}
-
-.agent-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer;
-  text-align: center;
-  transition: border-color 0.12s, background 0.12s;
-}
-
-.agent-card:hover {
-  background: var(--surface-hover);
-  border-color: var(--border);
-}
-
-.agent-card--active {
-  border-color: var(--accent-border);
-  background: var(--accent-light);
-}
-
-.agent-card--active:hover {
-  border-color: var(--accent-border);
-  background: var(--accent-light);
-}
-
-.agent-card-icon {
-  color: var(--text-secondary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--border-light);
-  transition: color 0.12s, background 0.12s;
-}
-
-.agent-card--active .agent-card-icon {
-  color: var(--accent);
-  background: rgba(35, 131, 226, 0.10);
-}
-
-.agent-card-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text);
-  line-height: 1.2;
-}
-
-.agent-card-desc {
-  font-size: 10px;
-  color: var(--text-muted);
-  line-height: 1.2;
-}
-
-/* ── Folder picker ── */
-
-.agent-folder-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: border-color 0.12s, background 0.12s;
-  font-size: 13px;
   font-family: var(--font);
-  text-align: left;
-}
-
-.agent-folder-btn:hover {
-  background: var(--surface-hover);
-}
-
-.agent-folder-path {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s,
+    box-shadow 0.12s;
   white-space: nowrap;
-  color: var(--text-secondary);
 }
 
-/* ── Launch button ── */
+.agent-pill svg {
+  flex-shrink: 0;
+}
 
-.agent-launch-btn {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 7px 16px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+.agent-pill:hover {
   color: var(--text);
-  font-size: 13px;
-  font-weight: 500;
-  font-family: var(--font);
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
-}
-
-.agent-launch-btn:hover {
-  background: var(--surface-hover);
+  background: var(--surface);
   border-color: var(--text-muted);
 }
 
-.agent-launch-btn svg {
-  color: var(--text-muted);
+.agent-pill--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(35, 131, 226, 0.22);
 }
 
-/* ── Terminal (running state) ──────────────────────────── */
+.agent-pill--active:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  filter: brightness(1.06);
+}
+
+/* Directory + Start row */
+
+.agent-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-dir-field {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 2px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.agent-dir-field:focus-within {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.agent-dir-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+
+.agent-dir-icon:hover {
+  background: var(--border-light);
+  color: var(--text);
+}
+
+.agent-dir-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.agent-dir-input::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font);
+  font-size: 11px;
+}
+
+/* Primary Start button */
+
+.agent-launch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: filter 0.12s, box-shadow 0.12s, transform 0.08s;
+  box-shadow: 0 1px 2px rgba(35, 131, 226, 0.25);
+}
+
+.agent-launch-btn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 2px 6px rgba(35, 131, 226, 0.3);
+}
+
+.agent-launch-btn:active {
+  transform: translateY(0.5px);
+  filter: brightness(0.96);
+}
+
+.agent-launch-btn svg {
+  color: #ffffff;
+}
+
+/* Recent folders chip strip */
+
+.agent-recent {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.agent-recent-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding-right: 2px;
+}
+
+.agent-recent-chip {
+  padding: 2px 8px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-recent-chip:hover {
+  background: var(--accent-light);
+  border-style: solid;
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+/* ── Terminal (running state) ─────────────────────────── */
 
 .agent-xterm-container {
   height: 100%;
@@ -182,35 +285,33 @@
   padding: 0 4px;
 }
 
-/* ── Restart overlay ── */
-
-.agent-restart-overlay {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-}
+/* ── Restart button (top-right of running body) ── */
 
 .agent-restart-btn {
-  display: flex;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 10;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 5px 14px;
+  gap: 4px;
+  padding: 3px 9px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   font-family: var(--font);
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
 .agent-restart-btn:hover {
-  background: var(--surface-hover);
+  background: var(--surface);
   border-color: var(--text-muted);
   color: var(--text);
 }

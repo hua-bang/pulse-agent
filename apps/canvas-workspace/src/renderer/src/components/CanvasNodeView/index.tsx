@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import "./index.css";
-import type { CanvasNode, FrameNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, AgentNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
@@ -153,6 +153,11 @@ export const CanvasNodeView = ({
               <circle cx="9.5" cy="5" r="0.8" fill="currentColor" />
             </svg>
           )}
+          {node.type === "agent" && (() => {
+            const agentStatus = (node.data as AgentNodeData).status;
+            if (!agentStatus || agentStatus === "idle") return null;
+            return <span className={`node-status-dot node-status-dot--${agentStatus}`} />;
+          })()}
         </span>
         <span
           className="node-title"
