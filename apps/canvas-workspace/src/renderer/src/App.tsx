@@ -214,7 +214,7 @@ const App = () => {
         )}
         {activeView === 'chat' && (
           <ChatPage
-            workspaceId={activeId}
+            initialWorkspaceId={activeId}
             allWorkspaces={workspaces}
             nodes={allNodes[activeId] || []}
             rootFolder={activeWorkspace?.rootFolder}

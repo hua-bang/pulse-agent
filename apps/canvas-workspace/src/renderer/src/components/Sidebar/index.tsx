@@ -383,7 +383,7 @@ export const Sidebar = ({
           />
         ) : (
           <button
-            className={`sidebar-item${activeId === ws.id ? ' sidebar-item--active' : ''}`}
+            className={`sidebar-item${activeId === ws.id && activeView !== 'chat' ? ' sidebar-item--active' : ''}`}
             onClick={() => onSelect(ws.id)}
             onDoubleClick={() => startRename(ws)}
             title="Double-click to rename"
