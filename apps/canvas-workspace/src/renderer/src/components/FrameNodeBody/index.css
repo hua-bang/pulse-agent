@@ -1,50 +1,88 @@
+/* ---------------------------------------------------------------------------
+ * Frame node styling
+ *
+ * Design goals:
+ *  - Soft, cohesive FigJam-style palette (see COLOR_PRESETS in index.tsx).
+ *  - Dashed default border to signal "container" (not a solid card).
+ *  - Solid border + stronger glow when selected, so selection reads clearly.
+ *  - Narrow header tab with dark text derived from the frame color, so every
+ *    hue stays legible (white text on mid-saturation hues looked washed out).
+ * ------------------------------------------------------------------------- */
+
 .canvas-node--frame {
-  background: color-mix(in srgb, var(--frame-color, #9575d4) 8%, transparent);
-  border: 2px solid color-mix(in srgb, var(--frame-color, #9575d4) 55%, transparent);
+  /* Mix the tint over --surface (not transparent) so frames don't pick up the
+   * canvas background underneath and look muddy. */
+  background: color-mix(in srgb, var(--frame-color, #A8B0BD) 6%, var(--surface));
+  border: 1.5px dashed color-mix(in srgb, var(--frame-color, #A8B0BD) 50%, transparent);
   box-shadow: none;
   overflow: visible;
+  border-top-left-radius: 0px;
 }
 
 .canvas-node--frame:hover {
-  border-color: var(--frame-color, #9575d4);
+  border-color: color-mix(in srgb, var(--frame-color, #A8B0BD) 75%, transparent);
   box-shadow: none;
 }
 
 .canvas-node--frame.canvas-node--selected {
-  border-color: var(--frame-color, #9575d4);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #9575d4) 20%, transparent);
+  border-style: solid;
+  border-color: var(--frame-color, #A8B0BD);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #A8B0BD) 22%, transparent);
 }
+
+/* ---- Header tab ---- */
 
 .canvas-node--frame .node-header {
   position: absolute;
-  top: -34px;
-  left: -2px;
-  height: 32px;
-  min-width: max-content;
-  background: var(--frame-color, #9575d4);
-  border-radius: 6px 6px 0 0;
+  top: -30px;
+  left: -1.5px;
+  height: 28px;
+  /* Override the generic .node-header min-height: 32px so the tab actually
+   * renders at its intended 24px height instead of dipping into the frame
+   * body by 6px. */
+  min-height: 0;
+  min-width: 120px;
+  max-width: 100%;
+  /* Soft tint background: frame color mixed with white produces a label-like
+   * pastel across every hue. */
+  background: color-mix(in srgb, var(--frame-color, #A8B0BD) 22%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--frame-color, #A8B0BD) 45%, transparent);
   border-bottom: none;
+  border-radius: 6px 6px 0 0;
   padding: 0 8px;
-  color: white;
+  /* Dark text derived from frame color — readable on every preset hue. */
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 70%, #111111);
   transform: scale(calc(1 / var(--canvas-scale, 1)));
   transform-origin: left bottom;
   z-index: 2;
 }
 
-.canvas-node--frame .node-header .node-type-badge--frame,
+.canvas-node--frame .node-header .node-type-badge--frame {
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 65%, #111111);
+}
+
 .canvas-node--frame .node-header .node-title {
-  color: rgba(255, 255, 255, 0.95);
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 70%, #111111);
+  font-weight: 600;
+}
+
+.canvas-node--frame .node-header .node-title:focus {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .canvas-node--frame .node-header .node-focus,
 .canvas-node--frame .node-header .node-close {
-  color: rgba(255, 255, 255, 0.65);
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 55%, #333333);
 }
 
-.canvas-node--frame .node-header .node-focus:hover,
+.canvas-node--frame .node-header .node-focus:hover {
+  background: color-mix(in srgb, var(--frame-color, #A8B0BD) 25%, transparent);
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 80%, #000000);
+}
+
 .canvas-node--frame .node-header .node-close:hover {
-  background: rgba(255, 255, 255, 0.15);
-  color: white;
+  background: rgba(0, 0, 0, 0.08);
+  color: #d03b3b;
 }
 
 .canvas-node--frame .node-body {
@@ -58,12 +96,18 @@
   position: relative;
 }
 
+/* ---- Color trigger (in header) ----
+ * Reserve a fixed 16px slot so the header width doesn't jump when the dot
+ * fades in on hover. */
 .frame-color-trigger {
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  width: 16px;
+  height: 16px;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
@@ -74,20 +118,23 @@
 }
 
 .frame-color-dot {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.5);
-  transition: border-color 0.15s ease;
+  border: 1.5px solid color-mix(in srgb, var(--frame-color, #A8B0BD) 55%, #ffffff);
+  transition: border-color 0.15s ease, transform 0.1s ease;
 }
 
 .frame-color-trigger:hover .frame-color-dot {
-  border-color: white;
+  border-color: color-mix(in srgb, var(--frame-color, #A8B0BD) 80%, #000000);
+  transform: scale(1.15);
 }
 
+/* Popover floats ABOVE the header tab (not below), so it opens into empty
+ * canvas space instead of overlapping child nodes inside the frame body. */
 .frame-color-popover {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   display: none;
@@ -96,7 +143,7 @@
   background: var(--surface, #fff);
   border: 1px solid var(--border-light, rgba(0,0,0,0.08));
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
   z-index: 20;
   white-space: nowrap;
 }

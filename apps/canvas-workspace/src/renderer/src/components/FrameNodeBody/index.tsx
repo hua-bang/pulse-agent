@@ -13,16 +13,19 @@ export const FrameNodeBody = ({ node: _node, onUpdate: _onUpdate }: Props) => {
 
 /* ---- Color picker (rendered in header) ---- */
 
+// FigJam-style soft palette: L≈70, S≈55%, hues evenly distributed.
+// These read as a cohesive family and produce good dark-text contrast in the
+// narrow header tab (see FrameNodeBody/index.css).
 const COLOR_PRESETS = [
-  { name: "Red", value: "#e8615a" },
-  { name: "Orange", value: "#e89545" },
-  { name: "Yellow", value: "#d4a030" },
-  { name: "Green", value: "#3eb889" },
-  { name: "Cyan", value: "#35aec2" },
-  { name: "Blue", value: "#5594e8" },
-  { name: "Purple", value: "#9575d4" },
-  { name: "Pink", value: "#e06aa0" },
-  { name: "Gray", value: "#8b96a4" }
+  { name: "Red", value: "#F08F82" },
+  { name: "Orange", value: "#F5B36B" },
+  { name: "Yellow", value: "#E8C468" },
+  { name: "Green", value: "#7BC89B" },
+  { name: "Teal", value: "#6FBFC7" },
+  { name: "Blue", value: "#7AA7E8" },
+  { name: "Purple", value: "#A594E0" },
+  { name: "Pink", value: "#E89BBF" },
+  { name: "Gray", value: "#A8B0BD" }
 ];
 
 interface ColorPickerProps {
