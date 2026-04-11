@@ -29,6 +29,14 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #A8B0BD) 22%, transparent);
 }
 
+/* While the color picker popover is open, hoist the entire frame above its
+ * non-frame siblings. Frames are painted first (see Canvas sortedNodes), so
+ * without this the popover — a descendant of the frame — gets painted under
+ * later siblings (child cards) even though it floats above the header tab. */
+.canvas-node--frame:has(.frame-color-trigger--open) {
+  z-index: 1000;
+}
+
 /* ---- Header tab ---- */
 
 .canvas-node--frame .node-header {
@@ -125,9 +133,11 @@
   transform: scale(1.15);
 }
 
+/* Popover floats ABOVE the header tab (not below), so it opens into empty
+ * canvas space instead of overlapping child nodes inside the frame body. */
 .frame-color-popover {
   position: absolute;
-  top: calc(100% + 6px);
+  bottom: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
   display: none;
@@ -136,7 +146,7 @@
   background: var(--surface, #fff);
   border: 1px solid var(--border-light, rgba(0,0,0,0.08));
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
   z-index: 20;
   white-space: nowrap;
 }
