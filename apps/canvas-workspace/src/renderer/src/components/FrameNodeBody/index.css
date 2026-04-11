@@ -29,14 +29,6 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #A8B0BD) 22%, transparent);
 }
 
-/* While the color picker popover is open, hoist the entire frame above its
- * non-frame siblings. Frames are painted first (see Canvas sortedNodes), so
- * without this the popover — a descendant of the frame — gets painted under
- * later siblings (child cards) even though it floats above the header tab. */
-.canvas-node--frame:has(.frame-color-trigger--open) {
-  z-index: 1000;
-}
-
 /* ---- Header tab ---- */
 
 .canvas-node--frame .node-header {
