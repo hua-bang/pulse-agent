@@ -18,9 +18,9 @@
   border-right: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   flex-direction: column;
-  padding: 12px 8px;
+  padding: 12px 8px 8px;
   gap: 10px;
-  overflow-y: auto;
+  overflow: hidden;
   background: #fafaf9;
 }
 
@@ -38,11 +38,22 @@
   font-weight: 500;
   transition: background 0.1s, border-color 0.1s;
   width: 100%;
+  flex-shrink: 0;
 }
 
 .chat-page-rail-new:hover {
   background: rgba(55, 53, 47, 0.04);
   border-color: rgba(55, 53, 47, 0.18);
+}
+
+.chat-page-rail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 2px;
 }
 
 .chat-page-rail-group {
@@ -145,52 +156,11 @@
 .chat-page-topbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 10px 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04);
   flex-shrink: 0;
   gap: 12px;
-}
-
-.chat-page-workspace-switcher {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.chat-page-workspace-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #9b9a97;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.chat-page-workspace-select {
-  font-size: 13px;
-  font-family: inherit;
-  color: #37352f;
-  background: #fff;
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 6px;
-  padding: 4px 8px;
-  cursor: pointer;
-  outline: none;
-  min-width: 140px;
-}
-
-.chat-page-workspace-select:hover {
-  border-color: rgba(55, 53, 47, 0.2);
-}
-
-.chat-page-workspace-select:focus {
-  border-color: rgba(55, 53, 47, 0.4);
-}
-
-.chat-page-workspace-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: #37352f;
 }
 
 /* ─── Body (chat view inside the page) ────────────────────── */

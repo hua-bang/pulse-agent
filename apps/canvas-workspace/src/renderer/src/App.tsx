@@ -69,6 +69,14 @@ const App = () => {
     setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
+  // Selecting a workspace from the sidebar also routes back to the canvas.
+  // This is the only Canvas affordance in the expanded sidebar (the explicit
+  // Canvas nav entry was intentionally removed).
+  const handleSelectWorkspace = useCallback((id: string) => {
+    selectWorkspace(id);
+    setLocation(ROUTE_CANVAS);
+  }, [selectWorkspace, setLocation]);
+
   // Keyboard shortcuts:
   //   Cmd/Ctrl+Shift+A → toggle right-side chat panel (canvas view only)
   //   Cmd/Ctrl+Shift+L → toggle full-screen chat page
@@ -146,7 +154,7 @@ const App = () => {
           workspaces={workspaces}
           folders={folders}
           activeId={activeId}
-          onSelect={selectWorkspace}
+          onSelect={handleSelectWorkspace}
           onCreate={createWorkspace}
           onRename={renameWorkspace}
           onDelete={deleteWorkspace}
@@ -211,7 +219,6 @@ const App = () => {
             nodes={allNodes[activeId] || []}
             rootFolder={activeWorkspace?.rootFolder}
             onExit={exitChatView}
-            onSelectWorkspace={selectWorkspace}
             onNodeFocus={handleNodeFocusFromChatPage}
           />
         )}

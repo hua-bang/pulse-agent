@@ -16,7 +16,6 @@ interface ChatPageProps {
   nodes?: CanvasNode[];
   rootFolder?: string;
   onExit: () => void;
-  onSelectWorkspace?: (id: string) => void;
   onNodeFocus?: (nodeId: string) => void;
 }
 
@@ -33,7 +32,6 @@ export const ChatPage = ({
   nodes,
   rootFolder,
   onExit,
-  onSelectWorkspace,
   onNodeFocus,
 }: ChatPageProps) => {
   const {
@@ -106,8 +104,6 @@ export const ChatPage = ({
     onExit();
   }, [onExit, onNodeFocus]);
 
-  const activeWorkspace = allWorkspaces.find((ws) => ws.id === workspaceId);
-
   return (
     <div className="chat-page">
       <ChatSessionsRail
@@ -119,25 +115,6 @@ export const ChatPage = ({
 
       <div className="chat-page-main">
         <div className="chat-page-topbar">
-          {allWorkspaces.length > 1 && onSelectWorkspace ? (
-            <label className="chat-page-workspace-switcher">
-              <span className="chat-page-workspace-label">Workspace</span>
-              <select
-                className="chat-page-workspace-select"
-                value={workspaceId}
-                onChange={(event) => onSelectWorkspace(event.target.value)}
-              >
-                {allWorkspaces.map((ws) => (
-                  <option key={ws.id} value={ws.id}>{ws.name}</option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <span className="chat-page-workspace-name">
-              {activeWorkspace?.name ?? 'Workspace'}
-            </span>
-          )}
-
           <button
             className="chat-panel-action-btn"
             onClick={onExit}

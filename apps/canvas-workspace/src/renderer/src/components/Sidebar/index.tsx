@@ -432,18 +432,9 @@ export const Sidebar = ({
             <span className="sidebar-brand">Pulse Canvas</span>
           </div>
 
-          {/* Top-level view nav (Canvas vs AI Chat) */}
+          {/* Top-level view nav — AI Chat only. Canvas is reached by selecting
+              a workspace below, which implicitly routes back to canvas view. */}
           <div className="sidebar-nav">
-            <button
-              className={`sidebar-nav-item${activeView === 'canvas' ? ' sidebar-nav-item--active' : ''}`}
-              onClick={onExitChat}
-              title="Canvas view"
-            >
-              <span className="sidebar-nav-icon">
-                <WorkspaceIcon size={14} />
-              </span>
-              <span className="sidebar-nav-label">Canvas</span>
-            </button>
             <button
               className={`sidebar-nav-item${activeView === 'chat' ? ' sidebar-nav-item--active' : ''}`}
               onClick={onEnterChat}
