@@ -6,7 +6,7 @@ import { Sidebar } from './components/Sidebar';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import type { CanvasNode } from './types';
 
-const DEFAULT_CHAT_WIDTH = 380;
+const DEFAULT_CHAT_WIDTH = 420;
 const MIN_CHAT_WIDTH = 280;
 const MAX_CHAT_WIDTH = 600;
 

@@ -575,6 +575,7 @@
 .sidebar-layer-children-inner {
   min-height: 0;
   overflow: hidden;
+  padding-left: 8px;
 }
 
 .sidebar-layer-children--collapsed {
