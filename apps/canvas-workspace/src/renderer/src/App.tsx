@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import './App.css';
 import { Canvas } from './components/Canvas';
-import { ChatPanel } from './components/ChatPanel';
+import { ChatPanel } from './components/chat';
 import { Sidebar } from './components/Sidebar';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import type { CanvasNode } from './types';
