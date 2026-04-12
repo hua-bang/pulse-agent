@@ -9,6 +9,7 @@ export const COMMANDS_ALLOWED_WHILE_RUNNING = new Set([
   'memory',
   'mode',
   'fork',
+  'merge',
   'wt',
   'insight',
   'model',
@@ -26,6 +27,8 @@ export const COMMAND_ALIASES: Record<string, string> = {
   session: 'current',
   mem: 'memory',
   clone: 'fork',
+  link: 'merge',
+  unlink: 'merge',
   role: 'soul',
 };
 

@@ -4,7 +4,7 @@ import type { ModelMessage } from 'ai';
 import type { ClarificationRequest, IncomingAttachment } from './types.js';
 import { engine } from './engine-singleton.js';
 import { getAcpState, runAcp } from 'pulse-coder-acp';
-import { sessionStore } from './session-store.js';
+import { sessionStore, type SessionLink } from './session-store.js';
 import { buildAttachmentSystemPrompt, resolveIncomingAttachments } from './attachments.js';
 import { memoryIntegration, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { buildRemoteWorktreeRunContext, worktreeIntegration } from './worktree/integration.js';
@@ -246,6 +246,35 @@ function resolveRunProvider(
   });
 }
 
+function formatTimeAgo(ts: number): string {
+  const diff = Date.now() - ts;
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function buildLinkedSessionsIndex(links: SessionLink[]): string | null {
+  if (links.length === 0) {
+    return null;
+  }
+
+  const header = [
+    '## Linked Sessions',
+    'This session has linked sessions for reference. Use the read_linked_session tool to read their content when the user asks or when you need context from them.',
+    '',
+  ];
+
+  const entries = links.map((link, i) => {
+    const label = link.label ? ` "${link.label}"` : '';
+    return `${i + 1}. ${link.sessionId}${label} (linked ${formatTimeAgo(link.linkedAt)})`;
+  });
+
+  return [...header, ...entries].join('\n');
+}
+
 export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<ExecuteAgentTurnResult> {
   const session = await sessionStore.getOrCreate(input.platformKey, input.forceNewSession, input.memoryKey);
   const sessionId = session.sessionId;
@@ -288,6 +317,7 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
   });
 
   const acpState = await getAcpState(input.platformKey);
+  const linkedSessions = await sessionStore.getLinkedSessionsForSession(sessionId);
 
   const resultText = await runWithAgentContexts(
     {
@@ -326,7 +356,8 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
         runContext,
         systemPrompt: (() => {
           const channelPrompt = buildChannelSystemPrompt(input.platformKey);
-          const parts = [channelPrompt, attachmentPrompt].filter(Boolean) as string[];
+          const linkedPrompt = buildLinkedSessionsIndex(linkedSessions);
+          const parts = [channelPrompt, attachmentPrompt, linkedPrompt].filter(Boolean) as string[];
           if (parts.length === 0) {
             return undefined;
           }

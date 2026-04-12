@@ -6,6 +6,7 @@ import { analyzeImageTool } from './tools/analyze-image.js';
 import { cronJobTool } from './tools/cron-job.js';
 import { deferDemoTool } from './tools/defer-demo.js';
 import { jinaAiReadTool } from './tools/jina-ai.js';
+import { readLinkedSessionTool } from './tools/read-linked-session.js';
 import { sessionSummaryTool } from './tools/session-summary.js';
 import { twitterListTweetsTool } from './tools/twitter-list-tweets.js';
 import { ptcDemoTools } from './tools/ptc-demo.js';
@@ -31,6 +32,7 @@ export const engine = new Engine({
     cron_job: cronJobTool,
     deferred_demo: deferDemoTool,
     jina_ai_read: jinaAiReadTool,
+    read_linked_session: readLinkedSessionTool,
     session_summary: sessionSummaryTool,
     twitter_list_tweets: twitterListTweetsTool,
     lark_cli: larkCliTool,

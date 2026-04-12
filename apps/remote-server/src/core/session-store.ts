@@ -8,6 +8,12 @@ import type { StoredAttachment } from './attachments.js';
 // Context.messages is ModelMessage[] so we can use unknown[] as the storage type
 // and cast when needed — avoids adding `ai` as a direct dependency
 
+export interface SessionLink {
+  sessionId: string;
+  linkedAt: number;
+  label?: string;
+}
+
 interface RemoteSession {
   id: string;
   platformKey: string;
@@ -16,6 +22,7 @@ interface RemoteSession {
   updatedAt: number;
   messages: unknown[]; // Stored as-is; cast to Context['messages'] on load
   latestAttachments?: StoredAttachment[];
+  linkedSessions?: SessionLink[];
 }
 
 export interface RemoteSessionSummary {
@@ -52,6 +59,16 @@ export interface ForkSessionResult {
   reason?: string;
 }
 
+export interface LinkSessionResult {
+  ok: boolean;
+  reason?: string;
+}
+
+export interface UnlinkSessionResult {
+  ok: boolean;
+  reason?: string;
+}
+
 export interface SessionDetail {
   id: string;
   platformKey: string;
@@ -60,6 +77,7 @@ export interface SessionDetail {
   updatedAt: number;
   messages: unknown[];
   latestAttachments?: StoredAttachment[];
+  linkedSessions?: SessionLink[];
 }
 
 /**
@@ -132,6 +150,7 @@ class RemoteSessionStore {
       updatedAt: session.updatedAt,
       messages: this.cloneMessages(session.messages),
       latestAttachments: this.cloneAttachments(session.latestAttachments),
+      linkedSessions: session.linkedSessions ? [...session.linkedSessions] : undefined,
     };
   }
 
@@ -385,6 +404,143 @@ class RemoteSessionStore {
       sourceSessionId,
       messageCount: forkedSession.messages.length,
     };
+  }
+
+  // ── Linked Sessions ──────────────────────────────────────────────
+
+  private static MAX_LINKED_SESSIONS = 10;
+
+  /**
+   * Link another session to the current session.
+   * The linked session must be accessible by the same user.
+   */
+  async linkSession(
+    platformKey: string,
+    targetSessionId: string,
+    label?: string,
+    ownerKey?: string,
+  ): Promise<LinkSessionResult> {
+    const currentSessionId = this.index[platformKey];
+    if (!currentSessionId) {
+      return { ok: false, reason: '当前没有已绑定会话，请先发送消息创建会话' };
+    }
+
+    if (currentSessionId === targetSessionId) {
+      return { ok: false, reason: '不能关联自身' };
+    }
+
+    const currentSession = await this.readSession(currentSessionId);
+    if (!currentSession) {
+      return { ok: false, reason: '当前会话不存在' };
+    }
+
+    const targetSession = await this.readSession(targetSessionId);
+    if (!targetSession) {
+      return { ok: false, reason: `Session not found: ${targetSessionId}` };
+    }
+
+    if (!this.canAccessSession(targetSession, platformKey, ownerKey)) {
+      return { ok: false, reason: 'Session does not belong to current user' };
+    }
+
+    const links = currentSession.linkedSessions ?? [];
+
+    if (links.some((link) => link.sessionId === targetSessionId)) {
+      return { ok: false, reason: '该 session 已关联' };
+    }
+
+    if (links.length >= RemoteSessionStore.MAX_LINKED_SESSIONS) {
+      return { ok: false, reason: `最多关联 ${RemoteSessionStore.MAX_LINKED_SESSIONS} 个 session` };
+    }
+
+    links.push({
+      sessionId: targetSessionId,
+      linkedAt: Date.now(),
+      label: label?.trim() || undefined,
+    });
+
+    currentSession.linkedSessions = links;
+    currentSession.updatedAt = Date.now();
+    await this.writeSession(currentSession);
+
+    return { ok: true };
+  }
+
+  /**
+   * Remove a linked session from the current session.
+   */
+  async unlinkSession(platformKey: string, targetSessionId: string): Promise<UnlinkSessionResult> {
+    const currentSessionId = this.index[platformKey];
+    if (!currentSessionId) {
+      return { ok: false, reason: '当前没有已绑定会话' };
+    }
+
+    const currentSession = await this.readSession(currentSessionId);
+    if (!currentSession) {
+      return { ok: false, reason: '当前会话不存在' };
+    }
+
+    const links = currentSession.linkedSessions ?? [];
+    const before = links.length;
+    currentSession.linkedSessions = links.filter((link) => link.sessionId !== targetSessionId);
+
+    if (currentSession.linkedSessions.length === before) {
+      return { ok: false, reason: `未找到关联: ${targetSessionId}` };
+    }
+
+    if (currentSession.linkedSessions.length === 0) {
+      currentSession.linkedSessions = undefined;
+    }
+
+    currentSession.updatedAt = Date.now();
+    await this.writeSession(currentSession);
+
+    return { ok: true };
+  }
+
+  /**
+   * Get linked sessions for the current session.
+   * Returns enriched info with message count and preview for each linked session.
+   */
+  async getLinkedSessions(platformKey: string, ownerKey?: string): Promise<{
+    currentSessionId: string | null;
+    links: Array<SessionLink & { messageCount: number; preview: string; exists: boolean }>;
+  }> {
+    const currentSessionId = this.index[platformKey] ?? null;
+    if (!currentSessionId) {
+      return { currentSessionId: null, links: [] };
+    }
+
+    const currentSession = await this.readSession(currentSessionId);
+    if (!currentSession) {
+      return { currentSessionId, links: [] };
+    }
+
+    const links = currentSession.linkedSessions ?? [];
+    const enriched = await Promise.all(
+      links.map(async (link) => {
+        const session = await this.readSession(link.sessionId);
+        if (!session || !this.canAccessSession(session, platformKey, ownerKey)) {
+          return { ...link, messageCount: 0, preview: '(session not found)', exists: false };
+        }
+        return {
+          ...link,
+          messageCount: session.messages.length,
+          preview: this.buildPreview(session.messages),
+          exists: true,
+        };
+      }),
+    );
+
+    return { currentSessionId, links: enriched };
+  }
+
+  /**
+   * Get linked sessions metadata for a specific session id (for tool/runner use).
+   */
+  async getLinkedSessionsForSession(sessionId: string): Promise<SessionLink[]> {
+    const session = await this.readSession(sessionId);
+    return session?.linkedSessions ?? [];
   }
 
   /**

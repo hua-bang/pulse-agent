@@ -18,6 +18,7 @@ import {
   handleStopCommand,
 } from './chat-commands/handlers/session-commands.js';
 import { handleMemoryCommand } from './chat-commands/handlers/memory-commands.js';
+import { handleMergeCommand } from './chat-commands/handlers/merge-commands.js';
 import { handleModeCommand } from './chat-commands/handlers/mode-commands.js';
 import { handleModelCommand } from './chat-commands/handlers/model-commands.js';
 import { handleInsightCommand } from './chat-commands/handlers/insight-commands.js';
@@ -96,6 +97,9 @@ export async function processIncomingCommand(incoming: IncomingMessage): Promise
 
     case 'fork':
       return await handleForkCommand(incoming.platformKey, memoryKey, args);
+
+    case 'merge':
+      return await handleMergeCommand(incoming.platformKey, memoryKey, args);
 
     case 'status':
       return await handleStatusCommand(incoming.platformKey);
