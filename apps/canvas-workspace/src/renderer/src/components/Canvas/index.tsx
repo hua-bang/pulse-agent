@@ -137,7 +137,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodesChange
     handleFocusNode(node);
   }, [handleFocusNode]);
 
-  const { draggingId, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
+  const { draggingId, draggingIds, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes
   );
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
@@ -273,6 +273,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodesChange
         canvasId={canvasId}
         canvasName={canvasName}
         draggingId={draggingId}
+        draggingIds={draggingIds}
         resizingId={resizingId}
         selectedNodeIds={selectedNodeIds}
         highlightedId={highlightedId}

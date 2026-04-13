@@ -17,6 +17,11 @@ export const useNodeDrag = (
     children: Array<{ id: string; nodeX: number; nodeY: number }>;
   } | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // Every node that moves with the drag (the primary node plus, for frames,
+  // every descendant frame / node). Used so the whole group can share the
+  // lifted `.canvas-node--dragging` stacking context — otherwise a dragged
+  // parent frame's opaque body would paint over its nested children.
+  const [draggingIds, setDraggingIds] = useState<Set<string>>(() => new Set());
 
   const onDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
@@ -43,6 +48,7 @@ export const useNodeDrag = (
         children
       };
       setDraggingId(node.id);
+      setDraggingIds(new Set([node.id, ...children.map((c) => c.id)]));
     },
     [nodes]
   );
@@ -75,7 +81,8 @@ export const useNodeDrag = (
   const onDragEnd = useCallback(() => {
     dragging.current = null;
     setDraggingId(null);
+    setDraggingIds(new Set());
   }, []);
 
-  return { draggingId, onDragStart, onDragMove, onDragEnd };
+  return { draggingId, draggingIds, onDragStart, onDragMove, onDragEnd };
 };
