@@ -1,184 +1,230 @@
-# remote-server
+# @pulse-coder/remote-server
 
-## Built-in X list tool
+HTTP server that wraps `pulse-coder-engine` and exposes it to messaging platforms. Incoming messages are dispatched to a per-channel agent session; responses stream back through the original platform's API.
 
-A deferred tool named `twitter_list_tweets` is available for fetching tweets from X lists.
+## Tech Stack
 
-Quick test (local-only internal endpoint):
+- **Hono** + **@hono/node-server** — HTTP framework
+- **tsup** — bundles to `dist/index.cjs`
+- **tsx** — TypeScript watch mode for development
+- `pulse-coder-engine`, `pulse-coder-memory-plugin`, `pulse-coder-plugin-kit`, `pulse-coder-acp` — workspace deps
 
-```bash
-curl -sS -X POST \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $INTERNAL_API_SECRET" \
-  http://127.0.0.1:3000/internal/agent/run \
-  -d '{"text":"Use tool_search_tool_bm25 to find twitter_list_tweets, then call it with listUrl=https://x.com/i/lists/1234567890 and limit=10."}'
-```
+## Endpoints
 
-Tool behavior:
-- Uses Nitter-compatible RSS (`/i/lists/<id>/rss`) with fallback instances.
-- Returns normalized tweet records with dedupe metadata.
-- If all instances fail, returns `ok=false` with attempted instances and error details.
+| Method | Path | Access |
+|--------|------|--------|
+| `GET` | `/health` | Public |
+| `POST` | `/webhooks/feishu` | Public (HMAC-verified) |
+| `POST` | `/webhooks/discord` | Public (ED25519-verified) |
+| `POST` | `/internal/agent/run` | Loopback + Bearer token |
+| `GET` | `/internal/discord/gateway/status` | Loopback + Bearer token |
+| `POST` | `/internal/discord/gateway/restart` | Loopback + Bearer token |
+| `GET` | `/api/devtools/runs` | Local dev |
 
-## Deferred tool demo
+> Telegram and Web API adapters exist in code but are not mounted by default.
 
-A demo tool named `deferred_demo` is registered with `defer_loading: true`.
-It will not be sent to the AI SDK until it is discovered via tool search.
-
-Quick test (local-only internal endpoint):
-
-```bash
-curl -sS -X POST \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $INTERNAL_API_SECRET" \
-  http://127.0.0.1:3000/internal/agent/run \
-  -d '{"text":"Use tool_search_tool_bm25 to find the deferred_demo tool, then call it with message=hello."}'
-```
-
-Expected behavior:
-- First run: model uses tool search and discovers `deferred_demo`.
-- Second run: `deferred_demo` is now loaded and can be called directly.
-
-## PTC allowed_callers demo
-
-`allowed_callers` in this repo is implemented as a caller tool-name allowlist.
-
-- `ptc_demo_caller_probe`: unrestricted probe tool
-- `ptc_demo_caller_only`: `allowed_callers=["ptc_demo_caller_probe"]`
-- `ptc_demo_cron_only`: `allowed_callers=["cron_job"]`
-- `ptc_demo_deferred_only`: `allowed_callers=["deferred_demo"]`
-
-Quick test via internal endpoint:
+## Dev & Build
 
 ```bash
-curl -sS -X POST \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $INTERNAL_API_SECRET" \
-  http://127.0.0.1:3000/internal/agent/run \
-  -d '{
-    "text": "Call ptc_demo_caller_only with message=hello",
-    "caller": "ptc_demo_caller_probe",
-    "callerSelectors": ["ptc_demo_caller_probe"]
-  }'
+# From repo root
+pnpm --filter @pulse-coder/remote-server dev    # tsx watch
+pnpm --filter @pulse-coder/remote-server build  # tsup → dist/index.cjs
+
+# Or from this directory
+npm run dev
+npm run build
+npm start                                        # node dist/index.cjs
 ```
 
-If you use a non-matching caller (or omit it), restricted demo tools should be filtered out by PTC rules.
+## Configuration
 
-## Enabled webhook endpoints
+Copy `.env.example` to `.env`. Key variables:
 
-- `POST /webhooks/feishu`
-- `POST /webhooks/discord`
+```bash
+# === LLM ===
+OPENAI_API_KEY=
+OPENAI_API_URL=
+OPENAI_MODEL=
 
-> Telegram and Web API adapters exist in code but are currently not mounted by default.
+# === Server ===
+PORT=3000
+HOST=0.0.0.0
+INTERNAL_API_SECRET=          # Required in production
 
-## Discord setup (gateway-friendly)
+# === Feishu ===
+FEISHU_APP_ID=
+FEISHU_APP_SECRET=
+FEISHU_ENCRYPT_KEY=
+FEISHU_VERIFICATION_TOKEN=
 
-Gateway mode behavior:
+# === Discord ===
+DISCORD_PUBLIC_KEY=
+DISCORD_BOT_TOKEN=            # Required for DM / gateway mode
+```
 
-- Guild/channel chats support **@mention direct text** via Discord Gateway listener.
-- Guild/channel slash commands via interactions webhook still work if you have an HTTPS endpoint.
-- DM chats support **direct text messages** (no `/ask` required) via Discord Gateway listener.
+See `.env.example` for the full list including memory plugin, Gemini, Telegram, ACP, and compaction tuning.
 
-### 1) Configure app settings in Discord Developer Portal
+Model overrides per-channel can be set in `.pulse-coder/config.json` (cwd) or via `$PULSE_CODER_MODEL_CONFIG`.
+
+## Slash Commands
+
+Users can type these in any connected channel:
+
+| Command | Description |
+|---------|-------------|
+| `/new` | Start a new session (clear history) |
+| `/clear` | Alias for `/new` |
+| `/resume [id]` | List recent sessions or resume a specific one |
+| `/fork` | Fork current session into a new branch |
+| `/merge` | Merge a linked session |
+| `/status` | Show current run status |
+| `/current` | Show active session ID |
+| `/stop` | Abort the running agent turn |
+| `/compact` | Manually trigger context compaction |
+| `/memory [show\|clear]` | View or clear memory logs |
+| `/model <name>` | Override LLM model for this channel |
+| `/mode <plan\|act>` | Switch agent mode |
+| `/soul [name]` | Set or clear persona injection |
+| `/skills [list\|install]` | Manage skills |
+| `/wt <bind\|unbind\|status>` | Git worktree binding |
+| `/acp on <claude\|codex>` | Switch to ACP agent mode |
+| `/acp off` | Return to engine mode |
+| `/restart` | Rebuild and restart (PM2 only) |
+| `/ping` | Health check reply |
+| `/help` | Show command list |
+
+`//command` (double slash) forwards the command directly to a running ACP agent.
+
+## Feishu Setup
+
+1. In the Feishu Developer Console, create an app and note `App ID` / `App Secret`.
+2. Enable **Encrypt Key** and **Verification Token** (Event Subscription → Security Settings).
+3. Set the webhook URL:
+   ```
+   https://your-server/webhooks/feishu
+   ```
+4. Subscribe to the event `im.message.receive_v1`.
+5. Grant bot permissions: `im:message:send_as_bot`, `im:message.group_at_msg` (for group chats).
+6. Set `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_ENCRYPT_KEY`, `FEISHU_VERIFICATION_TOKEN` in `.env`.
+
+## Discord Setup
+
+### 1) Developer Portal
 
 1. Copy the **Public Key** from your application settings.
-2. Optional (only when you have HTTPS): configure **Interactions Endpoint URL**:
+2. Optional (requires HTTPS): set **Interactions Endpoint URL** to `https://your-server/webhooks/discord`.
+3. In **Bot** settings, enable intents: `Direct Messages`, `Server Messages`, `Message Content Intent`.
 
-```text
-https://your-server-domain/webhooks/discord
-```
-
-3. In **Bot** settings, enable intents:
-   - `Direct Messages`
-   - `Server Messages`
-   - `Message Content Intent`
-
-### 2) Set environment variables
+### 2) Environment Variables
 
 ```bash
 DISCORD_PUBLIC_KEY=your_discord_public_key
 DISCORD_BOT_TOKEN=your_discord_bot_token
 
-# Optional overrides:
+# Optional:
 # DISCORD_API_BASE_URL=https://discord.com/api/v10
 # DISCORD_GATEWAY_URL=wss://gateway.discord.gg/?v=10&encoding=json
 # DISCORD_PROXY_URL=http://127.0.0.1:7890
 # DISCORD_DM_GATEWAY_ENABLED=true
+# DISCORD_GUILD_REQUIRE_MENTION=true
 # DISCORD_COMMAND_REGISTER_ENABLED=true
-# DISCORD_COMMAND_GUILD_IDS=123456789012345678,987654321098765432
+# DISCORD_COMMAND_GUILD_IDS=123456789,987654321   # faster dev registration
 ```
 
-### 3) Guild usage (no HTTPS required)
+### 3) Usage
 
-- Default behavior: mention the bot in a guild channel, then type your prompt.
-- Example: `@YourBot explain this stack trace`
-- To allow plain text without mention in guild channels, set:
+- **Guild channels** — mention the bot: `@YourBot explain this stack trace`. Set `DISCORD_GUILD_REQUIRE_MENTION=false` to allow plain text.
+- **DMs** — send text directly; `/ask`, `/chat`, `/prompt` prefixes are normalized and stripped.
+- **Slash commands** — `/ask <text>` and management commands (`/restart`, `/new`, etc.) are auto-registered on startup.
 
-```bash
-DISCORD_GUILD_REQUIRE_MENTION=false
-```
-
-### 4) Slash commands (optional, requires HTTPS interactions endpoint)
-
-- `/ask <text>` for prompts in guild channels.
-- Optional pass-through commands: `/help`, `/new`, `/compact`, `/resume`, `/status`, `/restart`, `/soul`, etc.
-- `/restart` is auto-registered on startup when `DISCORD_COMMAND_REGISTER_ENABLED=true`.
-- Slash option mapping: `mode=status` -> `/restart status`, `mode=update branch=<name>` -> `/restart update <name>`.
-- For faster propagation during development, set `DISCORD_COMMAND_GUILD_IDS`; global registration may take up to ~1 hour.
-
-### 5) DM usage
-
-- DM message text is forwarded directly to the agent.
-- `/ask foo`, `/chat foo`, `/prompt foo` in DM are normalized to `foo` for compatibility.
-
-### 6) Discord gateway internal ops (local only)
-
-The server now exposes local-only, auth-protected internal endpoints to inspect/restart Discord gateway without restarting the whole process.
+### 4) Gateway Internal Ops
 
 ```bash
-# status
+# Check gateway health
 curl -sS \
   -H "Authorization: Bearer $INTERNAL_API_SECRET" \
   http://127.0.0.1:3000/internal/discord/gateway/status
 
-# restart only discord gateway
+# Restart only the Discord gateway (no full process restart)
 curl -sS -X POST \
   -H "Authorization: Bearer $INTERNAL_API_SECRET" \
   http://127.0.0.1:3000/internal/discord/gateway/restart
 ```
 
-For watchdog checks, poll every ~90s and trigger restart only after consecutive unhealthy checks.
+The included `scripts/discord-gateway-watchdog.sh` polls this endpoint every ~90 s and triggers a restart after consecutive unhealthy checks.
 
-## PM2 deployment (recommended)
+## Internal Agent API
 
-Use PM2 instead of `setsid ... &` for long-running server processes.
+`POST /internal/agent/run` — loopback-only, requires `Authorization: Bearer $INTERNAL_API_SECRET`.
 
-### 1) Install PM2
+```bash
+curl -sS -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+  http://127.0.0.1:3000/internal/agent/run \
+  -d '{"text": "summarize the latest news", "platformKey": "cron:daily-brief"}'
+```
+
+Key body fields:
+
+| Field | Description |
+|-------|-------------|
+| `text` / `message` / `prompt` | User prompt (first non-empty wins) |
+| `skill` | Invoke a named skill (`[use skill](name)` shorthand) |
+| `platformKey` | Session namespace key (default: `internal:agent-run`) |
+| `forceNewSession` | Start a fresh session (default: `true`) |
+| `caller` | Caller identity for PTC tool filtering |
+| `callerSelectors` | Allowed caller tool names |
+| `notify.feishu` | `{ receiveId, receiveIdType }` — post result to Feishu |
+| `notify.discord` | `{ channelId, isThread }` — post result to Discord |
+
+Response includes `result`, `toolCalls`, `compactions`, and `notify` fields.
+
+## Custom Tools
+
+Registered in `src/core/engine-singleton.ts`:
+
+| Tool | Notes |
+|------|-------|
+| `cron_job` | Schedules recurring internal agent runs |
+| `twitter_list_tweets` | Fetches X/Twitter list via Nitter RSS with fallback instances |
+| `jina_ai_read` | Web page reader via Jina AI |
+| `session_summary` | Summarizes a stored session |
+| `deferred_demo` | `defer_loading: true` demo — discovered only via tool search |
+| `ptc_demo_*` | PTC `allowed_callers` demos |
+
+`defer_loading: true` tools are not sent to the LLM until the `tool_search_tool_bm25` tool discovers them.
+
+## PTC `allowed_callers`
+
+`allowed_callers` restricts which caller tool names can invoke a tool:
+
+- `ptc_demo_caller_only` — only callable by `ptc_demo_caller_probe`
+- `ptc_demo_cron_only` — only callable by `cron_job`
+- `ptc_demo_deferred_only` — only callable by `deferred_demo`
+
+```bash
+curl -sS -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $INTERNAL_API_SECRET" \
+  http://127.0.0.1:3000/internal/agent/run \
+  -d '{"text":"Call ptc_demo_caller_only with message=hello","caller":"ptc_demo_caller_probe","callerSelectors":["ptc_demo_caller_probe"]}'
+```
+
+## PM2 Deployment
 
 ```bash
 npm i -g pm2
+
+npm run pm2:start       # Build + start
+npm run pm2:restart     # Rebuild + restart
+npm run pm2:logs        # Stream logs
+npm run pm2:stop
+npm run pm2:delete
+npm run pm2:save        # Persist process list across reboots
+
+# Enable startup on reboot
+pm2 startup && pm2 save
 ```
 
-### 2) Start service (build + run)
-
-```bash
-npm run pm2:start
-```
-
-### 3) Daily operations
-
-```bash
-npm run pm2:logs      # view logs
-npm run pm2:restart   # rebuild + restart
-npm run pm2:stop      # stop process
-npm run pm2:delete    # remove process from pm2
-npm run pm2:save      # persist process list
-```
-
-### 4) Enable startup on reboot
-
-```bash
-pm2 startup
-pm2 save
-```
-
-> `ecosystem.config.cjs` is configured to run `dist/index.cjs` in fork mode with autorestart and memory guard.
+`ecosystem.config.cjs` runs `dist/index.cjs` in fork mode with autorestart and a memory guard.

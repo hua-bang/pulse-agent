@@ -21,20 +21,30 @@ Primary packages:
 - `packages/cli` (`pulse-coder-cli`): interactive terminal app built on the engine.
 - `packages/pulse-sandbox` (`pulse-sandbox`): sandboxed JS executor used by `run_js`.
 - `packages/memory-plugin` (`pulse-coder-memory-plugin`): memory service/integration helpers.
+- `packages/plugin-kit` (`pulse-coder-plugin-kit`): shared utilities for building plugins — exports worktree helpers, vault (secret storage), and devtools utilities.
+- `packages/orchestrator` (`pulse-coder-orchestrator`): multi-agent orchestration layer (TaskGraph, planner, scheduler, runner, aggregator).
+- `packages/agent-teams` (`pulse-coder-agent-teams`): agent teams coordination built on orchestrator.
+- `packages/acp` (`pulse-coder-acp`): Agent Context Protocol — typed client, runner, and state store for Claude's native ACP session protocol.
 
 Apps:
-- `apps/remote-server`: HTTP wrapper around engine runtime.
+- `apps/remote-server`: HTTP wrapper around engine runtime (Feishu/Discord/Telegram adapters).
+- `apps/teams-cli`: CLI for multi-agent teams workflows.
+- `apps/canvas-workspace`: canvas-based workspace app.
 - `apps/coder-demo`: legacy experimental app.
 
 ## Build, Dev, and Test Commands
 
 ```bash
 pnpm install
-pnpm run build
+pnpm run build          # builds packages/* + remote-server + teams-cli (SKIP_DTS=1)
+pnpm run build:all      # builds everything including apps
 pnpm run dev
-pnpm start
-pnpm test
-pnpm run test:apps
+pnpm start              # starts pulse-coder-cli
+pnpm start:debug        # starts CLI with debug logging
+pnpm test               # alias for test:core (packages/* + remote-server + teams-cli)
+pnpm run test:packages  # packages/* only
+pnpm run test:apps      # apps/* only (may fail in coder-demo)
+pnpm run test:all       # all packages and apps
 ```
 
 Useful filtered commands:
@@ -45,12 +55,17 @@ pnpm --filter pulse-coder-engine typecheck
 pnpm --filter pulse-coder-cli test
 pnpm --filter pulse-sandbox test
 pnpm --filter pulse-coder-memory-plugin test
+pnpm --filter pulse-coder-plugin-kit test
+pnpm --filter pulse-coder-orchestrator test
+pnpm --filter pulse-coder-agent-teams test
 pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
+All packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for typechecking.
+
 Notes:
-- `pnpm test` runs package tests only (`./packages/*`).
+- `pnpm test` (`test:core`) covers `packages/*`, `@pulse-coder/remote-server`, and `@pulse-coder/teams-cli`.
 - `pnpm run test:apps` includes app tests and may fail due to placeholder scripts in `apps/coder-demo`.
 
 ## Architecture Notes
@@ -68,6 +83,7 @@ It supports:
 - streaming text/tool events,
 - LLM hooks (`beforeLLMCall`, `afterLLMCall`),
 - tool hooks (`beforeToolCall`, `afterToolCall`),
+- run-level hooks (`beforeRun`, `afterRun`) — fired once per `Engine.run()` call; `beforeRun` can mutate `systemPrompt` and `tools`,
 - retry/backoff on retryable errors,
 - abort handling,
 - context compaction.
@@ -78,7 +94,21 @@ Registered from `packages/engine/src/built-in/index.ts`:
 - skills plugin (`SKILL.md` scanning + `skill` tool),
 - plan-mode plugin,
 - task-tracking plugin,
-- sub-agent plugin (`.pulse-coder/agents/*.md`).
+- sub-agent plugin (`.pulse-coder/agents/*.md`),
+- tool-search plugin (deferred tool discovery),
+- role-soul plugin (persona/system prompt injection),
+- agent-teams plugin (multi-agent coordination),
+- ptc plugin (PTC workflow integration).
+
+### Writing a plugin
+Implement `EnginePlugin` from `pulse-coder-engine`. The `initialize(ctx: EnginePluginContext)` method receives a context with:
+- `ctx.registerTool(name, tool)` / `ctx.registerTools(map)` — add tools to the engine,
+- `ctx.registerHook(hookName, handler)` — subscribe to any hook in `EngineHookMap` (`beforeRun`, `afterRun`, `beforeLLMCall`, `afterLLMCall`, `beforeToolCall`, `afterToolCall`, `onToolCall`, `onCompacted`),
+- `ctx.registerService(name, service)` / `ctx.getService(name)` — share objects between plugins,
+- `ctx.getConfig(key)` / `ctx.setConfig(key, val)` — engine-scoped config,
+- `ctx.events` (EventEmitter), `ctx.logger`.
+
+Pass custom plugins via `EngineOptions.enginePlugins.plugins` or drop `.plugin.js` files into `.pulse-coder/engine-plugins/`.
 
 ### Built-in tools
 Engine toolset (`packages/engine/src/tools/`):
@@ -89,6 +119,15 @@ CLI adds:
 
 Task tracking adds:
 - `task_create`, `task_get`, `task_list`, `task_update`.
+
+### Orchestrator (`packages/orchestrator`)
+Runs a **TaskGraph** — a DAG of `TaskNode` objects with `{ id, role, deps[], input?, agent?, instruction? }`.
+Routing strategies (`OrchestrationInput.route`):
+- `'auto'` — keyword-based role selection,
+- `'all'` — every registered role runs,
+- `'plan'` — LLM dynamically builds the graph.
+
+Built-in roles: `researcher`, `executor`, `reviewer`, `writer`, `tester`. Results are aggregated via `concat | last | llm`. The `agent-teams` plugin exposes orchestration to the engine as a tool.
 
 ### Remote server runtime (`apps/remote-server`)
 Entry and server:
@@ -126,6 +165,15 @@ Environment variables (common):
 - `OPENAI_API_KEY`, `OPENAI_API_URL`, `OPENAI_MODEL`
 - optional Anthropic path: `USE_ANTHROPIC`, `ANTHROPIC_API_KEY`, `ANTHROPIC_API_URL`, `ANTHROPIC_MODEL`
 - optional tools: `TAVILY_API_KEY`, `GEMINI_API_KEY`
+- default model: `novita/deepseek/deepseek_v3` (override with `OPENAI_MODEL` or `ANTHROPIC_MODEL`)
+
+Context compaction tuning:
+- `CONTEXT_WINDOW_TOKENS` (default 64 000) — estimated token budget before compaction triggers.
+- `COMPACT_TRIGGER` (default 75% of window), `COMPACT_TARGET` (default 50%), `KEEP_LAST_TURNS` (default 4).
+- `COMPACT_SUMMARY_MODEL`, `COMPACT_SUMMARY_MAX_TOKENS` (default 1200), `MAX_COMPACTION_ATTEMPTS` (default 2).
+
+Clarification:
+- `CLARIFICATION_ENABLED` (default `true`), `CLARIFICATION_TIMEOUT` (default 300 000 ms).
 
 Config paths:
 - MCP: `.pulse-coder/mcp.json`
@@ -140,3 +188,4 @@ Config paths:
 - Follow local file style (2 spaces, semicolons, single quotes in most TS files).
 - Keep diffs minimal and preserve existing architecture patterns.
 - Prefer extending plugin/hooks/tool boundaries rather than hardcoding behavior into the loop.
+- Cross-package imports in source use path aliases defined in root `tsconfig.json` (e.g. `pulse-coder-engine`, `pulse-coder-plugin-kit`). Published packages use their npm names.
