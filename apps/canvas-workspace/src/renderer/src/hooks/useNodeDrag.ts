@@ -1,17 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import type { CanvasNode } from "../types";
-
-/** Check if a node's center is inside a frame's bounding box */
-const isInsideFrame = (node: CanvasNode, frame: CanvasNode): boolean => {
-  const cx = node.x + node.width / 2;
-  const cy = node.y + node.height / 2;
-  return (
-    cx >= frame.x &&
-    cx <= frame.x + frame.width &&
-    cy >= frame.y &&
-    cy <= frame.y + frame.height
-  );
-};
+import { collectFrameDescendants } from "../utils/frameHierarchy";
 
 export const useNodeDrag = (
   moveNode: (id: string, x: number, y: number) => void,
@@ -34,12 +23,15 @@ export const useNodeDrag = (
       if (e.button !== 0 || e.altKey) return;
       e.stopPropagation();
 
-      // If dragging a frame, find contained child nodes
+      // If dragging a frame, also drag every transitive descendant — both
+      // regular nodes and nested child frames.
       let children: Array<{ id: string; nodeX: number; nodeY: number }> = [];
       if (node.type === "frame") {
-        children = nodes
-          .filter((n) => n.id !== node.id && n.type !== "frame" && isInsideFrame(n, node))
-          .map((n) => ({ id: n.id, nodeX: n.x, nodeY: n.y }));
+        children = collectFrameDescendants(node.id, nodes).map((n) => ({
+          id: n.id,
+          nodeX: n.x,
+          nodeY: n.y,
+        }));
       }
 
       dragging.current = {
