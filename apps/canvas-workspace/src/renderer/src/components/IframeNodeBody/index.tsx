@@ -4,31 +4,34 @@ import type { CanvasNode, IframeNodeData } from "../../types";
 
 interface Props {
   node: CanvasNode;
+  workspaceId?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
 }
 
 /**
- * Renders an external web page in an <iframe>.
+ * Renders an external web page in an Electron `<webview>` tag.
  *
- * - Empty URL → show a URL input as the placeholder state.
- * - Loaded URL → show a compact address bar + iframe. The address bar can be
- *   toggled into edit mode to change the URL, opened externally, or reloaded.
+ * A `<webview>` hosts its own `webContents` (like an isolated mini-browser),
+ * which lets us do two things a plain iframe can't:
  *
- * Notes:
- * - Some sites refuse to be embedded (X-Frame-Options / CSP frame-ancestors).
- *   The iframe will render empty in that case; the "open externally" button
- *   is the escape hatch.
- * - `sandbox` is intentionally permissive so common sites (docs, dashboards)
- *   actually work. Electron's renderer still isolates the iframe from the
- *   host via contextIsolation.
+ *  1. **Read the rendered DOM.** When the webview attaches we register its
+ *     `webContentsId` with main. The Canvas Agent's `canvas_read_node` tool
+ *     then pulls the post-JS DOM text directly out of that webContents — so
+ *     SPAs, pages that require auth cookies, etc. all become readable.
+ *  2. **Bypass X-Frame-Options / CSP frame-ancestors.** A `<webview>` isn't
+ *     subject to those directives the way a nested browsing context is, so a
+ *     lot of sites that refuse to embed in `<iframe>` render normally here.
+ *
+ * Empty URL → show a URL input. Non-empty → show an address bar + webview.
  */
-export const IframeNodeBody = ({ node, onUpdate }: Props) => {
+export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
   const data = node.data as IframeNodeData;
   const url = data.url ?? "";
   const [editing, setEditing] = useState(!url);
   const [draft, setDraft] = useState(url);
-  const [iframeKey, setIframeKey] = useState(0);
+  const [webviewKey, setWebviewKey] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const webviewRef = useRef<WebviewTag | null>(null);
 
   // Keep the draft in sync when the URL is changed externally (undo/redo,
   // CLI edits, etc.) so the address bar doesn't show stale text.
@@ -44,6 +47,68 @@ export const IframeNodeBody = ({ node, onUpdate }: Props) => {
     }
     return undefined;
   }, [editing]);
+
+  // Register the webview's webContents with main so the Canvas Agent can
+  // pull rendered text out of it. We re-register on each load / remount so
+  // the ID is always fresh.
+  useEffect(() => {
+    if (editing) return;
+    if (!workspaceId) return;
+    const el = webviewRef.current;
+    if (!el) return;
+
+    const api = window.canvasWorkspace.iframe;
+
+    let registered = false;
+
+    const tryRegister = (via: string) => {
+      if (registered) return;
+      try {
+        const id = el.getWebContentsId();
+        if (typeof id === "number") {
+          registered = true;
+          void api.registerWebview(workspaceId, node.id, id);
+          // eslint-disable-next-line no-console
+          console.log(
+            `[link-node] registered webContents ${id} for node ${node.id} (via ${via})`,
+          );
+        }
+      } catch (err) {
+        // If `webviewTag` is off or the guest hasn't attached yet,
+        // `getWebContentsId` throws. The event listeners below will retry;
+        // only the final mount-time error is useful, so log it quietly.
+        if (via === "mount") {
+          // eslint-disable-next-line no-console
+          console.debug(
+            `[link-node] getWebContentsId not ready on mount: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
+    };
+
+    // 1) Attempt synchronously. If the canvas was reloaded and the webview
+    //    had already attached by the time this effect runs, both `did-attach`
+    //    and `dom-ready` have fired and won't fire again — so this sync call
+    //    is the only chance we'd have to register.
+    tryRegister("mount");
+
+    // 2) Subscribe anyway. On a fresh node insert, `did-attach` fires after
+    //    we mount; `dom-ready` catches us on manual reloads / src changes.
+    const onAttach = () => tryRegister("did-attach");
+    const onDomReady = () => tryRegister("dom-ready");
+    el.addEventListener("did-attach", onAttach);
+    el.addEventListener("dom-ready", onDomReady);
+
+    return () => {
+      el.removeEventListener("did-attach", onAttach);
+      el.removeEventListener("dom-ready", onDomReady);
+      if (registered) {
+        void api.unregisterWebview(workspaceId, node.id);
+      }
+    };
+  }, [workspaceId, node.id, editing, url, webviewKey]);
 
   const commit = useCallback(() => {
     const next = normalizeUrl(draft.trim());
@@ -82,7 +147,16 @@ export const IframeNodeBody = ({ node, onUpdate }: Props) => {
   }, [url]);
 
   const handleReload = useCallback(() => {
-    setIframeKey((k) => k + 1);
+    const el = webviewRef.current;
+    if (el && typeof el.reload === "function") {
+      try {
+        el.reload();
+        return;
+      } catch {
+        // fall through to remount
+      }
+    }
+    setWebviewKey((k) => k + 1);
   }, []);
 
   if (editing) {
@@ -163,13 +237,16 @@ export const IframeNodeBody = ({ node, onUpdate }: Props) => {
           </svg>
         </button>
       </div>
-      <iframe
-        key={iframeKey}
+      <webview
+        // React's built-in types model <webview> as HTMLWebViewElement; we
+        // narrow that to our Electron-only shape via the ref.
+        ref={webviewRef as unknown as React.Ref<HTMLWebViewElement>}
+        key={webviewKey}
         className="iframe-frame"
         src={url}
-        title={node.title}
-        sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        referrerPolicy="no-referrer"
+        // `allowpopups` lets target="_blank" links inside the webview open
+        // externally (they'd be dropped silently otherwise).
+        allowpopups={true as unknown as undefined}
       />
     </div>
   );
@@ -195,4 +272,11 @@ function prettyTitle(url: string): string {
   } catch {
     return url;
   }
+}
+
+// Minimal shape of Electron's `<webview>` — we only use the bits we call.
+// (Avoids pulling a full Electron types dep into the renderer.)
+interface WebviewTag extends HTMLElement {
+  getWebContentsId(): number;
+  reload(): void;
 }

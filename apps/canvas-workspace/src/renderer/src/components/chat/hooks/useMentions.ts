@@ -10,6 +10,7 @@ import {
   createMentionChipElement,
   serializeEditable,
 } from '../utils/mentions';
+import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
@@ -79,7 +80,7 @@ export function useMentions({
       for (const node of nodes) {
         items.push({
           type: 'node',
-          label: node.title,
+          label: getNodeDisplayLabel(node),
           nodeType: node.type,
           path: (node.data as any)?.filePath,
         });

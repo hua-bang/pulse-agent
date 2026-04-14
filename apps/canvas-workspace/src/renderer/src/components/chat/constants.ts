@@ -4,6 +4,8 @@ export const CANVAS_MENTION_PREFIX = 'canvas:';
 
 export const MENTION_GROUPS = [
   { key: 'file', label: 'File' },
+  { key: 'text', label: 'Text' },
+  { key: 'link', label: 'Link' },
   { key: 'agent', label: 'Agent' },
   { key: 'terminal', label: 'Terminal' },
   { key: 'frame', label: 'Frame' },
@@ -55,6 +57,10 @@ export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
       return 'terminal';
     case 'frame':
       return 'frame';
+    case 'text':
+      return 'text';
+    case 'iframe':
+      return 'link';
     case 'file':
     default:
       return 'file';

@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { NodeSummary, WorkspaceSummary } from './types';
+import { getNodeRenderedText } from '../webview-registry';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
@@ -33,6 +34,131 @@ interface CanvasSaveData {
 interface WorkspaceManifest {
   workspaces: Array<{ id: string; name: string }>;
   activeId?: string;
+}
+
+// ─── Web page fetching (for iframe / link nodes) ───────────────────
+
+const PAGE_FETCH_TIMEOUT_MS = 10_000;
+const PAGE_MAX_BYTES = 200_000;
+
+/**
+ * Fetch a web page and return its readable text content. Strips
+ * `<script>`, `<style>`, and `<noscript>` blocks, drops remaining HTML
+ * tags, and collapses whitespace so the LLM sees the prose.
+ *
+ * Fails gracefully: a network error or non-2xx response returns a short
+ * error string instead of throwing, so the agent can surface a useful
+ * message to the user.
+ */
+async function fetchPageText(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (PulseCoder Canvas Agent)',
+        'Accept': 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+      },
+    });
+    if (!res.ok) {
+      return `[fetch failed: HTTP ${res.status} ${res.statusText}]`;
+    }
+    const contentType = res.headers.get('content-type') ?? '';
+    const raw = await res.text();
+
+    // Cap by bytes (approx) to avoid blowing up the context.
+    const truncated = raw.length > PAGE_MAX_BYTES;
+    const body = truncated ? raw.slice(0, PAGE_MAX_BYTES) : raw;
+
+    let text = body;
+    if (contentType.includes('html') || /<[a-z!/]/i.test(body)) {
+      // Try to grab <title> for a nicer summary header.
+      const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(body);
+      const title = titleMatch ? titleMatch[1].trim() : '';
+
+      text = body
+        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+        .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+        .replace(/<!--[\s\S]*?-->/g, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        // Decode a minimal set of HTML entities — enough for readability.
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>')
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;/gi, "'")
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (title) text = `Title: ${title}\n\n${text}`;
+    }
+
+    if (truncated) text += '\n\n[…content truncated]';
+    return text;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (controller.signal.aborted) {
+      return `[fetch timed out after ${PAGE_FETCH_TIMEOUT_MS / 1000}s]`;
+    }
+    return `[fetch failed: ${msg}]`;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Read the text content of an iframe/link node.
+ *
+ * Prefers the live webview DOM (what the user is actually seeing, with JS
+ * executed and login cookies applied) and falls back to a fresh server-side
+ * HTTP fetch when the webview isn't mounted — e.g. the workspace isn't open
+ * in the foreground window, or the page hasn't finished attaching yet.
+ *
+ * Never returns an empty string: each failure path returns a bracketed
+ * diagnostic so the agent can tell the user *why* it couldn't read the
+ * page (SPA with no static HTML, auth-gated, webview not attached, etc.)
+ * instead of silently producing empty content.
+ */
+async function readIframeContent(
+  workspaceId: string,
+  nodeId: string,
+  url: string,
+): Promise<string> {
+  if (!url) return '[empty link node — no URL set]';
+
+  let liveError: string | null = null;
+  try {
+    const live = await getNodeRenderedText(workspaceId, nodeId);
+    if (live && live.trim()) return live;
+    if (live !== null) {
+      // getNodeRenderedText returned a diagnostic like a timeout — keep it
+      // so we can surface it if the server fetch also fails to help.
+      liveError = live.trim() ? live : null;
+    } else {
+      liveError = '[live webview not registered — node may not be mounted in the foreground window, or webviewTag is off (a full Electron restart is required for that flag to take effect)]';
+    }
+  } catch (err) {
+    liveError = `[live webview read failed: ${err instanceof Error ? err.message : String(err)}]`;
+  }
+
+  const fetched = await fetchPageText(url);
+  if (fetched.trim()) return fetched;
+
+  // Both paths produced nothing readable. Tell the agent precisely why so
+  // it can explain to the user instead of pretending the page is empty.
+  return [
+    '[canvas_read_node could not extract text from this link node]',
+    '- Tried the live webview first:',
+    `  ${liveError ?? '(succeeded but returned empty text — the page may still be loading)'}`,
+    '- Then tried a plain server fetch:',
+    '  Succeeded with no readable text — the page is almost certainly a JS-rendered SPA (React/Vue) whose content only exists after scripts run.',
+    '',
+    'To summarise this page, open it in a Link node on the canvas, wait for it to finish loading (log in if needed), then ask again. If it still fails, ask the user to paste the text directly.',
+  ].join('\n');
 }
 
 // ─── Low-level readers ─────────────────────────────────────────────
@@ -73,6 +199,28 @@ export async function resolveWorkspaceNames(
 
 // ─── Summary builder ───────────────────────────────────────────────
 
+/**
+ * Text nodes have no editable title — the prose lives in `data.content`.
+ * Pull a short preview so the agent sees something meaningful instead of
+ * an empty string when it lists the canvas contents.
+ */
+function textNodePreview(content: string | undefined, maxChars = 40): string {
+  if (!content) return '';
+  const firstLine = content
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(line => line.length > 0);
+  if (!firstLine) return '';
+  const stripped = firstLine
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^>\s+/, '')
+    .replace(/^\d+\.\s+/, '')
+    .trim();
+  if (!stripped) return '';
+  return stripped.length <= maxChars ? stripped : `${stripped.slice(0, maxChars)}…`;
+}
+
 function summarizeNode(node: CanvasNode): NodeSummary {
   const summary: NodeSummary = {
     id: node.id,
@@ -98,6 +246,13 @@ function summarizeNode(node: CanvasNode): NodeSummary {
       break;
     case 'iframe':
       summary.url = (node.data.url as string) || undefined;
+      break;
+    case 'text':
+      // Text nodes don't have titles — fall back to a content preview so
+      // the agent can refer to them by something meaningful.
+      if (!summary.title) {
+        summary.title = textNodePreview(node.data.content as string) || 'Text';
+      }
       break;
   }
 
@@ -184,6 +339,14 @@ export async function buildDetailedContext(workspaceId: string): Promise<Detaile
         detailed.scrollback = (node.data.scrollback as string) ?? '';
         detailed.cwd = (node.data.cwd as string) ?? '';
         break;
+      case 'iframe': {
+        const url = (node.data.url as string) || '';
+        detailed.content = await readIframeContent(workspaceId, node.id, url);
+        break;
+      }
+      case 'text':
+        detailed.content = (node.data.content as string) ?? '';
+        break;
     }
 
     nodes.push(detailed);
@@ -236,6 +399,18 @@ export async function readNodeDetail(workspaceId: string, nodeId: string): Promi
       break;
     case 'frame':
       // nothing extra beyond summary
+      break;
+    case 'iframe': {
+      // Use the same live-webview-first path as buildDetailedContext so a
+      // single-node read (the common case for `@Link 总结`) can see the
+      // post-JS DOM — otherwise SPAs like Lark wiki come back as empty-ish
+      // shell HTML and the agent gets `content: ""`.
+      const url = (node.data.url as string) || '';
+      detailed.content = await readIframeContent(workspaceId, node.id, url);
+      break;
+    }
+    case 'text':
+      detailed.content = (node.data.content as string) ?? '';
       break;
   }
 
@@ -300,6 +475,14 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
     for (const n of byType.iframe) {
       const urlHint = n.url ? ` — ${n.url}` : ' (empty)';
       lines.push(`- [${n.id}] **${n.title}**${urlHint}`);
+    }
+    lines.push('');
+  }
+
+  if (byType.text?.length) {
+    lines.push('## Text Nodes');
+    for (const n of byType.text) {
+      lines.push(`- [${n.id}] **${n.title}**`);
     }
     lines.push('');
   }
