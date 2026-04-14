@@ -1,6 +1,7 @@
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { LayerTreeNode } from './utils/layers';
 import { ChevronRightIcon, NodeTypeIcon } from '../icons';
+import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 
 interface LayerItemProps {
   tree: LayerTreeNode;
@@ -20,6 +21,7 @@ export const LayerItem = ({
   const { node, children } = tree;
   const isFrame = node.type === 'frame';
   const isOpen = isFrame && !collapsedLayers.has(node.id);
+  const displayLabel = getNodeDisplayLabel(node);
 
   return (
     <div className="sidebar-layer-group">
@@ -27,7 +29,7 @@ export const LayerItem = ({
         className={`sidebar-layer-item${isFrame ? ' sidebar-layer-item--frame' : ''}`}
         onClick={() => onFocus(node.id)}
         onContextMenu={(e) => onContextMenu(e, node.id)}
-        title={node.title}
+        title={displayLabel}
       >
         {isFrame ? (
           <span
@@ -45,7 +47,7 @@ export const LayerItem = ({
         <span className="sidebar-layer-name">
           {node.type === 'frame'
             ? (node.title || (node.data as { label?: string }).label || 'Frame')
-            : node.title}
+            : displayLabel}
         </span>
         {isFrame && children.length > 0 && (
           <span className="sidebar-layer-child-count">{children.length}</span>
