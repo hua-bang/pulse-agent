@@ -199,6 +199,28 @@ export async function resolveWorkspaceNames(
 
 // ─── Summary builder ───────────────────────────────────────────────
 
+/**
+ * Text nodes have no editable title — the prose lives in `data.content`.
+ * Pull a short preview so the agent sees something meaningful instead of
+ * an empty string when it lists the canvas contents.
+ */
+function textNodePreview(content: string | undefined, maxChars = 40): string {
+  if (!content) return '';
+  const firstLine = content
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .find(line => line.length > 0);
+  if (!firstLine) return '';
+  const stripped = firstLine
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^[-*+]\s+/, '')
+    .replace(/^>\s+/, '')
+    .replace(/^\d+\.\s+/, '')
+    .trim();
+  if (!stripped) return '';
+  return stripped.length <= maxChars ? stripped : `${stripped.slice(0, maxChars)}…`;
+}
+
 function summarizeNode(node: CanvasNode): NodeSummary {
   const summary: NodeSummary = {
     id: node.id,
@@ -224,6 +246,13 @@ function summarizeNode(node: CanvasNode): NodeSummary {
       break;
     case 'iframe':
       summary.url = (node.data.url as string) || undefined;
+      break;
+    case 'text':
+      // Text nodes don't have titles — fall back to a content preview so
+      // the agent can refer to them by something meaningful.
+      if (!summary.title) {
+        summary.title = textNodePreview(node.data.content as string) || 'Text';
+      }
       break;
   }
 
@@ -315,6 +344,9 @@ export async function buildDetailedContext(workspaceId: string): Promise<Detaile
         detailed.content = await readIframeContent(workspaceId, node.id, url);
         break;
       }
+      case 'text':
+        detailed.content = (node.data.content as string) ?? '';
+        break;
     }
 
     nodes.push(detailed);
@@ -377,6 +409,9 @@ export async function readNodeDetail(workspaceId: string, nodeId: string): Promi
       detailed.content = await readIframeContent(workspaceId, node.id, url);
       break;
     }
+    case 'text':
+      detailed.content = (node.data.content as string) ?? '';
+      break;
   }
 
   return detailed;
@@ -440,6 +475,14 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
     for (const n of byType.iframe) {
       const urlHint = n.url ? ` — ${n.url}` : ' (empty)';
       lines.push(`- [${n.id}] **${n.title}**${urlHint}`);
+    }
+    lines.push('');
+  }
+
+  if (byType.text?.length) {
+    lines.push('## Text Nodes');
+    for (const n of byType.text) {
+      lines.push(`- [${n.id}] **${n.title}**`);
     }
     lines.push('');
   }
