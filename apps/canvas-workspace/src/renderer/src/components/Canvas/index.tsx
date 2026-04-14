@@ -32,6 +32,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodesChange
   const {
     transform,
     setTransform,
+    moving,
     handleWheel,
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
@@ -278,6 +279,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodesChange
       <CanvasSurface
         transform={transform}
         animating={animating}
+        moving={moving}
         sortedNodes={sortedNodes}
         nodes={nodes}
         rootFolder={rootFolder}
