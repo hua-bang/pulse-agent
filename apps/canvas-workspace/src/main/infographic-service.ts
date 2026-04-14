@@ -58,8 +58,23 @@ response is written to disk and loaded in a sandboxed browser view as-is.
 - Keep the document focused on the requested visual; do not add navigation
   bars, footers, or unrelated chrome.
 - Use semantic HTML and reasonable accessible colour contrast.
-- Size the layout so it looks good at roughly 560×420 px but remains
-  readable when resized.
+
+## Sizing (critical)
+The document is embedded in a canvas node whose size the user can freely
+drag. The viewport you receive *is* the node's inner area — there is no
+scrollbar, nothing above or below. You MUST fill it edge-to-edge:
+
+- Reset the page: \`html, body { margin: 0; padding: 0; width: 100%; height: 100%; }\`
+  and \`body { box-sizing: border-box; }\`.
+- Your outermost container must also be \`width: 100%; height: 100%;\`
+  (or use \`position: fixed; inset: 0;\`). Never set a fixed pixel width
+  or height on the root — that will leave white bands when the node is
+  resized.
+- Use flexbox / grid so the primary visual stretches to fill the
+  available space. Paddings are fine; fixed outer frames are not.
+- Design for a roughly 4:3 starting viewport (~560×420) but assume the
+  user will drag it wider or taller. Diagrams should scale (SVG with
+  \`viewBox\` + \`width:100%; height:100%\`); cards should reflow.
 
 ## Style guidance
 - Prefer clear hierarchy, generous whitespace, and legible type.
