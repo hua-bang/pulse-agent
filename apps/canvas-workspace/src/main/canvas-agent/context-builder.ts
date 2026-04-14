@@ -369,12 +369,12 @@ export async function readNodeDetail(workspaceId: string, nodeId: string): Promi
       // nothing extra beyond summary
       break;
     case 'iframe': {
+      // Use the same live-webview-first path as buildDetailedContext so a
+      // single-node read (the common case for `@Link 总结`) can see the
+      // post-JS DOM — otherwise SPAs like Lark wiki come back as empty-ish
+      // shell HTML and the agent gets `content: ""`.
       const url = (node.data.url as string) || '';
-      if (url) {
-        detailed.content = await fetchPageText(url);
-      } else {
-        detailed.content = '[empty link node — no URL set]';
-      }
+      detailed.content = await readIframeContent(workspaceId, node.id, url);
       break;
     }
   }
