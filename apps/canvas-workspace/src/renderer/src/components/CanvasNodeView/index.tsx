@@ -234,14 +234,21 @@ export const CanvasNodeView = ({
         className="resize-handle resize-handle--right"
         onMouseDown={makeResizeHandler("right")}
       />
-      <div
-        className="resize-handle resize-handle--bottom"
-        onMouseDown={makeResizeHandler("bottom")}
-      />
-      <div
-        className="resize-handle resize-handle--corner"
-        onMouseDown={makeResizeHandler("bottom-right")}
-      />
+      {/* Text nodes grow vertically to fit content, so a bottom/corner
+          handle would either do nothing or fight the auto-height. Offer only
+          the right-edge handle as a wrap-width control. */}
+      {node.type !== "text" && (
+        <>
+          <div
+            className="resize-handle resize-handle--bottom"
+            onMouseDown={makeResizeHandler("bottom")}
+          />
+          <div
+            className="resize-handle resize-handle--corner"
+            onMouseDown={makeResizeHandler("bottom-right")}
+          />
+        </>
+      )}
     </div>
   );
 };

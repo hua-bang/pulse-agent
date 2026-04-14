@@ -116,20 +116,25 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
     }
   }, [isSelected, editing, editor]);
 
-  // Auto-size the wrapper to fit content. Manual-size mode (user has dragged
-  // a resize handle) is authoritative — we don't write anything back, and
-  // .node-body clips any overflow.
+  // Auto-size the wrapper to fit content. Height ALWAYS tracks content so a
+  // text node can never clip or scroll (prosemirror's auto-scroll-into-view
+  // would otherwise push the top of the text off-screen). Width is
+  // content-driven only while `autoSize` is true; once the user drags the
+  // right handle it becomes the authoritative wrap width.
   useLayoutEffect(() => {
-    if (!autoSize) return;
     const el = wrapperRef.current;
     if (!el) return;
     const measuredW = Math.max(40, Math.ceil(el.offsetWidth));
     const measuredH = Math.max(28, Math.ceil(el.offsetHeight));
-    if (
-      Math.abs(measuredW - node.width) > 1 ||
-      Math.abs(measuredH - node.height) > 1
-    ) {
-      onUpdate(node.id, { width: measuredW, height: measuredH });
+    const patch: Partial<CanvasNode> = {};
+    if (autoSize && Math.abs(measuredW - node.width) > 1) {
+      patch.width = measuredW;
+    }
+    if (Math.abs(measuredH - node.height) > 1) {
+      patch.height = measuredH;
+    }
+    if (patch.width !== undefined || patch.height !== undefined) {
+      onUpdate(node.id, patch);
     }
   });
 

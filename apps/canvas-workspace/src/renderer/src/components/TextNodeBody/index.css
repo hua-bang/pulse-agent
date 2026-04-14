@@ -7,15 +7,15 @@
  *    the two color pickers and the delete button. The title is intentionally
  *    hidden so the node reads as "a piece of text".
  *  - Click-drag: moves the node.
- *  - Double-click: enters editing mode (raw markdown source).
- *  - Resize handles (right / bottom / corner) appear on hover or selected so
- *    the user can pin the width and let text wrap inside the frame.
+ *  - Double-click: enters editing mode (tiptap WYSIWYG).
+ *  - A single right-edge resize handle lets the user pin a wrap width.
  *
  * Size model:
- *  - `.canvas-node--text-auto` → width/height driven by content (max-content).
- *    Applied by default and while editing.
- *  - Without `.canvas-node--text-auto` → the user has manually resized and
- *    node.width/height are honored as a hard frame (text wraps inside).
+ *  - Height is ALWAYS driven by content — a text node never clips vertically
+ *    or scrolls. tldraw and Figma behave the same way.
+ *  - `.canvas-node--text-auto` → width also driven by content (max-content).
+ *  - Without `.canvas-node--text-auto` → user has dragged the right handle;
+ *    width is honored as a wrap-width, height still follows the text.
  * ------------------------------------------------------------------------- */
 
 /* --- Wrapper: no card chrome --------------------------------------------- */
@@ -34,11 +34,16 @@
   display: block;
 }
 
-/* Auto-size mode: content drives the wrapper. `!important` is needed to
- * override the inline width/height React writes from node.width/height. */
+/* Height is always content-driven — override the inline height React writes
+ * from node.height so the frame grows with the text instead of clipping it. */
+.canvas-node--text {
+  height: max-content !important;
+}
+
+/* Auto-size mode: width is also driven by content. `!important` is needed to
+ * override the inline width React writes from node.width. */
 .canvas-node--text.canvas-node--text-auto {
   width: max-content !important;
-  height: max-content !important;
   max-width: 600px;
 }
 
@@ -102,24 +107,23 @@
 /* --- Body --------------------------------------------------------------- */
 .canvas-node--text .node-body {
   width: 100%;
-  height: 100%;
-  /* In manual (fixed-frame) mode, clip overflow so the user's dragged
-   * height acts like a real frame. */
-  overflow: hidden;
+  /* Never clip or scroll — prosemirror's auto-scroll-into-view would
+   * otherwise push the top of the text above the visible area when the
+   * editor grows past a fixed-height frame. Height follows content. */
+  height: auto;
+  overflow: visible;
   border-radius: var(--radius-md, 6px);
   flex: none;
 }
 
 .canvas-node--text.canvas-node--text-auto .node-body {
   width: auto;
-  height: auto;
-  overflow: visible;
 }
 
 .text-node-body {
   display: block;
   width: 100%;
-  height: 100%;
+  height: auto;
   min-width: 32px;
   min-height: 28px;
   padding: 6px 10px;
@@ -139,7 +143,6 @@
 .canvas-node--text.canvas-node--text-auto .text-node-body {
   width: max-content;
   max-width: 600px;
-  height: auto;
 }
 
 .text-node-body--editing {
