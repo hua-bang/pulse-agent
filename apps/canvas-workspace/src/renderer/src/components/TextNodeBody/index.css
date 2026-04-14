@@ -1,89 +1,130 @@
 /* ---------------------------------------------------------------------------
- * Text node styling
+ * Text node styling — TLDRAW-inspired
  *
- * Design goals:
- *  - A TLDRAW-style label: minimal chrome by default, content-forward.
- *  - The whole node wrapper (not just the body) takes the background color
- *    so picking "Yellow" turns the entire card yellow, matching user intent.
- *  - When bg is "transparent", the node has no visible card — just text on
- *    the canvas, like tldraw.
+ * Shape of the interaction:
+ *  - Idle state: no card chrome. The text sits on the canvas as a label.
+ *  - Hover / selected: a compact floating toolbar appears above the node with
+ *    color pickers + delete. The title badge is intentionally hidden so the
+ *    node reads as "a piece of text", not "a card named Text".
+ *  - Click-drag on the text moves the node.
+ *  - Double-click on the text enters editing. Blur / Escape exits.
+ *  - Size is driven by content: `width: max-content` lets the wrapper shrink
+ *    to the text. We still persist the measured size back into node.width /
+ *    node.height via useLayoutEffect so Canvas hit-testing & frame containment
+ *    use the real rendered bounds.
  * ------------------------------------------------------------------------- */
 
-/* Neutralize the shared .canvas-node chrome for text nodes. Background is
- * driven by the inline style on .text-node-body, not by the wrapper, so that
- * "transparent" actually reveals the canvas grid. The wrapper border is only
- * shown on hover/selection to keep the node feeling like a bare label. */
+/* --- Wrapper: no card chrome, content-driven size ----------------------- */
 .canvas-node--text {
+  /* Ignore the stored width/height so the wrapper sizes to the text body. */
+  width: max-content !important;
+  height: max-content !important;
+  min-width: 32px;
+  min-height: 28px;
+  max-width: 600px;
+
   background: transparent;
-  border-color: transparent;
+  border: 1px solid transparent;
   box-shadow: none;
-  /* .canvas-node has overflow: hidden by default — clear it so the header tab
-   * (positioned at top: -32px) isn't clipped. */
+  /* .canvas-node defaults to overflow: hidden — clear it so the floating
+   * toolbar (positioned at top: -36px) isn't clipped. */
   overflow: visible;
+  /* Wrapper is a flex column in .canvas-node base styles. Clear it so the
+   * inline-sized body doesn't get stretched to the max-content max. */
+  display: block;
 }
 
 .canvas-node--text:hover {
-  border-color: rgba(0, 0, 0, 0.12);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.08);
 }
 
 .canvas-node--text.canvas-node--selected {
   border-color: var(--accent-border);
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18);
+  box-shadow: 0 0 0 1.5px rgba(35, 131, 226, 0.35);
 }
 
-/* Hide the header until the node is hovered / selected so the node reads as
- * pure text on the canvas (TLDRAW-style). */
+.canvas-node--text.canvas-node--dragging {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+/* --- Header: hidden by default, compact toolbar on hover/selected ------- */
 .canvas-node--text .node-header {
   position: absolute;
-  top: -32px;
+  top: -36px;
   left: 0;
-  right: 0;
+  /* Don't force `right: 0` — let the toolbar shrink to its natural content
+   * width so it doesn't span the full text block. */
+  right: auto;
   min-height: 28px;
   height: 28px;
-  padding: 4px 6px 4px 8px;
+  padding: 4px 6px;
   background: var(--surface, #fff);
   border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
   border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
-  /* Keep header chrome in screen space so it doesn't balloon when the canvas
-   * is zoomed in. Matches the frame header behavior. */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  /* Keep toolbar size constant regardless of canvas zoom, same trick as the
+   * frame header. */
   transform: scale(calc(1 / var(--canvas-scale, 1)));
   transform-origin: left bottom;
   z-index: 2;
+  cursor: default;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.12s ease;
 }
 
 .canvas-node--text:hover .node-header,
-.canvas-node--text.canvas-node--selected .node-header,
-.canvas-node--text.canvas-node--dragging .node-header {
+.canvas-node--text.canvas-node--selected .node-header {
   opacity: 1;
   pointer-events: auto;
 }
 
+/* Hide the badge, title, and focus button — text nodes have no identity
+ * other than their text. The only affordances in the toolbar are the two
+ * color pickers and the delete button. */
+.canvas-node--text .node-type-badge,
+.canvas-node--text .node-title,
+.canvas-node--text .node-focus {
+  display: none !important;
+}
+
+/* Always show the close button in the toolbar — no hover-to-reveal dance. */
+.canvas-node--text .node-close {
+  opacity: 1;
+}
+
+/* --- Body: fills wrapper; its own intrinsic size drives the wrapper ----- */
 .canvas-node--text .node-body {
-  height: 100%;
-  overflow: hidden;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  flex: none;
 }
 
 .text-node-body {
-  width: 100%;
-  height: 100%;
-  padding: 12px 14px;
-  border-radius: var(--radius-lg, 10px);
+  display: block;
+  min-width: 32px;
+  min-height: 28px;
+  padding: 6px 10px;
+  border-radius: var(--radius-md, 6px);
   outline: none;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
-  overflow: auto;
   line-height: 1.4;
   font-weight: 500;
   letter-spacing: -0.005em;
+  cursor: move;
+  box-sizing: border-box;
+  /* color + background-color + font-size are applied via inline style so
+   * they persist in node.data. */
+}
+
+.text-node-body--editing {
   cursor: text;
-  /* color + background-color + font-size are set via inline style so they
-   * persist in node.data. */
+  /* Subtle ring so the user can tell editing is active even if the bg is
+   * transparent. */
+  box-shadow: 0 0 0 1px rgba(35, 131, 226, 0.35) inset;
 }
 
 .text-node-body:focus {
@@ -97,9 +138,12 @@
   pointer-events: none;
 }
 
-/* ---- Color trigger (in header) ----
- * Always-visible dots in the hover header so the picker is reachable the
- * moment the header appears. */
+/* Hide resize handles — text auto-sizes from content, no manual resize. */
+.canvas-node--text .resize-handle {
+  display: none;
+}
+
+/* --- Color pickers (rendered in the toolbar) ---------------------------- */
 .text-color-trigger {
   position: relative;
   display: flex;
@@ -138,8 +182,7 @@
   border-color: rgba(0, 0, 0, 0.35);
 }
 
-/* "None" background swatch + transparent dot — diagonal slash to read as
- * "no color". */
+/* "None" bg + transparent dot — diagonal slash reads as "no color". */
 .text-color-dot--transparent,
 .text-color-swatch--none {
   background-color: #ffffff;

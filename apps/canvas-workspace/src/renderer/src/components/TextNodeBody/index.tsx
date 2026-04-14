@@ -1,31 +1,37 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./index.css";
 import type { CanvasNode, TextNodeData } from "../../types";
 
 interface Props {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+  onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
 }
 
 /**
  * TLDRAW-style text node body.
  *
- * Renders a contentEditable plain-text surface. Styling (text color, bg color,
- * font size) is read from `node.data` and persisted via `onUpdate`. The
- * parent CanvasNodeView disables dragging on mousedown inside `.node-body`,
- * so caret placement and selection behave like a normal editor.
+ * UX model:
+ *  - Idle: node reads as pure text on the canvas — no card, no title chrome.
+ *  - Click + drag: moves the node (like tldraw's text shape).
+ *  - Double-click: enters editing mode. Caret appears and keystrokes edit.
+ *  - Blur / Escape / deselect: exits editing mode.
  *
- * The DOM text is only rewritten from props when it differs from the current
- * innerText — otherwise every keystroke would reset the caret to position 0
- * because React re-renders on each `onUpdate`.
+ * The wrapper's width/height are driven by the text body's intrinsic size
+ * (`width: max-content` in CSS). After layout we measure and write the actual
+ * size back to `node.width` / `node.height` so hit-testing, frame containment,
+ * and spatial queries stay in sync with what's rendered.
  */
-export const TextNodeBody = ({ node, onUpdate }: Props) => {
+export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart }: Props) => {
   const data = node.data as TextNodeData;
   const ref = useRef<HTMLDivElement>(null);
+  const [editing, setEditing] = useState(false);
 
-  // Only sync DOM → when external content diverges (e.g. undo/redo, CLI edit,
-  // duplicate). Skipping this when the ref already matches avoids wiping the
-  // user's caret position on every keystroke.
+  // Keep the DOM innerText aligned with `data.content` without clobbering the
+  // caret on every keystroke. We only overwrite when the values diverge — e.g.
+  // after undo/redo, a canvas-cli edit, or a duplicate-paste.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -33,6 +39,40 @@ export const TextNodeBody = ({ node, onUpdate }: Props) => {
       el.innerText = data.content;
     }
   }, [data.content]);
+
+  // Auto-size the wrapper to fit the text body. `.canvas-node--text` uses
+  // `width: max-content` in CSS so the rendered size already fits content;
+  // this effect just persists that measurement back to the node model so
+  // Canvas hit-testing / frame containment use the real rendered bounds.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const w = Math.max(40, Math.ceil(el.offsetWidth));
+    const h = Math.max(28, Math.ceil(el.offsetHeight));
+    if (Math.abs(w - node.width) > 1 || Math.abs(h - node.height) > 1) {
+      onUpdate(node.id, { width: w, height: h });
+    }
+  });
+
+  // First-mount: if the node was just created with empty content, drop
+  // straight into editing mode so typing works immediately.
+  useEffect(() => {
+    if (data.content === "" && ref.current) {
+      setEditing(true);
+      const el = ref.current;
+      const t = setTimeout(() => el.focus(), 0);
+      return () => clearTimeout(t);
+    }
+    return undefined;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Deselecting exits editing — matches tldraw (clicking away finalizes edit).
+  useEffect(() => {
+    if (!isSelected && editing) {
+      setEditing(false);
+      ref.current?.blur();
+    }
+  }, [isSelected, editing]);
 
   const handleInput = useCallback(
     (e: React.FormEvent<HTMLDivElement>) => {
@@ -44,26 +84,53 @@ export const TextNodeBody = ({ node, onUpdate }: Props) => {
     [node.id, data, onUpdate]
   );
 
-  // Autofocus the editor when the node is first created with empty content,
-  // so typing works immediately without an extra click.
-  useEffect(() => {
-    if (data.content === "" && ref.current) {
-      const el = ref.current;
-      // Defer one tick so the element is attached and any drag/click finishes.
-      const t = setTimeout(() => el.focus(), 0);
-      return () => clearTimeout(t);
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (editing) {
+        // In editing mode, mousedown places the caret / starts a selection.
+        // Stop here so the wrapper doesn't try to drag the node.
+        e.stopPropagation();
+        return;
+      }
+      // Not editing → click-drag moves the node, tldraw-style.
+      onSelect(node.id);
+      onDragStart(e, node);
+    },
+    [editing, node, onSelect, onDragStart]
+  );
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditing(true);
+    // contentEditable="true" is applied after the state flush; focus once
+    // it's in the DOM so the caret lands where the user double-clicked.
+    setTimeout(() => ref.current?.focus(), 0);
+  }, []);
+
+  const handleBlur = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      ref.current?.blur();
+      setEditing(false);
     }
-    return undefined;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
       ref={ref}
-      className="text-node-body"
-      contentEditable
+      className={`text-node-body${editing ? " text-node-body--editing" : ""}`}
+      contentEditable={editing}
       suppressContentEditableWarning
       spellCheck={false}
       onInput={handleInput}
+      onMouseDown={handleMouseDown}
+      onDoubleClick={handleDoubleClick}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
       style={{
         color: data.textColor,
         backgroundColor: data.backgroundColor,
@@ -74,10 +141,8 @@ export const TextNodeBody = ({ node, onUpdate }: Props) => {
   );
 };
 
-/* ---- Color pickers (rendered in header) ---- */
+/* ---- Color pickers (rendered in the hover/selected header) ---- */
 
-// TLDRAW-ish palette for text colors. Black/dark first, then saturated hues,
-// then white for use on dark backgrounds.
 const TEXT_COLOR_PRESETS: Array<{ name: string; value: string }> = [
   { name: "Black", value: "#1f2328" },
   { name: "Gray", value: "#6b7280" },
@@ -90,8 +155,6 @@ const TEXT_COLOR_PRESETS: Array<{ name: string; value: string }> = [
   { name: "White", value: "#ffffff" },
 ];
 
-// Background presets lead with "transparent" (chrome-free label) and follow
-// with soft pastels that read well against the black default text color.
 const BG_COLOR_PRESETS: Array<{ name: string; value: string }> = [
   { name: "None", value: "transparent" },
   { name: "White", value: "#ffffff" },

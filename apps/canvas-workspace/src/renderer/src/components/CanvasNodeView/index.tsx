@@ -200,7 +200,13 @@ export const CanvasNodeView = ({
         ) : node.type === "frame" ? (
           <FrameNodeBody node={node} onUpdate={onUpdate} />
         ) : node.type === "text" ? (
-          <TextNodeBody node={node} onUpdate={onUpdate} />
+          <TextNodeBody
+            node={node}
+            onUpdate={onUpdate}
+            isSelected={isSelected}
+            onSelect={onSelect}
+            onDragStart={onDragStart}
+          />
         ) : (
           <AgentNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
         )}
