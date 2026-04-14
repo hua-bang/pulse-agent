@@ -31,7 +31,21 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
   const [cwdInput, setCwdInput] = useState(data.cwd || '');
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || '');
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
-  const [launched, setLaunched] = useState(status === 'running' || status === 'done');
+  // Treat any of the following as evidence that the node has been launched
+  // before and should skip the picker on mount:
+  //   - an explicit running/done/error status,
+  //   - saved scrollback (the 2s interval writes this even when a status
+  //     update was lost to the debounced-save race),
+  //   - a persisted sessionId (only set after spawn succeeds).
+  // The scrollback/sessionId fallbacks rescue nodes that were launched under
+  // an earlier buggy code path where status never made it to disk.
+  const [launched, setLaunched] = useState(
+    status === 'running'
+      || status === 'done'
+      || status === 'error'
+      || !!(data.scrollback && data.scrollback.length > 0)
+      || !!(data.sessionId && data.sessionId.length > 0),
+  );
 
   // Refs that survive across the picker→terminal transition so the
   // useEffect that spawns after re-render can read the user's selection.
