@@ -181,12 +181,12 @@ const Markers = ({
         key={id}
         id={id}
         // markerUnits="strokeWidth" makes the marker (and its inner
-        // geometry) scale with the line's stroke-width. A fixed 12×12
-        // marker looked undersized on thick (3.6) strokes and comically
-        // oversized on a stroke this thin — scaling keeps proportions
-        // consistent across the width ladder.
-        markerWidth={5}
-        markerHeight={5}
+        // geometry) scale with the line's stroke-width so the arrow
+        // stays proportional to whichever width the user picks. 4×4
+        // keeps the rendered cap slim — length ≈ 4× stroke, which
+        // matches how tldraw/Figma size their arrow heads.
+        markerWidth={4}
+        markerHeight={4}
         viewBox="0 0 10 10"
         orient={side === 'head' ? 'auto' : 'auto-start-reverse'}
         // 'triangle' and 'arrow' have their point at (10, 5) in the
@@ -327,7 +327,11 @@ export const CanvasEdgesLayer = ({
               }}
             />
             {/* Selection underlay: soft blue tint, rendered under the
-                real stroke so the edge's own color still reads. */}
+                real stroke so the edge's own color still reads. Scales
+                with the canvas (no non-scaling-stroke) so it stays
+                visibly wider than the main stroke at every zoom — a
+                fixed-pixel underlay would get visually swallowed once
+                the zoomed-up main stroke caught up in width. */}
             {isSelected && (
               <path
                 d={d}
@@ -336,7 +340,6 @@ export const CanvasEdgesLayer = ({
                 strokeOpacity={0.35}
                 strokeWidth={(stroke.width ?? DEFAULT_STROKE.width) + 6}
                 strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
               />
             )}
             {/* Handles for the selected edge. Rendered BEFORE the visible
@@ -364,7 +367,14 @@ export const CanvasEdgesLayer = ({
                 line. Using "butt" ends the stroke flush with the path
                 endpoint so the triangle's tip becomes the exact rightmost
                 point of the arrow. Edges with no caps at all keep "round"
-                for their nicer free-end look. */}
+                for their nicer free-end look.
+
+                No vectorEffect here: content strokes should scale with
+                canvas zoom so the marker (also sized in user-space via
+                markerUnits="strokeWidth") stays proportional to the line
+                at every zoom. With non-scaling-stroke the line would
+                stay thin while the marker ballooned, producing the
+                cartoonishly oversized arrow reported earlier. */}
             <path
               d={d}
               fill="none"
@@ -372,7 +382,6 @@ export const CanvasEdgesLayer = ({
               strokeWidth={stroke.width}
               strokeDasharray={strokeDasharray(stroke.style)}
               strokeLinecap={head !== 'none' || tail !== 'none' ? 'butt' : 'round'}
-              vectorEffect="non-scaling-stroke"
               markerEnd={head !== 'none' ? `url(#${capId('edge-head', head, stroke.color)})` : undefined}
               markerStart={tail !== 'none' ? `url(#${capId('edge-tail', tail, stroke.color)})` : undefined}
             />
@@ -496,7 +505,6 @@ const PreviewEdge = ({
         // marker at the end, a rounded cap would poke past the triangle
         // tip (see the committed-edge comment for the full explanation).
         strokeLinecap="butt"
-        vectorEffect="non-scaling-stroke"
         markerEnd={`url(#${capId('edge-head', 'triangle', SELECTION_COLOR)})`}
         style={{ pointerEvents: 'none' }}
       />
@@ -508,8 +516,8 @@ const PreviewEdge = ({
       <defs>
         <marker
           id={capId('edge-head', 'triangle', SELECTION_COLOR)}
-          markerWidth={5}
-          markerHeight={5}
+          markerWidth={4}
+          markerHeight={4}
           viewBox="0 0 10 10"
           orient="auto"
           refX={10}
