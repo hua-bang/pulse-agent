@@ -90,14 +90,39 @@ function canvasPath(workspaceId: string): string {
   return join(STORE_DIR, workspaceId, 'canvas.json');
 }
 
+function isEnoent(err: unknown): boolean {
+  return !!err && typeof err === 'object' && (err as { code?: string }).code === 'ENOENT';
+}
+
+/**
+ * Load `canvas.json` for a workspace.
+ *
+ * Returns `null` ONLY when the file is genuinely missing (ENOENT). Any
+ * other failure (I/O error, JSON parse error from catching another writer
+ * mid-flush) is rethrown so callers don't confuse "unreadable right now"
+ * with "doesn't exist" and wipe real data by bootstrapping an empty
+ * canvas. This mirrors `packages/canvas-cli/src/core/store.ts#loadCanvas`.
+ */
 async function loadCanvas(workspaceId: string): Promise<CanvasSaveData | null> {
+  let raw: string;
   try {
-    const raw = await fs.readFile(canvasPath(workspaceId), 'utf-8');
+    raw = await fs.readFile(canvasPath(workspaceId), 'utf-8');
+  } catch (err) {
+    if (isEnoent(err)) return null;
+    throw err;
+  }
+  try {
     const data = JSON.parse(raw) as CanvasSaveData;
     data.nodes = data.nodes ?? [];
     return data;
-  } catch {
-    return null;
+  } catch (err) {
+    // Parse failure almost always means another writer caught mid-flush.
+    // Do NOT return null here — the caller might treat that as "no canvas"
+    // and overwrite real user data with an empty bootstrap.
+    throw new Error(
+      `[canvas-agent] failed to parse canvas.json for workspace "${workspaceId}": ` +
+      `${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 
@@ -123,10 +148,33 @@ async function saveCanvas(
   // write path into canvas.json refuses to silently clobber existing
   // nodes with an empty list.
   if (!opts.allowEmpty && Array.isArray(data.nodes) && data.nodes.length === 0) {
+    let raw: string | null = null;
     try {
-      const raw = await fs.readFile(canvasPath(workspaceId), 'utf-8');
-      const existing = JSON.parse(raw) as CanvasSaveData;
-      const existingNodes = Array.isArray(existing.nodes) ? existing.nodes : [];
+      raw = await fs.readFile(canvasPath(workspaceId), 'utf-8');
+    } catch (err) {
+      if (!isEnoent(err)) {
+        // Can't verify what's on disk — refuse rather than risk wiping a
+        // populated canvas that just happened to be unreadable this turn.
+        throw new Error(
+          `[canvas-agent] failed to read canvas.json while guarding empty write ` +
+          `for workspace "${workspaceId}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+      // ENOENT → nothing on disk, fall through and write.
+    }
+    if (raw !== null) {
+      let existingNodes: CanvasNode[];
+      try {
+        const existing = JSON.parse(raw) as CanvasSaveData;
+        existingNodes = Array.isArray(existing.nodes) ? existing.nodes : [];
+      } catch (err) {
+        // Parse failure mid-flight: treating "unparseable" as "nothing to
+        // protect" is exactly how silent wipes happen. Refuse the write.
+        throw new Error(
+          `[canvas-agent] failed to parse existing canvas.json while guarding empty write ` +
+          `for workspace "${workspaceId}": ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       if (existingNodes.length > 0) {
         throw new Error(
           `[canvas-agent] refusing to overwrite ${existingNodes.length} on-disk nodes ` +
@@ -134,11 +182,6 @@ async function saveCanvas(
           `Pass { allowEmpty: true } to saveCanvas if this wipe is intentional.`,
         );
       }
-    } catch (err) {
-      if (err instanceof Error && err.message.startsWith('[canvas-agent] refusing')) {
-        throw err;
-      }
-      // File missing or unparseable — nothing to protect.
     }
   }
 
