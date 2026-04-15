@@ -136,14 +136,21 @@ const useMarkerDefs = (edges: CanvasEdge[]) => {
 const MarkerShape = ({ cap, color }: { cap: EdgeArrowCap; color: string }) => {
   switch (cap) {
     case 'triangle':
-      return <path d="M0,0 L10,5 L0,10 z" fill={color} />;
+      // A touch slimmer than a square triangle (base 7 vs length 10)
+      // reads as more "arrow-like" than the old 10×10 triangle, which
+      // looked stubby next to longer edges.
+      return <path d="M0,1.5 L10,5 L0,8.5 z" fill={color} />;
     case 'arrow':
+      // Open chevron. strokeWidth is expressed in the marker's viewBox
+      // coord system, which — thanks to markerUnits="strokeWidth" — is
+      // proportional to the line's stroke-width. A value of 1.8 ends up
+      // ≈0.9× the line's own stroke, matching classic open-arrow weight.
       return (
         <path
-          d="M0,0 L10,5 L0,10"
+          d="M0,1.5 L10,5 L0,8.5"
           fill="none"
           stroke={color}
-          strokeWidth={1.5}
+          strokeWidth={1.8}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -168,13 +175,23 @@ const Markers = ({
       <marker
         key={id}
         id={id}
-        markerWidth={12}
-        markerHeight={12}
+        // markerUnits="strokeWidth" makes the marker (and its inner
+        // geometry) scale with the line's stroke-width. A fixed 12×12
+        // marker looked undersized on thick (3.6) strokes and comically
+        // oversized on a stroke this thin — scaling keeps proportions
+        // consistent across the width ladder.
+        markerWidth={5}
+        markerHeight={5}
         viewBox="0 0 10 10"
         orient={side === 'head' ? 'auto' : 'auto-start-reverse'}
-        refX={cap === 'triangle' ? 10 : 5}
+        // 'triangle' and 'arrow' have their point at (10, 5) in the
+        // viewBox — the refPoint must sit *on* the point so that point
+        // lands exactly at the path endpoint. 'dot' and 'bar' are
+        // symmetric, so centering (refX=5) places them *over* the
+        // endpoint, which is the conventional look.
+        refX={cap === 'triangle' || cap === 'arrow' ? 10 : 5}
         refY={5}
-        markerUnits="userSpaceOnUse"
+        markerUnits="strokeWidth"
       >
         <MarkerShape cap={cap} color={color} />
       </marker>
@@ -468,19 +485,20 @@ const PreviewEdge = ({
       {/* Also register the preview's triangle-on-blue marker so
           marker-end="url(#…)" resolves. Duplicate marker defs are
           harmless; the <defs> above won't include this combo unless an
-          edge already uses blue. */}
+          edge already uses blue. Shape + sizing mirrors the committed-
+          edge markers so preview and final arrow look identical. */}
       <defs>
         <marker
           id={capId('edge-head', 'triangle', SELECTION_COLOR)}
-          markerWidth={12}
-          markerHeight={12}
+          markerWidth={5}
+          markerHeight={5}
           viewBox="0 0 10 10"
           orient="auto"
           refX={10}
           refY={5}
-          markerUnits="userSpaceOnUse"
+          markerUnits="strokeWidth"
         >
-          <path d="M0,0 L10,5 L0,10 z" fill={SELECTION_COLOR} />
+          <path d="M0,1.5 L10,5 L0,8.5 z" fill={SELECTION_COLOR} />
         </marker>
       </defs>
       {node && (
