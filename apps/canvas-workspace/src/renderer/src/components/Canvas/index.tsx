@@ -45,6 +45,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodesChange
 
   const {
     nodes,
+    edges,
     loaded,
     externallyEditedIds,
     addNode,
@@ -282,6 +283,7 @@ export const Canvas = ({ canvasId, canvasName, rootFolder, hidden, onNodesChange
         moving={moving}
         sortedNodes={sortedNodes}
         nodes={nodes}
+        edges={edges}
         rootFolder={rootFolder}
         canvasId={canvasId}
         canvasName={canvasName}

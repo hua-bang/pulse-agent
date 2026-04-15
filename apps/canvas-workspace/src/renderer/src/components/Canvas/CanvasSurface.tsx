@@ -1,6 +1,7 @@
 import type React from 'react';
-import type { CanvasNode } from '../../types';
+import type { CanvasEdge, CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
+import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 
 interface CanvasSurfaceProps {
@@ -15,6 +16,7 @@ interface CanvasSurfaceProps {
   moving: boolean;
   sortedNodes: CanvasNode[];
   nodes: CanvasNode[];
+  edges: CanvasEdge[];
   rootFolder?: string;
   canvasId: string;
   canvasName?: string;
@@ -48,6 +50,7 @@ export const CanvasSurface = ({
   moving,
   sortedNodes,
   nodes,
+  edges,
   rootFolder,
   canvasId,
   canvasName,
@@ -74,6 +77,10 @@ export const CanvasSurface = ({
         : undefined,
     } as React.CSSProperties}
   >
+    {/* Edges render beneath nodes so node interactions keep working and
+        so the connection line visually terminates behind the node it
+        points at rather than being covered by it. */}
+    <CanvasEdgesLayer edges={edges} nodes={nodes} />
     {sortedNodes.map((node) => (
       <CanvasNodeView
         key={node.id}
