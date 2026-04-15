@@ -1,17 +1,19 @@
-/* Inline label shown above an edge.
+/* Inline label shown just below an edge.
 
    Positioned via inline left/top (screen coords computed from the
-   edge's bend-handle point), then offset UPWARD by its full height
-   plus a small gap so the label sits just above the line. This keeps
-   the edge's midpoint clear — the bend drag-handle (drawn on the line
-   at the exact same midpoint) must remain grabbable when the edge is
-   selected, and stacking the label chip on top of it hides the handle.
+   edge's bend-handle point) and then translated DOWNWARD so the
+   chip hangs below the line. This keeps both overlapping elements
+   clear of the label:
+     • the bend drag-handle, which lives on the line midpoint;
+     • the EdgeStylePanel, which floats above the midpoint when the
+       edge is selected — before this shift it stacked on top of the
+       label and made it unreadable.
 
    Sits in the overlay layer so the text isn't transformed with
    .canvas-transform — font stays crisp at any zoom. */
 .edge-label {
   position: absolute;
-  transform: translate(-50%, calc(-100% - 8px));
+  transform: translate(-50%, 10px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
