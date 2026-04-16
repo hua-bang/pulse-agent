@@ -42,7 +42,7 @@ export const useCanvasKeyboard = ({
       );
       const isMod = e.metaKey || e.ctrlKey;
 
-      if (isMod && e.key === 'k' && !isEditable) {
+      if (isMod && (e.key === 'k' || e.key === 'h') && !isEditable) {
         e.preventDefault();
         setSearchOpen((prev) => !prev);
         return;
