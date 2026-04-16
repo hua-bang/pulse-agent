@@ -14,7 +14,7 @@ interface Props {
   onClose: () => void;
 }
 
-type FilterType = "all" | "file" | "terminal";
+type FilterType = "all" | "file" | "terminal" | "frame" | "agent" | "text" | "iframe";
 
 const MAX_RESULTS = 25;
 
@@ -23,6 +23,7 @@ export const SearchPalette = ({ nodes, onSelect, onClose }: Props) => {
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -115,6 +116,13 @@ export const SearchPalette = ({ nodes, onSelect, onClose }: Props) => {
     setSelectedIndex(0);
   }, [query, filter]);
 
+  useEffect(() => {
+    const container = resultsRef.current;
+    if (!container) return;
+    const selected = container.children[selectedIndex] as HTMLElement | undefined;
+    selected?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -152,7 +160,7 @@ export const SearchPalette = ({ nodes, onSelect, onClose }: Props) => {
   );
 
   return (
-    <div className="search-palette-overlay" onClick={onClose}>
+    <div className="search-palette-overlay" onClick={onClose} onWheel={(e) => e.stopPropagation()}>
       <div className="search-palette" onClick={(e) => e.stopPropagation()}>
         <div className="search-input-wrapper">
           <svg className="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -171,7 +179,7 @@ export const SearchPalette = ({ nodes, onSelect, onClose }: Props) => {
         </div>
 
         <div className="search-filters">
-          {(["all", "file", "terminal"] as const).map((type) => (
+          {(["all", "file", "terminal", "frame", "agent", "text", "iframe"] as const).map((type) => (
             <button
               key={type}
               className={`search-filter-btn ${filter === type ? "active" : ""}`}
@@ -182,7 +190,7 @@ export const SearchPalette = ({ nodes, onSelect, onClose }: Props) => {
           ))}
         </div>
 
-        <div className="search-results">
+        <div className="search-results" ref={resultsRef}>
           {searchResults.length === 0 ? (
             <div className="search-empty">No results found</div>
           ) : (

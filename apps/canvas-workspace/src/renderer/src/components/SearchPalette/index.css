@@ -8,6 +8,9 @@
   padding-top: 15vh;
   z-index: 2000;
   animation: fadeIn 0.12s ease;
+  /* Block all pointer / touch interaction with the canvas underneath */
+  touch-action: none;
+  overscroll-behavior: contain;
 }
 
 .search-palette {
@@ -145,6 +148,26 @@
 .search-result-badge--terminal {
   background: rgba(15, 123, 108, 0.1);
   color: var(--accent-term);
+}
+
+.search-result-badge--frame {
+  background: rgba(103, 58, 183, 0.1);
+  color: #673ab7;
+}
+
+.search-result-badge--agent {
+  background: rgba(33, 150, 243, 0.1);
+  color: #2196f3;
+}
+
+.search-result-badge--text {
+  background: rgba(96, 125, 139, 0.1);
+  color: #607d8b;
+}
+
+.search-result-badge--iframe {
+  background: rgba(233, 30, 99, 0.1);
+  color: #e91e63;
 }
 
 .search-result-title {
