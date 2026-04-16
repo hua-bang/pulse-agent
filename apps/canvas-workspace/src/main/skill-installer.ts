@@ -49,6 +49,21 @@ pulse-canvas node write <nodeId> --content "..."
 pulse-canvas node create --type file --title "Report" --data '{"content":"..."}'
 \`\`\`
 
+### Create an edge (connection between nodes)
+\`\`\`bash
+pulse-canvas edge create --from <nodeId> --to <nodeId> --label "depends on" --kind dependency --format json
+\`\`\`
+
+### List edges
+\`\`\`bash
+pulse-canvas edge list --format json
+\`\`\`
+
+### Delete an edge
+\`\`\`bash
+pulse-canvas edge delete <edgeId> --format json
+\`\`\`
+
 ### List workspaces
 \`\`\`bash
 pulse-canvas workspace list --format json
@@ -58,6 +73,7 @@ pulse-canvas workspace list --format json
 - Before starting a task, run \`context\` to understand the user's canvas layout and intent
 - Files on the canvas = files the user considers important — prioritize them
 - Frame groups = file associations — understand files in the same group together
+- Edges = relationships — understand how frames and nodes connect to each other
 - After completing work, write results back to the canvas for the user to review
 `;
 

@@ -1,6 +1,6 @@
 import { loadCanvas, loadWorkspaceManifest, getWorkspaceDir } from './store';
 import { getNodeCapabilities, readNode } from './nodes';
-import type { CanvasNode, NodeReadResult } from './types';
+import type { CanvasNode, CanvasEdge, NodeReadResult } from './types';
 
 interface ContextNode {
   id: string;
@@ -10,11 +10,20 @@ interface ContextNode {
   [key: string]: unknown;
 }
 
+interface ContextEdge {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  kind?: string;
+}
+
 interface CanvasContext {
   workspaceId: string;
   workspaceName: string;
   canvasDir: string;
   nodes: ContextNode[];
+  edges: ContextEdge[];
 }
 
 function extractDescription(content: string): string {
@@ -76,7 +85,27 @@ export async function generateContext(
     nodes.push(base);
   }
 
-  return { workspaceId, workspaceName, canvasDir, nodes };
+  // Build a node-id → title map for readable edge descriptions
+  const nodeTitleById = new Map<string, string>();
+  for (const n of canvas.nodes) nodeTitleById.set(n.id, n.title);
+
+  const edges: ContextEdge[] = (canvas.edges ?? []).map(e => {
+    const src = e.source.kind === 'node'
+      ? (nodeTitleById.get(e.source.nodeId) ?? e.source.nodeId)
+      : `(${e.source.x},${e.source.y})`;
+    const tgt = e.target.kind === 'node'
+      ? (nodeTitleById.get(e.target.nodeId) ?? e.target.nodeId)
+      : `(${e.target.x},${e.target.y})`;
+    return {
+      id: e.id,
+      source: src,
+      target: tgt,
+      label: e.label,
+      kind: e.kind,
+    };
+  });
+
+  return { workspaceId, workspaceName, canvasDir, nodes, edges };
 }
 
 export function formatContextAsText(ctx: CanvasContext): string {
@@ -123,6 +152,15 @@ export function formatContextAsText(ctx: CanvasContext): string {
       const info = `${node.agentType ?? 'unknown'}, ${node.status ?? 'idle'}`;
       const cwd = node.cwd ? `, cwd: \`${node.cwd}\`` : '';
       lines.push(`- **${node.title}** (${info}${cwd})`);
+    }
+  }
+
+  if (ctx.edges.length > 0) {
+    lines.push('', '## Connections', '');
+    for (const edge of ctx.edges) {
+      const label = edge.label ? ` "${edge.label}"` : '';
+      const kind = edge.kind ? ` [${edge.kind}]` : '';
+      lines.push(`- **${edge.source}** → **${edge.target}**${label}${kind}`);
     }
   }
 

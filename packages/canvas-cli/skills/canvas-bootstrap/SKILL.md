@@ -1,7 +1,7 @@
 ---
 name: canvas-bootstrap
-description: Deep-research a topic and build a structured canvas workspace with spatially organized frames and content
-version: 3.0.0
+description: Deep-research a topic and build a structured canvas workspace with spatially organized frames, content, and connections
+version: 4.0.0
 ---
 
 # Canvas Bootstrap
@@ -32,6 +32,7 @@ Based on research, determine the structure organically. Do NOT use a fixed templ
 - Each file node = one **distinct document** within that category
 - A frame should have **2-4 file nodes** (if only 1, merge into another frame; if more than 4, split the frame)
 - Total: aim for 3-6 frames with 2-4 nodes each
+- **Connections**: identify relationships between frames — flows, dependencies, cross-references
 
 **Think through your plan like this:**
 
@@ -41,6 +42,11 @@ Based on research, determine the structure organically. Do NOT use a fixed templ
 > 3. "Current State" — 3 aspects: landscape, key players, trends → 1 frame, 3 files
 > 4. "Action Items" — 2 aspects: short-term tasks, long-term goals → 1 frame, 2 files
 > Total: 4 frames, 10 files → good balance
+>
+> Connections:
+> - Historical Context → Core Concepts (label: "established", kind: flow)
+> - Core Concepts → Current State (label: "applied in", kind: flow)
+> - Current State → Action Items (label: "informs", kind: dependency)
 
 ### Phase 3: Create Workspace
 
@@ -163,7 +169,58 @@ pulse-canvas node create --type file --title "Long-term Goals" \
   --data '{"content":"# Long-term Goals\n\n..."}' --format json
 ```
 
-### Phase 5: Verify and Summarize
+### Phase 5: Create Connections
+
+After all nodes are created, draw edges between frames (or individual nodes) to show relationships. Use the node IDs from `--format json` output of the create commands.
+
+**Connection types (use `--kind` to tag):**
+- `flow` — sequential relationship ("A leads to B")
+- `dependency` — B depends on A
+- `reference` — cross-reference between content
+- `contrast` — A and B present opposing views
+
+**Rules:**
+- Connect **frames** to show high-level relationships (2-5 edges total)
+- Use `--label` to describe the relationship in 1-3 words
+- Keep connections sparse — only draw meaningful relationships, not everything-to-everything
+- Use `--style dashed` for weaker/optional relationships
+- Use `--color` to match the source frame's color for visual coherence
+
+#### Example: connecting 4 frames
+
+```bash
+# Historical Context → Core Concepts
+pulse-canvas edge create --from <frame1-id> --to <frame2-id> \
+  --label "established" --kind flow --format json
+
+# Core Concepts → Current Landscape
+pulse-canvas edge create --from <frame2-id> --to <frame3-id> \
+  --label "applied in" --kind flow --format json
+
+# Current Landscape → Action Plan
+pulse-canvas edge create --from <frame3-id> --to <frame4-id> \
+  --label "informs" --kind dependency --format json
+```
+
+#### Edge command reference
+
+```bash
+# Create an edge
+pulse-canvas edge create --from <nodeId> --to <nodeId> \
+  [--label <text>] [--kind <tag>] \
+  [--arrow-head triangle|arrow|dot|bar|none] \
+  [--arrow-tail none|triangle|arrow|dot|bar] \
+  [--color <hex>] [--width <px>] [--style solid|dashed|dotted] \
+  [--bend <px>] --format json
+
+# List all edges
+pulse-canvas edge list --format json
+
+# Delete an edge
+pulse-canvas edge delete <edgeId> --format json
+```
+
+### Phase 6: Verify and Summarize
 
 ```bash
 pulse-canvas context --format json
@@ -189,3 +246,5 @@ Tell the user: what frames were created, what each contains, and key findings fr
 3. **File nodes are inside their frame** — check coordinates match
 4. **Research before creating** — no canvas without deep understanding first
 5. **Content is actionable** — someone should be able to act on what they read
+6. **Connections show relationships** — 2-5 edges between frames, each with a label
+7. **Edges use frame node IDs** — connect frames (not file nodes) for high-level flow

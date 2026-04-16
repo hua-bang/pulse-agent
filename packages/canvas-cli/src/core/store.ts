@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { DEFAULT_STORE_DIR, AGENTS_MD_TEMPLATE } from './constants';
-import type { CanvasNode, CanvasSaveData, WorkspaceManifest, Result } from './types';
+import type { CanvasNode, CanvasEdge, CanvasSaveData, WorkspaceManifest, Result } from './types';
 
 function resolveDir(storeDir?: string): string {
   return storeDir ?? DEFAULT_STORE_DIR;
@@ -240,6 +240,55 @@ export async function commitNodeMutation(
   fresh.savedAt = new Date().toISOString();
   // `removeId` can legitimately reduce the canvas to 0 nodes when the user
   // deletes the last one; opt in so the wipe guard doesn't reject that.
+  await saveCanvas(workspaceId, fresh, storeDir, { allowEmpty: true });
+  return fresh;
+}
+
+/**
+ * Describes a single-edge mutation to apply atomically against the latest
+ * on-disk canvas. Exactly one of the fields should be set:
+ *  - upsert: insert or replace the given edge (matched by id)
+ *  - removeId: remove the edge with this id
+ */
+export interface EdgeMutation {
+  upsert?: CanvasEdge;
+  removeId?: string;
+}
+
+/**
+ * Apply a single-edge mutation by re-reading canvas.json immediately before
+ * writing it back. Mirrors `commitNodeMutation` but operates on the `edges`
+ * array. The caller is responsible for validating endpoints (e.g. node ids
+ * exist) before calling this.
+ */
+export async function commitEdgeMutation(
+  workspaceId: string,
+  mutation: EdgeMutation,
+  storeDir?: string,
+): Promise<CanvasSaveData | null> {
+  const fresh = (await loadCanvas(workspaceId, storeDir)) ?? {
+    nodes: [],
+    edges: [],
+    transform: { x: 0, y: 0, scale: 1 },
+    savedAt: new Date().toISOString(),
+  };
+
+  const edges = fresh.edges ?? [];
+
+  if (mutation.upsert) {
+    const target = mutation.upsert;
+    const idx = edges.findIndex(e => e.id === target.id);
+    if (idx >= 0) edges[idx] = target;
+    else edges.push(target);
+  }
+  if (mutation.removeId) {
+    const idx = edges.findIndex(e => e.id === mutation.removeId);
+    if (idx === -1) return null;
+    edges.splice(idx, 1);
+  }
+
+  fresh.edges = edges;
+  fresh.savedAt = new Date().toISOString();
   await saveCanvas(workspaceId, fresh, storeDir, { allowEmpty: true });
   return fresh;
 }
