@@ -141,6 +141,11 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId })
   },
 
+  llm: {
+    generateHTML: (prompt: string) =>
+      ipcRenderer.invoke("llm:generate-html", { prompt }) as Promise<{ ok: boolean; html?: string; error?: string }>,
+  },
+
   agent: {
     chat: (workspaceId: string, message: string, mentionedWorkspaceIds?: string[]) =>
       ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message, mentionedWorkspaceIds }),

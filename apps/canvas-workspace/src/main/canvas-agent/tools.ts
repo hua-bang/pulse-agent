@@ -21,6 +21,7 @@ import {
   formatSummaryForPrompt,
 } from './context-builder';
 import { hasSession, writeToSession } from '../pty-manager';
+import { generateHTML } from '../html-generator';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
@@ -392,9 +393,11 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         'Optional `data.agentArgs` overrides the auto-generated CLI arguments.\n' +
         '- **text**: Creates a free-form text label (TLDRAW-style). Use `content` for the text body, ' +
         'and `data.textColor` / `data.backgroundColor` (hex or "transparent") for styling. Optional `data.fontSize`.\n' +
-        '- **iframe**: Embeds an external web page or renders raw HTML on the canvas. ' +
-        'Pass `data.url` with the full URL (including protocol) for URL mode, or ' +
-        'pass `data.html` with raw HTML content and `data.mode: "html"` for HTML mode. ' +
+        '- **iframe**: Embeds an external web page, renders raw HTML, or generates HTML from a prompt. ' +
+        'For URL mode: pass `data.url` with the full URL (including protocol). ' +
+        'For HTML mode: pass `data.html` with raw HTML content and `data.mode: "html"`. ' +
+        'For AI mode: pass `data.prompt` with a description and `data.mode: "ai"` — ' +
+        'the LLM will generate self-contained HTML. ' +
         'Note: some sites block URL embedding via X-Frame-Options / CSP.',
       inputSchema: z.object({
         type: z.enum(['file', 'terminal', 'frame', 'agent', 'text', 'iframe']).describe('Node type.'),
@@ -408,7 +411,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           '- agent: { agentType?: "claude-code"|"codex"|"pulse-coder", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
-          '- iframe: { url?: string, html?: string, mode?: "url"|"html" }',
+          '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }',
         ),
       }),
       execute: async (input) => {
@@ -483,12 +486,27 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             };
             break;
           case 'iframe': {
-            const iframeMode = (extraData.mode as string) === 'html' ? 'html' : 'url';
-            nodeData = {
-              url: (extraData.url as string) ?? '',
-              html: (extraData.html as string) ?? '',
-              mode: iframeMode,
-            };
+            const rawMode = extraData.mode as string | undefined;
+            const iframeMode = rawMode === 'html' ? 'html' : rawMode === 'ai' ? 'ai' : 'url';
+            const prompt = (extraData.prompt as string) ?? '';
+
+            if (iframeMode === 'ai' && prompt) {
+              // Generate HTML from the prompt via LLM
+              const genResult = await generateHTML(prompt);
+              nodeData = {
+                url: '',
+                html: genResult.ok ? (genResult.html ?? '') : `<pre style="color:red">${genResult.error ?? 'Generation failed'}</pre>`,
+                prompt,
+                mode: 'ai',
+              };
+            } else {
+              nodeData = {
+                url: (extraData.url as string) ?? '',
+                html: (extraData.html as string) ?? '',
+                prompt,
+                mode: iframeMode,
+              };
+            }
             break;
           }
         }

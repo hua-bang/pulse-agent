@@ -88,10 +88,12 @@ export interface TextNodeData {
 export interface IframeNodeData {
   /** Full URL (including protocol) to load in the iframe. Empty = show URL input. */
   url: string;
-  /** Raw HTML content to render when `mode` is `'html'`. */
+  /** Raw HTML content to render when `mode` is `'html'` or `'ai'`. */
   html?: string;
-  /** `'url'` embeds a remote page; `'html'` renders raw HTML locally. */
-  mode?: 'url' | 'html';
+  /** `'url'` embeds a remote page; `'html'` renders raw HTML; `'ai'` generates HTML from a prompt. */
+  mode?: 'url' | 'html' | 'ai';
+  /** The prompt used to generate HTML when `mode` is `'ai'`. */
+  prompt?: string;
 }
 
 export interface CanvasTransform {
@@ -357,6 +359,11 @@ export interface CanvasWorkspaceApi {
   skills: SkillsApi;
   agent: AgentApi;
   iframe: IframeApi;
+  llm: LlmApi;
+}
+
+export interface LlmApi {
+  generateHTML: (prompt: string) => Promise<{ ok: boolean; html?: string; error?: string }>;
 }
 
 export interface IframeApi {

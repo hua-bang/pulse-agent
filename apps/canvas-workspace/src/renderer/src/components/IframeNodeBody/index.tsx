@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./index.css";
 import type { CanvasNode, IframeNodeData } from "../../types";
 
+type EditMode = "url" | "html" | "ai";
+
 interface Props {
   node: CanvasNode;
   workspaceId?: string;
@@ -9,61 +11,61 @@ interface Props {
 }
 
 /**
- * Renders an external web page in an Electron `<webview>` tag, **or** renders
- * user-supplied HTML in a sandboxed `<iframe srcdoc>`.
+ * Renders an external web page in an Electron `<webview>` tag, renders
+ * user-supplied HTML in a sandboxed `<iframe srcdoc>`, or generates HTML
+ * from a natural-language prompt via the configured LLM.
  *
  * URL mode (`mode: 'url'`, default):
- *   A `<webview>` hosts its own `webContents` (like an isolated mini-browser),
- *   which lets us do two things a plain iframe can't:
- *    1. **Read the rendered DOM.** When the webview attaches we register its
- *       `webContentsId` with main. The Canvas Agent's `canvas_read_node` tool
- *       then pulls the post-JS DOM text directly out of that webContents — so
- *       SPAs, pages that require auth cookies, etc. all become readable.
- *    2. **Bypass X-Frame-Options / CSP frame-ancestors.** A `<webview>` isn't
- *       subject to those directives the way a nested browsing context is, so a
- *       lot of sites that refuse to embed in `<iframe>` render normally here.
+ *   Uses Electron `<webview>` to embed a remote page.
  *
  * HTML mode (`mode: 'html'`):
- *   Renders raw HTML the user typed into the editor via `<iframe srcdoc>`.
- *   The iframe is sandboxed — scripts are allowed so interactive demos work,
- *   but it cannot navigate the parent or access its origin.
+ *   Renders raw HTML the user typed via `<iframe srcdoc>`.
  *
- * Empty URL/HTML → show an input. Non-empty → show the content.
+ * AI mode (`mode: 'ai'`):
+ *   The user types a prompt, the LLM generates self-contained HTML, and
+ *   the result is rendered the same way as HTML mode. The prompt is
+ *   persisted so the user can regenerate or refine later.
  */
 export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
   const data = node.data as IframeNodeData;
   const mode = data.mode ?? "url";
   const url = data.url ?? "";
   const html = data.html ?? "";
+  const savedPrompt = data.prompt ?? "";
 
   const hasContent = mode === "url" ? !!url : !!html;
 
   const [editing, setEditing] = useState(!hasContent);
   const [draftUrl, setDraftUrl] = useState(url);
   const [draftHtml, setDraftHtml] = useState(html);
-  const [draftMode, setDraftMode] = useState<"url" | "html">(mode);
+  const [draftPrompt, setDraftPrompt] = useState(savedPrompt);
+  const [draftMode, setDraftMode] = useState<EditMode>(mode === "ai" ? "ai" : mode === "html" ? "html" : "url");
+  const [generating, setGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
   const [webviewKey, setWebviewKey] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
 
   // Keep drafts in sync when data is changed externally (undo/redo, CLI edits).
   useEffect(() => { setDraftUrl(url); }, [url]);
   useEffect(() => { setDraftHtml(html); }, [html]);
-  useEffect(() => { setDraftMode(mode); }, [mode]);
+  useEffect(() => { setDraftPrompt(savedPrompt); }, [savedPrompt]);
+  useEffect(() => { setDraftMode(mode === "ai" ? "ai" : mode === "html" ? "html" : "url"); }, [mode]);
 
   // Autofocus the relevant input whenever we enter editing mode.
   useEffect(() => {
     if (!editing) return undefined;
     const t = setTimeout(() => {
       if (draftMode === "url") inputRef.current?.select();
-      else textareaRef.current?.focus();
+      else if (draftMode === "html") textareaRef.current?.focus();
+      else promptRef.current?.focus();
     }, 0);
     return () => clearTimeout(t);
   }, [editing, draftMode]);
 
-  // Register the webview's webContents with main so the Canvas Agent can
-  // pull rendered text out of it (URL mode only).
+  // Register the webview's webContents with main (URL mode only).
   useEffect(() => {
     if (editing || mode !== "url") return;
     if (!workspaceId) return;
@@ -71,7 +73,6 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
     if (!el) return;
 
     const api = window.canvasWorkspace.iframe;
-
     let registered = false;
 
     const tryRegister = (via: string) => {
@@ -99,7 +100,6 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
     };
 
     tryRegister("mount");
-
     const onAttach = () => tryRegister("did-attach");
     const onDomReady = () => tryRegister("dom-ready");
     el.addEventListener("did-attach", onAttach);
@@ -114,6 +114,8 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
     };
   }, [workspaceId, node.id, editing, url, mode, webviewKey]);
 
+  // ── Commit (URL / HTML) ────────────────────────────────────────────
+
   const commit = useCallback(() => {
     if (draftMode === "url") {
       const next = normalizeUrl(draftUrl.trim());
@@ -121,7 +123,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
         data: { ...data, url: next, mode: "url" },
         title: next ? prettyTitle(next) : node.title,
       });
-    } else {
+    } else if (draftMode === "html") {
       onUpdate(node.id, {
         data: { ...data, html: draftHtml, mode: "html" },
         title: node.title === "Web" ? "HTML" : node.title,
@@ -130,38 +132,88 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
     setEditing(false);
   }, [draftMode, draftUrl, draftHtml, onUpdate, node.id, node.title, data]);
 
+  // ── Generate (AI mode) ─────────────────────────────────────────────
+
+  const handleGenerate = useCallback(async () => {
+    const prompt = draftPrompt.trim();
+    if (!prompt) return;
+
+    setGenerating(true);
+    setGenError(null);
+
+    try {
+      const result = await window.canvasWorkspace.llm.generateHTML(prompt);
+      if (result.ok && result.html) {
+        onUpdate(node.id, {
+          data: { ...data, html: result.html, prompt, mode: "ai" },
+          title: node.title === "Web" ? "AI Visual" : node.title,
+        });
+        setEditing(false);
+      } else {
+        setGenError(result.error ?? "Failed to generate HTML");
+      }
+    } catch (err) {
+      setGenError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGenerating(false);
+    }
+  }, [draftPrompt, onUpdate, node.id, node.title, data]);
+
+  // ── Regenerate from rendered state ─────────────────────────────────
+
+  const handleRegenerate = useCallback(async () => {
+    if (!savedPrompt.trim()) return;
+    setGenerating(true);
+    setGenError(null);
+
+    try {
+      const result = await window.canvasWorkspace.llm.generateHTML(savedPrompt.trim());
+      if (result.ok && result.html) {
+        onUpdate(node.id, {
+          data: { ...data, html: result.html },
+        });
+        setWebviewKey((k) => k + 1);
+      }
+    } catch {
+      // silent — the user can click edit to see what went wrong
+    } finally {
+      setGenerating(false);
+    }
+  }, [savedPrompt, onUpdate, node.id, data]);
+
   const cancel = useCallback(() => {
     setDraftUrl(url);
     setDraftHtml(html);
-    setDraftMode(mode);
+    setDraftPrompt(savedPrompt);
+    setDraftMode(mode === "ai" ? "ai" : mode === "html" ? "html" : "url");
+    setGenError(null);
     setEditing(false);
-  }, [url, html, mode]);
+  }, [url, html, savedPrompt, mode]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        commit();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        cancel();
-      }
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      else if (e.key === "Escape") { e.preventDefault(); cancel(); }
     },
     [commit, cancel],
   );
 
   const handleTextareaKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Cmd/Ctrl+Enter to confirm HTML
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        commit();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        cancel();
-      }
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(); }
+      else if (e.key === "Escape") { e.preventDefault(); cancel(); }
     },
     [commit, cancel],
+  );
+
+  const handlePromptKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        void handleGenerate();
+      } else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    },
+    [handleGenerate, cancel],
   );
 
   const handleOpenExternal = useCallback(() => {
@@ -171,27 +223,24 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
   }, [mode, url]);
 
   const handleReload = useCallback(() => {
-    if (mode === "html") {
-      // Force re-render the srcdoc iframe
+    if (mode !== "url") {
       setWebviewKey((k) => k + 1);
       return;
     }
     const el = webviewRef.current;
     if (el && typeof el.reload === "function") {
-      try {
-        el.reload();
-        return;
-      } catch {
-        // fall through to remount
-      }
+      try { el.reload(); return; } catch { /* fall through */ }
     }
     setWebviewKey((k) => k + 1);
   }, [mode]);
 
-  // ── Editing state ──────────────────────────────────────────────────────
+  // ── Editing state ──────────────────────────────────────────────────
 
   if (editing) {
-    const canCommit = draftMode === "url" ? !!draftUrl.trim() : !!draftHtml.trim();
+    const canCommit =
+      draftMode === "url" ? !!draftUrl.trim() :
+      draftMode === "html" ? !!draftHtml.trim() :
+      !!draftPrompt.trim();
 
     return (
       <div className="iframe-body iframe-body--empty">
@@ -201,14 +250,23 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
             <button
               className={`iframe-mode-tab${draftMode === "url" ? " iframe-mode-tab--active" : ""}`}
               onClick={() => setDraftMode("url")}
+              disabled={generating}
             >
               URL
             </button>
             <button
               className={`iframe-mode-tab${draftMode === "html" ? " iframe-mode-tab--active" : ""}`}
               onClick={() => setDraftMode("html")}
+              disabled={generating}
             >
               HTML
+            </button>
+            <button
+              className={`iframe-mode-tab${draftMode === "ai" ? " iframe-mode-tab--active" : ""}`}
+              onClick={() => setDraftMode("ai")}
+              disabled={generating}
+            >
+              AI
             </button>
           </div>
 
@@ -226,7 +284,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
                 spellCheck={false}
               />
             </>
-          ) : (
+          ) : draftMode === "html" ? (
             <>
               <div className="iframe-empty-label">Render HTML</div>
               <textarea
@@ -239,34 +297,77 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
                 spellCheck={false}
               />
             </>
+          ) : (
+            <>
+              <div className="iframe-empty-label">Describe what to generate</div>
+              <textarea
+                ref={promptRef}
+                className="iframe-empty-textarea iframe-empty-textarea--prompt"
+                value={draftPrompt}
+                placeholder={"A pie chart showing Q1 revenue by region…\nAn interactive to-do list with drag & drop…\nA flow diagram of the CI/CD pipeline…"}
+                onChange={(e) => setDraftPrompt(e.target.value)}
+                onKeyDown={handlePromptKeyDown}
+                spellCheck={false}
+                disabled={generating}
+              />
+              {genError && (
+                <div className="iframe-gen-error">{genError}</div>
+              )}
+            </>
           )}
 
           <div className="iframe-empty-actions">
-            {hasContent && (
+            {hasContent && !generating && (
               <button className="iframe-empty-btn" onClick={cancel}>
                 Cancel
               </button>
             )}
-            <button
-              className="iframe-empty-btn iframe-empty-btn--primary"
-              onClick={commit}
-              disabled={!canCommit}
-            >
-              {draftMode === "url" ? "Load" : "Render"}
-            </button>
+            {draftMode === "ai" ? (
+              <button
+                className="iframe-empty-btn iframe-empty-btn--primary iframe-empty-btn--ai"
+                onClick={() => void handleGenerate()}
+                disabled={!canCommit || generating}
+              >
+                {generating ? (
+                  <>
+                    <span className="iframe-spinner" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 1.5l1.85 4.15L14 7.5l-4.15 1.85L8 13.5l-1.85-4.15L2 7.5l4.15-1.85L8 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+                    </svg>
+                    Generate
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                className="iframe-empty-btn iframe-empty-btn--primary"
+                onClick={commit}
+                disabled={!canCommit}
+              >
+                {draftMode === "url" ? "Load" : "Render"}
+              </button>
+            )}
           </div>
 
           <div className="iframe-empty-hint">
             {draftMode === "url"
               ? 'Some sites block embedding — use "Open externally" to fall back to a browser.'
-              : "Cmd/Ctrl+Enter to confirm. Scripts are sandboxed."}
+              : draftMode === "html"
+              ? "Cmd/Ctrl+Enter to confirm. Scripts are sandboxed."
+              : "Cmd/Ctrl+Enter to generate. Describe a chart, diagram, UI, or any visual."}
           </div>
         </div>
       </div>
     );
   }
 
-  // ── Rendered state ─────────────────────────────────────────────────────
+  // ── Rendered state ─────────────────────────────────────────────────
+
+  const renderMode = mode === "url" ? "url" : "html"; // ai also renders as html
 
   return (
     <div className="iframe-body">
@@ -295,6 +396,17 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
           >
             <span className="iframe-bar-url-text">{url}</span>
           </button>
+        ) : mode === "ai" ? (
+          <button
+            className="iframe-bar-url iframe-bar-url--html"
+            onClick={() => setEditing(true)}
+            title="Edit prompt"
+          >
+            <span className="iframe-bar-badge iframe-bar-badge--ai">AI</span>
+            <span className="iframe-bar-url-text">
+              {savedPrompt.length > 80 ? savedPrompt.slice(0, 80) + "…" : savedPrompt}
+            </span>
+          </button>
         ) : (
           <button
             className="iframe-bar-url iframe-bar-url--html"
@@ -305,6 +417,23 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
             <span className="iframe-bar-url-text">
               {html.length > 80 ? html.slice(0, 80) + "…" : html}
             </span>
+          </button>
+        )}
+
+        {mode === "ai" && (
+          <button
+            className="iframe-bar-btn"
+            onClick={() => void handleRegenerate()}
+            title="Regenerate"
+            disabled={generating}
+          >
+            {generating ? (
+              <span className="iframe-spinner iframe-spinner--small" />
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1.5l1.85 4.15L14 7.5l-4.15 1.85L8 13.5l-1.85-4.15L2 7.5l4.15-1.85L8 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+            )}
           </button>
         )}
 
@@ -327,7 +456,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
         )}
       </div>
 
-      {mode === "url" ? (
+      {renderMode === "url" ? (
         <webview
           ref={webviewRef as unknown as React.Ref<HTMLWebViewElement>}
           key={webviewKey}
@@ -341,18 +470,13 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate }: Props) => {
           className="iframe-frame"
           srcDoc={html}
           sandbox="allow-scripts"
-          title="HTML preview"
+          title={mode === "ai" ? "AI-generated preview" : "HTML preview"}
         />
       )}
     </div>
   );
 };
 
-/**
- * Add a protocol if the user typed a bare host, and strip any whitespace the
- * paste picked up. We don't try to rewrite anything more aggressive — if the
- * user typed nonsense the iframe will surface the failure.
- */
 function normalizeUrl(input: string): string {
   if (!input) return "";
   if (/^[a-z]+:\/\//i.test(input)) return input;
@@ -360,7 +484,6 @@ function normalizeUrl(input: string): string {
   return `https://${input}`;
 }
 
-/** Use the host as the default title so the header is meaningful at a glance. */
 function prettyTitle(url: string): string {
   try {
     const u = new URL(url);
@@ -370,8 +493,6 @@ function prettyTitle(url: string): string {
   }
 }
 
-// Minimal shape of Electron's `<webview>` — we only use the bits we call.
-// (Avoids pulling a full Electron types dep into the renderer.)
 interface WebviewTag extends HTMLElement {
   getWebContentsId(): number;
   reload(): void;

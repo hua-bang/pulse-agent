@@ -233,6 +233,68 @@
   margin-right: 6px;
 }
 
+.iframe-bar-badge--ai {
+  background: rgba(168, 85, 247, 0.12);
+  color: #8b5cf6;
+}
+
 .iframe-bar-url--html {
   gap: 0;
+}
+
+/* ── AI prompt textarea variant ────────────────────────────────────── */
+
+.iframe-empty-textarea--prompt {
+  font-family: inherit;
+  font-size: 13px;
+  min-height: 80px;
+}
+
+/* ── Generation error ──────────────────────────────────────────────── */
+
+.iframe-gen-error {
+  font-size: 11px;
+  color: #dc2626;
+  padding: 4px 8px;
+  background: rgba(220, 38, 38, 0.06);
+  border-radius: 4px;
+}
+
+/* ── AI button ─────────────────────────────────────────────────────── */
+
+.iframe-empty-btn--ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #8b5cf6;
+  border-color: #8b5cf6;
+}
+
+.iframe-empty-btn--ai:hover {
+  background: #7c3aed;
+  opacity: 1;
+}
+
+/* ── Spinner ───────────────────────────────────────────────────────── */
+
+.iframe-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: iframe-spin 0.6s linear infinite;
+}
+
+.iframe-spinner--small {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
+  border-color: rgba(0, 0, 0, 0.15);
+  border-top-color: var(--text-muted);
+}
+
+@keyframes iframe-spin {
+  to { transform: rotate(360deg); }
 }

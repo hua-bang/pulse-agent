@@ -267,7 +267,7 @@ function summarizeNode(node: CanvasNode): NodeSummary {
       break;
     case 'iframe': {
       const iframeMode = (node.data.mode as string) || 'url';
-      if (iframeMode === 'html') {
+      if (iframeMode === 'html' || iframeMode === 'ai') {
         summary.url = undefined;
       } else {
         summary.url = (node.data.url as string) || undefined;
@@ -410,7 +410,7 @@ export async function buildDetailedContext(workspaceId: string): Promise<Detaile
         break;
       case 'iframe': {
         const iframeMode = (node.data.mode as string) || 'url';
-        if (iframeMode === 'html') {
+        if (iframeMode === 'html' || iframeMode === 'ai') {
           detailed.content = (node.data.html as string) ?? '';
         } else {
           const url = (node.data.url as string) || '';
@@ -476,7 +476,7 @@ export async function readNodeDetail(workspaceId: string, nodeId: string): Promi
       break;
     case 'iframe': {
       const iframeMode = (node.data.mode as string) || 'url';
-      if (iframeMode === 'html') {
+      if (iframeMode === 'html' || iframeMode === 'ai') {
         detailed.content = (node.data.html as string) ?? '';
       } else {
         // Use the same live-webview-first path as buildDetailedContext so a
