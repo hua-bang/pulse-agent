@@ -34,6 +34,21 @@ const ensureSummaryPrefix = (summary: string): string => {
   return `[COMPACTED_CONTEXT]\n${trimmed}`;
 };
 
+/**
+ * Ensure compacted messages end with a user-role message.
+ * Some providers (e.g. claude-opus-4.7 via copilot-api) reject requests
+ * where the last message has role "assistant" (no prefill support).
+ * Safety: never returns an empty array — falls back to original when all messages are assistant.
+ */
+const ensureEndsWithUser = (messages: ModelMessage[]): ModelMessage[] => {
+  let end = messages.length;
+  while (end > 0 && messages[end - 1].role === 'assistant') {
+    end--;
+  }
+  if (end === 0) return messages;
+  return end === messages.length ? messages : messages.slice(0, end);
+};
+
 const safeStringify = (value: unknown): string => {
   try {
     return JSON.stringify(value);
@@ -190,7 +205,7 @@ export const maybeCompactContext = async (
       const fallbackStrategy: CompactStats['strategy'] = nextEstimatedTokens > COMPACT_TARGET
         ? 'summary-too-large'
         : 'fallback';
-      const fallbackMessages = takeLastTurns(messages, KEEP_LAST_TURNS);
+      const fallbackMessages = ensureEndsWithUser(takeLastTurns(messages, KEEP_LAST_TURNS));
       return buildCompactedResult({
         reason: fallbackReason,
         strategy: fallbackStrategy,
@@ -204,7 +219,7 @@ export const maybeCompactContext = async (
     return {
       didCompact: true,
       reason: force ? 'force-summary' : 'summary',
-      newMessages: nextMessages,
+      newMessages: ensureEndsWithUser(nextMessages),
       stats: {
         forced: force,
         beforeMessageCount,
@@ -221,7 +236,7 @@ export const maybeCompactContext = async (
       toolCalls: 'all',
       emptyMessages: 'remove',
     });
-    const fallbackMessages = takeLastTurns(pruned, KEEP_LAST_TURNS);
+    const fallbackMessages = ensureEndsWithUser(takeLastTurns(pruned, KEEP_LAST_TURNS));
     return buildCompactedResult({
       reason: 'fallback',
       strategy: 'fallback',
