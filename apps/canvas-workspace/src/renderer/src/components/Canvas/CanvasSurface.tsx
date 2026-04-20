@@ -5,6 +5,7 @@ import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
+import { ShapePrimitive } from '../../utils/shapeGeometry';
 
 interface CanvasSurfaceProps {
   transform: { x: number; y: number; scale: number };
@@ -157,21 +158,31 @@ export const CanvasSurface = ({
 const ShapeDraftPreview = ({ draft }: { draft: ShapeDraft }) => {
   const x = Math.min(draft.start.x, draft.current.x);
   const y = Math.min(draft.start.y, draft.current.y);
-  const w = Math.abs(draft.current.x - draft.start.x);
-  const h = Math.abs(draft.current.y - draft.start.y);
-  const common: React.CSSProperties = {
-    position: 'absolute',
-    left: x,
-    top: y,
-    width: w,
-    height: h,
-    border: '1.5px dashed #5B7CBF',
-    background: 'rgba(91, 124, 191, 0.08)',
-    pointerEvents: 'none',
-    boxSizing: 'border-box',
-  };
-  if (draft.kind === 'ellipse') {
-    common.borderRadius = '50%';
-  }
-  return <div className="shape-draft-preview" style={common} />;
+  const w = Math.max(1, Math.abs(draft.current.x - draft.start.x));
+  const h = Math.max(1, Math.abs(draft.current.y - draft.start.y));
+  return (
+    <svg
+      className="shape-draft-preview"
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: w,
+        height: h,
+        pointerEvents: 'none',
+        overflow: 'visible',
+      }}
+      viewBox={`0 0 ${w} ${h}`}
+      preserveAspectRatio="none"
+    >
+      <ShapePrimitive
+        kind={draft.kind}
+        width={w}
+        height={h}
+        fill="rgba(91, 124, 191, 0.08)"
+        stroke="#5B7CBF"
+        strokeWidth={1.5}
+      />
+    </svg>
+  );
 };

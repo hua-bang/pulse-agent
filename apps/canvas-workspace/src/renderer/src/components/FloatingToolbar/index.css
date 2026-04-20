@@ -81,3 +81,87 @@
      brings the cap-height of the text in line with the icon midline. */
   transform: translateY(0.5px);
 }
+
+/* ---- Shape split-button ---- */
+
+.shape-tool-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+/* The main half and the caret half read as one merged pill when they're
+ * adjacent. Individually they still respond to hover/active. */
+.shape-tool-split .shape-tool-main {
+  padding: 0 6px 0 8px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.shape-tool-split .shape-tool-caret {
+  min-width: 18px;
+  padding: 0 4px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: 0;
+}
+
+.shape-tool-split .shape-tool-caret::before {
+  /* Hairline divider between the two halves so the merged pill still
+   * reads as two clickable regions. */
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.shape-tool-split .shape-tool-caret {
+  position: relative;
+}
+
+.shape-tool-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 30px);
+  gap: 2px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  z-index: 600;
+}
+
+.shape-tool-option {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s, color 0.1s;
+}
+
+.shape-tool-option svg {
+  display: block;
+}
+
+.shape-tool-option:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text);
+}
+
+.shape-tool-option--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}

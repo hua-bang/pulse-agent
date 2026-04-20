@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasNode, ShapeNodeData } from '../types';
+import { SHAPE_KINDS, type ShapeKind } from '../utils/shapeGeometry';
 
 type Point = { x: number; y: number };
 
-export type ShapeKind = 'rect' | 'ellipse';
+export type { ShapeKind };
 
 export type ShapeDraft = {
   kind: ShapeKind;
   start: Point;
   current: Point;
 };
+
+const SHAPE_TOOL_PREFIX = 'shape-';
 
 /** Minimum diagonal distance (canvas-px) before we commit a drag-drawn
  *  shape. A click that doesn't move past this threshold is treated as
@@ -55,9 +58,9 @@ export const useShapeDraw = ({
   draftRef.current = draft;
 
   const kindFromTool = useCallback((): ShapeKind | null => {
-    if (activeTool === 'shape-rect') return 'rect';
-    if (activeTool === 'shape-ellipse') return 'ellipse';
-    return null;
+    if (!activeTool.startsWith(SHAPE_TOOL_PREFIX)) return null;
+    const kind = activeTool.slice(SHAPE_TOOL_PREFIX.length) as ShapeKind;
+    return (SHAPE_KINDS as string[]).includes(kind) ? kind : null;
   }, [activeTool]);
 
   // Document-level listeners so a drag that leaves the overlay doesn't

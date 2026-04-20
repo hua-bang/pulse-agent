@@ -92,6 +92,10 @@
   box-sizing: border-box;
 }
 
+.shape-style-preview-svg {
+  display: block;
+}
+
 .shape-style-popover {
   position: absolute;
   top: 32px;
