@@ -122,7 +122,7 @@ export interface ImageNodeData {
  * wraps like any other DOM text and inherits the canvas's font stack.
  */
 export interface ShapeNodeData {
-  kind: "rect" | "ellipse";
+  kind: "rect" | "rounded-rect" | "ellipse" | "triangle" | "diamond" | "hexagon" | "star";
   fill: string;
   stroke: string;
   strokeWidth: number;

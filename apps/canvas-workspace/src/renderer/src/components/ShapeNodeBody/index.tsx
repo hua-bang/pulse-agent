@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode, ShapeNodeData } from '../../types';
+import { ShapePrimitive } from '../../utils/shapeGeometry';
 
 interface Props {
   node: CanvasNode;
@@ -119,16 +120,15 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
 
   const w = Math.max(1, node.width);
   const h = Math.max(1, node.height);
-  const sw = Math.max(0, data.strokeWidth ?? 0);
-  const inset = sw / 2;
   const fontSize = data.fontSize ?? 16;
   const textColor =
     data.textColor ??
     (data.stroke && data.stroke !== 'transparent' ? data.stroke : '#1f2328');
-  // Pad the text so it doesn't crowd the shape outline. For ellipses the
-  // inscribed rectangle is (w·cos45, h·sin45) — ~70% of the bounding box —
-  // so we pull the label in harder on curved shapes.
-  const padRatio = data.kind === 'ellipse' ? 0.15 : 0.08;
+  // Pad the text so it doesn't crowd the shape outline. Shapes with
+  // curved or angled sides (ellipse, triangle, diamond, star) have a
+  // smaller inscribed rectangle, so we pull the label in harder on them.
+  const tightShapes: ShapeNodeData['kind'][] = ['ellipse', 'triangle', 'diamond', 'star'];
+  const padRatio = tightShapes.includes(data.kind) ? 0.15 : 0.08;
   const padX = Math.max(8, Math.round(w * padRatio));
   const padY = Math.max(6, Math.round(h * padRatio));
 
@@ -141,27 +141,14 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
         viewBox={`0 0 ${w} ${h}`}
         preserveAspectRatio="none"
       >
-        {data.kind === 'ellipse' ? (
-          <ellipse
-            cx={w / 2}
-            cy={h / 2}
-            rx={Math.max(0, w / 2 - inset)}
-            ry={Math.max(0, h / 2 - inset)}
-            fill={data.fill}
-            stroke={data.stroke}
-            strokeWidth={sw}
-          />
-        ) : (
-          <rect
-            x={inset}
-            y={inset}
-            width={Math.max(0, w - sw)}
-            height={Math.max(0, h - sw)}
-            fill={data.fill}
-            stroke={data.stroke}
-            strokeWidth={sw}
-          />
-        )}
+        <ShapePrimitive
+          kind={data.kind}
+          width={w}
+          height={h}
+          fill={data.fill}
+          stroke={data.stroke}
+          strokeWidth={data.strokeWidth ?? 0}
+        />
       </svg>
       <div
         className={`shape-node-text-wrap${!data.text && !editing ? ' shape-node-text-wrap--empty' : ''}`}
@@ -265,15 +252,16 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
         title="Shape style"
         onClick={() => setOpen((v) => !v)}
       >
-        <span
-          className="shape-style-swatch"
-          style={{
-            background: data.fill === 'transparent' ? 'none' : data.fill,
-            borderColor: data.stroke === 'transparent' ? 'rgba(0,0,0,0.15)' : data.stroke,
-            borderStyle: data.fill === 'transparent' ? 'dashed' : 'solid',
-            borderRadius: data.kind === 'ellipse' ? '50%' : '3px',
-          }}
-        />
+        <svg className="shape-style-preview-svg" viewBox="0 0 18 18" width="14" height="14">
+          <ShapePrimitive
+            kind={data.kind}
+            width={18}
+            height={18}
+            fill={data.fill === 'transparent' ? 'none' : data.fill}
+            stroke={data.stroke === 'transparent' ? 'rgba(0,0,0,0.25)' : data.stroke}
+            strokeWidth={1.8}
+          />
+        </svg>
       </button>
       {open && (
         <div className="shape-style-popover">

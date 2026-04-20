@@ -452,7 +452,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           '- frame: { color?: string, label?: string }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
           '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }\n' +
-          '- shape: { kind?: "rect"|"ellipse", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }',
+          '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }',
         ),
       }),
       execute: async (input) => {
@@ -551,8 +551,9 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             break;
           }
           case 'shape': {
+            const validKinds = ['rect', 'rounded-rect', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'];
             const rawKind = extraData.kind as string | undefined;
-            const shapeKind = rawKind === 'ellipse' ? 'ellipse' : 'rect';
+            const shapeKind = rawKind && validKinds.includes(rawKind) ? rawKind : 'rect';
             nodeData = {
               kind: shapeKind,
               fill: (extraData.fill as string) ?? '#E8EEF7',
@@ -956,14 +957,17 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     canvas_create_shape: {
       name: 'canvas_create_shape',
       description:
-        'Create a primitive geometric shape (rectangle or ellipse) on the canvas. ' +
+        'Create a primitive geometric shape on the canvas. Supported kinds: ' +
+        '"rect", "rounded-rect", "ellipse", "triangle", "diamond", "hexagon", "star". ' +
         'Shapes are visual-only annotations — they render as SVG primitives with configurable ' +
-        'fill, stroke, and stroke width. Use this for diagramming, highlighting regions, or ' +
-        'building simple layouts. ' +
+        'fill, stroke, and stroke width, and an optional centered text label. ' +
         'Pass explicit width/height for precise sizing; otherwise defaults to 200×140. ' +
         'Colors accept hex strings (e.g. "#E8EEF7") or the literal string "transparent".',
       inputSchema: z.object({
-        kind: z.enum(['rect', 'ellipse']).optional().describe('Shape primitive. Defaults to "rect".'),
+        kind: z
+          .enum(['rect', 'rounded-rect', 'ellipse', 'triangle', 'diamond', 'hexagon', 'star'])
+          .optional()
+          .describe('Shape primitive. Defaults to "rect".'),
         title: z.string().optional().describe('Node title (used in the layers panel). Defaults to "Shape".'),
         x: z.number().optional().describe('X position (canvas coords). Auto-placed if omitted.'),
         y: z.number().optional().describe('Y position (canvas coords). Auto-placed if omitted.'),
@@ -980,7 +984,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         const canvas = await loadCanvas(workspaceId);
         if (!canvas) return 'Error: workspace not found';
 
-        const kind = (input.kind as 'rect' | 'ellipse' | undefined) ?? 'rect';
+        const kind = (input.kind as string | undefined) ?? 'rect';
         const title = (input.title as string) ?? DEFAULT_DIMENSIONS.shape.title;
         const width = (input.width as number | undefined) ?? DEFAULT_DIMENSIONS.shape.width;
         const height = (input.height as number | undefined) ?? DEFAULT_DIMENSIONS.shape.height;
