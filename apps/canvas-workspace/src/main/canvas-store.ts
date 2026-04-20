@@ -142,14 +142,32 @@ const migrateIfNeeded = async (id: string): Promise<void> => {
   } catch {
     // new path missing — check for old flat file
   }
+  let raw: string;
   try {
-    const raw = await fs.readFile(oldPath, 'utf-8');
-    await fs.mkdir(getWorkspaceDir(id), { recursive: true });
-    await fs.writeFile(newPath, raw, 'utf-8');
-    await fs.unlink(oldPath).catch(() => undefined);
+    raw = await fs.readFile(oldPath, 'utf-8');
   } catch {
     // no old file either — fresh workspace, nothing to migrate
+    return;
   }
+  // Validate the legacy file parses before propagating it. A non-atomic
+  // copy of unparseable bytes would just move the corruption into the
+  // new canonical path, where loaders would then trip on it forever.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    console.warn(
+      `[canvas-store] refusing to migrate unparseable legacy canvas for ${id} ` +
+      `at ${oldPath}: ${err instanceof Error ? err.message : String(err)}. ` +
+      `Leaving the legacy file in place.`,
+    );
+    return;
+  }
+  await fs.mkdir(getWorkspaceDir(id), { recursive: true });
+  // Use the same atomic helper as every other writer so a crash mid-
+  // migration cannot leave a partial canvas.json at the new path.
+  await atomicWriteCanvasJson(newPath, JSON.stringify(parsed, null, 2));
+  await fs.unlink(oldPath).catch(() => undefined);
 };
 
 /** Ensure workspace directory exists and seed AGENTS.md if absent. */
