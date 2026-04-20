@@ -246,14 +246,8 @@ function resolveRunProvider(
   });
 }
 
-function formatTimeAgo(ts: number): string {
-  const diff = Date.now() - ts;
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+function formatLinkedAt(ts: number): string {
+  return new Date(ts).toLocaleDateString();
 }
 
 function buildLinkedSessionsIndex(links: SessionLink[]): string | null {
@@ -269,7 +263,7 @@ function buildLinkedSessionsIndex(links: SessionLink[]): string | null {
 
   const entries = links.map((link, i) => {
     const label = link.label ? ` "${link.label}"` : '';
-    return `${i + 1}. ${link.sessionId}${label} (linked ${formatTimeAgo(link.linkedAt)})`;
+    return `${i + 1}. ${link.sessionId}${label} (linked ${formatLinkedAt(link.linkedAt)})`;
   });
 
   return [...header, ...entries].join('\n');

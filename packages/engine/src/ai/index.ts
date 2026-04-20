@@ -5,7 +5,15 @@ import { generateSystemPrompt } from '../prompt';
 import type { Tool as CoderTool, ToolExecutionContext, LLMProviderFactory, SystemPromptOption, ModelType } from '../shared/types';
 
 
-const providerOptions = { openai: { store: false, reasoningEffort: OPENAI_REASONING_EFFORT } }
+const openaiProviderOptions = { openai: { store: false, reasoningEffort: OPENAI_REASONING_EFFORT } };
+const claudeProviderOptions = { anthropic: { cacheControl: { type: 'ephemeral' as const } } };
+
+function resolveProviderOptions(modelType?: ModelType) {
+  if (modelType === 'claude') {
+    return { ...openaiProviderOptions, ...claudeProviderOptions };
+  }
+  return openaiProviderOptions;
+}
 
 const GPT_EXPLORATION_CONSTRAINT = `
 ## File exploration discipline
@@ -37,7 +45,7 @@ export const generateTextAI = (
     system: resolveSystemPrompt(options?.systemPrompt),
     messages,
     tools,
-    providerOptions,
+    providerOptions: openaiProviderOptions,
   }) as unknown as ReturnType<typeof generateText> & { steps: StepResult<any>[]; finishReason: string };
 }
 
@@ -115,7 +123,7 @@ export const streamTextAI = (messages: ModelMessage[], tools: Record<string, Cod
     system: finalSystemPrompt,
     messages: filteredMessages,
     tools: wrappedTools as Record<string, Tool>,
-    providerOptions,
+    providerOptions: resolveProviderOptions(options?.modelType),
     abortSignal: options?.abortSignal,
     onStepFinish: options?.onStepFinish,
     onChunk: options?.onChunk,
@@ -152,7 +160,7 @@ export const summarizeMessages = async (
       { role: 'user', content: SUMMARY_USER_PROMPT },
     ],
     maxOutputTokens: options?.maxOutputTokens ?? COMPACT_SUMMARY_MAX_TOKENS,
-    providerOptions,
+    providerOptions: openaiProviderOptions,
   });
 
   return result.text ?? '';

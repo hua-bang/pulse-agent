@@ -135,6 +135,14 @@ Here is some useful information about the environment you are running in:
 
 const AGENTS_FILE_REGEX = /^agents\.md$/i;
 
+interface AgentsPromptCache {
+  filePath: string;
+  mtimeMs: number;
+  content: string | null;
+}
+
+let agentsPromptCache: AgentsPromptCache | null = null;
+
 const loadAgentsPrompt = () => {
   try {
     const cwd = process.cwd();
@@ -142,13 +150,29 @@ const loadAgentsPrompt = () => {
     const target = entries.find((entry) => entry.isFile() && AGENTS_FILE_REGEX.test(entry.name));
 
     if (!target) {
+      agentsPromptCache = null;
       return null;
     }
 
     const filePath = path.join(cwd, target.name);
-    const content = fs.readFileSync(filePath, 'utf8').trim();
 
-    return content.length > 0 ? content : null;
+    try {
+      const stat = fs.statSync(filePath);
+      if (
+        agentsPromptCache &&
+        agentsPromptCache.filePath === filePath &&
+        agentsPromptCache.mtimeMs === stat.mtimeMs
+      ) {
+        return agentsPromptCache.content;
+      }
+
+      const content = fs.readFileSync(filePath, 'utf8').trim();
+      const result = content.length > 0 ? content : null;
+      agentsPromptCache = { filePath, mtimeMs: stat.mtimeMs, content: result };
+      return result;
+    } catch {
+      return null;
+    }
   } catch {
     return null;
   }
