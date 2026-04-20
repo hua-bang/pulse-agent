@@ -164,26 +164,29 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
         )}
       </svg>
       <div
-        ref={editorRef}
-        className={`shape-node-text${editing ? ' shape-node-text--editing' : ''}${!data.text && !editing ? ' shape-node-text--empty' : ''}`}
+        className={`shape-node-text-wrap${!data.text && !editing ? ' shape-node-text-wrap--empty' : ''}`}
         style={{
-          color: textColor,
-          fontSize,
           paddingLeft: padX,
           paddingRight: padX,
           paddingTop: padY,
           paddingBottom: padY,
         }}
-        contentEditable={editing}
-        suppressContentEditableWarning
-        spellCheck={false}
-        onMouseDown={(e) => {
-          if (editing) e.stopPropagation();
-        }}
-        onBlur={commit}
-        onKeyDown={handleKeyDown}
       >
-        {data.text ?? ''}
+        <div
+          ref={editorRef}
+          className={`shape-node-text${editing ? ' shape-node-text--editing' : ''}`}
+          style={{ color: textColor, fontSize }}
+          contentEditable={editing}
+          suppressContentEditableWarning
+          spellCheck={false}
+          onMouseDown={(e) => {
+            if (editing) e.stopPropagation();
+          }}
+          onBlur={commit}
+          onKeyDown={handleKeyDown}
+        >
+          {data.text ?? ''}
+        </div>
       </div>
     </div>
   );
