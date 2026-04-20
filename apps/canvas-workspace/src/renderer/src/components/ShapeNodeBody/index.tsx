@@ -1,40 +1,139 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode, ShapeNodeData } from '../../types';
 
 interface Props {
   node: CanvasNode;
+  isSelected: boolean;
   onSelect: (id: string) => void;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
 }
 
 /**
  * Shape node body. Renders a single SVG primitive (rect or ellipse) that
- * fills the node box. The entire surface is a drag handle, mirroring the
- * chromeless image/text bodies.
+ * fills the node box, plus an optional centered text label overlaid on
+ * top. The entire surface is a drag handle, mirroring the chromeless
+ * image/text bodies.
  *
  * The stroke is drawn inside the viewport by insetting the geometry by
  * half the stroke width — without the inset, SVG centers the stroke on
  * the edge so half of it clips outside the node bounds.
+ *
+ * Text editing: double-click enters edit mode; Escape or blur commits.
+ * While editing, the contenteditable div captures pointer events so the
+ * user can click-to-position the caret without starting a drag.
  */
-export const ShapeNodeBody = ({ node, onSelect, onDragStart }: Props) => {
+export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdate }: Props) => {
   const data = node.data as ShapeNodeData;
+  const [editing, setEditing] = useState(false);
+  const editorRef = useRef<HTMLDivElement>(null);
+  // Sync the editor's DOM text back to React state only on commit — while
+  // editing we let the browser own the DOM so the caret doesn't jump on
+  // every keystroke.
+  const initialTextRef = useRef<string>(data.text ?? '');
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (editing) return;
       onSelect(node.id);
       onDragStart(e, node);
     },
-    [node, onSelect, onDragStart],
+    [editing, node, onSelect, onDragStart],
+  );
+
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      initialTextRef.current = data.text ?? '';
+      setEditing(true);
+    },
+    [data.text],
+  );
+
+  const commit = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) {
+      setEditing(false);
+      return;
+    }
+    const next = el.innerText.replace(/\n+$/, '');
+    setEditing(false);
+    if (next !== (data.text ?? '')) {
+      onUpdate(node.id, { data: { ...data, text: next } });
+    }
+  }, [data, node.id, onUpdate]);
+
+  const cancel = useCallback(() => {
+    // Restore the pre-edit text and exit without saving.
+    const el = editorRef.current;
+    if (el) el.innerText = initialTextRef.current;
+    setEditing(false);
+  }, []);
+
+  // Auto-focus and select-all when entering edit mode so the user can
+  // immediately type a replacement or extend existing text.
+  useLayoutEffect(() => {
+    if (!editing) return;
+    const el = editorRef.current;
+    if (!el) return;
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }, [editing]);
+
+  // When a non-editing update arrives from elsewhere (undo, canvas-agent),
+  // keep the DOM text in sync with the stored value.
+  useEffect(() => {
+    if (editing) return;
+    const el = editorRef.current;
+    if (el && el.innerText !== (data.text ?? '')) {
+      el.innerText = data.text ?? '';
+    }
+  }, [data.text, editing]);
+
+  // Leaving selection should exit edit mode — otherwise the node can get
+  // stuck in an "editing but not selected" state that the user can't see.
+  useEffect(() => {
+    if (editing && !isSelected) commit();
+  }, [editing, isSelected, commit]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cancel();
+      } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        // Cmd/Ctrl+Enter commits; plain Enter inserts a newline.
+        e.preventDefault();
+        commit();
+      }
+    },
+    [cancel, commit],
   );
 
   const w = Math.max(1, node.width);
   const h = Math.max(1, node.height);
   const sw = Math.max(0, data.strokeWidth ?? 0);
   const inset = sw / 2;
+  const fontSize = data.fontSize ?? 16;
+  const textColor =
+    data.textColor ??
+    (data.stroke && data.stroke !== 'transparent' ? data.stroke : '#1f2328');
+  // Pad the text so it doesn't crowd the shape outline. For ellipses the
+  // inscribed rectangle is (w·cos45, h·sin45) — ~70% of the bounding box —
+  // so we pull the label in harder on curved shapes.
+  const padRatio = data.kind === 'ellipse' ? 0.15 : 0.08;
+  const padX = Math.max(8, Math.round(w * padRatio));
+  const padY = Math.max(6, Math.round(h * padRatio));
 
   return (
-    <div className="shape-node-body" onMouseDown={handleMouseDown}>
+    <div className="shape-node-body" onMouseDown={handleMouseDown} onDoubleClick={handleDoubleClick}>
       <svg
         className="shape-node-svg"
         width="100%"
@@ -64,6 +163,28 @@ export const ShapeNodeBody = ({ node, onSelect, onDragStart }: Props) => {
           />
         )}
       </svg>
+      <div
+        ref={editorRef}
+        className={`shape-node-text${editing ? ' shape-node-text--editing' : ''}${!data.text && !editing ? ' shape-node-text--empty' : ''}`}
+        style={{
+          color: textColor,
+          fontSize,
+          paddingLeft: padX,
+          paddingRight: padX,
+          paddingTop: padY,
+          paddingBottom: padY,
+        }}
+        contentEditable={editing}
+        suppressContentEditableWarning
+        spellCheck={false}
+        onMouseDown={(e) => {
+          if (editing) e.stopPropagation();
+        }}
+        onBlur={commit}
+        onKeyDown={handleKeyDown}
+      >
+        {data.text ?? ''}
+      </div>
     </div>
   );
 };

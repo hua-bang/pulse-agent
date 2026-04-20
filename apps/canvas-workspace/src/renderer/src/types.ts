@@ -116,12 +116,20 @@ export interface ImageNodeData {
  * SVG that fills the node box, so the same storage powers both rect and
  * ellipse (and any future primitives). Colors are stored as hex strings
  * or "transparent"; stroke width is in CSS pixels at scale=1.
+ *
+ * `text` is an optional free-form label centered inside the shape. It
+ * is rendered via an HTML `contenteditable` overlay (not SVG text) so it
+ * wraps like any other DOM text and inherits the canvas's font stack.
  */
 export interface ShapeNodeData {
   kind: "rect" | "ellipse";
   fill: string;
   stroke: string;
   strokeWidth: number;
+  text?: string;
+  textColor?: string;
+  /** Font size in px. Defaults to 16 when unset. */
+  fontSize?: number;
 }
 
 export interface CanvasTransform {

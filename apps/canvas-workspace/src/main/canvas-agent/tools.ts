@@ -452,7 +452,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           '- frame: { color?: string, label?: string }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
           '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }\n' +
-          '- shape: { kind?: "rect"|"ellipse", fill?: string, stroke?: string, strokeWidth?: number }',
+          '- shape: { kind?: "rect"|"ellipse", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }',
         ),
       }),
       execute: async (input) => {
@@ -558,6 +558,9 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               fill: (extraData.fill as string) ?? '#E8EEF7',
               stroke: (extraData.stroke as string) ?? '#5B7CBF',
               strokeWidth: (extraData.strokeWidth as number) ?? 2,
+              text: (extraData.text as string) ?? (content || ''),
+              textColor: extraData.textColor as string | undefined,
+              fontSize: extraData.fontSize as number | undefined,
             };
             break;
           }
@@ -969,6 +972,9 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         fill: z.string().optional().describe('Fill color (hex or "transparent"). Default "#E8EEF7".'),
         stroke: z.string().optional().describe('Stroke color (hex or "transparent"). Default "#5B7CBF".'),
         strokeWidth: z.number().optional().describe('Stroke width in px. Default 2. Set 0 for no stroke.'),
+        text: z.string().optional().describe('Optional label rendered centered inside the shape.'),
+        textColor: z.string().optional().describe('Text color (hex). Defaults to the stroke color when present.'),
+        fontSize: z.number().optional().describe('Text font size in px. Default 16.'),
       }),
       execute: async (input) => {
         const canvas = await loadCanvas(workspaceId);
@@ -997,6 +1003,9 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             fill: (input.fill as string | undefined) ?? '#E8EEF7',
             stroke: (input.stroke as string | undefined) ?? '#5B7CBF',
             strokeWidth: (input.strokeWidth as number | undefined) ?? 2,
+            text: (input.text as string | undefined) ?? '',
+            textColor: input.textColor as string | undefined,
+            fontSize: input.fontSize as number | undefined,
           },
           updatedAt: Date.now(),
         };

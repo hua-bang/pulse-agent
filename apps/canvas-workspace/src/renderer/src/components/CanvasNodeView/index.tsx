@@ -181,7 +181,13 @@ export const CanvasNodeView = ({
         onClick={handleNodeClick}
       >
         <div className="node-body node-body--shape" onMouseDown={(e) => e.stopPropagation()}>
-          <ShapeNodeBody node={node} onSelect={onSelect} onDragStart={onDragStart} />
+          <ShapeNodeBody
+            node={node}
+            isSelected={isSelected}
+            onSelect={onSelect}
+            onDragStart={onDragStart}
+            onUpdate={onUpdate}
+          />
         </div>
         {isSelected && <ShapeStylePicker node={node} onUpdate={onUpdate} />}
         <button className="node-close node-close--floating" onClick={handleClose} title="Remove">

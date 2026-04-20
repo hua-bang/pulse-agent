@@ -1,4 +1,5 @@
 .shape-node-body {
+  position: relative;
   width: 100%;
   height: 100%;
   cursor: move;
@@ -11,6 +12,48 @@
   height: 100%;
   overflow: visible;
   pointer-events: none;
+}
+
+/* Centered text overlay. Non-editing: pointer-events:none so drags on
+ * the label still start a shape drag. Editing: pointer-events:auto so
+ * the caret can be positioned and selections made. */
+.shape-node-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow: hidden;
+  box-sizing: border-box;
+  line-height: 1.3;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  pointer-events: none;
+  user-select: none;
+  outline: none;
+}
+
+.shape-node-text--editing {
+  pointer-events: auto;
+  user-select: text;
+  cursor: text;
+}
+
+.shape-node-text--empty::before {
+  content: 'Double-click to add text';
+  color: currentColor;
+  opacity: 0.35;
+  font-weight: 400;
+}
+
+/* Hide the placeholder as soon as the user is editing or has typed
+ * something — the placeholder is a purely pre-edit hint. */
+.shape-node-text--editing.shape-node-text--empty::before,
+.shape-node-text:not(.shape-node-text--empty)::before {
+  content: none;
 }
 
 /* ---- Style picker ---- */
