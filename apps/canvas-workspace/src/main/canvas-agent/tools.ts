@@ -597,39 +597,56 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
       }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
-        const canvas = await loadCanvas(workspaceId);
-        if (!canvas) return 'Error: workspace not found';
 
-        const node = canvas.nodes.find(n => n.id === nodeId);
-        if (!node) return `Error: node not found: ${nodeId}`;
+        // First load drives validation and the file-side effect (if any).
+        // We read the backing file path from this snapshot because file
+        // path is set once at create-time and stable across writers.
+        const initial = await loadCanvas(workspaceId);
+        if (!initial) return 'Error: workspace not found';
+        const initialNode = initial.nodes.find(n => n.id === nodeId);
+        if (!initialNode) return `Error: node not found: ${nodeId}`;
 
-        if (input.title) node.title = input.title as string;
-
-        if (node.type === 'file' && input.content != null) {
-          const content = input.content as string;
-          node.data.content = content;
-          if (node.data.filePath) {
-            await fs.writeFile(node.data.filePath as string, content, 'utf-8');
-          }
+        // Side effect on the backing notes file. Done before re-read so a
+        // concurrent canvas write that lands between the two reads still
+        // sees consistent state (the file content and `data.content` will
+        // both reflect this update once the canvas write commits).
+        if (initialNode.type === 'file' && input.content != null && initialNode.data.filePath) {
+          await fs.writeFile(
+            initialNode.data.filePath as string,
+            input.content as string,
+            'utf-8',
+          );
         }
 
+        // Re-read immediately before mutating so concurrent updates to
+        // OTHER fields of this node by another writer (renderer save,
+        // canvas-cli, MCP) survive. The previous code mutated the stale
+        // `initialNode` and spliced it back into the fresh canvas, which
+        // silently clobbered any concurrent changes to that node.
+        const fresh = (await loadCanvas(workspaceId)) ?? initial;
+        const idx = fresh.nodes.findIndex(n => n.id === nodeId);
+        if (idx === -1) {
+          // The node was deleted between our two reads. Do not resurrect
+          // it by re-inserting our patched copy — surface the conflict.
+          return `Error: node ${nodeId} was deleted concurrently; update aborted`;
+        }
+        const node = fresh.nodes[idx];
+
+        if (input.title) node.title = input.title as string;
+        if (node.type === 'file' && input.content != null) {
+          node.data.content = input.content as string;
+        }
         if (node.type === 'text' && input.content != null) {
           node.data.content = input.content as string;
         }
-
         if (input.data) {
           const patch = input.data as Record<string, unknown>;
           for (const [k, v] of Object.entries(patch)) {
             node.data[k] = v;
           }
         }
-
         node.updatedAt = Date.now();
 
-        // Re-read and commit
-        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
-        const idx = fresh.nodes.findIndex(n => n.id === nodeId);
-        if (idx >= 0) fresh.nodes[idx] = node;
         await saveCanvas(workspaceId, fresh);
         broadcastUpdate(workspaceId, [nodeId]);
 
@@ -674,19 +691,22 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
       }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
-        const canvas = await loadCanvas(workspaceId);
-        if (!canvas) return 'Error: workspace not found';
 
-        const node = canvas.nodes.find(n => n.id === nodeId);
-        if (!node) return `Error: node not found: ${nodeId}`;
+        // Single read against the latest disk state, then mutate that
+        // snapshot in place. Reading once (instead of load → mutate-stale
+        // → re-read → splice) means concurrent updates to OTHER fields of
+        // this node — last edit by the user, content changes from the
+        // CLI — are not silently overwritten with a pre-move copy.
+        const fresh = await loadCanvas(workspaceId);
+        if (!fresh) return 'Error: workspace not found';
+        const idx = fresh.nodes.findIndex(n => n.id === nodeId);
+        if (idx === -1) return `Error: node not found: ${nodeId}`;
+        const node = fresh.nodes[idx];
 
         node.x = input.x as number;
         node.y = input.y as number;
         node.updatedAt = Date.now();
 
-        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
-        const idx = fresh.nodes.findIndex(n => n.id === nodeId);
-        if (idx >= 0) fresh.nodes[idx] = node;
         await saveCanvas(workspaceId, fresh);
         broadcastUpdate(workspaceId, [nodeId]);
 
@@ -1080,12 +1100,21 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
       }),
       execute: async (input) => {
         const edgeId = input.edgeId as string;
-        const canvas = await loadCanvas(workspaceId);
-        if (!canvas) return 'Error: workspace not found';
-        const edges = canvas.edges ?? [];
-        const idx = edges.findIndex((e) => e.id === edgeId);
-        if (idx === -1) return `Error: edge not found: ${edgeId}`;
-        const existing = edges[idx];
+
+        // Single read against the latest disk state. Building `next` from
+        // a stale copy and splicing it into a freshly-read canvas would
+        // silently overwrite any concurrent writer's changes to other
+        // fields of the same edge; falling back to `push(next)` when the
+        // edge was deleted between the two reads would also resurrect a
+        // just-deleted edge. Read once, derive `next` from the live
+        // version, and bail if the edge is gone.
+        const fresh = await loadCanvas(workspaceId);
+        if (!fresh) return 'Error: workspace not found';
+        const freshEdges = [...(fresh.edges ?? [])];
+        const freshIdx = freshEdges.findIndex((e) => e.id === edgeId);
+        if (freshIdx === -1) return `Error: edge not found: ${edgeId}`;
+        const existing = freshEdges[freshIdx];
+
         const nextStroke =
           input.color != null || input.width != null || input.style != null
             ? {
@@ -1112,11 +1141,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           updatedAt: Date.now(),
         };
 
-        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
-        const freshEdges = [...(fresh.edges ?? [])];
-        const freshIdx = freshEdges.findIndex((e) => e.id === edgeId);
-        if (freshIdx >= 0) freshEdges[freshIdx] = next;
-        else freshEdges.push(next);
+        freshEdges[freshIdx] = next;
         fresh.edges = freshEdges;
         await saveCanvas(workspaceId, fresh);
 
