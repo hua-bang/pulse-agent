@@ -310,6 +310,18 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
     latestAttachments,
   });
 
+  // Inject model into runContext so observability plugins (e.g. langfuse) can
+  // attach it to generations without requiring engine-level changes.
+  // Fall back to env vars so the model name is always present even when no
+  // model-config.json is configured.
+  runContext.model =
+    modelOverride ??
+    process.env.ANTHROPIC_MODEL ??
+    process.env.OPENAI_MODEL ??
+    process.env.PULSE_ANTHROPIC_MODEL ??
+    process.env.PULSE_OPENAI_MODEL ??
+    'novita/deepseek/deepseek_v3';
+
   const acpState = await getAcpState(input.platformKey);
   const linkedSessions = await sessionStore.getLinkedSessionsForSession(sessionId);
 
