@@ -55,6 +55,8 @@ export interface LangfusePluginOptions {
 interface RunState {
   runId: string;
   trace: any;
+  /** Model name resolved for this run (e.g. 'gpt-4o', 'claude-3-5-sonnet'). */
+  model?: string;
   /** Current in-flight LLM generation, if any. */
   currentGeneration?: any;
   /** Active tool spans keyed by tool name (last-wins; tools rarely nest). */
@@ -88,13 +90,38 @@ function systemPromptToString(sp: unknown): string | undefined {
   return undefined;
 }
 
-function normalizeUsage(usage: any): any {
-  if (!usage || typeof usage !== 'object') return undefined;
-  // Langfuse accepts { input, output, total } or OpenAI shape.
+interface NormalizedUsage {
+  usage: { input: number; output: number; total: number };
+  usageDetails: Record<string, number>;
+}
+
+function normalizeUsage(raw: any): NormalizedUsage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+
+  // AI SDK Anthropic shape (ai-sdk >= 4.x):
+  //   raw.inputTokens  = { total, noCache, cacheRead, cacheWrite }
+  //   raw.outputTokens = { total, text, reasoning }
+  //   raw.totalTokens  = number
+  // Classic OpenAI-compat shape: numbers directly.
+  const inputObj  = raw.inputTokens;
+  const outputObj = raw.outputTokens;
+
+  const input  = typeof inputObj  === 'object' ? (inputObj?.total  ?? 0) : (inputObj  ?? raw.promptTokens    ?? raw.input  ?? 0);
+  const output = typeof outputObj === 'object' ? (outputObj?.total ?? 0) : (outputObj ?? raw.completionTokens ?? raw.output ?? 0);
+  const total  = raw.totalTokens ?? raw.total ?? (input + output);
+
+  // Anthropic cache tokens
+  const cacheRead  = typeof inputObj === 'object' ? (inputObj?.cacheRead  ?? 0) : (raw.cacheRead  ?? 0);
+  const cacheWrite = typeof inputObj === 'object' ? (inputObj?.cacheWrite ?? 0) : (raw.cacheWrite ?? 0);
+
+  // usageDetails: Langfuse v3 free-form map — shows up as token breakdown in UI
+  const usageDetails: Record<string, number> = { input, output, total };
+  if (cacheRead  > 0) usageDetails['cache_read']  = cacheRead;
+  if (cacheWrite > 0) usageDetails['cache_write'] = cacheWrite;
+
   return {
-    input: usage.inputTokens ?? usage.promptTokens ?? usage.input,
-    output: usage.outputTokens ?? usage.completionTokens ?? usage.output,
-    total: usage.totalTokens ?? usage.total,
+    usage: { input, output, total },
+    usageDetails,
   };
 }
 
@@ -181,6 +208,7 @@ export function createLangfusePlugin(options: LangfusePluginOptions = {}): Engin
         stateByContext.set(input.context, {
           runId,
           trace,
+          model: typeof runCtx.model === 'string' ? runCtx.model : undefined,
           toolSpans: new Map(),
         });
       });
@@ -196,6 +224,7 @@ export function createLangfusePlugin(options: LangfusePluginOptions = {}): Engin
         state.currentGeneration = state.trace.generation({
           name: 'llm-call',
           startTime: new Date(),
+          model: state.model,
           input: systemPrompt
             ? [{ role: 'system', content: systemPrompt }, ...messages]
             : messages,
@@ -210,10 +239,12 @@ export function createLangfusePlugin(options: LangfusePluginOptions = {}): Engin
         const state = stateByContext.get(input.context);
         if (!state?.currentGeneration) return;
 
+        const normalized = normalizeUsage(input.usage);
         state.currentGeneration.end({
           endTime: new Date(),
           output: saveLLMOutput ? input.text : undefined,
-          usage: normalizeUsage(input.usage),
+          usage: normalized?.usage,
+          usageDetails: normalized?.usageDetails,
           metadata: {
             finishReason: input.finishReason,
             timings: input.timings,
@@ -265,7 +296,7 @@ export function createLangfusePlugin(options: LangfusePluginOptions = {}): Engin
       });
 
       // -------- afterRun: finalize trace --------
-      ctx.registerHook('afterRun', async (input) => {
+      ctx.registerHook('afterRun', (input) => {
         const state = stateByContext.get(input.context);
         if (!state) return;
 
@@ -281,12 +312,12 @@ export function createLangfusePlugin(options: LangfusePluginOptions = {}): Engin
         state.trace.update({ output: input.result });
         stateByContext.delete(input.context);
 
-        // Flush so short-lived processes (cron, serverless) don't drop data.
-        try {
-          await lf?.flushAsync();
-        } catch (err) {
-          log.warn('[langfuse] flushAsync failed', err as any);
-        }
+        // Fire-and-forget flush — do NOT await here, it would block the engine
+        // loop and hang the entire response pipeline. Langfuse SDK batches
+        // internally; data will be flushed by the next interval or shutdownAsync.
+        lf?.flushAsync().catch((err) => {
+          log.warn('[langfuse] flushAsync failed', err);
+        });
       });
 
       log.info(`[langfuse] plugin initialized (baseUrl=${baseUrl ?? 'default'})`);

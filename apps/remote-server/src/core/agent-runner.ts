@@ -246,14 +246,8 @@ function resolveRunProvider(
   });
 }
 
-function formatTimeAgo(ts: number): string {
-  const diff = Date.now() - ts;
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+function formatLinkedAt(ts: number): string {
+  return new Date(ts).toLocaleDateString();
 }
 
 function buildLinkedSessionsIndex(links: SessionLink[]): string | null {
@@ -269,7 +263,7 @@ function buildLinkedSessionsIndex(links: SessionLink[]): string | null {
 
   const entries = links.map((link, i) => {
     const label = link.label ? ` "${link.label}"` : '';
-    return `${i + 1}. ${link.sessionId}${label} (linked ${formatTimeAgo(link.linkedAt)})`;
+    return `${i + 1}. ${link.sessionId}${label} (linked ${formatLinkedAt(link.linkedAt)})`;
   });
 
   return [...header, ...entries].join('\n');
@@ -315,6 +309,18 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
     callerSelectors: input.callerSelectors,
     latestAttachments,
   });
+
+  // Inject model into runContext so observability plugins (e.g. langfuse) can
+  // attach it to generations without requiring engine-level changes.
+  // Fall back to env vars so the model name is always present even when no
+  // model-config.json is configured.
+  runContext.model =
+    modelOverride ??
+    process.env.ANTHROPIC_MODEL ??
+    process.env.OPENAI_MODEL ??
+    process.env.PULSE_ANTHROPIC_MODEL ??
+    process.env.PULSE_OPENAI_MODEL ??
+    'novita/deepseek/deepseek_v3';
 
   const acpState = await getAcpState(input.platformKey);
   const linkedSessions = await sessionStore.getLinkedSessionsForSession(sessionId);
