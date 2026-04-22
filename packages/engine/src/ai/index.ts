@@ -22,7 +22,7 @@ const claudeProviderOptions = { anthropic: { cacheControl: { type: 'ephemeral' a
  * 64K output tokens; 16K is enough for reasoning + final answer in practice
  * while keeping latency/cost reasonable.
  */
-const DEFAULT_MAX_OUTPUT_TOKENS_CLAUDE = Number(process.env.CLAUDE_MAX_OUTPUT_TOKENS ?? 16384);
+const DEFAULT_MAX_OUTPUT_TOKENS_CLAUDE = Number(process.env.CLAUDE_MAX_OUTPUT_TOKENS ?? 32768);
 const DEFAULT_MAX_OUTPUT_TOKENS_OPENAI = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS ?? 16384);
 
 function resolveMaxOutputTokens(modelType?: ModelType): number {
