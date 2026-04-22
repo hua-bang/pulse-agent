@@ -40,9 +40,9 @@
   left: 0;
   box-sizing: border-box;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: flex-start;
-  padding: 0 8px 4px 8px;
+  padding: 0 8px;
   font-size: 14px;
   line-height: 1.3;
   color: #1f2328;
@@ -77,23 +77,28 @@
  * colored by the topic's branch. Deliberately quieter than a full
  * underline / ring — the text itself stays unmodified so selected
  * doesn't look like "something's wrong with this text".
+ *
+ * The bar is centered on the topic's vertical middle (1em-ish tall)
+ * so it sits next to the text rather than spanning the whole slot,
+ * which would look disconnected now that text is centered on the
+ * branch line.
  */
 .mindmap-topic--selected::before {
   content: "";
   position: absolute;
   left: 0;
-  top: 6px;
-  bottom: 6px;
+  top: 50%;
   width: 2px;
+  height: 1em;
+  margin-top: -0.5em;
   border-radius: 1px;
   background: var(--mindmap-topic-accent, #5b7cbf);
 }
 
 .mindmap-topic--root.mindmap-topic--selected::before {
-  /* For the root (no underline / branch track), pad the bar inwards so
-   * it doesn't crowd the text or sit outside the visual centerline. */
-  top: 10px;
-  bottom: 10px;
+  /* Root is larger; give its accent bar a bit more height to match. */
+  height: 1.1em;
+  margin-top: -0.55em;
   left: 2px;
 }
 

@@ -416,20 +416,34 @@ const TopicPill = ({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Stop React's synthetic event AND the underlying DOM event from
+      // bubbling up to the window-level canvas keyboard listener. When
+      // a topic is selected (not editing), the pill div is focused but
+      // neither an <input> nor contentEditable, so `useCanvasKeyboard`'s
+      // `!isEditable` check wouldn't otherwise filter out Delete /
+      // Backspace / Tab / etc. — which would delete the entire mindmap
+      // instead of the focused topic. We only consume keys we actually
+      // handle below; everything else (Cmd+Z, Cmd+C, ...) falls through
+      // untouched so canvas-level shortcuts keep working.
+      const consume = () => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
       if (isEditing) {
         if (e.key === 'Escape') {
-          e.preventDefault();
+          consume();
           cancel();
           return;
         }
         if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
+          consume();
           commit();
           onKeyAction({ kind: 'addSibling' });
           return;
         }
         if (e.key === 'Tab') {
-          e.preventDefault();
+          consume();
           commit();
           if (e.shiftKey) onKeyAction({ kind: 'unindent' });
           else onKeyAction({ kind: 'addChild' });
@@ -441,44 +455,44 @@ const TopicPill = ({
       // Selected, not editing.
       switch (e.key) {
         case 'Enter':
-          e.preventDefault();
+          consume();
           onKeyAction({ kind: 'addSibling' });
           return;
         case 'Tab':
-          e.preventDefault();
+          consume();
           if (e.shiftKey) onKeyAction({ kind: 'unindent' });
           else onKeyAction({ kind: 'addChild' });
           return;
         case 'Backspace':
         case 'Delete':
-          e.preventDefault();
+          consume();
           onKeyAction({ kind: 'delete' });
           return;
         case ' ':
           if (topic.hasChildren) {
-            e.preventDefault();
+            consume();
             onKeyAction({ kind: 'toggle' });
           }
           return;
         case 'ArrowUp':
-          e.preventDefault();
+          consume();
           onKeyAction({ kind: 'move', dir: 'up' });
           return;
         case 'ArrowDown':
-          e.preventDefault();
+          consume();
           onKeyAction({ kind: 'move', dir: 'down' });
           return;
         case 'ArrowLeft':
-          e.preventDefault();
+          consume();
           onKeyAction({ kind: 'move', dir: 'left' });
           return;
         case 'ArrowRight':
-          e.preventDefault();
+          consume();
           onKeyAction({ kind: 'move', dir: 'right' });
           return;
         case 'F2':
         case 'Escape':
-          e.preventDefault();
+          consume();
           if (e.key === 'F2') onEnterEdit();
           else onKeyAction({ kind: 'exit' });
           return;

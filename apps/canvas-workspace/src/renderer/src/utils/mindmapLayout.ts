@@ -205,7 +205,6 @@ export const layoutMindmap = (
     for (let i = 0; i < t.children.length; i++) {
       const child = t.children[i];
       const childSlot = slotOf.get(child.id) ?? o.topicHeight;
-      const childWidth = resolveWidth(child, false);
 
       // Primary branches get a color from the palette; deeper topics
       // inherit their branch ancestor's color.
@@ -214,36 +213,23 @@ export const layoutMindmap = (
 
       walk(child, depth + 1, t.id, childXLeft, childYCursor, childColor);
 
-      // Heptabase anchors: branches enter the child at its text baseline
-      // (bottom of the topic box), which visually sits just under the
-      // text. The root is special — it has no underline, so branches
-      // leave it at its vertical center. Every other parent branches off
-      // of its own baseline, so incoming + outgoing lines share the
-      // same horizontal track and read as a continuous "underline".
+      // Branches anchor at the vertical CENTER of both parent and
+      // child so the curve reads as "line passes through the middle
+      // of the text". Anchoring at the baseline puts text visually
+      // above its branch, which felt off-axis for this chromeless
+      // layout where there's no outline to give the baseline a
+      // reason to exist.
       const parentRightX = xLeft + selfWidth;
-      const parentAnchorY =
-        depth === 0 ? y + o.topicHeight / 2 : y + o.topicHeight;
+      const parentAnchorY = y + o.topicHeight / 2;
       const childLeftX = childXLeft;
       const childAnchorY =
         childYCursor +
         (childSlot - o.topicHeight) / 2 +
-        o.topicHeight;
+        o.topicHeight / 2;
       const midX = parentRightX + (childLeftX - parentRightX) / 2;
-      // When the child itself has visible children, extend the incoming
-      // branch horizontally across the child's full width so the line
-      // reads as an "underline" that outgoing branches share with the
-      // incoming one. Leaves get no extension — their text sits at the
-      // end of the curve, matching Heptabase's look.
-      const childHasVisibleChildren =
-        child.children.length > 0 && !child.collapsed;
-      const childRightX = childXLeft + childWidth;
-      const tail = childHasVisibleChildren
-        ? ` L ${childRightX} ${childAnchorY}`
-        : '';
       const path =
         `M ${parentRightX} ${parentAnchorY} ` +
-        `C ${midX} ${parentAnchorY}, ${midX} ${childAnchorY}, ${childLeftX} ${childAnchorY}` +
-        tail;
+        `C ${midX} ${parentAnchorY}, ${midX} ${childAnchorY}, ${childLeftX} ${childAnchorY}`;
       branches.push({
         id: `${t.id}->${child.id}`,
         parentId: t.id,
