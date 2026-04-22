@@ -24,6 +24,12 @@ interface Props {
   node: CanvasNode;
   isSelected: boolean;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  /** Called when any topic pill inside the mindmap receives a mouse
+   *  selection. The mindmap itself is a canvas node; bubbling up this
+   *  selection keeps the outer canvas-level selection in sync (so
+   *  shortcuts like Delete that act on the selected canvas node hit
+   *  the right target). */
+  onSelectNode: (id: string) => void;
 }
 
 /**
@@ -49,7 +55,7 @@ interface Props {
  * while selected enters edit mode. Commit on blur / Enter (Enter on a
  * non-root topic also spawns a sibling); Esc cancels without saving.
  */
-export const MindmapNodeBody = ({ node, isSelected, onUpdate }: Props) => {
+export const MindmapNodeBody = ({ node, isSelected, onUpdate, onSelectNode }: Props) => {
   const data = node.data as MindmapNodeData;
   const root = data.root;
 
@@ -259,14 +265,20 @@ export const MindmapNodeBody = ({ node, isSelected, onUpdate }: Props) => {
               topic={t}
               isSelected={selectedId === t.id}
               isEditing={editingId === t.id}
-              onSelect={() => setSelectedId(t.id)}
+              onSelect={() => {
+                setSelectedId(t.id);
+                // Also mark the outer mindmap canvas node as selected so
+                // canvas-level shortcuts (Delete, copy, etc.) act on the
+                // right target.
+                onSelectNode(node.id);
+              }}
               onEnterEdit={() => {
                 setSelectedId(t.id);
                 setEditingId(t.id);
+                onSelectNode(node.id);
               }}
               onCommitText={(text) => renameTopic(t.id, text)}
               onExitEdit={() => setEditingId(null)}
-              onToggleCollapse={() => toggle(t.id)}
               onKeyAction={(action) => {
                 switch (action.kind) {
                   case 'addChild':
@@ -319,7 +331,6 @@ interface TopicPillProps {
   onEnterEdit: () => void;
   onCommitText: (text: string) => void;
   onExitEdit: () => void;
-  onToggleCollapse: () => void;
   onKeyAction: (action: KeyAction) => void;
 }
 
@@ -331,7 +342,6 @@ const TopicPill = ({
   onEnterEdit,
   onCommitText,
   onExitEdit,
-  onToggleCollapse,
   onKeyAction,
 }: TopicPillProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -342,8 +352,13 @@ const TopicPill = ({
     const el = editorRef.current;
     if (!el) return;
     el.focus();
+    // Drop the caret at the end of existing text instead of selecting
+    // everything — for an empty topic this is a no-op, for an existing
+    // one it lets the user append or edit without accidentally
+    // overwriting with the next keystroke.
     const range = document.createRange();
     range.selectNodeContents(el);
+    range.collapse(false);
     const sel = window.getSelection();
     if (sel) {
       sel.removeAllRanges();
@@ -475,6 +490,8 @@ const TopicPill = ({
     ['--mindmap-topic-accent' as string]: topic.color,
   };
 
+  const isEmpty = !topic.text;
+
   return (
     <div
       ref={pillRef}
@@ -501,29 +518,31 @@ const TopicPill = ({
     >
       <div
         ref={editorRef}
-        className="mindmap-topic-text"
+        className={[
+          'mindmap-topic-text',
+          isEmpty && !isEditing && 'mindmap-topic-text--empty',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         contentEditable={isEditing}
         suppressContentEditableWarning
         spellCheck={false}
+        data-placeholder="Untitled"
         onBlur={() => {
           if (isEditing) commit();
         }}
       >
         {topic.text}
       </div>
-      {topic.hasChildren && !isRoot && (
-        <button
-          className="mindmap-topic-collapse"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCollapse();
-          }}
-          title={topic.collapsed ? 'Expand' : 'Collapse'}
-          style={{ color: topic.color }}
-        >
-          {topic.collapsed ? '+' : '−'}
-        </button>
+      {/* Collapsed-subtree hint: a small filled dot in the branch color
+          sitting just after the text, so users can see "something is
+          hidden here" without the heavy +/- button. */}
+      {topic.collapsed && topic.hasChildren && (
+        <span
+          className="mindmap-topic-collapsed-dot"
+          style={{ background: topic.color }}
+          aria-label="collapsed"
+        />
       )}
     </div>
   );

@@ -231,7 +231,12 @@ export const CanvasNodeView = ({
         }}
       >
         <div className="node-body node-body--mindmap">
-          <MindmapNodeBody node={node} isSelected={isSelected} onUpdate={onUpdate} />
+          <MindmapNodeBody
+            node={node}
+            isSelected={isSelected}
+            onUpdate={onUpdate}
+            onSelectNode={onSelect}
+          />
         </div>
         <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

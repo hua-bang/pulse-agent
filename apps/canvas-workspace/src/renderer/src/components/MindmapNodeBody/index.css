@@ -55,17 +55,32 @@
   font-weight: 500;
   padding: 0 10px;
   color: #1f2328;
+  white-space: nowrap;
 }
 
 /*
- * Selection cue: a soft dashed underline in the topic's branch color
- * (piped in via the `--mindmap-topic-accent` custom property set on
- * each pill inline). We deliberately avoid box-shadow / fill / border
- * here so the mindmap stays "text + curves" even when selected.
+ * Selection cue: a 2px accent bar on the left side of the topic,
+ * colored by the topic's branch. Deliberately quieter than a full
+ * underline / ring — the text itself stays unmodified so selected
+ * doesn't look like "something's wrong with this text".
  */
-.mindmap-topic--selected .mindmap-topic-text {
-  text-decoration: underline dotted var(--mindmap-topic-accent, #5b7cbf);
-  text-underline-offset: 4px;
+.mindmap-topic--selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--mindmap-topic-accent, #5b7cbf);
+}
+
+.mindmap-topic--root.mindmap-topic--selected::before {
+  /* For the root (no underline / branch track), pad the bar inwards so
+   * it doesn't crowd the text or sit outside the visual centerline. */
+  top: 10px;
+  bottom: 10px;
+  left: 2px;
 }
 
 .mindmap-topic--editing {
@@ -81,6 +96,7 @@
 .mindmap-topic-text {
   flex: 0 1 auto;
   min-height: 16px;
+  min-width: 8px;
   max-width: 100%;
   padding: 1px 3px;
   outline: none;
@@ -91,39 +107,32 @@
   color: inherit;
 }
 
-/* ---- Collapse control ---- */
+/*
+ * Empty-topic placeholder. We render the placeholder via ::before so it
+ * never touches the contenteditable DOM tree — typing replaces the
+ * empty element's text normally, and the ::before disappears because
+ * the rule no longer applies (we toggle a class, not :empty, because
+ * browsers may fill empty contenteditable with a lone <br>).
+ */
+.mindmap-topic-text--empty::before {
+  content: attr(data-placeholder);
+  color: #9aa0a6;
+  opacity: 0.75;
+  font-style: italic;
+  pointer-events: none;
+}
 
 /*
- * Hidden by default; shown on hover or when the topic is selected. The
- * circle is tinted with the branch color but deliberately small so it
- * doesn't compete with the text.
+ * Collapsed-subtree hint: a small dot after the text. Signals "this
+ * topic has hidden children" without the overhead of an explicit
+ * expand/collapse button.
  */
-.mindmap-topic-collapse {
+.mindmap-topic-collapsed-dot {
   flex: 0 0 auto;
   margin-left: 6px;
-  margin-bottom: 1px;
-  width: 14px;
-  height: 14px;
-  border: 1px solid currentColor;
+  margin-bottom: 3px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
-  background: #ffffff;
-  font-size: 10px;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  font-weight: 600;
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-
-.mindmap-topic:hover .mindmap-topic-collapse,
-.mindmap-topic--selected .mindmap-topic-collapse {
-  opacity: 1;
-}
-
-.mindmap-topic-collapse:hover {
-  background: rgba(0, 0, 0, 0.04);
+  opacity: 0.9;
 }

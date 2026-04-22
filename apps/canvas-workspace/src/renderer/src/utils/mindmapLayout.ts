@@ -91,6 +91,31 @@ const BRANCH_COLORS = [
 
 const ROOT_COLOR = '#1F2328';
 
+/**
+ * Estimate the rendered pixel width of a topic's text without touching
+ * the DOM. We intentionally keep this cheap rather than doing a hidden
+ * measure pass — the approximation is accurate enough for layout and
+ * stays synchronous, which matters because `layoutMindmap` runs in a
+ * `useMemo` on every tree mutation.
+ *
+ * Latin characters at the topic font size (~14px) average ~0.56em; CJK
+ * chars are ~1em. We detect CJK by scanning for Han + kana + full-width
+ * ranges and pick the wider estimate — good enough, and errs on the
+ * side of "a little too wide" which never looks broken.
+ */
+const CJK_RANGE = /[　-鿿＀-￯぀-ヿ]/;
+const estimateTextWidth = (text: string, fontSize: number): number => {
+  if (!text) return 0;
+  const hasCJK = CJK_RANGE.test(text);
+  const avg = hasCJK ? fontSize * 0.95 : fontSize * 0.56;
+  return text.length * avg;
+};
+
+const ROOT_MIN_WIDTH = 120;
+const TOPIC_MIN_WIDTH = 90;
+const TOPIC_MAX_WIDTH = 260;
+const TOPIC_HORIZONTAL_PADDING = 18;
+
 export const layoutMindmap = (
   root: MindmapTopic,
   opts: LayoutOptions = {},
@@ -98,6 +123,23 @@ export const layoutMindmap = (
   const o = { ...DEFAULT_OPTS, ...opts };
   const topics: LaidOutTopic[] = [];
   const branches: LaidOutBranch[] = [];
+
+  // Per-topic widths. The root gets a larger font + generous minimum so
+  // short "Central topic"-style labels don't awkwardly wrap at word
+  // boundaries; every other topic scales between TOPIC_MIN_WIDTH and
+  // TOPIC_MAX_WIDTH based on its text length.
+  const widthOf = new Map<string, number>();
+  const resolveWidth = (t: MindmapTopic, isRoot: boolean): number => {
+    const cached = widthOf.get(t.id);
+    if (cached !== undefined) return cached;
+    const fontSize = isRoot ? 20 : 14;
+    const text = t.text || 'Untitled';
+    const estimated = estimateTextWidth(text, fontSize) + TOPIC_HORIZONTAL_PADDING;
+    const min = isRoot ? ROOT_MIN_WIDTH : TOPIC_MIN_WIDTH;
+    const w = Math.max(min, Math.min(TOPIC_MAX_WIDTH, Math.ceil(estimated)));
+    widthOf.set(t.id, w);
+    return w;
+  };
 
   // Pass 1: compute the vertical "slot" each topic needs — the height
   // it will occupy including all visible descendants.
@@ -133,6 +175,8 @@ export const layoutMindmap = (
     yCursor: number,
     color: string,
   ) => {
+    const isRoot = depth === 0;
+    const selfWidth = resolveWidth(t, isRoot);
     const slot = slotOf.get(t.id) ?? o.topicHeight;
     const y = yCursor + (slot - o.topicHeight) / 2;
     const laidOut: LaidOutTopic = {
@@ -141,7 +185,7 @@ export const layoutMindmap = (
       depth,
       x: xLeft,
       y,
-      width: o.topicWidth,
+      width: selfWidth,
       height: o.topicHeight,
       text: t.text,
       color,
@@ -154,11 +198,12 @@ export const layoutMindmap = (
 
     // Children sit to the right of this topic, stacked vertically
     // within this topic's slot.
-    const childXLeft = xLeft + o.topicWidth + o.hGap;
+    const childXLeft = xLeft + selfWidth + o.hGap;
     let childYCursor = yCursor;
     for (let i = 0; i < t.children.length; i++) {
       const child = t.children[i];
       const childSlot = slotOf.get(child.id) ?? o.topicHeight;
+      const childWidth = resolveWidth(child, false);
 
       // Primary branches get a color from the palette; deeper topics
       // inherit their branch ancestor's color.
@@ -173,7 +218,7 @@ export const layoutMindmap = (
       // leave it at its vertical center. Every other parent branches off
       // of its own baseline, so incoming + outgoing lines share the
       // same horizontal track and read as a continuous "underline".
-      const parentRightX = xLeft + o.topicWidth;
+      const parentRightX = xLeft + selfWidth;
       const parentAnchorY =
         depth === 0 ? y + o.topicHeight / 2 : y + o.topicHeight;
       const childLeftX = childXLeft;
@@ -189,7 +234,7 @@ export const layoutMindmap = (
       // end of the curve, matching Heptabase's look.
       const childHasVisibleChildren =
         child.children.length > 0 && !child.collapsed;
-      const childRightX = childXLeft + o.topicWidth;
+      const childRightX = childXLeft + childWidth;
       const tail = childHasVisibleChildren
         ? ` L ${childRightX} ${childAnchorY}`
         : '';
