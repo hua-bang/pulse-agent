@@ -1,0 +1,165 @@
+/*
+ * The mindmap node is auto-sized to its content, so no inner level
+ * needs to scroll or clip. Every container uses overflow: visible so
+ * SVG stroke linecaps that extend a pixel past the bounding box don't
+ * trigger sneaky scrollbars on the viewport.
+ */
+.mindmap-node-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  background: transparent;
+}
+
+.mindmap-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.mindmap-content {
+  position: relative;
+}
+
+.mindmap-branches {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* ---- Topic ---- */
+
+.mindmap-topic {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 8px;
+  font-size: 14px;
+  line-height: 1.3;
+  color: #1f2328;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.mindmap-topic--root {
+  /* Root is large, centered plainly in its own box — Heptabase-style. */
+  justify-content: center;
+  align-items: center;
+  font-size: 20px;
+  font-weight: 500;
+  padding: 0 10px;
+  color: #1f2328;
+}
+
+/* Force the root topic onto a single line even though .mindmap-topic-text
+ * defaults to pre-wrap. Without this, "Central topic" (and any other
+ * multi-word root) wraps in the 120px-minimum slot. The rule lives on the
+ * inner text div because parent-level white-space: nowrap is overridden
+ * by the more-specific text rule below. */
+.mindmap-topic--root .mindmap-topic-text {
+  white-space: nowrap;
+}
+
+/*
+ * Selection cue: a 2px accent bar on the left side of the topic,
+ * colored by the topic's branch. Deliberately quieter than a full
+ * underline / ring — the text itself stays unmodified so selected
+ * doesn't look like "something's wrong with this text".
+ *
+ * The bar is centered on the topic's vertical middle (1em-ish tall)
+ * so it sits next to the text rather than spanning the whole slot,
+ * which would look disconnected now that text is centered on the
+ * branch line.
+ */
+.mindmap-topic--selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 2px;
+  height: 1em;
+  margin-top: -0.5em;
+  border-radius: 1px;
+  background: var(--mindmap-topic-accent, #5b7cbf);
+}
+
+.mindmap-topic--root.mindmap-topic--selected::before {
+  /* Root is larger; give its accent bar a bit more height to match. */
+  height: 1.1em;
+  margin-top: -0.55em;
+  left: 2px;
+}
+
+.mindmap-topic--editing {
+  cursor: text;
+}
+
+.mindmap-topic--editing .mindmap-topic-text {
+  background: rgba(91, 124, 191, 0.08);
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px rgba(91, 124, 191, 0.2);
+}
+
+.mindmap-topic-text {
+  flex: 0 1 auto;
+  min-height: 16px;
+  min-width: 8px;
+  max-width: 100%;
+  padding: 1px 3px;
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  caret-color: currentColor;
+  color: inherit;
+}
+
+/*
+ * Empty-topic placeholder. We render the placeholder via ::before so it
+ * never touches the contenteditable DOM tree — typing replaces the
+ * empty element's text normally, and the ::before disappears because
+ * the rule no longer applies (we toggle a class, not :empty, because
+ * browsers may fill empty contenteditable with a lone <br>).
+ *
+ * `white-space: nowrap` on the empty variant keeps "Untitled" on one
+ * line; without it, the text div's flex shrink factor makes the
+ * placeholder break character-by-character inside the narrow slot.
+ */
+.mindmap-topic-text--empty {
+  white-space: nowrap;
+}
+
+.mindmap-topic-text--empty::before {
+  content: attr(data-placeholder);
+  color: #9aa0a6;
+  opacity: 0.75;
+  font-style: italic;
+  pointer-events: none;
+}
+
+/*
+ * Collapsed-subtree hint: a small dot after the text. Signals "this
+ * topic has hidden children" without the overhead of an explicit
+ * expand/collapse button.
+ */
+.mindmap-topic-collapsed-dot {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  margin-bottom: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  opacity: 0.9;
+}

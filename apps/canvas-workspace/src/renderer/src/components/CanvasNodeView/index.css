@@ -279,6 +279,32 @@
   overflow: visible;
 }
 
+/* Mindmap nodes are entirely frame-less — text and curves ARE the
+ * whole node on the canvas, so even the hover / selected outlines
+ * used by image/shape nodes would feel like a surrounding box.
+ * Selection is communicated by per-topic accent bars inside the
+ * mindmap body, not by the canvas-node wrapper. */
+.canvas-node--mindmap,
+.canvas-node--mindmap:hover,
+.canvas-node--mindmap.canvas-node--selected,
+.canvas-node--mindmap.canvas-node--dragging,
+.canvas-node--mindmap.canvas-node--resizing {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  /* Override .canvas-node's default overflow: hidden so SVG stroke
+   * linecaps and the close-button hover ring can render a pixel past
+   * the auto-sized bounds without getting cropped into the scrollbar
+   * flicker we saw at sub-pixel widths. */
+  overflow: visible;
+}
+
+.node-body--mindmap {
+  padding: 0;
+  height: 100%;
+  overflow: visible;
+}
+
 .node-close--floating {
   position: absolute;
   top: 4px;

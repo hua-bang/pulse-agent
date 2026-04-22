@@ -10,6 +10,7 @@ import { TextNodeBody, TextColorPicker } from "../TextNodeBody";
 import { IframeNodeBody } from "../IframeNodeBody";
 import { ImageNodeBody } from "../ImageNodeBody";
 import { ShapeNodeBody, ShapeStylePicker } from "../ShapeNodeBody";
+import { MindmapNodeBody } from "../MindmapNodeBody";
 
 interface Props {
   node: CanvasNode;
@@ -34,6 +35,10 @@ interface Props {
     minHeight?: number
   ) => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  /** Dimension-only update that skips history. Content-sized nodes use
+   *  this to reconcile their on-canvas bounds with their rendered body
+   *  without polluting the undo stack. */
+  onAutoResize: (id: string, width: number, height: number) => void;
   onRemove: (id: string) => void;
   onSelect: (id: string) => void;
   onFocus: (node: CanvasNode) => void;
@@ -53,6 +58,7 @@ export const CanvasNodeView = ({
   onDragStart,
   onResizeStart,
   onUpdate,
+  onAutoResize,
   onRemove,
   onSelect,
   onFocus
@@ -207,6 +213,46 @@ export const CanvasNodeView = ({
           className="resize-handle resize-handle--corner"
           onMouseDown={makeResizeHandler("bottom-right")}
         />
+      </div>
+    );
+  }
+
+  if (node.type === "mindmap") {
+    // Mindmaps are fully chromeless and content-sized: no border, no
+    // hover/selected outline, no resize handles. MindmapNodeBody
+    // reports the rendered bounding box via `onAutoResize`, so the
+    // canvas node's width/height track the topic tree automatically.
+    return (
+      <div
+        className={classes}
+        style={{
+          transform: `translate(${node.x}px, ${node.y}px)`,
+          width: node.width,
+          height: node.height,
+        }}
+        onClick={handleNodeClick}
+        // The wrapper itself is the drag handle — topic pills inside
+        // stop propagation, so mousedown on the empty mindmap area
+        // bubbles here and starts a node drag.
+        onMouseDown={(e) => {
+          onSelect(node.id);
+          onDragStart(e, node);
+        }}
+      >
+        <div className="node-body node-body--mindmap">
+          <MindmapNodeBody
+            node={node}
+            isSelected={isSelected}
+            onUpdate={onUpdate}
+            onSelectNode={onSelect}
+            onAutoResize={onAutoResize}
+          />
+        </div>
+        <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
     );
   }
