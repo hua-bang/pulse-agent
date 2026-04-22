@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 
 type RunStatus = 'running' | 'finished';
@@ -2032,6 +2033,91 @@ function prefixLenInRaw(rawB: any[], cleanPrefixLen: number): number {
   return rawB.length;
 }
 
+/**
+ * Compute line-level diff using LCS. Returns an array of segments:
+ *   { type: 'eq' | 'del' | 'add', line: string }
+ * Suitable for rendering side-by-side or unified.
+ */
+function lineDiff(a: string, b: string): Array<{ type: 'eq' | 'del' | 'add'; line: string }> {
+  const aLines = a.split('\n');
+  const bLines = b.split('\n');
+  const m = aLines.length;
+  const n = bLines.length;
+  // Cap to avoid pathological memory (very long system prompts)
+  if (m * n > 4_000_000) {
+    // Fallback: naive prefix/suffix trim
+    let p = 0;
+    while (p < m && p < n && aLines[p] === bLines[p]) p++;
+    let sa = m, sb = n;
+    while (sa > p && sb > p && aLines[sa - 1] === bLines[sb - 1]) { sa--; sb--; }
+    const out: Array<{ type: 'eq' | 'del' | 'add'; line: string }> = [];
+    for (let i = 0; i < p; i++) out.push({ type: 'eq', line: aLines[i] });
+    for (let i = p; i < sa; i++) out.push({ type: 'del', line: aLines[i] });
+    for (let i = p; i < sb; i++) out.push({ type: 'add', line: bLines[i] });
+    for (let i = sa; i < m; i++) out.push({ type: 'eq', line: aLines[i] });
+    return out;
+  }
+  // LCS DP
+  const dp: number[][] = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      dp[i][j] = aLines[i] === bLines[j]
+        ? dp[i + 1][j + 1] + 1
+        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out: Array<{ type: 'eq' | 'del' | 'add'; line: string }> = [];
+  let i = 0, j = 0;
+  while (i < m && j < n) {
+    if (aLines[i] === bLines[j]) {
+      out.push({ type: 'eq', line: aLines[i] });
+      i++; j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      out.push({ type: 'del', line: aLines[i] });
+      i++;
+    } else {
+      out.push({ type: 'add', line: bLines[j] });
+      j++;
+    }
+  }
+  while (i < m) { out.push({ type: 'del', line: aLines[i++] }); }
+  while (j < n) { out.push({ type: 'add', line: bLines[j++] }); }
+  return out;
+}
+
+/** Collapse long runs of unchanged lines to a "@@ N unchanged lines @@" marker, preserving context. */
+function collapseEqualRuns(
+  segs: Array<{ type: 'eq' | 'del' | 'add'; line: string }>,
+  context: number = 3,
+): Array<{ type: 'eq' | 'del' | 'add' | 'gap'; line: string; count?: number }> {
+  const out: Array<{ type: 'eq' | 'del' | 'add' | 'gap'; line: string; count?: number }> = [];
+  let i = 0;
+  while (i < segs.length) {
+    if (segs[i].type !== 'eq') {
+      out.push(segs[i]);
+      i++;
+      continue;
+    }
+    // Find run of eq
+    let j = i;
+    while (j < segs.length && segs[j].type === 'eq') j++;
+    const runLen = j - i;
+    const isStart = i === 0;
+    const isEnd = j === segs.length;
+    const head = isStart ? 0 : context;
+    const tail = isEnd ? 0 : context;
+    if (runLen <= head + tail + 1) {
+      for (let k = i; k < j; k++) out.push(segs[k]);
+    } else {
+      for (let k = 0; k < head; k++) out.push(segs[i + k]);
+      out.push({ type: 'gap', line: '', count: runLen - head - tail });
+      for (let k = 0; k < tail; k++) out.push(segs[j - tail + k]);
+    }
+    i = j;
+  }
+  return out;
+}
+
 function roleColor(role: string): string {
   if (role === 'user') return '#1a6b2e';
   if (role === 'assistant') return '#1a4f9c';
@@ -2118,6 +2204,177 @@ function MsgList({ messages, truncated, highlight }: {
 }
 
 // ── Cache Diff View ───────────────────────────────────────────────────────────
+
+// ── System Prompt Diff ────────────────────────────────────────────────────────
+
+function SystemPromptDiff({ sysA, sysB }: { sysA: string; sysB: string }) {
+  const [expanded, setExpanded] = useState(true);
+  const [mode, setMode] = useState<'unified' | 'side'>('unified');
+  const [contextLines, setContextLines] = useState(3);
+
+  const segs = useMemo(() => lineDiff(sysA, sysB), [sysA, sysB]);
+  const collapsed = useMemo(() => collapseEqualRuns(segs, contextLines), [segs, contextLines]);
+
+  const stats = useMemo(() => {
+    let added = 0, removed = 0;
+    for (const s of segs) {
+      if (s.type === 'add') added++;
+      else if (s.type === 'del') removed++;
+    }
+    return { added, removed, totalA: sysA.split('\n').length, totalB: sysB.split('\n').length };
+  }, [segs, sysA, sysB]);
+
+  const lineStyle = (type: string): CSSProperties => ({
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: 11,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-word',
+    padding: '1px 8px 1px 28px',
+    position: 'relative',
+    background:
+      type === 'add' ? '#e6ffed' :
+      type === 'del' ? '#ffeef0' :
+      type === 'gap' ? '#f1f4f8' : 'transparent',
+    color:
+      type === 'add' ? '#22863a' :
+      type === 'del' ? '#b31d28' :
+      type === 'gap' ? '#6a737d' : 'inherit',
+    borderLeft:
+      type === 'add' ? '2px solid #34d058' :
+      type === 'del' ? '2px solid #d73a49' :
+      type === 'gap' ? '2px solid #d1d5da' : '2px solid transparent',
+  });
+
+  const sigil = (type: string) => (
+    <span style={{
+      position: 'absolute', left: 8, color: 'rgba(0,0,0,0.4)', fontWeight: 600,
+    }}>
+      {type === 'add' ? '+' : type === 'del' ? '−' : type === 'gap' ? '⋯' : ' '}
+    </span>
+  );
+
+  return (
+    <div className="stats-section" style={{ marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h3 className="stats-section-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span>System Prompt Diff</span>
+          <span style={{ fontSize: 11, fontWeight: 400 }}>
+            <span style={{ color: '#22863a' }}>+{stats.added}</span>
+            {' / '}
+            <span style={{ color: '#b31d28' }}>−{stats.removed}</span>
+            {' '}
+            <span style={{ color: 'var(--text-muted)' }}>
+              (A: {stats.totalA} lines · B: {stats.totalB} lines)
+            </span>
+          </span>
+        </h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            className={`tab-button ${mode === 'unified' ? 'active' : ''}`}
+            style={{ fontSize: 11 }}
+            onClick={() => setMode('unified')}
+          >
+            Unified
+          </button>
+          <button
+            className={`tab-button ${mode === 'side' ? 'active' : ''}`}
+            style={{ fontSize: 11 }}
+            onClick={() => setMode('side')}
+          >
+            Side-by-side
+          </button>
+          <select
+            className="filter-select"
+            value={contextLines}
+            onChange={(e) => setContextLines(Number(e.target.value))}
+            style={{ fontSize: 11 }}
+            title="Context lines around changes"
+          >
+            <option value={0}>0 ctx</option>
+            <option value={3}>3 ctx</option>
+            <option value={6}>6 ctx</option>
+            <option value={999}>full</option>
+          </select>
+          <button
+            className="tab-button"
+            style={{ fontSize: 11 }}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? '▼ Hide' : '▶ Show'}
+          </button>
+        </div>
+      </div>
+
+      {expanded && (
+        mode === 'unified' ? (
+          <div style={{
+            border: '1px solid var(--border)',
+            borderRadius: 6,
+            background: '#fff',
+            maxHeight: 500,
+            overflow: 'auto',
+          }}>
+            {collapsed.map((s, idx) => (
+              <div key={idx} style={lineStyle(s.type)}>
+                {sigil(s.type)}
+                {s.type === 'gap'
+                  ? <span style={{ fontStyle: 'italic' }}>@@ {s.count} unchanged line{s.count === 1 ? '' : 's'} hidden @@</span>
+                  : (s.line || '\u00a0')}
+              </div>
+            ))}
+            {collapsed.length === 0 && (
+              <div style={{ padding: 14, color: 'var(--text-muted)', fontSize: 12 }}>
+                (Both system prompts are empty)
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#27ae60', marginBottom: 4 }}>A</div>
+              <div style={{
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                background: '#fff',
+                maxHeight: 500,
+                overflow: 'auto',
+              }}>
+                {collapsed.filter((s) => s.type !== 'add').map((s, idx) => (
+                  <div key={idx} style={lineStyle(s.type === 'del' ? 'del' : s.type === 'gap' ? 'gap' : 'eq')}>
+                    {sigil(s.type === 'del' ? 'del' : s.type === 'gap' ? 'gap' : 'eq')}
+                    {s.type === 'gap'
+                      ? <span style={{ fontStyle: 'italic' }}>@@ {s.count} unchanged @@</span>
+                      : (s.line || '\u00a0')}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#2980b9', marginBottom: 4 }}>B</div>
+              <div style={{
+                border: '1px solid var(--border)',
+                borderRadius: 6,
+                background: '#fff',
+                maxHeight: 500,
+                overflow: 'auto',
+              }}>
+                {collapsed.filter((s) => s.type !== 'del').map((s, idx) => (
+                  <div key={idx} style={lineStyle(s.type === 'add' ? 'add' : s.type === 'gap' ? 'gap' : 'eq')}>
+                    {sigil(s.type === 'add' ? 'add' : s.type === 'gap' ? 'gap' : 'eq')}
+                    {s.type === 'gap'
+                      ? <span style={{ fontStyle: 'italic' }}>@@ {s.count} unchanged @@</span>
+                      : (s.line || '\u00a0')}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
 
 function CacheDiffView({ apiBase, spans, contextLabel }: {
   apiBase: string;
@@ -2292,6 +2549,14 @@ function CacheDiffView({ apiBase, spans, contextLabel }: {
           )}
         </>
       )}
+
+          {/* System Prompt Diff (when changed) */}
+          {sysMatch === false && (
+            <SystemPromptDiff
+              sysA={snapshotA.systemPrompt ?? ''}
+              sysB={snapshotB.systemPrompt ?? ''}
+            />
+          )}
 
       {/* Message panels */}
       {snapshotA && snapshotB && (
