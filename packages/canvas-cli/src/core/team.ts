@@ -23,8 +23,17 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { Mailbox, TaskList } from 'pulse-coder-agent-teams';
 
-const TEAMS_ROOT = join(homedir(), '.pulse-coder', 'teams');
-const ARCHIVE_ROOT = join(homedir(), '.pulse-coder', 'teams-archive');
+/**
+ * Roots can be overridden via `PULSE_TEAMS_ROOT` / `PULSE_TEAMS_ARCHIVE_ROOT`
+ * for tests and isolated CLI runs. We resolve these per call (not at
+ * module load) so tests can flip the env mid-process via `process.env`.
+ */
+function teamsRoot(): string {
+  return process.env.PULSE_TEAMS_ROOT || join(homedir(), '.pulse-coder', 'teams');
+}
+function archiveRoot(): string {
+  return process.env.PULSE_TEAMS_ARCHIVE_ROOT || join(homedir(), '.pulse-coder', 'teams-archive');
+}
 
 /**
  * Persisted team metadata. Stored at `{stateDir}/config.json`.
@@ -80,7 +89,7 @@ const runtimes = new Map<string, TeamRuntime>();
  *  TaskList / Mailbox bootstrap files. */
 export function createTeam(args: CreateTeamArgs): TeamRuntime {
   const teamId = randomUUID();
-  const stateDir = join(TEAMS_ROOT, teamId);
+  const stateDir = join(teamsRoot(), teamId);
   mkdirSync(stateDir, { recursive: true });
 
   const config: TeamConfigFile = {
@@ -108,7 +117,7 @@ export function getTeam(teamId: string): TeamRuntime | null {
   const cached = runtimes.get(teamId);
   if (cached) return cached;
 
-  const stateDir = join(TEAMS_ROOT, teamId);
+  const stateDir = join(teamsRoot(), teamId);
   if (!existsSync(stateDir)) return null;
 
   const config = readConfig(stateDir);
@@ -127,12 +136,12 @@ export function getTeam(teamId: string): TeamRuntime | null {
 /** All teams scoped to a workspace. Always reads disk so listings stay
  *  fresh after restarts. */
 export async function listTeams(workspaceId: string): Promise<TeamConfigFile[]> {
-  if (!existsSync(TEAMS_ROOT)) return [];
-  const entries = await fsAsync.readdir(TEAMS_ROOT, { withFileTypes: true });
+  if (!existsSync(teamsRoot())) return [];
+  const entries = await fsAsync.readdir(teamsRoot(), { withFileTypes: true });
   const out: TeamConfigFile[] = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const config = readConfig(join(TEAMS_ROOT, entry.name));
+    const config = readConfig(join(teamsRoot(), entry.name));
     if (config && config.workspaceId === workspaceId) out.push(config);
   }
   return out;
@@ -186,11 +195,11 @@ export function findMemberByNodeId(teamId: string, nodeId: string): TeamMemberRe
  *  removing canvas nodes. */
 export async function destroyTeam(teamId: string): Promise<{ archivedTo: string } | null> {
   const cached = runtimes.get(teamId);
-  const stateDir = cached?.stateDir ?? join(TEAMS_ROOT, teamId);
+  const stateDir = cached?.stateDir ?? join(teamsRoot(), teamId);
   if (!existsSync(stateDir)) return null;
 
-  await fsAsync.mkdir(ARCHIVE_ROOT, { recursive: true });
-  const archivedTo = join(ARCHIVE_ROOT, `${teamId}-${Date.now()}`);
+  await fsAsync.mkdir(archiveRoot(), { recursive: true });
+  const archivedTo = join(archiveRoot(), `${teamId}-${Date.now()}`);
   await fsAsync.rename(stateDir, archivedTo);
 
   runtimes.delete(teamId);
