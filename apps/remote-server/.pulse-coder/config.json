@@ -1,5 +1,5 @@
 {
-  "current_model": "claude-sonnet-4-6",
+  "current_model": "gpt-5.5",
   "provider_type": "claude",
   "options": [
     {
@@ -43,7 +43,15 @@
       "provider_type": "openai"
     },
     {
+      "name": "gpt-5.5",
+      "provider_type": "claude"
+    },
+    {
       "name": "claude-opus-4-6",
+      "provider_type": "claude"
+    },
+    {
+      "name": "claude-opus-4.7",
       "provider_type": "claude"
     },
     {

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "ljg-roundtable": {
+      "source": "lijigang/ljg-skills",
+      "sourceType": "github",
+      "computedHash": "49ae4ecd15bebf61d7cfef70d664ba7d9d61446e54ea0bac15332a4d8411d16e"
+    }
+  }
+}
