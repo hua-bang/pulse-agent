@@ -23,6 +23,9 @@ importers:
       '@ai-sdk/openai':
         specifier: ^3.0.21
         version: 3.0.21(zod@4.3.6)
+      '@pulse-coder/canvas-cli':
+        specifier: workspace:*
+        version: link:../../packages/canvas-cli
       '@tiptap/extension-bubble-menu':
         specifier: ^3.20.4
         version: 3.22.2(@tiptap/core@3.22.2(@tiptap/pm@3.22.2))(@tiptap/pm@3.22.2)

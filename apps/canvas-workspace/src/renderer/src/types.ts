@@ -347,6 +347,22 @@ export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
 }
 
+/** Tear down a team that's been spawned via canvas_create_team:
+ *  kills member PTYs, removes the frame + member nodes from the canvas,
+ *  and archives the team's `~/.pulse-coder/teams/{teamId}/` state dir.
+ *  Implemented in `apps/canvas-workspace/src/main/team/team-ipc.ts`. */
+export interface TeamApi {
+  disband: (
+    workspaceId: string,
+    frameNodeId: string,
+  ) => Promise<{
+    ok: boolean;
+    removedNodeIds?: string[];
+    archivedTo?: string;
+    error?: string;
+  }>;
+}
+
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
@@ -468,6 +484,7 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  team: TeamApi;
   agent: AgentApi;
   iframe: IframeApi;
   llm: LlmApi;
