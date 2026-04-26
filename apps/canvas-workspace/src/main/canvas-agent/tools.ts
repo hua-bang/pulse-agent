@@ -317,6 +317,18 @@ export interface CanvasTool {
 /** Prompts shorter than this are passed directly as CLI args; longer ones go to a file. */
 const INLINE_PROMPT_THRESHOLD = 256;
 
+/**
+ * Per-agent CLI flag(s) that put the agent into "no permission prompts"
+ * mode. Mirrors `getUnattendedFlags` in renderer's `agentRegistry.ts` —
+ * we duplicate rather than cross the main↔renderer boundary because
+ * canvas-agent runs in main and the registry is renderer-side.
+ */
+const UNATTENDED_FLAGS: Record<string, string> = {
+  'claude-code': '--permission-mode bypassPermissions',
+  codex: '--full-auto',
+  'pulse-coder': '',
+};
+
 let edgeIdCounter = 0;
 function genEdgeId(): string {
   return `edge-${Date.now()}-${++edgeIdCounter}`;
@@ -939,7 +951,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             cwd,
             agentType: leadCfg.agentType,
             status: 'running',
-            agentArgs: '',
+            agentArgs: UNATTENDED_FLAGS[leadCfg.agentType] ?? '',
             inlinePrompt: leadInline,
             promptFile: '',
             teamMembership: {
@@ -986,7 +998,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               cwd,
               agentType: tCfg.agentType,
               status: 'running',
-              agentArgs: '',
+              agentArgs: UNATTENDED_FLAGS[tCfg.agentType] ?? '',
               inlinePrompt: tInline,
               promptFile: '',
               teamMembership: {
