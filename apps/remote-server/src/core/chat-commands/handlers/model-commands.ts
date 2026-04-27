@@ -27,14 +27,24 @@ export async function handleModelCommand(args: string[]): Promise<CommandResult>
   const model = raw;
   try {
     const option = await resolveModelOption(model);
+    // 命中 option 时，把 option 上的 provider/连接覆盖一并写入顶层，
+    // 这样 resolveModelForRun 不依赖 option 也能解析；同时 option 自身仍保留作为字典。
     const next = option
-      ? { current_model: option.name, provider_type: option.provider_type }
+      ? {
+          current_model: option.name,
+          provider_type: option.provider_type,
+          base_url: option.base_url,
+          api_key_env: option.api_key_env,
+          headers: option.headers,
+        }
       : { current_model: model };
     const result = await writeModelConfig(next);
     const providerHint = option?.provider_type ? ` (${option.provider_type})` : '';
+    const baseURLHint = option?.base_url ? `\nbaseURL: ${option.base_url}` : '';
+    const apiKeyHint = option?.api_key_env ? `\napi_key_env: ${option.api_key_env}` : '';
     return {
       type: 'handled',
-      message: `✅ 已更新模型为 ${model}${providerHint}\nConfig: ${result.path}`,
+      message: `✅ 已更新模型为 ${model}${providerHint}${baseURLHint}${apiKeyHint}\nConfig: ${result.path}`,
     };
   } catch (error) {
     console.error('[model-config] failed to update model config:', error);
@@ -67,11 +77,19 @@ async function renderModelStatus(): Promise<CommandResult> {
     } else {
       lines.push('- resolved_model: (未解析到)');
     }
+    if (status.resolvedBaseURL) {
+      lines.push(`- base_url: ${status.resolvedBaseURL}`);
+    }
+    if (status.resolvedApiKeyEnv) {
+      const present = process.env[status.resolvedApiKeyEnv]?.trim() ? '✅' : '⚠️ 未设置';
+      lines.push(`- api_key_env: ${status.resolvedApiKeyEnv} ${present}`);
+    }
     if (status.options && status.options.length > 0) {
       lines.push('- options:');
       for (const opt of status.options) {
         const providerLabel = opt.provider_type ? ` [${opt.provider_type}]` : '';
-        lines.push(`  • ${opt.name}${providerLabel}`);
+        const baseHint = opt.base_url ? ` @ ${opt.base_url}` : '';
+        lines.push(`  • ${opt.name}${providerLabel}${baseHint}`);
       }
     } else if (status.models && status.models.length > 0) {
       lines.push(`- models: ${status.models.join(', ')}`);

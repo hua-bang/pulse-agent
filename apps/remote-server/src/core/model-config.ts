@@ -2,14 +2,31 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join, resolve, dirname } from 'path';
 
-type ModelOption = {
+export type ProviderType = 'openai' | 'claude';
+
+/**
+ * Provider-level overrides for an option / current model.
+ * - provider_type 决定走哪个 SDK family（openai / claude），保留二选一以匹配 engine。
+ * - base_url / api_key_env / headers 用于覆盖默认 env 解析的连接参数。
+ *   api_key_env 只存"环境变量名"，避免明文写入配置文件。
+ * - model 允许 option 自带模型名（current_model 不指定时也能解析）。
+ */
+export type ModelOption = {
   name: string;
-  provider_type?: 'openai' | 'claude';
+  provider_type?: ProviderType;
+  base_url?: string;
+  api_key_env?: string;
+  headers?: Record<string, string>;
+  model?: string;
 };
 
 type ModelConfig = {
   current_model?: string;
-  provider_type?: 'openai' | 'claude';
+  provider_type?: ProviderType;
+  /** 顶层也允许配 base_url / api_key_env / headers，作为 current_model 的兜底。 */
+  base_url?: string;
+  api_key_env?: string;
+  headers?: Record<string, string>;
   options?: ModelOption[];
   models?: Array<{
     name?: string;
@@ -24,8 +41,10 @@ type ModelConfigWriteResult = {
 type ModelStatus = {
   path: string | null;
   currentModel?: string;
-  providerType?: 'openai' | 'claude';
+  providerType?: ProviderType;
   resolvedModel?: string;
+  resolvedBaseURL?: string;
+  resolvedApiKeyEnv?: string;
   options?: ModelOption[];
   models?: string[];
 };
@@ -38,11 +57,8 @@ type CachedConfig = {
 
 let cachedConfig: CachedConfig | null = null;
 
-function normalizeModel(value: unknown): string | null {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
+function normalizeStr(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 }
@@ -94,7 +110,7 @@ async function ensureConfigDir(path: string): Promise<void> {
   await fs.mkdir(dirname(path), { recursive: true });
 }
 
-export async function writeModelConfig(next: ModelConfig): Promise<ModelConfigWriteResult> {
+export async function writeModelConfig(next: Partial<ModelConfig>): Promise<ModelConfigWriteResult> {
   const envPath = process.env.PULSE_CODER_MODEL_CONFIG?.trim();
   const configPath = await findConfigPath();
   const path = envPath || configPath || resolve(process.cwd(), '.pulse-coder', 'config.json');
@@ -128,13 +144,18 @@ function selectModel(config: ModelConfig | null): string | null {
     return null;
   }
 
-  const current = normalizeModel(config.current_model);
+  const current = normalizeStr(config.current_model);
   if (current) {
+    // 如果 current_model 命中了某个 option 且 option.model 存在，优先用 option.model
+    const opt = config.options?.find((o) => o?.name === current);
+    if (opt?.model) {
+      return normalizeStr(opt.model) ?? current;
+    }
     return current;
   }
 
   const firstModel = Array.isArray(config.models) ? config.models[0] : null;
-  return normalizeModel(firstModel?.name);
+  return normalizeStr(firstModel?.name);
 }
 
 export async function clearModelOverride(): Promise<ModelConfigWriteResult> {
@@ -151,6 +172,11 @@ export async function clearModelOverride(): Promise<ModelConfigWriteResult> {
     ...(existing ?? {}),
   };
   delete merged.current_model;
+  // current model 级别的 provider 覆盖也一并清掉，避免脏状态
+  delete merged.provider_type;
+  delete merged.base_url;
+  delete merged.api_key_env;
+  delete merged.headers;
 
   const payload = `${JSON.stringify(merged, null, 2)}\n`;
   await fs.writeFile(path, payload, 'utf8');
@@ -159,95 +185,91 @@ export async function clearModelOverride(): Promise<ModelConfigWriteResult> {
   return { path, config: merged };
 }
 
-export async function getModelStatus(): Promise<ModelStatus> {
+async function loadConfigCached(): Promise<{ path: string | null; data: ModelConfig | null }> {
   const envPath = process.env.PULSE_CODER_MODEL_CONFIG?.trim();
   const configPath = await findConfigPath();
   const path = envPath || configPath || null;
   if (!path) {
-    return { path: null };
+    return { path: null, data: null };
   }
 
-  let data: ModelConfig | null = null;
   try {
     const stat = await fs.stat(path);
     if (cachedConfig && cachedConfig.path === path && cachedConfig.mtimeMs === stat.mtimeMs) {
-      data = cachedConfig.data;
-    } else {
-      data = await loadConfigFromPath(path, { warn: true });
-      if (data) {
-        cachedConfig = { path, mtimeMs: stat.mtimeMs, data };
-      }
+      return { path, data: cachedConfig.data };
     }
+    const data = await loadConfigFromPath(path, { warn: true });
+    if (data) cachedConfig = { path, mtimeMs: stat.mtimeMs, data };
+    return { path, data };
   } catch {
-    return { path };
+    return { path, data: null };
   }
+}
+
+export async function getModelStatus(): Promise<ModelStatus> {
+  const { path, data } = await loadConfigCached();
+  if (!path) return { path: null };
 
   const resolvedModel = selectModel(data);
   const models = Array.isArray(data?.models)
     ? data?.models
-        .map((item) => normalizeModel(item?.name))
+        .map((item) => normalizeStr(item?.name))
         .filter((name): name is string => Boolean(name))
     : undefined;
 
+  // 解析当前生效的 provider override（option 优先 → 顶层兜底）
+  const currentName = normalizeStr(data?.current_model);
+  const currentOption = currentName ? data?.options?.find((o) => o?.name === currentName) : undefined;
+
+  const resolvedBaseURL =
+    normalizeStr(currentOption?.base_url) ?? normalizeStr(data?.base_url) ?? undefined;
+  const resolvedApiKeyEnv =
+    normalizeStr(currentOption?.api_key_env) ?? normalizeStr(data?.api_key_env) ?? undefined;
+  const providerType =
+    currentOption?.provider_type ?? data?.provider_type ?? undefined;
+
   return {
     path,
-    currentModel: normalizeModel(data?.current_model) ?? undefined,
-    providerType: data?.provider_type,
+    currentModel: currentName ?? undefined,
+    providerType,
     resolvedModel: resolvedModel ?? undefined,
-    options: Array.isArray(data?.options) && data.options.length > 0 ? data.options : undefined,
+    resolvedBaseURL,
+    resolvedApiKeyEnv,
+    options: Array.isArray(data?.options) && data!.options!.length > 0 ? data!.options : undefined,
     models: models && models.length > 0 ? models : undefined,
   };
 }
 
 export async function resolveModelOption(name: string): Promise<ModelOption | null> {
-  const envPath = process.env.PULSE_CODER_MODEL_CONFIG?.trim();
-  const configPath = await findConfigPath();
-  const path = envPath || configPath || null;
-  if (!path) return null;
-
-  try {
-    const stat = await fs.stat(path);
-    let data: ModelConfig | null;
-    if (cachedConfig && cachedConfig.path === path && cachedConfig.mtimeMs === stat.mtimeMs) {
-      data = cachedConfig.data;
-    } else {
-      data = await loadConfigFromPath(path, { warn: true });
-      if (data) cachedConfig = { path, mtimeMs: stat.mtimeMs, data };
-    }
-    return data?.options?.find((o) => o.name === name) ?? null;
-  } catch {
-    return null;
-  }
+  const { data } = await loadConfigCached();
+  return data?.options?.find((o) => o.name === name) ?? null;
 }
 
-export async function resolveModelForRun(_platformKey: string): Promise<{ model?: string; modelType?: 'openai' | 'claude' }> {
-  const envPath = process.env.PULSE_CODER_MODEL_CONFIG?.trim();
-  const configPath = await findConfigPath();
-  const path = envPath || configPath || null;
-  if (!path) {
-    return {};
-  }
+export type ResolvedRunModel = {
+  model?: string;
+  modelType?: ProviderType;
+  baseURL?: string;
+  apiKey?: string;
+  headers?: Record<string, string>;
+};
 
-  try {
-    const stat = await fs.stat(path);
-    if (cachedConfig && cachedConfig.path === path && cachedConfig.mtimeMs === stat.mtimeMs) {
-      return {
-        model: selectModel(cachedConfig.data) ?? undefined,
-        modelType: cachedConfig.data?.provider_type,
-      };
-    }
+/**
+ * 解析当前运行该使用的 provider/model 参数。
+ * 优先级：current_model 命中的 option > 顶层配置 > undefined（让 engine 走 env fallback）。
+ */
+export async function resolveModelForRun(_platformKey: string): Promise<ResolvedRunModel> {
+  const { data } = await loadConfigCached();
+  if (!data) return {};
 
-    const data = await loadConfigFromPath(path, { warn: true });
-    if (!data) {
-      return {};
-    }
-    cachedConfig = { path, mtimeMs: stat.mtimeMs, data };
-    return {
-      model: selectModel(data) ?? undefined,
-      modelType: data.provider_type,
-    };
-  } catch {
-    return {};
-  }
+  const currentName = normalizeStr(data.current_model);
+  const option = currentName ? data.options?.find((o) => o?.name === currentName) : undefined;
+
+  const model = selectModel(data) ?? undefined;
+  const modelType = option?.provider_type ?? data.provider_type;
+  const baseURL = normalizeStr(option?.base_url) ?? normalizeStr(data.base_url) ?? undefined;
+  const apiKeyEnv = normalizeStr(option?.api_key_env) ?? normalizeStr(data.api_key_env) ?? undefined;
+  const apiKey = apiKeyEnv ? process.env[apiKeyEnv]?.trim() || undefined : undefined;
+  const headers = option?.headers ?? data.headers;
+
+  return { model, modelType, baseURL, apiKey, headers };
 }
-

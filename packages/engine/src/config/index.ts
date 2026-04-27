@@ -46,6 +46,10 @@ export const CoderAI = (USE_ANTHROPIC
 
 export interface BuildProviderOptions {
   headers?: Record<string, string>;
+  /** Override API key. Falls back to env (OPENAI_API_KEY / ANTHROPIC_API_KEY). */
+  apiKey?: string;
+  /** Override base URL. Falls back to env (OPENAI_API_URL / ANTHROPIC_API_URL). */
+  baseURL?: string;
 }
 
 /**
@@ -64,8 +68,8 @@ export interface BuildProviderOptions {
 export function buildProvider(type: ModelType, options?: BuildProviderOptions): LLMProviderFactory {
   if (type === 'claude') {
     return createAnthropic({
-      apiKey: ANTHROPIC_API_KEY,
-      baseURL: ANTHROPIC_API_URL,
+      apiKey: options?.apiKey ?? ANTHROPIC_API_KEY,
+      baseURL: options?.baseURL ?? ANTHROPIC_API_URL,
       headers: {
         'user-agent': 'claude-code/2.1.63',
         ...(options?.headers ?? {}),
@@ -73,8 +77,8 @@ export function buildProvider(type: ModelType, options?: BuildProviderOptions): 
     }) as LLMProviderFactory;
   }
   return createOpenAI({
-    apiKey: OPENAI_API_KEY,
-    baseURL: OPENAI_API_URL,
+    apiKey: options?.apiKey ?? OPENAI_API_KEY,
+    baseURL: options?.baseURL ?? OPENAI_API_URL,
     headers: options?.headers,
   }).responses as LLMProviderFactory;
 }
