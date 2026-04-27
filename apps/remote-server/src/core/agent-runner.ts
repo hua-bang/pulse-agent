@@ -234,15 +234,27 @@ function buildChannelSystemPrompt(platformKey: string): string | null {
 function resolveRunProvider(
   modelType: 'openai' | 'claude' | undefined,
   platformKey: string,
+  overrides?: { baseURL?: string; apiKey?: string; headers?: Record<string, string> },
 ): LLMProviderFactory | undefined {
-  if (modelType !== 'claude') {
-    return undefined;
-  }
+  // 只要配置里给了任意 provider 级别的覆盖（含 modelType / baseURL / apiKey / headers），
+  // 就显式构造 provider；否则保持 undefined，让 engine 走 env 兜底。
+  const hasOverride =
+    !!modelType ||
+    !!overrides?.baseURL ||
+    !!overrides?.apiKey ||
+    !!(overrides?.headers && Object.keys(overrides.headers).length > 0);
+  if (!hasOverride) return undefined;
 
-  return buildProvider('claude', {
-    headers: {
-      'x-session-id': platformKey,
-    },
+  const type: 'openai' | 'claude' = modelType ?? 'openai';
+  const headers: Record<string, string> = {
+    ...(type === 'claude' ? { 'x-session-id': platformKey } : {}),
+    ...(overrides?.headers ?? {}),
+  };
+
+  return buildProvider(type, {
+    baseURL: overrides?.baseURL,
+    apiKey: overrides?.apiKey,
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
   });
 }
 
@@ -276,8 +288,8 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
   const context = session.context;
   const callbacks = input.callbacks ?? {};
   const compactions: CompactionSnapshot[] = [];
-  const { model: modelOverride, modelType } = await resolveModelForRun(input.platformKey);
-  const providerOverride = resolveRunProvider(modelType, input.platformKey);
+  const { model: modelOverride, modelType, baseURL, apiKey, headers } = await resolveModelForRun(input.platformKey);
+  const providerOverride = resolveRunProvider(modelType, input.platformKey, { baseURL, apiKey, headers });
 
   let latestAttachments = session.latestAttachments ?? [];
   if (input.attachments?.length) {
