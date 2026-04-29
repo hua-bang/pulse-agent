@@ -98,25 +98,32 @@ const ROOT_COLOR = '#1F2328';
  * stays synchronous, which matters because `layoutMindmap` runs in a
  * `useMemo` on every tree mutation.
  *
- * The canvas app ships a monospace-leaning UI font, so Latin chars at
- * the topic font sizes (14 / 20px) run ~0.6em wide; CJK chars are
- * ~0.95em. We pick a slightly pessimistic multiplier so the estimated
- * slot never ends up narrower than the rendered text — if it did, the
- * text would either wrap (for pre-wrap) or overshoot its slot and clip
- * into the neighbouring branch.
+ * Real CJK glyphs in the system UI fallback fonts (PingFang / Noto Sans
+ * CJK) render at ~1.0em — a touch wider once you account for inter-glyph
+ * advance. The earlier 0.98 multiplier was tuned for a hypothetical
+ * monospace-leaning font and consistently undersized Chinese topics by a
+ * few px, which combined with `overflow-wrap: anywhere` to drop the last
+ * character onto a new line. Bias the estimate slightly above 1.0 so the
+ * slot is never narrower than the rendered text.
  */
 const CJK_RANGE = /[　-鿿＀-￯぀-ヿ]/;
 const estimateTextWidth = (text: string, fontSize: number): number => {
   if (!text) return 0;
   const hasCJK = CJK_RANGE.test(text);
-  const avg = hasCJK ? fontSize * 0.98 : fontSize * 0.65;
+  const avg = hasCJK ? fontSize * 1.05 : fontSize * 0.65;
   return text.length * avg;
 };
 
 const ROOT_MIN_WIDTH = 120;
 const TOPIC_MIN_WIDTH = 90;
-const TOPIC_MAX_WIDTH = 260;
-const TOPIC_HORIZONTAL_PADDING = 18;
+const TOPIC_MAX_WIDTH = 320;
+// Horizontal chrome around the text: `.mindmap-topic` has `padding: 0 8px`
+// (16px) and the inner `.mindmap-topic-text` adds `padding: 1px 3px` (6px),
+// for 22px total. Keep a small safety buffer for sub-pixel rounding.
+const TOPIC_HORIZONTAL_PADDING = 24;
+// Width reserved for the collapsed-state dot rendered next to the text:
+// `.mindmap-topic-collapsed-dot` is 6px wide + 6px margin-left.
+const COLLAPSED_DOT_RESERVE = 12;
 
 export const layoutMindmap = (
   root: MindmapTopic,
@@ -136,35 +143,75 @@ export const layoutMindmap = (
     if (cached !== undefined) return cached;
     const fontSize = isRoot ? 20 : 14;
     const text = t.text || 'Untitled';
-    const estimated = estimateTextWidth(text, fontSize) + TOPIC_HORIZONTAL_PADDING;
+    // Collapsed non-root topics render a dot next to the text inside the
+    // same flex row; reserve space for it so the text doesn't get squeezed.
+    const collapsedReserve =
+      !isRoot && t.collapsed && t.children.length > 0 ? COLLAPSED_DOT_RESERVE : 0;
+    const estimated =
+      estimateTextWidth(text, fontSize) + TOPIC_HORIZONTAL_PADDING + collapsedReserve;
     const min = isRoot ? ROOT_MIN_WIDTH : TOPIC_MIN_WIDTH;
     const w = Math.max(min, Math.min(TOPIC_MAX_WIDTH, Math.ceil(estimated)));
     widthOf.set(t.id, w);
     return w;
   };
 
+  // Per-topic rendered height. When a topic's text exceeds TOPIC_MAX_WIDTH
+  // it wraps to multiple lines; the slot allocated for it must grow to
+  // match, otherwise sibling subtrees stack on top of the wrapped text
+  // (which is what produced the "long topic overlaps the next branch"
+  // bug). Root is forced single-line by CSS (`white-space: nowrap`), so
+  // we keep the default height there.
+  const heightOf = new Map<string, number>();
+  const resolveHeight = (t: MindmapTopic, isRoot: boolean): number => {
+    const cached = heightOf.get(t.id);
+    if (cached !== undefined) return cached;
+    if (isRoot) {
+      heightOf.set(t.id, o.topicHeight);
+      return o.topicHeight;
+    }
+    const fontSize = 14;
+    const lineHeight = Math.ceil(fontSize * 1.3); // matches .mindmap-topic CSS
+    const w = resolveWidth(t, false);
+    const collapsedReserve =
+      t.collapsed && t.children.length > 0 ? COLLAPSED_DOT_RESERVE : 0;
+    const available = Math.max(
+      lineHeight,
+      w - TOPIC_HORIZONTAL_PADDING - collapsedReserve,
+    );
+    const text = t.text || 'Untitled';
+    const textWidth = estimateTextWidth(text, fontSize);
+    const lines = Math.max(1, Math.ceil(textWidth / available));
+    // 4px = .mindmap-topic-text top+bottom padding (1px) + a hair of buffer
+    // for line-box rounding. Clamp to the default topic slot so single-line
+    // topics keep their existing visual rhythm.
+    const h = Math.max(o.topicHeight, lines * lineHeight + 4);
+    heightOf.set(t.id, h);
+    return h;
+  };
+
   // Pass 1: compute the vertical "slot" each topic needs — the height
   // it will occupy including all visible descendants.
   const slotOf = new Map<string, number>();
-  const measure = (t: MindmapTopic): number => {
+  const measure = (t: MindmapTopic, depth: number): number => {
+    const isRoot = depth === 0;
+    const own = resolveHeight(t, isRoot);
     const kids = t.collapsed ? [] : t.children;
     if (kids.length === 0) {
-      const s = o.topicHeight;
-      slotOf.set(t.id, s);
-      return s;
+      slotOf.set(t.id, own);
+      return own;
     }
     let total = 0;
     for (let i = 0; i < kids.length; i++) {
-      total += measure(kids[i]);
+      total += measure(kids[i], depth + 1);
       if (i > 0) total += o.vGap;
     }
     // A parent with children still needs at least its own height so the
     // pill doesn't collapse into a sliver when a single child lives below.
-    const s = Math.max(total, o.topicHeight);
+    const s = Math.max(total, own);
     slotOf.set(t.id, s);
     return s;
   };
-  const totalHeight = measure(root);
+  const totalHeight = measure(root, 0);
 
   // Pass 2: place each topic. `yCursor` is the top of the current node's
   // slot; we center the node vertically inside its slot, then walk
@@ -179,8 +226,9 @@ export const layoutMindmap = (
   ) => {
     const isRoot = depth === 0;
     const selfWidth = resolveWidth(t, isRoot);
-    const slot = slotOf.get(t.id) ?? o.topicHeight;
-    const y = yCursor + (slot - o.topicHeight) / 2;
+    const selfHeight = resolveHeight(t, isRoot);
+    const slot = slotOf.get(t.id) ?? selfHeight;
+    const y = yCursor + (slot - selfHeight) / 2;
     const laidOut: LaidOutTopic = {
       id: t.id,
       parentId,
@@ -188,7 +236,7 @@ export const layoutMindmap = (
       x: xLeft,
       y,
       width: selfWidth,
-      height: o.topicHeight,
+      height: selfHeight,
       text: t.text,
       color,
       collapsed: !!t.collapsed,
@@ -204,7 +252,8 @@ export const layoutMindmap = (
     let childYCursor = yCursor;
     for (let i = 0; i < t.children.length; i++) {
       const child = t.children[i];
-      const childSlot = slotOf.get(child.id) ?? o.topicHeight;
+      const childHeight = resolveHeight(child, false);
+      const childSlot = slotOf.get(child.id) ?? childHeight;
 
       // Primary branches get a color from the palette; deeper topics
       // inherit their branch ancestor's color.
@@ -220,12 +269,10 @@ export const layoutMindmap = (
       // layout where there's no outline to give the baseline a
       // reason to exist.
       const parentRightX = xLeft + selfWidth;
-      const parentAnchorY = y + o.topicHeight / 2;
+      const parentAnchorY = y + selfHeight / 2;
       const childLeftX = childXLeft;
       const childAnchorY =
-        childYCursor +
-        (childSlot - o.topicHeight) / 2 +
-        o.topicHeight / 2;
+        childYCursor + (childSlot - childHeight) / 2 + childHeight / 2;
       const midX = parentRightX + (childLeftX - parentRightX) / 2;
       const path =
         `M ${parentRightX} ${parentAnchorY} ` +
@@ -454,4 +501,100 @@ export const findParent = (
     return null;
   };
   return walk(root);
+};
+
+/** True if `descendantId` lives anywhere in the subtree rooted at
+ *  `ancestorId`. Used to reject drag-reorders that would create a cycle
+ *  (dropping a topic into one of its own descendants). */
+export const isDescendant = (
+  root: MindmapTopic,
+  ancestorId: string,
+  descendantId: string,
+): boolean => {
+  if (ancestorId === descendantId) return false;
+  const findAncestor = (t: MindmapTopic): MindmapTopic | null => {
+    if (t.id === ancestorId) return t;
+    for (const c of t.children) {
+      const hit = findAncestor(c);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  const subtree = findAncestor(root);
+  if (!subtree) return false;
+  const walk = (t: MindmapTopic): boolean => {
+    if (t.id === descendantId) return true;
+    return t.children.some(walk);
+  };
+  return subtree.children.some(walk);
+};
+
+/**
+ * Drop target for a drag-reorder. `before` / `after` insert as a sibling
+ * of `anchorId`; `child` appends as the last child of `parentId`.
+ */
+export type DropTarget =
+  | { kind: 'before'; anchorId: string }
+  | { kind: 'after'; anchorId: string }
+  | { kind: 'child'; parentId: string };
+
+/**
+ * Move `sourceId` to `target`. Returns the new root, or `null` when the
+ * move is invalid (source is the root, target lives in source's subtree,
+ * or anchor/parent isn't found). Implementation: locate the source
+ * subtree, splice it out of its current parent, then insert it at the
+ * target. Handles the same-parent reorder case (where removing the
+ * source shifts the anchor's index) by computing the insertion index
+ * after the removal.
+ */
+export const moveTopic = (
+  root: MindmapTopic,
+  sourceId: string,
+  target: DropTarget,
+): MindmapTopic | null => {
+  if (sourceId === root.id) return null;
+  // No-op moves: dropping a topic onto itself or onto its current parent
+  // when the position wouldn't change.
+  if (target.kind !== 'child' && target.anchorId === sourceId) return null;
+  if (target.kind === 'child' && target.parentId === sourceId) return null;
+  if (isDescendant(root, sourceId, target.kind === 'child' ? target.parentId : target.anchorId)) {
+    return null;
+  }
+
+  // Lift the source subtree out of the tree.
+  const sourcePath = findTopicPath(root, sourceId);
+  if (!sourcePath) return null;
+  const sourceTopic = sourcePath[sourcePath.length - 1];
+  const removed = deleteTopic(root, sourceId);
+  if (!removed) return null;
+  let next = removed.root;
+
+  if (target.kind === 'child') {
+    next = insertChild(next, target.parentId, sourceTopic);
+    return next;
+  }
+
+  // Sibling drop: locate the anchor's parent in the post-removal tree.
+  const anchorParent = findParent(next, target.anchorId);
+  if (!anchorParent) return null;
+  const idx = anchorParent.children.findIndex((c) => c.id === target.anchorId);
+  if (idx < 0) return null;
+  const insertAfterId =
+    target.kind === 'after'
+      ? target.anchorId
+      : idx > 0
+        ? anchorParent.children[idx - 1].id
+        : undefined;
+  // `insertChild` with no afterId appends — we want to prepend when
+  // dropping `before` the first child. Handle that explicitly.
+  if (target.kind === 'before' && idx === 0) {
+    const walk = (t: MindmapTopic): MindmapTopic => {
+      if (t.id === anchorParent.id) {
+        return { ...t, children: [sourceTopic, ...t.children], collapsed: false };
+      }
+      return { ...t, children: t.children.map(walk) };
+    };
+    return walk(next);
+  }
+  return insertChild(next, anchorParent.id, sourceTopic, insertAfterId);
 };
