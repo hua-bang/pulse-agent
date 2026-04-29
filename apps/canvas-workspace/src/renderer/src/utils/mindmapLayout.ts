@@ -155,28 +155,63 @@ export const layoutMindmap = (
     return w;
   };
 
+  // Per-topic rendered height. When a topic's text exceeds TOPIC_MAX_WIDTH
+  // it wraps to multiple lines; the slot allocated for it must grow to
+  // match, otherwise sibling subtrees stack on top of the wrapped text
+  // (which is what produced the "long topic overlaps the next branch"
+  // bug). Root is forced single-line by CSS (`white-space: nowrap`), so
+  // we keep the default height there.
+  const heightOf = new Map<string, number>();
+  const resolveHeight = (t: MindmapTopic, isRoot: boolean): number => {
+    const cached = heightOf.get(t.id);
+    if (cached !== undefined) return cached;
+    if (isRoot) {
+      heightOf.set(t.id, o.topicHeight);
+      return o.topicHeight;
+    }
+    const fontSize = 14;
+    const lineHeight = Math.ceil(fontSize * 1.3); // matches .mindmap-topic CSS
+    const w = resolveWidth(t, false);
+    const collapsedReserve =
+      t.collapsed && t.children.length > 0 ? COLLAPSED_DOT_RESERVE : 0;
+    const available = Math.max(
+      lineHeight,
+      w - TOPIC_HORIZONTAL_PADDING - collapsedReserve,
+    );
+    const text = t.text || 'Untitled';
+    const textWidth = estimateTextWidth(text, fontSize);
+    const lines = Math.max(1, Math.ceil(textWidth / available));
+    // 4px = .mindmap-topic-text top+bottom padding (1px) + a hair of buffer
+    // for line-box rounding. Clamp to the default topic slot so single-line
+    // topics keep their existing visual rhythm.
+    const h = Math.max(o.topicHeight, lines * lineHeight + 4);
+    heightOf.set(t.id, h);
+    return h;
+  };
+
   // Pass 1: compute the vertical "slot" each topic needs — the height
   // it will occupy including all visible descendants.
   const slotOf = new Map<string, number>();
-  const measure = (t: MindmapTopic): number => {
+  const measure = (t: MindmapTopic, depth: number): number => {
+    const isRoot = depth === 0;
+    const own = resolveHeight(t, isRoot);
     const kids = t.collapsed ? [] : t.children;
     if (kids.length === 0) {
-      const s = o.topicHeight;
-      slotOf.set(t.id, s);
-      return s;
+      slotOf.set(t.id, own);
+      return own;
     }
     let total = 0;
     for (let i = 0; i < kids.length; i++) {
-      total += measure(kids[i]);
+      total += measure(kids[i], depth + 1);
       if (i > 0) total += o.vGap;
     }
     // A parent with children still needs at least its own height so the
     // pill doesn't collapse into a sliver when a single child lives below.
-    const s = Math.max(total, o.topicHeight);
+    const s = Math.max(total, own);
     slotOf.set(t.id, s);
     return s;
   };
-  const totalHeight = measure(root);
+  const totalHeight = measure(root, 0);
 
   // Pass 2: place each topic. `yCursor` is the top of the current node's
   // slot; we center the node vertically inside its slot, then walk
@@ -191,8 +226,9 @@ export const layoutMindmap = (
   ) => {
     const isRoot = depth === 0;
     const selfWidth = resolveWidth(t, isRoot);
-    const slot = slotOf.get(t.id) ?? o.topicHeight;
-    const y = yCursor + (slot - o.topicHeight) / 2;
+    const selfHeight = resolveHeight(t, isRoot);
+    const slot = slotOf.get(t.id) ?? selfHeight;
+    const y = yCursor + (slot - selfHeight) / 2;
     const laidOut: LaidOutTopic = {
       id: t.id,
       parentId,
@@ -200,7 +236,7 @@ export const layoutMindmap = (
       x: xLeft,
       y,
       width: selfWidth,
-      height: o.topicHeight,
+      height: selfHeight,
       text: t.text,
       color,
       collapsed: !!t.collapsed,
@@ -216,7 +252,8 @@ export const layoutMindmap = (
     let childYCursor = yCursor;
     for (let i = 0; i < t.children.length; i++) {
       const child = t.children[i];
-      const childSlot = slotOf.get(child.id) ?? o.topicHeight;
+      const childHeight = resolveHeight(child, false);
+      const childSlot = slotOf.get(child.id) ?? childHeight;
 
       // Primary branches get a color from the palette; deeper topics
       // inherit their branch ancestor's color.
@@ -232,12 +269,10 @@ export const layoutMindmap = (
       // layout where there's no outline to give the baseline a
       // reason to exist.
       const parentRightX = xLeft + selfWidth;
-      const parentAnchorY = y + o.topicHeight / 2;
+      const parentAnchorY = y + selfHeight / 2;
       const childLeftX = childXLeft;
       const childAnchorY =
-        childYCursor +
-        (childSlot - o.topicHeight) / 2 +
-        o.topicHeight / 2;
+        childYCursor + (childSlot - childHeight) / 2 + childHeight / 2;
       const midX = parentRightX + (childLeftX - parentRightX) / 2;
       const path =
         `M ${parentRightX} ${parentAnchorY} ` +
