@@ -52,7 +52,11 @@
   padding: 0 8px;
   /* Dark text derived from frame color — readable on every preset hue. */
   color: color-mix(in srgb, var(--frame-color, #A8B0BD) 70%, #111111);
-  transform: scale(calc(1 / var(--canvas-scale, 1)));
+  /* Counter-scale the header so it stays roughly screen-native when zoomed in,
+   * but cap at 1 so it never grows larger than its CSS size when zoomed out
+   * (otherwise the header dwarfs the frame body). Floor at 0.6 so it stays
+   * readable even at heavy zoom-out. */
+  transform: scale(clamp(0.6, 1 / var(--canvas-scale, 1), 1));
   transform-origin: left bottom;
   z-index: 2;
 }
