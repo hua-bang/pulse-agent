@@ -1,5 +1,18 @@
-export type NodeType = 'file' | 'terminal' | 'frame' | 'agent';
+export type NodeType = 'file' | 'terminal' | 'frame' | 'agent' | 'mindmap';
 export type NodeCapability = 'read' | 'write' | 'exec';
+
+/**
+ * Recursive topic tree carried inside a mindmap node's `data.root`.
+ * Mirrors the renderer's `MindmapTopic` shape so canvas.json round-trips
+ * cleanly between the CLI, the Electron main process, and the UI.
+ */
+export interface MindmapTopic {
+  id: string;
+  text: string;
+  children: MindmapTopic[];
+  color?: string;
+  collapsed?: boolean;
+}
 
 export interface CanvasNodeData {
   filePath?: string;

@@ -141,7 +141,7 @@ export function registerNodeCommands(program: Command): void {
     });
 
   node.command('create')
-    .requiredOption('--type <type>', 'Node type: file, terminal, frame, agent')
+    .requiredOption('--type <type>', 'Node type: file, terminal, frame, agent, mindmap')
     .option('--title <title>', 'Node title')
     .option('--x <n>', 'X position on canvas', parseFloat)
     .option('--y <n>', 'Y position on canvas', parseFloat)
@@ -152,7 +152,7 @@ export function registerNodeCommands(program: Command): void {
     .action(async function (this: Command, cmdOpts: { type: string; title?: string; x?: number; y?: number; width?: number; height?: number; data?: string }) {
       const { format, storeDir, workspace } = getOpts(this);
 
-      const validTypes: NodeType[] = ['file', 'terminal', 'frame', 'agent'];
+      const validTypes: NodeType[] = ['file', 'terminal', 'frame', 'agent', 'mindmap'];
       if (!validTypes.includes(cmdOpts.type as NodeType)) {
         errorOutput(`Invalid type "${cmdOpts.type}". Must be: ${validTypes.join(', ')}`);
       }

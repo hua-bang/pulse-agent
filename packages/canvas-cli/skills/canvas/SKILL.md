@@ -38,6 +38,31 @@ pulse-canvas node write <nodeId> --content "..."
 pulse-canvas node create --type file --title "Report" --data '{"content":"..."}'
 ```
 
+Supported `--type` values: `file`, `terminal`, `frame`, `agent`, `mindmap`.
+
+#### Mindmap
+
+For mindmaps, pass the recursive topic tree under `data.root`. Topic ids are auto-generated — do NOT supply them yourself. If `--data` is omitted a placeholder root is inserted.
+
+```bash
+pulse-canvas node create --type mindmap --title "Roadmap" --data '{
+  "root": {
+    "text": "Roadmap",
+    "children": [
+      { "text": "Q1", "children": [
+        { "text": "Ship MVP" },
+        { "text": "Onboard 10 users" }
+      ]},
+      { "text": "Q2", "children": [
+        { "text": "Public beta" }
+      ]}
+    ]
+  }
+}'
+```
+
+Topic shape: `{ text: string, children?: Topic[], color?: string, collapsed?: boolean }` (recursive). Use this whenever the user asks for a mindmap / brainstorm / outline that should be laid out radially rather than as a flat text node.
+
 ### Create an edge (connection between nodes)
 ```bash
 pulse-canvas edge create --from <nodeId> --to <nodeId> --label "depends on" --kind dependency --format json
