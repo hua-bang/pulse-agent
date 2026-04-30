@@ -9,6 +9,7 @@ export const NODE_CAPABILITIES: Record<NodeType, NodeCapability[]> = {
   terminal: ['read', 'exec'],
   frame: ['read', 'write'],
   agent: ['read', 'exec'],
+  mindmap: ['read', 'write'],
 };
 
 export const DEFAULT_NODE_DIMENSIONS: Record<NodeType, { title: string; width: number; height: number }> = {
@@ -16,6 +17,7 @@ export const DEFAULT_NODE_DIMENSIONS: Record<NodeType, { title: string; width: n
   terminal: { title: 'Terminal', width: 480, height: 300 },
   frame: { title: 'Frame', width: 600, height: 400 },
   agent: { title: 'Agent', width: 520, height: 380 },
+  mindmap: { title: 'Mindmap', width: 640, height: 420 },
 };
 
 export const AGENTS_MD_TEMPLATE = `# Canvas Agent Config

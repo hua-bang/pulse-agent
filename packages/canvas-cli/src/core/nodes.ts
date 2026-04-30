@@ -8,9 +8,57 @@ import type {
   NodeCapability,
   CanvasNode,
   CanvasSaveData,
+  MindmapTopic,
   NodeReadResult,
   Result,
 } from './types';
+
+// ─── Mindmap helpers ───────────────────────────────────────────────
+
+interface RawMindmapTopic {
+  id?: string;
+  text?: string;
+  children?: RawMindmapTopic[];
+  color?: string;
+  collapsed?: boolean;
+}
+
+let topicIdCounter = 0;
+function genTopicId(): string {
+  return `topic-${Date.now()}-${++topicIdCounter}`;
+}
+
+/**
+ * Normalize a topic tree supplied by the agent (via `--data` JSON) into
+ * the canonical `MindmapTopic` shape: every topic gets a stable id, a
+ * string `text`, and a real `children` array. Recursively walks the tree
+ * so the entire subtree is renderer-ready before it lands on disk.
+ */
+function normalizeMindmapTopic(raw: RawMindmapTopic | null | undefined): MindmapTopic {
+  const safe = raw ?? {};
+  const topic: MindmapTopic = {
+    id: typeof safe.id === 'string' && safe.id ? safe.id : genTopicId(),
+    text: typeof safe.text === 'string' ? safe.text : '',
+    children: Array.isArray(safe.children) ? safe.children.map(normalizeMindmapTopic) : [],
+  };
+  if (typeof safe.color === 'string') topic.color = safe.color;
+  if (safe.collapsed) topic.collapsed = true;
+  return topic;
+}
+
+/** Indent a topic tree as a bullet list. Used by `node read` output. */
+function flattenMindmapTopics(topic: MindmapTopic | undefined, depth = 0): string {
+  if (!topic) return '';
+  const lines: string[] = [];
+  const indent = '  '.repeat(depth);
+  const text = topic.text?.trim() || '(empty topic)';
+  const collapsedHint = topic.collapsed ? ' [collapsed in UI]' : '';
+  lines.push(`${indent}- ${text}${collapsedHint}`);
+  for (const child of topic.children ?? []) {
+    lines.push(flattenMindmapTopics(child, depth + 1));
+  }
+  return lines.join('\n');
+}
 
 export function getNodeCapabilities(type: NodeType): NodeCapability[] {
   return NODE_CAPABILITIES[type] ?? ['read'];
@@ -55,6 +103,15 @@ export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
         agentType: node.data.agentType ?? 'claude-code',
         status: node.data.status ?? 'idle',
       };
+    case 'mindmap': {
+      const root = node.data.root as MindmapTopic | undefined;
+      return {
+        type: 'mindmap',
+        capabilities,
+        root,
+        text: flattenMindmapTopics(root),
+      };
+    }
     default:
       return { type: node.type, capabilities };
   }
@@ -175,6 +232,18 @@ export async function createNode(
     case 'agent':
       nodeData = { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '', agentType: (inputData as Record<string, string>).agentType ?? 'claude-code', status: 'idle' };
       break;
+    case 'mindmap': {
+      const rawRoot = (inputData as { root?: RawMindmapTopic }).root;
+      const root = rawRoot
+        ? normalizeMindmapTopic(rawRoot)
+        : {
+            id: genTopicId(),
+            text: opts.title ?? 'Central topic',
+            children: [],
+          };
+      nodeData = { root, layout: 'right', rev: 0 };
+      break;
+    }
   }
 
   // For file nodes, always create a notes file so the node has a valid filePath
