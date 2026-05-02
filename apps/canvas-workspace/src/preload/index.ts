@@ -163,6 +163,17 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     },
   },
 
+  canvas: {
+    /**
+     * Push the current canvas selection to the main process so the
+     * `canvas_get_selection` agent tool can observe it. Fire-and-forget;
+     * a missed update just means the agent reads slightly stale state on
+     * its next call.
+     */
+    setSelection: (workspaceId: string, nodeIds: string[]) =>
+      ipcRenderer.send("canvas:set-selection", { workspaceId, nodeIds }),
+  },
+
   agent: {
     chat: (workspaceId: string, message: string, mentionedWorkspaceIds?: string[]) =>
       ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message, mentionedWorkspaceIds }),

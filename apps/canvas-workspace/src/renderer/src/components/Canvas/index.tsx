@@ -18,6 +18,7 @@ import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
+import { useAgentToolGhosts } from './AgentToolGhostLayer';
 
 interface CanvasProps {
   canvasId: string;
@@ -141,6 +142,16 @@ export const Canvas = ({
     if (!loaded) return;
     onNodesChange?.(canvasId, nodes);
   }, [canvasId, nodes, loaded, onNodesChange]);
+
+  // Mirror selection to the main process so the canvas agent's
+  // `canvas_get_selection` tool can read it. Keeping this fire-and-forget
+  // (no await, no error handling) — a missed update just means the next
+  // agent call sees slightly stale state. Fires on every change including
+  // empty selection so the cache stays accurate when the user clicks away.
+  useEffect(() => {
+    if (!loaded) return;
+    window.canvasWorkspace.canvas.setSelection(canvasId, selectedNodeIds);
+  }, [canvasId, selectedNodeIds, loaded]);
 
   // Handle external focus request (e.g. from sidebar layers panel)
   useEffect(() => {
@@ -287,6 +298,11 @@ export const Canvas = ({
     },
     [nodes]
   );
+
+  // Active ghost previews for in-flight `canvas_create_*` tool calls, so
+  // the user sees where the agent is about to drop a node before the real
+  // node arrives via the canvas-store external-update broadcast.
+  const agentToolGhosts = useAgentToolGhosts(canvasId, nodes);
 
   const getContainer = useCallback(() => containerRef.current, []);
 
@@ -557,6 +573,7 @@ export const Canvas = ({
         edgeInteractionState={edgeInteractionState}
         edgePreviewEndpoints={getPreviewEndpoints()}
         shapeDraft={shapeDraft}
+        agentToolGhosts={agentToolGhosts}
         onDragStart={onDragStart}
         onResizeStart={onResizeStart}
         onUpdate={updateNode}

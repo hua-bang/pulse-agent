@@ -1,3 +1,26 @@
+/**
+ * Provenance metadata for nodes that weren't created by direct user action.
+ *
+ * Set by writers like the canvas agent so the UI can mark the node, link
+ * back to the originating conversation, and let the agent reason about
+ * "what did I create from what" without re-deriving it from the canvas.
+ *
+ * The fields are advisory — missing values are fine and the renderer must
+ * tolerate any subset (older canvases predate this field entirely).
+ */
+export interface NodeSource {
+  /** Origin tag. Currently only `'agent'`; reserved for future writers (e.g. `'mcp'`, `'cli'`). */
+  origin: 'agent';
+  /** Chat session id that produced this node, when known. */
+  sessionId?: string;
+  /** ISO timestamp of creation. */
+  createdAt?: string;
+  /** Other canvas node IDs the agent used as input/context. */
+  sourceNodeIds?: string[];
+  /** Short human-readable description of what the agent was asked to do. */
+  intent?: string;
+}
+
 export interface CanvasNode {
   id: string;
   type: "file" | "terminal" | "frame" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
@@ -18,6 +41,8 @@ export interface CanvasNode {
     | MindmapNodeData;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
+  /** Set by non-user writers (canvas agent, etc.) — see {@link NodeSource}. */
+  source?: NodeSource;
 }
 
 export interface FileNodeData {
@@ -389,8 +414,19 @@ export interface AgentApi {
   deactivate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
+/**
+ * Renderer → main bridge for canvas-level state the agent needs to read,
+ * but that doesn't naturally belong in `store` (which is workspace JSON).
+ * Currently used to broadcast selection changes so `canvas_get_selection`
+ * can observe them in the main process.
+ */
+export interface CanvasUiApi {
+  setSelection: (workspaceId: string, nodeIds: string[]) => void;
+}
+
 export interface CanvasWorkspaceApi {
   version: string;
+  canvas: CanvasUiApi;
   pty: {
     spawn: (
       id: string,

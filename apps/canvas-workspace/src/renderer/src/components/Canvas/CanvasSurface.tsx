@@ -6,6 +6,7 @@ import type { ResizeEdge } from '../../hooks/useNodeResize';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
+import { AgentToolGhostLayer } from './AgentToolGhostLayer';
 
 interface CanvasSurfaceProps {
   transform: { x: number; y: number; scale: number };
@@ -41,6 +42,10 @@ interface CanvasSurfaceProps {
   /** Live shape-draw draft. Null unless the user is currently dragging
    *  out a new shape. */
   shapeDraft?: ShapeDraft | null;
+  /** In-flight `canvas_create_*` tool calls — rendered as dashed ghost
+   *  rectangles inside the transform layer so the user can see where
+   *  the agent is about to drop a node before it actually arrives. */
+  agentToolGhosts?: Array<{ toolCallId: number; name: string; x: number; y: number; width: number; height: number }>;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -94,6 +99,7 @@ export const CanvasSurface = ({
   edgeInteractionState,
   edgePreviewEndpoints,
   shapeDraft,
+  agentToolGhosts,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -153,6 +159,7 @@ export const CanvasSurface = ({
       />
     ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}
+    {agentToolGhosts && <AgentToolGhostLayer ghosts={agentToolGhosts} />}
   </div>
 );
 

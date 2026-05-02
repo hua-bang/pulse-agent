@@ -47,3 +47,56 @@
 .canvas-transform--moving {
   will-change: transform;
 }
+
+/*
+ * Dashed ghost rectangle shown while a `canvas_create_*` tool call is
+ * in flight. Lives inside `.canvas-transform`, so its position and size
+ * track canvas pan/zoom for free. Pointer events are disabled so the
+ * user can still interact with whatever's underneath while the agent
+ * is "about to drop" a node.
+ */
+.agent-tool-ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 1.5px dashed #7c5cff;
+  border-radius: 8px;
+  background: rgba(124, 92, 255, 0.06);
+  pointer-events: none;
+  animation: agentGhostFadeIn 160ms ease-out;
+  z-index: 1;
+}
+
+.agent-tool-ghost-pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(124, 92, 255, 0.45);
+  animation: agentGhostPulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.agent-tool-ghost-label {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #7c5cff;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 2px 6px;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(124, 92, 255, 0.25);
+}
+
+@keyframes agentGhostFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes agentGhostPulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.015); }
+}
