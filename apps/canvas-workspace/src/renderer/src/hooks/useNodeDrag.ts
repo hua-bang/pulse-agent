@@ -1,6 +1,12 @@
 import { useCallback, useRef, useState } from "react";
 import type { CanvasNode } from "../types";
 import { collectFrameDescendants } from "../utils/frameHierarchy";
+import { computeSnap, type SnapBox, type SnapLine } from "../utils/canvasSnapping";
+
+/** Grid spacing (canvas-px) for the fallback grid snap. Lines up with
+ *  the existing background `.canvas-grid` so the snap and the visual
+ *  grid agree. Set to 0 to disable grid snap entirely. */
+const GRID_SIZE = 8;
 
 export const useNodeDrag = (
   moveNode: (id: string, x: number, y: number) => void,
@@ -19,6 +25,15 @@ export const useNodeDrag = (
     startY: number;
     nodeX: number;
     nodeY: number;
+    /** Primary node bounds — captured once so the snap algorithm can
+     *  compute the dragged box's edges/centers without re-resolving
+     *  the node from `nodes` on every mousemove. */
+    width: number;
+    height: number;
+    /** Snap candidates: every node NOT participating in the drag. Frozen
+     *  at drag start so a long drag isn't paying for hit-testing against
+     *  changing geometry mid-stroke. */
+    snapCandidates: SnapBox[];
     /** Companions that move with the primary node — frame descendants
      *  and (when the primary is part of the active selection) every
      *  other selected node. */
@@ -32,6 +47,10 @@ export const useNodeDrag = (
   // a dragged parent frame's opaque body would paint over its nested
   // children, and multi-drag would visually only lift one node.
   const [draggingIds, setDraggingIds] = useState<Set<string>>(() => new Set());
+  // Active alignment guides for the current drag. Cleared on dragEnd.
+  // Lives in state so the Canvas can render them without re-computing
+  // snap in two places.
+  const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
 
   const onDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
@@ -71,6 +90,12 @@ export const useNodeDrag = (
       }
 
       const companions = Array.from(companionMap.values());
+      // Snap candidates exclude the primary and every companion — we
+      // don't want a dragged group to snap to itself.
+      const dragSet = new Set([node.id, ...companions.map((c) => c.id)]);
+      const snapCandidates: SnapBox[] = nodes
+        .filter((n) => !dragSet.has(n.id))
+        .map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
 
       dragging.current = {
         id: node.id,
@@ -78,10 +103,13 @@ export const useNodeDrag = (
         startY: e.clientY,
         nodeX: node.x,
         nodeY: node.y,
+        width: node.width,
+        height: node.height,
+        snapCandidates,
         companions,
       };
       setDraggingId(node.id);
-      setDraggingIds(new Set([node.id, ...companions.map((c) => c.id)]));
+      setDraggingIds(new Set(dragSet));
     },
     [nodes, selectedIds]
   );
@@ -90,23 +118,67 @@ export const useNodeDrag = (
     (e: React.MouseEvent) => {
       if (!dragging.current) return;
       const d = dragging.current;
-      const dx = (e.clientX - d.startX) / scale;
-      const dy = (e.clientY - d.startY) / scale;
+      const rawDx = (e.clientX - d.startX) / scale;
+      const rawDy = (e.clientY - d.startY) / scale;
+      const baseX = d.nodeX + rawDx;
+      const baseY = d.nodeY + rawDy;
+
+      // Hold Cmd/Ctrl during a drag to opt out of snapping for fine
+      // positioning — matches the Figma/Sketch convention. Ctrl is the
+      // modifier on Linux/Windows; Cmd on macOS.
+      const snapDisabled = e.metaKey || e.ctrlKey;
+
+      let finalX = baseX;
+      let finalY = baseY;
+
+      if (!snapDisabled) {
+        const snap = computeSnap(
+          { x: baseX, y: baseY, width: d.width, height: d.height },
+          d.snapCandidates,
+          { scale, gridSize: GRID_SIZE },
+        );
+        finalX = baseX + snap.dx;
+        finalY = baseY + snap.dy;
+        // Update guides only when they change to avoid pointless renders
+        // every mousemove tick. Compare by reference-equivalent
+        // serialization — guides are short arrays so this is cheap.
+        setSnapLines((prev) => {
+          if (prev.length !== snap.lines.length) return snap.lines;
+          for (let i = 0; i < prev.length; i++) {
+            const a = prev[i];
+            const b = snap.lines[i];
+            if (
+              a.axis !== b.axis ||
+              a.position !== b.position ||
+              a.start !== b.start ||
+              a.end !== b.end
+            ) {
+              return snap.lines;
+            }
+          }
+          return prev;
+        });
+      } else {
+        setSnapLines((prev) => (prev.length === 0 ? prev : []));
+      }
+
+      const appliedDx = finalX - d.nodeX;
+      const appliedDy = finalY - d.nodeY;
 
       if (d.companions.length > 0) {
         // Batch move primary + every companion in one applyNodes call so
         // the whole group reflects the same delta in one render.
         const moves = [
-          { id: d.id, x: d.nodeX + dx, y: d.nodeY + dy },
+          { id: d.id, x: finalX, y: finalY },
           ...d.companions.map((c) => ({
             id: c.id,
-            x: c.nodeX + dx,
-            y: c.nodeY + dy,
+            x: c.nodeX + appliedDx,
+            y: c.nodeY + appliedDy,
           })),
         ];
         moveNodes(moves);
       } else {
-        moveNode(d.id, d.nodeX + dx, d.nodeY + dy);
+        moveNode(d.id, finalX, finalY);
       }
     },
     [moveNode, moveNodes, scale]
@@ -116,7 +188,8 @@ export const useNodeDrag = (
     dragging.current = null;
     setDraggingId(null);
     setDraggingIds(new Set());
+    setSnapLines([]);
   }, []);
 
-  return { draggingId, draggingIds, onDragStart, onDragMove, onDragEnd };
+  return { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd };
 };

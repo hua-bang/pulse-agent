@@ -2,10 +2,12 @@ import type React from 'react';
 import type { CanvasEdge, CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
+import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
 import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
+import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 
 interface CanvasSurfaceProps {
@@ -45,6 +47,9 @@ interface CanvasSurfaceProps {
   /** Live marquee rectangle (canvas coordinates) while a box-select drag
    *  is in flight, null otherwise. Renders a dashed selection box. */
   marqueeRect?: MarqueeRect | null;
+  /** Active alignment guides for the current drag, in canvas
+   *  coordinates. Empty when nothing is snapping. */
+  snapLines?: SnapLine[];
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -101,6 +106,7 @@ export const CanvasSurface = ({
   edgePreviewEndpoints,
   shapeDraft,
   marqueeRect,
+  snapLines,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -161,6 +167,9 @@ export const CanvasSurface = ({
     ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}
     {marqueeRect && <MarqueePreview rect={marqueeRect} />}
+    {snapLines && snapLines.length > 0 && (
+      <CanvasAlignmentGuides lines={snapLines} scale={transform.scale} />
+    )}
   </div>
 );
 

@@ -270,7 +270,7 @@ export const Canvas = ({
     handleFocusNode(node);
   }, [handleFocusNode]);
 
-  const { draggingId, draggingIds, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
+  const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds
   );
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
@@ -655,6 +655,7 @@ export const Canvas = ({
         edgePreviewEndpoints={getPreviewEndpoints()}
         shapeDraft={shapeDraft}
         marqueeRect={marquee.rect}
+        snapLines={snapLines}
         onDragStart={onDragStart}
         onResizeStart={onResizeStart}
         onUpdate={updateNode}

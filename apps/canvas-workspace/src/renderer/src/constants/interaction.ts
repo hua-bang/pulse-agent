@@ -80,6 +80,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { combo: 'Shift + drag on blank canvas', description: 'Extend the selection with a marquee.' },
       { combo: 'Arrow keys', description: 'Nudge the selection by 1 pixel.' },
       { combo: 'Shift + Arrow keys', description: 'Nudge the selection by 10 pixels.' },
+      { combo: 'Ctrl/Cmd while dragging', description: 'Disable snap-to-grid and alignment guides.' },
     ],
   },
   {
