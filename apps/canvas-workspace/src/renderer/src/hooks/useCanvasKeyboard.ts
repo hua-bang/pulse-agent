@@ -19,6 +19,14 @@ interface Options {
   /** Wrap the current node selection in a new frame. */
   groupSelectedNodes: () => void;
   removeNodes: (ids: string[]) => void | Promise<void>;
+  /** Batch-move nodes by deltas in canvas coordinates. Used by arrow-
+   *  key nudging so a single keypress moves the whole selection in one
+   *  history step. Skips history (the trailing commitHistory call from
+   *  the keyup batch is what records it as a discrete undo entry). */
+  moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void;
+  /** Push the current node state onto the undo stack. Called once per
+   *  arrow-key press so each nudge is an independent undo step. */
+  commitHistory: () => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   contextMenu: unknown;
@@ -32,6 +40,7 @@ export const useCanvasKeyboard = ({
   undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
   duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes,
+  moveNodes, commitHistory,
   searchOpen, setSearchOpen, contextMenu, setContextMenu,
   setHighlightedId, handleFocusNode,
   keyboardLocked = false,
@@ -70,10 +79,16 @@ export const useCanvasKeyboard = ({
       }
       if (isMod && e.key === 'd' && !isEditable) {
         e.preventDefault();
-        if (selectedNodeIds.length === 1) {
-          const newNode = duplicateNode(selectedNodeIds[0]);
-          if (newNode) setSelectedNodeIds([newNode.id]);
+        if (selectedNodeIds.length === 0) return;
+        // Duplicate every selected node and keep the new copies as the
+        // active selection — matches Cmd+V's behavior so the user can
+        // chain Cmd+D to spawn a row of copies.
+        const created: string[] = [];
+        for (const id of selectedNodeIds) {
+          const copy = duplicateNode(id);
+          if (copy) created.push(copy.id);
         }
+        if (created.length > 0) setSelectedNodeIds(created);
         return;
       }
       if (isMod && e.key === 'c' && !isEditable) {
@@ -91,6 +106,32 @@ export const useCanvasKeyboard = ({
           e.preventDefault();
           const created = pasteNodes(clipboardNodes);
           setSelectedNodeIds(created.map((n) => n.id));
+        }
+        return;
+      }
+      // Arrow-key nudging — moves the whole selection by 1px (or 10px
+      // with shift) per keypress. Each press is its own undo step, so
+      // a chain of nudges can be reversed one at a time. The arrow
+      // keys still scroll the page in editable contexts, so we bail
+      // out when an input has focus.
+      if (
+        !isEditable &&
+        !isMod &&
+        (e.key === 'ArrowUp' || e.key === 'ArrowDown' ||
+         e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+      ) {
+        if (selectedNodeIds.length === 0) return;
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        const idSet = new Set(selectedNodeIds);
+        const moves = nodes
+          .filter((n) => idSet.has(n.id))
+          .map((n) => ({ id: n.id, x: n.x + dx, y: n.y + dy }));
+        if (moves.length > 0) {
+          moveNodes(moves);
+          commitHistory();
         }
         return;
       }
@@ -117,7 +158,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes, searchOpen, setSearchOpen, contextMenu, setContextMenu, keyboardLocked]);
+  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, contextMenu, setContextMenu, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {

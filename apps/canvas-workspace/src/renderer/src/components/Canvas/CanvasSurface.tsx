@@ -2,9 +2,12 @@ import type React from 'react';
 import type { CanvasEdge, CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
+import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
+import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
+import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 
 interface CanvasSurfaceProps {
@@ -41,6 +44,12 @@ interface CanvasSurfaceProps {
   /** Live shape-draw draft. Null unless the user is currently dragging
    *  out a new shape. */
   shapeDraft?: ShapeDraft | null;
+  /** Live marquee rectangle (canvas coordinates) while a box-select drag
+   *  is in flight, null otherwise. Renders a dashed selection box. */
+  marqueeRect?: MarqueeRect | null;
+  /** Active alignment guides for the current drag, in canvas
+   *  coordinates. Empty when nothing is snapping. */
+  snapLines?: SnapLine[];
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -58,7 +67,9 @@ interface CanvasSurfaceProps {
    *  history stack with a paired text + resize entry. */
   onAutoResize: (id: string, width: number, height: number) => void;
   onRemove: (id: string) => void;
-  onSelect: (id: string) => void;
+  /** Selection callback that forwards optional shift/meta modifiers so
+   *  the parent can honor multi-select intent. */
+  onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onSelectEdge: (id: string | null) => void;
   onEdgeHandleMouseDown: (
@@ -94,6 +105,8 @@ export const CanvasSurface = ({
   edgeInteractionState,
   edgePreviewEndpoints,
   shapeDraft,
+  marqueeRect,
+  snapLines,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -153,8 +166,39 @@ export const CanvasSurface = ({
       />
     ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}
+    {marqueeRect && <MarqueePreview rect={marqueeRect} />}
+    {snapLines && snapLines.length > 0 && (
+      <CanvasAlignmentGuides lines={snapLines} scale={transform.scale} />
+    )}
   </div>
 );
+
+/**
+ * Dashed rectangle drawn while the user box-selects on blank canvas.
+ * Lives inside `.canvas-transform` so the box scales with zoom and
+ * pans with the rest of the surface — matches the convention that
+ * canvas-coordinate UI renders here, not in the screen-space overlay
+ * layer.
+ */
+const MarqueePreview = ({ rect }: { rect: MarqueeRect }) => {
+  if (rect.width <= 0 && rect.height <= 0) return null;
+  return (
+    <div
+      className="canvas-marquee"
+      style={{
+        position: 'absolute',
+        left: rect.x,
+        top: rect.y,
+        width: Math.max(1, rect.width),
+        height: Math.max(1, rect.height),
+        border: '1px solid #5B7CBF',
+        background: 'rgba(91, 124, 191, 0.08)',
+        pointerEvents: 'none',
+        boxSizing: 'border-box',
+      }}
+    />
+  );
+};
 
 /**
  * Dashed outline shown while the user drags out a new shape. Lives inside

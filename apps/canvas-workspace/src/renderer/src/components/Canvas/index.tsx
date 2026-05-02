@@ -10,9 +10,11 @@ import { useCanvasKeyboard } from '../../hooks/useCanvasKeyboard';
 import { useCanvasImagePaste } from '../../hooks/useCanvasImagePaste';
 import { useEdgeInteraction } from '../../hooks/useEdgeInteraction';
 import { useShapeDraw } from '../../hooks/useShapeDraw';
+import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { useAppShell } from '../AppShellProvider';
 import { NODE_TYPE_LABELS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
+import type { PaletteCommand } from '../CommandPalette';
 import { computeFrameDepths } from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
@@ -64,6 +66,11 @@ export const Canvas = ({
     canvasX: number;
     canvasY: number;
   } | null>(null);
+
+  // Set to true at the end of a real marquee drag so the click event
+  // that fires immediately afterward doesn't fall through to the blank-
+  // canvas-click handler and wipe the selection we just made.
+  const suppressBlankClickRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -248,6 +255,7 @@ export const Canvas = ({
     selectedEdgeId, setSelectedEdgeId, removeEdge: requestRemoveEdge,
     duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes,
     removeNodes: requestRemoveNodes,
+    moveNodes, commitHistory,
     searchOpen, setSearchOpen, contextMenu, setContextMenu,
     setHighlightedId, handleFocusNode,
     keyboardLocked: isOverlayOpen,
@@ -277,8 +285,8 @@ export const Canvas = ({
     handleFocusNode(node);
   }, [handleFocusNode]);
 
-  const { draggingId, draggingIds, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
-    moveNode, moveNodes, transform.scale, nodes
+  const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
+    moveNode, moveNodes, transform.scale, nodes, selectedNodeIds
   );
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
     useNodeResize(resizeNode, transform.scale);
@@ -384,6 +392,59 @@ export const Canvas = ({
     [beginMoveEdge],
   );
 
+  const handleMarqueeSelect = useCallback(
+    (ids: string[], mods: { shift: boolean; meta: boolean }) => {
+      // Suppress the click event that fires right after a real drag
+      // (otherwise the blank-canvas click handler would clear what we
+      // just selected). A zero-distance "drag" still falls through to
+      // the click handler — that's how a plain click on blank canvas
+      // continues to clear the selection.
+      if (ids.length > 0) suppressBlankClickRef.current = true;
+
+      if (mods.shift || mods.meta) {
+        // The modifier explicitly says "extend", so even an empty-hit
+        // click on blank canvas must NOT collapse the existing
+        // selection. Suppress the trailing click handler regardless of
+        // the hit count.
+        suppressBlankClickRef.current = true;
+        // Toggle each hit id in/out of the selection so a marquee with
+        // shift extends the current group and a second pass over the
+        // same nodes deselects them.
+        setSelectedNodeIds((current) => {
+          const next = new Set(current);
+          for (const id of ids) {
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+          }
+          return Array.from(next);
+        });
+        if (ids.length > 0) setSelectedEdgeId(null);
+        return;
+      }
+
+      // Plain marquee replaces the selection. An empty hit set on a
+      // tiny drag falls through to the click handler that clears
+      // selection — we don't double-clear here.
+      if (ids.length > 0) {
+        setSelectedNodeIds(ids);
+        setSelectedEdgeId(null);
+      }
+    },
+    []
+  );
+
+  const marquee = useMarqueeSelect({
+    // Only the plain select tool should own blank-canvas drags. Connect
+    // and shape modes mount their own full-canvas overlays that already
+    // intercept mousedown, so the redundant `activeTool === 'connect'`
+    // check is intentionally omitted — TS narrows it away.
+    enabled: activeTool === 'select' && !shapeToolActive,
+    screenToCanvas,
+    getContainer,
+    nodes,
+    onSelect: handleMarqueeSelect,
+  });
+
   const handleEdgeBodyDoubleClick = useCallback(
     (edgeId: string) => {
       // Ensure the edge is selected before editing so the style panel
@@ -484,9 +545,172 @@ export const Canvas = ({
     [addNode, screenToCanvas, notify]
   );
 
+  // Command catalog for Cmd+K. Built lazily so each command captures
+  // the latest selection / tool / chat state — the palette is only
+  // mounted while open, so the cost of rebuilding on every render is
+  // negligible compared to the clarity of inlining the bindings here.
+  const paletteCommands = useMemo<PaletteCommand[]>(() => {
+    const selectionCount = selectedNodeIds.length;
+    const list: PaletteCommand[] = [
+      // Selection-dependent commands (rendered first when active so
+      // batch operations are one keypress away from a multi-selection).
+      {
+        id: 'duplicate-selection',
+        group: 'edit',
+        title: selectionCount > 1
+          ? `Duplicate ${selectionCount} selected nodes`
+          : 'Duplicate selected node',
+        shortcut: 'Cmd+D',
+        enabled: selectionCount > 0,
+        run: () => {
+          const created: string[] = [];
+          for (const id of selectedNodeIds) {
+            const copy = duplicateNode(id);
+            if (copy) created.push(copy.id);
+          }
+          if (created.length > 0) setSelectedNodeIds(created);
+        },
+      },
+      {
+        id: 'delete-selection',
+        group: 'edit',
+        title: selectionCount > 1
+          ? `Delete ${selectionCount} selected nodes`
+          : 'Delete selected node',
+        shortcut: 'Del',
+        enabled: selectionCount > 0,
+        run: () => {
+          void requestRemoveNodes(selectedNodeIds);
+        },
+      },
+      {
+        id: 'group-selection',
+        group: 'edit',
+        title: selectionCount > 1
+          ? `Group ${selectionCount} selected nodes in a frame`
+          : 'Wrap selected node in a frame',
+        shortcut: 'Cmd+G',
+        aliases: ['frame', 'wrap'],
+        enabled: selectionCount > 0,
+        run: () => {
+          groupSelectedNodes();
+        },
+      },
+      // Create — one entry per node type. Aliases catch the common
+      // alternative names users type ("markdown" → file, "ai" → agent).
+      {
+        id: 'create-note',
+        group: 'create',
+        title: 'New note',
+        hint: 'Markdown file backed by disk',
+        aliases: ['file', 'markdown', 'doc', 'md'],
+        run: () => handleToolbarAddNode('file'),
+      },
+      {
+        id: 'create-terminal',
+        group: 'create',
+        title: 'Open terminal',
+        aliases: ['shell', 'pty', 'console', 'bash'],
+        run: () => handleToolbarAddNode('terminal'),
+      },
+      {
+        id: 'create-agent',
+        group: 'create',
+        title: 'Create agent',
+        hint: 'Run an AI coding agent in a PTY',
+        aliases: ['ai', 'chat', 'assistant', 'claude'],
+        run: () => handleToolbarAddNode('agent'),
+      },
+      {
+        id: 'create-text',
+        group: 'create',
+        title: 'Add text',
+        aliases: ['label', 'sticky', 'note'],
+        run: () => handleToolbarAddNode('text'),
+      },
+      {
+        id: 'create-frame',
+        group: 'create',
+        title: 'Add frame',
+        hint: 'Visual grouping rectangle',
+        aliases: ['group', 'box', 'container'],
+        run: () => handleToolbarAddNode('frame'),
+      },
+      {
+        id: 'create-link',
+        group: 'create',
+        title: 'Embed link',
+        aliases: ['iframe', 'web', 'url', 'browser'],
+        run: () => handleToolbarAddNode('iframe'),
+      },
+      {
+        id: 'create-mindmap',
+        group: 'create',
+        title: 'New mindmap',
+        aliases: ['tree', 'topic', 'outline'],
+        run: () => handleToolbarAddNode('mindmap'),
+      },
+      // Navigate / View
+      {
+        id: 'fit-all',
+        group: 'navigate',
+        title: 'Fit all nodes in view',
+        hint: 'Zoom and center to show every node',
+        aliases: ['zoom', 'overview', 'show all'],
+        enabled: nodes.length > 0,
+        run: () => fitAllNodes(nodes),
+      },
+      {
+        id: 'reset-zoom',
+        group: 'navigate',
+        title: 'Reset zoom to 100%',
+        aliases: ['1:1', 'actual size'],
+        run: () => resetTransform(),
+      },
+      {
+        id: 'toggle-chat',
+        group: 'view',
+        title: chatPanelOpen ? 'Hide chat panel' : 'Show chat panel',
+        shortcut: 'Cmd+Shift+A',
+        aliases: ['ai', 'sidebar', 'assistant'],
+        enabled: !!onChatToggle,
+        run: () => onChatToggle?.(),
+      },
+      // Help
+      {
+        id: 'shortcuts',
+        group: 'help',
+        title: 'Show keyboard shortcuts',
+        shortcut: '?',
+        aliases: ['keys', 'bindings', 'cheatsheet'],
+        run: () => openShortcuts(),
+      },
+    ];
+    return list;
+  }, [
+    selectedNodeIds,
+    duplicateNode,
+    requestRemoveNodes,
+    groupSelectedNodes,
+    handleToolbarAddNode,
+    fitAllNodes,
+    nodes,
+    resetTransform,
+    chatPanelOpen,
+    onChatToggle,
+    openShortcuts,
+  ]);
+
   const handleCanvasClick = useCallback(
     (e: React.MouseEvent) => {
       if (contextMenu) setContextMenu(null);
+      // A click that follows a real marquee drag would otherwise fall
+      // through and clear the selection we just made. Consume the flag
+      // (set in handleMarqueeSelect) and bail.
+      if (suppressBlankClickRef.current) {
+        suppressBlankClickRef.current = false;
+        return;
+      }
       const target = e.target as HTMLElement;
       if (target.closest('.canvas-node')) return;
       // Clicking inside the edges SVG (either a hit-proxy or a handle)
@@ -502,6 +726,36 @@ export const Canvas = ({
       setSelectedEdgeId(null);
     },
     [contextMenu]
+  );
+
+  const handleRootMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Pan gestures (middle-click, alt-drag, hand tool) take priority
+      // over marquee — useCanvas owns those flows and they should keep
+      // working from anywhere on the canvas, blank or not.
+      const isPanGesture =
+        e.button === 1 ||
+        (e.button === 0 && e.altKey) ||
+        (e.button === 0 && activeTool === 'hand');
+      if (isPanGesture) {
+        canvasMouseDown(e);
+        return;
+      }
+      // Left-click on truly blank canvas with the select tool → start
+      // a marquee. The hook's hit-test runs on mouseup; tiny drags
+      // (treated as clicks) report empty hits and fall through to the
+      // canvas-click handler that clears selection.
+      if (
+        e.button === 0 &&
+        activeTool === 'select' &&
+        isBlankCanvasTarget(e.target)
+      ) {
+        marquee.begin(e);
+        return;
+      }
+      canvasMouseDown(e);
+    },
+    [activeTool, canvasMouseDown, isBlankCanvasTarget, marquee]
   );
 
   const handleMouseMove = useCallback(
@@ -541,7 +795,7 @@ export const Canvas = ({
       className={`canvas-container${cursorClass}`}
       style={hidden ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
       onWheel={handleWheel}
-      onMouseDown={canvasMouseDown}
+      onMouseDown={handleRootMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
@@ -571,6 +825,8 @@ export const Canvas = ({
         edgeInteractionState={edgeInteractionState}
         edgePreviewEndpoints={getPreviewEndpoints()}
         shapeDraft={shapeDraft}
+        marqueeRect={marquee.rect}
+        snapLines={snapLines}
         onDragStart={onDragStart}
         onResizeStart={onResizeStart}
         onUpdate={updateNode}
@@ -578,8 +834,23 @@ export const Canvas = ({
         onRemove={(id) => {
           void requestRemoveNodes([id]);
         }}
-        onSelect={(id) => {
-          setSelectedNodeIds([id]);
+        onSelect={(id, mods) => {
+          // Shift-click extends the selection (additive); Cmd/Ctrl-click
+          // toggles the clicked id in/out of the selection. Plain click
+          // collapses the selection to just this node — but only if it
+          // wasn't already selected, so a click on a member of an
+          // existing multi-selection preserves the group (matches Figma /
+          // Finder semantics and keeps multi-drag from collapsing on the
+          // mousedown that initiates it).
+          if (mods?.shift || mods?.meta) {
+            setSelectedNodeIds((current) =>
+              current.includes(id) ? current.filter((cid) => cid !== id) : [...current, id]
+            );
+          } else {
+            setSelectedNodeIds((current) =>
+              current.length > 1 && current.includes(id) ? current : [id]
+            );
+          }
           setSelectedEdgeId(null);
         }}
         onFocus={handleFocusNode}
@@ -598,6 +869,7 @@ export const Canvas = ({
         searchOpen={searchOpen}
         activeTool={activeTool}
         scale={transform.scale}
+        selectionCount={selectedNodeIds.length}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
         onCreateNode={handleCreateNode}
@@ -606,6 +878,7 @@ export const Canvas = ({
         onToolChange={setActiveTool}
         onAddNode={handleToolbarAddNode}
         onResetTransform={resetTransform}
+        paletteCommands={paletteCommands}
         onSearchSelect={handleSearchSelect}
         onCloseSearch={() => setSearchOpen(false)}
         onConnectMouseDown={handleConnectOverlayMouseDown}

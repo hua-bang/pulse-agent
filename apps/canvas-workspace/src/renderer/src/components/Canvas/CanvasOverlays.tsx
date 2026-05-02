@@ -3,7 +3,7 @@ import type { CanvasEdge, CanvasNode, CanvasTransform } from '../../types';
 import { NodeContextMenu } from '../NodeContextMenu';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
-import { SearchPalette } from '../SearchPalette';
+import { CommandPalette, type PaletteCommand } from '../CommandPalette';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
@@ -19,6 +19,9 @@ interface CanvasOverlaysProps {
   searchOpen: boolean;
   activeTool: string;
   scale: number;
+  /** Forwarded to the bottom-right indicator so multi-selection state
+   *  is always visible alongside the zoom % chip. */
+  selectionCount: number;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
@@ -27,6 +30,10 @@ interface CanvasOverlaysProps {
   onToolChange: (tool: string) => void;
   onAddNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
   onResetTransform: () => void;
+  /** Commands shown in the Cmd+K palette alongside node search results.
+   *  Built by the parent so each entry can capture the latest tool /
+   *  selection / chat state when fired. */
+  paletteCommands: PaletteCommand[];
   onSearchSelect: (node: CanvasNode) => void;
   onCloseSearch: () => void;
   /** Mousedown handler for the connect-mode overlay. Wired by the
@@ -63,6 +70,7 @@ export const CanvasOverlays = ({
   searchOpen,
   activeTool,
   scale,
+  selectionCount,
   chatPanelOpen,
   onChatToggle,
   onCreateNode,
@@ -71,6 +79,7 @@ export const CanvasOverlays = ({
   onToolChange,
   onAddNode,
   onResetTransform,
+  paletteCommands,
   onSearchSelect,
   onCloseSearch,
   onConnectMouseDown,
@@ -179,12 +188,13 @@ export const CanvasOverlays = ({
           />
         ))}
 
-    <ZoomIndicator scale={scale} onReset={onResetTransform} />
+    <ZoomIndicator scale={scale} onReset={onResetTransform} selectionCount={selectionCount} />
 
     {searchOpen && (
-      <SearchPalette
+      <CommandPalette
         nodes={nodes}
-        onSelect={onSearchSelect}
+        commands={paletteCommands}
+        onSelectNode={onSearchSelect}
         onClose={onCloseSearch}
       />
     )}

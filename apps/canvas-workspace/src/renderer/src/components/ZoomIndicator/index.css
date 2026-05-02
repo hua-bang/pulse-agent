@@ -1,7 +1,14 @@
-.zoom-indicator {
+.zoom-indicator-group {
   position: absolute;
   bottom: 16px;
   right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 500;
+}
+
+.zoom-indicator {
   height: 28px;
   padding: 0 10px;
   border: 1px solid var(--border);
@@ -14,11 +21,21 @@
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  z-index: 500;
   transition: background 0.1s, color 0.1s;
 }
 
 .zoom-indicator:hover {
   background: var(--surface-hover);
+  color: var(--text);
+}
+
+.zoom-indicator--selection {
+  cursor: default;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-indicator--selection:hover {
+  background: var(--surface);
   color: var(--text);
 }
