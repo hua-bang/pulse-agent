@@ -427,3 +427,38 @@
     box-shadow: var(--shadow-card), 0 0 0 3px var(--accent), 0 0 20px rgba(35, 131, 226, 0.3);
   }
 }
+
+/*
+ * "AI" badge on nodes the canvas agent created. Sits at the top-left
+ * outside corner so it doesn't compete with the title row's controls and
+ * stays visible on chrome-less node types (image, mindmap, shape).
+ */
+.node-ai-badge {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #a78bfa, #7c5cff);
+  color: #fff;
+  cursor: pointer;
+  z-index: 6;
+  box-shadow: 0 1px 4px rgba(124, 92, 255, 0.45);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.node-ai-badge:hover {
+  transform: scale(1.12);
+  box-shadow: 0 2px 8px rgba(124, 92, 255, 0.6);
+}
+
+.node-ai-badge:focus-visible {
+  outline: 2px solid var(--accent, #2383e2);
+  outline-offset: 2px;
+}

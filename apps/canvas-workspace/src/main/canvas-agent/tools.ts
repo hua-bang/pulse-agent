@@ -22,6 +22,7 @@ import {
 } from './context-builder';
 import { hasSession, writeToSession } from '../pty-manager';
 import { generateHTML } from '../html-generator';
+import { getSelection } from './selection-store';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
@@ -68,6 +69,15 @@ function normalizeMindmapTopic(raw: RawMindmapTopic | null | undefined): Mindmap
   return topic;
 }
 
+/** Mirror of `NodeSource` from the renderer types — kept in sync by hand. */
+interface NodeSource {
+  origin: 'agent';
+  sessionId?: string;
+  createdAt?: string;
+  sourceNodeIds?: string[];
+  intent?: string;
+}
+
 interface CanvasNode {
   id: string;
   type: string;
@@ -78,6 +88,7 @@ interface CanvasNode {
   height: number;
   data: Record<string, unknown>;
   updatedAt?: number;
+  source?: NodeSource;
 }
 
 type EdgeAnchor = 'top' | 'right' | 'bottom' | 'left' | 'auto';
@@ -292,6 +303,76 @@ function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
   return { x: maxRight + 40, y: bestY };
 }
 
+type RelativeSide = 'right' | 'left' | 'below' | 'above';
+
+const RELATIVE_GAP = 40;
+
+/**
+ * Place a new node of the given dimensions next to `anchor` on `side`.
+ *
+ * Returns null when the anchor is missing so the caller can fall back to
+ * `autoPlace` instead of pinning the new node to (0, 0). The returned
+ * position is the top-left of the new node — caller doesn't need to know
+ * about the anchor's geometry.
+ */
+function placeRelativeTo(
+  anchor: CanvasNode | undefined,
+  side: RelativeSide,
+  width: number,
+  height: number,
+): { x: number; y: number } | null {
+  if (!anchor) return null;
+  switch (side) {
+    case 'right':
+      return { x: anchor.x + anchor.width + RELATIVE_GAP, y: anchor.y };
+    case 'left':
+      return { x: anchor.x - width - RELATIVE_GAP, y: anchor.y };
+    case 'below':
+      return { x: anchor.x, y: anchor.y + anchor.height + RELATIVE_GAP };
+    case 'above':
+      return { x: anchor.x, y: anchor.y - height - RELATIVE_GAP };
+  }
+}
+
+/**
+ * Place a new node so it doesn't overlap any existing node. Searches
+ * outward from `start` along the cardinal directions. Returns `start` if
+ * no overlap is found (the common case), otherwise nudges further along
+ * the side specified by `preferredSide`.
+ *
+ * Used after `placeRelativeTo` to keep AI-created nodes from landing on
+ * top of nodes the user already placed nearby.
+ */
+function avoidOverlap(
+  nodes: CanvasNode[],
+  start: { x: number; y: number },
+  width: number,
+  height: number,
+  preferredSide: RelativeSide,
+): { x: number; y: number } {
+  const overlaps = (x: number, y: number) =>
+    nodes.some(
+      (n) =>
+        x < n.x + n.width &&
+        x + width > n.x &&
+        y < n.y + n.height &&
+        y + height > n.y,
+    );
+  if (!overlaps(start.x, start.y)) return start;
+
+  const stepX = preferredSide === 'left' ? -(width + RELATIVE_GAP) : width + RELATIVE_GAP;
+  const stepY = preferredSide === 'above' ? -(height + RELATIVE_GAP) : height + RELATIVE_GAP;
+  const horizontal = preferredSide === 'left' || preferredSide === 'right';
+
+  for (let i = 1; i <= 8; i++) {
+    const x = horizontal ? start.x + stepX * i : start.x;
+    const y = horizontal ? start.y : start.y + stepY * i;
+    if (!overlaps(x, y)) return { x, y };
+  }
+  // Give up — return the original; the user can drag if it looks bad.
+  return start;
+}
+
 // ─── Canvas Tool type (matches Engine's Tool interface) ────────────
 
 /**
@@ -484,13 +565,38 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         'Topic ids are auto-generated; you do NOT need to supply them. ' +
         'If `data.root` is omitted a single placeholder topic is inserted so the user can fill it in. ' +
         'Use this whenever the user asks for a mindmap / brainstorm / outline that should be laid out radially ' +
-        'rather than as a flat text node.',
+        'rather than as a flat text node.\n\n' +
+        '**Positioning options (use the most specific one available):**\n' +
+        '- Explicit `x`/`y` — exact canvas coordinates; use only when the user gave a precise location.\n' +
+        '- `relativeTo` + `side` — place adjacent to an existing node by id. Prefer this when the new ' +
+        'node is logically derived from one the user is looking at (summary of a note, follow-up to a frame, etc.).\n' +
+        '- Neither — auto-placed to the right of the rightmost existing node.\n\n' +
+        '**Source tracking:** When the new node is derived from other canvas nodes, pass their ids in ' +
+        '`sourceNodeIds`. The new node will be tagged as agent-generated, dashed `derives-from` edges will ' +
+        'be drawn from each source to it, and the renderer marks it with an "AI" badge so the user can ' +
+        'tell it apart from their own nodes.',
       inputSchema: z.object({
         type: z.enum(['file', 'terminal', 'frame', 'agent', 'text', 'iframe', 'shape', 'mindmap']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
         content: z.string().optional().describe('Initial content (for file and text nodes).'),
-        x: z.number().optional().describe('X position (auto-placed if omitted).'),
-        y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+        x: z.number().optional().describe('Explicit X position (canvas coords). Auto-placed if both x and y are omitted and no `relativeTo` is given.'),
+        y: z.number().optional().describe('Explicit Y position (canvas coords). Auto-placed if both x and y are omitted and no `relativeTo` is given.'),
+        relativeTo: z.string().optional().describe(
+          'Place this node next to an existing node, by id. Combine with `side` to choose direction. ' +
+          'Ignored when explicit `x` and `y` are provided.',
+        ),
+        side: z.enum(['right', 'left', 'below', 'above']).optional().describe(
+          'Which side of `relativeTo` to place this node on. Defaults to "right".',
+        ),
+        sourceNodeIds: z.array(z.string()).optional().describe(
+          'IDs of canvas nodes that this new node is derived from. The new node is tagged as ' +
+          'agent-generated, gets dashed "derives-from" edges from each source, and is marked with an AI ' +
+          'badge in the UI. Use this for summaries, extractions, brainstorms, follow-ups, etc.',
+        ),
+        intent: z.string().optional().describe(
+          'One-sentence description of what the agent was asked to do (e.g. "Summarize the job collection notes"). ' +
+          'Stored on the node for the user to see when they hover the AI badge.',
+        ),
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
           '- terminal: { cwd?: string }\n' +
@@ -515,9 +621,25 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         const def = DEFAULT_DIMENSIONS[nodeType];
         if (!def) return `Error: unsupported node type: ${nodeType}`;
 
-        const pos = (input.x != null && input.y != null)
-          ? { x: input.x as number, y: input.y as number }
-          : autoPlace(canvas.nodes);
+        // Position resolution priority: explicit x/y > relativeTo+side > autoPlace.
+        // For relative placement, we also nudge if the chosen spot would
+        // overlap an existing node so the new node isn't hidden under one.
+        const relativeTo = input.relativeTo as string | undefined;
+        const side = ((input.side as RelativeSide | undefined) ?? 'right');
+        let pos: { x: number; y: number };
+        if (input.x != null && input.y != null) {
+          pos = { x: input.x as number, y: input.y as number };
+        } else if (relativeTo) {
+          const anchor = canvas.nodes.find((n) => n.id === relativeTo);
+          if (!anchor) {
+            return `Error: relativeTo node not found: ${relativeTo}`;
+          }
+          const initial = placeRelativeTo(anchor, side, def.width, def.height)
+            ?? autoPlace(canvas.nodes);
+          pos = avoidOverlap(canvas.nodes, initial, def.width, def.height, side);
+        } else {
+          pos = autoPlace(canvas.nodes);
+        }
 
         let nodeData: Record<string, unknown>;
         switch (nodeType) {
@@ -642,6 +764,28 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           nodeData.modified = false;
         }
 
+        // Validate sourceNodeIds against the current canvas snapshot — the
+        // re-read below uses `fresh`, but we want to reject dangling source
+        // refs early so the agent can correct itself.
+        const sourceNodeIdsRaw = (input.sourceNodeIds as string[] | undefined) ?? [];
+        const sourceNodeIds = sourceNodeIdsRaw.filter(
+          (id) => typeof id === 'string' && canvas.nodes.some((n) => n.id === id),
+        );
+        const intent = (input.intent as string | undefined)?.trim() || undefined;
+
+        // Tag the node with provenance whenever any source signal is given:
+        // explicit sources, an intent description, or simply a session id.
+        // This is the marker the renderer uses to draw the AI badge.
+        const source: NodeSource | undefined =
+          sourceNodeIds.length > 0 || intent
+            ? {
+                origin: 'agent',
+                createdAt: new Date().toISOString(),
+                ...(sourceNodeIds.length > 0 ? { sourceNodeIds } : {}),
+                ...(intent ? { intent } : {}),
+              }
+            : undefined;
+
         const newNode: CanvasNode = {
           id: nodeId,
           type: nodeType,
@@ -652,19 +796,75 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           height: def.height,
           data: nodeData,
           updatedAt: Date.now(),
+          ...(source ? { source } : {}),
         };
+
+        // Auto-create dashed `derives-from` edges so the user can see at a
+        // glance what this node was built from. Done in the same write as
+        // the node so the renderer never sees an orphan edge mid-flight.
+        const sourceEdges: CanvasEdge[] = sourceNodeIds.map((sourceId) => ({
+          id: genEdgeId(),
+          source: { kind: 'node' as const, nodeId: sourceId, anchor: 'auto' as const },
+          target: { kind: 'node' as const, nodeId, anchor: 'auto' as const },
+          bend: 0,
+          arrowHead: 'triangle' as const,
+          arrowTail: 'none' as const,
+          stroke: { color: '#9aa4b2', width: 1.6, style: 'dashed' as const },
+          kind: 'derives-from',
+          payload: intent ? { intent } : undefined,
+          updatedAt: Date.now(),
+        }));
 
         // Re-read canvas before writing to avoid clobbering concurrent changes
         const fresh = (await loadCanvas(workspaceId)) ?? canvas;
         fresh.nodes.push(newNode);
+        if (sourceEdges.length > 0) {
+          fresh.edges = [...(fresh.edges ?? []), ...sourceEdges];
+        }
         await saveCanvas(workspaceId, fresh);
-        broadcastUpdate(workspaceId, [nodeId]);
+        broadcastUpdate(workspaceId, [nodeId, ...sourceNodeIds]);
 
         return JSON.stringify({
           ok: true,
           nodeId,
           type: nodeType,
           title,
+          ...(sourceEdges.length > 0
+            ? { sourceEdgeIds: sourceEdges.map((e) => e.id) }
+            : {}),
+        });
+      },
+    },
+
+    canvas_get_selection: {
+      name: 'canvas_get_selection',
+      description:
+        'Read the user\'s current selection on the canvas. Returns the IDs, types, and titles of ' +
+        'every node the user has selected. Use this to scope follow-up actions ("summarize the ' +
+        'selection", "find connections between these notes") to what the user is actually focused on, ' +
+        'instead of operating on the entire canvas. Returns an empty selection when nothing is ' +
+        'selected — fall back to `canvas_read_context` for an overview in that case.',
+      inputSchema: z.object({}),
+      execute: async () => {
+        const selectedIds = getSelection(workspaceId);
+        if (selectedIds.length === 0) {
+          return JSON.stringify({ ok: true, selectedNodeIds: [], nodes: [] });
+        }
+        const canvas = await loadCanvas(workspaceId);
+        if (!canvas) {
+          // Selection cache might be ahead of an unloaded canvas; surface
+          // the IDs anyway so the agent can still reason about them.
+          return JSON.stringify({ ok: true, selectedNodeIds: selectedIds, nodes: [] });
+        }
+        const nodesById = new Map(canvas.nodes.map((n) => [n.id, n]));
+        const nodes = selectedIds
+          .map((id) => nodesById.get(id))
+          .filter((n): n is CanvasNode => n != null)
+          .map((n) => ({ id: n.id, type: n.type, title: n.title }));
+        return JSON.stringify({
+          ok: true,
+          selectedNodeIds: selectedIds,
+          nodes,
         });
       },
     },

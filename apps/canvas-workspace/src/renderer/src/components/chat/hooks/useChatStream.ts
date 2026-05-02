@@ -103,8 +103,9 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
 
       const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
         ensureAssistantMessage();
+        const toolCallId = ++toolIdCounter.current;
         toolCalls.push({
-          id: ++toolIdCounter.current,
+          id: toolCallId,
           name: data.name,
           args: data.args,
           status: 'running',
@@ -114,6 +115,14 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         if (assistantIndex.current >= 0) {
           setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
         }
+        // Notify the canvas so it can render a ghost preview at the
+        // resolved drop position. The canvas filters by workspaceId so
+        // only the relevant Canvas instance reacts.
+        window.dispatchEvent(
+          new CustomEvent('canvas:agent-tool-call', {
+            detail: { workspaceId, toolCallId, name: data.name, args: data.args },
+          }),
+        );
       });
 
       const unsubscribeToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, data => {
@@ -121,6 +130,11 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         if (toolCall) {
           toolCall.status = 'done';
           toolCall.result = data.result;
+          window.dispatchEvent(
+            new CustomEvent('canvas:agent-tool-result', {
+              detail: { workspaceId, toolCallId: toolCall.id, name: data.name },
+            }),
+          );
         }
 
         const snapshot = [...toolCalls];

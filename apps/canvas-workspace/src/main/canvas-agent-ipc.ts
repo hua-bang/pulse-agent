@@ -25,6 +25,7 @@
 import { ipcMain } from 'electron';
 import { randomUUID } from 'crypto';
 import { CanvasAgentService } from './canvas-agent/service';
+import { setupSelectionIpc } from './canvas-agent/selection-store';
 
 let service: CanvasAgentService | null = null;
 
@@ -45,6 +46,10 @@ function getService(): CanvasAgentService {
 
 export function setupCanvasAgentIpc(): void {
   const svc = getService();
+
+  // Renderer pushes its current selection here so `canvas_get_selection`
+  // can read it synchronously from the tool implementation.
+  setupSelectionIpc();
 
   ipcMain.handle(
     'canvas-agent:chat',
