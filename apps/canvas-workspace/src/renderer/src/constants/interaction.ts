@@ -66,16 +66,27 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { combo: 'Right-click / Double-click', description: 'Open the create menu on blank canvas.' },
       { combo: 'Scroll', description: 'Pan the canvas.' },
       { combo: 'Ctrl/Cmd + Scroll', description: 'Zoom in or out.' },
+      { combo: 'Drag on blank canvas', description: 'Marquee-select every node inside the box.' },
       { combo: 'Ctrl/Cmd + K', description: 'Open node search.' },
       { combo: 'Ctrl/Cmd + H', description: 'Toggle node search.' },
       { combo: 'Ctrl/Cmd + Tab', description: 'Cycle through nodes.' },
     ],
   },
   {
+    title: 'Selection',
+    items: [
+      { combo: 'Click', description: 'Select a single node.' },
+      { combo: 'Shift / Ctrl/Cmd + click', description: 'Add to or toggle the current selection.' },
+      { combo: 'Shift + drag on blank canvas', description: 'Extend the selection with a marquee.' },
+      { combo: 'Arrow keys', description: 'Nudge the selection by 1 pixel.' },
+      { combo: 'Shift + Arrow keys', description: 'Nudge the selection by 10 pixels.' },
+    ],
+  },
+  {
     title: 'Edit',
     items: [
       { combo: 'Ctrl/Cmd + A', description: 'Select all nodes.' },
-      { combo: 'Ctrl/Cmd + D', description: 'Duplicate the selected node.' },
+      { combo: 'Ctrl/Cmd + D', description: 'Duplicate every selected node.' },
       { combo: 'Ctrl/Cmd + C / V', description: 'Copy and paste selected nodes.' },
       { combo: 'Delete / Backspace', description: 'Delete the current selection with confirmation.' },
       { combo: 'Ctrl/Cmd + Z', description: 'Undo the last change.' },

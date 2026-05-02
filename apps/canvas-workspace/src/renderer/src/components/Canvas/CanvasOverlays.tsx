@@ -19,6 +19,9 @@ interface CanvasOverlaysProps {
   searchOpen: boolean;
   activeTool: string;
   scale: number;
+  /** Forwarded to the bottom-right indicator so multi-selection state
+   *  is always visible alongside the zoom % chip. */
+  selectionCount: number;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
@@ -63,6 +66,7 @@ export const CanvasOverlays = ({
   searchOpen,
   activeTool,
   scale,
+  selectionCount,
   chatPanelOpen,
   onChatToggle,
   onCreateNode,
@@ -179,7 +183,7 @@ export const CanvasOverlays = ({
           />
         ))}
 
-    <ZoomIndicator scale={scale} onReset={onResetTransform} />
+    <ZoomIndicator scale={scale} onReset={onResetTransform} selectionCount={selectionCount} />
 
     {searchOpen && (
       <SearchPalette

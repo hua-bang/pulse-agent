@@ -40,7 +40,10 @@ interface Props {
    *  without polluting the undo stack. */
   onAutoResize: (id: string, width: number, height: number) => void;
   onRemove: (id: string) => void;
-  onSelect: (id: string) => void;
+  /** Selection callback. The optional `mods` payload lets the caller
+   *  honor shift/meta multi-select semantics — without it the click is
+   *  treated as a plain replace-the-selection click. */
+  onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
 }
 
@@ -113,16 +116,23 @@ export const CanvasNodeView = ({
 
   const handleHeaderMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      onSelect(node.id);
+      // Plain mousedown on an *unselected* node collapses the selection
+      // to it so the drag in useNodeDrag has this node as its primary
+      // (otherwise dragging a stranger node would still drag whatever
+      // was previously selected). Shift/Cmd mousedowns intentionally
+      // defer all selection mutation to the trailing click handler —
+      // letting both fire would double-toggle and cancel out.
+      const hasMods = e.shiftKey || e.metaKey || e.ctrlKey;
+      if (!isSelected && !hasMods) onSelect(node.id);
       onDragStart(e, node);
     },
-    [onSelect, onDragStart, node]
+    [onSelect, onDragStart, node, isSelected]
   );
 
   const handleNodeClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onSelect(node.id);
+      onSelect(node.id, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
     },
     [onSelect, node.id]
   );
@@ -332,7 +342,12 @@ export const CanvasNodeView = ({
         }}
         onClick={handleNodeClick}
         onMouseDown={(e) => {
-          onSelect(node.id);
+          // Same logic as handleHeaderMouseDown — only collapse the
+          // selection on a plain mousedown over an unselected node.
+          // Shift/Cmd selection changes are handled exclusively by the
+          // click handler.
+          const hasMods = e.shiftKey || e.metaKey || e.ctrlKey;
+          if (!isSelected && !hasMods) onSelect(node.id);
           onDragStart(e, node);
         }}
       >
