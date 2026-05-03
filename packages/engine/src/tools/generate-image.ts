@@ -49,12 +49,12 @@ type ImageProvider = 'gemini' | 'openai';
 type OutputFormat = 'png' | 'jpeg' | 'webp';
 
 const DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
-const DEFAULT_GEMINI_MODEL = 'gemini-pro-image';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash-preview-image-generation';
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_OPENAI_MODEL = 'gpt-image-2';
 const DEFAULT_TIMEOUT = 120000;
 
-export const GeminiProImageTool: Tool<
+export const GenerateImageTool: Tool<
   {
     prompt: string;
     provider?: ImageProvider | 'gpt';
@@ -79,7 +79,7 @@ export const GeminiProImageTool: Tool<
 > = {
   name: 'generate_image',
   description:
-    'Generate an image with GPT/OpenAI by default and save it to local disk. Uses OPENAI_API_KEY plus OPENAI_BASE_URL/OPENAI_API_BASE_URL/OPENAI_API_URL. Defaults to OPENAI_IMAGE_MODEL or the latest GPT image model gpt-image-2. Gemini remains available by setting provider="gemini".',
+    'Generate an image with GPT/OpenAI by default and save it to local disk. Uses OPENAI_API_KEY plus OPENAI_BASE_URL/OPENAI_API_BASE_URL/OPENAI_API_URL. Defaults to OPENAI_IMAGE_MODEL or the latest GPT image model gpt-image-2. Other providers are available only when explicitly requested.',
   defer_loading: true,
   inputSchema: z.object({
     prompt: z.string().describe('The prompts for image generation need to describe in detail the content, style, and composition of the image you want to generate.'),
@@ -173,7 +173,7 @@ async function generateGeminiImage({
     throw new Error('GEMINI_API_KEY environment variable is not set');
   }
 
-  const resolvedModel = model?.trim() || process.env.GEMINI_PRO_IMAGE_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+  const resolvedModel = model?.trim() || process.env.GEMINI_IMAGE_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
   const baseUrl = (process.env.GEMINI_API_BASE_URL?.trim() || DEFAULT_GEMINI_BASE_URL).replace(/\/$/, '');
   const requestTarget = buildGeminiGenerateRequestTarget(baseUrl, resolvedModel, apiKey);
 
@@ -608,4 +608,4 @@ function outputFormatToMimeType(outputFormat: OutputFormat | undefined): string 
   return 'image/png';
 }
 
-export default GeminiProImageTool;
+export default GenerateImageTool;
