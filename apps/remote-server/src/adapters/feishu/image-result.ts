@@ -18,7 +18,7 @@ export function extractGeminiImageResult(toolResult: unknown): GeminiImageResult
 
   const mimeType = asString(payload.mimeType) ?? undefined;
 
-  if (toolName && toolName !== 'gemini_pro_image') {
+  if (toolName && toolName !== 'generate_image' && toolName !== 'gemini_pro_image') {
     return null;
   }
 
