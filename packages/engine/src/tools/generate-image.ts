@@ -61,7 +61,19 @@ const DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1bet
 const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash-preview-image-generation';
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_OPENAI_MODEL = 'gpt-image-2';
-const DEFAULT_TIMEOUT = 120000;
+const DEFAULT_TIMEOUT = 300000;
+
+function resolveDefaultTimeout(): number {
+  const raw = process.env.OPENAI_IMAGE_TIMEOUT_MS?.trim();
+  if (!raw) {
+    return DEFAULT_TIMEOUT;
+  }
+  const parsed = Number(raw);
+  if (Number.isFinite(parsed) && parsed > 0 && parsed <= 600_000) {
+    return parsed;
+  }
+  return DEFAULT_TIMEOUT;
+}
 
 export const GenerateImageTool: Tool<
   {
@@ -109,7 +121,7 @@ export const GenerateImageTool: Tool<
     timeout: z
       .number()
       .optional()
-      .describe('Request timeout in milliseconds. Defaults to 120000 (2 minutes).'),
+      .describe('Request timeout in milliseconds. Defaults to OPENAI_IMAGE_TIMEOUT_MS or 300000 (5 minutes).'),
     size: z
       .string()
       .optional()
@@ -127,12 +139,13 @@ export const GenerateImageTool: Tool<
       .optional()
       .describe('OpenAI/GPT image API mode. "responses" uses synchronous {baseUrl}/responses image_generation, "responses_stream" uses streaming {baseUrl}/responses image_generation, "images" uses {baseUrl}/images/generations, and "auto" falls back to responses if images fails. Defaults to OPENAI_IMAGE_API_MODE or responses.'),
   }),
-  execute: async ({ prompt, provider, model, outputPath, includeBase64 = false, timeout = DEFAULT_TIMEOUT, size, quality, outputFormat, imageApiMode }) => {
+  execute: async ({ prompt, provider, model, outputPath, includeBase64 = false, timeout, size, quality, outputFormat, imageApiMode }) => {
     if (!prompt.trim()) {
       throw new Error('prompt is required');
     }
 
-    if (timeout <= 0 || timeout > 600000) {
+    const resolvedTimeout = timeout ?? resolveDefaultTimeout();
+    if (resolvedTimeout <= 0 || resolvedTimeout > 600000) {
       throw new Error('timeout must be between 1 and 600000 milliseconds');
     }
 
@@ -144,7 +157,7 @@ export const GenerateImageTool: Tool<
         model,
         outputPath,
         includeBase64,
-        timeout,
+        timeout: resolvedTimeout,
         size,
         quality,
         outputFormat,
@@ -157,7 +170,7 @@ export const GenerateImageTool: Tool<
       model,
       outputPath,
       includeBase64,
-      timeout,
+      timeout: resolvedTimeout,
     });
   },
 };
