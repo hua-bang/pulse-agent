@@ -5,7 +5,7 @@ import type { HonoRequest, Context as HonoContext } from 'hono';
 import type { PlatformAdapter, IncomingMessage, StreamHandle } from '../../core/types.js';
 import type { ClarificationRequest } from '../../core/types.js';
 import { clarificationQueue } from '../../core/clarification-queue.js';
-import { getActiveStreamId } from '../../core/active-run-store.js';
+import { getActiveStreamId, registerCancelToken } from '../../core/active-run-store.js';
 import { extractGeneratedImageResult } from '../feishu/image-result.js';
 import { DiscordClient } from './client.js';
 import { buildDiscordMemoryKey, buildDiscordPlatformKey, isDiscordThreadChannelType } from './platform-key.js';
@@ -21,7 +21,13 @@ interface DiscordInteraction {
   user?: { id?: string };
   data?: {
     name?: string;
+    // 1=CHAT_INPUT, 2=USER, 3=MESSAGE
+    type?: number;
+    target_id?: string;
     options?: DiscordCommandOption[];
+    resolved?: {
+      messages?: Record<string, { content?: string; author?: { username?: string } }>;
+    };
   };
 }
 
@@ -60,7 +66,16 @@ type DiscordStreamIo = {
     mimeType?: string,
     content?: string,
   ) => Promise<void>;
+  setStatusReaction?: (emoji: StatusReaction) => Promise<void>;
 };
+
+type StatusReaction = '👀' | '⚙️' | '✅' | '⚠️' | '⏸️';
+
+export const DISCORD_CANCEL_REACTION = '❌';
+
+export function buildDiscordCancelToken(channelId: string, messageId: string): string {
+  return `discord:${channelId}:${messageId}`;
+}
 
 const DISCORD_ACK_EPHEMERAL_FLAG = 1 << 6;
 const DISCORD_PROGRESS_UPDATE_INTERVAL_MS = 5000;
@@ -198,6 +213,10 @@ export class DiscordAdapter implements PlatformAdapter {
 
     this.streamMetaByStreamId.set(streamId, streamMeta);
     this.streamMetaByPlatformKey.set(platformKey, streamMeta);
+
+    if (replyToMessageId) {
+      registerCancelToken(buildDiscordCancelToken(channelId, replyToMessageId), platformKey);
+    }
   }
 
   async tryHandleChannelClarification(
@@ -261,6 +280,25 @@ export class DiscordAdapter implements PlatformAdapter {
       replyToMessageId: meta.replyToMessageId,
     });
 
+    let currentReaction: StatusReaction | null = null;
+    const setStatusReaction = async (emoji: StatusReaction): Promise<void> => {
+      if (!meta.replyToMessageId || currentReaction === emoji) {
+        return;
+      }
+      const previous = currentReaction;
+      currentReaction = emoji;
+      try {
+        await this.client.addReaction(meta.channelId, meta.replyToMessageId, emoji);
+      } catch (err) {
+        console.warn('[discord] Failed to add status reaction:', err);
+      }
+      if (previous && previous !== emoji) {
+        this.client
+          .removeOwnReaction(meta.channelId, meta.replyToMessageId, previous)
+          .catch((err) => console.warn('[discord] Failed to remove status reaction:', err));
+      }
+    };
+
     return this.createStreamingHandle({
       updatePrimary: (content) => this.client.editChannelMessage(meta.channelId, initial.id, content, {
         assumeThread: meta.isThread,
@@ -276,6 +314,7 @@ export class DiscordAdapter implements PlatformAdapter {
         content,
         { assumeThread: meta.isThread },
       ),
+      setStatusReaction,
     });
   }
 
@@ -288,6 +327,8 @@ export class DiscordAdapter implements PlatformAdapter {
     let finalizing = false;
     let progressFrame = 0;
     let primaryWriteChain: Promise<void> = Promise.resolve();
+    const progressStartedAt = Date.now();
+    let toolCallCount = 0;
 
     const enqueuePrimaryWrite = (
       write: () => Promise<void>,
@@ -305,7 +346,10 @@ export class DiscordAdapter implements PlatformAdapter {
         ? (latestToolHint || 'Working on it...')
         : (latestToolHint ? `${latestToolHint}\n\n${accumulatedText}` : accumulatedText);
 
-      const rendered = renderDiscordProgressWithFooter(body, progressFrame);
+      const rendered = renderDiscordProgressWithFooter(body, progressFrame, {
+        elapsedMs: Date.now() - progressStartedAt,
+        toolCount: toolCallCount,
+      });
       const frameCount = DISCORD_PROGRESS_DOT_MAX - DISCORD_PROGRESS_DOT_MIN + 1;
       progressFrame = (progressFrame + 1) % frameCount;
       return rendered;
@@ -380,6 +424,7 @@ export class DiscordAdapter implements PlatformAdapter {
 
     scheduleProgress();
     ensureProgressAnimation();
+    io.setStatusReaction?.('👀').catch(() => undefined);
 
     return {
       async onText(delta) {
@@ -390,6 +435,10 @@ export class DiscordAdapter implements PlatformAdapter {
 
       async onToolCall(name, input) {
         latestToolHint = formatDiscordToolHint(name, input);
+        toolCallCount += 1;
+        if (toolCallCount === 1) {
+          io.setStatusReaction?.('⚙️').catch(() => undefined);
+        }
         scheduleProgress();
         ensureProgressAnimation();
       },
@@ -422,6 +471,7 @@ export class DiscordAdapter implements PlatformAdapter {
       async onClarification(req: ClarificationRequest) {
         const question = req.context ? `${req.question}\n\nContext: ${req.context}` : req.question;
         await io.sendExtraText(`Question: ${question}`);
+        io.setStatusReaction?.('⏸️').catch(() => undefined);
       },
 
       async onDone(result) {
@@ -431,6 +481,7 @@ export class DiscordAdapter implements PlatformAdapter {
           console.error('[discord] Failed to send final response:', err);
           await io.sendExtraText(`Error: ${String(err)}`);
         });
+        io.setStatusReaction?.('✅').catch(() => undefined);
       },
 
       async onError(err) {
@@ -440,6 +491,7 @@ export class DiscordAdapter implements PlatformAdapter {
           console.error('[discord] Failed to send error response:', followErr);
           await io.sendExtraText(`Error: ${err.message}`);
         });
+        io.setStatusReaction?.('⚠️').catch(() => undefined);
       },
     };
   }
@@ -516,8 +568,22 @@ const PASSTHROUGH_SLASH_COMMANDS = new Set([
 ]);
 
 function extractInteractionText(interaction: DiscordInteraction): string {
-  const commandName = interaction.data?.name?.trim().toLowerCase() ?? '';
-  const args = collectOptionTokens(interaction.data?.options ?? []).join(' ').trim();
+  const data = interaction.data;
+  // Message context menu (Apps → "Ask Pulse")
+  if (data?.type === 3) {
+    const targetId = data.target_id?.trim();
+    const message = targetId ? data.resolved?.messages?.[targetId] : undefined;
+    const content = message?.content?.trim() ?? '';
+    if (!content) {
+      return '';
+    }
+    const author = message?.author?.username?.trim();
+    const header = author ? `Quoted message from @${author}:` : 'Quoted message:';
+    return `${header}\n${content}`;
+  }
+
+  const commandName = data?.name?.trim().toLowerCase() ?? '';
+  const args = collectOptionTokens(data?.options ?? []).join(' ').trim();
 
   if (!commandName) {
     return '';
@@ -673,8 +739,17 @@ function trimDiscordToolInput(value: string): string {
   return `${singleLine.slice(0, maxLength - 3)}...`;
 }
 
-function renderDiscordProgressWithFooter(content: string, frame: number): string {
-  const footer = buildDiscordProgressFooter(frame);
+interface ProgressFooterStats {
+  elapsedMs: number;
+  toolCount: number;
+}
+
+function renderDiscordProgressWithFooter(
+  content: string,
+  frame: number,
+  stats: ProgressFooterStats,
+): string {
+  const footer = buildDiscordProgressFooter(frame, stats);
   const normalizedContent = content.trim() || 'Working on it...';
   const separator = '\n\n';
   const reservedLength = separator.length + footer.length;
@@ -691,10 +766,23 @@ function renderDiscordProgressWithFooter(content: string, frame: number): string
   return `${clippedContent}${separator}${footer}`;
 }
 
-function buildDiscordProgressFooter(frame: number): string {
+function buildDiscordProgressFooter(frame: number, stats: ProgressFooterStats): string {
   const dotRange = DISCORD_PROGRESS_DOT_MAX - DISCORD_PROGRESS_DOT_MIN + 1;
   const dotCount = DISCORD_PROGRESS_DOT_MIN + (Math.abs(frame) % dotRange);
-  return `${DISCORD_PROGRESS_FOOTER_BASE}${'.'.repeat(dotCount)}`;
+  const dots = '.'.repeat(dotCount);
+  // Discord small text ("-#") on its own line keeps the stats visually quiet.
+  const stat = `-# ${formatElapsed(stats.elapsedMs)} · ${stats.toolCount} tool${stats.toolCount === 1 ? '' : 's'} · react ❌ to cancel`;
+  return `${DISCORD_PROGRESS_FOOTER_BASE}${dots}\n${stat}`;
+}
+
+function formatElapsed(elapsedMs: number): string {
+  const seconds = Math.max(0, Math.floor(elapsedMs / 1000));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return remainder === 0 ? `${minutes}m` : `${minutes}m${remainder}s`;
 }
 
 function splitDiscordText(text: string): string[] {

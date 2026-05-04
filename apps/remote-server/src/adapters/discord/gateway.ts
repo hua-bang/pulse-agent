@@ -1,6 +1,7 @@
 import { dispatchIncoming } from '../../core/dispatcher.js';
 import type { IncomingMessage, IncomingAttachment } from '../../core/types.js';
-import { discordAdapter } from './adapter.js';
+import { discordAdapter, DISCORD_CANCEL_REACTION, buildDiscordCancelToken } from './adapter.js';
+import { abortActiveRun, resolvePlatformKeyByCancelToken } from '../../core/active-run-store.js';
 import { DiscordClient } from './client.js';
 import { getDiscordProxyDispatcher } from './proxy.js';
 import { buildDiscordMemoryKey, buildDiscordPlatformKey, isDiscordThreadChannelType } from './platform-key.js';
@@ -57,6 +58,13 @@ interface ThreadCreatePayload {
   member?: unknown;
 }
 
+interface ReactionAddPayload {
+  user_id?: string;
+  channel_id?: string;
+  message_id?: string;
+  emoji?: { name?: string | null };
+}
+
 export interface DiscordGatewayStatus {
   enabled: boolean;
   configured: boolean;
@@ -79,7 +87,9 @@ export interface DiscordGatewayStatus {
 }
 
 const DEFAULT_GATEWAY_URL = 'wss://gateway.discord.gg/?v=10&encoding=json';
-const DISCORD_GATEWAY_INTENTS = 1 + 512 + 4096 + 32768;
+// GUILDS(1) + GUILD_MESSAGES(512) + GUILD_MESSAGE_REACTIONS(1024)
+// + DIRECT_MESSAGES(4096) + DIRECT_MESSAGE_REACTIONS(8192) + MESSAGE_CONTENT(32768)
+const DISCORD_GATEWAY_INTENTS = 1 + 512 + 1024 + 4096 + 8192 + 32768;
 const MAX_RECONNECT_DELAY_MS = 30000;
 const MIN_CONNECT_INTERVAL_MS = 5500;
 const STABLE_CONNECTION_MS = 5 * 60 * 1000;
@@ -382,6 +392,41 @@ export class DiscordDmGateway {
 
     if (type === 'MESSAGE_CREATE') {
       await this.handleMessageCreate(data as MessageCreatePayload);
+      return;
+    }
+
+    if (type === 'MESSAGE_REACTION_ADD') {
+      this.handleReactionAdd(data as ReactionAddPayload);
+    }
+  }
+
+  private handleReactionAdd(reaction: ReactionAddPayload): void {
+    const channelId = reaction.channel_id?.trim();
+    const messageId = reaction.message_id?.trim();
+    const userId = reaction.user_id?.trim();
+    const emoji = reaction.emoji?.name?.trim();
+
+    if (!channelId || !messageId || !emoji) {
+      return;
+    }
+
+    if (this.selfUserId && userId === this.selfUserId) {
+      return;
+    }
+
+    if (emoji !== DISCORD_CANCEL_REACTION) {
+      return;
+    }
+
+    const token = buildDiscordCancelToken(channelId, messageId);
+    const platformKey = resolvePlatformKeyByCancelToken(token);
+    if (!platformKey) {
+      return;
+    }
+
+    const result = abortActiveRun(platformKey);
+    if (result.aborted) {
+      console.log(`[discord-gateway] Cancelled active run via ❌ reaction platformKey=${platformKey}`);
     }
   }
 

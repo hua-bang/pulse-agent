@@ -1,6 +1,11 @@
 import type { ActiveRun } from './types.js';
 
 const activeRuns = new Map<string, ActiveRun>();
+// Reverse index: a "cancel token" (e.g. Discord channelId:messageId) → platformKey,
+// so platform-specific signals (reactions, button clicks) can abort the run
+// without having to remember the platformKey themselves.
+const cancelTokenToPlatformKey = new Map<string, string>();
+const platformKeyToCancelTokens = new Map<string, Set<string>>();
 
 export function hasActiveRun(platformKey: string): boolean {
   return activeRuns.has(platformKey);
@@ -16,6 +21,30 @@ export function setActiveRun(platformKey: string, run: ActiveRun): void {
 
 export function clearActiveRun(platformKey: string): void {
   activeRuns.delete(platformKey);
+  const tokens = platformKeyToCancelTokens.get(platformKey);
+  if (tokens) {
+    for (const token of tokens) {
+      cancelTokenToPlatformKey.delete(token);
+    }
+    platformKeyToCancelTokens.delete(platformKey);
+  }
+}
+
+export function registerCancelToken(token: string, platformKey: string): void {
+  if (!token || !platformKey) {
+    return;
+  }
+  cancelTokenToPlatformKey.set(token, platformKey);
+  let bucket = platformKeyToCancelTokens.get(platformKey);
+  if (!bucket) {
+    bucket = new Set<string>();
+    platformKeyToCancelTokens.set(platformKey, bucket);
+  }
+  bucket.add(token);
+}
+
+export function resolvePlatformKeyByCancelToken(token: string): string | undefined {
+  return cancelTokenToPlatformKey.get(token);
 }
 
 export function getActiveStreamId(platformKey: string): string | undefined {
