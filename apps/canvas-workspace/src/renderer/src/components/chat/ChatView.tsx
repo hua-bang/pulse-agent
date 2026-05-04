@@ -33,10 +33,11 @@ interface ChatViewProps {
 
   // Canvas context
   nodes?: CanvasNode[];
+  selectedNodes?: CanvasNode[];
   onNodeFocus?: (nodeId: string) => void;
 
   // Quick actions (empty state)
-  onQuickAction: (prompt: string) => Promise<void> | void;
+  onQuickAction: (prompt: string, quickAction?: string) => Promise<void> | void;
 
   // Input
   input: string;
@@ -51,6 +52,7 @@ interface ChatViewProps {
   onPaste: ClipboardEventHandler<HTMLDivElement>;
   onSubmit: () => Promise<boolean>;
   onAbort: () => Promise<void>;
+  contextComposer?: boolean;
 
   // Optional decoration
   onResizeStart?: (e: ReactMouseEvent) => void;
@@ -78,6 +80,7 @@ export const ChatView = ({
   onToggleSection,
   onToggleToolExpand,
   nodes,
+  selectedNodes,
   onNodeFocus,
   onQuickAction,
   input,
@@ -92,6 +95,7 @@ export const ChatView = ({
   onPaste,
   onSubmit,
   onAbort,
+  contextComposer = false,
   onResizeStart,
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading;
@@ -121,11 +125,13 @@ export const ChatView = ({
           onNodeFocus={onNodeFocus}
         />
       ) : (
-        <ChatEmptyState onQuickAction={onQuickAction} />
+        <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} />
       )}
       <ChatInput
         loading={loading}
         input={input}
+        selectedNodes={selectedNodes}
+        contextComposer={contextComposer}
         editableRef={editableRef}
         mentionPopup={mentionOpen && mentionItems.length > 0 ? (
           <ChatMentionPopup

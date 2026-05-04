@@ -27,6 +27,7 @@ interface CanvasProps {
   rootFolder?: string;
   hidden?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
   onFocusComplete?: () => void;
   deleteNodeId?: string;
@@ -43,6 +44,7 @@ export const Canvas = ({
   rootFolder,
   hidden,
   onNodesChange,
+  onSelectionChange,
   focusNodeId,
   onFocusComplete,
   deleteNodeId,
@@ -149,6 +151,13 @@ export const Canvas = ({
     if (!loaded) return;
     onNodesChange?.(canvasId, nodes);
   }, [canvasId, nodes, loaded, onNodesChange]);
+
+  // Report selection so adjacent UI, such as the Agent panel, can scope work
+  // to the same nodes the user has visually selected.
+  useEffect(() => {
+    if (!loaded) return;
+    onSelectionChange?.(canvasId, selectedNodeIds);
+  }, [canvasId, loaded, onSelectionChange, selectedNodeIds]);
 
   // Handle external focus request (e.g. from sidebar layers panel)
   useEffect(() => {

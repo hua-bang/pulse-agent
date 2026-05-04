@@ -315,6 +315,19 @@ export interface AgentChatMessage {
   timestamp: number;
 }
 
+export interface AgentContextNodeRef {
+  id: string;
+  title: string;
+  type: CanvasNode['type'];
+}
+
+export interface AgentRequestContext {
+  executionMode?: 'auto' | 'ask';
+  scope?: 'current_canvas' | 'selected_nodes';
+  selectedNodes?: AgentContextNodeRef[];
+  quickAction?: string;
+}
+
 export interface AgentSessionInfo {
   sessionId: string;
   date: string;
@@ -333,7 +346,8 @@ export interface AgentApi {
   chat: (
     workspaceId: string,
     message: string,
-    mentionedWorkspaceIds?: string[]
+    mentionedWorkspaceIds?: string[],
+    requestContext?: AgentRequestContext
   ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
   onTextDelta: (
     sessionId: string,
