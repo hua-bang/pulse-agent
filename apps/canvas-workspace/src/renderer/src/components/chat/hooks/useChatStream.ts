@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentChatMessage } from '../../../types';
+import type { AgentChatMessage, AgentRequestContext } from '../../../types';
 import type { PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 
@@ -43,7 +43,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
     setCollapsedSections(new Set());
   }, []);
 
-  const sendMessage = useCallback(async (rawText: string) => {
+  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext) => {
     const text = rawText.trim();
     if (!text || loading) return false;
 
@@ -62,6 +62,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         workspaceId,
         text,
         mentionedWorkspaceIds.length > 0 ? mentionedWorkspaceIds : undefined,
+        requestContext,
       );
 
       if (!result.ok || !result.sessionId) {
