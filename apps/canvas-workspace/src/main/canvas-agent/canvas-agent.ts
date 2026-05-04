@@ -19,6 +19,13 @@ import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import type { CanvasAgentConfig, CanvasAgentMessage, WorkspaceSummary } from './types';
 
+interface CanvasAgentRequestContext {
+  executionMode?: 'auto' | 'ask';
+  scope?: 'current_canvas' | 'selected_nodes';
+  selectedNodes?: Array<{ id: string; title: string; type: string }>;
+  quickAction?: string;
+}
+
 // ─── System prompt ─────────────────────────────────────────────────
 
 const BASE_SYSTEM_PROMPT = `You are the Canvas Agent — the AI Copilot for this workspace.
@@ -103,10 +110,47 @@ Use these alongside canvas_* tools for full workspace control.
 function buildSystemPrompt(
   summary: WorkspaceSummary | null,
   mentionedCanvases: Array<{ id: string; name: string }> = [],
+  requestContext?: CanvasAgentRequestContext,
 ): string {
-  const base = summary
+  let base = summary
     ? BASE_SYSTEM_PROMPT + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
     : BASE_SYSTEM_PROMPT + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
+
+  if (requestContext) {
+    const mode = requestContext.executionMode ?? 'auto';
+    const scope = requestContext.scope ?? 'current_canvas';
+    const selectedNodes = requestContext.selectedNodes ?? [];
+    const lines: string[] = [
+      '',
+      '## Current Request Context',
+      `- Execution mode: ${mode}`,
+      `- Context scope: ${scope}`,
+    ];
+
+    if (requestContext.quickAction) {
+      lines.push(`- Suggested action the user invoked: ${requestContext.quickAction}`);
+    }
+
+    if (selectedNodes.length > 0) {
+      lines.push('- Selected canvas nodes:');
+      for (const node of selectedNodes) {
+        lines.push(`  - ${node.title} — nodeId: \`${node.id}\`, type: \`${node.type}\``);
+      }
+      lines.push('When the user says "these nodes", "the selection", or similar, use the selected canvas nodes above.');
+    }
+
+    if (mode === 'auto') {
+      lines.push(
+        'Auto mode policy: when the user intent is clear and non-destructive, you may directly use canvas tools to read context and create or update nodes. Keep the visible response concise and avoid exposing raw node IDs, file paths, or tool signatures unless the user asks.',
+      );
+    } else {
+      lines.push(
+        'Ask mode policy: you may read context, but before creating, updating, deleting, or moving canvas nodes, ask the user for confirmation.',
+      );
+    }
+
+    base += lines.join('\n') + '\n';
+  }
 
   if (mentionedCanvases.length === 0) return base;
 
@@ -210,6 +254,7 @@ export class CanvasAgent {
     onToolResult?: (data: { name: string; result: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
+    requestContext?: CanvasAgentRequestContext,
   ): Promise<string> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
@@ -226,7 +271,7 @@ export class CanvasAgent {
       mentionedCanvases = await resolveWorkspaceNames(unique);
     }
 
-    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases);
+    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext);
 
     // Add user message
     this.messages.push({ role: 'user', content: message } as ModelMessage);

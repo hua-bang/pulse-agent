@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { CanvasNode, DirEntry } from '../../../types';
+import type { AgentRequestContext, CanvasNode, DirEntry } from '../../../types';
 import {
   MENTION_GROUP_ORDER,
   MENTION_MAX_ITEMS,
@@ -17,7 +17,8 @@ interface UseMentionsOptions {
   workspaceId: string;
   nodes?: CanvasNode[];
   rootFolder?: string;
-  onSubmit: (text: string) => Promise<boolean>;
+  onSubmit: (text: string, requestContext?: AgentRequestContext) => Promise<boolean>;
+  getRequestContext?: () => AgentRequestContext | undefined;
 }
 
 function flattenEntries(entries: DirEntry[], rootFolder: string, prefix = ''): MentionItem[] {
@@ -44,6 +45,7 @@ export function useMentions({
   nodes,
   rootFolder,
   onSubmit,
+  getRequestContext,
 }: UseMentionsOptions) {
   const [input, setInput] = useState('');
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -193,13 +195,13 @@ export function useMentions({
     element.focus();
   }, [nodes]);
 
-  const submitCurrentInput = useCallback(async () => {
-    const ok = await onSubmit(input);
+  const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
+    const ok = await onSubmit(input, requestContext ?? getRequestContext?.());
     if (ok) {
       clearInput();
     }
     return ok;
-  }, [clearInput, input, onSubmit]);
+  }, [clearInput, getRequestContext, input, onSubmit]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (mentionOpen && mentionItems.length > 0) {

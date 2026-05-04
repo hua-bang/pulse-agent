@@ -40,6 +40,44 @@ function formatToolSignature(name: string, args: any): string {
   return `${name}(${parts.join(', ')})`;
 }
 
+function formatToolLabel(name: string, status: ToolCallStatus['status']): string {
+  const prefix = status === 'running' ? '正在' : '已';
+  switch (name) {
+    case 'canvas_read_context':
+      return `${prefix}读取画布上下文`;
+    case 'canvas_read_node':
+      return `${prefix}读取节点内容`;
+    case 'canvas_create_node':
+      return `${prefix}创建画布节点`;
+    case 'canvas_create_agent_node':
+      return `${prefix}创建 Agent 节点`;
+    case 'canvas_create_terminal_node':
+      return `${prefix}创建 Terminal 节点`;
+    case 'canvas_update_node':
+      return `${prefix}更新画布节点`;
+    case 'canvas_delete_node':
+      return `${prefix}删除画布节点`;
+    case 'canvas_move_node':
+      return `${prefix}移动画布节点`;
+    case 'canvas_send_to_agent':
+      return `${prefix}发送给 Agent`;
+    case 'read':
+      return `${prefix}读取文件`;
+    case 'write':
+      return `${prefix}写入文件`;
+    case 'edit':
+      return `${prefix}编辑文件`;
+    case 'grep':
+      return `${prefix}搜索内容`;
+    case 'ls':
+      return `${prefix}查看目录`;
+    case 'bash':
+      return `${prefix}运行命令`;
+    default:
+      return status === 'running' ? `正在执行 ${name}` : `已执行 ${name}`;
+  }
+}
+
 export const ChatToolCalls = ({
   tools,
   collapsed,
@@ -56,7 +94,7 @@ export const ChatToolCalls = ({
             <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span className="chat-tool-calls-summary">{tools.length} tool call{tools.length > 1 ? 's' : ''}</span>
+        <span className="chat-tool-calls-summary">已完成 {tools.length} 个操作</span>
         <span className="chat-tool-call-chevron">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -70,7 +108,7 @@ export const ChatToolCalls = ({
     <div className="chat-tool-calls">
       {showSectionHeader && tools.length > 0 && (
         <div className="chat-tool-calls-section-header" onClick={onToggleSection}>
-          <span className="chat-tool-calls-summary">{tools.length} tool call{tools.length > 1 ? 's' : ''}</span>
+          <span className="chat-tool-calls-summary">已完成 {tools.length} 个操作</span>
           <span className="chat-tool-call-chevron chat-tool-call-chevron--open">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -96,7 +134,9 @@ export const ChatToolCalls = ({
                 </svg>
               )}
             </span>
-            <span className="chat-tool-call-sig">{formatToolSignature(tool.name, tool.args)}</span>
+            <span className="chat-tool-call-sig" title={formatToolSignature(tool.name, tool.args)}>
+              {formatToolLabel(tool.name, tool.status)}
+            </span>
             {tool.status === 'done' && tool.result && (
               <span className={`chat-tool-call-chevron${expandedTools.has(tool.id) ? ' chat-tool-call-chevron--open' : ''}`}>
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">

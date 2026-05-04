@@ -1,22 +1,26 @@
-import { useCallback } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
 import { useChatSessions } from './hooks/useChatSessions';
 import { useChatStream } from './hooks/useChatStream';
 import { useMentions } from './hooks/useMentions';
+import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import type { AgentRequestContext } from '../../types';
 import type { ChatPanelProps } from './types';
 
 export const ChatPanel = ({
   workspaceId,
   allWorkspaces,
   nodes,
+  selectedNodeIds,
   rootFolder,
   onClose,
   onResizeStart,
   onNodeFocus,
-  onExpand,
 }: ChatPanelProps) => {
+  const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
+
   const {
     abort,
     answerClarification,
@@ -49,6 +53,8 @@ export const ChatPanel = ({
     onMessagesLoaded: replaceMessages,
   });
 
+  const requestContextRef = useRef<AgentRequestContext>();
+
   const {
     clearInput,
     editableRef,
@@ -69,19 +75,57 @@ export const ChatPanel = ({
     nodes,
     rootFolder,
     onSubmit: sendMessage,
+    getRequestContext: () => requestContextRef.current,
   });
 
-  const handleQuickAction = useCallback(async (prompt: string) => {
+  const selectedNodes = useMemo(() => {
+    const ids = new Set(selectedNodeIds ?? []);
+    return (nodes ?? []).filter(node => ids.has(node.id));
+  }, [nodes, selectedNodeIds]);
+
+  const requestContext = useMemo<AgentRequestContext>(() => ({
+    executionMode,
+    scope: selectedNodes.length > 0 ? 'selected_nodes' : 'current_canvas',
+    selectedNodes: selectedNodes.map(node => ({
+      id: node.id,
+      title: getNodeDisplayLabel(node),
+      type: node.type,
+    })),
+  }), [executionMode, selectedNodes]);
+
+  requestContextRef.current = requestContext;
+
+  const sessionTitle = useMemo(() => {
+    const firstUserMessage = messages.find(message => message.role === 'user')?.content.trim();
+    if (!firstUserMessage) return 'New AI chat';
+    const cleaned = firstUserMessage
+      .replace(/@\[[^\]]+\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const fallback = requestContext.scope === 'selected_nodes' ? '整理选中节点' : '分析当前画布';
+    const title = cleaned || fallback;
+    return title.length > 24 ? `${title.slice(0, 23)}…` : title;
+  }, [messages, requestContext.scope]);
+
+  const handleQuickAction = useCallback(async (prompt: string, quickAction?: string) => {
     if (!prompt) {
       focusInput();
       return;
     }
 
-    const ok = await sendMessage(prompt);
+    const ok = await sendMessage(prompt, { ...requestContext, quickAction });
     if (ok) {
       clearInput();
     }
-  }, [clearInput, focusInput, sendMessage]);
+  }, [clearInput, focusInput, requestContext, sendMessage]);
+
+  const handleSubmit = useCallback(async () => {
+    return await submitCurrentInput(requestContext);
+  }, [requestContext, submitCurrentInput]);
+
+  const handleToggleExecutionMode = useCallback(() => {
+    setExecutionMode(mode => mode === 'auto' ? 'ask' : 'auto');
+  }, []);
 
   return (
     <ChatView
@@ -93,11 +137,11 @@ export const ChatPanel = ({
           sessionMenuRef={sessionMenuRef}
           sessions={sessions}
           otherSessions={otherSessions}
+          title={sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onNewSession={handleNewSession}
           onLoadSession={handleLoadSession}
           onClose={onClose}
-          onExpand={onExpand}
         />
       }
       messages={messages}
@@ -113,6 +157,7 @@ export const ChatPanel = ({
       onToggleSection={toggleSection}
       onToggleToolExpand={toggleToolExpand}
       nodes={nodes}
+      selectedNodes={selectedNodes}
       onNodeFocus={onNodeFocus}
       onQuickAction={handleQuickAction}
       input={input}
@@ -125,8 +170,11 @@ export const ChatPanel = ({
       onInput={handleInput}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
-      onSubmit={submitCurrentInput}
+      onSubmit={handleSubmit}
       onAbort={abort}
+      contextComposer
+      executionMode={executionMode}
+      onToggleExecutionMode={handleToggleExecutionMode}
     />
   );
 };

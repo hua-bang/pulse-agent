@@ -26,24 +26,25 @@ export const MENTION_MAX_ITEMS = 30;
 
 export const QUICK_ACTIONS: QuickAction[] = [
   {
-    key: 'overview',
-    label: 'What’s on the canvas?',
-    prompt: 'What’s on the canvas? Give me an overview.',
+    key: 'summarize_canvas',
+    label: '总结当前画布',
+    prompt: '总结当前画布。',
   },
   {
-    key: 'note',
-    label: 'Create a new note',
-    prompt: 'Create a new note on the canvas.',
+    key: 'analyze_relations',
+    label: '分析节点关系',
+    prompt: '分析当前画布中节点之间的关系。',
   },
   {
-    key: 'summarize',
-    label: 'Summarize my notes',
-    prompt: 'Summarize all the notes on my canvas.',
+    key: 'create_mindmap',
+    label: '生成思维导图',
+    prompt: '基于当前画布生成一个思维导图。',
   },
   {
-    key: 'command',
-    label: 'Run a command',
-    prompt: '',
+    key: 'organize_selection',
+    label: '整理选中内容',
+    prompt: '整理当前选中的节点内容。',
+    requiresSelection: true,
   },
 ];
 

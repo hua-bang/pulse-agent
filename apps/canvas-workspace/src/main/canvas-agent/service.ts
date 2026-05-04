@@ -56,6 +56,12 @@ export class CanvasAgentService {
     onToolResult?: (data: { name: string; result: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
+    requestContext?: {
+      executionMode?: 'auto' | 'ask';
+      scope?: 'current_canvas' | 'selected_nodes';
+      selectedNodes?: Array<{ id: string; title: string; type: string }>;
+      quickAction?: string;
+    },
   ): Promise<ChatResponse> {
     try {
       await this.activate(workspaceId);
@@ -67,6 +73,7 @@ export class CanvasAgentService {
         onToolResult,
         mentionedWorkspaceIds,
         onClarificationRequest,
+        requestContext,
       );
       return { ok: true, response };
     } catch (err) {

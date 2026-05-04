@@ -50,7 +50,17 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:chat',
     async (
       event,
-      payload: { workspaceId: string; message: string; mentionedWorkspaceIds?: string[] },
+      payload: {
+        workspaceId: string;
+        message: string;
+        mentionedWorkspaceIds?: string[];
+        requestContext?: {
+          executionMode?: 'auto' | 'ask';
+          scope?: 'current_canvas' | 'selected_nodes';
+          selectedNodes?: Array<{ id: string; title: string; type: string }>;
+          quickAction?: string;
+        };
+      },
     ) => {
       const sessionId = randomUUID();
       const sender = event.sender;
@@ -83,6 +93,7 @@ export function setupCanvasAgentIpc(): void {
                 sender.send(`canvas-agent:clarify-request:${sessionId}`, req);
               }
             },
+            payload.requestContext,
           );
           if (!sender.isDestroyed()) {
             sender.send(`canvas-agent:chat-complete:${sessionId}`, result);
