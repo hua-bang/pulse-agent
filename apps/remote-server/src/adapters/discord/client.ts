@@ -66,7 +66,9 @@ export interface DiscordApplicationCommandOption {
 
 export interface DiscordApplicationCommandCreate {
   name: string;
-  description: string;
+  description?: string;
+  // 1=CHAT_INPUT (default), 2=USER, 3=MESSAGE
+  type?: 1 | 2 | 3;
   options?: DiscordApplicationCommandOption[];
 }
 
@@ -367,6 +369,42 @@ export class DiscordClient {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ content: limitDiscordContent(content) }),
+        },
+        true,
+      ),
+    );
+  }
+
+  async addReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
+    this.ensureBotToken();
+    if (!channelId || !messageId || !emoji) {
+      return;
+    }
+
+    const encodedEmoji = encodeURIComponent(emoji);
+    await this.retryOnceOnTransient('add_reaction', () =>
+      this.request<void>(
+        `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/reactions/${encodedEmoji}/@me`,
+        {
+          method: 'PUT',
+        },
+        true,
+      ),
+    );
+  }
+
+  async removeOwnReaction(channelId: string, messageId: string, emoji: string): Promise<void> {
+    this.ensureBotToken();
+    if (!channelId || !messageId || !emoji) {
+      return;
+    }
+
+    const encodedEmoji = encodeURIComponent(emoji);
+    await this.retryOnceOnTransient('remove_own_reaction', () =>
+      this.request<void>(
+        `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(messageId)}/reactions/${encodedEmoji}/@me`,
+        {
+          method: 'DELETE',
         },
         true,
       ),
