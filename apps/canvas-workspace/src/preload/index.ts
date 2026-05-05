@@ -170,8 +170,18 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
   },
 
   agent: {
-    chat: (workspaceId: string, message: string, mentionedWorkspaceIds?: string[]) =>
-      ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message, mentionedWorkspaceIds }),
+    chat: (
+      workspaceId: string,
+      message: string,
+      mentionedWorkspaceIds?: string[],
+      requestContext?: {
+        executionMode?: 'auto' | 'ask';
+        scope?: 'current_canvas' | 'selected_nodes';
+        selectedNodes?: Array<{ id: string; title: string; type: string }>;
+        quickAction?: string;
+      },
+    ) =>
+      ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message, mentionedWorkspaceIds, requestContext }),
 
     onTextDelta: (sessionId: string, callback: (delta: string) => void) => {
       const channel = `canvas-agent:text-delta:${sessionId}`;

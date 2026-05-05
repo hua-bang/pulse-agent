@@ -1,7 +1,8 @@
-import { AvatarIcon, CloseIcon, ListLinesIcon, PlusIcon } from '../icons';
+import { CloseIcon, ListLinesIcon, PlusIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 
 interface ChatHeaderProps {
+  title: string;
   sessionMenuOpen: boolean;
   sessionMenuRef: React.RefObject<HTMLDivElement>;
   sessions: Array<{
@@ -16,22 +17,25 @@ interface ChatHeaderProps {
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
   onClose: () => void;
-  onExpand?: () => void;
 }
 
-const ExpandIcon = ({ size = 16 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-    <path
-      d="M9.5 2.5h4v4M13.5 2.5L9 7M6.5 13.5h-4v-4M2.5 13.5L7 9"
-      stroke="currentColor"
-      strokeWidth="1.4"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
+const PulseCanvasMark = () => (
+  <span className="chat-panel-brand-mark" aria-hidden="true">
+    <svg width="20" height="20" viewBox="0 0 512 512" fill="none">
+      <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="#fff" />
+      <path
+        d="M80 268H188L228 178L260 370L292 148L328 268H432"
+        stroke="currentColor"
+        strokeWidth="22"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </span>
 );
 
 export const ChatHeader = ({
+  title,
   sessionMenuOpen,
   sessionMenuRef,
   sessions,
@@ -40,13 +44,12 @@ export const ChatHeader = ({
   onNewSession,
   onLoadSession,
   onClose,
-  onExpand,
 }: ChatHeaderProps) => (
   <div className="chat-panel-header">
     <div className="chat-panel-title-wrapper" ref={sessionMenuRef}>
       <button className="chat-panel-title-btn" onClick={() => void onToggleSessionMenu()}>
-        <AvatarIcon size={16} />
-        <span>Pulse Agent</span>
+        <PulseCanvasMark />
+        <span className="chat-panel-title-text">{title}</span>
         <svg className="chat-panel-title-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
           <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -55,7 +58,7 @@ export const ChatHeader = ({
         <div className="chat-session-menu">
           <button className="chat-session-menu-new" onClick={() => void onNewSession()}>
             <PlusIcon size={14} strokeWidth={1.3} />
-            <span>New chat</span>
+            <span>New AI chat</span>
           </button>
           {sessions.length > 0 && (
             <>
@@ -76,7 +79,7 @@ export const ChatHeader = ({
                   >
                     <ListLinesIcon size={14} />
                     <span className="chat-session-menu-item-text">
-                      {session.isCurrent ? 'Current chat' : (session.preview || session.date)}
+                      {session.preview || (session.isCurrent ? 'Current chat' : session.date)}
                     </span>
                     <span className="chat-session-menu-item-count">{session.messageCount}</span>
                   </button>
@@ -113,21 +116,12 @@ export const ChatHeader = ({
       <button
         className="chat-panel-action-btn"
         onClick={() => void onNewSession()}
-        title="New chat"
+        title="New AI chat"
+        aria-label="New AI chat"
       >
         <PlusIcon size={16} strokeWidth={1.3} />
       </button>
-      {/* {onExpand && (
-        <button
-          className="chat-panel-action-btn"
-          onClick={onExpand}
-          title="Open full screen"
-          aria-label="Open full screen"
-        >
-          <ExpandIcon size={14} />
-        </button>
-      )} */}
-      <button className="chat-panel-action-btn" onClick={onClose} title="Close panel">
+      <button className="chat-panel-action-btn" onClick={onClose} title="收起面板" aria-label="收起面板">
         <CloseIcon size={16} strokeWidth={1.3} />
       </button>
     </div>

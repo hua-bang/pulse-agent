@@ -3,59 +3,68 @@ import type { QuickAction } from './types';
 
 function QuickActionIcon({ action }: { action: QuickAction }) {
   switch (action.key) {
-    case 'overview':
+    case 'summarize_canvas':
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <path d="M2.5 4h11M2.5 8h7.5M2.5 12h9" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
         </svg>
       );
-    case 'note':
+    case 'analyze_relations':
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M6 8h4M8 6v4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <circle cx="4" cy="8" r="1.7" stroke="currentColor" strokeWidth="1.25" />
+          <circle cx="12" cy="4" r="1.7" stroke="currentColor" strokeWidth="1.25" />
+          <circle cx="12" cy="12" r="1.7" stroke="currentColor" strokeWidth="1.25" />
+          <path d="M5.6 7.4l4.8-2.6M5.6 8.6l4.8 2.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
       );
-    case 'summarize':
+    case 'create_mindmap':
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M2 4h12M2 8h8M2 12h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <circle cx="4" cy="8" r="1.6" stroke="currentColor" strokeWidth="1.25" />
+          <circle cx="12" cy="3.8" r="1.4" stroke="currentColor" strokeWidth="1.25" />
+          <circle cx="12" cy="8" r="1.4" stroke="currentColor" strokeWidth="1.25" />
+          <circle cx="12" cy="12.2" r="1.4" stroke="currentColor" strokeWidth="1.25" />
+          <path d="M5.5 8l5-4M5.6 8h4.8M5.5 8l5 4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
         </svg>
       );
-    case 'command':
+    case 'organize_selection':
     default:
       return (
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M4 6l2.5 2L4 10M8 10h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          <rect x="1.5" y="2" width="13" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.25" />
+          <path d="M5 8.2l2 2 4-4.4" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
   }
 }
 
 interface ChatEmptyStateProps {
-  onQuickAction: (prompt: string) => void;
+  selectedCount?: number;
+  onQuickAction: (prompt: string, quickAction?: string) => void;
 }
 
-export const ChatEmptyState = ({ onQuickAction }: ChatEmptyStateProps) => (
+export const ChatEmptyState = ({ selectedCount = 0, onQuickAction }: ChatEmptyStateProps) => (
   <div className="chat-empty-state">
     <div className="chat-empty-icon">
-      <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-        <circle cx="16" cy="12" r="6" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M8 28c0-4.4 3.6-8 8-8s8 3.6 8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        <circle cx="13.5" cy="11" r="1" fill="currentColor" />
-        <circle cx="18.5" cy="11" r="1" fill="currentColor" />
-        <path d="M13.5 14c0 0 1 1.5 2.5 1.5s2.5-1.5 2.5-1.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+      <svg width="34" height="34" viewBox="0 0 512 512" fill="none">
+        <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="currentColor" opacity="0.06" />
+        <path
+          d="M80 268H188L228 178L260 370L292 148L328 268H432"
+          stroke="currentColor"
+          strokeWidth="22"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     </div>
-    <div className="chat-empty-greeting">Hi, how can I help?</div>
+    <div className="chat-empty-greeting">想怎么处理这张画布？</div>
     <div className="chat-quick-actions">
-      {QUICK_ACTIONS.map(action => (
+      {QUICK_ACTIONS.filter(action => !action.requiresSelection || selectedCount > 0).map(action => (
         <button
           key={action.key}
           className="chat-quick-action"
-          onClick={() => onQuickAction(action.prompt)}
+          onClick={() => onQuickAction(action.prompt, action.key)}
         >
           <span className="chat-quick-action-icon">
             <QuickActionIcon action={action} />

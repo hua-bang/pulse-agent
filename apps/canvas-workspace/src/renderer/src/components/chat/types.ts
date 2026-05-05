@@ -10,6 +10,7 @@ export interface ChatPanelProps {
   workspaceId: string;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
+  selectedNodeIds?: string[];
   rootFolder?: string;
   onClose: () => void;
   onResizeStart?: (e: MouseEvent) => void;
@@ -45,7 +46,8 @@ export interface PendingClarification {
 }
 
 export interface QuickAction {
-  key: 'overview' | 'note' | 'summarize' | 'command';
+  key: 'summarize_canvas' | 'analyze_relations' | 'create_mindmap' | 'organize_selection';
   label: string;
   prompt: string;
+  requiresSelection?: boolean;
 }

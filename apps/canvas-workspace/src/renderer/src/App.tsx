@@ -34,6 +34,7 @@ const AppContent = () => {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
+  const [selectedNodeIdsByWorkspace, setSelectedNodeIdsByWorkspace] = useState<Record<string, string[]>>({});
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>();
   const [deleteNodeId, setDeleteNodeId] = useState<string | undefined>();
   const [renameNodeRequest, setRenameNodeRequest] = useState<CanvasNodeRenameRequest | undefined>();
@@ -43,6 +44,19 @@ const AppContent = () => {
     setAllNodes((prev) => {
       if (prev[canvasId] === nodes) return prev;
       return { ...prev, [canvasId]: nodes };
+    });
+  }, []);
+
+  const handleSelectionChange = useCallback((canvasId: string, selectedNodeIds: string[]) => {
+    setSelectedNodeIdsByWorkspace((prev) => {
+      const existing = prev[canvasId] ?? [];
+      if (
+        existing.length === selectedNodeIds.length
+        && existing.every((id, index) => id === selectedNodeIds[index])
+      ) {
+        return prev;
+      }
+      return { ...prev, [canvasId]: selectedNodeIds };
     });
   }, []);
 
@@ -408,6 +422,7 @@ const AppContent = () => {
                   rootFolder={ws.rootFolder}
                   hidden={ws.id !== activeId}
                   onNodesChange={handleNodesChange}
+                  onSelectionChange={handleSelectionChange}
                   focusNodeId={ws.id === activeId ? focusNodeId : undefined}
                   onFocusComplete={handleFocusComplete}
                   deleteNodeId={ws.id === activeId ? deleteNodeId : undefined}
@@ -429,6 +444,7 @@ const AppContent = () => {
                   workspaceId={ws.id}
                   allWorkspaces={workspaces}
                   nodes={allNodes[ws.id] || []}
+                  selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
                   rootFolder={ws.rootFolder}
                   onClose={() => setChatPanelOpen(false)}
                   onResizeStart={handleResizeStart}
