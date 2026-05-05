@@ -35,7 +35,7 @@
   align-items: center;
   gap: 8px;
   max-width: 280px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: #37352f;
   border: none;
@@ -253,7 +253,7 @@
 }
 
 .chat-empty-greeting {
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1.25;
   font-weight: 700;
   color: #37352f;
@@ -278,7 +278,7 @@
   background: transparent;
   border-radius: 7px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: #37352f;
   text-align: left;
@@ -424,7 +424,7 @@
   width: 100%;
   border: none;
   padding: 10px 12px 4px;
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
   line-height: 1.5;
   min-height: 21px;
