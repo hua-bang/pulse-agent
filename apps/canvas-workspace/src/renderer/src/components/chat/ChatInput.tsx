@@ -9,6 +9,7 @@ interface ChatInputProps {
   input: string;
   selectedNodes?: CanvasNode[];
   contextComposer?: boolean;
+  executionMode?: 'auto' | 'ask';
   editableRef: RefObject<HTMLDivElement>;
   mentionPopup?: ReactNode;
   onInput: () => void;
@@ -16,6 +17,7 @@ interface ChatInputProps {
   onPaste: ClipboardEventHandler<HTMLDivElement>;
   onSend: () => Promise<boolean>;
   onAbort: () => Promise<void>;
+  onToggleExecutionMode?: () => void;
 }
 
 export const ChatInput = ({
@@ -23,6 +25,7 @@ export const ChatInput = ({
   input,
   selectedNodes,
   contextComposer = false,
+  executionMode = 'auto',
   editableRef,
   mentionPopup,
   onInput,
@@ -30,6 +33,7 @@ export const ChatInput = ({
   onPaste,
   onSend,
   onAbort,
+  onToggleExecutionMode,
 }: ChatInputProps) => {
   const contextNodes = (selectedNodes && selectedNodes.length > 0)
     ? selectedNodes
@@ -93,7 +97,17 @@ export const ChatInput = ({
           </div>
           <div className="chat-input-footer-right">
             {contextComposer && (
-              <span className="chat-auto-mode" title="Auto: 意图明确时可直接操作画布">Auto</span>
+              <button
+                type="button"
+                className="chat-execution-mode-btn"
+                onClick={onToggleExecutionMode}
+                title={executionMode === 'auto'
+                  ? 'Auto: 意图明确时可直接操作画布'
+                  : 'Ask: 改动画布前先确认'}
+                aria-label={executionMode === 'auto' ? '切换为 Ask 模式' : '切换为 Auto 模式'}
+              >
+                {executionMode === 'auto' ? 'Auto' : 'Ask'}
+              </button>
             )}
             {loading ? (
               <button

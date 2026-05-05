@@ -53,6 +53,8 @@ interface ChatViewProps {
   onSubmit: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   contextComposer?: boolean;
+  executionMode?: 'auto' | 'ask';
+  onToggleExecutionMode?: () => void;
 
   // Optional decoration
   onResizeStart?: (e: ReactMouseEvent) => void;
@@ -96,6 +98,8 @@ export const ChatView = ({
   onSubmit,
   onAbort,
   contextComposer = false,
+  executionMode = 'auto',
+  onToggleExecutionMode,
   onResizeStart,
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading;
@@ -132,6 +136,7 @@ export const ChatView = ({
         input={input}
         selectedNodes={selectedNodes}
         contextComposer={contextComposer}
+        executionMode={executionMode}
         editableRef={editableRef}
         mentionPopup={mentionOpen && mentionItems.length > 0 ? (
           <ChatMentionPopup
@@ -146,6 +151,7 @@ export const ChatView = ({
         onPaste={onPaste}
         onSend={onSubmit}
         onAbort={onAbort}
+        onToggleExecutionMode={onToggleExecutionMode}
       />
     </div>
   );

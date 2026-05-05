@@ -482,13 +482,28 @@
   color: #37352f;
 }
 
-.chat-auto-mode {
+.chat-execution-mode-btn {
+  border: none;
+  background: transparent;
   font-size: 13px;
   font-weight: 600;
   color: #6f6e69;
   line-height: 1;
-  padding: 4px 2px;
+  padding: 7px 6px;
+  border-radius: 7px;
   user-select: none;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.chat-execution-mode-btn:hover {
+  background: rgba(55, 53, 47, 0.06);
+  color: #37352f;
+}
+
+.chat-execution-mode-btn:focus-visible {
+  outline: 2px solid rgba(35, 131, 226, 0.45);
+  outline-offset: 1px;
 }
 
 .chat-send-btn {
@@ -567,10 +582,10 @@
 
 .chat-context-chips {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 12px 12px 4px;
+  padding: 12px 16px 0;
   min-height: 28px;
 }
 
@@ -606,6 +621,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 240px;
 }
 
 .chat-context-chip--count {

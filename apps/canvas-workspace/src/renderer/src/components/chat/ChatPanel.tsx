@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
@@ -19,6 +19,8 @@ export const ChatPanel = ({
   onResizeStart,
   onNodeFocus,
 }: ChatPanelProps) => {
+  const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
+
   const {
     abort,
     answerClarification,
@@ -82,14 +84,14 @@ export const ChatPanel = ({
   }, [nodes, selectedNodeIds]);
 
   const requestContext = useMemo<AgentRequestContext>(() => ({
-    executionMode: 'auto',
+    executionMode,
     scope: selectedNodes.length > 0 ? 'selected_nodes' : 'current_canvas',
     selectedNodes: selectedNodes.map(node => ({
       id: node.id,
       title: getNodeDisplayLabel(node),
       type: node.type,
     })),
-  }), [selectedNodes]);
+  }), [executionMode, selectedNodes]);
 
   requestContextRef.current = requestContext;
 
@@ -120,6 +122,10 @@ export const ChatPanel = ({
   const handleSubmit = useCallback(async () => {
     return await submitCurrentInput(requestContext);
   }, [requestContext, submitCurrentInput]);
+
+  const handleToggleExecutionMode = useCallback(() => {
+    setExecutionMode(mode => mode === 'auto' ? 'ask' : 'auto');
+  }, []);
 
   return (
     <ChatView
@@ -167,6 +173,8 @@ export const ChatPanel = ({
       onSubmit={handleSubmit}
       onAbort={abort}
       contextComposer
+      executionMode={executionMode}
+      onToggleExecutionMode={handleToggleExecutionMode}
     />
   );
 };
