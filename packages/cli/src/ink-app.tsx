@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Box, Text, useApp, useInput } from 'ink';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Box, Text, useApp, useInput, useStdout } from 'ink';
 
 export type InkEventKind = 'user' | 'assistant' | 'tool' | 'result' | 'system' | 'error';
 
@@ -21,8 +21,16 @@ export interface InkCliSnapshot {
   events: InkCliEvent[];
 }
 
+export interface InkCliController {
+  getSnapshot: () => InkCliSnapshot;
+  submitInput: (input: string) => void | Promise<void>;
+  requestStop: () => void;
+  shutdown: () => void | Promise<void>;
+  subscribe: (listener: (snapshot: InkCliSnapshot) => void) => () => void;
+}
+
 interface InkCliAppProps {
-  initialSnapshot?: Partial<InkCliSnapshot>;
+  controller: InkCliController;
   onExit?: () => void;
 }
 
@@ -55,36 +63,92 @@ const KIND_COLOR: Record<InkEventKind, string> = {
   error: 'red',
 };
 
-export function InkCliApp({ initialSnapshot, onExit }: InkCliAppProps) {
-  const [snapshot, setSnapshot] = useState<InkCliSnapshot>({
-    ...DEFAULT_SNAPSHOT,
-    ...initialSnapshot,
-    events: initialSnapshot?.events ?? DEFAULT_SNAPSHOT.events,
-  });
-  const app = useApp();
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-  useInput((_input, key) => {
-    if (key.escape || (key.ctrl && _input === 'c')) {
-      setSnapshot(current => ({ ...current, status: 'Exiting…' }));
-      onExit?.();
-      app.exit();
-    }
-  });
+export function InkCliApp({ controller, onExit }: InkCliAppProps) {
+  const [snapshot, setSnapshot] = useState<InkCliSnapshot>(() => ({
+    ...DEFAULT_SNAPSHOT,
+    ...controller.getSnapshot(),
+  }));
+  const [input, setInput] = useState('');
+  const [cursorVisible, setCursorVisible] = useState(true);
+  const [spinnerIndex, setSpinnerIndex] = useState(0);
+  const app = useApp();
+  const { stdout } = useStdout();
+
+  useEffect(() => controller.subscribe(setSnapshot), [controller]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSnapshot(current => {
-        if (!current.isProcessing) {
-          return current;
-        }
-        return { ...current, status: current.status.endsWith('…') ? 'Running' : `${current.status}…` };
-      });
-    }, 500);
-
+    const timer = setInterval(() => setCursorVisible(current => !current), 500);
     return () => clearInterval(timer);
   }, []);
 
-  const visibleEvents = snapshot.events.slice(-8);
+  useEffect(() => {
+    if (!snapshot.isProcessing) {
+      return;
+    }
+
+    const timer = setInterval(() => setSpinnerIndex(current => current + 1), 120);
+    return () => clearInterval(timer);
+  }, [snapshot.isProcessing]);
+
+  useInput((value, key) => {
+    if (key.ctrl && value === 'c') {
+      void controller.shutdown();
+      onExit?.();
+      app.exit();
+      return;
+    }
+
+    if (key.escape) {
+      if (snapshot.isProcessing) {
+        controller.requestStop();
+        return;
+      }
+
+      void controller.shutdown();
+      onExit?.();
+      app.exit();
+      return;
+    }
+
+    if (key.return) {
+      const submitted = input;
+      setInput('');
+      void (async () => {
+        await controller.submitInput(submitted);
+        const normalized = submitted.trim().toLowerCase();
+        if (normalized === 'exit' || normalized === '/exit') {
+          onExit?.();
+          app.exit();
+        }
+      })();
+      return;
+    }
+
+    if (key.backspace || key.delete) {
+      setInput(current => current.slice(0, -1));
+      return;
+    }
+
+    if (key.ctrl && value === 'u') {
+      setInput('');
+      return;
+    }
+
+    if (value && !key.ctrl && !key.meta) {
+      setInput(current => `${current}${value}`);
+    }
+  });
+
+  const terminalRows = stdout.rows ?? 30;
+  const visibleEventCount = Math.max(4, Math.min(12, terminalRows - 8));
+  const visibleEvents = snapshot.events.slice(-visibleEventCount);
+  const spinner = snapshot.isProcessing ? SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length] : '●';
+  const prompt = useMemo(() => {
+    const cursor = cursorVisible ? '█' : ' ';
+    return `${input}${cursor}`;
+  }, [cursorVisible, input]);
 
   return (
     <Box flexDirection="column" paddingX={1}>
@@ -99,7 +163,7 @@ export function InkCliApp({ initialSnapshot, onExit }: InkCliAppProps) {
 
       <Box marginTop={1} flexDirection="column">
         {visibleEvents.length === 0 ? (
-          <Text color="gray">Type in the classic prompt below. Ink event cards will appear here as the agent runs.</Text>
+          <Text color="gray">Type a message below. Use /help for commands.</Text>
         ) : visibleEvents.map(event => (
           <Box key={event.id} flexDirection="column" marginBottom={1}>
             <Text bold color={KIND_COLOR[event.kind]}>
@@ -110,10 +174,11 @@ export function InkCliApp({ initialSnapshot, onExit }: InkCliAppProps) {
         ))}
       </Box>
 
-      <Box borderStyle="single" borderColor={snapshot.isProcessing ? 'yellow' : 'green'} paddingX={1}>
+      <Box borderStyle="single" borderColor={snapshot.isProcessing ? 'yellow' : 'green'} paddingX={1} flexDirection="column">
         <Text color={snapshot.isProcessing ? 'yellow' : 'green'}>
-          {snapshot.status} · Esc/Ctrl+C exits Ink shell · fallback: PULSE_CODER_UI=readline
+          {spinner} {snapshot.status} · Enter send · Esc {snapshot.isProcessing ? 'stop' : 'exit'} · Ctrl+C exit
         </Text>
+        <Text color="cyan">› <Text color="white">{prompt}</Text></Text>
       </Box>
     </Box>
   );

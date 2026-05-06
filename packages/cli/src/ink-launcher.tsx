@@ -1,22 +1,12 @@
 import React from 'react';
 import { render } from 'ink';
 
-import { InkCliApp, type InkCliEvent, type InkCliSnapshot } from './ink-app.js';
+import { InkCliApp } from './ink-app.js';
+import { createInkCoderController } from './ink-controller.js';
 
-export interface InkTuiOptions {
-  snapshot?: Partial<InkCliSnapshot>;
-  events?: InkCliEvent[];
-}
-
-export async function startInkTui(options: InkTuiOptions = {}): Promise<void> {
-  const instance = render(
-    <InkCliApp
-      initialSnapshot={{
-        ...options.snapshot,
-        events: options.events ?? options.snapshot?.events,
-      }}
-    />,
-  );
+export async function startInkTui(): Promise<void> {
+  const controller = await createInkCoderController();
+  const instance = render(<InkCliApp controller={controller} />);
 
   await instance.waitUntilExit();
 }

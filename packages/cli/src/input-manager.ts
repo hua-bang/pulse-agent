@@ -7,12 +7,21 @@ interface PendingRequest {
   timeoutId?: NodeJS.Timeout;
 }
 
+interface InputManagerOptions {
+  onRequest?: (request: ClarificationRequest) => void;
+}
+
 /**
  * InputManager handles asynchronous user input for clarification requests.
- * It manages pending clarification requests and coordinates with the readline interface.
+ * It manages pending clarification requests and coordinates with the active CLI interface.
  */
 export class InputManager {
   private pendingRequest: PendingRequest | null = null;
+  private readonly onRequest?: (request: ClarificationRequest) => void;
+
+  constructor(options: InputManagerOptions = {}) {
+    this.onRequest = options.onRequest ?? this.printRequest;
+  }
 
   /**
    * Request user input for a clarification
@@ -27,15 +36,7 @@ export class InputManager {
         return;
       }
 
-      // Display the question to the user
-      console.log(`\n❓ ${request.question}`);
-      if (request.context) {
-        console.log(`   ${request.context}`);
-      }
-      if (request.defaultAnswer) {
-        console.log(`   (Default: ${request.defaultAnswer})`);
-      }
-      console.log(''); // Empty line for spacing
+      this.onRequest?.(request);
 
       // Set up timeout if specified
       let timeoutId: NodeJS.Timeout | undefined;
@@ -109,5 +110,16 @@ export class InputManager {
    */
   getPendingRequest(): ClarificationRequest | null {
     return this.pendingRequest?.request || null;
+  }
+
+  private printRequest(request: ClarificationRequest): void {
+    console.log(`\n❓ ${request.question}`);
+    if (request.context) {
+      console.log(`   ${request.context}`);
+    }
+    if (request.defaultAnswer) {
+      console.log(`   (Default: ${request.defaultAnswer})`);
+    }
+    console.log('');
   }
 }

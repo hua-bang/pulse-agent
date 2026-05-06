@@ -818,19 +818,7 @@ class CoderCLI {
 
 async function main(): Promise<void> {
   if (resolveCliUiMode() === 'ink') {
-    await startInkTui({
-      snapshot: {
-        status: 'Ink UI is ready. Full agent loop remains available in readline mode.',
-        events: [
-          {
-            id: 'welcome',
-            kind: 'system',
-            title: 'Experimental Ink UI',
-            text: 'Ink is integrated as an experimental shell. Use PULSE_CODER_UI=readline for the classic interactive agent loop.',
-          },
-        ],
-      },
-    });
+    await startInkTui();
     return;
   }
 
