@@ -3,6 +3,22 @@ export interface TuiHelpItem {
   description: string;
 }
 
+export interface TuiRunSummary {
+  elapsedMs: number;
+  toolCalls: number;
+  messages: number;
+  estimatedTokens: number;
+  mode?: string | null;
+}
+
+export interface TuiSessionSnapshot {
+  sessionId?: string | null;
+  taskListId?: string | null;
+  messages: number;
+  estimatedTokens: number;
+  mode?: string | null;
+}
+
 interface OutputLike {
   isTTY?: boolean;
   columns?: number;
@@ -31,7 +47,8 @@ const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', 
 
 export class TuiRenderer {
   private readonly output: OutputLike;
-  private readonly enabled: boolean;
+  private readonly canUseTui: boolean;
+  private enabled: boolean;
   private readonly now: () => number;
   private spinnerTimer: ReturnType<typeof setInterval> | null = null;
   private spinnerIndex = 0;
@@ -42,12 +59,28 @@ export class TuiRenderer {
   constructor(options: TuiRendererOptions = {}) {
     this.output = options.output ?? process.stdout;
     const env = options.env ?? process.env;
-    this.enabled = options.enabled ?? this.detectEnabled(env);
+    this.canUseTui = this.detectAvailable(env);
+    this.enabled = options.enabled ?? this.detectDefaultEnabled(env);
     this.now = options.now ?? (() => Date.now());
   }
 
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  isAvailable(): boolean {
+    return this.canUseTui;
+  }
+
+  setEnabled(enabled: boolean): boolean {
+    this.stopProcessing();
+    if (enabled && !this.canUseTui) {
+      this.enabled = false;
+      return false;
+    }
+
+    this.enabled = enabled;
+    return true;
   }
 
   prompt(mode: 'default' | 'teams' = 'default'): string {
@@ -71,7 +104,7 @@ export class TuiRenderer {
 
     this.writeLine(this.box('Pulse Coder CLI', [
       'Type a message and press Enter to run the agent.',
-      'Use /help for commands, /status for session details.',
+      'Use /help for commands, /status for session details, /tui to tune the interface.',
       'Esc stops the current response; Ctrl+C exits safely.',
     ]));
   }
@@ -98,6 +131,54 @@ export class TuiRenderer {
 
   showPluginStatus(count: number): void {
     this.success(`Built-in plugins loaded: ${count} plugins`);
+  }
+
+  showTuiStatus(): void {
+    this.section('TUI Status', [
+      `Enabled: ${this.enabled ? 'yes' : 'no'}`,
+      `Available: ${this.canUseTui ? 'yes' : 'no'}`,
+      'Use /tui on or /tui off to switch for this process.',
+      'Use PULSE_CODER_PLAIN=1 to start in plain mode.',
+    ]);
+  }
+
+  session(snapshot: TuiSessionSnapshot): void {
+    if (!this.enabled) {
+      return;
+    }
+
+    const parts = [
+      `session ${snapshot.sessionId ?? 'new'}`,
+      `${snapshot.messages} msgs`,
+      `~${snapshot.estimatedTokens} tokens`,
+    ];
+    if (snapshot.taskListId) {
+      parts.push(`tasks ${snapshot.taskListId}`);
+    }
+    if (snapshot.mode) {
+      parts.push(`mode ${snapshot.mode}`);
+    }
+
+    this.writeLine(this.color(`╭ ${parts.join(' · ')}`, DIM));
+  }
+
+  runSummary(summary: TuiRunSummary): void {
+    this.stopProcessing();
+    const elapsed = this.formatDuration(summary.elapsedMs);
+    const lines = [
+      `Elapsed: ${elapsed}`,
+      `Tools: ${summary.toolCalls}`,
+      `Messages: ${summary.messages}`,
+      `Estimated tokens: ~${summary.estimatedTokens}`,
+      ...(summary.mode ? [`Mode: ${summary.mode}`] : []),
+    ];
+
+    if (!this.enabled) {
+      this.writeLine(`\nDone in ${elapsed} · tools ${summary.toolCalls} · messages ${summary.messages} · ~${summary.estimatedTokens} tokens`);
+      return;
+    }
+
+    this.writeLine(`\n${this.box('Run Summary', lines)}`);
   }
 
   section(title: string, lines: string[]): void {
@@ -157,8 +238,23 @@ export class TuiRenderer {
 
   toolCall(name: string, input?: unknown): void {
     this.stopProcessing();
-    const inputText = input === undefined ? '' : ` ${this.color(this.truncate(this.safeJson(input), 180), DIM)}`;
-    this.writeLine(`\n${this.color('🔧', CYAN)} ${this.color(name, BOLD)}${inputText}`);
+    const preview = input === undefined ? [] : this.formatToolInput(input);
+
+    if (!this.enabled) {
+      const inputText = preview.length === 0 ? '' : ` ${preview.join(' ')}`;
+      this.writeLine(`\n🔧 ${name}${inputText}`);
+      return;
+    }
+
+    if (preview.length === 0) {
+      this.writeLine(`\n${this.color('🔧', CYAN)} ${this.color(name, BOLD)}`);
+      return;
+    }
+
+    this.writeLine(`\n${this.color('🔧', CYAN)} ${this.color(name, BOLD)}`);
+    for (const line of preview) {
+      this.writeLine(`   ${this.color(line, DIM)}`);
+    }
   }
 
   toolResult(name: string): void {
@@ -201,14 +297,12 @@ export class TuiRenderer {
     this.writeLine(`\n${this.color('📝', CYAN)} ${message}`);
   }
 
-  private detectEnabled(env: NodeJS.ProcessEnv): boolean {
-    if (!this.output.isTTY) {
-      return false;
-    }
-    if (env.PULSE_CODER_PLAIN === '1' || env.NO_COLOR || env.TERM === 'dumb') {
-      return false;
-    }
-    return true;
+  private detectAvailable(env: NodeJS.ProcessEnv): boolean {
+    return Boolean(this.output.isTTY) && !env.NO_COLOR && env.TERM !== 'dumb';
+  }
+
+  private detectDefaultEnabled(env: NodeJS.ProcessEnv): boolean {
+    return this.canUseTui && env.PULSE_CODER_PLAIN !== '1';
   }
 
   private box(title: string, lines: string[]): string {
@@ -258,6 +352,33 @@ export class TuiRenderer {
     return wrapped;
   }
 
+  private formatToolInput(value: unknown): string[] {
+    const maxLineLength = 96;
+    const maxLines = 4;
+    const json = this.safeJson(value);
+    const pretty = this.prettyJson(value) ?? json;
+    const sourceLines = pretty.split('\n');
+    const lines: string[] = [];
+
+    for (const sourceLine of sourceLines) {
+      const trimmed = sourceLine.trimEnd();
+      if (!trimmed) {
+        continue;
+      }
+      lines.push(this.truncate(trimmed, maxLineLength));
+      if (lines.length >= maxLines) {
+        break;
+      }
+    }
+
+    if (sourceLines.length > maxLines || json.length > lines.join('\n').length) {
+      const remaining = Math.max(0, json.length - lines.join('\n').length);
+      lines.push(`… truncated ${remaining} chars`);
+    }
+
+    return lines;
+  }
+
   private safeJson(value: unknown): string {
     try {
       return JSON.stringify(value);
@@ -266,11 +387,34 @@ export class TuiRenderer {
     }
   }
 
+  private prettyJson(value: unknown): string | null {
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return null;
+    }
+  }
+
   private truncate(value: string, maxLength: number): string {
     if (value.length <= maxLength) {
       return value;
     }
     return `${value.slice(0, maxLength - 1)}…`;
+  }
+
+  private formatDuration(ms: number): string {
+    if (ms < 1_000) {
+      return `${Math.max(0, Math.round(ms))}ms`;
+    }
+
+    const seconds = ms / 1_000;
+    if (seconds < 60) {
+      return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const remainder = Math.round(seconds % 60);
+    return `${minutes}m ${remainder}s`;
   }
 
   private color(value: string, code: string): string {

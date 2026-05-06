@@ -88,7 +88,57 @@ describe('TuiRenderer', () => {
 
     const text = output.text();
     expect(text).toContain('bash');
-    expect(text).toContain('…');
+    expect(text).toContain('… truncated');
     expect(text).toContain('✅');
+  });
+
+  it('supports runtime TUI toggling when terminal capabilities allow it', () => {
+    const output = new MemoryOutput();
+    const renderer = new TuiRenderer({ output, enabled: false });
+
+    expect(renderer.isEnabled()).toBe(false);
+    expect(renderer.setEnabled(true)).toBe(true);
+    expect(renderer.isEnabled()).toBe(true);
+    expect(renderer.prompt()).toContain('›');
+
+    renderer.setEnabled(false);
+    expect(renderer.prompt()).toBe('> ');
+  });
+
+  it('refuses to enable TUI when terminal capabilities are unavailable', () => {
+    const output = new MemoryOutput();
+    output.isTTY = false;
+    const renderer = new TuiRenderer({ output, enabled: false });
+
+    expect(renderer.isAvailable()).toBe(false);
+    expect(renderer.setEnabled(true)).toBe(false);
+    expect(renderer.isEnabled()).toBe(false);
+  });
+
+  it('renders session snapshots and run summaries', () => {
+    const output = new MemoryOutput();
+    const renderer = new TuiRenderer({ output, enabled: true });
+
+    renderer.session({
+      sessionId: 'abc123',
+      taskListId: 'tasks-a',
+      messages: 4,
+      estimatedTokens: 256,
+      mode: 'planning',
+    });
+    renderer.runSummary({
+      elapsedMs: 1_250,
+      toolCalls: 2,
+      messages: 6,
+      estimatedTokens: 512,
+      mode: 'executing',
+    });
+
+    const text = output.text();
+    expect(text).toContain('session abc123');
+    expect(text).toContain('tasks tasks-a');
+    expect(text).toContain('Run Summary');
+    expect(text).toContain('Elapsed: 1.3s');
+    expect(text).toContain('Tools: 2');
   });
 });

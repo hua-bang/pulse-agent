@@ -32,6 +32,7 @@ const LOCAL_COMMANDS = new Set([
   'teams',
   'solo',
   'save',
+  'tui',
   'exit',
 ]);
 
@@ -59,6 +60,7 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/teams <task> --cwd <dir>', description: 'Set working directory for teammates' },
   { command: '/solo', description: 'Exit teams mode, return to normal agent' },
   { command: '/save', description: 'Save current session explicitly' },
+  { command: '/tui [on|off|status]', description: 'Toggle or inspect the interactive TUI renderer' },
   { command: '/exit', description: 'Exit the application' },
 ];
 
@@ -319,6 +321,25 @@ class CoderCLI {
             this.tui.error('Failed to switch mode: plan mode plugin unavailable');
           }
           break;
+
+        case 'tui': {
+          const action = (args[0] ?? 'status').toLowerCase();
+          if (action === 'on') {
+            if (this.tui.setEnabled(true)) {
+              this.tui.success('TUI enabled for this process.');
+            } else {
+              this.tui.warn('TUI is not available in this terminal. Staying in plain mode.');
+            }
+          } else if (action === 'off') {
+            this.tui.setEnabled(false);
+            this.tui.info('TUI disabled for this process.');
+          } else if (action === 'status') {
+            this.tui.showTuiStatus();
+          } else {
+            this.tui.warn('Usage: /tui [on|off|status]');
+          }
+          break;
+        }
 
         case 'save':
           if (this.sessionCommands.getCurrentSessionId()) {
@@ -596,6 +617,14 @@ class CoderCLI {
       }
 
       // Regular message processing
+      this.tui.session({
+        sessionId: this.sessionCommands.getCurrentSessionId(),
+        taskListId: this.sessionCommands.getCurrentTaskListId(),
+        messages: this.context.messages.length,
+        estimatedTokens: this.estimateTokens(this.context.messages),
+        mode: this.agent.getMode(),
+      });
+
       this.context.messages.push({
         role: 'user',
         content: messageInput,
@@ -609,6 +638,8 @@ class CoderCLI {
       isProcessing = true;
 
       let sawText = false;
+      let toolCalls = 0;
+      const runStartedAt = Date.now();
 
       const getToolInput = (toolCall: Record<string, unknown>): unknown => {
         const input = (toolCall as { input?: unknown }).input;
@@ -652,6 +683,7 @@ class CoderCLI {
             this.tui.text(delta);
           },
           onToolCall: (toolCall) => {
+            toolCalls += 1;
             const input = getToolInput(toolCall);
             this.tui.toolCall(resolveToolName(toolCall), input);
           },
@@ -690,6 +722,7 @@ class CoderCLI {
                 this.tui.text(delta);
               },
               onToolCall: (toolCall) => {
+                toolCalls += 1;
                 const input = getToolInput(toolCall);
                 this.tui.toolCall(resolveToolName(toolCall), input);
               },
@@ -715,6 +748,14 @@ class CoderCLI {
             acpState ? runAcpAgent : runAgent,
           )
           : await (acpState ? runAcpAgent() : runAgent());
+
+        this.tui.runSummary({
+          elapsedMs: Date.now() - runStartedAt,
+          toolCalls,
+          messages: this.context.messages.length,
+          estimatedTokens: this.estimateTokens(this.context.messages),
+          mode: this.agent.getMode(),
+        });
 
         if (result) {
           if (!sawText) {
