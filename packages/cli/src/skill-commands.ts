@@ -11,18 +11,21 @@ interface SkillRegistryService {
 }
 
 export class SkillCommands {
-  constructor(private agent: PulseAgent) {}
+  constructor(
+    private agent: PulseAgent,
+    private readonly log: (message?: string) => void = console.log,
+  ) {}
 
   async transformSkillsCommandToMessage(args: string[]): Promise<string | null> {
     const registry = this.getSkillRegistry();
     if (!registry) {
-      console.log('\n⚠️ skill registry unavailable. Ensure built-in skills plugin is enabled.');
+      this.log('\n⚠️ skill registry unavailable. Ensure built-in skills plugin is enabled.');
       return null;
     }
 
     const skills = this.getAvailableSkills();
     if (skills.length === 0) {
-      console.log('\n📭 No skills found. Add SKILL.md under .pulse-coder/skills/**/SKILL.md');
+      this.log('\n📭 No skills found. Add SKILL.md under .pulse-coder/skills/**/SKILL.md');
       return null;
     }
 
@@ -30,12 +33,12 @@ export class SkillCommands {
 
     if (!subCommand || subCommand === 'list') {
       this.printSkillList(skills);
-      console.log('\nUsage: /skills <name|index> <message>');
+      this.log('\nUsage: /skills <name|index> <message>');
       return null;
     }
 
     if (subCommand === 'current' || subCommand === 'clear' || subCommand === 'off' || subCommand === 'none') {
-      console.log('\nℹ️ Skills are single-use. Use /skills <name|index> <message> to run one prompt with a skill.');
+      this.log('\nℹ️ Skills are single-use. Use /skills <name|index> <message> to run one prompt with a skill.');
       return null;
     }
 
@@ -45,35 +48,35 @@ export class SkillCommands {
     }
 
     if (selectionTokens.length < 2) {
-      console.log('\n❌ Please provide both a skill and a message.');
-      console.log('Usage: /skills <name|index> <message>');
+      this.log('\n❌ Please provide both a skill and a message.');
+      this.log('Usage: /skills <name|index> <message>');
       return null;
     }
 
     const skillTarget = selectionTokens[0];
     const selectedSkill = this.resolveSkillSelection(skillTarget, skills);
     if (!selectedSkill) {
-      console.log(`\n❌ Skill not found: ${skillTarget}`);
-      console.log('Run /skills list to see available skills.');
+      this.log(`\n❌ Skill not found: ${skillTarget}`);
+      this.log('Run /skills list to see available skills.');
       return null;
     }
 
     const message = selectionTokens.slice(1).join(' ').trim();
     if (!message) {
-      console.log('\n❌ Message cannot be empty.');
-      console.log('Usage: /skills <name|index> <message>');
+      this.log('\n❌ Message cannot be empty.');
+      this.log('Usage: /skills <name|index> <message>');
       return null;
     }
 
     const transformed = `[use skill](${selectedSkill.name}) ${message}`;
-    console.log(`\n✅ One-shot skill message prepared with: ${selectedSkill.name}`);
+    this.log(`\n✅ One-shot skill message prepared with: ${selectedSkill.name}`);
     return transformed;
   }
 
   private printSkillList(skills: SkillSummary[]): void {
-    console.log('\n🧰 Available skills:');
+    this.log('\n🧰 Available skills:');
     skills.forEach((skill, index) => {
-      console.log(`${String(index + 1).padStart(2, ' ')}. ${skill.name} - ${skill.description}`);
+      this.log(`${String(index + 1).padStart(2, ' ')}. ${skill.name} - ${skill.description}`);
     });
   }
 

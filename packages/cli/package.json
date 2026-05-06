@@ -18,17 +18,19 @@
     "dist"
   ],
   "dependencies": {
+    "ink": "^7.0.2",
     "pulse-coder-acp": "workspace:*",
     "pulse-coder-agent-teams": "workspace:*",
     "pulse-coder-engine": "workspace:*",
     "pulse-coder-memory-plugin": "workspace:*",
     "pulse-coder-orchestrator": "workspace:*",
-    "pulse-sandbox": "workspace:*"
+    "pulse-sandbox": "workspace:*",
+    "react": "^19.2.5"
   },
   "devDependencies": {
-    "typescript": "^5.0.0",
+    "@types/node": "^25.0.10",
     "tsup": "^8.0.0",
-    "vitest": "^1.0.0",
-    "@types/node": "^25.0.10"
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
   }
 }
