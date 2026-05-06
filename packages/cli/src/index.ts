@@ -10,6 +10,8 @@ import { runTeam, TeamsSession } from './team-commands.js';
 import { memoryIntegration, buildMemoryRunContext, recordDailyLogFromSuccessPath } from './memory-integration.js';
 import { ACP_CLIENT_INFO, handleAcpCommand, resolveAcpPlatformKey } from './acp-commands.js';
 import { TuiRenderer, type TuiHelpItem } from './tui-renderer.js';
+import { resolveCliUiMode } from './ui-mode.js';
+import { startInkTui } from './ink-launcher.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -814,9 +816,29 @@ class CoderCLI {
   }
 }
 
-// Always start the CLI when executed directly
-const cli = new CoderCLI();
-cli.start().catch(error => {
+async function main(): Promise<void> {
+  if (resolveCliUiMode() === 'ink') {
+    await startInkTui({
+      snapshot: {
+        status: 'Ink UI is ready. Full agent loop remains available in readline mode.',
+        events: [
+          {
+            id: 'welcome',
+            kind: 'system',
+            title: 'Experimental Ink UI',
+            text: 'Ink is integrated as an experimental shell. Use PULSE_CODER_UI=readline for the classic interactive agent loop.',
+          },
+        ],
+      },
+    });
+    return;
+  }
+
+  const cli = new CoderCLI();
+  await cli.start();
+}
+
+main().catch(error => {
   console.error('Failed to start CLI:', error);
   process.exit(1);
 });
