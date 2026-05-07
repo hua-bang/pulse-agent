@@ -867,10 +867,18 @@ export class DevtoolsStore {
     }
     record.llmSpans.push(span);
 
-    // Async snapshot persistence (best-effort, non-blocking).
+    // Defer snapshot persistence so prompt stringify/redaction work does not
+    // block the beforeLLMCall hook before the provider request can start.
     if (this.capturePrompts && snapshot && (snapshot.messages?.length || snapshot.systemPrompt)) {
-      void this.savePromptSnapshot(record.runId, span, snapshot).catch(() => {
-        /* swallow snapshot errors */
+      const snapshotForAsync = {
+        ...snapshot,
+        messages: snapshot.messages ? snapshot.messages.slice() : undefined,
+        toolNames: snapshot.toolNames ? snapshot.toolNames.slice() : undefined,
+      };
+      setImmediate(() => {
+        void this.savePromptSnapshot(record.runId, span, snapshotForAsync).catch(() => {
+          /* swallow snapshot errors */
+        });
       });
     }
 
