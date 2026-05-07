@@ -17,10 +17,18 @@ export interface CanvasAgentConfig {
 
 // ─── Messages ───────────────────────────────────────────────────────
 
+export interface CanvasAgentImageAttachment {
+  id: string;
+  path: string;
+  fileName?: string;
+  mimeType?: string;
+}
+
 export interface CanvasAgentMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  attachments?: CanvasAgentImageAttachment[];
 }
 
 // ─── Session persistence ────────────────────────────────────────────

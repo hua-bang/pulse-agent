@@ -18,6 +18,7 @@ interface ChatMessagesProps {
   onAnswerClarification: () => Promise<void>;
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
+  onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   onNodeFocus?: (nodeId: string) => void;
 }
 
@@ -100,6 +101,7 @@ export const ChatMessages = ({
   onAnswerClarification,
   onToggleSection,
   onToggleToolExpand,
+  onAddImageToCanvas,
   onNodeFocus,
 }: ChatMessagesProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -138,6 +140,7 @@ export const ChatMessages = ({
             nodes={nodes}
             onToggleSection={() => onToggleSection(index)}
             onToggleToolExpand={onToggleToolExpand}
+            onAddImageToCanvas={onAddImageToCanvas}
           />
         );
       })}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentChatMessage, AgentRequestContext } from '../../../types';
+import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
 import type { PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 
@@ -43,14 +43,15 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
     setCollapsedSections(new Set());
   }, []);
 
-  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext) => {
+  const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
     const text = rawText.trim();
-    if (!text || loading) return false;
+    if ((!text && attachments.length === 0) || loading) return false;
 
     const userMessage: AgentChatMessage = {
       role: 'user',
       content: text,
       timestamp: Date.now(),
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -63,6 +64,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         text,
         mentionedWorkspaceIds.length > 0 ? mentionedWorkspaceIds : undefined,
         requestContext,
+        attachments.length > 0 ? attachments : undefined,
       );
 
       if (!result.ok || !result.sessionId) {
@@ -234,6 +236,21 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
     }
   }, [allWorkspaces, loading, workspaceId]);
 
+
+  const addImageToCanvas = useCallback(async (imagePath: string, title?: string) => {
+    const result = await window.canvasWorkspace.agent.addImageToCanvas(workspaceId, imagePath, title);
+    if (!result.ok) {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: `Error adding image to canvas: ${result.error ?? 'Unknown error'}`,
+          timestamp: Date.now(),
+        },
+      ]);
+    }
+  }, [workspaceId]);
+
   const abort = useCallback(async () => {
     const sessionId = activeSessionId;
     if (!sessionId) return;
@@ -286,6 +303,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
 
   return {
     abort,
+    addImageToCanvas,
     answerClarification,
     clarifyInput,
     collapsedSections,

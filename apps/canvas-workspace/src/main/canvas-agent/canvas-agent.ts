@@ -17,7 +17,7 @@ import {
 } from './context-builder';
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
-import type { CanvasAgentConfig, CanvasAgentMessage, WorkspaceSummary } from './types';
+import type { CanvasAgentConfig, CanvasAgentImageAttachment, CanvasAgentMessage, WorkspaceSummary } from './types';
 
 interface CanvasAgentRequestContext {
   executionMode?: 'auto' | 'ask';
@@ -260,6 +260,7 @@ export class CanvasAgent {
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: CanvasAgentRequestContext,
+    attachments: CanvasAgentImageAttachment[] = [],
   ): Promise<string> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
@@ -278,9 +279,29 @@ export class CanvasAgent {
 
     const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext);
 
-    // Add user message
-    this.messages.push({ role: 'user', content: message } as ModelMessage);
-    this.sessionStore.addMessage({ role: 'user', content: message, timestamp: Date.now() });
+    const attachmentPrompt = attachments.length > 0
+      ? [
+          message,
+          '',
+          'User attached image files for this turn:',
+          ...attachments.map((attachment, index) => {
+            const name = attachment.fileName ? ` (${attachment.fileName})` : '';
+            const mime = attachment.mimeType ? `, mime=${attachment.mimeType}` : '';
+            return `${index + 1}. ${attachment.path}${name}${mime}`;
+          }),
+          'Use canvas_analyze_image with imagePaths when you need to inspect these images.',
+        ].join('\n')
+      : message;
+
+    // Add user message. The model sees local paths; session history keeps
+    // structured attachments so the renderer can show image previews.
+    this.messages.push({ role: 'user', content: attachmentPrompt } as ModelMessage);
+    this.sessionStore.addMessage({
+      role: 'user',
+      content: message,
+      timestamp: Date.now(),
+      attachments: attachments.length > 0 ? attachments : undefined,
+    });
 
     // Build the context — pass a mutable reference so onResponse/onCompacted can update it
     const context = { messages: this.messages };
@@ -442,7 +463,12 @@ export class CanvasAgent {
     const session = await this.sessionStore.loadSession(sessionId);
     if (!session) return [];
     // Rebuild in-memory messages from loaded session
-    this.messages = session.messages.map(m => ({ role: m.role, content: m.content } as any));
+    this.messages = session.messages.map(m => ({
+      role: m.role,
+      content: m.attachments?.length
+        ? `${m.content}\n\nAttached image files:\n${m.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
+        : m.content,
+    } as any));
     return session.messages;
   }
 
@@ -452,7 +478,12 @@ export class CanvasAgent {
    */
   async loadCrossWorkspaceSession(loadedMessages: CanvasAgentMessage[]): Promise<void> {
     await this.sessionStore.startSession();
-    this.messages = loadedMessages.map(m => ({ role: m.role, content: m.content } as any));
+    this.messages = loadedMessages.map(m => ({
+      role: m.role,
+      content: m.attachments?.length
+        ? `${m.content}\n\nAttached image files:\n${m.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
+        : m.content,
+    } as any));
     // Persist each message into the new current session
     for (const m of loadedMessages) {
       this.sessionStore.addMessage(m);

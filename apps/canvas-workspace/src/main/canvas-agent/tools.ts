@@ -996,15 +996,14 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     canvas_generate_image: {
       name: 'canvas_generate_image',
       description:
-        'Generate an image with the engine generate_image implementation and place the result on the canvas as an image node. ' +
+        'Generate an image with the engine generate_image implementation and return it to the chat. ' +
         'Use this when the user asks to create/draw/generate a picture, diagram, poster, or visual asset. ' +
+        'By default this DOES NOT add anything to the canvas; the chat UI shows a quick Add to canvas button. ' +
         'If the generated image should reflect a mindmap, pass sourceMindmapNodeId so the prompt includes the mindmap topic tree.',
       inputSchema: z.object({
         prompt: z.string().describe('Detailed image generation prompt.'),
-        title: z.string().optional().describe('Canvas image node title.'),
+        title: z.string().optional().describe('Suggested image title shown in chat.'),
         sourceMindmapNodeId: z.string().optional().describe('Optional mindmap node ID whose topic tree should be included in the generation prompt.'),
-        x: z.number().optional().describe('Optional X position.'),
-        y: z.number().optional().describe('Optional Y position.'),
         provider: z.enum(['openai', 'gpt', 'gemini']).optional().describe('Image provider. Defaults to OpenAI/GPT.'),
         model: z.string().optional().describe('Image generation model override.'),
         size: z.string().optional().describe('OpenAI/GPT image size, e.g. 1024x1024 or auto.'),
@@ -1026,7 +1025,10 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           if (source.type !== 'mindmap') return `Error: source node is not a mindmap: ${sourceMindmapNodeId}`;
           const root = source.data.root as MindmapTopic | undefined;
           const outline = flattenMindmapForPrompt(root);
-          prompt += `\n\nUse this mindmap structure as source content:\n${outline}`;
+          prompt += `
+
+Use this mindmap structure as source content:
+${outline}`;
         }
 
         const imagesDir = join(STORE_DIR, workspaceId, 'images');
@@ -1045,40 +1047,19 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           imageApiMode: input.imageApiMode as 'images' | 'responses' | 'responses_stream' | 'auto' | undefined,
         });
 
-        const generatedPath = generated.outputPath;
-        const dimensions = fitImageNodeDimensions(await readImageDimensions(generatedPath));
-        const pos = (input.x != null && input.y != null)
-          ? { x: input.x as number, y: input.y as number }
-          : autoPlace(canvas.nodes);
-        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const title = (input.title as string | undefined)?.trim() || basename(generatedPath) || 'Generated image';
-        const newNode: CanvasNode = {
-          id: nodeId,
-          type: 'image',
-          title,
-          x: pos.x,
-          y: pos.y,
-          width: dimensions.width,
-          height: dimensions.height,
-          data: { filePath: generatedPath },
-          updatedAt: Date.now(),
-        };
-
-        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
-        fresh.nodes.push(newNode);
-        await saveCanvas(workspaceId, fresh);
-        broadcastUpdate(workspaceId, [nodeId]);
-
         return JSON.stringify({
           ok: true,
-          nodeId,
-          type: 'image',
-          title,
-          outputPath: generatedPath,
+          type: 'generated_image',
+          title: (input.title as string | undefined)?.trim() || basename(generated.outputPath),
+          outputPath: generated.outputPath,
           mimeType: generated.mimeType,
           bytes: generated.bytes,
           provider: generated.provider,
           model: generated.model,
+          addToCanvasAction: {
+            workspaceId,
+            imagePath: generated.outputPath,
+          },
         }, null, 2);
       },
     },
@@ -1086,12 +1067,13 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     canvas_generate_mindmap_image: {
       name: 'canvas_generate_mindmap_image',
       description:
-        'Generate a visual image from an existing mindmap node and place it on the canvas as an image node. ' +
-        'Use this for requests like "turn this mindmap into an image/poster/diagram". This is AI image generation, not the deterministic PNG export context menu.',
+        'Generate a visual image from an existing mindmap node and return it to the chat. ' +
+        'Use this for requests like "turn this mindmap into an image/poster/diagram". ' +
+        'By default this does not write to the canvas; the chat UI offers an Add to canvas button.',
       inputSchema: z.object({
         mindmapNodeId: z.string().describe('Mindmap node ID to visualize.'),
         prompt: z.string().optional().describe('Optional style/composition instructions.'),
-        title: z.string().optional().describe('Canvas image node title.'),
+        title: z.string().optional().describe('Suggested image title shown in chat.'),
         provider: z.enum(['openai', 'gpt', 'gemini']).optional().describe('Image provider. Defaults to OpenAI/GPT.'),
         model: z.string().optional().describe('Image generation model override.'),
         size: z.string().optional().describe('OpenAI/GPT image size.'),
@@ -1112,48 +1094,33 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           || 'Create a clean, readable visual mindmap/infographic with clear hierarchy, spacious layout, and polished typography.';
         const prompt = `${stylePrompt}\n\nMindmap structure:\n${outline}`;
 
+        const imagesDir = join(STORE_DIR, workspaceId, 'images');
+        await fs.mkdir(imagesDir, { recursive: true });
         const result = await GenerateImageTool.execute({
           prompt,
           provider: input.provider as 'openai' | 'gpt' | 'gemini' | undefined,
           model: input.model as string | undefined,
-          outputPath: join(STORE_DIR, workspaceId, 'images', `mindmap-${Date.now()}.${input.outputFormat ?? 'png'}`),
+          outputPath: join(imagesDir, `mindmap-${Date.now()}.${input.outputFormat ?? 'png'}`),
           size: input.size as string | undefined,
           quality: input.quality as string | undefined,
           outputFormat: input.outputFormat as 'png' | 'jpeg' | 'webp' | undefined,
           imageApiMode: input.imageApiMode as 'images' | 'responses' | 'responses_stream' | 'auto' | undefined,
         });
 
-        const dimensions = fitImageNodeDimensions(await readImageDimensions(result.outputPath));
-        const pos = { x: source.x + source.width + 40, y: source.y };
-        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const title = (input.title as string | undefined)?.trim() || `${source.title || 'Mindmap'} image`;
-        const newNode: CanvasNode = {
-          id: nodeId,
-          type: 'image',
-          title,
-          x: pos.x,
-          y: pos.y,
-          width: dimensions.width,
-          height: dimensions.height,
-          data: { filePath: result.outputPath },
-          updatedAt: Date.now(),
-        };
-        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
-        fresh.nodes.push(newNode);
-        await saveCanvas(workspaceId, fresh);
-        broadcastUpdate(workspaceId, [nodeId]);
-
         return JSON.stringify({
           ok: true,
-          nodeId,
-          type: 'image',
-          title,
+          type: 'generated_image',
+          title: (input.title as string | undefined)?.trim() || `${source.title || 'Mindmap'} image`,
           sourceMindmapNodeId: source.id,
           outputPath: result.outputPath,
           mimeType: result.mimeType,
           bytes: result.bytes,
           provider: result.provider,
           model: result.model,
+          addToCanvasAction: {
+            workspaceId,
+            imagePath: result.outputPath,
+          },
         }, null, 2);
       },
     },

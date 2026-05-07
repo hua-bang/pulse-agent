@@ -1211,3 +1211,100 @@
   vertical-align: baseline;
   user-select: all;
 }
+
+
+.chat-attachment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 10px 0;
+}
+
+.chat-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 180px;
+  padding: 4px 6px 4px 4px;
+  border: 1px solid rgba(31, 35, 40, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.chat-attachment-chip img {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: 7px;
+  background: #f3f4f6;
+}
+
+.chat-attachment-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-attachment-chip button {
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.chat-message-images,
+.chat-generated-images {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.chat-message-image-card,
+.chat-generated-image-card {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(31, 35, 40, 0.1);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.chat-message-image-card img,
+.chat-generated-image-card img {
+  display: block;
+  max-width: min(100%, 420px);
+  max-height: 320px;
+  object-fit: contain;
+  background: #f8fafc;
+}
+
+.chat-message-image-card figcaption,
+.chat-generated-image-card figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.chat-generated-image-card button {
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.chat-generated-image-card button:hover {
+  background: rgba(37, 99, 235, 0.14);
+}

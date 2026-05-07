@@ -23,6 +23,7 @@ export const ChatPanel = ({
 
   const {
     abort,
+    addImageToCanvas,
     answerClarification,
     clarifyInput,
     collapsedSections,
@@ -56,9 +57,11 @@ export const ChatPanel = ({
   const requestContextRef = useRef<AgentRequestContext>();
 
   const {
+    attachments,
     clearInput,
     editableRef,
     focusInput,
+    handleAttachFiles,
     handleInput,
     handleKeyDown,
     handlePaste,
@@ -66,6 +69,7 @@ export const ChatPanel = ({
     mentionIndex,
     mentionItems,
     mentionOpen,
+    removeAttachment,
     selectMention,
     setMentionIndex,
     submitCurrentInput,
@@ -156,11 +160,13 @@ export const ChatPanel = ({
       onAnswerClarification={answerClarification}
       onToggleSection={toggleSection}
       onToggleToolExpand={toggleToolExpand}
+      onAddImageToCanvas={addImageToCanvas}
       nodes={nodes}
       selectedNodes={selectedNodes}
       onNodeFocus={onNodeFocus}
       onQuickAction={handleQuickAction}
       input={input}
+      attachments={attachments}
       editableRef={editableRef}
       mentionOpen={mentionOpen}
       mentionItems={mentionItems}
@@ -170,6 +176,8 @@ export const ChatPanel = ({
       onInput={handleInput}
       onKeyDown={handleKeyDown}
       onPaste={handlePaste}
+      onAttachFiles={handleAttachFiles}
+      onRemoveAttachment={removeAttachment}
       onSubmit={handleSubmit}
       onAbort={abort}
       contextComposer

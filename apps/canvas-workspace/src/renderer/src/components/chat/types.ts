@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentSessionInfo, CanvasNode } from '../../types';
+import type { AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 
 export interface WorkspaceOption {
   id: string;
@@ -30,6 +30,8 @@ export interface ToolCallStatus {
   status: 'running' | 'done';
   result?: string;
 }
+
+export type { ChatImageAttachment };
 
 export interface MentionItem {
   type: 'node' | 'file' | 'workspace';

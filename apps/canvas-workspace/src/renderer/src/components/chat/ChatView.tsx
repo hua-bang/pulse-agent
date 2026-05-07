@@ -5,7 +5,7 @@ import type {
   ReactNode,
   RefObject,
 } from 'react';
-import type { AgentChatMessage, CanvasNode } from '../../types';
+import type { AgentChatMessage, CanvasNode, ChatImageAttachment } from '../../types';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
@@ -30,6 +30,7 @@ interface ChatViewProps {
   onAnswerClarification: () => Promise<void>;
   onToggleSection: (messageIndex: number) => void;
   onToggleToolExpand: (toolId: number) => void;
+  onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
 
   // Canvas context
   nodes?: CanvasNode[];
@@ -41,6 +42,7 @@ interface ChatViewProps {
 
   // Input
   input: string;
+  attachments?: ChatImageAttachment[];
   editableRef: RefObject<HTMLDivElement>;
   mentionOpen: boolean;
   mentionItems: MentionItem[];
@@ -50,6 +52,8 @@ interface ChatViewProps {
   onInput: () => void;
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
   onPaste: ClipboardEventHandler<HTMLDivElement>;
+  onAttachFiles?: (files: FileList | File[]) => void;
+  onRemoveAttachment?: (id: string) => void;
   onSubmit: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   contextComposer?: boolean;
@@ -81,11 +85,13 @@ export const ChatView = ({
   onAnswerClarification,
   onToggleSection,
   onToggleToolExpand,
+  onAddImageToCanvas,
   nodes,
   selectedNodes,
   onNodeFocus,
   onQuickAction,
   input,
+  attachments,
   editableRef,
   mentionOpen,
   mentionItems,
@@ -95,6 +101,8 @@ export const ChatView = ({
   onInput,
   onKeyDown,
   onPaste,
+  onAttachFiles,
+  onRemoveAttachment,
   onSubmit,
   onAbort,
   contextComposer = false,
@@ -126,6 +134,7 @@ export const ChatView = ({
           onAnswerClarification={onAnswerClarification}
           onToggleSection={onToggleSection}
           onToggleToolExpand={onToggleToolExpand}
+          onAddImageToCanvas={onAddImageToCanvas}
           onNodeFocus={onNodeFocus}
         />
       ) : (
@@ -134,6 +143,7 @@ export const ChatView = ({
       <ChatInput
         loading={loading}
         input={input}
+        attachments={attachments}
         selectedNodes={selectedNodes}
         contextComposer={contextComposer}
         executionMode={executionMode}
@@ -149,6 +159,8 @@ export const ChatView = ({
         onInput={onInput}
         onKeyDown={onKeyDown}
         onPaste={onPaste}
+        onAttachFiles={onAttachFiles}
+        onRemoveAttachment={onRemoveAttachment}
         onSend={onSubmit}
         onAbort={onAbort}
         onToggleExecutionMode={onToggleExecutionMode}

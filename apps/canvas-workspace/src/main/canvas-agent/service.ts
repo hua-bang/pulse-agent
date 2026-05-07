@@ -12,6 +12,7 @@ import { homedir } from 'os';
 import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
 import { SessionStore } from './session-store';
 import type {
+  CanvasAgentImageAttachment,
   ChatResponse,
   AgentStatusResponse,
   SessionListResponse,
@@ -62,6 +63,7 @@ export class CanvasAgentService {
       selectedNodes?: Array<{ id: string; title: string; type: string }>;
       quickAction?: string;
     },
+    attachments?: CanvasAgentImageAttachment[],
   ): Promise<ChatResponse> {
     try {
       await this.activate(workspaceId);
@@ -74,6 +76,7 @@ export class CanvasAgentService {
         mentionedWorkspaceIds,
         onClarificationRequest,
         requestContext,
+        attachments,
       );
       return { ok: true, response };
     } catch (err) {
