@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "deep-research": {
+      "source": "199-biotechnologies/claude-deep-research-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "685efecf2091dccf219506641671acc3c0c31ecb83f54b8473b9d399ba0337b8"
+    },
     "wechat-article-search": {
       "source": "openclaw/skills",
       "sourceType": "github",
