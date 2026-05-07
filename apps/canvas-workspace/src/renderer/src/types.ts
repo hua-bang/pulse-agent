@@ -314,10 +314,18 @@ export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
 }
 
+export interface ChatImageAttachment {
+  id: string;
+  path: string;
+  fileName?: string;
+  mimeType?: string;
+}
+
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  attachments?: ChatImageAttachment[];
 }
 
 export interface AgentContextNodeRef {
@@ -352,7 +360,8 @@ export interface AgentApi {
     workspaceId: string,
     message: string,
     mentionedWorkspaceIds?: string[],
-    requestContext?: AgentRequestContext
+    requestContext?: AgentRequestContext,
+    attachments?: ChatImageAttachment[]
   ) => Promise<{ ok: boolean; sessionId?: string; error?: string }>;
   onTextDelta: (
     sessionId: string,
@@ -406,6 +415,11 @@ export interface AgentApi {
   ) => Promise<{ ok: boolean; messages?: AgentChatMessage[]; error?: string }>;
   activate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   deactivate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+  addImageToCanvas: (
+    workspaceId: string,
+    imagePath: string,
+    title?: string
+  ) => Promise<{ ok: boolean; nodeId?: string; error?: string }>;
 }
 
 export interface CanvasWorkspaceApi {

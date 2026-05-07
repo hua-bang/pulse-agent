@@ -1,5 +1,5 @@
 import type { ClipboardEventHandler, KeyboardEventHandler, ReactNode, RefObject } from 'react';
-import type { CanvasNode } from '../../types';
+import type { CanvasNode, ChatImageAttachment } from '../../types';
 import { PlusIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { MentionNodeIcon } from './utils/mentions';
@@ -8,6 +8,7 @@ interface ChatInputProps {
   loading: boolean;
   input: string;
   selectedNodes?: CanvasNode[];
+  attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
   executionMode?: 'auto' | 'ask';
   editableRef: RefObject<HTMLDivElement>;
@@ -15,15 +16,20 @@ interface ChatInputProps {
   onInput: () => void;
   onKeyDown: KeyboardEventHandler<HTMLDivElement>;
   onPaste: ClipboardEventHandler<HTMLDivElement>;
+  onAttachFiles?: (files: FileList | File[]) => void;
+  onRemoveAttachment?: (id: string) => void;
   onSend: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   onToggleExecutionMode?: () => void;
 }
 
+const getImageSrc = (path: string) => `file://${path}`;
+
 export const ChatInput = ({
   loading,
   input,
   selectedNodes,
+  attachments = [],
   contextComposer = false,
   executionMode = 'auto',
   editableRef,
@@ -31,6 +37,8 @@ export const ChatInput = ({
   onInput,
   onKeyDown,
   onPaste,
+  onAttachFiles,
+  onRemoveAttachment,
   onSend,
   onAbort,
   onToggleExecutionMode,
@@ -58,6 +66,17 @@ export const ChatInput = ({
             ))}
           </div>
         )}
+        {attachments.length > 0 && (
+          <div className="chat-attachment-strip" aria-label="待发送图片">
+            {attachments.map(attachment => (
+              <div key={attachment.id} className="chat-attachment-chip">
+                <img src={getImageSrc(attachment.path)} alt={attachment.fileName ?? 'attachment'} />
+                <span>{attachment.fileName ?? 'Image'}</span>
+                <button type="button" onClick={() => onRemoveAttachment?.(attachment.id)} aria-label="移除图片">×</button>
+              </div>
+            ))}
+          </div>
+        )}
         <div
           ref={editableRef}
           className="chat-input"
@@ -73,6 +92,7 @@ export const ChatInput = ({
         <div className="chat-input-footer">
           <div className="chat-input-footer-left">
             {contextComposer ? (
+              <>
               <button
                 type="button"
                 className="chat-input-icon-btn"
@@ -86,6 +106,25 @@ export const ChatInput = ({
               >
                 <PlusIcon size={18} strokeWidth={1.35} />
               </button>
+              <button
+                type="button"
+                className="chat-input-icon-btn"
+                title="添加图片"
+                aria-label="添加图片"
+                onClick={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = 'image/*';
+                  input.multiple = true;
+                  input.onchange = () => {
+                    if (input.files) onAttachFiles?.(input.files);
+                  };
+                  input.click();
+                }}
+              >
+                🖼
+              </button>
+              </>
             ) : loading ? (
               <div className="chat-generating-indicator" aria-live="polite">
                 <div className="chat-loading-dot" />
@@ -122,9 +161,9 @@ export const ChatInput = ({
               </button>
             ) : (
               <button
-                className={`chat-send-btn${input.trim() ? ' chat-send-btn--active' : ''}`}
+                className={`chat-send-btn${(input.trim() || attachments.length > 0) ? ' chat-send-btn--active' : ''}`}
                 onClick={() => void onSend()}
-                disabled={!input.trim()}
+                disabled={!input.trim() && attachments.length === 0}
                 title="Send message"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">

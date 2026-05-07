@@ -22,9 +22,14 @@
  *   Completion arrives on         `canvas-agent:chat-complete:{sessionId}`.
  */
 
-import { ipcMain } from 'electron';
+import { BrowserWindow, ipcMain } from 'electron';
 import { randomUUID } from 'crypto';
+import { promises as fs } from 'fs';
+import { basename, join } from 'path';
+import { homedir } from 'os';
 import { CanvasAgentService } from './canvas-agent/service';
+
+const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 let service: CanvasAgentService | null = null;
 
@@ -60,6 +65,7 @@ export function setupCanvasAgentIpc(): void {
           selectedNodes?: Array<{ id: string; title: string; type: string }>;
           quickAction?: string;
         };
+        attachments?: Array<{ id: string; path: string; fileName?: string; mimeType?: string }>;
       },
     ) => {
       const sessionId = randomUUID();
@@ -94,6 +100,7 @@ export function setupCanvasAgentIpc(): void {
               }
             },
             payload.requestContext,
+            payload.attachments,
           );
           if (!sender.isDestroyed()) {
             sender.send(`canvas-agent:chat-complete:${sessionId}`, result);
@@ -137,6 +144,58 @@ export function setupCanvasAgentIpc(): void {
       if (!workspaceId) return { ok: false, error: 'No active run for sessionId' };
       const matched = svc.answerClarification(workspaceId, payload.requestId, payload.answer);
       return { ok: matched, error: matched ? undefined : 'No pending clarification matched' };
+    },
+  );
+
+
+  ipcMain.handle(
+    'canvas-agent:add-image-to-canvas',
+    async (_event, payload: { workspaceId: string; imagePath: string; title?: string }) => {
+      try {
+        const workspaceId = payload.workspaceId;
+        const imagePath = payload.imagePath;
+        if (!workspaceId || !imagePath) return { ok: false, error: 'workspaceId and imagePath are required' };
+
+        const canvasPath = join(STORE_DIR, workspaceId, 'canvas.json');
+        const raw = await fs.readFile(canvasPath, 'utf-8');
+        const canvas = JSON.parse(raw) as {
+          nodes?: Array<any>;
+          edges?: Array<any>;
+          transform?: { x: number; y: number; scale: number };
+          savedAt?: string;
+        };
+        const nodes = Array.isArray(canvas.nodes) ? canvas.nodes : [];
+        const maxRight = nodes.reduce((max, node) => Math.max(max, (node.x ?? 0) + (node.width ?? 0)), 0);
+        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const node = {
+          id: nodeId,
+          type: 'image',
+          title: payload.title?.trim() || basename(imagePath),
+          x: maxRight > 0 ? maxRight + 40 : 100,
+          y: nodes[0]?.y ?? 100,
+          width: 480,
+          height: 360,
+          data: { filePath: imagePath },
+          updatedAt: Date.now(),
+        };
+        canvas.nodes = [...nodes, node];
+        canvas.savedAt = new Date().toISOString();
+        await fs.writeFile(canvasPath, JSON.stringify(canvas, null, 2), 'utf-8');
+
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) {
+            win.webContents.send('canvas:external-update', {
+              type: 'canvas:updated',
+              workspaceId,
+              nodeIds: [nodeId],
+              source: 'canvas-agent',
+            });
+          }
+        }
+        return { ok: true, nodeId };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
     },
   );
 

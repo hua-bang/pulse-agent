@@ -183,8 +183,9 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
         selectedNodes?: Array<{ id: string; title: string; type: string }>;
         quickAction?: string;
       },
+      attachments?: Array<{ id: string; path: string; fileName?: string; mimeType?: string }>,
     ) =>
-      ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message, mentionedWorkspaceIds, requestContext }),
+      ipcRenderer.invoke("canvas-agent:chat", { workspaceId, message, mentionedWorkspaceIds, requestContext, attachments }),
 
     onTextDelta: (sessionId: string, callback: (delta: string) => void) => {
       const channel = `canvas-agent:text-delta:${sessionId}`;
@@ -278,5 +279,8 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     deactivate: (workspaceId: string) =>
       ipcRenderer.invoke("canvas-agent:deactivate", { workspaceId }),
+
+    addImageToCanvas: (workspaceId: string, imagePath: string, title?: string) =>
+      ipcRenderer.invoke("canvas-agent:add-image-to-canvas", { workspaceId, imagePath, title }),
   }
 });

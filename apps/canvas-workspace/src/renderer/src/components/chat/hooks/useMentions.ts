@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import type { AgentRequestContext, CanvasNode, DirEntry } from '../../../types';
+import type { AgentRequestContext, CanvasNode, ChatImageAttachment, DirEntry } from '../../../types';
 import {
   MENTION_GROUP_ORDER,
   MENTION_MAX_ITEMS,
@@ -17,7 +17,7 @@ interface UseMentionsOptions {
   workspaceId: string;
   nodes?: CanvasNode[];
   rootFolder?: string;
-  onSubmit: (text: string, requestContext?: AgentRequestContext) => Promise<boolean>;
+  onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
 }
 
@@ -51,6 +51,7 @@ export function useMentions({
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionItems, setMentionItems] = useState<MentionItem[]>([]);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [attachments, setAttachments] = useState<ChatImageAttachment[]>([]);
   const editableRef = useRef<HTMLDivElement>(null);
   const filesCacheRef = useRef<MentionItem[] | null>(null);
 
@@ -59,6 +60,7 @@ export function useMentions({
     setMentionOpen(false);
     setMentionItems([]);
     setMentionIndex(0);
+    setAttachments([]);
     if (editableRef.current) {
       editableRef.current.innerHTML = '';
     }
@@ -196,12 +198,12 @@ export function useMentions({
   }, [nodes]);
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
-    const ok = await onSubmit(input, requestContext ?? getRequestContext?.());
+    const ok = await onSubmit(input, requestContext ?? getRequestContext?.(), attachments);
     if (ok) {
       clearInput();
     }
     return ok;
-  }, [clearInput, getRequestContext, input, onSubmit]);
+  }, [attachments, clearInput, getRequestContext, input, onSubmit]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (mentionOpen && mentionItems.length > 0) {
@@ -236,16 +238,58 @@ export function useMentions({
     }
   }, [mentionIndex, mentionItems, mentionOpen, selectMention, submitCurrentInput]);
 
+  const attachImageFile = useCallback(async (file: File) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file'));
+      reader.readAsDataURL(file);
+    });
+    const base64 = dataUrl.split(',')[1];
+    if (!base64) return;
+    const ext = file.type.replace('image/', '').split(';')[0] || 'png';
+    const saved = await window.canvasWorkspace.file.saveImage(workspaceId, base64, ext);
+    if (!saved.ok || !saved.filePath) return;
+    setAttachments(prev => [
+      ...prev,
+      {
+        id: `attachment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        path: saved.filePath!,
+        fileName: file.name || saved.fileName,
+        mimeType: file.type || `image/${ext}`,
+      },
+    ]);
+  }, [workspaceId]);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  const handleAttachFiles = useCallback((files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+    for (const file of imageFiles) {
+      void attachImageFile(file);
+    }
+  }, [attachImageFile]);
+
   const handlePaste = useCallback((event: React.ClipboardEvent) => {
+    const imageFiles = Array.from(event.clipboardData.files).filter(file => file.type.startsWith('image/'));
+    if (imageFiles.length > 0) {
+      event.preventDefault();
+      handleAttachFiles(imageFiles);
+      return;
+    }
     event.preventDefault();
     const text = event.clipboardData.getData('text/plain');
     document.execCommand('insertText', false, text);
-  }, []);
+  }, [handleAttachFiles]);
 
   return {
     clearInput,
+    attachments,
     editableRef,
     focusInput,
+    handleAttachFiles,
     handleInput,
     handleKeyDown,
     handlePaste,
@@ -253,6 +297,7 @@ export function useMentions({
     mentionIndex,
     mentionItems,
     mentionOpen,
+    removeAttachment,
     selectMention,
     setMentionIndex,
     submitCurrentInput,

@@ -4,6 +4,25 @@ import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
 import { ChatToolCalls } from './ChatToolCalls';
 
+interface GeneratedImagePayload {
+  ok?: boolean;
+  type?: string;
+  title?: string;
+  outputPath?: string;
+  mimeType?: string;
+  addToCanvasAction?: { workspaceId?: string; imagePath?: string };
+}
+
+const parseGeneratedImage = (result?: string): GeneratedImagePayload | null => {
+  if (!result) return null;
+  try {
+    const parsed = JSON.parse(result) as GeneratedImagePayload;
+    return parsed?.ok && parsed?.type === 'generated_image' && parsed.outputPath ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
 interface ChatMessageProps {
   message: AgentChatMessage;
   isStreaming: boolean;
@@ -14,6 +33,7 @@ interface ChatMessageProps {
   nodes?: CanvasNode[];
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
+  onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
 }
 
 const LoadingDots = () => (
@@ -34,6 +54,7 @@ export const ChatMessage = ({
   nodes,
   onToggleSection,
   onToggleToolExpand,
+  onAddImageToCanvas,
 }: ChatMessageProps) => (
   <div className={`chat-message chat-message-${message.role}`}>
     {message.role === 'assistant' && (
@@ -42,15 +63,47 @@ export const ChatMessage = ({
       </div>
     )}
     <div className="chat-message-body">
+      {message.attachments && message.attachments.length > 0 && (
+        <div className="chat-message-images">
+          {message.attachments.map(attachment => (
+            <figure key={attachment.id} className="chat-message-image-card">
+              <img src={`file://${attachment.path}`} alt={attachment.fileName ?? 'image'} />
+              {attachment.fileName && <figcaption>{attachment.fileName}</figcaption>}
+            </figure>
+          ))}
+        </div>
+      )}
       {message.role === 'assistant' && tools && tools.length > 0 && (
-        <ChatToolCalls
-          tools={tools}
-          collapsed={collapsed}
-          expandedTools={expandedTools}
-          showSectionHeader={!loading}
-          onToggleSection={onToggleSection}
-          onToggleToolExpand={onToggleToolExpand}
-        />
+        <>
+          <ChatToolCalls
+            tools={tools}
+            collapsed={collapsed}
+            expandedTools={expandedTools}
+            showSectionHeader={!loading}
+            onToggleSection={onToggleSection}
+            onToggleToolExpand={onToggleToolExpand}
+          />
+          <div className="chat-generated-images">
+            {tools.map(tool => {
+              const image = parseGeneratedImage(tool.result);
+              if (!image?.outputPath) return null;
+              return (
+                <figure key={`generated-${tool.id}`} className="chat-generated-image-card">
+                  <img src={`file://${image.outputPath}`} alt={image.title ?? 'Generated image'} />
+                  <figcaption>
+                    <span>{image.title ?? 'Generated image'}</span>
+                    <button
+                      type="button"
+                      onClick={() => void onAddImageToCanvas?.(image.outputPath!, image.title)}
+                    >
+                      Add to canvas
+                    </button>
+                  </figcaption>
+                </figure>
+              );
+            })}
+          </div>
+        </>
       )}
       {message.role === 'assistant' ? (
         isStreaming ? (
