@@ -304,10 +304,11 @@
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 18px 18px 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  justify-content: flex-start;
+  gap: 18px;
 }
 
 .chat-message {
@@ -342,9 +343,19 @@
   max-width: 85%;
 }
 
+.chat-message-body {
+  min-width: 0;
+}
+
 .chat-message-user .chat-message-body {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: min(92%, 560px);
+}
+
+.chat-message-assistant .chat-message-body {
+  max-width: min(92%, 620px);
 }
 
 .chat-message-user .chat-message-content {
@@ -352,7 +363,7 @@
   padding: 8px 12px;
   border-radius: 12px;
   border-bottom-right-radius: 4px;
-  max-width: 85%;
+  max-width: 100%;
 }
 
 .chat-message-assistant .chat-message-content {
@@ -636,9 +647,9 @@
 
 .chat-panel .chat-input-box {
   border-radius: 18px;
-  border-color: rgba(35, 131, 226, 0.78);
+  border-color: rgba(55, 53, 47, 0.16);
   background: #fff;
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.16), 0 16px 42px rgba(55, 53, 47, 0.08);
+  box-shadow: 0 12px 32px rgba(55, 53, 47, 0.07);
 }
 
 .chat-panel .chat-input-box:focus-within {
@@ -667,14 +678,20 @@
   border-radius: 50%;
 }
 
-.chat-panel .chat-send-btn--active,
-.chat-panel .chat-send-btn--stop {
+.chat-panel .chat-send-btn--active {
   background: #2383e2;
 }
 
-.chat-panel .chat-send-btn--active:hover,
-.chat-panel .chat-send-btn--stop:hover {
+.chat-panel .chat-send-btn--stop {
+  background: #6b7280;
+}
+
+.chat-panel .chat-send-btn--active:hover {
   background: #1f76cc;
+}
+
+.chat-panel .chat-send-btn--stop:hover {
+  background: #4b5563;
 }
 
 /* ─── Clarification card ──────────────────────────────────── */
@@ -1307,4 +1324,42 @@
 
 .chat-generated-image-card button:hover {
   background: rgba(37, 99, 235, 0.14);
+}
+
+
+/* Refine image messages into one compact message group. */
+.chat-message-user .chat-message-images {
+  order: 2;
+  width: 100%;
+  justify-items: end;
+}
+
+.chat-message-user .chat-message-content {
+  order: 1;
+  margin-bottom: 8px;
+}
+
+.chat-message-image-card,
+.chat-generated-image-card {
+  max-width: 100%;
+}
+
+.chat-message-image-card img,
+.chat-generated-image-card img {
+  width: min(100%, 420px);
+  max-height: 260px;
+  object-fit: contain;
+}
+
+.chat-message-user .chat-message-image-card {
+  width: min(100%, 420px);
+}
+
+.chat-message-user .chat-message-image-card figcaption {
+  background: rgba(248, 250, 252, 0.95);
+}
+
+.chat-tool-calls--collapsed .chat-tool-calls-summary,
+.chat-tool-calls-section-header .chat-tool-calls-summary {
+  color: #73726e;
 }
