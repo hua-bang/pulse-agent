@@ -1,158 +1,108 @@
 ---
 name: deep-research
-description: Conduct high-quality multi-round research with explicit evidence tracking, source scoring, and synthesis.
-version: 2.0.0
-author: Pulse Coder Team
+description: Use when the user needs multi-source research with citation tracking, evidence persistence, and structured report generation. Triggers on "deep research", "comprehensive analysis", "research report", "compare X vs Y", "analyze trends", or "state of the art". Not for simple lookups, debugging, or questions answerable with 1-2 searches.
 ---
 
-# Deep Research Skill
+# Deep Research
 
-This skill is for serious research tasks where shallow summaries are not enough.
-Use it to build evidence-backed conclusions through iterative search, extraction, and validation.
+## Core Purpose
 
-## When to Use
+Deliver citation-tracked research reports through a structured pipeline with evidence persistence, source identity management, claim-level verification, and progressive context management.
 
-Use deep-research when you need to:
-- Build a reliable understanding of a complex topic.
-- Compare multiple approaches, vendors, or technical designs.
-- Validate claims with primary sources and recent updates.
-- Produce decision-ready output instead of a generic summary.
+**Autonomy Principle:** Operate independently. Infer assumptions from context. Only stop for critical errors or incomprehensible queries. Surface high-materiality assumptions explicitly in the Introduction and Methodology rather than silently defaulting.
 
-Do not use deep-research for simple factual lookups that need only 1-2 queries.
+---
 
-## Research Quality Bar
+## Decision Tree
 
-Always optimize for:
-- Coverage: enough breadth to avoid tunnel vision.
-- Depth: enough source detail to avoid summary-only output.
-- Verifiability: each key claim can be traced to sources.
-- Freshness: prefer recent material when recency matters.
-- Actionability: conclusions include practical implications.
+```
+Request Analysis
++-- Simple lookup? --> STOP: Use WebSearch
++-- Debugging? --> STOP: Use standard tools
++-- Complex analysis needed? --> CONTINUE
 
-## Required Workflow
+Mode Selection
++-- Initial exploration --> quick (3 phases, 2-5 min)
++-- Standard research --> standard (6 phases, 5-10 min) [DEFAULT]
++-- Critical decision --> deep (8 phases, 10-20 min)
++-- Comprehensive review --> ultradeep (8+ phases, 20-45 min)
+```
 
-### 0) Frame the task first
-Before searching, identify:
-- Goal: what decision or understanding is needed.
-- Scope: topic boundaries, region, timeframe, language.
-- Output shape: comparison, recommendation, landscape, etc.
+**Default assumptions:** Technical query = technical audience. Comparison = balanced perspective. Trend = recent 1-2 years.
 
-If critical constraints are missing, ask one concise clarification question.
+---
 
-### 1) Search in rounds (default 6-10 rounds)
-Run iterative rounds and avoid repeating near-identical queries.
+## Workflow Overview
 
-Per round, briefly track:
-- Query used
-- Intent of this query
-- New findings (what changed vs prior rounds)
-- Open gaps to resolve next
+| Phase | Name | Quick | Std | Deep | Ultra |
+|-------|------|-------|-----|------|-------|
+| 1 | SCOPE | Y | Y | Y | Y |
+| 2 | PLAN | - | Y | Y | Y |
+| 3 | RETRIEVE | Y | Y | Y | Y |
+| 4 | TRIANGULATE | - | Y | Y | Y |
+| 4.5 | OUTLINE REFINEMENT | - | Y | Y | Y |
+| 5 | SYNTHESIZE | - | Y | Y | Y |
+| 6 | CRITIQUE | - | - | Y | Y |
+| 7 | REFINE | - | - | Y | Y |
+| 8 | PACKAGE | Y | Y | Y | Y |
 
-Suggested progression:
-- Rounds 1-2: landscape and terminology
-- Rounds 3-6: focused deep dives by subtopic
-- Rounds 7-10: cross-checking, edge cases, and updates
+**Note:** Phases 3-5 operate as an evidence loop per section (retrieve → evidence store → refine outline → draft → verify claims → delta-retrieve if needed), not as strict sequential gates.
 
-If the user explicitly asks for very broad coverage (for example 30+ or 50+ rounds),
-use batching by subtopic and still maintain dedup and evidence quality.
+---
 
-### 2) Source selection and scoring (required)
-For important claims, prefer sources in this order:
-1. Official docs, standards, maintainers, first-party publications
-2. Reputable technical analyses with concrete evidence
-3. Community posts only as supplementary context
+## Execution
 
-For each key source, judge quickly on:
-- Authority (official or expert)
-- Recency (is date still relevant)
-- Evidence density (examples, data, implementation detail)
-- Bias risk (marketing-only or unsupported claims)
+**On invocation, load relevant reference files:**
 
-### 3) Extract beyond snippets when needed
-Search snippets are often insufficient.
-When a source is important but ambiguous, read/extract fuller content before concluding.
+1. **Phase 1-7:** Load [methodology.md](./reference/methodology.md) for detailed phase instructions
+2. **Phase 8 (Report):** Load [report-assembly.md](./reference/report-assembly.md) for progressive generation
+3. **HTML/PDF output:** Load [html-generation.md](./reference/html-generation.md)
+4. **Quality checks:** Load [quality-gates.md](./reference/quality-gates.md)
+5. **Long reports (>18K words):** Load [continuation.md](./reference/continuation.md)
 
-### 4) Cross-validate before final claims
-Before finalizing, verify critical points across multiple independent sources.
-Explicitly flag:
-- Consensus points
-- Conflicts or disputed claims
-- Unknowns that remain unresolved
+**Templates:**
+- Report structure: [report_template.md](./templates/report_template.md)
+- HTML styling: [mckinsey_report_template.html](./templates/mckinsey_report_template.html)
 
-### 5) Stop criteria
-Stop when all are true:
-- Core questions are answered
-- Major contradictions are addressed
-- Additional rounds produce low novelty
+**Scripts:**
+- `python scripts/validate_report.py --report [path]`
+- `python scripts/verify_citations.py --report [path]`
+- `python scripts/md_to_html.py [markdown_path]`
 
-Otherwise continue with targeted rounds.
+---
 
-## Query Strategy Guidelines
+## Output Contract
 
-Use query patterns such as:
-- "<topic> official documentation"
-- "<topic> architecture tradeoffs"
-- "<topic> benchmark OR case study"
-- "<topic> limitations OR failure modes"
-- "<topic> 2025 OR 2026 update"
+**Required sections:**
+- Executive Summary (200-400 words)
+- Introduction (scope, methodology, assumptions)
+- Main Analysis (4-8 findings, 600-2,000 words each, cited)
+- Synthesis & Insights (patterns, implications)
+- Limitations & Caveats
+- Recommendations
+- Bibliography (COMPLETE - every citation, no placeholders)
+- Methodology Appendix
 
-Avoid low-value repetition:
-- Do not run semantically duplicate queries unless testing source drift.
-- Do not over-index on one domain unless it is primary documentation.
+**Output files (all to `~/Documents/[Topic]_Research_[YYYYMMDD]/`):**
+- Markdown (primary source of truth)
+- `sources.jsonl` — stable source registry with canonical IDs
+- `evidence.jsonl` — append-only evidence store with quotes and locators
+- `claims.jsonl` — atomic claim ledger with support status
+- `run_manifest.json` — query, mode, assumptions, provider config
+- HTML (McKinsey style, auto-opened)
+- PDF (professional print, auto-opened)
 
-## Output Format (Required)
+**Quality standards:**
+- 10+ sources, 3+ per major claim (cluster-independent, not just count)
+- All factual claims cited immediately [N] with evidence backing in `evidence.jsonl`
+- Claim-support verification mandatory: no unsupported factual claims pass delivery
+- No placeholders, no fabricated citations
+- Prose-first (>=80%), bullets sparingly
 
-Return results in this structure:
+---
 
-**Overview**
-- Research objective and scope
-- 3-6 key takeaways
+## When to Use / NOT Use
 
-**Detailed Findings**
-- Grouped by subtopic
-- Include concrete facts, not only opinions
-- Attach source links to important claims
+**Use:** Comprehensive analysis, technology comparisons, state-of-the-art reviews, multi-perspective investigation, market analysis.
 
-**Evidence Matrix**
-- Claim
-- Confidence (high/medium/low)
-- Supporting sources (2+ when possible)
-- Notes on caveats or conflicts
-
-**Comparison and Trade-offs** (when applicable)
-- Option A/B/C with pros, cons, and fit scenarios
-
-**Recommendations** (when applicable)
-- Clear, prioritized actions
-- Short rationale for each action
-
-**Gaps and Open Questions**
-- What is still uncertain
-- What to verify next if deeper research is needed
-
-**Sources**
-- Group links by primary vs secondary
-- Prefer clean, non-duplicate URLs
-
-## Style and Reliability Rules
-
-- Be explicit about uncertainty; do not fake confidence.
-- Distinguish facts from interpretation.
-- Do not present a single-source claim as settled truth.
-- If evidence is weak, say so and recommend next checks.
-
-## Optional Post-Research Follow-up
-
-After delivering research, optionally ask one follow-up question only when useful:
-- "Do you want me to generate a frontend static webpage for this research summary?"
-
-If user says yes:
-- Detect available frontend and deployment skills at runtime.
-- Build a readable static page with:
-  - concise overview
-  - expandable details (for example via <details>)
-  - sources with links
-- Return deployment details: site_id, path, URL, local verify result.
-
-If user says no:
-- End cleanly, and mention webpage generation can be requested later.
+**Do NOT use:** Simple lookups, debugging, 1-2 search answers, quick time-sensitive queries.
