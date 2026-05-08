@@ -63,7 +63,13 @@ const HELP_ITEMS: TuiHelpItem[] = [
 ];
 
 const HELP_FOOTER = [
+  'Enter - Send current input',
+  '↑/↓ - Recall previous/next prompt',
+  '←/→, Ctrl+A/E - Move cursor',
+  'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
+  'Ctrl+L - Clear visible transcript without clearing conversation',
   'Esc (while processing) - Stop current response and accept next input',
+  'Esc (idle) - Clear current input first; exit when input is empty',
   'Ctrl+C - Save and exit CLI immediately',
 ];
 
