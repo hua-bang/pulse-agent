@@ -64,6 +64,9 @@ const HELP_ITEMS: TuiHelpItem[] = [
 
 const HELP_FOOTER = [
   'Enter - Send current input',
+  'Ctrl+J - Insert a newline into the current draft',
+  'Tab - Complete the first visible slash-command suggestion',
+  'Type / - Show slash-command suggestions',
   '↑/↓ - Recall previous/next prompt',
   '←/→, Ctrl+A/E - Move cursor',
   'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
