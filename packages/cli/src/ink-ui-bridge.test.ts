@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import { InkUiBridge } from './ink-ui-bridge.js';
-import type { InkCliSnapshot } from './ink-app.js';
+import {
+  insertAtCursor,
+  removeAtCursor,
+  removeBeforeCursor,
+  removeWordBeforeCursor,
+  renderPrompt,
+  type InkCliSnapshot,
+} from './ink-app.js';
 
 describe('InkUiBridge', () => {
   it('streams assistant deltas into one assistant event', () => {
@@ -60,5 +67,19 @@ describe('InkUiBridge', () => {
     expect(last.mode).toBe('planning');
     expect(last.isProcessing).toBe(false);
     expect(last.status).toContain('Done in 1.2s');
+  });
+});
+
+describe('Ink composer editing helpers', () => {
+  it('inserts and deletes at cursor position', () => {
+    expect(insertAtCursor({ input: 'helo', cursor: 2 }, 'l')).toEqual({ input: 'hello', cursor: 3 });
+    expect(removeBeforeCursor({ input: 'hello', cursor: 3 })).toEqual({ input: 'helo', cursor: 2 });
+    expect(removeAtCursor({ input: 'hello', cursor: 1 })).toEqual({ input: 'hllo', cursor: 1 });
+  });
+
+  it('deletes the previous word and clamps prompt cursor', () => {
+    expect(removeWordBeforeCursor({ input: 'run the agent', cursor: 13 })).toEqual({ input: 'run the ', cursor: 8 });
+    expect(removeWordBeforeCursor({ input: 'run   ', cursor: 6 })).toEqual({ input: '', cursor: 0 });
+    expect(renderPrompt('abc', 99, true)).toBe('abc█');
   });
 });

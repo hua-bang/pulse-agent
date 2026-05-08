@@ -71,6 +71,10 @@ export class InkUiBridge {
   showTuiStatus(): void {
     this.section('TUI Status', [
       'Current UI: Ink',
+      'Input: Enter send, ↑/↓ history, ←/→ move cursor, Ctrl+A/E jump',
+      'Editing: Ctrl+U delete before cursor, Ctrl+K delete after cursor, Ctrl+W delete previous word',
+      'Control: Esc stops a run; when idle it clears input first, then exits on empty input',
+      'Display: Ctrl+L clears the visible transcript only; /clear resets conversation context',
       'Fallback: PULSE_CODER_UI=readline pulse-coder',
       'Plain fallback: PULSE_CODER_PLAIN=1 PULSE_CODER_UI=readline pulse-coder',
     ]);
