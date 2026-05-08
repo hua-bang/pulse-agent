@@ -71,7 +71,8 @@ export class InkUiBridge {
   showTuiStatus(): void {
     this.section('TUI Status', [
       'Current UI: Ink',
-      'Input: Enter send, ↑/↓ history, ←/→ move cursor, Ctrl+A/E jump',
+      'Discovery: type / for slash-command suggestions, Tab completes the first match',
+      'Input: Enter send, Ctrl+J newline, ↑/↓ history, ←/→ move cursor, Ctrl+A/E jump',
       'Editing: Ctrl+U delete before cursor, Ctrl+K delete after cursor, Ctrl+W delete previous word',
       'Control: Esc stops a run; when idle it clears input first, then exits on empty input',
       'Display: Ctrl+L clears the visible transcript only; /clear resets conversation context',

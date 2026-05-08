@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { InkUiBridge } from './ink-ui-bridge.js';
 import {
+  applySlashCommandCompletion,
+  getSlashCommandSuggestions,
   insertAtCursor,
   removeAtCursor,
   removeBeforeCursor,
   removeWordBeforeCursor,
   renderPrompt,
+  renderPromptLines,
   type InkCliSnapshot,
 } from './ink-app.js';
 
@@ -81,5 +84,15 @@ describe('Ink composer editing helpers', () => {
     expect(removeWordBeforeCursor({ input: 'run the agent', cursor: 13 })).toEqual({ input: 'run the ', cursor: 8 });
     expect(removeWordBeforeCursor({ input: 'run   ', cursor: 6 })).toEqual({ input: '', cursor: 0 });
     expect(renderPrompt('abc', 99, true)).toBe('abc█');
+  });
+
+  it('renders multiline prompts with cursor placement', () => {
+    expect(renderPromptLines('one\ntwo', 4, true)).toEqual(['one', '█two']);
+  });
+
+  it('suggests and completes slash commands', () => {
+    expect(getSlashCommandSuggestions('/s', 2).map(item => item.command)).toEqual(['/sessions', '/search', '/skills', '/status', '/solo', '/save']);
+    expect(getSlashCommandSuggestions('//', 2)).toEqual([]);
+    expect(applySlashCommandCompletion('/sta', 4, '/status')).toEqual({ input: '/status ', cursor: 8 });
   });
 });

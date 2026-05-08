@@ -42,9 +42,14 @@ interface InkCliAppProps {
   onExit?: () => void;
 }
 
-interface ComposerState {
+export interface ComposerState {
   input: string;
   cursor: number;
+}
+
+export interface SlashCommandSuggestion {
+  command: string;
+  description: string;
 }
 
 const DEFAULT_SNAPSHOT: InkCliSnapshot = {
@@ -75,6 +80,31 @@ const KIND_COLOR: Record<InkEventKind, string> = {
   system: 'blue',
   error: 'red',
 };
+
+const SLASH_COMMANDS: SlashCommandSuggestion[] = [
+  { command: '/help', description: 'Show commands and shortcuts' },
+  { command: '/new', description: 'Create a new session' },
+  { command: '/resume', description: 'Resume a saved session' },
+  { command: '/sessions', description: 'List saved sessions' },
+  { command: '/search', description: 'Search saved sessions' },
+  { command: '/rename', description: 'Rename a session' },
+  { command: '/delete', description: 'Delete a session' },
+  { command: '/clear', description: 'Clear conversation context' },
+  { command: '/compact', description: 'Compact current context' },
+  { command: '/skills', description: 'Run a message with a selected skill' },
+  { command: '/acp', description: 'Manage ACP mode' },
+  { command: '/wt', description: 'Use worktree skill' },
+  { command: '/status', description: 'Show session status' },
+  { command: '/mode', description: 'Show plan mode' },
+  { command: '/plan', description: 'Switch to planning mode' },
+  { command: '/execute', description: 'Switch to executing mode' },
+  { command: '/team', description: 'Run a multi-agent team' },
+  { command: '/teams', description: 'Enter teams mode' },
+  { command: '/solo', description: 'Exit teams mode' },
+  { command: '/save', description: 'Save current session' },
+  { command: '/tui', description: 'Show TUI status' },
+  { command: '/exit', description: 'Save and exit' },
+];
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const MAX_HISTORY = 100;
@@ -128,13 +158,54 @@ export function removeWordBeforeCursor(state: ComposerState): ComposerState {
 }
 
 export function renderPrompt(input: string, cursor: number, cursorVisible: boolean): string {
+  return renderPromptLines(input, cursor, cursorVisible).join('\n');
+}
+
+export function renderPromptLines(input: string, cursor: number, cursorVisible: boolean): string[] {
   const normalizedCursor = clampCursor(input, cursor);
   const cursorGlyph = cursorVisible ? '█' : ' ';
-  return `${input.slice(0, normalizedCursor)}${cursorGlyph}${input.slice(normalizedCursor)}`;
+  return `${input.slice(0, normalizedCursor)}${cursorGlyph}${input.slice(normalizedCursor)}`.split('\n');
+}
+
+export function getSlashCommandSuggestions(input: string, cursor: number, limit = 6): SlashCommandSuggestion[] {
+  const normalizedCursor = clampCursor(input, cursor);
+  const beforeCursor = input.slice(0, normalizedCursor);
+  if (!beforeCursor.startsWith('/') || beforeCursor.startsWith('//') || beforeCursor.includes('\n')) {
+    return [];
+  }
+
+  const match = beforeCursor.match(/^\/([^\s/]*)$/);
+  if (!match) {
+    return [];
+  }
+
+  const query = match[1].toLowerCase();
+  return SLASH_COMMANDS
+    .filter(item => item.command.slice(1).startsWith(query))
+    .slice(0, limit);
+}
+
+export function applySlashCommandCompletion(input: string, cursor: number, command: string): ComposerState {
+  const normalizedCursor = clampCursor(input, cursor);
+  const beforeCursor = input.slice(0, normalizedCursor);
+  if (!beforeCursor.match(/^\/([^\s/]*)$/)) {
+    return { input, cursor: normalizedCursor };
+  }
+
+  const suffix = input.slice(normalizedCursor);
+  const completed = `${command} `;
+  return {
+    input: `${completed}${suffix}`,
+    cursor: completed.length,
+  };
 }
 
 function clampCursor(input: string, cursor: number): number {
   return Math.max(0, Math.min(input.length, cursor));
+}
+
+function normalizeInputValue(value: string): string {
+  return value.replace(/\r\n?/g, '\n');
 }
 
 function recordHistory(history: string[], submitted: string): string[] {
@@ -275,6 +346,19 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
       return;
     }
 
+    if (key.tab || value === '\t') {
+      const [suggestion] = getSlashCommandSuggestions(input, cursor, 1);
+      if (suggestion) {
+        updateComposer(applySlashCommandCompletion(input, cursor, suggestion.command));
+      }
+      return;
+    }
+
+    if (key.ctrl && (value === 'j' || value === '\n')) {
+      updateComposer(insertAtCursor({ input, cursor }, '\n'));
+      return;
+    }
+
     if (key.return) {
       submitCurrentInput();
       return;
@@ -340,22 +424,28 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
     }
 
     if (value && !key.ctrl && !key.meta) {
-      updateComposer(insertAtCursor({ input, cursor }, value));
+      updateComposer(insertAtCursor({ input, cursor }, normalizeInputValue(value)));
     }
   });
 
   const terminalRows = stdout.rows ?? 30;
-  const visibleEventCount = Math.max(4, Math.min(12, terminalRows - 9));
+  const visibleEventCount = Math.max(4, Math.min(12, terminalRows - 12));
   const eventsAfterClear = snapshot.events.slice(Math.min(clearedEventCount, snapshot.events.length));
   const visibleEvents = eventsAfterClear.slice(-visibleEventCount);
   const hiddenEventCount = snapshot.events.length - visibleEvents.length;
   const spinner = snapshot.isProcessing ? SPINNER_FRAMES[spinnerIndex % SPINNER_FRAMES.length] : '●';
-  const prompt = useMemo(() => renderPrompt(input, cursor, cursorVisible), [cursor, cursorVisible, input]);
+  const promptLines = useMemo(() => renderPromptLines(input, cursor, cursorVisible), [cursor, cursorVisible, input]);
+  const slashSuggestions = useMemo(() => getSlashCommandSuggestions(input, cursor), [cursor, input]);
+  const maxPromptLines = Math.max(1, Math.min(6, terminalRows - 18));
+  const visiblePromptLines = promptLines.slice(-maxPromptLines);
+  const hiddenPromptLineCount = promptLines.length - visiblePromptLines.length;
   const keyHint = snapshot.isProcessing
-    ? 'Enter queue after Esc · Esc stop · Ctrl+C exit'
+    ? 'Running · Esc stop · after stopping, Enter queues next prompt'
     : input.length > 0
-      ? 'Enter send · Esc clear · ↑↓ history · Ctrl+A/E move · Ctrl+C exit'
-      : 'Enter send · Esc exit · ↑↓ history · Ctrl+L clear · Ctrl+C exit';
+      ? 'Editing · Enter send · Ctrl+J newline · Tab complete · Esc clear'
+      : 'Idle · type / for commands · ↑↓ history · Ctrl+L clear · Esc exit';
+  const lineCount = input.split('\n').length;
+  const composerHint = input.length > 0 ? `draft ${lineCount} line${lineCount === 1 ? '' : 's'} · ${input.length} chars` : 'ready for next prompt';
   const historyHint = history.length > 0 ? ` · history ${historyIndex === null ? history.length : `${historyIndex + 1}/${history.length}`}` : '';
   const hiddenHint = hiddenEventCount > 0 ? ` · ${hiddenEventCount} older` : '';
 
@@ -387,8 +477,25 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
         <Text color={snapshot.isProcessing ? 'yellow' : 'green'}>
           {spinner} {snapshot.status}{historyHint}{hiddenHint}
         </Text>
-        <Text color="gray">{keyHint}</Text>
-        <Text color="cyan">› <Text color="white">{prompt}</Text></Text>
+        <Text color="gray">{keyHint} · {composerHint}</Text>
+        {slashSuggestions.length > 0 ? (
+          <Box flexDirection="column">
+            <Text color="yellow">Commands · Tab completes first match</Text>
+            {slashSuggestions.map((suggestion, index) => (
+              <Text key={suggestion.command} color={index === 0 ? 'yellow' : 'gray'}>
+                {index === 0 ? '→ ' : '  '}{suggestion.command} <Text color="gray">{suggestion.description}</Text>
+              </Text>
+            ))}
+          </Box>
+        ) : null}
+        <Box flexDirection="column">
+          {hiddenPromptLineCount > 0 ? <Text color="gray">… {hiddenPromptLineCount} earlier draft line{hiddenPromptLineCount === 1 ? '' : 's'}</Text> : null}
+          {visiblePromptLines.map((line, index) => (
+            <Text key={`${index}-${line}`} color="cyan">
+              {index === 0 ? '› ' : '  '}<Text color="white">{line || ' '}</Text>
+            </Text>
+          ))}
+        </Box>
       </Box>
     </Box>
   );
