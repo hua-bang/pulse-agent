@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import './index.css';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
@@ -27,12 +27,25 @@ export const ReferenceDrawer = ({
 }: ReferenceDrawerProps) => {
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_REFERENCE_DRAWER_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  const [shouldRender, setShouldRender] = useState(open);
+  const [isActive, setIsActive] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setShouldRender(true);
+      const frame = window.requestAnimationFrame(() => setIsActive(true));
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    setIsActive(false);
+    const timer = window.setTimeout(() => setShouldRender(false), 240);
+    return () => window.clearTimeout(timer);
+  }, [open]);
 
   const drawerStyle = useMemo(
     () => ({
-      width: drawerWidth,
-      flexBasis: drawerWidth,
-    }),
+      '--reference-drawer-width': `${drawerWidth}px`,
+    }) as React.CSSProperties,
     [drawerWidth],
   );
 
@@ -63,12 +76,13 @@ export const ReferenceDrawer = ({
     document.addEventListener('mouseup', handleMouseUp);
   }, [drawerWidth]);
 
-  if (!open) return null;
+  if (!shouldRender) return null;
 
   return (
     <aside
-      className={`reference-drawer reference-drawer--open${isResizing ? ' reference-drawer--resizing' : ''}`}
+      className={`reference-drawer${isActive ? ' reference-drawer--open' : ''}${isResizing ? ' reference-drawer--resizing' : ''}`}
       style={drawerStyle}
+      aria-hidden={!isActive}
     >
       <div
         className="reference-drawer-resize-handle"
