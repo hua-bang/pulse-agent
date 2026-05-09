@@ -1,15 +1,49 @@
 .reference-drawer {
-  width: 336px;
-  flex: 0 0 336px;
+  width: 420px;
+  flex: 0 0 420px;
+  min-width: 320px;
+  max-width: 720px;
   height: 100%;
   border-right: 1px solid var(--border);
   background: var(--surface);
   overflow: hidden;
+  position: relative;
   z-index: 4;
 }
 
 .reference-drawer--open {
   animation: reference-drawer-enter 0.18s ease-out;
+}
+
+.reference-drawer--resizing {
+  user-select: none;
+}
+
+.reference-drawer-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 6;
+}
+
+.reference-drawer-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 1px;
+  height: 100%;
+  background: transparent;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.reference-drawer-resize-handle:hover::after,
+.reference-drawer--resizing .reference-drawer-resize-handle::after {
+  background: var(--accent-border);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.12);
 }
 
 @keyframes reference-drawer-enter {

@@ -1,7 +1,12 @@
+import { useCallback, useMemo, useState } from 'react';
 import './index.css';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+
+const DEFAULT_REFERENCE_DRAWER_WIDTH = 420;
+const MIN_REFERENCE_DRAWER_WIDTH = 320;
+const MAX_REFERENCE_DRAWER_WIDTH = 720;
 
 interface ReferenceDrawerProps {
   open: boolean;
@@ -22,15 +27,63 @@ export const ReferenceDrawer = ({
   onClear,
   onFocusNode,
 }: ReferenceDrawerProps) => {
+  const [drawerWidth, setDrawerWidth] = useState(DEFAULT_REFERENCE_DRAWER_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
   const canPinSelected = Boolean(selectedNode);
   const selectedIsReference = Boolean(
     selectedNode && referenceNode && selectedNode.id === referenceNode.id,
   );
 
+  const drawerStyle = useMemo(
+    () => ({
+      width: drawerWidth,
+      flexBasis: drawerWidth,
+    }),
+    [drawerWidth],
+  );
+
+  const handleResizeStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX;
+    const startWidth = drawerWidth;
+    setIsResizing(true);
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const nextWidth = startWidth + event.clientX - startX;
+      setDrawerWidth(Math.min(MAX_REFERENCE_DRAWER_WIDTH, Math.max(MIN_REFERENCE_DRAWER_WIDTH, nextWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [drawerWidth]);
+
   if (!open) return null;
 
   return (
-    <aside className="reference-drawer reference-drawer--open">
+    <aside
+      className={`reference-drawer reference-drawer--open${isResizing ? ' reference-drawer--resizing' : ''}`}
+      style={drawerStyle}
+    >
+      <div
+        className="reference-drawer-resize-handle"
+        onMouseDown={handleResizeStart}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize reference drawer"
+        title="Drag to resize"
+      />
         <header className="reference-drawer-header">
           <div>
             <div className="reference-drawer-kicker">Pinned context</div>
@@ -68,7 +121,13 @@ export const ReferenceDrawer = ({
         ) : (
           <div className="reference-native-card">
             <CanvasNodeView
-              node={{ ...referenceNode, x: 0, y: 0, width: 300, height: 520 }}
+              node={{
+                ...referenceNode,
+                x: 0,
+                y: 0,
+                width: Math.max(MIN_REFERENCE_DRAWER_WIDTH - 32, drawerWidth - 32),
+                height: 520,
+              }}
               allNodes={[referenceNode]}
               isDragging={false}
               isResizing={false}
