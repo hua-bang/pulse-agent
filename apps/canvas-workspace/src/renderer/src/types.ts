@@ -97,6 +97,8 @@ export interface IframeNodeData {
   mode?: 'url' | 'html' | 'ai';
   /** The prompt used to generate HTML when `mode` is `'ai'`. */
   prompt?: string;
+  /** Last page title reported by the embedded webview for URL mode. */
+  pageTitle?: string;
 }
 
 /**

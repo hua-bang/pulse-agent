@@ -741,13 +741,6 @@ export const Canvas = ({
         run: () => handleToolbarAddNode('file'),
       },
       {
-        id: 'create-terminal',
-        group: 'create',
-        title: 'Open terminal',
-        aliases: ['shell', 'pty', 'console', 'bash'],
-        run: () => handleToolbarAddNode('terminal'),
-      },
-      {
         id: 'create-agent',
         group: 'create',
         title: 'Create agent',

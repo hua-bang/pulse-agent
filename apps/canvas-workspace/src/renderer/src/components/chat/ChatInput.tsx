@@ -1,6 +1,6 @@
 import type { ClipboardEventHandler, KeyboardEventHandler, ReactNode, RefObject } from 'react';
 import type { CanvasNode, ChatImageAttachment } from '../../types';
-import { PlusIcon } from '../icons';
+import { ImageIcon, PlusIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { MentionNodeIcon } from './utils/mentions';
 
@@ -122,7 +122,7 @@ export const ChatInput = ({
                   input.click();
                 }}
               >
-                🖼
+                <ImageIcon size={18} strokeWidth={1.35} />
               </button>
               </>
             ) : loading ? (

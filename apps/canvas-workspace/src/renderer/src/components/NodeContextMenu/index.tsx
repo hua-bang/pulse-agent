@@ -83,16 +83,6 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           </button>
           <button
             className="context-menu-item"
-            onClick={() => onCreate?.("terminal")}
-          >
-            <span className="context-menu-icon">{"\u25B6"}</span>
-            <span className="context-menu-label">
-              <strong>Terminal</strong>
-              <small>Run shell commands</small>
-            </span>
-          </button>
-          <button
-            className="context-menu-item"
             onClick={() => onCreate?.("frame")}
           >
             <span className="context-menu-icon">{"\u25A1"}</span>
