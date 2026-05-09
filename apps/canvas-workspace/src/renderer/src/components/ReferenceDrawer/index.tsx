@@ -100,24 +100,12 @@ export const ReferenceDrawer = ({
           </button>
         </header>
 
-        <div className="reference-drawer-actions">
-          <button
-            className="reference-drawer-primary"
-            type="button"
-            onClick={onPinSelected}
-            disabled={!canPinSelected || selectedIsReference}
-          >
-            {referenceNode ? 'Replace with selected' : 'Pin selected node'}
-          </button>
-          {referenceNode && (
-            <button className="reference-drawer-secondary" type="button" onClick={onClear}>
-              Clear
-            </button>
-          )}
-        </div>
-
         {!referenceNode ? (
-          <ReferenceEmptyState selectedNode={selectedNode} />
+          <ReferenceEmptyState
+            selectedNode={selectedNode}
+            canReferenceSelected={canPinSelected && !selectedIsReference}
+            onReferenceSelected={onPinSelected}
+          />
         ) : (
           <div className="reference-native-card">
             <CanvasNodeView
@@ -145,11 +133,22 @@ export const ReferenceDrawer = ({
             />
             <div className="reference-card-footer">
               <button
+                className="reference-drawer-primary"
+                type="button"
+                onClick={onPinSelected}
+                disabled={!canPinSelected || selectedIsReference}
+              >
+                Reference
+              </button>
+              <button
                 className="reference-drawer-secondary"
                 type="button"
                 onClick={() => onFocusNode(referenceNode.id)}
               >
                 Focus on canvas
+              </button>
+              <button className="reference-drawer-secondary" type="button" onClick={onClear}>
+                Clear
               </button>
             </div>
           </div>
@@ -158,19 +157,35 @@ export const ReferenceDrawer = ({
   );
 };
 
-const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNode }) => (
+const ReferenceEmptyState = ({
+  selectedNode,
+  canReferenceSelected,
+  onReferenceSelected,
+}: {
+  selectedNode?: CanvasNode;
+  canReferenceSelected: boolean;
+  onReferenceSelected: () => void;
+}) => (
   <div className="reference-empty">
     <div className="reference-empty-icon">⌑</div>
     <h3>No reference pinned</h3>
-    <p>Select one node on the canvas, then pin it here as stable context while you work elsewhere.</p>
+    <p>Select a node, then reference it here while you work elsewhere.</p>
     {selectedNode ? (
       <div className="reference-selected-hint">
         <span>Selected</span>
         <strong>{getNodeDisplayLabel(selectedNode)}</strong>
+        <button
+          className="reference-drawer-primary reference-selected-action"
+          type="button"
+          onClick={onReferenceSelected}
+          disabled={!canReferenceSelected}
+        >
+          Reference
+        </button>
       </div>
     ) : (
       <div className="reference-selected-hint reference-selected-hint--muted">
-        Select a single node to enable pinning.
+        Select a single node to enable reference.
       </div>
     )}
   </div>

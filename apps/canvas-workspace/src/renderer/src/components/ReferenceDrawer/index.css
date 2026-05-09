@@ -118,14 +118,9 @@
   background: rgba(0, 0, 0, 0.04);
 }
 
-.reference-drawer-actions,
 .reference-card-footer {
   display: flex;
   gap: 6px;
-}
-
-.reference-drawer-actions {
-  padding: 12px 18px 0;
 }
 
 .reference-drawer-primary,
@@ -136,6 +131,7 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  white-space: nowrap;
   transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
 }
 
@@ -234,9 +230,15 @@
   text-align: center;
 }
 
+.reference-selected-action {
+  width: 100%;
+  margin-top: 7px;
+  flex: 0;
+}
+
 .reference-native-card {
   min-height: 0;
-  height: calc(100% - 108px);
+  height: calc(100% - 88px);
   margin: 14px 18px 18px;
   display: flex;
   flex-direction: column;

@@ -506,22 +506,24 @@ export const CanvasNodeView = ({
         {node.type === "text" && !readOnly && (
           <TextColorPicker node={node} onUpdate={onUpdate} />
         )}
-        <button
-          className={`node-copy${copied ? ' node-copy--done' : ''}`}
-          onClick={handleCopy}
-          title={copied ? 'Copied!' : 'Copy content'}
-        >
-          {copied ? (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <rect x="5" y="1" width="9" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M11 4H3a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1V4z" stroke="currentColor" strokeWidth="1.3" />
-            </svg>
-          )}
-        </button>
+        {readOnly ? null : (
+          <button
+            className={`node-copy${copied ? ' node-copy--done' : ''}`}
+            onClick={handleCopy}
+            title={copied ? 'Copied!' : 'Copy content'}
+          >
+            {copied ? (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+                <rect x="5" y="1" width="9" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M11 4H3a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1V4z" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
+            )}
+          </button>
+        )}
         <button className="node-focus" onClick={handleFocus} title="Focus">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" />
