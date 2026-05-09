@@ -390,9 +390,10 @@ export const useNodes = (
   const moveNodes = useCallback(
     (moves: Array<{ id: string; x: number; y: number }>) => {
       const now = Date.now();
+      const moveById = new Map(moves.map((move) => [move.id, move]));
       applyNodes(
         nodesRef.current.map((n) => {
-          const m = moves.find((mv) => mv.id === n.id);
+          const m = moveById.get(n.id);
           return m ? { ...n, x: m.x, y: m.y, updatedAt: now } : n;
         }),
         false
