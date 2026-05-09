@@ -8,7 +8,9 @@
   background: #fbfbfa;
   overflow: hidden;
   position: relative;
-  z-index: 4;
+  z-index: 10;
+  flex-shrink: 0;
+  isolation: isolate;
 }
 
 .reference-drawer--open {
@@ -230,12 +232,6 @@
   text-align: center;
 }
 
-.reference-selected-action {
-  width: 100%;
-  margin-top: 7px;
-  flex: 0;
-}
-
 .reference-native-card {
   min-height: 0;
   height: calc(100% - 88px);
@@ -261,4 +257,6 @@
   padding: 8px;
   border-top: 1px solid var(--border-light);
   background: #fbfbfa;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }

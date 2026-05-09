@@ -13,7 +13,6 @@ interface ReferenceDrawerProps {
   referenceNode?: CanvasNode;
   selectedNode?: CanvasNode;
   onOpenChange: (open: boolean) => void;
-  onPinSelected: () => void;
   onClear: () => void;
   onFocusNode: (nodeId: string) => void;
 }
@@ -23,16 +22,11 @@ export const ReferenceDrawer = ({
   referenceNode,
   selectedNode,
   onOpenChange,
-  onPinSelected,
   onClear,
   onFocusNode,
 }: ReferenceDrawerProps) => {
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_REFERENCE_DRAWER_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
-  const canPinSelected = Boolean(selectedNode);
-  const selectedIsReference = Boolean(
-    selectedNode && referenceNode && selectedNode.id === referenceNode.id,
-  );
 
   const drawerStyle = useMemo(
     () => ({
@@ -101,11 +95,7 @@ export const ReferenceDrawer = ({
         </header>
 
         {!referenceNode ? (
-          <ReferenceEmptyState
-            selectedNode={selectedNode}
-            canReferenceSelected={canPinSelected && !selectedIsReference}
-            onReferenceSelected={onPinSelected}
-          />
+          <ReferenceEmptyState selectedNode={selectedNode} />
         ) : (
           <div className="reference-native-card">
             <CanvasNodeView
@@ -133,19 +123,12 @@ export const ReferenceDrawer = ({
             />
             <div className="reference-card-footer">
               <button
-                className="reference-drawer-primary"
-                type="button"
-                onClick={onPinSelected}
-                disabled={!canPinSelected || selectedIsReference}
-              >
-                Reference
-              </button>
-              <button
                 className="reference-drawer-secondary"
                 type="button"
                 onClick={() => onFocusNode(referenceNode.id)}
+                title="Focus on canvas"
               >
-                Focus on canvas
+                Focus
               </button>
               <button className="reference-drawer-secondary" type="button" onClick={onClear}>
                 Clear
@@ -157,31 +140,15 @@ export const ReferenceDrawer = ({
   );
 };
 
-const ReferenceEmptyState = ({
-  selectedNode,
-  canReferenceSelected,
-  onReferenceSelected,
-}: {
-  selectedNode?: CanvasNode;
-  canReferenceSelected: boolean;
-  onReferenceSelected: () => void;
-}) => (
+const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNode }) => (
   <div className="reference-empty">
     <div className="reference-empty-icon">⌑</div>
     <h3>No reference pinned</h3>
-    <p>Select a node, then reference it here while you work elsewhere.</p>
+    <p>Select a node, then use its Reference action to pin it here.</p>
     {selectedNode ? (
       <div className="reference-selected-hint">
         <span>Selected</span>
         <strong>{getNodeDisplayLabel(selectedNode)}</strong>
-        <button
-          className="reference-drawer-primary reference-selected-action"
-          type="button"
-          onClick={onReferenceSelected}
-          disabled={!canReferenceSelected}
-        >
-          Reference
-        </button>
       </div>
     ) : (
       <div className="reference-selected-hint reference-selected-hint--muted">
