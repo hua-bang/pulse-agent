@@ -6,6 +6,7 @@ interface Props {
   node: CanvasNode;
   onSelect: (id: string) => void;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -13,15 +14,19 @@ interface Props {
  * surface a drag handle — the outer CanvasNodeView hides the header for
  * image nodes so there is no other grip to reach for.
  */
-export const ImageNodeBody = ({ node, onSelect, onDragStart }: Props) => {
+export const ImageNodeBody = ({ node, onSelect, onDragStart, readOnly = false }: Props) => {
   const data = node.data as ImageNodeData;
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (readOnly) {
+        e.stopPropagation();
+        return;
+      }
       onSelect(node.id);
       onDragStart(e, node);
     },
-    [node, onSelect, onDragStart],
+    [node, onSelect, onDragStart, readOnly],
   );
 
   return (

@@ -9,6 +9,7 @@ interface Props {
   onSelect: (id: string) => void;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -25,7 +26,7 @@ interface Props {
  * While editing, the contenteditable div captures pointer events so the
  * user can click-to-position the caret without starting a drag.
  */
-export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdate }: Props) => {
+export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdate, readOnly = false }: Props) => {
   const data = node.data as ShapeNodeData;
   const [editing, setEditing] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
@@ -36,20 +37,25 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (readOnly) {
+        e.stopPropagation();
+        return;
+      }
       if (editing) return;
       onSelect(node.id);
       onDragStart(e, node);
     },
-    [editing, node, onSelect, onDragStart],
+    [editing, node, onSelect, onDragStart, readOnly],
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (readOnly) return;
       initialTextRef.current = data.text ?? '';
       setEditing(true);
     },
-    [data.text],
+    [data.text, readOnly],
   );
 
   const commit = useCallback(() => {
@@ -60,10 +66,10 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
     }
     const next = el.innerText.replace(/\n+$/, '');
     setEditing(false);
-    if (next !== (data.text ?? '')) {
+    if (!readOnly && next !== (data.text ?? '')) {
       onUpdate(node.id, { data: { ...data, text: next } });
     }
-  }, [data, node.id, onUpdate]);
+  }, [data, node.id, onUpdate, readOnly]);
 
   const cancel = useCallback(() => {
     // Restore the pre-edit text and exit without saving.
@@ -101,11 +107,12 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
   // Leaving selection should exit edit mode — otherwise the node can get
   // stuck in an "editing but not selected" state that the user can't see.
   useEffect(() => {
-    if (editing && !isSelected) commit();
-  }, [editing, isSelected, commit]);
+    if (!readOnly && editing && !isSelected) commit();
+  }, [editing, isSelected, commit, readOnly]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (readOnly) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         cancel();
@@ -115,7 +122,7 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
         commit();
       }
     },
-    [cancel, commit],
+    [cancel, commit, readOnly],
   );
 
   const w = Math.max(1, node.width);
@@ -163,7 +170,7 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
           ref={editorRef}
           className={`shape-node-text${editing ? ' shape-node-text--editing' : ''}`}
           style={{ color: textColor, fontSize }}
-          contentEditable={editing}
+          contentEditable={!readOnly && editing}
           suppressContentEditableWarning
           spellCheck={false}
           onMouseDown={(e) => {
@@ -215,6 +222,7 @@ const STROKE_WIDTHS: number[] = [0, 1, 2, 4, 6];
 interface StylePickerProps {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  readOnly?: boolean;
 }
 
 export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {

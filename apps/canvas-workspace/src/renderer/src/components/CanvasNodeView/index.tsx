@@ -47,6 +47,7 @@ interface Props {
    *  treated as a plain replace-the-selection click. */
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
+  readOnly?: boolean;
 }
 
 function formatRelativeTime(epochMs: number): string {
@@ -103,7 +104,8 @@ export const CanvasNodeView = ({
   onRemove,
   onExportMindmapImage,
   onSelect,
-  onFocus
+  onFocus,
+  readOnly = false
 }: Props) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -120,6 +122,7 @@ export const CanvasNodeView = ({
 
   const handleHeaderMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (readOnly) return;
       // Plain mousedown on an *unselected* node collapses the selection
       // to it so the drag in useNodeDrag has this node as its primary
       // (otherwise dragging a stranger node would still drag whatever
@@ -130,23 +133,25 @@ export const CanvasNodeView = ({
       if (!isSelected && !hasMods) onSelect(node.id);
       onDragStart(e, node);
     },
-    [onSelect, onDragStart, node, isSelected]
+    [onSelect, onDragStart, node, isSelected, readOnly]
   );
 
   const handleNodeClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (readOnly) return;
       onSelect(node.id, { shift: e.shiftKey, meta: e.metaKey || e.ctrlKey });
     },
-    [onSelect, node.id]
+    [onSelect, node.id, readOnly]
   );
 
   const handleClose = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (readOnly) return;
       onRemove(node.id);
     },
-    [onRemove, node.id]
+    [onRemove, node.id, readOnly]
   );
 
   const handleFocus = useCallback(
@@ -159,13 +164,17 @@ export const CanvasNodeView = ({
 
   const handleTitleBlur = useCallback(
     (e: React.FocusEvent<HTMLSpanElement>) => {
+      if (readOnly) {
+        setIsEditingTitle(false);
+        return;
+      }
       const newTitle = e.currentTarget.textContent?.trim();
       if (newTitle && newTitle !== node.title) {
         onUpdate(node.id, { title: newTitle });
       }
       setIsEditingTitle(false);
     },
-    [onUpdate, node.id, node.title]
+    [onUpdate, node.id, node.title, readOnly]
   );
 
   const handleTitleKeyDown = useCallback(
@@ -184,6 +193,7 @@ export const CanvasNodeView = ({
   const handleTitleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (readOnly) return;
       setIsEditingTitle(true);
       // Focus after state update renders contentEditable=true
       requestAnimationFrame(() => {
@@ -197,7 +207,7 @@ export const CanvasNodeView = ({
         }
       });
     },
-    []
+    [readOnly]
   );
 
   const handleCopy = useCallback(
@@ -247,6 +257,7 @@ export const CanvasNodeView = ({
     isSelected && "canvas-node--selected",
     isHighlighted && "canvas-node--highlighted",
     isAgentEdited && "canvas-node--agent-edited",
+    readOnly && "canvas-node--readonly",
     textAutoSize && "canvas-node--text-auto"
   ]
     .filter(Boolean)
@@ -270,25 +281,31 @@ export const CanvasNodeView = ({
         onClick={handleNodeClick}
       >
         <div className="node-body node-body--image" onMouseDown={(e) => e.stopPropagation()}>
-          <ImageNodeBody node={node} onSelect={onSelect} onDragStart={onDragStart} />
+          <ImageNodeBody node={node} onSelect={onSelect} onDragStart={onDragStart} readOnly={readOnly} />
         </div>
-        <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-        </button>
-        <div
-          className="resize-handle resize-handle--right"
-          onMouseDown={makeResizeHandler("right")}
-        />
-        <div
-          className="resize-handle resize-handle--bottom"
-          onMouseDown={makeResizeHandler("bottom")}
-        />
-        <div
-          className="resize-handle resize-handle--corner"
-          onMouseDown={makeResizeHandler("bottom-right")}
-        />
+        {readOnly ? null : (
+          <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+        {readOnly ? null : (
+          <>
+            <div
+              className="resize-handle resize-handle--right"
+              onMouseDown={makeResizeHandler("right")}
+            />
+            <div
+              className="resize-handle resize-handle--bottom"
+              onMouseDown={makeResizeHandler("bottom")}
+            />
+            <div
+              className="resize-handle resize-handle--corner"
+              onMouseDown={makeResizeHandler("bottom-right")}
+            />
+          </>
+        )}
       </div>
     );
   }
@@ -311,26 +328,33 @@ export const CanvasNodeView = ({
             onSelect={onSelect}
             onDragStart={onDragStart}
             onUpdate={onUpdate}
+            readOnly={readOnly}
           />
         </div>
-        {isSelected && <ShapeStylePicker node={node} onUpdate={onUpdate} />}
-        <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-        </button>
-        <div
-          className="resize-handle resize-handle--right"
-          onMouseDown={makeResizeHandler("right")}
-        />
-        <div
-          className="resize-handle resize-handle--bottom"
-          onMouseDown={makeResizeHandler("bottom")}
-        />
-        <div
-          className="resize-handle resize-handle--corner"
-          onMouseDown={makeResizeHandler("bottom-right")}
-        />
+        {isSelected && !readOnly && <ShapeStylePicker node={node} onUpdate={onUpdate} />}
+        {readOnly ? null : (
+          <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+        {readOnly ? null : (
+          <>
+            <div
+              className="resize-handle resize-handle--right"
+              onMouseDown={makeResizeHandler("right")}
+            />
+            <div
+              className="resize-handle resize-handle--bottom"
+              onMouseDown={makeResizeHandler("bottom")}
+            />
+            <div
+              className="resize-handle resize-handle--corner"
+              onMouseDown={makeResizeHandler("bottom-right")}
+            />
+          </>
+        )}
       </div>
     );
   }
@@ -348,10 +372,12 @@ export const CanvasNodeView = ({
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (readOnly) return;
           onSelect(node.id);
           setMindmapMenu({ x: e.clientX, y: e.clientY });
         }}
         onMouseDown={(e) => {
+          if (readOnly) return;
           // Same logic as handleHeaderMouseDown — only collapse the
           // selection on a plain mousedown over an unselected node.
           // Shift/Cmd selection changes are handled exclusively by the
@@ -369,13 +395,16 @@ export const CanvasNodeView = ({
             onUpdate={onUpdate}
             onSelectNode={onSelect}
             onAutoResize={onAutoResize}
+            readOnly={readOnly}
           />
         </div>
-        <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-        </button>
+        {readOnly ? null : (
+          <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
         {mindmapMenu && (
           <NodeContextMenu
             x={mindmapMenu.x}
@@ -471,10 +500,10 @@ export const CanvasNodeView = ({
             {relativeTime}
           </span>
         )}
-        {node.type === "frame" && (
+        {node.type === "frame" && !readOnly && (
           <FrameColorPicker node={node} onUpdate={onUpdate} />
         )}
-        {node.type === "text" && (
+        {node.type === "text" && !readOnly && (
           <TextColorPicker node={node} onUpdate={onUpdate} />
         )}
         <button
@@ -499,17 +528,19 @@ export const CanvasNodeView = ({
             <path d="M6 1v2M6 9v2M1 6h2M9 6h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
         </button>
-        <button className="node-close" onClick={handleClose} title="Remove">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-        </button>
+        {readOnly ? null : (
+          <button className="node-close" onClick={handleClose} title="Remove">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
       </div>
       <div className="node-body" onMouseDown={(e) => e.stopPropagation()}>
         {node.type === "file" ? (
-          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} />
+          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />
         ) : node.type === "terminal" ? (
-          <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
+          <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === "frame" ? (
           <FrameNodeBody node={node} onUpdate={onUpdate} />
         ) : node.type === "text" ? (
@@ -519,30 +550,35 @@ export const CanvasNodeView = ({
             isSelected={isSelected}
             onSelect={onSelect}
             onDragStart={onDragStart}
+            readOnly={readOnly}
           />
         ) : node.type === "iframe" ? (
-          <IframeNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} />
+          <IframeNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
         ) : (
-          <AgentNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} />
+          <AgentNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         )}
       </div>
 
-      <div
-        className="resize-handle resize-handle--right"
-        onMouseDown={makeResizeHandler("right")}
-      />
-      {node.type !== "text" && (
-        <>
-          <div
-            className="resize-handle resize-handle--bottom"
-            onMouseDown={makeResizeHandler("bottom")}
-          />
-          <div
-            className="resize-handle resize-handle--corner"
-            onMouseDown={makeResizeHandler("bottom-right")}
-          />
-        </>
-      )}
+        {readOnly ? null : (
+          <>
+            <div
+              className="resize-handle resize-handle--right"
+              onMouseDown={makeResizeHandler("right")}
+            />
+            {node.type !== "text" && (
+              <>
+                <div
+                  className="resize-handle resize-handle--bottom"
+                  onMouseDown={makeResizeHandler("bottom")}
+                />
+                <div
+                  className="resize-handle resize-handle--corner"
+                  onMouseDown={makeResizeHandler("bottom-right")}
+                />
+              </>
+            )}
+          </>
+        )}
     </div>
   );
 };

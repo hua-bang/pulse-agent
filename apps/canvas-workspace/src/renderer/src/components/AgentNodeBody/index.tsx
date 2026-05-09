@@ -21,9 +21,10 @@ interface Props {
   workspaceId?: string;
   workspaceName?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  readOnly?: boolean;
 }
 
-export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props) => {
+export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
   const data = node.data as AgentNodeData;
   const status = data.status ?? 'idle';
 
@@ -97,6 +98,27 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
       isRestored = false,
     ) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
+      if (readOnly) {
+        spawnedRef.current = true;
+        isRestoredRef.current = true;
+        const term = new Terminal(TERMINAL_OPTIONS);
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(containerRef.current);
+        termRef.current = term;
+        fitRef.current = fitAddon;
+        if (initialScrollback.current) {
+          term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
+          term.write(initialScrollback.current.split('\n').join('\r\n'));
+          term.writeln('');
+        } else {
+          term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
+        }
+        requestAnimationFrame(() => {
+          try { fitAddon.fit(); } catch { /* ignore */ }
+        });
+        return;
+      }
       spawnedRef.current = true;
       isRestoredRef.current = isRestored;
 
@@ -224,7 +246,7 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
         api.kill(sessionId);
       };
     },
-    [sessionId, rootFolder, workspaceId],
+    [sessionId, rootFolder, workspaceId, readOnly],
   );
 
   useEffect(() => {
@@ -289,6 +311,7 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
   }, [launched]);
 
   const handleLaunch = useCallback(() => {
+    if (readOnly) return;
     const effectiveCwd = cwdInput || rootFolder || '';
     const prompt = promptInput.trim();
     pendingAgentRef.current = selectedAgent;
@@ -314,23 +337,26 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
       },
     });
     setLaunched(true);
-  }, [selectedAgent, cwdInput, promptInput, rootFolder]);
+  }, [selectedAgent, cwdInput, promptInput, rootFolder, readOnly]);
 
   const handleStop = useCallback(() => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.pty;
     if (api) api.kill(sessionId);
     onUpdateRef.current(nodeIdRef.current, {
       data: { ...dataRef.current, status: 'done' },
     });
-  }, [sessionId]);
+  }, [sessionId, readOnly]);
 
   const handleSendPrompt = useCallback((prompt: string) => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.pty;
     if (!api) return;
     api.write(sessionId, `\n${prompt}\n`);
-  }, [sessionId]);
+  }, [sessionId, readOnly]);
 
   const handleRestart = useCallback(() => {
+    if (readOnly) return;
     if (saveTimerRef.current) clearInterval(saveTimerRef.current);
     cleanupRef.current?.();
     termRef.current?.dispose();
@@ -349,16 +375,17 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
     });
 
     setLaunched(false);
-  }, []);
+  }, [readOnly]);
 
   const handlePickFolder = useCallback(async () => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.dialog;
     if (!api) return;
     const result = await api.openFolder();
     if (result.ok && !result.canceled && result.folderPath) {
       setCwdInput(result.folderPath);
     }
-  }, []);
+  }, [readOnly]);
 
   if (!launched) {
     return (

@@ -33,6 +33,31 @@
   z-index: 100;
 }
 
+.canvas-node--readonly {
+  position: relative;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-shadow: none;
+}
+
+.canvas-node--readonly:hover {
+  box-shadow: none;
+}
+
+.canvas-node--readonly .node-header {
+  cursor: default;
+}
+
+.canvas-node--readonly .node-copy,
+.canvas-node--readonly .node-focus {
+  opacity: 1;
+}
+
+.canvas-node--readonly .node-body {
+  user-select: text;
+}
+
 .node-header {
   display: flex;
   align-items: center;

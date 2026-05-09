@@ -7,6 +7,8 @@ interface Props {
   onAddNode: (type: "file" | "terminal" | "frame" | "agent" | "text" | "iframe" | "mindmap") => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
+  referenceDrawerOpen?: boolean;
+  onReferenceToggle?: () => void;
 }
 
 const tools = [
@@ -63,9 +65,29 @@ export const FloatingToolbar = ({
   onAddNode,
   chatPanelOpen,
   onChatToggle,
+  referenceDrawerOpen,
+  onReferenceToggle,
 }: Props) => {
   return (
     <div className="floating-toolbar">
+      {onReferenceToggle && (
+        <>
+          <div className="toolbar-group">
+            <button
+              className={`toolbar-btn${referenceDrawerOpen ? " toolbar-btn--active" : ""}`}
+              onClick={onReferenceToggle}
+              title="Toggle Reference Drawer"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M6 6h6M6 9h4M6 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          <div className="toolbar-divider" />
+        </>
+      )}
+
       {onChatToggle && (
         <>
           <div className="toolbar-group">

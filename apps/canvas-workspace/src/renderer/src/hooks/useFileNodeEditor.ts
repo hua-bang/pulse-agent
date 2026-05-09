@@ -76,6 +76,7 @@ interface Options {
   setModified: (val: boolean) => void;
   persistToFile: (markdown: string, filePath: string) => Promise<void>;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  readOnly?: boolean;
 }
 
 const AUTO_SAVE_MS = 1500;
@@ -89,6 +90,7 @@ export const useFileNodeEditor = ({
   setModified,
   persistToFile,
   onUpdate,
+  readOnly = false,
 }: Options) => {
   const [bubble, setBubble] = useState<BubbleState | null>(null);
   const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
@@ -132,8 +134,10 @@ export const useFileNodeEditor = ({
       Markdown.configure({ html: false, transformPastedText: true }),
     ],
     content: data.content || '',
+    editable: !readOnly,
     editorProps: {
       handlePaste: (view, event) => {
+        if (readOnly) return false;
         const items = Array.from(event.clipboardData?.items ?? []);
         const imageItem = items.find((i) => i.type.startsWith('image/'));
         if (!imageItem) return false;
@@ -166,6 +170,7 @@ export const useFileNodeEditor = ({
       },
     },
     onUpdate: ({ editor }) => {
+      if (readOnly) return;
       const markdown = getMarkdown(editor);
       prevContentRef.current = markdown;
       setModified(true);
@@ -198,7 +203,7 @@ export const useFileNodeEditor = ({
       }
     },
     onSelectionUpdate: ({ editor }) => {
-      if (editor.state.selection.empty) {
+      if (readOnly || editor.state.selection.empty) {
         setBubble(null);
         return;
       }
@@ -222,13 +227,23 @@ export const useFileNodeEditor = ({
   useEffect(() => {
     if (!editor || data.content === prevContentRef.current) return;
     prevContentRef.current = data.content;
-    editor.commands.setContent(data.content || '');
+    editor.commands.setContent(data.content || '', { emitUpdate: false });
     setModified(false);
   }, [data.content, editor, prevContentRef, setModified]);
 
-  // Cmd+S / Ctrl+S
   useEffect(() => {
     if (!editor) return;
+    editor.setEditable(!readOnly);
+    if (readOnly) {
+      setBubble(null);
+      setSlashMenu(null);
+      setFindBarOpen(false);
+    }
+  }, [editor, readOnly]);
+
+  // Cmd+S / Ctrl+S
+  useEffect(() => {
+    if (!editor || readOnly) return;
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
@@ -238,11 +253,11 @@ export const useFileNodeEditor = ({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [editor, persistToFile, dataRef]);
+  }, [editor, persistToFile, dataRef, readOnly]);
 
   // Slash menu keyboard navigation — capture phase so we intercept before ProseMirror
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || readOnly) return;
     const handler = (e: KeyboardEvent) => {
       const menu = slashMenuRef.current;
       if (!menu) return;
@@ -269,32 +284,36 @@ export const useFileNodeEditor = ({
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [editor]);
+  }, [editor, readOnly]);
 
   const slashCtx: SlashCmdContext = {
-    requestLink: (initial: string) => setLinkPrompt({ initial }),
-    requestImage: () => imageInputRef.current?.click(),
+    requestLink: (initial: string) => {
+      if (!readOnly) setLinkPrompt({ initial });
+    },
+    requestImage: () => {
+      if (!readOnly) imageInputRef.current?.click();
+    },
   };
   const slashCtxRef = useRef<SlashCmdContext>(slashCtx);
   slashCtxRef.current = slashCtx;
 
   const handleSlashSelect = useCallback((cmd: SlashCommandDef) => {
-    if (!editor || !slashMenuRef.current) return;
+    if (readOnly || !editor || !slashMenuRef.current) return;
     const { slashFrom } = slashMenuRef.current;
     const fullCmd = ALL_SLASH_COMMANDS.find((c) => c.id === cmd.id);
     fullCmd?.run(editor, slashFrom, editor.state.selection.from, slashCtxRef.current);
     setSlashMenu(null);
-  }, [editor]);
+  }, [editor, readOnly]);
 
   const openLinkPrompt = useCallback(() => {
-    if (!editor) return;
+    if (readOnly || !editor) return;
     const initial = (editor.getAttributes('link')?.href as string | undefined) ?? '';
     setLinkPrompt({ initial });
-  }, [editor]);
+  }, [editor, readOnly]);
 
   const applyLink = useCallback(
     (url: string) => {
-      if (!editor) return;
+      if (readOnly || !editor) return;
       const trimmed = url.trim();
       if (trimmed === '') {
         editor.chain().focus().extendMarkRange('link').unsetLink().run();
@@ -308,14 +327,14 @@ export const useFileNodeEditor = ({
       }
       setLinkPrompt(null);
     },
-    [editor],
+    [editor, readOnly],
   );
 
   const cancelLink = useCallback(() => setLinkPrompt(null), []);
 
   const insertImageFromFile = useCallback(
     async (file: File) => {
-      if (!editor) return;
+      if (readOnly || !editor) return;
       const reader = new FileReader();
       reader.onload = async () => {
         const dataUrl = reader.result as string;
@@ -338,17 +357,21 @@ export const useFileNodeEditor = ({
       };
       reader.readAsDataURL(file);
     },
-    [editor, dataRef, workspaceIdRef],
+    [editor, dataRef, workspaceIdRef, readOnly],
   );
 
-  const openImagePicker = useCallback(() => imageInputRef.current?.click(), []);
+  const openImagePicker = useCallback(() => {
+    if (!readOnly) imageInputRef.current?.click();
+  }, [readOnly]);
 
-  const openFindBar = useCallback(() => setFindBarOpen(true), []);
+  const openFindBar = useCallback(() => {
+    if (!readOnly) setFindBarOpen(true);
+  }, [readOnly]);
   const closeFindBar = useCallback(() => setFindBarOpen(false), []);
 
   // Cmd/Ctrl+F to open find bar — only when this editor is focused
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || readOnly) return;
     const handler = (e: KeyboardEvent) => {
       if (!((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f')) return;
       if (!editor.isFocused) return;
@@ -357,7 +380,7 @@ export const useFileNodeEditor = ({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [editor]);
+  }, [editor, readOnly]);
 
   return {
     editor,
