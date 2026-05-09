@@ -25,6 +25,19 @@
   cursor: nwse-resize;
 }
 
+.canvas-container--iframe-shielding .iframe-frame-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.canvas-container--iframe-shielding .iframe-frame {
+  pointer-events: none;
+}
+
 .canvas-container--shape {
   cursor: crosshair;
 }

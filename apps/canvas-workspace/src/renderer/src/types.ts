@@ -1,6 +1,6 @@
 export interface CanvasNode {
   id: string;
-  type: "file" | "terminal" | "frame" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
+  type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
   title: string;
   x: number;
   y: number;
@@ -10,6 +10,7 @@ export interface CanvasNode {
     | FileNodeData
     | TerminalNodeData
     | FrameNodeData
+    | GroupNodeData
     | AgentNodeData
     | TextNodeData
     | IframeNodeData
@@ -38,6 +39,12 @@ export interface TerminalNodeData {
 export interface FrameNodeData {
   color: string;
   label?: string;
+}
+
+export interface GroupNodeData {
+  color?: string;
+  label?: string;
+  childIds?: string[];
 }
 
 export interface AgentNodeData {

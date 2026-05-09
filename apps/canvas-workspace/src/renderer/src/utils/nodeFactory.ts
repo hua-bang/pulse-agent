@@ -1,4 +1,4 @@
-import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic } from '../types';
+import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic } from '../types';
 
 let nodeIdCounter = 0;
 export const genId = (): string => `node-${Date.now()}-${++nodeIdCounter}`;
@@ -10,6 +10,7 @@ const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; 
   file:     { title: 'Untitled', width: 420, height: 360 },
   terminal: { title: 'Terminal', width: 480, height: 300 },
   frame:    { title: 'Frame',    width: 600, height: 400 },
+  group:    { title: 'Group',    width: 360, height: 240 },
   agent:    { title: 'Agent',    width: 520, height: 380 },
   text:     { title: 'Text',     width: 260, height: 120 },
   iframe:   { title: 'Web',      width: 520, height: 400 },
@@ -18,11 +19,12 @@ const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; 
   mindmap:  { title: 'Mindmap',  width: 640, height: 420 },
 };
 
-export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData => {
+export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData => {
   switch (type) {
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };
     case 'terminal': return { sessionId: '' };
     case 'frame':    return { color: '#9575d4' };
+    case 'group':    return { color: '#A594E0', childIds: [] };
     case 'agent':    return { sessionId: '', agentType: 'claude-code', status: 'idle' };
     case 'text':     return { content: '', textColor: '#1f2328', backgroundColor: 'transparent', fontSize: 18, autoSize: true };
     case 'iframe':   return { url: '', html: '', mode: 'url', prompt: '' };

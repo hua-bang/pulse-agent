@@ -16,7 +16,6 @@ import { AgentTerminal } from './AgentTerminal';
 
 interface Props {
   node: CanvasNode;
-  allNodes?: CanvasNode[];
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;

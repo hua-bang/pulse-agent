@@ -1,6 +1,6 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+import { memo, useCallback, useState, useEffect, useRef } from "react";
 import "./index.css";
-import type { CanvasNode, FrameNodeData, AgentNodeData, TextNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
@@ -12,10 +12,11 @@ import { ImageNodeBody } from "../ImageNodeBody";
 import { ShapeNodeBody, ShapeStylePicker } from "../ShapeNodeBody";
 import { MindmapNodeBody } from "../MindmapNodeBody";
 import { NodeContextMenu } from "../NodeContextMenu";
+import { collectContainerDescendants } from "../../utils/frameHierarchy";
 
 interface Props {
   node: CanvasNode;
-  allNodes: CanvasNode[];
+  getAllNodes?: () => CanvasNode[];
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
@@ -69,9 +70,14 @@ const AGENT_STATUS_LABEL: Record<string, string> = {
   idle: 'Idle',
 };
 
-export const CanvasNodeView = ({
+function isCanvasPanGesture(e: React.MouseEvent): boolean {
+  const handToolActive = e.currentTarget.closest('.canvas-container--hand') != null;
+  return e.button === 1 || (e.button === 0 && (e.altKey || handToolActive));
+}
+
+const CanvasNodeViewComponent = ({
   node,
-  allNodes,
+  getAllNodes,
   rootFolder,
   workspaceId,
   workspaceName,
@@ -155,6 +161,11 @@ export const CanvasNodeView = ({
     [onReference, node.id, readOnly]
   );
 
+  const handleNodeBodyMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isCanvasPanGesture(e)) return;
+    e.stopPropagation();
+  }, []);
+
   const handleTitleBlur = useCallback(
     (e: React.FocusEvent<HTMLSpanElement>) => {
       if (readOnly) {
@@ -220,6 +231,9 @@ export const CanvasNodeView = ({
 
   const textAutoSize =
     node.type === "text" && (node.data as TextNodeData).autoSize !== false;
+  const groupDescendantCount = node.type === "group" && getAllNodes
+    ? collectContainerDescendants(node.id, getAllNodes()).length
+    : 0;
 
   const classes = [
     "canvas-node",
@@ -404,6 +418,8 @@ export const CanvasNodeView = ({
         height: node.height,
         ...(node.type === 'frame'
           ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
+          : node.type === 'group'
+            ? { '--group-color': (node.data as GroupNodeData).color ?? '#A594E0' } as React.CSSProperties
           : {})
       }}
       onClick={handleNodeClick}
@@ -427,6 +443,11 @@ export const CanvasNodeView = ({
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
               <rect x="4.5" y="4.5" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1" strokeDasharray="2 1.5" />
+            </svg>
+          ) : node.type === "group" ? (
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <rect x="2.5" y="3" width="11" height="10" rx="2" stroke="currentColor" strokeWidth="1.25" strokeDasharray="2 2" />
+              <path d="M5 6h6M5 10h6" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
             </svg>
           ) : node.type === "text" ? (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -464,6 +485,11 @@ export const CanvasNodeView = ({
         >
           {node.title}
         </span>
+        {node.type === "group" && (
+          <span className="group-count-label">
+            {groupDescendantCount}
+          </span>
+        )}
         {node.type === "agent" && agentStatus && agentStatus !== 'idle' && (
           <span className={`node-status-label node-status-label--${agentStatus}`}>
             {AGENT_STATUS_LABEL[agentStatus] ?? agentStatus}
@@ -513,12 +539,12 @@ export const CanvasNodeView = ({
           </button>
         )}
       </div>
-      <div className="node-body" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         {node.type === "file" ? (
           <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />
         ) : node.type === "terminal" ? (
-          <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
-        ) : node.type === "frame" ? (
+          <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
+        ) : node.type === "frame" || node.type === "group" ? (
           <FrameNodeBody node={node} onUpdate={onUpdate} />
         ) : node.type === "text" ? (
           <TextNodeBody
@@ -532,7 +558,7 @@ export const CanvasNodeView = ({
         ) : node.type === "iframe" ? (
           <IframeNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
         ) : (
-          <AgentNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
+          <AgentNodeBody node={node} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         )}
       </div>
 
@@ -542,7 +568,7 @@ export const CanvasNodeView = ({
               className="resize-handle resize-handle--right"
               onMouseDown={makeResizeHandler("right")}
             />
-            {node.type !== "text" && (
+            {node.type !== "text" && node.type !== "group" && (
               <>
                 <div
                   className="resize-handle resize-handle--bottom"
@@ -559,3 +585,17 @@ export const CanvasNodeView = ({
     </div>
   );
 };
+
+export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
+  prev.node === next.node &&
+  prev.rootFolder === next.rootFolder &&
+  prev.workspaceId === next.workspaceId &&
+  prev.workspaceName === next.workspaceName &&
+  prev.getAllNodes === next.getAllNodes &&
+  prev.isDragging === next.isDragging &&
+  prev.isResizing === next.isResizing &&
+  prev.isSelected === next.isSelected &&
+  prev.isHighlighted === next.isHighlighted &&
+  prev.isAgentEdited === next.isAgentEdited &&
+  prev.readOnly === next.readOnly
+));

@@ -121,7 +121,7 @@ export const ReferenceDrawer = ({
                 width: Math.max(MIN_REFERENCE_DRAWER_WIDTH - 32, drawerWidth - 32),
                 height: 520,
               }}
-              allNodes={[referenceNode]}
+              getAllNodes={() => [referenceNode]}
               isDragging={false}
               isResizing={false}
               isSelected={false}

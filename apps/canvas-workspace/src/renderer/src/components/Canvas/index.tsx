@@ -3,7 +3,7 @@ import './index.css';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useNodes } from '../../hooks/useNodes';
 import { useNodeDrag } from '../../hooks/useNodeDrag';
-import { useNodeResize } from '../../hooks/useNodeResize';
+import { useNodeResize, type ResizeEdge } from '../../hooks/useNodeResize';
 import { useCanvasContext } from '../../hooks/useCanvasContext';
 import { useCanvasFit } from '../../hooks/useCanvasFit';
 import { useCanvasKeyboard } from '../../hooks/useCanvasKeyboard';
@@ -16,7 +16,12 @@ import { NODE_TYPE_LABELS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
 import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import type { PaletteCommand } from '../CommandPalette';
-import { collectFrameDescendants, computeParentFrameMap, computeFrameDepths } from '../../utils/frameHierarchy';
+import {
+  collectContainerDescendants,
+  computeContainerDepths,
+  computeParentContainerMap,
+  isContainerNode,
+} from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { exportMindmapNodeToPng } from '../../utils/mindmapExport';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
@@ -29,7 +34,6 @@ interface CanvasProps {
   canvasId: string;
   canvasName?: string;
   rootFolder?: string;
-  hidden?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
@@ -49,7 +53,6 @@ export const Canvas = ({
   canvasId,
   canvasName,
   rootFolder,
-  hidden,
   onNodesChange,
   onSelectionChange,
   focusNodeId,
@@ -93,6 +96,8 @@ export const Canvas = ({
   // seeing a consistent stream. Track the gesture at the window level too
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
+  const nodesRef = useRef<CanvasNode[]>([]);
+  const pendingParentNodesRef = useRef<CanvasNode[] | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -100,6 +105,7 @@ export const Canvas = ({
     transform,
     setTransform,
     moving,
+    panning,
     handleWheel,
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
@@ -133,7 +139,15 @@ export const Canvas = ({
     duplicateNode,
     pasteNodes,
     groupNodes,
-  } = useNodes(canvasId, () => {});
+    wrapNodesInFrame,
+  } = useNodes(canvasId, (savedTransform) => {
+    hasAutoFitted.current = true;
+    setTransform(savedTransform);
+  });
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   // Which edge (if any) is in label-edit mode. Driven by dbl-click on
@@ -146,7 +160,7 @@ export const Canvas = ({
 
   const focusedNodeIds = useMemo(() => {
     const focused = new Set<string>();
-    const parentFrameMap = computeParentFrameMap(nodes);
+    const parentContainerMap = computeParentContainerMap(nodes);
 
     for (const id of selectedNodeIds) {
       const node = nodes.find((item) => item.id === id);
@@ -154,16 +168,16 @@ export const Canvas = ({
 
       focused.add(node.id);
 
-      if (node.type === 'frame') {
-        for (const descendant of collectFrameDescendants(node.id, nodes)) {
+      if (isContainerNode(node)) {
+        for (const descendant of collectContainerDescendants(node.id, nodes)) {
           focused.add(descendant.id);
         }
       }
 
-      let parentId = parentFrameMap.get(node.id) ?? null;
+      let parentId = parentContainerMap.get(node.id) ?? null;
       while (parentId) {
         focused.add(parentId);
-        parentId = parentFrameMap.get(parentId) ?? null;
+        parentId = parentContainerMap.get(parentId) ?? null;
       }
     }
 
@@ -221,6 +235,10 @@ export const Canvas = ({
   // Report nodes to parent only after loaded
   useEffect(() => {
     if (!loaded) return;
+    if (isDraggingRef.current) {
+      pendingParentNodesRef.current = nodes;
+      return;
+    }
     onNodesChange?.(canvasId, nodes);
   }, [canvasId, nodes, loaded, onNodesChange]);
 
@@ -239,7 +257,7 @@ export const Canvas = ({
   useEffect(() => {
     if (!loaded) return;
     if (!focusNodeId) return;
-    const node = nodes.find((n) => n.id === focusNodeId);
+    const node = nodesRef.current.find((n) => n.id === focusNodeId);
     if (node) {
       setSelectedNodeIds([node.id]);
       setHighlightedId(node.id);
@@ -252,7 +270,7 @@ export const Canvas = ({
   useEffect(() => {
     if (!loaded) return;
     if (!deleteNodeId) return;
-    if (nodes.some((n) => n.id === deleteNodeId)) {
+    if (nodesRef.current.some((n) => n.id === deleteNodeId)) {
       removeNode(deleteNodeId);
       setSelectedNodeIds((ids) => ids.filter((id) => id !== deleteNodeId));
     }
@@ -264,15 +282,16 @@ export const Canvas = ({
     if (!renameRequest) return;
     if (renameRequest.workspaceId !== canvasId) return;
 
-    const node = nodes.find((item) => item.id === renameRequest.nodeId);
+    const node = nodesRef.current.find((item) => item.id === renameRequest.nodeId);
     if (node && node.title !== renameRequest.title) {
       updateNode(node.id, { title: renameRequest.title });
     }
     onRenameComplete?.();
-  }, [renameRequest, loaded, canvasId, nodes, updateNode, onRenameComplete]);
+  }, [renameRequest, loaded, canvasId, updateNode, onRenameComplete]);
 
   const requestRemoveNodes = useCallback(async (ids: string[]) => {
-    const victims = nodes.filter((node) => ids.includes(node.id));
+    const idSet = new Set(ids);
+    const victims = nodesRef.current.filter((node) => idSet.has(node.id));
     if (victims.length === 0) return;
 
     const accepted = await confirm({
@@ -297,7 +316,7 @@ export const Canvas = ({
         ? getNodeDisplayLabel(victims[0])
         : `${victims.length} items were removed from the canvas.`,
     });
-  }, [nodes, confirm, removeNodes, notify]);
+  }, [confirm, removeNodes, notify]);
 
   const requestRemoveEdge = useCallback(async (id: string) => {
     const edge = edges.find((item) => item.id === id);
@@ -325,15 +344,27 @@ export const Canvas = ({
 
   const groupSelectedNodes = useCallback(() => {
     if (selectedNodeIds.length === 0) return;
-    const frame = groupNodes(selectedNodeIds);
+    const group = groupNodes(selectedNodeIds);
+    if (!group) return;
+    setSelectedNodeIds([group.id]);
+    notify({
+      tone: 'success',
+      title: 'Nodes grouped',
+      description: `Grouped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'}.`,
+    });
+  }, [groupNodes, selectedNodeIds, notify]);
+
+  const wrapSelectedNodesInFrame = useCallback(() => {
+    if (selectedNodeIds.length === 0) return;
+    const frame = wrapNodesInFrame(selectedNodeIds);
     if (!frame) return;
     setSelectedNodeIds([frame.id]);
     notify({
       tone: 'success',
-      title: 'Nodes grouped',
+      title: 'Frame created',
       description: `Wrapped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'} in a new frame.`,
     });
-  }, [groupNodes, selectedNodeIds, notify]);
+  }, [wrapNodesInFrame, selectedNodeIds, notify]);
 
   useCanvasKeyboard({
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
@@ -352,7 +383,7 @@ export const Canvas = ({
 
   useCanvasImagePaste({
     canvasId,
-    active: !hidden,
+    active: true,
     containerRef,
     screenToCanvas,
     addNode,
@@ -368,17 +399,37 @@ export const Canvas = ({
     }
   }, [highlightedId]);
 
-  const handleSearchSelect = useCallback((node: CanvasNode) => {
-    setSelectedNodeIds([node.id]);
-    setHighlightedId(node.id);
-    handleFocusNode(node);
-  }, [handleFocusNode]);
-
   const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
     setSelectedNodeIds([node.id]);
     setHighlightedId(node.id);
     handleFocusNode(node);
   }, [handleFocusNode]);
+
+  const handleSearchSelect = handleNodeViewportFocus;
+
+  const handleRemoveNode = useCallback((id: string) => {
+    void requestRemoveNodes([id]);
+  }, [requestRemoveNodes]);
+
+  const handleSelectNode = useCallback((id: string, mods?: { shift?: boolean; meta?: boolean }) => {
+    // Shift-click extends the selection (additive); Cmd/Ctrl-click
+    // toggles the clicked id in/out of the selection. Plain click
+    // collapses the selection to just this node — but only if it
+    // wasn't already selected, so a click on a member of an
+    // existing multi-selection preserves the group (matches Figma /
+    // Finder semantics and keeps multi-drag from collapsing on the
+    // mousedown that initiates it).
+    if (mods?.shift || mods?.meta) {
+      setSelectedNodeIds((current) =>
+        current.includes(id) ? current.filter((cid) => cid !== id) : [...current, id]
+      );
+    } else {
+      setSelectedNodeIds((current) =>
+        current.length > 1 && current.includes(id) ? current : [id]
+      );
+    }
+    setSelectedEdgeId(null);
+  }, []);
 
   const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds
@@ -386,17 +437,19 @@ export const Canvas = ({
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
     useNodeResize(resizeNode, transform.scale);
 
-  // sortedNodes is the render order (frames first, non-frames on top,
-  // deeper frames over shallower). It doubles as the hit-test stack
+  // sortedNodes is the render order (containers first, non-containers on top,
+  // deeper containers over shallower). It doubles as the hit-test stack
   // for edge interactions — we iterate it in reverse so the topmost
   // node under the cursor wins.
   const sortedNodes = useMemo(
     () => {
-      const depths = computeFrameDepths(nodes);
+      const depths = computeContainerDepths(nodes);
       return [...nodes].sort((a, b) => {
-        if (a.type === 'frame' && b.type !== 'frame') return -1;
-        if (a.type !== 'frame' && b.type === 'frame') return 1;
-        if (a.type === 'frame' && b.type === 'frame') {
+        const aIsContainer = isContainerNode(a);
+        const bIsContainer = isContainerNode(b);
+        if (aIsContainer && !bIsContainer) return -1;
+        if (!aIsContainer && bIsContainer) return 1;
+        if (aIsContainer && bIsContainer) {
           return (depths.get(a.id) ?? 0) - (depths.get(b.id) ?? 0);
         }
         return 0;
@@ -404,6 +457,19 @@ export const Canvas = ({
     },
     [nodes]
   );
+
+  const renderGroups = useMemo(() => {
+    const containers: CanvasNode[] = [];
+    const regular: CanvasNode[] = [];
+    for (const node of sortedNodes) {
+      if (isContainerNode(node)) containers.push(node);
+      else regular.push(node);
+    }
+    return { containers, regular };
+  }, [sortedNodes]);
+
+  const selectedNodeIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
+  const getAllNodes = useCallback(() => nodesRef.current, []);
 
   const getContainer = useCallback(() => containerRef.current, []);
 
@@ -603,7 +669,7 @@ export const Canvas = ({
   );
 
   const handleCreateNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
       if (!contextMenu) return;
       const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
       setSelectedNodeIds([node.id]);
@@ -619,7 +685,7 @@ export const Canvas = ({
 
   const handleExportMindmapImage = useCallback(
     async (nodeId: string) => {
-      const node = nodes.find((item) => item.id === nodeId);
+      const node = nodesRef.current.find((item) => item.id === nodeId);
       const api = window.canvasWorkspace?.file;
       if (!node || node.type !== 'mindmap' || !api) return;
 
@@ -656,11 +722,11 @@ export const Canvas = ({
         });
       }
     },
-    [nodes, notify],
+    [notify],
   );
 
   const handleToolbarAddNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, containerRef.current);
@@ -674,6 +740,7 @@ export const Canvas = ({
         : 300;
       const halfH =
         type === 'frame' ? 200
+        : type === 'group' ? 120
         : type === 'text' ? 60
         : type === 'iframe' ? 200
         : type === 'mindmap' ? 210
@@ -731,13 +798,25 @@ export const Canvas = ({
         id: 'group-selection',
         group: 'edit',
         title: selectionCount > 1
-          ? `Group ${selectionCount} selected nodes in a frame`
-          : 'Wrap selected node in a frame',
+          ? `Group ${selectionCount} selected nodes`
+          : 'Group selected node',
         shortcut: 'Cmd+G',
-        aliases: ['frame', 'wrap'],
+        aliases: ['group', 'bundle'],
         enabled: selectionCount > 0,
         run: () => {
           groupSelectedNodes();
+        },
+      },
+      {
+        id: 'wrap-selection-in-frame',
+        group: 'edit',
+        title: selectionCount > 1
+          ? `Wrap ${selectionCount} selected nodes in frame`
+          : 'Wrap selected node in frame',
+        aliases: ['frame', 'wrap'],
+        enabled: selectionCount > 0,
+        run: () => {
+          wrapSelectedNodesInFrame();
         },
       },
       {
@@ -789,8 +868,8 @@ export const Canvas = ({
         id: 'create-frame',
         group: 'create',
         title: 'Add frame',
-        hint: 'Visual grouping rectangle',
-        aliases: ['group', 'box', 'container'],
+        hint: 'Named spatial container',
+        aliases: ['section', 'box', 'container'],
         run: () => handleToolbarAddNode('frame'),
       },
       {
@@ -814,8 +893,8 @@ export const Canvas = ({
         title: 'Fit all nodes in view',
         hint: 'Zoom and center to show every node',
         aliases: ['zoom', 'overview', 'show all'],
-        enabled: nodes.length > 0,
-        run: () => fitAllNodes(nodes),
+        enabled: nodesRef.current.length > 0,
+        run: () => fitAllNodes(nodesRef.current),
       },
       {
         id: 'reset-zoom',
@@ -857,9 +936,9 @@ export const Canvas = ({
     duplicateNode,
     requestRemoveNodes,
     groupSelectedNodes,
+    wrapSelectedNodesInFrame,
     handleToolbarAddNode,
     fitAllNodes,
-    nodes,
     resetTransform,
     chatPanelOpen,
     onChatToggle,
@@ -936,6 +1015,24 @@ export const Canvas = ({
     [canvasMouseMove]
   );
 
+  const handleSurfaceDragStart = useCallback((e: React.MouseEvent, node: CanvasNode) => {
+    if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
+    onDragStart(e, node);
+  }, [onDragStart]);
+
+  const handleSurfaceResizeStart = useCallback((
+    e: React.MouseEvent,
+    nodeId: string,
+    width: number,
+    height: number,
+    edge: ResizeEdge,
+    minWidth?: number,
+    minHeight?: number,
+  ) => {
+    if (e.button === 0) isDraggingRef.current = true;
+    onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
+  }, [onResizeStart]);
+
   const handleWindowDragMove = useCallback(
     (e: MouseEvent) => {
       onDragMove(e as unknown as React.MouseEvent);
@@ -945,12 +1042,17 @@ export const Canvas = ({
   );
 
   const handleMouseUp = useCallback(() => {
+    const wasNodeGesture = isDraggingRef.current;
     canvasMouseUp();
     onDragEnd();
     onResizeEnd();
-    commitHistory();
     isDraggingRef.current = false;
-  }, [canvasMouseUp, onDragEnd, onResizeEnd, commitHistory]);
+    if (wasNodeGesture) {
+      commitHistory();
+      onNodesChange?.(canvasId, pendingParentNodesRef.current ?? nodesRef.current);
+      pendingParentNodesRef.current = null;
+    }
+  }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -985,6 +1087,17 @@ export const Canvas = ({
     : resizingId ? ' canvas-container--resizing'
     : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
     : '';
+  const iframeShieldClass =
+    activeTool === 'hand' ||
+    moving ||
+    panning ||
+    marquee.active ||
+    shapeDraft !== null ||
+    isDraggingRef.current ||
+    resizingId !== null ||
+    isEdgeDragging(edgeInteractionState)
+      ? ' canvas-container--iframe-shielding'
+      : '';
 
   if (!loaded) {
     return (
@@ -999,7 +1112,7 @@ export const Canvas = ({
   return (
     <div
       ref={containerRef}
-      className={`canvas-container${cursorClass}`}
+      className={`canvas-container${cursorClass}${iframeShieldClass}`}
       onWheel={handleWheel}
       onMouseDown={handleRootMouseDown}
       onMouseMove={handleMouseMove}
@@ -1014,7 +1127,7 @@ export const Canvas = ({
       onContextMenu={handleContextMenu}
       onClick={handleCanvasClick}
       data-focus-mode={focusModeActive ? 'on' : undefined}
-      style={hidden ? { visibility: 'hidden', pointerEvents: 'none' } : {
+      style={{
         '--focus-dim-opacity': focusModeDimOpacity,
         '--focus-dim-blur': `${focusModeDimBlur}px`,
         '--focus-veil-opacity': focusModeVeilOpacity,
@@ -1027,7 +1140,7 @@ export const Canvas = ({
         transform={transform}
         animating={animating}
         moving={moving}
-        sortedNodes={sortedNodes}
+        renderGroups={renderGroups}
         nodes={nodes}
         edges={edges}
         rootFolder={rootFolder}
@@ -1036,7 +1149,7 @@ export const Canvas = ({
         draggingId={draggingId}
         draggingIds={draggingIds}
         resizingId={resizingId}
-        selectedNodeIds={selectedNodeIds}
+        selectedNodeIdSet={selectedNodeIdSet}
         selectedEdgeId={selectedEdgeId}
         highlightedId={highlightedId}
         externallyEditedIds={externallyEditedIds}
@@ -1048,38 +1161,12 @@ export const Canvas = ({
         focusedNodeIds={focusedNodeIds}
         focusModeEnabled={focusModeActive}
         focusModeDimOpacity={focusModeDimOpacity}
-        onDragStart={(e, node) => {
-          if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
-          onDragStart(e, node);
-        }}
-        onResizeStart={(e, nodeId, width, height, edge, minWidth, minHeight) => {
-          if (e.button === 0) isDraggingRef.current = true;
-          onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
-        }}
+        onDragStart={handleSurfaceDragStart}
+        onResizeStart={handleSurfaceResizeStart}
         onUpdate={updateNode}
         onAutoResize={resizeNode}
-        onRemove={(id) => {
-          void requestRemoveNodes([id]);
-        }}
-        onSelect={(id, mods) => {
-          // Shift-click extends the selection (additive); Cmd/Ctrl-click
-          // toggles the clicked id in/out of the selection. Plain click
-          // collapses the selection to just this node — but only if it
-          // wasn't already selected, so a click on a member of an
-          // existing multi-selection preserves the group (matches Figma /
-          // Finder semantics and keeps multi-drag from collapsing on the
-          // mousedown that initiates it).
-          if (mods?.shift || mods?.meta) {
-            setSelectedNodeIds((current) =>
-              current.includes(id) ? current.filter((cid) => cid !== id) : [...current, id]
-            );
-          } else {
-            setSelectedNodeIds((current) =>
-              current.length > 1 && current.includes(id) ? current : [id]
-            );
-          }
-          setSelectedEdgeId(null);
-        }}
+        onRemove={handleRemoveNode}
+        onSelect={handleSelectNode}
         onExportMindmapImage={handleExportMindmapImage}
         onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
@@ -1090,6 +1177,7 @@ export const Canvas = ({
         onEdgeHandleMouseDown={handleEdgeHandleMouseDown}
         onEdgeBodyMouseDown={handleEdgeBodyMouseDown}
         onEdgeBodyDoubleClick={handleEdgeBodyDoubleClick}
+        getAllNodes={getAllNodes}
       />
 
       <CanvasOverlays

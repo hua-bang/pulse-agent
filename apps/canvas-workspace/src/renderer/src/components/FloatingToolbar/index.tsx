@@ -4,7 +4,7 @@ import { ShapeToolButton } from './ShapeToolButton';
 interface Props {
   activeTool: string;
   onToolChange: (tool: string) => void;
-  onAddNode: (type: "file" | "terminal" | "frame" | "agent" | "text" | "iframe" | "mindmap") => void;
+  onAddNode: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap") => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;

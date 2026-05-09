@@ -95,8 +95,9 @@ export function registerNodeCommands(program: Command): void {
         if (d.type === 'terminal') {
           return `Terminal (cwd: ${d.cwd ?? 'unknown'})\n${d.scrollback ?? ''}`;
         }
-        if (d.type === 'frame') {
-          return `Frame: ${d.label || '(no label)'}  color: ${d.color ?? ''}`;
+        if (d.type === 'frame' || d.type === 'group') {
+          const label = d.type === 'frame' ? 'Frame' : 'Group';
+          return `${label}: ${d.label || '(no label)'}  color: ${d.color ?? ''}`;
         }
         if (d.type === 'agent') {
           return `Agent [${d.agentType ?? 'unknown'}] (${d.status ?? 'idle'})\ncwd: ${d.cwd ?? 'unknown'}\n${d.scrollback ?? ''}`;
@@ -141,7 +142,7 @@ export function registerNodeCommands(program: Command): void {
     });
 
   node.command('create')
-    .requiredOption('--type <type>', 'Node type: file, terminal, frame, agent, mindmap')
+    .requiredOption('--type <type>', 'Node type: file, terminal, frame, group, agent, mindmap')
     .option('--title <title>', 'Node title')
     .option('--x <n>', 'X position on canvas', parseFloat)
     .option('--y <n>', 'Y position on canvas', parseFloat)
@@ -152,7 +153,7 @@ export function registerNodeCommands(program: Command): void {
     .action(async function (this: Command, cmdOpts: { type: string; title?: string; x?: number; y?: number; width?: number; height?: number; data?: string }) {
       const { format, storeDir, workspace } = getOpts(this);
 
-      const validTypes: NodeType[] = ['file', 'terminal', 'frame', 'agent', 'mindmap'];
+      const validTypes: NodeType[] = ['file', 'terminal', 'frame', 'group', 'agent', 'mindmap'];
       if (!validTypes.includes(cmdOpts.type as NodeType)) {
         errorOutput(`Invalid type "${cmdOpts.type}". Must be: ${validTypes.join(', ')}`);
       }

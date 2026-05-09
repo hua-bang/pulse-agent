@@ -40,13 +40,25 @@
   box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(124, 92, 255, 0.18), 0 10px 36px rgba(124, 92, 255, 0.12);
 }
 
-.canvas-node--focus-mode-focused.canvas-node--frame {
+.canvas-node--focus-mode-focused.canvas-node--frame,
+.canvas-node--focus-mode-focused.canvas-node--group {
   z-index: 0;
+}
+
+.canvas-node--focus-mode-focused.canvas-node--frame {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 26%, transparent), 0 14px 42px rgba(124, 92, 255, 0.13);
 }
 
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 32%, transparent), 0 14px 42px rgba(124, 92, 255, 0.15);
+}
+
+.canvas-node--focus-mode-focused.canvas-node--group {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 24%, transparent), 0 14px 42px rgba(124, 92, 255, 0.12);
+}
+
+.canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 30%, transparent), 0 14px 42px rgba(124, 92, 255, 0.14);
 }
 
 .canvas-node--focus-mode-dimmed {
@@ -153,6 +165,10 @@
 
 .node-type-badge--frame {
   color: var(--accent-frame);
+}
+
+.node-type-badge--group {
+  color: var(--group-color, var(--accent-frame));
 }
 
 .node-type-badge--agent {
@@ -409,6 +425,119 @@
    * the auto-sized bounds without getting cropped into the scrollbar
    * flicker we saw at sub-pixel widths. */
   overflow: visible;
+}
+
+.canvas-node--group,
+.canvas-node--group:hover,
+.canvas-node--group.canvas-node--dragging,
+.canvas-node--group.canvas-node--resizing {
+  background: transparent;
+  border: 1.5px dashed color-mix(in srgb, var(--group-color, #A594E0) 58%, transparent);
+  border-radius: 8px;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.canvas-node--group {
+  opacity: 0.58;
+}
+
+.canvas-node--group:hover,
+.canvas-node--group.canvas-node--selected,
+.canvas-node--group.canvas-node--dragging,
+.canvas-node--group.canvas-node--resizing {
+  opacity: 1;
+}
+
+.canvas-node--group:hover {
+  border-color: color-mix(in srgb, var(--group-color, #A594E0) 78%, transparent);
+}
+
+.canvas-node--group.canvas-node--selected {
+  background: color-mix(in srgb, var(--group-color, #A594E0) 5%, transparent);
+  border-color: color-mix(in srgb, var(--group-color, #A594E0) 82%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 16%, transparent);
+}
+
+.canvas-node--group .node-header {
+  position: absolute;
+  top: -28px;
+  left: 10px;
+  min-height: 0;
+  height: 24px;
+  min-width: 0;
+  max-width: calc(100% - 20px);
+  padding: 0 8px;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--group-color, #A594E0) 35%, transparent);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: color-mix(in srgb, var(--group-color, #A594E0) 70%, #111111);
+  box-shadow: 0 2px 8px rgba(22, 18, 36, 0.08);
+  transform: scale(calc(clamp(0.68, var(--canvas-scale, 1), 1) / var(--canvas-scale, 1)));
+  transform-origin: left bottom;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.canvas-node--group:hover .node-header,
+.canvas-node--group.canvas-node--selected .node-header,
+.canvas-node--group.canvas-node--dragging .node-header,
+.canvas-node--group.canvas-node--resizing .node-header {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.canvas-node--group .node-header .node-title {
+  flex: 0 1 auto;
+  max-width: 120px;
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--group-color, #A594E0) 68%, #111111);
+  padding: 0 2px;
+  letter-spacing: 0;
+}
+
+.canvas-node--group .node-header .node-type-badge--group {
+  color: color-mix(in srgb, var(--group-color, #A594E0) 70%, #111111);
+}
+
+.canvas-node--group .node-header .node-reference,
+.canvas-node--group .node-header .node-focus,
+.canvas-node--group .node-header .node-close,
+.canvas-node--group .node-header .node-time-label {
+  display: none;
+}
+
+.canvas-node--group .node-body {
+  height: 100%;
+  pointer-events: none;
+}
+
+.group-count-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--group-color, #A594E0) 75%, #111111);
+  background: color-mix(in srgb, var(--group-color, #A594E0) 14%, transparent);
+}
+
+.canvas-node--group .resize-handle--right {
+  top: 6px;
+}
+
+.canvas-node--group .resize-handle--right,
+.canvas-node--group .resize-handle--bottom,
+.canvas-node--group .resize-handle--corner {
+  display: none;
 }
 
 .node-body--mindmap {

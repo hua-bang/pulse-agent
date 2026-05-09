@@ -1,5 +1,5 @@
 import type { CanvasNode } from '../../../types';
-import { computeParentFrameMap } from '../../../utils/frameHierarchy';
+import { computeParentContainerMap, isContainerNode } from '../../../utils/frameHierarchy';
 
 export interface LayerTreeNode {
   node: CanvasNode;
@@ -8,11 +8,11 @@ export interface LayerTreeNode {
 
 /**
  * Build a recursive tree. Each node is nested under its most-specific
- * containing frame (see `computeParentFrameMap`). Frames may contain both
- * regular nodes AND other frames.
+ * containing frame/group (see `computeParentContainerMap`). Containers may
+ * contain both regular nodes and other containers.
  */
 export const buildLayerTree = (nodes: CanvasNode[]): LayerTreeNode[] => {
-  const parentMap = computeParentFrameMap(nodes);
+  const parentMap = computeParentContainerMap(nodes);
   const byId = new Map(nodes.map((n) => [n.id, n] as const));
 
   // Preserve the input ordering by walking `nodes` when grouping children.
@@ -34,12 +34,12 @@ export const buildLayerTree = (nodes: CanvasNode[]): LayerTreeNode[] => {
   return rootIds.map(buildNode);
 };
 
-/** Walk a layer tree and collect every frame id (including nested frames). */
+/** Walk a layer tree and collect every container id (including nested containers). */
 export const collectFrameIds = (tree: LayerTreeNode[]): string[] => {
   const out: string[] = [];
   const walk = (nodes: LayerTreeNode[]) => {
     for (const n of nodes) {
-      if (n.node.type === 'frame') out.push(n.node.id);
+      if (isContainerNode(n.node)) out.push(n.node.id);
       if (n.children.length > 0) walk(n.children);
     }
   };
