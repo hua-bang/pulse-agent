@@ -1,3 +1,8 @@
+import { useEffect } from 'react';
+import { EditorContent, useEditor } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import { Markdown } from 'tiptap-markdown';
 import './index.css';
 import type {
   AgentNodeData,
@@ -38,21 +43,10 @@ export const ReferenceDrawer = ({
     selectedNode && referenceNode && selectedNode.id === referenceNode.id,
   );
 
-  return (
-    <aside className={`reference-drawer${open ? ' reference-drawer--open' : ''}`}>
-      <button
-        className="reference-drawer-tab"
-        type="button"
-        onClick={() => onOpenChange(!open)}
-        title={open ? 'Close reference drawer' : 'Open reference drawer'}
-        aria-label={open ? 'Close reference drawer' : 'Open reference drawer'}
-        aria-expanded={open}
-      >
-        <span className="reference-drawer-tab-icon">⌑</span>
-        <span className="reference-drawer-tab-label">Reference</span>
-      </button>
+  if (!open) return null;
 
-      <div className="reference-drawer-panel" aria-hidden={!open}>
+  return (
+    <aside className="reference-drawer reference-drawer--open">
         <header className="reference-drawer-header">
           <div>
             <div className="reference-drawer-kicker">Pinned context</div>
@@ -88,13 +82,12 @@ export const ReferenceDrawer = ({
         {!referenceNode ? (
           <ReferenceEmptyState selectedNode={selectedNode} />
         ) : (
-          <div className="reference-card">
-            <div className="reference-card-header">
-              <div className={`reference-node-type reference-node-type--${referenceNode.type}`}>
+          <div className={`reference-native-card reference-native-card--${referenceNode.type}`}>
+            <div className="reference-native-header">
+              <span className={`node-type-badge node-type-badge--${referenceNode.type}`}>
                 {referenceNode.type}
-              </div>
+              </span>
               <h3>{getNodeDisplayLabel(referenceNode)}</h3>
-              <p>{referenceNode.width} × {referenceNode.height}</p>
             </div>
 
             <ReferenceNodePreview node={referenceNode} />
@@ -110,7 +103,6 @@ export const ReferenceDrawer = ({
             </div>
           </div>
         )}
-      </div>
     </aside>
   );
 };
@@ -137,11 +129,11 @@ const ReferenceNodePreview = ({ node }: { node: CanvasNode }) => {
   switch (node.type) {
     case 'file': {
       const data = node.data as FileNodeData;
-      return <TextPreview content={data.content} emptyLabel="This note is empty." />;
+      return <ReferenceNotePreview content={data.content} emptyLabel="This note is empty." />;
     }
     case 'text': {
       const data = node.data as TextNodeData;
-      return <TextPreview content={data.content} emptyLabel="This text node is empty." />;
+      return <ReferenceTextPreview data={data} />;
     }
     case 'terminal': {
       const data = node.data as TerminalNodeData;
@@ -197,6 +189,49 @@ const ReferenceNodePreview = ({ node }: { node: CanvasNode }) => {
   }
 };
 
+const ReferenceNotePreview = ({ content, emptyLabel }: { content?: string; emptyLabel: string }) => {
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ underline: false }),
+      Underline,
+      Markdown.configure({ html: true, transformPastedText: false, breaks: true }),
+    ],
+    content: content || '',
+    editable: false,
+    immediatelyRender: false,
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+    editor.commands.setContent(content || '', { emitUpdate: false });
+  }, [editor, content]);
+
+  if (!content?.trim()) return <div className="reference-preview-empty">{emptyLabel}</div>;
+
+  return (
+    <div className="reference-note-preview">
+      <EditorContent editor={editor} className="note-tiptap-editor reference-note-editor" />
+    </div>
+  );
+};
+
+const ReferenceTextPreview = ({ data }: { data: TextNodeData }) => {
+  if (!data.content?.trim()) {
+    return <div className="reference-preview-empty">This text node is empty.</div>;
+  }
+
+  return (
+    <div
+      className="reference-text-preview"
+      style={{
+        color: data.textColor,
+        backgroundColor: data.backgroundColor,
+        fontSize: data.fontSize ?? 18,
+      }}
+      dangerouslySetInnerHTML={{ __html: data.content }}
+    />
+  );
+};
 const TextPreview = ({ content, emptyLabel }: { content?: string; emptyLabel: string }) => {
   const text = content?.trim();
   if (!text) return <div className="reference-preview-empty">{emptyLabel}</div>;

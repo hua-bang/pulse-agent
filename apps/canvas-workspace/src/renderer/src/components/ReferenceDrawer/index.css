@@ -1,82 +1,26 @@
 .reference-drawer {
-  position: relative;
-  width: 36px;
-  flex: 0 0 36px;
+  width: 336px;
+  flex: 0 0 336px;
   height: 100%;
   border-right: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.72);
-  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), flex-basis 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.18s ease;
+  background: var(--surface);
   overflow: hidden;
   z-index: 4;
 }
 
 .reference-drawer--open {
-  width: 336px;
-  flex-basis: 336px;
-  background: var(--surface);
+  animation: reference-drawer-enter 0.18s ease-out;
 }
 
-.reference-drawer-tab {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 36px;
-  border: 0;
-  border-right: 1px solid var(--border-light);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 248, 247, 0.92));
-  color: var(--text-secondary);
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  transition: color 0.16s ease, background 0.16s ease;
-  z-index: 2;
-}
-
-.reference-drawer-tab:hover {
-  color: var(--text);
-  background: var(--surface-hover);
-}
-
-.reference-drawer-tab-icon {
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  background: var(--accent-light);
-  color: var(--accent);
-  font-size: 13px;
-}
-
-.reference-drawer-tab-label {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.reference-drawer-panel {
-  height: 100%;
-  margin-left: 36px;
-  width: 300px;
-  padding: 18px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-8px);
-  transition: opacity 0.16s ease, transform 0.18s ease;
-}
-
-.reference-drawer--open .reference-drawer-panel {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateX(0);
+@keyframes reference-drawer-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .reference-drawer-header {
@@ -84,6 +28,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding: 18px 16px 0;
 }
 
 .reference-drawer-kicker {
@@ -124,6 +69,10 @@
   gap: 8px;
 }
 
+.reference-drawer-actions {
+  padding: 14px 16px 0;
+}
+
 .reference-drawer-primary,
 .reference-drawer-secondary {
   border-radius: 8px;
@@ -157,16 +106,13 @@
   color: var(--text);
 }
 
-.reference-empty,
-.reference-card {
+.reference-empty {
+  margin: 14px 16px 16px;
+  padding: 22px 18px;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: linear-gradient(180deg, var(--surface), rgba(250, 250, 249, 0.86));
   box-shadow: var(--shadow-sm);
-}
-
-.reference-empty {
-  padding: 22px 18px;
   text-align: center;
   color: var(--text-secondary);
 }
@@ -228,44 +174,74 @@
   text-align: center;
 }
 
-.reference-card {
+.reference-native-card {
   min-height: 0;
+  height: calc(100% - 116px);
+  margin: 14px 16px 16px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
-.reference-card-header {
-  padding: 14px;
-  border-bottom: 1px solid var(--border-light);
-}
-
-.reference-node-type {
-  display: inline-flex;
+.reference-native-header {
+  flex: 0 0 auto;
+  display: flex;
   align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--accent-light);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-light);
+  background: rgba(248, 248, 247, 0.82);
 }
 
-.reference-card-header h3 {
-  margin-top: 10px;
+.reference-native-header h3 {
+  min-width: 0;
+  flex: 1;
   color: var(--text);
-  font-size: 15px;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1.35;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.reference-card-header p {
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 11px;
+.reference-note-preview {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.reference-note-editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.reference-note-editor .ProseMirror {
+  cursor: default;
+  user-select: text;
+}
+
+.reference-text-preview {
+  margin: 14px;
+  max-height: min(54vh, 560px);
+  overflow: auto;
+  border-radius: 10px;
+  padding: 12px 14px;
+  line-height: 1.45;
+  white-space: normal;
+  word-break: break-word;
+  user-select: text;
+}
+
+.reference-text-preview p {
+  margin: 0.25em 0;
 }
 
 .reference-preview-stack {
