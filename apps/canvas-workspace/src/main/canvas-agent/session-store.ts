@@ -16,6 +16,20 @@ import type { CanvasAgentMessage, CanvasAgentSession } from './types';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
+function archiveFileTimestamp(file: string): number {
+  const match = file.match(/-(\d+)\.json$/);
+  return match ? Number(match[1]) : 0;
+}
+
+async function archiveSortKey(filePath: string, fileName: string): Promise<number> {
+  try {
+    const stat = await fs.stat(filePath);
+    return stat.mtimeMs;
+  } catch {
+    return archiveFileTimestamp(fileName);
+  }
+}
+
 export class SessionStore {
   private workspaceId: string;
   private sessionsDir: string;
@@ -83,26 +97,42 @@ export class SessionStore {
   async listArchivedSessions(): Promise<Array<{ sessionId: string; date: string; messageCount: number; preview: string }>> {
     try {
       const files = await fs.readdir(this.archiveDir);
-      const sessions: Array<{ sessionId: string; date: string; messageCount: number; preview: string }> = [];
+      const currentSessionId = this.session?.sessionId;
+      const sessionsById = new Map<string, { sessionId: string; date: string; messageCount: number; preview: string; sortKey: number }>();
 
       for (const file of files) {
         if (!file.endsWith('.json')) continue;
         try {
-          const raw = await fs.readFile(join(this.archiveDir, file), 'utf-8');
+          const archivePath = join(this.archiveDir, file);
+          const raw = await fs.readFile(archivePath, 'utf-8');
           const data = JSON.parse(raw) as CanvasAgentSession;
+
+          // A session restored from archive becomes current. Hide any stale
+          // archived copy so the session list does not show the same thread
+          // twice while the user continues chatting in it.
+          if (currentSessionId && data.sessionId === currentSessionId) continue;
+
           const firstUserMsg = data.messages.find(m => m.role === 'user');
-          sessions.push({
+          const sortKey = await archiveSortKey(archivePath, file);
+          const session = {
             sessionId: data.sessionId,
             date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
             messageCount: data.messages.length,
             preview: firstUserMsg ? firstUserMsg.content.slice(0, 50) : '',
-          });
+            sortKey,
+          };
+          const existing = sessionsById.get(data.sessionId);
+          if (!existing || sortKey > existing.sortKey) {
+            sessionsById.set(data.sessionId, session);
+          }
         } catch {
           // skip corrupted files
         }
       }
 
-      return sessions.sort((a, b) => b.date.localeCompare(a.date));
+      return Array.from(sessionsById.values())
+        .sort((a, b) => b.sortKey - a.sortKey || b.date.localeCompare(a.date))
+        .map(({ sortKey: _sortKey, ...session }) => session);
     } catch {
       return [];
     }
@@ -132,26 +162,59 @@ export class SessionStore {
    * Archives the current session first if it has messages.
    */
   async loadSession(sessionId: string): Promise<CanvasAgentSession | null> {
-    // Find the archived session by sessionId
+    // If the requested session is already current, do not create another copy.
+    if (this.session?.sessionId === sessionId) {
+      await this.removeArchivedSessionsById(sessionId);
+      return this.session;
+    }
+
+    try {
+      const raw = await fs.readFile(this.currentPath, 'utf-8');
+      const current = JSON.parse(raw) as CanvasAgentSession;
+      if (current.sessionId === sessionId) {
+        this.session = current;
+        await this.removeArchivedSessionsById(sessionId);
+        return current;
+      }
+    } catch {
+      // No current session on disk or it is unreadable.
+    }
+
+    let matched: CanvasAgentSession | null = null;
+    let matchedSortKey = -1;
+
+    // Find the newest archived copy by sessionId. Older versions may exist
+    // from the previous restore behavior, so choose the latest and clean up
+    // all archived copies after it is promoted to current.
     try {
       const files = await fs.readdir(this.archiveDir);
       for (const file of files) {
         if (!file.endsWith('.json')) continue;
-        const raw = await fs.readFile(join(this.archiveDir, file), 'utf-8');
+        const archivePath = join(this.archiveDir, file);
+        const raw = await fs.readFile(archivePath, 'utf-8');
         const data = JSON.parse(raw) as CanvasAgentSession;
-        if (data.sessionId === sessionId) {
-          // Archive current session first
-          await this.archiveCurrentIfExists();
-          // Set as current
-          this.session = data;
-          await this.persist();
-          return data;
+        if (data.sessionId !== sessionId) continue;
+
+        const sortKey = await archiveSortKey(archivePath, file);
+        if (!matched || sortKey > matchedSortKey) {
+          matched = data;
+          matchedSortKey = sortKey;
         }
       }
     } catch {
       // ignore
     }
-    return null;
+
+    if (!matched) return null;
+
+    // Archive current session first, then promote the archived session to
+    // current and remove archived copies of the same sessionId. Without this
+    // cleanup, continuing an old conversation appears as a duplicate/new row.
+    await this.archiveCurrentIfExists();
+    this.session = matched;
+    await this.persist();
+    await this.removeArchivedSessionsById(sessionId);
+    return matched;
   }
 
   // ─── Cross-workspace scanning ────────────────────────────────
@@ -209,23 +272,40 @@ export class SessionStore {
       // Read archived sessions
       try {
         const files = await fs.readdir(archiveDir);
+        const currentSessionIds = new Set(sessions.filter(s => s.isCurrent).map(s => s.sessionId));
+        const archivedById = new Map<string, { sessionId: string; date: string; messageCount: number; preview: string; isCurrent: boolean; sortKey: number }>();
+
         for (const file of files) {
           if (!file.endsWith('.json')) continue;
           try {
-            const raw = await fs.readFile(join(archiveDir, file), 'utf-8');
+            const archivePath = join(archiveDir, file);
+            const raw = await fs.readFile(archivePath, 'utf-8');
             const data = JSON.parse(raw) as CanvasAgentSession;
+
+            // Avoid showing the same session twice when a restored archived
+            // session is also present as current.json.
+            if (currentSessionIds.has(data.sessionId)) continue;
+
             const firstUserMsg = data.messages.find(m => m.role === 'user');
-            sessions.push({
+            const sortKey = await archiveSortKey(archivePath, file);
+            const session = {
               sessionId: data.sessionId,
               date: data.startedAt?.slice(0, 10) || file.replace('.json', '').slice(0, 10),
               messageCount: data.messages.length,
               preview: firstUserMsg ? firstUserMsg.content.slice(0, 50) : '',
               isCurrent: false,
-            });
+              sortKey,
+            };
+            const existing = archivedById.get(data.sessionId);
+            if (!existing || sortKey > existing.sortKey) {
+              archivedById.set(data.sessionId, session);
+            }
           } catch {
             // skip corrupted files
           }
         }
+
+        sessions.push(...Array.from(archivedById.values()).map(({ sortKey: _sortKey, ...session }) => session));
       } catch {
         // No archive dir
       }
@@ -263,23 +343,53 @@ export class SessionStore {
       // ignore
     }
 
-    // Check archive
+    // Check archive. If duplicate archived copies exist, return the newest one.
+    let matched: CanvasAgentSession | null = null;
+    let matchedSortKey = -1;
     try {
       const files = await fs.readdir(archiveDir);
       for (const file of files) {
         if (!file.endsWith('.json')) continue;
-        const raw = await fs.readFile(join(archiveDir, file), 'utf-8');
+        const archivePath = join(archiveDir, file);
+        const raw = await fs.readFile(archivePath, 'utf-8');
         const data = JSON.parse(raw) as CanvasAgentSession;
-        if (data.sessionId === sessionId) return data;
+        if (data.sessionId !== sessionId) continue;
+
+        const sortKey = await archiveSortKey(archivePath, file);
+        if (!matched || sortKey > matchedSortKey) {
+          matched = data;
+          matchedSortKey = sortKey;
+        }
       }
     } catch {
       // ignore
     }
 
-    return null;
+    return matched;
   }
 
   // ─── Internal ────────────────────────────────────────────────
+
+  private async removeArchivedSessionsById(sessionId: string): Promise<void> {
+    try {
+      const files = await fs.readdir(this.archiveDir);
+      await Promise.all(files.map(async (file) => {
+        if (!file.endsWith('.json')) return;
+        const archivePath = join(this.archiveDir, file);
+        try {
+          const raw = await fs.readFile(archivePath, 'utf-8');
+          const data = JSON.parse(raw) as CanvasAgentSession;
+          if (data.sessionId === sessionId) {
+            await fs.unlink(archivePath).catch(() => undefined);
+          }
+        } catch {
+          // skip corrupted files
+        }
+      }));
+    } catch {
+      // No archive dir
+    }
+  }
 
   private async persist(): Promise<void> {
     if (!this.session) return;

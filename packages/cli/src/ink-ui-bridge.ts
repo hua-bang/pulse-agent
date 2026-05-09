@@ -10,14 +10,29 @@ interface InkUiBridgeOptions {
   onChange: (snapshot: InkCliSnapshot) => void;
 }
 
+type ToolActivityStatus = 'running' | 'success' | 'error';
+
+interface ToolActivityCall {
+  id: string;
+  name: string;
+  summary: string;
+  status: ToolActivityStatus;
+}
+
 const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   sessionId: null,
   taskListId: null,
   mode: null,
   messages: 0,
   estimatedTokens: 0,
+  queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
+  phase: 'Idle',
+  activeTool: null,
+  toolCalls: 0,
+  completedTools: 0,
+  lastStep: null,
 };
 
 const MAX_EVENT_TEXT_LENGTH = 4000;
@@ -27,6 +42,8 @@ export class InkUiBridge {
   private events: InkCliEvent[] = [];
   private eventCounter = 0;
   private activeAssistantEventId: string | null = null;
+  private toolActivityEventId: string | null = null;
+  private toolActivityCalls: ToolActivityCall[] = [];
   private readonly maxEvents: number;
   private readonly onChange: (snapshot: InkCliSnapshot) => void;
 
@@ -55,7 +72,7 @@ export class InkUiBridge {
   }
 
   showWelcome(): void {
-    this.addEvent('system', 'Welcome', 'Type a message and press Enter to run the agent. Use /help for commands. Esc stops the current response; Ctrl+C exits safely.');
+    this.addEvent('system', 'Welcome', 'Type a message and press Enter to run the agent. Use /help for commands. Shift+Tab cycles CLI mode. Esc stops the current response; Ctrl+C exits safely.');
   }
 
   showHelp(items: TuiHelpItem[], footer: string[] = []): void {
@@ -71,6 +88,11 @@ export class InkUiBridge {
   showTuiStatus(): void {
     this.section('TUI Status', [
       'Current UI: Ink',
+      'Discovery: type / for slash-command suggestions, Tab completes the first match, Shift+Tab cycles CLI mode',
+      'Input: Enter send, Ctrl+J newline, ↑/↓ history, ←/→ move cursor, Ctrl+A/E jump',
+      'Editing: Ctrl+U delete before cursor, Ctrl+K delete after cursor, Ctrl+W delete previous word',
+      'Control: Esc stops a run; when idle it clears input first, then exits on empty input',
+      'Display: Ctrl+L clears the visible transcript only; /clear resets conversation context',
       'Fallback: PULSE_CODER_UI=readline pulse-coder',
       'Plain fallback: PULSE_CODER_PLAIN=1 PULSE_CODER_UI=readline pulse-coder',
     ]);
@@ -94,6 +116,10 @@ export class InkUiBridge {
       estimatedTokens: summary.estimatedTokens,
       mode: summary.mode,
       status: `Done in ${this.formatDuration(summary.elapsedMs)} · tools ${summary.toolCalls}`,
+      phase: 'Complete',
+      activeTool: null,
+      toolCalls: summary.toolCalls,
+      completedTools: summary.toolCalls,
     });
   }
 
@@ -136,15 +162,24 @@ export class InkUiBridge {
     this.updateSnapshot({
       isProcessing: false,
       status: 'Cancelled',
+      phase: 'Cancelled',
+      activeTool: null,
     });
     this.addEvent('error', 'Abort', message);
   }
 
   startProcessing(label = 'Processing'): void {
     this.activeAssistantEventId = null;
+    this.toolActivityEventId = null;
+    this.toolActivityCalls = [];
     this.updateSnapshot({
       isProcessing: true,
       status: label,
+      phase: label,
+      activeTool: null,
+      toolCalls: 0,
+      completedTools: 0,
+      lastStep: null,
     });
   }
 
@@ -152,6 +187,8 @@ export class InkUiBridge {
     this.updateSnapshot({
       isProcessing: false,
       status: 'Ready',
+      phase: 'Idle',
+      activeTool: null,
     });
   }
 
@@ -168,16 +205,50 @@ export class InkUiBridge {
 
   toolCall(name: string, input?: unknown): void {
     this.activeAssistantEventId = null;
-    const inputText = input === undefined ? '' : `\n${this.safeStringify(input)}`;
-    this.addEvent('tool', name, `Running${inputText}`);
+    const nextToolCalls = this.snapshot.toolCalls + 1;
+    const call: ToolActivityCall = {
+      id: `tool-${nextToolCalls}`,
+      name,
+      summary: this.summarizeToolInput(name, input),
+      status: 'running',
+    };
+    this.toolActivityCalls = [...this.toolActivityCalls, call];
+    this.upsertToolActivityEvent();
+    this.updateSnapshot({
+      phase: 'Using tool',
+      activeTool: name,
+      toolCalls: nextToolCalls,
+      status: `Running tool: ${name}`,
+    });
   }
 
   toolResult(name: string): void {
-    this.addEvent('result', name, 'Completed');
+    const nextCompletedTools = Math.min(this.snapshot.toolCalls, this.snapshot.completedTools + 1);
+    const runningIndex = this.findRunningToolIndex(name);
+    if (runningIndex >= 0) {
+      this.toolActivityCalls = this.toolActivityCalls.map((call, index) => index === runningIndex ? {
+        ...call,
+        name: call.name || name,
+        status: 'success',
+      } : call);
+    }
+    this.upsertToolActivityEvent();
+
+    this.updateSnapshot({
+      phase: 'Tool completed',
+      activeTool: null,
+      completedTools: nextCompletedTools,
+      status: `Completed tool: ${name}`,
+    });
   }
 
   stepFinished(reason: string): void {
-    this.addEvent('system', 'Step finished', reason);
+    this.addEvent('system', 'Step finished', reason, true, { status: 'info' });
+    this.updateSnapshot({
+      phase: 'Step finished',
+      activeTool: null,
+      lastStep: reason,
+    });
   }
 
   user(message: string): void {
@@ -196,7 +267,80 @@ export class InkUiBridge {
     this.updateSnapshot({ status: 'Waiting for clarification' });
   }
 
-  private addEvent(kind: InkCliEvent['kind'], title: string | undefined, text: string, emit = true): string {
+  private upsertToolActivityEvent(): void {
+    if (this.toolActivityCalls.length === 0) {
+      return;
+    }
+
+    const status = this.toolActivityCalls.some(call => call.status === 'running') ? 'running' : 'success';
+    const title = 'Tools';
+    const text = this.formatToolActivityText();
+    const summary = this.formatToolActivitySummary();
+
+    if (!this.toolActivityEventId || !this.events.some(event => event.id === this.toolActivityEventId)) {
+      this.toolActivityEventId = this.addEvent('tool', title, text, false, { status, summary });
+      this.emit();
+      return;
+    }
+
+    this.updateEvent(this.toolActivityEventId, event => ({
+      ...event,
+      title,
+      text,
+      status,
+      summary,
+    }));
+  }
+
+  private findRunningToolIndex(name: string): number {
+    const sameNameIndex = this.toolActivityCalls.findIndex(call => call.status === 'running' && call.name === name);
+    if (sameNameIndex >= 0) {
+      return sameNameIndex;
+    }
+    return this.toolActivityCalls.findIndex(call => call.status === 'running');
+  }
+
+  private formatToolActivityText(): string {
+    const counts = this.countToolNames();
+    const groupedTools = Object.entries(counts)
+      .map(([tool, count]) => `${tool} ×${count}`)
+      .join(' · ');
+    const latestCalls = this.toolActivityCalls.slice(-4).map(call => {
+      const icon = call.status === 'success' ? '✓' : call.status === 'error' ? '✕' : '…';
+      return `  ${icon} ${call.name.padEnd(5)} ${call.summary}`;
+    });
+    const lines = [`  ${groupedTools || 'No tools yet'}`];
+
+    if (latestCalls.length > 0) {
+      lines.push('', '  latest', ...latestCalls);
+    }
+
+    return lines.join('\n');
+  }
+
+  private formatToolActivitySummary(): string {
+    const total = this.toolActivityCalls.length;
+    const completed = this.toolActivityCalls.filter(call => call.status === 'success').length;
+    const running = this.toolActivityCalls.find(call => call.status === 'running');
+    const callLabel = total === 1 ? 'call' : 'calls';
+    return running ? `${total} ${callLabel} · ${completed} done · running ${running.name}` : `${total} ${callLabel} · ${completed} done`;
+  }
+
+  private countToolNames(): Record<string, number> {
+    return this.toolActivityCalls.reduce<Record<string, number>>((counts, call) => {
+      const toolName = call.name || 'tool';
+      counts[toolName] = (counts[toolName] ?? 0) + 1;
+      return counts;
+    }, {});
+  }
+
+  private addEvent(
+    kind: InkCliEvent['kind'],
+    title: string | undefined,
+    text: string,
+    emit = true,
+    metadata: Pick<InkCliEvent, 'status' | 'summary'> = {},
+  ): string {
     const id = `event-${++this.eventCounter}`;
     this.events = [
       ...this.events,
@@ -205,6 +349,7 @@ export class InkUiBridge {
         kind,
         title,
         text: this.truncateEventText(text),
+        ...metadata,
       },
     ].slice(-this.maxEvents);
 
@@ -225,6 +370,91 @@ export class InkUiBridge {
       return text;
     }
     return `${text.slice(0, MAX_EVENT_TEXT_LENGTH)}…`;
+  }
+
+  private summarizeToolInput(name: string, value: unknown): string {
+    const normalizedName = name.toLowerCase();
+    const record = this.asRecord(value);
+
+    if (record) {
+      if (this.isShellTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['command', 'cmd', 'script']) ?? this.safeStringify(record));
+      }
+
+      if (this.isReadTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record));
+      }
+
+      if (this.isSearchTool(normalizedName)) {
+        const pattern = this.pickString(record, ['pattern', 'query', 'search']);
+        const searchPath = this.pickString(record, ['path', 'cwd', 'glob']);
+        if (pattern && searchPath) {
+          return this.compactText(`"${pattern}" in ${searchPath}`);
+        }
+        return this.compactText(pattern ?? searchPath ?? this.safeStringify(record));
+      }
+
+      if (this.isMutationTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record));
+      }
+
+      if (this.isListTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['path', 'dir', 'cwd']) ?? this.safeStringify(record));
+      }
+
+      const keys = Object.keys(record).slice(0, 3);
+      return keys.length > 0 ? `input: ${keys.join(', ')}` : 'input object';
+    }
+
+    if (value === undefined || value === null) {
+      return 'no input';
+    }
+    if (typeof value === 'string') {
+      return this.compactText(value);
+    }
+    return this.compactText(this.safeStringify(value));
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
+    }
+    return value as Record<string, unknown>;
+  }
+
+  private pickString(record: Record<string, unknown>, keys: string[]): string | null {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private compactText(value: string, maxLength = 96): string {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized;
+  }
+
+  private isShellTool(name: string): boolean {
+    return name.includes('bash') || name.includes('shell') || name.includes('exec') || name.includes('command');
+  }
+
+  private isReadTool(name: string): boolean {
+    return name.includes('read') || name.includes('cat') || name.includes('open');
+  }
+
+  private isSearchTool(name: string): boolean {
+    return name.includes('grep') || name.includes('search') || name.includes('find');
+  }
+
+  private isMutationTool(name: string): boolean {
+    return name.includes('edit') || name.includes('write') || name.includes('patch');
+  }
+
+  private isListTool(name: string): boolean {
+    return name === 'ls' || name.includes('list');
   }
 
   private safeStringify(value: unknown): string {

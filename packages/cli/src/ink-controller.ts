@@ -10,7 +10,7 @@ import { SkillCommands } from './skill-commands.js';
 import { runTeam, TeamsSession } from './team-commands.js';
 import type { TuiHelpItem } from './tui-renderer.js';
 import { InkUiBridge } from './ink-ui-bridge.js';
-import type { InkCliController, InkCliSnapshot } from './ink-app.js';
+import type { InkCliController, InkCliSnapshot, CliInteractionMode } from './ink-app.js';
 
 const LOCAL_COMMANDS = new Set([
   'help',
@@ -27,7 +27,10 @@ const LOCAL_COMMANDS = new Set([
   'acp',
   'status',
   'mode',
+  'chat',
   'plan',
+  'edit',
+  'auto',
   'execute',
   'team',
   'teams',
@@ -50,10 +53,13 @@ const HELP_ITEMS: TuiHelpItem[] = [
   { command: '/skills [list|<name|index> <message>]', description: 'Run one message with a selected skill' },
   { command: '/acp [status|on|off|cd]', description: 'Manage ACP mode for this CLI' },
   { command: '/wt use <work-name>', description: 'Create a worktree + branch via worktree skill' },
-  { command: '/status', description: 'Show current session status' },
-  { command: '/mode', description: 'Show current plan mode' },
-  { command: '/plan', description: 'Switch to planning mode' },
-  { command: '/execute', description: 'Switch to executing mode' },
+  { command: '/status', description: 'Show current CLI/session status' },
+  { command: '/mode [chat|plan|edit|auto]', description: 'Show or set CLI interaction mode' },
+  { command: '/chat', description: 'Switch to chat interaction mode' },
+  { command: '/plan', description: 'Switch to planning interaction mode' },
+  { command: '/edit', description: 'Switch to edit interaction mode' },
+  { command: '/auto', description: 'Switch to autonomous interaction mode' },
+  { command: '/execute', description: 'Alias for /edit' },
   { command: '/team <task>', description: 'Run a multi-agent team (LLM plans DAG by default)' },
   { command: '/teams <task>', description: 'Run agent teams (enters teams mode for follow-ups)' },
   { command: '/solo', description: 'Exit teams mode, return to normal agent' },
@@ -63,7 +69,17 @@ const HELP_ITEMS: TuiHelpItem[] = [
 ];
 
 const HELP_FOOTER = [
+  'Enter - Send current input',
+  'Ctrl+J - Insert a newline into the current draft',
+  'Shift+Tab - Cycle CLI interaction mode (chat → plan → edit → auto)',
+  'Tab - Complete the first visible slash-command suggestion',
+  'Type / - Show slash-command suggestions',
+  '↑/↓ - Recall previous/next prompt',
+  '←/→, Ctrl+A/E - Move cursor',
+  'Ctrl+U/K/W - Delete before cursor / after cursor / previous word',
+  'Ctrl+L - Clear visible transcript without clearing conversation',
   'Esc (while processing) - Stop current response and accept next input',
+  'Esc (idle) - Clear current input first; exit when input is empty',
   'Ctrl+C - Save and exit CLI immediately',
 ];
 
@@ -75,6 +91,7 @@ class InkCoderController implements InkCliController {
   private readonly skillCommands: SkillCommands;
   private readonly acpPlatformKey: string;
   private readonly ui: InkUiBridge;
+  private interactionMode: CliInteractionMode = 'chat';
   private readonly listeners = new Set<(snapshot: InkCliSnapshot) => void>();
   private currentAbortController: AbortController | null = null;
   private isProcessing = false;
@@ -137,6 +154,17 @@ class InkCoderController implements InkCliController {
     return () => this.listeners.delete(listener);
   }
 
+  private applyInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
+    this.interactionMode = mode;
+    this.ui.updateSnapshot({ mode });
+    this.ui.info(`CLI mode: ${mode} (${source})`);
+    this.publishSession('Ready');
+  }
+
+  setInteractionMode(mode: CliInteractionMode, source = 'cli'): void {
+    this.applyInteractionMode(mode, source);
+  }
+
   requestStop(): void {
     if (this.isProcessing) {
       if (this.currentAbortController && !this.currentAbortController.signal.aborted) {
@@ -164,15 +192,11 @@ class InkCoderController implements InkCliController {
     }
 
     if (this.isProcessing) {
-      if (this.currentAbortController?.signal.aborted) {
-        if (trimmedInput) {
-          this.queuedInputs.push(trimmedInput);
-          this.ui.queued('Input queued. It will run right after the current step finishes.');
-        }
-        return;
+      if (trimmedInput) {
+        this.queuedInputs.push(trimmedInput);
+        this.publishSession('Input queued');
+        this.ui.queued(`Queued input #${this.queuedInputs.length}. It will run after the current step finishes.`);
       }
-
-      this.ui.warn('Still processing. Press Esc to stop current request first.');
       return;
     }
 
@@ -392,36 +416,47 @@ class InkCoderController implements InkCliController {
           break;
         }
         case 'status':
-          this.ui.section('Session Status', [
-            `Current Session: ${this.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
+          this.ui.section('CLI Status', [
+            `Session: ${this.sessionCommands.getCurrentSessionId() || 'None (new session)'}`,
             `Task List: ${this.sessionCommands.getCurrentTaskListId() || 'None'}`,
             `Messages: ${this.context.messages.length}`,
+            `Estimated tokens: ~${this.estimateTokens(this.context.messages)}`,
+            `CLI mode: ${this.interactionMode}`,
+            `Engine plan mode: ${this.agent.getMode() || 'unavailable'}`,
+            `Phase: ${this.getSnapshot().phase ?? 'Idle'}`,
+            `Active tool: ${this.getSnapshot().activeTool ?? 'None'}`,
+            `Tools: ${this.getSnapshot().completedTools}/${this.getSnapshot().toolCalls}`,
+            `Queued inputs: ${this.queuedInputs.length}`,
+            `Processing: ${this.isProcessing ? 'yes' : 'no'}`,
           ]);
           break;
         case 'mode': {
-          const currentMode = this.agent.getMode();
-          if (!currentMode) {
-            this.ui.warn('plan mode plugin unavailable');
+          const requestedMode = args[0]?.toLowerCase();
+          const nextMode = this.parseInteractionMode(requestedMode);
+          if (nextMode) {
+            this.applyInteractionMode(nextMode, 'cli:/mode');
           } else {
-            this.ui.info(`Current mode: ${currentMode}`);
+            this.ui.section('CLI Mode', [
+              `Current: ${this.interactionMode}`,
+              'Available: chat, plan, edit, auto',
+              'Shortcut: Shift+Tab cycles modes',
+              'Note: this is CLI-local UX state; engine behavior is unchanged.',
+            ]);
           }
           break;
         }
-        case 'plan':
-          if (this.agent.setMode('planning', 'cli:/plan')) {
-            this.ui.success('Switched to planning mode');
-            this.publishSession('Ready');
-          } else {
-            this.ui.error('Failed to switch mode: plan mode plugin unavailable');
-          }
+        case 'chat':
+          this.applyInteractionMode('chat', 'cli:/chat');
           break;
+        case 'plan':
+          this.applyInteractionMode('plan', 'cli:/plan');
+          break;
+        case 'edit':
         case 'execute':
-          if (this.agent.setMode('executing', 'cli:/execute')) {
-            this.ui.success('Switched to executing mode');
-            this.publishSession('Ready');
-          } else {
-            this.ui.error('Failed to switch mode: plan mode plugin unavailable');
-          }
+          this.applyInteractionMode('edit', `cli:/${command.toLowerCase()}`);
+          break;
+        case 'auto':
+          this.applyInteractionMode('auto', 'cli:/auto');
           break;
         case 'tui':
           this.ui.showTuiStatus();
@@ -444,6 +479,19 @@ class InkCoderController implements InkCliController {
     } catch (error) {
       this.ui.error(`Error executing command: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  private parseInteractionMode(value: string | undefined): CliInteractionMode | null {
+    if (value === 'chat' || value === 'plan' || value === 'edit' || value === 'auto') {
+      return value;
+    }
+    if (value === 'planning') {
+      return 'plan';
+    }
+    if (value === 'execute' || value === 'executing') {
+      return 'edit';
+    }
+    return null;
   }
 
   private async compactContext(): Promise<void> {
@@ -501,7 +549,7 @@ class InkCoderController implements InkCliController {
       taskListId: this.sessionCommands.getCurrentTaskListId(),
       messages: this.context.messages.length,
       estimatedTokens: this.estimateTokens(this.context.messages),
-      mode: this.agent.getMode(),
+      mode: this.interactionMode,
     });
 
     this.context.messages.push({
@@ -602,7 +650,7 @@ class InkCoderController implements InkCliController {
         toolCalls,
         messages: this.context.messages.length,
         estimatedTokens: this.estimateTokens(this.context.messages),
-        mode: this.agent.getMode(),
+        mode: this.interactionMode,
       });
 
       if (result) {
@@ -682,9 +730,11 @@ class InkCoderController implements InkCliController {
       taskListId: this.sessionCommands.getCurrentTaskListId(),
       messages: this.context.messages.length,
       estimatedTokens: this.estimateTokens(this.context.messages),
-      mode: this.agent.getMode(),
+      mode: this.interactionMode,
+      queuedInputs: this.queuedInputs.length,
       isProcessing: this.isProcessing,
       status,
+      ...(status === 'Ready' && !this.isProcessing ? { phase: 'Idle', activeTool: null } : {}),
     });
   }
 
