@@ -95,8 +95,6 @@ const MIN_CONNECT_INTERVAL_MS = 5500;
 const STABLE_CONNECTION_MS = 5 * 60 * 1000;
 const DEFAULT_ACK_STALE_THRESHOLD_MS = 90000;
 const DISCORD_CHANNEL_DIRECT_REPLY_MEMBER_COUNT = 2;
-const TYPING_INDICATOR_COOLDOWN_MS = 10000;
-const TYPING_INDICATOR_ERROR_LOG_COOLDOWN_MS = 60000;
 
 export class DiscordDmGateway {
   private readonly client = new DiscordClient();
@@ -125,8 +123,6 @@ export class DiscordDmGateway {
   private resumeGatewayUrl: string | null = null;
   private stableTimer: ReturnType<typeof setTimeout> | null = null;
   private lastConnectAt = 0;
-  private readonly lastTypingIndicatorAtByChannel = new Map<string, number>();
-  private readonly lastTypingIndicatorErrorLogAtByChannel = new Map<string, number>();
 
   start(): void {
     if (!this.enabled) {
@@ -557,7 +553,9 @@ export class DiscordDmGateway {
       return;
     }
 
-    this.triggerTypingIndicator(channelId, resolvedIsThread);
+    await this.client.triggerTypingIndicator(channelId, { assumeThread: resolvedIsThread }).catch((err) => {
+      console.error('[discord-gateway] Failed to send typing indicator:', err);
+    });
 
     const replyToMessageId = messageId;
 
@@ -571,25 +569,6 @@ export class DiscordDmGateway {
 
     discordAdapter.registerChannelStreamMeta(platformKey, messageId, channelId, resolvedIsThread, replyToMessageId);
     dispatchIncoming(discordAdapter, incoming);
-  }
-
-  private triggerTypingIndicator(channelId: string, assumeThread: boolean): void {
-    const now = Date.now();
-    const lastTypingAt = this.lastTypingIndicatorAtByChannel.get(channelId) ?? 0;
-    if (now - lastTypingAt < TYPING_INDICATOR_COOLDOWN_MS) {
-      return;
-    }
-
-    this.lastTypingIndicatorAtByChannel.set(channelId, now);
-    this.client.triggerTypingIndicator(channelId, { assumeThread }).catch((err) => {
-      const lastLogAt = this.lastTypingIndicatorErrorLogAtByChannel.get(channelId) ?? 0;
-      if (Date.now() - lastLogAt < TYPING_INDICATOR_ERROR_LOG_COOLDOWN_MS) {
-        return;
-      }
-
-      this.lastTypingIndicatorErrorLogAtByChannel.set(channelId, Date.now());
-      console.warn(`[discord-gateway] Failed to send typing indicator channel=${channelId}:`, err);
-    });
   }
 
   private identify(): void {

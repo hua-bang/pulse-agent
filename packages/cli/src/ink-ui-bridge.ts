@@ -16,7 +16,6 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   mode: null,
   messages: 0,
   estimatedTokens: 0,
-  queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
 };
