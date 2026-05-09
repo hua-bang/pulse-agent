@@ -43,6 +43,7 @@
   top: 0;
   left: 0;
   transform-origin: 0 0;
+  z-index: 1;
 }
 
 /* Only promote the canvas subtree to its own compositor layer while the
@@ -53,4 +54,103 @@
  * "tile memory limits exceeded, some content may not draw" warnings). */
 .canvas-transform--moving {
   will-change: transform;
+}
+
+.canvas-focus-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(255, 255, 255, var(--focus-veil-opacity, 0.22));
+  backdrop-filter: saturate(0.88);
+  opacity: 0;
+  animation: canvas-focus-veil-in 0.18s ease forwards;
+}
+
+.focus-mode-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 54px;
+  z-index: 520;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 10px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(124, 92, 255, 0.18);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  color: var(--text);
+}
+
+.focus-mode-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.focus-mode-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #7c5cff;
+  box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.13);
+  flex-shrink: 0;
+}
+
+.focus-mode-label {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.focus-mode-close {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.focus-mode-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.focus-mode-slider {
+  width: 92px;
+  accent-color: #7c5cff;
+}
+
+@media (max-width: 760px) {
+  .focus-mode-panel {
+    right: 12px;
+    bottom: 50px;
+    max-width: calc(100vw - 24px);
+  }
+
+  .focus-mode-label {
+    max-width: 140px;
+  }
+
+  .focus-mode-slider {
+    width: 72px;
+  }
+}
+
+@keyframes canvas-focus-veil-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

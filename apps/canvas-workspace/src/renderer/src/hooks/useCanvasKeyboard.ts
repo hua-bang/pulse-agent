@@ -33,6 +33,10 @@ interface Options {
   setContextMenu: (menu: null) => void;
   setHighlightedId: (id: string | null) => void;
   handleFocusNode: (node: CanvasNode) => void;
+  focusModeEnabled?: boolean;
+  canToggleFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
+  onExitFocusMode?: () => void;
   keyboardLocked?: boolean;
 }
 
@@ -43,6 +47,10 @@ export const useCanvasKeyboard = ({
   moveNodes, commitHistory,
   searchOpen, setSearchOpen, contextMenu, setContextMenu,
   setHighlightedId, handleFocusNode,
+  focusModeEnabled = false,
+  canToggleFocusMode = false,
+  onToggleFocusMode,
+  onExitFocusMode,
   keyboardLocked = false,
 }: Options) => {
   useEffect(() => {
@@ -109,6 +117,12 @@ export const useCanvasKeyboard = ({
         }
         return;
       }
+      if (!isEditable && !isMod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        if (!focusModeEnabled && !canToggleFocusMode) return;
+        e.preventDefault();
+        onToggleFocusMode?.();
+        return;
+      }
       // Arrow-key nudging — moves the whole selection by 1px (or 10px
       // with shift) per keypress. Each press is its own undo step, so
       // a chain of nudges can be reversed one at a time. The arrow
@@ -138,6 +152,7 @@ export const useCanvasKeyboard = ({
       if (e.key === 'Escape') {
         if (searchOpen) { setSearchOpen(false); return; }
         if (contextMenu) { setContextMenu(null); return; }
+        if (focusModeEnabled) { onExitFocusMode?.(); return; }
         if (selectedEdgeId) { setSelectedEdgeId(null); return; }
         setSelectedNodeIds([]);
         return;
@@ -158,7 +173,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, contextMenu, setContextMenu, keyboardLocked]);
+  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {

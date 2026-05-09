@@ -58,6 +58,16 @@
   color: var(--text);
 }
 
+.toolbar-btn:disabled {
+  cursor: default;
+  opacity: 0.38;
+}
+
+.toolbar-btn:disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
 .toolbar-btn--active {
   background: var(--accent-light);
   color: var(--accent);

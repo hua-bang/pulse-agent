@@ -23,6 +23,9 @@ interface Props {
   /** Preview endpoints resolved by the interaction hook. When set, we
    *  draw a dashed draft line between these two points. */
   previewEndpoints?: { s: Point; t: Point } | null;
+  focusedNodeIds?: Set<string>;
+  focusModeEnabled?: boolean;
+  focusModeDimOpacity?: number;
   onHandleMouseDown?: (
     edgeId: string,
     handle: 'source' | 'target' | 'bend',
@@ -223,6 +226,9 @@ export const CanvasEdgesLayer = ({
   onSelectEdge,
   interactionState,
   previewEndpoints,
+  focusedNodeIds,
+  focusModeEnabled = false,
+  focusModeDimOpacity = 0.18,
   onHandleMouseDown,
   onBodyMouseDown,
   onBodyDoubleClick,
@@ -284,13 +290,19 @@ export const CanvasEdgesLayer = ({
         const head = edge.arrowHead ?? 'triangle';
         const tail = edge.arrowTail ?? 'none';
         const isSelected = edge.id === selectedEdgeId;
+        const sourceFocused = edge.source.kind === 'node' && focusedNodeIds?.has(edge.source.nodeId);
+        const targetFocused = edge.target.kind === 'node' && focusedNodeIds?.has(edge.target.nodeId);
+        const isFocused = !focusModeEnabled || isSelected || (sourceFocused && targetFocused);
+        const focusStyle: React.CSSProperties | undefined = focusModeEnabled && !isFocused
+          ? { opacity: Math.max(0.06, focusModeDimOpacity * 0.85) }
+          : undefined;
         // While this edge's source/target is being dragged live, the
         // stored endpoint already reflects the in-progress state (we
         // push updates history-silently from useEdgeInteraction), so
         // no special case needed here — the path re-renders naturally.
 
         return (
-          <g key={edge.id}>
+          <g key={edge.id} style={focusStyle}>
             {/* Wide transparent hit target so thin lines stay clickable.
                 A mousedown on the body both selects the edge AND starts
                 a "move the whole edge" drag via onBodyMouseDown. Free

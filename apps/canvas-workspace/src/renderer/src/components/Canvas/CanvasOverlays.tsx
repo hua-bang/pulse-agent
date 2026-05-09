@@ -64,6 +64,12 @@ interface CanvasOverlaysProps {
   onStartEditEdgeLabel?: (id: string) => void;
   onCommitEditEdgeLabel?: (id: string, label: string) => void;
   onCancelEditEdgeLabel?: () => void;
+  focusModeEnabled?: boolean;
+  canToggleFocusMode?: boolean;
+  focusModeIntensity?: number;
+  focusModeTargetLabel?: string;
+  onFocusModeToggle?: () => void;
+  onFocusModeIntensityChange?: (value: number) => void;
 }
 
 export const CanvasOverlays = ({
@@ -98,6 +104,12 @@ export const CanvasOverlays = ({
   onStartEditEdgeLabel,
   onCommitEditEdgeLabel,
   onCancelEditEdgeLabel,
+  focusModeEnabled = false,
+  canToggleFocusMode = false,
+  focusModeIntensity = 0.65,
+  focusModeTargetLabel,
+  onFocusModeToggle,
+  onFocusModeIntensityChange,
 }: CanvasOverlaysProps) => (
   <>
     {nodes.length === 0 && !contextMenu && (
@@ -162,6 +174,9 @@ export const CanvasOverlays = ({
       onChatToggle={onChatToggle}
       referenceDrawerOpen={referenceDrawerOpen}
       onReferenceToggle={onReferenceToggle}
+      focusModeEnabled={focusModeEnabled}
+      canToggleFocusMode={canToggleFocusMode}
+      onFocusModeToggle={onFocusModeToggle}
     />
 
     {selectedEdge && onUpdateEdge && onRemoveEdge && (
@@ -195,6 +210,42 @@ export const CanvasOverlays = ({
         ))}
 
     <ZoomIndicator scale={scale} onReset={onResetTransform} selectionCount={selectionCount} />
+
+    {focusModeEnabled && (
+      <div
+        className="focus-mode-panel"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="focus-mode-pill">
+          <span className="focus-mode-dot" aria-hidden="true" />
+          <span className="focus-mode-label">
+            Focus{focusModeTargetLabel ? ` · ${focusModeTargetLabel}` : ''}
+          </span>
+          <button
+            type="button"
+            className="focus-mode-close"
+            onClick={onFocusModeToggle}
+            title="Exit Focus Mode"
+            aria-label="Exit Focus Mode"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        <input
+          className="focus-mode-slider"
+          type="range"
+          min={0}
+          max={100}
+          value={Math.round(focusModeIntensity * 100)}
+          onChange={(e) => onFocusModeIntensityChange?.(Number(e.currentTarget.value) / 100)}
+          aria-label="Focus intensity"
+          title="Focus intensity"
+        />
+      </div>
+    )}
 
     {searchOpen && (
       <CommandPalette
