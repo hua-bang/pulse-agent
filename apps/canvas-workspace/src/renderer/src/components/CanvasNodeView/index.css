@@ -37,7 +37,16 @@
   z-index: 80;
   filter: none;
   opacity: 1;
-  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(124, 92, 255, 0.18), 0 10px 36px rgba(124, 92, 255, 0.12);
+  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(124, 92, 255, 0.24), 0 16px 46px rgba(124, 92, 255, 0.18);
+}
+
+.canvas-node--focus-mode-focused::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: calc(var(--radius-lg) + 10px);
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.1), 0 0 38px rgba(124, 92, 255, 0.16);
 }
 
 .canvas-node--focus-mode-focused.canvas-node--frame,
@@ -46,24 +55,24 @@
 }
 
 .canvas-node--focus-mode-focused.canvas-node--frame {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 26%, transparent), 0 14px 42px rgba(124, 92, 255, 0.13);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 34%, transparent), 0 18px 52px rgba(124, 92, 255, 0.18);
 }
 
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 32%, transparent), 0 14px 42px rgba(124, 92, 255, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 40%, transparent), 0 18px 52px rgba(124, 92, 255, 0.2);
 }
 
 .canvas-node--focus-mode-focused.canvas-node--group {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 24%, transparent), 0 14px 42px rgba(124, 92, 255, 0.12);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 32%, transparent), 0 18px 52px rgba(124, 92, 255, 0.17);
 }
 
 .canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 30%, transparent), 0 14px 42px rgba(124, 92, 255, 0.14);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 38%, transparent), 0 18px 52px rgba(124, 92, 255, 0.19);
 }
 
 .canvas-node--focus-mode-dimmed {
-  opacity: var(--focus-dim-opacity, 0.18);
-  filter: saturate(0.55) blur(var(--focus-dim-blur, 1px));
+  opacity: var(--focus-dim-opacity, 0.09);
+  filter: saturate(0.42) blur(var(--focus-dim-blur, 3px));
   transition: opacity 0.18s ease, filter 0.18s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
