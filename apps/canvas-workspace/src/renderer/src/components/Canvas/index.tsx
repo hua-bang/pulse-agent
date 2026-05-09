@@ -38,6 +38,9 @@ interface CanvasProps {
   onRenameComplete?: () => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
+  referenceDrawerOpen?: boolean;
+  onReferenceToggle?: () => void;
+  onPinReferenceNode?: (nodeId: string) => void;
 }
 
 export const Canvas = ({
@@ -55,6 +58,9 @@ export const Canvas = ({
   onRenameComplete,
   chatPanelOpen,
   onChatToggle,
+  referenceDrawerOpen,
+  onReferenceToggle,
+  onPinReferenceNode,
 }: CanvasProps) => {
   const { confirm, notify, openShortcuts, isOverlayOpen } = useAppShell();
   const [activeTool, setActiveTool] = useState('select');
@@ -664,6 +670,17 @@ export const Canvas = ({
           groupSelectedNodes();
         },
       },
+      {
+        id: 'pin-reference',
+        group: 'view',
+        title: selectionCount === 1 ? 'Pin selected node as reference' : 'Pin node as reference',
+        aliases: ['reference', 'pin', 'context'],
+        enabled: selectionCount === 1 && !!onPinReferenceNode,
+        run: () => {
+          const [nodeId] = selectedNodeIds;
+          if (nodeId) onPinReferenceNode?.(nodeId);
+        },
+      },
       // Create — one entry per node type. Aliases catch the common
       // alternative names users type ("markdown" → file, "ai" → agent).
       {
@@ -736,6 +753,14 @@ export const Canvas = ({
         run: () => resetTransform(),
       },
       {
+        id: 'toggle-reference',
+        group: 'view',
+        title: referenceDrawerOpen ? 'Hide reference drawer' : 'Show reference drawer',
+        aliases: ['reference', 'ref', 'drawer', 'context'],
+        enabled: !!onReferenceToggle,
+        run: () => onReferenceToggle?.(),
+      },
+      {
         id: 'toggle-chat',
         group: 'view',
         title: chatPanelOpen ? 'Hide chat panel' : 'Show chat panel',
@@ -766,6 +791,9 @@ export const Canvas = ({
     resetTransform,
     chatPanelOpen,
     onChatToggle,
+    referenceDrawerOpen,
+    onReferenceToggle,
+    onPinReferenceNode,
     openShortcuts,
   ]);
 
@@ -988,6 +1016,8 @@ export const Canvas = ({
         selectionCount={selectedNodeIds.length}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
+        referenceDrawerOpen={referenceDrawerOpen}
+        onReferenceToggle={onReferenceToggle}
         onCreateNode={handleCreateNode}
         onCloseContextMenu={() => setContextMenu(null)}
         onOpenShortcuts={openShortcuts}

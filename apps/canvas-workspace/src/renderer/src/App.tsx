@@ -4,6 +4,7 @@ import './App.css';
 import { Canvas } from './components/Canvas';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ChatPage, ChatPanel } from './components/chat';
+import { ReferenceDrawer } from './components/ReferenceDrawer';
 import { Sidebar } from './components/Sidebar';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
@@ -32,9 +33,11 @@ const AppContent = () => {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
   const [selectedNodeIdsByWorkspace, setSelectedNodeIdsByWorkspace] = useState<Record<string, string[]>>({});
+  const [referenceNodeIdByWorkspace, setReferenceNodeIdByWorkspace] = useState<Record<string, string | undefined>>({});
   const [focusNodeId, setFocusNodeId] = useState<string | undefined>();
   const [deleteNodeId, setDeleteNodeId] = useState<string | undefined>();
   const [renameNodeRequest, setRenameNodeRequest] = useState<CanvasNodeRenameRequest | undefined>();
@@ -379,6 +382,49 @@ const AppContent = () => {
     setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
+  const pinReferenceNode = useCallback((nodeId: string) => {
+    setReferenceNodeIdByWorkspace((prev) => ({
+      ...prev,
+      [activeId]: nodeId,
+    }));
+    setReferenceDrawerOpen(true);
+  }, [activeId]);
+
+  const clearReferenceNode = useCallback(() => {
+    setReferenceNodeIdByWorkspace((prev) => ({
+      ...prev,
+      [activeId]: undefined,
+    }));
+  }, [activeId]);
+
+  const handlePinSelectedReference = useCallback(() => {
+    const selectedNodeIds = selectedNodeIdsByWorkspace[activeId] || [];
+    if (selectedNodeIds.length !== 1) return;
+    pinReferenceNode(selectedNodeIds[0]);
+  }, [activeId, selectedNodeIdsByWorkspace, pinReferenceNode]);
+
+  const handleFocusReferenceNode = useCallback((nodeId: string) => {
+    setFocusNodeId(nodeId);
+  }, []);
+
+  const activeNodes = allNodes[activeId] || [];
+  const selectedNodeIds = selectedNodeIdsByWorkspace[activeId] || [];
+  const selectedNode = selectedNodeIds.length === 1
+    ? activeNodes.find((node) => node.id === selectedNodeIds[0])
+    : undefined;
+  const referenceNodeId = referenceNodeIdByWorkspace[activeId];
+  const referenceNode = referenceNodeId
+    ? activeNodes.find((node) => node.id === referenceNodeId)
+    : undefined;
+  useEffect(() => {
+    if (!referenceNodeId) return;
+    if (activeNodes.some((node) => node.id === referenceNodeId)) return;
+    setReferenceNodeIdByWorkspace((prev) => ({
+      ...prev,
+      [activeId]: undefined,
+    }));
+  }, [activeId, activeNodes, referenceNodeId]);
+
   const activeWorkspace = workspaces.find((ws) => ws.id === activeId);
 
   return (
@@ -413,6 +459,15 @@ const AppContent = () => {
         />
         {activeView === 'canvas' && (
           <>
+            <ReferenceDrawer
+              open={referenceDrawerOpen}
+              referenceNode={referenceNode}
+              selectedNode={selectedNode}
+              onOpenChange={setReferenceDrawerOpen}
+              onPinSelected={handlePinSelectedReference}
+              onClear={clearReferenceNode}
+              onFocusNode={handleFocusReferenceNode}
+            />
             <div className="canvas-viewport">
               {workspaces.map((ws) => (
                 <Canvas
@@ -431,6 +486,9 @@ const AppContent = () => {
                   onRenameComplete={handleRenameComplete}
                   chatPanelOpen={chatPanelOpen}
                   onChatToggle={() => setChatPanelOpen((prev) => !prev)}
+                  referenceDrawerOpen={referenceDrawerOpen}
+                  onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
+                  onPinReferenceNode={pinReferenceNode}
                 />
               ))}
             </div>

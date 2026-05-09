@@ -24,6 +24,8 @@ interface CanvasOverlaysProps {
   selectionCount: number;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
+  referenceDrawerOpen?: boolean;
+  onReferenceToggle?: () => void;
   onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
   onCloseContextMenu: () => void;
   onOpenShortcuts: () => void;
@@ -73,6 +75,8 @@ export const CanvasOverlays = ({
   selectionCount,
   chatPanelOpen,
   onChatToggle,
+  referenceDrawerOpen,
+  onReferenceToggle,
   onCreateNode,
   onCloseContextMenu,
   onOpenShortcuts,
@@ -156,6 +160,8 @@ export const CanvasOverlays = ({
       onAddNode={onAddNode}
       chatPanelOpen={chatPanelOpen}
       onChatToggle={onChatToggle}
+      referenceDrawerOpen={referenceDrawerOpen}
+      onReferenceToggle={onReferenceToggle}
     />
 
     {selectedEdge && onUpdateEdge && onRemoveEdge && (
