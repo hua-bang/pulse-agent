@@ -108,6 +108,28 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
     if (readOnly) setEditing(false);
   }, [readOnly]);
 
+  useEffect(() => {
+    if (mode !== "url" || editing || readOnly) return;
+    const el = webviewRef.current;
+    if (!el) return;
+
+    const handlePageTitleUpdated = (event: Event) => {
+      const nextTitle = sanitizePageTitle((event as Event & { title?: string }).title);
+      if (!nextTitle || nextTitle === node.title) return;
+      if (!shouldSyncIframeTitle(node.title, data, url)) return;
+
+      onUpdate(node.id, {
+        title: nextTitle,
+        data: { ...data, pageTitle: nextTitle },
+      });
+    };
+
+    el.addEventListener("page-title-updated", handlePageTitleUpdated);
+    return () => {
+      el.removeEventListener("page-title-updated", handlePageTitleUpdated);
+    };
+  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
+
   // Autofocus the relevant input whenever we enter editing mode.
   useEffect(() => {
     if (!editing) return undefined;
@@ -214,9 +236,10 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
     if (readOnly) return;
     if (draftMode === "url") {
       const next = normalizeUrl(draftUrl.trim());
+      const shouldUseAutoTitle = shouldSyncIframeTitle(node.title, data, url);
       onUpdate(node.id, {
-        data: { ...data, url: next, mode: "url" },
-        title: next ? prettyTitle(next) : node.title,
+        data: { ...data, url: next, mode: "url", pageTitle: "" },
+        title: shouldUseAutoTitle && next ? prettyTitle(next) : node.title,
       });
     } else if (draftMode === "html") {
       onUpdate(node.id, {
@@ -225,7 +248,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       });
     }
     setEditing(false);
-  }, [draftMode, draftUrl, draftHtml, onUpdate, node.id, node.title, data, readOnly]);
+  }, [draftMode, draftUrl, draftHtml, onUpdate, node.id, node.title, data, readOnly, url]);
 
   // ── Streaming AI generation ────────────────────────────────────────
 
@@ -636,6 +659,23 @@ function prettyTitle(url: string): string {
   } catch {
     return url;
   }
+}
+
+function sanitizePageTitle(title: string | undefined): string {
+  return (title ?? "").replace(/\s+/g, " ").trim();
+}
+
+function shouldSyncIframeTitle(title: string, data: IframeNodeData, url: string): boolean {
+  const currentTitle = title.trim();
+  const urlTitle = url ? prettyTitle(url) : "";
+  const previousPageTitle = sanitizePageTitle(data.pageTitle);
+
+  return (
+    !currentTitle
+    || currentTitle === "Web"
+    || currentTitle === urlTitle
+    || (!!previousPageTitle && currentTitle === previousPageTitle)
+  );
 }
 
 interface WebviewTag extends HTMLElement {

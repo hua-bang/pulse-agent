@@ -137,6 +137,29 @@ export const ListLinesIcon = ({ size = 14, className }: IconProps) => (
   </svg>
 );
 
+/** Landscape / image attachment icon. */
+export const ImageIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <rect
+      x="2.5"
+      y="3"
+      width="11"
+      height="10"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+    />
+    <circle cx="6" cy="6.2" r="1.1" stroke="currentColor" strokeWidth="1.15" />
+    <path
+      d="M3.2 11.3L6.1 8.6a1 1 0 011.35-.02l1.1 1 1.45-1.45a1 1 0 011.42.02l1.38 1.45"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 interface NodeTypeIconProps {
   type: CanvasNode['type'];
   size?: number;
@@ -231,6 +254,8 @@ export const NodeTypeIcon = ({ type, size = 14, className }: NodeTypeIconProps) 
           />
         </svg>
       );
+    case 'image':
+      return <ImageIcon size={size} className={className} />;
     case 'mindmap':
       // Root node on the left with three children branching to the right
       return (
