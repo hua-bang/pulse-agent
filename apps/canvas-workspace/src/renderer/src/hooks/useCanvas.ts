@@ -24,6 +24,7 @@ export const useCanvas = (isHandTool = false) => {
 
   const isPanning = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
+  const [panning, setPanning] = useState(false);
 
   // Tracks whether the canvas is currently being panned/zoomed. Drives
   // the conditional `will-change: transform` on `.canvas-transform` so
@@ -87,6 +88,7 @@ export const useCanvas = (isHandTool = false) => {
         (e.button === 0 && isHandTool)
       ) {
         isPanning.current = true;
+        setPanning(true);
         lastMouse.current = { x: e.clientX, y: e.clientY };
         markMoving();
         e.preventDefault();
@@ -110,6 +112,7 @@ export const useCanvas = (isHandTool = false) => {
 
   const handleMouseUp = useCallback(() => {
     isPanning.current = false;
+    setPanning(false);
   }, []);
 
   const screenToCanvas = useCallback(
@@ -131,6 +134,7 @@ export const useCanvas = (isHandTool = false) => {
     transform,
     setTransform,
     moving,
+    panning,
     handleWheel,
     handleMouseDown,
     handleMouseMove,
