@@ -62,7 +62,7 @@ export class InkUiBridge {
   }
 
   showWelcome(): void {
-    this.addEvent('system', 'Welcome', 'Type a message and press Enter to run the agent. Use /help for commands. Esc stops the current response; Ctrl+C exits safely.');
+    this.addEvent('system', 'Welcome', 'Type a message and press Enter to run the agent. Use /help for commands. Shift+Tab cycles CLI mode. Esc stops the current response; Ctrl+C exits safely.');
   }
 
   showHelp(items: TuiHelpItem[], footer: string[] = []): void {
@@ -78,7 +78,7 @@ export class InkUiBridge {
   showTuiStatus(): void {
     this.section('TUI Status', [
       'Current UI: Ink',
-      'Discovery: type / for slash-command suggestions, Tab completes the first match',
+      'Discovery: type / for slash-command suggestions, Tab completes the first match, Shift+Tab cycles CLI mode',
       'Input: Enter send, Ctrl+J newline, ↑/↓ history, ←/→ move cursor, Ctrl+A/E jump',
       'Editing: Ctrl+U delete before cursor, Ctrl+K delete after cursor, Ctrl+W delete previous word',
       'Control: Esc stops a run; when idle it clears input first, then exits on empty input',

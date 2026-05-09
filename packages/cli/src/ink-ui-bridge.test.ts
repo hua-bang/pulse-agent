@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { InkUiBridge } from './ink-ui-bridge.js';
 import {
   applySlashCommandCompletion,
+  formatStatusline,
   getSlashCommandSuggestions,
   insertAtCursor,
+  nextInteractionMode,
+  normalizeInteractionMode,
   removeAtCursor,
   removeBeforeCursor,
   removeWordBeforeCursor,
@@ -118,5 +121,33 @@ describe('Ink composer editing helpers', () => {
     expect(shouldAcceptSlashSuggestion('/sta', 4, getSlashCommandSuggestions('/sta', 4)[0])).toBe(true);
     expect(shouldAcceptSlashSuggestion('/status', 7, getSlashCommandSuggestions('/status', 7)[0])).toBe(false);
     expect(applySlashCommandCompletion('/sta', 4, '/status')).toEqual({ input: '/status ', cursor: 8 });
+  });
+
+  it('normalizes interaction modes and formats statusline', () => {
+    expect(normalizeInteractionMode(undefined)).toBe('chat');
+    expect(normalizeInteractionMode('planning')).toBe('plan');
+    expect(normalizeInteractionMode('executing')).toBe('edit');
+    expect(nextInteractionMode('auto')).toBe('chat');
+
+    const statusline = formatStatusline({
+      sessionId: 's1',
+      taskListId: null,
+      mode: 'plan',
+      messages: 0,
+      estimatedTokens: 0,
+      queuedInputs: 2,
+      isProcessing: true,
+      status: 'Running agent',
+      phase: 'Using tool',
+      activeTool: 'bash',
+      toolCalls: 3,
+      completedTools: 1,
+      events: [],
+    });
+
+    expect(statusline).toContain('mode plan');
+    expect(statusline).toContain('active bash');
+    expect(statusline).toContain('tools 1/3');
+    expect(statusline).toContain('queue 2');
   });
 });
