@@ -477,8 +477,22 @@ export const CanvasNodeView = ({
           <TextColorPicker node={node} onUpdate={onUpdate} />
         )}
         {!readOnly && onReference ? (
-          <button className="node-reference" onClick={handleReference} title="Reference">
-            Reference
+          <button
+            className="node-reference"
+            type="button"
+            onClick={handleReference}
+            title="Reference"
+            aria-label={`Pin ${node.title} as reference`}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path
+                d="M3.2 2.2c0-.55.45-1 1-1h3.6c.55 0 1 .45 1 1v8.1L6 8.65 3.2 10.3V2.2z"
+                stroke="currentColor"
+                strokeWidth="1.25"
+                strokeLinejoin="round"
+              />
+              <path d="M4.8 3.6h2.4" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
+            </svg>
           </button>
         ) : null}
         <button className="node-focus" onClick={handleFocus} title="Focus">

@@ -1,6 +1,6 @@
 .reference-drawer {
-  width: 420px;
-  flex: 0 0 420px;
+  width: var(--reference-drawer-width, 420px);
+  flex: 0 0 var(--reference-drawer-width, 420px);
   min-width: 320px;
   max-width: 720px;
   height: 100%;
@@ -11,10 +11,26 @@
   z-index: 10;
   flex-shrink: 0;
   isolation: isolate;
+  opacity: 0;
+  transform: translateX(-18px) scaleX(0.985);
+  transform-origin: left center;
+  filter: saturate(0.96);
+  margin-left: calc(var(--reference-drawer-width, 420px) * -1);
+  transition:
+    margin-left 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.2s ease,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.2s ease;
+  will-change: margin-left, opacity, transform;
+  pointer-events: none;
 }
 
 .reference-drawer--open {
-  animation: reference-drawer-enter 0.14s ease-out;
+  margin-left: 0;
+  opacity: 1;
+  transform: translateX(0) scaleX(1);
+  filter: saturate(1);
+  pointer-events: auto;
 }
 
 .reference-drawer--resizing {
@@ -66,14 +82,11 @@
   opacity: 0.34;
 }
 
-@keyframes reference-drawer-enter {
-  from {
-    opacity: 0;
-    transform: translateX(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
+@media (prefers-reduced-motion: reduce) {
+  .reference-drawer {
+    transition: none;
+    transform: none;
+    filter: none;
   }
 }
 
