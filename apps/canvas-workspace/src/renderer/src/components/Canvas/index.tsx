@@ -28,7 +28,7 @@ import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 
-const DEFAULT_FOCUS_MODE_INTENSITY = 0.66;
+const DEFAULT_FOCUS_MODE_INTENSITY = 0.78;
 
 interface CanvasProps {
   canvasId: string;
@@ -193,9 +193,9 @@ export const Canvas = ({
     return node ? getNodeDisplayLabel(node) : undefined;
   }, [focusModeActive, nodes, selectedNodeIds]);
 
-  const focusModeDimOpacity = 0.32 - focusModeIntensity * 0.24;
-  const focusModeDimBlur = 0.3 + focusModeIntensity * 1.8;
-  const focusModeVeilOpacity = 0.08 + focusModeIntensity * 0.22;
+  const focusModeDimOpacity = 0.2 - focusModeIntensity * 0.14;
+  const focusModeDimBlur = 0.9 + focusModeIntensity * 3.4;
+  const focusModeVeilOpacity = 0.12 + focusModeIntensity * 0.26;
 
   const exitFocusMode = useCallback(() => {
     setFocusModeEnabled(false);

@@ -74,8 +74,10 @@
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: rgba(255, 255, 255, var(--focus-veil-opacity, 0.22));
-  backdrop-filter: saturate(0.88);
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, var(--focus-veil-opacity, 0.32)) 68%),
+    rgba(255, 255, 255, 0.18);
+  backdrop-filter: saturate(0.78);
   opacity: 0;
   animation: canvas-focus-veil-in 0.18s ease forwards;
 }
