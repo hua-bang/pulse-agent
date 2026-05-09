@@ -14,9 +14,10 @@ interface Props {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   workspaceId?: string;
+  readOnly?: boolean;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: Props) => {
   const data = node.data as FileNodeData;
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
@@ -74,9 +75,11 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
     setModified,
     persistToFile,
     onUpdate,
+    readOnly,
   });
 
   const handleOpenFile = useCallback(async () => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.file;
     if (!api) return;
     const res = await api.openDialog();
@@ -90,9 +93,10 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
       data: { filePath: res.filePath || '', content, saved: true, modified: false },
     });
     showStatus(`Opened ${res.fileName}`);
-  }, [editor, node.title, onUpdate, showStatus]);
+  }, [editor, node.title, onUpdate, showStatus, readOnly]);
 
   const handleSaveAs = useCallback(async () => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.file;
     if (!api || !editor) return;
     const defaultName = dataRef.current.filePath
@@ -113,24 +117,26 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
       },
     });
     showStatus(`Saved to ${res.fileName}`);
-  }, [editor, node.title, onUpdate, showStatus]);
+  }, [editor, node.title, onUpdate, showStatus, readOnly]);
 
   const handleManualSave = useCallback(() => {
+    if (readOnly) return;
     const fp = dataRef.current.filePath;
     if (fp && editor) {
       void persistToFile(getMarkdown(editor), fp);
     } else {
       void handleSaveAs();
     }
-  }, [editor, persistToFile, handleSaveAs]);
+  }, [editor, persistToFile, handleSaveAs, readOnly]);
 
   const handleImageInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (readOnly) return;
       const file = e.target.files?.[0];
       if (file) void insertImageFromFile(file);
       e.target.value = '';
     },
-    [insertImageFromFile],
+    [insertImageFromFile, readOnly],
   );
 
   const filePath = data.filePath;
@@ -138,15 +144,17 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
 
   return (
     <div className="note-card">
-      <FileNodeToolbar
-        onOpenFile={handleOpenFile}
-        onSave={handleManualSave}
-        onSaveAs={handleSaveAs}
-        onInsertImage={openImagePicker}
-        onOpenFind={openFindBar}
-        statusText={statusText}
-        modified={modified}
-      />
+      {!readOnly && (
+        <FileNodeToolbar
+          onOpenFile={handleOpenFile}
+          onSave={handleManualSave}
+          onSaveAs={handleSaveAs}
+          onInsertImage={openImagePicker}
+          onOpenFind={openFindBar}
+          statusText={statusText}
+          modified={modified}
+        />
+      )}
 
       {fileName && (
         <div className="note-file-hint" title={filePath ?? undefined}>
@@ -154,9 +162,9 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
         </div>
       )}
 
-      {findBarOpen && editor && <NoteFindBar editor={editor} onClose={closeFindBar} />}
+      {!readOnly && findBarOpen && editor && <NoteFindBar editor={editor} onClose={closeFindBar} />}
 
-      {linkPrompt && (
+      {!readOnly && linkPrompt && (
         <NoteLinkPrompt
           initial={linkPrompt.initial}
           onApply={applyLink}
@@ -164,7 +172,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
         />
       )}
 
-      {bubble && editor && (
+      {!readOnly && bubble && editor && (
         <FileNodeBubbleMenu editor={editor} bubble={bubble} onOpenLinkPrompt={openLinkPrompt} />
       )}
 
@@ -180,7 +188,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId }: Props) => {
         onChange={handleImageInputChange}
       />
 
-      {slashMenu && (
+      {!readOnly && slashMenu && (
         <SlashCommandMenu
           x={slashMenu.x}
           y={slashMenu.y}

@@ -40,6 +40,7 @@ interface Props {
    *  which in turn grows the whole mindmap; we want that resize to
    *  reconcile silently rather than spamming undo history. */
   onAutoResize: (id: string, width: number, height: number) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -65,7 +66,7 @@ interface Props {
  * while selected enters edit mode. Commit on blur / Enter (Enter on a
  * non-root topic also spawns a sibling); Esc cancels without saving.
  */
-export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onUpdate, onSelectNode, onAutoResize }: Props) => {
+export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onUpdate, onSelectNode, onAutoResize, readOnly = false }: Props) => {
   const data = node.data as MindmapNodeData;
   const root = data.root;
 
@@ -90,10 +91,10 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
   // reconcile via `onAutoResize`, which bypasses the undo history so
   // the size change rides along with whatever mutation just fired.
   useEffect(() => {
-    if (node.width !== wantedWidth || node.height !== wantedHeight) {
+    if (!readOnly && (node.width !== wantedWidth || node.height !== wantedHeight)) {
       onAutoResize(node.id, wantedWidth, wantedHeight);
     }
-  }, [wantedWidth, wantedHeight, node.id, node.width, node.height, onAutoResize]);
+  }, [wantedWidth, wantedHeight, node.id, node.width, node.height, onAutoResize, readOnly]);
 
   // Keep selection valid when the tree mutates (delete removed the
   // selected node, external update rebuilt ids, etc).
@@ -422,6 +423,7 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
               onExitEdit={() => setEditingId(null)}
               onToggleCollapsed={() => toggle(t.id)}
               onKeyAction={(action) => {
+                if (readOnly) return;
                 switch (action.kind) {
                   case 'addChild':
                     addChild(t.id);
@@ -446,6 +448,7 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
                     break;
                 }
               }}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -486,6 +489,7 @@ interface TopicPillProps {
    *  key shortcut. */
   onToggleCollapsed: () => void;
   onKeyAction: (action: KeyAction) => void;
+  readOnly?: boolean;
 }
 
 const TopicPill = ({
@@ -498,15 +502,15 @@ const TopicPill = ({
   onSelect,
   onEnterEdit,
   onCommitText,
-  onExitEdit,
   onToggleCollapsed,
   onKeyAction,
+  readOnly = false,
 }: TopicPillProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (!isEditing) return;
+    if (readOnly || !isEditing) return;
     const el = editorRef.current;
     if (!el) return;
     el.focus();
@@ -522,15 +526,15 @@ const TopicPill = ({
       sel.removeAllRanges();
       sel.addRange(range);
     }
-  }, [isEditing]);
+  }, [isEditing, readOnly]);
 
   // When the selected pill isn't editing, send keyboard focus to the
   // wrapper so arrow keys / Tab / Enter hit this component's handler
   // instead of the canvas keyboard hook.
   useEffect(() => {
-    if (isEditing) return;
+    if (isEditing || readOnly) return;
     if (isSelected) pillRef.current?.focus();
-  }, [isSelected, isEditing]);
+  }, [isSelected, isEditing, readOnly]);
 
   // Push DOM text back in sync when the stored text changes from
   // elsewhere (undo, external update) and we're not mid-edit.
@@ -541,20 +545,20 @@ const TopicPill = ({
   }, [topic.text, isEditing]);
 
   const commit = useCallback(() => {
+    if (readOnly) return;
     const el = editorRef.current;
     const next = el ? el.innerText.replace(/\n+$/, '') : topic.text;
     if (next !== topic.text) onCommitText(next);
-    onExitEdit();
-  }, [onCommitText, onExitEdit, topic.text]);
+  }, [onCommitText, topic.text, readOnly]);
 
   const cancel = useCallback(() => {
     const el = editorRef.current;
     if (el) el.innerText = topic.text;
-    onExitEdit();
-  }, [onExitEdit, topic.text]);
+  }, [topic.text]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (readOnly) return;
       // Stop React's synthetic event AND the underlying DOM event from
       // bubbling up to the window-level canvas keyboard listener. When
       // a topic is selected (not editing), the pill div is focused but
@@ -573,6 +577,7 @@ const TopicPill = ({
         if (e.key === 'Escape') {
           consume();
           cancel();
+          onKeyAction({ kind: 'exit' });
           return;
         }
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -645,7 +650,7 @@ const TopicPill = ({
           }
       }
     },
-    [cancel, commit, isEditing, onEnterEdit, onKeyAction, topic.hasChildren],
+    [cancel, commit, isEditing, onEnterEdit, onKeyAction, topic.hasChildren, readOnly],
   );
 
   const isRoot = topic.depth === 0;
@@ -682,8 +687,12 @@ const TopicPill = ({
         .filter(Boolean)
         .join(' ')}
       style={style}
-      tabIndex={0}
+      tabIndex={readOnly ? undefined : 0}
       onMouseDown={(e) => {
+        if (readOnly) {
+          e.stopPropagation();
+          return;
+        }
         // Pan-trigger gestures must reach the outer .canvas-container so
         // the user can grab the canvas even when the cursor happens to
         // land on a topic. We let middle-button, alt+left, and hand-tool
@@ -704,7 +713,7 @@ const TopicPill = ({
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        onEnterEdit();
+        if (!readOnly) onEnterEdit();
       }}
       onKeyDown={handleKeyDown}
     >
@@ -716,12 +725,15 @@ const TopicPill = ({
         ]
           .filter(Boolean)
           .join(' ')}
-        contentEditable={isEditing}
+        contentEditable={!readOnly && isEditing}
         suppressContentEditableWarning
         spellCheck={false}
         data-placeholder="Untitled"
         onBlur={() => {
-          if (isEditing) commit();
+          if (isEditing && !readOnly) {
+            commit();
+            onKeyAction({ kind: 'exit' });
+          }
         }}
       >
         {topic.text}
@@ -736,7 +748,7 @@ const TopicPill = ({
        *  `onMouseDown` stops propagation so clicking the toggle never
        *  starts a topic select / reorder drag on the parent pill; the
        *  click handler then toggles. */}
-      {!isRoot && topic.hasChildren && (
+      {!readOnly && !isRoot && topic.hasChildren && (
         <button
           type="button"
           className={[

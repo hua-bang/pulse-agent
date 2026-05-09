@@ -13,6 +13,7 @@ interface Props {
    *  Without it, cross-origin iframes (and especially Electron `<webview>`)
    *  swallow the cursor's events and the resize handler stops updating. */
   isResizing?: boolean;
+  readOnly?: boolean;
 }
 
 // ── Streaming shell ──────────────────────────────────────────────────
@@ -67,7 +68,7 @@ window.parent.postMessage({type:"morph-ready"},"*");
 
 // ── Component ────────────────────────────────────────────────────────
 
-export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Props) => {
+export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOnly = false }: Props) => {
   const data = node.data as IframeNodeData;
   const mode = data.mode ?? "url";
   const url = data.url ?? "";
@@ -76,7 +77,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
 
   const hasContent = mode === "url" ? !!url : !!html;
 
-  const [editing, setEditing] = useState(!hasContent);
+  const [editing, setEditing] = useState(!readOnly && !hasContent);
   const [draftUrl, setDraftUrl] = useState(url);
   const [draftHtml, setDraftHtml] = useState(html);
   const [draftPrompt, setDraftPrompt] = useState(savedPrompt);
@@ -102,6 +103,10 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
   useEffect(() => { setDraftHtml(html); }, [html]);
   useEffect(() => { setDraftPrompt(savedPrompt); }, [savedPrompt]);
   useEffect(() => { setDraftMode(mode === "ai" ? "ai" : mode === "html" ? "html" : "url"); }, [mode]);
+
+  useEffect(() => {
+    if (readOnly) setEditing(false);
+  }, [readOnly]);
 
   // Autofocus the relevant input whenever we enter editing mode.
   useEffect(() => {
@@ -206,6 +211,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
   // ── Commit (URL / HTML) ────────────────────────────────────────────
 
   const commit = useCallback(() => {
+    if (readOnly) return;
     if (draftMode === "url") {
       const next = normalizeUrl(draftUrl.trim());
       onUpdate(node.id, {
@@ -219,7 +225,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
       });
     }
     setEditing(false);
-  }, [draftMode, draftUrl, draftHtml, onUpdate, node.id, node.title, data]);
+  }, [draftMode, draftUrl, draftHtml, onUpdate, node.id, node.title, data, readOnly]);
 
   // ── Streaming AI generation ────────────────────────────────────────
 
@@ -227,6 +233,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
     prompt: string,
     opts: { fromEditor?: boolean } = {},
   ) => {
+    if (readOnly) return;
     setGenerating(true);
     setGenError(null);
     setStreamingActive(true);
@@ -286,7 +293,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
       setGenerating(false);
       if (opts.fromEditor) setEditing(true);
     }
-  }, [flushToIframe, onUpdate, node.id, node.title, data]);
+  }, [flushToIframe, onUpdate, node.id, node.title, data, readOnly]);
 
   const handleGenerate = useCallback(
     () => startStream(draftPrompt.trim(), { fromEditor: true }),
@@ -304,8 +311,8 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
     setDraftPrompt(savedPrompt);
     setDraftMode(mode === "ai" ? "ai" : mode === "html" ? "html" : "url");
     setGenError(null);
-    setEditing(false);
-  }, [url, html, savedPrompt, mode]);
+    if (!readOnly) setEditing(false);
+  }, [url, html, savedPrompt, mode, readOnly]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -508,16 +515,20 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
         {mode === "url" ? (
           <button
             className="iframe-bar-url"
-            onClick={() => setEditing(true)}
-            title="Edit URL"
+            onClick={() => {
+              if (!readOnly) setEditing(true);
+            }}
+            title={readOnly ? url : "Edit URL"}
           >
             <span className="iframe-bar-url-text">{url}</span>
           </button>
         ) : mode === "ai" ? (
           <button
             className="iframe-bar-url iframe-bar-url--html"
-            onClick={() => !generating && setEditing(true)}
-            title={generating ? "Generating…" : "Edit prompt"}
+            onClick={() => {
+              if (!readOnly && !generating) setEditing(true);
+            }}
+            title={readOnly ? savedPrompt : generating ? "Generating…" : "Edit prompt"}
           >
             <span className="iframe-bar-badge iframe-bar-badge--ai">AI</span>
             {generating ? (
@@ -534,8 +545,10 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
         ) : (
           <button
             className="iframe-bar-url iframe-bar-url--html"
-            onClick={() => setEditing(true)}
-            title="Edit HTML"
+            onClick={() => {
+              if (!readOnly) setEditing(true);
+            }}
+            title={readOnly ? html : "Edit HTML"}
           >
             <span className="iframe-bar-badge">HTML</span>
             <span className="iframe-bar-url-text">
@@ -544,7 +557,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing }: Prop
           </button>
         )}
 
-        {mode === "ai" && !generating && (
+        {mode === "ai" && !generating && !readOnly && (
           <button
             className="iframe-bar-btn"
             onClick={() => void handleRegenerate()}

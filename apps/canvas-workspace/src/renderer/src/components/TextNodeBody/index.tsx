@@ -13,6 +13,7 @@ interface Props {
   isSelected: boolean;
   onSelect: (id: string) => void;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
+  readOnly?: boolean;
 }
 
 /* ---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ interface Props {
  *    .node-body clips overflow.
  * ------------------------------------------------------------------------- */
 
-export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart }: Props) => {
+export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart, readOnly = false }: Props) => {
   const data = node.data as TextNodeData;
   const autoSize = data.autoSize !== false;
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -80,6 +81,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
     content: data.content || "",
     editable: false,
     onUpdate: ({ editor }) => {
+      if (readOnly) return;
       // Persist as HTML so line breaks survive reload without a lossy
       // markdown round-trip.
       const html = editor.getHTML();
@@ -90,7 +92,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
       });
     },
     onBlur: () => {
-      setEditing(false);
+      if (!readOnly) setEditing(false);
     },
   });
 
@@ -98,8 +100,8 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   // captured once, so we toggle imperatively.
   useEffect(() => {
     if (!editor) return;
-    editor.setEditable(editing);
-  }, [editor, editing]);
+    editor.setEditable(!readOnly && editing);
+  }, [editor, editing, readOnly]);
 
   // External content change (undo/redo, CLI edit, duplicate-paste) — reset
   // the editor so it mirrors node.data without clobbering user typing.
@@ -115,14 +117,14 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   // works immediately without an extra double-click.
   useEffect(() => {
     if (!editor) return;
-    if (data.content === "") {
+    if (!readOnly && data.content === "") {
       setEditing(true);
       // Defer focus until editable=true has applied to the DOM.
       const t = setTimeout(() => editor.commands.focus(), 0);
       return () => clearTimeout(t);
     }
     return undefined;
-  }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Deselection commits the edit — matches tldraw's click-away-to-finalize feel.
   useEffect(() => {
@@ -149,13 +151,17 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
     if (Math.abs(measuredH - node.height) > 1) {
       patch.height = measuredH;
     }
-    if (patch.width !== undefined || patch.height !== undefined) {
+    if (!readOnly && (patch.width !== undefined || patch.height !== undefined)) {
       onUpdate(node.id, patch);
     }
   });
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
+      if (readOnly) {
+        e.stopPropagation();
+        return;
+      }
       if (editing) {
         // Let prosemirror handle caret placement / text selection; just make
         // sure the wrapper's drag listeners don't fire.
@@ -165,28 +171,29 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
       onSelect(node.id);
       onDragStart(e, node);
     },
-    [editing, node, onSelect, onDragStart]
+    [editing, node, onSelect, onDragStart, readOnly]
   );
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (editing) return;
+      if (readOnly || editing) return;
       setEditing(true);
       setTimeout(() => editor?.commands.focus(), 0);
     },
-    [editing, editor]
+    [editing, editor, readOnly]
   );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (readOnly) return;
       if (e.key === "Escape") {
         e.preventDefault();
         editor?.commands.blur();
         setEditing(false);
       }
     },
-    [editor]
+    [editor, readOnly]
   );
 
   return (
