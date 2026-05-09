@@ -64,7 +64,7 @@ describe('InkUiBridge', () => {
       kind: 'tool',
       title: 'Tools',
       status: 'success',
-      summary: '1 call completed',
+      summary: '1 call · 1 done',
     });
   });
   it('groups multiple tool calls into one compact activity event', () => {
@@ -85,12 +85,12 @@ describe('InkUiBridge', () => {
       kind: 'tool',
       title: 'Tools',
       status: 'success',
-      summary: '2 calls completed',
+      summary: '2 calls · 2 done',
     });
     expect(last.events[0].text).toContain('read ×1');
     expect(last.events[0].text).toContain('grep ×1');
-    expect(last.events[0].text).toContain('✓ read  packages/cli/src/ink-app.tsx');
-    expect(last.events[0].text).toContain('✓ grep  "toolCall" in packages/cli/src');
+    expect(last.events[0].text).toContain('  ✓ read  packages/cli/src/ink-app.tsx');
+    expect(last.events[0].text).toContain('  ✓ grep  "toolCall" in packages/cli/src');
   });
 
   it('shows running progress in the compact tools summary', () => {
@@ -110,9 +110,9 @@ describe('InkUiBridge', () => {
       status: 'running',
       summary: '2 calls · 1 done · running bash',
     });
-    expect(last.events[0].text).toContain('read ×1 · bash ×1');
-    expect(last.events[0].text).toContain('latest');
-    expect(last.events[0].text).toContain('… bash  pnpm --filter pulse-coder-cli test -- --runInBand');
+    expect(last.events[0].text).toContain('  read ×1 · bash ×1');
+    expect(last.events[0].text).toContain('  latest');
+    expect(last.events[0].text).toContain('  … bash  pnpm --filter pulse-coder-cli test -- --runInBand');
   });
 
   it('updates session snapshot and run summary status', () => {

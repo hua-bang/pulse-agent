@@ -307,12 +307,12 @@ export class InkUiBridge {
       .join(' · ');
     const latestCalls = this.toolActivityCalls.slice(-4).map(call => {
       const icon = call.status === 'success' ? '✓' : call.status === 'error' ? '✕' : '…';
-      return `${icon} ${call.name.padEnd(5)} ${call.summary}`;
+      return `  ${icon} ${call.name.padEnd(5)} ${call.summary}`;
     });
-    const lines = [groupedTools || 'No tools yet'];
+    const lines = [`  ${groupedTools || 'No tools yet'}`];
 
     if (latestCalls.length > 0) {
-      lines.push('', 'latest', ...latestCalls);
+      lines.push('', '  latest', ...latestCalls);
     }
 
     return lines.join('\n');
@@ -323,7 +323,7 @@ export class InkUiBridge {
     const completed = this.toolActivityCalls.filter(call => call.status === 'success').length;
     const running = this.toolActivityCalls.find(call => call.status === 'running');
     const callLabel = total === 1 ? 'call' : 'calls';
-    return running ? `${total} ${callLabel} · ${completed} done · running ${running.name}` : `${total} ${callLabel} completed`;
+    return running ? `${total} ${callLabel} · ${completed} done · running ${running.name}` : `${total} ${callLabel} · ${completed} done`;
   }
 
   private countToolNames(): Record<string, number> {
