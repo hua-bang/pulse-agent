@@ -26,6 +26,7 @@ interface Props {
   isHighlighted: boolean;
   /** True while this node is within the short window after a canvas-cli edit. */
   isAgentEdited?: boolean;
+  focusState?: 'focused' | 'dimmed' | 'neutral';
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -85,6 +86,7 @@ const CanvasNodeViewComponent = ({
   isSelected,
   isHighlighted,
   isAgentEdited,
+  focusState = 'neutral',
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -241,6 +243,8 @@ const CanvasNodeViewComponent = ({
     isSelected && "canvas-node--selected",
     isHighlighted && "canvas-node--highlighted",
     isAgentEdited && "canvas-node--agent-edited",
+    focusState === 'focused' && "canvas-node--focus-mode-focused",
+    focusState === 'dimmed' && "canvas-node--focus-mode-dimmed",
     readOnly && "canvas-node--readonly",
     textAutoSize && "canvas-node--text-auto"
   ]

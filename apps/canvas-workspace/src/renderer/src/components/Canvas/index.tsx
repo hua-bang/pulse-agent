@@ -16,12 +16,19 @@ import { NODE_TYPE_LABELS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
 import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import type { PaletteCommand } from '../CommandPalette';
-import { computeContainerDepths, isContainerNode } from '../../utils/frameHierarchy';
+import {
+  collectContainerDescendants,
+  computeContainerDepths,
+  computeParentContainerMap,
+  isContainerNode,
+} from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { exportMindmapNodeToPng } from '../../utils/mindmapExport';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
+
+const DEFAULT_FOCUS_MODE_INTENSITY = 0.66;
 
 interface CanvasProps {
   canvasId: string;
@@ -66,6 +73,8 @@ export const Canvas = ({
   const [clipboardNodes, setClipboardNodes] = useState<CanvasNode[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [focusModeEnabled, setFocusModeEnabled] = useState(false);
+  const [focusModeIntensity, setFocusModeIntensity] = useState(DEFAULT_FOCUS_MODE_INTENSITY);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoFitted = useRef(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -147,6 +156,58 @@ export const Canvas = ({
   // can forcibly end the edit session.
   const [editingEdgeLabelId, setEditingEdgeLabelId] = useState<string | null>(null);
 
+  const focusModeAvailable = selectedNodeIds.length > 0;
+
+  const focusedNodeIds = useMemo(() => {
+    const focused = new Set<string>();
+    const parentContainerMap = computeParentContainerMap(nodes);
+
+    for (const id of selectedNodeIds) {
+      const node = nodes.find((item) => item.id === id);
+      if (!node) continue;
+
+      focused.add(node.id);
+
+      if (isContainerNode(node)) {
+        for (const descendant of collectContainerDescendants(node.id, nodes)) {
+          focused.add(descendant.id);
+        }
+      }
+
+      let parentId = parentContainerMap.get(node.id) ?? null;
+      while (parentId) {
+        focused.add(parentId);
+        parentId = parentContainerMap.get(parentId) ?? null;
+      }
+    }
+
+    return focused;
+  }, [nodes, selectedNodeIds]);
+
+  const focusModeActive = focusModeEnabled && focusedNodeIds.size > 0;
+
+  const focusModeTargetLabel = useMemo(() => {
+    if (!focusModeActive) return undefined;
+    if (selectedNodeIds.length !== 1) return `${selectedNodeIds.length} selected`;
+    const node = nodes.find((item) => item.id === selectedNodeIds[0]);
+    return node ? getNodeDisplayLabel(node) : undefined;
+  }, [focusModeActive, nodes, selectedNodeIds]);
+
+  const focusModeDimOpacity = 0.32 - focusModeIntensity * 0.24;
+  const focusModeDimBlur = 0.3 + focusModeIntensity * 1.8;
+  const focusModeVeilOpacity = 0.08 + focusModeIntensity * 0.22;
+
+  const exitFocusMode = useCallback(() => {
+    setFocusModeEnabled(false);
+  }, []);
+
+  const toggleFocusMode = useCallback(() => {
+    setFocusModeEnabled((current) => {
+      if (current) return false;
+      return focusModeAvailable;
+    });
+  }, [focusModeAvailable]);
+
   // Flush pending saves on window close or component unmount
   useEffect(() => {
     const handler = () => { flushSave(); };
@@ -187,6 +248,10 @@ export const Canvas = ({
     if (!loaded) return;
     onSelectionChange?.(canvasId, selectedNodeIds);
   }, [canvasId, loaded, onSelectionChange, selectedNodeIds]);
+
+  useEffect(() => {
+    if (selectedNodeIds.length === 0) setFocusModeEnabled(false);
+  }, [selectedNodeIds]);
 
   // Handle external focus request (e.g. from sidebar layers panel)
   useEffect(() => {
@@ -309,6 +374,10 @@ export const Canvas = ({
     moveNodes, commitHistory,
     searchOpen, setSearchOpen, contextMenu, setContextMenu,
     setHighlightedId, handleFocusNode,
+    focusModeEnabled: focusModeActive,
+    canToggleFocusMode: focusModeAvailable,
+    onToggleFocusMode: toggleFocusMode,
+    onExitFocusMode: exitFocusMode,
     keyboardLocked: isOverlayOpen,
   });
 
@@ -330,11 +399,13 @@ export const Canvas = ({
     }
   }, [highlightedId]);
 
-  const handleSearchSelect = useCallback((node: CanvasNode) => {
+  const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
     setSelectedNodeIds([node.id]);
     setHighlightedId(node.id);
     handleFocusNode(node);
   }, [handleFocusNode]);
+
+  const handleSearchSelect = handleNodeViewportFocus;
 
   const handleRemoveNode = useCallback((id: string) => {
     void requestRemoveNodes([id]);
@@ -759,6 +830,15 @@ export const Canvas = ({
           if (nodeId) onPinReferenceNode?.(nodeId);
         },
       },
+      {
+        id: 'toggle-focus-mode',
+        group: 'view',
+        title: focusModeActive ? 'Exit Focus mode' : 'Focus selected nodes',
+        shortcut: 'F',
+        aliases: ['focus', 'spotlight', 'dim'],
+        enabled: focusModeActive || focusModeAvailable,
+        run: toggleFocusMode,
+      },
       // Create — one entry per node type. Aliases catch the common
       // alternative names users type ("markdown" → file, "ai" → agent).
       {
@@ -866,6 +946,9 @@ export const Canvas = ({
     onReferenceToggle,
     onPinReferenceNode,
     openShortcuts,
+    focusModeActive,
+    focusModeAvailable,
+    toggleFocusMode,
   ]);
 
   const handleCanvasClick = useCallback(
@@ -1043,8 +1126,15 @@ export const Canvas = ({
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       onClick={handleCanvasClick}
+      data-focus-mode={focusModeActive ? 'on' : undefined}
+      style={{
+        '--focus-dim-opacity': focusModeDimOpacity,
+        '--focus-dim-blur': `${focusModeDimBlur}px`,
+        '--focus-veil-opacity': focusModeVeilOpacity,
+      } as React.CSSProperties}
     >
       <div className="canvas-grid" />
+      {focusModeActive && <div className="canvas-focus-veil" />}
 
       <CanvasSurface
         transform={transform}
@@ -1068,6 +1158,9 @@ export const Canvas = ({
         shapeDraft={shapeDraft}
         marqueeRect={marquee.rect}
         snapLines={snapLines}
+        focusedNodeIds={focusedNodeIds}
+        focusModeEnabled={focusModeActive}
+        focusModeDimOpacity={focusModeDimOpacity}
         onDragStart={handleSurfaceDragStart}
         onResizeStart={handleSurfaceResizeStart}
         onUpdate={updateNode}
@@ -1075,7 +1168,7 @@ export const Canvas = ({
         onRemove={handleRemoveNode}
         onSelect={handleSelectNode}
         onExportMindmapImage={handleExportMindmapImage}
-        onFocus={handleFocusNode}
+        onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
         onSelectEdge={(id) => {
           setSelectedEdgeId(id);
@@ -1125,6 +1218,12 @@ export const Canvas = ({
         onStartEditEdgeLabel={handleEdgeBodyDoubleClick}
         onCommitEditEdgeLabel={handleCommitEditEdgeLabel}
         onCancelEditEdgeLabel={handleCancelEditEdgeLabel}
+        focusModeEnabled={focusModeActive}
+        canToggleFocusMode={focusModeAvailable}
+        focusModeIntensity={focusModeIntensity}
+        focusModeTargetLabel={focusModeTargetLabel}
+        onFocusModeToggle={toggleFocusMode}
+        onFocusModeIntensityChange={setFocusModeIntensity}
       />
     </div>
   );

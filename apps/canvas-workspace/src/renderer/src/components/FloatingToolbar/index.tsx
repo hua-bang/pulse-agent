@@ -9,6 +9,9 @@ interface Props {
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
+  focusModeEnabled?: boolean;
+  canToggleFocusMode?: boolean;
+  onFocusModeToggle?: () => void;
 }
 
 const tools = [
@@ -67,6 +70,9 @@ export const FloatingToolbar = ({
   onChatToggle,
   referenceDrawerOpen,
   onReferenceToggle,
+  focusModeEnabled = false,
+  canToggleFocusMode = false,
+  onFocusModeToggle,
 }: Props) => {
   return (
     <div className="floating-toolbar">
@@ -123,6 +129,35 @@ export const FloatingToolbar = ({
           </button>
         ))}
         <ShapeToolButton activeTool={activeTool} onToolChange={onToolChange} />
+      </div>
+
+      <div className="toolbar-divider" />
+
+      <div className="toolbar-group">
+        <button
+          className={`toolbar-btn${focusModeEnabled ? " toolbar-btn--active" : ""}`}
+          onClick={onFocusModeToggle}
+          disabled={!canToggleFocusMode}
+          title={canToggleFocusMode ? "Toggle Focus Mode (F)" : "Select a node to focus"}
+          aria-pressed={focusModeEnabled}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <circle cx="9" cy="9" r="2.4" stroke="currentColor" strokeWidth="1.35" />
+            <path
+              d="M9 2.5v2.2M9 13.3v2.2M2.5 9h2.2M13.3 9h2.2"
+              stroke="currentColor"
+              strokeWidth="1.35"
+              strokeLinecap="round"
+            />
+            <path
+              d="M4.6 4.6l1.5 1.5M11.9 11.9l1.5 1.5M13.4 4.6l-1.5 1.5M6.1 11.9l-1.5 1.5"
+              stroke="currentColor"
+              strokeWidth="1.1"
+              strokeLinecap="round"
+              opacity="0.72"
+            />
+          </svg>
+        </button>
       </div>
 
       <div className="toolbar-divider" />

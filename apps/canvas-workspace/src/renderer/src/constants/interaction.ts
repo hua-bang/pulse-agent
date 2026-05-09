@@ -71,6 +71,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { combo: 'Ctrl/Cmd + K', description: 'Open the command palette (search nodes or run a command).' },
       { combo: 'Ctrl/Cmd + H', description: 'Toggle the command palette.' },
       { combo: 'Ctrl/Cmd + Tab', description: 'Cycle through nodes.' },
+      { combo: 'F', description: 'Toggle Focus mode for the selected node or frame.' },
     ],
   },
   {

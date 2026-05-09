@@ -55,6 +55,9 @@ interface CanvasSurfaceProps {
   /** Active alignment guides for the current drag, in canvas
    *  coordinates. Empty when nothing is snapping. */
   snapLines?: SnapLine[];
+  focusedNodeIds?: Set<string>;
+  focusModeEnabled?: boolean;
+  focusModeDimOpacity?: number;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -115,6 +118,9 @@ export const CanvasSurface = ({
   shapeDraft,
   marqueeRect,
   snapLines,
+  focusedNodeIds,
+  focusModeEnabled = false,
+  focusModeDimOpacity,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -157,6 +163,9 @@ export const CanvasSurface = ({
           isSelected={selectedNodeIdSet.has(node.id)}
           isHighlighted={highlightedId === node.id}
           isAgentEdited={externallyEditedIds.has(node.id)}
+          focusState={!focusModeEnabled
+            ? 'neutral'
+            : focusedNodeIds?.has(node.id) ? 'focused' : 'dimmed'}
           onDragStart={onDragStart}
           onResizeStart={onResizeStart}
           onUpdate={onUpdate}
@@ -175,6 +184,9 @@ export const CanvasSurface = ({
       onSelectEdge={onSelectEdge}
       interactionState={edgeInteractionState}
       previewEndpoints={edgePreviewEndpoints}
+      focusedNodeIds={focusedNodeIds}
+      focusModeEnabled={focusModeEnabled}
+      focusModeDimOpacity={focusModeDimOpacity}
       onHandleMouseDown={onEdgeHandleMouseDown}
       onBodyMouseDown={onEdgeBodyMouseDown}
       onBodyDoubleClick={onEdgeBodyDoubleClick}
@@ -193,6 +205,9 @@ export const CanvasSurface = ({
           isSelected={selectedNodeIdSet.has(node.id)}
           isHighlighted={highlightedId === node.id}
           isAgentEdited={externallyEditedIds.has(node.id)}
+          focusState={!focusModeEnabled
+            ? 'neutral'
+            : focusedNodeIds?.has(node.id) ? 'focused' : 'dimmed'}
           onDragStart={onDragStart}
           onResizeStart={onResizeStart}
           onUpdate={onUpdate}
