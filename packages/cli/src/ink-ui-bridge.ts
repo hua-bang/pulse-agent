@@ -209,7 +209,7 @@ export class InkUiBridge {
     const call: ToolActivityCall = {
       id: `tool-${nextToolCalls}`,
       name,
-      summary: this.summarizeToolInput(input),
+      summary: this.summarizeToolInput(name, input),
       status: 'running',
     };
     this.toolActivityCalls = [...this.toolActivityCalls, call];
@@ -273,7 +273,7 @@ export class InkUiBridge {
     }
 
     const status = this.toolActivityCalls.some(call => call.status === 'running') ? 'running' : 'success';
-    const title = status === 'running' ? 'Tool activity' : 'Tool activity complete';
+    const title = 'Tools';
     const text = this.formatToolActivityText();
     const summary = this.formatToolActivitySummary();
 
@@ -305,23 +305,25 @@ export class InkUiBridge {
     const groupedTools = Object.entries(counts)
       .map(([tool, count]) => `${tool} ×${count}`)
       .join(' · ');
-    const runningCall = [...this.toolActivityCalls].reverse().find(call => call.status === 'running');
     const latestCalls = this.toolActivityCalls.slice(-4).map(call => {
       const icon = call.status === 'success' ? '✓' : call.status === 'error' ? '✕' : '…';
-      return `${icon} ${call.name}: ${call.summary}`;
+      return `${icon} ${call.name.padEnd(5)} ${call.summary}`;
     });
-    return [
-      groupedTools || 'No tools yet',
-      runningCall ? `Running: ${runningCall.name}: ${runningCall.summary}` : 'All tools completed',
-      ...latestCalls,
-    ].join('\n');
+    const lines = [groupedTools || 'No tools yet'];
+
+    if (latestCalls.length > 0) {
+      lines.push('', 'latest', ...latestCalls);
+    }
+
+    return lines.join('\n');
   }
 
   private formatToolActivitySummary(): string {
     const total = this.toolActivityCalls.length;
     const completed = this.toolActivityCalls.filter(call => call.status === 'success').length;
     const running = this.toolActivityCalls.find(call => call.status === 'running');
-    return running ? `${completed}/${total} done · running ${running.name}` : `${total} completed`;
+    const callLabel = total === 1 ? 'call' : 'calls';
+    return running ? `${total} ${callLabel} · ${completed} done · running ${running.name}` : `${total} ${callLabel} completed`;
   }
 
   private countToolNames(): Record<string, number> {
@@ -370,18 +372,89 @@ export class InkUiBridge {
     return `${text.slice(0, MAX_EVENT_TEXT_LENGTH)}…`;
   }
 
-  private summarizeToolInput(value: unknown): string {
+  private summarizeToolInput(name: string, value: unknown): string {
+    const normalizedName = name.toLowerCase();
+    const record = this.asRecord(value);
+
+    if (record) {
+      if (this.isShellTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['command', 'cmd', 'script']) ?? this.safeStringify(record));
+      }
+
+      if (this.isReadTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record));
+      }
+
+      if (this.isSearchTool(normalizedName)) {
+        const pattern = this.pickString(record, ['pattern', 'query', 'search']);
+        const searchPath = this.pickString(record, ['path', 'cwd', 'glob']);
+        if (pattern && searchPath) {
+          return this.compactText(`"${pattern}" in ${searchPath}`);
+        }
+        return this.compactText(pattern ?? searchPath ?? this.safeStringify(record));
+      }
+
+      if (this.isMutationTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record));
+      }
+
+      if (this.isListTool(normalizedName)) {
+        return this.compactText(this.pickString(record, ['path', 'dir', 'cwd']) ?? this.safeStringify(record));
+      }
+
+      const keys = Object.keys(record).slice(0, 3);
+      return keys.length > 0 ? `input: ${keys.join(', ')}` : 'input object';
+    }
+
     if (value === undefined || value === null) {
       return 'no input';
     }
     if (typeof value === 'string') {
-      return value.length > 48 ? `${value.slice(0, 48)}…` : value;
+      return this.compactText(value);
     }
-    if (typeof value === 'object') {
-      const keys = Object.keys(value as Record<string, unknown>).slice(0, 3);
-      return keys.length > 0 ? `input: ${keys.join(', ')}` : 'input object';
+    return this.compactText(this.safeStringify(value));
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null;
     }
-    return String(value);
+    return value as Record<string, unknown>;
+  }
+
+  private pickString(record: Record<string, unknown>, keys: string[]): string | null {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  private compactText(value: string, maxLength = 96): string {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized;
+  }
+
+  private isShellTool(name: string): boolean {
+    return name.includes('bash') || name.includes('shell') || name.includes('exec') || name.includes('command');
+  }
+
+  private isReadTool(name: string): boolean {
+    return name.includes('read') || name.includes('cat') || name.includes('open');
+  }
+
+  private isSearchTool(name: string): boolean {
+    return name.includes('grep') || name.includes('search') || name.includes('find');
+  }
+
+  private isMutationTool(name: string): boolean {
+    return name.includes('edit') || name.includes('write') || name.includes('patch');
+  }
+
+  private isListTool(name: string): boolean {
+    return name === 'ls' || name.includes('list');
   }
 
   private safeStringify(value: unknown): string {

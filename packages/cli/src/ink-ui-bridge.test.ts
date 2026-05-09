@@ -43,7 +43,7 @@ describe('InkUiBridge', () => {
 
     const events = snapshots[snapshots.length - 1].events;
     expect(events.map(event => event.kind)).toEqual(['assistant', 'tool', 'assistant']);
-    expect(events[1].title).toBe('Tool activity');
+    expect(events[1].title).toBe('Tools');
     expect(events[2].text).toBe('after');
   });
 
@@ -62,9 +62,9 @@ describe('InkUiBridge', () => {
     expect(last.events).toHaveLength(1);
     expect(last.events[0]).toMatchObject({
       kind: 'tool',
-      title: 'Tool activity complete',
+      title: 'Tools',
       status: 'success',
-      summary: '1 completed',
+      summary: '1 call completed',
     });
   });
   it('groups multiple tool calls into one compact activity event', () => {
@@ -83,12 +83,36 @@ describe('InkUiBridge', () => {
     expect(last.events).toHaveLength(1);
     expect(last.events[0]).toMatchObject({
       kind: 'tool',
-      title: 'Tool activity complete',
+      title: 'Tools',
       status: 'success',
-      summary: '2 completed',
+      summary: '2 calls completed',
     });
     expect(last.events[0].text).toContain('read ×1');
     expect(last.events[0].text).toContain('grep ×1');
+    expect(last.events[0].text).toContain('✓ read  packages/cli/src/ink-app.tsx');
+    expect(last.events[0].text).toContain('✓ grep  "toolCall" in packages/cli/src');
+  });
+
+  it('shows running progress in the compact tools summary', () => {
+    const snapshots: InkCliSnapshot[] = [];
+    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('read', { filePath: 'packages/cli/src/ink-app.tsx' });
+    bridge.toolResult('read');
+    bridge.toolCall('bash', { command: 'pnpm --filter pulse-coder-cli test -- --runInBand' });
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.events).toHaveLength(1);
+    expect(last.events[0]).toMatchObject({
+      kind: 'tool',
+      title: 'Tools',
+      status: 'running',
+      summary: '2 calls · 1 done · running bash',
+    });
+    expect(last.events[0].text).toContain('read ×1 · bash ×1');
+    expect(last.events[0].text).toContain('latest');
+    expect(last.events[0].text).toContain('… bash  pnpm --filter pulse-coder-cli test -- --runInBand');
   });
 
   it('updates session snapshot and run summary status', () => {
