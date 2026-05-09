@@ -68,6 +68,11 @@ const AGENT_STATUS_LABEL: Record<string, string> = {
   idle: 'Idle',
 };
 
+function isCanvasPanGesture(e: React.MouseEvent): boolean {
+  const handToolActive = e.currentTarget.closest('.canvas-container--hand') != null;
+  return e.button === 1 || (e.button === 0 && (e.altKey || handToolActive));
+}
+
 const CanvasNodeViewComponent = ({
   node,
   getAllNodes,
@@ -152,6 +157,11 @@ const CanvasNodeViewComponent = ({
     },
     [onReference, node.id, readOnly]
   );
+
+  const handleNodeBodyMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isCanvasPanGesture(e)) return;
+    e.stopPropagation();
+  }, []);
 
   const handleTitleBlur = useCallback(
     (e: React.FocusEvent<HTMLSpanElement>) => {
@@ -509,7 +519,7 @@ const CanvasNodeViewComponent = ({
           </button>
         )}
       </div>
-      <div className="node-body" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         {node.type === "file" ? (
           <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />
         ) : node.type === "terminal" ? (

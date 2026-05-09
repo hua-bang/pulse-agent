@@ -96,6 +96,7 @@ export const Canvas = ({
     transform,
     setTransform,
     moving,
+    panning,
     handleWheel,
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
@@ -974,6 +975,17 @@ export const Canvas = ({
     : resizingId ? ' canvas-container--resizing'
     : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
     : '';
+  const iframeShieldClass =
+    activeTool === 'hand' ||
+    moving ||
+    panning ||
+    marquee.active ||
+    shapeDraft !== null ||
+    isDraggingRef.current ||
+    resizingId !== null ||
+    isEdgeDragging(edgeInteractionState)
+      ? ' canvas-container--iframe-shielding'
+      : '';
 
   if (!loaded) {
     return (
@@ -988,7 +1000,7 @@ export const Canvas = ({
   return (
     <div
       ref={containerRef}
-      className={`canvas-container${cursorClass}`}
+      className={`canvas-container${cursorClass}${iframeShieldClass}`}
       onWheel={handleWheel}
       onMouseDown={handleRootMouseDown}
       onMouseMove={handleMouseMove}
