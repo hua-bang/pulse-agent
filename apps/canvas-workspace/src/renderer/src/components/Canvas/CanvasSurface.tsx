@@ -11,7 +11,7 @@ import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 
 interface NodeRenderGroup {
-  frames: CanvasNode[];
+  containers: CanvasNode[];
   regular: CanvasNode[];
 }
 
@@ -140,10 +140,10 @@ export const CanvasSurface = ({
         : undefined,
     } as React.CSSProperties}
   >
-    {/* Frames render first as the canvas background/grouping layer. Edges
-        render after frames so frame fills can no longer cover connection
+    {/* Containers render first as the canvas background/grouping layer. Edges
+        render after containers so frame fills can no longer cover connection
         lines, while regular nodes still paint above edges. */}
-    {renderGroups.frames
+    {renderGroups.containers
       .map((node) => (
         <CanvasNodeView
           key={node.id}

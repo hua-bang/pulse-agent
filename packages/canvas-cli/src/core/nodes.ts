@@ -88,12 +88,16 @@ export async function readNode(node: CanvasNode): Promise<NodeReadResult> {
         scrollback: node.data.scrollback ?? '',
       };
     case 'frame':
-      return {
-        type: 'frame',
+    case 'group': {
+      const detail: Record<string, unknown> = {
+        type: node.type,
         capabilities,
         label: node.data.label ?? '',
         color: node.data.color ?? '',
       };
+      if (node.type === 'group') detail.childIds = node.data.childIds ?? [];
+      return detail as NodeReadResult;
+    }
     case 'agent':
       return {
         type: 'agent',
@@ -143,17 +147,21 @@ export async function writeNode(
       await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
       return { ok: true, data: undefined };
     }
-    case 'frame': {
+    case 'frame':
+    case 'group': {
       try {
-        const patch = JSON.parse(content) as { label?: string; color?: string };
+        const patch = JSON.parse(content) as { label?: string; color?: string; childIds?: string[] };
         if (patch.label !== undefined) node.data.label = patch.label;
         if (patch.color !== undefined) node.data.color = patch.color;
+        if (node.type === 'group' && Array.isArray(patch.childIds)) {
+          node.data.childIds = patch.childIds.filter((id): id is string => typeof id === 'string');
+        }
         node.updatedAt = Date.now();
         await commitNodeMutation(workspaceId, { upsert: node }, storeDir);
         await notifyCanvasUpdated({ workspaceId, nodeIds: [nodeId], kind: 'update' });
         return { ok: true, data: undefined };
       } catch {
-        return { ok: false, error: 'Frame write expects JSON: { label?: string, color?: string }' };
+        return { ok: false, error: 'Container write expects JSON: { label?: string, color?: string, childIds?: string[] }' };
       }
     }
     case 'terminal':
@@ -228,6 +236,15 @@ export async function createNode(
       break;
     case 'frame':
       nodeData = { color: (inputData as Record<string, string>).color ?? '#9575d4', label: (inputData as Record<string, string>).label ?? '' };
+      break;
+    case 'group':
+      nodeData = {
+        color: (inputData as Record<string, string>).color ?? '#A594E0',
+        label: (inputData as Record<string, string>).label ?? '',
+        childIds: Array.isArray((inputData as { childIds?: unknown }).childIds)
+          ? ((inputData as { childIds: unknown[] }).childIds).filter((id): id is string => typeof id === 'string')
+          : [],
+      };
       break;
     case 'agent':
       nodeData = { sessionId: '', cwd: (inputData as Record<string, string>).cwd ?? '', agentType: (inputData as Record<string, string>).agentType ?? 'claude-code', status: 'idle' };

@@ -26,11 +26,11 @@ interface CanvasOverlaysProps {
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
-  onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
+  onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
   onCloseContextMenu: () => void;
   onOpenShortcuts: () => void;
   onToolChange: (tool: string) => void;
-  onAddNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
+  onAddNode: (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
   onResetTransform: () => void;
   /** Commands shown in the Cmd+K palette alongside node search results.
    *  Built by the parent so each entry can capture the latest tool /

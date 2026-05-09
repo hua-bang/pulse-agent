@@ -23,6 +23,8 @@ export function mentionIconSvg(nodeType: string): string {
       return '<circle cx="7" cy="5" r="2.5" stroke="currentColor" stroke-width="1.2"/><path d="M3.5 12c0-1.9 1.6-3.5 3.5-3.5s3.5 1.6 3.5 3.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>';
     case 'frame':
       return '<rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.2"/>';
+    case 'group':
+      return '<rect x="2" y="2.5" width="10" height="9" rx="1.8" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 1.6"/><path d="M4.5 5.5h5M4.5 8.5h5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>';
     case 'text':
       return '<path d="M3 3.5h8M7 3.5v7M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>';
     case 'iframe':

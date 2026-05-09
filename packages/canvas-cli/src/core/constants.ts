@@ -8,6 +8,7 @@ export const NODE_CAPABILITIES: Record<NodeType, NodeCapability[]> = {
   file: ['read', 'write'],
   terminal: ['read', 'exec'],
   frame: ['read', 'write'],
+  group: ['read', 'write'],
   agent: ['read', 'exec'],
   mindmap: ['read', 'write'],
 };
@@ -16,6 +17,7 @@ export const DEFAULT_NODE_DIMENSIONS: Record<NodeType, { title: string; width: n
   file: { title: 'Untitled', width: 420, height: 360 },
   terminal: { title: 'Terminal', width: 480, height: 300 },
   frame: { title: 'Frame', width: 600, height: 400 },
+  group: { title: 'Group', width: 360, height: 240 },
   agent: { title: 'Agent', width: 520, height: 380 },
   mindmap: { title: 'Mindmap', width: 640, height: 420 },
 };

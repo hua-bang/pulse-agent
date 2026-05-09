@@ -2,6 +2,7 @@ import type { MouseEvent as ReactMouseEvent, RefObject } from 'react';
 import type { LayerTreeNode } from './utils/layers';
 import { ChevronRightIcon, NodeTypeIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import { isContainerNode } from '../../utils/frameHierarchy';
 
 interface LayerItemProps {
   tree: LayerTreeNode;
@@ -31,16 +32,16 @@ export const LayerItem = ({
   onRenameCancel,
 }: LayerItemProps) => {
   const { node, children } = tree;
-  const isFrame = node.type === 'frame';
-  const isOpen = isFrame && !collapsedLayers.has(node.id);
+  const isContainer = isContainerNode(node);
+  const isOpen = isContainer && !collapsedLayers.has(node.id);
   const isRenaming = renamingLayerId === node.id;
   const displayLabel = getNodeDisplayLabel(node);
 
   return (
     <div className="sidebar-layer-group">
       {isRenaming ? (
-        <div className={`sidebar-layer-item sidebar-layer-item--editing${isFrame ? ' sidebar-layer-item--frame' : ''}`}>
-          {isFrame ? (
+        <div className={`sidebar-layer-item sidebar-layer-item--editing${isContainer ? ' sidebar-layer-item--frame' : ''}`}>
+          {isContainer ? (
             <span
               className={`sidebar-layer-chevron${isOpen ? ' sidebar-layer-chevron--open' : ''}`}
               onClick={(e) => { e.stopPropagation(); onToggleCollapse(node.id); }}
@@ -68,12 +69,12 @@ export const LayerItem = ({
         </div>
       ) : (
         <button
-          className={`sidebar-layer-item${isFrame ? ' sidebar-layer-item--frame' : ''}`}
+          className={`sidebar-layer-item${isContainer ? ' sidebar-layer-item--frame' : ''}`}
           onClick={() => onFocus(node.id)}
           onContextMenu={(e) => onContextMenu(e, node.id)}
           title={displayLabel}
         >
-          {isFrame ? (
+          {isContainer ? (
             <span
               className={`sidebar-layer-chevron${isOpen ? ' sidebar-layer-chevron--open' : ''}`}
               onClick={(e) => { e.stopPropagation(); onToggleCollapse(node.id); }}
@@ -87,17 +88,17 @@ export const LayerItem = ({
             <NodeTypeIcon type={node.type} />
           </span>
           <span className="sidebar-layer-name">
-            {node.type === 'frame'
+            {isContainer
               ? (node.title || (node.data as { label?: string }).label || 'Frame')
               : displayLabel}
           </span>
-          {isFrame && children.length > 0 && (
+          {isContainer && children.length > 0 && (
             <span className="sidebar-layer-child-count">{children.length}</span>
           )}
         </button>
       )}
 
-      {isFrame && children.length > 0 && (
+      {isContainer && children.length > 0 && (
         <div
           className={`sidebar-layer-children${!isOpen ? ' sidebar-layer-children--collapsed' : ''}`}
           aria-hidden={!isOpen}

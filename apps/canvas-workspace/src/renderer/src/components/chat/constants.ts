@@ -10,6 +10,7 @@ export const MENTION_GROUPS = [
   { key: 'agent', label: 'Agent' },
   { key: 'terminal', label: 'Terminal' },
   { key: 'frame', label: 'Frame' },
+  { key: 'group', label: 'Group' },
   { key: 'canvas', label: 'Canvas' },
   { key: 'proj-file', label: 'Project Files' },
 ] as const;
@@ -59,6 +60,8 @@ export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
       return 'terminal';
     case 'frame':
       return 'frame';
+    case 'group':
+      return 'group';
     case 'text':
       return 'text';
     case 'mindmap':

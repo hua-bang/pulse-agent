@@ -6,7 +6,7 @@ interface Props {
   x: number;
   y: number;
   mode?: "create" | "mindmap";
-  onCreate?: (type: "file" | "terminal" | "frame" | "agent" | "text" | "iframe" | "mindmap") => void;
+  onCreate?: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap") => void;
   onExportImage?: () => void;
   onClose: () => void;
 }
@@ -88,7 +88,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
             <span className="context-menu-icon">{"\u25A1"}</span>
             <span className="context-menu-label">
               <strong>Frame</strong>
-              <small>Visual container group</small>
+              <small>Named spatial container</small>
             </span>
           </button>
           <button

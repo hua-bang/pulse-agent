@@ -216,6 +216,27 @@ export const NodeTypeIcon = ({ type, size = 14, className }: NodeTypeIconProps) 
           />
         </svg>
       );
+    case 'group':
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+          <rect
+            x="2.5"
+            y="3"
+            width="11"
+            height="10"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeDasharray="2 2"
+          />
+          <path
+            d="M5 6h6M5 10h6"
+            stroke="currentColor"
+            strokeWidth="1.15"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
     case 'agent':
       // Pulse waveform matching the Pulse Canvas brand mark
       return (

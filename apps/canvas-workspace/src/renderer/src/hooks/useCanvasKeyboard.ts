@@ -16,7 +16,7 @@ interface Options {
   clipboardNodes: CanvasNode[];
   setClipboardNodes: (nodes: CanvasNode[]) => void;
   pasteNodes: (nodes: CanvasNode[]) => CanvasNode[];
-  /** Wrap the current node selection in a new frame. */
+  /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
   removeNodes: (ids: string[]) => void | Promise<void>;
   /** Batch-move nodes by deltas in canvas coordinates. Used by arrow-
