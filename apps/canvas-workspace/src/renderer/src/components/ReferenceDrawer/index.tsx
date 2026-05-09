@@ -1,14 +1,18 @@
+import { useCallback, useMemo, useState } from 'react';
 import './index.css';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+
+const DEFAULT_REFERENCE_DRAWER_WIDTH = 420;
+const MIN_REFERENCE_DRAWER_WIDTH = 320;
+const MAX_REFERENCE_DRAWER_WIDTH = 720;
 
 interface ReferenceDrawerProps {
   open: boolean;
   referenceNode?: CanvasNode;
   selectedNode?: CanvasNode;
   onOpenChange: (open: boolean) => void;
-  onPinSelected: () => void;
   onClear: () => void;
   onFocusNode: (nodeId: string) => void;
 }
@@ -18,19 +22,62 @@ export const ReferenceDrawer = ({
   referenceNode,
   selectedNode,
   onOpenChange,
-  onPinSelected,
   onClear,
   onFocusNode,
 }: ReferenceDrawerProps) => {
-  const canPinSelected = Boolean(selectedNode);
-  const selectedIsReference = Boolean(
-    selectedNode && referenceNode && selectedNode.id === referenceNode.id,
+  const [drawerWidth, setDrawerWidth] = useState(DEFAULT_REFERENCE_DRAWER_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const drawerStyle = useMemo(
+    () => ({
+      width: drawerWidth,
+      flexBasis: drawerWidth,
+    }),
+    [drawerWidth],
   );
+
+  const handleResizeStart = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const startX = e.clientX;
+    const startWidth = drawerWidth;
+    setIsResizing(true);
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const nextWidth = startWidth + event.clientX - startX;
+      setDrawerWidth(Math.min(MAX_REFERENCE_DRAWER_WIDTH, Math.max(MIN_REFERENCE_DRAWER_WIDTH, nextWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [drawerWidth]);
 
   if (!open) return null;
 
   return (
-    <aside className="reference-drawer reference-drawer--open">
+    <aside
+      className={`reference-drawer reference-drawer--open${isResizing ? ' reference-drawer--resizing' : ''}`}
+      style={drawerStyle}
+    >
+      <div
+        className="reference-drawer-resize-handle"
+        onMouseDown={handleResizeStart}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize reference drawer"
+        title="Drag to resize"
+      />
         <header className="reference-drawer-header">
           <div>
             <div className="reference-drawer-kicker">Pinned context</div>
@@ -47,28 +94,18 @@ export const ReferenceDrawer = ({
           </button>
         </header>
 
-        <div className="reference-drawer-actions">
-          <button
-            className="reference-drawer-primary"
-            type="button"
-            onClick={onPinSelected}
-            disabled={!canPinSelected || selectedIsReference}
-          >
-            {referenceNode ? 'Replace with selected' : 'Pin selected node'}
-          </button>
-          {referenceNode && (
-            <button className="reference-drawer-secondary" type="button" onClick={onClear}>
-              Clear
-            </button>
-          )}
-        </div>
-
         {!referenceNode ? (
           <ReferenceEmptyState selectedNode={selectedNode} />
         ) : (
           <div className="reference-native-card">
             <CanvasNodeView
-              node={{ ...referenceNode, x: 0, y: 0, width: 300, height: 520 }}
+              node={{
+                ...referenceNode,
+                x: 0,
+                y: 0,
+                width: Math.max(MIN_REFERENCE_DRAWER_WIDTH - 32, drawerWidth - 32),
+                height: 520,
+              }}
               allNodes={[referenceNode]}
               isDragging={false}
               isResizing={false}
@@ -89,8 +126,12 @@ export const ReferenceDrawer = ({
                 className="reference-drawer-secondary"
                 type="button"
                 onClick={() => onFocusNode(referenceNode.id)}
+                title="Focus on canvas"
               >
-                Focus on canvas
+                Focus
+              </button>
+              <button className="reference-drawer-secondary" type="button" onClick={onClear}>
+                Clear
               </button>
             </div>
           </div>
@@ -103,7 +144,7 @@ const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNode }) =>
   <div className="reference-empty">
     <div className="reference-empty-icon">⌑</div>
     <h3>No reference pinned</h3>
-    <p>Select one node on the canvas, then pin it here as stable context while you work elsewhere.</p>
+    <p>Select a node, then use its Reference action to pin it here.</p>
     {selectedNode ? (
       <div className="reference-selected-hint">
         <span>Selected</span>
@@ -111,7 +152,7 @@ const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNode }) =>
       </div>
     ) : (
       <div className="reference-selected-hint reference-selected-hint--muted">
-        Select a single node to enable pinning.
+        Select a single node to enable reference.
       </div>
     )}
   </div>

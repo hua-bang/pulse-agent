@@ -397,12 +397,6 @@ const AppContent = () => {
     }));
   }, [activeId]);
 
-  const handlePinSelectedReference = useCallback(() => {
-    const selectedNodeIds = selectedNodeIdsByWorkspace[activeId] || [];
-    if (selectedNodeIds.length !== 1) return;
-    pinReferenceNode(selectedNodeIds[0]);
-  }, [activeId, selectedNodeIdsByWorkspace, pinReferenceNode]);
-
   const handleFocusReferenceNode = useCallback((nodeId: string) => {
     setFocusNodeId(nodeId);
   }, []);
@@ -464,7 +458,6 @@ const AppContent = () => {
               referenceNode={referenceNode}
               selectedNode={selectedNode}
               onOpenChange={setReferenceDrawerOpen}
-              onPinSelected={handlePinSelectedReference}
               onClear={clearReferenceNode}
               onFocusNode={handleFocusReferenceNode}
             />

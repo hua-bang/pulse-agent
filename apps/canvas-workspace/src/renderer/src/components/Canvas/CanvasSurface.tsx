@@ -72,6 +72,7 @@ interface CanvasSurfaceProps {
    *  the parent can honor multi-select intent. */
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
+  onReference?: (nodeId: string) => void;
   onSelectEdge: (id: string | null) => void;
   onEdgeHandleMouseDown: (
     edgeId: string,
@@ -116,6 +117,7 @@ export const CanvasSurface = ({
   onExportMindmapImage,
   onSelect,
   onFocus,
+  onReference,
   onSelectEdge,
   onEdgeHandleMouseDown,
   onEdgeBodyMouseDown,
@@ -157,6 +159,7 @@ export const CanvasSurface = ({
           onExportMindmapImage={onExportMindmapImage}
           onSelect={onSelect}
           onFocus={onFocus}
+          onReference={onReference}
         />
       ))}
     <CanvasEdgesLayer
@@ -193,6 +196,7 @@ export const CanvasSurface = ({
           onExportMindmapImage={onExportMindmapImage}
           onSelect={onSelect}
           onFocus={onFocus}
+          onReference={onReference}
         />
       ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}

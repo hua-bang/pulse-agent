@@ -1,6 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from "react";
 import "./index.css";
-import type { CanvasNode, FrameNodeData, AgentNodeData, TextNodeData, FileNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, AgentNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
@@ -47,6 +47,7 @@ interface Props {
    *  treated as a plain replace-the-selection click. */
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
+  onReference?: (nodeId: string) => void;
   readOnly?: boolean;
 }
 
@@ -58,25 +59,6 @@ function formatRelativeTime(epochMs: number): string {
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
   return `${Math.floor(diffHr / 24)}d ago`;
-}
-
-function fallbackCopy(text: string) {
-  const el = document.createElement('textarea');
-  el.value = text;
-  el.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
-  document.body.appendChild(el);
-  el.select();
-  try { document.execCommand('copy'); } catch { /* ignore */ }
-  document.body.removeChild(el);
-}
-
-function getNodeCopyContent(node: CanvasNode): string {
-  switch (node.type) {
-    case 'file': return (node.data as FileNodeData).content ?? '';
-    case 'text': return (node.data as TextNodeData).content ?? '';
-    case 'agent': return (node.data as AgentNodeData).scrollback ?? '';
-    default: return node.title;
-  }
 }
 
 const AGENT_STATUS_LABEL: Record<string, string> = {
@@ -105,10 +87,10 @@ export const CanvasNodeView = ({
   onExportMindmapImage,
   onSelect,
   onFocus,
+  onReference,
   readOnly = false
 }: Props) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [mindmapMenu, setMindmapMenu] = useState<{ x: number; y: number } | null>(null);
   const [, setTick] = useState(0);
   const titleRef = useRef<HTMLSpanElement>(null);
@@ -162,6 +144,15 @@ export const CanvasNodeView = ({
     [onFocus, node]
   );
 
+  const handleReference = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (readOnly) return;
+      onReference?.(node.id);
+    },
+    [onReference, node.id, readOnly]
+  );
+
   const handleTitleBlur = useCallback(
     (e: React.FocusEvent<HTMLSpanElement>) => {
       if (readOnly) {
@@ -208,27 +199,6 @@ export const CanvasNodeView = ({
       });
     },
     [readOnly]
-  );
-
-  const handleCopy = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      const content = getNodeCopyContent(node);
-      const write = () => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      };
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(content).then(write).catch(() => {
-          fallbackCopy(content);
-          write();
-        });
-      } else {
-        fallbackCopy(content);
-        write();
-      }
-    },
-    [node]
   );
 
   const makeResizeHandler = useCallback(
@@ -506,22 +476,11 @@ export const CanvasNodeView = ({
         {node.type === "text" && !readOnly && (
           <TextColorPicker node={node} onUpdate={onUpdate} />
         )}
-        <button
-          className={`node-copy${copied ? ' node-copy--done' : ''}`}
-          onClick={handleCopy}
-          title={copied ? 'Copied!' : 'Copy content'}
-        >
-          {copied ? (
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          ) : (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <rect x="5" y="1" width="9" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M11 4H3a1 1 0 00-1 1v9a1 1 0 001 1h8a1 1 0 001-1V4z" stroke="currentColor" strokeWidth="1.3" />
-            </svg>
-          )}
-        </button>
+        {!readOnly && onReference ? (
+          <button className="node-reference" onClick={handleReference} title="Reference">
+            Reference
+          </button>
+        ) : null}
         <button className="node-focus" onClick={handleFocus} title="Focus">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" />

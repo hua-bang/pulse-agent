@@ -49,7 +49,6 @@
   cursor: default;
 }
 
-.canvas-node--readonly .node-copy,
 .canvas-node--readonly .node-focus {
   opacity: 1;
 }
@@ -210,10 +209,9 @@
   opacity: 1;
 }
 
-.node-copy,
+.node-reference,
 .node-focus,
 .node-close {
-  width: 20px;
   height: 20px;
   border: none;
   background: transparent;
@@ -228,20 +226,27 @@
   transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
 
-.canvas-node:hover .node-copy,
+.node-reference {
+  width: auto;
+  padding: 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.node-focus,
+.node-close {
+  width: 20px;
+}
+
+.canvas-node:hover .node-reference,
 .canvas-node:hover .node-focus,
 .canvas-node:hover .node-close {
   opacity: 1;
 }
 
-.node-copy:hover {
+.node-reference:hover {
   background: var(--accent-light);
   color: var(--accent);
-}
-
-.node-copy--done {
-  color: #10b981 !important;
-  opacity: 1 !important;
 }
 
 .node-focus:hover {
