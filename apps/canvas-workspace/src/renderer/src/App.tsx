@@ -42,11 +42,27 @@ const AppContent = () => {
   const [deleteNodeId, setDeleteNodeId] = useState<string | undefined>();
   const [renameNodeRequest, setRenameNodeRequest] = useState<CanvasNodeRenameRequest | undefined>();
   const resizing = useRef(false);
+  const allNodesRef = useRef(allNodes);
+  allNodesRef.current = allNodes;
 
   const handleNodesChange = useCallback((canvasId: string, nodes: CanvasNode[]) => {
     setAllNodes((prev) => {
       if (prev[canvasId] === nodes) return prev;
       return { ...prev, [canvasId]: nodes };
+    });
+  }, []);
+
+  const ensureWorkspaceNodesLoaded = useCallback((workspaceId: string) => {
+    if (allNodesRef.current[workspaceId]) return;
+    const api = window.canvasWorkspace?.store;
+    if (!api) return;
+    void api.load(workspaceId).then((result) => {
+      if (!result.ok || !result.data) return;
+      const nodes = Array.isArray(result.data.nodes) ? result.data.nodes : [];
+      setAllNodes((prev) => {
+        if (prev[workspaceId]) return prev;
+        return { ...prev, [workspaceId]: nodes };
+      });
     });
   }, []);
 
@@ -120,9 +136,14 @@ const AppContent = () => {
   }, [setLocation]);
 
   const handleSelectWorkspace = useCallback((id: string) => {
+    ensureWorkspaceNodesLoaded(id);
     selectWorkspace(id);
     setLocation(ROUTE_CANVAS);
-  }, [selectWorkspace, setLocation]);
+  }, [ensureWorkspaceNodesLoaded, selectWorkspace, setLocation]);
+
+  useEffect(() => {
+    ensureWorkspaceNodesLoaded(activeId);
+  }, [activeId, ensureWorkspaceNodesLoaded]);
 
   const handleCreateWorkspace = useCallback((name: string) => {
     const trimmed = name.trim() || 'Untitled';
@@ -462,28 +483,29 @@ const AppContent = () => {
               onFocusNode={handleFocusReferenceNode}
             />
             <div className="canvas-viewport">
-              {workspaces.map((ws) => (
-                <Canvas
-                  key={ws.id}
-                  canvasId={ws.id}
-                  canvasName={ws.name}
-                  rootFolder={ws.rootFolder}
-                  hidden={ws.id !== activeId}
-                  onNodesChange={handleNodesChange}
-                  onSelectionChange={handleSelectionChange}
-                  focusNodeId={ws.id === activeId ? focusNodeId : undefined}
-                  onFocusComplete={handleFocusComplete}
-                  deleteNodeId={ws.id === activeId ? deleteNodeId : undefined}
-                  onDeleteComplete={handleDeleteComplete}
-                  renameRequest={ws.id === renameNodeRequest?.workspaceId ? renameNodeRequest : undefined}
-                  onRenameComplete={handleRenameComplete}
-                  chatPanelOpen={chatPanelOpen}
-                  onChatToggle={() => setChatPanelOpen((prev) => !prev)}
-                  referenceDrawerOpen={referenceDrawerOpen}
-                  onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
-                  onPinReferenceNode={pinReferenceNode}
-                />
-              ))}
+              {workspaces
+                .filter((ws) => ws.id === activeId)
+                .map((ws) => (
+                  <Canvas
+                    key={ws.id}
+                    canvasId={ws.id}
+                    canvasName={ws.name}
+                    rootFolder={ws.rootFolder}
+                    onNodesChange={handleNodesChange}
+                    onSelectionChange={handleSelectionChange}
+                    focusNodeId={ws.id === activeId ? focusNodeId : undefined}
+                    onFocusComplete={handleFocusComplete}
+                    deleteNodeId={ws.id === activeId ? deleteNodeId : undefined}
+                    onDeleteComplete={handleDeleteComplete}
+                    renameRequest={ws.id === renameNodeRequest?.workspaceId ? renameNodeRequest : undefined}
+                    onRenameComplete={handleRenameComplete}
+                    chatPanelOpen={chatPanelOpen}
+                    onChatToggle={() => setChatPanelOpen((prev) => !prev)}
+                    referenceDrawerOpen={referenceDrawerOpen}
+                    onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
+                    onPinReferenceNode={pinReferenceNode}
+                  />
+                ))}
             </div>
             {workspaces.map((ws) => (
               <div

@@ -3,7 +3,7 @@ import './index.css';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useNodes } from '../../hooks/useNodes';
 import { useNodeDrag } from '../../hooks/useNodeDrag';
-import { useNodeResize } from '../../hooks/useNodeResize';
+import { useNodeResize, type ResizeEdge } from '../../hooks/useNodeResize';
 import { useCanvasContext } from '../../hooks/useCanvasContext';
 import { useCanvasFit } from '../../hooks/useCanvasFit';
 import { useCanvasKeyboard } from '../../hooks/useCanvasKeyboard';
@@ -27,7 +27,6 @@ interface CanvasProps {
   canvasId: string;
   canvasName?: string;
   rootFolder?: string;
-  hidden?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
@@ -47,7 +46,6 @@ export const Canvas = ({
   canvasId,
   canvasName,
   rootFolder,
-  hidden,
   onNodesChange,
   onSelectionChange,
   focusNodeId,
@@ -89,6 +87,8 @@ export const Canvas = ({
   // seeing a consistent stream. Track the gesture at the window level too
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
+  const nodesRef = useRef<CanvasNode[]>([]);
+  const pendingParentNodesRef = useRef<CanvasNode[] | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -129,7 +129,14 @@ export const Canvas = ({
     duplicateNode,
     pasteNodes,
     groupNodes,
-  } = useNodes(canvasId, () => {});
+  } = useNodes(canvasId, (savedTransform) => {
+    hasAutoFitted.current = true;
+    setTransform(savedTransform);
+  });
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   // Which edge (if any) is in label-edit mode. Driven by dbl-click on
@@ -165,6 +172,10 @@ export const Canvas = ({
   // Report nodes to parent only after loaded
   useEffect(() => {
     if (!loaded) return;
+    if (isDraggingRef.current) {
+      pendingParentNodesRef.current = nodes;
+      return;
+    }
     onNodesChange?.(canvasId, nodes);
   }, [canvasId, nodes, loaded, onNodesChange]);
 
@@ -179,7 +190,7 @@ export const Canvas = ({
   useEffect(() => {
     if (!loaded) return;
     if (!focusNodeId) return;
-    const node = nodes.find((n) => n.id === focusNodeId);
+    const node = nodesRef.current.find((n) => n.id === focusNodeId);
     if (node) {
       setSelectedNodeIds([node.id]);
       setHighlightedId(node.id);
@@ -192,7 +203,7 @@ export const Canvas = ({
   useEffect(() => {
     if (!loaded) return;
     if (!deleteNodeId) return;
-    if (nodes.some((n) => n.id === deleteNodeId)) {
+    if (nodesRef.current.some((n) => n.id === deleteNodeId)) {
       removeNode(deleteNodeId);
       setSelectedNodeIds((ids) => ids.filter((id) => id !== deleteNodeId));
     }
@@ -204,15 +215,16 @@ export const Canvas = ({
     if (!renameRequest) return;
     if (renameRequest.workspaceId !== canvasId) return;
 
-    const node = nodes.find((item) => item.id === renameRequest.nodeId);
+    const node = nodesRef.current.find((item) => item.id === renameRequest.nodeId);
     if (node && node.title !== renameRequest.title) {
       updateNode(node.id, { title: renameRequest.title });
     }
     onRenameComplete?.();
-  }, [renameRequest, loaded, canvasId, nodes, updateNode, onRenameComplete]);
+  }, [renameRequest, loaded, canvasId, updateNode, onRenameComplete]);
 
   const requestRemoveNodes = useCallback(async (ids: string[]) => {
-    const victims = nodes.filter((node) => ids.includes(node.id));
+    const idSet = new Set(ids);
+    const victims = nodesRef.current.filter((node) => idSet.has(node.id));
     if (victims.length === 0) return;
 
     const accepted = await confirm({
@@ -237,7 +249,7 @@ export const Canvas = ({
         ? getNodeDisplayLabel(victims[0])
         : `${victims.length} items were removed from the canvas.`,
     });
-  }, [nodes, confirm, removeNodes, notify]);
+  }, [confirm, removeNodes, notify]);
 
   const requestRemoveEdge = useCallback(async (id: string) => {
     const edge = edges.find((item) => item.id === id);
@@ -288,7 +300,7 @@ export const Canvas = ({
 
   useCanvasImagePaste({
     canvasId,
-    active: !hidden,
+    active: true,
     containerRef,
     screenToCanvas,
     addNode,
@@ -309,6 +321,30 @@ export const Canvas = ({
     setHighlightedId(node.id);
     handleFocusNode(node);
   }, [handleFocusNode]);
+
+  const handleRemoveNode = useCallback((id: string) => {
+    void requestRemoveNodes([id]);
+  }, [requestRemoveNodes]);
+
+  const handleSelectNode = useCallback((id: string, mods?: { shift?: boolean; meta?: boolean }) => {
+    // Shift-click extends the selection (additive); Cmd/Ctrl-click
+    // toggles the clicked id in/out of the selection. Plain click
+    // collapses the selection to just this node — but only if it
+    // wasn't already selected, so a click on a member of an
+    // existing multi-selection preserves the group (matches Figma /
+    // Finder semantics and keeps multi-drag from collapsing on the
+    // mousedown that initiates it).
+    if (mods?.shift || mods?.meta) {
+      setSelectedNodeIds((current) =>
+        current.includes(id) ? current.filter((cid) => cid !== id) : [...current, id]
+      );
+    } else {
+      setSelectedNodeIds((current) =>
+        current.length > 1 && current.includes(id) ? current : [id]
+      );
+    }
+    setSelectedEdgeId(null);
+  }, []);
 
   const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds
@@ -334,6 +370,19 @@ export const Canvas = ({
     },
     [nodes]
   );
+
+  const renderGroups = useMemo(() => {
+    const frames: CanvasNode[] = [];
+    const regular: CanvasNode[] = [];
+    for (const node of sortedNodes) {
+      if (node.type === 'frame') frames.push(node);
+      else regular.push(node);
+    }
+    return { frames, regular };
+  }, [sortedNodes]);
+
+  const selectedNodeIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
+  const getAllNodes = useCallback(() => nodesRef.current, []);
 
   const getContainer = useCallback(() => containerRef.current, []);
 
@@ -549,7 +598,7 @@ export const Canvas = ({
 
   const handleExportMindmapImage = useCallback(
     async (nodeId: string) => {
-      const node = nodes.find((item) => item.id === nodeId);
+      const node = nodesRef.current.find((item) => item.id === nodeId);
       const api = window.canvasWorkspace?.file;
       if (!node || node.type !== 'mindmap' || !api) return;
 
@@ -586,7 +635,7 @@ export const Canvas = ({
         });
       }
     },
-    [nodes, notify],
+    [notify],
   );
 
   const handleToolbarAddNode = useCallback(
@@ -742,8 +791,8 @@ export const Canvas = ({
         title: 'Fit all nodes in view',
         hint: 'Zoom and center to show every node',
         aliases: ['zoom', 'overview', 'show all'],
-        enabled: nodes.length > 0,
-        run: () => fitAllNodes(nodes),
+        enabled: nodesRef.current.length > 0,
+        run: () => fitAllNodes(nodesRef.current),
       },
       {
         id: 'reset-zoom',
@@ -787,7 +836,6 @@ export const Canvas = ({
     groupSelectedNodes,
     handleToolbarAddNode,
     fitAllNodes,
-    nodes,
     resetTransform,
     chatPanelOpen,
     onChatToggle,
@@ -861,6 +909,24 @@ export const Canvas = ({
     [canvasMouseMove]
   );
 
+  const handleSurfaceDragStart = useCallback((e: React.MouseEvent, node: CanvasNode) => {
+    if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
+    onDragStart(e, node);
+  }, [onDragStart]);
+
+  const handleSurfaceResizeStart = useCallback((
+    e: React.MouseEvent,
+    nodeId: string,
+    width: number,
+    height: number,
+    edge: ResizeEdge,
+    minWidth?: number,
+    minHeight?: number,
+  ) => {
+    if (e.button === 0) isDraggingRef.current = true;
+    onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
+  }, [onResizeStart]);
+
   const handleWindowDragMove = useCallback(
     (e: MouseEvent) => {
       onDragMove(e as unknown as React.MouseEvent);
@@ -870,12 +936,17 @@ export const Canvas = ({
   );
 
   const handleMouseUp = useCallback(() => {
+    const wasNodeGesture = isDraggingRef.current;
     canvasMouseUp();
     onDragEnd();
     onResizeEnd();
-    commitHistory();
     isDraggingRef.current = false;
-  }, [canvasMouseUp, onDragEnd, onResizeEnd, commitHistory]);
+    if (wasNodeGesture) {
+      commitHistory();
+      onNodesChange?.(canvasId, pendingParentNodesRef.current ?? nodesRef.current);
+      pendingParentNodesRef.current = null;
+    }
+  }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -925,7 +996,6 @@ export const Canvas = ({
     <div
       ref={containerRef}
       className={`canvas-container${cursorClass}`}
-      style={hidden ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
       onWheel={handleWheel}
       onMouseDown={handleRootMouseDown}
       onMouseMove={handleMouseMove}
@@ -946,7 +1016,7 @@ export const Canvas = ({
         transform={transform}
         animating={animating}
         moving={moving}
-        sortedNodes={sortedNodes}
+        renderGroups={renderGroups}
         nodes={nodes}
         edges={edges}
         rootFolder={rootFolder}
@@ -955,7 +1025,7 @@ export const Canvas = ({
         draggingId={draggingId}
         draggingIds={draggingIds}
         resizingId={resizingId}
-        selectedNodeIds={selectedNodeIds}
+        selectedNodeIdSet={selectedNodeIdSet}
         selectedEdgeId={selectedEdgeId}
         highlightedId={highlightedId}
         externallyEditedIds={externallyEditedIds}
@@ -964,38 +1034,12 @@ export const Canvas = ({
         shapeDraft={shapeDraft}
         marqueeRect={marquee.rect}
         snapLines={snapLines}
-        onDragStart={(e, node) => {
-          if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
-          onDragStart(e, node);
-        }}
-        onResizeStart={(e, nodeId, width, height, edge, minWidth, minHeight) => {
-          if (e.button === 0) isDraggingRef.current = true;
-          onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
-        }}
+        onDragStart={handleSurfaceDragStart}
+        onResizeStart={handleSurfaceResizeStart}
         onUpdate={updateNode}
         onAutoResize={resizeNode}
-        onRemove={(id) => {
-          void requestRemoveNodes([id]);
-        }}
-        onSelect={(id, mods) => {
-          // Shift-click extends the selection (additive); Cmd/Ctrl-click
-          // toggles the clicked id in/out of the selection. Plain click
-          // collapses the selection to just this node — but only if it
-          // wasn't already selected, so a click on a member of an
-          // existing multi-selection preserves the group (matches Figma /
-          // Finder semantics and keeps multi-drag from collapsing on the
-          // mousedown that initiates it).
-          if (mods?.shift || mods?.meta) {
-            setSelectedNodeIds((current) =>
-              current.includes(id) ? current.filter((cid) => cid !== id) : [...current, id]
-            );
-          } else {
-            setSelectedNodeIds((current) =>
-              current.length > 1 && current.includes(id) ? current : [id]
-            );
-          }
-          setSelectedEdgeId(null);
-        }}
+        onRemove={handleRemoveNode}
+        onSelect={handleSelectNode}
         onExportMindmapImage={handleExportMindmapImage}
         onFocus={handleFocusNode}
         onReference={onPinReferenceNode}
@@ -1006,6 +1050,7 @@ export const Canvas = ({
         onEdgeHandleMouseDown={handleEdgeHandleMouseDown}
         onEdgeBodyMouseDown={handleEdgeBodyMouseDown}
         onEdgeBodyDoubleClick={handleEdgeBodyDoubleClick}
+        getAllNodes={getAllNodes}
       />
 
       <CanvasOverlays

@@ -10,6 +10,11 @@ import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
 import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 
+interface NodeRenderGroup {
+  frames: CanvasNode[];
+  regular: CanvasNode[];
+}
+
 interface CanvasSurfaceProps {
   transform: { x: number; y: number; scale: number };
   animating: boolean;
@@ -20,7 +25,7 @@ interface CanvasSurfaceProps {
    *  "tile memory limits exceeded" warning on canvases with many
    *  (especially nested) frames. */
   moving: boolean;
-  sortedNodes: CanvasNode[];
+  renderGroups: NodeRenderGroup;
   nodes: CanvasNode[];
   edges: CanvasEdge[];
   rootFolder?: string;
@@ -31,7 +36,7 @@ interface CanvasSurfaceProps {
    *  dragged frame so the full group can share the lifted stacking context. */
   draggingIds: Set<string>;
   resizingId: string | null;
-  selectedNodeIds: string[];
+  selectedNodeIdSet: Set<string>;
   selectedEdgeId: string | null;
   highlightedId: string | null;
   externallyEditedIds: Set<string>;
@@ -85,13 +90,14 @@ interface CanvasSurfaceProps {
   onEdgeBodyMouseDown: (edgeId: string, e: React.MouseEvent) => void;
   /** Double-click on the edge body. Opens the edge-label editor. */
   onEdgeBodyDoubleClick: (edgeId: string, e: React.MouseEvent) => void;
+  getAllNodes: () => CanvasNode[];
 }
 
 export const CanvasSurface = ({
   transform,
   animating,
   moving,
-  sortedNodes,
+  renderGroups,
   nodes,
   edges,
   rootFolder,
@@ -100,7 +106,7 @@ export const CanvasSurface = ({
   draggingId,
   draggingIds,
   resizingId,
-  selectedNodeIds,
+  selectedNodeIdSet,
   selectedEdgeId,
   highlightedId,
   externallyEditedIds,
@@ -122,6 +128,7 @@ export const CanvasSurface = ({
   onEdgeHandleMouseDown,
   onEdgeBodyMouseDown,
   onEdgeBodyDoubleClick,
+  getAllNodes,
 }: CanvasSurfaceProps) => (
   <div
     className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}`}
@@ -136,19 +143,18 @@ export const CanvasSurface = ({
     {/* Frames render first as the canvas background/grouping layer. Edges
         render after frames so frame fills can no longer cover connection
         lines, while regular nodes still paint above edges. */}
-    {sortedNodes
-      .filter((node) => node.type === 'frame')
+    {renderGroups.frames
       .map((node) => (
         <CanvasNodeView
           key={node.id}
           node={node}
-          allNodes={nodes}
+          getAllNodes={getAllNodes}
           rootFolder={rootFolder}
           workspaceId={canvasId}
           workspaceName={canvasName}
           isDragging={draggingIds.has(node.id) || draggingId === node.id}
           isResizing={resizingId === node.id}
-          isSelected={selectedNodeIds.includes(node.id)}
+          isSelected={selectedNodeIdSet.has(node.id)}
           isHighlighted={highlightedId === node.id}
           isAgentEdited={externallyEditedIds.has(node.id)}
           onDragStart={onDragStart}
@@ -173,19 +179,18 @@ export const CanvasSurface = ({
       onBodyMouseDown={onEdgeBodyMouseDown}
       onBodyDoubleClick={onEdgeBodyDoubleClick}
     />
-    {sortedNodes
-      .filter((node) => node.type !== 'frame')
+    {renderGroups.regular
       .map((node) => (
         <CanvasNodeView
           key={node.id}
           node={node}
-          allNodes={nodes}
+          getAllNodes={getAllNodes}
           rootFolder={rootFolder}
           workspaceId={canvasId}
           workspaceName={canvasName}
           isDragging={draggingIds.has(node.id) || draggingId === node.id}
           isResizing={resizingId === node.id}
-          isSelected={selectedNodeIds.includes(node.id)}
+          isSelected={selectedNodeIdSet.has(node.id)}
           isHighlighted={highlightedId === node.id}
           isAgentEdited={externallyEditedIds.has(node.id)}
           onDragStart={onDragStart}

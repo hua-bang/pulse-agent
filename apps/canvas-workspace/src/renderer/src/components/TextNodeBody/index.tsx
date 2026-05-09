@@ -142,6 +142,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   useLayoutEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
+    if (!autoSize && node.height === el.offsetHeight) return;
     const measuredW = Math.max(40, Math.ceil(el.offsetWidth));
     const measuredH = Math.max(28, Math.ceil(el.offsetHeight));
     const patch: Partial<CanvasNode> = {};

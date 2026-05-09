@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect, useRef } from "react";
+import { memo, useCallback, useState, useEffect, useRef } from "react";
 import "./index.css";
 import type { CanvasNode, FrameNodeData, AgentNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
@@ -15,7 +15,7 @@ import { NodeContextMenu } from "../NodeContextMenu";
 
 interface Props {
   node: CanvasNode;
-  allNodes: CanvasNode[];
+  getAllNodes?: () => CanvasNode[];
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
@@ -68,9 +68,9 @@ const AGENT_STATUS_LABEL: Record<string, string> = {
   idle: 'Idle',
 };
 
-export const CanvasNodeView = ({
+const CanvasNodeViewComponent = ({
   node,
-  allNodes,
+  getAllNodes,
   rootFolder,
   workspaceId,
   workspaceName,
@@ -513,7 +513,7 @@ export const CanvasNodeView = ({
         {node.type === "file" ? (
           <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />
         ) : node.type === "terminal" ? (
-          <TerminalNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
+          <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === "frame" ? (
           <FrameNodeBody node={node} onUpdate={onUpdate} />
         ) : node.type === "text" ? (
@@ -528,7 +528,7 @@ export const CanvasNodeView = ({
         ) : node.type === "iframe" ? (
           <IframeNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
         ) : (
-          <AgentNodeBody node={node} allNodes={allNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
+          <AgentNodeBody node={node} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         )}
       </div>
 
@@ -555,3 +555,17 @@ export const CanvasNodeView = ({
     </div>
   );
 };
+
+export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
+  prev.node === next.node &&
+  prev.rootFolder === next.rootFolder &&
+  prev.workspaceId === next.workspaceId &&
+  prev.workspaceName === next.workspaceName &&
+  prev.getAllNodes === next.getAllNodes &&
+  prev.isDragging === next.isDragging &&
+  prev.isResizing === next.isResizing &&
+  prev.isSelected === next.isSelected &&
+  prev.isHighlighted === next.isHighlighted &&
+  prev.isAgentEdited === next.isAgentEdited &&
+  prev.readOnly === next.readOnly
+));

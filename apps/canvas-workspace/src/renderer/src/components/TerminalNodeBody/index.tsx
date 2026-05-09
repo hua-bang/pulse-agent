@@ -9,7 +9,7 @@ import { NodeMentionPicker } from '../NodeMentionPicker';
 
 interface Props {
   node: CanvasNode;
-  allNodes?: CanvasNode[];
+  getAllNodes?: () => CanvasNode[];
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
@@ -34,7 +34,7 @@ const serializeBuffer = (term: Terminal): string => {
   return text;
 };
 
-export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly = false }: Props) => {
+export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly = false }: Props) => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -50,8 +50,8 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
   dataRef.current = data;
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
-  const allNodesRef = useRef(allNodes);
-  allNodesRef.current = allNodes;
+  const getAllNodesRef = useRef(getAllNodes);
+  getAllNodesRef.current = getAllNodes;
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
   const workspaceNameRef = useRef(workspaceName);
@@ -165,10 +165,11 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
       if (d === '\r' || d === '\n') {
         const cmd = inputBuf.trim();
         inputBuf = '';
-        if (AI_TOOL_PATTERN.test(cmd) && allNodesRef.current && allNodesRef.current.length > 0) {
+        const contextNodes = getAllNodesRef.current?.() ?? [];
+        if (AI_TOOL_PATTERN.test(cmd) && contextNodes.length > 0) {
           void api.getCwd(sessionId).then((r) => {
             const cwd = r.ok && r.cwd ? r.cwd : spawnCwd;
-            if (cwd) void writeCanvasContext(allNodesRef.current!, cwd, workspaceIdRef.current, workspaceNameRef.current, term);
+            if (cwd) void writeCanvasContext(contextNodes, cwd, workspaceIdRef.current, workspaceNameRef.current, term);
           });
         }
       } else if (d === '\x7f') {
@@ -257,7 +258,7 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
     <div className="terminal-body-wrap">
       {!readOnly && pickerOpen && (
         <NodeMentionPicker
-          nodes={allNodes ?? []}
+          nodes={getAllNodesRef.current?.() ?? []}
           onSelect={handleMentionSelect}
           onClose={handleMentionClose}
         />
