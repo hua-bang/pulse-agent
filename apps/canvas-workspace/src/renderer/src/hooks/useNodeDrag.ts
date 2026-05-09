@@ -56,6 +56,7 @@ export const useNodeDrag = (
     (e: React.MouseEvent, node: CanvasNode) => {
       if (e.button !== 0 || e.altKey) return;
       e.stopPropagation();
+      e.preventDefault();
 
       const companionMap = new Map<string, { id: string; nodeX: number; nodeY: number }>();
 

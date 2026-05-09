@@ -14,6 +14,7 @@ import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { useAppShell } from '../AppShellProvider';
 import { NODE_TYPE_LABELS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
+import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import type { PaletteCommand } from '../CommandPalette';
 import { computeFrameDepths } from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
@@ -74,6 +75,14 @@ export const Canvas = ({
   // that fires immediately afterward doesn't fall through to the blank-
   // canvas-click handler and wipe the selection we just made.
   const suppressBlankClickRef = useRef(false);
+
+  // Node drag / resize starts inside node subtrees, but mousemove bubbles
+  // through whatever element is currently under the cursor. If that element
+  // is an editable text layer (mindmap text, ProseMirror text, etc.), the
+  // browser may select/focus text and React's canvas-level move can stop
+  // seeing a consistent stream. Track the gesture at the window level too
+  // so dragging remains uninterrupted when crossing text.
+  const isDraggingRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -321,6 +330,13 @@ export const Canvas = ({
   );
 
   const getContainer = useCallback(() => containerRef.current, []);
+
+  const isEdgeDragging = useCallback((state: EdgeInteractionState | null) => {
+    return state?.kind === 'connect'
+      || state?.kind === 'move-end'
+      || state?.kind === 'move-bend'
+      || state?.kind === 'move-edge';
+  }, []);
 
   const {
     state: edgeInteractionState,
@@ -813,10 +829,16 @@ export const Canvas = ({
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       canvasMouseMove(e);
-      onDragMove(e);
-      onResizeMove(e);
     },
-    [canvasMouseMove, onDragMove, onResizeMove]
+    [canvasMouseMove]
+  );
+
+  const handleWindowDragMove = useCallback(
+    (e: MouseEvent) => {
+      onDragMove(e as unknown as React.MouseEvent);
+      onResizeMove(e as unknown as React.MouseEvent);
+    },
+    [onDragMove, onResizeMove]
   );
 
   const handleMouseUp = useCallback(() => {
@@ -824,12 +846,42 @@ export const Canvas = ({
     onDragEnd();
     onResizeEnd();
     commitHistory();
+    isDraggingRef.current = false;
   }, [canvasMouseUp, onDragEnd, onResizeEnd, commitHistory]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (isDraggingRef.current) handleWindowDragMove(e);
+    };
+    const onUp = () => {
+      if (isDraggingRef.current) handleMouseUp();
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [handleWindowDragMove, handleMouseUp]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const onSelectStart = (e: Event) => {
+      if (isDraggingRef.current || marquee.active || isEdgeDragging(edgeInteractionState)) {
+        e.preventDefault();
+      }
+    };
+    container.addEventListener('selectstart', onSelectStart);
+    return () => container.removeEventListener('selectstart', onSelectStart);
+  }, [edgeInteractionState, isEdgeDragging, marquee.active]);
 
   const cursorClass = activeTool === 'hand'
     ? ' canvas-container--hand'
     : shapeToolActive ? ' canvas-container--shape'
-    : resizingId ? ' canvas-container--resizing' : '';
+    : resizingId ? ' canvas-container--resizing'
+    : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
+    : '';
 
   if (!loaded) {
     return (
@@ -850,7 +902,12 @@ export const Canvas = ({
       onMouseDown={handleRootMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      onMouseLeave={() => {
+        if (!isDraggingRef.current && !isEdgeDragging(edgeInteractionState)) {
+          handleMouseUp();
+        }
+      }}
+      onDragStart={(e) => e.preventDefault()}
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       onClick={handleCanvasClick}
@@ -879,8 +936,14 @@ export const Canvas = ({
         shapeDraft={shapeDraft}
         marqueeRect={marquee.rect}
         snapLines={snapLines}
-        onDragStart={onDragStart}
-        onResizeStart={onResizeStart}
+        onDragStart={(e, node) => {
+          if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
+          onDragStart(e, node);
+        }}
+        onResizeStart={(e, nodeId, width, height, edge, minWidth, minHeight) => {
+          if (e.button === 0) isDraggingRef.current = true;
+          onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
+        }}
         onUpdate={updateNode}
         onAutoResize={resizeNode}
         onRemove={(id) => {

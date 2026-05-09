@@ -26,6 +26,7 @@ import {
 interface Props {
   node: CanvasNode;
   isSelected: boolean;
+  isOuterDragging?: boolean;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   /** Called when any topic pill inside the mindmap receives a mouse
    *  selection. The mindmap itself is a canvas node; bubbling up this
@@ -64,7 +65,7 @@ interface Props {
  * while selected enters edit mode. Commit on blur / Enter (Enter on a
  * non-root topic also spawns a sibling); Esc cancels without saving.
  */
-export const MindmapNodeBody = ({ node, isSelected, onUpdate, onSelectNode, onAutoResize }: Props) => {
+export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onUpdate, onSelectNode, onAutoResize }: Props) => {
   const data = node.data as MindmapNodeData;
   const root = data.root;
 
@@ -351,7 +352,7 @@ export const MindmapNodeBody = ({ node, isSelected, onUpdate, onSelectNode, onAu
   // canvas — just like an image or shape node.
   return (
     <div
-      className={`mindmap-node-body${isSelected ? ' mindmap-node-body--selected' : ''}`}
+      className={`mindmap-node-body${isSelected ? ' mindmap-node-body--selected' : ''}${isOuterDragging ? ' mindmap-node-body--outer-dragging' : ''}`}
     >
       <div
         className="mindmap-viewport"

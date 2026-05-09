@@ -12,6 +12,12 @@
   background: transparent;
 }
 
+.mindmap-node-body--outer-dragging .mindmap-topic,
+.mindmap-node-body--outer-dragging .mindmap-topic-text {
+  pointer-events: none;
+  user-select: none;
+}
+
 .mindmap-viewport {
   position: relative;
   width: 100%;

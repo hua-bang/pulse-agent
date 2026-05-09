@@ -131,9 +131,34 @@ export const CanvasSurface = ({
         : undefined,
     } as React.CSSProperties}
   >
-    {/* Edges render beneath nodes so node interactions keep working and
-        so the connection line visually terminates behind the node it
-        points at rather than being covered by it. */}
+    {/* Frames render first as the canvas background/grouping layer. Edges
+        render after frames so frame fills can no longer cover connection
+        lines, while regular nodes still paint above edges. */}
+    {sortedNodes
+      .filter((node) => node.type === 'frame')
+      .map((node) => (
+        <CanvasNodeView
+          key={node.id}
+          node={node}
+          allNodes={nodes}
+          rootFolder={rootFolder}
+          workspaceId={canvasId}
+          workspaceName={canvasName}
+          isDragging={draggingIds.has(node.id) || draggingId === node.id}
+          isResizing={resizingId === node.id}
+          isSelected={selectedNodeIds.includes(node.id)}
+          isHighlighted={highlightedId === node.id}
+          isAgentEdited={externallyEditedIds.has(node.id)}
+          onDragStart={onDragStart}
+          onResizeStart={onResizeStart}
+          onUpdate={onUpdate}
+          onAutoResize={onAutoResize}
+          onRemove={onRemove}
+          onExportMindmapImage={onExportMindmapImage}
+          onSelect={onSelect}
+          onFocus={onFocus}
+        />
+      ))}
     <CanvasEdgesLayer
       edges={edges}
       nodes={nodes}
@@ -145,29 +170,31 @@ export const CanvasSurface = ({
       onBodyMouseDown={onEdgeBodyMouseDown}
       onBodyDoubleClick={onEdgeBodyDoubleClick}
     />
-    {sortedNodes.map((node) => (
-      <CanvasNodeView
-        key={node.id}
-        node={node}
-        allNodes={nodes}
-        rootFolder={rootFolder}
-        workspaceId={canvasId}
-        workspaceName={canvasName}
-        isDragging={draggingIds.has(node.id) || draggingId === node.id}
-        isResizing={resizingId === node.id}
-        isSelected={selectedNodeIds.includes(node.id)}
-        isHighlighted={highlightedId === node.id}
-        isAgentEdited={externallyEditedIds.has(node.id)}
-        onDragStart={onDragStart}
-        onResizeStart={onResizeStart}
-        onUpdate={onUpdate}
-        onAutoResize={onAutoResize}
-        onRemove={onRemove}
-        onExportMindmapImage={onExportMindmapImage}
-        onSelect={onSelect}
-        onFocus={onFocus}
-      />
-    ))}
+    {sortedNodes
+      .filter((node) => node.type !== 'frame')
+      .map((node) => (
+        <CanvasNodeView
+          key={node.id}
+          node={node}
+          allNodes={nodes}
+          rootFolder={rootFolder}
+          workspaceId={canvasId}
+          workspaceName={canvasName}
+          isDragging={draggingIds.has(node.id) || draggingId === node.id}
+          isResizing={resizingId === node.id}
+          isSelected={selectedNodeIds.includes(node.id)}
+          isHighlighted={highlightedId === node.id}
+          isAgentEdited={externallyEditedIds.has(node.id)}
+          onDragStart={onDragStart}
+          onResizeStart={onResizeStart}
+          onUpdate={onUpdate}
+          onAutoResize={onAutoResize}
+          onRemove={onRemove}
+          onExportMindmapImage={onExportMindmapImage}
+          onSelect={onSelect}
+          onFocus={onFocus}
+        />
+      ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}
     {marqueeRect && <MarqueePreview rect={marqueeRect} />}
     {snapLines && snapLines.length > 0 && (

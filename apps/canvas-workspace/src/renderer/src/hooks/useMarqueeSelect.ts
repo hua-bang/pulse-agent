@@ -119,6 +119,7 @@ export const useMarqueeSelect = ({
       if (e.altKey) return;
       const el = getContainer();
       if (!el) return;
+      e.preventDefault();
       const start = screenToCanvas(e.clientX, e.clientY, el);
       snapshotRef.current = nodes;
       setMarquee({
