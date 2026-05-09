@@ -4,15 +4,15 @@
   min-width: 320px;
   max-width: 720px;
   height: 100%;
-  border-right: 1px solid var(--border);
-  background: var(--surface);
+  border-right: 1px solid var(--border-light);
+  background: #fbfbfa;
   overflow: hidden;
   position: relative;
   z-index: 4;
 }
 
 .reference-drawer--open {
-  animation: reference-drawer-enter 0.18s ease-out;
+  animation: reference-drawer-enter 0.14s ease-out;
 }
 
 .reference-drawer--resizing {
@@ -23,33 +23,51 @@
   position: absolute;
   top: 0;
   right: 0;
-  width: 8px;
+  width: 10px;
   height: 100%;
   cursor: col-resize;
   z-index: 6;
 }
 
-.reference-drawer-resize-handle::after {
+.reference-drawer-resize-handle::before {
   content: '';
   position: absolute;
   top: 0;
-  right: 3px;
+  right: 0;
   width: 1px;
   height: 100%;
   background: transparent;
-  transition: background 0.16s ease, box-shadow 0.16s ease;
+  transition: background 0.14s ease;
+}
+
+.reference-drawer-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  width: 3px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--text-muted);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.14s ease;
+}
+
+.reference-drawer-resize-handle:hover::before,
+.reference-drawer--resizing .reference-drawer-resize-handle::before {
+  background: rgba(35, 131, 226, 0.28);
 }
 
 .reference-drawer-resize-handle:hover::after,
 .reference-drawer--resizing .reference-drawer-resize-handle::after {
-  background: var(--accent-border);
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.12);
+  opacity: 0.34;
 }
 
 @keyframes reference-drawer-enter {
   from {
     opacity: 0;
-    transform: translateX(-10px);
+    transform: translateX(-6px);
   }
   to {
     opacity: 1;
@@ -62,141 +80,149 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 16px 0;
+  padding: 16px 18px 0;
 }
 
 .reference-drawer-kicker {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: none;
 }
 
 .reference-drawer-header h2 {
-  margin-top: 4px;
-  font-size: 18px;
-  line-height: 1.2;
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.25;
   color: var(--text);
+  letter-spacing: -0.01em;
 }
 
 .reference-drawer-icon-button {
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
 .reference-drawer-icon-button:hover {
   color: var(--text);
-  background: var(--surface-hover);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .reference-drawer-actions,
 .reference-card-footer {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
 
 .reference-drawer-actions {
-  padding: 14px 16px 0;
+  padding: 12px 18px 0;
 }
 
 .reference-drawer-primary,
 .reference-drawer-secondary {
-  border-radius: 8px;
-  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 9px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: opacity 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+  transition: background 0.12s ease, color 0.12s ease, opacity 0.12s ease;
 }
 
 .reference-drawer-primary {
-  border: 1px solid var(--accent-border);
-  background: var(--accent);
-  color: white;
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
   flex: 1;
+}
+
+.reference-drawer-primary:hover:not(:disabled) {
+  background: rgba(35, 131, 226, 0.12);
 }
 
 .reference-drawer-primary:disabled {
   cursor: not-allowed;
-  opacity: 0.46;
+  opacity: 0.42;
 }
 
 .reference-drawer-secondary {
-  border: 1px solid var(--border);
-  background: var(--surface);
+  background: transparent;
   color: var(--text-secondary);
 }
 
 .reference-drawer-secondary:hover {
-  background: var(--surface-hover);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--text);
 }
 
 .reference-empty {
-  margin: 14px 16px 16px;
-  padding: 22px 18px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: linear-gradient(180deg, var(--surface), rgba(250, 250, 249, 0.86));
-  box-shadow: var(--shadow-sm);
+  margin: 18px;
+  padding: 28px 20px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: transparent;
   text-align: center;
   color: var(--text-secondary);
 }
 
 .reference-empty-icon {
-  width: 42px;
-  height: 42px;
+  width: 36px;
+  height: 36px;
   margin: 0 auto 14px;
-  border-radius: 14px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
-  background: var(--accent-light);
-  color: var(--accent);
-  font-size: 20px;
+  background: rgba(0, 0, 0, 0.035);
+  color: var(--text-muted);
+  font-size: 18px;
 }
 
 .reference-empty h3 {
   color: var(--text);
-  font-size: 15px;
-  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 650;
+  margin-bottom: 7px;
 }
 
 .reference-empty p {
   font-size: 12px;
   line-height: 1.6;
+  margin: 0;
 }
 
 .reference-selected-hint {
   margin-top: 16px;
-  padding: 10px;
+  padding: 9px 10px;
   border: 1px solid var(--border-light);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.48);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   text-align: left;
 }
 
 .reference-selected-hint span {
   color: var(--text-muted);
   font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .reference-selected-hint strong {
   color: var(--text);
   font-size: 12px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -210,21 +236,27 @@
 
 .reference-native-card {
   min-height: 0;
-  height: calc(100% - 116px);
-  margin: 14px 16px 16px;
+  height: calc(100% - 108px);
+  margin: 14px 18px 18px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--surface);
 }
 
 .reference-native-card > .canvas-node {
   flex: 1;
   min-height: 0;
+  border: 0;
+  border-radius: 10px 10px 0 0;
+  background: var(--surface);
 }
 
 .reference-card-footer {
   margin-top: auto;
-  padding: 12px;
+  padding: 8px;
   border-top: 1px solid var(--border-light);
-  background: rgba(248, 248, 247, 0.72);
+  background: #fbfbfa;
 }
