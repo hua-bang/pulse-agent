@@ -173,15 +173,11 @@ class InkCoderController implements InkCliController {
     }
 
     if (this.isProcessing) {
-      if (this.currentAbortController?.signal.aborted) {
-        if (trimmedInput) {
-          this.queuedInputs.push(trimmedInput);
-          this.ui.queued('Input queued. It will run right after the current step finishes.');
-        }
-        return;
+      if (trimmedInput) {
+        this.queuedInputs.push(trimmedInput);
+        this.publishSession('Input queued');
+        this.ui.queued(`Queued input #${this.queuedInputs.length}. It will run after the current step finishes.`);
       }
-
-      this.ui.warn('Still processing. Press Esc to stop current request first.');
       return;
     }
 
@@ -692,6 +688,7 @@ class InkCoderController implements InkCliController {
       messages: this.context.messages.length,
       estimatedTokens: this.estimateTokens(this.context.messages),
       mode: this.agent.getMode(),
+      queuedInputs: this.queuedInputs.length,
       isProcessing: this.isProcessing,
       status,
     });

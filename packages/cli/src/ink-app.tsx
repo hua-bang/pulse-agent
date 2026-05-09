@@ -23,6 +23,7 @@ export interface InkCliSnapshot {
   mode?: string | null;
   messages: number;
   estimatedTokens: number;
+  queuedInputs: number;
   isProcessing: boolean;
   status: string;
   events: InkCliEvent[];
@@ -58,6 +59,7 @@ const DEFAULT_SNAPSHOT: InkCliSnapshot = {
   mode: null,
   messages: 0,
   estimatedTokens: 0,
+  queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
   events: [],
@@ -440,13 +442,13 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
   const visiblePromptLines = promptLines.slice(-maxPromptLines);
   const hiddenPromptLineCount = promptLines.length - visiblePromptLines.length;
   const keyHint = snapshot.isProcessing
-    ? 'Running · Esc stop · after stopping, Enter queues next prompt'
+    ? 'Running · Enter queues draft · Esc stop · Ctrl+C exit'
     : input.length > 0
       ? 'Editing · Enter send · Ctrl+J newline · Tab complete · Esc clear'
       : 'Idle · type / for commands · ↑↓ history · Ctrl+L clear · Esc exit';
   const lineCount = input.split('\n').length;
   const composerHint = input.length > 0 ? `draft ${lineCount} line${lineCount === 1 ? '' : 's'} · ${input.length} chars` : 'ready for next prompt';
-  const historyHint = history.length > 0 ? ` · history ${historyIndex === null ? history.length : `${historyIndex + 1}/${history.length}`}` : '';
+  const queuedHint = snapshot.queuedInputs > 0 ? ` · queued ${snapshot.queuedInputs}` : '';
   const hiddenHint = hiddenEventCount > 0 ? ` · ${hiddenEventCount} older` : '';
 
   return (
@@ -475,7 +477,7 @@ export function InkCliApp({ controller, runtime, onExit }: InkCliAppProps) {
 
       <Box borderStyle="single" borderColor={snapshot.isProcessing ? 'yellow' : 'green'} paddingX={1} flexDirection="column">
         <Text color={snapshot.isProcessing ? 'yellow' : 'green'}>
-          {spinner} {snapshot.status}{historyHint}{hiddenHint}
+          {spinner} {snapshot.status}{queuedHint}{hiddenHint}
         </Text>
         <Text color="gray">{keyHint} · {composerHint}</Text>
         {slashSuggestions.length > 0 ? (
