@@ -24,9 +24,12 @@ export function resolveCliUiMode(args = process.argv.slice(2), env: NodeJS.Proce
   }
 
   const envValue = env.PULSE_CODER_UI?.toLowerCase();
+  if (envValue === 'readline' || envValue === 'plain') {
+    return 'readline';
+  }
   if (envValue === 'ink') {
     return 'ink';
   }
 
-  return 'readline';
+  return 'ink';
 }

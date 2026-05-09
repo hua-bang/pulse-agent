@@ -3,12 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { resolveCliUiMode } from './ui-mode.js';
 
 describe('resolveCliUiMode', () => {
-  it('defaults to readline', () => {
-    expect(resolveCliUiMode([], {})).toBe('readline');
+  it('defaults to ink', () => {
+    expect(resolveCliUiMode([], {})).toBe('ink');
   });
 
-  it('uses PULSE_CODER_UI=ink', () => {
-    expect(resolveCliUiMode([], { PULSE_CODER_UI: 'ink' })).toBe('ink');
+  it('uses PULSE_CODER_UI=readline as an escape hatch', () => {
+    expect(resolveCliUiMode([], { PULSE_CODER_UI: 'readline' })).toBe('readline');
+    expect(resolveCliUiMode([], { PULSE_CODER_UI: 'plain' })).toBe('readline');
   });
 
   it('uses --ui ink flag', () => {
