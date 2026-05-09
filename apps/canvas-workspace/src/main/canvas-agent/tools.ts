@@ -28,7 +28,7 @@ const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 // ─── Types mirrored from canvas-cli ────────────────────────────────
 
-type NodeType = 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'image' | 'shape' | 'mindmap';
+type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'image' | 'shape' | 'mindmap';
 
 interface MindmapTopic {
   id: string;
@@ -120,6 +120,7 @@ const DEFAULT_DIMENSIONS: Record<NodeType, { title: string; width: number; heigh
   file: { title: 'Untitled', width: 420, height: 360 },
   terminal: { title: 'Terminal', width: 480, height: 300 },
   frame: { title: 'Frame', width: 600, height: 400 },
+  group: { title: 'Group', width: 360, height: 240 },
   agent: { title: 'Agent', width: 520, height: 380 },
   text: { title: 'Text', width: 260, height: 120 },
   iframe: { title: 'Web', width: 520, height: 400 },
@@ -729,7 +730,8 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         '- **file**: Creates a markdown note with a backing file. Use `content` for initial text.\n' +
         '- **image**: Creates an image node from `data.filePath` (absolute local path). Prefer `canvas_generate_image` when the user asks AI to create an image.\n' +
         '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
-        '- **frame**: Creates a grouping container. Use `data.color` (hex) and `data.label`.\n' +
+        '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
+        '- **group**: Creates a lightweight grouping relationship. Use `data.childIds` for members, plus optional `data.color` (hex) and `data.label`.\n' +
         '- **agent**: Creates an AI agent node (Claude Code, Codex, Pulse Coder). ' +
         'Set `data.agentType` ("claude-code" | "codex" | "pulse-coder"), `data.cwd` for the working directory, ' +
         'and `data.status` to "running" to auto-launch (default "idle" shows a picker). ' +
@@ -755,7 +757,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         'Use this whenever the user asks for a mindmap / brainstorm / outline that should be laid out radially ' +
         'rather than as a flat text node.',
       inputSchema: z.object({
-        type: z.enum(['file', 'terminal', 'frame', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap']).describe('Node type.'),
+        type: z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
         content: z.string().optional().describe('Initial content (for file and text nodes).'),
         x: z.number().optional().describe('X position (auto-placed if omitted).'),
@@ -765,6 +767,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           '- terminal: { cwd?: string }\n' +
           '- agent: { agentType?: "claude-code"|"codex"|"pulse-coder", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }\n' +
+          '- group: { color?: string, label?: string, childIds?: string[] }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
           '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }\n' +
           '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
@@ -800,6 +803,15 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             nodeData = {
               color: (extraData.color as string) ?? '#9575d4',
               label: (extraData.label as string) ?? '',
+            };
+            break;
+          case 'group':
+            nodeData = {
+              color: (extraData.color as string) ?? '#A594E0',
+              label: (extraData.label as string) ?? '',
+              childIds: Array.isArray(extraData.childIds)
+                ? extraData.childIds.filter((id): id is string => typeof id === 'string')
+                : [],
             };
             break;
           case 'agent': {

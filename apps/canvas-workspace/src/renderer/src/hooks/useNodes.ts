@@ -6,6 +6,7 @@ import type {
   CanvasTransform,
   FileNodeData,
   FrameNodeData,
+  GroupNodeData,
   ImageNodeData,
   MindmapNodeData,
   ShapeNodeData,
@@ -332,15 +333,69 @@ export const useNodes = (
     [applyNodes, scheduleSave, canvasId, setNodes, nodesRef]
   );
 
+  const resizeGroupsToChildren = useCallback((nextNodes: CanvasNode[]): CanvasNode[] => {
+    const PADDING = 18;
+    let current = nextNodes;
+
+    for (let pass = 0; pass < 4; pass += 1) {
+      const byId = new Map(current.map((node) => [node.id, node] as const));
+      let changed = false;
+
+      const resized = current.map((node) => {
+        if (node.type !== 'group') return node;
+        const data = node.data as GroupNodeData;
+        const childIds = Array.isArray(data.childIds) ? data.childIds : [];
+        const children = childIds
+          .map((id) => byId.get(id))
+          .filter((child): child is CanvasNode => !!child && child.id !== node.id);
+        if (children.length === 0) return node;
+
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        for (const child of children) {
+          minX = Math.min(minX, child.x);
+          minY = Math.min(minY, child.y);
+          maxX = Math.max(maxX, child.x + child.width);
+          maxY = Math.max(maxY, child.y + child.height);
+        }
+
+        const next = {
+          ...node,
+          x: minX - PADDING,
+          y: minY - PADDING,
+          width: maxX - minX + PADDING * 2,
+          height: maxY - minY + PADDING * 2,
+          updatedAt: Date.now(),
+        };
+        if (
+          next.x === node.x &&
+          next.y === node.y &&
+          next.width === node.width &&
+          next.height === node.height
+        ) {
+          return node;
+        }
+        changed = true;
+        return next;
+      });
+
+      if (!changed) return current;
+      current = resized;
+    }
+
+    return current;
+  }, []);
+
   const updateNode = useCallback(
     (id: string, patch: Partial<CanvasNode>) => {
-      applyNodes(
-        nodesRef.current.map((n) =>
-          n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n,
-        ),
+      const updatedNodes = nodesRef.current.map((n) =>
+        n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n,
       );
+      applyNodes(resizeGroupsToChildren(updatedNodes));
     },
-    [applyNodes, nodesRef]
+    [applyNodes, nodesRef, resizeGroupsToChildren]
   );
 
   const removeNode = useCallback(
@@ -355,9 +410,9 @@ export const useNodes = (
       const nextEdges = victim
         ? degradeEndpointsForDeletedNode(edgesRef.current, victim)
         : edgesRef.current;
-      applyState({ nodes: nextNodes, edges: nextEdges });
+      applyState({ nodes: resizeGroupsToChildren(nextNodes), edges: nextEdges });
     },
-    [applyState, edgesRef, nodesRef]
+    [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
   );
 
   const removeNodes = useCallback(
@@ -370,48 +425,42 @@ export const useNodes = (
       for (const victim of victims) {
         nextEdges = degradeEndpointsForDeletedNode(nextEdges, victim);
       }
-      applyState({ nodes: nextNodes, edges: nextEdges });
+      applyState({ nodes: resizeGroupsToChildren(nextNodes), edges: nextEdges });
     },
-    [applyState, edgesRef, nodesRef]
+    [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
   );
 
   const moveNode = useCallback(
     (id: string, x: number, y: number) => {
-      applyNodes(
-        nodesRef.current.map((n) =>
-          n.id === id ? { ...n, x, y, updatedAt: Date.now() } : n,
-        ),
-        false,
+      const movedNodes = nodesRef.current.map((n) =>
+        n.id === id ? { ...n, x, y, updatedAt: Date.now() } : n,
       );
+      applyNodes(resizeGroupsToChildren(movedNodes), false);
     },
-    [applyNodes, nodesRef]
+    [applyNodes, nodesRef, resizeGroupsToChildren]
   );
 
   const moveNodes = useCallback(
     (moves: Array<{ id: string; x: number; y: number }>) => {
       const now = Date.now();
       const moveById = new Map(moves.map((move) => [move.id, move]));
-      applyNodes(
-        nodesRef.current.map((n) => {
-          const m = moveById.get(n.id);
-          return m ? { ...n, x: m.x, y: m.y, updatedAt: now } : n;
-        }),
-        false
-      );
+      const movedNodes = nodesRef.current.map((n) => {
+        const m = moveById.get(n.id);
+        return m ? { ...n, x: m.x, y: m.y, updatedAt: now } : n;
+      });
+      applyNodes(resizeGroupsToChildren(movedNodes), false);
     },
-    [applyNodes, nodesRef]
+    [applyNodes, nodesRef, resizeGroupsToChildren]
   );
 
   const resizeNode = useCallback(
     (id: string, width: number, height: number) => {
-      applyNodes(
-        nodesRef.current.map((n) =>
-          n.id === id ? { ...n, width, height, updatedAt: Date.now() } : n,
-        ),
-        false,
+      const resizedNodes = nodesRef.current.map((n) =>
+        n.id === id ? { ...n, width, height, updatedAt: Date.now() } : n,
       );
+      applyNodes(resizeGroupsToChildren(resizedNodes), false);
     },
-    [applyNodes, nodesRef]
+    [applyNodes, nodesRef, resizeGroupsToChildren]
   );
 
   const duplicateNode = useCallback(
@@ -425,6 +474,8 @@ export const useNodes = (
         y: source.y + 24,
         data: source.type === 'frame'
           ? { ...(source.data as FrameNodeData) }
+          : source.type === 'group'
+            ? { ...(source.data as GroupNodeData), childIds: [] }
           : source.type === 'text'
             ? { ...(source.data as TextNodeData) }
             : source.type === 'image'
@@ -462,23 +513,31 @@ export const useNodes = (
           });
         }
       }
-      applyNodes([...nodesRef.current, newNode]);
+      applyNodes(resizeGroupsToChildren([...nodesRef.current, newNode]));
       return newNode;
     },
-    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef]
+    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef, resizeGroupsToChildren]
   );
 
   const pasteNodes = useCallback(
     (sources: CanvasNode[], offsetX = 24, offsetY = 24) => {
       if (sources.length === 0) return [];
       const now = Date.now();
+      const idMap = new Map(sources.map((source) => [source.id, genId()] as const));
       const newNodes = sources.map((source) => ({
         ...source,
-        id: genId(),
+        id: idMap.get(source.id) ?? genId(),
         x: source.x + offsetX,
         y: source.y + offsetY,
         data: source.type === 'frame'
           ? { ...(source.data as FrameNodeData) }
+          : source.type === 'group'
+            ? {
+                ...(source.data as GroupNodeData),
+                childIds: ((source.data as GroupNodeData).childIds ?? [])
+                  .map((id) => idMap.get(id))
+                  .filter((id): id is string => !!id),
+              }
           : source.type === 'text'
             ? { ...(source.data as TextNodeData) }
             : source.type === 'image'
@@ -518,20 +577,62 @@ export const useNodes = (
           }
         }
       });
-      applyNodes([...nodesRef.current, ...newNodes]);
+      applyNodes(resizeGroupsToChildren([...nodesRef.current, ...newNodes]));
       return newNodes;
     },
-    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef]
+    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef, resizeGroupsToChildren]
   );
 
   /**
-   * Wrap the given nodes in a new frame sized to their bounding box plus
-   * a uniform padding. Frame parent/child relationships are positional
-   * (see `frameHierarchy.ts`), so the resulting frame automatically
-   * "owns" anything whose center sits inside the new bbox. Returns the
-   * created frame, or null when the selection resolves to no nodes.
+   * Wrap the given nodes in a lightweight group sized to their bounding box
+   * plus a tight padding. Container parent/child relationships are positional
+   * (see `frameHierarchy.ts`), so the resulting group automatically "owns"
+   * anything whose center sits inside the new bbox. Returns the created group,
+   * or null when the selection resolves to no nodes.
    */
   const groupNodes = useCallback(
+    (ids: string[]): CanvasNode | null => {
+      if (ids.length === 0) return null;
+      const idSet = new Set(ids);
+      const targets = nodesRef.current.filter((n) => idSet.has(n.id));
+      if (targets.length === 0) return null;
+
+      const PADDING = 18;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const n of targets) {
+        if (n.x < minX) minX = n.x;
+        if (n.y < minY) minY = n.y;
+        if (n.x + n.width > maxX) maxX = n.x + n.width;
+        if (n.y + n.height > maxY) maxY = n.y + n.height;
+      }
+
+      const group: CanvasNode = {
+        id: genId(),
+        type: 'group',
+        title: 'Group',
+        x: minX - PADDING,
+        y: minY - PADDING,
+        width: maxX - minX + PADDING * 2,
+        height: maxY - minY + PADDING * 2,
+        data: { ...(createNodeData('group') as GroupNodeData), childIds: targets.map((n) => n.id) },
+        updatedAt: Date.now(),
+      };
+
+      applyNodes(resizeGroupsToChildren([...nodesRef.current, group]));
+      return group;
+    },
+    [applyNodes, nodesRef, resizeGroupsToChildren]
+  );
+
+  /**
+   * Wrap the given nodes in a spatial frame. Unlike groups, frames are
+   * position-based containers, so they can hold empty space and future nodes
+   * whose centers land inside their bounds.
+   */
+  const wrapNodesInFrame = useCallback(
     (ids: string[]): CanvasNode | null => {
       if (ids.length === 0) return null;
       const idSet = new Set(ids);
@@ -553,7 +654,7 @@ export const useNodes = (
       const frame: CanvasNode = {
         id: genId(),
         type: 'frame',
-        title: 'Group',
+        title: 'Frame',
         x: minX - PADDING,
         y: minY - PADDING,
         width: maxX - minX + PADDING * 2,
@@ -562,10 +663,10 @@ export const useNodes = (
         updatedAt: Date.now(),
       };
 
-      applyNodes([...nodesRef.current, frame]);
+      applyNodes(resizeGroupsToChildren([...nodesRef.current, frame]));
       return frame;
     },
-    [applyNodes, nodesRef]
+    [applyNodes, nodesRef, resizeGroupsToChildren],
   );
 
   const addEdge = useCallback(
@@ -628,5 +729,6 @@ export const useNodes = (
     duplicateNode,
     pasteNodes,
     groupNodes,
+    wrapNodesInFrame,
   };
 };

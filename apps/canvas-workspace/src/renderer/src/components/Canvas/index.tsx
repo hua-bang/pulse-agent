@@ -16,7 +16,7 @@ import { NODE_TYPE_LABELS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
 import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import type { PaletteCommand } from '../CommandPalette';
-import { computeFrameDepths } from '../../utils/frameHierarchy';
+import { computeContainerDepths, isContainerNode } from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { exportMindmapNodeToPng } from '../../utils/mindmapExport';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
@@ -130,6 +130,7 @@ export const Canvas = ({
     duplicateNode,
     pasteNodes,
     groupNodes,
+    wrapNodesInFrame,
   } = useNodes(canvasId, (savedTransform) => {
     hasAutoFitted.current = true;
     setTransform(savedTransform);
@@ -278,15 +279,27 @@ export const Canvas = ({
 
   const groupSelectedNodes = useCallback(() => {
     if (selectedNodeIds.length === 0) return;
-    const frame = groupNodes(selectedNodeIds);
+    const group = groupNodes(selectedNodeIds);
+    if (!group) return;
+    setSelectedNodeIds([group.id]);
+    notify({
+      tone: 'success',
+      title: 'Nodes grouped',
+      description: `Grouped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'}.`,
+    });
+  }, [groupNodes, selectedNodeIds, notify]);
+
+  const wrapSelectedNodesInFrame = useCallback(() => {
+    if (selectedNodeIds.length === 0) return;
+    const frame = wrapNodesInFrame(selectedNodeIds);
     if (!frame) return;
     setSelectedNodeIds([frame.id]);
     notify({
       tone: 'success',
-      title: 'Nodes grouped',
+      title: 'Frame created',
       description: `Wrapped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'} in a new frame.`,
     });
-  }, [groupNodes, selectedNodeIds, notify]);
+  }, [wrapNodesInFrame, selectedNodeIds, notify]);
 
   useCanvasKeyboard({
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
@@ -353,17 +366,19 @@ export const Canvas = ({
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
     useNodeResize(resizeNode, transform.scale);
 
-  // sortedNodes is the render order (frames first, non-frames on top,
-  // deeper frames over shallower). It doubles as the hit-test stack
+  // sortedNodes is the render order (containers first, non-containers on top,
+  // deeper containers over shallower). It doubles as the hit-test stack
   // for edge interactions — we iterate it in reverse so the topmost
   // node under the cursor wins.
   const sortedNodes = useMemo(
     () => {
-      const depths = computeFrameDepths(nodes);
+      const depths = computeContainerDepths(nodes);
       return [...nodes].sort((a, b) => {
-        if (a.type === 'frame' && b.type !== 'frame') return -1;
-        if (a.type !== 'frame' && b.type === 'frame') return 1;
-        if (a.type === 'frame' && b.type === 'frame') {
+        const aIsContainer = isContainerNode(a);
+        const bIsContainer = isContainerNode(b);
+        if (aIsContainer && !bIsContainer) return -1;
+        if (!aIsContainer && bIsContainer) return 1;
+        if (aIsContainer && bIsContainer) {
           return (depths.get(a.id) ?? 0) - (depths.get(b.id) ?? 0);
         }
         return 0;
@@ -373,13 +388,13 @@ export const Canvas = ({
   );
 
   const renderGroups = useMemo(() => {
-    const frames: CanvasNode[] = [];
+    const containers: CanvasNode[] = [];
     const regular: CanvasNode[] = [];
     for (const node of sortedNodes) {
-      if (node.type === 'frame') frames.push(node);
+      if (isContainerNode(node)) containers.push(node);
       else regular.push(node);
     }
-    return { frames, regular };
+    return { containers, regular };
   }, [sortedNodes]);
 
   const selectedNodeIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
@@ -583,7 +598,7 @@ export const Canvas = ({
   );
 
   const handleCreateNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
       if (!contextMenu) return;
       const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
       setSelectedNodeIds([node.id]);
@@ -640,7 +655,7 @@ export const Canvas = ({
   );
 
   const handleToolbarAddNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, containerRef.current);
@@ -654,6 +669,7 @@ export const Canvas = ({
         : 300;
       const halfH =
         type === 'frame' ? 200
+        : type === 'group' ? 120
         : type === 'text' ? 60
         : type === 'iframe' ? 200
         : type === 'mindmap' ? 210
@@ -711,13 +727,25 @@ export const Canvas = ({
         id: 'group-selection',
         group: 'edit',
         title: selectionCount > 1
-          ? `Group ${selectionCount} selected nodes in a frame`
-          : 'Wrap selected node in a frame',
+          ? `Group ${selectionCount} selected nodes`
+          : 'Group selected node',
         shortcut: 'Cmd+G',
-        aliases: ['frame', 'wrap'],
+        aliases: ['group', 'bundle'],
         enabled: selectionCount > 0,
         run: () => {
           groupSelectedNodes();
+        },
+      },
+      {
+        id: 'wrap-selection-in-frame',
+        group: 'edit',
+        title: selectionCount > 1
+          ? `Wrap ${selectionCount} selected nodes in frame`
+          : 'Wrap selected node in frame',
+        aliases: ['frame', 'wrap'],
+        enabled: selectionCount > 0,
+        run: () => {
+          wrapSelectedNodesInFrame();
         },
       },
       {
@@ -760,8 +788,8 @@ export const Canvas = ({
         id: 'create-frame',
         group: 'create',
         title: 'Add frame',
-        hint: 'Visual grouping rectangle',
-        aliases: ['group', 'box', 'container'],
+        hint: 'Named spatial container',
+        aliases: ['section', 'box', 'container'],
         run: () => handleToolbarAddNode('frame'),
       },
       {
@@ -828,6 +856,7 @@ export const Canvas = ({
     duplicateNode,
     requestRemoveNodes,
     groupSelectedNodes,
+    wrapSelectedNodesInFrame,
     handleToolbarAddNode,
     fitAllNodes,
     resetTransform,

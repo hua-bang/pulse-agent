@@ -52,10 +52,12 @@ export interface NodeSummary {
   agentType?: string;
   /** Running status for agent nodes. */
   status?: string;
-  /** Frame color for frame nodes. */
+  /** Container color for frame/group nodes. */
   color?: string;
-  /** Frame label for frame nodes. */
+  /** Container label for frame/group nodes. */
   label?: string;
+  /** Explicit member node ids for group nodes. */
+  childIds?: string[];
   /** Embedded URL for iframe nodes. */
   url?: string;
   /** Local image path for image nodes. */
