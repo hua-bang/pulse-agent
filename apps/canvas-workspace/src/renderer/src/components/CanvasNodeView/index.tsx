@@ -365,6 +365,7 @@ export const CanvasNodeView = ({
           <MindmapNodeBody
             node={node}
             isSelected={isSelected}
+            isOuterDragging={isDragging}
             onUpdate={onUpdate}
             onSelectNode={onSelect}
             onAutoResize={onAutoResize}

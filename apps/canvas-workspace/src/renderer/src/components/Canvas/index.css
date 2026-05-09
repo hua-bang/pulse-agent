@@ -6,6 +6,13 @@
   background: var(--bg-canvas);
 }
 
+.canvas-container--selecting,
+.canvas-container--selecting * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-user-drag: none;
+}
+
 .canvas-container--hand {
   cursor: grab;
 }
