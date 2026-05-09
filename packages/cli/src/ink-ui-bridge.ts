@@ -10,6 +10,15 @@ interface InkUiBridgeOptions {
   onChange: (snapshot: InkCliSnapshot) => void;
 }
 
+type ToolActivityStatus = 'running' | 'success' | 'error';
+
+interface ToolActivityCall {
+  id: string;
+  name: string;
+  summary: string;
+  status: ToolActivityStatus;
+}
+
 const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   sessionId: null,
   taskListId: null,
@@ -33,7 +42,8 @@ export class InkUiBridge {
   private events: InkCliEvent[] = [];
   private eventCounter = 0;
   private activeAssistantEventId: string | null = null;
-  private activeToolEventId: string | null = null;
+  private toolActivityEventId: string | null = null;
+  private toolActivityCalls: ToolActivityCall[] = [];
   private readonly maxEvents: number;
   private readonly onChange: (snapshot: InkCliSnapshot) => void;
 
@@ -160,6 +170,8 @@ export class InkUiBridge {
 
   startProcessing(label = 'Processing'): void {
     this.activeAssistantEventId = null;
+    this.toolActivityEventId = null;
+    this.toolActivityCalls = [];
     this.updateSnapshot({
       isProcessing: true,
       status: label,
@@ -193,12 +205,15 @@ export class InkUiBridge {
 
   toolCall(name: string, input?: unknown): void {
     this.activeAssistantEventId = null;
-    const inputText = input === undefined ? 'No input payload' : this.safeStringify(input);
     const nextToolCalls = this.snapshot.toolCalls + 1;
-    this.activeToolEventId = this.addEvent('tool', name, inputText, false, {
-      status: 'running',
+    const call: ToolActivityCall = {
+      id: `tool-${nextToolCalls}`,
+      name,
       summary: this.summarizeToolInput(input),
-    });
+      status: 'running',
+    };
+    this.toolActivityCalls = [...this.toolActivityCalls, call];
+    this.upsertToolActivityEvent();
     this.updateSnapshot({
       phase: 'Using tool',
       activeTool: name,
@@ -209,17 +224,15 @@ export class InkUiBridge {
 
   toolResult(name: string): void {
     const nextCompletedTools = Math.min(this.snapshot.toolCalls, this.snapshot.completedTools + 1);
-    if (this.activeToolEventId) {
-      this.updateEvent(this.activeToolEventId, event => ({
-        ...event,
-        title: event.title || name,
+    const runningIndex = this.findRunningToolIndex(name);
+    if (runningIndex >= 0) {
+      this.toolActivityCalls = this.toolActivityCalls.map((call, index) => index === runningIndex ? {
+        ...call,
+        name: call.name || name,
         status: 'success',
-        summary: 'completed',
-      }));
-      this.activeToolEventId = null;
-    } else {
-      this.addEvent('result', name, 'Completed', false, { status: 'success', summary: 'completed' });
+      } : call);
     }
+    this.upsertToolActivityEvent();
 
     this.updateSnapshot({
       phase: 'Tool completed',
@@ -252,6 +265,71 @@ export class InkUiBridge {
     }
     this.addEvent('system', 'Clarification needed', lines.join('\n'));
     this.updateSnapshot({ status: 'Waiting for clarification' });
+  }
+
+  private upsertToolActivityEvent(): void {
+    if (this.toolActivityCalls.length === 0) {
+      return;
+    }
+
+    const status = this.toolActivityCalls.some(call => call.status === 'running') ? 'running' : 'success';
+    const title = status === 'running' ? 'Tool activity' : 'Tool activity complete';
+    const text = this.formatToolActivityText();
+    const summary = this.formatToolActivitySummary();
+
+    if (!this.toolActivityEventId || !this.events.some(event => event.id === this.toolActivityEventId)) {
+      this.toolActivityEventId = this.addEvent('tool', title, text, false, { status, summary });
+      this.emit();
+      return;
+    }
+
+    this.updateEvent(this.toolActivityEventId, event => ({
+      ...event,
+      title,
+      text,
+      status,
+      summary,
+    }));
+  }
+
+  private findRunningToolIndex(name: string): number {
+    const sameNameIndex = this.toolActivityCalls.findIndex(call => call.status === 'running' && call.name === name);
+    if (sameNameIndex >= 0) {
+      return sameNameIndex;
+    }
+    return this.toolActivityCalls.findIndex(call => call.status === 'running');
+  }
+
+  private formatToolActivityText(): string {
+    const counts = this.countToolNames();
+    const groupedTools = Object.entries(counts)
+      .map(([tool, count]) => `${tool} ×${count}`)
+      .join(' · ');
+    const runningCall = [...this.toolActivityCalls].reverse().find(call => call.status === 'running');
+    const latestCalls = this.toolActivityCalls.slice(-4).map(call => {
+      const icon = call.status === 'success' ? '✓' : call.status === 'error' ? '✕' : '…';
+      return `${icon} ${call.name}: ${call.summary}`;
+    });
+    return [
+      groupedTools || 'No tools yet',
+      runningCall ? `Running: ${runningCall.name}: ${runningCall.summary}` : 'All tools completed',
+      ...latestCalls,
+    ].join('\n');
+  }
+
+  private formatToolActivitySummary(): string {
+    const total = this.toolActivityCalls.length;
+    const completed = this.toolActivityCalls.filter(call => call.status === 'success').length;
+    const running = this.toolActivityCalls.find(call => call.status === 'running');
+    return running ? `${completed}/${total} done · running ${running.name}` : `${total} completed`;
+  }
+
+  private countToolNames(): Record<string, number> {
+    return this.toolActivityCalls.reduce<Record<string, number>>((counts, call) => {
+      const toolName = call.name || 'tool';
+      counts[toolName] = (counts[toolName] ?? 0) + 1;
+      return counts;
+    }, {});
   }
 
   private addEvent(

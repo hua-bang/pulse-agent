@@ -43,7 +43,7 @@ describe('InkUiBridge', () => {
 
     const events = snapshots[snapshots.length - 1].events;
     expect(events.map(event => event.kind)).toEqual(['assistant', 'tool', 'assistant']);
-    expect(events[1].title).toBe('bash');
+    expect(events[1].title).toBe('Tool activity');
     expect(events[2].text).toBe('after');
   });
 
@@ -62,11 +62,35 @@ describe('InkUiBridge', () => {
     expect(last.events).toHaveLength(1);
     expect(last.events[0]).toMatchObject({
       kind: 'tool',
-      title: 'bash',
+      title: 'Tool activity complete',
       status: 'success',
-      summary: 'completed',
+      summary: '1 completed',
     });
   });
+  it('groups multiple tool calls into one compact activity event', () => {
+    const snapshots: InkCliSnapshot[] = [];
+    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('read', { filePath: 'packages/cli/src/ink-app.tsx' });
+    bridge.toolResult('read');
+    bridge.toolCall('grep', { pattern: 'toolCall', path: 'packages/cli/src' });
+    bridge.toolResult('grep');
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.toolCalls).toBe(2);
+    expect(last.completedTools).toBe(2);
+    expect(last.events).toHaveLength(1);
+    expect(last.events[0]).toMatchObject({
+      kind: 'tool',
+      title: 'Tool activity complete',
+      status: 'success',
+      summary: '2 completed',
+    });
+    expect(last.events[0].text).toContain('read ×1');
+    expect(last.events[0].text).toContain('grep ×1');
+  });
+
   it('updates session snapshot and run summary status', () => {
     const snapshots: InkCliSnapshot[] = [];
     const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
