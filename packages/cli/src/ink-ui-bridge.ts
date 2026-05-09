@@ -19,6 +19,11 @@ const DEFAULT_SNAPSHOT: InkUiSnapshot = {
   queuedInputs: 0,
   isProcessing: false,
   status: 'Ready',
+  phase: 'Idle',
+  activeTool: null,
+  toolCalls: 0,
+  completedTools: 0,
+  lastStep: null,
 };
 
 const MAX_EVENT_TEXT_LENGTH = 4000;
@@ -28,6 +33,7 @@ export class InkUiBridge {
   private events: InkCliEvent[] = [];
   private eventCounter = 0;
   private activeAssistantEventId: string | null = null;
+  private activeToolEventId: string | null = null;
   private readonly maxEvents: number;
   private readonly onChange: (snapshot: InkCliSnapshot) => void;
 
@@ -100,6 +106,10 @@ export class InkUiBridge {
       estimatedTokens: summary.estimatedTokens,
       mode: summary.mode,
       status: `Done in ${this.formatDuration(summary.elapsedMs)} · tools ${summary.toolCalls}`,
+      phase: 'Complete',
+      activeTool: null,
+      toolCalls: summary.toolCalls,
+      completedTools: summary.toolCalls,
     });
   }
 
@@ -142,6 +152,8 @@ export class InkUiBridge {
     this.updateSnapshot({
       isProcessing: false,
       status: 'Cancelled',
+      phase: 'Cancelled',
+      activeTool: null,
     });
     this.addEvent('error', 'Abort', message);
   }
@@ -151,6 +163,11 @@ export class InkUiBridge {
     this.updateSnapshot({
       isProcessing: true,
       status: label,
+      phase: label,
+      activeTool: null,
+      toolCalls: 0,
+      completedTools: 0,
+      lastStep: null,
     });
   }
 
@@ -158,6 +175,8 @@ export class InkUiBridge {
     this.updateSnapshot({
       isProcessing: false,
       status: 'Ready',
+      phase: 'Idle',
+      activeTool: null,
     });
   }
 
@@ -174,16 +193,49 @@ export class InkUiBridge {
 
   toolCall(name: string, input?: unknown): void {
     this.activeAssistantEventId = null;
-    const inputText = input === undefined ? '' : `\n${this.safeStringify(input)}`;
-    this.addEvent('tool', name, `Running${inputText}`);
+    const inputText = input === undefined ? 'No input payload' : this.safeStringify(input);
+    const nextToolCalls = this.snapshot.toolCalls + 1;
+    this.activeToolEventId = this.addEvent('tool', name, inputText, false, {
+      status: 'running',
+      summary: this.summarizeToolInput(input),
+    });
+    this.updateSnapshot({
+      phase: 'Using tool',
+      activeTool: name,
+      toolCalls: nextToolCalls,
+      status: `Running tool: ${name}`,
+    });
   }
 
   toolResult(name: string): void {
-    this.addEvent('result', name, 'Completed');
+    const nextCompletedTools = Math.min(this.snapshot.toolCalls, this.snapshot.completedTools + 1);
+    if (this.activeToolEventId) {
+      this.updateEvent(this.activeToolEventId, event => ({
+        ...event,
+        title: event.title || name,
+        status: 'success',
+        summary: 'completed',
+      }));
+      this.activeToolEventId = null;
+    } else {
+      this.addEvent('result', name, 'Completed', false, { status: 'success', summary: 'completed' });
+    }
+
+    this.updateSnapshot({
+      phase: 'Tool completed',
+      activeTool: null,
+      completedTools: nextCompletedTools,
+      status: `Completed tool: ${name}`,
+    });
   }
 
   stepFinished(reason: string): void {
-    this.addEvent('system', 'Step finished', reason);
+    this.addEvent('system', 'Step finished', reason, true, { status: 'info' });
+    this.updateSnapshot({
+      phase: 'Step finished',
+      activeTool: null,
+      lastStep: reason,
+    });
   }
 
   user(message: string): void {
@@ -202,7 +254,13 @@ export class InkUiBridge {
     this.updateSnapshot({ status: 'Waiting for clarification' });
   }
 
-  private addEvent(kind: InkCliEvent['kind'], title: string | undefined, text: string, emit = true): string {
+  private addEvent(
+    kind: InkCliEvent['kind'],
+    title: string | undefined,
+    text: string,
+    emit = true,
+    metadata: Pick<InkCliEvent, 'status' | 'summary'> = {},
+  ): string {
     const id = `event-${++this.eventCounter}`;
     this.events = [
       ...this.events,
@@ -211,6 +269,7 @@ export class InkUiBridge {
         kind,
         title,
         text: this.truncateEventText(text),
+        ...metadata,
       },
     ].slice(-this.maxEvents);
 
@@ -231,6 +290,20 @@ export class InkUiBridge {
       return text;
     }
     return `${text.slice(0, MAX_EVENT_TEXT_LENGTH)}…`;
+  }
+
+  private summarizeToolInput(value: unknown): string {
+    if (value === undefined || value === null) {
+      return 'no input';
+    }
+    if (typeof value === 'string') {
+      return value.length > 48 ? `${value.slice(0, 48)}…` : value;
+    }
+    if (typeof value === 'object') {
+      const keys = Object.keys(value as Record<string, unknown>).slice(0, 3);
+      return keys.length > 0 ? `input: ${keys.join(', ')}` : 'input object';
+    }
+    return String(value);
   }
 
   private safeStringify(value: unknown): string {

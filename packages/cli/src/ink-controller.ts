@@ -691,6 +691,7 @@ class InkCoderController implements InkCliController {
       queuedInputs: this.queuedInputs.length,
       isProcessing: this.isProcessing,
       status,
+      ...(status === 'Ready' && !this.isProcessing ? { phase: 'Idle', activeTool: null } : {}),
     });
   }
 

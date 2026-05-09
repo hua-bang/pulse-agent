@@ -10,6 +10,7 @@ import {
   removeWordBeforeCursor,
   renderPrompt,
   renderPromptLines,
+  shouldAcceptSlashSuggestion,
   type InkCliSnapshot,
 } from './ink-app.js';
 
@@ -43,6 +44,26 @@ describe('InkUiBridge', () => {
     expect(events[2].text).toBe('after');
   });
 
+  it('updates one tool card through running and success lifecycle', () => {
+    const snapshots: InkCliSnapshot[] = [];
+    const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
+
+    bridge.startProcessing('Running agent');
+    bridge.toolCall('bash', { command: 'echo ok' });
+    bridge.toolResult('bash');
+
+    const last = snapshots[snapshots.length - 1];
+    expect(last.toolCalls).toBe(1);
+    expect(last.completedTools).toBe(1);
+    expect(last.activeTool).toBeNull();
+    expect(last.events).toHaveLength(1);
+    expect(last.events[0]).toMatchObject({
+      kind: 'tool',
+      title: 'bash',
+      status: 'success',
+      summary: 'completed',
+    });
+  });
   it('updates session snapshot and run summary status', () => {
     const snapshots: InkCliSnapshot[] = [];
     const bridge = new InkUiBridge({ onChange: snapshot => snapshots.push(snapshot) });
@@ -90,9 +111,12 @@ describe('Ink composer editing helpers', () => {
     expect(renderPromptLines('one\ntwo', 4, true)).toEqual(['one', '█two']);
   });
 
-  it('suggests and completes slash commands', () => {
+  it('suggests, fuzzily matches, and completes slash commands', () => {
     expect(getSlashCommandSuggestions('/s', 2).map(item => item.command)).toEqual(['/sessions', '/search', '/skills', '/status', '/solo', '/save']);
+    expect(getSlashCommandSuggestions('/tm', 3).map(item => item.command)).toContain('/team');
     expect(getSlashCommandSuggestions('//', 2)).toEqual([]);
+    expect(shouldAcceptSlashSuggestion('/sta', 4, getSlashCommandSuggestions('/sta', 4)[0])).toBe(true);
+    expect(shouldAcceptSlashSuggestion('/status', 7, getSlashCommandSuggestions('/status', 7)[0])).toBe(false);
     expect(applySlashCommandCompletion('/sta', 4, '/status')).toEqual({ input: '/status ', cursor: 8 });
   });
 });
