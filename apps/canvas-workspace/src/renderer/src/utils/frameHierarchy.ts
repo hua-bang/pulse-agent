@@ -19,15 +19,43 @@ export const isInsideFrame = isInsideContainer;
 
 const containerArea = (container: CanvasNode) => container.width * container.height;
 
+const getGroupChildIds = (node: CanvasNode): string[] | null => {
+  if (node.type !== 'group') return null;
+  const childIds = (node.data as GroupNodeData).childIds;
+  return Array.isArray(childIds) ? childIds : null;
+};
+
+const isExplicitGroupChild = (node: CanvasNode, group: CanvasNode): boolean => {
+  const childIds = getGroupChildIds(group);
+  return !!childIds?.includes(node.id);
+};
+
+const isCandidateParent = (node: CanvasNode, container: CanvasNode): boolean => {
+  const explicitGroupChild = isExplicitGroupChild(node, container);
+  if (explicitGroupChild) return true;
+
+  const groupChildIds = getGroupChildIds(container);
+  if (groupChildIds) {
+    // Groups with explicit childIds intentionally own only listed regular
+    // nodes, but still allow spatial nesting of other containers. This keeps
+    // a group placed inside another group attached even when it was not part
+    // of the original childIds set.
+    return isContainerNode(node) && isInsideContainer(node, container);
+  }
+
+  return isInsideContainer(node, container);
+};
+
 /**
  * For each node, find its parent container — the smallest (by area) frame/group
  * whose bounding box contains the node's center. Returns a map of nodeId →
  * parent container id (or null for root-level nodes).
  *
- * When `n` is itself a container, a candidate container `f` can only be its
- * parent if `f` is strictly "bigger" than `n` in the total order (area desc,
- * then id asc). This guarantees acyclic parenthood even when two containers
- * share a bbox.
+ * Group childIds are treated as directed parenthood and win over purely spatial
+ * containment. For container-in-container nesting, spatial candidates still use
+ * a strict area/id ordering to avoid cycles; explicit group membership is
+ * allowed even when two group boxes have the same size, which is common after
+ * wrapping an existing group in another group.
  */
 export const computeParentContainerMap = (
   nodes: CanvasNode[]
@@ -43,34 +71,29 @@ export const computeParentContainerMap = (
 
     for (const f of containers) {
       if (f.id === n.id) continue;
-      const groupChildren = f.type === 'group'
-        ? (f.data as GroupNodeData).childIds
-        : undefined;
-      const hasExplicitGroupChildren = Array.isArray(groupChildren);
-      const isExplicitGroupChild = hasExplicitGroupChildren && groupChildren.includes(n.id);
-      const containsNode = hasExplicitGroupChildren
-        ? isExplicitGroupChild
-        : isInsideContainer(n, f);
-      if (!containsNode) continue;
+      const explicitGroupChild = isExplicitGroupChild(n, f);
+      if (!isCandidateParent(n, f)) continue;
 
       const fArea = containerArea(f);
-      // For container-in-container, require strict "bigger" ancestor to avoid cycles.
-      if (isContainerNode(n)) {
+      // For spatial container-in-container, require strict "bigger" ancestor
+      // to avoid cycles. Explicit group membership is directed data, so allow
+      // it even when the wrapper resized to the same bbox as the child group.
+      if (isContainerNode(n) && !explicitGroupChild) {
         if (fArea < nArea) continue;
         if (fArea === nArea && f.id >= n.id) continue;
       }
 
-      if (isExplicitGroupChild && !bestIsExplicitGroupChild) {
+      if (explicitGroupChild && !bestIsExplicitGroupChild) {
         best = f;
         bestArea = fArea;
         bestIsExplicitGroupChild = true;
-      } else if (isExplicitGroupChild === bestIsExplicitGroupChild && fArea < bestArea) {
+      } else if (explicitGroupChild === bestIsExplicitGroupChild && fArea < bestArea) {
         best = f;
         bestArea = fArea;
-        bestIsExplicitGroupChild = isExplicitGroupChild;
-      } else if (isExplicitGroupChild === bestIsExplicitGroupChild && fArea === bestArea && best && f.id < best.id) {
+        bestIsExplicitGroupChild = explicitGroupChild;
+      } else if (explicitGroupChild === bestIsExplicitGroupChild && fArea === bestArea && best && f.id < best.id) {
         best = f;
-        bestIsExplicitGroupChild = isExplicitGroupChild;
+        bestIsExplicitGroupChild = explicitGroupChild;
       }
     }
 
