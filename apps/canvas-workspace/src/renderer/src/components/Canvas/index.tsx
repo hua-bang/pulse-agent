@@ -1188,6 +1188,7 @@ export const Canvas = ({
         onExportMindmapImage={handleExportMindmapImage}
         onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
+        onUngroupSelectedGroups={ungroupSelectedNodes}
         onSelectEdge={(id) => {
           setSelectedEdgeId(id);
           if (id) setSelectedNodeIds([]);

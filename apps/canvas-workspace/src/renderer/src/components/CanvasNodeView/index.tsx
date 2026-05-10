@@ -50,6 +50,7 @@ interface Props {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
+  onUngroupSelectedGroups?: () => void;
   readOnly?: boolean;
 }
 
@@ -96,6 +97,7 @@ const CanvasNodeViewComponent = ({
   onSelect,
   onFocus,
   onReference,
+  onUngroupSelectedGroups,
   readOnly = false
 }: Props) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -159,6 +161,15 @@ const CanvasNodeViewComponent = ({
       onReference?.(node.id);
     },
     [onReference, node.id, readOnly]
+  );
+
+  const handleUngroup = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (readOnly) return;
+      onUngroupSelectedGroups?.();
+    },
+    [onUngroupSelectedGroups, readOnly]
   );
 
   const handleNodeBodyMouseDown = useCallback((e: React.MouseEvent) => {
@@ -490,6 +501,17 @@ const CanvasNodeViewComponent = ({
           <span className="group-count-label">
             {groupDescendantCount}
           </span>
+        )}
+        {node.type === "group" && isSelected && !readOnly && onUngroupSelectedGroups && (
+          <button
+            className="group-ungroup-button"
+            type="button"
+            onClick={handleUngroup}
+            title="Ungroup selected group (⌘⇧G)"
+            aria-label="Ungroup selected group"
+          >
+            Ungroup
+          </button>
         )}
         {node.type === "agent" && agentStatus && agentStatus !== 'idle' && (
           <span className={`node-status-label node-status-label--${agentStatus}`}>

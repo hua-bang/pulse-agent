@@ -493,6 +493,24 @@
   pointer-events: none;
 }
 
+.canvas-node--group::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  pointer-events: auto;
+}
+
+.canvas-node--group:hover,
+.canvas-node--group.canvas-node--selected,
+.canvas-node--group.canvas-node--dragging {
+  cursor: grab;
+}
+
+.canvas-node--group.canvas-node--dragging {
+  cursor: grabbing;
+}
+
 .canvas-node--group .node-header {
   position: absolute;
   top: -28px;
@@ -543,6 +561,28 @@
 .canvas-node--group .node-header .node-close,
 .canvas-node--group .node-header .node-time-label {
   display: none;
+}
+
+.group-ungroup-button {
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--group-color, #A594E0) 14%, transparent);
+  color: color-mix(in srgb, var(--group-color, #A594E0) 74%, #111111);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 7px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.group-ungroup-button:hover {
+  background: color-mix(in srgb, var(--group-color, #A594E0) 24%, transparent);
+  color: color-mix(in srgb, var(--group-color, #A594E0) 86%, #111111);
+}
+
+.group-ungroup-button:active {
+  transform: translateY(1px);
 }
 
 .canvas-node--group .node-body {
