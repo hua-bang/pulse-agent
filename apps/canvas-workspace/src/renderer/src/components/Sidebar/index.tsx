@@ -25,7 +25,6 @@ interface Props {
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
   onImport: () => void;
-  onSetRootFolder: (id: string, folderPath: string) => void;
   onCreateFolder: (name: string) => void;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => void;
