@@ -10,6 +10,7 @@ import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import type { CanvasNode } from './types';
 import type { CanvasNodeRenameRequest } from './types/ui-interaction';
+import { PulseRouter, PulseRouterView } from './components/router';
 
 const DEFAULT_CHAT_WIDTH = 420;
 const MIN_CHAT_WIDTH = 280;
@@ -472,72 +473,74 @@ const AppContent = () => {
           onEnterChat={enterChatView}
           onExitChat={exitChatView}
         />
-        {activeView === 'canvas' && (
-          <>
-            <ReferenceDrawer
-              open={referenceDrawerOpen}
-              referenceNode={referenceNode}
-              selectedNode={selectedNode}
-              onOpenChange={setReferenceDrawerOpen}
-              onClear={clearReferenceNode}
-              onFocusNode={handleFocusReferenceNode}
-            />
-            <div className="canvas-viewport">
-              {workspaces
-                .filter((ws) => ws.id === activeId)
-                .map((ws) => (
-                  <Canvas
-                    key={ws.id}
-                    canvasId={ws.id}
-                    canvasName={ws.name}
-                    rootFolder={ws.rootFolder}
-                    onNodesChange={handleNodesChange}
-                    onSelectionChange={handleSelectionChange}
-                    focusNodeId={ws.id === activeId ? focusNodeId : undefined}
-                    onFocusComplete={handleFocusComplete}
-                    deleteNodeId={ws.id === activeId ? deleteNodeId : undefined}
-                    onDeleteComplete={handleDeleteComplete}
-                    renameRequest={ws.id === renameNodeRequest?.workspaceId ? renameNodeRequest : undefined}
-                    onRenameComplete={handleRenameComplete}
-                    chatPanelOpen={chatPanelOpen}
-                    onChatToggle={() => setChatPanelOpen((prev) => !prev)}
-                    referenceDrawerOpen={referenceDrawerOpen}
-                    onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
-                    onPinReferenceNode={pinReferenceNode}
-                  />
-                ))}
-            </div>
-            {workspaces.map((ws) => (
-              <div
-                key={ws.id}
-                className={`chat-panel-wrapper${chatPanelOpen && ws.id === activeId ? ' chat-panel-wrapper--open' : ''}`}
-                style={ws.id !== activeId ? { display: 'none' } : chatPanelOpen ? { width: chatWidth } : undefined}
-              >
-                <ChatPanel
-                  workspaceId={ws.id}
-                  allWorkspaces={workspaces}
-                  nodes={allNodes[ws.id] || []}
-                  selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
-                  rootFolder={ws.rootFolder}
-                  onClose={() => setChatPanelOpen(false)}
-                  onResizeStart={handleResizeStart}
-                  onNodeFocus={setFocusNodeId}
-                  onExpand={enterChatView}
-                />
+        <PulseRouter activeKey={activeView}>
+          <PulseRouterView name='canvas'>
+            <>
+              <ReferenceDrawer
+                open={referenceDrawerOpen}
+                referenceNode={referenceNode}
+                selectedNode={selectedNode}
+                onOpenChange={setReferenceDrawerOpen}
+                onClear={clearReferenceNode}
+                onFocusNode={handleFocusReferenceNode}
+              />
+              <div className="canvas-viewport">
+                {workspaces
+                  .filter((ws) => ws.id === activeId)
+                  .map((ws) => (
+                    <Canvas
+                      key={ws.id}
+                      canvasId={ws.id}
+                      canvasName={ws.name}
+                      rootFolder={ws.rootFolder}
+                      onNodesChange={handleNodesChange}
+                      onSelectionChange={handleSelectionChange}
+                      focusNodeId={ws.id === activeId ? focusNodeId : undefined}
+                      onFocusComplete={handleFocusComplete}
+                      deleteNodeId={ws.id === activeId ? deleteNodeId : undefined}
+                      onDeleteComplete={handleDeleteComplete}
+                      renameRequest={ws.id === renameNodeRequest?.workspaceId ? renameNodeRequest : undefined}
+                      onRenameComplete={handleRenameComplete}
+                      chatPanelOpen={chatPanelOpen}
+                      onChatToggle={() => setChatPanelOpen((prev) => !prev)}
+                      referenceDrawerOpen={referenceDrawerOpen}
+                      onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
+                      onPinReferenceNode={pinReferenceNode}
+                    />
+                  ))}
               </div>
-            ))}
-          </>
-        )}
-        {activeView === 'chat' && (
-          <ChatPage
-            initialWorkspaceId={activeId}
-            allWorkspaces={workspaces}
-            nodes={allNodes[activeId] || []}
-            rootFolder={activeWorkspace?.rootFolder}
-            onExit={exitChatView}
-            onNodeFocus={handleNodeFocusFromChatPage}
-          />
-        )}
+              {workspaces.map((ws) => (
+                <div
+                  key={ws.id}
+                  className={`chat-panel-wrapper${chatPanelOpen && ws.id === activeId ? ' chat-panel-wrapper--open' : ''}`}
+                  style={ws.id !== activeId ? { display: 'none' } : chatPanelOpen ? { width: chatWidth } : undefined}
+                >
+                  <ChatPanel
+                    workspaceId={ws.id}
+                    allWorkspaces={workspaces}
+                    nodes={allNodes[ws.id] || []}
+                    selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
+                    rootFolder={ws.rootFolder}
+                    onClose={() => setChatPanelOpen(false)}
+                    onResizeStart={handleResizeStart}
+                    onNodeFocus={setFocusNodeId}
+                    onExpand={enterChatView}
+                  />
+                </div>
+              ))}
+            </>
+          </PulseRouterView>
+          <PulseRouterView name="chat">
+            <ChatPage
+              initialWorkspaceId={activeId}
+              allWorkspaces={workspaces}
+              nodes={allNodes[activeId] || []}
+              rootFolder={activeWorkspace?.rootFolder}
+              onExit={exitChatView}
+              onNodeFocus={handleNodeFocusFromChatPage}
+            />
+          </PulseRouterView>
+        </PulseRouter>
       </div>
     </div>
   );
