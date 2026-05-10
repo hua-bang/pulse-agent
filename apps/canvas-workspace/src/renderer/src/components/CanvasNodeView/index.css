@@ -480,9 +480,15 @@
 .canvas-node--focus-mode-dimmed,
 .canvas-node--focus-mode-dimmed:hover,
 .canvas-node--focus-mode-dimmed.canvas-node--selected,
+.canvas-node--focus-mode-dimmed.canvas-node--frame,
+.canvas-node--focus-mode-dimmed.canvas-node--frame:hover,
+.canvas-node--focus-mode-dimmed.canvas-node--frame.canvas-node--selected,
 .canvas-node--focus-mode-dimmed.canvas-node--group,
 .canvas-node--focus-mode-dimmed.canvas-node--group:hover,
 .canvas-node--focus-mode-dimmed.canvas-node--group.canvas-node--selected,
+.canvas-node--focus-mode-dimmed.canvas-node--iframe,
+.canvas-node--focus-mode-dimmed.canvas-node--iframe:hover,
+.canvas-node--focus-mode-dimmed.canvas-node--iframe.canvas-node--selected,
 .canvas-node--focus-mode-dimmed.canvas-node--image,
 .canvas-node--focus-mode-dimmed.canvas-node--image:hover,
 .canvas-node--focus-mode-dimmed.canvas-node--image.canvas-node--selected,
@@ -496,6 +502,21 @@
   filter: grayscale(0.22) saturate(0.18) blur(var(--focus-dim-blur, 5px));
   box-shadow: none;
   transition: opacity 0.18s ease, filter 0.18s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.canvas-node--focus-mode-dimmed::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.canvas-node--focus-mode-dimmed.canvas-node--frame::after,
+.canvas-node--focus-mode-dimmed.canvas-node--group::after {
+  inset: -14px;
 }
 
 .canvas-node--group .node-header {
