@@ -19,7 +19,6 @@ import type { PaletteCommand } from '../CommandPalette';
 import {
   collectContainerDescendants,
   computeContainerDepths,
-  computeParentContainerMap,
   isContainerNode,
 } from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
@@ -160,28 +159,30 @@ export const Canvas = ({
 
   const focusedNodeIds = useMemo(() => {
     const focused = new Set<string>();
-    const parentContainerMap = computeParentContainerMap(nodes);
 
     for (const id of selectedNodeIds) {
       const node = nodes.find((item) => item.id === id);
       if (!node) continue;
 
       focused.add(node.id);
-
-      if (isContainerNode(node)) {
-        for (const descendant of collectContainerDescendants(node.id, nodes)) {
-          focused.add(descendant.id);
-        }
-      }
-
-      let parentId = parentContainerMap.get(node.id) ?? null;
-      while (parentId) {
-        focused.add(parentId);
-        parentId = parentContainerMap.get(parentId) ?? null;
-      }
     }
 
     return focused;
+  }, [nodes, selectedNodeIds]);
+
+  const focusContextNodeIds = useMemo(() => {
+    const context = new Set<string>();
+
+    for (const id of selectedNodeIds) {
+      const node = nodes.find((item) => item.id === id);
+      if (!node || !isContainerNode(node)) continue;
+
+      for (const descendant of collectContainerDescendants(node.id, nodes)) {
+        context.add(descendant.id);
+      }
+    }
+
+    return context;
   }, [nodes, selectedNodeIds]);
 
   const focusModeActive = focusModeEnabled && focusedNodeIds.size > 0;
@@ -193,8 +194,8 @@ export const Canvas = ({
     return node ? getNodeDisplayLabel(node) : undefined;
   }, [focusModeActive, nodes, selectedNodeIds]);
 
-  const focusModeDimOpacity = 0.13 - focusModeIntensity * 0.105;
-  const focusModeDimBlur = 1.4 + focusModeIntensity * 4.4;
+  const focusModeDimOpacity = 0.12 - focusModeIntensity * 0.1;
+  const focusModeDimBlur = 1.6 + focusModeIntensity * 4.8;
   const focusModeVeilOpacity = 0.18 + focusModeIntensity * 0.34;
 
   const exitFocusMode = useCallback(() => {
@@ -1159,6 +1160,7 @@ export const Canvas = ({
         marqueeRect={marquee.rect}
         snapLines={snapLines}
         focusedNodeIds={focusedNodeIds}
+        focusContextNodeIds={focusContextNodeIds}
         focusModeEnabled={focusModeActive}
         focusModeDimOpacity={focusModeDimOpacity}
         onDragStart={handleSurfaceDragStart}

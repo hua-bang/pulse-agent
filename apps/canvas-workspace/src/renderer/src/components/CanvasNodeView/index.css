@@ -40,6 +40,12 @@
   box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(124, 92, 255, 0.32), 0 18px 54px rgba(124, 92, 255, 0.24);
 }
 
+.canvas-node--focus-mode-context {
+  filter: none;
+  opacity: 1;
+  box-shadow: var(--shadow-card);
+}
+
 .canvas-node--focus-mode-focused::after {
   content: "";
   position: absolute;
@@ -68,12 +74,6 @@
 
 .canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--group-color, #A594E0) 56%, transparent), 0 22px 62px rgba(124, 92, 255, 0.25);
-}
-
-.canvas-node--focus-mode-dimmed {
-  opacity: var(--focus-dim-opacity, 0.04);
-  filter: grayscale(0.18) saturate(0.22) blur(var(--focus-dim-blur, 5px));
-  transition: opacity 0.18s ease, filter 0.18s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .canvas-node--readonly {
@@ -475,6 +475,27 @@
   border-color: color-mix(in srgb, var(--group-color, #A594E0) 92%, transparent);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--group-color, #A594E0) 30%, transparent), 0 22px 62px rgba(124, 92, 255, 0.25);
   opacity: 1;
+}
+
+.canvas-node--focus-mode-dimmed,
+.canvas-node--focus-mode-dimmed:hover,
+.canvas-node--focus-mode-dimmed.canvas-node--selected,
+.canvas-node--focus-mode-dimmed.canvas-node--group,
+.canvas-node--focus-mode-dimmed.canvas-node--group:hover,
+.canvas-node--focus-mode-dimmed.canvas-node--group.canvas-node--selected,
+.canvas-node--focus-mode-dimmed.canvas-node--image,
+.canvas-node--focus-mode-dimmed.canvas-node--image:hover,
+.canvas-node--focus-mode-dimmed.canvas-node--image.canvas-node--selected,
+.canvas-node--focus-mode-dimmed.canvas-node--shape,
+.canvas-node--focus-mode-dimmed.canvas-node--shape:hover,
+.canvas-node--focus-mode-dimmed.canvas-node--shape.canvas-node--selected,
+.canvas-node--focus-mode-dimmed.canvas-node--mindmap,
+.canvas-node--focus-mode-dimmed.canvas-node--mindmap:hover,
+.canvas-node--focus-mode-dimmed.canvas-node--mindmap.canvas-node--selected {
+  opacity: var(--focus-dim-opacity, 0.035);
+  filter: grayscale(0.22) saturate(0.18) blur(var(--focus-dim-blur, 5px));
+  box-shadow: none;
+  transition: opacity 0.18s ease, filter 0.18s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
 .canvas-node--group .node-header {
