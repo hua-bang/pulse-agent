@@ -205,12 +205,6 @@ export const Canvas = ({
 
   const focusModeActive = focusModeEnabled && focusedNodeIds.size > 0;
 
-  const focusModeTargetLabel = useMemo(() => {
-    if (!focusModeActive) return undefined;
-    const node = nodes.find((item) => item.id === selectedNodeIds[0]);
-    return node ? getNodeDisplayLabel(node) : undefined;
-  }, [focusModeActive, nodes, selectedNodeIds]);
-
   const exitFocusMode = useCallback(() => {
     setFocusModeEnabled(false);
   }, []);
@@ -1273,8 +1267,6 @@ export const Canvas = ({
         onCommitEditEdgeLabel={handleCommitEditEdgeLabel}
         onCancelEditEdgeLabel={handleCancelEditEdgeLabel}
         focusModeEnabled={focusModeActive}
-        focusModeTargetLabel={focusModeTargetLabel}
-        onFocusModeToggle={toggleFocusMode}
       />
     </div>
   );

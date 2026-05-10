@@ -65,8 +65,6 @@ interface CanvasOverlaysProps {
   onCommitEditEdgeLabel?: (id: string, label: string) => void;
   onCancelEditEdgeLabel?: () => void;
   focusModeEnabled?: boolean;
-  focusModeTargetLabel?: string;
-  onFocusModeToggle?: () => void;
 }
 
 export const CanvasOverlays = ({
@@ -102,8 +100,6 @@ export const CanvasOverlays = ({
   onCommitEditEdgeLabel,
   onCancelEditEdgeLabel,
   focusModeEnabled = false,
-  focusModeTargetLabel,
-  onFocusModeToggle,
 }: CanvasOverlaysProps) => (
   <>
     {nodes.length === 0 && !contextMenu && (
@@ -200,31 +196,15 @@ export const CanvasOverlays = ({
           />
         ))}
 
-    <ZoomIndicator scale={scale} onReset={onResetTransform} selectionCount={selectionCount} />
-
-    {focusModeEnabled && (
-      <div
-        className="focus-mode-panel"
-        onMouseDown={(e) => e.stopPropagation()}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <span className="focus-mode-dot" aria-hidden="true" />
-        <span className="focus-mode-label">
-          Focus{focusModeTargetLabel ? ` · ${focusModeTargetLabel}` : ''}
-        </span>
-        <button
-          type="button"
-          className="focus-mode-close"
-          onClick={onFocusModeToggle}
-          title="Exit Focus Mode (Esc)"
-          aria-label="Exit Focus Mode"
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-        </button>
-      </div>
-    )}
+    {/* The "N selected" chip is suppressed in focus mode — by definition
+        focus mode operates on a single node, so the count is redundant
+        noise alongside the focused card. The zoom % chip stays as the
+        only persistent UI in the bottom-right. */}
+    <ZoomIndicator
+      scale={scale}
+      onReset={onResetTransform}
+      selectionCount={focusModeEnabled ? 0 : selectionCount}
+    />
 
     {searchOpen && (
       <CommandPalette
