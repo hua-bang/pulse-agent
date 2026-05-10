@@ -476,7 +476,12 @@
 }
 
 .canvas-node--focus-mode-dimmed {
-  opacity: 0.18;
+  /* Pushed down to 0.12 so frame title chips and small colored badges
+   * stop registering as "still present" against the dark backdrop —
+   * users explicitly asked for "only one bright card, everything else
+   * faded". Still leaves enough opacity for the user to see roughly
+   * where peripheral cards sit and to click them to refocus. */
+  opacity: 0.12;
   box-shadow: none;
   transition: opacity 0.22s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }

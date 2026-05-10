@@ -56,10 +56,11 @@ const HANDLE_RADIUS = 5;
 /** Edges fully outside the focus context fade to this opacity in focus
  * mode — matches the node dim level so the canvas reads as a single
  * cohesive faded layer behind the focused card. */
-const FOCUS_DIMMED_EDGE_OPACITY = 0.18;
-/** Edges with one endpoint focused (or both endpoints in context) sit a
- * notch above the dim layer so the relationship is still legible. */
-const FOCUS_CONTEXT_EDGE_OPACITY = 0.55;
+const FOCUS_DIMMED_EDGE_OPACITY = 0.12;
+/** Edges with both endpoints inside a focused container's contents sit
+ * a notch above the dim layer so the focused frame's internal
+ * relationships stay legible. */
+const FOCUS_CONTEXT_EDGE_OPACITY = 0.45;
 /** Canvas-space gap between an arrow's tip and the node boundary it points
  *  at. Without this, the arrow-head marker sits flush against the node
  *  and gets visually swallowed by the node's background/border. tldraw
@@ -301,15 +302,13 @@ export const CanvasEdgesLayer = ({
         const targetFocused = edge.target.kind === 'node' && focusedNodeIds?.has(edge.target.nodeId);
         const sourceInContext = edge.source.kind === 'node' && focusContextNodeIds?.has(edge.source.nodeId);
         const targetInContext = edge.target.kind === 'node' && focusContextNodeIds?.has(edge.target.nodeId);
-        // An edge stays fully visible if either endpoint is focused (so
-        // "what does the focused node connect to" stays obvious) or if
-        // both endpoints are in context. Edges with one foot in context
-        // and the other in nothing are rendered at a middle opacity so
-        // the topology hint is preserved without competing visually
-        // with the focused subgraph.
-        const isFocused = !focusModeEnabled || isSelected || sourceFocused || targetFocused
-          || (sourceInContext && targetInContext);
-        const isContext = !isFocused && (sourceInContext || targetInContext);
+        // Strict: an edge is fully visible only when it touches a
+        // focused node OR connects two siblings inside a focused
+        // container. Edges that merely brush against context get the
+        // mid-tier opacity so the focused frame's internal structure
+        // stays readable, but external connections fade cleanly.
+        const isFocused = !focusModeEnabled || isSelected || sourceFocused || targetFocused;
+        const isContext = !isFocused && sourceInContext && targetInContext;
         const focusStyle: React.CSSProperties | undefined = focusModeEnabled && !isFocused
           ? { opacity: isContext ? FOCUS_CONTEXT_EDGE_OPACITY : FOCUS_DIMMED_EDGE_OPACITY }
           : undefined;

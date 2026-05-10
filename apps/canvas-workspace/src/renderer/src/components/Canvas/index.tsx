@@ -182,8 +182,13 @@ export const Canvas = ({
       const node = nodes.find((item) => item.id === id);
       if (!node) continue;
 
-      // Container descendants — frame/group children stay visible so the
-      // focused container's contents aren't dimmed alongside the rest.
+      // Only when the focused node is itself a frame/group do its
+      // descendants stay visible — focusing a container clearly means
+      // "I want to inspect what's inside it", so dimming the children
+      // would defeat the point. For regular nodes (files, text, etc.)
+      // we keep focus strictly on the selected node — edge neighbors
+      // and parent frames all get dimmed so the user has exactly one
+      // bright card on the canvas at a time.
       if (isContainerNode(node)) {
         for (const candidate of nodes) {
           if (candidate.id === node.id) continue;
@@ -192,24 +197,11 @@ export const Canvas = ({
           }
         }
       }
-
-      // One-hop edge neighbors — keeps "what does this node connect to"
-      // visible without forcing the user to exit focus mode to inspect
-      // relationships.
-      for (const edge of edges) {
-        if (edge.source.kind === 'node' && edge.source.nodeId === node.id && edge.target.kind === 'node') {
-          context.add(edge.target.nodeId);
-        }
-        if (edge.target.kind === 'node' && edge.target.nodeId === node.id && edge.source.kind === 'node') {
-          context.add(edge.source.nodeId);
-        }
-      }
     }
 
-    // Selected nodes are "focused", not "context".
     for (const id of selectedNodeIds) context.delete(id);
     return context;
-  }, [nodes, edges, selectedNodeIds]);
+  }, [nodes, selectedNodeIds]);
 
   const focusModeActive = focusModeEnabled && focusedNodeIds.size > 0;
 
