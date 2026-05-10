@@ -160,7 +160,7 @@ export const Canvas = ({
   // can forcibly end the edit session.
   const [editingEdgeLabelId, setEditingEdgeLabelId] = useState<string | null>(null);
 
-  const focusModeAvailable = selectedNodeIds.length > 0;
+  const focusModeAvailable = selectedNodeIds.length === 1;
 
   const focusedNodeIds = useMemo(() => {
     const focused = new Set<string>();
@@ -207,7 +207,6 @@ export const Canvas = ({
 
   const focusModeTargetLabel = useMemo(() => {
     if (!focusModeActive) return undefined;
-    if (selectedNodeIds.length !== 1) return `${selectedNodeIds.length} selected`;
     const node = nodes.find((item) => item.id === selectedNodeIds[0]);
     return node ? getNodeDisplayLabel(node) : undefined;
   }, [focusModeActive, nodes, selectedNodeIds]);
@@ -264,8 +263,11 @@ export const Canvas = ({
     onSelectionChange?.(canvasId, selectedNodeIds);
   }, [canvasId, loaded, onSelectionChange, selectedNodeIds]);
 
+  // Focus mode is single-selection only — extending the selection
+  // (shift-click, marquee-add, Cmd+A, etc.) exits focus mode rather
+  // than ambiguously focusing a group of cards.
   useEffect(() => {
-    if (selectedNodeIds.length === 0) setFocusModeEnabled(false);
+    if (selectedNodeIds.length !== 1) setFocusModeEnabled(false);
   }, [selectedNodeIds]);
 
   // Heptabase-style: when focus mode is engaged, auto-reframe the
@@ -276,17 +278,10 @@ export const Canvas = ({
   // reframe loop.
   useEffect(() => {
     if (!focusModeActive) return;
-    if (selectedNodeIds.length === 1) {
-      const node = nodesRef.current.find((n) => n.id === selectedNodeIds[0]);
-      if (node) handleFocusNode(node, { padding: FOCUS_MODE_PADDING, maxScale: FOCUS_MODE_MAX_SCALE });
-      return;
-    }
-    if (selectedNodeIds.length > 1) {
-      const idSet = new Set(selectedNodeIds);
-      const selected = nodesRef.current.filter((n) => idSet.has(n.id));
-      if (selected.length > 0) fitAllNodes(selected);
-    }
-  }, [focusModeActive, selectedNodeIds, handleFocusNode, fitAllNodes]);
+    if (selectedNodeIds.length !== 1) return;
+    const node = nodesRef.current.find((n) => n.id === selectedNodeIds[0]);
+    if (node) handleFocusNode(node, { padding: FOCUS_MODE_PADDING, maxScale: FOCUS_MODE_MAX_SCALE });
+  }, [focusModeActive, selectedNodeIds, handleFocusNode]);
 
   // Handle external focus request (e.g. from sidebar layers panel)
   useEffect(() => {
@@ -897,7 +892,7 @@ export const Canvas = ({
       {
         id: 'toggle-focus-mode',
         group: 'view',
-        title: focusModeActive ? 'Exit Focus mode' : 'Focus selected nodes',
+        title: focusModeActive ? 'Exit Focus mode' : 'Focus selected node',
         shortcut: 'F',
         aliases: ['focus', 'spotlight', 'dim'],
         enabled: focusModeActive || focusModeAvailable,
