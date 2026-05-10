@@ -27,7 +27,12 @@ import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 
-const DEFAULT_FOCUS_MODE_INTENSITY = 0.86;
+// Focus-mode reframe sizing. Padding leaves breathing room around the
+// focused node so siblings can peek in at the edges (Heptabase-style),
+// and the maxScale cap prevents tiny nodes from being magnified into
+// blurry monsters.
+const FOCUS_MODE_PADDING = 120;
+const FOCUS_MODE_MAX_SCALE = 1.2;
 
 interface CanvasProps {
   canvasId: string;
@@ -73,7 +78,6 @@ export const Canvas = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
-  const [focusModeIntensity, setFocusModeIntensity] = useState(DEFAULT_FOCUS_MODE_INTENSITY);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoFitted = useRef(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -156,7 +160,7 @@ export const Canvas = ({
   // can forcibly end the edit session.
   const [editingEdgeLabelId, setEditingEdgeLabelId] = useState<string | null>(null);
 
-  const focusModeAvailable = selectedNodeIds.length > 0;
+  const focusModeAvailable = selectedNodeIds.length === 1;
 
   const focusedNodeIds = useMemo(() => {
     const focused = new Set<string>();
@@ -176,16 +180,26 @@ export const Canvas = ({
 
     for (const id of selectedNodeIds) {
       const node = nodes.find((item) => item.id === id);
-      if (!node || !isContainerNode(node)) continue;
+      if (!node) continue;
 
-      for (const candidate of nodes) {
-        if (candidate.id === node.id) continue;
-        if (isInsideContainer(candidate, node)) {
-          context.add(candidate.id);
+      // Only when the focused node is itself a frame/group do its
+      // descendants stay visible — focusing a container clearly means
+      // "I want to inspect what's inside it", so dimming the children
+      // would defeat the point. For regular nodes (files, text, etc.)
+      // we keep focus strictly on the selected node — edge neighbors
+      // and parent frames all get dimmed so the user has exactly one
+      // bright card on the canvas at a time.
+      if (isContainerNode(node)) {
+        for (const candidate of nodes) {
+          if (candidate.id === node.id) continue;
+          if (isInsideContainer(candidate, node)) {
+            context.add(candidate.id);
+          }
         }
       }
     }
 
+    for (const id of selectedNodeIds) context.delete(id);
     return context;
   }, [nodes, selectedNodeIds]);
 
@@ -193,14 +207,9 @@ export const Canvas = ({
 
   const focusModeTargetLabel = useMemo(() => {
     if (!focusModeActive) return undefined;
-    if (selectedNodeIds.length !== 1) return `${selectedNodeIds.length} selected`;
     const node = nodes.find((item) => item.id === selectedNodeIds[0]);
     return node ? getNodeDisplayLabel(node) : undefined;
   }, [focusModeActive, nodes, selectedNodeIds]);
-
-  const focusModeDimOpacity = 0.08 - focusModeIntensity * 0.065;
-  const focusModeDimBlur = 2.2 + focusModeIntensity * 5.2;
-  const focusModeVeilOpacity = 0.18 + focusModeIntensity * 0.34;
 
   const exitFocusMode = useCallback(() => {
     setFocusModeEnabled(false);
@@ -254,9 +263,25 @@ export const Canvas = ({
     onSelectionChange?.(canvasId, selectedNodeIds);
   }, [canvasId, loaded, onSelectionChange, selectedNodeIds]);
 
+  // Focus mode is single-selection only — extending the selection
+  // (shift-click, marquee-add, Cmd+A, etc.) exits focus mode rather
+  // than ambiguously focusing a group of cards.
   useEffect(() => {
-    if (selectedNodeIds.length === 0) setFocusModeEnabled(false);
+    if (selectedNodeIds.length !== 1) setFocusModeEnabled(false);
   }, [selectedNodeIds]);
+
+  // Heptabase-style: when focus mode is engaged, auto-reframe the
+  // viewport so the focused node sits comfortably centered. Re-fires on
+  // selection change so click-to-refocus glides between cards instead
+  // of leaving the viewport pinned to whatever was visible first. Reads
+  // the latest nodes via ref so an in-flight drag doesn't trigger a
+  // reframe loop.
+  useEffect(() => {
+    if (!focusModeActive) return;
+    if (selectedNodeIds.length !== 1) return;
+    const node = nodesRef.current.find((n) => n.id === selectedNodeIds[0]);
+    if (node) handleFocusNode(node, { padding: FOCUS_MODE_PADDING, maxScale: FOCUS_MODE_MAX_SCALE });
+  }, [focusModeActive, selectedNodeIds, handleFocusNode]);
 
   // Handle external focus request (e.g. from sidebar layers panel)
   useEffect(() => {
@@ -422,8 +447,11 @@ export const Canvas = ({
   const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
     setSelectedNodeIds([node.id]);
     setHighlightedId(node.id);
-    handleFocusNode(node);
-  }, [handleFocusNode]);
+    // In focus mode the dedicated reframe effect handles the zoom with
+    // tighter padding/maxScale — calling handleFocusNode here too would
+    // produce a double reframe at different scales (visible jitter).
+    if (!focusModeActive) handleFocusNode(node);
+  }, [handleFocusNode, focusModeActive]);
 
   const handleSearchSelect = handleNodeViewportFocus;
 
@@ -864,7 +892,7 @@ export const Canvas = ({
       {
         id: 'toggle-focus-mode',
         group: 'view',
-        title: focusModeActive ? 'Exit Focus mode' : 'Focus selected nodes',
+        title: focusModeActive ? 'Exit Focus mode' : 'Focus selected node',
         shortcut: 'F',
         aliases: ['focus', 'spotlight', 'dim'],
         enabled: focusModeActive || focusModeAvailable,
@@ -1159,14 +1187,8 @@ export const Canvas = ({
       onContextMenu={handleContextMenu}
       onClick={handleCanvasClick}
       data-focus-mode={focusModeActive ? 'on' : undefined}
-      style={{
-        '--focus-dim-opacity': focusModeDimOpacity,
-        '--focus-dim-blur': `${focusModeDimBlur}px`,
-        '--focus-veil-opacity': focusModeVeilOpacity,
-      } as React.CSSProperties}
     >
       <div className="canvas-grid" />
-      {focusModeActive && <div className="canvas-focus-veil" />}
 
       <CanvasSurface
         transform={transform}
@@ -1193,7 +1215,6 @@ export const Canvas = ({
         focusedNodeIds={focusedNodeIds}
         focusContextNodeIds={focusContextNodeIds}
         focusModeEnabled={focusModeActive}
-        focusModeDimOpacity={focusModeDimOpacity}
         onDragStart={handleSurfaceDragStart}
         onResizeStart={handleSurfaceResizeStart}
         onUpdate={updateNode}
@@ -1252,10 +1273,8 @@ export const Canvas = ({
         onCommitEditEdgeLabel={handleCommitEditEdgeLabel}
         onCancelEditEdgeLabel={handleCancelEditEdgeLabel}
         focusModeEnabled={focusModeActive}
-        focusModeIntensity={focusModeIntensity}
         focusModeTargetLabel={focusModeTargetLabel}
         onFocusModeToggle={toggleFocusMode}
-        onFocusModeIntensityChange={setFocusModeIntensity}
       />
     </div>
   );

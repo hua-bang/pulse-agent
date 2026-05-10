@@ -33,26 +33,24 @@
   z-index: 100;
 }
 
+/* Focus mode (Heptabase-style): the focused node is centered + reframed
+ * by the viewport, so the "emphasis" job here is purely a soft ring +
+ * mild shadow lift — no aggressive halo. Context nodes stay at full
+ * opacity so neighbors / container children remain readable. Dimmed
+ * nodes drop to ~18% opacity (no blur, no white overlay) — they remain
+ * clickable so the user can "click a peripheral card to refocus on it"
+ * exactly like Heptabase. */
 .canvas-node--focus-mode-focused {
   z-index: 80;
-  filter: none;
   opacity: 1;
-  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(124, 92, 255, 0.32), 0 18px 54px rgba(124, 92, 255, 0.24);
+  /* Brighter ring + a subtle glow read crisply against the dark
+   * focus-mode backdrop — the previous 32%/18% values were tuned for
+   * a white canvas. */
+  box-shadow: var(--shadow-card-hover), 0 0 0 1.5px rgba(124, 92, 255, 0.55), 0 12px 36px rgba(124, 92, 255, 0.28);
 }
 
 .canvas-node--focus-mode-context {
-  filter: none;
   opacity: 1;
-  box-shadow: var(--shadow-card);
-}
-
-.canvas-node--focus-mode-focused::after {
-  content: "";
-  position: absolute;
-  inset: -10px;
-  border-radius: calc(var(--radius-lg) + 10px);
-  pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.18), 0 0 42px rgba(124, 92, 255, 0.24);
 }
 
 .canvas-node--focus-mode-focused.canvas-node--frame,
@@ -61,19 +59,19 @@
 }
 
 .canvas-node--focus-mode-focused.canvas-node--frame {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 48%, transparent), 0 20px 60px rgba(124, 92, 255, 0.24);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #7c5cff) 55%, transparent);
 }
 
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--frame-color, #7c5cff) 58%, transparent), 0 22px 64px rgba(124, 92, 255, 0.26);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 65%, transparent);
 }
 
 .canvas-node--focus-mode-focused.canvas-node--group {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 46%, transparent), 0 20px 58px rgba(124, 92, 255, 0.22);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 55%, transparent);
 }
 
 .canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--group-color, #A594E0) 56%, transparent), 0 22px 62px rgba(124, 92, 255, 0.25);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 65%, transparent);
 }
 
 .canvas-node--readonly {
@@ -470,53 +468,29 @@
 
 .canvas-node--group.canvas-node--focus-mode-focused,
 .canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: color-mix(in srgb, var(--group-color, #A594E0) 8%, transparent);
+  background: color-mix(in srgb, var(--group-color, #A594E0) 6%, transparent);
   border-style: solid;
-  border-color: color-mix(in srgb, var(--group-color, #A594E0) 92%, transparent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--group-color, #A594E0) 30%, transparent), 0 22px 62px rgba(124, 92, 255, 0.25);
+  border-color: color-mix(in srgb, var(--group-color, #A594E0) 75%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 40%, transparent);
   opacity: 1;
 }
 
-.canvas-node--focus-mode-dimmed,
-.canvas-node--focus-mode-dimmed:hover,
-.canvas-node--focus-mode-dimmed.canvas-node--selected,
-.canvas-node--focus-mode-dimmed.canvas-node--frame,
-.canvas-node--focus-mode-dimmed.canvas-node--frame:hover,
-.canvas-node--focus-mode-dimmed.canvas-node--frame.canvas-node--selected,
-.canvas-node--focus-mode-dimmed.canvas-node--group,
-.canvas-node--focus-mode-dimmed.canvas-node--group:hover,
-.canvas-node--focus-mode-dimmed.canvas-node--group.canvas-node--selected,
-.canvas-node--focus-mode-dimmed.canvas-node--iframe,
-.canvas-node--focus-mode-dimmed.canvas-node--iframe:hover,
-.canvas-node--focus-mode-dimmed.canvas-node--iframe.canvas-node--selected,
-.canvas-node--focus-mode-dimmed.canvas-node--image,
-.canvas-node--focus-mode-dimmed.canvas-node--image:hover,
-.canvas-node--focus-mode-dimmed.canvas-node--image.canvas-node--selected,
-.canvas-node--focus-mode-dimmed.canvas-node--shape,
-.canvas-node--focus-mode-dimmed.canvas-node--shape:hover,
-.canvas-node--focus-mode-dimmed.canvas-node--shape.canvas-node--selected,
-.canvas-node--focus-mode-dimmed.canvas-node--mindmap,
-.canvas-node--focus-mode-dimmed.canvas-node--mindmap:hover,
-.canvas-node--focus-mode-dimmed.canvas-node--mindmap.canvas-node--selected {
-  opacity: var(--focus-dim-opacity, 0.035);
-  filter: grayscale(0.22) saturate(0.18) blur(var(--focus-dim-blur, 5px));
+.canvas-node--focus-mode-dimmed {
+  /* Pushed down to 0.12 so frame title chips and small colored badges
+   * stop registering as "still present" against the dark backdrop —
+   * users explicitly asked for "only one bright card, everything else
+   * faded". Still leaves enough opacity for the user to see roughly
+   * where peripheral cards sit and to click them to refocus. */
+  opacity: 0.12;
   box-shadow: none;
-  transition: opacity 0.18s ease, filter 0.18s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  transition: opacity 0.22s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.canvas-node--focus-mode-dimmed::after {
-  content: "";
-  position: absolute;
-  inset: -8px;
-  z-index: 40;
+/* Iframes inside dimmed nodes keep loading content but shouldn't capture
+ * scroll/clicks — otherwise the user trying to navigate the canvas can
+ * accidentally scroll a dimmed Feishu/web doc behind the focused card. */
+.canvas-node--focus-mode-dimmed .iframe-frame {
   pointer-events: none;
-  border-radius: inherit;
-  background: rgba(255, 255, 255, 0.74);
-}
-
-.canvas-node--focus-mode-dimmed.canvas-node--frame::after,
-.canvas-node--focus-mode-dimmed.canvas-node--group::after {
-  inset: -14px;
 }
 
 .canvas-node--group .node-header {

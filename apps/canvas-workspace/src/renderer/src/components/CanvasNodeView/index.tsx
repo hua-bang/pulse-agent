@@ -598,5 +598,6 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.isSelected === next.isSelected &&
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&
+  prev.focusState === next.focusState &&
   prev.readOnly === next.readOnly
 ));

@@ -69,17 +69,28 @@
   will-change: transform;
 }
 
-.canvas-focus-veil {
+/* Focus-mode backdrop. Lives inside `.canvas-transform` (see
+ * CanvasSurface) so it scales/pans with the canvas and sits below all
+ * nodes within the same stacking context. Sized at ±100k canvas units
+ * so the user never reaches its edge — at the slowest zoom-out we
+ * support (~0.05) that's still 10k screen pixels in every direction.
+ * The dark fill is what makes the focused node POP — without it,
+ * dimmed nodes just look like faded white over white. */
+.canvas-focus-backdrop {
   position: absolute;
-  inset: 0;
-  z-index: 0;
+  left: -100000px;
+  top: -100000px;
+  width: 200000px;
+  height: 200000px;
+  background: rgba(15, 18, 30, 0.55);
   pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0), rgba(255, 255, 255, var(--focus-veil-opacity, 0.48)) 72%),
-    rgba(255, 255, 255, 0.2);
-  backdrop-filter: saturate(0.68);
-  opacity: 0;
-  animation: canvas-focus-veil-in 0.18s ease forwards;
+  z-index: 0;
+  animation: canvas-focus-backdrop-in 0.22s ease forwards;
+}
+
+@keyframes canvas-focus-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .focus-mode-panel {
@@ -87,22 +98,15 @@
   right: 16px;
   bottom: 54px;
   z-index: 520;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px 5px 10px;
+  gap: 6px;
+  padding: 5px 6px 5px 10px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(124, 92, 255, 0.18);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
   color: var(--text);
-}
-
-.focus-mode-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
 }
 
 .focus-mode-dot {
@@ -144,11 +148,6 @@
   color: var(--text);
 }
 
-.focus-mode-slider {
-  width: 92px;
-  accent-color: #7c5cff;
-}
-
 @media (max-width: 760px) {
   .focus-mode-panel {
     right: 12px;
@@ -159,13 +158,4 @@
   .focus-mode-label {
     max-width: 140px;
   }
-
-  .focus-mode-slider {
-    width: 72px;
-  }
-}
-
-@keyframes canvas-focus-veil-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }

@@ -58,7 +58,6 @@ interface CanvasSurfaceProps {
   focusedNodeIds?: Set<string>;
   focusContextNodeIds?: Set<string>;
   focusModeEnabled?: boolean;
-  focusModeDimOpacity?: number;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -122,7 +121,6 @@ export const CanvasSurface = ({
   focusedNodeIds,
   focusContextNodeIds,
   focusModeEnabled = false,
-  focusModeDimOpacity,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -148,6 +146,14 @@ export const CanvasSurface = ({
         : undefined,
     } as React.CSSProperties}
   >
+    {/* Focus-mode backdrop: a giant translucent dark rectangle that
+        lives INSIDE the transform so it scales/pans with the canvas
+        and we never have to fight `.canvas-transform`'s stacking
+        context. Sized large enough to cover any reasonable zoom/pan
+        combination so the user never sees its edge. Without this, the
+        per-node dim opacity competes with a bright white canvas
+        background and the focused node fails to pop. */}
+    {focusModeEnabled && <div className="canvas-focus-backdrop" />}
     {/* Containers render first as the canvas background/grouping layer. Edges
         render after containers so frame fills can no longer cover connection
         lines, while regular nodes still paint above edges. */}
@@ -191,7 +197,6 @@ export const CanvasSurface = ({
       focusedNodeIds={focusedNodeIds}
       focusContextNodeIds={focusContextNodeIds}
       focusModeEnabled={focusModeEnabled}
-      focusModeDimOpacity={focusModeDimOpacity}
       onHandleMouseDown={onEdgeHandleMouseDown}
       onBodyMouseDown={onEdgeBodyMouseDown}
       onBodyDoubleClick={onEdgeBodyDoubleClick}
