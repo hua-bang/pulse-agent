@@ -81,6 +81,7 @@ interface CanvasSurfaceProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
+  onUngroupSelectedGroups?: () => void;
   onSelectEdge: (id: string | null) => void;
   onEdgeHandleMouseDown: (
     edgeId: string,
@@ -130,6 +131,7 @@ export const CanvasSurface = ({
   onSelect,
   onFocus,
   onReference,
+  onUngroupSelectedGroups,
   onSelectEdge,
   onEdgeHandleMouseDown,
   onEdgeBodyMouseDown,
@@ -185,6 +187,7 @@ export const CanvasSurface = ({
           onSelect={onSelect}
           onFocus={onFocus}
           onReference={onReference}
+          onUngroupSelectedGroups={onUngroupSelectedGroups}
         />
       ))}
     <CanvasEdgesLayer
@@ -229,6 +232,7 @@ export const CanvasSurface = ({
           onSelect={onSelect}
           onFocus={onFocus}
           onReference={onReference}
+          onUngroupSelectedGroups={onUngroupSelectedGroups}
         />
       ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}
