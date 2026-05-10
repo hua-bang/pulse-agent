@@ -12,7 +12,6 @@ import { useEdgeInteraction } from '../../hooks/useEdgeInteraction';
 import { useShapeDraw } from '../../hooks/useShapeDraw';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { useAppShell } from '../AppShellProvider';
-import { NODE_TYPE_LABELS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
 import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import type { PaletteCommand } from '../CommandPalette';
@@ -313,34 +312,15 @@ export const Canvas = ({
     onRenameComplete?.();
   }, [renameRequest, loaded, canvasId, updateNode, onRenameComplete]);
 
-  const requestRemoveNodes = useCallback(async (ids: string[]) => {
+  const requestRemoveNodes = useCallback((ids: string[]) => {
     const idSet = new Set(ids);
     const victims = nodesRef.current.filter((node) => idSet.has(node.id));
     if (victims.length === 0) return;
 
-    const accepted = await confirm({
-      intent: 'danger',
-      title: victims.length === 1
-        ? `Delete "${getNodeDisplayLabel(victims[0])}"?`
-        : `Delete ${victims.length} selected nodes?`,
-      description: victims.length === 1
-        ? 'Connected arrows stay on the canvas and detach from the deleted node.'
-        : 'Connected arrows stay on the canvas and detach from the deleted nodes.',
-      confirmLabel: victims.length === 1 ? 'Delete node' : 'Delete nodes',
-    });
-    if (!accepted) return;
-
     removeNodes(victims.map((node) => node.id));
     const removedIds = new Set(victims.map((node) => node.id));
     setSelectedNodeIds((current) => current.filter((id) => !removedIds.has(id)));
-    notify({
-      tone: 'success',
-      title: victims.length === 1 ? 'Node deleted' : 'Nodes deleted',
-      description: victims.length === 1
-        ? getNodeDisplayLabel(victims[0])
-        : `${victims.length} items were removed from the canvas.`,
-    });
-  }, [confirm, removeNodes, notify]);
+  }, [removeNodes]);
 
   const requestRemoveEdge = useCallback(async (id: string) => {
     const edge = edges.find((item) => item.id === id);
@@ -716,13 +696,8 @@ export const Canvas = ({
       const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
       setSelectedNodeIds([node.id]);
       setContextMenu(null);
-      notify({
-        tone: 'success',
-        title: `${NODE_TYPE_LABELS[type]} added`,
-        description: 'Placed on the canvas.',
-      });
     },
-    [addNode, contextMenu, notify]
+    [addNode, contextMenu]
   );
 
   const handleExportMindmapImage = useCallback(
@@ -789,13 +764,8 @@ export const Canvas = ({
         : 150;
       const node = addNode(type, pos.x - halfW, pos.y - halfH);
       setSelectedNodeIds([node.id]);
-      notify({
-        tone: 'success',
-        title: `${NODE_TYPE_LABELS[type]} added`,
-        description: 'Centered in the current viewport.',
-      });
     },
-    [addNode, screenToCanvas, notify]
+    [addNode, screenToCanvas]
   );
 
   // Command catalog for Cmd+K. Built lazily so each command captures

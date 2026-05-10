@@ -9,6 +9,7 @@ interface Props {
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
+  showReferenceToggle?: boolean;
 }
 
 const tools = [
@@ -67,10 +68,11 @@ export const FloatingToolbar = ({
   onChatToggle,
   referenceDrawerOpen,
   onReferenceToggle,
+  showReferenceToggle = false,
 }: Props) => {
   return (
     <div className="floating-toolbar">
-      {onReferenceToggle && (
+      {onReferenceToggle && showReferenceToggle && (
         <>
           <div className="toolbar-group">
             <button
@@ -112,7 +114,7 @@ export const FloatingToolbar = ({
       )}
 
       <div className="toolbar-group">
-        {tools.map((t) => (
+        {tools.filter(tool => tool).map((t) => (
           <button
             key={t.id}
             className={`toolbar-btn${activeTool === t.id ? " toolbar-btn--active" : ""}`}
@@ -192,18 +194,18 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("agent")}
-          title="Add Agent Card"
+          title="Add Coding Agent"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
             <path
-              d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5"
-              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
+              d="M6.5 5L3 9l3.5 4M11.5 5L15 9l-3.5 4M9.8 4.5l-1.6 9"
+              stroke="currentColor"
+              strokeWidth="1.35"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-            <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
-            <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
           </svg>
-          <span className="toolbar-btn-label">Agent</span>
+          <span className="toolbar-btn-label">Coding</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
