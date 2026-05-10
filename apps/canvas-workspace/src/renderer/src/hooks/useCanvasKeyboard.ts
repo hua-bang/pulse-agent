@@ -18,6 +18,8 @@ interface Options {
   pasteNodes: (nodes: CanvasNode[]) => CanvasNode[];
   /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
+  /** Dissolve selected group nodes while keeping their children on canvas. */
+  ungroupSelectedNodes: () => void;
   removeNodes: (ids: string[]) => void | Promise<void>;
   /** Batch-move nodes by deltas in canvas coordinates. Used by arrow-
    *  key nudging so a single keypress moves the whole selection in one
@@ -43,7 +45,7 @@ interface Options {
 export const useCanvasKeyboard = ({
   undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
-  duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes,
+  duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
   searchOpen, setSearchOpen, contextMenu, setContextMenu,
   setHighlightedId, handleFocusNode,
@@ -102,6 +104,11 @@ export const useCanvasKeyboard = ({
       if (isMod && e.key === 'c' && !isEditable) {
         const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
         if (selected.length > 0) setClipboardNodes(selected);
+        return;
+      }
+      if (isMod && (e.key === 'g' || e.key === 'G') && e.shiftKey && !isEditable) {
+        e.preventDefault();
+        if (selectedNodeIds.length > 0) ungroupSelectedNodes();
         return;
       }
       if (isMod && (e.key === 'g' || e.key === 'G') && !e.shiftKey && !isEditable) {
@@ -173,7 +180,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, keyboardLocked]);
+  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {

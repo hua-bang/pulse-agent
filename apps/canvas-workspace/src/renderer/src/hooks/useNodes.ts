@@ -430,6 +430,76 @@ export const useNodes = (
     [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
   );
 
+  const ungroupNodes = useCallback(
+    (ids: string[]): string[] => {
+      if (ids.length === 0) return [];
+      const idSet = new Set(ids);
+      const groups = nodesRef.current.filter((node) => idSet.has(node.id) && node.type === 'group');
+      if (groups.length === 0) return [];
+
+      const now = Date.now();
+      const groupIds = new Set(groups.map((group) => group.id));
+      const groupChildIds = new Map(
+        groups.map((group) => [
+          group.id,
+          Array.isArray((group.data as GroupNodeData).childIds)
+            ? (group.data as GroupNodeData).childIds ?? []
+            : [],
+        ] as const),
+      );
+      const existingIds = new Set(nodesRef.current.map((node) => node.id));
+      const promotedIds = new Set<string>();
+
+      const nextNodes = nodesRef.current
+        .filter((node) => !groupIds.has(node.id))
+        .map((node) => {
+          if (node.type !== 'group') return node;
+          const data = node.data as GroupNodeData;
+          const childIds = Array.isArray(data.childIds) ? data.childIds : [];
+          if (childIds.length === 0) return node;
+
+          const nextChildIds: string[] = [];
+          let changed = false;
+          for (const childId of childIds) {
+            if (!groupIds.has(childId)) {
+              nextChildIds.push(childId);
+              continue;
+            }
+
+            changed = true;
+            const promotedChildren = groupChildIds.get(childId) ?? [];
+            for (const promotedId of promotedChildren) {
+              if (groupIds.has(promotedId) || !existingIds.has(promotedId)) continue;
+              if (!nextChildIds.includes(promotedId)) nextChildIds.push(promotedId);
+              promotedIds.add(promotedId);
+            }
+          }
+
+          if (!changed) return node;
+          return {
+            ...node,
+            data: { ...data, childIds: nextChildIds },
+            updatedAt: now,
+          };
+        });
+
+      for (const childIds of groupChildIds.values()) {
+        for (const childId of childIds) {
+          if (!groupIds.has(childId) && existingIds.has(childId)) promotedIds.add(childId);
+        }
+      }
+
+      let nextEdges = edgesRef.current;
+      for (const group of groups) {
+        nextEdges = degradeEndpointsForDeletedNode(nextEdges, group);
+      }
+
+      applyState({ nodes: resizeGroupsToChildren(nextNodes), edges: nextEdges });
+      return Array.from(promotedIds);
+    },
+    [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
+  );
+
   const moveNode = useCallback(
     (id: string, x: number, y: number) => {
       const movedNodes = nodesRef.current.map((n) =>
@@ -729,6 +799,7 @@ export const useNodes = (
     duplicateNode,
     pasteNodes,
     groupNodes,
+    ungroupNodes,
     wrapNodesInFrame,
   };
 };

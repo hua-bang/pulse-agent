@@ -138,6 +138,7 @@ export const Canvas = ({
     duplicateNode,
     pasteNodes,
     groupNodes,
+    ungroupNodes,
     wrapNodesInFrame,
   } = useNodes(canvasId, (savedTransform) => {
     hasAutoFitted.current = true;
@@ -358,6 +359,21 @@ export const Canvas = ({
     });
   }, [groupNodes, selectedNodeIds, notify]);
 
+  const ungroupSelectedNodes = useCallback(() => {
+    if (selectedNodeIds.length === 0) return;
+    const selectedGroups = nodesRef.current.filter((node) => selectedNodeIds.includes(node.id) && node.type === 'group');
+    if (selectedGroups.length === 0) return;
+    const releasedIds = ungroupNodes(selectedGroups.map((node) => node.id));
+    setSelectedNodeIds(releasedIds);
+    notify({
+      tone: 'success',
+      title: selectedGroups.length === 1 ? 'Group dissolved' : 'Groups dissolved',
+      description: releasedIds.length > 0
+        ? `Released ${releasedIds.length} child node${releasedIds.length === 1 ? '' : 's'}.`
+        : 'Removed empty group container.',
+    });
+  }, [selectedNodeIds, ungroupNodes, notify]);
+
   const wrapSelectedNodesInFrame = useCallback(() => {
     if (selectedNodeIds.length === 0) return;
     const frame = wrapNodesInFrame(selectedNodeIds);
@@ -373,7 +389,7 @@ export const Canvas = ({
   useCanvasKeyboard({
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: requestRemoveEdge,
-    duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes,
+    duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes,
     removeNodes: requestRemoveNodes,
     moveNodes, commitHistory,
     searchOpen, setSearchOpen, contextMenu, setContextMenu,
@@ -812,6 +828,17 @@ export const Canvas = ({
         },
       },
       {
+        id: 'ungroup-selection',
+        group: 'edit',
+        title: 'Ungroup selected group',
+        shortcut: 'Cmd+Shift+G',
+        aliases: ['ungroup', 'dissolve group', 'release group'],
+        enabled: selectedNodeIds.some((id) => nodesRef.current.some((node) => node.id === id && node.type === 'group')),
+        run: () => {
+          ungroupSelectedNodes();
+        },
+      },
+      {
         id: 'wrap-selection-in-frame',
         group: 'edit',
         title: selectionCount > 1
@@ -940,6 +967,7 @@ export const Canvas = ({
     duplicateNode,
     requestRemoveNodes,
     groupSelectedNodes,
+    ungroupSelectedNodes,
     wrapSelectedNodesInFrame,
     handleToolbarAddNode,
     fitAllNodes,
