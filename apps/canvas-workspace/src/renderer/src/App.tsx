@@ -42,15 +42,14 @@ interface WorkbenchProps {
   setSelectedNodeIdsByWorkspace: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
   renameNodeRequest: CanvasNodeRenameRequest | undefined;
 
-  chatPanelOpen: boolean;
-  setChatPanelOpen: React.Dispatch<React.SetStateAction<boolean>>;
-
   onExpand: () => void;
-
 }
 
 const Workbench: React.FC<WorkbenchProps> = (props) => {
-  const { allNodes, activeId, focusNodeId, activeNodes = [], selectedNode, onNodeFocus, workspaces, setAllNodes, setSelectedNodeIdsByWorkspace, chatPanelOpen, setChatPanelOpen } = props;
+
+
+  const { allNodes, activeId, focusNodeId, activeNodes = [], selectedNode, onNodeFocus, workspaces, setAllNodes, setSelectedNodeIdsByWorkspace } = props;
+  const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referenceNodeIdByWorkspace, setReferenceNodeIdByWorkspace] = useState<Record<string, string | undefined>>({});
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
@@ -207,7 +206,6 @@ const AppContent = () => {
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
 
 
   const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
@@ -284,7 +282,6 @@ const AppContent = () => {
   }, [routeQuery, routeParams, activeId, workspaces, selectWorkspace, setLocation]);
 
   const enterChatView = useCallback(() => {
-    setChatPanelOpen(false);
     setLocation(ROUTE_CHAT);
   }, [setLocation]);
 
@@ -502,19 +499,11 @@ const AppContent = () => {
         return;
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
-        if (activeView !== 'canvas') return;
-        e.preventDefault();
-        setChatPanelOpen((prev) => !prev);
-        return;
-      }
-
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault();
         if (activeView === 'chat') {
           setLocation(ROUTE_CANVAS);
         } else {
-          setChatPanelOpen(false);
           setLocation(ROUTE_CHAT);
         }
         return;
@@ -528,7 +517,6 @@ const AppContent = () => {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
-
 
 
   const handleNodeFocusFromChatPage = useCallback((nodeId: string) => {
@@ -581,6 +569,7 @@ const AppContent = () => {
           <PulseRouterView name='canvas'>
             <Workbench
               allNodes={allNodes}
+              setAllNodes={setAllNodes}
               activeId={activeId}
               activeNodes={activeNodes}
               selectedNode={selectedNode}
@@ -594,13 +583,10 @@ const AppContent = () => {
               onNodeFocus={setFocusNodeId}
 
               workspaces={workspaces}
-              setAllNodes={setAllNodes}
 
               selectedNodeIdsByWorkspace={selectedNodeIdsByWorkspace}
               setSelectedNodeIdsByWorkspace={setSelectedNodeIdsByWorkspace}
               renameNodeRequest={renameNodeRequest}
-              chatPanelOpen={chatPanelOpen}
-              setChatPanelOpen={setChatPanelOpen}
               onExpand={enterChatView}
             />
           </PulseRouterView>
