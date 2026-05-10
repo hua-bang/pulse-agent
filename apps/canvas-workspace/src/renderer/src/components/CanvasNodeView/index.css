@@ -37,7 +37,7 @@
   z-index: 80;
   filter: none;
   opacity: 1;
-  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(124, 92, 255, 0.24), 0 16px 46px rgba(124, 92, 255, 0.18);
+  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(124, 92, 255, 0.32), 0 18px 54px rgba(124, 92, 255, 0.24);
 }
 
 .canvas-node--focus-mode-focused::after {
@@ -46,7 +46,7 @@
   inset: -10px;
   border-radius: calc(var(--radius-lg) + 10px);
   pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.1), 0 0 38px rgba(124, 92, 255, 0.16);
+  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.18), 0 0 42px rgba(124, 92, 255, 0.24);
 }
 
 .canvas-node--focus-mode-focused.canvas-node--frame,
@@ -55,24 +55,24 @@
 }
 
 .canvas-node--focus-mode-focused.canvas-node--frame {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 34%, transparent), 0 18px 52px rgba(124, 92, 255, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 48%, transparent), 0 20px 60px rgba(124, 92, 255, 0.24);
 }
 
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 40%, transparent), 0 18px 52px rgba(124, 92, 255, 0.2);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--frame-color, #7c5cff) 58%, transparent), 0 22px 64px rgba(124, 92, 255, 0.26);
 }
 
 .canvas-node--focus-mode-focused.canvas-node--group {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 32%, transparent), 0 18px 52px rgba(124, 92, 255, 0.17);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 46%, transparent), 0 20px 58px rgba(124, 92, 255, 0.22);
 }
 
 .canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 38%, transparent), 0 18px 52px rgba(124, 92, 255, 0.19);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--group-color, #A594E0) 56%, transparent), 0 22px 62px rgba(124, 92, 255, 0.25);
 }
 
 .canvas-node--focus-mode-dimmed {
-  opacity: var(--focus-dim-opacity, 0.09);
-  filter: saturate(0.42) blur(var(--focus-dim-blur, 3px));
+  opacity: var(--focus-dim-opacity, 0.04);
+  filter: grayscale(0.18) saturate(0.22) blur(var(--focus-dim-blur, 5px));
   transition: opacity 0.18s ease, filter 0.18s ease, box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
@@ -466,6 +466,15 @@
   background: color-mix(in srgb, var(--group-color, #A594E0) 5%, transparent);
   border-color: color-mix(in srgb, var(--group-color, #A594E0) 82%, transparent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 16%, transparent);
+}
+
+.canvas-node--group.canvas-node--focus-mode-focused,
+.canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
+  background: color-mix(in srgb, var(--group-color, #A594E0) 8%, transparent);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--group-color, #A594E0) 92%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--group-color, #A594E0) 30%, transparent), 0 22px 62px rgba(124, 92, 255, 0.25);
+  opacity: 1;
 }
 
 .canvas-node--group .node-header {
