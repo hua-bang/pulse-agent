@@ -43,7 +43,10 @@
 .canvas-node--focus-mode-focused {
   z-index: 80;
   opacity: 1;
-  box-shadow: var(--shadow-card-hover), 0 0 0 1.5px rgba(124, 92, 255, 0.32), 0 12px 36px rgba(124, 92, 255, 0.18);
+  /* Brighter ring + a subtle glow read crisply against the dark
+   * focus-mode backdrop — the previous 32%/18% values were tuned for
+   * a white canvas. */
+  box-shadow: var(--shadow-card-hover), 0 0 0 1.5px rgba(124, 92, 255, 0.55), 0 12px 36px rgba(124, 92, 255, 0.28);
 }
 
 .canvas-node--focus-mode-context {

@@ -69,6 +69,30 @@
   will-change: transform;
 }
 
+/* Focus-mode backdrop. Lives inside `.canvas-transform` (see
+ * CanvasSurface) so it scales/pans with the canvas and sits below all
+ * nodes within the same stacking context. Sized at ±100k canvas units
+ * so the user never reaches its edge — at the slowest zoom-out we
+ * support (~0.05) that's still 10k screen pixels in every direction.
+ * The dark fill is what makes the focused node POP — without it,
+ * dimmed nodes just look like faded white over white. */
+.canvas-focus-backdrop {
+  position: absolute;
+  left: -100000px;
+  top: -100000px;
+  width: 200000px;
+  height: 200000px;
+  background: rgba(15, 18, 30, 0.55);
+  pointer-events: none;
+  z-index: 0;
+  animation: canvas-focus-backdrop-in 0.22s ease forwards;
+}
+
+@keyframes canvas-focus-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .focus-mode-panel {
   position: absolute;
   right: 16px;
