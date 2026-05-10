@@ -206,11 +206,14 @@ export const useCanvasKeyboard = ({
           const nextNode = nodes[nextIndex];
           setSelectedNodeIds([nextNode.id]);
           setHighlightedId(nextNode.id);
-          handleFocusNode(nextNode);
+          // In focus mode the dedicated reframe effect handles the zoom
+          // with tighter padding/maxScale; calling handleFocusNode here
+          // too would produce a double reframe at different scales.
+          if (!focusModeEnabled) handleFocusNode(nextNode);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, selectedNodeIds, setSelectedNodeIds, setHighlightedId, handleFocusNode, keyboardLocked]);
+  }, [nodes, selectedNodeIds, setSelectedNodeIds, setHighlightedId, handleFocusNode, keyboardLocked, focusModeEnabled]);
 };

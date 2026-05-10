@@ -32,10 +32,10 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: color-mix(in srgb, var(--frame-color, #A8B0BD) 9%, var(--surface));
+  background: color-mix(in srgb, var(--frame-color, #A8B0BD) 7%, var(--surface));
   border-style: solid;
-  border-color: color-mix(in srgb, var(--frame-color, #A8B0BD) 95%, #7c5cff);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--frame-color, #A8B0BD) 34%, transparent), 0 22px 64px rgba(124, 92, 255, 0.26);
+  border-color: color-mix(in srgb, var(--frame-color, #A8B0BD) 80%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #A8B0BD) 35%, transparent);
 }
 
 /* ---- Header tab ---- */

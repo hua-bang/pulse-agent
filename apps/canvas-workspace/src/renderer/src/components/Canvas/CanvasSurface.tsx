@@ -58,7 +58,6 @@ interface CanvasSurfaceProps {
   focusedNodeIds?: Set<string>;
   focusContextNodeIds?: Set<string>;
   focusModeEnabled?: boolean;
-  focusModeDimOpacity?: number;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onResizeStart: (
     e: React.MouseEvent,
@@ -122,7 +121,6 @@ export const CanvasSurface = ({
   focusedNodeIds,
   focusContextNodeIds,
   focusModeEnabled = false,
-  focusModeDimOpacity,
   onDragStart,
   onResizeStart,
   onUpdate,
@@ -191,7 +189,6 @@ export const CanvasSurface = ({
       focusedNodeIds={focusedNodeIds}
       focusContextNodeIds={focusContextNodeIds}
       focusModeEnabled={focusModeEnabled}
-      focusModeDimOpacity={focusModeDimOpacity}
       onHandleMouseDown={onEdgeHandleMouseDown}
       onBodyMouseDown={onEdgeBodyMouseDown}
       onBodyDoubleClick={onEdgeBodyDoubleClick}
