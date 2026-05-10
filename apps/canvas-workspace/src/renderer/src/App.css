@@ -12,12 +12,15 @@
   flex: 1;
   display: flex;
   overflow: hidden;
+  min-height: 0;
 }
 
 .canvas-viewport {
   flex: 1;
   position: relative;
   overflow: hidden;
+  height: 100%;
+  min-height: 0;
 }
 
 .chat-panel-wrapper {
