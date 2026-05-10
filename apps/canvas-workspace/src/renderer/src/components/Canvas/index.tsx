@@ -28,7 +28,7 @@ import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 
-const DEFAULT_FOCUS_MODE_INTENSITY = 0.78;
+const DEFAULT_FOCUS_MODE_INTENSITY = 0.86;
 
 interface CanvasProps {
   canvasId: string;
@@ -193,9 +193,9 @@ export const Canvas = ({
     return node ? getNodeDisplayLabel(node) : undefined;
   }, [focusModeActive, nodes, selectedNodeIds]);
 
-  const focusModeDimOpacity = 0.2 - focusModeIntensity * 0.14;
-  const focusModeDimBlur = 0.9 + focusModeIntensity * 3.4;
-  const focusModeVeilOpacity = 0.12 + focusModeIntensity * 0.26;
+  const focusModeDimOpacity = 0.13 - focusModeIntensity * 0.105;
+  const focusModeDimBlur = 1.4 + focusModeIntensity * 4.4;
+  const focusModeVeilOpacity = 0.18 + focusModeIntensity * 0.34;
 
   const exitFocusMode = useCallback(() => {
     setFocusModeEnabled(false);
@@ -1219,7 +1219,6 @@ export const Canvas = ({
         onCommitEditEdgeLabel={handleCommitEditEdgeLabel}
         onCancelEditEdgeLabel={handleCancelEditEdgeLabel}
         focusModeEnabled={focusModeActive}
-        canToggleFocusMode={focusModeAvailable}
         focusModeIntensity={focusModeIntensity}
         focusModeTargetLabel={focusModeTargetLabel}
         onFocusModeToggle={toggleFocusMode}

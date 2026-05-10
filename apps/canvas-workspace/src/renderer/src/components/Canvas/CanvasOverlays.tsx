@@ -65,7 +65,6 @@ interface CanvasOverlaysProps {
   onCommitEditEdgeLabel?: (id: string, label: string) => void;
   onCancelEditEdgeLabel?: () => void;
   focusModeEnabled?: boolean;
-  canToggleFocusMode?: boolean;
   focusModeIntensity?: number;
   focusModeTargetLabel?: string;
   onFocusModeToggle?: () => void;
@@ -105,7 +104,6 @@ export const CanvasOverlays = ({
   onCommitEditEdgeLabel,
   onCancelEditEdgeLabel,
   focusModeEnabled = false,
-  canToggleFocusMode = false,
   focusModeIntensity = 0.65,
   focusModeTargetLabel,
   onFocusModeToggle,
@@ -174,9 +172,6 @@ export const CanvasOverlays = ({
       onChatToggle={onChatToggle}
       referenceDrawerOpen={referenceDrawerOpen}
       onReferenceToggle={onReferenceToggle}
-      focusModeEnabled={focusModeEnabled}
-      canToggleFocusMode={canToggleFocusMode}
-      onFocusModeToggle={onFocusModeToggle}
     />
 
     {selectedEdge && onUpdateEdge && onRemoveEdge && (

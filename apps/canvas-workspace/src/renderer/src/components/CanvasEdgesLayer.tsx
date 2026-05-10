@@ -294,7 +294,7 @@ export const CanvasEdgesLayer = ({
         const targetFocused = edge.target.kind === 'node' && focusedNodeIds?.has(edge.target.nodeId);
         const isFocused = !focusModeEnabled || isSelected || (sourceFocused && targetFocused);
         const focusStyle: React.CSSProperties | undefined = focusModeEnabled && !isFocused
-          ? { opacity: Math.max(0.03, focusModeDimOpacity * 0.55) }
+          ? { opacity: Math.max(0.015, focusModeDimOpacity * 0.45) }
           : undefined;
         // While this edge's source/target is being dragged live, the
         // stored endpoint already reflects the in-progress state (we

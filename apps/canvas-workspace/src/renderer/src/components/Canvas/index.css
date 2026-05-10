@@ -75,9 +75,9 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, var(--focus-veil-opacity, 0.32)) 68%),
-    rgba(255, 255, 255, 0.18);
-  backdrop-filter: saturate(0.78);
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0), rgba(255, 255, 255, var(--focus-veil-opacity, 0.48)) 72%),
+    rgba(255, 255, 255, 0.2);
+  backdrop-filter: saturate(0.68);
   opacity: 0;
   animation: canvas-focus-veil-in 0.18s ease forwards;
 }
