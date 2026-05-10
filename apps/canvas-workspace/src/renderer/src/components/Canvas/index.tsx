@@ -17,8 +17,8 @@ import type { CanvasNode } from '../../types';
 import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import type { PaletteCommand } from '../CommandPalette';
 import {
-  collectContainerDescendants,
   computeContainerDepths,
+  isInsideContainer,
   isContainerNode,
 } from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
@@ -177,8 +177,11 @@ export const Canvas = ({
       const node = nodes.find((item) => item.id === id);
       if (!node || !isContainerNode(node)) continue;
 
-      for (const descendant of collectContainerDescendants(node.id, nodes)) {
-        context.add(descendant.id);
+      for (const candidate of nodes) {
+        if (candidate.id === node.id) continue;
+        if (isInsideContainer(candidate, node)) {
+          context.add(candidate.id);
+        }
       }
     }
 
@@ -194,8 +197,8 @@ export const Canvas = ({
     return node ? getNodeDisplayLabel(node) : undefined;
   }, [focusModeActive, nodes, selectedNodeIds]);
 
-  const focusModeDimOpacity = 0.12 - focusModeIntensity * 0.1;
-  const focusModeDimBlur = 1.6 + focusModeIntensity * 4.8;
+  const focusModeDimOpacity = 0.08 - focusModeIntensity * 0.065;
+  const focusModeDimBlur = 2.2 + focusModeIntensity * 5.2;
   const focusModeVeilOpacity = 0.18 + focusModeIntensity * 0.34;
 
   const exitFocusMode = useCallback(() => {
