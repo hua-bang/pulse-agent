@@ -14,10 +14,11 @@ interface ChatPageProps {
    */
   initialWorkspaceId: string;
   allWorkspaces: WorkspaceOption[];
-  nodes?: CanvasNode[];
-  rootFolder?: string;
+  getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
+  getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;
+  onWorkspaceContextRequest?: (workspaceId: string) => void;
   onExit: () => void;
-  onNodeFocus?: (nodeId: string) => void;
+  onNodeFocus?: (workspaceId: string, nodeId: string) => void;
 }
 
 /**
@@ -38,8 +39,9 @@ interface ChatPageProps {
 export const ChatPage = ({
   initialWorkspaceId,
   allWorkspaces,
-  nodes,
-  rootFolder,
+  getWorkspaceNodes,
+  getWorkspaceRootFolder,
+  onWorkspaceContextRequest,
   onExit,
   onNodeFocus,
 }: ChatPageProps) => {
@@ -68,6 +70,9 @@ export const ChatPage = ({
     setRailCollapsed((v) => !v);
   }, []);
 
+  const nodes = getWorkspaceNodes?.(workspaceId);
+  const rootFolder = getWorkspaceRootFolder?.(workspaceId);
+
   return (
     <ChatPageBody
       key={workspaceId}
@@ -76,6 +81,7 @@ export const ChatPage = ({
       pendingSessionId={pendingSessionId}
       onSessionConsumed={handleSessionConsumed}
       onSelectSession={handleSelectSession}
+      onWorkspaceContextRequest={onWorkspaceContextRequest}
       allWorkspaces={allWorkspaces}
       nodes={nodes}
       rootFolder={rootFolder}
