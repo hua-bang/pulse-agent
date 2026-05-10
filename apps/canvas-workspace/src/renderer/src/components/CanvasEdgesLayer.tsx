@@ -24,6 +24,7 @@ interface Props {
    *  draw a dashed draft line between these two points. */
   previewEndpoints?: { s: Point; t: Point } | null;
   focusedNodeIds?: Set<string>;
+  focusContextNodeIds?: Set<string>;
   focusModeEnabled?: boolean;
   focusModeDimOpacity?: number;
   onHandleMouseDown?: (
@@ -227,6 +228,7 @@ export const CanvasEdgesLayer = ({
   interactionState,
   previewEndpoints,
   focusedNodeIds,
+  focusContextNodeIds,
   focusModeEnabled = false,
   focusModeDimOpacity = 0.18,
   onHandleMouseDown,
@@ -292,9 +294,12 @@ export const CanvasEdgesLayer = ({
         const isSelected = edge.id === selectedEdgeId;
         const sourceFocused = edge.source.kind === 'node' && focusedNodeIds?.has(edge.source.nodeId);
         const targetFocused = edge.target.kind === 'node' && focusedNodeIds?.has(edge.target.nodeId);
+        const sourceInContext = edge.source.kind === 'node' && focusContextNodeIds?.has(edge.source.nodeId);
+        const targetInContext = edge.target.kind === 'node' && focusContextNodeIds?.has(edge.target.nodeId);
         const isFocused = !focusModeEnabled || isSelected || (sourceFocused && targetFocused);
+        const isContext = !isFocused && (sourceFocused || sourceInContext) && (targetFocused || targetInContext);
         const focusStyle: React.CSSProperties | undefined = focusModeEnabled && !isFocused
-          ? { opacity: Math.max(0.015, focusModeDimOpacity * 0.45) }
+          ? { opacity: isContext ? 0.42 : Math.max(0.012, focusModeDimOpacity * 0.42) }
           : undefined;
         // While this edge's source/target is being dragged live, the
         // stored endpoint already reflects the in-progress state (we

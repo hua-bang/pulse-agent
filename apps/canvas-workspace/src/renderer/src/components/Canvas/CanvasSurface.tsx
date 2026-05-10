@@ -56,6 +56,7 @@ interface CanvasSurfaceProps {
    *  coordinates. Empty when nothing is snapping. */
   snapLines?: SnapLine[];
   focusedNodeIds?: Set<string>;
+  focusContextNodeIds?: Set<string>;
   focusModeEnabled?: boolean;
   focusModeDimOpacity?: number;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
@@ -119,6 +120,7 @@ export const CanvasSurface = ({
   marqueeRect,
   snapLines,
   focusedNodeIds,
+  focusContextNodeIds,
   focusModeEnabled = false,
   focusModeDimOpacity,
   onDragStart,
@@ -165,7 +167,9 @@ export const CanvasSurface = ({
           isAgentEdited={externallyEditedIds.has(node.id)}
           focusState={!focusModeEnabled
             ? 'neutral'
-            : focusedNodeIds?.has(node.id) ? 'focused' : 'dimmed'}
+            : focusedNodeIds?.has(node.id) ? 'focused'
+              : focusContextNodeIds?.has(node.id) ? 'context'
+                : 'dimmed'}
           onDragStart={onDragStart}
           onResizeStart={onResizeStart}
           onUpdate={onUpdate}
@@ -185,6 +189,7 @@ export const CanvasSurface = ({
       interactionState={edgeInteractionState}
       previewEndpoints={edgePreviewEndpoints}
       focusedNodeIds={focusedNodeIds}
+      focusContextNodeIds={focusContextNodeIds}
       focusModeEnabled={focusModeEnabled}
       focusModeDimOpacity={focusModeDimOpacity}
       onHandleMouseDown={onEdgeHandleMouseDown}
@@ -207,7 +212,9 @@ export const CanvasSurface = ({
           isAgentEdited={externallyEditedIds.has(node.id)}
           focusState={!focusModeEnabled
             ? 'neutral'
-            : focusedNodeIds?.has(node.id) ? 'focused' : 'dimmed'}
+            : focusedNodeIds?.has(node.id) ? 'focused'
+              : focusContextNodeIds?.has(node.id) ? 'context'
+                : 'dimmed'}
           onDragStart={onDragStart}
           onResizeStart={onResizeStart}
           onUpdate={onUpdate}
