@@ -394,6 +394,7 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
               topic={t}
               isSelected={selectedId === t.id}
               isEditing={editingId === t.id}
+              outerCanvasSelected={isSelected}
               isDragSource={reorder?.sourceId === t.id}
               dropHint={
                 reorder && reorder.target
@@ -472,6 +473,13 @@ interface TopicPillProps {
   topic: LaidOutTopic;
   isSelected: boolean;
   isEditing: boolean;
+  /** True when the OUTER mindmap canvas node is selected on the canvas.
+   *  Gates the auto-focus effect so we don't steal keyboard focus into
+   *  a mindmap the user hasn't interacted with — without this, every
+   *  canvas that contains a mindmap immediately captures the keyboard
+   *  on mount, eating shortcuts like F before they ever reach the
+   *  canvas-level handler. */
+  outerCanvasSelected: boolean;
   /** True while THIS topic is being dragged in a reorder gesture. */
   isDragSource: boolean;
   /** When set, this topic is the current drop target — render the matching
@@ -496,6 +504,7 @@ const TopicPill = ({
   topic,
   isSelected,
   isEditing,
+  outerCanvasSelected,
   isDragSource,
   dropHint,
   onBeginReorder,
@@ -530,11 +539,15 @@ const TopicPill = ({
 
   // When the selected pill isn't editing, send keyboard focus to the
   // wrapper so arrow keys / Tab / Enter hit this component's handler
-  // instead of the canvas keyboard hook.
+  // instead of the canvas keyboard hook. Gated on `outerCanvasSelected`
+  // so we never steal focus into a mindmap the user hasn't selected
+  // at the canvas level — otherwise just having a mindmap on the
+  // canvas pulls the keyboard in on mount and silently swallows
+  // canvas-level shortcuts (F, etc).
   useEffect(() => {
     if (isEditing || readOnly) return;
-    if (isSelected) pillRef.current?.focus();
-  }, [isSelected, isEditing, readOnly]);
+    if (isSelected && outerCanvasSelected) pillRef.current?.focus();
+  }, [isSelected, outerCanvasSelected, isEditing, readOnly]);
 
   // Push DOM text back in sync when the stored text changes from
   // elsewhere (undo, external update) and we're not mid-edit.
@@ -642,8 +655,19 @@ const TopicPill = ({
           return;
         default:
           // A printable character should drop straight into edit mode
-          // and replace the current text, mirroring Heptabase.
-          if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          // and replace the current text, mirroring Heptabase. 'f' is
+          // carved out because it's the canvas-level focus-mode
+          // toggle — letting it bubble up keeps the shortcut working
+          // while a mindmap topic is selected. Users who want to type
+          // a topic starting with 'f' can press F2 / double-click to
+          // enter edit mode first.
+          if (
+            e.key.length === 1
+            && !e.metaKey
+            && !e.ctrlKey
+            && !e.altKey
+            && e.key.toLowerCase() !== 'f'
+          ) {
             onEnterEdit();
             // Let the keydown commit into the contenteditable after
             // edit mode mounts by NOT preventing default.
