@@ -1,11 +1,74 @@
 /* ─── Inline visual in chat (visual_render tool result) ────────────── */
 
 .chat-inline-visual {
+  position: relative;
   margin-top: 10px;
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 10px;
   background: #fff;
   overflow: hidden;
+}
+
+.chat-inline-visual--streaming {
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.chat-inline-visual__shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.65) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: chat-inline-shimmer 1.4s linear infinite;
+  z-index: 1;
+}
+
+@keyframes chat-inline-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.chat-inline-visual__progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-inline-visual__spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(99, 102, 241, 0.25);
+  border-top-color: #6366f1;
+  animation: chat-inline-spin 0.8s linear infinite;
+}
+
+@keyframes chat-inline-spin {
+  to { transform: rotate(360deg); }
+}
+
+.chat-inline-visual__skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64px;
+  padding: 16px;
+}
+
+.chat-inline-visual__skeleton-bar {
+  width: 50%;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f1f1ef 0%, #e5e5e2 50%, #f1f1ef 100%);
+  background-size: 200% 100%;
+  animation: chat-inline-shimmer 1.4s linear infinite;
 }
 
 .chat-inline-visual__header {

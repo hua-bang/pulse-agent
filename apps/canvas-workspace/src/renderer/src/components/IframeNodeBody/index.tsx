@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./index.css";
 import type { Artifact, CanvasNode, IframeNodeData } from "../../types";
 import { useArtifactDrawer } from "../artifacts";
+import { STREAMING_SHELL } from "../artifacts/streamingShell";
 
 type EditMode = "url" | "html" | "ai";
 
@@ -18,56 +19,6 @@ interface Props {
   isResizing?: boolean;
   readOnly?: boolean;
 }
-
-// ── Streaming shell ──────────────────────────────────────────────────
-//
-// Loaded as srcdoc during AI streaming. Contains:
-//  - morphdom from CDN (with innerHTML fallback if CDN fails)
-//  - A postMessage listener that morphs the DOM on each update
-//
-// The parent sends `{ type: 'morph', html }` with accumulated HTML.
-// The shell extracts <style> → applies to <head>, extracts <body>
-// content → morphdom diffs it in, strips <script> during streaming.
-// When generation completes the parent swaps to the final srcdoc so
-// scripts run.
-
-const STREAMING_SHELL = `<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<style>*,*::before,*::after{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#fff}</style>
-<script src="https://cdn.jsdelivr.net/npm/morphdom@2/dist/morphdom-umd.min.js"
-  onerror="window.morphdom=function(f,t){if(typeof t==='string'){var d=document.createElement('div');d.innerHTML=t;while(f.firstChild)f.removeChild(f.firstChild);while(d.firstChild)f.appendChild(d.firstChild)}else if(f.parentNode){f.parentNode.replaceChild(t,f)}}"></script>
-</head><body>
-<div id="__mr__"></div>
-<script>
-var root=document.getElementById("__mr__"),styleEl=null,prevCss="";
-function applyUpdate(html){
-  var css="";
-  html.replace(/<style[^>]*>([\\s\\S]*?)<\\/style>/gi,function(_,c){css+=c});
-  if(css&&css!==prevCss){
-    if(!styleEl){styleEl=document.createElement("style");styleEl.id="__sc__";document.head.appendChild(styleEl)}
-    styleEl.textContent=css;prevCss=css
-  }
-  var body,bm=html.match(/<body[^>]*>([\\s\\S]*?)(<\\/body>|$)/i);
-  if(bm){body=bm[1]}
-  else{
-    var bi=html.indexOf("<body");
-    if(bi===-1)return;
-    var gt=html.indexOf(">",bi);
-    if(gt===-1)return;
-    body=html.slice(gt+1)
-  }
-  body=body.replace(/<script[\\s\\S]*?(<\\/script>|$)/gi,"").trim();
-  if(!body)return;
-  var nx=document.createElement("div");nx.id="__mr__";nx.innerHTML=body;
-  if(typeof morphdom==="function"){try{morphdom(root,nx)}catch(e){root.innerHTML=body}}
-  else root.innerHTML=body
-}
-window.addEventListener("message",function(e){
-  if(e.data&&e.data.type==="morph")applyUpdate(e.data.html)
-});
-window.parent.postMessage({type:"morph-ready"},"*");
-</script>
-</body></html>`;
 
 // ── Component ────────────────────────────────────────────────────────
 

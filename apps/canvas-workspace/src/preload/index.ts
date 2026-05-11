@@ -212,9 +212,39 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       };
     },
 
-    onToolCall: (sessionId: string, callback: (data: { name: string; args: any }) => void) => {
+    onToolCall: (
+      sessionId: string,
+      callback: (data: { name: string; args: any; toolCallId?: string }) => void,
+    ) => {
       const channel = `canvas-agent:tool-call:${sessionId}`;
-      const handler = (_event: Electron.IpcRendererEvent, data: { name: string; args: any }) =>
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { name: string; args: any; toolCallId?: string },
+      ) => callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolResult: (
+      sessionId: string,
+      callback: (data: { name: string; result: string; toolCallId?: string }) => void,
+    ) => {
+      const channel = `canvas-agent:tool-result:${sessionId}`;
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { name: string; result: string; toolCallId?: string },
+      ) => callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolInputStart: (sessionId: string, callback: (data: { id: string; toolName: string }) => void) => {
+      const channel = `canvas-agent:tool-input-start:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string; toolName: string }) =>
         callback(data);
       ipcRenderer.on(channel, handler);
       return () => {
@@ -222,9 +252,19 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       };
     },
 
-    onToolResult: (sessionId: string, callback: (data: { name: string; result: string }) => void) => {
-      const channel = `canvas-agent:tool-result:${sessionId}`;
-      const handler = (_event: Electron.IpcRendererEvent, data: { name: string; result: string }) =>
+    onToolInputDelta: (sessionId: string, callback: (data: { id: string; delta: string }) => void) => {
+      const channel = `canvas-agent:tool-input-delta:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string; delta: string }) =>
+        callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolInputEnd: (sessionId: string, callback: (data: { id: string }) => void) => {
+      const channel = `canvas-agent:tool-input-end:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string }) =>
         callback(data);
       ipcRenderer.on(channel, handler);
       return () => {

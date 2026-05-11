@@ -111,6 +111,26 @@ export const ChatMessage = ({
             })}
           </div>
           {tools.map(tool => {
+            // While the LLM is still emitting the tool's input args (for
+            // either visual_render or artifact_create / _update), surface
+            // an in-flight visual driven by the partial JSON so the user
+            // sees the content materialize live, the way Claude does.
+            const isStreamingVisual =
+              !tool.result &&
+              (tool.name === 'visual_render'
+                || tool.name === 'artifact_create'
+                || tool.name === 'artifact_update');
+            if (isStreamingVisual) {
+              if (!tool.partialInput) return null;
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  partialInput={tool.partialInput}
+                  streaming
+                />
+              );
+            }
             const visual = parseVisualToolResult(tool.name, tool.result);
             if (!visual) return null;
             if (visual.kind === 'visual_render') {

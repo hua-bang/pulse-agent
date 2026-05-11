@@ -389,11 +389,25 @@ export interface AgentApi {
   ) => () => void;
   onToolCall: (
     sessionId: string,
-    callback: (data: { name: string; args: any }) => void
+    callback: (data: { name: string; args: any; toolCallId?: string }) => void
   ) => () => void;
   onToolResult: (
     sessionId: string,
-    callback: (data: { name: string; result: string }) => void
+    callback: (data: { name: string; result: string; toolCallId?: string }) => void
+  ) => () => void;
+  /** Tool-input streaming — fired when LLM starts emitting tool arguments. */
+  onToolInputStart: (
+    sessionId: string,
+    callback: (data: { id: string; toolName: string }) => void
+  ) => () => void;
+  /** Each chunk of raw tool argument JSON. `id` matches `toolCallId` on the final tool-call. */
+  onToolInputDelta: (
+    sessionId: string,
+    callback: (data: { id: string; delta: string }) => void
+  ) => () => void;
+  onToolInputEnd: (
+    sessionId: string,
+    callback: (data: { id: string }) => void
   ) => () => void;
   onClarifyRequest: (
     sessionId: string,

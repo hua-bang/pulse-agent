@@ -271,12 +271,15 @@ export class CanvasAgent {
   async chat(
     message: string,
     onText?: (delta: string) => void,
-    onToolCall?: (data: { name: string; args: any }) => void,
-    onToolResult?: (data: { name: string; result: string }) => void,
+    onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
+    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: CanvasAgentRequestContext,
     attachments: CanvasAgentImageAttachment[] = [],
+    onToolInputStart?: (data: { id: string; toolName: string }) => void,
+    onToolInputDelta?: (data: { id: string; delta: string }) => void,
+    onToolInputEnd?: (data: { id: string }) => void,
   ): Promise<string> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
@@ -356,7 +359,7 @@ export class CanvasAgent {
               // AI SDK v6 uses `input`; older versions use `args`
               const args = chunk.input ?? chunk.args;
               console.info('[canvas-agent] tool-call chunk keys:', Object.keys(chunk), 'input:', chunk.input, 'args:', chunk.args);
-              onToolCall({ name: chunk.toolName, args });
+              onToolCall({ name: chunk.toolName, args, toolCallId: chunk.toolCallId });
             }
           : undefined,
         onToolResult: onToolResult
@@ -367,8 +370,18 @@ export class CanvasAgent {
               onToolResult({
                 name: chunk.toolName,
                 result: typeof raw === 'string' ? raw : JSON.stringify(raw),
+                toolCallId: chunk.toolCallId,
               });
             }
+          : undefined,
+        onToolInputStart: onToolInputStart
+          ? (chunk: { id: string; toolName: string }) => onToolInputStart(chunk)
+          : undefined,
+        onToolInputDelta: onToolInputDelta
+          ? (chunk: { id: string; delta: string }) => onToolInputDelta(chunk)
+          : undefined,
+        onToolInputEnd: onToolInputEnd
+          ? (chunk: { id: string }) => onToolInputEnd(chunk)
           : undefined,
         onResponse: (msgs: ModelMessage[]) => {
           for (const msg of msgs) {
