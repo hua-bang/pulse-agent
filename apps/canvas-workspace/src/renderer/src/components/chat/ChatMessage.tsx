@@ -3,6 +3,11 @@ import { AvatarIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
 import { ChatToolCalls } from './ChatToolCalls';
+import {
+  ChatArtifactCard,
+  ChatInlineVisual,
+  parseVisualToolResult,
+} from '../artifacts';
 
 interface GeneratedImagePayload {
   ok?: boolean;
@@ -31,6 +36,7 @@ interface ChatMessageProps {
   collapsed: boolean;
   expandedTools: Set<number>;
   nodes?: CanvasNode[];
+  workspaceId: string;
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -52,6 +58,7 @@ export const ChatMessage = ({
   collapsed,
   expandedTools,
   nodes,
+  workspaceId,
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
@@ -103,6 +110,26 @@ export const ChatMessage = ({
               );
             })}
           </div>
+          {tools.map(tool => {
+            const visual = parseVisualToolResult(tool.name, tool.result);
+            if (!visual) return null;
+            if (visual.kind === 'visual_render') {
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  payload={visual.payload}
+                />
+              );
+            }
+            return (
+              <ChatArtifactCard
+                key={`artifact-${tool.id}`}
+                workspaceId={workspaceId}
+                payload={visual.payload}
+              />
+            );
+          })}
         </>
       )}
       {message.role === 'assistant' ? (

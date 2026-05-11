@@ -282,5 +282,41 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     addImageToCanvas: (workspaceId: string, imagePath: string, title?: string) =>
       ipcRenderer.invoke("canvas-agent:add-image-to-canvas", { workspaceId, imagePath, title }),
+  },
+
+  artifacts: {
+    list: (workspaceId: string) =>
+      ipcRenderer.invoke("artifact:list", { workspaceId }),
+
+    get: (workspaceId: string, artifactId: string) =>
+      ipcRenderer.invoke("artifact:get", { workspaceId, artifactId }),
+
+    create: (workspaceId: string, input: unknown) =>
+      ipcRenderer.invoke("artifact:create", { workspaceId, input }),
+
+    addVersion: (workspaceId: string, artifactId: string, input: unknown) =>
+      ipcRenderer.invoke("artifact:add-version", { workspaceId, artifactId, input }),
+
+    update: (workspaceId: string, artifactId: string, patch: unknown) =>
+      ipcRenderer.invoke("artifact:update", { workspaceId, artifactId, patch }),
+
+    delete: (workspaceId: string, artifactId: string) =>
+      ipcRenderer.invoke("artifact:delete", { workspaceId, artifactId }),
+
+    pinToCanvas: (workspaceId: string, artifactId: string, placement?: unknown) =>
+      ipcRenderer.invoke("artifact:pin-to-canvas", { workspaceId, artifactId, placement }),
+
+    onChange: (
+      callback: (event: { workspaceId: string; artifactId: string; kind: "create" | "update" | "delete" }) => void,
+    ) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: { workspaceId: string; artifactId: string; kind: "create" | "update" | "delete" },
+      ) => callback(payload);
+      ipcRenderer.on("artifact:change", handler);
+      return () => {
+        ipcRenderer.removeListener("artifact:change", handler);
+      };
+    },
   }
 });

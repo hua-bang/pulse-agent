@@ -91,6 +91,11 @@ export interface TextNodeData {
  * `mode: 'url'` (default) loads a remote page via Electron `<webview>`.
  * `mode: 'html'` renders user-supplied HTML in a sandboxed `<iframe srcdoc>`.
  *
+ * When `artifactId` is set, the rendered HTML is sourced from the
+ * workspace's artifact store (current version) instead of `html`. This
+ * lets the same artifact back both an in-chat preview and a pinned
+ * canvas node — iterating the artifact updates both.
+ *
  * Some sites block embedding via X-Frame-Options / CSP frame-ancestors —
  * those will fail to render and the user can click "Open externally" to
  * escape into the system browser.
@@ -100,12 +105,14 @@ export interface IframeNodeData {
   url: string;
   /** Raw HTML content to render when `mode` is `'html'` or `'ai'`. */
   html?: string;
-  /** `'url'` embeds a remote page; `'html'` renders raw HTML; `'ai'` generates HTML from a prompt. */
-  mode?: 'url' | 'html' | 'ai';
+  /** `'url'` embeds a remote page; `'html'` renders raw HTML; `'ai'` generates HTML from a prompt; `'artifact'` pulls from the artifact store. */
+  mode?: 'url' | 'html' | 'ai' | 'artifact';
   /** The prompt used to generate HTML when `mode` is `'ai'`. */
   prompt?: string;
   /** Last page title reported by the embedded webview for URL mode. */
   pageTitle?: string;
+  /** When set, content is sourced from `artifacts.get(artifactId)`. */
+  artifactId?: string;
 }
 
 /**
@@ -487,6 +494,7 @@ export interface CanvasWorkspaceApi {
   agent: AgentApi;
   iframe: IframeApi;
   llm: LlmApi;
+  artifacts: ArtifactsApi;
 }
 
 export interface LlmApi {
@@ -498,6 +506,96 @@ export interface LlmApi {
   onHTMLDelta: (requestId: string, callback: (delta: string) => void) => () => void;
   /** Subscribe to generation completion. Returns unsubscribe fn. */
   onHTMLComplete: (requestId: string, callback: (result: { ok: boolean; html?: string; error?: string }) => void) => () => void;
+}
+
+/**
+ * An LLM-generated visual product owned by a workspace.
+ *
+ * Three formation paths share the same data shape:
+ *  1. `visual_render` tool → inline-only, NOT stored here (lives in chat).
+ *  2. `artifact_create` tool → stored, versioned, surfaced via chat card + drawer.
+ *  3. User clicks "Save as artifact" on an inline visual → promoted into the store.
+ *
+ * Type values are open to extension; v1 covers `html` only.
+ */
+export type ArtifactType = 'html' | 'svg' | 'mermaid';
+
+export interface ArtifactVersion {
+  id: string;
+  content: string;
+  /** Optional prompt that produced this version — useful as a "diff" hint. */
+  prompt?: string;
+  createdAt: number;
+}
+
+export interface Artifact {
+  id: string;
+  workspaceId: string;
+  type: ArtifactType;
+  title: string;
+  versions: ArtifactVersion[];
+  /** Index into `versions`. Always `versions.length - 1` after a create/update,
+   * but a separate field so the renderer can switch views without mutating data. */
+  currentVersionId: string;
+  /** When set, the artifact is currently mirrored as this canvas node. */
+  pinnedNodeId?: string;
+  /** Origin trace — where the artifact came from. */
+  source?: {
+    sessionId?: string;
+    /** Index of the assistant message in that session that produced it. */
+    messageIndex?: number;
+    origin?: 'agent_tool' | 'inline_promotion' | 'iframe_ai_tab';
+  };
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ArtifactsApi {
+  list: (workspaceId: string) => Promise<{ ok: boolean; artifacts?: Artifact[]; error?: string }>;
+  get: (
+    workspaceId: string,
+    artifactId: string,
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  create: (
+    workspaceId: string,
+    input: {
+      type: ArtifactType;
+      title: string;
+      content: string;
+      prompt?: string;
+      source?: Artifact['source'];
+    },
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  /** Append a new version to an existing artifact, becoming the current one. */
+  addVersion: (
+    workspaceId: string,
+    artifactId: string,
+    input: { content: string; prompt?: string },
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  /** Mutate metadata only (title, currentVersionId, pinnedNodeId). */
+  update: (
+    workspaceId: string,
+    artifactId: string,
+    patch: Partial<Pick<Artifact, 'title' | 'currentVersionId' | 'pinnedNodeId'>>,
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  delete: (
+    workspaceId: string,
+    artifactId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Create an iframe canvas node bound to this artifact (mode='artifact'). */
+  pinToCanvas: (
+    workspaceId: string,
+    artifactId: string,
+    placement?: { x?: number; y?: number; width?: number; height?: number; title?: string },
+  ) => Promise<{ ok: boolean; nodeId?: string; artifact?: Artifact; error?: string }>;
+  /** Fires when an artifact is created, updated, or deleted in the main process. */
+  onChange: (
+    callback: (event: {
+      workspaceId: string;
+      artifactId: string;
+      kind: 'create' | 'update' | 'delete';
+    }) => void,
+  ) => () => void;
 }
 
 export interface IframeApi {

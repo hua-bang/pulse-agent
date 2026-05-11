@@ -13,6 +13,7 @@ import { setupSkillInstallerIpc } from "./skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
 import { setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
+import { setupArtifactIpc } from "./artifact-ipc";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(currentDir, "../preload/index.mjs");
@@ -143,6 +144,7 @@ app.whenReady().then(() => {
   setupCanvasAgentIpc();
   setupWebviewRegistryIpc();
   setupHtmlGeneratorIpc();
+  setupArtifactIpc();
   // MCP server disabled — canvas-cli is the preferred agent interface now.
   // startMCPServer();
   // void ensureMCPRegistered();

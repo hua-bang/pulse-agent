@@ -213,6 +213,7 @@ export const ChatPageBody = ({
           className="chat-page-body"
           messages={messages}
           loading={loading}
+          workspaceId={workspaceId}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}

@@ -23,6 +23,12 @@ import {
 } from './context-builder';
 import { hasSession, writeToSession } from '../pty-manager';
 import { generateHTML } from '../html-generator';
+import {
+  addArtifactVersion as storeAddArtifactVersion,
+  createArtifact as storeCreateArtifact,
+  getArtifact as storeGetArtifact,
+} from '../artifact-store';
+import { pinArtifactToCanvas } from '../artifact-ipc';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const BLANK_PAGE_URL = 'about:blank';
@@ -1816,6 +1822,159 @@ ${outline}`;
         if (touchedIds.length > 0) broadcastUpdate(workspaceId, touchedIds);
 
         return JSON.stringify({ ok: true, edgeId });
+      },
+    },
+
+    // ─── Visual / Artifact tools ──────────────────────────────────────
+    //
+    // Three escalation levels for LLM-generated visuals:
+    //   1. visual_render        — inline, temporary, lives in the chat message
+    //   2. artifact_create      — persistent, versioned, opens in side drawer
+    //   3. artifact_pin_to_canvas — promote an artifact onto the spatial canvas
+    //
+    // The system prompt teaches the agent when to pick each.
+
+    visual_render: {
+      name: 'visual_render',
+      description:
+        'Render a transient inline visualization inside the current chat message — for explanatory diagrams, charts, or illustrations that aid the discussion. ' +
+        'The result lives only in this chat message; it does NOT get saved as an artifact. ' +
+        'Use this when the user wants to UNDERSTAND something via a visual, not when they want to KEEP or iterate on it. ' +
+        'For keep-and-iterate flows, call `artifact_create` instead. ' +
+        'For HTML, return a SINGLE self-contained `<!DOCTYPE html>` document — it will render in a sandboxed iframe and CDN libs (Chart.js, D3, Mermaid) load fine. ' +
+        'For SVG, return a single `<svg>` element (no surrounding HTML). For Mermaid, return the Mermaid source only.',
+      inputSchema: z.object({
+        type: z.enum(['html', 'svg', 'mermaid']).describe('Visual format. v1 supports html; svg and mermaid reserved.'),
+        title: z.string().optional().describe('Short label shown above the visual.'),
+        content: z.string().describe('The full visual content (HTML doc, SVG element, or Mermaid source).'),
+      }),
+      execute: async (input) => {
+        const type = input.type as 'html' | 'svg' | 'mermaid';
+        const title = (input.title as string) ?? '';
+        const content = (input.content as string) ?? '';
+        if (!content.trim()) {
+          return JSON.stringify({ ok: false, error: 'content is empty' });
+        }
+        // The renderer detects this exact payload shape and inlines the visual.
+        return JSON.stringify({
+          ok: true,
+          kind: 'visual_render',
+          type,
+          title,
+          content,
+        });
+      },
+    },
+
+    artifact_create: {
+      name: 'artifact_create',
+      description:
+        'Create a persistent, versioned visual artifact. Surfaces in chat as an artifact card with a side drawer for preview, version history, and "Pin to Canvas". ' +
+        'Use this when the user asks for something to KEEP, RE-USE, or ITERATE on (dashboards, full-page mockups, polished diagrams). ' +
+        'For throwaway visuals that just illustrate a point mid-explanation, use `visual_render` instead. ' +
+        'Content format matches `visual_render`: a self-contained HTML doc for type=html.',
+      inputSchema: z.object({
+        type: z.enum(['html', 'svg', 'mermaid']).describe('Artifact type. v1 supports html; svg and mermaid reserved.'),
+        title: z.string().describe('Short title — appears in the artifact card and as the canvas node title once pinned.'),
+        content: z.string().describe('Full content of the first version.'),
+        prompt: z.string().optional().describe('Optional record of the prompt/spec that produced this version (helps diff future iterations).'),
+      }),
+      execute: async (input) => {
+        const type = input.type as 'html' | 'svg' | 'mermaid';
+        const title = (input.title as string) ?? 'Untitled artifact';
+        const content = (input.content as string) ?? '';
+        const prompt = input.prompt as string | undefined;
+        if (!content.trim()) {
+          return JSON.stringify({ ok: false, error: 'content is empty' });
+        }
+        const artifact = await storeCreateArtifact(workspaceId, {
+          type,
+          title,
+          content,
+          prompt,
+          source: { origin: 'agent_tool' },
+        });
+        return JSON.stringify({
+          ok: true,
+          kind: 'artifact_create',
+          artifactId: artifact.id,
+          versionId: artifact.currentVersionId,
+          type: artifact.type,
+          title: artifact.title,
+        });
+      },
+    },
+
+    artifact_update: {
+      name: 'artifact_update',
+      description:
+        'Add a new version to an existing artifact. The new version becomes the current one; previous versions remain accessible in the drawer. ' +
+        'Use this when the user asks to refine, iterate on, or fix an artifact you (or a previous turn) already created. ' +
+        'Pass the same artifactId returned by `artifact_create`.',
+      inputSchema: z.object({
+        artifactId: z.string().describe('The artifact to iterate on (returned by an earlier artifact_create call).'),
+        content: z.string().describe('Full content of the new version — this replaces, not patches.'),
+        prompt: z.string().optional().describe('Optional prompt/spec that produced this iteration.'),
+      }),
+      execute: async (input) => {
+        const artifactId = input.artifactId as string;
+        const content = (input.content as string) ?? '';
+        const prompt = input.prompt as string | undefined;
+        if (!content.trim()) {
+          return JSON.stringify({ ok: false, error: 'content is empty' });
+        }
+        const existing = await storeGetArtifact(workspaceId, artifactId);
+        if (!existing) {
+          return JSON.stringify({ ok: false, error: `Artifact not found: ${artifactId}` });
+        }
+        const artifact = await storeAddArtifactVersion(workspaceId, artifactId, { content, prompt });
+        if (!artifact) {
+          return JSON.stringify({ ok: false, error: `Artifact not found: ${artifactId}` });
+        }
+        return JSON.stringify({
+          ok: true,
+          kind: 'artifact_update',
+          artifactId: artifact.id,
+          versionId: artifact.currentVersionId,
+          versionCount: artifact.versions.length,
+          type: artifact.type,
+          title: artifact.title,
+        });
+      },
+    },
+
+    artifact_pin_to_canvas: {
+      name: 'artifact_pin_to_canvas',
+      description:
+        'Pin an existing artifact onto the spatial canvas as an iframe node. The node renders the artifact\'s current version live — any future `artifact_update` ' +
+        'updates the on-canvas node too. Use this when the user asks to keep multiple visuals side by side, compare options, or build a spatial dashboard.',
+      inputSchema: z.object({
+        artifactId: z.string().describe('The artifact to pin.'),
+        x: z.number().optional().describe('Top-left x (auto-placed if omitted).'),
+        y: z.number().optional().describe('Top-left y (auto-placed if omitted).'),
+        width: z.number().optional().describe('Width in px (default 520).'),
+        height: z.number().optional().describe('Height in px (default 400).'),
+        title: z.string().optional().describe('Override the on-canvas node title (defaults to the artifact title).'),
+      }),
+      execute: async (input) => {
+        const artifactId = input.artifactId as string;
+        const result = await pinArtifactToCanvas(workspaceId, artifactId, {
+          x: input.x as number | undefined,
+          y: input.y as number | undefined,
+          width: input.width as number | undefined,
+          height: input.height as number | undefined,
+          title: input.title as string | undefined,
+        });
+        if ('error' in result) {
+          return JSON.stringify({ ok: false, error: result.error });
+        }
+        return JSON.stringify({
+          ok: true,
+          kind: 'artifact_pin_to_canvas',
+          nodeId: result.nodeId,
+          artifactId: result.artifact.id,
+          title: result.artifact.title,
+        });
       },
     },
   };

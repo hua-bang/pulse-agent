@@ -150,6 +150,7 @@ export const ChatPanel = ({
       }
       messages={messages}
       loading={loading}
+      workspaceId={workspaceId}
       streamingTools={streamingTools}
       messageTools={messageTools}
       collapsedSections={collapsedSections}

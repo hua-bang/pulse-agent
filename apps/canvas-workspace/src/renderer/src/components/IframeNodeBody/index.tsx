@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./index.css";
-import type { CanvasNode, IframeNodeData } from "../../types";
+import type { Artifact, CanvasNode, IframeNodeData } from "../../types";
+import { useArtifactDrawer } from "../artifacts";
 
 type EditMode = "url" | "html" | "ai";
 
@@ -76,10 +77,58 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   const url = data.url ?? "";
   const html = data.html ?? "";
   const savedPrompt = data.prompt ?? "";
+  const artifactId = data.artifactId ?? null;
 
-  const hasContent = mode === "url" ? !!url : !!html;
+  const { openArtifact } = useArtifactDrawer();
 
-  const [editing, setEditing] = useState(!readOnly && !hasContent);
+  // ── Artifact-backed iframe: resolve content live from the artifact store ──
+  //
+  // `mode: 'artifact'` swaps the source of truth from `data.html` (per-node)
+  // to the workspace artifact store. The iframe renders the current version
+  // of the artifact and re-renders whenever the artifact gets a new version,
+  // so iterating from chat updates pinned canvas nodes automatically.
+  const [artifact, setArtifact] = useState<Artifact | null>(null);
+  const isArtifactMode = mode === "artifact" && !!artifactId && !!workspaceId;
+
+  useEffect(() => {
+    if (!isArtifactMode || !workspaceId || !artifactId) {
+      setArtifact(null);
+      return;
+    }
+    let cancelled = false;
+    const refresh = async () => {
+      const result = await window.canvasWorkspace.artifacts.get(workspaceId, artifactId);
+      if (cancelled) return;
+      setArtifact((result?.ok ? result.artifact : null) ?? null);
+    };
+    void refresh();
+    const unsubscribe = window.canvasWorkspace.artifacts.onChange((event) => {
+      if (event.workspaceId !== workspaceId) return;
+      if (event.artifactId !== artifactId) return;
+      if (event.kind === "delete") {
+        setArtifact(null);
+        return;
+      }
+      void refresh();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isArtifactMode, workspaceId, artifactId]);
+
+  const artifactHtml = (() => {
+    if (!artifact) return "";
+    const version = artifact.versions.find(v => v.id === artifact.currentVersionId)
+      ?? artifact.versions[artifact.versions.length - 1];
+    return version?.content ?? "";
+  })();
+
+  const hasContent = isArtifactMode ? !!artifactHtml : (mode === "url" ? !!url : !!html);
+
+  // Artifact-backed iframes never enter editing — the artifact store is the
+  // single source of truth and the user iterates via the drawer / chat.
+  const [editing, setEditing] = useState(!readOnly && !isArtifactMode && !hasContent);
   const [draftUrl, setDraftUrl] = useState(url);
   const [draftHtml, setDraftHtml] = useState(html);
   const [draftPrompt, setDraftPrompt] = useState(savedPrompt);
@@ -107,8 +156,8 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   useEffect(() => { setDraftMode(mode === "ai" ? "ai" : mode === "html" ? "html" : "url"); }, [mode]);
 
   useEffect(() => {
-    if (readOnly) setEditing(false);
-  }, [readOnly]);
+    if (readOnly || isArtifactMode) setEditing(false);
+  }, [readOnly, isArtifactMode]);
 
   useEffect(() => {
     if (mode !== "url" || editing || readOnly) return;
@@ -537,6 +586,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   // ── Rendered state ─────────────────────────────────────────────────
 
   const renderMode = mode === "url" ? "url" : "html";
+  const renderedHtml = isArtifactMode ? artifactHtml : html;
 
   return (
     <div className="iframe-body">
@@ -558,7 +608,20 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
           </svg>
         </button>
 
-        {mode === "url" ? (
+        {isArtifactMode ? (
+          <button
+            className="iframe-bar-url iframe-bar-url--html"
+            onClick={() => {
+              if (workspaceId && artifactId) openArtifact(workspaceId, artifactId);
+            }}
+            title={artifact?.title ?? "Open artifact"}
+          >
+            <span className="iframe-bar-badge iframe-bar-badge--ai">Artifact</span>
+            <span className="iframe-bar-url-text">
+              {artifact?.title ?? "Loading artifact…"}
+            </span>
+          </button>
+        ) : mode === "url" ? (
           <button
             className="iframe-bar-url"
             onClick={() => {
@@ -656,11 +719,15 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
           />
         ) : (
           <iframe
-            key={webviewKey}
+            key={isArtifactMode ? `artifact-${artifact?.currentVersionId ?? "loading"}` : webviewKey}
             className="iframe-frame"
-            srcDoc={html}
+            srcDoc={renderedHtml}
             sandbox="allow-scripts"
-            title={mode === "ai" ? "AI-generated preview" : "HTML preview"}
+            title={
+              isArtifactMode
+                ? `Artifact: ${artifact?.title ?? "loading"}`
+                : mode === "ai" ? "AI-generated preview" : "HTML preview"
+            }
           />
         )}
       </div>

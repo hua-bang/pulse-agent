@@ -20,6 +20,7 @@ interface ChatViewProps {
   // Streaming + messages
   messages: AgentChatMessage[];
   loading: boolean;
+  workspaceId: string;
   streamingTools: ToolCallStatus[];
   messageTools: Map<number, ToolCallStatus[]>;
   collapsedSections: Set<number>;
@@ -75,6 +76,7 @@ export const ChatView = ({
   beforeHeader,
   messages,
   loading,
+  workspaceId,
   streamingTools,
   messageTools,
   collapsedSections,
@@ -124,6 +126,7 @@ export const ChatView = ({
           messages={messages}
           loading={loading}
           nodes={nodes}
+          workspaceId={workspaceId}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}
