@@ -34,6 +34,13 @@ import { CanvasOverlays } from './CanvasOverlays';
 const FOCUS_MODE_PADDING = 120;
 const FOCUS_MODE_MAX_SCALE = 1.2;
 
+// Stable empty-set reference handed to child components when focus mode
+// is off. Reusing the same instance lets memoized consumers
+// (CanvasNodeView, CanvasEdgesLayer) skip re-renders that would
+// otherwise fire on every parent update. Treated as immutable by
+// convention — never mutated after creation.
+const EMPTY_FOCUS_SET: Set<string> = new Set();
+
 interface CanvasProps {
   canvasId: string;
   canvasName?: string;
@@ -162,24 +169,36 @@ export const Canvas = ({
 
   const focusModeAvailable = selectedNodeIds.length === 1;
 
+  // Indexed lookup for O(1) access by id. Declared before the focus
+  // memos below so they can use it without falling back to O(n)
+  // `Array.find`, and reused later for the find-bar's match resolver.
+  const nodesById = useMemo(() => {
+    const m = new Map<string, CanvasNode>();
+    for (const n of nodes) m.set(n.id, n);
+    return m;
+  }, [nodes]);
+
+  // When focus mode is off we don't need to compute anything — every
+  // node renders as 'neutral'. Skipping the work avoids re-running the
+  // O(n²) container-descendant scan below on every drag/edit (the
+  // `nodes` array identity changes constantly), which is the dominant
+  // cost on large canvases.
   const focusedNodeIds = useMemo(() => {
-    const focused = new Set<string>();
-
-    for (const id of selectedNodeIds) {
-      const node = nodes.find((item) => item.id === id);
-      if (!node) continue;
-
-      focused.add(node.id);
-    }
-
-    return focused;
-  }, [nodes, selectedNodeIds]);
+    if (!focusModeEnabled) return EMPTY_FOCUS_SET;
+    // `selectedNodeIds` is already the authoritative source — the old
+    // `nodes.find` check only validated existence, which is guaranteed
+    // by the selection state machine and the cleanup effect that
+    // exits focus mode whenever the selection isn't exactly one node.
+    return new Set<string>(selectedNodeIds);
+  }, [focusModeEnabled, selectedNodeIds]);
 
   const focusContextNodeIds = useMemo(() => {
+    if (!focusModeEnabled) return EMPTY_FOCUS_SET;
+
     const context = new Set<string>();
 
     for (const id of selectedNodeIds) {
-      const node = nodes.find((item) => item.id === id);
+      const node = nodesById.get(id);
       if (!node) continue;
 
       // Only when the focused node is itself a frame/group do its
@@ -201,7 +220,7 @@ export const Canvas = ({
 
     for (const id of selectedNodeIds) context.delete(id);
     return context;
-  }, [nodes, selectedNodeIds]);
+  }, [focusModeEnabled, nodes, nodesById, selectedNodeIds]);
 
   const focusModeActive = focusModeEnabled && focusedNodeIds.size > 0;
 
@@ -399,11 +418,6 @@ export const Canvas = ({
   // (searchOpen) because Find is iterative — the bar stays open while
   // the user pages through matches. See useCanvasSearch for details.
   const search = useCanvasSearch({ nodes });
-  const nodesById = useMemo(() => {
-    const m = new Map<string, CanvasNode>();
-    for (const n of nodes) m.set(n.id, n);
-    return m;
-  }, [nodes]);
   const handleSearchMatchActivate = useCallback((node: CanvasNode) => {
     // Reuse the existing viewport-focus pipeline so the camera pans
     // and the node gets the brief highlight ring. The active match
