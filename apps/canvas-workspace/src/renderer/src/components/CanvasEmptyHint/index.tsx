@@ -3,7 +3,7 @@ import type { CanvasNode } from '../../types';
 import './index.css';
 
 interface CanvasEmptyHintProps {
-  onCreateNode: (type: Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file'>) => void;
+  onCreateNode: (type: Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>) => void;
   onOpenShortcuts: () => void;
 }
 
@@ -23,7 +23,7 @@ export const CanvasEmptyHint = ({ onCreateNode, onOpenShortcuts }: CanvasEmptyHi
       </div>
       <div className="hint-text">Start with a lightweight node</div>
       <div className="hint-sub">
-        Create an Agent, Terminal, or Note to turn the blank canvas into a working session.
+        Create an Agent, Terminal, Note, or Web Page to turn the blank canvas into a working session.
       </div>
       <div className="canvas-empty-actions">
         {EMPTY_CANVAS_ACTIONS.map((action) => (

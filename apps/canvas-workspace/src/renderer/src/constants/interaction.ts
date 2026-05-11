@@ -1,7 +1,7 @@
 import type { CanvasNode } from '../types';
 import type { ShortcutSection } from '../types/ui-interaction';
 
-type EmptyCanvasNodeType = Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file'>;
+type EmptyCanvasNodeType = Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>;
 
 export const DEFAULT_TOAST_DURATION_MS = 2800;
 
@@ -19,6 +19,7 @@ export const INTERACTION_ACTIONS = {
   emptyStateCreateAgent: 'empty-state.create-agent',
   emptyStateCreateTerminal: 'empty-state.create-terminal',
   emptyStateCreateNote: 'empty-state.create-note',
+  emptyStateCreateWeb: 'empty-state.create-web',
 } as const;
 
 export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
@@ -57,6 +58,12 @@ export const EMPTY_CANVAS_ACTIONS: Array<{
     label: 'New Note',
     description: 'Capture ideas, plans, and summaries.',
     nodeType: 'file',
+  },
+  {
+    actionKey: INTERACTION_ACTIONS.emptyStateCreateWeb,
+    label: 'Web Page',
+    description: 'Embed a URL or open a blank page.',
+    nodeType: 'iframe',
   },
 ];
 

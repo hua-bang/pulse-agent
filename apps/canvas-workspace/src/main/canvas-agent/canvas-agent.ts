@@ -26,6 +26,8 @@ interface CanvasAgentRequestContext {
   quickAction?: string;
 }
 
+const CANVAS_AGENT_MAX_STEPS = 200;
+
 // ─── System prompt ─────────────────────────────────────────────────
 
 const BASE_SYSTEM_PROMPT = `You are the Canvas Agent — the AI Copilot for this workspace.
@@ -331,7 +333,7 @@ export class CanvasAgent {
     try {
       const resultText = await this.engine.run(context, {
         systemPrompt,
-        maxSteps: 10,
+        maxSteps: CANVAS_AGENT_MAX_STEPS,
         abortSignal: abortController.signal,
         onClarificationRequest: engineClarificationHandler,
         onText,

@@ -97,8 +97,8 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           >
             <span className="context-menu-icon">{"\u232C"}</span>
             <span className="context-menu-label">
-              <strong>Link</strong>
-              <small>Embed a web page</small>
+              <strong>Web Page</strong>
+              <small>Embed a URL or open blank</small>
             </span>
           </button>
           <button

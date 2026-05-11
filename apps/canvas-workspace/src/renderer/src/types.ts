@@ -96,7 +96,7 @@ export interface TextNodeData {
  * escape into the system browser.
  */
 export interface IframeNodeData {
-  /** Full URL (including protocol) to load in the iframe. Empty = show URL input. */
+  /** Full URL (including protocol) to load in the iframe. Empty = show URL input. `about:blank` opens a blank page. */
   url: string;
   /** Raw HTML content to render when `mode` is `'html'` or `'ai'`. */
   html?: string;

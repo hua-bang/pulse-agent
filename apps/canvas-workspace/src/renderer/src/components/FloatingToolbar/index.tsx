@@ -180,7 +180,7 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("iframe")}
-          title="Add Link (embed a web page)"
+          title="Add Web Page"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.3" />
@@ -189,7 +189,7 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
             />
           </svg>
-          <span className="toolbar-btn-label">Link</span>
+          <span className="toolbar-btn-label">Web</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
