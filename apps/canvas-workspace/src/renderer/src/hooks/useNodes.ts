@@ -4,6 +4,7 @@ import type {
   CanvasNode,
   CanvasSaveData,
   CanvasTransform,
+  ArtifactNodeData,
   FileNodeData,
   FrameNodeData,
   GroupNodeData,
@@ -561,7 +562,16 @@ export const useNodes = (
                         rev: 0,
                       } satisfies MindmapNodeData;
                     })()
-                  : createNodeData(source.type),
+                  : source.type === 'artifact'
+                    ? (() => {
+                        const src = source.data as ArtifactNodeData;
+                        return {
+                          ...src,
+                          widgets: [...src.widgets],
+                          sources: src.sources ? [...src.sources] : undefined,
+                        } satisfies ArtifactNodeData;
+                      })()
+                    : createNodeData(source.type),
         updatedAt: Date.now(),
       };
       if (newNode.type === 'file') {
@@ -623,7 +633,16 @@ export const useNodes = (
                         rev: 0,
                       } satisfies MindmapNodeData;
                     })()
-                  : createNodeData(source.type),
+                  : source.type === 'artifact'
+                    ? (() => {
+                        const src = source.data as ArtifactNodeData;
+                        return {
+                          ...src,
+                          widgets: [...src.widgets],
+                          sources: src.sources ? [...src.sources] : undefined,
+                        } satisfies ArtifactNodeData;
+                      })()
+                    : createNodeData(source.type),
         updatedAt: now,
       }));
       newNodes.forEach((newNode) => {

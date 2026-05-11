@@ -4,7 +4,7 @@ import { ShapeToolButton } from './ShapeToolButton';
 interface Props {
   activeTool: string;
   onToolChange: (tool: string) => void;
-  onAddNode: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap") => void;
+  onAddNode: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap" | "artifact") => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
@@ -223,6 +223,18 @@ export const FloatingToolbar = ({
             />
           </svg>
           <span className="toolbar-btn-label">Mindmap</span>
+        </button>
+        <button
+          className="toolbar-btn toolbar-btn--create"
+          onClick={() => onAddNode("artifact")}
+          title="Add AI Artifact"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect x="3" y="3" width="12" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M6 7h6M6 9.5h4M6 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <path d="M13 2v3M11.5 3.5h3" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
+          </svg>
+          <span className="toolbar-btn-label">Artifact</span>
         </button>
       </div>
     </div>

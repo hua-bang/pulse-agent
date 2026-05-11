@@ -716,7 +716,7 @@ export const Canvas = ({
   );
 
   const handleCreateNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap' | 'artifact') => {
       if (!contextMenu) return;
       const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
       setSelectedNodeIds([node.id]);
@@ -768,7 +768,7 @@ export const Canvas = ({
   );
 
   const handleToolbarAddNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap' | 'artifact') => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, containerRef.current);
@@ -779,6 +779,7 @@ export const Canvas = ({
         : type === 'text' ? 130
         : type === 'iframe' ? 260
         : type === 'mindmap' ? 320
+        : type === 'artifact' ? 260
         : 300;
       const halfH =
         type === 'frame' ? 200
@@ -786,6 +787,7 @@ export const Canvas = ({
         : type === 'text' ? 60
         : type === 'iframe' ? 200
         : type === 'mindmap' ? 210
+        : type === 'artifact' ? 210
         : 150;
       const node = addNode(type, pos.x - halfW, pos.y - halfH);
       setSelectedNodeIds([node.id]);
@@ -933,6 +935,14 @@ export const Canvas = ({
         title: 'New mindmap',
         aliases: ['tree', 'topic', 'outline'],
         run: () => handleToolbarAddNode('mindmap'),
+      },
+      {
+        id: 'create-artifact',
+        group: 'create',
+        title: 'New artifact',
+        hint: 'Structured AI output card',
+        aliases: ['artifact', 'report', 'rich output', 'ai output'],
+        run: () => handleToolbarAddNode('artifact'),
       },
       // Navigate / View
       {

@@ -6,7 +6,7 @@ interface Props {
   x: number;
   y: number;
   mode?: "create" | "mindmap";
-  onCreate?: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap") => void;
+  onCreate?: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap" | "artifact") => void;
   onExportImage?: () => void;
   onClose: () => void;
 }
@@ -119,6 +119,16 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
             <span className="context-menu-label">
               <strong>Mindmap</strong>
               <small>Branching topic tree</small>
+            </span>
+          </button>
+          <button
+            className="context-menu-item"
+            onClick={() => onCreate?.("artifact")}
+          >
+            <span className="context-menu-icon">{"✦"}</span>
+            <span className="context-menu-label">
+              <strong>Artifact</strong>
+              <small>Structured AI output card</small>
             </span>
           </button>
         </>

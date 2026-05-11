@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import "./index.css";
-import type { CanvasNode, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData } from "../../types";
+import type { ArtifactNodeData, CanvasNode, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
@@ -11,8 +11,10 @@ import { IframeNodeBody } from "../IframeNodeBody";
 import { ImageNodeBody } from "../ImageNodeBody";
 import { ShapeNodeBody, ShapeStylePicker } from "../ShapeNodeBody";
 import { MindmapNodeBody } from "../MindmapNodeBody";
+import { ArtifactNodeBody, artifactToMarkdown } from "../ArtifactNodeBody";
 import { NodeContextMenu } from "../NodeContextMenu";
 import { collectContainerDescendants } from "../../utils/frameHierarchy";
+import { copyTextToClipboard } from "../../utils/clipboard";
 
 interface Props {
   node: CanvasNode;
@@ -224,6 +226,22 @@ const CanvasNodeViewComponent = ({
     },
     [readOnly]
   );
+
+  const handleCopyArtifactMarkdown = useCallback(() => {
+    if (node.type !== "artifact") return;
+    void copyTextToClipboard(artifactToMarkdown(node.title, node.data as ArtifactNodeData));
+  }, [node]);
+
+  const handleRegenerateArtifact = useCallback(() => {
+    if (node.type !== "artifact" || readOnly) return;
+    const data = node.data as ArtifactNodeData;
+    onUpdate(node.id, {
+      data: {
+        ...data,
+        generatedAt: new Date().toISOString(),
+      },
+    });
+  }, [node, onUpdate, readOnly]);
 
   const makeResizeHandler = useCallback(
     (edge: ResizeEdge) => (e: React.MouseEvent) => {
@@ -470,6 +488,12 @@ const CanvasNodeViewComponent = ({
               <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
               <path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
             </svg>
+          ) : node.type === "artifact" ? (
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+              <rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M5 6h6M5 8.5h4M5 11h5.5" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
+              <path d="M11.4 1.8v2.8M10 3.2h2.8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+            </svg>
           ) : (
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
               <circle cx="8" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.3" />
@@ -580,6 +604,12 @@ const CanvasNodeViewComponent = ({
           />
         ) : node.type === "iframe" ? (
           <IframeNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
+        ) : node.type === "artifact" ? (
+          <ArtifactNodeBody
+            data={node.data as ArtifactNodeData}
+            onCopyMarkdown={handleCopyArtifactMarkdown}
+            onRegenerate={readOnly ? undefined : handleRegenerateArtifact}
+          />
         ) : (
           <AgentNodeBody node={node} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         )}
