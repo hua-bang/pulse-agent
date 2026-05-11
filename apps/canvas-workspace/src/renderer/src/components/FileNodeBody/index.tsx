@@ -1,8 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import './index.css';
 import { EditorContent } from '@tiptap/react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { useFileNodeEditor, getMarkdown } from '../../hooks/useFileNodeEditor';
+import { useFileNodeEditorRegistry } from '../../hooks/useFileNodeEditorRegistry';
 import { filterCmds } from '../../editor/slashCommands';
 import { FileNodeToolbar } from '../FileNodeToolbar';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
@@ -77,6 +78,19 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
     onUpdate,
     readOnly,
   });
+
+  // Publish this node's editor to the canvas-level registry so the
+  // Ctrl/Cmd+F find bar can push its query into our NoteSearchExtension
+  // and reuse the inline match highlights (no separate decoration
+  // system for canvas-vs-note find). Re-registers if the editor
+  // identity changes (Tiptap may rebuild on extension changes).
+  const registry = useFileNodeEditorRegistry();
+  useEffect(() => {
+    if (!registry || !editor) return;
+    const id = node.id;
+    registry.register(id, editor);
+    return () => registry.unregister(id);
+  }, [registry, editor, node.id]);
 
   const handleOpenFile = useCallback(async () => {
     if (readOnly) return;

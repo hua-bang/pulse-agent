@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '../Canvas';
+import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanel } from '../chat';
 import { ReferenceDrawer } from '../ReferenceDrawer';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
@@ -107,6 +108,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
 
   return (
     <>
+      <FileNodeEditorRegistryProvider>
       <ReferenceDrawer
         open={referenceDrawerOpen}
         referenceNode={referenceNode}
@@ -158,6 +160,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
           />
         </div>
       ))}
+      </FileNodeEditorRegistryProvider>
     </>
   );
 };
