@@ -1,5 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode, FileNodeData, TextNodeData } from '../types';
+import { setNoteSearch, clearNoteSearch, noteSearchPluginKey } from '../editor/noteSearchExtension';
+import { useFileNodeEditorRegistry } from './useFileNodeEditorRegistry';
 
 /**
  * A single hit found by the Ctrl+F search.
@@ -121,6 +123,59 @@ export const useCanvasSearch = ({ nodes }: Args) => {
     if (activeIndex >= matches.length) setActiveIndex(0);
   }, [matches.length, activeIndex]);
 
+  // Inline highlight inside file nodes — reuse the existing
+  // NoteSearchExtension instead of building a parallel decoration
+  // system. The set of "nodes that have ≥1 content match" gets the
+  // query pushed in; everything else gets cleared so closed/unrelated
+  // editors don't keep stale highlights.
+  const registry = useFileNodeEditorRegistry();
+  // Track which editors we currently have highlights on so we can
+  // surgically clear only those that drop out of the set, instead of
+  // touching every registered editor on every keystroke (the latter
+  // would spam dispatches into nodes that never had a match).
+  const highlightedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!registry) return;
+    const q = open ? deferredQuery : '';
+    const shouldHighlight = new Set<string>();
+    if (q.trim()) {
+      for (const m of matches) {
+        if (m.field === 'content') shouldHighlight.add(m.nodeId);
+      }
+    }
+
+    // Apply to newly-included editors.
+    for (const id of shouldHighlight) {
+      const editor = registry.get(id);
+      if (!editor) continue;
+      const view = editor.view;
+      if (!view) continue;
+      const current = noteSearchPluginKey.getState(view.state);
+      // Skip dispatch if the editor already shows this exact query —
+      // avoids resetting the user's per-note find state when canvas
+      // find converges on the same string.
+      if (current?.query === q) continue;
+      setNoteSearch(view, q);
+    }
+
+    // Clear editors that previously had our highlight but no longer do.
+    for (const id of highlightedRef.current) {
+      if (shouldHighlight.has(id)) continue;
+      const editor = registry.get(id);
+      if (!editor?.view) continue;
+      const current = noteSearchPluginKey.getState(editor.view.state);
+      // Only clear if the highlight still matches our pushed query —
+      // protects an active per-note find session if the user opened
+      // one after we set ours.
+      if (current && current.query === deferredQuery) {
+        clearNoteSearch(editor.view);
+      }
+    }
+
+    highlightedRef.current = shouldHighlight;
+  }, [open, deferredQuery, matches, registry]);
+
   // Capture the focused element when the bar opens so Esc can hand
   // focus back to wherever the user came from (avoids breaking the
   // mental model: "I was typing in a file node, hit Ctrl+F, looked
@@ -136,6 +191,17 @@ export const useCanvasSearch = ({ nodes }: Args) => {
     setOpen(false);
     setQuery('');
     setActiveIndex(0);
+    // Belt-and-suspenders: the effect above also reacts to `open`
+    // flipping to false, but call clear directly so the visual state
+    // updates in the same frame as the bar dismissing.
+    if (registry) {
+      for (const id of highlightedRef.current) {
+        const editor = registry.get(id);
+        if (!editor?.view) continue;
+        clearNoteSearch(editor.view);
+      }
+      highlightedRef.current = new Set();
+    }
     const prev = previousFocusRef.current;
     previousFocusRef.current = null;
     // Defer focus restoration to next tick so the SearchBar unmount
@@ -144,7 +210,7 @@ export const useCanvasSearch = ({ nodes }: Args) => {
     if (prev && typeof prev.focus === 'function') {
       requestAnimationFrame(() => prev.focus());
     }
-  }, []);
+  }, [registry]);
 
   const toggleBar = useCallback(() => {
     if (open) closeBar();
