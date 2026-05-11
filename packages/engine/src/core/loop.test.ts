@@ -232,4 +232,79 @@ describe('loop', () => {
       }),
     );
   });
+
+  it('times out LLM calls that never produce a first chunk', async () => {
+    vi.useFakeTimers();
+
+    const context: Context = {
+      messages: [{ role: 'user', content: 'hung llm' }],
+    };
+    const afterLLMCall = vi.fn(async () => undefined);
+    let llmAbortSignal: AbortSignal | undefined;
+
+    streamTextAIMock.mockImplementation((_messages: any, _tools: Record<string, Tool>, options: any) => {
+      llmAbortSignal = options.abortSignal;
+      return {
+        text: new Promise(() => undefined),
+        steps: new Promise(() => undefined),
+        finishReason: new Promise(() => undefined),
+      };
+    });
+
+    const runPromise = loop(context, {
+      hooks: {
+        afterLLMCall: [afterLLMCall],
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(180_000);
+
+    await expect(runPromise).resolves.toContain('上游模型请求超时');
+    expect(llmAbortSignal?.aborted).toBe(true);
+    expect(afterLLMCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context,
+        finishReason: 'error',
+        text: '',
+        error: expect.objectContaining({
+          name: 'LLMTimeoutError',
+          code: 'LLM_TIMEOUT',
+          timeoutReason: 'first-chunk',
+          timeoutMs: 180_000,
+        }),
+      }),
+    );
+  });
+
+  it('returns promptly when the caller aborts a pending LLM call', async () => {
+    vi.useFakeTimers();
+
+    const context: Context = {
+      messages: [{ role: 'user', content: 'abort llm' }],
+    };
+    const ac = new AbortController();
+    let llmAbortSignal: AbortSignal | undefined;
+
+    streamTextAIMock.mockImplementation((_messages: any, _tools: Record<string, Tool>, options: any) => {
+      llmAbortSignal = options.abortSignal;
+      return {
+        text: new Promise(() => undefined),
+        steps: new Promise(() => undefined),
+        finishReason: new Promise(() => undefined),
+      };
+    });
+
+    const runPromise = loop(context, {
+      abortSignal: ac.signal,
+    });
+
+    await vi.waitFor(() => {
+      expect(streamTextAIMock).toHaveBeenCalledTimes(1);
+    });
+
+    ac.abort();
+
+    await expect(runPromise).resolves.toBe('Request aborted.');
+    expect(llmAbortSignal?.aborted).toBe(true);
+  });
 });
