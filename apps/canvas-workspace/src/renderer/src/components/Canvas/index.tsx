@@ -937,8 +937,9 @@ export const Canvas = ({
       {
         id: 'create-link',
         group: 'create',
-        title: 'Embed link',
-        aliases: ['iframe', 'web', 'url', 'browser'],
+        title: 'Web page',
+        hint: 'URL, HTML, AI, or blank page',
+        aliases: ['iframe', 'web', 'url', 'browser', 'blank', 'page', 'link'],
         run: () => handleToolbarAddNode('iframe'),
       },
       {

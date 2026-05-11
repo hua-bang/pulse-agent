@@ -4,6 +4,8 @@ import type { CanvasNode, IframeNodeData } from "../../types";
 
 type EditMode = "url" | "html" | "ai";
 
+const BLANK_PAGE_URL = "about:blank";
+
 interface Props {
   node: CanvasNode;
   workspaceId?: string;
@@ -114,7 +116,8 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
     if (!el) return;
 
     const handlePageTitleUpdated = (event: Event) => {
-      const nextTitle = sanitizePageTitle((event as Event & { title?: string }).title);
+      const rawTitle = sanitizePageTitle((event as Event & { title?: string }).title);
+      const nextTitle = url === BLANK_PAGE_URL && rawTitle === BLANK_PAGE_URL ? "Blank page" : rawTitle;
       if (!nextTitle || nextTitle === node.title) return;
       if (!shouldSyncIframeTitle(node.title, data, url)) return;
 
@@ -249,6 +252,18 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
     }
     setEditing(false);
   }, [draftMode, draftUrl, draftHtml, onUpdate, node.id, node.title, data, readOnly, url]);
+
+  const openBlankPage = useCallback(() => {
+    if (readOnly) return;
+    const shouldUseAutoTitle = shouldSyncIframeTitle(node.title, data, url);
+    onUpdate(node.id, {
+      data: { ...data, url: BLANK_PAGE_URL, mode: "url", pageTitle: "" },
+      title: shouldUseAutoTitle ? "Blank page" : node.title,
+    });
+    setDraftUrl(BLANK_PAGE_URL);
+    setDraftMode("url");
+    setEditing(false);
+  }, [data, node.id, node.title, onUpdate, readOnly, url]);
 
   // ── Streaming AI generation ────────────────────────────────────────
 
@@ -429,6 +444,14 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
                 onKeyDown={handleKeyDown}
                 spellCheck={false}
               />
+              <button
+                type="button"
+                className="iframe-blank-btn"
+                onClick={openBlankPage}
+                disabled={generating}
+              >
+                Open blank page
+              </button>
             </>
           ) : draftMode === "html" ? (
             <>
@@ -501,7 +524,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
 
           <div className="iframe-empty-hint">
             {draftMode === "url"
-              ? 'Some sites block embedding — use "Open externally" to fall back to a browser.'
+              ? 'Type a URL, "blank", or "about:blank". Some sites block embedding.'
               : draftMode === "html"
               ? "Cmd/Ctrl+Enter to confirm. Scripts are sandboxed."
               : "Cmd/Ctrl+Enter to generate. Describe a chart, diagram, UI, or any visual."}
@@ -647,12 +670,15 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
 
 function normalizeUrl(input: string): string {
   if (!input) return "";
+  const lowered = input.toLowerCase();
+  if (lowered === "blank" || lowered === BLANK_PAGE_URL) return BLANK_PAGE_URL;
   if (/^[a-z]+:\/\//i.test(input)) return input;
   if (/^\/\//.test(input)) return `https:${input}`;
   return `https://${input}`;
 }
 
 function prettyTitle(url: string): string {
+  if (url === BLANK_PAGE_URL) return "Blank page";
   try {
     const u = new URL(url);
     return u.host || url;

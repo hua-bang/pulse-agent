@@ -72,6 +72,8 @@ const PAGE_MAX_BYTES = 200_000;
  * message to the user.
  */
 async function fetchPageText(url: string): Promise<string> {
+  if (url === 'about:blank') return '[blank web page — no content]';
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
   try {
@@ -150,6 +152,7 @@ async function readIframeContent(
   url: string,
 ): Promise<string> {
   if (!url) return '[empty link node — no URL set]';
+  if (url === 'about:blank') return '[blank web page — no content]';
 
   let liveError: string | null = null;
   try {

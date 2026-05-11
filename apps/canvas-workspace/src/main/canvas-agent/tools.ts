@@ -25,6 +25,7 @@ import { hasSession, writeToSession } from '../pty-manager';
 import { generateHTML } from '../html-generator';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
+const BLANK_PAGE_URL = 'about:blank';
 
 // ─── Types mirrored from canvas-cli ────────────────────────────────
 
@@ -67,6 +68,15 @@ function normalizeMindmapTopic(raw: RawMindmapTopic | null | undefined): Mindmap
   if (typeof safe.color === 'string') topic.color = safe.color;
   if (safe.collapsed) topic.collapsed = true;
   return topic;
+}
+
+function normalizeIframeUrl(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'blank' || lowered === BLANK_PAGE_URL) return BLANK_PAGE_URL;
+  return trimmed;
 }
 
 interface CanvasNode {
@@ -741,7 +751,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         '- **text**: Creates a free-form text label (TLDRAW-style). Use `content` for the text body, ' +
         'and `data.textColor` / `data.backgroundColor` (hex or "transparent") for styling. Optional `data.fontSize`.\n' +
         '- **iframe**: Embeds an external web page, renders raw HTML, or generates HTML from a prompt. ' +
-        'For URL mode: pass `data.url` with the full URL (including protocol). ' +
+        'For URL mode: pass `data.url` with the full URL (including protocol), or "blank"/"about:blank" for an empty page. ' +
         'For HTML mode: pass `data.html` with raw HTML content and `data.mode: "html"`. ' +
         'For AI mode: pass `data.prompt` with a description and `data.mode: "ai"` — ' +
         'the LLM will generate self-contained HTML. ' +
@@ -769,7 +779,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           '- frame: { color?: string, label?: string }\n' +
           '- group: { color?: string, label?: string, childIds?: string[] }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
-          '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }\n' +
+          '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }. `url: "blank"` opens about:blank.\n' +
           '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
           '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape',
         ),
@@ -873,7 +883,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               };
             } else {
               nodeData = {
-                url: (extraData.url as string) ?? '',
+                url: normalizeIframeUrl(extraData.url),
                 html: (extraData.html as string) ?? '',
                 prompt,
                 mode: iframeMode,
