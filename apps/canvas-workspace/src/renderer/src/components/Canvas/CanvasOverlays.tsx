@@ -4,6 +4,8 @@ import { NodeContextMenu } from '../NodeContextMenu';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
 import { CommandPalette, type PaletteCommand } from '../CommandPalette';
+import { SearchBar } from '../SearchBar';
+import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
@@ -38,6 +40,11 @@ interface CanvasOverlaysProps {
   paletteCommands: PaletteCommand[];
   onSearchSelect: (node: CanvasNode) => void;
   onCloseSearch: () => void;
+  /** Find-in-canvas (Ctrl/Cmd+F) state, owned by the parent so the
+   *  keyboard hook and the bar share one source of truth. */
+  findSearch: UseCanvasSearchReturn;
+  findNodesById: Map<string, CanvasNode>;
+  onFindMatchActivate: (node: CanvasNode) => void;
   /** Mousedown handler for the connect-mode overlay. Wired by the
    *  parent Canvas component to the edge interaction hook. */
   onConnectMouseDown?: (e: React.MouseEvent) => void;
@@ -87,6 +94,9 @@ export const CanvasOverlays = ({
   paletteCommands,
   onSearchSelect,
   onCloseSearch,
+  findSearch,
+  findNodesById,
+  onFindMatchActivate,
   onConnectMouseDown,
   shapeToolActive,
   onShapeMouseDown,
@@ -212,6 +222,14 @@ export const CanvasOverlays = ({
         commands={paletteCommands}
         onSelectNode={onSearchSelect}
         onClose={onCloseSearch}
+      />
+    )}
+
+    {findSearch.open && (
+      <SearchBar
+        search={findSearch}
+        nodesById={findNodesById}
+        onActivateMatch={onFindMatchActivate}
       />
     )}
   </>

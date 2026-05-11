@@ -7,6 +7,7 @@ import { useNodeResize, type ResizeEdge } from '../../hooks/useNodeResize';
 import { useCanvasContext } from '../../hooks/useCanvasContext';
 import { useCanvasFit } from '../../hooks/useCanvasFit';
 import { useCanvasKeyboard } from '../../hooks/useCanvasKeyboard';
+import { useCanvasSearch } from '../../hooks/useCanvasSearch';
 import { useCanvasImagePaste } from '../../hooks/useCanvasImagePaste';
 import { useEdgeInteraction } from '../../hooks/useEdgeInteraction';
 import { useShapeDraw } from '../../hooks/useShapeDraw';
@@ -385,13 +386,46 @@ export const Canvas = ({
     });
   }, [wrapNodesInFrame, selectedNodeIds, notify]);
 
+  const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
+    setSelectedNodeIds([node.id]);
+    setHighlightedId(node.id);
+    // In focus mode the dedicated reframe effect handles the zoom with
+    // tighter padding/maxScale — calling handleFocusNode here too would
+    // produce a double reframe at different scales (visible jitter).
+    if (!focusModeActive) handleFocusNode(node);
+  }, [handleFocusNode, focusModeActive]);
+
+  // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
+  // (searchOpen) because Find is iterative — the bar stays open while
+  // the user pages through matches. See useCanvasSearch for details.
+  const search = useCanvasSearch({ nodes });
+  const nodesById = useMemo(() => {
+    const m = new Map<string, CanvasNode>();
+    for (const n of nodes) m.set(n.id, n);
+    return m;
+  }, [nodes]);
+  const handleSearchMatchActivate = useCallback((node: CanvasNode) => {
+    // Reuse the existing viewport-focus pipeline so the camera pans
+    // and the node gets the brief highlight ring. The active match
+    // changes via next/prev or query edits — each transition focuses
+    // the canvas on that node.
+    handleNodeViewportFocus(node);
+  }, [handleNodeViewportFocus]);
+
   useCanvasKeyboard({
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: requestRemoveEdge,
     duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes,
     removeNodes: requestRemoveNodes,
     moveNodes, commitHistory,
-    searchOpen, setSearchOpen, contextMenu, setContextMenu,
+    searchOpen, setSearchOpen,
+    findOpen: search.open,
+    toggleFindBar: search.toggleBar,
+    closeFindBar: search.closeBar,
+    findNext: search.next,
+    findPrev: search.prev,
+    findHasMatches: search.matches.length > 0,
+    contextMenu, setContextMenu,
     setHighlightedId, handleFocusNode,
     focusModeEnabled: focusModeActive,
     canToggleFocusMode: focusModeAvailable,
@@ -417,15 +451,6 @@ export const Canvas = ({
       highlightTimerRef.current = setTimeout(() => setHighlightedId(null), 1500);
     }
   }, [highlightedId]);
-
-  const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
-    setSelectedNodeIds([node.id]);
-    setHighlightedId(node.id);
-    // In focus mode the dedicated reframe effect handles the zoom with
-    // tighter padding/maxScale — calling handleFocusNode here too would
-    // produce a double reframe at different scales (visible jitter).
-    if (!focusModeActive) handleFocusNode(node);
-  }, [handleFocusNode, focusModeActive]);
 
   const handleSearchSelect = handleNodeViewportFocus;
 
@@ -1219,6 +1244,9 @@ export const Canvas = ({
         paletteCommands={paletteCommands}
         onSearchSelect={handleSearchSelect}
         onCloseSearch={() => setSearchOpen(false)}
+        findSearch={search}
+        findNodesById={nodesById}
+        onFindMatchActivate={handleSearchMatchActivate}
         onConnectMouseDown={handleConnectOverlayMouseDown}
         shapeToolActive={shapeToolActive}
         onShapeMouseDown={handleShapeOverlayMouseDown}
