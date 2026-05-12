@@ -416,13 +416,25 @@ export class CanvasAgent {
             }
           : undefined,
         onToolInputStart: onToolInputStart
-          ? (chunk: { id: string; toolName: string }) => onToolInputStart(chunk)
+          ? (chunk: { id: string; toolName: string }) => {
+              console.info('[canvas-agent] tool-input-start', chunk.toolName, chunk.id);
+              onToolInputStart(chunk);
+            }
           : undefined,
         onToolInputDelta: onToolInputDelta
-          ? (chunk: { id: string; delta: string }) => onToolInputDelta(chunk)
+          ? (chunk: { id: string; delta: string }) => {
+              // Sample log — full delta firehose is too noisy for a long run.
+              if (Math.random() < 0.02) {
+                console.info('[canvas-agent] tool-input-delta (sampled)', chunk.id, chunk.delta.length + 'B');
+              }
+              onToolInputDelta(chunk);
+            }
           : undefined,
         onToolInputEnd: onToolInputEnd
-          ? (chunk: { id: string }) => onToolInputEnd(chunk)
+          ? (chunk: { id: string }) => {
+              console.info('[canvas-agent] tool-input-end', chunk.id);
+              onToolInputEnd(chunk);
+            }
           : undefined,
         onResponse: (msgs: ModelMessage[]) => {
           for (const msg of msgs) {
