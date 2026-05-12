@@ -8,6 +8,7 @@ interface ChatMessagesProps {
   messages: AgentChatMessage[];
   loading: boolean;
   nodes?: CanvasNode[];
+  workspaceId: string;
   streamingTools: ToolCallStatus[];
   messageTools: Map<number, ToolCallStatus[]>;
   collapsedSections: Set<number>;
@@ -91,6 +92,7 @@ export const ChatMessages = ({
   messages,
   loading,
   nodes,
+  workspaceId,
   streamingTools,
   messageTools,
   collapsedSections,
@@ -138,6 +140,7 @@ export const ChatMessages = ({
             collapsed={collapsedSections.has(index)}
             expandedTools={expandedTools}
             nodes={nodes}
+            workspaceId={workspaceId}
             onToggleSection={() => onToggleSection(index)}
             onToggleToolExpand={onToggleToolExpand}
             onAddImageToCanvas={onAddImageToCanvas}

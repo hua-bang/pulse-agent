@@ -60,6 +60,20 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`canvas_move_node\`: Reposition a node
 - \`canvas_ask_user\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing.
 
+## Visualization Tools — when to use which
+You have three ways to give the user a visual answer. Pick the right level — do NOT default to the heaviest one.
+
+- \`visual_render\`: **temporary inline visual** rendered inside the current chat message. Use for explanatory diagrams, quick charts, illustrations that "aid the discussion" — the kind of thing the user wants to SEE, not necessarily KEEP. Example: "show me how compound interest works" → render an inline chart. The visual lives with the message; the user can promote it to an artifact themselves with a button if they decide to keep it.
+- \`artifact_create\`: **persistent versioned artifact**. Use when the user asks for something to keep, reuse, polish, or iterate on — dashboards, full mockups, finished diagrams, deliverables. Returns an \`artifactId\` you should remember for follow-ups. Later turns can call \`artifact_update\` with the same id to iterate.
+- \`artifact_pin_to_canvas\`: **promote an artifact onto the spatial canvas** as an iframe node. Use when the user wants to compare multiple options side-by-side, build a visual workspace, or hand-arrange the visuals. Always pin an artifact you already created — do NOT use \`canvas_create_node\` with mode=ai for this (that bypasses the artifact store and you lose version history).
+
+Decision shortcut:
+- "explain / show me / visualize" → \`visual_render\`
+- "build / make me a / design / create a [keepable thing]" → \`artifact_create\`
+- "lay out / compare / put on the canvas" → \`artifact_create\` then \`artifact_pin_to_canvas\`
+
+For HTML content in any of the three: emit a single self-contained \`<!DOCTYPE html>\` document. External CDNs (Chart.js, D3, Three.js, Mermaid) work fine. Inline all CSS in \`<head>\` and all scripts at the very end of \`<body>\` so it renders progressively.
+
 ### Delegating Tasks to Agent Nodes
 Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
 
@@ -257,12 +271,15 @@ export class CanvasAgent {
   async chat(
     message: string,
     onText?: (delta: string) => void,
-    onToolCall?: (data: { name: string; args: any }) => void,
-    onToolResult?: (data: { name: string; result: string }) => void,
+    onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
+    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: CanvasAgentRequestContext,
     attachments: CanvasAgentImageAttachment[] = [],
+    onToolInputStart?: (data: { id: string; toolName: string }) => void,
+    onToolInputDelta?: (data: { id: string; delta: string }) => void,
+    onToolInputEnd?: (data: { id: string }) => void,
   ): Promise<string> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
@@ -342,7 +359,7 @@ export class CanvasAgent {
               // AI SDK v6 uses `input`; older versions use `args`
               const args = chunk.input ?? chunk.args;
               console.info('[canvas-agent] tool-call chunk keys:', Object.keys(chunk), 'input:', chunk.input, 'args:', chunk.args);
-              onToolCall({ name: chunk.toolName, args });
+              onToolCall({ name: chunk.toolName, args, toolCallId: chunk.toolCallId });
             }
           : undefined,
         onToolResult: onToolResult
@@ -353,8 +370,18 @@ export class CanvasAgent {
               onToolResult({
                 name: chunk.toolName,
                 result: typeof raw === 'string' ? raw : JSON.stringify(raw),
+                toolCallId: chunk.toolCallId,
               });
             }
+          : undefined,
+        onToolInputStart: onToolInputStart
+          ? (chunk: { id: string; toolName: string }) => onToolInputStart(chunk)
+          : undefined,
+        onToolInputDelta: onToolInputDelta
+          ? (chunk: { id: string; delta: string }) => onToolInputDelta(chunk)
+          : undefined,
+        onToolInputEnd: onToolInputEnd
+          ? (chunk: { id: string }) => onToolInputEnd(chunk)
           : undefined,
         onResponse: (msgs: ModelMessage[]) => {
           for (const msg of msgs) {

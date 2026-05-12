@@ -28,6 +28,13 @@ export interface ToolCallStatus {
   args?: any;
   status: 'running' | 'done';
   result?: string;
+  /** AI SDK toolCallId — used to correlate streaming-input deltas with the final tool-call. */
+  toolCallId?: string;
+  /** Accumulated raw JSON of tool arguments while the LLM is still emitting them.
+   *  Cleared (or kept as-is) once `inputStreaming` flips to false. */
+  partialInput?: string;
+  /** True while the LLM is still streaming this tool's input JSON. */
+  inputStreaming?: boolean;
 }
 
 export type { ChatImageAttachment };

@@ -100,37 +100,92 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         unsubscribeComplete();
         unsubscribeToolCall();
         unsubscribeToolResult();
+        unsubscribeToolInputStart();
+        unsubscribeToolInputDelta();
+        unsubscribeToolInputEnd();
         unsubscribeClarify();
         activeUnsubsRef.current = [];
       };
 
-      const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
+      const publishTools = () => {
+        const snapshot = [...toolCalls];
+        setStreamingTools(snapshot);
+        if (assistantIndex.current >= 0) {
+          setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
+        }
+      };
+
+      const findTool = (toolCallId: string | undefined, name?: string) => {
+        if (toolCallId) {
+          const byId = toolCalls.find(t => t.toolCallId === toolCallId);
+          if (byId) return byId;
+        }
+        if (name) {
+          return toolCalls.find(t => t.name === name && t.status === 'running');
+        }
+        return undefined;
+      };
+
+      // Input streaming: starts BEFORE the LLM has finished emitting tool args.
+      // We create the ToolCallStatus here so the chat UI can render a
+      // progressive preview (e.g. a streaming inline visual) keyed off the
+      // toolCallId before the final tool-call chunk arrives.
+      const unsubscribeToolInputStart = window.canvasWorkspace.agent.onToolInputStart(sessionId, data => {
         ensureAssistantMessage();
         toolCalls.push({
           id: ++toolIdCounter.current,
-          name: data.name,
-          args: data.args,
+          name: data.toolName,
+          toolCallId: data.id,
           status: 'running',
+          partialInput: '',
+          inputStreaming: true,
         });
-        const snapshot = [...toolCalls];
-        setStreamingTools(snapshot);
-        if (assistantIndex.current >= 0) {
-          setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
+        publishTools();
+      });
+
+      const unsubscribeToolInputDelta = window.canvasWorkspace.agent.onToolInputDelta(sessionId, data => {
+        const tool = findTool(data.id);
+        if (!tool) return;
+        tool.partialInput = (tool.partialInput ?? '') + data.delta;
+        publishTools();
+      });
+
+      const unsubscribeToolInputEnd = window.canvasWorkspace.agent.onToolInputEnd(sessionId, data => {
+        const tool = findTool(data.id);
+        if (!tool) return;
+        tool.inputStreaming = false;
+        publishTools();
+      });
+
+      const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
+        ensureAssistantMessage();
+        // If we already created a ToolCallStatus for this id during input
+        // streaming, merge the fully-parsed args in. Otherwise (e.g. a model
+        // that doesn't stream tool input), create one now.
+        const existing = findTool(data.toolCallId, data.name);
+        if (existing) {
+          existing.args = data.args;
+          existing.inputStreaming = false;
+        } else {
+          toolCalls.push({
+            id: ++toolIdCounter.current,
+            name: data.name,
+            args: data.args,
+            toolCallId: data.toolCallId,
+            status: 'running',
+          });
         }
+        publishTools();
       });
 
       const unsubscribeToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, data => {
-        const toolCall = toolCalls.find(item => item.name === data.name && item.status === 'running');
-        if (toolCall) {
-          toolCall.status = 'done';
-          toolCall.result = data.result;
+        const tool = findTool(data.toolCallId, data.name);
+        if (tool) {
+          tool.status = 'done';
+          tool.result = data.result;
+          tool.inputStreaming = false;
         }
-
-        const snapshot = [...toolCalls];
-        setStreamingTools(snapshot);
-        if (assistantIndex.current >= 0) {
-          setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
-        }
+        publishTools();
       });
 
       const unsubscribeDelta = window.canvasWorkspace.agent.onTextDelta(sessionId, delta => {
@@ -213,6 +268,9 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
       activeUnsubsRef.current.push(
         unsubscribeToolCall,
         unsubscribeToolResult,
+        unsubscribeToolInputStart,
+        unsubscribeToolInputDelta,
+        unsubscribeToolInputEnd,
         unsubscribeDelta,
         unsubscribeComplete,
         unsubscribeClarify,

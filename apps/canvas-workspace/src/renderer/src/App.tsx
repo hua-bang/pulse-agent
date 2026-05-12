@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
+import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
+import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
 import { Sidebar } from './components/Sidebar';
 import { Workbench, useWorkbenchState } from './components/Workbench';
@@ -374,7 +376,10 @@ const AppContent = () => {
 
 const App = () => (
   <AppShellProvider>
-    <AppContent />
+    <ArtifactDrawerProvider>
+      <AppContent />
+      <ArtifactDrawer />
+    </ArtifactDrawerProvider>
   </AppShellProvider>
 );
 

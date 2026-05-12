@@ -3,6 +3,11 @@ import { AvatarIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
 import { ChatToolCalls } from './ChatToolCalls';
+import {
+  ChatArtifactCard,
+  ChatInlineVisual,
+  parseVisualToolResult,
+} from '../artifacts';
 
 interface GeneratedImagePayload {
   ok?: boolean;
@@ -31,6 +36,7 @@ interface ChatMessageProps {
   collapsed: boolean;
   expandedTools: Set<number>;
   nodes?: CanvasNode[];
+  workspaceId: string;
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -52,6 +58,7 @@ export const ChatMessage = ({
   collapsed,
   expandedTools,
   nodes,
+  workspaceId,
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
@@ -103,6 +110,46 @@ export const ChatMessage = ({
               );
             })}
           </div>
+          {tools.map(tool => {
+            // While the LLM is still emitting the tool's input args (for
+            // either visual_render or artifact_create / _update), surface
+            // an in-flight visual driven by the partial JSON so the user
+            // sees the content materialize live, the way Claude does.
+            const isStreamingVisual =
+              !tool.result &&
+              (tool.name === 'visual_render'
+                || tool.name === 'artifact_create'
+                || tool.name === 'artifact_update');
+            if (isStreamingVisual) {
+              if (!tool.partialInput) return null;
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  partialInput={tool.partialInput}
+                  streaming
+                />
+              );
+            }
+            const visual = parseVisualToolResult(tool.name, tool.result);
+            if (!visual) return null;
+            if (visual.kind === 'visual_render') {
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  payload={visual.payload}
+                />
+              );
+            }
+            return (
+              <ChatArtifactCard
+                key={`artifact-${tool.id}`}
+                workspaceId={workspaceId}
+                payload={visual.payload}
+              />
+            );
+          })}
         </>
       )}
       {message.role === 'assistant' ? (
