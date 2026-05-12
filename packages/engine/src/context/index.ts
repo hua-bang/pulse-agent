@@ -5,7 +5,7 @@ import {
   COMPACT_TARGET,
   KEEP_LAST_TURNS,
 } from "../config/index";
-import type { Context, LLMProviderFactory } from "../shared/types";
+import type { Context, LLMProviderFactory, SystemPromptOption } from "../shared/types";
 
 export type CompactStats = {
   forced: boolean;
@@ -83,6 +83,23 @@ const estimateTokens = (messages: ModelMessage[]): number => {
     }
   }
   return Math.ceil(totalChars / 4);
+};
+
+/**
+ * Estimate token count contributed by a SystemPromptOption.
+ * Uses the same chars/4 heuristic as estimateTokens.
+ */
+const estimateSystemPromptTokens = (systemPrompt?: SystemPromptOption): number => {
+  if (!systemPrompt) return 0;
+  let text: string;
+  if (typeof systemPrompt === 'string') {
+    text = systemPrompt;
+  } else if (typeof systemPrompt === 'function') {
+    try { text = systemPrompt(); } catch { return 0; }
+  } else {
+    text = systemPrompt.append ?? '';
+  }
+  return Math.ceil(text.length / 4);
 };
 
 const splitByTurns = (messages: ModelMessage[], keepLastTurns: number) => {
@@ -163,7 +180,7 @@ const buildCompactedResult = ({
 
 export const maybeCompactContext = async (
   context: Context,
-  options?: { force?: boolean; provider?: LLMProviderFactory; model?: string }
+  options?: { force?: boolean; provider?: LLMProviderFactory; model?: string; systemPrompt?: SystemPromptOption }
 ): Promise<CompactResult> => {
   const { messages } = context;
   if (messages.length === 0) {
@@ -172,7 +189,10 @@ export const maybeCompactContext = async (
 
   const force = Boolean(options?.force);
   const beforeMessageCount = messages.length;
-  const beforeEstimatedTokens = estimateTokens(messages);
+  // Include system prompt token estimate so large system prompts (soul memory,
+  // vault binding, tool catalog, etc.) are counted toward the compaction trigger.
+  const beforeEstimatedTokens =
+    estimateTokens(messages) + estimateSystemPromptTokens(options?.systemPrompt);
   if (!force && beforeEstimatedTokens < COMPACT_TRIGGER) {
     return { didCompact: false };
   }

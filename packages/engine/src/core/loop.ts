@@ -103,19 +103,6 @@ export interface LoopOptions {
   onText?: (delta: string) => void;
   onToolCall?: (toolCall: any) => void;
   onToolResult?: (toolResult: any) => void;
-  /**
-   * Fired when the LLM starts emitting a tool's input JSON. Use this together
-   * with `onToolInputDelta` to drive progressive UIs (e.g. streaming an
-   * artifact preview in chat) before the tool actually executes.
-   */
-  onToolInputStart?: (chunk: { id: string; toolName: string }) => void;
-  /**
-   * Fired for each chunk of raw tool input JSON the LLM emits. `delta` is the
-   * incremental text appended to the accumulating JSON string (NOT pre-parsed).
-   */
-  onToolInputDelta?: (chunk: { id: string; delta: string }) => void;
-  /** Fired when the LLM finishes emitting a tool's input JSON. */
-  onToolInputEnd?: (chunk: { id: string }) => void;
   onStepFinish?: (step: StepResult<any>) => void;
   onClarificationRequest?: (request: ClarificationRequest) => Promise<string>;
   onCompacted?: (newMessages: ModelMessage[], event?: CompactionEvent) => void;
@@ -316,6 +303,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         const { didCompact, reason, newMessages, stats } = await maybeCompactContext(context, {
           provider: options?.provider,
           model: options?.model,
+          systemPrompt: options?.systemPrompt,
         });
         if (didCompact) {
           const nextAttempt = compactionAttempts + 1;
@@ -500,19 +488,6 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
             if (chunk.type === 'tool-result') {
               options?.onToolResult?.(chunk);
             }
-            // Tool-input streaming. AI SDK v6 emits these for every tool the
-            // LLM invokes; we forward them verbatim so the renderer can drive
-            // a progressive preview keyed by `chunk.id` (which matches the
-            // `toolCallId` on the final `tool-call` chunk).
-            if (chunk.type === 'tool-input-start') {
-              options?.onToolInputStart?.({ id: chunk.id, toolName: chunk.toolName });
-            }
-            if (chunk.type === 'tool-input-delta') {
-              options?.onToolInputDelta?.({ id: chunk.id, delta: chunk.delta });
-            }
-            if (chunk.type === 'tool-input-end') {
-              options?.onToolInputEnd?.({ id: chunk.id });
-            }
           },
         });
 
@@ -603,6 +578,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
             force: true,
             provider: options?.provider,
             model: options?.model,
+            systemPrompt: options?.systemPrompt,
           });
           if (didCompact) {
             const nextAttempt = compactionAttempts + 1;
