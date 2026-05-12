@@ -10,15 +10,24 @@
   background: transparent;
 }
 
-/* Final reveal — soft fade + tiny rise so the visual feels "placed" rather
- * than "popped in". Mirrors Claude's inline-visualization reveal. */
+/* Streaming variant — iframe is mounted and morphing; the edge line
+ * marks "still generating". No reveal animation here (the DOM is
+ * already painting; an opacity fade would cover the live morph). */
+.chat-inline-visual--streaming {
+  /* No animation; the morphdom shell paints into the iframe directly. */
+}
+
+/* Final state — once the tool returns we swap to the clean srcdoc and
+ * the wrapper transitions from streaming to ready. A short cross-fade
+ * smooths the swap so users don't see a visible "snap" when the script-
+ * enabled iframe replaces the streaming shell. */
 .chat-inline-visual--ready {
-  animation: chat-inline-reveal 0.28s ease-out both;
+  animation: chat-inline-reveal 0.2s ease-out both;
 }
 
 @keyframes chat-inline-reveal {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from { opacity: 0.5; }
+  to   { opacity: 1; }
 }
 
 /* Loading row — quiet, no preview. A single pulsing cursor + small label
@@ -142,6 +151,19 @@
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+}
+
+/* While streaming we keep the toolbar slot visible to show the pulsing
+ * cursor — it's the "live" indicator. No frosted background here, just
+ * the cursor floating in the corner. */
+.chat-inline-visual--streaming .chat-inline-visual__toolbar {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .chat-inline-visual__btn {

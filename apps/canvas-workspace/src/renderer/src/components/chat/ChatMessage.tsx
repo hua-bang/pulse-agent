@@ -111,23 +111,24 @@ export const ChatMessage = ({
             })}
           </div>
           {tools.map(tool => {
-            // visual_render in flight → quiet loading skeleton in chat.
-            // We deliberately do NOT render the partial HTML mid-stream:
-            // small inline visuals look janky when their DOM thrashes.
-            // Claude reveals the finished thing in one shot — same here.
+            // visual_render in flight: drive an inline streaming preview
+            // off the partial JSON the LLM is still emitting. Morphdom
+            // diffs the DOM in place so the visual "grows" as Claude's
+            // Artifacts do, just without leaving the chat column.
             if (tool.name === 'visual_render' && !tool.result) {
               return (
                 <ChatInlineVisual
                   key={`visual-${tool.id}`}
                   workspaceId={workspaceId}
+                  partialInput={tool.partialInput}
                   streaming
                 />
               );
             }
-            // artifact_create/update in flight → no inline preview at all.
-            // The tool-call chip above signals progress; the artifact card
-            // appears once the tool returns. (If the user wants a live
-            // preview they can open the drawer.)
+            // artifact_create / _update in flight → no inline preview at
+            // all; the tool-call chip above signals progress and the
+            // artifact card lands once the tool returns. Drawer is the
+            // right place for a live artifact preview, not the chat.
             if (
               (tool.name === 'artifact_create' || tool.name === 'artifact_update')
               && !tool.result
