@@ -1,74 +1,157 @@
 /* ─── Inline visual in chat (visual_render tool result) ────────────── */
 
+/* ─── Inline visual: chromeless, embedded in conversation flow ───────── */
+
 .chat-inline-visual {
   position: relative;
-  margin-top: 10px;
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 10px;
-  background: #fff;
-  overflow: hidden;
+  display: block;
+  margin: 14px 0;
+  width: 100%;
+  background: transparent;
 }
 
-.chat-inline-visual--streaming {
-  border-color: rgba(99, 102, 241, 0.35);
-}
-
-.chat-inline-visual__shimmer {
+/* Top edge accent during streaming — a thin 1px indigo line that fades in/out. */
+.chat-inline-visual__stream-edge {
   position: absolute;
-  top: 0;
+  top: -4px;
   left: 0;
   right: 0;
-  height: 2px;
+  height: 1px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(99, 102, 241, 0.65) 50%,
+    rgba(99, 102, 241, 0.5) 30%,
+    rgba(99, 102, 241, 0.75) 50%,
+    rgba(99, 102, 241, 0.5) 70%,
     transparent 100%
   );
   background-size: 200% 100%;
-  animation: chat-inline-shimmer 1.4s linear infinite;
+  animation: chat-inline-edge 1.6s linear infinite;
+  pointer-events: none;
   z-index: 1;
 }
 
-@keyframes chat-inline-shimmer {
+@keyframes chat-inline-edge {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
 
-.chat-inline-visual__progress {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.chat-inline-visual__frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
 }
 
-.chat-inline-visual__spinner {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(99, 102, 241, 0.25);
-  border-top-color: #6366f1;
-  animation: chat-inline-spin 0.8s linear infinite;
+.chat-inline-visual__svg {
+  display: block;
+  width: 100%;
+  background: transparent;
 }
 
-@keyframes chat-inline-spin {
-  to { transform: rotate(360deg); }
+.chat-inline-visual__error {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #b54040;
 }
 
 .chat-inline-visual__skeleton {
+  min-height: 80px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  min-height: 64px;
-  padding: 16px;
+  padding: 16px 0;
 }
 
 .chat-inline-visual__skeleton-bar {
-  width: 50%;
-  height: 8px;
-  border-radius: 4px;
+  width: 40%;
+  height: 6px;
+  border-radius: 3px;
   background: linear-gradient(90deg, #f1f1ef 0%, #e5e5e2 50%, #f1f1ef 100%);
   background-size: 200% 100%;
-  animation: chat-inline-shimmer 1.4s linear infinite;
+  animation: chat-inline-edge 1.6s linear infinite;
+}
+
+/* Hover toolbar — invisible at rest, fades in when the user points at it. */
+
+.chat-inline-visual__toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.chat-inline-visual:hover .chat-inline-visual__toolbar,
+.chat-inline-visual:focus-within .chat-inline-visual__toolbar {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.chat-inline-visual__btn {
+  font-size: 11px;
+  font-weight: 500;
+  color: #4b4a47;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.chat-inline-visual__btn:hover:not(:disabled) {
+  background: rgba(55, 53, 47, 0.07);
+  color: #37352f;
+}
+
+.chat-inline-visual__btn:disabled {
+  color: #b9b9b6;
+  cursor: default;
+}
+
+.chat-inline-visual__btn--primary {
+  color: #37352f;
+  font-weight: 600;
+}
+
+/* Tiny pulsing cursor shown in place of the toolbar while streaming —
+ * acts as the "thinking" indicator without a heavy header bar. */
+
+.chat-inline-visual__cursor {
+  display: inline-block;
+  width: 6px;
+  height: 12px;
+  background: #6366f1;
+  border-radius: 1px;
+  margin: 2px 4px;
+  animation: chat-inline-cursor 1s ease-in-out infinite;
+}
+
+.chat-inline-visual--streaming .chat-inline-visual__toolbar {
+  opacity: 1;
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+@keyframes chat-inline-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
 }
 
 .chat-inline-visual__header {
