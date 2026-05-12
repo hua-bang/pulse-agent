@@ -97,9 +97,10 @@ export const wrapToolsWithContext = (
   for (const [name, tool] of Object.entries(tools)) {
     wrappedTools[name] = {
       ...tool,
-      execute: async (input: any) => {
-        // Call the original execute with context
-        return await tool.execute(input, context);
+      execute: async (input: any, options?: { toolCallId?: string }) => {
+        // Forward the AI SDK's toolCallId so tools can stream side-channel
+        // updates that the renderer correlates back to the tool-call frame.
+        return await tool.execute(input, { ...context, toolCallId: options?.toolCallId });
       }
     } as Tool;
   }

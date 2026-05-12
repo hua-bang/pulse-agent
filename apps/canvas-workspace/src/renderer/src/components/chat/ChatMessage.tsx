@@ -111,16 +111,32 @@ export const ChatMessage = ({
             })}
           </div>
           {tools.map(tool => {
-            // visual_render in flight: drive an inline streaming preview
-            // off the partial JSON the LLM is still emitting. Morphdom
-            // diffs the DOM in place so the visual "grows" as Claude's
-            // Artifacts do, just without leaving the chat column.
+            // visual_render in flight: drive an inline streaming preview.
+            // Prefer `streamedContent` (the tool's own side-channel chunks)
+            // when present — works on any LLM/provider — and fall back to
+            // partial JSON extraction if the upstream model genuinely
+            // streams tool args.
             if (tool.name === 'visual_render' && !tool.result) {
               return (
                 <ChatInlineVisual
                   key={`visual-${tool.id}`}
                   workspaceId={workspaceId}
+                  streamedContent={tool.streamedContent}
                   partialInput={tool.partialInput}
+                  streaming
+                />
+              );
+            }
+            // visual_render finished but the side-channel stream may still
+            // be flushing the final frames. Until streamedDone, keep using
+            // the streaming view so the swap to the script-enabled iframe
+            // happens at the END of the animation, not on tool-result.
+            if (tool.name === 'visual_render' && tool.result && !tool.streamedDone && tool.streamedContent) {
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  streamedContent={tool.streamedContent}
                   streaming
                 />
               );

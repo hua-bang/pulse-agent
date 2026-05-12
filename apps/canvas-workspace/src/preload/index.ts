@@ -272,6 +272,25 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       };
     },
 
+    onVisualStream: (
+      callback: (data: {
+        workspaceId: string;
+        toolCallId: string;
+        content: string;
+        done?: boolean;
+      }) => void,
+    ) => {
+      const channel = 'canvas-agent:visual-stream';
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { workspaceId: string; toolCallId: string; content: string; done?: boolean },
+      ) => callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
     onClarifyRequest: (
       sessionId: string,
       callback: (data: { id: string; question: string; context?: string }) => void,

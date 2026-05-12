@@ -103,6 +103,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         unsubscribeToolInputStart();
         unsubscribeToolInputDelta();
         unsubscribeToolInputEnd();
+        unsubscribeVisualStream();
         unsubscribeClarify();
         activeUnsubsRef.current = [];
       };
@@ -157,6 +158,20 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         publishTools();
       });
 
+      // Side-channel: visual_render pushes already-extracted content as the
+      // tool chunks its final HTML over animation frames. We accept these
+      // chunks regardless of which session emitted them — the toolCallId
+      // disambiguates — but filter to the active workspace so a stray
+      // chunk from a parallel workspace agent doesn't leak in.
+      const unsubscribeVisualStream = window.canvasWorkspace.agent.onVisualStream(data => {
+        if (data.workspaceId !== workspaceId) return;
+        const tool = findTool(data.toolCallId);
+        if (!tool) return;
+        tool.streamedContent = data.content;
+        if (data.done) tool.streamedDone = true;
+        publishTools();
+      });
+
       const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
         ensureAssistantMessage();
         // If we already created a ToolCallStatus for this id during input
@@ -184,6 +199,15 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
           tool.status = 'done';
           tool.result = data.result;
           tool.inputStreaming = false;
+          // Safety: if the tool already pushed visual stream chunks but
+          // the final `done` frame hasn't landed yet (IPC ordering race
+          // between visual-stream and tool-result channels), promote the
+          // last chunk to "done" so the renderer can swap to the final
+          // script-enabled iframe instead of getting stuck in streaming
+          // view.
+          if (tool.streamedContent != null) {
+            tool.streamedDone = true;
+          }
         }
         publishTools();
       });
@@ -271,6 +295,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         unsubscribeToolInputStart,
         unsubscribeToolInputDelta,
         unsubscribeToolInputEnd,
+        unsubscribeVisualStream,
         unsubscribeDelta,
         unsubscribeComplete,
         unsubscribeClarify,

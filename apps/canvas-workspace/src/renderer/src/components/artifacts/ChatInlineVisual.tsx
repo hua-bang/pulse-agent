@@ -33,6 +33,13 @@ interface ChatInlineVisualProps {
   payload?: InlineVisualPayload;
   /** Streaming raw JSON of the tool's input, accumulated so far. */
   partialInput?: string;
+  /**
+   * Already-unescaped partial HTML pushed by `visual_render`'s own
+   * side-channel chunking. Preferred over `partialInput` when present
+   * because it skips JSON-escape parsing — this is the path that works
+   * on LLM/providers that DON'T stream tool-call args natively.
+   */
+  streamedContent?: string;
   /** True while the tool is still in flight. */
   streaming?: boolean;
 }
@@ -55,6 +62,7 @@ export const ChatInlineVisual = ({
   workspaceId,
   payload,
   partialInput,
+  streamedContent,
   streaming = false,
 }: ChatInlineVisualProps) => {
   const { openArtifact } = useArtifactDrawer();
@@ -63,10 +71,24 @@ export const ChatInlineVisual = ({
   const [copied, setCopied] = useState(false);
   const [height, setHeight] = useState(MIN_HEIGHT);
 
+  // Build the live payload from the highest-fidelity source available.
+  // Side-channel streamedContent is preferred (already-unescaped HTML),
+  // then partial JSON extraction, then the final payload. The final
+  // payload is also used to harvest type/title metadata that
+  // streamedContent doesn't carry.
   const partialPayload = useMemo(() => parsePartial(partialInput), [partialInput]);
-  const livePayload: InlineVisualPayload | null = payload ?? partialPayload;
+  const livePayload: InlineVisualPayload | null = useMemo(() => {
+    if (streamedContent != null && streaming) {
+      return {
+        type: payload?.type ?? partialPayload?.type ?? 'html',
+        title: payload?.title ?? partialPayload?.title,
+        content: streamedContent,
+      };
+    }
+    return payload ?? partialPayload;
+  }, [streamedContent, streaming, payload, partialPayload]);
 
-  const isStreamingHtml = streaming && !payload && livePayload?.type === 'html';
+  const isStreamingHtml = streaming && livePayload?.type === 'html' && (!payload || streamedContent != null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const shellReady = useRef(false);
   const pendingMorph = useRef<string | null>(null);
