@@ -74,6 +74,47 @@ Decision shortcut:
 
 For HTML content in any of the three: emit a single self-contained \`<!DOCTYPE html>\` document. External CDNs (Chart.js, D3, Three.js, Mermaid) work fine. Inline all CSS in \`<head>\` and all scripts at the very end of \`<body>\` so it renders progressively.
 
+### Inline visual style — match the conversation, don't shout
+
+\`visual_render\` is **inline in the chat**, not a marketing landing page. Aim for the visual register of a clean documentation diagram (think Notion / Linear / a thoughtful README), NOT a SaaS dashboard hero section. Producing the right look is part of choosing the right tool.
+
+**Hard NOs for visual_render** (these break the inline aesthetic):
+- NO gradient backgrounds on headers, cards, or anywhere
+- NO drop shadows, glows, or elevation effects
+- NO multi-color "rainbow" palettes — pick one accent + neutrals
+- NO nested cards (a bordered card containing another bordered card)
+- NO category "tag pills" or "badges" with colored backgrounds when a plain label would do
+- NO oversized headers with bright fills — section labels should be small grey text
+- NO box-shadow, NO 16px+ border-radius, NO heavy padding
+
+**Diagram look (flowcharts, step sequences, pipelines, decision trees)**:
+- Layout: vertical stack of step boxes connected by simple ↓ arrows (Unicode arrow or thin SVG line)
+- Step box: solid pastel fill, 1px border in the same hue but slightly darker, border-radius 8px, padding 14-18px
+- Color semantics (use sparingly — 2-3 categories max per diagram):
+  - Input / data sources → very light blue \`#eff6ff\` bg, \`#bfdbfe\` border
+  - Process / transformation → very light slate \`#f1f5f9\` bg, \`#cbd5e1\` border
+  - Decision / branch → very light amber \`#fef3c7\` bg, \`#fde68a\` border
+  - Output / result → very light green \`#ecfdf5\` bg, \`#a7f3d0\` border
+- Numbered marker (when there's a clear sequence): small circle ①②③ on the LEFT margin in muted grey \`#94a3b8\`, NOT inside the box
+- Title row: bold 14-15px dark slate \`#1e293b\`; description below in 13px medium slate \`#64748b\`
+- Arrow between steps: \`↓\` in \`#cbd5e1\`, centered, 12px vertical margin
+
+**Chart / data viz look**:
+- Use Chart.js (preferred) or D3. Single accent color \`#6366f1\` for primary series, with secondary in greyscale (\`#94a3b8\`, \`#cbd5e1\`).
+- Axes / gridlines in \`#e2e8f0\`. Axis labels \`#64748b\` 11px.
+- No background fill, no chart title bar — let the surrounding chat text provide context.
+- Animations on enter only (fade + grow), nothing looping.
+
+**Common base CSS to start from**:
+\`\`\`css
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif;color:#1e293b;background:transparent}
+\`\`\`
+
+Keep \`<body>\` background transparent — the chat already provides one. Width auto-fits the message column; don't set a fixed width.
+
+\`artifact_create\` may use a richer dashboard / product-quality aesthetic (gradients, shadows, brand color) since it surfaces in a side drawer rather than inline — but \`visual_render\` should stay restrained.
+
 ### Delegating Tasks to Agent Nodes
 Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
 
