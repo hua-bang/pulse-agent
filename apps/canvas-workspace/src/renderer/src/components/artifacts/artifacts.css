@@ -10,7 +10,56 @@
   background: transparent;
 }
 
-/* Top edge accent during streaming — a thin 1px indigo line that fades in/out. */
+/* Final reveal — soft fade + tiny rise so the visual feels "placed" rather
+ * than "popped in". Mirrors Claude's inline-visualization reveal. */
+.chat-inline-visual--ready {
+  animation: chat-inline-reveal 0.28s ease-out both;
+}
+
+@keyframes chat-inline-reveal {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Loading row — quiet, no preview. A single pulsing cursor + small label
+ * sit left-aligned, taking the same vertical rhythm as a paragraph. */
+.chat-inline-visual--loading {
+  min-height: 56px;
+}
+
+.chat-inline-visual__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.chat-inline-visual__loading-label {
+  display: inline-block;
+}
+
+.chat-inline-visual__loading-label::after {
+  content: '';
+  display: inline-block;
+  width: 1ch;
+  text-align: left;
+  animation: chat-inline-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes chat-inline-dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
+
+/* Subtle 1px edge above the loading row — just enough to mark "something
+ * is generating here" without drawing attention away from the chat text. */
 .chat-inline-visual__stream-edge {
   position: absolute;
   top: -4px;
@@ -20,20 +69,31 @@
   background: linear-gradient(
     90deg,
     transparent 0%,
-    rgba(99, 102, 241, 0.5) 30%,
-    rgba(99, 102, 241, 0.75) 50%,
-    rgba(99, 102, 241, 0.5) 70%,
+    rgba(99, 102, 241, 0.45) 50%,
     transparent 100%
   );
   background-size: 200% 100%;
-  animation: chat-inline-edge 1.6s linear infinite;
+  animation: chat-inline-edge 1.8s linear infinite;
   pointer-events: none;
-  z-index: 1;
 }
 
 @keyframes chat-inline-edge {
-  0% { background-position: 200% 0; }
+  0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
+}
+
+.chat-inline-visual__cursor {
+  display: inline-block;
+  width: 6px;
+  height: 12px;
+  background: #6366f1;
+  border-radius: 1px;
+  animation: chat-inline-cursor 1s ease-in-out infinite;
+}
+
+@keyframes chat-inline-cursor {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
 }
 
 .chat-inline-visual__frame {
@@ -55,24 +115,8 @@
   color: #b54040;
 }
 
-.chat-inline-visual__skeleton {
-  min-height: 80px;
-  display: flex;
-  align-items: center;
-  padding: 16px 0;
-}
-
-.chat-inline-visual__skeleton-bar {
-  width: 40%;
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, #f1f1ef 0%, #e5e5e2 50%, #f1f1ef 100%);
-  background-size: 200% 100%;
-  animation: chat-inline-edge 1.6s linear infinite;
-}
-
-/* Hover toolbar — invisible at rest, fades in when the user points at it. */
-
+/* Hover toolbar — invisible at rest, fades in when the user points at the
+ * visual. Sits over the top-right corner with a subtle frosted background. */
 .chat-inline-visual__toolbar {
   position: absolute;
   top: 6px;
@@ -93,8 +137,8 @@
   z-index: 2;
 }
 
-.chat-inline-visual:hover .chat-inline-visual__toolbar,
-.chat-inline-visual:focus-within .chat-inline-visual__toolbar {
+.chat-inline-visual--ready:hover .chat-inline-visual__toolbar,
+.chat-inline-visual--ready:focus-within .chat-inline-visual__toolbar {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
@@ -125,33 +169,6 @@
 .chat-inline-visual__btn--primary {
   color: #37352f;
   font-weight: 600;
-}
-
-/* Tiny pulsing cursor shown in place of the toolbar while streaming —
- * acts as the "thinking" indicator without a heavy header bar. */
-
-.chat-inline-visual__cursor {
-  display: inline-block;
-  width: 6px;
-  height: 12px;
-  background: #6366f1;
-  border-radius: 1px;
-  margin: 2px 4px;
-  animation: chat-inline-cursor 1s ease-in-out infinite;
-}
-
-.chat-inline-visual--streaming .chat-inline-visual__toolbar {
-  opacity: 1;
-  pointer-events: none;
-  background: transparent;
-  border: 0;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-@keyframes chat-inline-cursor {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.25; }
 }
 
 .chat-inline-visual__header {

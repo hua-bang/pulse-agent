@@ -111,25 +111,28 @@ export const ChatMessage = ({
             })}
           </div>
           {tools.map(tool => {
-            // While the LLM is still emitting the tool's input args (for
-            // either visual_render or artifact_create / _update), surface
-            // an in-flight visual driven by the partial JSON so the user
-            // sees the content materialize live, the way Claude does.
-            const isStreamingVisual =
-              !tool.result &&
-              (tool.name === 'visual_render'
-                || tool.name === 'artifact_create'
-                || tool.name === 'artifact_update');
-            if (isStreamingVisual) {
-              if (!tool.partialInput) return null;
+            // visual_render in flight → quiet loading skeleton in chat.
+            // We deliberately do NOT render the partial HTML mid-stream:
+            // small inline visuals look janky when their DOM thrashes.
+            // Claude reveals the finished thing in one shot — same here.
+            if (tool.name === 'visual_render' && !tool.result) {
               return (
                 <ChatInlineVisual
                   key={`visual-${tool.id}`}
                   workspaceId={workspaceId}
-                  partialInput={tool.partialInput}
                   streaming
                 />
               );
+            }
+            // artifact_create/update in flight → no inline preview at all.
+            // The tool-call chip above signals progress; the artifact card
+            // appears once the tool returns. (If the user wants a live
+            // preview they can open the drawer.)
+            if (
+              (tool.name === 'artifact_create' || tool.name === 'artifact_update')
+              && !tool.result
+            ) {
+              return null;
             }
             const visual = parseVisualToolResult(tool.name, tool.result);
             if (!visual) return null;
