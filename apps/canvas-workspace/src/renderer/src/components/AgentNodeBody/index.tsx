@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import './index.css';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { CanvasNode, AgentNodeData } from '../../types';
+import type { CanvasNode, AgentNodeData, FileNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { getAgentCommand } from '../../config/agentRegistry';
 import {
@@ -13,9 +13,11 @@ import {
 } from './utils/terminal';
 import { AgentPicker } from './AgentPicker';
 import { AgentTerminal } from './AgentTerminal';
+import { NodeMentionPicker } from '../NodeMentionPicker';
 
 interface Props {
   node: CanvasNode;
+  getAllNodes?: () => CanvasNode[];
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
@@ -23,13 +25,14 @@ interface Props {
   readOnly?: boolean;
 }
 
-export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
+export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
   const data = node.data as AgentNodeData;
   const status = data.status ?? 'idle';
 
   const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
   const [cwdInput, setCwdInput] = useState(data.cwd || '');
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || '');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
   // Treat any of the following as evidence that the node has been launched
   // before and should skip the picker on mount:
@@ -66,6 +69,8 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate, readOnl
   dataRef.current = data;
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
+  const getAllNodesRef = useRef(getAllNodes);
+  getAllNodesRef.current = getAllNodes;
   const initialScrollback = useRef(data.scrollback ?? '');
   /**
    * Distinguishes a fresh user-initiated launch (picker → Start click) from
@@ -127,6 +132,14 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate, readOnl
       term.open(containerRef.current);
       termRef.current = term;
       fitRef.current = fitAddon;
+
+      term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+        if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+          setPickerOpen(true);
+          return false;
+        }
+        return true;
+      });
 
       requestAnimationFrame(() => {
         try { fitAddon.fit(); } catch { /* ignore */ }
@@ -354,6 +367,26 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate, readOnl
     api.write(sessionId, `\n${prompt}\n`);
   }, [sessionId, readOnly]);
 
+  const handleMentionSelect = useCallback((selected: CanvasNode) => {
+    if (readOnly) return;
+    setPickerOpen(false);
+    const api = window.canvasWorkspace?.pty;
+    if (api) {
+      const filePath = selected.type === 'file'
+        ? (selected.data as FileNodeData).filePath
+        : undefined;
+      const label = filePath ? filePath.split('/').pop() : selected.title;
+      const mention = `@[${label}](canvas:${selected.id})`;
+      void api.write(sessionId, mention);
+    }
+    termRef.current?.focus();
+  }, [sessionId, readOnly]);
+
+  const handleMentionClose = useCallback(() => {
+    setPickerOpen(false);
+    termRef.current?.focus();
+  }, []);
+
   const handleRestart = useCallback(() => {
     if (readOnly) return;
     if (saveTimerRef.current) clearInterval(saveTimerRef.current);
@@ -404,12 +437,21 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate, readOnl
   }
 
   return (
-    <AgentTerminal
-      containerRef={containerRef}
-      status={status}
-      onRestart={handleRestart}
-      onStop={handleStop}
-      onSendPrompt={handleSendPrompt}
-    />
+    <div className="agent-body-wrap">
+      {!readOnly && pickerOpen && (
+        <NodeMentionPicker
+          nodes={getAllNodesRef.current?.() ?? []}
+          onSelect={handleMentionSelect}
+          onClose={handleMentionClose}
+        />
+      )}
+      <AgentTerminal
+        containerRef={containerRef}
+        status={status}
+        onRestart={handleRestart}
+        onStop={handleStop}
+        onSendPrompt={handleSendPrompt}
+      />
+    </div>
   );
 };
