@@ -95,9 +95,20 @@ export const wrapToolsWithContext = (
   const wrappedTools: Record<string, Tool> = {};
 
   for (const [name, tool] of Object.entries(tools)) {
+    let firstCall = true;
     wrappedTools[name] = {
       ...tool,
-      execute: async (input: any, options?: { toolCallId?: string }) => {
+      execute: async (input: any, options?: any) => {
+        // One-shot diagnostic per tool: log what the AI SDK actually passes
+        // as the second arg, so we can confirm toolCallId is there.
+        if (firstCall) {
+          firstCall = false;
+          const keys = options && typeof options === 'object' ? Object.keys(options) : null;
+          console.info(
+            `[wrapToolsWithContext] ${name}: options keys=${keys ? `[${keys.join(', ')}]` : '(no options arg)'}, ` +
+            `toolCallId=${options?.toolCallId ?? '(undefined)'}`,
+          );
+        }
         // Forward the AI SDK's toolCallId so tools can stream side-channel
         // updates that the renderer correlates back to the tool-call frame.
         return await tool.execute(input, { ...context, toolCallId: options?.toolCallId });
