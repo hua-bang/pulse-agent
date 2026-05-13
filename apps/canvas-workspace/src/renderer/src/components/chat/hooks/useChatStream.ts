@@ -163,10 +163,25 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
       // chunks regardless of which session emitted them — the toolCallId
       // disambiguates — but filter to the active workspace so a stray
       // chunk from a parallel workspace agent doesn't leak in.
+      let visualStreamFrames = 0;
       const unsubscribeVisualStream = window.canvasWorkspace.agent.onVisualStream(data => {
         if (data.workspaceId !== workspaceId) return;
         const tool = findTool(data.toolCallId);
-        if (!tool) return;
+        if (!tool) {
+          if (visualStreamFrames < 3) {
+            console.warn('[useChatStream] visual-stream frame for unknown toolCallId', data.toolCallId);
+            visualStreamFrames++;
+          }
+          return;
+        }
+        visualStreamFrames++;
+        // Sample-log progress so we can verify chunks arrive at ~60fps.
+        if (visualStreamFrames === 1 || data.done || visualStreamFrames % 15 === 0) {
+          console.info(
+            `[useChatStream] visual-stream frame=${visualStreamFrames} ` +
+            `bytes=${data.content.length} done=${!!data.done} toolCallId=${data.toolCallId}`,
+          );
+        }
         tool.streamedContent = data.content;
         if (data.done) tool.streamedDone = true;
         publishTools();
