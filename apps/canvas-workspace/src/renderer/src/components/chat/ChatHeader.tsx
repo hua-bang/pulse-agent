@@ -1,4 +1,4 @@
-import { CloseIcon, ListLinesIcon, PlusIcon } from '../icons';
+import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 
 interface ChatHeaderProps {
@@ -16,6 +16,7 @@ interface ChatHeaderProps {
   onToggleSessionMenu: () => Promise<void>;
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
+  onOpenModelSettings: () => void;
   onClose: () => void;
 }
 
@@ -43,6 +44,7 @@ export const ChatHeader = ({
   onToggleSessionMenu,
   onNewSession,
   onLoadSession,
+  onOpenModelSettings,
   onClose,
 }: ChatHeaderProps) => (
   <div className="chat-panel-header">
@@ -113,6 +115,14 @@ export const ChatHeader = ({
       )}
     </div>
     <div className="chat-panel-actions">
+      <button
+        className="chat-panel-action-btn"
+        onClick={onOpenModelSettings}
+        title="AI model settings"
+        aria-label="AI model settings"
+      >
+        <SettingsIcon size={16} strokeWidth={1.25} />
+      </button>
       <button
         className="chat-panel-action-btn"
         onClick={() => void onNewSession()}

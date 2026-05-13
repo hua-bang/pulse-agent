@@ -1,0 +1,523 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type {
+  CanvasModelProviderConfig,
+  CanvasModelProviderStatus,
+  CanvasModelProviderType,
+  CanvasModelStatus,
+  CanvasProviderModel,
+} from '../../types';
+import { CheckIcon, PlusIcon, RefreshIcon, TrashIcon } from '../icons';
+
+interface ModelSelection {
+  mode: 'auto' | 'model';
+  providerId?: string;
+  modelId?: string;
+}
+
+interface UseCanvasModelsResult {
+  status?: CanvasModelStatus;
+  loading: boolean;
+  error?: string;
+  selection: ModelSelection;
+  selectedLabel: string;
+  refresh: () => Promise<void>;
+  selectAuto: () => Promise<void>;
+  selectModel: (providerId: string, modelId: string) => Promise<void>;
+  upsertProvider: (provider: CanvasModelProviderConfig) => Promise<CanvasModelStatus | undefined>;
+  removeProvider: (providerId: string) => Promise<void>;
+  fetchModels: (provider: CanvasModelProviderConfig) => Promise<CanvasProviderModel[]>;
+}
+
+const providerLabel = (type?: CanvasModelProviderType) => type === 'claude' ? 'Claude' : 'OpenAI Compatible';
+
+const shortModelName = (model?: string) => {
+  if (!model) return 'Auto';
+  const parts = model.split('/');
+  return parts[parts.length - 1] || model;
+};
+
+export function useCanvasModels(): UseCanvasModelsResult {
+  const [status, setStatus] = useState<CanvasModelStatus>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>();
+
+  const refresh = useCallback(async () => {
+    const api = window.canvasWorkspace?.model;
+    if (!api) return;
+    setLoading(true);
+    const result = await api.status();
+    setLoading(false);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to load model settings');
+      return;
+    }
+    setError(undefined);
+    setStatus(result.status);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const selection = useMemo<ModelSelection>(() => {
+    if (status?.currentProvider && status.currentModel) {
+      return { mode: 'model', providerId: status.currentProvider, modelId: status.currentModel };
+    }
+    return { mode: 'auto' };
+  }, [status]);
+
+  const selectedLabel = useMemo(() => {
+    if (selection.mode === 'auto') return status?.apiKeyPresent ? 'Auto' : 'Auto';
+    return shortModelName(selection.modelId);
+  }, [selection, status?.apiKeyPresent]);
+
+  const selectAuto = useCallback(async () => {
+    const result = await window.canvasWorkspace.model.setCurrent(undefined, undefined);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to switch model');
+      return;
+    }
+    setError(undefined);
+    setStatus(result.status);
+  }, []);
+
+  const selectModel = useCallback(async (providerId: string, modelId: string) => {
+    const result = await window.canvasWorkspace.model.setCurrent(modelId, providerId);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to switch model');
+      return;
+    }
+    setError(undefined);
+    setStatus(result.status);
+  }, []);
+
+  const upsertProvider = useCallback(async (provider: CanvasModelProviderConfig) => {
+    const result = await window.canvasWorkspace.model.upsertProvider(provider);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to save provider');
+      return undefined;
+    }
+    setError(undefined);
+    setStatus(result.status);
+    return result.status;
+  }, []);
+
+  const removeProvider = useCallback(async (providerId: string) => {
+    const result = await window.canvasWorkspace.model.removeProvider(providerId);
+    if (!result.ok) {
+      setError(result.error ?? 'Failed to remove provider');
+      return;
+    }
+    setError(undefined);
+    setStatus(result.status);
+  }, []);
+
+  const fetchModels = useCallback(async (provider: CanvasModelProviderConfig) => {
+    const result = await window.canvasWorkspace.model.fetchModels(undefined, provider);
+    if (!result.ok) throw new Error(result.error ?? 'Failed to fetch models');
+    return result.models ?? [];
+  }, []);
+
+  return {
+    status,
+    loading,
+    error,
+    selection,
+    selectedLabel,
+    refresh,
+    selectAuto,
+    selectModel,
+    upsertProvider,
+    removeProvider,
+    fetchModels,
+  };
+}
+
+interface ModelSwitcherProps {
+  status?: CanvasModelStatus;
+  selection: ModelSelection;
+  label: string;
+  onSelectAuto: () => Promise<void>;
+  onSelectModel: (providerId: string, modelId: string) => Promise<void>;
+  onOpenSettings: () => void;
+}
+
+export const ModelSwitcher = ({
+  status,
+  selection,
+  label,
+  onSelectAuto,
+  onSelectModel,
+  onOpenSettings,
+}: ModelSwitcherProps) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [open]);
+
+  const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
+  const hasConfiguredModels = providers.some(provider => provider.models.length > 0);
+
+  return (
+    <div className="chat-model-switcher" ref={ref}>
+      <button
+        type="button"
+        className={`chat-model-switcher-btn${!status?.apiKeyPresent ? ' chat-model-switcher-btn--warning' : ''}`}
+        onClick={() => setOpen(value => !value)}
+        title="选择本次使用的模型"
+        aria-label="选择模型"
+      >
+        <span className="chat-model-switcher-dot" />
+        <span className="chat-model-switcher-label">{label}</span>
+        <span className="chat-model-switcher-chevron">⌄</span>
+      </button>
+      {open && (
+        <div className="chat-model-menu">
+          <div className="chat-model-menu-label">Use model</div>
+          <button
+            type="button"
+            className={`chat-model-menu-item${selection.mode === 'auto' ? ' chat-model-menu-item--active' : ''}`}
+            onClick={() => {
+              setOpen(false);
+              void onSelectAuto();
+            }}
+          >
+            <span className="chat-model-menu-check">{selection.mode === 'auto' ? <CheckIcon /> : null}</span>
+            <span className="chat-model-menu-main">
+              <span className="chat-model-menu-title">Auto</span>
+              <span className="chat-model-menu-subtitle">自动使用当前默认配置</span>
+            </span>
+          </button>
+          {providers.length > 0 && <div className="chat-model-menu-divider" />}
+          {providers.map(provider => (
+            <div key={provider.id} className="chat-model-menu-provider">
+              <div className="chat-model-menu-provider-head">
+                <span>{provider.name}</span>
+                <span>{providerLabel(provider.provider_type)}</span>
+              </div>
+              {provider.models.length > 0 ? provider.models.map(model => {
+                const active = selection.mode === 'model' && selection.providerId === provider.id && selection.modelId === model.id;
+                return (
+                  <button
+                    key={`${provider.id}:${model.id}`}
+                    type="button"
+                    className={`chat-model-menu-item chat-model-menu-item--model${active ? ' chat-model-menu-item--active' : ''}`}
+                    onClick={() => {
+                      setOpen(false);
+                      void onSelectModel(provider.id, model.id);
+                    }}
+                  >
+                    <span className="chat-model-menu-check">{active ? <CheckIcon /> : null}</span>
+                    <span className="chat-model-menu-main">
+                      <span className="chat-model-menu-title">{model.name ?? model.id}</span>
+                      <span className="chat-model-menu-subtitle">{model.id}</span>
+                    </span>
+                  </button>
+                );
+              }) : (
+                <div className="chat-model-menu-empty">No models yet</div>
+              )}
+            </div>
+          ))}
+          {!hasConfiguredModels && (
+            <div className="chat-model-menu-hint">
+              配置 API Key / Base URL 后可拉取模型，也可以手动添加。
+            </div>
+          )}
+          <div className="chat-model-menu-divider" />
+          <button
+            type="button"
+            className="chat-model-menu-action"
+            onClick={() => {
+              setOpen(false);
+              onOpenSettings();
+            }}
+          >
+            Manage providers…
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface ModelSettingsDrawerProps {
+  open: boolean;
+  status?: CanvasModelStatus;
+  error?: string;
+  onClose: () => void;
+  onSaveProvider: (provider: CanvasModelProviderConfig) => Promise<CanvasModelStatus | undefined>;
+  onRemoveProvider: (providerId: string) => Promise<void>;
+  onFetchModels: (provider: CanvasModelProviderConfig) => Promise<CanvasProviderModel[]>;
+}
+
+const emptyProvider = (): CanvasModelProviderConfig => ({
+  id: '',
+  name: '',
+  provider_type: 'openai',
+  base_url: '',
+  api_key: '',
+  models: [],
+});
+
+const providerToDraft = (provider?: CanvasModelProviderStatus): CanvasModelProviderConfig => {
+  if (!provider) return emptyProvider();
+  return {
+    id: provider.id,
+    name: provider.name,
+    provider_type: provider.provider_type,
+    base_url: provider.base_url ?? '',
+    api_key: '',
+    api_key_env: provider.api_key_env,
+    headers: provider.headers,
+    models: provider.models,
+  };
+};
+
+const inferProviderId = (name: string) => name
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9._-]+/g, '-')
+  .replace(/^-+|-+$/g, '');
+
+export const ModelSettingsDrawer = ({
+  open,
+  status,
+  error,
+  onClose,
+  onSaveProvider,
+  onRemoveProvider,
+  onFetchModels,
+}: ModelSettingsDrawerProps) => {
+  const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
+  const [activeProviderId, setActiveProviderId] = useState<string>('new');
+  const [draft, setDraft] = useState<CanvasModelProviderConfig>(emptyProvider());
+  const [manualModel, setManualModel] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [localError, setLocalError] = useState<string>();
+
+  useEffect(() => {
+    if (!open) return;
+    const initial = status?.currentProvider ?? providers[0]?.id ?? 'new';
+    setActiveProviderId(initial);
+    const provider = providers.find(item => item.id === initial);
+    setDraft(providerToDraft(provider));
+    setManualModel('');
+    setLocalError(undefined);
+  }, [open, status?.currentProvider, providers]);
+
+  const selectProvider = useCallback((providerId: string) => {
+    setActiveProviderId(providerId);
+    setDraft(providerToDraft(providers.find(item => item.id === providerId)));
+    setManualModel('');
+    setLocalError(undefined);
+  }, [providers]);
+
+  const setDraftField = useCallback(<K extends keyof CanvasModelProviderConfig>(key: K, value: CanvasModelProviderConfig[K]) => {
+    setDraft(current => {
+      const next = { ...current, [key]: value };
+      if (key === 'name' && !current.id) {
+        next.id = inferProviderId(String(value));
+      }
+      return next;
+    });
+  }, []);
+
+  const addManualModel = useCallback(() => {
+    const id = manualModel.trim();
+    if (!id) return;
+    setDraft(current => {
+      const models = current.models ?? [];
+      if (models.some(model => model.id === id)) return current;
+      return { ...current, models: [...models, { id }] };
+    });
+    setManualModel('');
+  }, [manualModel]);
+
+  const removeModel = useCallback((modelId: string) => {
+    setDraft(current => ({
+      ...current,
+      models: (current.models ?? []).filter(model => model.id !== modelId),
+    }));
+  }, []);
+
+  const fetchModels = useCallback(async () => {
+    setFetching(true);
+    setLocalError(undefined);
+    try {
+      const models = await onFetchModels(draft);
+      setDraft(current => ({ ...current, models }));
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFetching(false);
+    }
+  }, [draft, onFetchModels]);
+
+  const save = useCallback(async () => {
+    if (!draft.name.trim()) {
+      setLocalError('Provider name is required.');
+      return;
+    }
+    if (!draft.id.trim()) {
+      setLocalError('Provider id is required.');
+      return;
+    }
+    setSaving(true);
+    setLocalError(undefined);
+    const saved = await onSaveProvider(draft);
+    setSaving(false);
+    if (saved) {
+      setActiveProviderId(draft.id);
+    }
+  }, [draft, onSaveProvider]);
+
+  if (!open) return null;
+
+  return (
+    <div className="chat-model-settings-backdrop" onMouseDown={onClose}>
+      <aside className="chat-model-settings" onMouseDown={event => event.stopPropagation()} aria-label="AI model settings">
+        <div className="chat-model-settings-header">
+          <div>
+            <div className="chat-model-settings-kicker">AI Settings</div>
+            <h2>Models & Providers</h2>
+          </div>
+          <button type="button" className="chat-model-settings-close" onClick={onClose} aria-label="关闭模型设置">×</button>
+        </div>
+
+        <div className="chat-model-settings-body">
+          <div className="chat-model-provider-rail">
+            <button
+              type="button"
+              className={`chat-model-provider-tab${activeProviderId === 'new' ? ' chat-model-provider-tab--active' : ''}`}
+              onClick={() => selectProvider('new')}
+            >
+              <PlusIcon size={13} />
+              <span>Add provider</span>
+            </button>
+            {providers.map(provider => (
+              <button
+                key={provider.id}
+                type="button"
+                className={`chat-model-provider-tab${activeProviderId === provider.id ? ' chat-model-provider-tab--active' : ''}`}
+                onClick={() => selectProvider(provider.id)}
+              >
+                <span className={`chat-model-provider-status${provider.apiKeyPresent ? ' chat-model-provider-status--ok' : ''}`} />
+                <span className="chat-model-provider-tab-text">
+                  <strong>{provider.name}</strong>
+                  <small>{provider.models.length} models</small>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <div className="chat-model-settings-form">
+            <div className="chat-model-settings-card chat-model-settings-card--intro">
+              <div>
+                <strong>{activeProviderId === 'new' ? 'Add a model provider' : `Edit ${draft.name || 'provider'}`}</strong>
+                <p>配置 API Key / API URL，然后拉取或手动添加该 provider 下的模型。</p>
+              </div>
+              {activeProviderId !== 'new' && (
+                <button
+                  type="button"
+                  className="chat-model-danger-btn"
+                  onClick={() => void onRemoveProvider(activeProviderId)}
+                >
+                  <TrashIcon />
+                </button>
+              )}
+            </div>
+
+            {(localError || error) && <div className="chat-model-settings-error">{localError || error}</div>}
+
+            <label className="chat-model-field">
+              <span>Provider name</span>
+              <input value={draft.name} placeholder="DeepSeek / OpenRouter / Local" onChange={event => setDraftField('name', event.target.value)} />
+            </label>
+
+            <label className="chat-model-field">
+              <span>Provider id</span>
+              <input value={draft.id} placeholder="deepseek" onChange={event => setDraftField('id', inferProviderId(event.target.value))} />
+            </label>
+
+            <label className="chat-model-field">
+              <span>Provider type</span>
+              <select value={draft.provider_type ?? 'openai'} onChange={event => setDraftField('provider_type', event.target.value as CanvasModelProviderType)}>
+                <option value="openai">OpenAI Compatible</option>
+                <option value="claude">Claude</option>
+              </select>
+            </label>
+
+            <label className="chat-model-field">
+              <span>API URL / Base URL</span>
+              <input
+                value={draft.base_url ?? ''}
+                placeholder={draft.provider_type === 'claude' ? 'https://api.anthropic.com' : 'https://api.deepseek.com/v1'}
+                onChange={event => setDraftField('base_url', event.target.value)}
+              />
+            </label>
+
+            <label className="chat-model-field">
+              <span>API Key</span>
+              <input
+                value={draft.api_key ?? ''}
+                type="password"
+                placeholder="留空则保留已保存的 API Key"
+                onChange={event => setDraftField('api_key', event.target.value)}
+              />
+            </label>
+
+            <div className="chat-model-field-row">
+              <label className="chat-model-field chat-model-field--grow">
+                <span>Models</span>
+                <input
+                  value={manualModel}
+                  placeholder="deepseek-chat"
+                  onChange={event => setManualModel(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addManualModel();
+                    }
+                  }}
+                />
+              </label>
+              <button type="button" className="chat-model-secondary-btn" onClick={addManualModel}>Add</button>
+              <button type="button" className="chat-model-secondary-btn" onClick={() => void fetchModels()} disabled={fetching}>
+                <RefreshIcon />
+                {fetching ? 'Fetching' : 'Fetch'}
+              </button>
+            </div>
+
+            <div className="chat-model-model-list">
+              {(draft.models ?? []).length > 0 ? draft.models?.map(model => (
+                <span key={model.id} className="chat-model-chip">
+                  {model.name ?? model.id}
+                  <button type="button" onClick={() => removeModel(model.id)} aria-label={`Remove ${model.id}`}>×</button>
+                </span>
+              )) : (
+                <div className="chat-model-settings-empty">还没有模型。可以 Fetch Models，或手动输入 model id 后 Add。</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="chat-model-settings-footer">
+          <span>{status?.path}</span>
+          <button type="button" className="chat-model-secondary-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
+            {saving ? 'Saving…' : 'Save provider'}
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+};

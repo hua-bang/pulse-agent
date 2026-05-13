@@ -383,7 +383,24 @@ export interface CanvasModelOption {
   headers?: Record<string, string>;
 }
 
+export interface CanvasProviderModel {
+  id: string;
+  name?: string;
+}
+
+export interface CanvasModelProviderConfig {
+  id: string;
+  name: string;
+  provider_type?: CanvasModelProviderType;
+  base_url?: string;
+  api_key_env?: string;
+  api_key?: string;
+  headers?: Record<string, string>;
+  models?: CanvasProviderModel[];
+}
+
 export interface CanvasModelConfig {
+  current_provider?: string;
   current_model?: string;
   provider_type?: CanvasModelProviderType;
   model?: string;
@@ -391,10 +408,23 @@ export interface CanvasModelConfig {
   api_key_env?: string;
   headers?: Record<string, string>;
   options?: CanvasModelOption[];
+  providers?: CanvasModelProviderConfig[];
+}
+
+export interface CanvasModelProviderStatus {
+  id: string;
+  name: string;
+  provider_type: CanvasModelProviderType;
+  base_url?: string;
+  api_key_env?: string;
+  apiKeyPresent: boolean;
+  headers?: Record<string, string>;
+  models: CanvasProviderModel[];
 }
 
 export interface CanvasModelStatus {
   path: string;
+  currentProvider?: string;
   currentModel?: string;
   providerType: CanvasModelProviderType;
   resolvedModel: string;
@@ -402,16 +432,23 @@ export interface CanvasModelStatus {
   resolvedApiKeyEnv?: string;
   apiKeyPresent: boolean;
   options: CanvasModelOption[];
+  providers: CanvasModelProviderStatus[];
 }
 
 export interface CanvasModelApi {
   status: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
   saveConfig: (config: CanvasModelConfig) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  upsertProvider: (provider: CanvasModelProviderConfig) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  removeProvider: (providerId: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  fetchModels: (
+    providerId?: string,
+    provider?: CanvasModelProviderConfig,
+  ) => Promise<{ ok: boolean; models?: CanvasProviderModel[]; error?: string }>;
   upsertOption: (
     option: CanvasModelOption,
     setCurrent?: boolean,
   ) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
-  setCurrent: (name: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  setCurrent: (name?: string, providerId?: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
   removeOption: (name: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
   reset: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
 }

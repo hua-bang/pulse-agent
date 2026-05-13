@@ -15,7 +15,47 @@ interface IconProps {
   strokeWidth?: number;
 }
 
-/** Close / cancel (×). Canonical 16×16 path. */
+export const SettingsIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path
+      d="M8 10.4a2.4 2.4 0 100-4.8 2.4 2.4 0 000 4.8z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+    />
+    <path
+      d="M8 1.9l1.05 1.35 1.7.2.55 1.6 1.45.9-.45 1.65.45 1.65-1.45.9-.55 1.6-1.7.2L8 14.1l-1.05-1.35-1.7-.2-.55-1.6-1.45-.9.45-1.65-.45-1.65 1.45-.9.55-1.6 1.7-.2L8 1.9z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const CheckIcon = ({ size = 14, className, strokeWidth = 1.6 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M3.5 8.2l2.7 2.7 6.3-6.4" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const RefreshIcon = ({ size = 14, className, strokeWidth = 1.35 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M13 7a5 5 0 00-8.7-3.35L3 5" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 3v2h2" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 9a5 5 0 008.7 3.35L13 11" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13 13v-2h-2" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const TrashIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M3 4.5h10" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+    <path d="M6.2 4.5V3.2h3.6v1.3" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5 6.3l.45 6.2A1.5 1.5 0 006.95 14h2.1a1.5 1.5 0 001.5-1.5L11 6.3" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+  </svg>
+);
+
+
 export const CloseIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <path

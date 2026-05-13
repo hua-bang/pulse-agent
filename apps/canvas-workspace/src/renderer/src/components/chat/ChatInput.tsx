@@ -1,8 +1,9 @@
 import type { ClipboardEventHandler, KeyboardEventHandler, ReactNode, RefObject } from 'react';
-import type { CanvasNode, ChatImageAttachment } from '../../types';
+import type { CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
 import { ImageIcon, PlusIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { MentionNodeIcon } from './utils/mentions';
+import { ModelSwitcher } from './ModelSettings';
 
 interface ChatInputProps {
   loading: boolean;
@@ -11,6 +12,12 @@ interface ChatInputProps {
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
   executionMode?: 'auto' | 'ask';
+  modelStatus?: CanvasModelStatus;
+  modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
+  modelLabel?: string;
+  onSelectAutoModel?: () => Promise<void>;
+  onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
+  onOpenModelSettings?: () => void;
   editableRef: RefObject<HTMLDivElement>;
   mentionPopup?: ReactNode;
   onInput: () => void;
@@ -32,6 +39,12 @@ export const ChatInput = ({
   attachments = [],
   contextComposer = false,
   executionMode = 'auto',
+  modelStatus,
+  modelSelection = { mode: 'auto' },
+  modelLabel = 'Auto',
+  onSelectAutoModel,
+  onSelectModel,
+  onOpenModelSettings,
   editableRef,
   mentionPopup,
   onInput,
@@ -135,6 +148,16 @@ export const ChatInput = ({
             ) : null}
           </div>
           <div className="chat-input-footer-right">
+            {contextComposer && onSelectAutoModel && onSelectModel && onOpenModelSettings && (
+              <ModelSwitcher
+                status={modelStatus}
+                selection={modelSelection}
+                label={modelLabel}
+                onSelectAuto={onSelectAutoModel}
+                onSelectModel={onSelectModel}
+                onOpenSettings={onOpenModelSettings}
+              />
+            )}
             {contextComposer && (
               <button
                 type="button"
