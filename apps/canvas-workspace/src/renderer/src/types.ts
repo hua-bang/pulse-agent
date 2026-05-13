@@ -409,6 +409,21 @@ export interface AgentApi {
     sessionId: string,
     callback: (data: { id: string }) => void
   ) => () => void;
+  /**
+   * Subscribe to side-channel visual stream chunks emitted by the
+   * `visual_render` tool when the upstream LLM/provider doesn't stream
+   * tool-call arguments. The tool itself chunks its final content and
+   * broadcasts updates keyed by `toolCallId`, which the renderer matches
+   * to the corresponding ToolCallStatus.
+   */
+  onVisualStream: (
+    callback: (data: {
+      workspaceId: string;
+      toolCallId: string;
+      content: string;
+      done?: boolean;
+    }) => void
+  ) => () => void;
   onClarifyRequest: (
     sessionId: string,
     callback: (data: { id: string; question: string; context?: string }) => void

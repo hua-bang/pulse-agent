@@ -111,25 +111,45 @@ export const ChatMessage = ({
             })}
           </div>
           {tools.map(tool => {
-            // While the LLM is still emitting the tool's input args (for
-            // either visual_render or artifact_create / _update), surface
-            // an in-flight visual driven by the partial JSON so the user
-            // sees the content materialize live, the way Claude does.
-            const isStreamingVisual =
-              !tool.result &&
-              (tool.name === 'visual_render'
-                || tool.name === 'artifact_create'
-                || tool.name === 'artifact_update');
-            if (isStreamingVisual) {
-              if (!tool.partialInput) return null;
+            // visual_render in flight: drive an inline streaming preview.
+            // Prefer `streamedContent` (the tool's own side-channel chunks)
+            // when present — works on any LLM/provider — and fall back to
+            // partial JSON extraction if the upstream model genuinely
+            // streams tool args.
+            if (tool.name === 'visual_render' && !tool.result) {
               return (
                 <ChatInlineVisual
                   key={`visual-${tool.id}`}
                   workspaceId={workspaceId}
+                  streamedContent={tool.streamedContent}
                   partialInput={tool.partialInput}
                   streaming
                 />
               );
+            }
+            // visual_render finished but the side-channel stream may still
+            // be flushing the final frames. Until streamedDone, keep using
+            // the streaming view so the swap to the script-enabled iframe
+            // happens at the END of the animation, not on tool-result.
+            if (tool.name === 'visual_render' && tool.result && !tool.streamedDone && tool.streamedContent) {
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  streamedContent={tool.streamedContent}
+                  streaming
+                />
+              );
+            }
+            // artifact_create / _update in flight → no inline preview at
+            // all; the tool-call chip above signals progress and the
+            // artifact card lands once the tool returns. Drawer is the
+            // right place for a live artifact preview, not the chat.
+            if (
+              (tool.name === 'artifact_create' || tool.name === 'artifact_update')
+              && !tool.result
+            ) {
+              return null;
             }
             const visual = parseVisualToolResult(tool.name, tool.result);
             if (!visual) return null;

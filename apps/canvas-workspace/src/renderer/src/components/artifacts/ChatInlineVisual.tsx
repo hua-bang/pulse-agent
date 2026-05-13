@@ -1,24 +1,18 @@
 /**
  * Inline visual rendered directly inside an assistant message body.
  *
- * Matches Claude's "in-line interactive visualizations" UX:
- *  - No card chrome / border / header by default — the visual embeds in the
- *    conversation flow like a paragraph would.
- *  - Auto-sizes to content height: the iframe shell reports its
- *    `documentElement.scrollHeight` over postMessage and we resize to fit
- *    (clamped by a max).
- *  - A tiny floating toolbar appears on hover with "Save" (promote into the
- *    artifact store) and "Copy" — invisible otherwise so it doesn't
- *    interrupt reading.
- *  - Streaming indicator is a 1px indigo line at the top edge plus a small
- *    pulsing cursor in the corner; no heavy shimmer or "Generating…" label.
- *
  * Two render paths:
- *   - **Streaming**: extract `type` / `title` / `content` from the still-
- *     growing partial JSON; load STREAMING_SHELL once, post the latest
- *     accumulated HTML on every tick; morphdom diffs the DOM in place.
- *   - **Done**: re-render with `withAutoHeight(content)` so the final
- *     srcdoc executes <script> tags AND keeps reporting size changes.
+ *  - **Streaming**: extract `type` / `title` / `content` from the still-
+ *    growing partial JSON the LLM is emitting; load STREAMING_SHELL once,
+ *    post the latest accumulated HTML on every tick (rAF-throttled to a
+ *    single morph per frame), and let morphdom diff the DOM in place.
+ *  - **Done**: the tool finished executing → swap to a clean srcdoc wrapped
+ *    with `withAutoHeight()` so any <script> runs and the iframe keeps
+ *    reporting size changes.
+ *
+ * Visual register matches Claude's inline visualizations: chromeless,
+ * auto-sized to content, hover-only toolbar (Save / Copy / Open), thin
+ * indigo edge line + pulsing cursor as the only streaming indicators.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,13 +33,21 @@ interface ChatInlineVisualProps {
   payload?: InlineVisualPayload;
   /** Streaming raw JSON of the tool's input, accumulated so far. */
   partialInput?: string;
-  /** True while `partialInput` is still growing. */
+  /**
+   * Already-unescaped partial HTML pushed by `visual_render`'s own
+   * side-channel chunking. Preferred over `partialInput` when present
+   * because it skips JSON-escape parsing — this is the path that works
+   * on LLM/providers that DON'T stream tool-call args natively.
+   */
+  streamedContent?: string;
+  /** True while the tool is still in flight. */
   streaming?: boolean;
 }
 
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT = 640;
 
+/** Parse whatever fields are extractable from the LLM's still-growing JSON. */
 function parsePartial(partialInput: string | undefined): InlineVisualPayload | null {
   if (!partialInput) return null;
   const rawType = extractPartialStringField(partialInput, 'type');
@@ -60,6 +62,7 @@ export const ChatInlineVisual = ({
   workspaceId,
   payload,
   partialInput,
+  streamedContent,
   streaming = false,
 }: ChatInlineVisualProps) => {
   const { openArtifact } = useArtifactDrawer();
@@ -68,18 +71,32 @@ export const ChatInlineVisual = ({
   const [copied, setCopied] = useState(false);
   const [height, setHeight] = useState(MIN_HEIGHT);
 
+  // Build the live payload from the highest-fidelity source available.
+  // Side-channel streamedContent is preferred (already-unescaped HTML),
+  // then partial JSON extraction, then the final payload. The final
+  // payload is also used to harvest type/title metadata that
+  // streamedContent doesn't carry.
   const partialPayload = useMemo(() => parsePartial(partialInput), [partialInput]);
-  const livePayload: InlineVisualPayload | null = payload ?? partialPayload;
+  const livePayload: InlineVisualPayload | null = useMemo(() => {
+    if (streamedContent != null && streaming) {
+      return {
+        type: payload?.type ?? partialPayload?.type ?? 'html',
+        title: payload?.title ?? partialPayload?.title,
+        content: streamedContent,
+      };
+    }
+    return payload ?? partialPayload;
+  }, [streamedContent, streaming, payload, partialPayload]);
 
-  const isStreamingHtml = streaming && !payload && livePayload?.type === 'html';
-  const isFinalHtml = !streaming && payload?.type === 'html';
+  const isStreamingHtml = streaming && livePayload?.type === 'html' && (!payload || streamedContent != null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const shellReady = useRef(false);
   const pendingMorph = useRef<string | null>(null);
+  const rafId = useRef(0);
 
-  // Listen for `{ type: 'height', value }` from the iframe and resize to fit.
-  // Single global listener — we filter by `event.source` to ignore other
-  // iframes on the page.
+  // Receive `morph-ready` (one-shot, after STREAMING_SHELL's listener
+  // installs) and `height` (continuous, from the shell's ResizeObserver
+  // AND from withAutoHeight's probe in the final srcdoc).
   useEffect(() => {
     const handle = (e: MessageEvent) => {
       if (e.source !== iframeRef.current?.contentWindow) return;
@@ -103,22 +120,29 @@ export const ChatInlineVisual = ({
     return () => window.removeEventListener('message', handle);
   }, []);
 
-  // Reset shell-ready flag whenever we switch between streaming and final iframes.
+  // Reset shell-ready when switching between streaming-shell iframe and
+  // final iframe (different srcDoc → reload → contentWindow re-installs).
   useEffect(() => {
     shellReady.current = false;
     pendingMorph.current = null;
-  }, [isStreamingHtml, isFinalHtml]);
+  }, [isStreamingHtml, !!payload]);
 
-  // Push the latest accumulated HTML into the streaming shell on every tick.
+  // Push the latest accumulated HTML to the streaming shell. Throttled to
+  // one morph per animation frame so a burst of deltas doesn't queue 50
+  // morphdom diffs back-to-back (which would jank on weaker machines).
   useEffect(() => {
     if (!isStreamingHtml || !livePayload) return;
     const html = livePayload.content;
     if (!html) return;
-    if (!shellReady.current) {
-      pendingMorph.current = html;
-      return;
-    }
-    iframeRef.current?.contentWindow?.postMessage({ type: 'morph', html }, '*');
+    cancelAnimationFrame(rafId.current);
+    rafId.current = requestAnimationFrame(() => {
+      if (!shellReady.current) {
+        pendingMorph.current = html;
+        return;
+      }
+      iframeRef.current?.contentWindow?.postMessage({ type: 'morph', html }, '*');
+    });
+    return () => cancelAnimationFrame(rafId.current);
   }, [isStreamingHtml, livePayload]);
 
   const handleSaveAsArtifact = useCallback(async (e: React.MouseEvent) => {
@@ -158,15 +182,30 @@ export const ChatInlineVisual = ({
     if (savedId) openArtifact(workspaceId, savedId);
   }, [savedId, workspaceId, openArtifact]);
 
-  const renderBody = () => {
-    if (!livePayload) {
-      return (
-        <div className="chat-inline-visual__skeleton" aria-hidden="true">
-          <div className="chat-inline-visual__skeleton-bar" />
-        </div>
-      );
-    }
+  // ── Render branches ──────────────────────────────────────────────────
 
+  // No content yet (LLM hasn't emitted enough JSON to extract anything) —
+  // show a quiet loading row with the indigo cursor.
+  if (!livePayload || (!livePayload.content && !payload)) {
+    return (
+      <div className="chat-inline-visual chat-inline-visual--loading" aria-busy="true">
+        <div className="chat-inline-visual__stream-edge" aria-hidden="true" />
+        <div className="chat-inline-visual__loading">
+          <span className="chat-inline-visual__cursor" aria-hidden="true" />
+          <span className="chat-inline-visual__loading-label">
+            {streaming ? 'Generating visualization' : 'Preparing'}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const isFinal = !!payload;
+  const wrapperClass = `chat-inline-visual${isFinal
+    ? ' chat-inline-visual--ready'
+    : ' chat-inline-visual--streaming'}`;
+
+  const renderBody = () => {
     if (livePayload.type === 'html') {
       if (isStreamingHtml) {
         return (
@@ -176,7 +215,7 @@ export const ChatInlineVisual = ({
             srcDoc={STREAMING_SHELL}
             sandbox="allow-scripts"
             style={{ height }}
-            title={livePayload.title || 'Inline visual'}
+            title={livePayload.title || 'Inline visual (streaming)'}
           />
         );
       }
@@ -206,19 +245,13 @@ export const ChatInlineVisual = ({
     );
   };
 
-  const isStreaming = streaming && !payload;
-  const hasContent = !!livePayload?.content;
-
   return (
-    <div
-      className={`chat-inline-visual${isStreaming ? ' chat-inline-visual--streaming' : ''}`}
-    >
-      {isStreaming && <div className="chat-inline-visual__stream-edge" aria-hidden="true" />}
+    <div className={wrapperClass}>
+      {!isFinal && <div className="chat-inline-visual__stream-edge" aria-hidden="true" />}
       {renderBody()}
-      {/* Hover toolbar — invisible until pointer enters the visual. */}
-      <div className="chat-inline-visual__toolbar" aria-hidden={!hasContent}>
-        {isStreaming ? (
-          <span className="chat-inline-visual__cursor" />
+      <div className="chat-inline-visual__toolbar" aria-hidden={!livePayload.content}>
+        {!isFinal ? (
+          <span className="chat-inline-visual__cursor" aria-hidden="true" />
         ) : savedId ? (
           <button
             type="button"
@@ -234,7 +267,7 @@ export const ChatInlineVisual = ({
               type="button"
               className="chat-inline-visual__btn"
               onClick={handleCopy}
-              disabled={!hasContent}
+              disabled={!livePayload.content}
               title="Copy source"
             >
               {copied ? 'Copied' : 'Copy'}
@@ -243,7 +276,7 @@ export const ChatInlineVisual = ({
               type="button"
               className="chat-inline-visual__btn chat-inline-visual__btn--primary"
               onClick={(e) => void handleSaveAsArtifact(e)}
-              disabled={saving || !hasContent}
+              disabled={saving || !livePayload.content}
               title="Save as artifact"
             >
               {saving ? 'Saving' : 'Save'}
