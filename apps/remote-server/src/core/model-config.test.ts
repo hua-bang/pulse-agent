@@ -7,8 +7,11 @@ import { join } from 'path';
 import {
   clearModelOverride,
   getModelStatus,
+  removeModelOption,
   resolveModelForRun,
   resolveModelOption,
+  setCurrentModel,
+  upsertModelOption,
   writeModelConfig,
 } from './model-config.js';
 
@@ -128,6 +131,72 @@ describe('model-config provider overrides', () => {
     expect(status.resolvedApiKeyEnv).toBeUndefined();
     // options preserved as a dictionary
     expect(status.options?.[0]?.name).toBe('m');
+  });
+
+
+
+  it('upserts a custom model option and can set it as current', async () => {
+    await upsertModelOption({
+      name: 'deepseek',
+      provider_type: 'openai',
+      base_url: 'https://api.deepseek.com/v1',
+      api_key_env: TEST_API_ENV,
+      model: 'deepseek-chat',
+    }, { setCurrent: true });
+
+    const status = await getModelStatus();
+    expect(status.currentModel).toBe('deepseek');
+    expect(status.resolvedModel).toBe('deepseek-chat');
+    expect(status.providerType).toBe('openai');
+    expect(status.resolvedBaseURL).toBe('https://api.deepseek.com/v1');
+    expect(status.options?.[0]?.name).toBe('deepseek');
+  });
+
+  it('updates an existing custom model option by name', async () => {
+    await upsertModelOption({ name: 'm', provider_type: 'openai', model: 'old' });
+    await upsertModelOption({ name: 'm', provider_type: 'claude', model: 'new' });
+
+    const status = await getModelStatus();
+    expect(status.options).toHaveLength(1);
+    expect(status.options?.[0]).toMatchObject({
+      name: 'm',
+      provider_type: 'claude',
+      model: 'new',
+    });
+  });
+
+  it('setCurrentModel copies option-level provider fields to top-level override', async () => {
+    await upsertModelOption({
+      name: 'claude-fast',
+      provider_type: 'claude',
+      base_url: 'https://claude.example/v1',
+      api_key_env: TEST_API_ENV,
+      model: 'claude-3-5-sonnet-latest',
+    });
+
+    await setCurrentModel('claude-fast');
+
+    const resolved = await resolveModelForRun('p');
+    expect(resolved.model).toBe('claude-3-5-sonnet-latest');
+    expect(resolved.modelType).toBe('claude');
+    expect(resolved.baseURL).toBe('https://claude.example/v1');
+  });
+
+  it('removeModelOption deletes the option and clears current override when needed', async () => {
+    await upsertModelOption({ name: 'm', provider_type: 'openai' }, { setCurrent: true });
+    await removeModelOption('m');
+
+    const status = await getModelStatus();
+    expect(status.options).toBeUndefined();
+    expect(status.currentModel).toBeUndefined();
+    expect(status.providerType).toBeUndefined();
+  });
+
+  it('upsertModelOption rejects unsupported providers', async () => {
+    await expect(upsertModelOption({
+      name: 'bad',
+      provider_type: 'gemini' as any,
+    })).rejects.toThrow('Unsupported provider_type');
   });
 
   it('resolveModelOption returns option by name', async () => {
