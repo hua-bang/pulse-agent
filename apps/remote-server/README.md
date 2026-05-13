@@ -82,7 +82,7 @@ Users can type these in any connected channel:
 | `/stop` | Abort the running agent turn |
 | `/compact` | Manually trigger context compaction |
 | `/memory [show\|clear]` | View or clear memory logs |
-| `/model [status\|list\|use <name>\|add ...\|remove <name>\|reset]` | Manage custom LLM models for this channel |
+| `/model <name>` | Override LLM model for this channel |
 | `/mode <plan\|act>` | Switch agent mode |
 | `/soul [name]` | Set or clear persona injection |
 | `/skills [list\|install]` | Manage skills |
@@ -94,21 +94,6 @@ Users can type these in any connected channel:
 | `/help` | Show command list |
 
 `//command` (double slash) forwards the command directly to a running ACP agent.
-
-
-### Custom model configuration
-
-The remote server can switch to custom OpenAI-compatible or Anthropic-compatible model endpoints without restarting. Model metadata is stored in `.pulse-coder/config.json` (or `$PULSE_CODER_MODEL_CONFIG`). API keys are referenced by environment variable name only; secrets are not written into the config file.
-
-```text
-/model add deepseek --provider openai --model deepseek-chat --base-url https://api.deepseek.com/v1 --api-key-env DEEPSEEK_API_KEY --set-current
-/model list
-/model use deepseek
-/model remove deepseek
-/model reset
-```
-
-Use `provider openai` for OpenAI-compatible APIs and `provider claude` for Anthropic-compatible APIs.
 
 ## Feishu Setup
 
