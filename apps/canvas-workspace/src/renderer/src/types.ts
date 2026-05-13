@@ -371,6 +371,51 @@ export interface CrossWorkspaceSessionGroup {
   sessions: AgentSessionInfo[];
 }
 
+
+export type CanvasModelProviderType = 'openai' | 'claude';
+
+export interface CanvasModelOption {
+  name: string;
+  provider_type?: CanvasModelProviderType;
+  model?: string;
+  base_url?: string;
+  api_key_env?: string;
+  headers?: Record<string, string>;
+}
+
+export interface CanvasModelConfig {
+  current_model?: string;
+  provider_type?: CanvasModelProviderType;
+  model?: string;
+  base_url?: string;
+  api_key_env?: string;
+  headers?: Record<string, string>;
+  options?: CanvasModelOption[];
+}
+
+export interface CanvasModelStatus {
+  path: string;
+  currentModel?: string;
+  providerType: CanvasModelProviderType;
+  resolvedModel: string;
+  resolvedBaseURL?: string;
+  resolvedApiKeyEnv?: string;
+  apiKeyPresent: boolean;
+  options: CanvasModelOption[];
+}
+
+export interface CanvasModelApi {
+  status: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  saveConfig: (config: CanvasModelConfig) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  upsertOption: (
+    option: CanvasModelOption,
+    setCurrent?: boolean,
+  ) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  setCurrent: (name: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  removeOption: (name: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  reset: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+}
+
 export interface AgentApi {
   chat: (
     workspaceId: string,
@@ -520,6 +565,7 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  model: CanvasModelApi;
   agent: AgentApi;
   iframe: IframeApi;
   llm: LlmApi;

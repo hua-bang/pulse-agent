@@ -14,7 +14,7 @@
  */
 
 import { generateText, streamText } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import { resolveCanvasModel } from './canvas-agent/model-config';
 
 const SYSTEM_PROMPT = `You are a world-class frontend developer who creates stunning, production-quality interactive HTML visuals. The user will describe what they want — your job is to make it look incredible.
 
@@ -68,17 +68,6 @@ Interactivity:
 - Flowcharts/diagrams: use SVG with clean lines and labeled nodes.
 - Forms: well-spaced inputs with focus rings, clear labels, modern button styles.`;
 
-function getProvider() {
-  return createOpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: process.env.OPENAI_API_URL,
-  });
-}
-
-function getModel() {
-  return process.env.OPENAI_MODEL ?? 'gpt-4o';
-}
-
 /** Strip markdown fences if the model wraps the HTML in ```html ... ``` */
 function stripFences(text: string): string {
   let html = text.trim();
@@ -92,8 +81,9 @@ function stripFences(text: string): string {
 
 export async function generateHTML(prompt: string): Promise<{ ok: boolean; html?: string; error?: string }> {
   try {
+    const modelConfig = await resolveCanvasModel();
     const { text } = await generateText({
-      model: getProvider()(getModel()),
+      model: modelConfig.provider(modelConfig.model),
       system: SYSTEM_PROMPT,
       prompt,
     });
@@ -118,8 +108,9 @@ export async function streamHTML(
   onDelta: (delta: string) => void,
 ): Promise<{ ok: boolean; html?: string; error?: string }> {
   try {
+    const modelConfig = await resolveCanvasModel();
     const result = streamText({
-      model: getProvider()(getModel()),
+      model: modelConfig.provider(modelConfig.model),
       system: SYSTEM_PROMPT,
       prompt,
     });
