@@ -2,6 +2,7 @@ import type { ClipboardEventHandler, KeyboardEventHandler, ReactNode, RefObject 
 import type { CanvasNode, ChatImageAttachment } from '../../types';
 import { ImageIcon, PlusIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import { toFileUrl } from '../../utils/fileUrl';
 import { MentionNodeIcon } from './utils/mentions';
 
 interface ChatInputProps {
@@ -22,8 +23,6 @@ interface ChatInputProps {
   onAbort: () => Promise<void>;
   onToggleExecutionMode?: () => void;
 }
-
-const getImageSrc = (path: string) => `file://${path}`;
 
 export const ChatInput = ({
   loading,
@@ -70,7 +69,7 @@ export const ChatInput = ({
           <div className="chat-attachment-strip" aria-label="待发送图片">
             {attachments.map(attachment => (
               <div key={attachment.id} className="chat-attachment-chip">
-                <img src={getImageSrc(attachment.path)} alt={attachment.fileName ?? 'attachment'} />
+                <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? 'attachment'} />
                 <span>{attachment.fileName ?? 'Image'}</span>
                 <button type="button" onClick={() => onRemoveAttachment?.(attachment.id)} aria-label="移除图片">×</button>
               </div>
