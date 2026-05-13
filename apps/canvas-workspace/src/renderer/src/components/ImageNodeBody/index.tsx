@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import './index.css';
 import type { CanvasNode, ImageNodeData } from '../../types';
+import { toFileUrl } from '../../utils/fileUrl';
 
 interface Props {
   node: CanvasNode;
@@ -34,7 +35,7 @@ export const ImageNodeBody = ({ node, onSelect, onDragStart, readOnly = false }:
       {data.filePath ? (
         <img
           className="image-node-img"
-          src={`file://${data.filePath}`}
+          src={toFileUrl(data.filePath)}
           alt={node.title}
           draggable={false}
         />

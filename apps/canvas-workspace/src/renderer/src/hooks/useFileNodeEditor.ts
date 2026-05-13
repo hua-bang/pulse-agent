@@ -20,6 +20,7 @@ import type { CanvasNode, FileNodeData } from '../types';
 import type { SlashCommandDef } from '../components/SlashCommandMenu';
 import { ALL_SLASH_COMMANDS, filterCmds, type SlashCmdContext } from '../editor/slashCommands';
 import { NoteSearchExtension } from '../editor/noteSearchExtension';
+import { toFileUrl } from '../utils/fileUrl';
 
 const lowlight = createLowlight(common);
 
@@ -158,7 +159,7 @@ export const useFileNodeEditor = ({
             'default';
           const res = await api.saveImage(wsId, base64, ext);
           if (!res.ok || !res.filePath) return;
-          const src = `file://${res.filePath}`;
+          const src = toFileUrl(res.filePath);
           const { state, dispatch } = view;
           const imageNode = state.schema.nodes['image']?.create({ src });
           if (imageNode) {
@@ -352,7 +353,7 @@ export const useFileNodeEditor = ({
         editor
           .chain()
           .focus()
-          .setImage({ src: `file://${res.filePath}` })
+          .setImage({ src: toFileUrl(res.filePath) })
           .run();
       };
       reader.readAsDataURL(file);

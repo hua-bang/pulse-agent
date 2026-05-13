@@ -1,4 +1,5 @@
 import type { AgentChatMessage, CanvasNode } from '../../types';
+import { toFileUrl } from '../../utils/fileUrl';
 import { AvatarIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
@@ -74,7 +75,7 @@ export const ChatMessage = ({
         <div className="chat-message-images">
           {message.attachments.map(attachment => (
             <figure key={attachment.id} className="chat-message-image-card">
-              <img src={`file://${attachment.path}`} alt={attachment.fileName ?? 'image'} />
+              <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? 'image'} />
               {attachment.fileName && <figcaption>{attachment.fileName}</figcaption>}
             </figure>
           ))}
