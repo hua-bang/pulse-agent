@@ -1,6 +1,6 @@
 export interface CanvasNode {
   id: string;
-  type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
+  type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap" | "artifact";
   title: string;
   x: number;
   y: number;
@@ -16,7 +16,8 @@ export interface CanvasNode {
     | IframeNodeData
     | ImageNodeData
     | ShapeNodeData
-    | MindmapNodeData;
+    | MindmapNodeData
+    | ArtifactNodeData;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
 }
@@ -183,6 +184,34 @@ export interface MindmapNodeData {
   /** Bumped on every topic add/remove/rename — lets external observers
    *  (canvas-cli, agent) diff mindmaps without structural equality. */
   rev?: number;
+}
+
+export type ArtifactCalloutTone = 'info' | 'note' | 'success' | 'warning' | 'danger';
+
+export interface ArtifactSource {
+  title: string;
+  nodeId?: string;
+  url?: string;
+}
+
+export type ArtifactTableCell = string | number | boolean | null | undefined;
+
+export type ArtifactWidget =
+  | { type: 'heading'; text: string; level?: 1 | 2 | 3 | 4 }
+  | { type: 'paragraph'; text: string }
+  | { type: 'callout'; text: string; title?: string; tone?: ArtifactCalloutTone }
+  | { type: 'list'; items: Array<{ text: string; checked?: boolean }>; ordered?: boolean; checklist?: boolean }
+  | { type: 'table'; columns: string[]; rows: Array<Record<string, ArtifactTableCell>> }
+  | { type: 'stats'; items: Array<{ label: string; value: string | number; caption?: string }> }
+  | { type: 'code'; code: string; language?: string };
+
+export interface ArtifactNodeData {
+  summary?: string;
+  widgets: ArtifactWidget[];
+  sources?: ArtifactSource[];
+  generatedAt?: string;
+  /** Original prompt/instruction, when this artifact came from an AI generation flow. */
+  prompt?: string;
 }
 
 export interface CanvasTransform {

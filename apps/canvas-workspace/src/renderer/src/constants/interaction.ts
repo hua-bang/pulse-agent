@@ -33,6 +33,7 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   image: 'Image',
   shape: 'Shape',
   mindmap: 'Mindmap',
+  artifact: 'Artifact',
 };
 
 export const EMPTY_CANVAS_ACTIONS: Array<{
