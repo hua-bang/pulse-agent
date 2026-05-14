@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type {
   CanvasModelProviderConfig,
   CanvasModelProviderStatus,
@@ -142,6 +143,10 @@ interface ModelSwitcherProps {
   onOpenSettings: () => void;
 }
 
+const MODEL_MENU_WIDTH = 292;
+const MODEL_MENU_GAP = 8;
+const MODEL_MENU_VIEWPORT_MARGIN = 12;
+
 export const ModelSwitcher = ({
   status,
   selection,
@@ -151,23 +156,73 @@ export const ModelSwitcher = ({
   onOpenSettings,
 }: ModelSwitcherProps) => {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const menuEl = menuRef.current;
+    const menuHeight = menuEl?.offsetHeight ?? 360;
+    const menuWidth = menuEl?.offsetWidth ?? MODEL_MENU_WIDTH;
+
+    // Anchor menu bottom to MODEL_MENU_GAP above the trigger top.
+    let top = rect.top - menuHeight - MODEL_MENU_GAP;
+    if (top < MODEL_MENU_VIEWPORT_MARGIN) {
+      // Fall back to opening below when there isn't enough room above.
+      const below = rect.bottom + MODEL_MENU_GAP;
+      top = Math.min(below, viewportHeight - menuHeight - MODEL_MENU_VIEWPORT_MARGIN);
+      top = Math.max(top, MODEL_MENU_VIEWPORT_MARGIN);
+    }
+
+    // Right-align to the trigger's right edge, clamped to viewport.
+    let left = rect.right - menuWidth;
+    left = Math.min(left, viewportWidth - menuWidth - MODEL_MENU_VIEWPORT_MARGIN);
+    left = Math.max(left, MODEL_MENU_VIEWPORT_MARGIN);
+
+    setMenuPosition({ top, left });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPosition(null);
+      return;
+    }
+    updateMenuPosition();
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
     };
+    const onResize = () => updateMenuPosition();
+    const onScroll = () => updateMenuPosition();
     document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [open]);
+    window.addEventListener('resize', onResize);
+    // capture so we react to scrolls in any ancestor scroll container.
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, updateMenuPosition]);
 
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const hasConfiguredModels = providers.some(provider => provider.models.length > 0);
 
   return (
-    <div className="chat-model-switcher" ref={ref}>
+    <div className="chat-model-switcher">
       <button
+        ref={triggerRef}
         type="button"
         className={`chat-model-switcher-btn${!status?.apiKeyPresent ? ' chat-model-switcher-btn--warning' : ''}`}
         onClick={() => setOpen(value => !value)}
@@ -178,8 +233,16 @@ export const ModelSwitcher = ({
         <span className="chat-model-switcher-label">{label}</span>
         <span className="chat-model-switcher-chevron">⌄</span>
       </button>
-      {open && (
-        <div className="chat-model-menu">
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          className="chat-model-menu"
+          style={{
+            top: menuPosition?.top ?? -9999,
+            left: menuPosition?.left ?? -9999,
+            visibility: menuPosition ? 'visible' : 'hidden',
+          }}
+        >
           <div className="chat-model-menu-label">Use model</div>
           <button
             type="button"
@@ -242,7 +305,8 @@ export const ModelSwitcher = ({
           >
             Manage providers…
           </button>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -667,6 +667,17 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         return 'Request aborted.';
       }
 
+      if (typeof error?.message === 'string' && error.message.toLowerCase().includes('no output generated')) {
+        console.warn('[loop] LLM stream produced no output', {
+          model: options?.model,
+          modelType: options?.modelType,
+          status: error?.status ?? error?.statusCode,
+          cause: error?.cause,
+          responseBody: error?.responseBody,
+          data: error?.data,
+        });
+      }
+
       if (llmCallStarted && loopHooks.afterLLMCall?.length) {
         try {
           for (const hook of loopHooks.afterLLMCall) {
@@ -732,7 +743,33 @@ function formatUpstreamError(error: any): string | null {
     ].join('\n');
   }
 
+  if (combined.includes('no output generated')) {
+    const detail = pickFirstNonEmpty(messages, 'no output generated');
+    return [
+      '⚠️ 上游模型没有产出任何输出。',
+      '',
+      '这一般是上游 stream 在产出 token 前就出错了 — 常见原因：',
+      '- Provider 类型与 base URL 不匹配（例如把 Claude provider 指到一个只讲 OpenAI 协议的代理，反之亦然）',
+      '- API Key 不正确 / 未对该模型授权',
+      '- model id 在上游不存在或被下线',
+      '- 代理把上游错误吞了，只返回了一个空 stream',
+      '',
+      detail ? `底层错误：${detail}` : '建议先在 Models & Providers 面板用 Fetch 验证 base URL + API Key，再检查 model id 是否正确。',
+    ].join('\n');
+  }
+
   return null;
+}
+
+function pickFirstNonEmpty(messages: string[], excludeIncluding: string): string | undefined {
+  const lowered = excludeIncluding.toLowerCase();
+  for (const message of messages) {
+    const trimmed = message.trim();
+    if (!trimmed) continue;
+    if (trimmed.toLowerCase().includes(lowered)) continue;
+    return trimmed.length > 240 ? `${trimmed.slice(0, 240)}…` : trimmed;
+  }
+  return undefined;
 }
 
 function collectErrorMessages(value: unknown, seen = new Set<object>()): string[] {

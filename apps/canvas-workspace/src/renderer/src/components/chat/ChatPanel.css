@@ -1421,11 +1421,11 @@
 }
 
 .chat-model-menu {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 292px;
-  max-height: 360px;
+  max-height: min(360px, calc(100vh - 24px));
   overflow-y: auto;
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.1);
@@ -1433,6 +1433,7 @@
   padding: 6px;
   box-shadow: 0 18px 44px rgba(55, 53, 47, 0.13), 0 0 0 1px rgba(55, 53, 47, 0.02);
   animation: chat-menu-in 0.12s ease-out;
+  z-index: 1000;
 }
 
 .chat-model-menu-label,
@@ -1549,7 +1550,7 @@
 }
 
 .chat-model-settings {
-  width: min(100%, 560px);
+  width: min(100%, 620px);
   height: 100%;
   background: #fdfcfb;
   border-left: 1px solid rgba(55, 53, 47, 0.1);
@@ -1610,15 +1611,18 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 172px 1fr;
+  grid-template-columns: 208px 1fr;
   overflow: hidden;
 }
 
 .chat-model-provider-rail {
   border-right: 1px solid rgba(55, 53, 47, 0.07);
-  padding: 10px 8px;
+  padding: 12px 10px;
   overflow-y: auto;
-  background: rgba(55, 53, 47, 0.018);
+  background: rgba(55, 53, 47, 0.022);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .chat-model-provider-tab {
@@ -1626,10 +1630,10 @@
   border: none;
   background: transparent;
   border-radius: 8px;
-  padding: 8px 9px;
+  padding: 9px 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   text-align: left;
   color: #5f5e59;
   cursor: pointer;
@@ -1681,10 +1685,10 @@
 .chat-model-settings-form {
   min-width: 0;
   overflow-y: auto;
-  padding: 14px 16px 18px;
+  padding: 18px 22px 22px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .chat-model-settings-card {
