@@ -149,6 +149,47 @@
   border-radius: 2px;
 }
 
+
+.iframe-load-error {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: #fff;
+}
+
+.iframe-load-error-card {
+  max-width: 320px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+
+.iframe-load-error-title {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.iframe-load-error-message {
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.iframe-load-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* Empty state — URL input */
 
 .iframe-body--empty {

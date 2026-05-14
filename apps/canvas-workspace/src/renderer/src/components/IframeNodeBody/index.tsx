@@ -88,6 +88,8 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   const [genError, setGenError] = useState<string | null>(null);
   const [streamingActive, setStreamingActive] = useState(false);
   const [webviewKey, setWebviewKey] = useState(0);
+  const [loadState, setLoadState] = useState<"idle" | "loading" | "ready" | "failed">("idle");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -111,6 +113,16 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   }, [readOnly, isArtifactMode]);
 
   useEffect(() => {
+    if (mode !== "url" || editing) {
+      setLoadState("idle");
+      setLoadError(null);
+      return;
+    }
+    setLoadState(url ? "loading" : "idle");
+    setLoadError(null);
+  }, [editing, mode, url, webviewKey]);
+
+  useEffect(() => {
     if (mode !== "url" || editing || readOnly) return;
     const el = webviewRef.current;
     if (!el) return;
@@ -127,9 +139,28 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       });
     };
 
+    const handleDidStartLoading = () => {
+      setLoadState("loading");
+      setLoadError(null);
+    };
+    const handleDidStopLoading = () => setLoadState((current) => current === "failed" ? current : "ready");
+    const handleDidFailLoad = (event: Event) => {
+      const detail = event as Event & { errorCode?: number; errorDescription?: string; validatedURL?: string; isMainFrame?: boolean };
+      if (detail.isMainFrame === false) return;
+      if (detail.errorCode === -3) return; // ERR_ABORTED from user reload/navigation is not a page failure.
+      setLoadState("failed");
+      setLoadError(detail.errorDescription || "This page failed to load.");
+    };
+
     el.addEventListener("page-title-updated", handlePageTitleUpdated);
+    el.addEventListener("did-start-loading", handleDidStartLoading);
+    el.addEventListener("did-stop-loading", handleDidStopLoading);
+    el.addEventListener("did-fail-load", handleDidFailLoad);
     return () => {
       el.removeEventListener("page-title-updated", handlePageTitleUpdated);
+      el.removeEventListener("did-start-loading", handleDidStartLoading);
+      el.removeEventListener("did-stop-loading", handleDidStopLoading);
+      el.removeEventListener("did-fail-load", handleDidFailLoad);
     };
   }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
 
@@ -385,6 +416,8 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   }, [mode, url]);
 
   const handleReload = useCallback(() => {
+    setLoadState(mode === "url" && url ? "loading" : "idle");
+    setLoadError(null);
     if (mode !== "url") {
       setWebviewKey((k) => k + 1);
       return;
@@ -394,7 +427,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       try { el.reload(); return; } catch { /* fall through */ }
     }
     setWebviewKey((k) => k + 1);
-  }, [mode]);
+  }, [mode, url]);
 
   // ── Editing state ──────────────────────────────────────────────────
 
@@ -652,13 +685,33 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
         {streamingActive && <div className="iframe-shimmer-bar" />}
         {isResizing && <div className="iframe-pointer-shield" aria-hidden="true" />}
         {renderMode === "url" ? (
-          <webview
-            ref={webviewRef as unknown as React.Ref<HTMLWebViewElement>}
-            key={webviewKey}
-            className="iframe-frame"
-            src={url}
-            allowpopups={true as unknown as undefined}
-          />
+          <>
+            <webview
+              ref={webviewRef as unknown as React.Ref<HTMLWebViewElement>}
+              key={webviewKey}
+              className="iframe-frame"
+              src={url}
+              allowpopups={true as unknown as undefined}
+            />
+            {loadState === "failed" && (
+              <div className="iframe-load-error">
+                <div className="iframe-load-error-card">
+                  <div className="iframe-load-error-title">Page failed to load</div>
+                  <div className="iframe-load-error-message">
+                    {loadError ?? "The embedded page could not be displayed."}
+                  </div>
+                  <div className="iframe-load-error-actions">
+                    <button type="button" className="iframe-empty-btn iframe-empty-btn--primary" onClick={handleReload}>
+                      Reload
+                    </button>
+                    <button type="button" className="iframe-empty-btn" onClick={handleOpenExternal}>
+                      Open externally
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
         ) : streamingActive ? (
           <iframe
             ref={streamIframeRef}
