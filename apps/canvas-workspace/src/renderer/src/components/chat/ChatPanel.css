@@ -1540,21 +1540,21 @@
 }
 
 .chat-model-settings-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 200;
   display: flex;
   justify-content: flex-end;
-  background: rgba(253, 252, 251, 0.34);
-  backdrop-filter: blur(1px);
+  background: rgba(15, 15, 15, 0.18);
+  backdrop-filter: blur(2px);
 }
 
 .chat-model-settings {
-  width: min(100%, 620px);
-  height: 100%;
+  width: min(100vw, 880px);
+  height: 100vh;
   background: #fdfcfb;
   border-left: 1px solid rgba(55, 53, 47, 0.1);
-  box-shadow: -20px 0 54px rgba(55, 53, 47, 0.12);
+  box-shadow: -20px 0 54px rgba(55, 53, 47, 0.18);
   display: flex;
   flex-direction: column;
   animation: chat-settings-in 0.16s cubic-bezier(0.2, 0.9, 0.2, 1);
@@ -1611,18 +1611,18 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 208px 1fr;
+  grid-template-columns: 232px 1fr;
   overflow: hidden;
 }
 
 .chat-model-provider-rail {
   border-right: 1px solid rgba(55, 53, 47, 0.07);
-  padding: 12px 10px;
+  padding: 14px 12px;
   overflow-y: auto;
   background: rgba(55, 53, 47, 0.022);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .chat-model-provider-tab {
@@ -1685,10 +1685,10 @@
 .chat-model-settings-form {
   min-width: 0;
   overflow-y: auto;
-  padding: 18px 22px 22px;
+  padding: 22px 28px 28px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .chat-model-settings-card {

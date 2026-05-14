@@ -510,7 +510,7 @@ export const ModelSettingsDrawer = ({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="chat-model-settings-backdrop" onMouseDown={onClose}>
       <aside className="chat-model-settings" onMouseDown={event => event.stopPropagation()} aria-label="AI model settings">
         <div className="chat-model-settings-header">
@@ -669,6 +669,7 @@ export const ModelSettingsDrawer = ({
           </button>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 };
