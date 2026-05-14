@@ -17,7 +17,13 @@ import {
 } from './context-builder';
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
-import type { CanvasAgentConfig, CanvasAgentImageAttachment, CanvasAgentMessage, WorkspaceSummary } from './types';
+import type {
+  CanvasAgentConfig,
+  CanvasAgentImageAttachment,
+  CanvasAgentMessage,
+  CanvasAgentToolCall,
+  WorkspaceSummary,
+} from './types';
 
 interface CanvasAgentRequestContext {
   executionMode?: 'auto' | 'ask';
@@ -27,6 +33,68 @@ interface CanvasAgentRequestContext {
 }
 
 const CANVAS_AGENT_MAX_STEPS = 200;
+
+function stringifyToolResult(raw: unknown): string {
+  return typeof raw === 'string' ? raw : JSON.stringify(raw) ?? String(raw);
+}
+
+function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall[] {
+  const toolCalls: CanvasAgentToolCall[] = [];
+  const byToolCallId = new Map<string, CanvasAgentToolCall>();
+
+  const findOrCreate = (toolCallId: string, name: string): CanvasAgentToolCall => {
+    const existing = byToolCallId.get(toolCallId);
+    if (existing) {
+      if (!existing.name && name) existing.name = name;
+      return existing;
+    }
+
+    const tool: CanvasAgentToolCall = {
+      id: toolCalls.length + 1,
+      name,
+      toolCallId,
+      status: 'running',
+    };
+    toolCalls.push(tool);
+    byToolCallId.set(toolCallId, tool);
+    return tool;
+  };
+
+  for (const message of messages) {
+    const content = (message as any).content;
+    if (!Array.isArray(content)) continue;
+
+    for (const part of content) {
+      if (part?.type === 'tool-call') {
+        const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+        const name = typeof part.toolName === 'string' ? part.toolName : '';
+        if (!toolCallId || !name) continue;
+        const tool = findOrCreate(toolCallId, name);
+        tool.name = name;
+        tool.args = part.input ?? part.args;
+      }
+
+      if (part?.type === 'tool-result') {
+        const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+        const name = typeof part.toolName === 'string' ? part.toolName : '';
+        if (!toolCallId || !name) continue;
+        const tool = findOrCreate(toolCallId, name);
+        tool.name = name;
+        tool.status = 'done';
+        tool.result = stringifyToolResult(part.output ?? part.result);
+      }
+    }
+  }
+
+  return toolCalls;
+}
+
+function sessionMessageToModelMessage(message: CanvasAgentMessage): ModelMessage {
+  const content = message.attachments?.length
+    ? `${message.content}\n\nAttached image files:\n${message.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
+    : message.content;
+  return { role: message.role, content } as ModelMessage;
+}
 
 // ─── System prompt ─────────────────────────────────────────────────
 
@@ -389,6 +457,8 @@ export class CanvasAgent {
         }
       : undefined;
 
+    const responseMessages: ModelMessage[] = [];
+
     try {
       const resultText = await this.engine.run(context, {
         systemPrompt,
@@ -440,6 +510,7 @@ export class CanvasAgent {
         onResponse: (msgs: ModelMessage[]) => {
           for (const msg of msgs) {
             this.messages.push(msg);
+            responseMessages.push(msg);
           }
         },
         onCompacted: (newMessages: ModelMessage[]) => {
@@ -450,8 +521,17 @@ export class CanvasAgent {
 
       const responseText = resultText || '(no response)';
 
-      // Persist assistant response
-      this.sessionStore.addMessage({ role: 'assistant', content: responseText, timestamp: Date.now() });
+      // Persist assistant response together with the tool-call frames that
+      // produced it so saved/restored chat sessions can render tool chips,
+      // inline visuals, artifacts, and generated images instead of losing
+      // them after reload.
+      const toolCalls = modelMessagesToToolCalls(responseMessages);
+      this.sessionStore.addMessage({
+        role: 'assistant',
+        content: responseText,
+        timestamp: Date.now(),
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      });
 
       return responseText;
     } finally {
@@ -545,13 +625,11 @@ export class CanvasAgent {
   async loadSession(sessionId: string): Promise<CanvasAgentMessage[]> {
     const session = await this.sessionStore.loadSession(sessionId);
     if (!session) return [];
-    // Rebuild in-memory messages from loaded session
-    this.messages = session.messages.map(m => ({
-      role: m.role,
-      content: m.attachments?.length
-        ? `${m.content}\n\nAttached image files:\n${m.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
-        : m.content,
-    } as any));
+    // Rebuild in-memory model context from loaded session. Stored UI
+    // tool-call metadata is intentionally excluded here; the AI SDK response
+    // messages already carry tool frames while a run is active, but persisted
+    // sessions only need text turns for follow-up context.
+    this.messages = session.messages.map(sessionMessageToModelMessage);
     return session.messages;
   }
 
@@ -561,12 +639,7 @@ export class CanvasAgent {
    */
   async loadCrossWorkspaceSession(loadedMessages: CanvasAgentMessage[]): Promise<void> {
     await this.sessionStore.startSession();
-    this.messages = loadedMessages.map(m => ({
-      role: m.role,
-      content: m.attachments?.length
-        ? `${m.content}\n\nAttached image files:\n${m.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
-        : m.content,
-    } as any));
+    this.messages = loadedMessages.map(sessionMessageToModelMessage);
     // Persist each message into the new current session
     for (const m of loadedMessages) {
       this.sessionStore.addMessage(m);

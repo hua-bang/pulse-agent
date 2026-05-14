@@ -337,11 +337,25 @@ export interface ChatImageAttachment {
   mimeType?: string;
 }
 
+export interface AgentChatToolCall {
+  id: number;
+  name: string;
+  args?: unknown;
+  status: 'running' | 'done';
+  result?: string;
+  toolCallId?: string;
+  partialInput?: string;
+  inputStreaming?: boolean;
+  streamedContent?: string;
+  streamedDone?: boolean;
+}
+
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   attachments?: ChatImageAttachment[];
+  toolCalls?: AgentChatToolCall[];
 }
 
 export interface AgentContextNodeRef {

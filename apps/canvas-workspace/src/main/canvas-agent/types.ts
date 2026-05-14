@@ -24,11 +24,25 @@ export interface CanvasAgentImageAttachment {
   mimeType?: string;
 }
 
+export interface CanvasAgentToolCall {
+  id: number;
+  name: string;
+  args?: unknown;
+  status: 'running' | 'done';
+  result?: string;
+  toolCallId?: string;
+  partialInput?: string;
+  inputStreaming?: boolean;
+  streamedContent?: string;
+  streamedDone?: boolean;
+}
+
 export interface CanvasAgentMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   attachments?: CanvasAgentImageAttachment[];
+  toolCalls?: CanvasAgentToolCall[];
 }
 
 // ─── Session persistence ────────────────────────────────────────────

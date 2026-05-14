@@ -39,8 +39,18 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
 
   const replaceMessages = useCallback((nextMessages: AgentChatMessage[]) => {
     setMessages(nextMessages);
-    setMessageTools(new Map());
-    setCollapsedSections(new Set());
+    setMessageTools(new Map(
+      nextMessages.flatMap((message, index) => (
+        message.role === 'assistant' && message.toolCalls?.length
+          ? [[index, message.toolCalls]] as Array<[number, ToolCallStatus[]]>
+          : []
+      )),
+    ));
+    setCollapsedSections(new Set(
+      nextMessages.flatMap((message, index) => (
+        message.role === 'assistant' && message.toolCalls?.length ? [index] : []
+      )),
+    ));
   }, []);
 
   const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
@@ -257,26 +267,31 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         setPendingClarify(null);
         setClarifyInput('');
 
+        const toolSnapshot = toolCalls.length > 0 ? toolCalls.map(tool => ({ ...tool })) : undefined;
+        const mergeAssistantMessage = (message: AgentChatMessage): AgentChatMessage => (
+          toolSnapshot ? { ...message, toolCalls: toolSnapshot } : message
+        );
+
         if (!completeResult.ok) {
           setMessages(prev => {
             if (assistantIndex.current < 0) {
               return [
                 ...prev,
-                {
+                mergeAssistantMessage({
                   role: 'assistant',
                   content: `Error: ${completeResult.error ?? 'Unknown error'}`,
                   timestamp: Date.now(),
-                },
+                }),
               ];
             }
 
             const next = [...prev];
             const index = assistantIndex.current;
             const existingContent = next[index]?.content;
-            next[index] = {
+            next[index] = mergeAssistantMessage({
               ...next[index],
               content: existingContent || `Error: ${completeResult.error ?? 'Unknown error'}`,
-            };
+            });
             return next;
           });
         } else if (completeResult.response) {
@@ -284,19 +299,27 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
             if (assistantIndex.current < 0) {
               return [
                 ...prev,
-                {
+                mergeAssistantMessage({
                   role: 'assistant',
                   content: completeResult.response ?? '',
                   timestamp: Date.now(),
-                },
+                }),
               ];
             }
 
             const next = [...prev];
-            next[assistantIndex.current] = {
+            next[assistantIndex.current] = mergeAssistantMessage({
               ...next[assistantIndex.current],
               content: completeResult.response ?? '',
-            };
+            });
+            return next;
+          });
+        } else if (toolSnapshot && assistantIndex.current >= 0) {
+          setMessages(prev => {
+            const index = assistantIndex.current;
+            if (index < 0 || index >= prev.length) return prev;
+            const next = [...prev];
+            next[index] = mergeAssistantMessage(next[index]);
             return next;
           });
         }
