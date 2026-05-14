@@ -172,6 +172,21 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     },
   },
 
+
+  model: {
+    status: () => ipcRenderer.invoke("canvas-model:status"),
+    saveConfig: (config: unknown) => ipcRenderer.invoke("canvas-model:save-config", { config }),
+    upsertProvider: (provider: unknown) => ipcRenderer.invoke("canvas-model:upsert-provider", { provider }),
+    removeProvider: (providerId: string) => ipcRenderer.invoke("canvas-model:remove-provider", { providerId }),
+    fetchModels: (providerId?: string, provider?: unknown) =>
+      ipcRenderer.invoke("canvas-model:fetch-models", { providerId, provider }),
+    upsertOption: (option: unknown, setCurrent?: boolean) =>
+      ipcRenderer.invoke("canvas-model:upsert-option", { option, setCurrent }),
+    setCurrent: (name?: string, providerId?: string) => ipcRenderer.invoke("canvas-model:set-current", { name, providerId }),
+    removeOption: (name: string) => ipcRenderer.invoke("canvas-model:remove-option", { name }),
+    reset: () => ipcRenderer.invoke("canvas-model:reset"),
+  },
+
   agent: {
     chat: (
       workspaceId: string,

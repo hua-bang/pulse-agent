@@ -8,8 +8,8 @@
 
 import { Engine } from 'pulse-coder-engine';
 import { builtInSkillsPlugin } from 'pulse-coder-engine/built-in';
-import { createOpenAI } from '@ai-sdk/openai';
 import type { ModelMessage } from 'ai';
+import { resolveCanvasModel } from './model-config';
 import {
   buildWorkspaceSummary,
   formatSummaryForPrompt,
@@ -278,11 +278,7 @@ export class CanvasAgent {
       enginePlugins: {
         plugins: [builtInSkillsPlugin],
       },
-      llmProvider: createOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        baseURL: process.env.OPENAI_API_URL,
-      }),
-      model: config.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o',
+      model: config.model,
       tools: canvasTools,
     });
   }
@@ -390,7 +386,11 @@ export class CanvasAgent {
       : undefined;
 
     try {
+      const modelConfig = await resolveCanvasModel();
       const resultText = await this.engine.run(context, {
+        provider: modelConfig.provider,
+        model: this.config.model ?? modelConfig.model,
+        modelType: modelConfig.modelType,
         systemPrompt,
         maxSteps: CANVAS_AGENT_MAX_STEPS,
         abortSignal: abortController.signal,

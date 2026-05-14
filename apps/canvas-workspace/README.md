@@ -81,6 +81,28 @@ Packaged output goes to `release/`. App ID: `com.pulse-coder.canvas-workspace`.
 
 The AI chat feature is powered by `CanvasAgentService` (`src/main/canvas-agent/`), which wraps `pulse-coder-engine`. Each workspace maintains its own agent session, persisted under the workspace data directory. The agent receives a workspace/node summary as context on every turn.
 
+
+### Custom model configuration
+
+Pulse Canvas reads model settings from `~/.pulse-coder/canvas/model-config.json` by default. Set `PULSE_CANVAS_MODEL_CONFIG` to use another path. The config supports OpenAI-compatible and Anthropic-compatible providers and stores only environment variable names for API keys, not secret values.
+
+```json
+{
+  "current_model": "deepseek",
+  "options": [
+    {
+      "name": "deepseek",
+      "provider_type": "openai",
+      "model": "deepseek-chat",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY"
+    }
+  ]
+}
+```
+
+The renderer can also manage the same config through `window.canvasWorkspace.model` (`status`, `saveConfig`, `upsertOption`, `setCurrent`, `removeOption`, `reset`). Changes apply to new Canvas Agent turns and HTML generation requests without restarting the app.
+
 ## Data Persistence
 
 Canvas state (node positions, types, data) is saved per workspace as JSON via `canvas-store.ts`. File nodes are backed by real files on disk; the file watcher pushes external changes into the renderer via IPC.

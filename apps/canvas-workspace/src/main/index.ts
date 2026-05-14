@@ -11,6 +11,7 @@ import { setupFileManagerIpc } from "./file-manager";
 import { setupFileWatcherIpc, teardownFileWatcher } from "./file-watcher";
 import { setupSkillInstallerIpc } from "./skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
+import { setupCanvasModelIpc } from "./canvas-model-ipc";
 import { setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
 import { setupArtifactIpc } from "./artifact-ipc";
@@ -142,6 +143,7 @@ app.whenReady().then(() => {
   setupFileWatcherIpc();
   setupSkillInstallerIpc();
   setupCanvasAgentIpc();
+  setupCanvasModelIpc();
   setupWebviewRegistryIpc();
   setupHtmlGeneratorIpc();
   setupArtifactIpc();

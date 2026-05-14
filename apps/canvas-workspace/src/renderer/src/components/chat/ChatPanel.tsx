@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
+import { useCanvasModels, ModelSettingsDrawer } from './ModelSettings';
 import { useChatSessions } from './hooks/useChatSessions';
 import { useChatStream } from './hooks/useChatStream';
 import { useMentions } from './hooks/useMentions';
@@ -20,6 +21,8 @@ export const ChatPanel = ({
   onNodeFocus,
 }: ChatPanelProps) => {
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
+  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+  const canvasModels = useCanvasModels();
 
   const {
     abort,
@@ -132,7 +135,8 @@ export const ChatPanel = ({
   }, []);
 
   return (
-    <ChatView
+    <>
+      <ChatView
       className="chat-panel"
       onResizeStart={onResizeStart}
       header={
@@ -144,6 +148,7 @@ export const ChatPanel = ({
           title={sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onNewSession={handleNewSession}
+          onOpenModelSettings={() => setModelSettingsOpen(true)}
           onLoadSession={handleLoadSession}
           onClose={onClose}
         />
@@ -181,9 +186,25 @@ export const ChatPanel = ({
       onRemoveAttachment={removeAttachment}
       onSubmit={handleSubmit}
       onAbort={abort}
+      modelStatus={canvasModels.status}
+      modelSelection={canvasModels.selection}
+      modelLabel={canvasModels.selectedLabel}
+      onSelectAutoModel={canvasModels.selectAuto}
+      onSelectModel={canvasModels.selectModel}
+      onOpenModelSettings={() => setModelSettingsOpen(true)}
       contextComposer
       executionMode={executionMode}
       onToggleExecutionMode={handleToggleExecutionMode}
     />
+      <ModelSettingsDrawer
+        open={modelSettingsOpen}
+        status={canvasModels.status}
+        error={canvasModels.error}
+        onClose={() => setModelSettingsOpen(false)}
+        onSaveProvider={canvasModels.upsertProvider}
+        onRemoveProvider={canvasModels.removeProvider}
+        onFetchModels={canvasModels.fetchModels}
+      />
+    </>
   );
 };
