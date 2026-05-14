@@ -96,12 +96,14 @@
 /* Fullscreen portal — empty container outside `.canvas-transform`, so
  * any node portaled in escapes the pan/zoom transform's containing
  * block. Inert until a node is fullscreened, at which point it covers
- * the viewport with a dim backdrop and centers the portaled node. */
+ * the viewport with a dim backdrop and centers the portaled node.
+ * z-index sits above the floating toolbar (z-index: 500-600) and zoom
+ * indicator so fullscreen actually covers the canvas chrome. */
 .canvas-fullscreen-portal {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  z-index: 50;
+  z-index: 1000;
 }
 
 .canvas-fullscreen-portal[data-active="on"] {

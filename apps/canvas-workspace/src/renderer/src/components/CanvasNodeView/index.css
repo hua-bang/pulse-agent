@@ -707,18 +707,22 @@
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
   position: absolute;
-  inset: 24px;
-  top: 24px;
-  left: 24px;
-  right: 24px;
-  bottom: 24px;
+  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: auto !important;
   height: auto !important;
   transform: none !important;
-  z-index: 60;
-  border-radius: var(--radius-lg);
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  /* Above the floating toolbar (500/600) and zoom indicator so nothing
+   * pokes through the fullscreen overlay. The portal itself sits at
+   * 1000 — the node bumps one above so its own chrome wins over any
+   * stray sibling inside the portal. */
+  z-index: 1001;
+  border-radius: 0;
+  border-color: transparent;
+  box-shadow: none;
   animation: canvas-node-fullscreen-in 0.18s ease forwards;
 }
 
@@ -734,17 +738,39 @@
 }
 
 /* Fullscreen disables drag-by-header and resize handles, so the header
- * cursor + handles should reflect that. The chrome buttons (fullscreen
- * toggle, close, focus, reference) stay visible without needing hover. */
+ * cursor + handles should reflect that. The only chrome the user needs
+ * is the exit-fullscreen button; everything else (close, focus, ref,
+ * time, color pickers) hides so the bar stays clean. */
 .canvas-node--fullscreen .node-header {
   cursor: default;
 }
 
+.canvas-node--fullscreen .node-fullscreen {
+  opacity: 1;
+}
+
 .canvas-node--fullscreen .node-reference,
 .canvas-node--fullscreen .node-focus,
-.canvas-node--fullscreen .node-fullscreen,
-.canvas-node--fullscreen .node-close {
-  opacity: 1;
+.canvas-node--fullscreen .node-close,
+.canvas-node--fullscreen .node-time-label,
+.canvas-node--fullscreen .frame-color-trigger,
+.canvas-node--fullscreen .text-color-trigger,
+.canvas-node--fullscreen .group-ungroup-button,
+.canvas-node--fullscreen .group-count-label,
+.canvas-node--fullscreen .node-status-label {
+  display: none !important;
+}
+
+/* Image / mindmap nodes show floating close + fullscreen buttons in
+ * the top-right corner. Once fullscreen, drop the close so only the
+ * exit button remains and slide the exit button into the close slot. */
+.canvas-node--fullscreen .node-close--floating {
+  display: none !important;
+}
+
+.canvas-node--fullscreen .node-fullscreen--floating {
+  right: 12px;
+  top: 12px;
 }
 
 /* Container nodes (frame/group) and shapes don't fullscreen — but keep
