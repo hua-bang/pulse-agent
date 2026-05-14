@@ -8,8 +8,6 @@ const DEFAULT_REFERENCE_DRAWER_WIDTH = 420;
 const MIN_REFERENCE_DRAWER_WIDTH = 320;
 const MAX_REFERENCE_DRAWER_WIDTH = 720;
 
-const UNGROUPED_LABEL = 'Ungrouped';
-
 export interface ReferenceEntry {
   nodeId: string;
   group?: string;
@@ -54,6 +52,7 @@ export const ReferenceDrawer = ({
   const [groupEditorOpen, setGroupEditorOpen] = useState(false);
   const [groupDraft, setGroupDraft] = useState('');
   const groupEditorRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -77,6 +76,17 @@ export const ReferenceDrawer = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [groupEditorOpen]);
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!pickerRef.current?.contains(event.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [pickerOpen]);
 
   const drawerStyle = useMemo(
     () => ({
@@ -118,22 +128,22 @@ export const ReferenceDrawer = ({
     return map;
   }, [nodes]);
 
-  const groups = useMemo(() => {
+  const { ungroupedEntries, namedGroups } = useMemo(() => {
     const map = new Map<string, ReferenceEntry[]>();
+    const ungrouped: ReferenceEntry[] = [];
     for (const entry of references) {
-      const key = entry.group?.trim() || UNGROUPED_LABEL;
+      const key = entry.group?.trim();
+      if (!key) {
+        ungrouped.push(entry);
+        continue;
+      }
       const list = map.get(key);
       if (list) list.push(entry);
       else map.set(key, [entry]);
     }
-    const ordered: { name: string; entries: ReferenceEntry[] }[] = [];
-    const ungrouped = map.get(UNGROUPED_LABEL);
-    if (ungrouped) ordered.push({ name: UNGROUPED_LABEL, entries: ungrouped });
-    for (const [name, entries] of map) {
-      if (name === UNGROUPED_LABEL) continue;
-      ordered.push({ name, entries });
-    }
-    return ordered;
+    const named: { name: string; entries: ReferenceEntry[] }[] = [];
+    for (const [name, entries] of map) named.push({ name, entries });
+    return { ungroupedEntries: ungrouped, namedGroups: named };
   }, [references]);
 
   const knownGroupNames = useMemo(() => {
@@ -227,44 +237,46 @@ export const ReferenceDrawer = ({
           </svg>
           Pin selection
         </button>
-        <button
-          className="reference-drawer-action reference-drawer-action--ghost"
-          type="button"
-          onClick={() => setPickerOpen((prev) => !prev)}
-          disabled={pickableNodes.length === 0}
-          title={pickableNodes.length === 0 ? 'No more nodes to pin' : 'Pick a node to pin'}
-        >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <path d="M3 6h10M3 10h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-          From canvas
-          <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-            <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
+        <div className="reference-picker-anchor" ref={pickerRef}>
+          <button
+            className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen ? ' reference-drawer-action--open' : ''}`}
+            type="button"
+            onClick={() => setPickerOpen((prev) => !prev)}
+            disabled={pickableNodes.length === 0}
+            title={pickableNodes.length === 0 ? 'No more nodes to pin' : 'Pick a node to pin'}
+            aria-haspopup="listbox"
+            aria-expanded={pickerOpen}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+              <path d="M3 6h10M3 10h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+            </svg>
+            From canvas
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
 
-      {pickerOpen && (
-        <div className="reference-picker">
-          <div className="reference-picker-list" role="listbox">
-            {pickableNodes.length === 0 ? (
-              <div className="reference-picker-empty">All eligible nodes are pinned.</div>
-            ) : (
-              pickableNodes.map((node) => (
-                <button
-                  key={node.id}
-                  className="reference-picker-item"
-                  type="button"
-                  onClick={() => handleAddFromPicker(node.id)}
-                >
-                  <span className="reference-picker-item-type">{node.type}</span>
-                  <span className="reference-picker-item-label">{getNodeDisplayLabel(node)}</span>
-                </button>
-              ))
-            )}
-          </div>
+          {pickerOpen && (
+            <div className="reference-picker-popover" role="listbox">
+              {pickableNodes.length === 0 ? (
+                <div className="reference-picker-empty">All eligible nodes are pinned.</div>
+              ) : (
+                pickableNodes.map((node) => (
+                  <button
+                    key={node.id}
+                    className="reference-picker-item"
+                    type="button"
+                    onClick={() => handleAddFromPicker(node.id)}
+                  >
+                    <span className="reference-picker-item-type">{node.type}</span>
+                    <span className="reference-picker-item-label">{getNodeDisplayLabel(node)}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       <div className="reference-drawer-content">
         {!hasReferences ? (
@@ -272,7 +284,17 @@ export const ReferenceDrawer = ({
         ) : (
           <>
             <div className="reference-group-list">
-              {groups.map((group) => (
+              {ungroupedEntries.length > 0 && (
+                <ReferenceEntryList
+                  entries={ungroupedEntries}
+                  nodeById={nodeById}
+                  activeId={activeReferenceNode?.id}
+                  onSelect={onSelectReference}
+                  onFocus={onFocusNode}
+                  onRemove={onRemoveReference}
+                />
+              )}
+              {namedGroups.map((group) => (
                 <ReferenceGroupSection
                   key={group.name}
                   name={group.name}
@@ -422,8 +444,7 @@ export const ReferenceDrawer = ({
   );
 };
 
-interface ReferenceGroupSectionProps {
-  name: string;
+interface ReferenceEntryListProps {
   entries: ReferenceEntry[];
   nodeById: Map<string, CanvasNode>;
   activeId?: string;
@@ -432,14 +453,68 @@ interface ReferenceGroupSectionProps {
   onRemove: (nodeId: string) => void;
 }
 
-const ReferenceGroupSection = ({
-  name,
+const ReferenceEntryList = ({
   entries,
   nodeById,
   activeId,
   onSelect,
   onFocus,
   onRemove,
+}: ReferenceEntryListProps) => (
+  <ul className="reference-group-items">
+    {entries.map((entry) => {
+      const node = nodeById.get(entry.nodeId);
+      const label = node ? getNodeDisplayLabel(node) : entry.nodeId;
+      const active = entry.nodeId === activeId;
+      return (
+        <li key={entry.nodeId}>
+          <button
+            type="button"
+            className={`reference-group-item${active ? ' reference-group-item--active' : ''}`}
+            onClick={() => onSelect(entry.nodeId)}
+            onDoubleClick={() => onFocus(entry.nodeId)}
+          >
+            <span className="reference-group-item-label" title={label}>
+              {label}
+            </span>
+            {node && (
+              <span className="reference-group-item-type">{node.type}</span>
+            )}
+            <span
+              className="reference-group-item-remove"
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(entry.nodeId);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRemove(entry.nodeId);
+                }
+              }}
+              aria-label="Remove from references"
+              title="Remove"
+            >
+              ×
+            </span>
+          </button>
+        </li>
+      );
+    })}
+  </ul>
+);
+
+interface ReferenceGroupSectionProps extends ReferenceEntryListProps {
+  name: string;
+}
+
+const ReferenceGroupSection = ({
+  name,
+  entries,
+  ...listProps
 }: ReferenceGroupSectionProps) => {
   const [collapsed, setCollapsed] = useState(false);
   return (
@@ -464,50 +539,7 @@ const ReferenceGroupSection = ({
         <span className="reference-group-count">{entries.length}</span>
       </button>
       {!collapsed && (
-        <ul className="reference-group-items">
-          {entries.map((entry) => {
-            const node = nodeById.get(entry.nodeId);
-            const label = node ? getNodeDisplayLabel(node) : entry.nodeId;
-            const active = entry.nodeId === activeId;
-            return (
-              <li key={entry.nodeId}>
-                <button
-                  type="button"
-                  className={`reference-group-item${active ? ' reference-group-item--active' : ''}`}
-                  onClick={() => onSelect(entry.nodeId)}
-                  onDoubleClick={() => onFocus(entry.nodeId)}
-                >
-                  <span className="reference-group-item-label" title={label}>
-                    {label}
-                  </span>
-                  {node && (
-                    <span className="reference-group-item-type">{node.type}</span>
-                  )}
-                  <span
-                    className="reference-group-item-remove"
-                    role="button"
-                    tabIndex={0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemove(entry.nodeId);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onRemove(entry.nodeId);
-                      }
-                    }}
-                    aria-label="Remove from references"
-                    title="Remove"
-                  >
-                    ×
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <ReferenceEntryList entries={entries} {...listProps} />
       )}
     </div>
   );
