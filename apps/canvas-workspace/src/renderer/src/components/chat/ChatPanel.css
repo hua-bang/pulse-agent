@@ -1542,7 +1542,7 @@
 .chat-model-settings-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 200;
+  z-index: 1900;
   display: flex;
   justify-content: flex-end;
   background: rgba(15, 15, 15, 0.18);
