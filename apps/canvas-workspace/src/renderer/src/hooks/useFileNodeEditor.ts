@@ -82,6 +82,17 @@ interface Options {
 
 const AUTO_SAVE_MS = 1500;
 
+const imageExtensionFromMime = (mimeType: string | undefined): string => {
+  const normalized = (mimeType ?? '')
+    .toLowerCase()
+    .replace(/^image\//, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  if (!normalized) return 'png';
+  if (normalized === 'jpeg') return 'jpg';
+  return normalized;
+};
+
 export const useFileNodeEditor = ({
   data,
   nodeIdRef,
@@ -150,7 +161,7 @@ export const useFileNodeEditor = ({
           const dataUrl = reader.result as string;
           const base64 = dataUrl.split(',')[1];
           if (!base64) return;
-          const ext = imageItem.type.replace('image/', '').split(';')[0] ?? 'png';
+          const ext = imageExtensionFromMime(imageItem.type);
           const api = window.canvasWorkspace?.file;
           if (!api) return;
           const wsId =
@@ -341,7 +352,7 @@ export const useFileNodeEditor = ({
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(',')[1];
         if (!base64) return;
-        const ext = file.type.replace('image/', '').split(';')[0] || 'png';
+        const ext = imageExtensionFromMime(file.type);
         const api = window.canvasWorkspace?.file;
         if (!api) return;
         const wsId =

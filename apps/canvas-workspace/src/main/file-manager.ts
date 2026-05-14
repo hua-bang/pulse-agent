@@ -48,6 +48,17 @@ const STORE_DIR = join(homedir(), ".pulse-coder", "canvas");
 const getNotesDir = (workspaceId: string) =>
   join(STORE_DIR, workspaceId, "notes");
 
+const sanitizeImageExtension = (value?: string): string => {
+  const normalized = (value ?? "png")
+    .toLowerCase()
+    .replace(/^image\//, "")
+    .replace(/[^a-z0-9]/g, "");
+
+  if (!normalized) return "png";
+  if (normalized === "jpeg") return "jpg";
+  return normalized;
+};
+
 export const setupFileManagerIpc = () => {
   // Create a new note file in the workspace-scoped notes directory
   ipcMain.handle(
@@ -157,7 +168,7 @@ export const setupFileManagerIpc = () => {
         const wsId = payload.workspaceId ?? "default";
         const imagesDir = join(STORE_DIR, wsId, "images");
         await fs.mkdir(imagesDir, { recursive: true });
-        const ext = payload.ext ?? "png";
+        const ext = sanitizeImageExtension(payload.ext);
         const fileName = `img-${Date.now()}.${ext}`;
         const filePath = join(imagesDir, fileName);
         const buffer = Buffer.from(payload.data, "base64");
