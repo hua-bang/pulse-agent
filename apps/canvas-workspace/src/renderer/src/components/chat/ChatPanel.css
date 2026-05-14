@@ -1758,6 +1758,28 @@
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
 }
 
+.chat-model-field .chat-model-field-hint {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+  color: rgba(55, 53, 47, 0.55);
+}
+
+.chat-model-field .chat-model-field-hint--ok {
+  color: #2f8a3d;
+}
+
+.chat-model-field .chat-model-field-hint--warn {
+  color: #c2410c;
+}
+
+.chat-model-field .chat-model-field-hint--info {
+  color: #2383e2;
+}
+
 .chat-model-field-row {
   display: flex;
   align-items: flex-end;

@@ -418,6 +418,7 @@ export interface CanvasModelProviderStatus {
   base_url?: string;
   api_key_env?: string;
   apiKeyPresent: boolean;
+  apiKeyLength?: number;
   headers?: Record<string, string>;
   models: CanvasProviderModel[];
 }

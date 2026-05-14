@@ -351,6 +351,29 @@ const inferProviderId = (name: string) => name
   .replace(/[^a-z0-9._-]+/g, '-')
   .replace(/^-+|-+$/g, '');
 
+interface ApiKeyStatusHintProps {
+  status?: CanvasModelProviderStatus;
+  drafting: boolean;
+}
+
+const ApiKeyStatusHint = ({ status, drafting }: ApiKeyStatusHintProps) => {
+  if (drafting) {
+    return <span className="chat-model-field-hint chat-model-field-hint--info">将用输入的新 Key 覆盖已保存的值</span>;
+  }
+  if (!status) return null;
+  if (status.apiKeyPresent) {
+    const length = status.apiKeyLength;
+    const lengthSuffix = typeof length === 'number' && length > 0 ? `（共 ${length} 字符）` : '';
+    const source = status.api_key_env && !length ? `（来自环境变量 ${status.api_key_env}）` : '';
+    return (
+      <span className="chat-model-field-hint chat-model-field-hint--ok">
+        ✓ 已保存{lengthSuffix}{source}
+      </span>
+    );
+  }
+  return <span className="chat-model-field-hint chat-model-field-hint--warn">未设置 API Key — 调用模型时会失败</span>;
+};
+
 export const ModelSettingsDrawer = ({
   open,
   status,
@@ -367,6 +390,11 @@ export const ModelSettingsDrawer = ({
   const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [localError, setLocalError] = useState<string>();
+
+  const activeProviderStatus = useMemo(
+    () => providers.find(item => item.id === activeProviderId),
+    [providers, activeProviderId],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -534,9 +562,15 @@ export const ModelSettingsDrawer = ({
               <input
                 value={draft.api_key ?? ''}
                 type="password"
-                placeholder="留空则保留已保存的 API Key"
+                placeholder={activeProviderStatus?.apiKeyPresent ? '留空则保留已保存的 API Key' : '请输入 API Key'}
                 onChange={event => setDraftField('api_key', event.target.value)}
               />
+              {activeProviderId !== 'new' && (
+                <ApiKeyStatusHint
+                  status={activeProviderStatus}
+                  drafting={Boolean(draft.api_key && draft.api_key.length > 0)}
+                />
+              )}
             </label>
 
             <div className="chat-model-field-row">
