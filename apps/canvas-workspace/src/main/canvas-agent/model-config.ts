@@ -53,6 +53,14 @@ export interface CanvasModelProviderStatus {
   base_url?: string;
   api_key_env?: string;
   apiKeyPresent: boolean;
+  /**
+   * Number of characters in the saved API key when one is present and
+   * decryptable. Undefined when no key is saved, or when an encrypted
+   * blob exists but couldn't be decrypted on this machine. Exposed so
+   * the settings UI can confirm to the user that a key really is on
+   * disk without echoing it back.
+   */
+  apiKeyLength?: number;
   headers?: Record<string, string>;
   models: CanvasProviderModel[];
 }
@@ -341,13 +349,17 @@ function sanitizeConfig(config: CanvasModelConfig): CanvasModelConfig {
 function toProviderStatus(provider: CanvasModelProviderConfig): CanvasModelProviderStatus {
   const providerType = normalizeProviderType(provider.provider_type) ?? 'openai';
   const apiKeyEnv = normalizeStr(provider.api_key_env);
+  const decrypted = decryptApiKey(provider.encrypted_api_key);
+  const envKey = apiKeyEnv ? normalizeStr(process.env[apiKeyEnv]) : undefined;
+  const resolvedKey = decrypted ?? envKey;
   return {
     id: provider.id,
     name: provider.name,
     provider_type: providerType,
     base_url: provider.base_url,
     api_key_env: apiKeyEnv,
-    apiKeyPresent: Boolean(decryptApiKey(provider.encrypted_api_key) ?? (apiKeyEnv ? process.env[apiKeyEnv] : undefined)),
+    apiKeyPresent: Boolean(resolvedKey),
+    apiKeyLength: resolvedKey ? resolvedKey.length : undefined,
     headers: provider.headers,
     models: normalizeProviderModels(provider.models),
   };
@@ -516,7 +528,17 @@ function parseModelsPayload(payload: unknown): CanvasProviderModel[] {
 
 export async function fetchCanvasProviderModels(input: FetchCanvasModelsInput): Promise<CanvasProviderModel[]> {
   const config = sanitizeConfig(await readConfig());
-  let provider = input.provider ? normalizeProviderConfig(input.provider) : undefined;
+  let provider: CanvasModelProviderConfig | undefined;
+  if (input.provider) {
+    // Look up existing provider by id so that an empty plain api_key on the
+    // draft inherits the previously-saved encrypted_api_key. This makes
+    // "test & save" work for re-tests where the user keeps the stored key.
+    const draftId = normalizeStr(input.provider.id);
+    const existing = draftId
+      ? config.providers?.find((item) => item.id === normalizeProviderId(draftId))
+      : undefined;
+    provider = normalizeProviderConfig(input.provider, existing);
+  }
   if (input.providerId) {
     provider = config.providers?.find((item) => item.id === normalizeProviderId(input.providerId)) ?? provider;
   }

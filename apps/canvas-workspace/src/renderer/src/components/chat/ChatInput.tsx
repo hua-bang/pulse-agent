@@ -158,19 +158,9 @@ export const ChatInput = ({
                 onOpenSettings={onOpenModelSettings}
               />
             )}
-            {contextComposer && (
-              <button
-                type="button"
-                className="chat-execution-mode-btn"
-                onClick={onToggleExecutionMode}
-                title={executionMode === 'auto'
-                  ? 'Auto: 意图明确时可直接操作画布'
-                  : 'Ask: 改动画布前先确认'}
-                aria-label={executionMode === 'auto' ? '切换为 Ask 模式' : '切换为 Auto 模式'}
-              >
-                {executionMode === 'auto' ? 'Auto' : 'Ask'}
-              </button>
-            )}
+            {/* Auto/Ask execution-mode toggle hidden — onToggleExecutionMode
+                + executionMode state are still wired through so this can be
+                re-enabled by uncommenting once the UX lands. */}
             {loading ? (
               <button
                 className="chat-send-btn chat-send-btn--stop"
