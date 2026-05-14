@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanel } from '../chat';
-import { ReferenceDrawer } from '../ReferenceDrawer';
+import { ReferenceDrawer, type ReferenceEntry } from '../ReferenceDrawer';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkbenchController } from './useWorkbenchState';
 
@@ -12,6 +12,8 @@ export type { WorkbenchController } from './useWorkbenchState';
 const DEFAULT_CHAT_WIDTH = 420;
 const MIN_CHAT_WIDTH = 280;
 const MAX_CHAT_WIDTH = 600;
+
+const EMPTY_REFERENCES: ReferenceEntry[] = [];
 
 interface WorkbenchProps {
   activeWorkspaceId: string;
@@ -42,18 +44,63 @@ export const Workbench: React.FC<WorkbenchProps> = ({
 
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
-  const [referenceNodeIdByWorkspace, setReferenceNodeIdByWorkspace] = useState<Record<string, string | undefined>>({});
+  const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
+  const [activeReferenceIdByWorkspace, setActiveReferenceIdByWorkspace] = useState<Record<string, string | undefined>>({});
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
 
-  const referenceNodeId = referenceNodeIdByWorkspace[activeWorkspaceId];
-  const referenceNode = referenceNodeId
-    ? activeNodes.find((node) => node.id === referenceNodeId)
+  const references = referencesByWorkspace[activeWorkspaceId] ?? EMPTY_REFERENCES;
+  const activeReferenceId = activeReferenceIdByWorkspace[activeWorkspaceId];
+  const activeReference = activeReferenceId
+    ? references.find((entry) => entry.nodeId === activeReferenceId)
+    : undefined;
+  const activeReferenceNode = activeReference
+    ? activeNodes.find((node) => node.id === activeReference.nodeId)
     : undefined;
 
-  const clearReferenceNode = useCallback(() => {
-    setReferenceNodeIdByWorkspace((prev) => ({
+  const removeReference = useCallback((nodeId: string) => {
+    setReferencesByWorkspace((prev) => {
+      const current = prev[activeWorkspaceId] ?? [];
+      const next = current.filter((entry) => entry.nodeId !== nodeId);
+      if (next.length === current.length) return prev;
+      return { ...prev, [activeWorkspaceId]: next };
+    });
+    setActiveReferenceIdByWorkspace((prev) => {
+      if (prev[activeWorkspaceId] !== nodeId) return prev;
+      return { ...prev, [activeWorkspaceId]: undefined };
+    });
+  }, [activeWorkspaceId]);
+
+  const clearAllReferences = useCallback(() => {
+    setReferencesByWorkspace((prev) => {
+      if (!prev[activeWorkspaceId]?.length) return prev;
+      return { ...prev, [activeWorkspaceId]: [] };
+    });
+    setActiveReferenceIdByWorkspace((prev) => ({
       ...prev,
       [activeWorkspaceId]: undefined,
+    }));
+  }, [activeWorkspaceId]);
+
+  const setReferenceGroup = useCallback((nodeId: string, group: string | undefined) => {
+    const normalized = group?.trim() ? group.trim() : undefined;
+    setReferencesByWorkspace((prev) => {
+      const current = prev[activeWorkspaceId] ?? [];
+      let changed = false;
+      const next = current.map((entry) => {
+        if (entry.nodeId !== nodeId) return entry;
+        if ((entry.group ?? undefined) === normalized) return entry;
+        changed = true;
+        return { ...entry, group: normalized };
+      });
+      if (!changed) return prev;
+      return { ...prev, [activeWorkspaceId]: next };
+    });
+  }, [activeWorkspaceId]);
+
+  const setActiveReference = useCallback((nodeId: string | undefined) => {
+    setActiveReferenceIdByWorkspace((prev) => ({
+      ...prev,
+      [activeWorkspaceId]: nodeId,
     }));
   }, [activeWorkspaceId]);
 
@@ -62,16 +109,28 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   }, [activeWorkspaceId, requestNodeFocus]);
 
   useEffect(() => {
-    if (!referenceNodeId) return;
-    if (activeNodes.some((node) => node.id === referenceNodeId)) return;
-    setReferenceNodeIdByWorkspace((prev) => ({
-      ...prev,
-      [activeWorkspaceId]: undefined,
-    }));
-  }, [activeWorkspaceId, activeNodes, referenceNodeId]);
+    const current = referencesByWorkspace[activeWorkspaceId];
+    if (!current?.length) return;
+    const known = new Set(activeNodes.map((node) => node.id));
+    const filtered = current.filter((entry) => known.has(entry.nodeId));
+    if (filtered.length === current.length) return;
+    setReferencesByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: filtered }));
+    setActiveReferenceIdByWorkspace((prev) => {
+      const currentActive = prev[activeWorkspaceId];
+      if (currentActive && filtered.some((entry) => entry.nodeId === currentActive)) return prev;
+      return { ...prev, [activeWorkspaceId]: filtered[0]?.nodeId };
+    });
+  }, [activeWorkspaceId, activeNodes, referencesByWorkspace]);
 
-  const pinReferenceNode = useCallback((nodeId: string) => {
-    setReferenceNodeIdByWorkspace((prev) => ({
+  const pinReferenceNode = useCallback((nodeId: string, group?: string) => {
+    setReferencesByWorkspace((prev) => {
+      const current = prev[activeWorkspaceId] ?? [];
+      const exists = current.some((entry) => entry.nodeId === nodeId);
+      if (exists) return prev;
+      const entry: ReferenceEntry = group ? { nodeId, group } : { nodeId };
+      return { ...prev, [activeWorkspaceId]: [...current, entry] };
+    });
+    setActiveReferenceIdByWorkspace((prev) => ({
       ...prev,
       [activeWorkspaceId]: nodeId,
     }));
@@ -111,10 +170,17 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       <FileNodeEditorRegistryProvider>
       <ReferenceDrawer
         open={referenceDrawerOpen}
-        referenceNode={referenceNode}
+        references={references}
+        activeReferenceNode={activeReferenceNode}
+        activeReferenceGroup={activeReference?.group}
+        nodes={activeNodes}
         selectedNode={activeSelectedNode}
         onOpenChange={setReferenceDrawerOpen}
-        onClear={clearReferenceNode}
+        onSelectReference={setActiveReference}
+        onRemoveReference={removeReference}
+        onClearAll={clearAllReferences}
+        onAddReference={pinReferenceNode}
+        onSetReferenceGroup={setReferenceGroup}
         onFocusNode={handleFocusReferenceNode}
       />
       <div className="canvas-viewport">
