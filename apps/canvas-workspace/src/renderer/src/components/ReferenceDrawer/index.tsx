@@ -310,11 +310,30 @@ export const ReferenceDrawer = ({
 
             {activeReferenceNode ? (
               <div className="reference-native-card">
-                <div className="reference-card-meta">
-                  <span className="reference-card-meta-type">{activeReferenceNode.type}</span>
-                  <span className="reference-card-meta-title" title={getNodeDisplayLabel(activeReferenceNode)}>
-                    {getNodeDisplayLabel(activeReferenceNode)}
-                  </span>
+                <CanvasNodeView
+                  node={{
+                    ...activeReferenceNode,
+                    x: 0,
+                    y: 0,
+                    width: Math.max(MIN_REFERENCE_DRAWER_WIDTH - 32, drawerWidth - 32),
+                    height: 420,
+                  }}
+                  getAllNodes={() => [activeReferenceNode]}
+                  isDragging={false}
+                  isResizing={false}
+                  isSelected={false}
+                  isHighlighted={false}
+                  onDragStart={() => undefined}
+                  onResizeStart={() => undefined}
+                  onUpdate={() => undefined}
+                  onAutoResize={() => undefined}
+                  onRemove={() => undefined}
+                  onExportMindmapImage={() => undefined}
+                  onSelect={() => undefined}
+                  onFocus={() => onFocusNode(activeReferenceNode.id)}
+                  readOnly
+                />
+                <div className="reference-card-footer">
                   <div className="reference-card-meta-group" ref={groupEditorRef}>
                     <button
                       type="button"
@@ -322,7 +341,7 @@ export const ReferenceDrawer = ({
                       onClick={openGroupEditor}
                       title="Change group"
                     >
-                      {activeReferenceGroup ?? 'Add to group'}
+                      {activeReferenceGroup ?? '+ Group'}
                     </button>
                     {groupEditorOpen && (
                       <div className="reference-group-editor" role="dialog">
@@ -384,31 +403,6 @@ export const ReferenceDrawer = ({
                       </div>
                     )}
                   </div>
-                </div>
-                <CanvasNodeView
-                  node={{
-                    ...activeReferenceNode,
-                    x: 0,
-                    y: 0,
-                    width: Math.max(MIN_REFERENCE_DRAWER_WIDTH - 32, drawerWidth - 32),
-                    height: 420,
-                  }}
-                  getAllNodes={() => [activeReferenceNode]}
-                  isDragging={false}
-                  isResizing={false}
-                  isSelected={false}
-                  isHighlighted={false}
-                  onDragStart={() => undefined}
-                  onResizeStart={() => undefined}
-                  onUpdate={() => undefined}
-                  onAutoResize={() => undefined}
-                  onRemove={() => undefined}
-                  onExportMindmapImage={() => undefined}
-                  onSelect={() => undefined}
-                  onFocus={() => onFocusNode(activeReferenceNode.id)}
-                  readOnly
-                />
-                <div className="reference-card-footer">
                   <button
                     className="reference-drawer-secondary"
                     type="button"
