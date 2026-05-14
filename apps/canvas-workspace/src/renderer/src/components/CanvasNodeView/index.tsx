@@ -321,21 +321,35 @@ const CanvasNodeViewComponent = ({
   // filling box, but the node stays a child of `.canvas-transform` so
   // its iframe / editor / terminal DOM never relocates (a portal would
   // detach + re-attach the iframe element, which the browser treats as
-  // a navigation and reloads the embedded page). Instead we apply an
-  // inverse transform: move the node to (-tx/s, -ty/s) and size it
-  // (vw/s, vh/s) so after the parent's `translate(tx,ty) scale(s)` the
-  // node lands at screen (0,0) covering the whole container. The model
-  // x/y/w/h on `node` stays untouched so exiting restores its slot.
+  // a navigation and reloads the embedded page).
+  //
+  // We undo the parent's `translate(tx, ty) scale(s)` two ways:
+  //   - translate the node by (-tx/s, -ty/s) so its screen position
+  //     lands at (0, 0)
+  //   - apply `scale(1/s)` on the node itself so its content renders
+  //     at 1:1 visual scale, then size it to the actual viewport
+  //     (vw × vh). This is critical for Electron `<webview>`: webviews
+  //     render content at their CSS box size, NOT the visually-scaled
+  //     size, so the only reliable way to get correct 1:1 rendering is
+  //     to give the box the real viewport dimensions and cancel the
+  //     parent scale on the node.
+  // The model x/y/w/h on `node` stays untouched so exiting restores
+  // its slot.
   const fsScale = canvasTransform?.scale ?? 1;
   const fsX = canvasTransform ? -canvasTransform.x / fsScale : 0;
   const fsY = canvasTransform ? -canvasTransform.y / fsScale : 0;
-  const fsW = containerSize ? containerSize.width / fsScale : node.width;
-  const fsH = containerSize ? containerSize.height / fsScale : node.height;
+  const fsW = containerSize ? containerSize.width : node.width;
+  const fsH = containerSize ? containerSize.height : node.height;
 
   const wrapperStyle: React.CSSProperties = {
     transform: isFullscreen
-      ? `translate(${fsX}px, ${fsY}px)`
+      ? `translate(${fsX}px, ${fsY}px) scale(${1 / fsScale})`
       : `translate(${node.x}px, ${node.y}px)`,
+    // Pin the transform origin to the top-left so the `scale(1/s)`
+    // anchors at the node's (visual) top-left corner — without this,
+    // the scale would pivot around the box center and our translate
+    // math would land in the wrong spot.
+    transformOrigin: '0 0',
     width: isFullscreen ? `${fsW}px` : node.width,
     height: isFullscreen ? `${fsH}px` : node.height,
     ...(node.type === 'frame'
