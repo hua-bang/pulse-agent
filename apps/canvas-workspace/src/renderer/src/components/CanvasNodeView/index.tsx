@@ -1,5 +1,4 @@
-import { memo, useCallback, useState, useEffect, useRef, type ReactElement } from "react";
-import { createPortal } from "react-dom";
+import { memo, useCallback, useState, useEffect, useRef } from "react";
 import "./index.css";
 import type { CanvasNode, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
@@ -53,11 +52,29 @@ interface Props {
   onReference?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
   /** True when this node is currently rendered as the fullscreen overlay.
-   *  The outer wrapper portals into `fullscreenPortalEl` so the node
-   *  escapes the canvas pan/zoom transform while preserving its React
-   *  subtree (editor / terminal / agent state stays mounted). */
+   *  We deliberately do NOT portal the DOM — moving an `<iframe>` element
+   *  across parents always forces the browser to reload the embedded
+   *  document. Instead the node stays inside `.canvas-transform` and we
+   *  override its transform/width/height with an inverse of the canvas
+   *  pan+zoom so it visually fills the container while its DOM stays
+   *  put. That keeps tiptap / terminal / iframe state alive across the
+   *  toggle and lets a single CSS transition animate the expand/collapse.
+   *  Flips immediately on toggle — drives the inline-style change that
+   *  triggers the CSS transition. */
   isFullscreen?: boolean;
-  fullscreenPortalEl?: HTMLElement | null;
+  /** Lags `isFullscreen` by the exit-animation duration. Keeps the
+   *  `.canvas-node--fullscreen` class (z-index lift, chrome trimming)
+   *  attached to the closing node for the duration of the shrink so
+   *  the still-visible backdrop doesn't dim it mid-animation. */
+  isFullscreenStanding?: boolean;
+  /** Current canvas pan + zoom — needed to compute the inverse
+   *  transform that lifts the fullscreen node back to the viewport
+   *  origin in screen space. */
+  canvasTransform?: { x: number; y: number; scale: number };
+  /** Canvas viewport size (the `.canvas-container` element). Used to
+   *  size the fullscreen node so it fills the visible area after the
+   *  pan/zoom is undone. */
+  containerSize?: { width: number; height: number };
   /** Toggles fullscreen for this node. Omitted for nodes that don't
    *  support fullscreen (frame / group / shape). */
   onToggleFullscreen?: (nodeId: string) => void;
@@ -122,7 +139,9 @@ const CanvasNodeViewComponent = ({
   onReference,
   onUngroupSelectedGroups,
   isFullscreen = false,
-  fullscreenPortalEl = null,
+  isFullscreenStanding = false,
+  canvasTransform,
+  containerSize,
   onToggleFullscreen,
   readOnly = false
 }: Props) => {
@@ -293,36 +312,40 @@ const CanvasNodeViewComponent = ({
     focusState === 'dimmed' && "canvas-node--focus-mode-dimmed",
     readOnly && "canvas-node--readonly",
     textAutoSize && "canvas-node--text-auto",
-    isFullscreen && "canvas-node--fullscreen"
+    isFullscreenStanding && "canvas-node--fullscreen"
   ]
     .filter(Boolean)
     .join(" ");
 
   // Fullscreen swaps the canvas-coord translate/size for a viewport-
-  // filling box. The original x/y/w/h stay on the node model so exiting
-  // restores its slot exactly — only the rendered geometry changes.
-  const wrapperStyle: React.CSSProperties = isFullscreen
-    ? {
-        ...(node.type === 'frame'
-          ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
-          : node.type === 'group'
-            ? { '--group-color': (node.data as GroupNodeData).color ?? '#A594E0' } as React.CSSProperties
-            : {}),
-      }
-    : {
-        transform: `translate(${node.x}px, ${node.y}px)`,
-        width: node.width,
-        height: node.height,
-        ...(node.type === 'frame'
-          ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
-          : node.type === 'group'
-            ? { '--group-color': (node.data as GroupNodeData).color ?? '#A594E0' } as React.CSSProperties
-            : {}),
-      };
+  // filling box, but the node stays a child of `.canvas-transform` so
+  // its iframe / editor / terminal DOM never relocates (a portal would
+  // detach + re-attach the iframe element, which the browser treats as
+  // a navigation and reloads the embedded page). Instead we apply an
+  // inverse transform: move the node to (-tx/s, -ty/s) and size it
+  // (vw/s, vh/s) so after the parent's `translate(tx,ty) scale(s)` the
+  // node lands at screen (0,0) covering the whole container. The model
+  // x/y/w/h on `node` stays untouched so exiting restores its slot.
+  const fsScale = canvasTransform?.scale ?? 1;
+  const fsX = canvasTransform ? -canvasTransform.x / fsScale : 0;
+  const fsY = canvasTransform ? -canvasTransform.y / fsScale : 0;
+  const fsW = containerSize ? containerSize.width / fsScale : node.width;
+  const fsH = containerSize ? containerSize.height / fsScale : node.height;
+
+  const wrapperStyle: React.CSSProperties = {
+    transform: isFullscreen
+      ? `translate(${fsX}px, ${fsY}px)`
+      : `translate(${node.x}px, ${node.y}px)`,
+    width: isFullscreen ? fsW : node.width,
+    height: isFullscreen ? fsH : node.height,
+    ...(node.type === 'frame'
+      ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
+      : node.type === 'group'
+        ? { '--group-color': (node.data as GroupNodeData).color ?? '#A594E0' } as React.CSSProperties
+        : {}),
+  };
 
   const supportsFullscreen = FULLSCREEN_NODE_TYPES.has(node.type) && !!onToggleFullscreen;
-  const portalize = (el: ReactElement): ReactElement =>
-    isFullscreen && fullscreenPortalEl ? (createPortal(el, fullscreenPortalEl) as unknown as ReactElement) : el;
 
   const fullscreenButton = supportsFullscreen ? (
     <button
@@ -330,10 +353,10 @@ const CanvasNodeViewComponent = ({
       type="button"
       onClick={handleToggleFullscreen}
       onMouseDown={(e) => e.stopPropagation()}
-      title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+      title={isFullscreenStanding ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+      aria-label={isFullscreenStanding ? 'Exit fullscreen' : 'Enter fullscreen'}
     >
-      {isFullscreen ? (
+      {isFullscreenStanding ? (
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
           <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -352,7 +375,7 @@ const CanvasNodeViewComponent = ({
   const relativeTime = node.updatedAt ? formatRelativeTime(node.updatedAt) : null;
 
   if (node.type === "image") {
-    return portalize(
+    return (
       <div
         className={classes}
         style={wrapperStyle}
@@ -367,10 +390,10 @@ const CanvasNodeViewComponent = ({
             type="button"
             onClick={handleToggleFullscreen}
             onMouseDown={(e) => e.stopPropagation()}
-            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isFullscreenStanding ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            aria-label={isFullscreenStanding ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
-            {isFullscreen ? (
+            {isFullscreenStanding ? (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -388,7 +411,7 @@ const CanvasNodeViewComponent = ({
             </svg>
           </button>
         )}
-        {readOnly || isFullscreen ? null : (
+        {readOnly || isFullscreenStanding ? null : (
           <>
             <div
               className="resize-handle resize-handle--right"
@@ -454,7 +477,7 @@ const CanvasNodeViewComponent = ({
   }
 
   if (node.type === "mindmap") {
-    return portalize(
+    return (
       <div
         className={classes}
         style={wrapperStyle}
@@ -467,7 +490,7 @@ const CanvasNodeViewComponent = ({
           setMindmapMenu({ x: e.clientX, y: e.clientY });
         }}
         onMouseDown={(e) => {
-          if (readOnly || isFullscreen) return;
+          if (readOnly || isFullscreenStanding) return;
           // Same logic as handleHeaderMouseDown — only collapse the
           // selection on a plain mousedown over an unselected node.
           // Shift/Cmd selection changes are handled exclusively by the
@@ -494,10 +517,10 @@ const CanvasNodeViewComponent = ({
             type="button"
             onClick={handleToggleFullscreen}
             onMouseDown={(e) => e.stopPropagation()}
-            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isFullscreenStanding ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            aria-label={isFullscreenStanding ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
-            {isFullscreen ? (
+            {isFullscreenStanding ? (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -531,7 +554,7 @@ const CanvasNodeViewComponent = ({
     );
   }
 
-  return portalize(
+  return (
     <div
       className={classes}
       style={wrapperStyle}
@@ -539,7 +562,7 @@ const CanvasNodeViewComponent = ({
     >
       <div
         className="node-header"
-        onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
+        onMouseDown={isFullscreenStanding ? undefined : handleHeaderMouseDown}
       >
         <span className={`node-type-badge node-type-badge--${node.type}`}>
           {node.type === "file" ? (
@@ -687,7 +710,7 @@ const CanvasNodeViewComponent = ({
         )}
       </div>
 
-        {readOnly || isFullscreen ? null : (
+        {readOnly || isFullscreenStanding ? null : (
           <>
             <div
               className="resize-handle resize-handle--right"
@@ -711,20 +734,31 @@ const CanvasNodeViewComponent = ({
   );
 };
 
-export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
-  prev.node === next.node &&
-  prev.rootFolder === next.rootFolder &&
-  prev.workspaceId === next.workspaceId &&
-  prev.workspaceName === next.workspaceName &&
-  prev.getAllNodes === next.getAllNodes &&
-  prev.isDragging === next.isDragging &&
-  prev.isResizing === next.isResizing &&
-  prev.isSelected === next.isSelected &&
-  prev.isHighlighted === next.isHighlighted &&
-  prev.isAgentEdited === next.isAgentEdited &&
-  prev.focusState === next.focusState &&
-  prev.isFullscreen === next.isFullscreen &&
-  prev.fullscreenPortalEl === next.fullscreenPortalEl &&
-  prev.onToggleFullscreen === next.onToggleFullscreen &&
-  prev.readOnly === next.readOnly
-));
+export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => {
+  // Pan/zoom and container size only matter while the node is
+  // fullscreened — the inverse-transform geometry depends on them so a
+  // resize or zoom needs to re-render. For non-fullscreen nodes we
+  // ignore those props to preserve the existing memo behavior (avoids
+  // re-rendering every node on every pan).
+  if (prev.isFullscreen || next.isFullscreen || prev.isFullscreenStanding || next.isFullscreenStanding) {
+    if (prev.canvasTransform !== next.canvasTransform) return false;
+    if (prev.containerSize !== next.containerSize) return false;
+  }
+  return (
+    prev.node === next.node &&
+    prev.rootFolder === next.rootFolder &&
+    prev.workspaceId === next.workspaceId &&
+    prev.workspaceName === next.workspaceName &&
+    prev.getAllNodes === next.getAllNodes &&
+    prev.isDragging === next.isDragging &&
+    prev.isResizing === next.isResizing &&
+    prev.isSelected === next.isSelected &&
+    prev.isHighlighted === next.isHighlighted &&
+    prev.isAgentEdited === next.isAgentEdited &&
+    prev.focusState === next.focusState &&
+    prev.isFullscreen === next.isFullscreen &&
+    prev.isFullscreenStanding === next.isFullscreenStanding &&
+    prev.onToggleFullscreen === next.onToggleFullscreen &&
+    prev.readOnly === next.readOnly
+  );
+});

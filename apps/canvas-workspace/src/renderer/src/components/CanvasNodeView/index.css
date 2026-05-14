@@ -704,37 +704,49 @@
  * (see Canvas/index.tsx) so `position: absolute; inset: 0` resolves
  * against the canvas viewport rather than the panned/zoomed surface.
  * The model x/y/w/h stays on the node so exiting restores its slot. */
+/* Fullscreen styling. The transform / width / height come from the
+ * inline style (CanvasNodeView computes an inverse of the canvas
+ * pan+zoom so the node visually fills the container while staying a
+ * child of `.canvas-transform`). CSS only handles the cosmetic side
+ * and animates the geometry between the two states. */
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
-  position: absolute;
-  inset: 0;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: auto !important;
-  height: auto !important;
-  transform: none !important;
-  /* Above the floating toolbar (500/600) and zoom indicator so nothing
-   * pokes through the fullscreen overlay. The portal itself sits at
-   * 1000 — the node bumps one above so its own chrome wins over any
-   * stray sibling inside the portal. */
-  z-index: 1001;
+  /* Above other siblings inside `.canvas-transform` — sits over the
+   * fullscreen backdrop (z-index 50) so dimming covers the rest of
+   * the canvas while the node remains crisp. */
+  z-index: 60;
   border-radius: 0;
   border-color: transparent;
   box-shadow: none;
-  animation: canvas-node-fullscreen-in 0.18s ease forwards;
 }
 
-@keyframes canvas-node-fullscreen-in {
-  from {
-    opacity: 0.6;
-    transform: scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+/* Smooth expand/collapse. We animate transform + width + height so
+ * the node grows from its canvas slot to the viewport (and back) in
+ * one continuous motion. Applied always to nodes that support
+ * fullscreen so the *collapse* transition also fires (when the
+ * `--fullscreen` class drops). Non-fullscreen-eligible nodes keep
+ * their snappy, transition-less geometry. */
+.canvas-node--file,
+.canvas-node--terminal,
+.canvas-node--agent,
+.canvas-node--iframe,
+.canvas-node--image,
+.canvas-node--mindmap,
+.canvas-node--text {
+  transition:
+    transform 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 0.24s ease,
+    box-shadow 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* Dragging and resizing must be instant — running an animation on a
+ * 60fps pointer move stream produces visible lag and snaps. */
+.canvas-node--dragging,
+.canvas-node--resizing {
+  transition: none !important;
 }
 
 /* Fullscreen disables drag-by-header and resize handles, so the header
@@ -771,14 +783,4 @@
 .canvas-node--fullscreen .node-fullscreen--floating {
   right: 12px;
   top: 12px;
-}
-
-/* Container nodes (frame/group) and shapes don't fullscreen — but keep
- * a defensive override in case `canvas-node--fullscreen` somehow lands
- * on them so they don't take over the screen. */
-.canvas-node--fullscreen.canvas-node--frame,
-.canvas-node--fullscreen.canvas-node--group,
-.canvas-node--fullscreen.canvas-node--shape {
-  position: absolute;
-  inset: 0;
 }

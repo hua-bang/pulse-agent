@@ -93,35 +93,37 @@
   to { opacity: 1; }
 }
 
-/* Fullscreen portal — empty container outside `.canvas-transform`, so
- * any node portaled in escapes the pan/zoom transform's containing
- * block. Inert until a node is fullscreened, at which point it covers
- * the viewport with a dim backdrop and centers the portaled node.
- * z-index sits above the floating toolbar (z-index: 500-600) and zoom
- * indicator so fullscreen actually covers the canvas chrome. */
-.canvas-fullscreen-portal {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+/* While a node is fullscreened, raise the entire transform layer above
+ * the floating toolbar (z-index 500-600) and zoom indicator (500) so
+ * the in-transform fullscreen node visually clears all canvas chrome.
+ * The fullscreen node itself uses an inverse transform to fill the
+ * viewport — see CanvasNodeView.css. */
+.canvas-container[data-fullscreen="on"] .canvas-transform {
   z-index: 1000;
 }
 
-.canvas-fullscreen-portal[data-active="on"] {
-  pointer-events: auto;
-  background: rgba(15, 18, 30, 0.62);
-  backdrop-filter: blur(2px);
-  animation: canvas-fullscreen-backdrop-in 0.18s ease forwards;
-}
-
-@keyframes canvas-fullscreen-backdrop-in {
-  from { background: rgba(15, 18, 30, 0); backdrop-filter: blur(0); }
-  to { background: rgba(15, 18, 30, 0.62); backdrop-filter: blur(2px); }
-}
-
-/* Drop the grid and dim the find/floating chrome while a node is
- * fullscreened. The portal's own backdrop already covers the canvas
- * surface, but hiding the grid avoids a faint dotted texture bleeding
- * through if the backdrop is ever lightened. */
 .canvas-container[data-fullscreen="on"] .canvas-grid {
   opacity: 0;
+}
+
+/* Fullscreen backdrop. Sized large enough to cover any reasonable
+ * zoom/pan after the parent transform applies (same pattern as
+ * `.canvas-focus-backdrop`). Click-through exits fullscreen. Opacity
+ * is transitioned via the `data-open` attribute so both entry and
+ * exit fade smoothly without unmounting the element. */
+.canvas-fullscreen-backdrop {
+  position: absolute;
+  left: -100000px;
+  top: -100000px;
+  width: 200000px;
+  height: 200000px;
+  background: rgba(15, 18, 30, 0.62);
+  pointer-events: auto;
+  z-index: 50;
+  opacity: 0;
+  transition: opacity 0.24s ease;
+}
+
+.canvas-fullscreen-backdrop[data-open="on"] {
+  opacity: 1;
 }

@@ -85,12 +85,12 @@ export const Canvas = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
-  // ID of the node currently rendered as a fullscreen overlay (covers the
-  // canvas viewport, escapes the pan/zoom transform via a portal so the
-  // node's editor/terminal state stays mounted). Null when no node is
-  // fullscreened.
+  // ID of the node currently rendered as a fullscreen overlay. The node
+  // stays mounted inside `.canvas-transform` (so its iframe / editor
+  // DOM doesn't reload) and uses an inverse-transform sized off
+  // `containerSize` to visually fill the viewport.
   const [fullscreenNodeId, setFullscreenNodeId] = useState<string | null>(null);
-  const [fullscreenPortalEl, setFullscreenPortalEl] = useState<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoFitted = useRef(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -249,6 +249,38 @@ export const Canvas = ({
     setFullscreenNodeId(null);
   }, []);
 
+  // Fullscreen has three derived bits, all driven by `fullscreenNodeId`:
+  //  - `fullscreenActive` lags the ID by the exit-animation duration so
+  //    the bumped `.canvas-transform` z-index and the dim backdrop stay
+  //    mounted while the node shrinks back to its slot (otherwise the
+  //    floating toolbar would pop in front of a mid-shrink node).
+  //  - `fullscreenOpen` flips on one frame *after* the backdrop has
+  //    mounted at opacity 0 so the CSS opacity transition actually runs
+  //    on entry. On exit it drops immediately so the backdrop fades out
+  //    while the node animates back.
+  //  - `displayedFullscreenId` keeps the `.canvas-node--fullscreen`
+  //    class (and its z-index lift above the backdrop) attached to the
+  //    closing node for the duration of the exit animation. Without it
+  //    the shrinking node would be dimmed by the still-visible backdrop.
+  const FULLSCREEN_ANIM_MS = 260;
+  const [fullscreenActive, setFullscreenActive] = useState(false);
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [displayedFullscreenId, setDisplayedFullscreenId] = useState<string | null>(null);
+  useEffect(() => {
+    if (fullscreenNodeId) {
+      setFullscreenActive(true);
+      setDisplayedFullscreenId(fullscreenNodeId);
+      const raf = requestAnimationFrame(() => setFullscreenOpen(true));
+      return () => cancelAnimationFrame(raf);
+    }
+    setFullscreenOpen(false);
+    const timer = setTimeout(() => {
+      setFullscreenActive(false);
+      setDisplayedFullscreenId(null);
+    }, FULLSCREEN_ANIM_MS);
+    return () => clearTimeout(timer);
+  }, [fullscreenNodeId]);
+
   // Drop the fullscreen pin if its node disappears (deleted, workspace
   // swapped, etc.) — leaving it would render an overlay for a node that
   // no longer exists in the tree.
@@ -256,6 +288,22 @@ export const Canvas = ({
     if (!fullscreenNodeId) return;
     if (!nodesById.has(fullscreenNodeId)) setFullscreenNodeId(null);
   }, [fullscreenNodeId, nodesById]);
+
+  // Track the canvas-container's live viewport size so the fullscreen
+  // node can compute the inverse-transform geometry that fills it. Uses
+  // ResizeObserver so window resizes / sidebar toggles update the
+  // overlay without manual remounting.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Flush pending saves on window close or component unmount
   useEffect(() => {
@@ -1215,7 +1263,7 @@ export const Canvas = ({
       onContextMenu={handleContextMenu}
       onClick={handleCanvasClick}
       data-focus-mode={focusModeActive ? 'on' : undefined}
-      data-fullscreen={fullscreenNodeId ? 'on' : undefined}
+      data-fullscreen={fullscreenActive ? 'on' : undefined}
     >
       <div className="canvas-grid" />
 
@@ -1255,7 +1303,8 @@ export const Canvas = ({
         onReference={onPinReferenceNode}
         onUngroupSelectedGroups={ungroupSelectedNodes}
         fullscreenNodeId={fullscreenNodeId}
-        fullscreenPortalEl={fullscreenPortalEl}
+        displayedFullscreenId={displayedFullscreenId}
+        containerSize={containerSize ?? undefined}
         onToggleFullscreen={handleToggleFullscreen}
         onSelectEdge={(id) => {
           setSelectedEdgeId(id);
@@ -1264,17 +1313,10 @@ export const Canvas = ({
         onEdgeHandleMouseDown={handleEdgeHandleMouseDown}
         onEdgeBodyMouseDown={handleEdgeBodyMouseDown}
         onEdgeBodyDoubleClick={handleEdgeBodyDoubleClick}
+        fullscreenActive={fullscreenActive}
+        fullscreenOpen={fullscreenOpen}
+        onExitFullscreen={exitFullscreen}
         getAllNodes={getAllNodes}
-      />
-
-      {/* Portal target for the fullscreen node overlay. Sits outside
-          `.canvas-transform` so the portaled node escapes the pan/zoom
-          containing block; covers the viewport via CSS only when a node
-          is fullscreened (otherwise it's display:none and inert). */}
-      <div
-        ref={setFullscreenPortalEl}
-        className="canvas-fullscreen-portal"
-        data-active={fullscreenNodeId ? 'on' : undefined}
       />
 
       <CanvasOverlays
