@@ -49,6 +49,8 @@ interface Options {
   canToggleFocusMode?: boolean;
   onToggleFocusMode?: () => void;
   onExitFocusMode?: () => void;
+  fullscreenActive?: boolean;
+  onExitFullscreen?: () => void;
   keyboardLocked?: boolean;
 }
 
@@ -65,6 +67,8 @@ export const useCanvasKeyboard = ({
   canToggleFocusMode = false,
   onToggleFocusMode,
   onExitFocusMode,
+  fullscreenActive = false,
+  onExitFullscreen,
   keyboardLocked = false,
 }: Options) => {
   useEffect(() => {
@@ -193,6 +197,10 @@ export const useCanvasKeyboard = ({
         if (findOpen) { closeFindBar(); return; }
         if (searchOpen) { setSearchOpen(false); return; }
         if (contextMenu) { setContextMenu(null); return; }
+        // Fullscreen takes priority over focus-mode so Esc reliably
+        // shrinks the overlay back to its canvas slot before doing
+        // anything else with selection state.
+        if (fullscreenActive) { onExitFullscreen?.(); return; }
         if (focusModeEnabled) { onExitFocusMode?.(); return; }
         if (selectedEdgeId) { setSelectedEdgeId(null); return; }
         setSelectedNodeIds([]);
@@ -214,7 +222,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, keyboardLocked]);
+  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {

@@ -82,6 +82,13 @@ interface CanvasSurfaceProps {
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
+  /** Node currently rendered fullscreen, if any. The matching
+   *  CanvasNodeView stays in place inside `.canvas-transform` so its
+   *  iframe / editor / terminal DOM never moves; CSS overrides on
+   *  `.canvas-transform` and the node fill the viewport. */
+  fullscreenNodeId?: string | null;
+  onToggleFullscreen?: (nodeId: string) => void;
+  onExitFullscreen?: () => void;
   onSelectEdge: (id: string | null) => void;
   onEdgeHandleMouseDown: (
     edgeId: string,
@@ -132,6 +139,9 @@ export const CanvasSurface = ({
   onFocus,
   onReference,
   onUngroupSelectedGroups,
+  fullscreenNodeId = null,
+  onToggleFullscreen,
+  onExitFullscreen,
   onSelectEdge,
   onEdgeHandleMouseDown,
   onEdgeBodyMouseDown,
@@ -156,6 +166,18 @@ export const CanvasSurface = ({
         per-node dim opacity competes with a bright white canvas
         background and the focused node fails to pop. */}
     {focusModeEnabled && <div className="canvas-focus-backdrop" />}
+    {/* Fullscreen backdrop. Sits between the other (now offset-jumped)
+        nodes and the fullscreen node, dimming everything behind. Click
+        anywhere on the backdrop to exit. */}
+    {fullscreenNodeId && (
+      <div
+        className="canvas-fullscreen-backdrop"
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          onExitFullscreen?.();
+        }}
+      />
+    )}
     {/* Containers render first as the canvas background/grouping layer. Edges
         render after containers so frame fills can no longer cover connection
         lines, while regular nodes still paint above edges. */}
@@ -188,6 +210,8 @@ export const CanvasSurface = ({
           onFocus={onFocus}
           onReference={onReference}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
+          isFullscreen={fullscreenNodeId === node.id}
+          onToggleFullscreen={onToggleFullscreen}
         />
       ))}
     <CanvasEdgesLayer
@@ -233,6 +257,8 @@ export const CanvasSurface = ({
           onFocus={onFocus}
           onReference={onReference}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
+          isFullscreen={fullscreenNodeId === node.id}
+          onToggleFullscreen={onToggleFullscreen}
         />
       ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}

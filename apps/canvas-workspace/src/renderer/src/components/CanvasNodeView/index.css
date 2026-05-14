@@ -256,6 +256,7 @@
 
 .node-reference,
 .node-focus,
+.node-fullscreen,
 .node-close {
   height: 20px;
   border: none;
@@ -277,12 +278,14 @@
 }
 
 .node-focus,
+.node-fullscreen,
 .node-close {
   width: 20px;
 }
 
 .canvas-node:hover .node-reference,
 .canvas-node:hover .node-focus,
+.canvas-node:hover .node-fullscreen,
 .canvas-node:hover .node-close {
   opacity: 1;
 }
@@ -293,6 +296,11 @@
 }
 
 .node-focus:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.node-fullscreen:hover {
   background: var(--accent-light);
   color: var(--accent);
 }
@@ -679,4 +687,76 @@
   20%, 60% {
     box-shadow: var(--shadow-card), 0 0 0 3px var(--accent), 0 0 20px rgba(35, 131, 226, 0.3);
   }
+}
+
+/* Image/mindmap nodes lack a header — float the fullscreen toggle in
+ * the top-right corner next to the existing floating close button. */
+.node-fullscreen--floating {
+  position: absolute;
+  top: 4px;
+  right: 30px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+/* Fullscreen node. The parent `.canvas-transform` has its transform
+ * killed by `.canvas-container[data-fullscreen="on"]` (see
+ * Canvas/index.css), so a plain `inset: 0` here just covers the
+ * canvas-container viewport. The inline `transform: translate(x,y)` +
+ * width/height set by CanvasNodeView for the node's normal slot are
+ * overridden with `!important` — the node DOM never moves, only its
+ * CSS box flips between "slot" and "fullscreen". That keeps the
+ * iframe / editor / terminal mounted across the toggle, no reload. */
+.canvas-node.canvas-node--fullscreen,
+.canvas-node.canvas-node--fullscreen:hover {
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+  /* Above the backdrop (z-index 50) so dimming covers other nodes
+   * while this one stays crisp. */
+  z-index: 60;
+  border-radius: 0;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Fullscreen disables drag-by-header and resize handles, so the header
+ * cursor + handles should reflect that. The only chrome the user needs
+ * is the exit-fullscreen button; everything else (close, focus, ref,
+ * time, color pickers) hides so the bar stays clean. */
+.canvas-node--fullscreen .node-header {
+  cursor: default;
+}
+
+.canvas-node--fullscreen .node-fullscreen {
+  opacity: 1;
+}
+
+.canvas-node--fullscreen .node-reference,
+.canvas-node--fullscreen .node-focus,
+.canvas-node--fullscreen .node-close,
+.canvas-node--fullscreen .node-time-label,
+.canvas-node--fullscreen .frame-color-trigger,
+.canvas-node--fullscreen .text-color-trigger,
+.canvas-node--fullscreen .group-ungroup-button,
+.canvas-node--fullscreen .group-count-label,
+.canvas-node--fullscreen .node-status-label {
+  display: none !important;
+}
+
+/* Image / mindmap nodes show floating close + fullscreen buttons in
+ * the top-right corner. Once fullscreen, drop the close so only the
+ * exit button remains and slide the exit button into the close slot. */
+.canvas-node--fullscreen .node-close--floating {
+  display: none !important;
+}
+
+.canvas-node--fullscreen .node-fullscreen--floating {
+  right: 12px;
+  top: 12px;
 }
