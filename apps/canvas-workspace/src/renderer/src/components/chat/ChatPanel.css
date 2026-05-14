@@ -1425,8 +1425,11 @@
 
 .chat-model-switcher-chevron {
   color: #9b9a97;
-  font-size: 13px;
-  margin-left: -2px;
+  margin-left: -1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .chat-model-menu {

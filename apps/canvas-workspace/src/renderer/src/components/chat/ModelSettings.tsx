@@ -231,7 +231,11 @@ export const ModelSwitcher = ({
       >
         <span className="chat-model-switcher-dot" />
         <span className="chat-model-switcher-label">{label}</span>
-        <span className="chat-model-switcher-chevron">⌄</span>
+        <span className="chat-model-switcher-chevron" aria-hidden="true">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M2.75 4L5 6.25L7.25 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
       {open && createPortal(
         <div
