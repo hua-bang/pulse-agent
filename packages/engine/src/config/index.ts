@@ -95,7 +95,7 @@ export const DEFAULT_MODEL = readEnv(
 
 export const MAX_TURNS = 100;
 export const MAX_ERROR_COUNT = 3;
-export const MAX_STEPS = 100;
+export const MAX_STEPS = 500;
 export const MAX_TOOL_OUTPUT_LENGTH = 30_000;
 
 export const CONTEXT_WINDOW_TOKENS = Number(process.env.CONTEXT_WINDOW_TOKENS ?? 64_000);
