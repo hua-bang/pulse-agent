@@ -400,15 +400,27 @@ export const ModelSettingsDrawer = ({
     [providers, activeProviderId],
   );
 
+  const initializedRef = useRef(false);
+
   useEffect(() => {
-    if (!open) return;
-    const initial = status?.currentProvider ?? providers[0]?.id ?? 'new';
+    if (!open) {
+      initializedRef.current = false;
+      return;
+    }
+    if (initializedRef.current) return;
+    // Wait for status to load before picking the initial tab, otherwise we
+    // default to "Add provider" before the user's providers come in. Once
+    // initialized, ignore later changes to providers (e.g. after save) so
+    // the active tab doesn't get yanked back to the first one.
+    if (!status) return;
+    initializedRef.current = true;
+    const initial = status.currentProvider ?? providers[0]?.id ?? 'new';
     setActiveProviderId(initial);
     const provider = providers.find(item => item.id === initial);
     setDraft(providerToDraft(provider));
     setManualModel('');
     setLocalError(undefined);
-  }, [open, status?.currentProvider, providers]);
+  }, [open, status, providers]);
 
   const selectProvider = useCallback((providerId: string) => {
     setActiveProviderId(providerId);
@@ -609,7 +621,7 @@ export const ModelSettingsDrawer = ({
               <span>API URL / Base URL</span>
               <input
                 value={draft.base_url ?? ''}
-                placeholder={draft.provider_type === 'claude' ? 'https://api.anthropic.com' : 'https://api.deepseek.com/v1'}
+                placeholder={draft.provider_type === 'claude' ? 'https://api.anthropic.com/v1' : 'https://api.deepseek.com/v1'}
                 onChange={event => setDraftField('base_url', event.target.value)}
               />
             </label>
