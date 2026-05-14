@@ -336,8 +336,8 @@ const CanvasNodeViewComponent = ({
     transform: isFullscreen
       ? `translate(${fsX}px, ${fsY}px)`
       : `translate(${node.x}px, ${node.y}px)`,
-    width: isFullscreen ? fsW : node.width,
-    height: isFullscreen ? fsH : node.height,
+    width: isFullscreen ? `${fsW}px` : node.width,
+    height: isFullscreen ? `${fsH}px` : node.height,
     ...(node.type === 'frame'
       ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
       : node.type === 'group'

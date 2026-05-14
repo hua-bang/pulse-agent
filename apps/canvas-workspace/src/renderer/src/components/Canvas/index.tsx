@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useNodes } from '../../hooks/useNodes';
@@ -242,6 +242,15 @@ export const Canvas = ({
   }, [focusModeAvailable]);
 
   const handleToggleFullscreen = useCallback((nodeId: string) => {
+    // Force a fresh container measurement at toggle time. Defensive: if
+    // the ResizeObserver hasn't fired yet (e.g., container was resized
+    // by a sidebar/chat-panel toggle moments before the click), we'd
+    // otherwise fall back to `node.width`/`node.height` and the
+    // fullscreen overlay would render at the wrong size.
+    const el = containerRef.current;
+    if (el) {
+      setContainerSize({ width: el.clientWidth, height: el.clientHeight });
+    }
     setFullscreenNodeId((current) => (current === nodeId ? null : nodeId));
   }, []);
 
@@ -290,10 +299,12 @@ export const Canvas = ({
   }, [fullscreenNodeId, nodesById]);
 
   // Track the canvas-container's live viewport size so the fullscreen
-  // node can compute the inverse-transform geometry that fills it. Uses
-  // ResizeObserver so window resizes / sidebar toggles update the
-  // overlay without manual remounting.
-  useEffect(() => {
+  // node can compute the inverse-transform geometry that fills it.
+  // `useLayoutEffect` so the first measurement happens synchronously
+  // before the browser paints — otherwise the very first fullscreen
+  // toggle could land before useEffect's measurement and fall back
+  // to `node.width/height`.
+  useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => {
