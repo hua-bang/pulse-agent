@@ -1,4 +1,5 @@
-import { memo, useCallback, useState, useEffect, useRef } from "react";
+import { memo, useCallback, useState, useEffect, useRef, type ReactElement } from "react";
+import { createPortal } from "react-dom";
 import "./index.css";
 import type { CanvasNode, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
@@ -51,8 +52,30 @@ interface Props {
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
+  /** True when this node is currently rendered as the fullscreen overlay.
+   *  The outer wrapper portals into `fullscreenPortalEl` so the node
+   *  escapes the canvas pan/zoom transform while preserving its React
+   *  subtree (editor / terminal / agent state stays mounted). */
+  isFullscreen?: boolean;
+  fullscreenPortalEl?: HTMLElement | null;
+  /** Toggles fullscreen for this node. Omitted for nodes that don't
+   *  support fullscreen (frame / group / shape). */
+  onToggleFullscreen?: (nodeId: string) => void;
   readOnly?: boolean;
 }
+
+/** Node types that get the fullscreen affordance. Containers (frame,
+ *  group) and decorative shapes don't benefit from fullscreen so we
+ *  skip the button on them. */
+const FULLSCREEN_NODE_TYPES = new Set([
+  'file',
+  'terminal',
+  'agent',
+  'iframe',
+  'image',
+  'mindmap',
+  'text',
+]);
 
 function formatRelativeTime(epochMs: number): string {
   const diffSec = Math.floor((Date.now() - epochMs) / 1000);
@@ -98,6 +121,9 @@ const CanvasNodeViewComponent = ({
   onFocus,
   onReference,
   onUngroupSelectedGroups,
+  isFullscreen = false,
+  fullscreenPortalEl = null,
+  onToggleFullscreen,
   readOnly = false
 }: Props) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -152,6 +178,14 @@ const CanvasNodeViewComponent = ({
       onFocus(node);
     },
     [onFocus, node]
+  );
+
+  const handleToggleFullscreen = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onToggleFullscreen?.(node.id);
+    },
+    [onToggleFullscreen, node.id]
   );
 
   const handleReference = useCallback(
@@ -258,10 +292,58 @@ const CanvasNodeViewComponent = ({
     focusState === 'context' && "canvas-node--focus-mode-context",
     focusState === 'dimmed' && "canvas-node--focus-mode-dimmed",
     readOnly && "canvas-node--readonly",
-    textAutoSize && "canvas-node--text-auto"
+    textAutoSize && "canvas-node--text-auto",
+    isFullscreen && "canvas-node--fullscreen"
   ]
     .filter(Boolean)
     .join(" ");
+
+  // Fullscreen swaps the canvas-coord translate/size for a viewport-
+  // filling box. The original x/y/w/h stay on the node model so exiting
+  // restores its slot exactly — only the rendered geometry changes.
+  const wrapperStyle: React.CSSProperties = isFullscreen
+    ? {
+        ...(node.type === 'frame'
+          ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
+          : node.type === 'group'
+            ? { '--group-color': (node.data as GroupNodeData).color ?? '#A594E0' } as React.CSSProperties
+            : {}),
+      }
+    : {
+        transform: `translate(${node.x}px, ${node.y}px)`,
+        width: node.width,
+        height: node.height,
+        ...(node.type === 'frame'
+          ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
+          : node.type === 'group'
+            ? { '--group-color': (node.data as GroupNodeData).color ?? '#A594E0' } as React.CSSProperties
+            : {}),
+      };
+
+  const supportsFullscreen = FULLSCREEN_NODE_TYPES.has(node.type) && !!onToggleFullscreen;
+  const portalize = (el: ReactElement): ReactElement =>
+    isFullscreen && fullscreenPortalEl ? (createPortal(el, fullscreenPortalEl) as unknown as ReactElement) : el;
+
+  const fullscreenButton = supportsFullscreen ? (
+    <button
+      className="node-fullscreen"
+      type="button"
+      onClick={handleToggleFullscreen}
+      onMouseDown={(e) => e.stopPropagation()}
+      title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+    >
+      {isFullscreen ? (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M1 4V1h3M11 4V1H8M1 8v3h3M11 8v3H8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </button>
+  ) : null;
 
   const agentStatus = node.type === "agent"
     ? ((node.data as AgentNodeData).status ?? 'idle')
@@ -270,19 +352,35 @@ const CanvasNodeViewComponent = ({
   const relativeTime = node.updatedAt ? formatRelativeTime(node.updatedAt) : null;
 
   if (node.type === "image") {
-    return (
+    return portalize(
       <div
         className={classes}
-        style={{
-          transform: `translate(${node.x}px, ${node.y}px)`,
-          width: node.width,
-          height: node.height,
-        }}
+        style={wrapperStyle}
         onClick={handleNodeClick}
       >
         <div className="node-body node-body--image" onMouseDown={(e) => e.stopPropagation()}>
           <ImageNodeBody node={node} onSelect={onSelect} onDragStart={onDragStart} readOnly={readOnly} />
         </div>
+        {supportsFullscreen ? (
+          <button
+            className="node-fullscreen node-fullscreen--floating"
+            type="button"
+            onClick={handleToggleFullscreen}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M1 4V1h3M11 4V1H8M1 8v3h3M11 8v3H8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        ) : null}
         {readOnly ? null : (
           <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -290,7 +388,7 @@ const CanvasNodeViewComponent = ({
             </svg>
           </button>
         )}
-        {readOnly ? null : (
+        {readOnly || isFullscreen ? null : (
           <>
             <div
               className="resize-handle resize-handle--right"
@@ -314,11 +412,7 @@ const CanvasNodeViewComponent = ({
     return (
       <div
         className={classes}
-        style={{
-          transform: `translate(${node.x}px, ${node.y}px)`,
-          width: node.width,
-          height: node.height,
-        }}
+        style={wrapperStyle}
         onClick={handleNodeClick}
       >
         <div className="node-body node-body--shape" onMouseDown={(e) => e.stopPropagation()}>
@@ -360,14 +454,10 @@ const CanvasNodeViewComponent = ({
   }
 
   if (node.type === "mindmap") {
-    return (
+    return portalize(
       <div
         className={classes}
-        style={{
-          transform: `translate(${node.x}px, ${node.y}px)`,
-          width: node.width,
-          height: node.height,
-        }}
+        style={wrapperStyle}
         onClick={handleNodeClick}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -377,7 +467,7 @@ const CanvasNodeViewComponent = ({
           setMindmapMenu({ x: e.clientX, y: e.clientY });
         }}
         onMouseDown={(e) => {
-          if (readOnly) return;
+          if (readOnly || isFullscreen) return;
           // Same logic as handleHeaderMouseDown — only collapse the
           // selection on a plain mousedown over an unselected node.
           // Shift/Cmd selection changes are handled exclusively by the
@@ -398,6 +488,26 @@ const CanvasNodeViewComponent = ({
             readOnly={readOnly}
           />
         </div>
+        {supportsFullscreen ? (
+          <button
+            className="node-fullscreen node-fullscreen--floating"
+            type="button"
+            onClick={handleToggleFullscreen}
+            onMouseDown={(e) => e.stopPropagation()}
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+          >
+            {isFullscreen ? (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <path d="M1 4V1h3M11 4V1H8M1 8v3h3M11 8v3H8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        ) : null}
         {readOnly ? null : (
           <button className="node-close node-close--floating" onClick={handleClose} title="Remove">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -421,24 +531,15 @@ const CanvasNodeViewComponent = ({
     );
   }
 
-  return (
+  return portalize(
     <div
       className={classes}
-      style={{
-        transform: `translate(${node.x}px, ${node.y}px)`,
-        width: node.width,
-        height: node.height,
-        ...(node.type === 'frame'
-          ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
-          : node.type === 'group'
-            ? { '--group-color': (node.data as GroupNodeData).color ?? '#A594E0' } as React.CSSProperties
-          : {})
-      }}
+      style={wrapperStyle}
       onClick={handleNodeClick}
     >
       <div
         className="node-header"
-        onMouseDown={handleHeaderMouseDown}
+        onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
       >
         <span className={`node-type-badge node-type-badge--${node.type}`}>
           {node.type === "file" ? (
@@ -548,6 +649,7 @@ const CanvasNodeViewComponent = ({
             </svg>
           </button>
         ) : null}
+        {fullscreenButton}
         <button className="node-focus" onClick={handleFocus} title="Focus">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" />
@@ -585,7 +687,7 @@ const CanvasNodeViewComponent = ({
         )}
       </div>
 
-        {readOnly ? null : (
+        {readOnly || isFullscreen ? null : (
           <>
             <div
               className="resize-handle resize-handle--right"
@@ -621,5 +723,8 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.isHighlighted === next.isHighlighted &&
   prev.isAgentEdited === next.isAgentEdited &&
   prev.focusState === next.focusState &&
+  prev.isFullscreen === next.isFullscreen &&
+  prev.fullscreenPortalEl === next.fullscreenPortalEl &&
+  prev.onToggleFullscreen === next.onToggleFullscreen &&
   prev.readOnly === next.readOnly
 ));

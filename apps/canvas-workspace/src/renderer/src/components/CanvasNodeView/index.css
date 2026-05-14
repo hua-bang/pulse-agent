@@ -256,6 +256,7 @@
 
 .node-reference,
 .node-focus,
+.node-fullscreen,
 .node-close {
   height: 20px;
   border: none;
@@ -277,12 +278,14 @@
 }
 
 .node-focus,
+.node-fullscreen,
 .node-close {
   width: 20px;
 }
 
 .canvas-node:hover .node-reference,
 .canvas-node:hover .node-focus,
+.canvas-node:hover .node-fullscreen,
 .canvas-node:hover .node-close {
   opacity: 1;
 }
@@ -293,6 +296,11 @@
 }
 
 .node-focus:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.node-fullscreen:hover {
   background: var(--accent-light);
   color: var(--accent);
 }
@@ -679,4 +687,72 @@
   20%, 60% {
     box-shadow: var(--shadow-card), 0 0 0 3px var(--accent), 0 0 20px rgba(35, 131, 226, 0.3);
   }
+}
+
+/* Image/mindmap nodes lack a header — float the fullscreen toggle in
+ * the top-right corner next to the existing floating close button. */
+.node-fullscreen--floating {
+  position: absolute;
+  top: 4px;
+  right: 30px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+/* Fullscreen node. The wrapper is portaled outside `.canvas-transform`
+ * (see Canvas/index.tsx) so `position: absolute; inset: 0` resolves
+ * against the canvas viewport rather than the panned/zoomed surface.
+ * The model x/y/w/h stays on the node so exiting restores its slot. */
+.canvas-node.canvas-node--fullscreen,
+.canvas-node.canvas-node--fullscreen:hover {
+  position: absolute;
+  inset: 24px;
+  top: 24px;
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+  width: auto !important;
+  height: auto !important;
+  transform: none !important;
+  z-index: 60;
+  border-radius: var(--radius-lg);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  animation: canvas-node-fullscreen-in 0.18s ease forwards;
+}
+
+@keyframes canvas-node-fullscreen-in {
+  from {
+    opacity: 0.6;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Fullscreen disables drag-by-header and resize handles, so the header
+ * cursor + handles should reflect that. The chrome buttons (fullscreen
+ * toggle, close, focus, reference) stay visible without needing hover. */
+.canvas-node--fullscreen .node-header {
+  cursor: default;
+}
+
+.canvas-node--fullscreen .node-reference,
+.canvas-node--fullscreen .node-focus,
+.canvas-node--fullscreen .node-fullscreen,
+.canvas-node--fullscreen .node-close {
+  opacity: 1;
+}
+
+/* Container nodes (frame/group) and shapes don't fullscreen — but keep
+ * a defensive override in case `canvas-node--fullscreen` somehow lands
+ * on them so they don't take over the screen. */
+.canvas-node--fullscreen.canvas-node--frame,
+.canvas-node--fullscreen.canvas-node--group,
+.canvas-node--fullscreen.canvas-node--shape {
+  position: absolute;
+  inset: 0;
 }

@@ -85,6 +85,12 @@ export const Canvas = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [focusModeEnabled, setFocusModeEnabled] = useState(false);
+  // ID of the node currently rendered as a fullscreen overlay (covers the
+  // canvas viewport, escapes the pan/zoom transform via a portal so the
+  // node's editor/terminal state stays mounted). Null when no node is
+  // fullscreened.
+  const [fullscreenNodeId, setFullscreenNodeId] = useState<string | null>(null);
+  const [fullscreenPortalEl, setFullscreenPortalEl] = useState<HTMLDivElement | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoFitted = useRef(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -234,6 +240,22 @@ export const Canvas = ({
       return focusModeAvailable;
     });
   }, [focusModeAvailable]);
+
+  const handleToggleFullscreen = useCallback((nodeId: string) => {
+    setFullscreenNodeId((current) => (current === nodeId ? null : nodeId));
+  }, []);
+
+  const exitFullscreen = useCallback(() => {
+    setFullscreenNodeId(null);
+  }, []);
+
+  // Drop the fullscreen pin if its node disappears (deleted, workspace
+  // swapped, etc.) — leaving it would render an overlay for a node that
+  // no longer exists in the tree.
+  useEffect(() => {
+    if (!fullscreenNodeId) return;
+    if (!nodesById.has(fullscreenNodeId)) setFullscreenNodeId(null);
+  }, [fullscreenNodeId, nodesById]);
 
   // Flush pending saves on window close or component unmount
   useEffect(() => {
@@ -445,6 +467,8 @@ export const Canvas = ({
     canToggleFocusMode: focusModeAvailable,
     onToggleFocusMode: toggleFocusMode,
     onExitFocusMode: exitFocusMode,
+    fullscreenActive: fullscreenNodeId != null,
+    onExitFullscreen: exitFullscreen,
     keyboardLocked: isOverlayOpen,
   });
 
@@ -1191,6 +1215,7 @@ export const Canvas = ({
       onContextMenu={handleContextMenu}
       onClick={handleCanvasClick}
       data-focus-mode={focusModeActive ? 'on' : undefined}
+      data-fullscreen={fullscreenNodeId ? 'on' : undefined}
     >
       <div className="canvas-grid" />
 
@@ -1229,6 +1254,9 @@ export const Canvas = ({
         onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
         onUngroupSelectedGroups={ungroupSelectedNodes}
+        fullscreenNodeId={fullscreenNodeId}
+        fullscreenPortalEl={fullscreenPortalEl}
+        onToggleFullscreen={handleToggleFullscreen}
         onSelectEdge={(id) => {
           setSelectedEdgeId(id);
           if (id) setSelectedNodeIds([]);
@@ -1237,6 +1265,16 @@ export const Canvas = ({
         onEdgeBodyMouseDown={handleEdgeBodyMouseDown}
         onEdgeBodyDoubleClick={handleEdgeBodyDoubleClick}
         getAllNodes={getAllNodes}
+      />
+
+      {/* Portal target for the fullscreen node overlay. Sits outside
+          `.canvas-transform` so the portaled node escapes the pan/zoom
+          containing block; covers the viewport via CSS only when a node
+          is fullscreened (otherwise it's display:none and inert). */}
+      <div
+        ref={setFullscreenPortalEl}
+        className="canvas-fullscreen-portal"
+        data-active={fullscreenNodeId ? 'on' : undefined}
       />
 
       <CanvasOverlays

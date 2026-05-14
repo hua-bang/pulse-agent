@@ -82,6 +82,13 @@ interface CanvasSurfaceProps {
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
+  /** Node currently rendered fullscreen, if any. The matching CanvasNodeView
+   *  portals its DOM out of the transform layer to escape pan/zoom. */
+  fullscreenNodeId?: string | null;
+  /** DOM target for the fullscreen portal (the canvas-fullscreen-portal
+   *  div outside `.canvas-transform`). Null until the ref has attached. */
+  fullscreenPortalEl?: HTMLElement | null;
+  onToggleFullscreen?: (nodeId: string) => void;
   onSelectEdge: (id: string | null) => void;
   onEdgeHandleMouseDown: (
     edgeId: string,
@@ -132,6 +139,9 @@ export const CanvasSurface = ({
   onFocus,
   onReference,
   onUngroupSelectedGroups,
+  fullscreenNodeId = null,
+  fullscreenPortalEl = null,
+  onToggleFullscreen,
   onSelectEdge,
   onEdgeHandleMouseDown,
   onEdgeBodyMouseDown,
@@ -188,6 +198,9 @@ export const CanvasSurface = ({
           onFocus={onFocus}
           onReference={onReference}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
+          isFullscreen={fullscreenNodeId === node.id}
+          fullscreenPortalEl={fullscreenPortalEl}
+          onToggleFullscreen={onToggleFullscreen}
         />
       ))}
     <CanvasEdgesLayer
@@ -233,6 +246,9 @@ export const CanvasSurface = ({
           onFocus={onFocus}
           onReference={onReference}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
+          isFullscreen={fullscreenNodeId === node.id}
+          fullscreenPortalEl={fullscreenPortalEl}
+          onToggleFullscreen={onToggleFullscreen}
         />
       ))}
     {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}

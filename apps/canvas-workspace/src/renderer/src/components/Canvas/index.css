@@ -92,3 +92,34 @@
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* Fullscreen portal — empty container outside `.canvas-transform`, so
+ * any node portaled in escapes the pan/zoom transform's containing
+ * block. Inert until a node is fullscreened, at which point it covers
+ * the viewport with a dim backdrop and centers the portaled node. */
+.canvas-fullscreen-portal {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.canvas-fullscreen-portal[data-active="on"] {
+  pointer-events: auto;
+  background: rgba(15, 18, 30, 0.62);
+  backdrop-filter: blur(2px);
+  animation: canvas-fullscreen-backdrop-in 0.18s ease forwards;
+}
+
+@keyframes canvas-fullscreen-backdrop-in {
+  from { background: rgba(15, 18, 30, 0); backdrop-filter: blur(0); }
+  to { background: rgba(15, 18, 30, 0.62); backdrop-filter: blur(2px); }
+}
+
+/* Drop the grid and dim the find/floating chrome while a node is
+ * fullscreened. The portal's own backdrop already covers the canvas
+ * surface, but hiding the grid avoids a faint dotted texture bleeding
+ * through if the backdrop is ever lightened. */
+.canvas-container[data-fullscreen="on"] .canvas-grid {
+  opacity: 0;
+}
