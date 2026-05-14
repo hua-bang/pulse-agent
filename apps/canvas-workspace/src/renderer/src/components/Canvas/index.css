@@ -93,12 +93,20 @@
   to { opacity: 1; }
 }
 
-/* While a node is fullscreened, raise the entire transform layer above
- * the floating toolbar (z-index 500-600) and zoom indicator (500) so
- * the in-transform fullscreen node visually clears all canvas chrome.
- * The fullscreen node itself uses an inverse transform to fill the
- * viewport — see CanvasNodeView.css. */
+/* When a node is fullscreened we kill the canvas pan/zoom transform
+ * entirely so the fullscreen node can use `inset: 0` against the
+ * `.canvas-container` viewport without fighting an inverse-transform
+ * calculation. Other nodes "jump" to their raw canvas coords for the
+ * duration, but they're hidden behind the fullscreen backdrop so the
+ * jump isn't visible. The transform layer also gets explicit
+ * dimensions so the absolutely-positioned fullscreen node has a real
+ * containing block to fill, and its z-index is raised above the
+ * floating toolbar (500-600) and zoom indicator (500). */
 .canvas-container[data-fullscreen="on"] .canvas-transform {
+  transform: none !important;
+  transition: none !important;
+  width: 100%;
+  height: 100%;
   z-index: 1000;
 }
 
@@ -106,24 +114,13 @@
   opacity: 0;
 }
 
-/* Fullscreen backdrop. Sized large enough to cover any reasonable
- * zoom/pan after the parent transform applies (same pattern as
- * `.canvas-focus-backdrop`). Click-through exits fullscreen. Opacity
- * is transitioned via the `data-open` attribute so both entry and
- * exit fade smoothly without unmounting the element. */
+/* Fullscreen backdrop. With the parent transform killed, it sits at
+ * canvas-container coords directly — a simple `inset: 0` covers the
+ * viewport. Click anywhere to dismiss. */
 .canvas-fullscreen-backdrop {
   position: absolute;
-  left: -100000px;
-  top: -100000px;
-  width: 200000px;
-  height: 200000px;
+  inset: 0;
   background: rgba(15, 18, 30, 0.62);
   pointer-events: auto;
   z-index: 50;
-  opacity: 0;
-  transition: opacity 0.24s ease;
-}
-
-.canvas-fullscreen-backdrop[data-open="on"] {
-  opacity: 1;
 }

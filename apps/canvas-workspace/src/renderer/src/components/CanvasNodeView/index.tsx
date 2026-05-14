@@ -51,30 +51,12 @@ interface Props {
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
-  /** True when this node is currently rendered as the fullscreen overlay.
-   *  We deliberately do NOT portal the DOM — moving an `<iframe>` element
-   *  across parents always forces the browser to reload the embedded
-   *  document. Instead the node stays inside `.canvas-transform` and we
-   *  override its transform/width/height with an inverse of the canvas
-   *  pan+zoom so it visually fills the container while its DOM stays
-   *  put. That keeps tiptap / terminal / iframe state alive across the
-   *  toggle and lets a single CSS transition animate the expand/collapse.
-   *  Flips immediately on toggle — drives the inline-style change that
-   *  triggers the CSS transition. */
+  /** True when this node is currently rendered fullscreen. The node
+   *  stays inside `.canvas-transform` (so its iframe / editor / terminal
+   *  DOM never moves and the embedded page doesn't reload). CSS rules
+   *  on `.canvas-node--fullscreen` and the `.canvas-container` data
+   *  attribute do the work of filling the viewport. */
   isFullscreen?: boolean;
-  /** Lags `isFullscreen` by the exit-animation duration. Keeps the
-   *  `.canvas-node--fullscreen` class (z-index lift, chrome trimming)
-   *  attached to the closing node for the duration of the shrink so
-   *  the still-visible backdrop doesn't dim it mid-animation. */
-  isFullscreenStanding?: boolean;
-  /** Current canvas pan + zoom — needed to compute the inverse
-   *  transform that lifts the fullscreen node back to the viewport
-   *  origin in screen space. */
-  canvasTransform?: { x: number; y: number; scale: number };
-  /** Canvas viewport size (the `.canvas-container` element). Used to
-   *  size the fullscreen node so it fills the visible area after the
-   *  pan/zoom is undone. */
-  containerSize?: { width: number; height: number };
   /** Toggles fullscreen for this node. Omitted for nodes that don't
    *  support fullscreen (frame / group / shape). */
   onToggleFullscreen?: (nodeId: string) => void;
@@ -139,9 +121,6 @@ const CanvasNodeViewComponent = ({
   onReference,
   onUngroupSelectedGroups,
   isFullscreen = false,
-  isFullscreenStanding = false,
-  canvasTransform,
-  containerSize,
   onToggleFullscreen,
   readOnly = false
 }: Props) => {
@@ -312,46 +291,21 @@ const CanvasNodeViewComponent = ({
     focusState === 'dimmed' && "canvas-node--focus-mode-dimmed",
     readOnly && "canvas-node--readonly",
     textAutoSize && "canvas-node--text-auto",
-    isFullscreenStanding && "canvas-node--fullscreen"
+    isFullscreen && "canvas-node--fullscreen"
   ]
     .filter(Boolean)
     .join(" ");
 
-  // Fullscreen swaps the canvas-coord translate/size for a viewport-
-  // filling box, but the node stays a child of `.canvas-transform` so
-  // its iframe / editor / terminal DOM never relocates (a portal would
-  // detach + re-attach the iframe element, which the browser treats as
-  // a navigation and reloads the embedded page).
-  //
-  // We undo the parent's `translate(tx, ty) scale(s)` two ways:
-  //   - translate the node by (-tx/s, -ty/s) so its screen position
-  //     lands at (0, 0)
-  //   - apply `scale(1/s)` on the node itself so its content renders
-  //     at 1:1 visual scale, then size it to the actual viewport
-  //     (vw × vh). This is critical for Electron `<webview>`: webviews
-  //     render content at their CSS box size, NOT the visually-scaled
-  //     size, so the only reliable way to get correct 1:1 rendering is
-  //     to give the box the real viewport dimensions and cancel the
-  //     parent scale on the node.
-  // The model x/y/w/h on `node` stays untouched so exiting restores
-  // its slot.
-  const fsScale = canvasTransform?.scale ?? 1;
-  const fsX = canvasTransform ? -canvasTransform.x / fsScale : 0;
-  const fsY = canvasTransform ? -canvasTransform.y / fsScale : 0;
-  const fsW = containerSize ? containerSize.width : node.width;
-  const fsH = containerSize ? containerSize.height : node.height;
-
+  // Fullscreen geometry is entirely CSS-driven (see `.canvas-node--fullscreen`
+  // + the `.canvas-container[data-fullscreen]` overrides on
+  // `.canvas-transform`). The inline style here always represents the
+  // node's canvas-slot position/size — when fullscreen, `!important`
+  // CSS rules paint over it. The node's DOM stays put either way, so
+  // its iframe / editor / terminal state survives the toggle.
   const wrapperStyle: React.CSSProperties = {
-    transform: isFullscreen
-      ? `translate(${fsX}px, ${fsY}px) scale(${1 / fsScale})`
-      : `translate(${node.x}px, ${node.y}px)`,
-    // Pin the transform origin to the top-left so the `scale(1/s)`
-    // anchors at the node's (visual) top-left corner — without this,
-    // the scale would pivot around the box center and our translate
-    // math would land in the wrong spot.
-    transformOrigin: '0 0',
-    width: isFullscreen ? `${fsW}px` : node.width,
-    height: isFullscreen ? `${fsH}px` : node.height,
+    transform: `translate(${node.x}px, ${node.y}px)`,
+    width: node.width,
+    height: node.height,
     ...(node.type === 'frame'
       ? { '--frame-color': (node.data as FrameNodeData).color } as React.CSSProperties
       : node.type === 'group'
@@ -367,10 +321,10 @@ const CanvasNodeViewComponent = ({
       type="button"
       onClick={handleToggleFullscreen}
       onMouseDown={(e) => e.stopPropagation()}
-      title={isFullscreenStanding ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-      aria-label={isFullscreenStanding ? 'Exit fullscreen' : 'Enter fullscreen'}
+      title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
     >
-      {isFullscreenStanding ? (
+      {isFullscreen ? (
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
           <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -404,10 +358,10 @@ const CanvasNodeViewComponent = ({
             type="button"
             onClick={handleToggleFullscreen}
             onMouseDown={(e) => e.stopPropagation()}
-            title={isFullscreenStanding ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-            aria-label={isFullscreenStanding ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
-            {isFullscreenStanding ? (
+            {isFullscreen ? (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -425,7 +379,7 @@ const CanvasNodeViewComponent = ({
             </svg>
           </button>
         )}
-        {readOnly || isFullscreenStanding ? null : (
+        {readOnly || isFullscreen ? null : (
           <>
             <div
               className="resize-handle resize-handle--right"
@@ -504,7 +458,7 @@ const CanvasNodeViewComponent = ({
           setMindmapMenu({ x: e.clientX, y: e.clientY });
         }}
         onMouseDown={(e) => {
-          if (readOnly || isFullscreenStanding) return;
+          if (readOnly || isFullscreen) return;
           // Same logic as handleHeaderMouseDown — only collapse the
           // selection on a plain mousedown over an unselected node.
           // Shift/Cmd selection changes are handled exclusively by the
@@ -531,10 +485,10 @@ const CanvasNodeViewComponent = ({
             type="button"
             onClick={handleToggleFullscreen}
             onMouseDown={(e) => e.stopPropagation()}
-            title={isFullscreenStanding ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
-            aria-label={isFullscreenStanding ? 'Exit fullscreen' : 'Enter fullscreen'}
+            title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
-            {isFullscreenStanding ? (
+            {isFullscreen ? (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                 <path d="M5 1v3a1 1 0 01-1 1H1M7 1v3a1 1 0 001 1h3M5 11V8a1 1 0 00-1-1H1M7 11V8a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -576,7 +530,7 @@ const CanvasNodeViewComponent = ({
     >
       <div
         className="node-header"
-        onMouseDown={isFullscreenStanding ? undefined : handleHeaderMouseDown}
+        onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
       >
         <span className={`node-type-badge node-type-badge--${node.type}`}>
           {node.type === "file" ? (
@@ -724,7 +678,7 @@ const CanvasNodeViewComponent = ({
         )}
       </div>
 
-        {readOnly || isFullscreenStanding ? null : (
+        {readOnly || isFullscreen ? null : (
           <>
             <div
               className="resize-handle resize-handle--right"
@@ -748,31 +702,19 @@ const CanvasNodeViewComponent = ({
   );
 };
 
-export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => {
-  // Pan/zoom and container size only matter while the node is
-  // fullscreened — the inverse-transform geometry depends on them so a
-  // resize or zoom needs to re-render. For non-fullscreen nodes we
-  // ignore those props to preserve the existing memo behavior (avoids
-  // re-rendering every node on every pan).
-  if (prev.isFullscreen || next.isFullscreen || prev.isFullscreenStanding || next.isFullscreenStanding) {
-    if (prev.canvasTransform !== next.canvasTransform) return false;
-    if (prev.containerSize !== next.containerSize) return false;
-  }
-  return (
-    prev.node === next.node &&
-    prev.rootFolder === next.rootFolder &&
-    prev.workspaceId === next.workspaceId &&
-    prev.workspaceName === next.workspaceName &&
-    prev.getAllNodes === next.getAllNodes &&
-    prev.isDragging === next.isDragging &&
-    prev.isResizing === next.isResizing &&
-    prev.isSelected === next.isSelected &&
-    prev.isHighlighted === next.isHighlighted &&
-    prev.isAgentEdited === next.isAgentEdited &&
-    prev.focusState === next.focusState &&
-    prev.isFullscreen === next.isFullscreen &&
-    prev.isFullscreenStanding === next.isFullscreenStanding &&
-    prev.onToggleFullscreen === next.onToggleFullscreen &&
-    prev.readOnly === next.readOnly
-  );
-});
+export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
+  prev.node === next.node &&
+  prev.rootFolder === next.rootFolder &&
+  prev.workspaceId === next.workspaceId &&
+  prev.workspaceName === next.workspaceName &&
+  prev.getAllNodes === next.getAllNodes &&
+  prev.isDragging === next.isDragging &&
+  prev.isResizing === next.isResizing &&
+  prev.isSelected === next.isSelected &&
+  prev.isHighlighted === next.isHighlighted &&
+  prev.isAgentEdited === next.isAgentEdited &&
+  prev.focusState === next.focusState &&
+  prev.isFullscreen === next.isFullscreen &&
+  prev.onToggleFullscreen === next.onToggleFullscreen &&
+  prev.readOnly === next.readOnly
+));

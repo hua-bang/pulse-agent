@@ -700,53 +700,29 @@
   z-index: 5;
 }
 
-/* Fullscreen node. The wrapper is portaled outside `.canvas-transform`
- * (see Canvas/index.tsx) so `position: absolute; inset: 0` resolves
- * against the canvas viewport rather than the panned/zoomed surface.
- * The model x/y/w/h stays on the node so exiting restores its slot. */
-/* Fullscreen styling. The transform / width / height come from the
- * inline style (CanvasNodeView computes an inverse of the canvas
- * pan+zoom so the node visually fills the container while staying a
- * child of `.canvas-transform`). CSS only handles the cosmetic side
- * and animates the geometry between the two states. */
+/* Fullscreen node. The parent `.canvas-transform` has its transform
+ * killed by `.canvas-container[data-fullscreen="on"]` (see
+ * Canvas/index.css), so a plain `inset: 0` here just covers the
+ * canvas-container viewport. The inline `transform: translate(x,y)` +
+ * width/height set by CanvasNodeView for the node's normal slot are
+ * overridden with `!important` — the node DOM never moves, only its
+ * CSS box flips between "slot" and "fullscreen". That keeps the
+ * iframe / editor / terminal mounted across the toggle, no reload. */
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
-  /* Above other siblings inside `.canvas-transform` — sits over the
-   * fullscreen backdrop (z-index 50) so dimming covers the rest of
-   * the canvas while the node remains crisp. */
+  position: absolute !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+  /* Above the backdrop (z-index 50) so dimming covers other nodes
+   * while this one stays crisp. */
   z-index: 60;
   border-radius: 0;
   border-color: transparent;
   box-shadow: none;
-}
-
-/* Smooth expand/collapse. We animate transform + width + height so
- * the node grows from its canvas slot to the viewport (and back) in
- * one continuous motion. Applied always to nodes that support
- * fullscreen so the *collapse* transition also fires (when the
- * `--fullscreen` class drops). Non-fullscreen-eligible nodes keep
- * their snappy, transition-less geometry. */
-.canvas-node--file,
-.canvas-node--terminal,
-.canvas-node--agent,
-.canvas-node--iframe,
-.canvas-node--image,
-.canvas-node--mindmap,
-.canvas-node--text {
-  transition:
-    transform 0.24s cubic-bezier(0.4, 0, 0.2, 1),
-    width 0.24s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.24s cubic-bezier(0.4, 0, 0.2, 1),
-    border-radius 0.24s ease,
-    box-shadow 0.15s ease,
-    border-color 0.15s ease;
-}
-
-/* Dragging and resizing must be instant — running an animation on a
- * 60fps pointer move stream produces visible lag and snaps. */
-.canvas-node--dragging,
-.canvas-node--resizing {
-  transition: none !important;
 }
 
 /* Fullscreen disables drag-by-header and resize handles, so the header

@@ -83,27 +83,11 @@ interface CanvasSurfaceProps {
   onReference?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
   /** Node currently rendered fullscreen, if any. The matching
-   *  CanvasNodeView stays in place inside `.canvas-transform` and uses
-   *  an inverse-transform to fill the viewport, so its iframe / editor
-   *  DOM never moves and the embedded page doesn't reload. */
+   *  CanvasNodeView stays in place inside `.canvas-transform` so its
+   *  iframe / editor / terminal DOM never moves; CSS overrides on
+   *  `.canvas-transform` and the node fill the viewport. */
   fullscreenNodeId?: string | null;
-  /** Same as `fullscreenNodeId` but lags by the exit-animation duration
-   *  so the closing node keeps its `.canvas-node--fullscreen` class
-   *  (and z-index above the dim backdrop) for the full shrink. */
-  displayedFullscreenId?: string | null;
-  /** Viewport size of the `.canvas-container` element. Forwarded to the
-   *  fullscreen node so it can size itself to fill the container after
-   *  the parent pan/zoom is undone. */
-  containerSize?: { width: number; height: number };
   onToggleFullscreen?: (nodeId: string) => void;
-  /** Stays true through the exit animation so the backdrop element
-   *  remains mounted (its opacity fades via CSS transition). Drives
-   *  the bumped `.canvas-transform` z-index on the canvas container. */
-  fullscreenActive?: boolean;
-  /** True only while a node is fullscreened. Drives the backdrop's
-   *  visible opacity — flipping to false starts the fade-out without
-   *  unmounting the element. */
-  fullscreenOpen?: boolean;
   onExitFullscreen?: () => void;
   onSelectEdge: (id: string | null) => void;
   onEdgeHandleMouseDown: (
@@ -156,11 +140,7 @@ export const CanvasSurface = ({
   onReference,
   onUngroupSelectedGroups,
   fullscreenNodeId = null,
-  displayedFullscreenId = null,
-  containerSize,
   onToggleFullscreen,
-  fullscreenActive = false,
-  fullscreenOpen = false,
   onExitFullscreen,
   onSelectEdge,
   onEdgeHandleMouseDown,
@@ -186,16 +166,12 @@ export const CanvasSurface = ({
         per-node dim opacity competes with a bright white canvas
         background and the focused node fails to pop. */}
     {focusModeEnabled && <div className="canvas-focus-backdrop" />}
-    {/* Fullscreen backdrop. Lives inside `.canvas-transform` (same
-        rationale as `.canvas-focus-backdrop`) so it shares a stacking
-        context with the fullscreened node — the node can sit z-index
-        above this, while every other node sits beneath it. Stays
-        mounted through the exit animation so the fade-out runs; the
-        `data-open` flag drives the opacity via CSS transition. */}
-    {fullscreenActive && (
+    {/* Fullscreen backdrop. Sits between the other (now offset-jumped)
+        nodes and the fullscreen node, dimming everything behind. Click
+        anywhere on the backdrop to exit. */}
+    {fullscreenNodeId && (
       <div
         className="canvas-fullscreen-backdrop"
-        data-open={fullscreenOpen ? 'on' : undefined}
         onMouseDown={(e) => {
           e.stopPropagation();
           onExitFullscreen?.();
@@ -235,9 +211,6 @@ export const CanvasSurface = ({
           onReference={onReference}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
           isFullscreen={fullscreenNodeId === node.id}
-          isFullscreenStanding={displayedFullscreenId === node.id}
-          canvasTransform={transform}
-          containerSize={containerSize}
           onToggleFullscreen={onToggleFullscreen}
         />
       ))}
@@ -285,9 +258,6 @@ export const CanvasSurface = ({
           onReference={onReference}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
           isFullscreen={fullscreenNodeId === node.id}
-          isFullscreenStanding={displayedFullscreenId === node.id}
-          canvasTransform={transform}
-          containerSize={containerSize}
           onToggleFullscreen={onToggleFullscreen}
         />
       ))}
