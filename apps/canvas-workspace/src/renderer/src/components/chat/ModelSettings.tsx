@@ -417,7 +417,10 @@ export const ModelSettingsDrawer = ({
     setDraft(current => {
       const next = { ...current, [key]: value };
       if (key === 'name' && !current.id) {
-        next.id = inferProviderId(String(value));
+        // Fall back to a timestamp-based id when the name slugs to empty
+        // (e.g. all-CJK names like "深度求索"). Internal-only — the user
+        // never sees this since the id field is no longer in the UI.
+        next.id = inferProviderId(String(value)) || `provider-${Date.now().toString(36)}`;
       }
       return next;
     });
@@ -456,21 +459,54 @@ export const ModelSettingsDrawer = ({
 
   const save = useCallback(async () => {
     if (!draft.name.trim()) {
-      setLocalError('Provider name is required.');
+      setLocalError('请填写 Provider name');
       return;
     }
     if (!draft.id.trim()) {
-      setLocalError('Provider id is required.');
+      setLocalError('Provider name 无法生成合法的 id，换个名字试试');
       return;
     }
+    if (!draft.base_url?.trim()) {
+      setLocalError('请填写 API URL / Base URL');
+      return;
+    }
+    const hasSavedKey = Boolean(activeProviderStatus?.apiKeyPresent);
+    if (!draft.api_key?.trim() && !hasSavedKey) {
+      setLocalError('请填写 API Key');
+      return;
+    }
+
     setSaving(true);
     setLocalError(undefined);
-    const saved = await onSaveProvider(draft);
-    setSaving(false);
-    if (saved) {
-      setActiveProviderId(draft.id);
+    try {
+      // Connection test: hits the provider's /models endpoint using the
+      // currently-selected protocol. This catches the most common silent
+      // failure — base URL / api key / protocol mismatch — before the
+      // user discovers it during chat as a "No output generated" error.
+      let fetchedModels: CanvasProviderModel[] = [];
+      try {
+        fetchedModels = await onFetchModels(draft);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLocalError(`连接测试失败：${msg}`);
+        return;
+      }
+
+      const existingIds = new Set((draft.models ?? []).map(m => m.id));
+      const mergedModels = [
+        ...(draft.models ?? []),
+        ...fetchedModels.filter(m => !existingIds.has(m.id)),
+      ];
+      const payload: CanvasModelProviderConfig = { ...draft, models: mergedModels };
+      const saved = await onSaveProvider(payload);
+      if (saved) {
+        setActiveProviderId(draft.id);
+        setDraft(current => ({ ...current, models: mergedModels, api_key: '' }));
+      }
+    } finally {
+      setSaving(false);
     }
-  }, [draft, onSaveProvider]);
+  }, [draft, activeProviderStatus, onSaveProvider, onFetchModels]);
 
   if (!open) return null;
 
@@ -515,7 +551,7 @@ export const ModelSettingsDrawer = ({
             <div className="chat-model-settings-card chat-model-settings-card--intro">
               <div>
                 <strong>{activeProviderId === 'new' ? 'Add a model provider' : `Edit ${draft.name || 'provider'}`}</strong>
-                <p>配置 API Key / API URL，然后拉取或手动添加该 provider 下的模型。</p>
+                <p>填好协议、URL、API Key，点"测试并保存"会先连接 provider 拉取可用模型，确认 URL + Key + 协议都对得上后再落盘。</p>
               </div>
               {activeProviderId !== 'new' && (
                 <button
@@ -535,18 +571,35 @@ export const ModelSettingsDrawer = ({
               <input value={draft.name} placeholder="DeepSeek / OpenRouter / Local" onChange={event => setDraftField('name', event.target.value)} />
             </label>
 
-            <label className="chat-model-field">
-              <span>Provider id</span>
-              <input value={draft.id} placeholder="deepseek" onChange={event => setDraftField('id', inferProviderId(event.target.value))} />
-            </label>
-
-            <label className="chat-model-field">
-              <span>Provider type</span>
-              <select value={draft.provider_type ?? 'openai'} onChange={event => setDraftField('provider_type', event.target.value as CanvasModelProviderType)}>
-                <option value="openai">OpenAI Compatible</option>
-                <option value="claude">Claude</option>
-              </select>
-            </label>
+            <div className="chat-model-field">
+              <span>协议 / Protocol</span>
+              <div
+                role="radiogroup"
+                aria-label="协议格式"
+                className="chat-model-protocol-toggle"
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={(draft.provider_type ?? 'openai') === 'openai'}
+                  className={`chat-model-protocol-option${(draft.provider_type ?? 'openai') === 'openai' ? ' chat-model-protocol-option--active' : ''}`}
+                  onClick={() => setDraftField('provider_type', 'openai')}
+                >
+                  <span className="chat-model-protocol-title">OpenAI 兼容</span>
+                  <span className="chat-model-protocol-sub">/v1/chat/completions</span>
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={draft.provider_type === 'claude'}
+                  className={`chat-model-protocol-option${draft.provider_type === 'claude' ? ' chat-model-protocol-option--active' : ''}`}
+                  onClick={() => setDraftField('provider_type', 'claude')}
+                >
+                  <span className="chat-model-protocol-title">Claude (Anthropic)</span>
+                  <span className="chat-model-protocol-sub">/v1/messages</span>
+                </button>
+              </div>
+            </div>
 
             <label className="chat-model-field">
               <span>API URL / Base URL</span>
@@ -612,7 +665,7 @@ export const ModelSettingsDrawer = ({
           <span>{status?.path}</span>
           <button type="button" className="chat-model-secondary-btn" onClick={onClose}>Cancel</button>
           <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
-            {saving ? 'Saving…' : 'Save provider'}
+            {saving ? '测试中…' : '测试并保存'}
           </button>
         </div>
       </aside>

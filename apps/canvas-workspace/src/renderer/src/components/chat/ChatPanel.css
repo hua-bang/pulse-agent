@@ -1780,6 +1780,66 @@
   color: #2383e2;
 }
 
+.chat-model-protocol-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.chat-model-protocol-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 9px 11px;
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.chat-model-protocol-option:hover {
+  border-color: rgba(35, 131, 226, 0.32);
+  background: rgba(35, 131, 226, 0.025);
+}
+
+.chat-model-protocol-option--active {
+  border-color: #2383e2;
+  background: rgba(35, 131, 226, 0.08);
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
+}
+
+.chat-model-protocol-option--active:hover {
+  background: rgba(35, 131, 226, 0.1);
+}
+
+.chat-model-field .chat-model-protocol-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: #37352f;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.chat-model-field .chat-model-protocol-sub {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.5);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.chat-model-field .chat-model-protocol-option--active .chat-model-protocol-title {
+  color: #1a64b8;
+}
+
+.chat-model-field .chat-model-protocol-option--active .chat-model-protocol-sub {
+  color: rgba(26, 100, 184, 0.7);
+}
+
 .chat-model-field-row {
   display: flex;
   align-items: flex-end;

@@ -528,7 +528,17 @@ function parseModelsPayload(payload: unknown): CanvasProviderModel[] {
 
 export async function fetchCanvasProviderModels(input: FetchCanvasModelsInput): Promise<CanvasProviderModel[]> {
   const config = sanitizeConfig(await readConfig());
-  let provider = input.provider ? normalizeProviderConfig(input.provider) : undefined;
+  let provider: CanvasModelProviderConfig | undefined;
+  if (input.provider) {
+    // Look up existing provider by id so that an empty plain api_key on the
+    // draft inherits the previously-saved encrypted_api_key. This makes
+    // "test & save" work for re-tests where the user keeps the stored key.
+    const draftId = normalizeStr(input.provider.id);
+    const existing = draftId
+      ? config.providers?.find((item) => item.id === normalizeProviderId(draftId))
+      : undefined;
+    provider = normalizeProviderConfig(input.provider, existing);
+  }
   if (input.providerId) {
     provider = config.providers?.find((item) => item.id === normalizeProviderId(input.providerId)) ?? provider;
   }
