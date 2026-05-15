@@ -51,6 +51,46 @@ const EmptyLinePreservingParagraph = Paragraph.extend({
   },
 });
 
+const FILE_IMAGE_MARKDOWN_RE = /!\[([^\]]*)\]\((file:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)/g;
+
+const restoreLocalImageMarkdown = (element: HTMLElement) => {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.textContent?.includes('![') && node.textContent.includes('](file://')) {
+      textNodes.push(node as Text);
+    }
+  }
+
+  for (const node of textNodes) {
+    const text = node.textContent ?? '';
+    FILE_IMAGE_MARKDOWN_RE.lastIndex = 0;
+    if (!FILE_IMAGE_MARKDOWN_RE.test(text)) continue;
+
+    FILE_IMAGE_MARKDOWN_RE.lastIndex = 0;
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    for (const match of text.matchAll(FILE_IMAGE_MARKDOWN_RE)) {
+      const index = match.index ?? 0;
+      if (index > lastIndex) {
+        fragment.append(document.createTextNode(text.slice(lastIndex, index)));
+      }
+
+      const img = document.createElement('img');
+      img.setAttribute('src', match[2] ?? '');
+      img.setAttribute('alt', match[1] ?? '');
+      if (match[3]) img.setAttribute('title', match[3]);
+      fragment.append(img);
+      lastIndex = index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      fragment.append(document.createTextNode(text.slice(lastIndex)));
+    }
+    node.replaceWith(fragment);
+  }
+};
+
 const MarkdownSafeImage = Image.extend({
   addStorage() {
     return {
@@ -76,6 +116,9 @@ const MarkdownSafeImage = Image.extend({
               if (/^file:\/\//i.test(url)) return true;
               return originalValidateLink(url);
             };
+          },
+          updateDOM(element: HTMLElement) {
+            restoreLocalImageMarkdown(element);
           },
         },
       },
