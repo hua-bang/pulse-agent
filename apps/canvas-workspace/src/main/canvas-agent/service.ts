@@ -17,6 +17,8 @@ import type {
   AgentStatusResponse,
   SessionListResponse,
   CanvasAgentMessage,
+  CanvasAgentDebugRunDetail,
+  CanvasAgentDebugRunSummary,
   CrossWorkspaceSessionGroup,
 } from './types';
 
@@ -71,7 +73,7 @@ export class CanvasAgentService {
     try {
       await this.activate(workspaceId);
       const agent = this.agents.get(workspaceId)!;
-      const response = await agent.chat(
+      const result = await agent.chat(
         message,
         onText,
         onToolCall,
@@ -84,7 +86,7 @@ export class CanvasAgentService {
         onToolInputDelta,
         onToolInputEnd,
       );
-      return { ok: true, response };
+      return { ok: true, response: result.response, debugTrace: result.debugTrace };
     } catch (err) {
       console.error(`[canvas-agent-service] chat error for ${workspaceId}:`, err);
       return { ok: false, error: String(err) };
@@ -221,6 +223,14 @@ export class CanvasAgentService {
     } catch (err) {
       return { ok: false, error: String(err) };
     }
+  }
+
+  async listDebugRuns(): Promise<CanvasAgentDebugRunSummary[]> {
+    return SessionStore.listDebugRuns();
+  }
+
+  async getDebugRun(sessionId: string, runId: string): Promise<CanvasAgentDebugRunDetail | null> {
+    return SessionStore.readDebugRun(sessionId, runId);
   }
 
   /**

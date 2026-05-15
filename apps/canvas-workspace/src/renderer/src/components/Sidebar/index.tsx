@@ -35,8 +35,9 @@ interface Props {
   onNodeFocus?: (nodeId: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onNodeRename?: (nodeId: string, title: string) => void;
-  activeView: 'canvas' | 'chat';
+  activeView: 'canvas' | 'chat' | 'debug';
   onEnterChat: () => void;
+  onEnterDebug: () => void;
   onExitChat: () => void;
 }
 
@@ -46,7 +47,7 @@ const FOLDER_DRAG = 'application/x-folder-id';
 export const Sidebar = ({
   collapsed, onToggle, workspaces, folders, activeId, onSelect, onCreate, onRename, onDelete,
   onExport, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace, onReorderFolder,
-  activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat,
+  activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, onEnterDebug,
 }: Props) => {
   const { notify } = useAppShell();
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -234,7 +235,7 @@ export const Sidebar = ({
       {!collapsed && (
         <>
           <SidebarHeader
-            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
+            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat} onEnterDebug={onEnterDebug}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
             addMenuRef={addMenuRef}
             onNewWorkspace={() => { setShowAddMenu(false); setInlineCreate('workspace'); setInlineCreateValue(''); }}

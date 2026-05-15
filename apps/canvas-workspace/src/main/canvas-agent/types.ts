@@ -37,12 +37,95 @@ export interface CanvasAgentToolCall {
   streamedDone?: boolean;
 }
 
+export interface CanvasAgentDebugTraceNodeRef {
+  id: string;
+  title: string;
+  type: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  contentChars?: number;
+  source?: 'selected' | 'read_node' | 'read_context';
+}
+
+export interface CanvasAgentDebugTraceContextRead {
+  workspaceId?: string;
+  workspaceName?: string;
+  detail?: string;
+  nodeCount?: number;
+  resultChars?: number;
+}
+
+export interface CanvasAgentDebugTraceToolCall {
+  name: string;
+  toolCallId?: string;
+  status: 'running' | 'done' | 'error';
+  argsPreview?: string;
+  resultSummary?: string;
+  startedAt?: number;
+  finishedAt?: number;
+  durationMs?: number;
+  readNodes?: CanvasAgentDebugTraceNodeRef[];
+  contextRead?: CanvasAgentDebugTraceContextRead;
+}
+
+export interface CanvasAgentDebugTraceMessageSnapshot {
+  systemPrompt: string;
+  systemPromptChars: number;
+  messagesJson: string;
+  messagesChars: number;
+  messageCount: number;
+  limitChars: number;
+  truncated?: boolean;
+}
+
+export interface CanvasAgentDebugTrace {
+  sessionId: string;
+  runId: string;
+  turnId: string;
+  createdAt: number;
+  startedAt: number;
+  finishedAt?: number;
+  durationMs?: number;
+  debugUrl?: string;
+  request: {
+    userPromptPreview: string;
+    attachmentCount: number;
+    executionMode?: 'auto' | 'ask';
+    scope?: 'current_canvas' | 'selected_nodes';
+    quickAction?: string;
+    selectedNodes: CanvasAgentDebugTraceNodeRef[];
+    mentionedCanvases: Array<{ id: string; name: string }>;
+    workspace?: {
+      id: string;
+      name: string;
+      nodeCount: number;
+    };
+  };
+  prompt: {
+    systemPromptPreview: string;
+    systemPromptChars: number;
+    currentCanvasSummaryPreview?: string;
+    currentCanvasSummaryChars?: number;
+  };
+  messageSnapshot?: CanvasAgentDebugTraceMessageSnapshot;
+  model?: {
+    provider?: string;
+    model?: string;
+    modelType?: string;
+  };
+  toolCalls: CanvasAgentDebugTraceToolCall[];
+  readNodes: CanvasAgentDebugTraceNodeRef[];
+  contextReads: CanvasAgentDebugTraceContextRead[];
+  truncated?: boolean;
+}
+
 export interface CanvasAgentMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   attachments?: CanvasAgentImageAttachment[];
   toolCalls?: CanvasAgentToolCall[];
+  debugTrace?: CanvasAgentDebugTrace;
 }
 
 // ─── Session persistence ────────────────────────────────────────────
@@ -52,6 +135,29 @@ export interface CanvasAgentSession {
   workspaceId: string;
   startedAt: string;
   messages: CanvasAgentMessage[];
+}
+
+export interface CanvasAgentDebugRunSummary {
+  workspaceId: string;
+  workspaceName: string;
+  sessionId: string;
+  runId: string;
+  turnId: string;
+  messageIndex: number;
+  startedAt: number;
+  durationMs?: number;
+  userPromptPreview: string;
+  assistantPreview: string;
+  toolCount: number;
+  readNodeCount: number;
+  modelLabel?: string;
+  isCurrent: boolean;
+}
+
+export interface CanvasAgentDebugRunDetail extends CanvasAgentDebugRunSummary {
+  userMessage?: CanvasAgentMessage;
+  assistantMessage: CanvasAgentMessage;
+  trace: CanvasAgentDebugTrace;
 }
 
 // ─── Workspace context (lightweight summary) ────────────────────────
@@ -133,6 +239,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   ok: boolean;
   response?: string;
+  debugTrace?: CanvasAgentDebugTrace;
   error?: string;
 }
 

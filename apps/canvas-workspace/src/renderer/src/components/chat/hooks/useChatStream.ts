@@ -269,7 +269,11 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
 
         const toolSnapshot = toolCalls.length > 0 ? toolCalls.map(tool => ({ ...tool })) : undefined;
         const mergeAssistantMessage = (message: AgentChatMessage): AgentChatMessage => (
-          toolSnapshot ? { ...message, toolCalls: toolSnapshot } : message
+          {
+            ...message,
+            toolCalls: toolSnapshot ?? message.toolCalls,
+            debugTrace: completeResult.debugTrace ?? message.debugTrace,
+          }
         );
 
         if (!completeResult.ok) {

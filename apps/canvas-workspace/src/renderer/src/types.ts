@@ -350,12 +350,118 @@ export interface AgentChatToolCall {
   streamedDone?: boolean;
 }
 
+export interface AgentDebugTraceNodeRef {
+  id: string;
+  title: string;
+  type: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  contentChars?: number;
+  source?: 'selected' | 'read_node' | 'read_context';
+}
+
+export interface AgentDebugTraceContextRead {
+  workspaceId?: string;
+  workspaceName?: string;
+  detail?: string;
+  nodeCount?: number;
+  resultChars?: number;
+}
+
+export interface AgentDebugTraceToolCall {
+  name: string;
+  toolCallId?: string;
+  status: 'running' | 'done' | 'error';
+  argsPreview?: string;
+  resultSummary?: string;
+  startedAt?: number;
+  finishedAt?: number;
+  durationMs?: number;
+  readNodes?: AgentDebugTraceNodeRef[];
+  contextRead?: AgentDebugTraceContextRead;
+}
+
+export interface AgentDebugTraceMessageSnapshot {
+  systemPrompt: string;
+  systemPromptChars: number;
+  messagesJson: string;
+  messagesChars: number;
+  messageCount: number;
+  limitChars: number;
+  truncated?: boolean;
+}
+
+export interface AgentDebugTrace {
+  sessionId: string;
+  runId: string;
+  turnId: string;
+  createdAt: number;
+  startedAt: number;
+  finishedAt?: number;
+  durationMs?: number;
+  debugUrl?: string;
+  request: {
+    userPromptPreview: string;
+    attachmentCount: number;
+    executionMode?: 'auto' | 'ask';
+    scope?: 'current_canvas' | 'selected_nodes';
+    quickAction?: string;
+    selectedNodes: AgentDebugTraceNodeRef[];
+    mentionedCanvases: Array<{ id: string; name: string }>;
+    workspace?: {
+      id: string;
+      name: string;
+      nodeCount: number;
+    };
+  };
+  prompt: {
+    systemPromptPreview: string;
+    systemPromptChars: number;
+    currentCanvasSummaryPreview?: string;
+    currentCanvasSummaryChars?: number;
+  };
+  messageSnapshot?: AgentDebugTraceMessageSnapshot;
+  model?: {
+    provider?: string;
+    model?: string;
+    modelType?: string;
+  };
+  toolCalls: AgentDebugTraceToolCall[];
+  readNodes: AgentDebugTraceNodeRef[];
+  contextReads: AgentDebugTraceContextRead[];
+  truncated?: boolean;
+}
+
+export interface AgentDebugRunSummary {
+  workspaceId: string;
+  workspaceName: string;
+  sessionId: string;
+  runId: string;
+  turnId: string;
+  messageIndex: number;
+  startedAt: number;
+  durationMs?: number;
+  userPromptPreview: string;
+  assistantPreview: string;
+  toolCount: number;
+  readNodeCount: number;
+  modelLabel?: string;
+  isCurrent: boolean;
+}
+
+export interface AgentDebugRunDetail extends AgentDebugRunSummary {
+  userMessage?: AgentChatMessage;
+  assistantMessage: AgentChatMessage;
+  trace: AgentDebugTrace;
+}
+
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   attachments?: ChatImageAttachment[];
   toolCalls?: AgentChatToolCall[];
+  debugTrace?: AgentDebugTrace;
 }
 
 export interface AgentContextNodeRef {
@@ -501,7 +607,7 @@ export interface AgentApi {
   ) => () => void;
   onChatComplete: (
     sessionId: string,
-    callback: (result: { ok: boolean; response?: string; error?: string }) => void
+    callback: (result: { ok: boolean; response?: string; debugTrace?: AgentDebugTrace; error?: string }) => void
   ) => () => void;
   onToolCall: (
     sessionId: string,
@@ -574,6 +680,11 @@ export interface AgentApi {
     sourceWorkspaceId: string,
     sessionId: string,
   ) => Promise<{ ok: boolean; messages?: AgentChatMessage[]; error?: string }>;
+  listDebugRuns: () => Promise<{ ok: boolean; runs?: AgentDebugRunSummary[]; error?: string }>;
+  getDebugRun: (
+    sessionId: string,
+    runId: string,
+  ) => Promise<{ ok: boolean; run?: AgentDebugRunDetail; error?: string }>;
   activate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   deactivate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   addImageToCanvas: (
