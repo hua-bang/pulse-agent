@@ -156,12 +156,50 @@ export async function readA11y(
 export async function captureScreenshot(
   wc: AnyWebContents,
 ): Promise<{ ok: boolean; imagePath: string; error?: string }> {
+  // Maximum full-page height to avoid absurdly large images.
+  const MAX_HEIGHT_PX = 8_000;
+  const DEFAULT_WIDTH_PX = 1_280;
+
+  let debuggerAttached = false;
   try {
-    const image = await wc.capturePage();
+    wc.debugger.attach('1.3');
+    debuggerAttached = true;
+
+    // 1. Get the full content dimensions.
+    const metrics = await wc.debugger.sendCommand('Page.getLayoutMetrics') as {
+      contentSize: { width: number; height: number };
+    };
+    const fullWidth = Math.max(Math.ceil(metrics.contentSize.width), DEFAULT_WIDTH_PX);
+    const fullHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
+
+    // 2. Temporarily expand viewport to full-page height.
+    await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+      width: fullWidth,
+      height: fullHeight,
+      deviceScaleFactor: 1,
+      mobile: false,
+    });
+
+    // 3. Capture the whole page.
+    const result = await wc.debugger.sendCommand('Page.captureScreenshot', {
+      format: 'png',
+      fromSurface: true,
+      captureBeyondViewport: true,
+    }) as { data: string };
+
+    // 4. Restore original viewport.
+    await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride');
+    wc.debugger.detach();
+    debuggerAttached = false;
+
     const imagePath = `${tmpdir()}/pulse-screenshot-${randomUUID()}.png`;
-    await fs.writeFile(imagePath, image.toPNG());
+    await fs.writeFile(imagePath, Buffer.from(result.data, 'base64'));
     return { ok: true, imagePath };
   } catch (err) {
+    if (debuggerAttached) {
+      try { await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride'); } catch { /* ignore */ }
+      try { wc.debugger.detach(); } catch { /* ignore */ }
+    }
     return { ok: false, imagePath: '', error: err instanceof Error ? err.message : String(err) };
   }
 }
