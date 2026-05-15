@@ -13,7 +13,8 @@
  * loaded), the lookup returns null and the caller falls back to a plain
  * server-side fetch.
  */
-import { ipcMain, webContents as allWebContents } from 'electron';
+import { ipcMain, shell, webContents as allWebContents } from 'electron';
+import { isSafeExternalUrl } from './shell-ipc';
 
 interface RegistryKey {
   workspaceId: string;
@@ -129,16 +130,15 @@ export function setupWebviewRegistryIpc(): void {
       );
       // When the embedded page tries to open a popup (target="_blank" or
       // `window.open` — including SPA-driven ones like Feishu / Notion that
-      // bypass `new-window` entirely), just load the URL into the same
-      // webview. That gives the canvas node "click a link, see the page"
-      // semantics without spawning extra Electron windows or fighting the
-      // page's own router. Users still have an "Open externally" button
-      // in the toolbar when they want the OS browser.
+      // bypass `new-window` entirely), hand the URL off to the OS browser.
+      // This matches the user's mental model from a real browser where
+      // `target="_blank"` opens a new tab. The current webview keeps the
+      // existing page so the user doesn't lose context.
       const wc = allWebContents.fromId(payload.webContentsId);
       if (wc && !wc.isDestroyed()) {
         wc.setWindowOpenHandler(({ url }) => {
-          if (url && /^https?:\/\//i.test(url)) {
-            void wc.loadURL(url).catch(() => { /* navigation aborts are expected */ });
+          if (isSafeExternalUrl(url)) {
+            void shell.openExternal(url);
           }
           return { action: 'deny' };
         });
