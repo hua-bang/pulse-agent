@@ -42,6 +42,13 @@ interface RpcError {
 type RpcResponse = RpcSuccess | RpcError;
 type RpcIncoming = RpcResponse | RpcNotification | RpcRequest;
 
+export class AcpTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AcpTimeoutError';
+  }
+}
+
 const DEFAULT_CMDS: Record<AcpAgent, string> = {
   claude: 'claude-agent-acp',
   codex: 'codex-acp',
@@ -201,20 +208,36 @@ export class AcpClient {
     });
   }
 
-  async call<T>(method: string, params?: unknown): Promise<T> {
+  async call<T>(method: string, params?: unknown, timeoutMs?: number): Promise<T> {
     if (this.closed) throw new Error('ACP client is closed');
     const id = randomUUID();
     if (ACP_DEBUG) {
       console.error(`[acp/${this.agent}] → ${JSON.stringify({ jsonrpc: '2.0', id, method, params })}`);
     }
     this.send({ jsonrpc: '2.0', id, method, params });
-    return new Promise((resolve, reject) => {
+
+    const responsePromise = new Promise<T>((resolve, reject) => {
       const entry: PendingEntry = {
         resolve: (value) => resolve(value as T),
         reject,
       };
       this.pending.set(id, entry);
-    }) as Promise<T>;
+    });
+
+    if (!timeoutMs || timeoutMs <= 0) return responsePromise;
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        if (!this.pending.has(id)) return;
+        this.pending.delete(id);
+        reject(new AcpTimeoutError(`ACP call timed out after ${timeoutMs}ms: ${method}`));
+      }, timeoutMs);
+    });
+
+    return Promise.race([responsePromise, timeoutPromise]).finally(() => {
+      clearTimeout(timer);
+    });
   }
 
   onNotification(handler: NotificationHandler): () => void {

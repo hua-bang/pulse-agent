@@ -10,7 +10,7 @@ import type {
   SessionNewResult,
   SessionUpdateNotification,
 } from './types.js';
-import { AcpClient } from './client.js';
+import { AcpClient, AcpTimeoutError } from './client.js';
 import { FileAcpStateStore } from './state-store.js';
 
 const DEFAULT_CLIENT_INFO = {
@@ -36,6 +36,11 @@ function resolvePermissionMode(): AcpPermissionMode {
 const DEFAULT_ACP_RETRY_MAX = 2;
 const DEFAULT_ACP_RETRY_BASE_DELAY_MS = 750;
 
+const DEFAULT_ACP_INIT_TIMEOUT_MS = 30_000;
+const DEFAULT_ACP_SESSION_TIMEOUT_MS = 30_000;
+const DEFAULT_ACP_PROMPT_TIMEOUT_MS = 10 * 60_000;
+const DEFAULT_ACP_CANCEL_TIMEOUT_MS = 10_000;
+
 type AcpRetryConfig = {
   maxRetries: number;
   baseDelayMs: number;
@@ -47,6 +52,27 @@ function resolveRetryConfig(): AcpRetryConfig {
   return {
     maxRetries: Number.isFinite(rawRetries) && rawRetries > 0 ? rawRetries : 0,
     baseDelayMs: Number.isFinite(rawDelay) && rawDelay > 0 ? rawDelay : 0,
+  };
+}
+
+type AcpTimeoutConfig = {
+  initMs: number;
+  sessionMs: number;
+  promptMs: number;
+  cancelMs: number;
+};
+
+function resolveTimeoutConfig(): AcpTimeoutConfig {
+  const parseTimeout = (envKey: string, defaultValue: number): number => {
+    const parsed = Number.parseInt(process.env[envKey] ?? `${defaultValue}`, 10);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultValue;
+  };
+
+  return {
+    initMs: parseTimeout('ACP_INIT_TIMEOUT_MS', DEFAULT_ACP_INIT_TIMEOUT_MS),
+    sessionMs: parseTimeout('ACP_SESSION_TIMEOUT_MS', DEFAULT_ACP_SESSION_TIMEOUT_MS),
+    promptMs: parseTimeout('ACP_PROMPT_TIMEOUT_MS', DEFAULT_ACP_PROMPT_TIMEOUT_MS),
+    cancelMs: parseTimeout('ACP_CANCEL_TIMEOUT_MS', DEFAULT_ACP_CANCEL_TIMEOUT_MS),
   };
 }
 
@@ -133,6 +159,7 @@ export async function runAcp(input: AcpRunnerInput): Promise<AcpRunnerResult> {
 
 async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks): Promise<AcpRunnerResult> {
   const permissionMode = resolvePermissionMode();
+  const timeouts = resolveTimeoutConfig();
   const stateStore = input.stateStore ?? new FileAcpStateStore();
   const client = new AcpClient(input.agent, input.cwd, {
     commandOverrides: input.commandOverrides,
@@ -165,7 +192,7 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
       protocolVersion: 1,
       clientCapabilities,
       clientInfo,
-    });
+    }, timeouts.initMs);
 
     let sessionId = input.sessionId;
     const supportsLoad = initResult.agentCapabilities?.loadSession === true;
@@ -176,7 +203,7 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
           sessionId,
           cwd: input.cwd,
           mcpServers: [],
-        });
+        }, timeouts.sessionMs);
       } catch (err) {
         console.warn('[acp/runner] session/load failed, starting fresh:', err);
         sessionId = undefined;
@@ -187,7 +214,7 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
       const newSession = await client.call<SessionNewResult>('session/new', {
         cwd: input.cwd,
         mcpServers: [],
-      });
+      }, timeouts.sessionMs);
       sessionId = newSession.sessionId;
     }
 
@@ -231,7 +258,7 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
     });
 
     const abortHandler = () => {
-      client.call('session/cancel', { sessionId }).catch(() => {});
+      client.call('session/cancel', { sessionId }, timeouts.cancelMs).catch(() => {});
     };
     input.abortSignal?.addEventListener('abort', abortHandler);
 
@@ -240,7 +267,7 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
       promptResult = await client.call<PromptResult>('session/prompt', {
         sessionId,
         prompt: [{ type: 'text', text: input.userText }],
-      });
+      }, timeouts.promptMs);
     } finally {
       input.abortSignal?.removeEventListener('abort', abortHandler);
       unsub();
@@ -308,6 +335,7 @@ function shouldRetryAcpError(
 }
 
 function isTransientAcpError(err: unknown): boolean {
+  if (err instanceof AcpTimeoutError) return true;
   const code = extractAcpErrorCode(err);
   if (code === -32603) return true;
   const message = typeof (err as { message?: unknown })?.message === 'string'
