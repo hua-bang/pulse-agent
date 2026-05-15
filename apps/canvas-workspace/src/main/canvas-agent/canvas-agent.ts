@@ -243,14 +243,40 @@ function buildSystemPrompt(
   mentionedCanvases: Array<{ id: string; name: string }> = [],
   requestContext?: CanvasAgentRequestContext,
 ): string {
+  const selectedNodes = requestContext?.selectedNodes ?? [];
+
+  // When the user has nodes selected, surface them BEFORE the full workspace
+  // summary so the focused subset is the first thing the model anchors on.
+  let selectionBlock = '';
+  if (selectedNodes.length > 0) {
+    const count = selectedNodes.length;
+    const noun = count === 1 ? 'node' : 'nodes';
+    const lines: string[] = [
+      '',
+      `## Current Focus — ${count} Selected ${noun}`,
+      `The user has selected ${count} canvas ${noun} and these are the PRIMARY context for the current message. Treat any of the following references as pointing to this selection unless the user names a different node explicitly:`,
+      '- English: "this", "it", "that", "these", "those", "the selected", "the selection", "the highlighted node(s)", "the current node"',
+      '- 中文：「这个」「它」「这些」「那些」「这条」「选中的」「选中节点」「当前节点」「上面的」「上面这个」「目前这个」',
+      '',
+      'Selected nodes:',
+    ];
+    for (const node of selectedNodes) {
+      lines.push(`- **${node.title}** — nodeId: \`${node.id}\`, type: \`${node.type}\``);
+    }
+    lines.push('');
+    lines.push(
+      `When the user\'s message is about content you need to inspect, call \`canvas_read_node\` on the nodeId(s) above FIRST — do not guess from the title alone, and do not read unrelated nodes from the full canvas summary below unless the user asks you to.`,
+    );
+    selectionBlock = lines.join('\n') + '\n';
+  }
+
   let base = summary
-    ? BASE_SYSTEM_PROMPT + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
-    : BASE_SYSTEM_PROMPT + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
+    ? BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
+    : BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
 
   if (requestContext) {
     const mode = requestContext.executionMode ?? 'auto';
     const scope = requestContext.scope ?? 'current_canvas';
-    const selectedNodes = requestContext.selectedNodes ?? [];
     const lines: string[] = [
       '',
       '## Current Request Context',
@@ -263,11 +289,9 @@ function buildSystemPrompt(
     }
 
     if (selectedNodes.length > 0) {
-      lines.push('- Selected canvas nodes:');
-      for (const node of selectedNodes) {
-        lines.push(`  - ${node.title} — nodeId: \`${node.id}\`, type: \`${node.type}\``);
-      }
-      lines.push('When the user says "these nodes", "the selection", or similar, use the selected canvas nodes above.');
+      lines.push(
+        `- Selection: ${selectedNodes.length} node(s) — see "Current Focus" above for the authoritative list.`,
+      );
     }
 
     if (mode === 'auto') {
