@@ -81,16 +81,11 @@ export const FloatingToolbar = ({
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path
-                  d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
+                  d="M6.5 5L3 9l3.5 4M11.5 5L15 9l-3.5 4M9.8 4.5l-1.6 9"
                   stroke="currentColor"
                   strokeWidth="1.35"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M6.6 6.2h4.8M6.6 8.7h3"
-                  stroke="currentColor"
-                  strokeWidth="1.2"
                   strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
               </svg>
             </button>
@@ -207,11 +202,16 @@ export const FloatingToolbar = ({
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path
-              d="M6.5 5L3 9l3.5 4M11.5 5L15 9l-3.5 4M9.8 4.5l-1.6 9"
+              d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
               stroke="currentColor"
               strokeWidth="1.35"
-              strokeLinecap="round"
               strokeLinejoin="round"
+            />
+            <path
+              d="M6.6 6.2h4.8M6.6 8.7h3"
+              stroke="currentColor"
+              strokeWidth="1.2"
+              strokeLinecap="round"
             />
           </svg>
           <span className="toolbar-btn-label">Coding</span>
