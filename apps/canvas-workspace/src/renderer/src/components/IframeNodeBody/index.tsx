@@ -152,15 +152,28 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       setLoadError(detail.errorDescription || "This page failed to load.");
     };
 
+    // `target="_blank"` links and `window.open()` calls inside the embedded
+    // page emit `new-window` on the webview. Without a handler Electron either
+    // silently drops them (newer versions) or spawns a useless empty Electron
+    // window — both look like "links don't work" to the user. Route every
+    // popup to the OS browser instead.
+    const handleNewWindow = (event: Event) => {
+      const detail = event as Event & { url?: string };
+      event.preventDefault();
+      if (detail.url) void window.canvasWorkspace.shell.openExternal(detail.url);
+    };
+
     el.addEventListener("page-title-updated", handlePageTitleUpdated);
     el.addEventListener("did-start-loading", handleDidStartLoading);
     el.addEventListener("did-stop-loading", handleDidStopLoading);
     el.addEventListener("did-fail-load", handleDidFailLoad);
+    el.addEventListener("new-window", handleNewWindow);
     return () => {
       el.removeEventListener("page-title-updated", handlePageTitleUpdated);
       el.removeEventListener("did-start-loading", handleDidStartLoading);
       el.removeEventListener("did-stop-loading", handleDidStopLoading);
       el.removeEventListener("did-fail-load", handleDidFailLoad);
+      el.removeEventListener("new-window", handleNewWindow);
     };
   }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
 
@@ -411,7 +424,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
 
   const handleOpenExternal = useCallback(() => {
     if (mode === "url" && url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      void window.canvasWorkspace.shell.openExternal(url);
     }
   }, [mode, url]);
 
@@ -718,7 +731,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
             key="stream-shell"
             className="iframe-frame"
             srcDoc={STREAMING_SHELL}
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             title="Generating…"
           />
         ) : (
@@ -726,7 +739,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
             key={isArtifactMode ? `artifact-${artifact?.currentVersionId ?? "loading"}` : webviewKey}
             className="iframe-frame"
             srcDoc={renderedHtml}
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             title={
               isArtifactMode
                 ? `Artifact: ${artifact?.title ?? "loading"}`

@@ -150,6 +150,11 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId })
   },
 
+  shell: {
+    openExternal: (url: string) =>
+      ipcRenderer.invoke("shell:openExternal", { url }) as Promise<{ ok: boolean; error?: string }>
+  },
+
   llm: {
     generateHTML: (prompt: string) =>
       ipcRenderer.invoke("llm:generate-html", { prompt }) as Promise<{ ok: boolean; html?: string; error?: string }>,
