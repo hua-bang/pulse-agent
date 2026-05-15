@@ -714,7 +714,7 @@
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
   position: absolute !important;
-  inset: 24px !important;
+  inset: 12px !important;
   width: auto !important;
   height: auto !important;
   transform: none !important;
