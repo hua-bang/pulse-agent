@@ -38,7 +38,8 @@ const DEFAULT_ACP_RETRY_BASE_DELAY_MS = 750;
 
 const DEFAULT_ACP_INIT_TIMEOUT_MS = 30_000;
 const DEFAULT_ACP_SESSION_TIMEOUT_MS = 30_000;
-const DEFAULT_ACP_PROMPT_TIMEOUT_MS = 10 * 60_000;
+const DEFAULT_ACP_PROMPT_IDLE_TIMEOUT_MS = 10 * 60_000;
+const DEFAULT_ACP_PROMPT_HARD_TIMEOUT_MS = 30 * 60_000;
 const DEFAULT_ACP_CANCEL_TIMEOUT_MS = 10_000;
 
 type AcpRetryConfig = {
@@ -58,7 +59,8 @@ function resolveRetryConfig(): AcpRetryConfig {
 type AcpTimeoutConfig = {
   initMs: number;
   sessionMs: number;
-  promptMs: number;
+  promptIdleMs: number;
+  promptHardMs: number;
   cancelMs: number;
 };
 
@@ -68,10 +70,13 @@ function resolveTimeoutConfig(): AcpTimeoutConfig {
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultValue;
   };
 
+  const legacyPromptMs = parseTimeout('ACP_PROMPT_TIMEOUT_MS', DEFAULT_ACP_PROMPT_IDLE_TIMEOUT_MS);
+
   return {
     initMs: parseTimeout('ACP_INIT_TIMEOUT_MS', DEFAULT_ACP_INIT_TIMEOUT_MS),
     sessionMs: parseTimeout('ACP_SESSION_TIMEOUT_MS', DEFAULT_ACP_SESSION_TIMEOUT_MS),
-    promptMs: parseTimeout('ACP_PROMPT_TIMEOUT_MS', DEFAULT_ACP_PROMPT_TIMEOUT_MS),
+    promptIdleMs: parseTimeout('ACP_PROMPT_IDLE_TIMEOUT_MS', legacyPromptMs),
+    promptHardMs: parseTimeout('ACP_PROMPT_HARD_TIMEOUT_MS', DEFAULT_ACP_PROMPT_HARD_TIMEOUT_MS),
     cancelMs: parseTimeout('ACP_CANCEL_TIMEOUT_MS', DEFAULT_ACP_CANCEL_TIMEOUT_MS),
   };
 }
@@ -219,8 +224,10 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
     }
 
     const textChunks: string[] = [];
+    let markPromptProgress = () => {};
     const unsub = client.onNotification((method, params) => {
       if (method !== 'session/update') return;
+      markPromptProgress();
 
       if (process.env.ACP_DEBUG === '1' || process.env.ACP_DEBUG === 'true') {
         console.error('[acp/runner] session/update raw:', JSON.stringify(params));
@@ -262,13 +269,27 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
     };
     input.abortSignal?.addEventListener('abort', abortHandler);
 
+    const promptTimeouts = createPromptProgressTimeouts({
+      idleMs: timeouts.promptIdleMs,
+      hardMs: timeouts.promptHardMs,
+      method: 'session/prompt',
+    });
+
     let promptResult: PromptResult;
+    markPromptProgress = () => {
+      promptTimeouts.markProgress();
+    };
+
     try {
-      promptResult = await client.call<PromptResult>('session/prompt', {
-        sessionId,
-        prompt: [{ type: 'text', text: input.userText }],
-      }, timeouts.promptMs);
+      promptResult = await runPromptWithProgressTimeouts(
+        client.call<PromptResult>('session/prompt', {
+          sessionId,
+          prompt: [{ type: 'text', text: input.userText }],
+        }),
+        promptTimeouts,
+      );
     } finally {
+      promptTimeouts.dispose();
       input.abortSignal?.removeEventListener('abort', abortHandler);
       unsub();
     }
@@ -283,6 +304,94 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
   } finally {
     client.kill();
   }
+}
+
+type PromptProgressTimeouts = {
+  timeoutPromise: Promise<never>;
+  markProgress: () => void;
+  dispose: () => void;
+};
+
+function createPromptProgressTimeouts(input: {
+  idleMs: number;
+  hardMs: number;
+  method: string;
+}): PromptProgressTimeouts {
+  let idleTimer: ReturnType<typeof setTimeout> | undefined;
+  let hardTimer: ReturnType<typeof setTimeout> | undefined;
+  let settled = false;
+  let rejectTimeout: ((err: AcpTimeoutError) => void) | undefined;
+
+  const clearIdleTimer = () => {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = undefined;
+    }
+  };
+
+  const clearHardTimer = () => {
+    if (hardTimer) {
+      clearTimeout(hardTimer);
+      hardTimer = undefined;
+    }
+  };
+
+  const fail = (message: string) => {
+    if (settled) return;
+    settled = true;
+    clearIdleTimer();
+    clearHardTimer();
+    rejectTimeout?.(new AcpTimeoutError(message));
+  };
+
+  const armIdleTimer = () => {
+    clearIdleTimer();
+    if (input.idleMs <= 0 || settled) return;
+    idleTimer = setTimeout(() => {
+      fail(`ACP call idle timed out after ${input.idleMs}ms: ${input.method}`);
+    }, input.idleMs);
+  };
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    rejectTimeout = reject;
+  });
+
+  armIdleTimer();
+
+  if (input.hardMs > 0) {
+    hardTimer = setTimeout(() => {
+      fail(`ACP call hard timed out after ${input.hardMs}ms: ${input.method}`);
+    }, input.hardMs);
+  }
+
+  return {
+    timeoutPromise,
+    markProgress: armIdleTimer,
+    dispose: () => {
+      settled = true;
+      clearIdleTimer();
+      clearHardTimer();
+    },
+  };
+}
+
+async function runPromptWithProgressTimeouts<T>(
+  promptPromise: Promise<T>,
+  timeouts: PromptProgressTimeouts,
+): Promise<T> {
+  return Promise.race([promptPromise, timeouts.timeoutPromise]);
+}
+
+export function __testResolveTimeoutConfig(): AcpTimeoutConfig {
+  return resolveTimeoutConfig();
+}
+
+export function __testCreatePromptProgressTimeouts(input: {
+  idleMs: number;
+  hardMs: number;
+  method: string;
+}): PromptProgressTimeouts {
+  return createPromptProgressTimeouts(input);
 }
 
 function wrapCallbacks(
