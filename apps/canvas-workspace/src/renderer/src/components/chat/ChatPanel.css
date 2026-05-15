@@ -1979,3 +1979,66 @@
   color: rgba(55, 53, 47, 0.38);
   font-size: 11px;
 }
+
+/* Prompt settings drawer — reuses .chat-model-settings shell but
+   drops the provider rail because there's only one user profile. */
+.chat-prompt-settings {
+  width: min(100vw, 640px);
+}
+
+.chat-prompt-settings .chat-prompt-settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.chat-prompt-preset-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.chat-prompt-preset-option {
+  gap: 4px;
+}
+
+.chat-prompt-preset-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(55, 53, 47, 0.62);
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+}
+
+.chat-model-protocol-option--active .chat-prompt-preset-desc {
+  color: rgba(26, 100, 184, 0.78);
+}
+
+.chat-prompt-custom-field {
+  gap: 6px;
+}
+
+.chat-prompt-custom-textarea {
+  min-height: 132px;
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  border-radius: 8px;
+  background: #fff;
+  color: #37352f;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.55;
+  padding: 10px 12px;
+  resize: vertical;
+  outline: none;
+}
+
+.chat-prompt-custom-textarea:focus {
+  border-color: rgba(35, 131, 226, 0.45);
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+}

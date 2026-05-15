@@ -178,6 +178,13 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
   },
 
 
+  promptProfile: {
+    get: () => ipcRenderer.invoke("canvas-prompt-profile:get"),
+    save: (profile: { preset?: string; customPrompt?: string }) =>
+      ipcRenderer.invoke("canvas-prompt-profile:save", { profile }),
+    reset: () => ipcRenderer.invoke("canvas-prompt-profile:reset"),
+  },
+
   model: {
     status: () => ipcRenderer.invoke("canvas-model:status"),
     saveConfig: (config: unknown) => ipcRenderer.invoke("canvas-model:save-config", { config }),

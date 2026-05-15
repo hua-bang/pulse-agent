@@ -1,4 +1,4 @@
-import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon } from '../icons';
+import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 
 interface ChatHeaderProps {
@@ -17,6 +17,7 @@ interface ChatHeaderProps {
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
   onOpenModelSettings: () => void;
+  onOpenPromptSettings: () => void;
   onClose: () => void;
 }
 
@@ -45,6 +46,7 @@ export const ChatHeader = ({
   onNewSession,
   onLoadSession,
   onOpenModelSettings,
+  onOpenPromptSettings,
   onClose,
 }: ChatHeaderProps) => (
   <div className="chat-panel-header">
@@ -115,6 +117,14 @@ export const ChatHeader = ({
       )}
     </div>
     <div className="chat-panel-actions">
+      <button
+        className="chat-panel-action-btn"
+        onClick={onOpenPromptSettings}
+        title="回复风格 / 自定义提示词"
+        aria-label="Reply style and custom prompt"
+      >
+        <SparklesIcon size={16} strokeWidth={1.25} />
+      </button>
       <button
         className="chat-panel-action-btn"
         onClick={onOpenModelSettings}

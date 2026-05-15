@@ -450,6 +450,25 @@ export interface CanvasModelStatus {
   providers: CanvasModelProviderStatus[];
 }
 
+export type PromptPreset = 'concise' | 'balanced' | 'detailed';
+
+export interface PromptProfile {
+  preset: PromptPreset;
+  customPrompt: string;
+}
+
+export interface PromptProfileStatus extends PromptProfile {
+  path: string;
+}
+
+export interface PromptProfileApi {
+  get: () => Promise<{ ok: boolean; profile?: PromptProfileStatus; error?: string }>;
+  save: (
+    profile: Partial<PromptProfile>,
+  ) => Promise<{ ok: boolean; profile?: PromptProfileStatus; error?: string }>;
+  reset: () => Promise<{ ok: boolean; profile?: PromptProfileStatus; error?: string }>;
+}
+
 export interface CanvasModelApi {
   status: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
   saveConfig: (config: CanvasModelConfig) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
@@ -618,6 +637,7 @@ export interface CanvasWorkspaceApi {
   dialog: DialogApi;
   skills: SkillsApi;
   model: CanvasModelApi;
+  promptProfile: PromptProfileApi;
   agent: AgentApi;
   iframe: IframeApi;
   llm: LlmApi;
