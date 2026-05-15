@@ -129,7 +129,7 @@ export const ChatMessages = ({
     <div className="chat-messages" onClick={handleMessageClick}>
       {messages.map((message, index) => {
         const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
-        const tools = isStreaming ? streamingTools : messageTools.get(index);
+        const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
         return (
           <ChatMessage
             key={index}
