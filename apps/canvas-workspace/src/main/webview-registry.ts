@@ -39,6 +39,21 @@ function lookup(k: RegistryKey): number | undefined {
   return registry.get(keyOf(k));
 }
 
+/**
+ * Return the live WebContents for a registered iframe node, or null if the
+ * node is not registered / the webContents has already been destroyed.
+ */
+export function getWebContentsForNode(
+  workspaceId: string,
+  nodeId: string,
+): ReturnType<typeof allWebContents.fromId> | null {
+  const id = lookup({ workspaceId, nodeId });
+  if (id === undefined) return null;
+  const wc = allWebContents.fromId(id);
+  if (!wc || wc.isDestroyed()) return null;
+  return wc;
+}
+
 const EXTRACT_TIMEOUT_MS = 8_000;
 const EXTRACT_MAX_CHARS = 200_000;
 

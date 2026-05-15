@@ -408,16 +408,18 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
   web: {
     /**
-     * Read a web page using the best available strategy.
+     * Read a webpage that is already open in a canvas iframe node.
+     * The webview must be registered (i.e. the iframe node is mounted and loaded).
      *
-     * strategy: 'auto' (default) — skill hint → a11y → dom → screenshot
-     * strategy: 'a11y'           — CDP accessibility tree only
-     * strategy: 'dom'            — innerText extraction only
-     * strategy: 'screenshot'     — capturePage() PNG as data URL
+     * strategy: 'auto' (default) — dom → a11y → screenshot
+     * strategy: 'dom'            — innerText extraction (safe, always works)
+     * strategy: 'a11y'           — CDP accessibility tree (semantic roles/names)
+     * strategy: 'screenshot'     — capturePage() PNG as data URL (for vision)
      */
     read: (payload: {
-      url: string;
-      strategy?: 'auto' | 'a11y' | 'dom' | 'screenshot';
+      workspaceId: string;
+      nodeId: string;
+      strategy?: 'auto' | 'dom' | 'a11y' | 'screenshot';
       maxChars?: number;
       sparseThreshold?: number;
     }) => ipcRenderer.invoke("web:read", payload),
