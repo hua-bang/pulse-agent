@@ -734,30 +734,21 @@
   cursor: default;
 }
 
-.canvas-node--fullscreen .node-fullscreen {
-  opacity: 1;
-}
-
+/* In fullscreen, the floating chip (see Canvas/index.tsx) is the
+ * single control surface — drop every node-header affordance so the
+ * header stays clean (title only). The chip also owns the exit
+ * button, so `.node-fullscreen` itself hides. */
 .canvas-node--fullscreen .node-reference,
 .canvas-node--fullscreen .node-focus,
 .canvas-node--fullscreen .node-close,
+.canvas-node--fullscreen .node-fullscreen,
 .canvas-node--fullscreen .node-time-label,
 .canvas-node--fullscreen .frame-color-trigger,
 .canvas-node--fullscreen .text-color-trigger,
 .canvas-node--fullscreen .group-ungroup-button,
 .canvas-node--fullscreen .group-count-label,
-.canvas-node--fullscreen .node-status-label {
-  display: none !important;
-}
-
-/* Image / mindmap nodes show floating close + fullscreen buttons in
- * the top-right corner. Once fullscreen, drop the close so only the
- * exit button remains and slide the exit button into the close slot. */
-.canvas-node--fullscreen .node-close--floating {
-  display: none !important;
-}
-
+.canvas-node--fullscreen .node-status-label,
+.canvas-node--fullscreen .node-close--floating,
 .canvas-node--fullscreen .node-fullscreen--floating {
-  right: 12px;
-  top: 12px;
+  display: none !important;
 }

@@ -129,13 +129,16 @@
  * the fullscreen node so the user can still pop the canvas-level
  * panels open without seeing the rest of the toolbar. z-index sits
  * above `.canvas-transform`'s bumped 1000. */
-/* Top-left so it doesn't collide with the node header's exit-fullscreen
- * button (and any iframe-bar chrome) at top-right. */
+/* Single control surface for fullscreen mode — Reference / Chat
+ * toggles + exit button. Sits at top-right since the node's own
+ * exit button is hidden in fullscreen (see CanvasNodeView CSS), so
+ * there's no overlap. */
 .canvas-fullscreen-chip {
   position: absolute;
   top: 20px;
-  left: 20px;
+  right: 20px;
   display: flex;
+  align-items: center;
   gap: 2px;
   padding: 4px;
   background: rgba(255, 255, 255, 0.96);
@@ -143,6 +146,13 @@
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
   z-index: 1010;
+}
+
+.canvas-fullscreen-chip__divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 0 2px;
 }
 
 .canvas-fullscreen-chip__btn {

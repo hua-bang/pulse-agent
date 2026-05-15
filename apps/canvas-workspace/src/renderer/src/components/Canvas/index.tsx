@@ -1267,12 +1267,12 @@ export const Canvas = ({
         getAllNodes={getAllNodes}
       />
 
-      {/* Fullscreen-only chip. The floating toolbar gets covered by the
-          raised `.canvas-transform` z-index in fullscreen, but the user
-          still needs the canvas-level Chat / Reference toggles. Render
-          them in a minimal pill in the top-right of the viewport so
-          they sit above the fullscreen node without bringing back the
-          full toolbar. */}
+      {/* Fullscreen-only chip. Becomes the single control surface for
+          fullscreen mode — Reference / Chat toggles plus the exit
+          button — so the user has one stable spot to reach all the
+          relevant actions, and we don't have to fight the node header
+          for top-right real estate. The node's own fullscreen toggle
+          is hidden while this is shown (see CanvasNodeView CSS). */}
       {fullscreenNodeId && (
         <div className="canvas-fullscreen-chip">
           {onReferenceToggle && (
@@ -1305,6 +1305,18 @@ export const Canvas = ({
               </svg>
             </button>
           )}
+          <div className="canvas-fullscreen-chip__divider" />
+          <button
+            className="canvas-fullscreen-chip__btn"
+            type="button"
+            onClick={exitFullscreen}
+            title="Exit fullscreen (Esc)"
+            aria-label="Exit fullscreen"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M7 1v3a1 1 0 01-1 1H3M9 1v3a1 1 0 001 1h3M7 15v-3a1 1 0 00-1-1H3M9 15v-3a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
       )}
 
