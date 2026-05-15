@@ -8,6 +8,52 @@ type EditMode = "url" | "html" | "ai";
 
 const BLANK_PAGE_URL = "about:blank";
 
+/**
+ * Capture-phase link interceptor injected into the guest page.
+ *
+ * Feishu / Lark / Notion-style SPAs attach click handlers in the bubble
+ * phase that call `e.preventDefault()` and route via an internal client
+ * router instead of letting the browser open a new tab. That cancels the
+ * default `window.open` behavior before our `setWindowOpenHandler` can
+ * see it — to the user the link just looks dead.
+ *
+ * Running on the document in the capture phase lets us beat the page's
+ * own bubble handler: if the click was on a real `<a href>` going to an
+ * http(s) page that isn't just an in-page anchor, we call
+ * `window.open(href, '_blank')` ourselves, which goes through the host's
+ * popup handler (→ system browser). Same-page fragments, modifier-click
+ * gestures and `javascript:` links pass through untouched.
+ */
+const LINK_INTERCEPTOR_SCRIPT = `
+  (function() {
+    if (window.__pulseCanvasLinkHookInstalled) return;
+    window.__pulseCanvasLinkHookInstalled = true;
+    document.addEventListener('click', function(e) {
+      if (e.defaultPrevented) return;
+      if (e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var node = e.target;
+      var anchor = null;
+      while (node && node !== document) {
+        if (node.tagName === 'A' && node.href) { anchor = node; break; }
+        node = node.parentNode;
+      }
+      if (!anchor) return;
+      var href = anchor.href;
+      if (!href || href.indexOf('javascript:') === 0) return;
+      try {
+        var u = new URL(href, window.location.href);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'mailto:') return;
+        var cur = window.location;
+        if (u.origin === cur.origin && u.pathname === cur.pathname && u.search === cur.search) return;
+      } catch (_) { return; }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      try { window.open(href, '_blank'); } catch (_) {}
+    }, true);
+  })();
+`;
+
 interface Props {
   node: CanvasNode;
   workspaceId?: string;
@@ -238,7 +284,17 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
 
     tryRegister("mount");
     const onAttach = () => tryRegister("did-attach");
-    const onDomReady = () => tryRegister("dom-ready");
+    const onDomReady = () => {
+      tryRegister("dom-ready");
+      // Re-inject on every dom-ready: the SPA may have wiped the document
+      // (route change, hard reload) since we last installed the hook.
+      try {
+        void el.executeJavaScript(LINK_INTERCEPTOR_SCRIPT, false);
+      } catch {
+        // executeJavaScript can throw if dom-ready races a navigation
+        // away — the next dom-ready will retry.
+      }
+    };
     el.addEventListener("did-attach", onAttach);
     el.addEventListener("dom-ready", onDomReady);
 
