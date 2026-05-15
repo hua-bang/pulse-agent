@@ -290,6 +290,30 @@ export function setupCanvasAgentIpc(): void {
   );
 
   ipcMain.handle(
+    'canvas-agent:debug-runs',
+    async () => {
+      try {
+        const runs = await svc.listDebugRuns();
+        return { ok: true, runs };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-agent:debug-run',
+    async (_event, payload: { sessionId: string; runId: string }) => {
+      try {
+        const run = await svc.getDebugRun(payload.sessionId, payload.runId);
+        return run ? { ok: true, run } : { ok: false, error: 'Debug run not found' };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
     'canvas-agent:activate',
     async (_event, payload: { workspaceId: string }) => {
       try {

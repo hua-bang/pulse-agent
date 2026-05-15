@@ -5,7 +5,7 @@ import { CloseIcon, ExportIcon, WorkspaceIcon } from '../icons';
 export interface WorkspaceItemProps {
   ws: WorkspaceEntry;
   activeId: string;
-  activeView: 'canvas' | 'chat';
+  activeView: 'canvas' | 'chat' | 'debug';
   isOnlyWorkspace: boolean;
   isRenaming: boolean;
   renameValue: string;
@@ -60,7 +60,7 @@ export const WorkspaceItem = ({
         />
       ) : (
         <button
-          className={`sidebar-item${activeId === ws.id && activeView !== 'chat' ? ' sidebar-item--active' : ''}`}
+          className={`sidebar-item${activeId === ws.id && activeView === 'canvas' ? ' sidebar-item--active' : ''}`}
           onClick={() => onSelect(ws.id)}
           onDoubleClick={() => onStartRename(ws)}
           title="Double-click to rename"

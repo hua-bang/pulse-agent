@@ -18,8 +18,18 @@ import {
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
+import {
+  attachTraceModel,
+  createCanvasAgentDebugTrace,
+  finalizeCanvasAgentDebugTrace,
+  isCanvasAgentDebugTraceEnabled,
+  recordTraceMessageSnapshot,
+  recordTraceToolCall,
+  recordTraceToolResult,
+} from './debug-trace';
 import type {
   CanvasAgentConfig,
+  CanvasAgentDebugTrace,
   CanvasAgentImageAttachment,
   CanvasAgentMessage,
   CanvasAgentToolCall,
@@ -413,7 +423,7 @@ export class CanvasAgent {
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
-  ): Promise<string> {
+  ): Promise<{ response: string; debugTrace?: CanvasAgentDebugTrace }> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
 
@@ -437,7 +447,20 @@ export class CanvasAgent {
       console.warn('[canvas-agent] Failed to load prompt profile, using defaults:', err);
     }
 
+    const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : '(empty workspace — no nodes yet)';
     const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection);
+    const debugTrace = isCanvasAgentDebugTraceEnabled()
+      ? createCanvasAgentDebugTrace({
+          sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
+          userPrompt: message,
+          attachmentCount: attachments.length,
+          requestContext,
+          mentionedCanvases,
+          summary,
+          systemPrompt,
+          currentCanvasSummary,
+        })
+      : undefined;
 
     const attachmentPrompt = attachments.length > 0
       ? [
@@ -492,6 +515,11 @@ export class CanvasAgent {
 
     try {
       const modelConfig = await resolveCanvasModel();
+      attachTraceModel(debugTrace, {
+        provider: modelConfig.providerType,
+        model: this.config.model ?? modelConfig.model,
+        modelType: modelConfig.modelType,
+      });
       const resultText = await this.engine.run(context, {
         provider: modelConfig.provider,
         model: this.config.model ?? modelConfig.model,
@@ -501,20 +529,22 @@ export class CanvasAgent {
         abortSignal: abortController.signal,
         onClarificationRequest: engineClarificationHandler,
         onText,
-        onToolCall: onToolCall
+        onToolCall: (onToolCall || debugTrace)
           ? (chunk: any) => {
               // AI SDK v6 uses `input`; older versions use `args`
               const args = chunk.input ?? chunk.args;
               console.info('[canvas-agent] tool-call chunk keys:', Object.keys(chunk), 'input:', chunk.input, 'args:', chunk.args);
-              onToolCall({ name: chunk.toolName, args, toolCallId: chunk.toolCallId });
+              recordTraceToolCall(debugTrace, { name: chunk.toolName, args, toolCallId: chunk.toolCallId });
+              onToolCall?.({ name: chunk.toolName, args, toolCallId: chunk.toolCallId });
             }
           : undefined,
-        onToolResult: onToolResult
+        onToolResult: (onToolResult || debugTrace)
           ? (chunk: any) => {
               // AI SDK v6 uses `output`; older versions use `result`
               const raw = chunk.output ?? chunk.result;
               console.info('[canvas-agent] tool-result chunk keys:', Object.keys(chunk), 'output:', typeof chunk.output, 'result:', typeof chunk.result);
-              onToolResult({
+              recordTraceToolResult(debugTrace, { name: chunk.toolName, rawResult: raw, toolCallId: chunk.toolCallId });
+              onToolResult?.({
                 name: chunk.toolName,
                 result: typeof raw === 'string' ? raw : JSON.stringify(raw),
                 toolCallId: chunk.toolCallId,
@@ -555,20 +585,23 @@ export class CanvasAgent {
       });
 
       const responseText = resultText || '(no response)';
+      recordTraceMessageSnapshot(debugTrace, { systemPrompt, messages: context.messages });
 
       // Persist assistant response together with the tool-call frames that
       // produced it so saved/restored chat sessions can render tool chips,
       // inline visuals, artifacts, and generated images instead of losing
       // them after reload.
       const toolCalls = modelMessagesToToolCalls(responseMessages);
+      const finalizedTrace = finalizeCanvasAgentDebugTrace(debugTrace);
       this.sessionStore.addMessage({
         role: 'assistant',
         content: responseText,
         timestamp: Date.now(),
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        debugTrace: finalizedTrace,
       });
 
-      return responseText;
+      return { response: responseText, debugTrace: finalizedTrace };
     } finally {
       if (this.currentAbortController === abortController) {
         this.currentAbortController = null;

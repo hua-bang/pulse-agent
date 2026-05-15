@@ -12,9 +12,26 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import type { CanvasAgentMessage, CanvasAgentSession } from './types';
+import type {
+  CanvasAgentDebugRunDetail,
+  CanvasAgentDebugRunSummary,
+  CanvasAgentMessage,
+  CanvasAgentSession,
+} from './types';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
+
+interface WorkspaceManifest {
+  workspaces: Array<{ id: string; name: string }>;
+  activeId?: string;
+}
+
+interface SessionWithMeta {
+  session: CanvasAgentSession;
+  workspaceName: string;
+  isCurrent: boolean;
+  sortKey: number;
+}
 
 function archiveFileTimestamp(file: string): number {
   const match = file.match(/-(\d+)\.json$/);
@@ -368,6 +385,119 @@ export class SessionStore {
     return matched;
   }
 
+  /**
+   * List all persisted Canvas Agent turns that carry a dev debug trace.
+   */
+  static async listDebugRuns(): Promise<CanvasAgentDebugRunSummary[]> {
+    const sessions = await this.readAllSessionsWithMeta();
+    const runs = sessions.flatMap(({ session, workspaceName, isCurrent }) => (
+      session.messages.flatMap((message, index) => {
+        if (message.role !== 'assistant' || !message.debugTrace) return [];
+        return [debugRunSummaryFromMessage({
+          session,
+          workspaceName,
+          isCurrent,
+          message,
+          messageIndex: index,
+        })];
+      })
+    ));
+
+    runs.sort((a, b) => b.startedAt - a.startedAt);
+    return runs;
+  }
+
+  /**
+   * Read a single persisted debug trace by session/run id.
+   */
+  static async readDebugRun(sessionId: string, runId: string): Promise<CanvasAgentDebugRunDetail | null> {
+    const sessions = await this.readAllSessionsWithMeta();
+    for (const { session, workspaceName, isCurrent } of sessions) {
+      if (session.sessionId !== sessionId) continue;
+      const messageIndex = session.messages.findIndex(
+        message => message.role === 'assistant' && message.debugTrace?.runId === runId,
+      );
+      if (messageIndex < 0) continue;
+
+      const assistantMessage = session.messages[messageIndex];
+      const trace = assistantMessage.debugTrace;
+      if (!trace) continue;
+
+      return {
+        ...debugRunSummaryFromMessage({
+          session,
+          workspaceName,
+          isCurrent,
+          message: assistantMessage,
+          messageIndex,
+        }),
+        userMessage: findPreviousUserMessage(session.messages, messageIndex),
+        assistantMessage,
+        trace,
+      };
+    }
+
+    return null;
+  }
+
+  private static async readAllSessionsWithMeta(): Promise<SessionWithMeta[]> {
+    const manifest = await loadManifest();
+    const workspaceNames = new Map(manifest.workspaces.map(workspace => [workspace.id, workspace.name] as const));
+    const results: SessionWithMeta[] = [];
+
+    let dirs: string[];
+    try {
+      dirs = await fs.readdir(STORE_DIR);
+    } catch {
+      return results;
+    }
+
+    for (const workspaceId of dirs) {
+      if (workspaceId.startsWith('__') || workspaceId.startsWith('.')) continue;
+      const workspaceName = workspaceNames.get(workspaceId) ?? workspaceId;
+      const sessionsDir = join(STORE_DIR, workspaceId, 'agent-sessions');
+      const currentPath = join(sessionsDir, 'current.json');
+      const archiveDir = join(sessionsDir, 'archive');
+      const seen = new Set<string>();
+
+      try {
+        const raw = await fs.readFile(currentPath, 'utf-8');
+        const session = JSON.parse(raw) as CanvasAgentSession;
+        seen.add(session.sessionId);
+        results.push({ session, workspaceName, isCurrent: true, sortKey: Date.now() });
+      } catch {
+        // No current session
+      }
+
+      try {
+        const files = await fs.readdir(archiveDir);
+        for (const file of files) {
+          if (!file.endsWith('.json')) continue;
+          const archivePath = join(archiveDir, file);
+          try {
+            const raw = await fs.readFile(archivePath, 'utf-8');
+            const session = JSON.parse(raw) as CanvasAgentSession;
+            if (seen.has(session.sessionId)) continue;
+            seen.add(session.sessionId);
+            results.push({
+              session,
+              workspaceName,
+              isCurrent: false,
+              sortKey: await archiveSortKey(archivePath, file),
+            });
+          } catch {
+            // skip corrupted archive
+          }
+        }
+      } catch {
+        // No archive dir
+      }
+    }
+
+    results.sort((a, b) => b.sortKey - a.sortKey);
+    return results;
+  }
+
   // ─── Internal ────────────────────────────────────────────────
 
   private async removeArchivedSessionsById(sessionId: string): Promise<void> {
@@ -419,4 +549,50 @@ export class SessionStore {
       // No current session or corrupted — nothing to archive
     }
   }
+}
+
+async function loadManifest(): Promise<WorkspaceManifest> {
+  try {
+    const raw = await fs.readFile(join(STORE_DIR, '__workspaces__.json'), 'utf-8');
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
+    return { workspaces, activeId: parsed.activeId as string | undefined };
+  } catch {
+    return { workspaces: [] };
+  }
+}
+
+function findPreviousUserMessage(messages: CanvasAgentMessage[], assistantIndex: number): CanvasAgentMessage | undefined {
+  for (let index = assistantIndex - 1; index >= 0; index--) {
+    if (messages[index]?.role === 'user') return messages[index];
+  }
+  return undefined;
+}
+
+function debugRunSummaryFromMessage(input: {
+  session: CanvasAgentSession;
+  workspaceName: string;
+  isCurrent: boolean;
+  message: CanvasAgentMessage;
+  messageIndex: number;
+}): CanvasAgentDebugRunSummary {
+  const { session, workspaceName, isCurrent, message, messageIndex } = input;
+  const trace = message.debugTrace!;
+  const modelLabel = [trace.model?.provider, trace.model?.model].filter(Boolean).join(' / ') || undefined;
+  return {
+    workspaceId: session.workspaceId,
+    workspaceName,
+    sessionId: session.sessionId,
+    runId: trace.runId,
+    turnId: trace.turnId,
+    messageIndex,
+    startedAt: trace.startedAt,
+    durationMs: trace.durationMs,
+    userPromptPreview: trace.request.userPromptPreview,
+    assistantPreview: message.content.slice(0, 180),
+    toolCount: trace.toolCalls.length,
+    readNodeCount: trace.readNodes.length,
+    modelLabel,
+    isCurrent,
+  };
 }

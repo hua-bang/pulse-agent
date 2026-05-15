@@ -4,6 +4,7 @@ import { AvatarIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
 import { ChatToolCalls } from './ChatToolCalls';
+import { ChatDebugTrace } from './ChatDebugTrace';
 import {
   ChatArtifactCard,
   ChatInlineVisual,
@@ -191,6 +192,9 @@ export const ChatMessage = ({
         )
       ) : (
         <div className="chat-message-content">{renderUserContent(message.content, nodes)}</div>
+      )}
+      {message.role === 'assistant' && message.debugTrace && (
+        <ChatDebugTrace trace={message.debugTrace} />
       )}
     </div>
   </div>

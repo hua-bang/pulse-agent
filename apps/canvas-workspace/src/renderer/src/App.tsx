@@ -5,6 +5,7 @@ import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
+import { AgentDebugPage } from './components/debug/AgentDebugPage';
 import { Sidebar } from './components/Sidebar';
 import { Workbench, useWorkbenchState } from './components/Workbench';
 import { useWorkspaces } from './hooks/useWorkspaces';
@@ -13,8 +14,9 @@ import { PulseRouter, PulseRouterView } from './components/router';
 
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
+const ROUTE_DEBUG = '/debug';
 
-type ActiveView = 'canvas' | 'chat';
+type ActiveView = 'canvas' | 'chat' | 'debug';
 
 const AppContent = () => {
   const [location, setLocation] = useLocation();
@@ -22,7 +24,11 @@ const AppContent = () => {
     () => parseCanvasLocation(location),
     [location],
   );
-  const activeView: ActiveView = routePath === ROUTE_CHAT ? 'chat' : 'canvas';
+  const activeView: ActiveView = routePath === ROUTE_CHAT
+    ? 'chat'
+    : routePath === ROUTE_DEBUG
+      ? 'debug'
+      : 'canvas';
   const routeQuery = routeParams.toString();
 
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
@@ -58,7 +64,7 @@ const AppContent = () => {
   } = workbench;
 
   useEffect(() => {
-    if (!routeQuery) return;
+    if (!routeQuery || routePath !== ROUTE_CANVAS) return;
 
     const targetWorkspaceId = routeParams.get('workspaceId') ?? activeId;
     const targetNodeId = routeParams.get('nodeId');
@@ -72,7 +78,7 @@ const AppContent = () => {
       requestNodeFocus(targetWorkspaceId, targetNodeId);
     }
     setLocation(ROUTE_CANVAS);
-  }, [routeQuery, routeParams, activeId, workspaces, selectWorkspace, requestNodeFocus, setLocation]);
+  }, [routePath, routeQuery, routeParams, activeId, workspaces, selectWorkspace, requestNodeFocus, setLocation]);
 
   const enterChatView = useCallback(() => {
     setLocation(ROUTE_CHAT);
@@ -80,6 +86,14 @@ const AppContent = () => {
 
   const exitChatView = useCallback(() => {
     setLocation(ROUTE_CANVAS);
+  }, [setLocation]);
+
+  const enterDebugView = useCallback((sessionId?: string, runId?: string) => {
+    const params = new URLSearchParams();
+    if (sessionId) params.set('sessionId', sessionId);
+    if (runId) params.set('runId', runId);
+    const query = params.toString();
+    setLocation(query ? `${ROUTE_DEBUG}?${query}` : ROUTE_DEBUG);
   }, [setLocation]);
 
   const handleSelectWorkspace = useCallback((id: string) => {
@@ -347,10 +361,11 @@ const AppContent = () => {
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
           onEnterChat={enterChatView}
+          onEnterDebug={() => enterDebugView()}
           onExitChat={exitChatView}
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
-          <PulseRouterView name='canvas'>
+          <PulseRouterView name='canvas' keepAlive>
             <Workbench
               activeWorkspaceId={activeId}
               workspaces={workspaces}
@@ -366,6 +381,14 @@ const AppContent = () => {
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
+            />
+          </PulseRouterView>
+          <PulseRouterView name="debug">
+            <AgentDebugPage
+              selectedSessionId={routeParams.get('sessionId')}
+              selectedRunId={routeParams.get('runId')}
+              onSelectRun={enterDebugView}
+              onBackToCanvas={exitChatView}
             />
           </PulseRouterView>
         </PulseRouter>

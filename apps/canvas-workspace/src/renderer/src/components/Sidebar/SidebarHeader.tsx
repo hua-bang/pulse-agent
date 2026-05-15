@@ -1,5 +1,5 @@
 import type React from 'react';
-import { PlusIcon, AvatarIcon, WorkspaceIcon, FolderIcon, ImportIcon } from '../icons';
+import { PlusIcon, AvatarIcon, WorkspaceIcon, FolderIcon, ImportIcon, SettingsIcon } from '../icons';
 
 export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -10,8 +10,9 @@ export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
 
 interface SidebarHeaderProps {
   onToggle: () => void;
-  activeView: 'canvas' | 'chat';
+  activeView: 'canvas' | 'chat' | 'debug';
   onEnterChat: () => void;
+  onEnterDebug: () => void;
   showAddMenu: boolean;
   onToggleAddMenu: () => void;
   addMenuRef: React.RefObject<HTMLDivElement>;
@@ -24,6 +25,7 @@ export const SidebarHeader = ({
   onToggle,
   activeView,
   onEnterChat,
+  onEnterDebug,
   showAddMenu,
   onToggleAddMenu,
   addMenuRef,
@@ -61,6 +63,16 @@ export const SidebarHeader = ({
           <AvatarIcon size={14} />
         </span>
         <span className="sidebar-nav-label">AI Chat</span>
+      </button>
+      <button
+        className={`sidebar-nav-item${activeView === 'debug' ? ' sidebar-nav-item--active' : ''}`}
+        onClick={onEnterDebug}
+        title="Canvas Agent DevTools"
+      >
+        <span className="sidebar-nav-icon">
+          <SettingsIcon size={14} />
+        </span>
+        <span className="sidebar-nav-label">DevTools</span>
       </button>
     </div>
 
