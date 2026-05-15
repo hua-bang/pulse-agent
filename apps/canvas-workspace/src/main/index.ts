@@ -17,6 +17,7 @@ import { setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
 import { setupArtifactIpc } from "./artifact-ipc";
 import { setupShellIpc, isSafeExternalUrl } from "./shell-ipc";
+import { setupWebpageReaderIpc } from "./webpage-reader-ipc";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(currentDir, "../preload/index.mjs");
@@ -174,6 +175,7 @@ app.whenReady().then(() => {
   setupHtmlGeneratorIpc();
   setupArtifactIpc();
   setupShellIpc();
+  setupWebpageReaderIpc();
   // MCP server disabled — canvas-cli is the preferred agent interface now.
   // startMCPServer();
   // void ensureMCPRegistered();

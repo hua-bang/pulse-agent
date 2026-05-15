@@ -404,5 +404,22 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
         ipcRenderer.removeListener("artifact:change", handler);
       };
     },
-  }
+  },
+
+  web: {
+    /**
+     * Read a web page using the best available strategy.
+     *
+     * strategy: 'auto' (default) — skill hint → a11y → dom → screenshot
+     * strategy: 'a11y'           — CDP accessibility tree only
+     * strategy: 'dom'            — innerText extraction only
+     * strategy: 'screenshot'     — capturePage() PNG as data URL
+     */
+    read: (payload: {
+      url: string;
+      strategy?: 'auto' | 'a11y' | 'dom' | 'screenshot';
+      maxChars?: number;
+      sparseThreshold?: number;
+    }) => ipcRenderer.invoke("web:read", payload),
+  },
 });
