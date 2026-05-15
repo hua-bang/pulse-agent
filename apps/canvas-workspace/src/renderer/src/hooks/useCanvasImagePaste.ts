@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { CanvasNode } from '../types';
+import type { CanvasNode, TextNodeData } from '../types';
 
 interface Options {
   /** Current canvas workspace id — used as the saveImage target directory. */
@@ -29,6 +29,39 @@ const fitDimensions = (w: number, h: number): { width: number; height: number } 
   if (largest <= MAX_DEFAULT_DIM) return { width: w, height: h };
   const scale = MAX_DEFAULT_DIM / largest;
   return { width: Math.round(w * scale), height: Math.round(h * scale) };
+};
+
+
+const getClipboardText = (event: ClipboardEvent): string => {
+  const plain = event.clipboardData?.getData('text/plain') ?? '';
+  if (plain) return plain;
+
+  const html = event.clipboardData?.getData('text/html') ?? '';
+  if (!html) return '';
+
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.textContent ?? '';
+};
+
+const createTextPatch = (text: string): Pick<CanvasNode, 'width' | 'height' | 'title' | 'data'> => {
+  const lines = text.split(/\r?\n/);
+  const longestLine = Math.max(1, ...lines.map((line) => line.length));
+  const width = Math.max(180, Math.min(520, longestLine * 8 + 32));
+  const height = Math.max(80, Math.min(420, lines.length * 24 + 40));
+  const firstLine = lines.find((line) => line.trim().length > 0)?.trim() ?? 'Text';
+
+  return {
+    width,
+    height,
+    title: firstLine.length > 40 ? `${firstLine.slice(0, 40)}…` : firstLine,
+    data: {
+      content: text,
+      textColor: '#1f2328',
+      backgroundColor: 'transparent',
+      fontSize: 18,
+      autoSize: false,
+    } satisfies TextNodeData,
+  };
 };
 
 const isTypingContext = (target: EventTarget | null): boolean => {
@@ -65,7 +98,20 @@ export const useCanvasImagePaste = ({
       const items = e.clipboardData?.items;
       if (!items) return;
       const imageItem = Array.from(items).find((i) => i.type.startsWith('image/'));
-      if (!imageItem) return;
+      if (!imageItem) {
+        const text = getClipboardText(e).trim();
+        if (!text) return;
+        e.preventDefault();
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const centre = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, container);
+        const patch = createTextPatch(text);
+        const node = addNode('text', centre.x - patch.width / 2, centre.y - patch.height / 2);
+        updateNode(node.id, patch);
+        onCreated?.({ ...node, ...patch });
+        return;
+      }
       const blob = imageItem.getAsFile();
       if (!blob) return;
       e.preventDefault();
