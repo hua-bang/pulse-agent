@@ -160,24 +160,52 @@ export async function captureScreenshot(
   const DEFAULT_WIDTH_PX = 1_280;
 
   let debuggerAttached = false;
+  let viewportOverrideSet = false;
   try {
     wc.debugger.attach('1.3');
     debuggerAttached = true;
 
-    // Get full content dimensions — viewport is never modified.
+    // Read both the full content size and the current visual viewport size
+    // so we can restore the exact original dimensions afterwards.
     const metrics = await wc.debugger.sendCommand('Page.getLayoutMetrics') as {
       contentSize: { width: number; height: number };
+      visualViewport: { clientWidth: number; clientHeight: number };
     };
-    const clipWidth  = Math.max(Math.ceil(metrics.contentSize.width),  DEFAULT_WIDTH_PX);
-    const clipHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
 
-    // Capture beyond the visible viewport using a clip rect.
-    // No viewport override → zero visual impact on the user.
+    const origWidth  = metrics.visualViewport.clientWidth  || DEFAULT_WIDTH_PX;
+    const origHeight = metrics.visualViewport.clientHeight || 900;
+    const fullWidth  = Math.max(Math.ceil(metrics.contentSize.width),  DEFAULT_WIDTH_PX);
+    const fullHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
+
+    const needsExpansion = fullHeight > origHeight;
+
+    if (needsExpansion) {
+      await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width: fullWidth,
+        height: fullHeight,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      viewportOverrideSet = true;
+    }
+
     const result = await wc.debugger.sendCommand('Page.captureScreenshot', {
       format: 'png',
-      captureBeyondViewport: true,
-      clip: { x: 0, y: 0, width: clipWidth, height: clipHeight, scale: 1 },
+      fromSurface: true,
     }) as { data: string };
+
+    // Restore original viewport before returning — minimise visible impact.
+    if (viewportOverrideSet) {
+      await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
+        width: origWidth,
+        height: origHeight,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      // Clear the override so the webview reverts to its natural CSS-driven size.
+      await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride');
+      viewportOverrideSet = false;
+    }
 
     wc.debugger.detach();
     debuggerAttached = false;
@@ -187,6 +215,9 @@ export async function captureScreenshot(
     return { ok: true, imagePath };
   } catch (err) {
     if (debuggerAttached) {
+      if (viewportOverrideSet) {
+        try { await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride'); } catch { /* ignore */ }
+      }
       try { wc.debugger.detach(); } catch { /* ignore */ }
     }
     return { ok: false, imagePath: '', error: err instanceof Error ? err.message : String(err) };
