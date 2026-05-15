@@ -13,7 +13,8 @@
  * loaded), the lookup returns null and the caller falls back to a plain
  * server-side fetch.
  */
-import { ipcMain, webContents as allWebContents } from 'electron';
+import { ipcMain, shell, webContents as allWebContents } from 'electron';
+import { isSafeExternalUrl } from './shell-ipc';
 
 interface RegistryKey {
   workspaceId: string;
@@ -127,6 +128,23 @@ export function setupWebviewRegistryIpc(): void {
         { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
         payload.webContentsId,
       );
+      // Set up a popup handler on the webview's webContents. The renderer-side
+      // `new-window` listener is unreliable in modern Electron (the event has
+      // been deprecated in favor of `setWindowOpenHandler` since Electron 22+
+      // and the DOM event fires inconsistently for SPA-driven `window.open`
+      // calls — e.g. Feishu / Notion / Lark docs). Setting the handler on the
+      // guest webContents from main is the canonical path: every popup the
+      // embedded page tries to open lands here, and we route it to the OS
+      // browser instead of dropping it silently.
+      const wc = allWebContents.fromId(payload.webContentsId);
+      if (wc && !wc.isDestroyed()) {
+        wc.setWindowOpenHandler(({ url }) => {
+          if (isSafeExternalUrl(url)) {
+            void shell.openExternal(url);
+          }
+          return { action: 'deny' };
+        });
+      }
       console.log(
         `[webview-registry] registered ${payload.workspaceId}::${payload.nodeId} → wc#${payload.webContentsId} (${registry.size} total)`,
       );
