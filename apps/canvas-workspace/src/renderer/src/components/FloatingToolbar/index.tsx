@@ -70,14 +70,13 @@ export const FloatingToolbar = ({
 }: Props) => {
   return (
     <div className="floating-toolbar">
-      {onReferenceToggle && (
+      {onChatToggle && (
         <>
           <div className="toolbar-group">
             <button
-              className={`toolbar-btn${referenceDrawerOpen ? " toolbar-btn--active" : ""}`}
-              onClick={onReferenceToggle}
-              title="Toggle Reference panel"
-              aria-label="Toggle Reference panel"
+              className={`toolbar-btn${chatPanelOpen ? " toolbar-btn--active" : ""}`}
+              onClick={onChatToggle}
+              title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
@@ -94,13 +93,14 @@ export const FloatingToolbar = ({
         </>
       )}
 
-      {onChatToggle && (
+      {onReferenceToggle && (
         <>
           <div className="toolbar-group">
             <button
-              className={`toolbar-btn${chatPanelOpen ? " toolbar-btn--active" : ""}`}
-              onClick={onChatToggle}
-              title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
+              className={`toolbar-btn${referenceDrawerOpen ? " toolbar-btn--active" : ""}`}
+              onClick={onReferenceToggle}
+              title="Toggle Reference panel"
+              aria-label="Toggle Reference panel"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path
