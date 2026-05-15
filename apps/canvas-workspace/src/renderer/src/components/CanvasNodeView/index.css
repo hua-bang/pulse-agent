@@ -721,7 +721,7 @@
   /* Above the backdrop (z-index 50) so dimming covers other nodes
    * while this one stays crisp. */
   z-index: 60;
-  border-radius: 12px;
+  border-radius: 4px;
   border-color: rgba(0, 0, 0, 0.08);
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
 }
