@@ -47,6 +47,24 @@ export const RefreshIcon = ({ size = 14, className, strokeWidth = 1.35 }: IconPr
   </svg>
 );
 
+/** Sparkles icon — used for reply-style / prompt customization entry. */
+export const SparklesIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path
+      d="M6 2.5l1 2.5 2.5 1-2.5 1L6 9.5 5 7 2.5 6 5 5 6 2.5z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    />
+    <path
+      d="M11.5 8.5l.75 1.75L14 11l-1.75.75L11.5 13.5l-.75-1.75L9 11l1.75-.75L11.5 8.5z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 export const TrashIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <path d="M3 4.5h10" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />

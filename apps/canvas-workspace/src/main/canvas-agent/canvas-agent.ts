@@ -17,6 +17,7 @@ import {
 } from './context-builder';
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
+import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import type {
   CanvasAgentConfig,
   CanvasAgentImageAttachment,
@@ -242,6 +243,7 @@ function buildSystemPrompt(
   summary: WorkspaceSummary | null,
   mentionedCanvases: Array<{ id: string; name: string }> = [],
   requestContext?: CanvasAgentRequestContext,
+  promptProfileSection: string = '',
 ): string {
   const selectedNodes = requestContext?.selectedNodes ?? [];
 
@@ -307,7 +309,7 @@ function buildSystemPrompt(
     base += lines.join('\n') + '\n';
   }
 
-  if (mentionedCanvases.length === 0) return base;
+  if (mentionedCanvases.length === 0) return base + promptProfileSection;
 
   const lines: string[] = [
     '',
@@ -336,7 +338,7 @@ function buildSystemPrompt(
     lines.push(`- **${c.name}** — workspaceId: \`${c.id}\``);
   }
   lines.push('');
-  return base + lines.join('\n');
+  return base + lines.join('\n') + promptProfileSection;
 }
 
 // ─── Canvas Agent ──────────────────────────────────────────────────
@@ -426,7 +428,15 @@ export class CanvasAgent {
       mentionedCanvases = await resolveWorkspaceNames(unique);
     }
 
-    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext);
+    let promptProfileSection = '';
+    try {
+      const profile = await getPromptProfile();
+      promptProfileSection = formatPromptProfileForSystem(profile);
+    } catch (err) {
+      console.warn('[canvas-agent] Failed to load prompt profile, using defaults:', err);
+    }
+
+    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection);
 
     const attachmentPrompt = attachments.length > 0
       ? [

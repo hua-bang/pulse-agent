@@ -3,6 +3,7 @@ import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
 import { useCanvasModels, ModelSettingsDrawer } from './ModelSettings';
+import { usePromptProfile, PromptSettingsDrawer } from './PromptSettings';
 import { useChatSessions } from './hooks/useChatSessions';
 import { useChatStream } from './hooks/useChatStream';
 import { useMentions } from './hooks/useMentions';
@@ -22,7 +23,9 @@ export const ChatPanel = ({
 }: ChatPanelProps) => {
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
   const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+  const [promptSettingsOpen, setPromptSettingsOpen] = useState(false);
   const canvasModels = useCanvasModels();
+  const promptProfile = usePromptProfile();
 
   const {
     abort,
@@ -149,6 +152,7 @@ export const ChatPanel = ({
           onToggleSessionMenu={openSessionMenu}
           onNewSession={handleNewSession}
           onOpenModelSettings={() => setModelSettingsOpen(true)}
+          onOpenPromptSettings={() => setPromptSettingsOpen(true)}
           onLoadSession={handleLoadSession}
           onClose={onClose}
         />
@@ -204,6 +208,14 @@ export const ChatPanel = ({
         onSaveProvider={canvasModels.upsertProvider}
         onRemoveProvider={canvasModels.removeProvider}
         onFetchModels={canvasModels.fetchModels}
+      />
+      <PromptSettingsDrawer
+        open={promptSettingsOpen}
+        profile={promptProfile.profile}
+        error={promptProfile.error}
+        onClose={() => setPromptSettingsOpen(false)}
+        onSave={promptProfile.save}
+        onReset={promptProfile.reset}
       />
     </>
   );
