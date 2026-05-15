@@ -404,5 +404,24 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
         ipcRenderer.removeListener("artifact:change", handler);
       };
     },
-  }
+  },
+
+  web: {
+    /**
+     * Read a webpage that is already open in a canvas iframe node.
+     * The webview must be registered (i.e. the iframe node is mounted and loaded).
+     *
+     * strategy: 'auto' (default) — dom → a11y → screenshot
+     * strategy: 'dom'            — innerText extraction (safe, always works)
+     * strategy: 'a11y'           — CDP accessibility tree (semantic roles/names)
+     * strategy: 'screenshot'     — capturePage() PNG as data URL (for vision)
+     */
+    read: (payload: {
+      workspaceId: string;
+      nodeId: string;
+      strategy?: 'auto' | 'dom' | 'a11y' | 'screenshot';
+      maxChars?: number;
+      sparseThreshold?: number;
+    }) => ipcRenderer.invoke("web:read", payload),
+  },
 });
