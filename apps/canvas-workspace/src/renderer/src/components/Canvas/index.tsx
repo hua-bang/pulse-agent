@@ -1267,6 +1267,47 @@ export const Canvas = ({
         getAllNodes={getAllNodes}
       />
 
+      {/* Fullscreen-only chip. The floating toolbar gets covered by the
+          raised `.canvas-transform` z-index in fullscreen, but the user
+          still needs the canvas-level Chat / Reference toggles. Render
+          them in a minimal pill in the top-right of the viewport so
+          they sit above the fullscreen node without bringing back the
+          full toolbar. */}
+      {fullscreenNodeId && (
+        <div className="canvas-fullscreen-chip">
+          {onReferenceToggle && (
+            <button
+              className={`canvas-fullscreen-chip__btn${referenceDrawerOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
+              type="button"
+              onClick={onReferenceToggle}
+              title="Toggle Reference Drawer"
+              aria-label="Toggle Reference Drawer"
+            >
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M6 6h6M6 9h4M6 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          {onChatToggle && (
+            <button
+              className={`canvas-fullscreen-chip__btn${chatPanelOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
+              type="button"
+              onClick={onChatToggle}
+              title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
+              aria-label="Toggle AI Chat"
+            >
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
+                <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
       <CanvasOverlays
         nodes={nodes}
         contextMenu={contextMenu}
