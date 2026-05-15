@@ -51,6 +51,81 @@ const EmptyLinePreservingParagraph = Paragraph.extend({
   },
 });
 
+const FILE_IMAGE_MARKDOWN_RE = /!\[([^\]]*)\]\((file:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)/g;
+
+const restoreLocalImageMarkdown = (element: HTMLElement) => {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    if (node.textContent?.includes('![') && node.textContent.includes('](file://')) {
+      textNodes.push(node as Text);
+    }
+  }
+
+  for (const node of textNodes) {
+    const text = node.textContent ?? '';
+    FILE_IMAGE_MARKDOWN_RE.lastIndex = 0;
+    if (!FILE_IMAGE_MARKDOWN_RE.test(text)) continue;
+
+    FILE_IMAGE_MARKDOWN_RE.lastIndex = 0;
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    for (const match of text.matchAll(FILE_IMAGE_MARKDOWN_RE)) {
+      const index = match.index ?? 0;
+      if (index > lastIndex) {
+        fragment.append(document.createTextNode(text.slice(lastIndex, index)));
+      }
+
+      const img = document.createElement('img');
+      img.setAttribute('src', match[2] ?? '');
+      img.setAttribute('alt', match[1] ?? '');
+      if (match[3]) img.setAttribute('title', match[3]);
+      fragment.append(img);
+      lastIndex = index + match[0].length;
+    }
+    if (lastIndex < text.length) {
+      fragment.append(document.createTextNode(text.slice(lastIndex)));
+    }
+    node.replaceWith(fragment);
+  }
+};
+
+const MarkdownSafeImage = Image.extend({
+  addStorage() {
+    return {
+      ...this.parent?.(),
+      markdown: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        serialize(state: any, node: any) {
+          const src = String(node.attrs.src ?? '').replace(/[()]/g, '\\$&');
+          const alt = state.esc(String(node.attrs.alt ?? ''));
+          const title = node.attrs.title
+            ? ` "${String(node.attrs.title).replace(/"/g, '\\"')}"`
+            : '';
+          state.write(`![${alt}](${src}${title})`);
+        },
+        parse: {
+          // markdown-it rejects file:// links by default, so reloading a note
+          // with a locally saved pasted image leaves literal ![](...) text.
+          // File nodes intentionally store local canvas images as file URLs.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setup(markdownit: any) {
+            const originalValidateLink = markdownit.validateLink.bind(markdownit);
+            markdownit.validateLink = (url: string) => {
+              if (/^file:\/\//i.test(url)) return true;
+              return originalValidateLink(url);
+            };
+          },
+          updateDOM(element: HTMLElement) {
+            restoreLocalImageMarkdown(element);
+          },
+        },
+      },
+    };
+  },
+});
+
 interface SlashMenuState {
   x: number;
   y: number;
@@ -81,6 +156,17 @@ interface Options {
 }
 
 const AUTO_SAVE_MS = 1500;
+
+const imageExtensionFromMime = (mimeType: string | undefined): string => {
+  const normalized = (mimeType ?? '')
+    .toLowerCase()
+    .replace(/^image\//, '')
+    .replace(/[^a-z0-9]/g, '');
+
+  if (!normalized) return 'png';
+  if (normalized === 'jpeg') return 'jpg';
+  return normalized;
+};
 
 export const useFileNodeEditor = ({
   data,
@@ -114,7 +200,7 @@ export const useFileNodeEditor = ({
         paragraph: false,
       }),
       EmptyLinePreservingParagraph,
-      Image.configure({ inline: false }),
+      MarkdownSafeImage.configure({ inline: false }),
       Placeholder.configure({ placeholder: 'Start writing…' }),
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -150,7 +236,7 @@ export const useFileNodeEditor = ({
           const dataUrl = reader.result as string;
           const base64 = dataUrl.split(',')[1];
           if (!base64) return;
-          const ext = imageItem.type.replace('image/', '').split(';')[0] ?? 'png';
+          const ext = imageExtensionFromMime(imageItem.type);
           const api = window.canvasWorkspace?.file;
           if (!api) return;
           const wsId =
@@ -341,7 +427,7 @@ export const useFileNodeEditor = ({
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(',')[1];
         if (!base64) return;
-        const ext = file.type.replace('image/', '').split(';')[0] || 'png';
+        const ext = imageExtensionFromMime(file.type);
         const api = window.canvasWorkspace?.file;
         if (!api) return;
         const wsId =
