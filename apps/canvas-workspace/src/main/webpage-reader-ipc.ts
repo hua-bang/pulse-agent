@@ -156,7 +156,6 @@ export async function readA11y(
 export async function captureScreenshot(
   wc: AnyWebContents,
 ): Promise<{ ok: boolean; imagePath: string; error?: string }> {
-  // Maximum full-page height to avoid absurdly large images.
   const MAX_HEIGHT_PX = 8_000;
   const DEFAULT_WIDTH_PX = 1_280;
 
@@ -165,30 +164,21 @@ export async function captureScreenshot(
     wc.debugger.attach('1.3');
     debuggerAttached = true;
 
-    // 1. Get the full content dimensions.
+    // Get full content dimensions — viewport is never modified.
     const metrics = await wc.debugger.sendCommand('Page.getLayoutMetrics') as {
       contentSize: { width: number; height: number };
     };
-    const fullWidth = Math.max(Math.ceil(metrics.contentSize.width), DEFAULT_WIDTH_PX);
-    const fullHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
+    const clipWidth  = Math.max(Math.ceil(metrics.contentSize.width),  DEFAULT_WIDTH_PX);
+    const clipHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
 
-    // 2. Temporarily expand viewport to full-page height.
-    await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
-      width: fullWidth,
-      height: fullHeight,
-      deviceScaleFactor: 1,
-      mobile: false,
-    });
-
-    // 3. Capture the whole page.
+    // Capture beyond the visible viewport using a clip rect.
+    // No viewport override → zero visual impact on the user.
     const result = await wc.debugger.sendCommand('Page.captureScreenshot', {
       format: 'png',
-      fromSurface: true,
       captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width: clipWidth, height: clipHeight, scale: 1 },
     }) as { data: string };
 
-    // 4. Restore original viewport.
-    await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride');
     wc.debugger.detach();
     debuggerAttached = false;
 
@@ -197,7 +187,6 @@ export async function captureScreenshot(
     return { ok: true, imagePath };
   } catch (err) {
     if (debuggerAttached) {
-      try { await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride'); } catch { /* ignore */ }
       try { wc.debugger.detach(); } catch { /* ignore */ }
     }
     return { ok: false, imagePath: '', error: err instanceof Error ? err.message : String(err) };
