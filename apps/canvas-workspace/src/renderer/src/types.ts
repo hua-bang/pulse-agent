@@ -622,6 +622,11 @@ export interface CanvasWorkspaceApi {
   iframe: IframeApi;
   llm: LlmApi;
   artifacts: ArtifactsApi;
+  shell: ShellApi;
+}
+
+export interface ShellApi {
+  openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface LlmApi {
