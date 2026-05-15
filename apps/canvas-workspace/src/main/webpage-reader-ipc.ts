@@ -32,9 +32,9 @@ const DEFAULT_SPARSE_THRESHOLD = 200;
 // Strategy implementations  (all take a live WebContents)
 // ---------------------------------------------------------------------------
 
-type AnyWebContents = NonNullable<ReturnType<typeof getWebContentsForNode>>;
+export type AnyWebContents = NonNullable<ReturnType<typeof getWebContentsForNode>>;
 
-async function readDOM(
+export async function readDOM(
   wc: AnyWebContents,
   maxChars: number,
 ): Promise<{ ok: boolean; text: string; title: string; url: string; error?: string }> {
@@ -113,7 +113,7 @@ function flattenA11yNodes(
   return lines;
 }
 
-async function readA11y(
+export async function readA11y(
   wc: AnyWebContents,
 ): Promise<{ ok: boolean; text: string; error?: string }> {
   try {
@@ -150,7 +150,7 @@ async function readA11y(
   }
 }
 
-async function captureScreenshot(
+export async function captureScreenshot(
   wc: AnyWebContents,
 ): Promise<{ ok: boolean; dataUrl: string; error?: string }> {
   try {
