@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
 import type { CanvasNode } from '../../types';
+import type { SidebarNavContribution, CanvasNavigation } from '../../core/extensions';
 import './index.css';
 import { buildLayerTree, collectFrameIds } from './utils/layers';
 import { SidebarHeader, SidebarToggleIcon } from './SidebarHeader';
@@ -35,9 +36,10 @@ interface Props {
   onNodeFocus?: (nodeId: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onNodeRename?: (nodeId: string, title: string) => void;
-  activeView: 'canvas' | 'chat' | 'debug';
+  activeView: string;
   onEnterChat: () => void;
-  onEnterDebug: () => void;
+  extensionNavItems?: SidebarNavContribution[];
+  extensionNavigation?: CanvasNavigation;
   onExitChat: () => void;
 }
 
@@ -47,7 +49,8 @@ const FOLDER_DRAG = 'application/x-folder-id';
 export const Sidebar = ({
   collapsed, onToggle, workspaces, folders, activeId, onSelect, onCreate, onRename, onDelete,
   onExport, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace, onReorderFolder,
-  activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, onEnterDebug,
+  activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat,
+  extensionNavItems = [], extensionNavigation,
 }: Props) => {
   const { notify } = useAppShell();
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -235,7 +238,15 @@ export const Sidebar = ({
       {!collapsed && (
         <>
           <SidebarHeader
-            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat} onEnterDebug={onEnterDebug}
+            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
+            extensionNavItems={extensionNavItems.map(item => ({
+              id: item.id,
+              view: item.view,
+              label: item.label,
+              title: item.title,
+              icon: item.icon,
+              onSelect: () => { if (extensionNavigation) item.onSelect(extensionNavigation); },
+            }))}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
             addMenuRef={addMenuRef}
             onNewWorkspace={() => { setShowAddMenu(false); setInlineCreate('workspace'); setInlineCreateValue(''); }}

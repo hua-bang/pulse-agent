@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
+import type { ChatMessageAddonContribution } from '../../core/extensions';
 import { AvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
 import type { PendingClarification, ToolCallStatus } from './types';
@@ -21,6 +22,7 @@ interface ChatMessagesProps {
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   onNodeFocus?: (nodeId: string) => void;
+  messageAddons?: ChatMessageAddonContribution[];
 }
 
 const LoadingPlaceholder = () => (
@@ -105,6 +107,7 @@ export const ChatMessages = ({
   onToggleToolExpand,
   onAddImageToCanvas,
   onNodeFocus,
+  messageAddons = [],
 }: ChatMessagesProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -144,6 +147,7 @@ export const ChatMessages = ({
             onToggleSection={() => onToggleSection(index)}
             onToggleToolExpand={onToggleToolExpand}
             onAddImageToCanvas={onAddImageToCanvas}
+            messageAddons={messageAddons}
           />
         );
       })}
