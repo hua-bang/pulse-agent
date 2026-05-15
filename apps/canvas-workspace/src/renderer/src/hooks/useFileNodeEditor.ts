@@ -51,6 +51,38 @@ const EmptyLinePreservingParagraph = Paragraph.extend({
   },
 });
 
+const MarkdownSafeImage = Image.extend({
+  addStorage() {
+    return {
+      ...this.parent?.(),
+      markdown: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        serialize(state: any, node: any) {
+          const src = String(node.attrs.src ?? '').replace(/[()]/g, '\\$&');
+          const alt = state.esc(String(node.attrs.alt ?? ''));
+          const title = node.attrs.title
+            ? ` "${String(node.attrs.title).replace(/"/g, '\\"')}"`
+            : '';
+          state.write(`![${alt}](${src}${title})`);
+        },
+        parse: {
+          // markdown-it rejects file:// links by default, so reloading a note
+          // with a locally saved pasted image leaves literal ![](...) text.
+          // File nodes intentionally store local canvas images as file URLs.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setup(markdownit: any) {
+            const originalValidateLink = markdownit.validateLink.bind(markdownit);
+            markdownit.validateLink = (url: string) => {
+              if (/^file:\/\//i.test(url)) return true;
+              return originalValidateLink(url);
+            };
+          },
+        },
+      },
+    };
+  },
+});
+
 interface SlashMenuState {
   x: number;
   y: number;
@@ -125,7 +157,7 @@ export const useFileNodeEditor = ({
         paragraph: false,
       }),
       EmptyLinePreservingParagraph,
-      Image.configure({ inline: false }),
+      MarkdownSafeImage.configure({ inline: false }),
       Placeholder.configure({ placeholder: 'Start writing…' }),
       TaskList,
       TaskItem.configure({ nested: true }),
