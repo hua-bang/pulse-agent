@@ -702,27 +702,28 @@
 
 /* Fullscreen node. The parent `.canvas-transform` has its transform
  * killed by `.canvas-container[data-fullscreen="on"]` (see
- * Canvas/index.css), so a plain `inset: 0` here just covers the
- * canvas-container viewport. The inline `transform: translate(x,y)` +
- * width/height set by CanvasNodeView for the node's normal slot are
- * overridden with `!important` — the node DOM never moves, only its
- * CSS box flips between "slot" and "fullscreen". That keeps the
- * iframe / editor / terminal mounted across the toggle, no reload. */
+ * Canvas/index.css), so a plain `inset` here just resolves against
+ * the canvas-container viewport. We leave a small inset so the
+ * fullscreen node reads as a focused card floating on the dim
+ * backdrop rather than bleeding to the chrome. The inline
+ * `transform: translate(x,y)` + width/height set by CanvasNodeView
+ * for the node's normal slot are overridden with `!important` — the
+ * node DOM never moves, only its CSS box flips between "slot" and
+ * "fullscreen". That keeps the iframe / editor / terminal mounted
+ * across the toggle, no reload. */
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
   position: absolute !important;
-  inset: 0 !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
+  inset: 12px !important;
+  width: auto !important;
+  height: auto !important;
   transform: none !important;
   /* Above the backdrop (z-index 50) so dimming covers other nodes
    * while this one stays crisp. */
   z-index: 60;
-  border-radius: 0;
-  border-color: transparent;
-  box-shadow: none;
+  border-radius: 12px;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
 }
 
 /* Fullscreen disables drag-by-header and resize handles, so the header
