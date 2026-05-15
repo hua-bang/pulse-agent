@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import './index.css';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { CanvasNode, AgentNodeData } from '../../types';
+import type { CanvasNode, AgentNodeData, FileNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { getAgentCommand } from '../../config/agentRegistry';
 import {
@@ -13,23 +13,26 @@ import {
 } from './utils/terminal';
 import { AgentPicker } from './AgentPicker';
 import { AgentTerminal } from './AgentTerminal';
+import { NodeMentionPicker } from '../NodeMentionPicker';
 
 interface Props {
   node: CanvasNode;
-  allNodes?: CanvasNode[];
+  getAllNodes?: () => CanvasNode[];
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  readOnly?: boolean;
 }
 
-export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props) => {
+export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
   const data = node.data as AgentNodeData;
   const status = data.status ?? 'idle';
 
   const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
   const [cwdInput, setCwdInput] = useState(data.cwd || '');
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || '');
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
   // Treat any of the following as evidence that the node has been launched
   // before and should skip the picker on mount:
@@ -66,6 +69,8 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
   dataRef.current = data;
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
+  const getAllNodesRef = useRef(getAllNodes);
+  getAllNodesRef.current = getAllNodes;
   const initialScrollback = useRef(data.scrollback ?? '');
   /**
    * Distinguishes a fresh user-initiated launch (picker → Start click) from
@@ -97,6 +102,27 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
       isRestored = false,
     ) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
+      if (readOnly) {
+        spawnedRef.current = true;
+        isRestoredRef.current = true;
+        const term = new Terminal(TERMINAL_OPTIONS);
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(containerRef.current);
+        termRef.current = term;
+        fitRef.current = fitAddon;
+        if (initialScrollback.current) {
+          term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
+          term.write(initialScrollback.current.split('\n').join('\r\n'));
+          term.writeln('');
+        } else {
+          term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
+        }
+        requestAnimationFrame(() => {
+          try { fitAddon.fit(); } catch { /* ignore */ }
+        });
+        return;
+      }
       spawnedRef.current = true;
       isRestoredRef.current = isRestored;
 
@@ -106,6 +132,14 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
       term.open(containerRef.current);
       termRef.current = term;
       fitRef.current = fitAddon;
+
+      term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+        if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+          setPickerOpen(true);
+          return false;
+        }
+        return true;
+      });
 
       requestAnimationFrame(() => {
         try { fitAddon.fit(); } catch { /* ignore */ }
@@ -224,7 +258,7 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
         api.kill(sessionId);
       };
     },
-    [sessionId, rootFolder, workspaceId],
+    [sessionId, rootFolder, workspaceId, readOnly],
   );
 
   useEffect(() => {
@@ -289,6 +323,7 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
   }, [launched]);
 
   const handleLaunch = useCallback(() => {
+    if (readOnly) return;
     const effectiveCwd = cwdInput || rootFolder || '';
     const prompt = promptInput.trim();
     pendingAgentRef.current = selectedAgent;
@@ -314,23 +349,46 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
       },
     });
     setLaunched(true);
-  }, [selectedAgent, cwdInput, promptInput, rootFolder]);
+  }, [selectedAgent, cwdInput, promptInput, rootFolder, readOnly]);
 
   const handleStop = useCallback(() => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.pty;
     if (api) api.kill(sessionId);
     onUpdateRef.current(nodeIdRef.current, {
       data: { ...dataRef.current, status: 'done' },
     });
-  }, [sessionId]);
+  }, [sessionId, readOnly]);
 
   const handleSendPrompt = useCallback((prompt: string) => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.pty;
     if (!api) return;
     api.write(sessionId, `\n${prompt}\n`);
-  }, [sessionId]);
+  }, [sessionId, readOnly]);
+
+  const handleMentionSelect = useCallback((selected: CanvasNode) => {
+    if (readOnly) return;
+    setPickerOpen(false);
+    const api = window.canvasWorkspace?.pty;
+    if (api) {
+      const filePath = selected.type === 'file'
+        ? (selected.data as FileNodeData).filePath
+        : undefined;
+      const label = filePath ? filePath.split('/').pop() : selected.title;
+      const mention = `@[${label}](canvas:${selected.id})`;
+      void api.write(sessionId, mention);
+    }
+    termRef.current?.focus();
+  }, [sessionId, readOnly]);
+
+  const handleMentionClose = useCallback(() => {
+    setPickerOpen(false);
+    termRef.current?.focus();
+  }, []);
 
   const handleRestart = useCallback(() => {
+    if (readOnly) return;
     if (saveTimerRef.current) clearInterval(saveTimerRef.current);
     cleanupRef.current?.();
     termRef.current?.dispose();
@@ -349,16 +407,17 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
     });
 
     setLaunched(false);
-  }, []);
+  }, [readOnly]);
 
   const handlePickFolder = useCallback(async () => {
+    if (readOnly) return;
     const api = window.canvasWorkspace?.dialog;
     if (!api) return;
     const result = await api.openFolder();
     if (result.ok && !result.canceled && result.folderPath) {
       setCwdInput(result.folderPath);
     }
-  }, []);
+  }, [readOnly]);
 
   if (!launched) {
     return (
@@ -378,12 +437,21 @@ export const AgentNodeBody = ({ node, rootFolder, workspaceId, onUpdate }: Props
   }
 
   return (
-    <AgentTerminal
-      containerRef={containerRef}
-      status={status}
-      onRestart={handleRestart}
-      onStop={handleStop}
-      onSendPrompt={handleSendPrompt}
-    />
+    <div className="agent-body-wrap">
+      {!readOnly && pickerOpen && (
+        <NodeMentionPicker
+          nodes={getAllNodesRef.current?.() ?? []}
+          onSelect={handleMentionSelect}
+          onClose={handleMentionClose}
+        />
+      )}
+      <AgentTerminal
+        containerRef={containerRef}
+        status={status}
+        onRestart={handleRestart}
+        onStop={handleStop}
+        onSendPrompt={handleSendPrompt}
+      />
+    </div>
   );
 };

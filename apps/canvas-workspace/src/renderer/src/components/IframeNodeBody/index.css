@@ -149,6 +149,47 @@
   border-radius: 2px;
 }
 
+
+.iframe-load-error {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: #fff;
+}
+
+.iframe-load-error-card {
+  max-width: 320px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+}
+
+.iframe-load-error-title {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.iframe-load-error-message {
+  margin-bottom: 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.iframe-load-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* Empty state — URL input */
 
 .iframe-body--empty {
@@ -187,6 +228,29 @@
 .iframe-empty-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.15);
+}
+
+.iframe-blank-btn {
+  align-self: flex-start;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  padding: 0 8px;
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.iframe-blank-btn:hover {
+  background: rgba(35, 131, 226, 0.14);
+}
+
+.iframe-blank-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .iframe-empty-actions {

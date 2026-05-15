@@ -2,6 +2,9 @@
 // Remove this file once the engine's tsup DTS build is fixed.
 declare module 'pulse-coder-engine' {
   export const GenerateImageTool: any;
+  export type ModelType = 'openai' | 'claude';
+  export type LLMProviderFactory = (model: string) => any;
+  export function buildProvider(type: ModelType, options?: any): LLMProviderFactory;
 
   export class Engine {
     constructor(options?: any);

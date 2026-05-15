@@ -150,6 +150,11 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId })
   },
 
+  shell: {
+    openExternal: (url: string) =>
+      ipcRenderer.invoke("shell:openExternal", { url }) as Promise<{ ok: boolean; error?: string }>
+  },
+
   llm: {
     generateHTML: (prompt: string) =>
       ipcRenderer.invoke("llm:generate-html", { prompt }) as Promise<{ ok: boolean; html?: string; error?: string }>,
@@ -170,6 +175,28 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       ipcRenderer.on(channel, handler);
       return () => { ipcRenderer.removeListener(channel, handler); };
     },
+  },
+
+
+  promptProfile: {
+    get: () => ipcRenderer.invoke("canvas-prompt-profile:get"),
+    save: (profile: { preset?: string; customPrompt?: string }) =>
+      ipcRenderer.invoke("canvas-prompt-profile:save", { profile }),
+    reset: () => ipcRenderer.invoke("canvas-prompt-profile:reset"),
+  },
+
+  model: {
+    status: () => ipcRenderer.invoke("canvas-model:status"),
+    saveConfig: (config: unknown) => ipcRenderer.invoke("canvas-model:save-config", { config }),
+    upsertProvider: (provider: unknown) => ipcRenderer.invoke("canvas-model:upsert-provider", { provider }),
+    removeProvider: (providerId: string) => ipcRenderer.invoke("canvas-model:remove-provider", { providerId }),
+    fetchModels: (providerId?: string, provider?: unknown) =>
+      ipcRenderer.invoke("canvas-model:fetch-models", { providerId, provider }),
+    upsertOption: (option: unknown, setCurrent?: boolean) =>
+      ipcRenderer.invoke("canvas-model:upsert-option", { option, setCurrent }),
+    setCurrent: (name?: string, providerId?: string) => ipcRenderer.invoke("canvas-model:set-current", { name, providerId }),
+    removeOption: (name: string) => ipcRenderer.invoke("canvas-model:remove-option", { name }),
+    reset: () => ipcRenderer.invoke("canvas-model:reset"),
   },
 
   agent: {
@@ -212,9 +239,39 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       };
     },
 
-    onToolCall: (sessionId: string, callback: (data: { name: string; args: any }) => void) => {
+    onToolCall: (
+      sessionId: string,
+      callback: (data: { name: string; args: any; toolCallId?: string }) => void,
+    ) => {
       const channel = `canvas-agent:tool-call:${sessionId}`;
-      const handler = (_event: Electron.IpcRendererEvent, data: { name: string; args: any }) =>
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { name: string; args: any; toolCallId?: string },
+      ) => callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolResult: (
+      sessionId: string,
+      callback: (data: { name: string; result: string; toolCallId?: string }) => void,
+    ) => {
+      const channel = `canvas-agent:tool-result:${sessionId}`;
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { name: string; result: string; toolCallId?: string },
+      ) => callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolInputStart: (sessionId: string, callback: (data: { id: string; toolName: string }) => void) => {
+      const channel = `canvas-agent:tool-input-start:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string; toolName: string }) =>
         callback(data);
       ipcRenderer.on(channel, handler);
       return () => {
@@ -222,10 +279,39 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       };
     },
 
-    onToolResult: (sessionId: string, callback: (data: { name: string; result: string }) => void) => {
-      const channel = `canvas-agent:tool-result:${sessionId}`;
-      const handler = (_event: Electron.IpcRendererEvent, data: { name: string; result: string }) =>
+    onToolInputDelta: (sessionId: string, callback: (data: { id: string; delta: string }) => void) => {
+      const channel = `canvas-agent:tool-input-delta:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string; delta: string }) =>
         callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onToolInputEnd: (sessionId: string, callback: (data: { id: string }) => void) => {
+      const channel = `canvas-agent:tool-input-end:${sessionId}`;
+      const handler = (_event: Electron.IpcRendererEvent, data: { id: string }) =>
+        callback(data);
+      ipcRenderer.on(channel, handler);
+      return () => {
+        ipcRenderer.removeListener(channel, handler);
+      };
+    },
+
+    onVisualStream: (
+      callback: (data: {
+        workspaceId: string;
+        toolCallId: string;
+        content: string;
+        done?: boolean;
+      }) => void,
+    ) => {
+      const channel = 'canvas-agent:visual-stream';
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        data: { workspaceId: string; toolCallId: string; content: string; done?: boolean },
+      ) => callback(data);
       ipcRenderer.on(channel, handler);
       return () => {
         ipcRenderer.removeListener(channel, handler);
@@ -282,5 +368,41 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     addImageToCanvas: (workspaceId: string, imagePath: string, title?: string) =>
       ipcRenderer.invoke("canvas-agent:add-image-to-canvas", { workspaceId, imagePath, title }),
+  },
+
+  artifacts: {
+    list: (workspaceId: string) =>
+      ipcRenderer.invoke("artifact:list", { workspaceId }),
+
+    get: (workspaceId: string, artifactId: string) =>
+      ipcRenderer.invoke("artifact:get", { workspaceId, artifactId }),
+
+    create: (workspaceId: string, input: unknown) =>
+      ipcRenderer.invoke("artifact:create", { workspaceId, input }),
+
+    addVersion: (workspaceId: string, artifactId: string, input: unknown) =>
+      ipcRenderer.invoke("artifact:add-version", { workspaceId, artifactId, input }),
+
+    update: (workspaceId: string, artifactId: string, patch: unknown) =>
+      ipcRenderer.invoke("artifact:update", { workspaceId, artifactId, patch }),
+
+    delete: (workspaceId: string, artifactId: string) =>
+      ipcRenderer.invoke("artifact:delete", { workspaceId, artifactId }),
+
+    pinToCanvas: (workspaceId: string, artifactId: string, placement?: unknown) =>
+      ipcRenderer.invoke("artifact:pin-to-canvas", { workspaceId, artifactId, placement }),
+
+    onChange: (
+      callback: (event: { workspaceId: string; artifactId: string; kind: "create" | "update" | "delete" }) => void,
+    ) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: { workspaceId: string; artifactId: string; kind: "create" | "update" | "delete" },
+      ) => callback(payload);
+      ipcRenderer.on("artifact:change", handler);
+      return () => {
+        ipcRenderer.removeListener("artifact:change", handler);
+      };
+    },
   }
 });

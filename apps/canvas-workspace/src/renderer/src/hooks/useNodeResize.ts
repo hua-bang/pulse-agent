@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const DEFAULT_MIN_WIDTH = 200;
 const DEFAULT_MIN_HEIGHT = 120;
@@ -17,6 +17,8 @@ export const useNodeResize = (
     minH: number;
     edge: ResizeEdge;
   } | null>(null);
+  const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
+  const moveFrame = useRef<number | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
 
   const onResizeStart = useCallback(
@@ -47,8 +49,8 @@ export const useNodeResize = (
     []
   );
 
-  const onResizeMove = useCallback(
-    (e: React.MouseEvent) => {
+  const flushResizeMove = useCallback(
+    (e: React.MouseEvent | MouseEvent) => {
       if (!resizing.current) return;
       const r = resizing.current;
       const dx = (e.clientX - r.startX) / scale;
@@ -69,9 +71,39 @@ export const useNodeResize = (
     [resizeNode, scale]
   );
 
+  const onResizeMove = useCallback(
+    (e: React.MouseEvent | MouseEvent) => {
+      lastMoveEvent.current = e;
+      if (moveFrame.current !== null) return;
+      moveFrame.current = requestAnimationFrame(() => {
+        moveFrame.current = null;
+        const nextEvent = lastMoveEvent.current;
+        if (nextEvent) flushResizeMove(nextEvent);
+      });
+    },
+    [flushResizeMove]
+  );
+
   const onResizeEnd = useCallback(() => {
+    if (moveFrame.current !== null) {
+      cancelAnimationFrame(moveFrame.current);
+      moveFrame.current = null;
+    }
+    const nextEvent = lastMoveEvent.current;
+    if (nextEvent) {
+      flushResizeMove(nextEvent);
+      lastMoveEvent.current = null;
+    }
     resizing.current = null;
     setResizingId(null);
+  }, [flushResizeMove]);
+
+  useEffect(() => {
+    return () => {
+      if (moveFrame.current !== null) {
+        cancelAnimationFrame(moveFrame.current);
+      }
+    };
   }, []);
 
   return { resizingId, onResizeStart, onResizeMove, onResizeEnd };

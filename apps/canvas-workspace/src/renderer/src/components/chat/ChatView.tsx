@@ -5,7 +5,7 @@ import type {
   ReactNode,
   RefObject,
 } from 'react';
-import type { AgentChatMessage, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatMessage, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
@@ -20,6 +20,7 @@ interface ChatViewProps {
   // Streaming + messages
   messages: AgentChatMessage[];
   loading: boolean;
+  workspaceId: string;
   streamingTools: ToolCallStatus[];
   messageTools: Map<number, ToolCallStatus[]>;
   collapsedSections: Set<number>;
@@ -57,6 +58,12 @@ interface ChatViewProps {
   onSubmit: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   contextComposer?: boolean;
+  modelStatus?: CanvasModelStatus;
+  modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
+  modelLabel?: string;
+  onSelectAutoModel?: () => Promise<void>;
+  onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
+  onOpenModelSettings?: () => void;
   executionMode?: 'auto' | 'ask';
   onToggleExecutionMode?: () => void;
 
@@ -75,6 +82,7 @@ export const ChatView = ({
   beforeHeader,
   messages,
   loading,
+  workspaceId,
   streamingTools,
   messageTools,
   collapsedSections,
@@ -106,6 +114,12 @@ export const ChatView = ({
   onSubmit,
   onAbort,
   contextComposer = false,
+  modelStatus,
+  modelSelection,
+  modelLabel,
+  onSelectAutoModel,
+  onSelectModel,
+  onOpenModelSettings,
   executionMode = 'auto',
   onToggleExecutionMode,
   onResizeStart,
@@ -124,6 +138,7 @@ export const ChatView = ({
           messages={messages}
           loading={loading}
           nodes={nodes}
+          workspaceId={workspaceId}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}
@@ -147,6 +162,12 @@ export const ChatView = ({
         selectedNodes={selectedNodes}
         contextComposer={contextComposer}
         executionMode={executionMode}
+        modelStatus={modelStatus}
+        modelSelection={modelSelection}
+        modelLabel={modelLabel}
+        onSelectAutoModel={onSelectAutoModel}
+        onSelectModel={onSelectModel}
+        onOpenModelSettings={onOpenModelSettings}
         editableRef={editableRef}
         mentionPopup={mentionOpen && mentionItems.length > 0 ? (
           <ChatMentionPopup

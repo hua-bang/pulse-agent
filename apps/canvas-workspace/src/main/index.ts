@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { existsSync, promises as fs } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -11,8 +11,12 @@ import { setupFileManagerIpc } from "./file-manager";
 import { setupFileWatcherIpc, teardownFileWatcher } from "./file-watcher";
 import { setupSkillInstallerIpc } from "./skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
+import { setupCanvasModelIpc } from "./canvas-model-ipc";
+import { setupCanvasPromptIpc } from "./canvas-prompt-ipc";
 import { setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
+import { setupArtifactIpc } from "./artifact-ipc";
+import { setupShellIpc, isSafeExternalUrl } from "./shell-ipc";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
 const preloadPath = join(currentDir, "../preload/index.mjs");
@@ -62,6 +66,29 @@ const createWindow = () => {
       // webContents. Main-process code reaches into each webview via its
       // webContents ID to pull rendered DOM text for the Canvas Agent.
       webviewTag: true
+    }
+  });
+
+  // Sandboxed iframe canvas nodes (HTML / AI / artifact previews) get
+  // `allow-popups` so their `<a target="_blank">` and `window.open()` reach
+  // the parent window. Without a handler here those popups would either
+  // open a useless blank Electron window or be denied outright — route
+  // every popup through the OS browser instead.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+
+  // Same idea for in-place navigations: the main renderer should never
+  // navigate away from the app shell. If a sandboxed iframe somehow tries
+  // to top-navigate, push the URL to the OS browser and cancel the load.
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url === win.webContents.getURL()) return;
+    event.preventDefault();
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
     }
   });
 
@@ -141,8 +168,12 @@ app.whenReady().then(() => {
   setupFileWatcherIpc();
   setupSkillInstallerIpc();
   setupCanvasAgentIpc();
+  setupCanvasModelIpc();
+  setupCanvasPromptIpc();
   setupWebviewRegistryIpc();
   setupHtmlGeneratorIpc();
+  setupArtifactIpc();
+  setupShellIpc();
   // MCP server disabled — canvas-cli is the preferred agent interface now.
   // startMCPServer();
   // void ensureMCPRegistered();

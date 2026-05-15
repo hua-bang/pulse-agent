@@ -1,55 +1,99 @@
-import type { CanvasNode } from '../types';
+import type { CanvasNode, GroupNodeData } from '../types';
 
-/** True when a node's center point falls inside a frame's bounding box. */
-export const isInsideFrame = (node: CanvasNode, frame: CanvasNode): boolean => {
+export const isContainerNode = (node: CanvasNode): boolean =>
+  node.type === 'frame' || node.type === 'group';
+
+/** True when a node's center point falls inside a container's bounding box. */
+export const isInsideContainer = (node: CanvasNode, container: CanvasNode): boolean => {
   const cx = node.x + node.width / 2;
   const cy = node.y + node.height / 2;
   return (
-    cx >= frame.x &&
-    cx <= frame.x + frame.width &&
-    cy >= frame.y &&
-    cy <= frame.y + frame.height
+    cx >= container.x &&
+    cx <= container.x + container.width &&
+    cy >= container.y &&
+    cy <= container.y + container.height
   );
 };
 
-const frameArea = (frame: CanvasNode) => frame.width * frame.height;
+export const isInsideFrame = isInsideContainer;
+
+const containerArea = (container: CanvasNode) => container.width * container.height;
+
+const getGroupChildIds = (node: CanvasNode): string[] | null => {
+  if (node.type !== 'group') return null;
+  const childIds = (node.data as GroupNodeData).childIds;
+  return Array.isArray(childIds) ? childIds : null;
+};
+
+const isExplicitGroupChild = (node: CanvasNode, group: CanvasNode): boolean => {
+  const childIds = getGroupChildIds(group);
+  return !!childIds?.includes(node.id);
+};
+
+const isCandidateParent = (node: CanvasNode, container: CanvasNode): boolean => {
+  const explicitGroupChild = isExplicitGroupChild(node, container);
+  if (explicitGroupChild) return true;
+
+  const groupChildIds = getGroupChildIds(container);
+  if (groupChildIds) {
+    // Groups with explicit childIds intentionally own only listed regular
+    // nodes, but still allow spatial nesting of other containers. This keeps
+    // a group placed inside another group attached even when it was not part
+    // of the original childIds set.
+    return isContainerNode(node) && isInsideContainer(node, container);
+  }
+
+  return isInsideContainer(node, container);
+};
 
 /**
- * For each node, find its parent frame — the smallest (by area) frame whose
- * bounding box contains the node's center. Returns a map of nodeId → parent
- * frameId (or null for root-level nodes).
+ * For each node, find its parent container — the smallest (by area) frame/group
+ * whose bounding box contains the node's center. Returns a map of nodeId →
+ * parent container id (or null for root-level nodes).
  *
- * When `n` is itself a frame, a candidate frame `f` can only be its parent if
- * `f` is strictly "bigger" than `n` in the total order (area desc, then id
- * asc). This guarantees acyclic parenthood even when two frames share a bbox.
+ * Group childIds are treated as directed parenthood and win over purely spatial
+ * containment. For container-in-container nesting, spatial candidates still use
+ * a strict area/id ordering to avoid cycles; explicit group membership is
+ * allowed even when two group boxes have the same size, which is common after
+ * wrapping an existing group in another group.
  */
-export const computeParentFrameMap = (
+export const computeParentContainerMap = (
   nodes: CanvasNode[]
 ): Map<string, string | null> => {
-  const frames = nodes.filter((n) => n.type === 'frame');
+  const containers = nodes.filter(isContainerNode);
   const map = new Map<string, string | null>();
 
   for (const n of nodes) {
     let best: CanvasNode | null = null;
     let bestArea = Infinity;
-    const nArea = n.type === 'frame' ? frameArea(n) : -1;
+    let bestIsExplicitGroupChild = false;
+    const nArea = isContainerNode(n) ? containerArea(n) : -1;
 
-    for (const f of frames) {
+    for (const f of containers) {
       if (f.id === n.id) continue;
-      if (!isInsideFrame(n, f)) continue;
+      const explicitGroupChild = isExplicitGroupChild(n, f);
+      if (!isCandidateParent(n, f)) continue;
 
-      const fArea = frameArea(f);
-      // For frame-in-frame, require strict "bigger" ancestor to avoid cycles.
-      if (n.type === 'frame') {
+      const fArea = containerArea(f);
+      // For spatial container-in-container, require strict "bigger" ancestor
+      // to avoid cycles. Explicit group membership is directed data, so allow
+      // it even when the wrapper resized to the same bbox as the child group.
+      if (isContainerNode(n) && !explicitGroupChild) {
         if (fArea < nArea) continue;
         if (fArea === nArea && f.id >= n.id) continue;
       }
 
-      if (fArea < bestArea) {
+      if (explicitGroupChild && !bestIsExplicitGroupChild) {
         best = f;
         bestArea = fArea;
-      } else if (fArea === bestArea && best && f.id < best.id) {
+        bestIsExplicitGroupChild = true;
+      } else if (explicitGroupChild === bestIsExplicitGroupChild && fArea < bestArea) {
         best = f;
+        bestArea = fArea;
+        bestIsExplicitGroupChild = explicitGroupChild;
+      } else if (explicitGroupChild === bestIsExplicitGroupChild && fArea === bestArea && best && f.id < best.id) {
+        best = f;
+        bestIsExplicitGroupChild = explicitGroupChild;
       }
     }
 
@@ -59,22 +103,24 @@ export const computeParentFrameMap = (
   return map;
 };
 
+export const computeParentFrameMap = computeParentContainerMap;
+
 /**
- * Collect all transitive descendants of a frame (nodes whose parent chain
- * passes through `frameId`). Does NOT include the frame itself.
+ * Collect all transitive descendants of a frame/group (nodes whose parent
+ * chain passes through `containerId`). Does NOT include the container itself.
  */
-export const collectFrameDescendants = (
-  frameId: string,
+export const collectContainerDescendants = (
+  containerId: string,
   nodes: CanvasNode[]
 ): CanvasNode[] => {
-  const parentMap = computeParentFrameMap(nodes);
+  const parentMap = computeParentContainerMap(nodes);
   const result: CanvasNode[] = [];
 
   for (const n of nodes) {
-    if (n.id === frameId) continue;
+    if (n.id === containerId) continue;
     let cur = parentMap.get(n.id) ?? null;
     while (cur) {
-      if (cur === frameId) {
+      if (cur === containerId) {
         result.push(n);
         break;
       }
@@ -85,12 +131,14 @@ export const collectFrameDescendants = (
   return result;
 };
 
+export const collectFrameDescendants = collectContainerDescendants;
+
 /**
- * Compute the nesting depth of each frame (root frames = 0, frame inside a
- * root frame = 1, and so on). Non-frames are not included in the result.
+ * Compute the nesting depth of each container (root containers = 0, container
+ * inside a root container = 1, and so on). Non-containers are not included.
  */
-export const computeFrameDepths = (nodes: CanvasNode[]): Map<string, number> => {
-  const parentMap = computeParentFrameMap(nodes);
+export const computeContainerDepths = (nodes: CanvasNode[]): Map<string, number> => {
+  const parentMap = computeParentContainerMap(nodes);
   const depths = new Map<string, number>();
 
   const depthOf = (id: string): number => {
@@ -103,8 +151,10 @@ export const computeFrameDepths = (nodes: CanvasNode[]): Map<string, number> => 
   };
 
   for (const n of nodes) {
-    if (n.type === 'frame') depthOf(n.id);
+    if (isContainerNode(n)) depthOf(n.id);
   }
 
   return depths;
 };
+
+export const computeFrameDepths = computeContainerDepths;

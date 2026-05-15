@@ -3,31 +3,48 @@ import './index.css';
 import { useCanvas } from '../../hooks/useCanvas';
 import { useNodes } from '../../hooks/useNodes';
 import { useNodeDrag } from '../../hooks/useNodeDrag';
-import { useNodeResize } from '../../hooks/useNodeResize';
+import { useNodeResize, type ResizeEdge } from '../../hooks/useNodeResize';
 import { useCanvasContext } from '../../hooks/useCanvasContext';
 import { useCanvasFit } from '../../hooks/useCanvasFit';
 import { useCanvasKeyboard } from '../../hooks/useCanvasKeyboard';
+import { useCanvasSearch } from '../../hooks/useCanvasSearch';
 import { useCanvasImagePaste } from '../../hooks/useCanvasImagePaste';
 import { useEdgeInteraction } from '../../hooks/useEdgeInteraction';
 import { useShapeDraw } from '../../hooks/useShapeDraw';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
 import { useAppShell } from '../AppShellProvider';
-import { NODE_TYPE_LABELS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
 import type { EdgeInteractionState } from '../../hooks/useEdgeInteraction';
 import type { PaletteCommand } from '../CommandPalette';
-import { computeFrameDepths } from '../../utils/frameHierarchy';
+import {
+  computeContainerDepths,
+  isInsideContainer,
+  isContainerNode,
+} from '../../utils/frameHierarchy';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { exportMindmapNodeToPng } from '../../utils/mindmapExport';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 
+// Focus-mode reframe sizing. Padding leaves breathing room around the
+// focused node so siblings can peek in at the edges (Heptabase-style),
+// and the maxScale cap prevents tiny nodes from being magnified into
+// blurry monsters.
+const FOCUS_MODE_PADDING = 120;
+const FOCUS_MODE_MAX_SCALE = 1.2;
+
+// Stable empty-set reference handed to child components when focus mode
+// is off. Reusing the same instance lets memoized consumers
+// (CanvasNodeView, CanvasEdgesLayer) skip re-renders that would
+// otherwise fire on every parent update. Treated as immutable by
+// convention — never mutated after creation.
+const EMPTY_FOCUS_SET: Set<string> = new Set();
+
 interface CanvasProps {
   canvasId: string;
   canvasName?: string;
   rootFolder?: string;
-  hidden?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
@@ -38,13 +55,15 @@ interface CanvasProps {
   onRenameComplete?: () => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
+  referenceDrawerOpen?: boolean;
+  onReferenceToggle?: () => void;
+  onPinReferenceNode?: (nodeId: string) => void;
 }
 
 export const Canvas = ({
   canvasId,
   canvasName,
   rootFolder,
-  hidden,
   onNodesChange,
   onSelectionChange,
   focusNodeId,
@@ -55,6 +74,9 @@ export const Canvas = ({
   onRenameComplete,
   chatPanelOpen,
   onChatToggle,
+  referenceDrawerOpen,
+  onReferenceToggle,
+  onPinReferenceNode,
 }: CanvasProps) => {
   const { confirm, notify, openShortcuts, isOverlayOpen } = useAppShell();
   const [activeTool, setActiveTool] = useState('select');
@@ -62,6 +84,13 @@ export const Canvas = ({
   const [clipboardNodes, setClipboardNodes] = useState<CanvasNode[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const [focusModeEnabled, setFocusModeEnabled] = useState(false);
+  // ID of the node currently rendered fullscreen. The node stays in
+  // `.canvas-transform` (so its iframe / editor / terminal DOM never
+  // moves and the embedded page doesn't reload). CSS overrides on
+  // `.canvas-transform` and the node itself fill the viewport when
+  // this is set — see Canvas/index.css and CanvasNodeView/index.css.
+  const [fullscreenNodeId, setFullscreenNodeId] = useState<string | null>(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoFitted = useRef(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -83,6 +112,8 @@ export const Canvas = ({
   // seeing a consistent stream. Track the gesture at the window level too
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
+  const nodesRef = useRef<CanvasNode[]>([]);
+  const pendingParentNodesRef = useRef<CanvasNode[] | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -90,6 +121,7 @@ export const Canvas = ({
     transform,
     setTransform,
     moving,
+    panning,
     handleWheel,
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
@@ -123,7 +155,16 @@ export const Canvas = ({
     duplicateNode,
     pasteNodes,
     groupNodes,
-  } = useNodes(canvasId, () => {});
+    ungroupNodes,
+    wrapNodesInFrame,
+  } = useNodes(canvasId, (savedTransform) => {
+    hasAutoFitted.current = true;
+    setTransform(savedTransform);
+  });
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   // Which edge (if any) is in label-edit mode. Driven by dbl-click on
@@ -131,6 +172,90 @@ export const Canvas = ({
   // EdgeLabel) so that selecting a different edge or deleting the edge
   // can forcibly end the edit session.
   const [editingEdgeLabelId, setEditingEdgeLabelId] = useState<string | null>(null);
+
+  const focusModeAvailable = selectedNodeIds.length === 1;
+
+  // Indexed lookup for O(1) access by id. Declared before the focus
+  // memos below so they can use it without falling back to O(n)
+  // `Array.find`, and reused later for the find-bar's match resolver.
+  const nodesById = useMemo(() => {
+    const m = new Map<string, CanvasNode>();
+    for (const n of nodes) m.set(n.id, n);
+    return m;
+  }, [nodes]);
+
+  // When focus mode is off we don't need to compute anything — every
+  // node renders as 'neutral'. Skipping the work avoids re-running the
+  // O(n²) container-descendant scan below on every drag/edit (the
+  // `nodes` array identity changes constantly), which is the dominant
+  // cost on large canvases.
+  const focusedNodeIds = useMemo(() => {
+    if (!focusModeEnabled) return EMPTY_FOCUS_SET;
+    // `selectedNodeIds` is already the authoritative source — the old
+    // `nodes.find` check only validated existence, which is guaranteed
+    // by the selection state machine and the cleanup effect that
+    // exits focus mode whenever the selection isn't exactly one node.
+    return new Set<string>(selectedNodeIds);
+  }, [focusModeEnabled, selectedNodeIds]);
+
+  const focusContextNodeIds = useMemo(() => {
+    if (!focusModeEnabled) return EMPTY_FOCUS_SET;
+
+    const context = new Set<string>();
+
+    for (const id of selectedNodeIds) {
+      const node = nodesById.get(id);
+      if (!node) continue;
+
+      // Only when the focused node is itself a frame/group do its
+      // descendants stay visible — focusing a container clearly means
+      // "I want to inspect what's inside it", so dimming the children
+      // would defeat the point. For regular nodes (files, text, etc.)
+      // we keep focus strictly on the selected node — edge neighbors
+      // and parent frames all get dimmed so the user has exactly one
+      // bright card on the canvas at a time.
+      if (isContainerNode(node)) {
+        for (const candidate of nodes) {
+          if (candidate.id === node.id) continue;
+          if (isInsideContainer(candidate, node)) {
+            context.add(candidate.id);
+          }
+        }
+      }
+    }
+
+    for (const id of selectedNodeIds) context.delete(id);
+    return context;
+  }, [focusModeEnabled, nodes, nodesById, selectedNodeIds]);
+
+  const focusModeActive = focusModeEnabled && focusedNodeIds.size > 0;
+
+  const exitFocusMode = useCallback(() => {
+    setFocusModeEnabled(false);
+  }, []);
+
+  const toggleFocusMode = useCallback(() => {
+    setFocusModeEnabled((current) => {
+      if (current) return false;
+      return focusModeAvailable;
+    });
+  }, [focusModeAvailable]);
+
+  const handleToggleFullscreen = useCallback((nodeId: string) => {
+    setFullscreenNodeId((current) => (current === nodeId ? null : nodeId));
+  }, []);
+
+  const exitFullscreen = useCallback(() => {
+    setFullscreenNodeId(null);
+  }, []);
+
+  // Drop the fullscreen pin if its node disappears (deleted, workspace
+  // swapped, etc.) — leaving it would render an overlay for a node that
+  // no longer exists in the tree.
+  useEffect(() => {
+    if (!fullscreenNodeId) return;
+    if (!nodesById.has(fullscreenNodeId)) setFullscreenNodeId(null);
+  }, [fullscreenNodeId, nodesById]);
 
   // Flush pending saves on window close or component unmount
   useEffect(() => {
@@ -159,6 +284,10 @@ export const Canvas = ({
   // Report nodes to parent only after loaded
   useEffect(() => {
     if (!loaded) return;
+    if (isDraggingRef.current) {
+      pendingParentNodesRef.current = nodes;
+      return;
+    }
     onNodesChange?.(canvasId, nodes);
   }, [canvasId, nodes, loaded, onNodesChange]);
 
@@ -169,11 +298,31 @@ export const Canvas = ({
     onSelectionChange?.(canvasId, selectedNodeIds);
   }, [canvasId, loaded, onSelectionChange, selectedNodeIds]);
 
+  // Focus mode is single-selection only — extending the selection
+  // (shift-click, marquee-add, Cmd+A, etc.) exits focus mode rather
+  // than ambiguously focusing a group of cards.
+  useEffect(() => {
+    if (selectedNodeIds.length !== 1) setFocusModeEnabled(false);
+  }, [selectedNodeIds]);
+
+  // Heptabase-style: when focus mode is engaged, auto-reframe the
+  // viewport so the focused node sits comfortably centered. Re-fires on
+  // selection change so click-to-refocus glides between cards instead
+  // of leaving the viewport pinned to whatever was visible first. Reads
+  // the latest nodes via ref so an in-flight drag doesn't trigger a
+  // reframe loop.
+  useEffect(() => {
+    if (!focusModeActive) return;
+    if (selectedNodeIds.length !== 1) return;
+    const node = nodesRef.current.find((n) => n.id === selectedNodeIds[0]);
+    if (node) handleFocusNode(node, { padding: FOCUS_MODE_PADDING, maxScale: FOCUS_MODE_MAX_SCALE });
+  }, [focusModeActive, selectedNodeIds, handleFocusNode]);
+
   // Handle external focus request (e.g. from sidebar layers panel)
   useEffect(() => {
     if (!loaded) return;
     if (!focusNodeId) return;
-    const node = nodes.find((n) => n.id === focusNodeId);
+    const node = nodesRef.current.find((n) => n.id === focusNodeId);
     if (node) {
       setSelectedNodeIds([node.id]);
       setHighlightedId(node.id);
@@ -186,7 +335,7 @@ export const Canvas = ({
   useEffect(() => {
     if (!loaded) return;
     if (!deleteNodeId) return;
-    if (nodes.some((n) => n.id === deleteNodeId)) {
+    if (nodesRef.current.some((n) => n.id === deleteNodeId)) {
       removeNode(deleteNodeId);
       setSelectedNodeIds((ids) => ids.filter((id) => id !== deleteNodeId));
     }
@@ -198,40 +347,22 @@ export const Canvas = ({
     if (!renameRequest) return;
     if (renameRequest.workspaceId !== canvasId) return;
 
-    const node = nodes.find((item) => item.id === renameRequest.nodeId);
+    const node = nodesRef.current.find((item) => item.id === renameRequest.nodeId);
     if (node && node.title !== renameRequest.title) {
       updateNode(node.id, { title: renameRequest.title });
     }
     onRenameComplete?.();
-  }, [renameRequest, loaded, canvasId, nodes, updateNode, onRenameComplete]);
+  }, [renameRequest, loaded, canvasId, updateNode, onRenameComplete]);
 
-  const requestRemoveNodes = useCallback(async (ids: string[]) => {
-    const victims = nodes.filter((node) => ids.includes(node.id));
+  const requestRemoveNodes = useCallback((ids: string[]) => {
+    const idSet = new Set(ids);
+    const victims = nodesRef.current.filter((node) => idSet.has(node.id));
     if (victims.length === 0) return;
-
-    const accepted = await confirm({
-      intent: 'danger',
-      title: victims.length === 1
-        ? `Delete "${getNodeDisplayLabel(victims[0])}"?`
-        : `Delete ${victims.length} selected nodes?`,
-      description: victims.length === 1
-        ? 'Connected arrows stay on the canvas and detach from the deleted node.'
-        : 'Connected arrows stay on the canvas and detach from the deleted nodes.',
-      confirmLabel: victims.length === 1 ? 'Delete node' : 'Delete nodes',
-    });
-    if (!accepted) return;
 
     removeNodes(victims.map((node) => node.id));
     const removedIds = new Set(victims.map((node) => node.id));
     setSelectedNodeIds((current) => current.filter((id) => !removedIds.has(id)));
-    notify({
-      tone: 'success',
-      title: victims.length === 1 ? 'Node deleted' : 'Nodes deleted',
-      description: victims.length === 1
-        ? getNodeDisplayLabel(victims[0])
-        : `${victims.length} items were removed from the canvas.`,
-    });
-  }, [nodes, confirm, removeNodes, notify]);
+  }, [removeNodes]);
 
   const requestRemoveEdge = useCallback(async (id: string) => {
     const edge = edges.find((item) => item.id === id);
@@ -259,30 +390,91 @@ export const Canvas = ({
 
   const groupSelectedNodes = useCallback(() => {
     if (selectedNodeIds.length === 0) return;
-    const frame = groupNodes(selectedNodeIds);
+    const group = groupNodes(selectedNodeIds);
+    if (!group) return;
+    setSelectedNodeIds([group.id]);
+    notify({
+      tone: 'success',
+      title: 'Nodes grouped',
+      description: `Grouped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'}.`,
+    });
+  }, [groupNodes, selectedNodeIds, notify]);
+
+  const ungroupSelectedNodes = useCallback(() => {
+    if (selectedNodeIds.length === 0) return;
+    const selectedGroups = nodesRef.current.filter((node) => selectedNodeIds.includes(node.id) && node.type === 'group');
+    if (selectedGroups.length === 0) return;
+    const releasedIds = ungroupNodes(selectedGroups.map((node) => node.id));
+    setSelectedNodeIds(releasedIds);
+    notify({
+      tone: 'success',
+      title: selectedGroups.length === 1 ? 'Group dissolved' : 'Groups dissolved',
+      description: releasedIds.length > 0
+        ? `Released ${releasedIds.length} child node${releasedIds.length === 1 ? '' : 's'}.`
+        : 'Removed empty group container.',
+    });
+  }, [selectedNodeIds, ungroupNodes, notify]);
+
+  const wrapSelectedNodesInFrame = useCallback(() => {
+    if (selectedNodeIds.length === 0) return;
+    const frame = wrapNodesInFrame(selectedNodeIds);
     if (!frame) return;
     setSelectedNodeIds([frame.id]);
     notify({
       tone: 'success',
-      title: 'Nodes grouped',
+      title: 'Frame created',
       description: `Wrapped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'} in a new frame.`,
     });
-  }, [groupNodes, selectedNodeIds, notify]);
+  }, [wrapNodesInFrame, selectedNodeIds, notify]);
+
+  const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
+    setSelectedNodeIds([node.id]);
+    setHighlightedId(node.id);
+    // In focus mode the dedicated reframe effect handles the zoom with
+    // tighter padding/maxScale — calling handleFocusNode here too would
+    // produce a double reframe at different scales (visible jitter).
+    if (!focusModeActive) handleFocusNode(node);
+  }, [handleFocusNode, focusModeActive]);
+
+  // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
+  // (searchOpen) because Find is iterative — the bar stays open while
+  // the user pages through matches. See useCanvasSearch for details.
+  const search = useCanvasSearch({ nodes });
+  const handleSearchMatchActivate = useCallback((node: CanvasNode) => {
+    // Reuse the existing viewport-focus pipeline so the camera pans
+    // and the node gets the brief highlight ring. The active match
+    // changes via next/prev or query edits — each transition focuses
+    // the canvas on that node.
+    handleNodeViewportFocus(node);
+  }, [handleNodeViewportFocus]);
 
   useCanvasKeyboard({
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: requestRemoveEdge,
-    duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes,
+    duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes,
     removeNodes: requestRemoveNodes,
     moveNodes, commitHistory,
-    searchOpen, setSearchOpen, contextMenu, setContextMenu,
+    searchOpen, setSearchOpen,
+    findOpen: search.open,
+    toggleFindBar: search.toggleBar,
+    closeFindBar: search.closeBar,
+    findNext: search.next,
+    findPrev: search.prev,
+    findHasMatches: search.matches.length > 0,
+    contextMenu, setContextMenu,
     setHighlightedId, handleFocusNode,
+    focusModeEnabled: focusModeActive,
+    canToggleFocusMode: focusModeAvailable,
+    onToggleFocusMode: toggleFocusMode,
+    onExitFocusMode: exitFocusMode,
+    fullscreenActive: fullscreenNodeId != null,
+    onExitFullscreen: exitFullscreen,
     keyboardLocked: isOverlayOpen,
   });
 
   useCanvasImagePaste({
     canvasId,
-    active: !hidden,
+    active: true,
     containerRef,
     screenToCanvas,
     addNode,
@@ -298,11 +490,31 @@ export const Canvas = ({
     }
   }, [highlightedId]);
 
-  const handleSearchSelect = useCallback((node: CanvasNode) => {
-    setSelectedNodeIds([node.id]);
-    setHighlightedId(node.id);
-    handleFocusNode(node);
-  }, [handleFocusNode]);
+  const handleSearchSelect = handleNodeViewportFocus;
+
+  const handleRemoveNode = useCallback((id: string) => {
+    void requestRemoveNodes([id]);
+  }, [requestRemoveNodes]);
+
+  const handleSelectNode = useCallback((id: string, mods?: { shift?: boolean; meta?: boolean }) => {
+    // Shift-click extends the selection (additive); Cmd/Ctrl-click
+    // toggles the clicked id in/out of the selection. Plain click
+    // collapses the selection to just this node — but only if it
+    // wasn't already selected, so a click on a member of an
+    // existing multi-selection preserves the group (matches Figma /
+    // Finder semantics and keeps multi-drag from collapsing on the
+    // mousedown that initiates it).
+    if (mods?.shift || mods?.meta) {
+      setSelectedNodeIds((current) =>
+        current.includes(id) ? current.filter((cid) => cid !== id) : [...current, id]
+      );
+    } else {
+      setSelectedNodeIds((current) =>
+        current.length > 1 && current.includes(id) ? current : [id]
+      );
+    }
+    setSelectedEdgeId(null);
+  }, []);
 
   const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds
@@ -310,17 +522,19 @@ export const Canvas = ({
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
     useNodeResize(resizeNode, transform.scale);
 
-  // sortedNodes is the render order (frames first, non-frames on top,
-  // deeper frames over shallower). It doubles as the hit-test stack
+  // sortedNodes is the render order (containers first, non-containers on top,
+  // deeper containers over shallower). It doubles as the hit-test stack
   // for edge interactions — we iterate it in reverse so the topmost
   // node under the cursor wins.
   const sortedNodes = useMemo(
     () => {
-      const depths = computeFrameDepths(nodes);
+      const depths = computeContainerDepths(nodes);
       return [...nodes].sort((a, b) => {
-        if (a.type === 'frame' && b.type !== 'frame') return -1;
-        if (a.type !== 'frame' && b.type === 'frame') return 1;
-        if (a.type === 'frame' && b.type === 'frame') {
+        const aIsContainer = isContainerNode(a);
+        const bIsContainer = isContainerNode(b);
+        if (aIsContainer && !bIsContainer) return -1;
+        if (!aIsContainer && bIsContainer) return 1;
+        if (aIsContainer && bIsContainer) {
           return (depths.get(a.id) ?? 0) - (depths.get(b.id) ?? 0);
         }
         return 0;
@@ -328,6 +542,19 @@ export const Canvas = ({
     },
     [nodes]
   );
+
+  const renderGroups = useMemo(() => {
+    const containers: CanvasNode[] = [];
+    const regular: CanvasNode[] = [];
+    for (const node of sortedNodes) {
+      if (isContainerNode(node)) containers.push(node);
+      else regular.push(node);
+    }
+    return { containers, regular };
+  }, [sortedNodes]);
+
+  const selectedNodeIdSet = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
+  const getAllNodes = useCallback(() => nodesRef.current, []);
 
   const getContainer = useCallback(() => containerRef.current, []);
 
@@ -527,23 +754,18 @@ export const Canvas = ({
   );
 
   const handleCreateNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
       if (!contextMenu) return;
       const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
       setSelectedNodeIds([node.id]);
       setContextMenu(null);
-      notify({
-        tone: 'success',
-        title: `${NODE_TYPE_LABELS[type]} added`,
-        description: 'Placed on the canvas.',
-      });
     },
-    [addNode, contextMenu, notify]
+    [addNode, contextMenu]
   );
 
   const handleExportMindmapImage = useCallback(
     async (nodeId: string) => {
-      const node = nodes.find((item) => item.id === nodeId);
+      const node = nodesRef.current.find((item) => item.id === nodeId);
       const api = window.canvasWorkspace?.file;
       if (!node || node.type !== 'mindmap' || !api) return;
 
@@ -580,11 +802,11 @@ export const Canvas = ({
         });
       }
     },
-    [nodes, notify],
+    [notify],
   );
 
   const handleToolbarAddNode = useCallback(
-    (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
+    (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const pos = screenToCanvas(rect.left + rect.width / 2, rect.top + rect.height / 2, containerRef.current);
@@ -598,19 +820,15 @@ export const Canvas = ({
         : 300;
       const halfH =
         type === 'frame' ? 200
+        : type === 'group' ? 120
         : type === 'text' ? 60
         : type === 'iframe' ? 200
         : type === 'mindmap' ? 210
         : 150;
       const node = addNode(type, pos.x - halfW, pos.y - halfH);
       setSelectedNodeIds([node.id]);
-      notify({
-        tone: 'success',
-        title: `${NODE_TYPE_LABELS[type]} added`,
-        description: 'Centered in the current viewport.',
-      });
     },
-    [addNode, screenToCanvas, notify]
+    [addNode, screenToCanvas]
   );
 
   // Command catalog for Cmd+K. Built lazily so each command captures
@@ -655,14 +873,57 @@ export const Canvas = ({
         id: 'group-selection',
         group: 'edit',
         title: selectionCount > 1
-          ? `Group ${selectionCount} selected nodes in a frame`
-          : 'Wrap selected node in a frame',
+          ? `Group ${selectionCount} selected nodes`
+          : 'Group selected node',
         shortcut: 'Cmd+G',
-        aliases: ['frame', 'wrap'],
+        aliases: ['group', 'bundle'],
         enabled: selectionCount > 0,
         run: () => {
           groupSelectedNodes();
         },
+      },
+      {
+        id: 'ungroup-selection',
+        group: 'edit',
+        title: 'Ungroup selected group',
+        shortcut: 'Cmd+Shift+G',
+        aliases: ['ungroup', 'dissolve group', 'release group'],
+        enabled: selectedNodeIds.some((id) => nodesRef.current.some((node) => node.id === id && node.type === 'group')),
+        run: () => {
+          ungroupSelectedNodes();
+        },
+      },
+      {
+        id: 'wrap-selection-in-frame',
+        group: 'edit',
+        title: selectionCount > 1
+          ? `Wrap ${selectionCount} selected nodes in frame`
+          : 'Wrap selected node in frame',
+        aliases: ['frame', 'wrap'],
+        enabled: selectionCount > 0,
+        run: () => {
+          wrapSelectedNodesInFrame();
+        },
+      },
+      {
+        id: 'pin-reference',
+        group: 'view',
+        title: selectionCount === 1 ? 'Pin selected node as reference' : 'Pin node as reference',
+        aliases: ['reference', 'pin', 'context'],
+        enabled: selectionCount === 1 && !!onPinReferenceNode,
+        run: () => {
+          const [nodeId] = selectedNodeIds;
+          if (nodeId) onPinReferenceNode?.(nodeId);
+        },
+      },
+      {
+        id: 'toggle-focus-mode',
+        group: 'view',
+        title: focusModeActive ? 'Exit Focus mode' : 'Focus selected node',
+        shortcut: 'F',
+        aliases: ['focus', 'spotlight', 'dim'],
+        enabled: focusModeActive || focusModeAvailable,
+        run: toggleFocusMode,
       },
       // Create — one entry per node type. Aliases catch the common
       // alternative names users type ("markdown" → file, "ai" → agent).
@@ -673,13 +934,6 @@ export const Canvas = ({
         hint: 'Markdown file backed by disk',
         aliases: ['file', 'markdown', 'doc', 'md'],
         run: () => handleToolbarAddNode('file'),
-      },
-      {
-        id: 'create-terminal',
-        group: 'create',
-        title: 'Open terminal',
-        aliases: ['shell', 'pty', 'console', 'bash'],
-        run: () => handleToolbarAddNode('terminal'),
       },
       {
         id: 'create-agent',
@@ -700,15 +954,16 @@ export const Canvas = ({
         id: 'create-frame',
         group: 'create',
         title: 'Add frame',
-        hint: 'Visual grouping rectangle',
-        aliases: ['group', 'box', 'container'],
+        hint: 'Named spatial container',
+        aliases: ['section', 'box', 'container'],
         run: () => handleToolbarAddNode('frame'),
       },
       {
         id: 'create-link',
         group: 'create',
-        title: 'Embed link',
-        aliases: ['iframe', 'web', 'url', 'browser'],
+        title: 'Web page',
+        hint: 'URL, HTML, AI, or blank page',
+        aliases: ['iframe', 'web', 'url', 'browser', 'blank', 'page', 'link'],
         run: () => handleToolbarAddNode('iframe'),
       },
       {
@@ -725,8 +980,8 @@ export const Canvas = ({
         title: 'Fit all nodes in view',
         hint: 'Zoom and center to show every node',
         aliases: ['zoom', 'overview', 'show all'],
-        enabled: nodes.length > 0,
-        run: () => fitAllNodes(nodes),
+        enabled: nodesRef.current.length > 0,
+        run: () => fitAllNodes(nodesRef.current),
       },
       {
         id: 'reset-zoom',
@@ -734,6 +989,14 @@ export const Canvas = ({
         title: 'Reset zoom to 100%',
         aliases: ['1:1', 'actual size'],
         run: () => resetTransform(),
+      },
+      {
+        id: 'toggle-reference',
+        group: 'view',
+        title: referenceDrawerOpen ? 'Hide reference drawer' : 'Show reference drawer',
+        aliases: ['reference', 'ref', 'drawer', 'context'],
+        enabled: !!onReferenceToggle,
+        run: () => onReferenceToggle?.(),
       },
       {
         id: 'toggle-chat',
@@ -760,13 +1023,20 @@ export const Canvas = ({
     duplicateNode,
     requestRemoveNodes,
     groupSelectedNodes,
+    ungroupSelectedNodes,
+    wrapSelectedNodesInFrame,
     handleToolbarAddNode,
     fitAllNodes,
-    nodes,
     resetTransform,
     chatPanelOpen,
     onChatToggle,
+    referenceDrawerOpen,
+    onReferenceToggle,
+    onPinReferenceNode,
     openShortcuts,
+    focusModeActive,
+    focusModeAvailable,
+    toggleFocusMode,
   ]);
 
   const handleCanvasClick = useCallback(
@@ -833,6 +1103,24 @@ export const Canvas = ({
     [canvasMouseMove]
   );
 
+  const handleSurfaceDragStart = useCallback((e: React.MouseEvent, node: CanvasNode) => {
+    if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
+    onDragStart(e, node);
+  }, [onDragStart]);
+
+  const handleSurfaceResizeStart = useCallback((
+    e: React.MouseEvent,
+    nodeId: string,
+    width: number,
+    height: number,
+    edge: ResizeEdge,
+    minWidth?: number,
+    minHeight?: number,
+  ) => {
+    if (e.button === 0) isDraggingRef.current = true;
+    onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
+  }, [onResizeStart]);
+
   const handleWindowDragMove = useCallback(
     (e: MouseEvent) => {
       onDragMove(e as unknown as React.MouseEvent);
@@ -842,12 +1130,17 @@ export const Canvas = ({
   );
 
   const handleMouseUp = useCallback(() => {
+    const wasNodeGesture = isDraggingRef.current;
     canvasMouseUp();
     onDragEnd();
     onResizeEnd();
-    commitHistory();
     isDraggingRef.current = false;
-  }, [canvasMouseUp, onDragEnd, onResizeEnd, commitHistory]);
+    if (wasNodeGesture) {
+      commitHistory();
+      onNodesChange?.(canvasId, pendingParentNodesRef.current ?? nodesRef.current);
+      pendingParentNodesRef.current = null;
+    }
+  }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -882,6 +1175,17 @@ export const Canvas = ({
     : resizingId ? ' canvas-container--resizing'
     : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
     : '';
+  const iframeShieldClass =
+    activeTool === 'hand' ||
+    moving ||
+    panning ||
+    marquee.active ||
+    shapeDraft !== null ||
+    isDraggingRef.current ||
+    resizingId !== null ||
+    isEdgeDragging(edgeInteractionState)
+      ? ' canvas-container--iframe-shielding'
+      : '';
 
   if (!loaded) {
     return (
@@ -896,8 +1200,7 @@ export const Canvas = ({
   return (
     <div
       ref={containerRef}
-      className={`canvas-container${cursorClass}`}
-      style={hidden ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
+      className={`canvas-container${cursorClass}${iframeShieldClass}`}
       onWheel={handleWheel}
       onMouseDown={handleRootMouseDown}
       onMouseMove={handleMouseMove}
@@ -911,6 +1214,8 @@ export const Canvas = ({
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       onClick={handleCanvasClick}
+      data-focus-mode={focusModeActive ? 'on' : undefined}
+      data-fullscreen={fullscreenNodeId ? 'on' : undefined}
     >
       <div className="canvas-grid" />
 
@@ -918,7 +1223,7 @@ export const Canvas = ({
         transform={transform}
         animating={animating}
         moving={moving}
-        sortedNodes={sortedNodes}
+        renderGroups={renderGroups}
         nodes={nodes}
         edges={edges}
         rootFolder={rootFolder}
@@ -927,7 +1232,7 @@ export const Canvas = ({
         draggingId={draggingId}
         draggingIds={draggingIds}
         resizingId={resizingId}
-        selectedNodeIds={selectedNodeIds}
+        selectedNodeIdSet={selectedNodeIdSet}
         selectedEdgeId={selectedEdgeId}
         highlightedId={highlightedId}
         externallyEditedIds={externallyEditedIds}
@@ -936,40 +1241,21 @@ export const Canvas = ({
         shapeDraft={shapeDraft}
         marqueeRect={marquee.rect}
         snapLines={snapLines}
-        onDragStart={(e, node) => {
-          if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
-          onDragStart(e, node);
-        }}
-        onResizeStart={(e, nodeId, width, height, edge, minWidth, minHeight) => {
-          if (e.button === 0) isDraggingRef.current = true;
-          onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
-        }}
+        focusedNodeIds={focusedNodeIds}
+        focusContextNodeIds={focusContextNodeIds}
+        focusModeEnabled={focusModeActive}
+        onDragStart={handleSurfaceDragStart}
+        onResizeStart={handleSurfaceResizeStart}
         onUpdate={updateNode}
         onAutoResize={resizeNode}
-        onRemove={(id) => {
-          void requestRemoveNodes([id]);
-        }}
-        onSelect={(id, mods) => {
-          // Shift-click extends the selection (additive); Cmd/Ctrl-click
-          // toggles the clicked id in/out of the selection. Plain click
-          // collapses the selection to just this node — but only if it
-          // wasn't already selected, so a click on a member of an
-          // existing multi-selection preserves the group (matches Figma /
-          // Finder semantics and keeps multi-drag from collapsing on the
-          // mousedown that initiates it).
-          if (mods?.shift || mods?.meta) {
-            setSelectedNodeIds((current) =>
-              current.includes(id) ? current.filter((cid) => cid !== id) : [...current, id]
-            );
-          } else {
-            setSelectedNodeIds((current) =>
-              current.length > 1 && current.includes(id) ? current : [id]
-            );
-          }
-          setSelectedEdgeId(null);
-        }}
+        onRemove={handleRemoveNode}
+        onSelect={handleSelectNode}
         onExportMindmapImage={handleExportMindmapImage}
-        onFocus={handleFocusNode}
+        onFocus={handleNodeViewportFocus}
+        onReference={onPinReferenceNode}
+        onUngroupSelectedGroups={ungroupSelectedNodes}
+        fullscreenNodeId={fullscreenNodeId}
+        onToggleFullscreen={handleToggleFullscreen}
         onSelectEdge={(id) => {
           setSelectedEdgeId(id);
           if (id) setSelectedNodeIds([]);
@@ -977,7 +1263,62 @@ export const Canvas = ({
         onEdgeHandleMouseDown={handleEdgeHandleMouseDown}
         onEdgeBodyMouseDown={handleEdgeBodyMouseDown}
         onEdgeBodyDoubleClick={handleEdgeBodyDoubleClick}
+        onExitFullscreen={exitFullscreen}
+        getAllNodes={getAllNodes}
       />
+
+      {/* Fullscreen-only chip. Becomes the single control surface for
+          fullscreen mode — Reference / Chat toggles plus the exit
+          button — so the user has one stable spot to reach all the
+          relevant actions, and we don't have to fight the node header
+          for top-right real estate. The node's own fullscreen toggle
+          is hidden while this is shown (see CanvasNodeView CSS). */}
+      {fullscreenNodeId && (
+        <div className="canvas-fullscreen-chip">
+          {onReferenceToggle && (
+            <button
+              className={`canvas-fullscreen-chip__btn${referenceDrawerOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
+              type="button"
+              onClick={onReferenceToggle}
+              title="Toggle Reference Drawer"
+              aria-label="Toggle Reference Drawer"
+            >
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M6 6h6M6 9h4M6 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          {onChatToggle && (
+            <button
+              className={`canvas-fullscreen-chip__btn${chatPanelOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
+              type="button"
+              onClick={onChatToggle}
+              title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
+              aria-label="Toggle AI Chat"
+            >
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
+                <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
+              </svg>
+            </button>
+          )}
+          <div className="canvas-fullscreen-chip__divider" />
+          <button
+            className="canvas-fullscreen-chip__btn"
+            type="button"
+            onClick={exitFullscreen}
+            title="Exit fullscreen (Esc)"
+            aria-label="Exit fullscreen"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M7 1v3a1 1 0 01-1 1H3M9 1v3a1 1 0 001 1h3M7 15v-3a1 1 0 00-1-1H3M9 15v-3a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <CanvasOverlays
         nodes={nodes}
@@ -988,6 +1329,8 @@ export const Canvas = ({
         selectionCount={selectedNodeIds.length}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
+        referenceDrawerOpen={referenceDrawerOpen}
+        onReferenceToggle={onReferenceToggle}
         onCreateNode={handleCreateNode}
         onCloseContextMenu={() => setContextMenu(null)}
         onOpenShortcuts={openShortcuts}
@@ -997,6 +1340,9 @@ export const Canvas = ({
         paletteCommands={paletteCommands}
         onSearchSelect={handleSearchSelect}
         onCloseSearch={() => setSearchOpen(false)}
+        findSearch={search}
+        findNodesById={nodesById}
+        onFindMatchActivate={handleSearchMatchActivate}
         onConnectMouseDown={handleConnectOverlayMouseDown}
         shapeToolActive={shapeToolActive}
         onShapeMouseDown={handleShapeOverlayMouseDown}
@@ -1015,6 +1361,7 @@ export const Canvas = ({
         onStartEditEdgeLabel={handleEdgeBodyDoubleClick}
         onCommitEditEdgeLabel={handleCommitEditEdgeLabel}
         onCancelEditEdgeLabel={handleCancelEditEdgeLabel}
+        focusModeEnabled={focusModeActive}
       />
     </div>
   );

@@ -1,6 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CanvasNode } from "../types";
-import { collectFrameDescendants } from "../utils/frameHierarchy";
+import { collectContainerDescendants, isContainerNode } from "../utils/frameHierarchy";
 import { computeSnap, type SnapBox, type SnapLine } from "../utils/canvasSnapping";
 
 /** Grid spacing (canvas-px) for the fallback grid snap. Lines up with
@@ -19,6 +19,10 @@ export const useNodeDrag = (
    *  fall back to the original "drag this node alone" behavior. */
   selectedIds: string[] = []
 ) => {
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
   const dragging = useRef<{
     id: string;
     startX: number;
@@ -34,17 +38,19 @@ export const useNodeDrag = (
      *  at drag start so a long drag isn't paying for hit-testing against
      *  changing geometry mid-stroke. */
     snapCandidates: SnapBox[];
-    /** Companions that move with the primary node — frame descendants
+    /** Companions that move with the primary node — container descendants
      *  and (when the primary is part of the active selection) every
      *  other selected node. */
     companions: Array<{ id: string; nodeX: number; nodeY: number }>;
   } | null>(null);
+  const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
+  const moveFrame = useRef<number | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  // Every node that moves with the drag (the primary node plus, for frames,
-  // every descendant frame / node, plus every other selected node when the
+  // Every node that moves with the drag (the primary node plus, for containers,
+  // every descendant container / node, plus every other selected node when the
   // primary is part of the active selection). Used so the whole group can
   // share the lifted `.canvas-node--dragging` stacking context — otherwise
-  // a dragged parent frame's opaque body would paint over its nested
+  // a dragged parent frame/group could paint over its nested
   // children, and multi-drag would visually only lift one node.
   const [draggingIds, setDraggingIds] = useState<Set<string>>(() => new Set());
   // Active alignment guides for the current drag. Cleared on dragEnd.
@@ -58,29 +64,31 @@ export const useNodeDrag = (
       e.stopPropagation();
       e.preventDefault();
 
+      const currentNodes = nodesRef.current;
+      const currentSelectedIds = selectedIdsRef.current;
       const companionMap = new Map<string, { id: string; nodeX: number; nodeY: number }>();
 
-      // If dragging a frame, also drag every transitive descendant — both
-      // regular nodes and nested child frames.
-      if (node.type === "frame") {
-        for (const desc of collectFrameDescendants(node.id, nodes)) {
+      // If dragging a container, also drag every transitive descendant — both
+      // regular nodes and nested child containers.
+      if (isContainerNode(node)) {
+        for (const desc of collectContainerDescendants(node.id, currentNodes)) {
           companionMap.set(desc.id, { id: desc.id, nodeX: desc.x, nodeY: desc.y });
         }
       }
 
       // Multi-select drag: if the primary node is part of the active
       // selection, every other selected node tags along (and, recursively,
-      // their frame descendants — so dragging a selected frame still moves
-      // its children).
-      if (selectedIds.includes(node.id) && selectedIds.length > 1) {
-        const nodeById = new Map(nodes.map((n) => [n.id, n] as const));
-        for (const id of selectedIds) {
+      // their container descendants — so dragging a selected frame/group
+      // still moves its children).
+      if (currentSelectedIds.includes(node.id) && currentSelectedIds.length > 1) {
+        const nodeById = new Map(currentNodes.map((n) => [n.id, n] as const));
+        for (const id of currentSelectedIds) {
           if (id === node.id) continue;
           const peer = nodeById.get(id);
           if (!peer) continue;
           companionMap.set(peer.id, { id: peer.id, nodeX: peer.x, nodeY: peer.y });
-          if (peer.type === "frame") {
-            for (const desc of collectFrameDescendants(peer.id, nodes)) {
+          if (isContainerNode(peer)) {
+            for (const desc of collectContainerDescendants(peer.id, currentNodes)) {
               if (desc.id === node.id) continue;
               if (!companionMap.has(desc.id)) {
                 companionMap.set(desc.id, { id: desc.id, nodeX: desc.x, nodeY: desc.y });
@@ -94,7 +102,7 @@ export const useNodeDrag = (
       // Snap candidates exclude the primary and every companion — we
       // don't want a dragged group to snap to itself.
       const dragSet = new Set([node.id, ...companions.map((c) => c.id)]);
-      const snapCandidates: SnapBox[] = nodes
+      const snapCandidates: SnapBox[] = currentNodes
         .filter((n) => !dragSet.has(n.id))
         .map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.width, height: n.height }));
 
@@ -112,11 +120,11 @@ export const useNodeDrag = (
       setDraggingId(node.id);
       setDraggingIds(new Set(dragSet));
     },
-    [nodes, selectedIds]
+    []
   );
 
-  const onDragMove = useCallback(
-    (e: React.MouseEvent) => {
+  const flushDragMove = useCallback(
+    (e: React.MouseEvent | MouseEvent) => {
       if (!dragging.current) return;
       const d = dragging.current;
       const rawDx = (e.clientX - d.startX) / scale;
@@ -185,11 +193,41 @@ export const useNodeDrag = (
     [moveNode, moveNodes, scale]
   );
 
+  const onDragMove = useCallback(
+    (e: React.MouseEvent | MouseEvent) => {
+      lastMoveEvent.current = e;
+      if (moveFrame.current !== null) return;
+      moveFrame.current = requestAnimationFrame(() => {
+        moveFrame.current = null;
+        const nextEvent = lastMoveEvent.current;
+        if (nextEvent) flushDragMove(nextEvent);
+      });
+    },
+    [flushDragMove]
+  );
+
   const onDragEnd = useCallback(() => {
+    if (moveFrame.current !== null) {
+      cancelAnimationFrame(moveFrame.current);
+      moveFrame.current = null;
+    }
+    const nextEvent = lastMoveEvent.current;
+    if (nextEvent) {
+      flushDragMove(nextEvent);
+      lastMoveEvent.current = null;
+    }
     dragging.current = null;
     setDraggingId(null);
     setDraggingIds(new Set());
     setSnapLines([]);
+  }, [flushDragMove]);
+
+  useEffect(() => {
+    return () => {
+      if (moveFrame.current !== null) {
+        cancelAnimationFrame(moveFrame.current);
+      }
+    };
   }, []);
 
   return { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd };

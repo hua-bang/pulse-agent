@@ -574,6 +574,7 @@ function buildMemoryRecallTool(
   return {
     name: 'memory_recall',
     description: 'Recall relevant memory items for the current user/session when needed.',
+    defer_loading: true,
     inputSchema: MEMORY_RECALL_INPUT_SCHEMA,
     execute: async ({ query, limit, scope }) => {
       const runContext = requireRunContext(getRunContext);

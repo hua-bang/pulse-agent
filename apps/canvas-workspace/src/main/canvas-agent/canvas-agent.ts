@@ -8,8 +8,8 @@
 
 import { Engine } from 'pulse-coder-engine';
 import { builtInSkillsPlugin } from 'pulse-coder-engine/built-in';
-import { createOpenAI } from '@ai-sdk/openai';
 import type { ModelMessage } from 'ai';
+import { resolveCanvasModel } from './model-config';
 import {
   buildWorkspaceSummary,
   formatSummaryForPrompt,
@@ -17,13 +17,84 @@ import {
 } from './context-builder';
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
-import type { CanvasAgentConfig, CanvasAgentImageAttachment, CanvasAgentMessage, WorkspaceSummary } from './types';
+import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
+import type {
+  CanvasAgentConfig,
+  CanvasAgentImageAttachment,
+  CanvasAgentMessage,
+  CanvasAgentToolCall,
+  WorkspaceSummary,
+} from './types';
 
 interface CanvasAgentRequestContext {
   executionMode?: 'auto' | 'ask';
   scope?: 'current_canvas' | 'selected_nodes';
   selectedNodes?: Array<{ id: string; title: string; type: string }>;
   quickAction?: string;
+}
+
+const CANVAS_AGENT_MAX_STEPS = 200;
+
+function stringifyToolResult(raw: unknown): string {
+  return typeof raw === 'string' ? raw : JSON.stringify(raw) ?? String(raw);
+}
+
+function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall[] {
+  const toolCalls: CanvasAgentToolCall[] = [];
+  const byToolCallId = new Map<string, CanvasAgentToolCall>();
+
+  const findOrCreate = (toolCallId: string, name: string): CanvasAgentToolCall => {
+    const existing = byToolCallId.get(toolCallId);
+    if (existing) {
+      if (!existing.name && name) existing.name = name;
+      return existing;
+    }
+
+    const tool: CanvasAgentToolCall = {
+      id: toolCalls.length + 1,
+      name,
+      toolCallId,
+      status: 'running',
+    };
+    toolCalls.push(tool);
+    byToolCallId.set(toolCallId, tool);
+    return tool;
+  };
+
+  for (const message of messages) {
+    const content = (message as any).content;
+    if (!Array.isArray(content)) continue;
+
+    for (const part of content) {
+      if (part?.type === 'tool-call') {
+        const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+        const name = typeof part.toolName === 'string' ? part.toolName : '';
+        if (!toolCallId || !name) continue;
+        const tool = findOrCreate(toolCallId, name);
+        tool.name = name;
+        tool.args = part.input ?? part.args;
+      }
+
+      if (part?.type === 'tool-result') {
+        const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
+        const name = typeof part.toolName === 'string' ? part.toolName : '';
+        if (!toolCallId || !name) continue;
+        const tool = findOrCreate(toolCallId, name);
+        tool.name = name;
+        tool.status = 'done';
+        tool.result = stringifyToolResult(part.output ?? part.result);
+      }
+    }
+  }
+
+  return toolCalls;
+}
+
+function sessionMessageToModelMessage(message: CanvasAgentMessage): ModelMessage {
+  const content = message.attachments?.length
+    ? `${message.content}\n\nAttached image files:\n${message.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
+    : message.content;
+  return { role: message.role, content } as ModelMessage;
 }
 
 // ─── System prompt ─────────────────────────────────────────────────
@@ -57,6 +128,62 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`canvas_delete_node\`: Remove a node from the canvas
 - \`canvas_move_node\`: Reposition a node
 - \`canvas_ask_user\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing.
+
+## Visualization Tools — visual_render is the DEFAULT
+
+**Default to \`visual_render\` for ANY visual request.** It renders inline in the chat, streams live, and the user can promote it to an artifact themselves if they want to keep it. Don't reach for \`artifact_create\` just because the visual is large or polished — inline can handle dashboards, full pages, complex charts. Inline is the right home for *most* visual answers.
+
+- \`visual_render\` (use for ~90% of visual requests): temporary inline visual rendered inside the current chat message. Pick this whenever the user asks for a chart, diagram, mockup, illustration, comparison view, flow, or "show me X" — basically anything visual that isn't *explicitly* a deliverable they're going to reuse later. The visual lives with the message; the user has a one-click "Save as artifact" button if they decide they want to keep it.
+- \`artifact_create\`: **only use when the user EXPLICITLY signals they want a persistent artifact.** Trigger phrases: "save this as an artifact", "create an artifact for X", "I want to keep this", "let's iterate on this — make it an artifact", "build me a reusable component", "I'll edit this over time". If the user just says "make me a dashboard" or "build a landing page", that's still \`visual_render\` — they're asking to SEE it, not to manage it as a versioned object. When in doubt, prefer \`visual_render\` — the user can promote later, but they can't easily demote.
+- \`artifact_pin_to_canvas\`: only after \`artifact_create\` — pins an existing artifact onto the spatial canvas as an iframe node. Use when the user wants to compare multiple options side-by-side or build a visual workspace. Always pin an artifact you already created; do NOT use \`canvas_create_node\` with mode=ai for this.
+
+Decision rules (apply in order, stop at first match):
+1. User mentioned "artifact" by name, or asked to save/keep/iterate/version a visual → \`artifact_create\`
+2. User asked to lay out / pin / put on canvas / compare side-by-side → \`artifact_create\` followed by \`artifact_pin_to_canvas\`
+3. **Everything else visual** → \`visual_render\` (including "build", "design", "make", "create", "draw", "show", "visualize", "chart", "diagram")
+
+For HTML content in any of the three: emit a single self-contained \`<!DOCTYPE html>\` document. External CDNs (Chart.js, D3, Three.js, Mermaid) work fine. Inline all CSS in \`<head>\` and all scripts at the very end of \`<body>\` so it renders progressively.
+
+### Inline visual style — match the conversation, don't shout
+
+\`visual_render\` is **inline in the chat**, not a marketing landing page. Aim for the visual register of a clean documentation diagram (think Notion / Linear / a thoughtful README), NOT a SaaS dashboard hero section. Producing the right look is part of choosing the right tool.
+
+**Hard NOs for visual_render** (these break the inline aesthetic):
+- NO gradient backgrounds on headers, cards, or anywhere
+- NO drop shadows, glows, or elevation effects
+- NO multi-color "rainbow" palettes — pick one accent + neutrals
+- NO nested cards (a bordered card containing another bordered card)
+- NO category "tag pills" or "badges" with colored backgrounds when a plain label would do
+- NO oversized headers with bright fills — section labels should be small grey text
+- NO box-shadow, NO 16px+ border-radius, NO heavy padding
+
+**Diagram look (flowcharts, step sequences, pipelines, decision trees)**:
+- Layout: vertical stack of step boxes connected by simple ↓ arrows (Unicode arrow or thin SVG line)
+- Step box: solid pastel fill, 1px border in the same hue but slightly darker, border-radius 8px, padding 14-18px
+- Color semantics (use sparingly — 2-3 categories max per diagram):
+  - Input / data sources → very light blue \`#eff6ff\` bg, \`#bfdbfe\` border
+  - Process / transformation → very light slate \`#f1f5f9\` bg, \`#cbd5e1\` border
+  - Decision / branch → very light amber \`#fef3c7\` bg, \`#fde68a\` border
+  - Output / result → very light green \`#ecfdf5\` bg, \`#a7f3d0\` border
+- Numbered marker (when there's a clear sequence): small circle ①②③ on the LEFT margin in muted grey \`#94a3b8\`, NOT inside the box
+- Title row: bold 14-15px dark slate \`#1e293b\`; description below in 13px medium slate \`#64748b\`
+- Arrow between steps: \`↓\` in \`#cbd5e1\`, centered, 12px vertical margin
+
+**Chart / data viz look**:
+- Use Chart.js (preferred) or D3. Single accent color \`#6366f1\` for primary series, with secondary in greyscale (\`#94a3b8\`, \`#cbd5e1\`).
+- Axes / gridlines in \`#e2e8f0\`. Axis labels \`#64748b\` 11px.
+- No background fill, no chart title bar — let the surrounding chat text provide context.
+- Animations on enter only (fade + grow), nothing looping.
+
+**Common base CSS to start from**:
+\`\`\`css
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif;color:#1e293b;background:transparent}
+\`\`\`
+
+Keep \`<body>\` background transparent — the chat already provides one. Width auto-fits the message column; don't set a fixed width.
+
+\`artifact_create\` may use a richer dashboard / product-quality aesthetic (gradients, shadows, brand color) since it surfaces in a side drawer rather than inline — but \`visual_render\` should stay restrained.
 
 ### Delegating Tasks to Agent Nodes
 Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
@@ -117,15 +244,42 @@ function buildSystemPrompt(
   summary: WorkspaceSummary | null,
   mentionedCanvases: Array<{ id: string; name: string }> = [],
   requestContext?: CanvasAgentRequestContext,
+  promptProfileSection: string = '',
 ): string {
+  const selectedNodes = requestContext?.selectedNodes ?? [];
+
+  // When the user has nodes selected, surface them BEFORE the full workspace
+  // summary so the focused subset is the first thing the model anchors on.
+  let selectionBlock = '';
+  if (selectedNodes.length > 0) {
+    const count = selectedNodes.length;
+    const noun = count === 1 ? 'node' : 'nodes';
+    const lines: string[] = [
+      '',
+      `## Current Focus — ${count} Selected ${noun}`,
+      `The user has selected ${count} canvas ${noun} and these are the PRIMARY context for the current message. Treat any of the following references as pointing to this selection unless the user names a different node explicitly:`,
+      '- English: "this", "it", "that", "these", "those", "the selected", "the selection", "the highlighted node(s)", "the current node"',
+      '- 中文：「这个」「它」「这些」「那些」「这条」「选中的」「选中节点」「当前节点」「上面的」「上面这个」「目前这个」',
+      '',
+      'Selected nodes:',
+    ];
+    for (const node of selectedNodes) {
+      lines.push(`- **${node.title}** — nodeId: \`${node.id}\`, type: \`${node.type}\``);
+    }
+    lines.push('');
+    lines.push(
+      `When the user\'s message is about content you need to inspect, call \`canvas_read_node\` on the nodeId(s) above FIRST — do not guess from the title alone, and do not read unrelated nodes from the full canvas summary below unless the user asks you to.`,
+    );
+    selectionBlock = lines.join('\n') + '\n';
+  }
+
   let base = summary
-    ? BASE_SYSTEM_PROMPT + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
-    : BASE_SYSTEM_PROMPT + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
+    ? BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
+    : BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
 
   if (requestContext) {
     const mode = requestContext.executionMode ?? 'auto';
     const scope = requestContext.scope ?? 'current_canvas';
-    const selectedNodes = requestContext.selectedNodes ?? [];
     const lines: string[] = [
       '',
       '## Current Request Context',
@@ -138,11 +292,9 @@ function buildSystemPrompt(
     }
 
     if (selectedNodes.length > 0) {
-      lines.push('- Selected canvas nodes:');
-      for (const node of selectedNodes) {
-        lines.push(`  - ${node.title} — nodeId: \`${node.id}\`, type: \`${node.type}\``);
-      }
-      lines.push('When the user says "these nodes", "the selection", or similar, use the selected canvas nodes above.');
+      lines.push(
+        `- Selection: ${selectedNodes.length} node(s) — see "Current Focus" above for the authoritative list.`,
+      );
     }
 
     if (mode === 'auto') {
@@ -158,7 +310,7 @@ function buildSystemPrompt(
     base += lines.join('\n') + '\n';
   }
 
-  if (mentionedCanvases.length === 0) return base;
+  if (mentionedCanvases.length === 0) return base + promptProfileSection;
 
   const lines: string[] = [
     '',
@@ -187,7 +339,7 @@ function buildSystemPrompt(
     lines.push(`- **${c.name}** — workspaceId: \`${c.id}\``);
   }
   lines.push('');
-  return base + lines.join('\n');
+  return base + lines.join('\n') + promptProfileSection;
 }
 
 // ─── Canvas Agent ──────────────────────────────────────────────────
@@ -221,11 +373,7 @@ export class CanvasAgent {
       enginePlugins: {
         plugins: [builtInSkillsPlugin],
       },
-      llmProvider: createOpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-        baseURL: process.env.OPENAI_API_URL,
-      }),
-      model: config.model ?? process.env.OPENAI_MODEL ?? 'gpt-4o',
+      model: config.model,
       tools: canvasTools,
     });
   }
@@ -256,12 +404,15 @@ export class CanvasAgent {
   async chat(
     message: string,
     onText?: (delta: string) => void,
-    onToolCall?: (data: { name: string; args: any }) => void,
-    onToolResult?: (data: { name: string; result: string }) => void,
+    onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
+    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: CanvasAgentRequestContext,
     attachments: CanvasAgentImageAttachment[] = [],
+    onToolInputStart?: (data: { id: string; toolName: string }) => void,
+    onToolInputDelta?: (data: { id: string; delta: string }) => void,
+    onToolInputEnd?: (data: { id: string }) => void,
   ): Promise<string> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
@@ -278,7 +429,15 @@ export class CanvasAgent {
       mentionedCanvases = await resolveWorkspaceNames(unique);
     }
 
-    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext);
+    let promptProfileSection = '';
+    try {
+      const profile = await getPromptProfile();
+      promptProfileSection = formatPromptProfileForSystem(profile);
+    } catch (err) {
+      console.warn('[canvas-agent] Failed to load prompt profile, using defaults:', err);
+    }
+
+    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection);
 
     const attachmentPrompt = attachments.length > 0
       ? [
@@ -329,10 +488,16 @@ export class CanvasAgent {
         }
       : undefined;
 
+    const responseMessages: ModelMessage[] = [];
+
     try {
+      const modelConfig = await resolveCanvasModel();
       const resultText = await this.engine.run(context, {
+        provider: modelConfig.provider,
+        model: this.config.model ?? modelConfig.model,
+        modelType: modelConfig.modelType,
         systemPrompt,
-        maxSteps: 10,
+        maxSteps: CANVAS_AGENT_MAX_STEPS,
         abortSignal: abortController.signal,
         onClarificationRequest: engineClarificationHandler,
         onText,
@@ -341,7 +506,7 @@ export class CanvasAgent {
               // AI SDK v6 uses `input`; older versions use `args`
               const args = chunk.input ?? chunk.args;
               console.info('[canvas-agent] tool-call chunk keys:', Object.keys(chunk), 'input:', chunk.input, 'args:', chunk.args);
-              onToolCall({ name: chunk.toolName, args });
+              onToolCall({ name: chunk.toolName, args, toolCallId: chunk.toolCallId });
             }
           : undefined,
         onToolResult: onToolResult
@@ -352,12 +517,35 @@ export class CanvasAgent {
               onToolResult({
                 name: chunk.toolName,
                 result: typeof raw === 'string' ? raw : JSON.stringify(raw),
+                toolCallId: chunk.toolCallId,
               });
+            }
+          : undefined,
+        onToolInputStart: onToolInputStart
+          ? (chunk: { id: string; toolName: string }) => {
+              console.info('[canvas-agent] tool-input-start', chunk.toolName, chunk.id);
+              onToolInputStart(chunk);
+            }
+          : undefined,
+        onToolInputDelta: onToolInputDelta
+          ? (chunk: { id: string; delta: string }) => {
+              // Sample log — full delta firehose is too noisy for a long run.
+              if (Math.random() < 0.02) {
+                console.info('[canvas-agent] tool-input-delta (sampled)', chunk.id, chunk.delta.length + 'B');
+              }
+              onToolInputDelta(chunk);
+            }
+          : undefined,
+        onToolInputEnd: onToolInputEnd
+          ? (chunk: { id: string }) => {
+              console.info('[canvas-agent] tool-input-end', chunk.id);
+              onToolInputEnd(chunk);
             }
           : undefined,
         onResponse: (msgs: ModelMessage[]) => {
           for (const msg of msgs) {
             this.messages.push(msg);
+            responseMessages.push(msg);
           }
         },
         onCompacted: (newMessages: ModelMessage[]) => {
@@ -368,8 +556,17 @@ export class CanvasAgent {
 
       const responseText = resultText || '(no response)';
 
-      // Persist assistant response
-      this.sessionStore.addMessage({ role: 'assistant', content: responseText, timestamp: Date.now() });
+      // Persist assistant response together with the tool-call frames that
+      // produced it so saved/restored chat sessions can render tool chips,
+      // inline visuals, artifacts, and generated images instead of losing
+      // them after reload.
+      const toolCalls = modelMessagesToToolCalls(responseMessages);
+      this.sessionStore.addMessage({
+        role: 'assistant',
+        content: responseText,
+        timestamp: Date.now(),
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+      });
 
       return responseText;
     } finally {
@@ -463,13 +660,11 @@ export class CanvasAgent {
   async loadSession(sessionId: string): Promise<CanvasAgentMessage[]> {
     const session = await this.sessionStore.loadSession(sessionId);
     if (!session) return [];
-    // Rebuild in-memory messages from loaded session
-    this.messages = session.messages.map(m => ({
-      role: m.role,
-      content: m.attachments?.length
-        ? `${m.content}\n\nAttached image files:\n${m.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
-        : m.content,
-    } as any));
+    // Rebuild in-memory model context from loaded session. Stored UI
+    // tool-call metadata is intentionally excluded here; the AI SDK response
+    // messages already carry tool frames while a run is active, but persisted
+    // sessions only need text turns for follow-up context.
+    this.messages = session.messages.map(sessionMessageToModelMessage);
     return session.messages;
   }
 
@@ -479,12 +674,7 @@ export class CanvasAgent {
    */
   async loadCrossWorkspaceSession(loadedMessages: CanvasAgentMessage[]): Promise<void> {
     await this.sessionStore.startSession();
-    this.messages = loadedMessages.map(m => ({
-      role: m.role,
-      content: m.attachments?.length
-        ? `${m.content}\n\nAttached image files:\n${m.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
-        : m.content,
-    } as any));
+    this.messages = loadedMessages.map(sessionMessageToModelMessage);
     // Persist each message into the new current session
     for (const m of loadedMessages) {
       this.sessionStore.addMessage(m);

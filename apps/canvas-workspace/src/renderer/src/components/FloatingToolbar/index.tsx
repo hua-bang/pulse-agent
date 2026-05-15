@@ -4,9 +4,11 @@ import { ShapeToolButton } from './ShapeToolButton';
 interface Props {
   activeTool: string;
   onToolChange: (tool: string) => void;
-  onAddNode: (type: "file" | "terminal" | "frame" | "agent" | "text" | "iframe" | "mindmap") => void;
+  onAddNode: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap") => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
+  referenceDrawerOpen?: boolean;
+  onReferenceToggle?: () => void;
 }
 
 const tools = [
@@ -63,6 +65,8 @@ export const FloatingToolbar = ({
   onAddNode,
   chatPanelOpen,
   onChatToggle,
+  referenceDrawerOpen,
+  onReferenceToggle,
 }: Props) => {
   return (
     <div className="floating-toolbar">
@@ -89,8 +93,37 @@ export const FloatingToolbar = ({
         </>
       )}
 
+      {onReferenceToggle && (
+        <>
+          <div className="toolbar-group">
+            <button
+              className={`toolbar-btn${referenceDrawerOpen ? " toolbar-btn--active" : ""}`}
+              onClick={onReferenceToggle}
+              title="Toggle Reference panel"
+              aria-label="Toggle Reference panel"
+            >
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path
+                  d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
+                  stroke="currentColor"
+                  strokeWidth="1.35"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M6.6 6.2h4.8M6.6 8.7h3"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+          <div className="toolbar-divider" />
+        </>
+      )}
+
       <div className="toolbar-group">
-        {tools.map((t) => (
+        {tools.filter(tool => tool).map((t) => (
           <button
             key={t.id}
             className={`toolbar-btn${activeTool === t.id ? " toolbar-btn--active" : ""}`}
@@ -138,23 +171,6 @@ export const FloatingToolbar = ({
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
-          onClick={() => onAddNode("terminal")}
-          title="Add Terminal Card"
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <rect
-              x="2" y="3" width="14" height="12" rx="2"
-              stroke="currentColor" strokeWidth="1.3"
-            />
-            <path
-              d="M5 8l2.5 2L5 12M9 12h4"
-              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
-            />
-          </svg>
-          <span className="toolbar-btn-label">Terminal</span>
-        </button>
-        <button
-          className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("frame")}
           title="Add Frame"
         >
@@ -173,7 +189,7 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("iframe")}
-          title="Add Link (embed a web page)"
+          title="Add Web Page"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.3" />
@@ -182,23 +198,23 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
             />
           </svg>
-          <span className="toolbar-btn-label">Link</span>
+          <span className="toolbar-btn-label">Web</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("agent")}
-          title="Add Agent Card"
+          title="Add Coding Agent"
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
             <path
-              d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5"
-              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
+              d="M6.5 5L3 9l3.5 4M11.5 5L15 9l-3.5 4M9.8 4.5l-1.6 9"
+              stroke="currentColor"
+              strokeWidth="1.35"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-            <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
-            <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
           </svg>
-          <span className="toolbar-btn-label">Agent</span>
+          <span className="toolbar-btn-label">Coding</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"

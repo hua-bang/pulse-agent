@@ -72,6 +72,8 @@ const PAGE_MAX_BYTES = 200_000;
  * message to the user.
  */
 async function fetchPageText(url: string): Promise<string> {
+  if (url === 'about:blank') return '[blank web page — no content]';
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PAGE_FETCH_TIMEOUT_MS);
   try {
@@ -150,6 +152,7 @@ async function readIframeContent(
   url: string,
 ): Promise<string> {
   if (!url) return '[empty link node — no URL set]';
+  if (url === 'about:blank') return '[blank web page — no content]';
 
   let liveError: string | null = null;
   try {
@@ -298,8 +301,12 @@ function summarizeNode(node: CanvasNode): NodeSummary {
       summary.status = (node.data.status as string) || 'idle';
       break;
     case 'frame':
+    case 'group':
       summary.color = (node.data.color as string) || undefined;
       summary.label = (node.data.label as string) || undefined;
+      if (node.type === 'group' && Array.isArray(node.data.childIds)) {
+        summary.childIds = node.data.childIds.filter((id): id is string => typeof id === 'string');
+      }
       break;
     case 'image':
       summary.imagePath = (node.data.filePath as string) || undefined;
@@ -532,6 +539,7 @@ export async function readNodeDetail(workspaceId: string, nodeId: string): Promi
       detailed.cwd = (node.data.cwd as string) ?? '';
       break;
     case 'frame':
+    case 'group':
       // nothing extra beyond summary
       break;
     case 'image':
@@ -594,6 +602,16 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
     for (const n of byType.frame) {
       const labelHint = n.label ? ` — ${n.label}` : '';
       lines.push(`- [${n.id}] **${n.title}**${labelHint}`);
+    }
+    lines.push('');
+  }
+
+  if (byType.group?.length) {
+    lines.push('## Groups');
+    for (const n of byType.group) {
+      const labelHint = n.label ? ` — ${n.label}` : '';
+      const childrenHint = n.childIds?.length ? ` (${n.childIds.length} members)` : '';
+      lines.push(`- [${n.id}] **${n.title}**${labelHint}${childrenHint}`);
     }
     lines.push('');
   }

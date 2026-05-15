@@ -15,15 +15,20 @@ export const useCanvasFit = (
   }, []);
 
   const handleFocusNode = useCallback(
-    (node: CanvasNode) => {
+    (
+      node: CanvasNode,
+      options?: { padding?: number; maxScale?: number; minScale?: number },
+    ) => {
       if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const padding = 80;
+      const padding = options?.padding ?? 80;
+      const maxScale = options?.maxScale ?? 1.5;
+      const minScale = options?.minScale ?? 0.1;
       const fitScale = Math.min(
         (rect.width - padding * 2) / node.width,
         (rect.height - padding * 2) / node.height
       );
-      const targetScale = Math.min(Math.max(0.1, fitScale), 1.5);
+      const targetScale = Math.min(Math.max(minScale, fitScale), maxScale);
       const tx = rect.width / 2 - (node.x + node.width / 2) * targetScale;
       const ty = rect.height / 2 - (node.y + node.height / 2) * targetScale;
       setTransform({ x: tx, y: ty, scale: targetScale });

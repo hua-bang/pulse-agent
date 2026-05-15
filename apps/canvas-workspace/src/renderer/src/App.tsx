@@ -1,18 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
-import { Canvas } from './components/Canvas';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
-import { ChatPage, ChatPanel } from './components/chat';
+import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
+import './components/artifacts/artifacts.css';
+import { ChatPage } from './components/chat';
 import { Sidebar } from './components/Sidebar';
+import { Workbench, useWorkbenchState } from './components/Workbench';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
-import type { CanvasNode } from './types';
-import type { CanvasNodeRenameRequest } from './types/ui-interaction';
-
-const DEFAULT_CHAT_WIDTH = 420;
-const MIN_CHAT_WIDTH = 280;
-const MAX_CHAT_WIDTH = 600;
+import { PulseRouter, PulseRouterView } from './components/router';
 
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
@@ -31,46 +28,6 @@ const AppContent = () => {
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
-  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
-  const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
-  const [selectedNodeIdsByWorkspace, setSelectedNodeIdsByWorkspace] = useState<Record<string, string[]>>({});
-  const [focusNodeId, setFocusNodeId] = useState<string | undefined>();
-  const [deleteNodeId, setDeleteNodeId] = useState<string | undefined>();
-  const [renameNodeRequest, setRenameNodeRequest] = useState<CanvasNodeRenameRequest | undefined>();
-  const resizing = useRef(false);
-
-  const handleNodesChange = useCallback((canvasId: string, nodes: CanvasNode[]) => {
-    setAllNodes((prev) => {
-      if (prev[canvasId] === nodes) return prev;
-      return { ...prev, [canvasId]: nodes };
-    });
-  }, []);
-
-  const handleSelectionChange = useCallback((canvasId: string, selectedNodeIds: string[]) => {
-    setSelectedNodeIdsByWorkspace((prev) => {
-      const existing = prev[canvasId] ?? [];
-      if (
-        existing.length === selectedNodeIds.length
-        && existing.every((id, index) => id === selectedNodeIds[index])
-      ) {
-        return prev;
-      }
-      return { ...prev, [canvasId]: selectedNodeIds };
-    });
-  }, []);
-
-  const handleFocusComplete = useCallback(() => {
-    setFocusNodeId(undefined);
-  }, []);
-
-  const handleDeleteComplete = useCallback(() => {
-    setDeleteNodeId(undefined);
-  }, []);
-
-  const handleRenameComplete = useCallback(() => {
-    setRenameNodeRequest(undefined);
-  }, []);
 
   const {
     workspaces,
@@ -80,7 +37,6 @@ const AppContent = () => {
     createWorkspace,
     renameWorkspace,
     deleteWorkspace,
-    setRootFolder,
     importWorkspace,
     createFolder,
     renameFolder,
@@ -89,6 +45,17 @@ const AppContent = () => {
     moveWorkspace,
     reorderFolder,
   } = useWorkspaces();
+
+  const workbench = useWorkbenchState({ activeWorkspaceId: activeId });
+  const {
+    activeNodes,
+    ensureWorkspaceNodesLoaded,
+    getWorkspaceNodes,
+    requestNodeFocus,
+    requestActiveNodeFocus,
+    requestActiveNodeDelete,
+    requestActiveNodeRename,
+  } = workbench;
 
   useEffect(() => {
     if (!routeQuery) return;
@@ -102,13 +69,12 @@ const AppContent = () => {
       selectWorkspace(targetWorkspaceId);
     }
     if (targetNodeId) {
-      setFocusNodeId(targetNodeId);
+      requestNodeFocus(targetWorkspaceId, targetNodeId);
     }
     setLocation(ROUTE_CANVAS);
-  }, [routeQuery, routeParams, activeId, workspaces, selectWorkspace, setLocation]);
+  }, [routeQuery, routeParams, activeId, workspaces, selectWorkspace, requestNodeFocus, setLocation]);
 
   const enterChatView = useCallback(() => {
-    setChatPanelOpen(false);
     setLocation(ROUTE_CHAT);
   }, [setLocation]);
 
@@ -117,9 +83,14 @@ const AppContent = () => {
   }, [setLocation]);
 
   const handleSelectWorkspace = useCallback((id: string) => {
+    ensureWorkspaceNodesLoaded(id);
     selectWorkspace(id);
     setLocation(ROUTE_CANVAS);
-  }, [selectWorkspace, setLocation]);
+  }, [ensureWorkspaceNodesLoaded, selectWorkspace, setLocation]);
+
+  useEffect(() => {
+    ensureWorkspaceNodesLoaded(activeId);
+  }, [activeId, ensureWorkspaceNodesLoaded]);
 
   const handleCreateWorkspace = useCallback((name: string) => {
     const trimmed = name.trim() || 'Untitled';
@@ -300,10 +271,6 @@ const AppContent = () => {
     });
   }, [folders, confirm, deleteFolder, notify]);
 
-  const handleNodeRename = useCallback((nodeId: string, title: string) => {
-    setRenameNodeRequest({ workspaceId: activeId, nodeId, title });
-  }, [activeId]);
-
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -321,19 +288,11 @@ const AppContent = () => {
         return;
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
-        if (activeView !== 'canvas') return;
-        e.preventDefault();
-        setChatPanelOpen((prev) => !prev);
-        return;
-      }
-
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault();
         if (activeView === 'chat') {
           setLocation(ROUTE_CANVAS);
         } else {
-          setChatPanelOpen(false);
           setLocation(ROUTE_CHAT);
         }
         return;
@@ -348,38 +307,18 @@ const AppContent = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
 
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    resizing.current = true;
-    const startX = e.clientX;
-    const startWidth = chatWidth;
 
-    const onMouseMove = (ev: MouseEvent) => {
-      const delta = startX - ev.clientX;
-      const newWidth = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, startWidth + delta));
-      setChatWidth(newWidth);
-    };
+  const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
+    return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
+  }, [workspaces]);
 
-    const onMouseUp = () => {
-      resizing.current = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [chatWidth]);
-
-  const handleNodeFocusFromChatPage = useCallback((nodeId: string) => {
-    setFocusNodeId(nodeId);
+  const handleNodeFocusFromChatPage = useCallback((workspaceId: string, nodeId: string) => {
+    if (activeId !== workspaceId) {
+      selectWorkspace(workspaceId);
+    }
+    requestNodeFocus(workspaceId, nodeId);
     setLocation(ROUTE_CANVAS);
-  }, [setLocation]);
-
-  const activeWorkspace = workspaces.find((ws) => ws.id === activeId);
+  }, [activeId, selectWorkspace, requestNodeFocus, setLocation]);
 
   return (
     <div className="app">
@@ -396,75 +335,40 @@ const AppContent = () => {
           onDelete={handleDeleteWorkspace}
           onExport={handleExportWorkspace}
           onImport={handleImportWorkspace}
-          onSetRootFolder={setRootFolder}
           onCreateFolder={handleCreateFolder}
           onRenameFolder={handleRenameFolder}
           onDeleteFolder={handleDeleteFolder}
           onToggleFolder={toggleFolder}
           onMoveWorkspace={moveWorkspace}
           onReorderFolder={reorderFolder}
-          activeNodes={allNodes[activeId] || []}
-          onNodeFocus={setFocusNodeId}
-          onNodeDelete={setDeleteNodeId}
-          onNodeRename={handleNodeRename}
+          activeNodes={activeNodes}
+          onNodeFocus={requestActiveNodeFocus}
+          onNodeDelete={requestActiveNodeDelete}
+          onNodeRename={requestActiveNodeRename}
           activeView={activeView}
           onEnterChat={enterChatView}
           onExitChat={exitChatView}
         />
-        {activeView === 'canvas' && (
-          <>
-            <div className="canvas-viewport">
-              {workspaces.map((ws) => (
-                <Canvas
-                  key={ws.id}
-                  canvasId={ws.id}
-                  canvasName={ws.name}
-                  rootFolder={ws.rootFolder}
-                  hidden={ws.id !== activeId}
-                  onNodesChange={handleNodesChange}
-                  onSelectionChange={handleSelectionChange}
-                  focusNodeId={ws.id === activeId ? focusNodeId : undefined}
-                  onFocusComplete={handleFocusComplete}
-                  deleteNodeId={ws.id === activeId ? deleteNodeId : undefined}
-                  onDeleteComplete={handleDeleteComplete}
-                  renameRequest={ws.id === renameNodeRequest?.workspaceId ? renameNodeRequest : undefined}
-                  onRenameComplete={handleRenameComplete}
-                  chatPanelOpen={chatPanelOpen}
-                  onChatToggle={() => setChatPanelOpen((prev) => !prev)}
-                />
-              ))}
-            </div>
-            {workspaces.map((ws) => (
-              <div
-                key={ws.id}
-                className={`chat-panel-wrapper${chatPanelOpen && ws.id === activeId ? ' chat-panel-wrapper--open' : ''}`}
-                style={ws.id !== activeId ? { display: 'none' } : chatPanelOpen ? { width: chatWidth } : undefined}
-              >
-                <ChatPanel
-                  workspaceId={ws.id}
-                  allWorkspaces={workspaces}
-                  nodes={allNodes[ws.id] || []}
-                  selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
-                  rootFolder={ws.rootFolder}
-                  onClose={() => setChatPanelOpen(false)}
-                  onResizeStart={handleResizeStart}
-                  onNodeFocus={setFocusNodeId}
-                  onExpand={enterChatView}
-                />
-              </div>
-            ))}
-          </>
-        )}
-        {activeView === 'chat' && (
-          <ChatPage
-            initialWorkspaceId={activeId}
-            allWorkspaces={workspaces}
-            nodes={allNodes[activeId] || []}
-            rootFolder={activeWorkspace?.rootFolder}
-            onExit={exitChatView}
-            onNodeFocus={handleNodeFocusFromChatPage}
-          />
-        )}
+        <PulseRouter<ActiveView> activeKey={activeView}>
+          <PulseRouterView name='canvas'>
+            <Workbench
+              activeWorkspaceId={activeId}
+              workspaces={workspaces}
+              controller={workbench}
+            />
+          </PulseRouterView>
+          <PulseRouterView name="chat">
+            <ChatPage
+              initialWorkspaceId={activeId}
+              allWorkspaces={workspaces}
+              getWorkspaceNodes={getWorkspaceNodes}
+              getWorkspaceRootFolder={getWorkspaceRootFolder}
+              onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
+              onExit={exitChatView}
+              onNodeFocus={handleNodeFocusFromChatPage}
+            />
+          </PulseRouterView>
+        </PulseRouter>
       </div>
     </div>
   );
@@ -472,7 +376,10 @@ const AppContent = () => {
 
 const App = () => (
   <AppShellProvider>
-    <AppContent />
+    <ArtifactDrawerProvider>
+      <AppContent />
+      <ArtifactDrawer />
+    </ArtifactDrawerProvider>
   </AppShellProvider>
 );
 

@@ -33,6 +33,71 @@
   z-index: 100;
 }
 
+/* Focus mode (Heptabase-style): the focused node is centered + reframed
+ * by the viewport, so the "emphasis" job here is purely a soft ring +
+ * mild shadow lift — no aggressive halo. Context nodes stay at full
+ * opacity so neighbors / container children remain readable. Dimmed
+ * nodes drop to ~18% opacity (no blur, no white overlay) — they remain
+ * clickable so the user can "click a peripheral card to refocus on it"
+ * exactly like Heptabase. */
+.canvas-node--focus-mode-focused {
+  z-index: 80;
+  opacity: 1;
+  border-color: rgba(71, 85, 105, 0.34);
+  /* Keep the focused node legible against the dim backdrop without the
+   * saturated purple halo competing with the content. */
+  box-shadow: var(--shadow-card-hover), 0 0 0 1.5px rgba(71, 85, 105, 0.38), 0 12px 34px rgba(15, 23, 42, 0.18);
+}
+
+.canvas-node--focus-mode-context {
+  opacity: 1;
+}
+
+.canvas-node--focus-mode-focused.canvas-node--frame,
+.canvas-node--focus-mode-focused.canvas-node--group {
+  z-index: 0;
+}
+
+.canvas-node--focus-mode-focused.canvas-node--frame {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #7c5cff) 55%, transparent);
+}
+
+.canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #7c5cff) 65%, transparent);
+}
+
+.canvas-node--focus-mode-focused.canvas-node--group {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 55%, transparent);
+}
+
+.canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--group-color, #A594E0) 65%, transparent);
+}
+
+.canvas-node--readonly {
+  position: relative;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-shadow: none;
+}
+
+.canvas-node--readonly:hover {
+  box-shadow: none;
+}
+
+.canvas-node--readonly .node-header {
+  cursor: default;
+}
+
+.canvas-node--readonly .node-focus {
+  opacity: 1;
+}
+
+.canvas-node--readonly .node-body {
+  user-select: text;
+}
+
 .node-header {
   display: flex;
   align-items: center;
@@ -107,6 +172,10 @@
 
 .node-type-badge--frame {
   color: var(--accent-frame);
+}
+
+.node-type-badge--group {
+  color: var(--group-color, var(--accent-frame));
 }
 
 .node-type-badge--agent {
@@ -185,10 +254,10 @@
   opacity: 1;
 }
 
-.node-copy,
+.node-reference,
 .node-focus,
+.node-fullscreen,
 .node-close {
-  width: 20px;
   height: 20px;
   border: none;
   background: transparent;
@@ -203,23 +272,35 @@
   transition: opacity 0.1s, background 0.1s, color 0.1s;
 }
 
-.canvas-node:hover .node-copy,
+.node-reference {
+  width: 20px;
+  padding: 0;
+}
+
+.node-focus,
+.node-fullscreen,
+.node-close {
+  width: 20px;
+}
+
+.canvas-node:hover .node-reference,
 .canvas-node:hover .node-focus,
+.canvas-node:hover .node-fullscreen,
 .canvas-node:hover .node-close {
   opacity: 1;
 }
 
-.node-copy:hover {
+.node-reference:hover {
   background: var(--accent-light);
   color: var(--accent);
 }
 
-.node-copy--done {
-  color: #10b981 !important;
-  opacity: 1 !important;
+.node-focus:hover {
+  background: var(--accent-light);
+  color: var(--accent);
 }
 
-.node-focus:hover {
+.node-fullscreen:hover {
   background: var(--accent-light);
   color: var(--accent);
 }
@@ -361,6 +442,186 @@
   overflow: visible;
 }
 
+.canvas-node--group,
+.canvas-node--group:hover,
+.canvas-node--group.canvas-node--dragging,
+.canvas-node--group.canvas-node--resizing {
+  background: transparent;
+  border: 1.5px dashed color-mix(in srgb, var(--group-color, #A594E0) 58%, transparent);
+  border-radius: 8px;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.canvas-node--group {
+  opacity: 0.58;
+}
+
+.canvas-node--group:hover,
+.canvas-node--group.canvas-node--selected,
+.canvas-node--group.canvas-node--dragging,
+.canvas-node--group.canvas-node--resizing {
+  opacity: 1;
+}
+
+.canvas-node--group:hover {
+  border-color: color-mix(in srgb, var(--group-color, #A594E0) 78%, transparent);
+}
+
+.canvas-node--group.canvas-node--selected {
+  background: color-mix(in srgb, var(--group-color, #A594E0) 5%, transparent);
+  border-color: color-mix(in srgb, var(--group-color, #A594E0) 82%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 16%, transparent);
+}
+
+.canvas-node--group.canvas-node--focus-mode-focused,
+.canvas-node--group.canvas-node--focus-mode-focused.canvas-node--selected {
+  background: color-mix(in srgb, var(--group-color, #A594E0) 6%, transparent);
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--group-color, #A594E0) 75%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, #A594E0) 40%, transparent);
+  opacity: 1;
+}
+
+.canvas-node--focus-mode-dimmed {
+  /* Pushed down to 0.12 so frame title chips and small colored badges
+   * stop registering as "still present" against the dark backdrop —
+   * users explicitly asked for "only one bright card, everything else
+   * faded". Still leaves enough opacity for the user to see roughly
+   * where peripheral cards sit and to click them to refocus. */
+  opacity: 0.12;
+  box-shadow: none;
+  transition: opacity 0.22s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+/* Iframes inside dimmed nodes keep loading content but shouldn't capture
+ * scroll/clicks — otherwise the user trying to navigate the canvas can
+ * accidentally scroll a dimmed Feishu/web doc behind the focused card. */
+.canvas-node--focus-mode-dimmed .iframe-frame {
+  pointer-events: none;
+}
+
+.canvas-node--group::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 12px;
+  pointer-events: auto;
+}
+
+.canvas-node--group:hover,
+.canvas-node--group.canvas-node--selected,
+.canvas-node--group.canvas-node--dragging {
+  cursor: grab;
+}
+
+.canvas-node--group.canvas-node--dragging {
+  cursor: grabbing;
+}
+
+.canvas-node--group .node-header {
+  position: absolute;
+  top: -28px;
+  left: 10px;
+  min-height: 0;
+  height: 24px;
+  min-width: 0;
+  max-width: calc(100% - 20px);
+  padding: 0 8px;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--group-color, #A594E0) 35%, transparent);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: color-mix(in srgb, var(--group-color, #A594E0) 70%, #111111);
+  box-shadow: 0 2px 8px rgba(22, 18, 36, 0.08);
+  transform: scale(calc(clamp(0.68, var(--canvas-scale, 1), 1) / var(--canvas-scale, 1)));
+  transform-origin: left bottom;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.canvas-node--group:hover .node-header,
+.canvas-node--group.canvas-node--selected .node-header,
+.canvas-node--group.canvas-node--dragging .node-header,
+.canvas-node--group.canvas-node--resizing .node-header {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.canvas-node--group .node-header .node-title {
+  flex: 0 1 auto;
+  max-width: 120px;
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--group-color, #A594E0) 68%, #111111);
+  padding: 0 2px;
+  letter-spacing: 0;
+}
+
+.canvas-node--group .node-header .node-type-badge--group {
+  color: color-mix(in srgb, var(--group-color, #A594E0) 70%, #111111);
+}
+
+.canvas-node--group .node-header .node-reference,
+.canvas-node--group .node-header .node-focus,
+.canvas-node--group .node-header .node-close,
+.canvas-node--group .node-header .node-time-label {
+  display: none;
+}
+
+.group-ungroup-button {
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--group-color, #A594E0) 14%, transparent);
+  color: color-mix(in srgb, var(--group-color, #A594E0) 74%, #111111);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 7px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.group-ungroup-button:hover {
+  background: color-mix(in srgb, var(--group-color, #A594E0) 24%, transparent);
+  color: color-mix(in srgb, var(--group-color, #A594E0) 86%, #111111);
+}
+
+.group-ungroup-button:active {
+  transform: translateY(1px);
+}
+
+.canvas-node--group .node-body {
+  height: 100%;
+  pointer-events: none;
+}
+
+.group-count-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--group-color, #A594E0) 75%, #111111);
+  background: color-mix(in srgb, var(--group-color, #A594E0) 14%, transparent);
+}
+
+.canvas-node--group .resize-handle--right {
+  top: 6px;
+}
+
+.canvas-node--group .resize-handle--right,
+.canvas-node--group .resize-handle--bottom,
+.canvas-node--group .resize-handle--corner {
+  display: none;
+}
+
 .node-body--mindmap {
   padding: 0;
   height: 100%;
@@ -426,4 +687,68 @@
   20%, 60% {
     box-shadow: var(--shadow-card), 0 0 0 3px var(--accent), 0 0 20px rgba(35, 131, 226, 0.3);
   }
+}
+
+/* Image/mindmap nodes lack a header — float the fullscreen toggle in
+ * the top-right corner next to the existing floating close button. */
+.node-fullscreen--floating {
+  position: absolute;
+  top: 4px;
+  right: 30px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+/* Fullscreen node. The parent `.canvas-transform` has its transform
+ * killed by `.canvas-container[data-fullscreen="on"]` (see
+ * Canvas/index.css), so a plain `inset` here just resolves against
+ * the canvas-container viewport. We leave a small inset so the
+ * fullscreen node reads as a focused card floating on the dim
+ * backdrop rather than bleeding to the chrome. The inline
+ * `transform: translate(x,y)` + width/height set by CanvasNodeView
+ * for the node's normal slot are overridden with `!important` — the
+ * node DOM never moves, only its CSS box flips between "slot" and
+ * "fullscreen". That keeps the iframe / editor / terminal mounted
+ * across the toggle, no reload. */
+.canvas-node.canvas-node--fullscreen,
+.canvas-node.canvas-node--fullscreen:hover {
+  position: absolute !important;
+  inset: 12px !important;
+  width: auto !important;
+  height: auto !important;
+  transform: none !important;
+  /* Above the backdrop (z-index 50) so dimming covers other nodes
+   * while this one stays crisp. */
+  z-index: 60;
+  border-radius: 4px;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
+}
+
+/* Fullscreen disables drag-by-header and resize handles, so the header
+ * cursor + handles should reflect that. The only chrome the user needs
+ * is the exit-fullscreen button; everything else (close, focus, ref,
+ * time, color pickers) hides so the bar stays clean. */
+.canvas-node--fullscreen .node-header {
+  cursor: default;
+}
+
+/* In fullscreen, the floating chip (see Canvas/index.tsx) is the
+ * single control surface — drop every node-header affordance so the
+ * header stays clean (title only). The chip also owns the exit
+ * button, so `.node-fullscreen` itself hides. */
+.canvas-node--fullscreen .node-reference,
+.canvas-node--fullscreen .node-focus,
+.canvas-node--fullscreen .node-close,
+.canvas-node--fullscreen .node-fullscreen,
+.canvas-node--fullscreen .node-time-label,
+.canvas-node--fullscreen .frame-color-trigger,
+.canvas-node--fullscreen .text-color-trigger,
+.canvas-node--fullscreen .group-ungroup-button,
+.canvas-node--fullscreen .group-count-label,
+.canvas-node--fullscreen .node-status-label,
+.canvas-node--fullscreen .node-close--floating,
+.canvas-node--fullscreen .node-fullscreen--floating {
+  display: none !important;
 }

@@ -9,11 +9,12 @@ import { NodeMentionPicker } from '../NodeMentionPicker';
 
 interface Props {
   node: CanvasNode;
-  allNodes?: CanvasNode[];
+  getAllNodes?: () => CanvasNode[];
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  readOnly?: boolean;
 }
 
 const SCROLLBACK_SAVE_INTERVAL = 2000;
@@ -33,7 +34,7 @@ const serializeBuffer = (term: Terminal): string => {
   return text;
 };
 
-export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, workspaceName, onUpdate }: Props) => {
+export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly = false }: Props) => {
   const [pickerOpen, setPickerOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -49,8 +50,8 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
   dataRef.current = data;
   const onUpdateRef = useRef(onUpdate);
   onUpdateRef.current = onUpdate;
-  const allNodesRef = useRef(allNodes);
-  allNodesRef.current = allNodes;
+  const getAllNodesRef = useRef(getAllNodes);
+  getAllNodesRef.current = getAllNodes;
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
   const workspaceNameRef = useRef(workspaceName);
@@ -69,6 +70,24 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
 
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
+    if (readOnly) {
+      spawnedRef.current = true;
+      const term = new Terminal(TERMINAL_OPTIONS);
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(containerRef.current);
+      termRef.current = term;
+      fitRef.current = fitAddon;
+      if (initialScrollback.current) {
+        term.write(initialScrollback.current.split('\n').join('\r\n'));
+      } else {
+        term.writeln('\x1b[2m--- no saved terminal output ---\x1b[0m');
+      }
+      requestAnimationFrame(() => {
+        try { fitAddon.fit(); } catch { /* ignore */ }
+      });
+      return;
+    }
     spawnedRef.current = true;
 
     const term = new Terminal(TERMINAL_OPTIONS);
@@ -146,10 +165,11 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
       if (d === '\r' || d === '\n') {
         const cmd = inputBuf.trim();
         inputBuf = '';
-        if (AI_TOOL_PATTERN.test(cmd) && allNodesRef.current && allNodesRef.current.length > 0) {
+        const contextNodes = getAllNodesRef.current?.() ?? [];
+        if (AI_TOOL_PATTERN.test(cmd) && contextNodes.length > 0) {
           void api.getCwd(sessionId).then((r) => {
             const cwd = r.ok && r.cwd ? r.cwd : spawnCwd;
-            if (cwd) void writeCanvasContext(allNodesRef.current!, cwd, workspaceIdRef.current, workspaceNameRef.current, term);
+            if (cwd) void writeCanvasContext(contextNodes, cwd, workspaceIdRef.current, workspaceNameRef.current, term);
           });
         }
       } else if (d === '\x7f') {
@@ -175,13 +195,15 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
       removeExit();
       api.kill(sessionId);
     };
-  }, [sessionId, rootFolder, persistState]);
+  }, [sessionId, rootFolder, persistState, readOnly]);
 
   useEffect(() => {
     void initTerminal();
     return () => {
       const api = window.canvasWorkspace?.pty;
-      if (termRef.current && api) {
+      if (readOnly) {
+        // Reference previews render saved scrollback only; never persist or kill a live PTY.
+      } else if (termRef.current && api) {
         const scrollback = serializeBuffer(termRef.current);
         void api.getCwd(sessionId).then((r) => {
           const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
@@ -213,6 +235,7 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
   }, []);
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
+    if (readOnly) return;
     setPickerOpen(false);
     const api = window.canvasWorkspace?.pty;
     if (api) {
@@ -224,7 +247,7 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
       void api.write(sessionId, mention);
     }
     termRef.current?.focus();
-  }, [sessionId]);
+  }, [sessionId, readOnly]);
 
   const handleMentionClose = useCallback(() => {
     setPickerOpen(false);
@@ -233,9 +256,9 @@ export const TerminalNodeBody = ({ node, allNodes, rootFolder, workspaceId, work
 
   return (
     <div className="terminal-body-wrap">
-      {pickerOpen && (
+      {!readOnly && pickerOpen && (
         <NodeMentionPicker
-          nodes={allNodes ?? []}
+          nodes={getAllNodesRef.current?.() ?? []}
           onSelect={handleMentionSelect}
           onClose={handleMentionClose}
         />

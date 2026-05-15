@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 
 export interface WorkspaceOption {
   id: string;
@@ -15,7 +15,6 @@ export interface ChatPanelProps {
   onClose: () => void;
   onResizeStart?: (e: MouseEvent) => void;
   onNodeFocus?: (nodeId: string) => void;
-  onExpand?: () => void;
 }
 
 export interface OtherWorkspaceSession extends AgentSessionInfo {
@@ -23,13 +22,7 @@ export interface OtherWorkspaceSession extends AgentSessionInfo {
   workspaceName: string;
 }
 
-export interface ToolCallStatus {
-  id: number;
-  name: string;
-  args?: any;
-  status: 'running' | 'done';
-  result?: string;
-}
+export type ToolCallStatus = AgentChatToolCall;
 
 export type { ChatImageAttachment };
 

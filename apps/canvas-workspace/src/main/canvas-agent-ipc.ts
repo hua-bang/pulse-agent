@@ -101,6 +101,21 @@ export function setupCanvasAgentIpc(): void {
             },
             payload.requestContext,
             payload.attachments,
+            (data) => {
+              if (!sender.isDestroyed()) {
+                sender.send(`canvas-agent:tool-input-start:${sessionId}`, data);
+              }
+            },
+            (data) => {
+              if (!sender.isDestroyed()) {
+                sender.send(`canvas-agent:tool-input-delta:${sessionId}`, data);
+              }
+            },
+            (data) => {
+              if (!sender.isDestroyed()) {
+                sender.send(`canvas-agent:tool-input-end:${sessionId}`, data);
+              }
+            },
           );
           if (!sender.isDestroyed()) {
             sender.send(`canvas-agent:chat-complete:${sessionId}`, result);

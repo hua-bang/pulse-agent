@@ -4,6 +4,8 @@ import { NodeContextMenu } from '../NodeContextMenu';
 import { FloatingToolbar } from '../FloatingToolbar';
 import { ZoomIndicator } from '../ZoomIndicator';
 import { CommandPalette, type PaletteCommand } from '../CommandPalette';
+import { SearchBar } from '../SearchBar';
+import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
@@ -24,11 +26,13 @@ interface CanvasOverlaysProps {
   selectionCount: number;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
-  onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
+  referenceDrawerOpen?: boolean;
+  onReferenceToggle?: () => void;
+  onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
   onCloseContextMenu: () => void;
   onOpenShortcuts: () => void;
   onToolChange: (tool: string) => void;
-  onAddNode: (type: 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
+  onAddNode: (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
   onResetTransform: () => void;
   /** Commands shown in the Cmd+K palette alongside node search results.
    *  Built by the parent so each entry can capture the latest tool /
@@ -36,6 +40,11 @@ interface CanvasOverlaysProps {
   paletteCommands: PaletteCommand[];
   onSearchSelect: (node: CanvasNode) => void;
   onCloseSearch: () => void;
+  /** Find-in-canvas (Ctrl/Cmd+F) state, owned by the parent so the
+   *  keyboard hook and the bar share one source of truth. */
+  findSearch: UseCanvasSearchReturn;
+  findNodesById: Map<string, CanvasNode>;
+  onFindMatchActivate: (node: CanvasNode) => void;
   /** Mousedown handler for the connect-mode overlay. Wired by the
    *  parent Canvas component to the edge interaction hook. */
   onConnectMouseDown?: (e: React.MouseEvent) => void;
@@ -62,6 +71,7 @@ interface CanvasOverlaysProps {
   onStartEditEdgeLabel?: (id: string) => void;
   onCommitEditEdgeLabel?: (id: string, label: string) => void;
   onCancelEditEdgeLabel?: () => void;
+  focusModeEnabled?: boolean;
 }
 
 export const CanvasOverlays = ({
@@ -73,6 +83,8 @@ export const CanvasOverlays = ({
   selectionCount,
   chatPanelOpen,
   onChatToggle,
+  referenceDrawerOpen,
+  onReferenceToggle,
   onCreateNode,
   onCloseContextMenu,
   onOpenShortcuts,
@@ -82,6 +94,9 @@ export const CanvasOverlays = ({
   paletteCommands,
   onSearchSelect,
   onCloseSearch,
+  findSearch,
+  findNodesById,
+  onFindMatchActivate,
   onConnectMouseDown,
   shapeToolActive,
   onShapeMouseDown,
@@ -94,6 +109,7 @@ export const CanvasOverlays = ({
   onStartEditEdgeLabel,
   onCommitEditEdgeLabel,
   onCancelEditEdgeLabel,
+  focusModeEnabled = false,
 }: CanvasOverlaysProps) => (
   <>
     {nodes.length === 0 && !contextMenu && (
@@ -156,6 +172,8 @@ export const CanvasOverlays = ({
       onAddNode={onAddNode}
       chatPanelOpen={chatPanelOpen}
       onChatToggle={onChatToggle}
+      referenceDrawerOpen={referenceDrawerOpen}
+      onReferenceToggle={onReferenceToggle}
     />
 
     {selectedEdge && onUpdateEdge && onRemoveEdge && (
@@ -188,7 +206,15 @@ export const CanvasOverlays = ({
           />
         ))}
 
-    <ZoomIndicator scale={scale} onReset={onResetTransform} selectionCount={selectionCount} />
+    {/* The "N selected" chip is suppressed in focus mode — by definition
+        focus mode operates on a single node, so the count is redundant
+        noise alongside the focused card. The zoom % chip stays as the
+        only persistent UI in the bottom-right. */}
+    <ZoomIndicator
+      scale={scale}
+      onReset={onResetTransform}
+      selectionCount={focusModeEnabled ? 0 : selectionCount}
+    />
 
     {searchOpen && (
       <CommandPalette
@@ -196,6 +222,14 @@ export const CanvasOverlays = ({
         commands={paletteCommands}
         onSelectNode={onSearchSelect}
         onClose={onCloseSearch}
+      />
+    )}
+
+    {findSearch.open && (
+      <SearchBar
+        search={findSearch}
+        nodesById={findNodesById}
+        onActivateMatch={onFindMatchActivate}
       />
     )}
   </>

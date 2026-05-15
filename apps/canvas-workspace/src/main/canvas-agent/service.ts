@@ -53,8 +53,8 @@ export class CanvasAgentService {
     workspaceId: string,
     message: string,
     onText?: (delta: string) => void,
-    onToolCall?: (data: { name: string; args: any }) => void,
-    onToolResult?: (data: { name: string; result: string }) => void,
+    onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
+    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
     requestContext?: {
@@ -64,6 +64,9 @@ export class CanvasAgentService {
       quickAction?: string;
     },
     attachments?: CanvasAgentImageAttachment[],
+    onToolInputStart?: (data: { id: string; toolName: string }) => void,
+    onToolInputDelta?: (data: { id: string; delta: string }) => void,
+    onToolInputEnd?: (data: { id: string }) => void,
   ): Promise<ChatResponse> {
     try {
       await this.activate(workspaceId);
@@ -77,6 +80,9 @@ export class CanvasAgentService {
         onClarificationRequest,
         requestContext,
         attachments,
+        onToolInputStart,
+        onToolInputDelta,
+        onToolInputEnd,
       );
       return { ok: true, response };
     } catch (err) {

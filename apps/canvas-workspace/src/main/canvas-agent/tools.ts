@@ -23,12 +23,19 @@ import {
 } from './context-builder';
 import { hasSession, writeToSession } from '../pty-manager';
 import { generateHTML } from '../html-generator';
+import {
+  addArtifactVersion as storeAddArtifactVersion,
+  createArtifact as storeCreateArtifact,
+  getArtifact as storeGetArtifact,
+} from '../artifact-store';
+import { pinArtifactToCanvas } from '../artifact-ipc';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
+const BLANK_PAGE_URL = 'about:blank';
 
 // ─── Types mirrored from canvas-cli ────────────────────────────────
 
-type NodeType = 'file' | 'terminal' | 'frame' | 'agent' | 'text' | 'iframe' | 'image' | 'shape' | 'mindmap';
+type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'image' | 'shape' | 'mindmap';
 
 interface MindmapTopic {
   id: string;
@@ -67,6 +74,15 @@ function normalizeMindmapTopic(raw: RawMindmapTopic | null | undefined): Mindmap
   if (typeof safe.color === 'string') topic.color = safe.color;
   if (safe.collapsed) topic.collapsed = true;
   return topic;
+}
+
+function normalizeIframeUrl(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const lowered = trimmed.toLowerCase();
+  if (lowered === 'blank' || lowered === BLANK_PAGE_URL) return BLANK_PAGE_URL;
+  return trimmed;
 }
 
 interface CanvasNode {
@@ -120,6 +136,7 @@ const DEFAULT_DIMENSIONS: Record<NodeType, { title: string; width: number; heigh
   file: { title: 'Untitled', width: 420, height: 360 },
   terminal: { title: 'Terminal', width: 480, height: 300 },
   frame: { title: 'Frame', width: 600, height: 400 },
+  group: { title: 'Group', width: 360, height: 240 },
   agent: { title: 'Agent', width: 520, height: 380 },
   text: { title: 'Text', width: 260, height: 120 },
   iframe: { title: 'Web', width: 520, height: 400 },
@@ -265,6 +282,27 @@ async function atomicWriteCanvasJson(
   }
 
   await fs.rename(tmpPath, finalPath);
+}
+
+/**
+ * Push a partial visual content snapshot to every renderer window so the
+ * chat-side inline visual can morph progressively — used by `visual_render`
+ * to drive the streaming preview when the upstream LLM/provider does NOT
+ * emit `tool-input-delta` events itself (which is the common case for
+ * OpenAI-compatible endpoints fronting non-streaming providers).
+ *
+ * Renderer correlates the chunk to a tool-call frame by `toolCallId`.
+ */
+function broadcastVisualStream(payload: {
+  workspaceId: string;
+  toolCallId: string;
+  content: string;
+  done?: boolean;
+}): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send('canvas-agent:visual-stream', payload);
+  }
 }
 
 function broadcastUpdate(workspaceId: string, nodeIds: string[]): void {
@@ -607,6 +645,13 @@ export interface CanvasToolExecutionContext {
   }) => Promise<string>;
   /** Abort signal for the current engine run. */
   abortSignal?: AbortSignal;
+  /**
+   * The AI SDK's id for the in-flight tool call (forwarded by the engine
+   * tool wrapper from `ToolExecutionOptions.toolCallId`). Tools that
+   * stream side-channel content to the renderer (e.g. `visual_render`)
+   * use this id to address messages to the correct tool-call frame.
+   */
+  toolCallId?: string;
 }
 
 export interface CanvasTool {
@@ -759,7 +804,8 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         '- **file**: Creates a markdown note with a backing file. Use `content` for initial text. If `content` is full HTML, or `data.contentType: "text/html"` / `data.renderAs: "html"` is provided, it is automatically created as a renderable iframe HTML node instead. Use `data.renderAs: "note"` to force a markdown note.\n' +
         '- **image**: Creates an image node from `data.filePath` (absolute local path). Prefer `canvas_generate_image` when the user asks AI to create an image.\n' +
         '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
-        '- **frame**: Creates a grouping container. Use `data.color` (hex) and `data.label`.\n' +
+        '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
+        '- **group**: Creates a lightweight grouping relationship. Use `data.childIds` for members, plus optional `data.color` (hex) and `data.label`.\n' +
         '- **agent**: Creates an AI agent node (Claude Code, Codex, Pulse Coder). ' +
         'Set `data.agentType` ("claude-code" | "codex" | "pulse-coder"), `data.cwd` for the working directory, ' +
         'and `data.status` to "running" to auto-launch (default "idle" shows a picker). ' +
@@ -769,7 +815,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         '- **text**: Creates a free-form text label (TLDRAW-style). Use `content` for the text body, ' +
         'and `data.textColor` / `data.backgroundColor` (hex or "transparent") for styling. Optional `data.fontSize`.\n' +
         '- **iframe**: Embeds an external web page, renders raw HTML, or generates HTML from a prompt. ' +
-        'For URL mode: pass `data.url` with the full URL (including protocol). ' +
+        'For URL mode: pass `data.url` with the full URL (including protocol), or "blank"/"about:blank" for an empty page. ' +
         'For HTML mode: pass `data.html` with raw HTML content and `data.mode: "html"`. ' +
         'For AI mode: pass `data.prompt` with a description and `data.mode: "ai"` — ' +
         'the LLM will generate self-contained HTML. ' +
@@ -785,7 +831,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
         'Use this whenever the user asks for a mindmap / brainstorm / outline that should be laid out radially ' +
         'rather than as a flat text node.',
       inputSchema: z.object({
-        type: z.enum(['file', 'terminal', 'frame', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap']).describe('Node type.'),
+        type: z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
         content: z.string().optional().describe('Initial content (for file and text nodes).'),
         x: z.number().optional().describe('X position (auto-placed if omitted).'),
@@ -795,9 +841,10 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           '- terminal: { cwd?: string }\n' +
           '- agent: { agentType?: "claude-code"|"codex"|"pulse-coder", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }\n' +
+          '- group: { color?: string, label?: string, childIds?: string[] }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
-          '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }\n' +
-          '- file HTML routing: { contentType?: "text/html", renderAs?: "html"|"note" }\n' +
+          '- iframe: { url?: string, html?: string, prompt?: string, mode?: \"url\"|\"html\"|\"ai\" }. `url: \"blank\"` opens about:blank.\\n' +
+          '- file HTML routing: { contentType?: \"text/html\", renderAs?: \"html\"|\"note\" }\\n' +
           '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
           '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape',
         ),
@@ -832,6 +879,15 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             nodeData = {
               color: (extraData.color as string) ?? '#9575d4',
               label: (extraData.label as string) ?? '',
+            };
+            break;
+          case 'group':
+            nodeData = {
+              color: (extraData.color as string) ?? '#A594E0',
+              label: (extraData.label as string) ?? '',
+              childIds: Array.isArray(extraData.childIds)
+                ? extraData.childIds.filter((id): id is string => typeof id === 'string')
+                : [],
             };
             break;
           case 'agent': {
@@ -894,7 +950,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               };
             } else {
               nodeData = {
-                url: forcedHtml ? '' : (extraData.url as string) ?? '',
+                url: forcedHtml ? '' : normalizeIframeUrl(extraData.url),
                 html: forcedHtml ? content : (extraData.html as string) ?? '',
                 prompt,
                 mode: iframeMode,
@@ -1827,6 +1883,216 @@ ${outline}`;
         if (touchedIds.length > 0) broadcastUpdate(workspaceId, touchedIds);
 
         return JSON.stringify({ ok: true, edgeId });
+      },
+    },
+
+    // ─── Visual / Artifact tools ──────────────────────────────────────
+    //
+    // Three escalation levels for LLM-generated visuals:
+    //   1. visual_render        — inline, temporary, lives in the chat message
+    //   2. artifact_create      — persistent, versioned, opens in side drawer
+    //   3. artifact_pin_to_canvas — promote an artifact onto the spatial canvas
+    //
+    // The system prompt teaches the agent when to pick each.
+
+    visual_render: {
+      name: 'visual_render',
+      description:
+        'Render a transient inline visualization inside the current chat message — for explanatory diagrams, charts, or illustrations that aid the discussion. ' +
+        'The result lives only in this chat message; it does NOT get saved as an artifact. ' +
+        'Use this when the user wants to UNDERSTAND something via a visual, not when they want to KEEP or iterate on it. ' +
+        'For keep-and-iterate flows, call `artifact_create` instead. ' +
+        'For HTML, return a SINGLE self-contained `<!DOCTYPE html>` document — it will render in a sandboxed iframe and CDN libs (Chart.js, D3, Mermaid) load fine. ' +
+        'For SVG, return a single `<svg>` element (no surrounding HTML). For Mermaid, return the Mermaid source only.',
+      inputSchema: z.object({
+        type: z.enum(['html', 'svg', 'mermaid']).describe('Visual format. v1 supports html; svg and mermaid reserved.'),
+        title: z.string().optional().describe('Short label shown above the visual.'),
+        content: z.string().describe('The full visual content (HTML doc, SVG element, or Mermaid source).'),
+      }),
+      execute: async (input, ctx) => {
+        const type = input.type as 'html' | 'svg' | 'mermaid';
+        const title = (input.title as string) ?? '';
+        const content = (input.content as string) ?? '';
+        if (!content.trim()) {
+          return JSON.stringify({ ok: false, error: 'content is empty' });
+        }
+
+        const toolCallId = ctx?.toolCallId;
+        console.info(
+          `[visual_render] execute type=${type} bytes=${content.length} toolCallId=${toolCallId ?? '(missing!)'}`,
+        );
+
+        // Stream the visual to the renderer in animation-frame-sized chunks
+        // so the inline preview "builds up" the way Claude's Artifacts do,
+        // even when the upstream LLM/provider doesn't emit tool-input-delta
+        // events of its own (we just animate the LLM's final content).
+        //
+        // Total animation budget: ~1.4 s regardless of content size. Frame
+        // budget: 16 ms (~60 fps). Chunk size scales so all frames are used,
+        // bounded so a 200B visual doesn't crawl character-by-character.
+        if (toolCallId && type === 'html') {
+          const TARGET_MS = 1400;
+          const FRAME_MS = 16;
+          const TOTAL_FRAMES = Math.max(1, Math.floor(TARGET_MS / FRAME_MS));
+          const chunkSize = Math.max(64, Math.ceil(content.length / TOTAL_FRAMES));
+          const abortSignal = ctx?.abortSignal;
+
+          console.info(
+            `[visual_render] starting chunked stream — frames=${TOTAL_FRAMES} chunkSize=${chunkSize}B`,
+          );
+
+          let position = 0;
+          let frameCount = 0;
+          while (position < content.length) {
+            if (abortSignal?.aborted) {
+              console.info('[visual_render] aborted mid-stream');
+              break;
+            }
+            position = Math.min(position + chunkSize, content.length);
+            frameCount += 1;
+            broadcastVisualStream({
+              workspaceId,
+              toolCallId,
+              content: content.slice(0, position),
+            });
+            if (position < content.length) {
+              await new Promise<void>((resolve) => setTimeout(resolve, FRAME_MS));
+            }
+          }
+          // Final flush with done=true.
+          broadcastVisualStream({
+            workspaceId,
+            toolCallId,
+            content,
+            done: true,
+          });
+          console.info(`[visual_render] stream complete — frames=${frameCount}`);
+        } else if (!toolCallId) {
+          console.warn(
+            '[visual_render] no toolCallId in ctx — streaming SKIPPED, visual will appear in one shot. ' +
+            'Likely cause: AI SDK provider not forwarding tool execute options.',
+          );
+        }
+
+        return JSON.stringify({
+          ok: true,
+          kind: 'visual_render',
+          type,
+          title,
+          content,
+        });
+      },
+    },
+
+    artifact_create: {
+      name: 'artifact_create',
+      description:
+        'Create a persistent, versioned visual artifact. Surfaces in chat as an artifact card with a side drawer for preview, version history, and "Pin to Canvas". ' +
+        'Use this when the user asks for something to KEEP, RE-USE, or ITERATE on (dashboards, full-page mockups, polished diagrams). ' +
+        'For throwaway visuals that just illustrate a point mid-explanation, use `visual_render` instead. ' +
+        'Content format matches `visual_render`: a self-contained HTML doc for type=html.',
+      inputSchema: z.object({
+        type: z.enum(['html', 'svg', 'mermaid']).describe('Artifact type. v1 supports html; svg and mermaid reserved.'),
+        title: z.string().describe('Short title — appears in the artifact card and as the canvas node title once pinned.'),
+        content: z.string().describe('Full content of the first version.'),
+        prompt: z.string().optional().describe('Optional record of the prompt/spec that produced this version (helps diff future iterations).'),
+      }),
+      execute: async (input) => {
+        const type = input.type as 'html' | 'svg' | 'mermaid';
+        const title = (input.title as string) ?? 'Untitled artifact';
+        const content = (input.content as string) ?? '';
+        const prompt = input.prompt as string | undefined;
+        if (!content.trim()) {
+          return JSON.stringify({ ok: false, error: 'content is empty' });
+        }
+        const artifact = await storeCreateArtifact(workspaceId, {
+          type,
+          title,
+          content,
+          prompt,
+          source: { origin: 'agent_tool' },
+        });
+        return JSON.stringify({
+          ok: true,
+          kind: 'artifact_create',
+          artifactId: artifact.id,
+          versionId: artifact.currentVersionId,
+          type: artifact.type,
+          title: artifact.title,
+        });
+      },
+    },
+
+    artifact_update: {
+      name: 'artifact_update',
+      description:
+        'Add a new version to an existing artifact. The new version becomes the current one; previous versions remain accessible in the drawer. ' +
+        'Use this when the user asks to refine, iterate on, or fix an artifact you (or a previous turn) already created. ' +
+        'Pass the same artifactId returned by `artifact_create`.',
+      inputSchema: z.object({
+        artifactId: z.string().describe('The artifact to iterate on (returned by an earlier artifact_create call).'),
+        content: z.string().describe('Full content of the new version — this replaces, not patches.'),
+        prompt: z.string().optional().describe('Optional prompt/spec that produced this iteration.'),
+      }),
+      execute: async (input) => {
+        const artifactId = input.artifactId as string;
+        const content = (input.content as string) ?? '';
+        const prompt = input.prompt as string | undefined;
+        if (!content.trim()) {
+          return JSON.stringify({ ok: false, error: 'content is empty' });
+        }
+        const existing = await storeGetArtifact(workspaceId, artifactId);
+        if (!existing) {
+          return JSON.stringify({ ok: false, error: `Artifact not found: ${artifactId}` });
+        }
+        const artifact = await storeAddArtifactVersion(workspaceId, artifactId, { content, prompt });
+        if (!artifact) {
+          return JSON.stringify({ ok: false, error: `Artifact not found: ${artifactId}` });
+        }
+        return JSON.stringify({
+          ok: true,
+          kind: 'artifact_update',
+          artifactId: artifact.id,
+          versionId: artifact.currentVersionId,
+          versionCount: artifact.versions.length,
+          type: artifact.type,
+          title: artifact.title,
+        });
+      },
+    },
+
+    artifact_pin_to_canvas: {
+      name: 'artifact_pin_to_canvas',
+      description:
+        'Pin an existing artifact onto the spatial canvas as an iframe node. The node renders the artifact\'s current version live — any future `artifact_update` ' +
+        'updates the on-canvas node too. Use this when the user asks to keep multiple visuals side by side, compare options, or build a spatial dashboard.',
+      inputSchema: z.object({
+        artifactId: z.string().describe('The artifact to pin.'),
+        x: z.number().optional().describe('Top-left x (auto-placed if omitted).'),
+        y: z.number().optional().describe('Top-left y (auto-placed if omitted).'),
+        width: z.number().optional().describe('Width in px (default 520).'),
+        height: z.number().optional().describe('Height in px (default 400).'),
+        title: z.string().optional().describe('Override the on-canvas node title (defaults to the artifact title).'),
+      }),
+      execute: async (input) => {
+        const artifactId = input.artifactId as string;
+        const result = await pinArtifactToCanvas(workspaceId, artifactId, {
+          x: input.x as number | undefined,
+          y: input.y as number | undefined,
+          width: input.width as number | undefined,
+          height: input.height as number | undefined,
+          title: input.title as string | undefined,
+        });
+        if ('error' in result) {
+          return JSON.stringify({ ok: false, error: result.error });
+        }
+        return JSON.stringify({
+          ok: true,
+          kind: 'artifact_pin_to_canvas',
+          nodeId: result.nodeId,
+          artifactId: result.artifact.id,
+          title: result.artifact.title,
+        });
       },
     },
   };

@@ -15,7 +15,65 @@ interface IconProps {
   strokeWidth?: number;
 }
 
-/** Close / cancel (×). Canonical 16×16 path. */
+export const SettingsIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path
+      d="M8 10.4a2.4 2.4 0 100-4.8 2.4 2.4 0 000 4.8z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+    />
+    <path
+      d="M8 1.9l1.05 1.35 1.7.2.55 1.6 1.45.9-.45 1.65.45 1.65-1.45.9-.55 1.6-1.7.2L8 14.1l-1.05-1.35-1.7-.2-.55-1.6-1.45-.9.45-1.65-.45-1.65 1.45-.9.55-1.6 1.7-.2L8 1.9z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const CheckIcon = ({ size = 14, className, strokeWidth = 1.6 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M3.5 8.2l2.7 2.7 6.3-6.4" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+export const RefreshIcon = ({ size = 14, className, strokeWidth = 1.35 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M13 7a5 5 0 00-8.7-3.35L3 5" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 3v2h2" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M3 9a5 5 0 008.7 3.35L13 11" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M13 13v-2h-2" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/** Sparkles icon — used for reply-style / prompt customization entry. */
+export const SparklesIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path
+      d="M6 2.5l1 2.5 2.5 1-2.5 1L6 9.5 5 7 2.5 6 5 5 6 2.5z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    />
+    <path
+      d="M11.5 8.5l.75 1.75L14 11l-1.75.75L11.5 13.5l-.75-1.75L9 11l1.75-.75L11.5 8.5z"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export const TrashIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path d="M3 4.5h10" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+    <path d="M6.2 4.5V3.2h3.6v1.3" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5 6.3l.45 6.2A1.5 1.5 0 006.95 14h2.1a1.5 1.5 0 001.5-1.5L11 6.3" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+  </svg>
+);
+
+
 export const CloseIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <path
@@ -137,6 +195,29 @@ export const ListLinesIcon = ({ size = 14, className }: IconProps) => (
   </svg>
 );
 
+/** Landscape / image attachment icon. */
+export const ImageIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <rect
+      x="2.5"
+      y="3"
+      width="11"
+      height="10"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+    />
+    <circle cx="6" cy="6.2" r="1.1" stroke="currentColor" strokeWidth="1.15" />
+    <path
+      d="M3.2 11.3L6.1 8.6a1 1 0 011.35-.02l1.1 1 1.45-1.45a1 1 0 011.42.02l1.38 1.45"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 interface NodeTypeIconProps {
   type: CanvasNode['type'];
   size?: number;
@@ -193,6 +274,27 @@ export const NodeTypeIcon = ({ type, size = 14, className }: NodeTypeIconProps) 
           />
         </svg>
       );
+    case 'group':
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+          <rect
+            x="2.5"
+            y="3"
+            width="11"
+            height="10"
+            rx="2"
+            stroke="currentColor"
+            strokeWidth="1.25"
+            strokeDasharray="2 2"
+          />
+          <path
+            d="M5 6h6M5 10h6"
+            stroke="currentColor"
+            strokeWidth="1.15"
+            strokeLinecap="round"
+          />
+        </svg>
+      );
     case 'agent':
       // Pulse waveform matching the Pulse Canvas brand mark
       return (
@@ -231,6 +333,8 @@ export const NodeTypeIcon = ({ type, size = 14, className }: NodeTypeIconProps) 
           />
         </svg>
       );
+    case 'image':
+      return <ImageIcon size={size} className={className} />;
     case 'mindmap':
       // Root node on the left with three children branching to the right
       return (

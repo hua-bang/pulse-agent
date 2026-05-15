@@ -40,6 +40,7 @@ interface Props {
    *  which in turn grows the whole mindmap; we want that resize to
    *  reconcile silently rather than spamming undo history. */
   onAutoResize: (id: string, width: number, height: number) => void;
+  readOnly?: boolean;
 }
 
 /**
@@ -65,7 +66,7 @@ interface Props {
  * while selected enters edit mode. Commit on blur / Enter (Enter on a
  * non-root topic also spawns a sibling); Esc cancels without saving.
  */
-export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onUpdate, onSelectNode, onAutoResize }: Props) => {
+export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onUpdate, onSelectNode, onAutoResize, readOnly = false }: Props) => {
   const data = node.data as MindmapNodeData;
   const root = data.root;
 
@@ -90,10 +91,10 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
   // reconcile via `onAutoResize`, which bypasses the undo history so
   // the size change rides along with whatever mutation just fired.
   useEffect(() => {
-    if (node.width !== wantedWidth || node.height !== wantedHeight) {
+    if (!readOnly && (node.width !== wantedWidth || node.height !== wantedHeight)) {
       onAutoResize(node.id, wantedWidth, wantedHeight);
     }
-  }, [wantedWidth, wantedHeight, node.id, node.width, node.height, onAutoResize]);
+  }, [wantedWidth, wantedHeight, node.id, node.width, node.height, onAutoResize, readOnly]);
 
   // Keep selection valid when the tree mutates (delete removed the
   // selected node, external update rebuilt ids, etc).
@@ -393,6 +394,7 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
               topic={t}
               isSelected={selectedId === t.id}
               isEditing={editingId === t.id}
+              outerCanvasSelected={isSelected}
               isDragSource={reorder?.sourceId === t.id}
               dropHint={
                 reorder && reorder.target
@@ -422,6 +424,7 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
               onExitEdit={() => setEditingId(null)}
               onToggleCollapsed={() => toggle(t.id)}
               onKeyAction={(action) => {
+                if (readOnly) return;
                 switch (action.kind) {
                   case 'addChild':
                     addChild(t.id);
@@ -446,6 +449,7 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
                     break;
                 }
               }}
+              readOnly={readOnly}
             />
           ))}
         </div>
@@ -469,6 +473,13 @@ interface TopicPillProps {
   topic: LaidOutTopic;
   isSelected: boolean;
   isEditing: boolean;
+  /** True when the OUTER mindmap canvas node is selected on the canvas.
+   *  Gates the auto-focus effect so we don't steal keyboard focus into
+   *  a mindmap the user hasn't interacted with — without this, every
+   *  canvas that contains a mindmap immediately captures the keyboard
+   *  on mount, eating shortcuts like F before they ever reach the
+   *  canvas-level handler. */
+  outerCanvasSelected: boolean;
   /** True while THIS topic is being dragged in a reorder gesture. */
   isDragSource: boolean;
   /** When set, this topic is the current drop target — render the matching
@@ -486,27 +497,29 @@ interface TopicPillProps {
    *  key shortcut. */
   onToggleCollapsed: () => void;
   onKeyAction: (action: KeyAction) => void;
+  readOnly?: boolean;
 }
 
 const TopicPill = ({
   topic,
   isSelected,
   isEditing,
+  outerCanvasSelected,
   isDragSource,
   dropHint,
   onBeginReorder,
   onSelect,
   onEnterEdit,
   onCommitText,
-  onExitEdit,
   onToggleCollapsed,
   onKeyAction,
+  readOnly = false,
 }: TopicPillProps) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (!isEditing) return;
+    if (readOnly || !isEditing) return;
     const el = editorRef.current;
     if (!el) return;
     el.focus();
@@ -522,15 +535,19 @@ const TopicPill = ({
       sel.removeAllRanges();
       sel.addRange(range);
     }
-  }, [isEditing]);
+  }, [isEditing, readOnly]);
 
   // When the selected pill isn't editing, send keyboard focus to the
   // wrapper so arrow keys / Tab / Enter hit this component's handler
-  // instead of the canvas keyboard hook.
+  // instead of the canvas keyboard hook. Gated on `outerCanvasSelected`
+  // so we never steal focus into a mindmap the user hasn't selected
+  // at the canvas level — otherwise just having a mindmap on the
+  // canvas pulls the keyboard in on mount and silently swallows
+  // canvas-level shortcuts (F, etc).
   useEffect(() => {
-    if (isEditing) return;
-    if (isSelected) pillRef.current?.focus();
-  }, [isSelected, isEditing]);
+    if (isEditing || readOnly) return;
+    if (isSelected && outerCanvasSelected) pillRef.current?.focus();
+  }, [isSelected, outerCanvasSelected, isEditing, readOnly]);
 
   // Push DOM text back in sync when the stored text changes from
   // elsewhere (undo, external update) and we're not mid-edit.
@@ -541,20 +558,20 @@ const TopicPill = ({
   }, [topic.text, isEditing]);
 
   const commit = useCallback(() => {
+    if (readOnly) return;
     const el = editorRef.current;
     const next = el ? el.innerText.replace(/\n+$/, '') : topic.text;
     if (next !== topic.text) onCommitText(next);
-    onExitEdit();
-  }, [onCommitText, onExitEdit, topic.text]);
+  }, [onCommitText, topic.text, readOnly]);
 
   const cancel = useCallback(() => {
     const el = editorRef.current;
     if (el) el.innerText = topic.text;
-    onExitEdit();
-  }, [onExitEdit, topic.text]);
+  }, [topic.text]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (readOnly) return;
       // Stop React's synthetic event AND the underlying DOM event from
       // bubbling up to the window-level canvas keyboard listener. When
       // a topic is selected (not editing), the pill div is focused but
@@ -573,6 +590,7 @@ const TopicPill = ({
         if (e.key === 'Escape') {
           consume();
           cancel();
+          onKeyAction({ kind: 'exit' });
           return;
         }
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -637,15 +655,26 @@ const TopicPill = ({
           return;
         default:
           // A printable character should drop straight into edit mode
-          // and replace the current text, mirroring Heptabase.
-          if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+          // and replace the current text, mirroring Heptabase. 'f' is
+          // carved out because it's the canvas-level focus-mode
+          // toggle — letting it bubble up keeps the shortcut working
+          // while a mindmap topic is selected. Users who want to type
+          // a topic starting with 'f' can press F2 / double-click to
+          // enter edit mode first.
+          if (
+            e.key.length === 1
+            && !e.metaKey
+            && !e.ctrlKey
+            && !e.altKey
+            && e.key.toLowerCase() !== 'f'
+          ) {
             onEnterEdit();
             // Let the keydown commit into the contenteditable after
             // edit mode mounts by NOT preventing default.
           }
       }
     },
-    [cancel, commit, isEditing, onEnterEdit, onKeyAction, topic.hasChildren],
+    [cancel, commit, isEditing, onEnterEdit, onKeyAction, topic.hasChildren, readOnly],
   );
 
   const isRoot = topic.depth === 0;
@@ -682,8 +711,12 @@ const TopicPill = ({
         .filter(Boolean)
         .join(' ')}
       style={style}
-      tabIndex={0}
+      tabIndex={readOnly ? undefined : 0}
       onMouseDown={(e) => {
+        if (readOnly) {
+          e.stopPropagation();
+          return;
+        }
         // Pan-trigger gestures must reach the outer .canvas-container so
         // the user can grab the canvas even when the cursor happens to
         // land on a topic. We let middle-button, alt+left, and hand-tool
@@ -704,7 +737,7 @@ const TopicPill = ({
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
-        onEnterEdit();
+        if (!readOnly) onEnterEdit();
       }}
       onKeyDown={handleKeyDown}
     >
@@ -716,12 +749,15 @@ const TopicPill = ({
         ]
           .filter(Boolean)
           .join(' ')}
-        contentEditable={isEditing}
+        contentEditable={!readOnly && isEditing}
         suppressContentEditableWarning
         spellCheck={false}
         data-placeholder="Untitled"
         onBlur={() => {
-          if (isEditing) commit();
+          if (isEditing && !readOnly) {
+            commit();
+            onKeyAction({ kind: 'exit' });
+          }
         }}
       >
         {topic.text}
@@ -736,7 +772,7 @@ const TopicPill = ({
        *  `onMouseDown` stops propagation so clicking the toggle never
        *  starts a topic select / reorder drag on the parent pill; the
        *  click handler then toggles. */}
-      {!isRoot && topic.hasChildren && (
+      {!readOnly && !isRoot && topic.hasChildren && (
         <button
           type="button"
           className={[

@@ -7,6 +7,7 @@ interface ContextNode {
   type: string;
   title: string;
   capabilities: string[];
+  childIds?: string[];
   [key: string]: unknown;
 }
 
@@ -72,8 +73,12 @@ export async function generateContext(
         base.cwd = (readResult as NodeReadResult & { cwd?: string }).cwd ?? '';
         break;
       case 'frame':
+      case 'group':
         base.label = (readResult as NodeReadResult & { label?: string }).label ?? '';
         base.color = (readResult as NodeReadResult & { color?: string }).color ?? '';
+        if (node.type === 'group') {
+          base.childIds = (readResult as NodeReadResult & { childIds?: string[] }).childIds ?? [];
+        }
         break;
       case 'agent':
         base.agentType = (readResult as NodeReadResult & { agentType?: string }).agentType ?? 'claude-code';
@@ -119,6 +124,7 @@ export function formatContextAsText(ctx: CanvasContext): string {
   const fileNodes = ctx.nodes.filter(n => n.type === 'file');
   const terminalNodes = ctx.nodes.filter(n => n.type === 'terminal');
   const frameNodes = ctx.nodes.filter(n => n.type === 'frame');
+  const groupNodes = ctx.nodes.filter(n => n.type === 'group');
   const agentNodes = ctx.nodes.filter(n => n.type === 'agent');
 
   if (fileNodes.length > 0) {
@@ -135,6 +141,15 @@ export function formatContextAsText(ctx: CanvasContext): string {
     for (const node of frameNodes) {
       const label = node.label ? ` — ${node.label}` : '';
       lines.push(`- **${node.title}**${label}`);
+    }
+  }
+
+  if (groupNodes.length > 0) {
+    lines.push('', '## Groups', '');
+    for (const node of groupNodes) {
+      const label = node.label ? ` — ${node.label}` : '';
+      const children = node.childIds?.length ? ` (${node.childIds.length} members)` : '';
+      lines.push(`- **${node.title}**${label}${children}`);
     }
   }
 

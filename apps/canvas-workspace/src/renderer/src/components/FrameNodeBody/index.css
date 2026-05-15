@@ -30,6 +30,14 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--frame-color, #A8B0BD) 22%, transparent);
 }
 
+.canvas-node--frame.canvas-node--focus-mode-focused,
+.canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
+  background: color-mix(in srgb, var(--frame-color, #A8B0BD) 7%, var(--surface));
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--frame-color, #A8B0BD) 80%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--frame-color, #A8B0BD) 35%, transparent);
+}
+
 /* ---- Header tab ---- */
 
 .canvas-node--frame .node-header {

@@ -25,11 +25,12 @@ export interface ChatPageBodyProps {
   pendingSessionId: string | null;
   onSessionConsumed: () => void;
   onSelectSession: (session: UnifiedSession) => void;
+  onWorkspaceContextRequest?: (workspaceId: string) => void;
   allWorkspaces: WorkspaceOption[];
   nodes?: CanvasNode[];
   rootFolder?: string;
   onExit: () => void;
-  onNodeFocus?: (nodeId: string) => void;
+  onNodeFocus?: (workspaceId: string, nodeId: string) => void;
   railCollapsed: boolean;
   onToggleRail: () => void;
 }
@@ -40,6 +41,7 @@ export const ChatPageBody = ({
   pendingSessionId,
   onSessionConsumed,
   onSelectSession,
+  onWorkspaceContextRequest,
   allWorkspaces,
   nodes,
   rootFolder,
@@ -109,6 +111,10 @@ export const ChatPageBody = ({
     onSubmit: sendMessage,
   });
 
+  useEffect(() => {
+    onWorkspaceContextRequest?.(workspaceId);
+  }, [onWorkspaceContextRequest, workspaceId]);
+
   // Load the pending session whenever it's set. This uniformly handles both
   // cases:
   //   - Cross-workspace mount: body was just created with a non-null
@@ -137,9 +143,9 @@ export const ChatPageBody = ({
 
   // Clicking a mention chip should jump back to the canvas and focus the node.
   const handleNodeFocus = useCallback((nodeId: string) => {
-    onNodeFocus?.(nodeId);
+    onNodeFocus?.(workspaceId, nodeId);
     onExit();
-  }, [onExit, onNodeFocus]);
+  }, [onExit, onNodeFocus, workspaceId]);
 
   // Merge sessions from the current workspace with sessions from every other
   // workspace into a single list, sorted by date (newest first).
@@ -207,6 +213,7 @@ export const ChatPageBody = ({
           className="chat-page-body"
           messages={messages}
           loading={loading}
+          workspaceId={workspaceId}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}

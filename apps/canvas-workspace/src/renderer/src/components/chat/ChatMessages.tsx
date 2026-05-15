@@ -8,6 +8,7 @@ interface ChatMessagesProps {
   messages: AgentChatMessage[];
   loading: boolean;
   nodes?: CanvasNode[];
+  workspaceId: string;
   streamingTools: ToolCallStatus[];
   messageTools: Map<number, ToolCallStatus[]>;
   collapsedSections: Set<number>;
@@ -91,6 +92,7 @@ export const ChatMessages = ({
   messages,
   loading,
   nodes,
+  workspaceId,
   streamingTools,
   messageTools,
   collapsedSections,
@@ -127,7 +129,7 @@ export const ChatMessages = ({
     <div className="chat-messages" onClick={handleMessageClick}>
       {messages.map((message, index) => {
         const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
-        const tools = isStreaming ? streamingTools : messageTools.get(index);
+        const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
         return (
           <ChatMessage
             key={index}
@@ -138,6 +140,7 @@ export const ChatMessages = ({
             collapsed={collapsedSections.has(index)}
             expandedTools={expandedTools}
             nodes={nodes}
+            workspaceId={workspaceId}
             onToggleSection={() => onToggleSection(index)}
             onToggleToolExpand={onToggleToolExpand}
             onAddImageToCanvas={onAddImageToCanvas}

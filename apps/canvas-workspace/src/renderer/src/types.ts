@@ -1,6 +1,6 @@
 export interface CanvasNode {
   id: string;
-  type: "file" | "terminal" | "frame" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
+  type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
   title: string;
   x: number;
   y: number;
@@ -10,6 +10,7 @@ export interface CanvasNode {
     | FileNodeData
     | TerminalNodeData
     | FrameNodeData
+    | GroupNodeData
     | AgentNodeData
     | TextNodeData
     | IframeNodeData
@@ -38,6 +39,12 @@ export interface TerminalNodeData {
 export interface FrameNodeData {
   color: string;
   label?: string;
+}
+
+export interface GroupNodeData {
+  color?: string;
+  label?: string;
+  childIds?: string[];
 }
 
 export interface AgentNodeData {
@@ -84,19 +91,28 @@ export interface TextNodeData {
  * `mode: 'url'` (default) loads a remote page via Electron `<webview>`.
  * `mode: 'html'` renders user-supplied HTML in a sandboxed `<iframe srcdoc>`.
  *
+ * When `artifactId` is set, the rendered HTML is sourced from the
+ * workspace's artifact store (current version) instead of `html`. This
+ * lets the same artifact back both an in-chat preview and a pinned
+ * canvas node — iterating the artifact updates both.
+ *
  * Some sites block embedding via X-Frame-Options / CSP frame-ancestors —
  * those will fail to render and the user can click "Open externally" to
  * escape into the system browser.
  */
 export interface IframeNodeData {
-  /** Full URL (including protocol) to load in the iframe. Empty = show URL input. */
+  /** Full URL (including protocol) to load in the iframe. Empty = show URL input. `about:blank` opens a blank page. */
   url: string;
   /** Raw HTML content to render when `mode` is `'html'` or `'ai'`. */
   html?: string;
-  /** `'url'` embeds a remote page; `'html'` renders raw HTML; `'ai'` generates HTML from a prompt. */
-  mode?: 'url' | 'html' | 'ai';
+  /** `'url'` embeds a remote page; `'html'` renders raw HTML; `'ai'` generates HTML from a prompt; `'artifact'` pulls from the artifact store. */
+  mode?: 'url' | 'html' | 'ai' | 'artifact';
   /** The prompt used to generate HTML when `mode` is `'ai'`. */
   prompt?: string;
+  /** Last page title reported by the embedded webview for URL mode. */
+  pageTitle?: string;
+  /** When set, content is sourced from `artifacts.get(artifactId)`. */
+  artifactId?: string;
 }
 
 /**
@@ -321,11 +337,25 @@ export interface ChatImageAttachment {
   mimeType?: string;
 }
 
+export interface AgentChatToolCall {
+  id: number;
+  name: string;
+  args?: unknown;
+  status: 'running' | 'done';
+  result?: string;
+  toolCallId?: string;
+  partialInput?: string;
+  inputStreaming?: boolean;
+  streamedContent?: string;
+  streamedDone?: boolean;
+}
+
 export interface AgentChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   attachments?: ChatImageAttachment[];
+  toolCalls?: AgentChatToolCall[];
 }
 
 export interface AgentContextNodeRef {
@@ -355,6 +385,108 @@ export interface CrossWorkspaceSessionGroup {
   sessions: AgentSessionInfo[];
 }
 
+
+export type CanvasModelProviderType = 'openai' | 'claude';
+
+export interface CanvasModelOption {
+  name: string;
+  provider_type?: CanvasModelProviderType;
+  model?: string;
+  base_url?: string;
+  api_key_env?: string;
+  headers?: Record<string, string>;
+}
+
+export interface CanvasProviderModel {
+  id: string;
+  name?: string;
+}
+
+export interface CanvasModelProviderConfig {
+  id: string;
+  name: string;
+  provider_type?: CanvasModelProviderType;
+  base_url?: string;
+  api_key_env?: string;
+  api_key?: string;
+  headers?: Record<string, string>;
+  models?: CanvasProviderModel[];
+}
+
+export interface CanvasModelConfig {
+  current_provider?: string;
+  current_model?: string;
+  provider_type?: CanvasModelProviderType;
+  model?: string;
+  base_url?: string;
+  api_key_env?: string;
+  headers?: Record<string, string>;
+  options?: CanvasModelOption[];
+  providers?: CanvasModelProviderConfig[];
+}
+
+export interface CanvasModelProviderStatus {
+  id: string;
+  name: string;
+  provider_type: CanvasModelProviderType;
+  base_url?: string;
+  api_key_env?: string;
+  apiKeyPresent: boolean;
+  apiKeyLength?: number;
+  headers?: Record<string, string>;
+  models: CanvasProviderModel[];
+}
+
+export interface CanvasModelStatus {
+  path: string;
+  currentProvider?: string;
+  currentModel?: string;
+  providerType: CanvasModelProviderType;
+  resolvedModel: string;
+  resolvedBaseURL?: string;
+  resolvedApiKeyEnv?: string;
+  apiKeyPresent: boolean;
+  options: CanvasModelOption[];
+  providers: CanvasModelProviderStatus[];
+}
+
+export type PromptPreset = 'concise' | 'balanced' | 'detailed';
+
+export interface PromptProfile {
+  preset: PromptPreset;
+  customPrompt: string;
+}
+
+export interface PromptProfileStatus extends PromptProfile {
+  path: string;
+}
+
+export interface PromptProfileApi {
+  get: () => Promise<{ ok: boolean; profile?: PromptProfileStatus; error?: string }>;
+  save: (
+    profile: Partial<PromptProfile>,
+  ) => Promise<{ ok: boolean; profile?: PromptProfileStatus; error?: string }>;
+  reset: () => Promise<{ ok: boolean; profile?: PromptProfileStatus; error?: string }>;
+}
+
+export interface CanvasModelApi {
+  status: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  saveConfig: (config: CanvasModelConfig) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  upsertProvider: (provider: CanvasModelProviderConfig) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  removeProvider: (providerId: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  fetchModels: (
+    providerId?: string,
+    provider?: CanvasModelProviderConfig,
+  ) => Promise<{ ok: boolean; models?: CanvasProviderModel[]; error?: string }>;
+  upsertOption: (
+    option: CanvasModelOption,
+    setCurrent?: boolean,
+  ) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  setCurrent: (name?: string, providerId?: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  removeOption: (name: string) => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+  reset: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
+}
+
 export interface AgentApi {
   chat: (
     workspaceId: string,
@@ -373,11 +505,40 @@ export interface AgentApi {
   ) => () => void;
   onToolCall: (
     sessionId: string,
-    callback: (data: { name: string; args: any }) => void
+    callback: (data: { name: string; args: any; toolCallId?: string }) => void
   ) => () => void;
   onToolResult: (
     sessionId: string,
-    callback: (data: { name: string; result: string }) => void
+    callback: (data: { name: string; result: string; toolCallId?: string }) => void
+  ) => () => void;
+  /** Tool-input streaming — fired when LLM starts emitting tool arguments. */
+  onToolInputStart: (
+    sessionId: string,
+    callback: (data: { id: string; toolName: string }) => void
+  ) => () => void;
+  /** Each chunk of raw tool argument JSON. `id` matches `toolCallId` on the final tool-call. */
+  onToolInputDelta: (
+    sessionId: string,
+    callback: (data: { id: string; delta: string }) => void
+  ) => () => void;
+  onToolInputEnd: (
+    sessionId: string,
+    callback: (data: { id: string }) => void
+  ) => () => void;
+  /**
+   * Subscribe to side-channel visual stream chunks emitted by the
+   * `visual_render` tool when the upstream LLM/provider doesn't stream
+   * tool-call arguments. The tool itself chunks its final content and
+   * broadcasts updates keyed by `toolCallId`, which the renderer matches
+   * to the corresponding ToolCallStatus.
+   */
+  onVisualStream: (
+    callback: (data: {
+      workspaceId: string;
+      toolCallId: string;
+      content: string;
+      done?: boolean;
+    }) => void
   ) => () => void;
   onClarifyRequest: (
     sessionId: string,
@@ -475,9 +636,17 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  model: CanvasModelApi;
+  promptProfile: PromptProfileApi;
   agent: AgentApi;
   iframe: IframeApi;
   llm: LlmApi;
+  artifacts: ArtifactsApi;
+  shell: ShellApi;
+}
+
+export interface ShellApi {
+  openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface LlmApi {
@@ -489,6 +658,96 @@ export interface LlmApi {
   onHTMLDelta: (requestId: string, callback: (delta: string) => void) => () => void;
   /** Subscribe to generation completion. Returns unsubscribe fn. */
   onHTMLComplete: (requestId: string, callback: (result: { ok: boolean; html?: string; error?: string }) => void) => () => void;
+}
+
+/**
+ * An LLM-generated visual product owned by a workspace.
+ *
+ * Three formation paths share the same data shape:
+ *  1. `visual_render` tool → inline-only, NOT stored here (lives in chat).
+ *  2. `artifact_create` tool → stored, versioned, surfaced via chat card + drawer.
+ *  3. User clicks "Save as artifact" on an inline visual → promoted into the store.
+ *
+ * Type values are open to extension; v1 covers `html` only.
+ */
+export type ArtifactType = 'html' | 'svg' | 'mermaid';
+
+export interface ArtifactVersion {
+  id: string;
+  content: string;
+  /** Optional prompt that produced this version — useful as a "diff" hint. */
+  prompt?: string;
+  createdAt: number;
+}
+
+export interface Artifact {
+  id: string;
+  workspaceId: string;
+  type: ArtifactType;
+  title: string;
+  versions: ArtifactVersion[];
+  /** Index into `versions`. Always `versions.length - 1` after a create/update,
+   * but a separate field so the renderer can switch views without mutating data. */
+  currentVersionId: string;
+  /** When set, the artifact is currently mirrored as this canvas node. */
+  pinnedNodeId?: string;
+  /** Origin trace — where the artifact came from. */
+  source?: {
+    sessionId?: string;
+    /** Index of the assistant message in that session that produced it. */
+    messageIndex?: number;
+    origin?: 'agent_tool' | 'inline_promotion' | 'iframe_ai_tab';
+  };
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ArtifactsApi {
+  list: (workspaceId: string) => Promise<{ ok: boolean; artifacts?: Artifact[]; error?: string }>;
+  get: (
+    workspaceId: string,
+    artifactId: string,
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  create: (
+    workspaceId: string,
+    input: {
+      type: ArtifactType;
+      title: string;
+      content: string;
+      prompt?: string;
+      source?: Artifact['source'];
+    },
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  /** Append a new version to an existing artifact, becoming the current one. */
+  addVersion: (
+    workspaceId: string,
+    artifactId: string,
+    input: { content: string; prompt?: string },
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  /** Mutate metadata only (title, currentVersionId, pinnedNodeId). */
+  update: (
+    workspaceId: string,
+    artifactId: string,
+    patch: Partial<Pick<Artifact, 'title' | 'currentVersionId' | 'pinnedNodeId'>>,
+  ) => Promise<{ ok: boolean; artifact?: Artifact; error?: string }>;
+  delete: (
+    workspaceId: string,
+    artifactId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  /** Create an iframe canvas node bound to this artifact (mode='artifact'). */
+  pinToCanvas: (
+    workspaceId: string,
+    artifactId: string,
+    placement?: { x?: number; y?: number; width?: number; height?: number; title?: string },
+  ) => Promise<{ ok: boolean; nodeId?: string; artifact?: Artifact; error?: string }>;
+  /** Fires when an artifact is created, updated, or deleted in the main process. */
+  onChange: (
+    callback: (event: {
+      workspaceId: string;
+      artifactId: string;
+      kind: 'create' | 'update' | 'delete';
+    }) => void,
+  ) => () => void;
 }
 
 export interface IframeApi {

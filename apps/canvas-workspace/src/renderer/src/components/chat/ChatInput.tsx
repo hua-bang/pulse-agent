@@ -1,8 +1,10 @@
 import type { ClipboardEventHandler, KeyboardEventHandler, ReactNode, RefObject } from 'react';
-import type { CanvasNode, ChatImageAttachment } from '../../types';
-import { PlusIcon } from '../icons';
+import type { CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
+import { ImageIcon, PlusIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import { toFileUrl } from '../../utils/fileUrl';
 import { MentionNodeIcon } from './utils/mentions';
+import { ModelSwitcher } from './ModelSettings';
 
 interface ChatInputProps {
   loading: boolean;
@@ -11,6 +13,12 @@ interface ChatInputProps {
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
   executionMode?: 'auto' | 'ask';
+  modelStatus?: CanvasModelStatus;
+  modelSelection?: { mode: 'auto' | 'model'; providerId?: string; modelId?: string };
+  modelLabel?: string;
+  onSelectAutoModel?: () => Promise<void>;
+  onSelectModel?: (providerId: string, modelId: string) => Promise<void>;
+  onOpenModelSettings?: () => void;
   editableRef: RefObject<HTMLDivElement>;
   mentionPopup?: ReactNode;
   onInput: () => void;
@@ -23,8 +31,6 @@ interface ChatInputProps {
   onToggleExecutionMode?: () => void;
 }
 
-const getImageSrc = (path: string) => `file://${path}`;
-
 export const ChatInput = ({
   loading,
   input,
@@ -32,6 +38,12 @@ export const ChatInput = ({
   attachments = [],
   contextComposer = false,
   executionMode = 'auto',
+  modelStatus,
+  modelSelection = { mode: 'auto' },
+  modelLabel = 'Auto',
+  onSelectAutoModel,
+  onSelectModel,
+  onOpenModelSettings,
   editableRef,
   mentionPopup,
   onInput,
@@ -70,7 +82,7 @@ export const ChatInput = ({
           <div className="chat-attachment-strip" aria-label="待发送图片">
             {attachments.map(attachment => (
               <div key={attachment.id} className="chat-attachment-chip">
-                <img src={getImageSrc(attachment.path)} alt={attachment.fileName ?? 'attachment'} />
+                <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? 'attachment'} />
                 <span>{attachment.fileName ?? 'Image'}</span>
                 <button type="button" onClick={() => onRemoveAttachment?.(attachment.id)} aria-label="移除图片">×</button>
               </div>
@@ -122,7 +134,7 @@ export const ChatInput = ({
                   input.click();
                 }}
               >
-                🖼
+                <ImageIcon size={18} strokeWidth={1.35} />
               </button>
               </>
             ) : loading ? (
@@ -135,19 +147,19 @@ export const ChatInput = ({
             ) : null}
           </div>
           <div className="chat-input-footer-right">
-            {contextComposer && (
-              <button
-                type="button"
-                className="chat-execution-mode-btn"
-                onClick={onToggleExecutionMode}
-                title={executionMode === 'auto'
-                  ? 'Auto: 意图明确时可直接操作画布'
-                  : 'Ask: 改动画布前先确认'}
-                aria-label={executionMode === 'auto' ? '切换为 Ask 模式' : '切换为 Auto 模式'}
-              >
-                {executionMode === 'auto' ? 'Auto' : 'Ask'}
-              </button>
+            {contextComposer && onSelectAutoModel && onSelectModel && onOpenModelSettings && (
+              <ModelSwitcher
+                status={modelStatus}
+                selection={modelSelection}
+                label={modelLabel}
+                onSelectAuto={onSelectAutoModel}
+                onSelectModel={onSelectModel}
+                onOpenSettings={onOpenModelSettings}
+              />
             )}
+            {/* Auto/Ask execution-mode toggle hidden — onToggleExecutionMode
+                + executionMode state are still wired through so this can be
+                re-enabled by uncommenting once the UX lands. */}
             {loading ? (
               <button
                 className="chat-send-btn chat-send-btn--stop"
@@ -167,7 +179,7 @@ export const ChatInput = ({
                 title="Send message"
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M8 12V4M8 4l-3.5 3.5M8 4l3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M8 13V4.5M8 4.5l-3.5 3.5M8 4.5l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
             )}

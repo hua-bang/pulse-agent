@@ -1,7 +1,7 @@
 import type { CanvasNode } from '../types';
 import type { ShortcutSection } from '../types/ui-interaction';
 
-type EmptyCanvasNodeType = Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file'>;
+type EmptyCanvasNodeType = Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>;
 
 export const DEFAULT_TOAST_DURATION_MS = 2800;
 
@@ -19,12 +19,14 @@ export const INTERACTION_ACTIONS = {
   emptyStateCreateAgent: 'empty-state.create-agent',
   emptyStateCreateTerminal: 'empty-state.create-terminal',
   emptyStateCreateNote: 'empty-state.create-note',
+  emptyStateCreateWeb: 'empty-state.create-web',
 } as const;
 
 export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   file: 'Note',
   terminal: 'Terminal',
   frame: 'Frame',
+  group: 'Group',
   agent: 'Agent',
   text: 'Text',
   iframe: 'Link',
@@ -57,6 +59,12 @@ export const EMPTY_CANVAS_ACTIONS: Array<{
     description: 'Capture ideas, plans, and summaries.',
     nodeType: 'file',
   },
+  {
+    actionKey: INTERACTION_ACTIONS.emptyStateCreateWeb,
+    label: 'Web Page',
+    description: 'Embed a URL or open a blank page.',
+    nodeType: 'iframe',
+  },
 ];
 
 export const SHORTCUT_SECTIONS: ShortcutSection[] = [
@@ -70,6 +78,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { combo: 'Ctrl/Cmd + K', description: 'Open the command palette (search nodes or run a command).' },
       { combo: 'Ctrl/Cmd + H', description: 'Toggle the command palette.' },
       { combo: 'Ctrl/Cmd + Tab', description: 'Cycle through nodes.' },
+      { combo: 'F', description: 'Toggle Focus mode for the selected node or frame.' },
     ],
   },
   {
@@ -89,7 +98,7 @@ export const SHORTCUT_SECTIONS: ShortcutSection[] = [
       { combo: 'Ctrl/Cmd + A', description: 'Select all nodes.' },
       { combo: 'Ctrl/Cmd + D', description: 'Duplicate every selected node.' },
       { combo: 'Ctrl/Cmd + C / V', description: 'Copy and paste selected nodes.' },
-      { combo: 'Ctrl/Cmd + G', description: 'Wrap the selected nodes in a new frame.' },
+      { combo: 'Ctrl/Cmd + G', description: 'Group the selected nodes.' },
       { combo: 'Delete / Backspace', description: 'Delete the current selection with confirmation.' },
       { combo: 'Ctrl/Cmd + Z', description: 'Undo the last change.' },
       { combo: 'Ctrl/Cmd + Shift + Z', description: 'Redo the last undone change.' },

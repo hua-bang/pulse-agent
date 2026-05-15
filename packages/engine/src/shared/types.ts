@@ -74,6 +74,13 @@ export interface ToolExecutionContext {
   onClarificationRequest?: (request: ClarificationRequest) => Promise<string>;
   abortSignal?: AbortSignal;
   runContext?: Record<string, any>;
+  /**
+   * The AI SDK's id for this specific tool call. Forwarded from
+   * `ToolExecutionOptions.toolCallId`. Tools can use this to correlate
+   * side-channel streams (e.g. progressive content updates emitted via
+   * IPC) with the tool-call frame the renderer is tracking.
+   */
+  toolCallId?: string;
 }
 
 export interface Tool<Input = any, Output = any> {

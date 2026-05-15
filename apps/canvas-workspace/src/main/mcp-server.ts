@@ -10,7 +10,7 @@ const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 // --- Types ---
 
-type NodeType = 'file' | 'terminal' | 'frame';
+type NodeType = 'file' | 'terminal' | 'frame' | 'group';
 type NodeCapability = 'read' | 'write' | 'exec';
 
 interface CanvasNodeData {
@@ -56,6 +56,7 @@ const NODE_CAPABILITIES: Record<NodeType, NodeCapability[]> = {
   file: ['read', 'write'],
   terminal: ['read', 'exec'],
   frame: ['read', 'write'],
+  group: ['read', 'write'],
 };
 
 function getNodeCapabilities(type: NodeType): NodeCapability[] {
@@ -240,12 +241,16 @@ async function readNode(node: CanvasNode): Promise<NodeReadResult> {
         scrollback: node.data.scrollback ?? '',
       };
     case 'frame':
-      return {
-        type: 'frame',
+    case 'group': {
+      const detail: Record<string, unknown> = {
+        type: node.type,
         capabilities,
         label: node.data.label ?? '',
         color: node.data.color ?? '',
       };
+      if (node.type === 'group') detail.childIds = node.data.childIds ?? [];
+      return detail as NodeReadResult;
+    }
     default:
       return { type: node.type, capabilities };
   }
@@ -272,16 +277,20 @@ async function writeNode(
       await saveCanvas(workspaceId, canvas);
       return { ok: true };
     }
-    case 'frame': {
+    case 'frame':
+    case 'group': {
       try {
-        const patch = JSON.parse(content) as { label?: string; color?: string };
+        const patch = JSON.parse(content) as { label?: string; color?: string; childIds?: string[] };
         if (patch.label !== undefined) node.data.label = patch.label;
         if (patch.color !== undefined) node.data.color = patch.color;
+        if (node.type === 'group' && Array.isArray(patch.childIds)) {
+          node.data.childIds = patch.childIds.filter((id): id is string => typeof id === 'string');
+        }
         canvas.savedAt = new Date().toISOString();
         await saveCanvas(workspaceId, canvas);
         return { ok: true };
       } catch {
-        return { ok: false, error: 'Frame write expects JSON: { label?: string, color?: string }' };
+        return { ok: false, error: 'Container write expects JSON: { label?: string, color?: string, childIds?: string[] }' };
       }
     }
     case 'terminal':
@@ -353,18 +362,18 @@ const TOOLS = [
   {
     name: 'canvas_create',
     description:
-      'Create a new canvas node. Returns the created node ID. Supported types: file, terminal, frame.',
+      'Create a new canvas node. Returns the created node ID. Supported types: file, terminal, frame, group.',
     inputSchema: {
       type: 'object',
       properties: {
         workspaceId: { type: 'string', description: 'Workspace ID' },
-        type: { type: 'string', enum: ['file', 'terminal', 'frame'], description: 'Node type to create' },
+        type: { type: 'string', enum: ['file', 'terminal', 'frame', 'group'], description: 'Node type to create' },
         title: { type: 'string', description: 'Node title (optional, has defaults per type)' },
         x: { type: 'number', description: 'X position on canvas (optional, auto-placed if omitted)' },
         y: { type: 'number', description: 'Y position on canvas (optional, auto-placed if omitted)' },
         data: {
           type: 'object',
-          description: 'Initial data. File: { content?: string }. Frame: { color?: string, label?: string }. Terminal: { cwd?: string }.'
+          description: 'Initial data. File: { content?: string }. Frame: { color?: string, label?: string }. Group: { color?: string, label?: string, childIds?: string[] }. Terminal: { cwd?: string }.'
         }
       },
       required: ['workspaceId', 'type']
@@ -493,8 +502,8 @@ async function handleToolCall(
           text = 'Error: workspaceId and type are required';
           break;
         }
-        if (!['file', 'terminal', 'frame'].includes(nodeType)) {
-          text = `Error: unsupported node type "${nodeType}". Supported: file, terminal, frame.`;
+        if (!['file', 'terminal', 'frame', 'group'].includes(nodeType)) {
+          text = `Error: unsupported node type "${nodeType}". Supported: file, terminal, frame, group.`;
           break;
         }
 
@@ -509,6 +518,7 @@ async function handleToolCall(
           file:     { title: 'Untitled', width: 420, height: 360 },
           terminal: { title: 'Terminal', width: 480, height: 300 },
           frame:    { title: 'Frame',    width: 600, height: 400 },
+          group:    { title: 'Group',    width: 360, height: 240 },
         };
         const def = defaults[nodeType];
 
@@ -528,6 +538,15 @@ async function handleToolCall(
             break;
           case 'frame':
             data = { color: (inputData as Record<string, string>).color ?? '#9575d4', label: (inputData as Record<string, string>).label ?? '' };
+            break;
+          case 'group':
+            data = {
+              color: (inputData as Record<string, string>).color ?? '#A594E0',
+              label: (inputData as Record<string, string>).label ?? '',
+              childIds: Array.isArray((inputData as { childIds?: unknown }).childIds)
+                ? ((inputData as { childIds: unknown[] }).childIds).filter((id): id is string => typeof id === 'string')
+                : [],
+            };
             break;
         }
 

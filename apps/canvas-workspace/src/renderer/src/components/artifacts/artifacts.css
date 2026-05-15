@@ -1,0 +1,549 @@
+/* ─── Inline visual in chat (visual_render tool result) ────────────── */
+
+/* ─── Inline visual: chromeless, embedded in conversation flow ───────── */
+
+.chat-inline-visual {
+  position: relative;
+  display: block;
+  margin: 14px 0;
+  width: 100%;
+  background: transparent;
+}
+
+/* Streaming variant — iframe is mounted and morphing; the edge line
+ * marks "still generating". No reveal animation here (the DOM is
+ * already painting; an opacity fade would cover the live morph). */
+.chat-inline-visual--streaming {
+  /* No animation; the morphdom shell paints into the iframe directly. */
+}
+
+/* Final state — once the tool returns we swap to the clean srcdoc and
+ * the wrapper transitions from streaming to ready. A short cross-fade
+ * smooths the swap so users don't see a visible "snap" when the script-
+ * enabled iframe replaces the streaming shell. */
+.chat-inline-visual--ready {
+  animation: chat-inline-reveal 0.2s ease-out both;
+}
+
+@keyframes chat-inline-reveal {
+  from { opacity: 0.5; }
+  to   { opacity: 1; }
+}
+
+/* Loading row — quiet, no preview. A single pulsing cursor + small label
+ * sit left-aligned, taking the same vertical rhythm as a paragraph. */
+.chat-inline-visual--loading {
+  min-height: 56px;
+}
+
+.chat-inline-visual__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.chat-inline-visual__loading-label {
+  display: inline-block;
+}
+
+.chat-inline-visual__loading-label::after {
+  content: '';
+  display: inline-block;
+  width: 1ch;
+  text-align: left;
+  animation: chat-inline-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes chat-inline-dots {
+  0%   { content: ''; }
+  25%  { content: '.'; }
+  50%  { content: '..'; }
+  75%  { content: '...'; }
+  100% { content: ''; }
+}
+
+/* Subtle 1px edge above the loading row — just enough to mark "something
+ * is generating here" without drawing attention away from the chat text. */
+.chat-inline-visual__stream-edge {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.45) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: chat-inline-edge 1.8s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes chat-inline-edge {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.chat-inline-visual__cursor {
+  display: inline-block;
+  width: 6px;
+  height: 12px;
+  background: #6366f1;
+  border-radius: 1px;
+  animation: chat-inline-cursor 1s ease-in-out infinite;
+}
+
+@keyframes chat-inline-cursor {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.25; }
+}
+
+.chat-inline-visual__frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.chat-inline-visual__svg {
+  display: block;
+  width: 100%;
+  background: transparent;
+}
+
+.chat-inline-visual__error {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #b54040;
+}
+
+/* Hover toolbar — invisible at rest, fades in when the user points at the
+ * visual. Sits over the top-right corner with a subtle frosted background. */
+.chat-inline-visual__toolbar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  border-radius: 6px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.chat-inline-visual--ready:hover .chat-inline-visual__toolbar,
+.chat-inline-visual--ready:focus-within .chat-inline-visual__toolbar {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* While streaming we keep the toolbar slot visible to show the pulsing
+ * cursor — it's the "live" indicator. No frosted background here, just
+ * the cursor floating in the corner. */
+.chat-inline-visual--streaming .chat-inline-visual__toolbar {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.chat-inline-visual__btn {
+  font-size: 11px;
+  font-weight: 500;
+  color: #4b4a47;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  padding: 3px 7px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.chat-inline-visual__btn:hover:not(:disabled) {
+  background: rgba(55, 53, 47, 0.07);
+  color: #37352f;
+}
+
+.chat-inline-visual__btn:disabled {
+  color: #b9b9b6;
+  cursor: default;
+}
+
+.chat-inline-visual__btn--primary {
+  color: #37352f;
+  font-weight: 600;
+}
+
+.chat-inline-visual__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px 7px 12px;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
+  background: #fafaf9;
+}
+
+.chat-inline-visual__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #8a8a87;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.chat-inline-visual__title {
+  text-transform: none;
+  letter-spacing: 0;
+  color: #37352f;
+  font-weight: 500;
+  margin-left: 6px;
+}
+
+.chat-inline-visual__action {
+  font-size: 11px;
+  font-weight: 500;
+  color: #37352f;
+  background: transparent;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  border-radius: 5px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.chat-inline-visual__action:hover:not(:disabled) {
+  background: #f1f1ef;
+  border-color: rgba(55, 53, 47, 0.28);
+}
+
+.chat-inline-visual__action:disabled {
+  color: #8a8a87;
+  cursor: default;
+}
+
+.chat-inline-visual__action--primary {
+  background: #37352f;
+  color: #fff;
+  border-color: #37352f;
+}
+
+.chat-inline-visual__action--primary:hover:not(:disabled) {
+  background: #2f2e2a;
+  border-color: #2f2e2a;
+}
+
+.chat-inline-visual__frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.chat-inline-visual__svg {
+  display: block;
+  width: 100%;
+  background: #fff;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.chat-inline-visual__error {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #b54040;
+}
+
+/* ─── Artifact card in chat (artifact_create / artifact_update result) ─ */
+
+.chat-artifact-card {
+  margin-top: 10px;
+  border: 1px solid rgba(55, 53, 47, 0.14);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.chat-artifact-card:hover {
+  border-color: rgba(55, 53, 47, 0.28);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.chat-artifact-card__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.chat-artifact-card__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #f1efe8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.chat-artifact-card__meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-artifact-card__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #37352f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-artifact-card__sub {
+  font-size: 11px;
+  color: #8a8a87;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-artifact-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.chat-artifact-card__action {
+  font-size: 11px;
+  font-weight: 500;
+  color: #37352f;
+  background: transparent;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  border-radius: 5px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.chat-artifact-card__action:hover:not(:disabled) {
+  background: #f1f1ef;
+  border-color: rgba(55, 53, 47, 0.28);
+}
+
+.chat-artifact-card__action:disabled {
+  color: #8a8a87;
+  cursor: default;
+}
+
+/* ─── Right-side artifact drawer ────────────────────────────────────── */
+
+.artifact-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 15, 14, 0.18);
+  z-index: 90;
+  animation: artifact-fade-in 0.12s ease-out;
+}
+
+.artifact-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 80vw);
+  background: #fff;
+  border-left: 1px solid rgba(55, 53, 47, 0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: -2px 0 12px rgba(15, 15, 14, 0.08);
+  animation: artifact-slide-in 0.18s ease-out;
+}
+
+@keyframes artifact-slide-in {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes artifact-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.artifact-drawer__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
+  flex-shrink: 0;
+}
+
+.artifact-drawer__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #37352f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.artifact-drawer__type-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b6b68;
+  background: #f1efe8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.artifact-drawer__close {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  color: #6b6b68;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.artifact-drawer__close:hover {
+  background: rgba(55, 53, 47, 0.08);
+  color: #37352f;
+}
+
+.artifact-drawer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
+  background: #fafaf9;
+  flex-shrink: 0;
+}
+
+.artifact-drawer__version-select {
+  font-size: 12px;
+  color: #37352f;
+  background: #fff;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-family: inherit;
+}
+
+.artifact-drawer__toolbar-spacer { flex: 1; }
+
+.artifact-drawer__action {
+  font-size: 12px;
+  font-weight: 500;
+  color: #37352f;
+  background: transparent;
+  border: 1px solid rgba(55, 53, 47, 0.16);
+  border-radius: 5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.artifact-drawer__action:hover:not(:disabled) {
+  background: #f1f1ef;
+  border-color: rgba(55, 53, 47, 0.28);
+}
+
+.artifact-drawer__action--primary {
+  background: #37352f;
+  color: #fff;
+  border-color: #37352f;
+}
+
+.artifact-drawer__action--primary:hover:not(:disabled) {
+  background: #2f2e2a;
+  border-color: #2f2e2a;
+}
+
+.artifact-drawer__action:disabled {
+  color: #8a8a87;
+  border-color: rgba(55, 53, 47, 0.08);
+  cursor: default;
+}
+
+.artifact-drawer__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.artifact-drawer__frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.artifact-drawer__svg-host {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+  background: #fff;
+}
+
+.artifact-drawer__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8a8a87;
+  font-size: 13px;
+}
+
+.artifact-drawer__pinned-badge {
+  font-size: 11px;
+  color: #6b6b68;
+  margin-left: 4px;
+}

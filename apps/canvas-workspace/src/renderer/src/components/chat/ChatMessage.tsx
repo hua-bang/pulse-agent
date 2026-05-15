@@ -1,8 +1,14 @@
 import type { AgentChatMessage, CanvasNode } from '../../types';
+import { toFileUrl } from '../../utils/fileUrl';
 import { AvatarIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
 import { ChatToolCalls } from './ChatToolCalls';
+import {
+  ChatArtifactCard,
+  ChatInlineVisual,
+  parseVisualToolResult,
+} from '../artifacts';
 
 interface GeneratedImagePayload {
   ok?: boolean;
@@ -31,6 +37,7 @@ interface ChatMessageProps {
   collapsed: boolean;
   expandedTools: Set<number>;
   nodes?: CanvasNode[];
+  workspaceId: string;
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
@@ -52,6 +59,7 @@ export const ChatMessage = ({
   collapsed,
   expandedTools,
   nodes,
+  workspaceId,
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
@@ -67,7 +75,7 @@ export const ChatMessage = ({
         <div className="chat-message-images">
           {message.attachments.map(attachment => (
             <figure key={attachment.id} className="chat-message-image-card">
-              <img src={`file://${attachment.path}`} alt={attachment.fileName ?? 'image'} />
+              <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? 'image'} />
               {attachment.fileName && <figcaption>{attachment.fileName}</figcaption>}
             </figure>
           ))}
@@ -103,6 +111,66 @@ export const ChatMessage = ({
               );
             })}
           </div>
+          {tools.map(tool => {
+            // visual_render in flight: drive an inline streaming preview.
+            // Prefer `streamedContent` (the tool's own side-channel chunks)
+            // when present — works on any LLM/provider — and fall back to
+            // partial JSON extraction if the upstream model genuinely
+            // streams tool args.
+            if (tool.name === 'visual_render' && !tool.result) {
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  streamedContent={tool.streamedContent}
+                  partialInput={tool.partialInput}
+                  streaming
+                />
+              );
+            }
+            // visual_render finished but the side-channel stream may still
+            // be flushing the final frames. Until streamedDone, keep using
+            // the streaming view so the swap to the script-enabled iframe
+            // happens at the END of the animation, not on tool-result.
+            if (tool.name === 'visual_render' && tool.result && !tool.streamedDone && tool.streamedContent) {
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  streamedContent={tool.streamedContent}
+                  streaming
+                />
+              );
+            }
+            // artifact_create / _update in flight → no inline preview at
+            // all; the tool-call chip above signals progress and the
+            // artifact card lands once the tool returns. Drawer is the
+            // right place for a live artifact preview, not the chat.
+            if (
+              (tool.name === 'artifact_create' || tool.name === 'artifact_update')
+              && !tool.result
+            ) {
+              return null;
+            }
+            const visual = parseVisualToolResult(tool.name, tool.result);
+            if (!visual) return null;
+            if (visual.kind === 'visual_render') {
+              return (
+                <ChatInlineVisual
+                  key={`visual-${tool.id}`}
+                  workspaceId={workspaceId}
+                  payload={visual.payload}
+                />
+              );
+            }
+            return (
+              <ChatArtifactCard
+                key={`artifact-${tool.id}`}
+                workspaceId={workspaceId}
+                payload={visual.payload}
+              />
+            );
+          })}
         </>
       )}
       {message.role === 'assistant' ? (

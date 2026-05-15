@@ -25,6 +25,19 @@
   cursor: nwse-resize;
 }
 
+.canvas-container--iframe-shielding .iframe-frame-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.canvas-container--iframe-shielding .iframe-frame {
+  pointer-events: none;
+}
+
 .canvas-container--shape {
   cursor: crosshair;
 }
@@ -43,6 +56,7 @@
   top: 0;
   left: 0;
   transform-origin: 0 0;
+  z-index: 1;
 }
 
 /* Only promote the canvas subtree to its own compositor layer while the
@@ -53,4 +67,119 @@
  * "tile memory limits exceeded, some content may not draw" warnings). */
 .canvas-transform--moving {
   will-change: transform;
+}
+
+/* Focus-mode backdrop. Lives inside `.canvas-transform` (see
+ * CanvasSurface) so it scales/pans with the canvas and sits below all
+ * nodes within the same stacking context. Sized at ±100k canvas units
+ * so the user never reaches its edge — at the slowest zoom-out we
+ * support (~0.05) that's still 10k screen pixels in every direction.
+ * The dark fill is what makes the focused node POP — without it,
+ * dimmed nodes just look like faded white over white. */
+.canvas-focus-backdrop {
+  position: absolute;
+  left: -100000px;
+  top: -100000px;
+  width: 200000px;
+  height: 200000px;
+  background: rgba(15, 18, 30, 0.55);
+  pointer-events: none;
+  z-index: 0;
+  animation: canvas-focus-backdrop-in 0.22s ease forwards;
+}
+
+@keyframes canvas-focus-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* When a node is fullscreened we kill the canvas pan/zoom transform
+ * entirely so the fullscreen node can use `inset: 0` against the
+ * `.canvas-container` viewport without fighting an inverse-transform
+ * calculation. Other nodes "jump" to their raw canvas coords for the
+ * duration, but they're hidden behind the fullscreen backdrop so the
+ * jump isn't visible. The transform layer also gets explicit
+ * dimensions so the absolutely-positioned fullscreen node has a real
+ * containing block to fill, and its z-index is raised above the
+ * floating toolbar (500-600) and zoom indicator (500). */
+.canvas-container[data-fullscreen="on"] .canvas-transform {
+  transform: none !important;
+  transition: none !important;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+}
+
+.canvas-container[data-fullscreen="on"] .canvas-grid {
+  opacity: 0;
+}
+
+/* Fullscreen backdrop. With the parent transform killed, it sits at
+ * canvas-container coords directly — a simple `inset: 0` covers the
+ * viewport. Click anywhere to dismiss. */
+.canvas-fullscreen-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 18, 30, 0.62);
+  pointer-events: auto;
+  z-index: 50;
+}
+
+/* Fullscreen-only chip with Chat / Reference toggles. Floats above
+ * the fullscreen node so the user can still pop the canvas-level
+ * panels open without seeing the rest of the toolbar. z-index sits
+ * above `.canvas-transform`'s bumped 1000. */
+/* Single control surface for fullscreen mode — Reference / Chat
+ * toggles + exit button. Sits at top-right since the node's own
+ * exit button is hidden in fullscreen (see CanvasNodeView CSS), so
+ * there's no overlap. */
+.canvas-fullscreen-chip {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
+  z-index: 1010;
+}
+
+.canvas-fullscreen-chip__divider {
+  width: 1px;
+  height: 16px;
+  background: rgba(0, 0, 0, 0.08);
+  margin: 0 2px;
+}
+
+.canvas-fullscreen-chip__btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.canvas-fullscreen-chip__btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.canvas-fullscreen-chip__btn--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.canvas-fullscreen-chip__btn--active:hover {
+  background: var(--accent-light);
+  color: var(--accent);
 }

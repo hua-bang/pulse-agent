@@ -16,8 +16,10 @@ interface Options {
   clipboardNodes: CanvasNode[];
   setClipboardNodes: (nodes: CanvasNode[]) => void;
   pasteNodes: (nodes: CanvasNode[]) => CanvasNode[];
-  /** Wrap the current node selection in a new frame. */
+  /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
+  /** Dissolve selected group nodes while keeping their children on canvas. */
+  ungroupSelectedNodes: () => void;
   removeNodes: (ids: string[]) => void | Promise<void>;
   /** Batch-move nodes by deltas in canvas coordinates. Used by arrow-
    *  key nudging so a single keypress moves the whole selection in one
@@ -29,20 +31,44 @@ interface Options {
   commitHistory: () => void;
   searchOpen: boolean;
   setSearchOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  /** Find-in-canvas bar (Ctrl/Cmd+F). Kept separate from the Cmd+K
+   *  command palette because the two have incompatible mental models:
+   *  the palette closes after a single Enter, while find stays open
+   *  for iterative next/prev. */
+  findOpen: boolean;
+  toggleFindBar: () => void;
+  closeFindBar: () => void;
+  findNext: () => void;
+  findPrev: () => void;
+  findHasMatches: boolean;
   contextMenu: unknown;
   setContextMenu: (menu: null) => void;
   setHighlightedId: (id: string | null) => void;
   handleFocusNode: (node: CanvasNode) => void;
+  focusModeEnabled?: boolean;
+  canToggleFocusMode?: boolean;
+  onToggleFocusMode?: () => void;
+  onExitFocusMode?: () => void;
+  fullscreenActive?: boolean;
+  onExitFullscreen?: () => void;
   keyboardLocked?: boolean;
 }
 
 export const useCanvasKeyboard = ({
   undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
-  duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes,
+  duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
-  searchOpen, setSearchOpen, contextMenu, setContextMenu,
+  searchOpen, setSearchOpen,
+  findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches,
+  contextMenu, setContextMenu,
   setHighlightedId, handleFocusNode,
+  focusModeEnabled = false,
+  canToggleFocusMode = false,
+  onToggleFocusMode,
+  onExitFocusMode,
+  fullscreenActive = false,
+  onExitFullscreen,
   keyboardLocked = false,
 }: Options) => {
   useEffect(() => {
@@ -56,6 +82,27 @@ export const useCanvasKeyboard = ({
         (active as HTMLElement).isContentEditable
       );
       const isMod = e.metaKey || e.ctrlKey;
+
+      // Ctrl/Cmd+F — find in canvas. Intentionally works *even when*
+      // an editable element has focus: users frequently want to
+      // search from inside a file node without first clicking out.
+      // The bar's own input grabs focus on mount; we just preventDefault
+      // so the browser's native find UI doesn't compete.
+      if (isMod && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        toggleFindBar();
+        return;
+      }
+
+      // F3 / Shift+F3 — page through matches without re-opening the
+      // bar. Only meaningful while results exist; otherwise let the
+      // key fall through.
+      if (e.key === 'F3' && findHasMatches) {
+        e.preventDefault();
+        if (e.shiftKey) findPrev();
+        else findNext();
+        return;
+      }
 
       if (isMod && (e.key === 'k' || e.key === 'h') && !isEditable) {
         e.preventDefault();
@@ -96,6 +143,11 @@ export const useCanvasKeyboard = ({
         if (selected.length > 0) setClipboardNodes(selected);
         return;
       }
+      if (isMod && (e.key === 'g' || e.key === 'G') && e.shiftKey && !isEditable) {
+        e.preventDefault();
+        if (selectedNodeIds.length > 0) ungroupSelectedNodes();
+        return;
+      }
       if (isMod && (e.key === 'g' || e.key === 'G') && !e.shiftKey && !isEditable) {
         e.preventDefault();
         if (selectedNodeIds.length > 0) groupSelectedNodes();
@@ -107,6 +159,12 @@ export const useCanvasKeyboard = ({
           const created = pasteNodes(clipboardNodes);
           setSelectedNodeIds(created.map((n) => n.id));
         }
+        return;
+      }
+      if (!isEditable && !isMod && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f') {
+        if (!focusModeEnabled && !canToggleFocusMode) return;
+        e.preventDefault();
+        onToggleFocusMode?.();
         return;
       }
       // Arrow-key nudging — moves the whole selection by 1px (or 10px
@@ -136,8 +194,14 @@ export const useCanvasKeyboard = ({
         return;
       }
       if (e.key === 'Escape') {
+        if (findOpen) { closeFindBar(); return; }
         if (searchOpen) { setSearchOpen(false); return; }
         if (contextMenu) { setContextMenu(null); return; }
+        // Fullscreen takes priority over focus-mode so Esc reliably
+        // shrinks the overlay back to its canvas slot before doing
+        // anything else with selection state.
+        if (fullscreenActive) { onExitFullscreen?.(); return; }
+        if (focusModeEnabled) { onExitFocusMode?.(); return; }
         if (selectedEdgeId) { setSelectedEdgeId(null); return; }
         setSelectedNodeIds([]);
         return;
@@ -158,7 +222,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, contextMenu, setContextMenu, keyboardLocked]);
+  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {
@@ -184,11 +248,14 @@ export const useCanvasKeyboard = ({
           const nextNode = nodes[nextIndex];
           setSelectedNodeIds([nextNode.id]);
           setHighlightedId(nextNode.id);
-          handleFocusNode(nextNode);
+          // In focus mode the dedicated reframe effect handles the zoom
+          // with tighter padding/maxScale; calling handleFocusNode here
+          // too would produce a double reframe at different scales.
+          if (!focusModeEnabled) handleFocusNode(nextNode);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nodes, selectedNodeIds, setSelectedNodeIds, setHighlightedId, handleFocusNode, keyboardLocked]);
+  }, [nodes, selectedNodeIds, setSelectedNodeIds, setHighlightedId, handleFocusNode, keyboardLocked, focusModeEnabled]);
 };

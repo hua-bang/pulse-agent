@@ -25,7 +25,6 @@ interface Props {
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
   onImport: () => void;
-  onSetRootFolder: (id: string, folderPath: string) => void;
   onCreateFolder: (name: string) => void;
   onRenameFolder: (id: string, name: string) => void;
   onDeleteFolder: (id: string) => void;
@@ -49,7 +48,7 @@ export const Sidebar = ({
   onExport, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace, onReorderFolder,
   activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat,
 }: Props) => {
-  const { confirm, notify } = useAppShell();
+  const { notify } = useAppShell();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
@@ -140,25 +139,12 @@ export const Sidebar = ({
     setInlineCreate(null); setInlineCreateValue('');
   };
 
-  const handleLayerDelete = useCallback(async (nodeId: string) => {
+  const handleLayerDelete = useCallback((nodeId: string) => {
     const node = activeNodes.find((item) => item.id === nodeId);
     if (!node || !onNodeDelete) return;
 
-    const accepted = await confirm({
-      intent: 'danger',
-      title: `Delete "${getNodeDisplayLabel(node)}"?`,
-      description: 'The node will be removed from the canvas. Connected arrows remain and detach from it.',
-      confirmLabel: 'Delete node',
-    });
-    if (!accepted) return;
-
     onNodeDelete(nodeId);
-    notify({
-      tone: 'success',
-      title: 'Node deleted',
-      description: getNodeDisplayLabel(node),
-    });
-  }, [activeNodes, confirm, notify, onNodeDelete]);
+  }, [activeNodes, onNodeDelete]);
 
   const handleLayerCopyLink = useCallback(async (nodeId: string) => {
     const node = activeNodes.find((item) => item.id === nodeId);

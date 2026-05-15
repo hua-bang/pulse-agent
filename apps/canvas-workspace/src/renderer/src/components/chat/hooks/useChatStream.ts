@@ -39,8 +39,18 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
 
   const replaceMessages = useCallback((nextMessages: AgentChatMessage[]) => {
     setMessages(nextMessages);
-    setMessageTools(new Map());
-    setCollapsedSections(new Set());
+    setMessageTools(new Map(
+      nextMessages.flatMap((message, index) => (
+        message.role === 'assistant' && message.toolCalls?.length
+          ? [[index, message.toolCalls]] as Array<[number, ToolCallStatus[]]>
+          : []
+      )),
+    ));
+    setCollapsedSections(new Set(
+      nextMessages.flatMap((message, index) => (
+        message.role === 'assistant' && message.toolCalls?.length ? [index] : []
+      )),
+    ));
   }, []);
 
   const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {
@@ -100,37 +110,131 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         unsubscribeComplete();
         unsubscribeToolCall();
         unsubscribeToolResult();
+        unsubscribeToolInputStart();
+        unsubscribeToolInputDelta();
+        unsubscribeToolInputEnd();
+        unsubscribeVisualStream();
         unsubscribeClarify();
         activeUnsubsRef.current = [];
       };
 
-      const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
+      const publishTools = () => {
+        const snapshot = [...toolCalls];
+        setStreamingTools(snapshot);
+        if (assistantIndex.current >= 0) {
+          setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
+        }
+      };
+
+      const findTool = (toolCallId: string | undefined, name?: string) => {
+        if (toolCallId) {
+          const byId = toolCalls.find(t => t.toolCallId === toolCallId);
+          if (byId) return byId;
+        }
+        if (name) {
+          return toolCalls.find(t => t.name === name && t.status === 'running');
+        }
+        return undefined;
+      };
+
+      // Input streaming: starts BEFORE the LLM has finished emitting tool args.
+      // We create the ToolCallStatus here so the chat UI can render a
+      // progressive preview (e.g. a streaming inline visual) keyed off the
+      // toolCallId before the final tool-call chunk arrives.
+      const unsubscribeToolInputStart = window.canvasWorkspace.agent.onToolInputStart(sessionId, data => {
         ensureAssistantMessage();
         toolCalls.push({
           id: ++toolIdCounter.current,
-          name: data.name,
-          args: data.args,
+          name: data.toolName,
+          toolCallId: data.id,
           status: 'running',
+          partialInput: '',
+          inputStreaming: true,
         });
-        const snapshot = [...toolCalls];
-        setStreamingTools(snapshot);
-        if (assistantIndex.current >= 0) {
-          setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
+        publishTools();
+      });
+
+      const unsubscribeToolInputDelta = window.canvasWorkspace.agent.onToolInputDelta(sessionId, data => {
+        const tool = findTool(data.id);
+        if (!tool) return;
+        tool.partialInput = (tool.partialInput ?? '') + data.delta;
+        publishTools();
+      });
+
+      const unsubscribeToolInputEnd = window.canvasWorkspace.agent.onToolInputEnd(sessionId, data => {
+        const tool = findTool(data.id);
+        if (!tool) return;
+        tool.inputStreaming = false;
+        publishTools();
+      });
+
+      // Side-channel: visual_render pushes already-extracted content as the
+      // tool chunks its final HTML over animation frames. We accept these
+      // chunks regardless of which session emitted them — the toolCallId
+      // disambiguates — but filter to the active workspace so a stray
+      // chunk from a parallel workspace agent doesn't leak in.
+      let visualStreamFrames = 0;
+      const unsubscribeVisualStream = window.canvasWorkspace.agent.onVisualStream(data => {
+        if (data.workspaceId !== workspaceId) return;
+        const tool = findTool(data.toolCallId);
+        if (!tool) {
+          if (visualStreamFrames < 3) {
+            console.warn('[useChatStream] visual-stream frame for unknown toolCallId', data.toolCallId);
+            visualStreamFrames++;
+          }
+          return;
         }
+        visualStreamFrames++;
+        // Sample-log progress so we can verify chunks arrive at ~60fps.
+        if (visualStreamFrames === 1 || data.done || visualStreamFrames % 15 === 0) {
+          console.info(
+            `[useChatStream] visual-stream frame=${visualStreamFrames} ` +
+            `bytes=${data.content.length} done=${!!data.done} toolCallId=${data.toolCallId}`,
+          );
+        }
+        tool.streamedContent = data.content;
+        if (data.done) tool.streamedDone = true;
+        publishTools();
+      });
+
+      const unsubscribeToolCall = window.canvasWorkspace.agent.onToolCall(sessionId, data => {
+        ensureAssistantMessage();
+        // If we already created a ToolCallStatus for this id during input
+        // streaming, merge the fully-parsed args in. Otherwise (e.g. a model
+        // that doesn't stream tool input), create one now.
+        const existing = findTool(data.toolCallId, data.name);
+        if (existing) {
+          existing.args = data.args;
+          existing.inputStreaming = false;
+        } else {
+          toolCalls.push({
+            id: ++toolIdCounter.current,
+            name: data.name,
+            args: data.args,
+            toolCallId: data.toolCallId,
+            status: 'running',
+          });
+        }
+        publishTools();
       });
 
       const unsubscribeToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, data => {
-        const toolCall = toolCalls.find(item => item.name === data.name && item.status === 'running');
-        if (toolCall) {
-          toolCall.status = 'done';
-          toolCall.result = data.result;
+        const tool = findTool(data.toolCallId, data.name);
+        if (tool) {
+          tool.status = 'done';
+          tool.result = data.result;
+          tool.inputStreaming = false;
+          // Safety: if the tool already pushed visual stream chunks but
+          // the final `done` frame hasn't landed yet (IPC ordering race
+          // between visual-stream and tool-result channels), promote the
+          // last chunk to "done" so the renderer can swap to the final
+          // script-enabled iframe instead of getting stuck in streaming
+          // view.
+          if (tool.streamedContent != null) {
+            tool.streamedDone = true;
+          }
         }
-
-        const snapshot = [...toolCalls];
-        setStreamingTools(snapshot);
-        if (assistantIndex.current >= 0) {
-          setMessageTools(prev => new Map(prev).set(assistantIndex.current, snapshot));
-        }
+        publishTools();
       });
 
       const unsubscribeDelta = window.canvasWorkspace.agent.onTextDelta(sessionId, delta => {
@@ -163,26 +267,31 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
         setPendingClarify(null);
         setClarifyInput('');
 
+        const toolSnapshot = toolCalls.length > 0 ? toolCalls.map(tool => ({ ...tool })) : undefined;
+        const mergeAssistantMessage = (message: AgentChatMessage): AgentChatMessage => (
+          toolSnapshot ? { ...message, toolCalls: toolSnapshot } : message
+        );
+
         if (!completeResult.ok) {
           setMessages(prev => {
             if (assistantIndex.current < 0) {
               return [
                 ...prev,
-                {
+                mergeAssistantMessage({
                   role: 'assistant',
                   content: `Error: ${completeResult.error ?? 'Unknown error'}`,
                   timestamp: Date.now(),
-                },
+                }),
               ];
             }
 
             const next = [...prev];
             const index = assistantIndex.current;
             const existingContent = next[index]?.content;
-            next[index] = {
+            next[index] = mergeAssistantMessage({
               ...next[index],
               content: existingContent || `Error: ${completeResult.error ?? 'Unknown error'}`,
-            };
+            });
             return next;
           });
         } else if (completeResult.response) {
@@ -190,19 +299,27 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
             if (assistantIndex.current < 0) {
               return [
                 ...prev,
-                {
+                mergeAssistantMessage({
                   role: 'assistant',
                   content: completeResult.response ?? '',
                   timestamp: Date.now(),
-                },
+                }),
               ];
             }
 
             const next = [...prev];
-            next[assistantIndex.current] = {
+            next[assistantIndex.current] = mergeAssistantMessage({
               ...next[assistantIndex.current],
               content: completeResult.response ?? '',
-            };
+            });
+            return next;
+          });
+        } else if (toolSnapshot && assistantIndex.current >= 0) {
+          setMessages(prev => {
+            const index = assistantIndex.current;
+            if (index < 0 || index >= prev.length) return prev;
+            const next = [...prev];
+            next[index] = mergeAssistantMessage(next[index]);
             return next;
           });
         }
@@ -213,6 +330,10 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
       activeUnsubsRef.current.push(
         unsubscribeToolCall,
         unsubscribeToolResult,
+        unsubscribeToolInputStart,
+        unsubscribeToolInputDelta,
+        unsubscribeToolInputEnd,
+        unsubscribeVisualStream,
         unsubscribeDelta,
         unsubscribeComplete,
         unsubscribeClarify,

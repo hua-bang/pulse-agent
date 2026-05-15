@@ -1,4 +1,4 @@
-export type NodeType = 'file' | 'terminal' | 'frame' | 'agent' | 'mindmap';
+export type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'mindmap';
 export type NodeCapability = 'read' | 'write' | 'exec';
 
 /**
@@ -24,6 +24,7 @@ export interface CanvasNodeData {
   sessionId?: string;
   color?: string;
   label?: string;
+  childIds?: string[];
   [key: string]: unknown;
 }
 

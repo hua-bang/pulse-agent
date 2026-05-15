@@ -4,6 +4,8 @@ import type { EngineHookMap, OnCompactedEvent } from "../plugin/EnginePlugin.js"
 import { streamTextAI } from "../ai";
 import { maybeCompactContext, type CompactStats } from "../context";
 import {
+  LLM_CALL_TIMEOUT_MS,
+  LLM_FIRST_CHUNK_TIMEOUT_MS,
   MAX_COMPACTION_ATTEMPTS,
   MAX_ERROR_COUNT,
   MAX_STEPS,
@@ -19,6 +21,8 @@ import {
  * Override per deployment via env: MODEL_CONTEXT_BUDGET (single global cap).
  */
 const MODEL_CONTEXT_BUDGET_OVERRIDE = Number(process.env.MODEL_CONTEXT_BUDGET ?? 0) || undefined;
+const LLM_TIMEOUT_CODE = 'LLM_TIMEOUT';
+type LLMTimeoutReason = 'first-chunk' | 'total';
 
 function resolveModelContextBudget(model?: string, modelType?: ModelType): number {
   if (MODEL_CONTEXT_BUDGET_OVERRIDE && MODEL_CONTEXT_BUDGET_OVERRIDE > 0) {
@@ -40,6 +44,40 @@ function resolveModelContextBudget(model?: string, modelType?: ModelType): numbe
   }
   // Conservative default
   return 110_000;
+}
+
+function normalizeTimeoutMs(value: number): number | undefined {
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+function createLLMTimeoutError(reason: LLMTimeoutReason, timeoutMs: number): Error {
+  const label = reason === 'first-chunk' ? 'first response chunk' : 'total request duration';
+  const error = new Error(`LLM ${label} timed out after ${timeoutMs}ms`);
+  error.name = 'LLMTimeoutError';
+  (error as any).code = LLM_TIMEOUT_CODE;
+  (error as any).timeoutReason = reason;
+  (error as any).timeoutMs = timeoutMs;
+  return error;
+}
+
+function isLLMTimeoutError(error: any): boolean {
+  return error?.code === LLM_TIMEOUT_CODE || error?.name === 'LLMTimeoutError';
+}
+
+function formatDurationMs(ms: number): string {
+  if (!Number.isFinite(ms)) {
+    return 'unknown duration';
+  }
+  if (ms < 1000) {
+    return `${ms}ms`;
+  }
+  const seconds = ms / 1000;
+  if (seconds < 60) {
+    return `${seconds.toFixed(seconds >= 10 ? 0 : 1)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
 }
 
 /**
@@ -65,6 +103,19 @@ export interface LoopOptions {
   onText?: (delta: string) => void;
   onToolCall?: (toolCall: any) => void;
   onToolResult?: (toolResult: any) => void;
+  /**
+   * Fired when the LLM starts emitting a tool's input JSON. Use this together
+   * with `onToolInputDelta` to drive progressive UIs (e.g. streaming an
+   * artifact preview in chat) before the tool actually executes.
+   */
+  onToolInputStart?: (chunk: { id: string; toolName: string }) => void;
+  /**
+   * Fired for each chunk of raw tool input JSON the LLM emits. `delta` is the
+   * incremental text appended to the accumulating JSON string (NOT pre-parsed).
+   */
+  onToolInputDelta?: (chunk: { id: string; delta: string }) => void;
+  /** Fired when the LLM finishes emitting a tool's input JSON. */
+  onToolInputEnd?: (chunk: { id: string }) => void;
   onStepFinish?: (step: StepResult<any>) => void;
   onClarificationRequest?: (request: ClarificationRequest) => Promise<string>;
   onCompacted?: (newMessages: ModelMessage[], event?: CompactionEvent) => void;
@@ -329,50 +380,159 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 
       requestStartAt = Date.now();
       llmCallStarted = true;
-      const result = streamTextAI(context.messages, tools, {
-        abortSignal: options?.abortSignal,
-        toolExecutionContext,
-        provider: options?.provider ?? (options?.modelType ? buildProvider(options.modelType) : undefined),
-        model: options?.model,
-        modelType: options?.modelType,
-        systemPrompt,
-        onStepFinish: (step) => {
-          options?.onStepFinish?.(step);
-        },
-        onChunk: ({ chunk }) => {
-          const chunkAt = Date.now();
-          if (firstChunkAt === undefined) {
-            firstChunkAt = chunkAt;
-          }
-          if (chunk.type === 'text-delta' && firstTextAt === undefined) {
-            firstTextAt = chunkAt;
-          }
-          lastChunkAt = chunkAt;
-          if (chunk.type === 'text-delta') {
-            options?.onText?.(chunk.text);
-          }
-          if (chunk.type === 'tool-call') {
-            options?.onToolCall?.(chunk);
-            const toolCallHooks = loopHooks.onToolCall ?? [];
-            if (toolCallHooks.length > 0) {
-              for (const hook of toolCallHooks) {
-                Promise.resolve(hook({ context, toolCall: chunk })).catch(() => undefined);
-              }
-            }
-          }
-          if (chunk.type === 'tool-result') {
-            options?.onToolResult?.(chunk);
-          }
-        },
+      const llmAbortController = new AbortController();
+      let timeoutError: Error | undefined;
+      let firstChunkTimeoutId: ReturnType<typeof setTimeout> | undefined;
+      let callTimeoutId: ReturnType<typeof setTimeout> | undefined;
+      let rejectLLMWait: ((error: Error) => void) | undefined;
+      const firstChunkTimeoutMs = normalizeTimeoutMs(LLM_FIRST_CHUNK_TIMEOUT_MS);
+      const callTimeoutMs = normalizeTimeoutMs(LLM_CALL_TIMEOUT_MS);
+      const llmWaitAbortPromise = new Promise<never>((_resolve, reject) => {
+        rejectLLMWait = reject;
       });
 
-      const usagePromise = (result as any).usage;
-      const [text, steps, finishReason, usage] = await Promise.all([
-        result.text,
-        result.steps,
-        result.finishReason,
-        usagePromise ? Promise.resolve(usagePromise) : Promise.resolve(undefined),
-      ]);
+      const rejectLLMWaitOnce = (error: Error) => {
+        if (!rejectLLMWait) {
+          return;
+        }
+        rejectLLMWait(error);
+        rejectLLMWait = undefined;
+      };
+
+      const abortLLM = (reason?: Error) => {
+        if (!llmAbortController.signal.aborted) {
+          llmAbortController.abort(reason);
+        }
+      };
+
+      const handleTimeout = (reason: LLMTimeoutReason, timeoutMs: number) => {
+        const error = timeoutError ?? createLLMTimeoutError(reason, timeoutMs);
+        timeoutError = error;
+        abortLLM(error);
+        rejectLLMWaitOnce(error);
+      };
+
+      const handleCallerAbort = () => {
+        const abortError = new Error('Aborted');
+        abortError.name = 'AbortError';
+        abortLLM(abortError);
+        rejectLLMWaitOnce(abortError);
+      };
+
+      const clearFirstChunkTimeout = () => {
+        if (firstChunkTimeoutId) {
+          clearTimeout(firstChunkTimeoutId);
+          firstChunkTimeoutId = undefined;
+        }
+      };
+
+      const disposeLLMTimeouts = () => {
+        clearFirstChunkTimeout();
+        if (callTimeoutId) {
+          clearTimeout(callTimeoutId);
+          callTimeoutId = undefined;
+        }
+        rejectLLMWait = undefined;
+        options?.abortSignal?.removeEventListener('abort', handleCallerAbort);
+      };
+
+      if (options?.abortSignal?.aborted) {
+        handleCallerAbort();
+      } else {
+        options?.abortSignal?.addEventListener('abort', handleCallerAbort, { once: true });
+      }
+
+      if (firstChunkTimeoutMs) {
+        firstChunkTimeoutId = setTimeout(() => {
+          if (firstChunkAt === undefined) {
+            handleTimeout('first-chunk', firstChunkTimeoutMs);
+          }
+        }, firstChunkTimeoutMs);
+      }
+
+      if (callTimeoutMs) {
+        callTimeoutId = setTimeout(() => {
+          handleTimeout('total', callTimeoutMs);
+        }, callTimeoutMs);
+      }
+
+      let text: string;
+      let steps: StepResult<any>[];
+      let finishReason: string;
+      let usage: any;
+
+      try {
+        const result = streamTextAI(context.messages, tools, {
+          abortSignal: llmAbortController.signal,
+          toolExecutionContext: {
+            ...toolExecutionContext,
+            abortSignal: llmAbortController.signal,
+          },
+          provider: options?.provider ?? (options?.modelType ? buildProvider(options.modelType) : undefined),
+          model: options?.model,
+          modelType: options?.modelType,
+          systemPrompt,
+          onStepFinish: (step) => {
+            options?.onStepFinish?.(step);
+          },
+          onChunk: ({ chunk }) => {
+            const chunkAt = Date.now();
+            if (firstChunkAt === undefined) {
+              firstChunkAt = chunkAt;
+              clearFirstChunkTimeout();
+            }
+            if (chunk.type === 'text-delta' && firstTextAt === undefined) {
+              firstTextAt = chunkAt;
+            }
+            lastChunkAt = chunkAt;
+            if (chunk.type === 'text-delta') {
+              options?.onText?.(chunk.text);
+            }
+            if (chunk.type === 'tool-call') {
+              options?.onToolCall?.(chunk);
+              const toolCallHooks = loopHooks.onToolCall ?? [];
+              if (toolCallHooks.length > 0) {
+                for (const hook of toolCallHooks) {
+                  Promise.resolve(hook({ context, toolCall: chunk })).catch(() => undefined);
+                }
+              }
+            }
+            if (chunk.type === 'tool-result') {
+              options?.onToolResult?.(chunk);
+            }
+            // Tool-input streaming. AI SDK v6 emits these for every tool the
+            // LLM invokes; we forward them verbatim so the renderer can drive
+            // a progressive preview keyed by `chunk.id` (which matches the
+            // `toolCallId` on the final `tool-call` chunk).
+            if (chunk.type === 'tool-input-start') {
+              options?.onToolInputStart?.({ id: chunk.id, toolName: chunk.toolName });
+            }
+            if (chunk.type === 'tool-input-delta') {
+              options?.onToolInputDelta?.({ id: chunk.id, delta: chunk.delta });
+            }
+            if (chunk.type === 'tool-input-end') {
+              options?.onToolInputEnd?.({ id: chunk.id });
+            }
+          },
+        });
+
+        const usagePromise = (result as any).usage;
+        const llmCompletionPromise = Promise.all([
+          result.text,
+          result.steps,
+          result.finishReason,
+          usagePromise ? Promise.resolve(usagePromise) : Promise.resolve(undefined),
+        ]) as Promise<[string, StepResult<any>[], string, any]>;
+
+        [text, steps, finishReason, usage] = await Promise.race([
+          llmCompletionPromise,
+          llmWaitAbortPromise,
+        ]);
+      } catch (error) {
+        throw timeoutError ?? error;
+      } finally {
+        disposeLLMTimeouts();
+      }
 
       totalSteps += steps.length;
 
@@ -507,6 +667,17 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
         return 'Request aborted.';
       }
 
+      if (typeof error?.message === 'string' && error.message.toLowerCase().includes('no output generated')) {
+        console.warn('[loop] LLM stream produced no output', {
+          model: options?.model,
+          modelType: options?.modelType,
+          status: error?.status ?? error?.statusCode,
+          cause: error?.cause,
+          responseBody: error?.responseBody,
+          data: error?.data,
+        });
+      }
+
       if (llmCallStarted && loopHooks.afterLLMCall?.length) {
         try {
           for (const hook of loopHooks.afterLLMCall) {
@@ -548,6 +719,16 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 }
 
 function formatUpstreamError(error: any): string | null {
+  if (isLLMTimeoutError(error)) {
+    const timeoutMs = Number(error?.timeoutMs);
+    const timeoutReason = error?.timeoutReason === 'total' ? '完整响应' : '首个响应块';
+    return [
+      '⚠️ 上游模型请求超时。',
+      '',
+      `本次 LLM 调用在 ${formatDurationMs(timeoutMs)} 内没有收到${timeoutReason}，已主动中止以释放 remote-server 的运行锁。建议先用 \`/compact\` 压缩上下文，或用 \`/new\` 开新会话后继续；如确实需要等待更久，可调整 \`LLM_FIRST_CHUNK_TIMEOUT_MS\` / \`LLM_CALL_TIMEOUT_MS\`。`,
+    ].join('\n');
+  }
+
   const messages = collectErrorMessages(error);
   const combined = messages.join('\n').toLowerCase();
   if (
@@ -562,7 +743,33 @@ function formatUpstreamError(error: any): string | null {
     ].join('\n');
   }
 
+  if (combined.includes('no output generated')) {
+    const detail = pickFirstNonEmpty(messages, 'no output generated');
+    return [
+      '⚠️ 上游模型没有产出任何输出。',
+      '',
+      '这一般是上游 stream 在产出 token 前就出错了 — 常见原因：',
+      '- Provider 类型与 base URL 不匹配（例如把 Claude provider 指到一个只讲 OpenAI 协议的代理，反之亦然）',
+      '- API Key 不正确 / 未对该模型授权',
+      '- model id 在上游不存在或被下线',
+      '- 代理把上游错误吞了，只返回了一个空 stream',
+      '',
+      detail ? `底层错误：${detail}` : '建议先在 Models & Providers 面板用 Fetch 验证 base URL + API Key，再检查 model id 是否正确。',
+    ].join('\n');
+  }
+
   return null;
+}
+
+function pickFirstNonEmpty(messages: string[], excludeIncluding: string): string | undefined {
+  const lowered = excludeIncluding.toLowerCase();
+  for (const message of messages) {
+    const trimmed = message.trim();
+    if (!trimmed) continue;
+    if (trimmed.toLowerCase().includes(lowered)) continue;
+    return trimmed.length > 240 ? `${trimmed.slice(0, 240)}…` : trimmed;
+  }
+  return undefined;
 }
 
 function collectErrorMessages(value: unknown, seen = new Set<object>()): string[] {
