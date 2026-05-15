@@ -2107,7 +2107,8 @@ ${outline}`;
         '- auto: tries dom first; if content is too sparse, upgrades to a11y; final fallback is screenshot.\n' +
         '- dom: innerText extraction — fast, safe, works for any text-heavy page.\n' +
         '- a11y: Chrome accessibility tree (roles, names, descriptions) — richer semantic structure.\n' +
-        '- screenshot: captures the exact viewport as a PNG data URL — use when you need vision analysis.\n\n' +
+        '- screenshot: saves the exact viewport as a PNG file and returns imagePath. ' +
+        'Then call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.\n\n' +
         'Prefer this over canvas_read_node for iframe nodes when you need a11y structure or a screenshot.',
       inputSchema: z.object({
         nodeId: z.string().describe('ID of the iframe canvas node to read.'),
@@ -2174,7 +2175,8 @@ ${outline}`;
         // ── Screenshot ───────────────────────────────────────────────────
         const r = await captureScreenshot(wc);
         return JSON.stringify(r.ok
-          ? { ok: true, strategy: 'screenshot', dataUrl: r.dataUrl }
+          ? { ok: true, strategy: 'screenshot', imagePath: r.imagePath,
+              hint: 'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.' }
           : { ok: false, strategy: 'screenshot', error: r.error });
       },
     },

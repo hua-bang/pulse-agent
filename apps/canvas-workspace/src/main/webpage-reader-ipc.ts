@@ -18,6 +18,9 @@
  */
 
 import { ipcMain } from 'electron';
+import { tmpdir } from 'os';
+import { promises as fs } from 'fs';
+import { randomUUID } from 'crypto';
 import { getWebContentsForNode } from './webview-registry';
 
 // ---------------------------------------------------------------------------
@@ -152,12 +155,14 @@ export async function readA11y(
 
 export async function captureScreenshot(
   wc: AnyWebContents,
-): Promise<{ ok: boolean; dataUrl: string; error?: string }> {
+): Promise<{ ok: boolean; imagePath: string; error?: string }> {
   try {
     const image = await wc.capturePage();
-    return { ok: true, dataUrl: image.toDataURL() };
+    const imagePath = `${tmpdir()}/pulse-screenshot-${randomUUID()}.png`;
+    await fs.writeFile(imagePath, image.toPNG());
+    return { ok: true, imagePath };
   } catch (err) {
-    return { ok: false, dataUrl: '', error: err instanceof Error ? err.message : String(err) };
+    return { ok: false, imagePath: '', error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -183,7 +188,7 @@ export interface WebReadInput {
 export type WebReadResult =
   | { ok: true;  nodeId: string; strategy: 'dom';        text: string; title: string; url: string }
   | { ok: true;  nodeId: string; strategy: 'a11y';       text: string }
-  | { ok: true;  nodeId: string; strategy: 'screenshot'; dataUrl: string }
+  | { ok: true;  nodeId: string; strategy: 'screenshot'; imagePath: string }
   | { ok: false; nodeId: string; strategy: WebReadStrategy; error: string };
 
 // ---------------------------------------------------------------------------
@@ -238,7 +243,7 @@ export function setupWebpageReaderIpc(): void {
       // ── Screenshot ───────────────────────────────────────────────────────
       const result = await captureScreenshot(wc);
       return result.ok
-        ? { ok: true, nodeId, strategy: 'screenshot', dataUrl: result.dataUrl }
+        ? { ok: true, nodeId, strategy: 'screenshot', imagePath: result.imagePath }
         : { ok: false, nodeId, strategy: 'screenshot', error: result.error! };
     },
   );
