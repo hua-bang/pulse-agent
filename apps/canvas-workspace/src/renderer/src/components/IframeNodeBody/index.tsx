@@ -480,6 +480,17 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
     if (target) void window.canvasWorkspace.shell.openExternal(target);
   }, [mode, url]);
 
+  const handleOpenDevTools = useCallback(() => {
+    const el = webviewRef.current;
+    if (!el) return;
+    try {
+      if (el.isDevToolsOpened?.()) el.closeDevTools?.();
+      else el.openDevTools?.();
+    } catch {
+      // openDevTools throws if the webview hasn't attached yet — silently ignore.
+    }
+  }, []);
+
   const handleReload = useCallback(() => {
     setLoadState(mode === "url" && url ? "loading" : "idle");
     setLoadError(null);
@@ -730,6 +741,19 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
         {mode === "url" && (
           <button
             className="iframe-bar-btn"
+            onClick={handleOpenDevTools}
+            title="Inspect (open DevTools)"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <circle cx="5" cy="5" r="3" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M7.5 7.5L10 10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+
+        {mode === "url" && (
+          <button
+            className="iframe-bar-btn"
             onClick={handleOpenExternal}
             title="Open externally"
           >
@@ -845,4 +869,7 @@ interface WebviewTag extends HTMLElement {
   getURL(): string;
   reload(): void;
   executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+  openDevTools(): void;
+  closeDevTools(): void;
+  isDevToolsOpened(): boolean;
 }
