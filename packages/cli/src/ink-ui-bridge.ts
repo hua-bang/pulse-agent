@@ -303,16 +303,19 @@ export class InkUiBridge {
   private formatToolActivityText(): string {
     const counts = this.countToolNames();
     const groupedTools = Object.entries(counts)
-      .map(([tool, count]) => `${tool} ×${count}`)
+      .map(([tool, count]) => count > 1 ? `${tool} ×${count}` : tool)
       .join(' · ');
-    const latestCalls = this.toolActivityCalls.slice(-4).map(call => {
-      const icon = call.status === 'success' ? '✓' : call.status === 'error' ? '✕' : '…';
-      return `  ${icon} ${call.name.padEnd(5)} ${call.summary}`;
+    const latestCalls = this.toolActivityCalls.slice(-5).map(call => {
+      const icon = call.status === 'success' ? '✓' : call.status === 'error' ? '✕' : '·';
+      // If summary already has an action prefix, skip repeating the tool name
+      const hasActionPrefix = /^\s*(\$|open |grep |find |search |edit |write |patch |ls )/.test(call.summary);
+      const label = hasActionPrefix ? call.summary : `${call.name}: ${call.summary}`;
+      return `  ${icon} ${label}`;
     });
     const lines = [`  ${groupedTools || 'No tools yet'}`];
 
     if (latestCalls.length > 0) {
-      lines.push('', '  latest', ...latestCalls);
+      lines.push('', ...latestCalls);
     }
 
     return lines.join('\n');
@@ -378,28 +381,45 @@ export class InkUiBridge {
 
     if (record) {
       if (this.isShellTool(normalizedName)) {
-        return this.compactText(this.pickString(record, ['command', 'cmd', 'script']) ?? this.safeStringify(record));
+        const cmd = this.pickString(record, ['command', 'cmd', 'script']) ?? this.safeStringify(record);
+        return `$ ${this.compactShellCommand(cmd)}`;
       }
 
       if (this.isReadTool(normalizedName)) {
-        return this.compactText(this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record));
+        const filePath = this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record);
+        const offset = record['offset'];
+        const limit = record['limit'];
+        const fileLabel = this.shortPath(filePath);
+        if (typeof offset === 'number' && typeof limit === 'number') {
+          return `open ${fileLabel}:${offset}–${offset + limit}`;
+        }
+        if (typeof offset === 'number') {
+          return `open ${fileLabel}:${offset}+`;
+        }
+        return `open ${fileLabel}`;
       }
 
       if (this.isSearchTool(normalizedName)) {
         const pattern = this.pickString(record, ['pattern', 'query', 'search']);
-        const searchPath = this.pickString(record, ['path', 'cwd', 'glob']);
+        const searchPath = this.pickString(record, ['path', 'cwd', 'dir', 'glob']);
+        const toolVerb = normalizedName.includes('grep') ? 'grep' : normalizedName.includes('find') ? 'find' : 'search';
         if (pattern && searchPath) {
-          return this.compactText(`"${pattern}" in ${searchPath}`);
+          return `${toolVerb} "${this.compactText(pattern, 40)}" in ${this.shortPath(searchPath)}`;
         }
-        return this.compactText(pattern ?? searchPath ?? this.safeStringify(record));
+        if (pattern) return `${toolVerb} "${this.compactText(pattern, 60)}"`;
+        if (searchPath) return `${toolVerb} ${this.shortPath(searchPath)}`;
+        return `${toolVerb} ${this.compactText(this.safeStringify(record))}`;
       }
 
       if (this.isMutationTool(normalizedName)) {
-        return this.compactText(this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record));
+        const filePath = this.pickString(record, ['filePath', 'path', 'file']) ?? this.safeStringify(record);
+        const verb = normalizedName.includes('write') ? 'write' : normalizedName.includes('patch') ? 'patch' : 'edit';
+        return `${verb} ${this.shortPath(filePath)}`;
       }
 
       if (this.isListTool(normalizedName)) {
-        return this.compactText(this.pickString(record, ['path', 'dir', 'cwd']) ?? this.safeStringify(record));
+        const dirPath = this.pickString(record, ['path', 'dir', 'cwd']) ?? '.';
+        return `ls ${this.shortPath(dirPath)}`;
       }
 
       const keys = Object.keys(record).slice(0, 3);
@@ -413,6 +433,38 @@ export class InkUiBridge {
       return this.compactText(value);
     }
     return this.compactText(this.safeStringify(value));
+  }
+
+  /**
+   * Shorten a shell command for display:
+   * - Single-line commands: compact whitespace and trim to maxLength
+   * - Multi-line scripts: show first non-empty line + "…"
+   */
+  private compactShellCommand(cmd: string, maxLength = 80): string {
+    const trimmed = cmd.trim();
+    const firstNewline = trimmed.indexOf('\n');
+    if (firstNewline > 0) {
+      const firstLine = trimmed.slice(0, firstNewline).trim();
+      return firstLine.length > maxLength
+        ? `${firstLine.slice(0, maxLength)}… (+${trimmed.split('\n').length - 1} lines)`
+        : `${firstLine} … (+${trimmed.split('\n').length - 1} lines)`;
+    }
+    const normalized = trimmed.replace(/\s+/g, ' ');
+    return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}…` : normalized;
+  }
+
+  /**
+   * Shorten a file path for display:
+   * - Keep last 2 segments if path is long (e.g. "src/foo.ts" or "…/bar/baz.ts")
+   */
+  private shortPath(filePath: string, maxLength = 60): string {
+    const normalized = filePath.replace(/\\/g, '/').trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    const parts = normalized.split('/').filter(Boolean);
+    const short = parts.slice(-2).join('/');
+    return `…/${short}`;
   }
 
   private asRecord(value: unknown): Record<string, unknown> | null {

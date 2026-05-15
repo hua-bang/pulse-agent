@@ -18,7 +18,7 @@ export type {
   PermissionRequestHandler,
 } from './types.js';
 
-export { AcpClient } from './client.js';
+export { AcpClient, AcpTimeoutError } from './client.js';
 export { runAcp } from './runner.js';
 export { FileAcpStateStore } from './state-store.js';
 export {

@@ -95,7 +95,7 @@ export const DEFAULT_MODEL = readEnv(
 
 export const MAX_TURNS = 100;
 export const MAX_ERROR_COUNT = 3;
-export const MAX_STEPS = 100;
+export const MAX_STEPS = 500;
 export const MAX_TOOL_OUTPUT_LENGTH = 30_000;
 export const LLM_FIRST_CHUNK_TIMEOUT_MS = Number(process.env.LLM_FIRST_CHUNK_TIMEOUT_MS ?? 180_000);
 export const LLM_CALL_TIMEOUT_MS = Number(process.env.LLM_CALL_TIMEOUT_MS ?? 600_000);

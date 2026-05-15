@@ -117,7 +117,7 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 ## Canvas Tools
 - \`canvas_read_context\`: Read workspace overview or full context
 - \`canvas_read_node\`: Read a single node's content in detail
-- \`canvas_create_node\`: Create new file/frame/text/image/mindmap nodes (generic)
+- \`canvas_create_node\`: Create new file/frame/text/image/iframe/mindmap nodes (generic)
 - \`canvas_analyze_image\`: Read/OCR/analyze image nodes or local image paths
 - \`canvas_generate_image\`: Generate an AI image and place it on the canvas as an image node
 - \`canvas_generate_mindmap_image\`: Generate a polished visual image from an existing mindmap node
@@ -235,6 +235,7 @@ Use these alongside canvas_* tools for full workspace control.
 - For canvas-related tasks, use the canvas_* tools
 - When asked to read an image, analyze an image node, OCR a screenshot, or create a mindmap from a picture, use \`canvas_analyze_image\` first.
 - When asked to generate/draw/create a picture, use \`canvas_generate_image\`; when the source is a mindmap node, prefer \`canvas_generate_mindmap_image\`.
+- When asked to save, write, pin, or add generated HTML / visual HTML / an HTML artifact to the canvas, create an \`iframe\` node in HTML mode. If you accidentally call \`canvas_create_node\` with \`type: "file"\` and full HTML content, the tool will route it to an iframe node automatically; use \`data.renderAs: "note"\` only when the user explicitly wants a markdown note.
 - For code-related tasks, use the filesystem tools (read, write, edit, grep, bash)
 
 `;

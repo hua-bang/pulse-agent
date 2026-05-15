@@ -332,6 +332,36 @@ function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
   return { x: maxRight + 40, y: bestY };
 }
 
+function isLikelyFullHtml(content: string): boolean {
+  const text = content.trim();
+  if (!text) return false;
+  return (
+    /^<!doctype\s+html\b/i.test(text) ||
+    /<html[\s>]/i.test(text) ||
+    (/<body[\s>]/i.test(text) && /<\/body>/i.test(text)) ||
+    (/<style[\s>]/i.test(text) && /<\/(div|main|section|article|body)>/i.test(text))
+  );
+}
+
+function shouldCreateIframeForHtml(
+  requestedType: NodeType,
+  content: string,
+  extraData: Record<string, unknown>,
+): boolean {
+  if (requestedType !== 'file') return false;
+  const explicitRenderAs = String(extraData.renderAs ?? extraData.kind ?? '').toLowerCase();
+  if (explicitRenderAs === 'note' || explicitRenderAs === 'markdown' || explicitRenderAs === 'file') {
+    return false;
+  }
+  const contentType = String(extraData.contentType ?? extraData.mimeType ?? '').toLowerCase();
+  return (
+    explicitRenderAs === 'html' ||
+    contentType.includes('text/html') ||
+    contentType === 'html' ||
+    isLikelyFullHtml(content)
+  );
+}
+
 
 const IMAGE_EXTENSION_TO_MIME: Record<string, string> = {
   '.png': 'image/png',
@@ -771,7 +801,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
       name: 'canvas_create_node',
       description:
         'Create a new node on the canvas.\n' +
-        '- **file**: Creates a markdown note with a backing file. Use `content` for initial text.\n' +
+        '- **file**: Creates a markdown note with a backing file. Use `content` for initial text. If `content` is full HTML, or `data.contentType: "text/html"` / `data.renderAs: "html"` is provided, it is automatically created as a renderable iframe HTML node instead. Use `data.renderAs: "note"` to force a markdown note.\n' +
         '- **image**: Creates an image node from `data.filePath` (absolute local path). Prefer `canvas_generate_image` when the user asks AI to create an image.\n' +
         '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
         '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
@@ -813,16 +843,18 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
           '- frame: { color?: string, label?: string }\n' +
           '- group: { color?: string, label?: string, childIds?: string[] }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +
-          '- iframe: { url?: string, html?: string, prompt?: string, mode?: "url"|"html"|"ai" }. `url: "blank"` opens about:blank.\n' +
+          '- iframe: { url?: string, html?: string, prompt?: string, mode?: \"url\"|\"html\"|\"ai\" }. `url: \"blank\"` opens about:blank.\\n' +
+          '- file HTML routing: { contentType?: \"text/html\", renderAs?: \"html\"|\"note\" }\\n' +
           '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
           '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape',
         ),
       }),
       execute: async (input) => {
-        const nodeType = input.type as NodeType;
-        const title = (input.title as string) ?? DEFAULT_DIMENSIONS[nodeType]?.title ?? 'Untitled';
+        const requestedNodeType = input.type as NodeType;
         const content = (input.content as string) ?? '';
         const extraData = (input.data as Record<string, unknown>) ?? {};
+        const nodeType: NodeType = shouldCreateIframeForHtml(requestedNodeType, content, extraData) ? 'iframe' : requestedNodeType;
+        const title = (input.title as string) ?? DEFAULT_DIMENSIONS[nodeType]?.title ?? 'Untitled';
 
         const canvas = await loadCanvas(workspaceId);
         if (!canvas) return 'Error: workspace not found';
@@ -903,7 +935,8 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
             break;
           case 'iframe': {
             const rawMode = extraData.mode as string | undefined;
-            const iframeMode = rawMode === 'html' ? 'html' : rawMode === 'ai' ? 'ai' : 'url';
+            const forcedHtml = requestedNodeType === 'file' && nodeType === 'iframe';
+            const iframeMode = forcedHtml ? 'html' : rawMode === 'html' ? 'html' : rawMode === 'ai' ? 'ai' : 'url';
             const prompt = (extraData.prompt as string) ?? '';
 
             if (iframeMode === 'ai' && prompt) {
@@ -917,8 +950,8 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
               };
             } else {
               nodeData = {
-                url: normalizeIframeUrl(extraData.url),
-                html: (extraData.html as string) ?? '',
+                url: forcedHtml ? '' : normalizeIframeUrl(extraData.url),
+                html: forcedHtml ? content : (extraData.html as string) ?? '',
                 prompt,
                 mode: iframeMode,
               };
