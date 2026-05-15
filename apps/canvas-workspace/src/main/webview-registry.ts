@@ -13,8 +13,7 @@
  * loaded), the lookup returns null and the caller falls back to a plain
  * server-side fetch.
  */
-import { ipcMain, shell, webContents as allWebContents } from 'electron';
-import { isSafeExternalUrl } from './shell-ipc';
+import { ipcMain, webContents as allWebContents } from 'electron';
 
 interface RegistryKey {
   workspaceId: string;
@@ -128,19 +127,18 @@ export function setupWebviewRegistryIpc(): void {
         { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
         payload.webContentsId,
       );
-      // Set up a popup handler on the webview's webContents. The renderer-side
-      // `new-window` listener is unreliable in modern Electron (the event has
-      // been deprecated in favor of `setWindowOpenHandler` since Electron 22+
-      // and the DOM event fires inconsistently for SPA-driven `window.open`
-      // calls — e.g. Feishu / Notion / Lark docs). Setting the handler on the
-      // guest webContents from main is the canonical path: every popup the
-      // embedded page tries to open lands here, and we route it to the OS
-      // browser instead of dropping it silently.
+      // When the embedded page tries to open a popup (target="_blank" or
+      // `window.open` — including SPA-driven ones like Feishu / Notion that
+      // bypass `new-window` entirely), just load the URL into the same
+      // webview. That gives the canvas node "click a link, see the page"
+      // semantics without spawning extra Electron windows or fighting the
+      // page's own router. Users still have an "Open externally" button
+      // in the toolbar when they want the OS browser.
       const wc = allWebContents.fromId(payload.webContentsId);
       if (wc && !wc.isDestroyed()) {
         wc.setWindowOpenHandler(({ url }) => {
-          if (isSafeExternalUrl(url)) {
-            void shell.openExternal(url);
+          if (url && /^https?:\/\//i.test(url)) {
+            void wc.loadURL(url).catch(() => { /* navigation aborts are expected */ });
           }
           return { action: 'deny' };
         });

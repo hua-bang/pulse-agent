@@ -8,56 +8,6 @@ type EditMode = "url" | "html" | "ai";
 
 const BLANK_PAGE_URL = "about:blank";
 
-/**
- * Capture-phase link interceptor for embedded URL-mode webviews.
- *
- * Many SPAs (Feishu / Lark / Notion / Linear...) attach their own click
- * handlers to anchor tags that call `e.preventDefault()` and route through
- * an internal client-side router, which means `target="_blank"`,
- * `window.open()` and `will-navigate` never fire — the click looks like
- * a no-op from outside. Running on the document in the capture phase
- * lets us intercept the click *before* the SPA's bubble-phase handler:
- *   - find the nearest `<a href>` ancestor
- *   - if it's an http(s) link to a different page, hand it off to
- *     `window.open(href, '_blank')` so the host's `setWindowOpenHandler`
- *     can route it to the OS browser
- *   - allow same-page anchors / `javascript:` / non-link gestures through
- *
- * Injected via `executeJavaScript` on every `dom-ready`, guarded by a
- * window-level sentinel so it doesn't double-install on re-renders.
- */
-const LINK_INTERCEPTOR_SCRIPT = `
-  (function() {
-    if (window.__pulseCanvasLinkHookInstalled) return;
-    window.__pulseCanvasLinkHookInstalled = true;
-    document.addEventListener('click', function(e) {
-      if (e.defaultPrevented) return;
-      if (e.button !== 0) return;
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      var node = e.target;
-      var anchor = null;
-      while (node && node !== document) {
-        if (node.tagName === 'A' && node.href) { anchor = node; break; }
-        node = node.parentNode;
-      }
-      if (!anchor) return;
-      var href = anchor.href;
-      if (!href) return;
-      if (href.indexOf('javascript:') === 0) return;
-      try {
-        var u = new URL(href, window.location.href);
-        if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'mailto:') return;
-        var cur = window.location;
-        // Same-page anchor (only fragment differs) — let the page scroll.
-        if (u.origin === cur.origin && u.pathname === cur.pathname && u.search === cur.search) return;
-      } catch (_) { return; }
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      try { window.open(href, '_blank'); } catch (_) {}
-    }, true);
-  })();
-`;
-
 interface Props {
   node: CanvasNode;
   workspaceId?: string;
@@ -202,28 +152,15 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       setLoadError(detail.errorDescription || "This page failed to load.");
     };
 
-    // `target="_blank"` links and `window.open()` calls inside the embedded
-    // page emit `new-window` on the webview. Without a handler Electron either
-    // silently drops them (newer versions) or spawns a useless empty Electron
-    // window — both look like "links don't work" to the user. Route every
-    // popup to the OS browser instead.
-    const handleNewWindow = (event: Event) => {
-      const detail = event as Event & { url?: string };
-      event.preventDefault();
-      if (detail.url) void window.canvasWorkspace.shell.openExternal(detail.url);
-    };
-
     el.addEventListener("page-title-updated", handlePageTitleUpdated);
     el.addEventListener("did-start-loading", handleDidStartLoading);
     el.addEventListener("did-stop-loading", handleDidStopLoading);
     el.addEventListener("did-fail-load", handleDidFailLoad);
-    el.addEventListener("new-window", handleNewWindow);
     return () => {
       el.removeEventListener("page-title-updated", handlePageTitleUpdated);
       el.removeEventListener("did-start-loading", handleDidStartLoading);
       el.removeEventListener("did-stop-loading", handleDidStopLoading);
       el.removeEventListener("did-fail-load", handleDidFailLoad);
-      el.removeEventListener("new-window", handleNewWindow);
     };
   }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
 
@@ -299,30 +236,9 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       }
     };
 
-    // Capture-phase link interceptor injected into the guest page. SPAs like
-    // Feishu / Notion / Lark wikis attach their own click handlers that call
-    // `e.preventDefault()` and then invoke an internal router instead of
-    // navigating — so `setWindowOpenHandler` and `new-window` never fire and
-    // the click looks like a no-op. Capturing on the document at the
-    // capture phase lets us intercept the click before the SPA handler runs:
-    // if the target is wrapped in a real `<a href>` going to an http(s) URL
-    // that isn't just an in-page anchor, hand it off to the host's popup
-    // handler via `window.open` so it ends up in the OS browser.
-    const injectLinkInterceptor = () => {
-      try {
-        void el.executeJavaScript(LINK_INTERCEPTOR_SCRIPT, false);
-      } catch {
-        // executeJavaScript can throw if dom-ready races a navigation away —
-        // the next dom-ready will re-inject.
-      }
-    };
-
     tryRegister("mount");
     const onAttach = () => tryRegister("did-attach");
-    const onDomReady = () => {
-      tryRegister("dom-ready");
-      injectLinkInterceptor();
-    };
+    const onDomReady = () => tryRegister("dom-ready");
     el.addEventListener("did-attach", onAttach);
     el.addEventListener("dom-ready", onDomReady);
 
