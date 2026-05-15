@@ -1,5 +1,6 @@
 import type React from 'react';
-import { PlusIcon, AvatarIcon, WorkspaceIcon, FolderIcon, ImportIcon, SettingsIcon } from '../icons';
+import type { ReactNode } from 'react';
+import { PlusIcon, AvatarIcon, WorkspaceIcon, FolderIcon, ImportIcon } from '../icons';
 
 export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -10,9 +11,9 @@ export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
 
 interface SidebarHeaderProps {
   onToggle: () => void;
-  activeView: 'canvas' | 'chat' | 'debug';
+  activeView: string;
   onEnterChat: () => void;
-  onEnterDebug: () => void;
+  extensionNavItems?: Array<{ id: string; view: string; label: string; title?: string; icon: ReactNode; onSelect: () => void }>;
   showAddMenu: boolean;
   onToggleAddMenu: () => void;
   addMenuRef: React.RefObject<HTMLDivElement>;
@@ -25,7 +26,7 @@ export const SidebarHeader = ({
   onToggle,
   activeView,
   onEnterChat,
-  onEnterDebug,
+  extensionNavItems = [],
   showAddMenu,
   onToggleAddMenu,
   addMenuRef,
@@ -64,16 +65,19 @@ export const SidebarHeader = ({
         </span>
         <span className="sidebar-nav-label">AI Chat</span>
       </button>
-      <button
-        className={`sidebar-nav-item${activeView === 'debug' ? ' sidebar-nav-item--active' : ''}`}
-        onClick={onEnterDebug}
-        title="Canvas Agent DevTools"
-      >
-        <span className="sidebar-nav-icon">
-          <SettingsIcon size={14} />
-        </span>
-        <span className="sidebar-nav-label">DevTools</span>
-      </button>
+      {extensionNavItems.map(item => (
+        <button
+          key={item.id}
+          className={`sidebar-nav-item${activeView === item.view ? ' sidebar-nav-item--active' : ''}`}
+          onClick={item.onSelect}
+          title={item.title}
+        >
+          <span className="sidebar-nav-icon">
+            {item.icon}
+          </span>
+          <span className="sidebar-nav-label">{item.label}</span>
+        </button>
+      ))}
     </div>
 
     <div className="sidebar-section-header">

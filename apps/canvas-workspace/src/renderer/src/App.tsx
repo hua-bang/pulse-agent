@@ -5,18 +5,19 @@ import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
-import { AgentDebugPage } from './components/debug/AgentDebugPage';
 import { Sidebar } from './components/Sidebar';
 import { Workbench, useWorkbenchState } from './components/Workbench';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
+import { useCanvasExtensionHost, type CanvasExtension, type CanvasNavigation } from './core/extensions';
+import { agentDevtoolsExtension } from './extensions/agent-devtools';
 
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
-const ROUTE_DEBUG = '/debug';
+const CANVAS_EXTENSIONS: CanvasExtension[] = [agentDevtoolsExtension];
 
-type ActiveView = 'canvas' | 'chat' | 'debug';
+type ActiveView = 'canvas' | 'chat' | string;
 
 const AppContent = () => {
   const [location, setLocation] = useLocation();
@@ -24,11 +25,14 @@ const AppContent = () => {
     () => parseCanvasLocation(location),
     [location],
   );
+  const navigation: CanvasNavigation = useMemo(() => ({
+    open: setLocation,
+  }), [setLocation]);
+  const extensionHost = useCanvasExtensionHost(CANVAS_EXTENSIONS, navigation);
+  const activeExtensionRoute = extensionHost.routes.getByPath(routePath);
   const activeView: ActiveView = routePath === ROUTE_CHAT
     ? 'chat'
-    : routePath === ROUTE_DEBUG
-      ? 'debug'
-      : 'canvas';
+    : activeExtensionRoute?.view ?? 'canvas';
   const routeQuery = routeParams.toString();
 
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
@@ -86,14 +90,6 @@ const AppContent = () => {
 
   const exitChatView = useCallback(() => {
     setLocation(ROUTE_CANVAS);
-  }, [setLocation]);
-
-  const enterDebugView = useCallback((sessionId?: string, runId?: string) => {
-    const params = new URLSearchParams();
-    if (sessionId) params.set('sessionId', sessionId);
-    if (runId) params.set('runId', runId);
-    const query = params.toString();
-    setLocation(query ? `${ROUTE_DEBUG}?${query}` : ROUTE_DEBUG);
   }, [setLocation]);
 
   const handleSelectWorkspace = useCallback((id: string) => {
@@ -361,7 +357,8 @@ const AppContent = () => {
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
           onEnterChat={enterChatView}
-          onEnterDebug={() => enterDebugView()}
+          extensionNavItems={extensionHost.sidebar.listNavItems()}
+          extensionNavigation={navigation}
           onExitChat={exitChatView}
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
@@ -381,16 +378,14 @@ const AppContent = () => {
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
+              messageAddons={extensionHost.chat.listMessageAddons()}
             />
           </PulseRouterView>
-          <PulseRouterView name="debug">
-            <AgentDebugPage
-              selectedSessionId={routeParams.get('sessionId')}
-              selectedRunId={routeParams.get('runId')}
-              onSelectRun={enterDebugView}
-              onBackToCanvas={exitChatView}
-            />
-          </PulseRouterView>
+          {extensionHost.routes.list().map(route => (
+            <PulseRouterView key={route.id} name={route.view}>
+              {route.render({ params: routeParams, navigation })}
+            </PulseRouterView>
+          ))}
         </PulseRouter>
       </div>
     </div>

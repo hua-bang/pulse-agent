@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AgentDebugRunDetail, AgentDebugRunSummary, AgentDebugTrace } from '../../types';
+import type { AgentDebugRunDetail, AgentDebugRunSummary, AgentDebugTrace } from '../../../types';
 import './AgentDebugPage.css';
 
 interface AgentDebugPageProps {

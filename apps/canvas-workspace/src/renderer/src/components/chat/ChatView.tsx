@@ -6,6 +6,7 @@ import type {
   RefObject,
 } from 'react';
 import type { AgentChatMessage, CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
+import type { ChatMessageAddonContribution } from '../../core/extensions';
 import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
@@ -69,6 +70,7 @@ interface ChatViewProps {
 
   // Optional decoration
   onResizeStart?: (e: ReactMouseEvent) => void;
+  messageAddons?: ChatMessageAddonContribution[];
 }
 
 /**
@@ -123,6 +125,7 @@ export const ChatView = ({
   executionMode = 'auto',
   onToggleExecutionMode,
   onResizeStart,
+  messageAddons = [],
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading;
 
@@ -151,6 +154,7 @@ export const ChatView = ({
           onToggleToolExpand={onToggleToolExpand}
           onAddImageToCanvas={onAddImageToCanvas}
           onNodeFocus={onNodeFocus}
+          messageAddons={messageAddons}
         />
       ) : (
         <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} />

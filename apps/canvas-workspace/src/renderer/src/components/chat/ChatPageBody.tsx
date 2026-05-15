@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { CanvasNode } from '../../types';
+import type { ChatMessageAddonContribution } from '../../core/extensions';
 import { CloseIcon } from '../icons';
 import './ChatPage.css';
 import './ChatPanel.css';
@@ -33,6 +34,7 @@ export interface ChatPageBodyProps {
   onNodeFocus?: (workspaceId: string, nodeId: string) => void;
   railCollapsed: boolean;
   onToggleRail: () => void;
+  messageAddons?: ChatMessageAddonContribution[];
 }
 
 export const ChatPageBody = ({
@@ -49,6 +51,7 @@ export const ChatPageBody = ({
   onNodeFocus,
   railCollapsed,
   onToggleRail,
+  messageAddons = [],
 }: ChatPageBodyProps) => {
   // Snapshot at mount: the caller might change pendingSessionId later (e.g.
   // for a same-workspace click), but on mount we only care about the value
@@ -239,6 +242,7 @@ export const ChatPageBody = ({
           onPaste={handlePaste}
           onSubmit={submitCurrentInput}
           onAbort={abort}
+          messageAddons={messageAddons}
         />
       </div>
     </div>
