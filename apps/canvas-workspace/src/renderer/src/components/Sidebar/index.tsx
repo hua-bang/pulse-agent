@@ -35,7 +35,7 @@ interface Props {
   onNodeFocus?: (nodeId: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onNodeRename?: (nodeId: string, title: string) => void;
-  activeView: 'canvas' | 'chat' | 'debug';
+  activeView: string;
   onEnterChat: () => void;
   onEnterDebug: () => void;
   onExitChat: () => void;

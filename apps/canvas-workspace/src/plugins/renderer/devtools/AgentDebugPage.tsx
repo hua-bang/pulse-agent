@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AgentDebugRunDetail, AgentDebugRunSummary, AgentDebugTrace } from '../../types';
+import type {
+  AgentDebugRunDetail,
+  AgentDebugRunSummary,
+  AgentDebugTrace,
+} from '../../../renderer/src/types';
+import type { RendererCtx } from '../../types';
 import './AgentDebugPage.css';
 
 interface AgentDebugPageProps {
-  selectedSessionId?: string | null;
+  invoke: RendererCtx['invoke'];
   selectedRunId?: string | null;
-  onSelectRun: (sessionId: string, runId: string) => void;
+  onSelectRun: (runId: string) => void;
   onBackToCanvas: () => void;
 }
 
@@ -14,7 +19,7 @@ const formatDuration = (durationMs?: number) => durationMs == null ? '—' : dur
 const formatDateTime = (timestamp?: number) => timestamp ? new Date(timestamp).toLocaleString() : '—';
 
 export const AgentDebugPage = ({
-  selectedSessionId,
+  invoke,
   selectedRunId,
   onSelectRun,
   onBackToCanvas,
@@ -30,15 +35,14 @@ export const AgentDebugPage = ({
     setLoadingRuns(true);
     setError(null);
     try {
-      const result = await window.canvasWorkspace.agent.listDebugRuns();
-      if (!result.ok) throw new Error(result.error ?? 'Failed to load debug runs');
-      setRuns(result.runs ?? []);
+      const result = await invoke<AgentDebugRunSummary[]>('list-runs');
+      setRuns(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoadingRuns(false);
     }
-  }, []);
+  }, [invoke]);
 
   useEffect(() => {
     void loadRuns();
@@ -46,13 +50,13 @@ export const AgentDebugPage = ({
 
   useEffect(() => {
     const firstRun = runs[0];
-    if (!selectedSessionId && !selectedRunId && firstRun) {
-      onSelectRun(firstRun.sessionId, firstRun.runId);
+    if (!selectedRunId && firstRun) {
+      onSelectRun(firstRun.runId);
     }
-  }, [onSelectRun, runs, selectedRunId, selectedSessionId]);
+  }, [onSelectRun, runs, selectedRunId]);
 
   useEffect(() => {
-    if (!selectedSessionId || !selectedRunId) {
+    if (!selectedRunId) {
       setDetail(null);
       return;
     }
@@ -60,11 +64,10 @@ export const AgentDebugPage = ({
     let canceled = false;
     setLoadingDetail(true);
     setError(null);
-    void window.canvasWorkspace.agent.getDebugRun(selectedSessionId, selectedRunId)
-      .then(result => {
+    invoke<AgentDebugRunDetail>('get-run', selectedRunId)
+      .then(run => {
         if (canceled) return;
-        if (!result.ok || !result.run) throw new Error(result.error ?? 'Debug run not found');
-        setDetail(result.run);
+        setDetail(run);
       })
       .catch(err => {
         if (!canceled) {
@@ -79,7 +82,7 @@ export const AgentDebugPage = ({
     return () => {
       canceled = true;
     };
-  }, [selectedRunId, selectedSessionId]);
+  }, [invoke, selectedRunId]);
 
   const filteredRuns = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -134,13 +137,13 @@ export const AgentDebugPage = ({
               <section key={groupName} className="agent-debug-run-group">
                 <div className="agent-debug-group-title">{groupName}</div>
                 {groupRuns.map(run => {
-                  const active = run.sessionId === selectedSessionId && run.runId === selectedRunId;
+                  const active = run.runId === selectedRunId;
                   return (
                     <button
                       key={`${run.sessionId}:${run.runId}`}
                       type="button"
                       className={`agent-debug-run-item${active ? ' agent-debug-run-item--active' : ''}`}
-                      onClick={() => onSelectRun(run.sessionId, run.runId)}
+                      onClick={() => onSelectRun(run.runId)}
                     >
                       <span className="agent-debug-run-time">{formatDateTime(run.startedAt)}</span>
                       <strong>{run.userPromptPreview || '(empty prompt)'}</strong>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { AgentDebugTrace } from '../../types';
+import './ChatDebugTrace.css';
+import type { AgentDebugTrace } from '../../../renderer/src/types';
 
 interface ChatDebugTraceProps {
   trace: AgentDebugTrace;
@@ -38,7 +39,7 @@ export const ChatDebugTrace = ({ trace }: ChatDebugTraceProps) => {
   const [open, setOpen] = useState(false);
   const readNodeCount = trace.readNodes.length;
   const toolCount = trace.toolCalls.length;
-  const debugHref = `#/debug?sessionId=${encodeURIComponent(trace.sessionId)}&runId=${encodeURIComponent(trace.runId)}`;
+  const debugHref = `#/debug?runId=${encodeURIComponent(trace.runId)}`;
 
   return (
     <div className={`chat-debug-trace${open ? ' chat-debug-trace--open' : ''}`}>

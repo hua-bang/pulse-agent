@@ -1,3 +1,5 @@
+import type { PluginBridge } from '../../plugins/types';
+
 export interface CanvasNode {
   id: string;
   type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
@@ -451,7 +453,7 @@ export interface AgentDebugRunSummary {
 
 export interface AgentDebugRunDetail extends AgentDebugRunSummary {
   userMessage?: AgentChatMessage;
-  assistantMessage: AgentChatMessage;
+  assistantMessage?: AgentChatMessage;
   trace: AgentDebugTrace;
 }
 
@@ -461,7 +463,10 @@ export interface AgentChatMessage {
   timestamp: number;
   attachments?: ChatImageAttachment[];
   toolCalls?: AgentChatToolCall[];
-  debugTrace?: AgentDebugTrace;
+  // Stable identifier of the agent turn that produced this message.
+  // Plugins (e.g. devtools) look up turn-scoped data — such as the
+  // captured debug trace — by this id via their own storage.
+  runId?: string;
 }
 
 export interface AgentContextNodeRef {
@@ -607,7 +612,7 @@ export interface AgentApi {
   ) => () => void;
   onChatComplete: (
     sessionId: string,
-    callback: (result: { ok: boolean; response?: string; debugTrace?: AgentDebugTrace; error?: string }) => void
+    callback: (result: { ok: boolean; response?: string; runId?: string; error?: string }) => void
   ) => () => void;
   onToolCall: (
     sessionId: string,
@@ -680,11 +685,6 @@ export interface AgentApi {
     sourceWorkspaceId: string,
     sessionId: string,
   ) => Promise<{ ok: boolean; messages?: AgentChatMessage[]; error?: string }>;
-  listDebugRuns: () => Promise<{ ok: boolean; runs?: AgentDebugRunSummary[]; error?: string }>;
-  getDebugRun: (
-    sessionId: string,
-    runId: string,
-  ) => Promise<{ ok: boolean; run?: AgentDebugRunDetail; error?: string }>;
   activate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   deactivate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   addImageToCanvas: (
@@ -754,6 +754,7 @@ export interface CanvasWorkspaceApi {
   llm: LlmApi;
   artifacts: ArtifactsApi;
   shell: ShellApi;
+  plugin: PluginBridge;
 }
 
 export interface ShellApi {

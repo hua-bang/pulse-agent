@@ -86,7 +86,7 @@ export class CanvasAgentService {
         onToolInputDelta,
         onToolInputEnd,
       );
-      return { ok: true, response: result.response, debugTrace: result.debugTrace };
+      return { ok: true, response: result.response, runId: result.runId };
     } catch (err) {
       console.error(`[canvas-agent-service] chat error for ${workspaceId}:`, err);
       return { ok: false, error: String(err) };
@@ -225,13 +225,6 @@ export class CanvasAgentService {
     }
   }
 
-  async listDebugRuns(): Promise<CanvasAgentDebugRunSummary[]> {
-    return SessionStore.listDebugRuns();
-  }
-
-  async getDebugRun(sessionId: string, runId: string): Promise<CanvasAgentDebugRunDetail | null> {
-    return SessionStore.readDebugRun(sessionId, runId);
-  }
 
   /**
    * Deactivate and archive the Canvas Agent for a workspace.

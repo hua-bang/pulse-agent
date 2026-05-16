@@ -7,5 +7,10 @@
     "strict": true,
     "noEmit": true
   },
-  "include": ["src/main", "src/preload"]
+  "include": [
+    "src/main",
+    "src/preload",
+    "src/plugins/types.ts",
+    "src/plugins/main/**/*"
+  ]
 }

@@ -385,61 +385,6 @@ export class SessionStore {
     return matched;
   }
 
-  /**
-   * List all persisted Canvas Agent turns that carry a dev debug trace.
-   */
-  static async listDebugRuns(): Promise<CanvasAgentDebugRunSummary[]> {
-    const sessions = await this.readAllSessionsWithMeta();
-    const runs = sessions.flatMap(({ session, workspaceName, isCurrent }) => (
-      session.messages.flatMap((message, index) => {
-        if (message.role !== 'assistant' || !message.debugTrace) return [];
-        return [debugRunSummaryFromMessage({
-          session,
-          workspaceName,
-          isCurrent,
-          message,
-          messageIndex: index,
-        })];
-      })
-    ));
-
-    runs.sort((a, b) => b.startedAt - a.startedAt);
-    return runs;
-  }
-
-  /**
-   * Read a single persisted debug trace by session/run id.
-   */
-  static async readDebugRun(sessionId: string, runId: string): Promise<CanvasAgentDebugRunDetail | null> {
-    const sessions = await this.readAllSessionsWithMeta();
-    for (const { session, workspaceName, isCurrent } of sessions) {
-      if (session.sessionId !== sessionId) continue;
-      const messageIndex = session.messages.findIndex(
-        message => message.role === 'assistant' && message.debugTrace?.runId === runId,
-      );
-      if (messageIndex < 0) continue;
-
-      const assistantMessage = session.messages[messageIndex];
-      const trace = assistantMessage.debugTrace;
-      if (!trace) continue;
-
-      return {
-        ...debugRunSummaryFromMessage({
-          session,
-          workspaceName,
-          isCurrent,
-          message: assistantMessage,
-          messageIndex,
-        }),
-        userMessage: findPreviousUserMessage(session.messages, messageIndex),
-        assistantMessage,
-        trace,
-      };
-    }
-
-    return null;
-  }
-
   private static async readAllSessionsWithMeta(): Promise<SessionWithMeta[]> {
     const manifest = await loadManifest();
     const workspaceNames = new Map(manifest.workspaces.map(workspace => [workspace.id, workspace.name] as const));
@@ -569,30 +514,3 @@ function findPreviousUserMessage(messages: CanvasAgentMessage[], assistantIndex:
   return undefined;
 }
 
-function debugRunSummaryFromMessage(input: {
-  session: CanvasAgentSession;
-  workspaceName: string;
-  isCurrent: boolean;
-  message: CanvasAgentMessage;
-  messageIndex: number;
-}): CanvasAgentDebugRunSummary {
-  const { session, workspaceName, isCurrent, message, messageIndex } = input;
-  const trace = message.debugTrace!;
-  const modelLabel = [trace.model?.provider, trace.model?.model].filter(Boolean).join(' / ') || undefined;
-  return {
-    workspaceId: session.workspaceId,
-    workspaceName,
-    sessionId: session.sessionId,
-    runId: trace.runId,
-    turnId: trace.turnId,
-    messageIndex,
-    startedAt: trace.startedAt,
-    durationMs: trace.durationMs,
-    userPromptPreview: trace.request.userPromptPreview,
-    assistantPreview: message.content.slice(0, 180),
-    toolCount: trace.toolCalls.length,
-    readNodeCount: trace.readNodes.length,
-    modelLabel,
-    isCurrent,
-  };
-}

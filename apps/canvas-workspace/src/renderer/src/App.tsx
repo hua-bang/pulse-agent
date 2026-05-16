@@ -5,8 +5,8 @@ import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
-import { AgentDebugPage } from './components/debug/AgentDebugPage';
 import { Sidebar } from './components/Sidebar';
+import { getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
@@ -14,9 +14,10 @@ import { PulseRouter, PulseRouterView } from './components/router';
 
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
-const ROUTE_DEBUG = '/debug';
 
-type ActiveView = 'canvas' | 'chat' | 'debug';
+// Plugin routes contribute their own URL paths; activeView widens to
+// 'canvas' | 'chat' | <plugin route path>.
+type ActiveView = 'canvas' | 'chat' | string;
 
 const AppContent = () => {
   const [location, setLocation] = useLocation();
@@ -24,11 +25,16 @@ const AppContent = () => {
     () => parseCanvasLocation(location),
     [location],
   );
-  const activeView: ActiveView = routePath === ROUTE_CHAT
-    ? 'chat'
-    : routePath === ROUTE_DEBUG
-      ? 'debug'
-      : 'canvas';
+  // Routes contributed by built-in plugins. Snapshot at mount: built-in
+  // plugins register synchronously at renderer bootstrap, so a one-shot
+  // read is sufficient.
+  const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
+  const activeView: ActiveView =
+    routePath === ROUTE_CHAT
+      ? 'chat'
+      : pluginRoutes.some((r) => r.path === routePath)
+        ? routePath
+        : 'canvas';
   const routeQuery = routeParams.toString();
 
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
@@ -88,12 +94,10 @@ const AppContent = () => {
     setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
-  const enterDebugView = useCallback((sessionId?: string, runId?: string) => {
-    const params = new URLSearchParams();
-    if (sessionId) params.set('sessionId', sessionId);
-    if (runId) params.set('runId', runId);
-    const query = params.toString();
-    setLocation(query ? `${ROUTE_DEBUG}?${query}` : ROUTE_DEBUG);
+  // The devtools plugin owns selection state via its own URL query;
+  // App.tsx just hands off to the route URL it advertises.
+  const enterDebugView = useCallback(() => {
+    setLocation('/debug');
   }, [setLocation]);
 
   const handleSelectWorkspace = useCallback((id: string) => {
@@ -383,14 +387,13 @@ const AppContent = () => {
               onNodeFocus={handleNodeFocusFromChatPage}
             />
           </PulseRouterView>
-          <PulseRouterView name="debug">
-            <AgentDebugPage
-              selectedSessionId={routeParams.get('sessionId')}
-              selectedRunId={routeParams.get('runId')}
-              onSelectRun={enterDebugView}
-              onBackToCanvas={exitChatView}
-            />
-          </PulseRouterView>
+          {pluginRoutes.map((route) => {
+            return (
+              <PulseRouterView key={route.path} name={route.path}>
+                <route.Component />
+              </PulseRouterView>
+            );
+          })}
         </PulseRouter>
       </div>
     </div>

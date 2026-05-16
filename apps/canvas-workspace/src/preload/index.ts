@@ -226,12 +226,12 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     onChatComplete: (
       sessionId: string,
-      callback: (result: { ok: boolean; response?: string; debugTrace?: unknown; error?: string }) => void
+      callback: (result: { ok: boolean; response?: string; runId?: string; error?: string }) => void
     ) => {
       const channel = `canvas-agent:chat-complete:${sessionId}`;
       const handler = (
         _event: Electron.IpcRendererEvent,
-        result: { ok: boolean; response?: string; debugTrace?: unknown; error?: string }
+        result: { ok: boolean; response?: string; runId?: string; error?: string }
       ) => callback(result);
       ipcRenderer.on(channel, handler);
       return () => {
@@ -360,12 +360,6 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     loadCrossWorkspaceSession: (targetWorkspaceId: string, sourceWorkspaceId: string, sessionId: string) =>
       ipcRenderer.invoke("canvas-agent:load-cross-workspace-session", { targetWorkspaceId, sourceWorkspaceId, sessionId }),
 
-    listDebugRuns: () =>
-      ipcRenderer.invoke("canvas-agent:debug-runs"),
-
-    getDebugRun: (sessionId: string, runId: string) =>
-      ipcRenderer.invoke("canvas-agent:debug-run", { sessionId, runId }),
-
     activate: (workspaceId: string) =>
       ipcRenderer.invoke("canvas-agent:activate", { workspaceId }),
 
@@ -410,6 +404,14 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
         ipcRenderer.removeListener("artifact:change", handler);
       };
     },
+  },
+
+  // Generic bridge for Canvas plugins. Backs RendererCtx.invoke so any
+  // built-in plugin can reach its main half through a single channel
+  // namespace (`plugin:<id>:<channel>`).
+  plugin: {
+    invoke: (pluginId: string, channel: string, ...args: unknown[]) =>
+      ipcRenderer.invoke(`plugin:${pluginId}:${channel}`, ...args),
   },
 
   web: {

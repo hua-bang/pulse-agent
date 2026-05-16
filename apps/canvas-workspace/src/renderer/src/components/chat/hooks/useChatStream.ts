@@ -272,7 +272,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
           {
             ...message,
             toolCalls: toolSnapshot ?? message.toolCalls,
-            debugTrace: completeResult.debugTrace ?? message.debugTrace,
+            runId: completeResult.runId ?? message.runId,
           }
         );
 
