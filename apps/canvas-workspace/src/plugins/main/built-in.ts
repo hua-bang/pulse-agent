@@ -1,5 +1,5 @@
 import type { MainCanvasPlugin } from '../types';
+import { DevtoolsMainPlugin } from './devtools';
 
-// Main-side halves of built-in Canvas plugins. Empty until DevTools is
-// ported onto the plugin system.
-export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [];
+// Main-side halves of built-in Canvas plugins.
+export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [DevtoolsMainPlugin];
