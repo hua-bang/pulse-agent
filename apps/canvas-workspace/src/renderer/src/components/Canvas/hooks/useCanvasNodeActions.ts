@@ -1,7 +1,7 @@
 import { useCallback, type MutableRefObject } from 'react';
-import type { CanvasEdge, CanvasNode } from '../types';
-import { getNodeDisplayLabel } from '../utils/nodeLabel';
-import { exportMindmapNodeToPng } from '../utils/mindmapExport';
+import type { CanvasEdge, CanvasNode } from '../../../types';
+import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
+import { exportMindmapNodeToPng } from '../../../utils/mindmapExport';
 
 interface NotifyArgs {
   tone: 'success' | 'info' | 'error' | 'loading';

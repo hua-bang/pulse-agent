@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type MutableRefObject } from 'react';
-import type { CanvasNode } from '../types';
-import { isContainerNode, isInsideContainer } from '../utils/frameHierarchy';
+import type { CanvasNode } from '../../../types';
+import { isContainerNode, isInsideContainer } from '../../../utils/frameHierarchy';
 
 // Focus-mode reframe sizing. Padding leaves breathing room around the
 // focused node so siblings can peek in at the edges (Heptabase-style),

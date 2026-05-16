@@ -1,5 +1,5 @@
 import { useCallback, useState, type RefObject } from 'react';
-import type { CanvasNode } from '../types';
+import type { CanvasNode } from '../../../types';
 
 type CreatableNodeType =
   | 'file'

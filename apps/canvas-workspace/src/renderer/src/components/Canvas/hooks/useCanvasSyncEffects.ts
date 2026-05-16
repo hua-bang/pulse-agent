@@ -1,6 +1,6 @@
 import { useEffect, type MutableRefObject } from 'react';
-import type { CanvasNode, CanvasTransform } from '../types';
-import type { CanvasNodeRenameRequest } from '../types/ui-interaction';
+import type { CanvasNode, CanvasTransform } from '../../../types';
+import type { CanvasNodeRenameRequest } from '../../../types/ui-interaction';
 
 interface Options {
   canvasId: string;

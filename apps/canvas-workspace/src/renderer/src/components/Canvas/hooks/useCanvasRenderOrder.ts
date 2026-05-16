@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import type { CanvasNode } from '../types';
-import { computeContainerDepths, isContainerNode } from '../utils/frameHierarchy';
+import type { CanvasNode } from '../../../types';
+import { computeContainerDepths, isContainerNode } from '../../../utils/frameHierarchy';
 
 /**
  * Computes the canvas render order — containers underneath, regular

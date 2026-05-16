@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import type { CanvasNode } from '../types';
+import type { CanvasNode } from '../../../types';
 
 interface Options {
   /** Live ref into the latest nodes array. The marquee handler doesn't

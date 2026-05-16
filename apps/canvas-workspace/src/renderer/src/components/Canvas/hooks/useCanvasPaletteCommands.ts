@@ -1,6 +1,6 @@
 import { useMemo, type MutableRefObject } from 'react';
-import type { CanvasNode } from '../types';
-import type { PaletteCommand } from '../components/CommandPalette';
+import type { CanvasNode } from '../../../types';
+import type { PaletteCommand } from '../../CommandPalette';
 
 interface Options {
   selectedNodeIds: string[];
