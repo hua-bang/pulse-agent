@@ -412,6 +412,14 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     },
   },
 
+  // Generic bridge for Canvas plugins. Backs RendererCtx.invoke so any
+  // built-in plugin can reach its main half through a single channel
+  // namespace (`plugin:<id>:<channel>`).
+  plugin: {
+    invoke: (pluginId: string, channel: string, ...args: unknown[]) =>
+      ipcRenderer.invoke(`plugin:${pluginId}:${channel}`, ...args),
+  },
+
   web: {
     /**
      * Read a webpage that is already open in a canvas iframe node.

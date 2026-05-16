@@ -34,7 +34,11 @@ export type PluginIpcHandler = (
 
 export interface MainCtx {
   store: PluginStore;
-  registerIpc(channel: string, handler: PluginIpcHandler): void;
+  // Mirror of ipcMain.handle: register a channel callable from the
+  // renderer plugin via ctx.invoke. Channel is auto-prefixed with
+  // `plugin:<id>:` so plugins cannot collide with each other or with
+  // existing host IPC.
+  handle(channel: string, handler: PluginIpcHandler): void;
   onAgent(event: AgentEvent, handler: (turn: AgentTurn) => void): () => void;
 }
 
@@ -52,6 +56,22 @@ export interface ChatCardSpec<T = unknown> {
 export interface RendererCtx {
   registerRoute(path: string, Component: ComponentType): void;
   registerChatCard<T>(spec: ChatCardSpec<T>): void;
+  // Mirror of ipcRenderer.invoke: call a channel registered by this
+  // plugin's main half via ctx.handle. Plugin id is bound on activation
+  // so the renderer code does not have to repeat it.
+  invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T>;
+}
+
+// Preload-side bridge that backs RendererCtx.invoke. The host preload
+// exposes this on `window.canvasWorkspace.plugin` so the renderer half
+// of every plugin can reach its main half through a single, generic
+// channel.
+export interface PluginBridge {
+  invoke<T = unknown>(
+    pluginId: string,
+    channel: string,
+    ...args: unknown[]
+  ): Promise<T>;
 }
 
 // Main-side and renderer-side halves are declared separately so each

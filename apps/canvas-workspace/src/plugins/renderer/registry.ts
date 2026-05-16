@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type {
   ChatCardSpec,
   ChatMessageRef,
+  PluginBridge,
   RendererCanvasPlugin,
   RendererCtx,
 } from '../types';
@@ -20,6 +21,22 @@ interface ChatCardEntry {
 const routes: RouteEntry[] = [];
 const chatCards: ChatCardEntry[] = [];
 const activated = new Set<string>();
+
+// The preload-side bridge is looked up lazily on each invoke so renderer
+// plugins can be authored without depending on a specific global shape.
+// If the bridge is missing the plugin gets a clear runtime error rather
+// than a silent hang.
+function resolveBridge(pluginId: string): PluginBridge {
+  const bridge = (
+    globalThis as { canvasWorkspace?: { plugin?: PluginBridge } }
+  ).canvasWorkspace?.plugin;
+  if (!bridge) {
+    throw new Error(
+      `[canvas-plugins] plugin bridge missing; invoke from ${pluginId} cannot proceed`,
+    );
+  }
+  return bridge;
+}
 
 export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
   for (const plugin of plugins) {
@@ -50,6 +67,9 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
           pluginId: plugin.id,
           spec: spec as ChatCardSpec<unknown>,
         });
+      },
+      invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
+        return resolveBridge(plugin.id).invoke<T>(plugin.id, channel, ...args);
       },
     };
 

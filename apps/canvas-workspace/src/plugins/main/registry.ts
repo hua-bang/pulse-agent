@@ -26,7 +26,7 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<v
 function createMainCtx(pluginId: string): MainCtx {
   return {
     store: createPluginStore(pluginId),
-    registerIpc(channel, handler) {
+    handle(channel, handler) {
       const fqChannel = `plugin:${pluginId}:${channel}`;
       // Cast at the boundary: MainCtx exposes a structural IpcInvokeEvent
       // to keep the shared types file free of an electron import.

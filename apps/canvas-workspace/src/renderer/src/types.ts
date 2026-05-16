@@ -1,3 +1,5 @@
+import type { PluginBridge } from '../../plugins/types';
+
 export interface CanvasNode {
   id: string;
   type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
@@ -754,6 +756,7 @@ export interface CanvasWorkspaceApi {
   llm: LlmApi;
   artifacts: ArtifactsApi;
   shell: ShellApi;
+  plugin: PluginBridge;
 }
 
 export interface ShellApi {
