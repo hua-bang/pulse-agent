@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AcpTimeoutError } from './client.js';
 import {
   __testCreatePromptProgressTimeouts,
+  __testIsDefinitiveSessionInvalidError,
   __testResolveTimeoutConfig,
 } from './runner.js';
 
@@ -97,5 +98,19 @@ describe('ACP prompt progress timeouts', () => {
     expect(String(observed.mock.calls[0]?.[0].message)).toContain('hard timed out after 250ms');
 
     timeouts.dispose();
+  });
+});
+
+describe('ACP session invalid error detection', () => {
+  it('does not treat transient transport failures as invalid sessions', () => {
+    expect(__testIsDefinitiveSessionInvalidError(new AcpTimeoutError('ACP call timed out after 1000ms: session/load'))).toBe(false);
+    expect(__testIsDefinitiveSessionInvalidError(new Error('transport error: ECONNRESET'))).toBe(false);
+    expect(__testIsDefinitiveSessionInvalidError(new Error('ACP error -32603: stream disconnected'))).toBe(false);
+  });
+
+  it('detects explicit invalid session failures', () => {
+    expect(__testIsDefinitiveSessionInvalidError(new Error('session not found: abc123'))).toBe(true);
+    expect(__testIsDefinitiveSessionInvalidError(new Error('ACP error 404: conversation not found'))).toBe(true);
+    expect(__testIsDefinitiveSessionInvalidError({ code: -32001, message: 'unknown session' })).toBe(true);
   });
 });
