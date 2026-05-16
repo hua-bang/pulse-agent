@@ -5,7 +5,7 @@ import { CloseIcon, ExportIcon, WorkspaceIcon } from '../icons';
 export interface WorkspaceItemProps {
   ws: WorkspaceEntry;
   activeId: string;
-  activeView: 'canvas' | 'chat' | 'debug';
+  activeView: string;
   isOnlyWorkspace: boolean;
   isRenaming: boolean;
   renameValue: string;

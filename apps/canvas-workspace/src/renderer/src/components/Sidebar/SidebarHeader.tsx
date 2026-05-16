@@ -10,7 +10,7 @@ export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
 
 interface SidebarHeaderProps {
   onToggle: () => void;
-  activeView: 'canvas' | 'chat' | 'debug';
+  activeView: string;
   onEnterChat: () => void;
   onEnterDebug: () => void;
   showAddMenu: boolean;
@@ -65,7 +65,7 @@ export const SidebarHeader = ({
         <span className="sidebar-nav-label">AI Chat</span>
       </button>
       <button
-        className={`sidebar-nav-item${activeView === 'debug' ? ' sidebar-nav-item--active' : ''}`}
+        className={`sidebar-nav-item${activeView === '/debug' ? ' sidebar-nav-item--active' : ''}`}
         onClick={onEnterDebug}
         title="Canvas Agent DevTools"
       >

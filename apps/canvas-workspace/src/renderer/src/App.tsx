@@ -14,9 +14,10 @@ import { PulseRouter, PulseRouterView } from './components/router';
 
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
-const ROUTE_DEBUG = '/debug';
 
-type ActiveView = 'canvas' | 'chat' | 'debug';
+// Plugin routes contribute their own URL paths; activeView widens to
+// 'canvas' | 'chat' | <plugin route path>.
+type ActiveView = 'canvas' | 'chat' | string;
 
 const AppContent = () => {
   const [location, setLocation] = useLocation();
@@ -24,11 +25,16 @@ const AppContent = () => {
     () => parseCanvasLocation(location),
     [location],
   );
-  const activeView: ActiveView = routePath === ROUTE_CHAT
-    ? 'chat'
-    : routePath === ROUTE_DEBUG
-      ? 'debug'
-      : 'canvas';
+  // Routes contributed by built-in plugins. Snapshot at mount: built-in
+  // plugins register synchronously at renderer bootstrap, so a one-shot
+  // read is sufficient.
+  const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
+  const activeView: ActiveView =
+    routePath === ROUTE_CHAT
+      ? 'chat'
+      : pluginRoutes.some((r) => r.path === routePath)
+        ? routePath
+        : 'canvas';
   const routeQuery = routeParams.toString();
 
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
@@ -89,15 +95,10 @@ const AppContent = () => {
   }, [setLocation]);
 
   // The devtools plugin owns selection state via its own URL query;
-  // App.tsx just hands off to the route.
+  // App.tsx just hands off to the route URL it advertises.
   const enterDebugView = useCallback(() => {
-    setLocation(ROUTE_DEBUG);
+    setLocation('/debug');
   }, [setLocation]);
-
-  // Routes contributed by built-in plugins. Snapshot at mount: built-in
-  // plugins register synchronously at renderer bootstrap, so a one-shot
-  // read is sufficient.
-  const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
 
   const handleSelectWorkspace = useCallback((id: string) => {
     ensureWorkspaceNodesLoaded(id);
@@ -387,11 +388,8 @@ const AppContent = () => {
             />
           </PulseRouterView>
           {pluginRoutes.map((route) => {
-            // Hardwire the routePath → view-name mapping for now. When
-            // a second plugin route appears, generalize this mapping.
-            const viewName = route.path === ROUTE_DEBUG ? 'debug' : route.path;
             return (
-              <PulseRouterView key={route.path} name={viewName}>
+              <PulseRouterView key={route.path} name={route.path}>
                 <route.Component />
               </PulseRouterView>
             );
