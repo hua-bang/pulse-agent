@@ -53,15 +53,28 @@ export interface ChatMessageRef {
   role: string;
 }
 
-export interface ChatCardSpec<T = unknown> {
+// Chat card contract.
+//
+//   match() returns a lightweight reference when the card applies to the
+//   message, or null to skip. When the plugin needs to hydrate the ref
+//   into a fuller payload (e.g. fetch trace data via ctx.invoke), it
+//   passes a resolve() — the framework renders <Loading>, awaits the
+//   promise, then <Component>. Without resolve() the card stays sync:
+//   the ref is the payload, and Component renders immediately.
+export interface ChatCardSpec<TRef = unknown, TPayload = TRef> {
   id: string;
-  match: (message: ChatMessageRef) => T | null;
-  Component: ComponentType<{ payload: T }>;
+  match: (message: ChatMessageRef) => TRef | null;
+  resolve?: (ref: TRef) => Promise<TPayload>;
+  Component: ComponentType<{ payload: TPayload }>;
+  Loading?: ComponentType<{ ref: TRef }>;
+  Error?: ComponentType<{ ref: TRef; error: unknown }>;
 }
 
 export interface RendererCtx {
   registerRoute(path: string, Component: ComponentType): void;
-  registerChatCard<T>(spec: ChatCardSpec<T>): void;
+  registerChatCard<TRef = unknown, TPayload = TRef>(
+    spec: ChatCardSpec<TRef, TPayload>,
+  ): void;
   // Mirror of ipcRenderer.invoke: call a channel registered by this
   // plugin's main half via ctx.handle. Plugin id is bound on activation
   // so the renderer code does not have to repeat it.

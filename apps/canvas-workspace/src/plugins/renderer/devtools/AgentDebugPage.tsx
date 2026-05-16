@@ -9,9 +9,8 @@ import './AgentDebugPage.css';
 
 interface AgentDebugPageProps {
   invoke: RendererCtx['invoke'];
-  selectedSessionId?: string | null;
   selectedRunId?: string | null;
-  onSelectRun: (sessionId: string, runId: string) => void;
+  onSelectRun: (runId: string) => void;
   onBackToCanvas: () => void;
 }
 
@@ -21,7 +20,6 @@ const formatDateTime = (timestamp?: number) => timestamp ? new Date(timestamp).t
 
 export const AgentDebugPage = ({
   invoke,
-  selectedSessionId,
   selectedRunId,
   onSelectRun,
   onBackToCanvas,
@@ -52,13 +50,13 @@ export const AgentDebugPage = ({
 
   useEffect(() => {
     const firstRun = runs[0];
-    if (!selectedSessionId && !selectedRunId && firstRun) {
-      onSelectRun(firstRun.sessionId, firstRun.runId);
+    if (!selectedRunId && firstRun) {
+      onSelectRun(firstRun.runId);
     }
-  }, [onSelectRun, runs, selectedRunId, selectedSessionId]);
+  }, [onSelectRun, runs, selectedRunId]);
 
   useEffect(() => {
-    if (!selectedSessionId || !selectedRunId) {
+    if (!selectedRunId) {
       setDetail(null);
       return;
     }
@@ -66,7 +64,7 @@ export const AgentDebugPage = ({
     let canceled = false;
     setLoadingDetail(true);
     setError(null);
-    invoke<AgentDebugRunDetail>('get-run', selectedSessionId, selectedRunId)
+    invoke<AgentDebugRunDetail>('get-run', selectedRunId)
       .then(run => {
         if (canceled) return;
         setDetail(run);
@@ -84,7 +82,7 @@ export const AgentDebugPage = ({
     return () => {
       canceled = true;
     };
-  }, [invoke, selectedRunId, selectedSessionId]);
+  }, [invoke, selectedRunId]);
 
   const filteredRuns = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -139,13 +137,13 @@ export const AgentDebugPage = ({
               <section key={groupName} className="agent-debug-run-group">
                 <div className="agent-debug-group-title">{groupName}</div>
                 {groupRuns.map(run => {
-                  const active = run.sessionId === selectedSessionId && run.runId === selectedRunId;
+                  const active = run.runId === selectedRunId;
                   return (
                     <button
                       key={`${run.sessionId}:${run.runId}`}
                       type="button"
                       className={`agent-debug-run-item${active ? ' agent-debug-run-item--active' : ''}`}
-                      onClick={() => onSelectRun(run.sessionId, run.runId)}
+                      onClick={() => onSelectRun(run.runId)}
                     >
                       <span className="agent-debug-run-time">{formatDateTime(run.startedAt)}</span>
                       <strong>{run.userPromptPreview || '(empty prompt)'}</strong>

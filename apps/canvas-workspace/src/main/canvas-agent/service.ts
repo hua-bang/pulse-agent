@@ -86,7 +86,7 @@ export class CanvasAgentService {
         onToolInputDelta,
         onToolInputEnd,
       );
-      return { ok: true, response: result.response, debugTrace: result.debugTrace };
+      return { ok: true, response: result.response, runId: result.runId };
     } catch (err) {
       console.error(`[canvas-agent-service] chat error for ${workspaceId}:`, err);
       return { ok: false, error: String(err) };

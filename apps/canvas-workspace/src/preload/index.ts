@@ -226,12 +226,12 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     onChatComplete: (
       sessionId: string,
-      callback: (result: { ok: boolean; response?: string; debugTrace?: unknown; error?: string }) => void
+      callback: (result: { ok: boolean; response?: string; runId?: string; error?: string }) => void
     ) => {
       const channel = `canvas-agent:chat-complete:${sessionId}`;
       const handler = (
         _event: Electron.IpcRendererEvent,
-        result: { ok: boolean; response?: string; debugTrace?: unknown; error?: string }
+        result: { ok: boolean; response?: string; runId?: string; error?: string }
       ) => callback(result);
       ipcRenderer.on(channel, handler);
       return () => {

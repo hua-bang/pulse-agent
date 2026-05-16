@@ -13,36 +13,42 @@ function parseQuery(location: string): URLSearchParams {
 
 const DebugRoute = ({ invoke }: { invoke: RendererCtx['invoke'] }) => {
   const [location, setLocation] = useLocation();
-  const params = parseQuery(location);
-  const sessionId = params.get('sessionId');
-  const runId = params.get('runId');
+  const runId = parseQuery(location).get('runId');
 
   return (
     <AgentDebugPage
       invoke={invoke}
-      selectedSessionId={sessionId}
       selectedRunId={runId}
-      onSelectRun={(s, r) => {
-        const q = new URLSearchParams({ sessionId: s, runId: r }).toString();
-        setLocation(`/debug?${q}`);
-      }}
+      onSelectRun={(r) =>
+        setLocation(`/debug?${new URLSearchParams({ runId: r }).toString()}`)
+      }
       onBackToCanvas={() => setLocation('/')}
     />
   );
 };
 
+interface RunRef {
+  runId: string;
+}
+
 export const DevtoolsRendererPlugin: RendererCanvasPlugin = {
   id: 'devtools',
   activate(ctx) {
     ctx.registerRoute('/debug', () => <DebugRoute invoke={ctx.invoke} />);
-    ctx.registerChatCard<AgentDebugTrace>({
+    ctx.registerChatCard<RunRef, AgentDebugTrace>({
       id: 'debug-trace',
-      // Existing chat-stream code threads trace data onto the message
-      // root as `debugTrace`. The card surfaces only when that field is
-      // present on an assistant message.
+      // Assistant messages carry only a runId pointer; the trace is
+      // stored separately in the plugin's own store and fetched on
+      // demand. Match returns the pointer; the framework drives the
+      // resolve → render cycle.
       match: (message) => {
         if (message.role !== 'assistant') return null;
-        return (message as { debugTrace?: AgentDebugTrace }).debugTrace ?? null;
+        const runId = (message as { runId?: string }).runId;
+        return runId ? { runId } : null;
+      },
+      resolve: async (ref) => {
+        const detail = await ctx.invoke<{ trace: AgentDebugTrace }>('get-run', ref.runId);
+        return detail.trace;
       },
       Component: ({ payload }) => <ChatDebugTrace trace={payload} />,
     });

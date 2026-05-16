@@ -20,7 +20,7 @@ interface TurnTracePayload {
   workspaceName: string;
 }
 
-const runKey = (sessionId: string, runId: string) => `runs/${sessionId}/${runId}`;
+const runKey = (runId: string) => `runs/${runId}`;
 
 function buildStoredRun(payload: TurnTracePayload): StoredRun {
   const { trace, assistantPreview, workspaceId, workspaceName } = payload;
@@ -63,15 +63,15 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
   id: 'devtools',
   enabledWhen: isCanvasAgentDebugTraceEnabled,
   activate(ctx) {
-    ctx.onAgent('turnEnd', (turn) => {
+    ctx.onAgent('turnEnd', async (turn) => {
       const payload = turn.data as TurnTracePayload | undefined;
       if (!payload?.trace) return;
       const stored = buildStoredRun(payload);
-      void ctx.store
-        .set(runKey(turn.sessionId, turn.runId), stored)
-        .catch((err) => {
-          console.error('[devtools] failed to persist trace', err);
-        });
+      try {
+        await ctx.store.set(runKey(turn.runId), stored);
+      } catch (err) {
+        console.error('[devtools] failed to persist trace', err);
+      }
     });
 
     ctx.handle('list-runs', async () => {
@@ -85,12 +85,12 @@ export const DevtoolsMainPlugin: MainCanvasPlugin = {
         .sort((a, b) => b.startedAt - a.startedAt);
     });
 
-    ctx.handle('get-run', async (_event, sessionId, runId) => {
-      if (typeof sessionId !== 'string' || typeof runId !== 'string') {
-        throw new Error('devtools.get-run: sessionId and runId must be strings');
+    ctx.handle('get-run', async (_event, runId) => {
+      if (typeof runId !== 'string') {
+        throw new Error('devtools.get-run: runId must be a string');
       }
-      const stored = await ctx.store.get<StoredRun>(runKey(sessionId, runId));
-      if (!stored) throw new Error(`devtools.get-run: ${sessionId}/${runId} not found`);
+      const stored = await ctx.store.get<StoredRun>(runKey(runId));
+      if (!stored) throw new Error(`devtools.get-run: ${runId} not found`);
       return stored.detail;
     });
   },

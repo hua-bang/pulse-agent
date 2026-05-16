@@ -125,7 +125,10 @@ export interface CanvasAgentMessage {
   timestamp: number;
   attachments?: CanvasAgentImageAttachment[];
   toolCalls?: CanvasAgentToolCall[];
-  debugTrace?: CanvasAgentDebugTrace;
+  // Stable identifier of the agent turn that produced this message.
+  // Plugins (e.g. devtools) look up turn-scoped data — such as the
+  // captured debug trace — by this id via their own storage.
+  runId?: string;
 }
 
 // ─── Session persistence ────────────────────────────────────────────
@@ -242,7 +245,7 @@ export interface ChatRequest {
 export interface ChatResponse {
   ok: boolean;
   response?: string;
-  debugTrace?: CanvasAgentDebugTrace;
+  runId?: string;
   error?: string;
 }
 

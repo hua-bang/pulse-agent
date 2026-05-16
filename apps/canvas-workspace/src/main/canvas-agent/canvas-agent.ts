@@ -424,7 +424,7 @@ export class CanvasAgent {
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
-  ): Promise<{ response: string; debugTrace?: CanvasAgentDebugTrace }> {
+  ): Promise<{ response: string; runId?: string }> {
     // Refresh workspace summary for system prompt
     const summary = await buildWorkspaceSummary(this.config.workspaceId);
 
@@ -599,14 +599,18 @@ export class CanvasAgent {
         content: responseText,
         timestamp: Date.now(),
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-        debugTrace: finalizedTrace,
+        runId: finalizedTrace?.runId,
       });
 
       // Notify subscribed plugins (devtools persists the trace to its own
       // store; other plugins may inspect the finalized turn). Emitted
       // only when a trace was actually captured.
       if (finalizedTrace) {
-        agentBus.emitTurn('turnEnd', {
+        // Await listeners so plugin storage (e.g. devtools persisting the
+        // trace) is flushed before chat() returns. The renderer card can
+        // then fetch the trace by runId immediately without racing the
+        // write.
+        await agentBus.emitTurnAsync('turnEnd', {
           runId: finalizedTrace.runId,
           sessionId: finalizedTrace.sessionId,
           data: {
@@ -618,7 +622,7 @@ export class CanvasAgent {
         });
       }
 
-      return { response: responseText, debugTrace: finalizedTrace };
+      return { response: responseText, runId: finalizedTrace?.runId };
     } finally {
       if (this.currentAbortController === abortController) {
         this.currentAbortController = null;

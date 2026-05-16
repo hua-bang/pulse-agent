@@ -463,7 +463,10 @@ export interface AgentChatMessage {
   timestamp: number;
   attachments?: ChatImageAttachment[];
   toolCalls?: AgentChatToolCall[];
-  debugTrace?: AgentDebugTrace;
+  // Stable identifier of the agent turn that produced this message.
+  // Plugins (e.g. devtools) look up turn-scoped data — such as the
+  // captured debug trace — by this id via their own storage.
+  runId?: string;
 }
 
 export interface AgentContextNodeRef {
@@ -609,7 +612,7 @@ export interface AgentApi {
   ) => () => void;
   onChatComplete: (
     sessionId: string,
-    callback: (result: { ok: boolean; response?: string; debugTrace?: AgentDebugTrace; error?: string }) => void
+    callback: (result: { ok: boolean; response?: string; runId?: string; error?: string }) => void
   ) => () => void;
   onToolCall: (
     sessionId: string,
