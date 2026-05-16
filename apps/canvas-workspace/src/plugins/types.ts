@@ -9,6 +9,10 @@ export interface AgentTurn {
   input?: unknown;
   messages?: unknown[];
   systemPrompt?: string;
+  // Plugin-specific payload negotiated between the emitting site and
+  // the subscribing plugin. Concrete shape is checked at the boundary
+  // via a runtime cast.
+  data?: unknown;
 }
 
 export type AgentEvent = 'turnStart' | 'turnEnd';

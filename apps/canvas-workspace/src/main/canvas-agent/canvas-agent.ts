@@ -10,6 +10,7 @@ import { Engine } from 'pulse-coder-engine';
 import { builtInSkillsPlugin } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model-config';
+import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
   formatSummaryForPrompt,
@@ -600,6 +601,22 @@ export class CanvasAgent {
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
         debugTrace: finalizedTrace,
       });
+
+      // Notify subscribed plugins (devtools persists the trace to its own
+      // store; other plugins may inspect the finalized turn). Emitted
+      // only when a trace was actually captured.
+      if (finalizedTrace) {
+        agentBus.emitTurn('turnEnd', {
+          runId: finalizedTrace.runId,
+          sessionId: finalizedTrace.sessionId,
+          data: {
+            trace: finalizedTrace,
+            assistantPreview: responseText.slice(0, 180),
+            workspaceId: this.config.workspaceId,
+            workspaceName: summary?.workspaceName ?? this.config.workspaceId,
+          },
+        });
+      }
 
       return { response: responseText, debugTrace: finalizedTrace };
     } finally {

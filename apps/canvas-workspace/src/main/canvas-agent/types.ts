@@ -155,8 +155,11 @@ export interface CanvasAgentDebugRunSummary {
 }
 
 export interface CanvasAgentDebugRunDetail extends CanvasAgentDebugRunSummary {
+  // Full message objects were available when runs came from session-store;
+  // the devtools plugin stores only the trace + previews now, so these
+  // fields are optional and currently unused by the renderer.
   userMessage?: CanvasAgentMessage;
-  assistantMessage: CanvasAgentMessage;
+  assistantMessage?: CanvasAgentMessage;
   trace: CanvasAgentDebugTrace;
 }
 

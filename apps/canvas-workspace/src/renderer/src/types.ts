@@ -453,7 +453,7 @@ export interface AgentDebugRunSummary {
 
 export interface AgentDebugRunDetail extends AgentDebugRunSummary {
   userMessage?: AgentChatMessage;
-  assistantMessage: AgentChatMessage;
+  assistantMessage?: AgentChatMessage;
   trace: AgentDebugTrace;
 }
 
