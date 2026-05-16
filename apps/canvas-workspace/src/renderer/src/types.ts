@@ -682,11 +682,6 @@ export interface AgentApi {
     sourceWorkspaceId: string,
     sessionId: string,
   ) => Promise<{ ok: boolean; messages?: AgentChatMessage[]; error?: string }>;
-  listDebugRuns: () => Promise<{ ok: boolean; runs?: AgentDebugRunSummary[]; error?: string }>;
-  getDebugRun: (
-    sessionId: string,
-    runId: string,
-  ) => Promise<{ ok: boolean; run?: AgentDebugRunDetail; error?: string }>;
   activate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   deactivate: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   addImageToCanvas: (

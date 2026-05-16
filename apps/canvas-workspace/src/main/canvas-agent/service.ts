@@ -225,13 +225,6 @@ export class CanvasAgentService {
     }
   }
 
-  async listDebugRuns(): Promise<CanvasAgentDebugRunSummary[]> {
-    return SessionStore.listDebugRuns();
-  }
-
-  async getDebugRun(sessionId: string, runId: string): Promise<CanvasAgentDebugRunDetail | null> {
-    return SessionStore.readDebugRun(sessionId, runId);
-  }
 
   /**
    * Deactivate and archive the Canvas Agent for a workspace.

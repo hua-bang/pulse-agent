@@ -90,8 +90,8 @@ export function getRegisteredChatCards(): ReadonlyArray<ChatCardEntry> {
   return chatCards;
 }
 
-export function findMatchingChatCard(
-  message: ChatMessageRef,
+export function findMatchingChatCard<T extends ChatMessageRef>(
+  message: T,
 ): { entry: ChatCardEntry; payload: unknown } | null {
   for (const entry of chatCards) {
     const payload = entry.spec.match(message);

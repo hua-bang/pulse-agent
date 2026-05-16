@@ -5,8 +5,8 @@ import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
-import { AgentDebugPage } from './components/debug/AgentDebugPage';
 import { Sidebar } from './components/Sidebar';
+import { getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
@@ -88,13 +88,16 @@ const AppContent = () => {
     setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
-  const enterDebugView = useCallback((sessionId?: string, runId?: string) => {
-    const params = new URLSearchParams();
-    if (sessionId) params.set('sessionId', sessionId);
-    if (runId) params.set('runId', runId);
-    const query = params.toString();
-    setLocation(query ? `${ROUTE_DEBUG}?${query}` : ROUTE_DEBUG);
+  // The devtools plugin owns selection state via its own URL query;
+  // App.tsx just hands off to the route.
+  const enterDebugView = useCallback(() => {
+    setLocation(ROUTE_DEBUG);
   }, [setLocation]);
+
+  // Routes contributed by built-in plugins. Snapshot at mount: built-in
+  // plugins register synchronously at renderer bootstrap, so a one-shot
+  // read is sufficient.
+  const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
 
   const handleSelectWorkspace = useCallback((id: string) => {
     ensureWorkspaceNodesLoaded(id);
@@ -383,14 +386,16 @@ const AppContent = () => {
               onNodeFocus={handleNodeFocusFromChatPage}
             />
           </PulseRouterView>
-          <PulseRouterView name="debug">
-            <AgentDebugPage
-              selectedSessionId={routeParams.get('sessionId')}
-              selectedRunId={routeParams.get('runId')}
-              onSelectRun={enterDebugView}
-              onBackToCanvas={exitChatView}
-            />
-          </PulseRouterView>
+          {pluginRoutes.map((route) => {
+            // Hardwire the routePath → view-name mapping for now. When
+            // a second plugin route appears, generalize this mapping.
+            const viewName = route.path === ROUTE_DEBUG ? 'debug' : route.path;
+            return (
+              <PulseRouterView key={route.path} name={viewName}>
+                <route.Component />
+              </PulseRouterView>
+            );
+          })}
         </PulseRouter>
       </div>
     </div>

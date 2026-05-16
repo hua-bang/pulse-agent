@@ -360,12 +360,6 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     loadCrossWorkspaceSession: (targetWorkspaceId: string, sourceWorkspaceId: string, sessionId: string) =>
       ipcRenderer.invoke("canvas-agent:load-cross-workspace-session", { targetWorkspaceId, sourceWorkspaceId, sessionId }),
 
-    listDebugRuns: () =>
-      ipcRenderer.invoke("canvas-agent:debug-runs"),
-
-    getDebugRun: (sessionId: string, runId: string) =>
-      ipcRenderer.invoke("canvas-agent:debug-run", { sessionId, runId }),
-
     activate: (workspaceId: string) =>
       ipcRenderer.invoke("canvas-agent:activate", { workspaceId }),
 

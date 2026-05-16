@@ -42,9 +42,11 @@ export interface MainCtx {
   onAgent(event: AgentEvent, handler: (turn: AgentTurn) => void): () => void;
 }
 
+// Minimal contract — hosts pass any chat-message object that has at
+// least a `role`. Plugins' match() functions cast to read whatever
+// extra fields they care about (e.g. `debugTrace`, `meta`).
 export interface ChatMessageRef {
   role: string;
-  meta?: Record<string, unknown>;
 }
 
 export interface ChatCardSpec<T = unknown> {
