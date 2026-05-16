@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { resolve as resolvePath } from 'path';
-import { getAcpState, setAcpState, clearAcpState, updateAcpCwd } from 'pulse-coder-acp';
+import { buildAcpEnableState, getAcpState, setAcpState, clearAcpState, updateAcpCwd } from 'pulse-coder-acp';
 import type { AcpAgent } from 'pulse-coder-acp';
 import type { CommandResult } from '../types.js';
 
@@ -65,10 +65,15 @@ export async function handleAcpCommand(platformKey: string, args: string[]): Pro
       cwd = existing?.cwd ?? process.cwd();
     }
 
-    await setAcpState(platformKey, { agent: agentRaw, cwd });
+    const existing = await getAcpState(platformKey);
+    const nextState = buildAcpEnableState(existing, agentRaw, cwd);
+    await setAcpState(platformKey, nextState);
+    const sessionLine = nextState.sessionId
+      ? `\n- session: ${nextState.sessionId} (preserved)`
+      : '\n- session: (新会话)';
     return {
       type: 'handled',
-      message: `✅ ACP 已开启\n- agent: ${agentRaw}\n- cwd: ${cwd}\n下次发消息将由 ${agentRaw} 处理。`,
+      message: `✅ ACP 已开启\n- agent: ${agentRaw}\n- cwd: ${cwd}${sessionLine}\n下次发消息将由 ${agentRaw} 处理。`,
     };
   }
 

@@ -151,7 +151,12 @@ export async function runAcp(input: AcpRunnerInput): Promise<AcpRunnerResult> {
         console.warn('[acp/runner] transient error detected, retrying without proxy');
         disableProxy = true;
       }
-      sessionId = undefined;
+      // Preserve the last known session across transient retries. Dropping it
+      // here turns network/timeout blips into permanent context loss.
+      if (isDefinitiveSessionInvalidError(err)) {
+        console.warn('[acp/runner] session invalid during retry, starting fresh on next attempt');
+        sessionId = undefined;
+      }
       const delayMs = retryConfig.baseDelayMs * Math.max(1, attempt + 1);
       if (delayMs > 0) {
         await sleep(delayMs);
@@ -210,8 +215,13 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
           mcpServers: [],
         }, timeouts.sessionMs);
       } catch (err) {
-        console.warn('[acp/runner] session/load failed, starting fresh:', err);
-        sessionId = undefined;
+        if (isDefinitiveSessionInvalidError(err)) {
+          console.warn('[acp/runner] session/load found invalid saved session, starting fresh:', err);
+          sessionId = undefined;
+        } else {
+          console.warn('[acp/runner] session/load failed transiently, preserving saved session:', err);
+          throw err;
+        }
       }
     }
 
@@ -221,6 +231,7 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
         mcpServers: [],
       }, timeouts.sessionMs);
       sessionId = newSession.sessionId;
+      console.warn('[acp/runner] started new ACP session:', sessionId);
     }
 
     const textChunks: string[] = [];
@@ -394,6 +405,10 @@ export function __testCreatePromptProgressTimeouts(input: {
   return createPromptProgressTimeouts(input);
 }
 
+export function __testIsDefinitiveSessionInvalidError(err: unknown): boolean {
+  return isDefinitiveSessionInvalidError(err);
+}
+
 function wrapCallbacks(
   callbacks: AcpRunnerCallbacks | undefined,
   markOutput: () => void,
@@ -459,6 +474,19 @@ function isTransientAcpError(err: unknown): boolean {
     || combined.includes('network error')
     || combined.includes('econnreset')
     || combined.includes('und_err_connect_timeout');
+}
+
+function isDefinitiveSessionInvalidError(err: unknown): boolean {
+  const code = extractAcpErrorCode(err);
+  const message = typeof (err as { message?: unknown })?.message === 'string'
+    ? String((err as { message?: unknown }).message)
+    : '';
+  const details = extractAcpErrorDetails(err) ?? '';
+  const combined = `${message} ${details}`.toLowerCase();
+
+  if (code === -32001 || code === 404) return true;
+  return /\b(no such|not found|unknown|invalid|expired)\b[^.\n]*(session|conversation)/.test(combined)
+    || /\b(session|conversation)\b[^.\n]*\b(no such|not found|unknown|invalid|expired)\b/.test(combined);
 }
 
 function extractAcpErrorCode(err: unknown): number | null {

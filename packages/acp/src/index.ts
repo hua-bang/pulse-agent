@@ -22,6 +22,7 @@ export { AcpClient, AcpTimeoutError } from './client.js';
 export { runAcp } from './runner.js';
 export { FileAcpStateStore } from './state-store.js';
 export {
+  buildAcpEnableState,
   getAcpState,
   setAcpState,
   clearAcpState,

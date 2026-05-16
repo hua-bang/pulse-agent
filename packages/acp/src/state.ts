@@ -1,7 +1,20 @@
-import type { AcpChannelState } from './types.js';
+import type { AcpAgent, AcpChannelState } from './types.js';
 import { FileAcpStateStore } from './state-store.js';
 
 const defaultStateStore = new FileAcpStateStore();
+
+export function buildAcpEnableState(
+  existing: AcpChannelState | undefined,
+  agent: AcpAgent,
+  cwd: string,
+): AcpChannelState {
+  const shouldPreserveSession = existing?.agent === agent && existing.cwd === cwd;
+  return {
+    agent,
+    cwd,
+    sessionId: shouldPreserveSession ? existing.sessionId : undefined,
+  };
+}
 
 export function getAcpState(platformKey: string) {
   return defaultStateStore.getState(platformKey);

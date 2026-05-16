@@ -63,6 +63,8 @@ export class FileAcpStateStore implements AcpStateStore {
     if (data[platformKey]) {
       data[platformKey]!.sessionId = sessionId;
       await writeAll(this.statePath, data);
+    } else {
+      console.warn(`[acp/state] skip saveSessionId because ACP state is missing for ${platformKey}`);
     }
   }
 }
