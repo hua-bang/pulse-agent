@@ -22,8 +22,13 @@ interface Props {
   activeWorkspaceId: string;
 }
 
+const DEFAULT_WIDTH = 560;
+const MIN_WIDTH = 360;
+const MAX_WIDTH_VW_RATIO = 0.85;
+
 export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
   const [url, setUrl] = useState<string | null>(null);
+  const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   const hostRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
 
@@ -95,10 +100,50 @@ export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
     webviewRef.current?.reload();
   }, []);
 
+  // Drag the left edge to resize. Mirrors the chat-panel resize pattern in
+  // Workbench/index.tsx: lock body cursor + selection during drag and tear
+  // down listeners on mouseup so a missed mouseup doesn't strand them.
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = width;
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const delta = startX - ev.clientX;
+        const maxWidth = window.innerWidth * MAX_WIDTH_VW_RATIO;
+        setWidth(Math.min(maxWidth, Math.max(MIN_WIDTH, startWidth + delta)));
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    },
+    [width],
+  );
+
   if (!url) return null;
 
   return (
-    <aside className="link-drawer" role="dialog" aria-label="Link preview">
+    <aside
+      className="link-drawer"
+      role="dialog"
+      aria-label="Link preview"
+      style={{ width }}
+    >
+      <div
+        className="link-drawer__resize-handle"
+        onMouseDown={handleResizeStart}
+        aria-hidden="true"
+      />
         <header className="link-drawer__header">
           <button
             type="button"
