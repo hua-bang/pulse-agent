@@ -2,12 +2,15 @@ import type {
   AcpRunnerInput,
   AcpRunnerResult,
   AcpRunnerCallbacks,
+  AcpMcpServer,
   InitializeResult,
   PermissionOutcome,
   PermissionOption,
   PermissionRequest,
   PromptResult,
+  ListSessionsResult,
   SessionNewResult,
+  SessionReconnectResult,
   SessionUpdateNotification,
 } from './types.js';
 import { AcpClient, AcpTimeoutError } from './client.js';
@@ -19,8 +22,14 @@ const DEFAULT_CLIENT_INFO = {
   version: '1.0.0',
 };
 
+const DEFAULT_MCP_SERVERS: AcpMcpServer[] = [];
+
 const DEFAULT_CLIENT_CAPABILITIES = {
   fs: { readTextFile: true, writeTextFile: true },
+  // Do not advertise terminal support yet; AcpClient only handles fs/* and
+  // permission requests today. Newer ACP agents must not call terminal/* unless
+  // this capability is explicitly true.
+  terminal: false,
 };
 
 type AcpPermissionMode = 'allow' | 'prompt';
@@ -114,7 +123,51 @@ function listDedupe(items: string[]): string[] {
   }
   return out;
 }
+type SessionReconnectMethod = 'resume' | 'load' | 'none';
 
+function selectSessionReconnectMethod(initResult: InitializeResult): SessionReconnectMethod {
+  if (supportsSessionResume(initResult)) return 'resume';
+  if (initResult.agentCapabilities?.loadSession === true) return 'load';
+  return 'none';
+}
+
+function hasSessionCapability(initResult: InitializeResult, key: 'resume' | 'list' | 'close'): boolean {
+  return initResult.agentCapabilities?.sessionCapabilities?.[key] != null;
+}
+
+function supportsSessionResume(initResult: InitializeResult): boolean {
+  return hasSessionCapability(initResult, 'resume');
+}
+
+function supportsSessionList(initResult: InitializeResult): boolean {
+  return hasSessionCapability(initResult, 'list');
+}
+
+function supportsSessionClose(initResult: InitializeResult): boolean {
+  return hasSessionCapability(initResult, 'close');
+}
+
+function buildSessionReconnectParams(sessionId: string, cwd: string, mcpServers: AcpMcpServer[]) {
+  return {
+    sessionId,
+    cwd,
+    mcpServers,
+  };
+}
+
+function buildSessionNewParams(cwd: string, mcpServers: AcpMcpServer[]) {
+  return {
+    cwd,
+    mcpServers,
+  };
+}
+
+function buildSessionListParams(cwd?: string, cursor?: string) {
+  return {
+    ...(cwd ? { cwd } : {}),
+    ...(cursor ? { cursor } : {}),
+  };
+}
 
 export async function runAcp(input: AcpRunnerInput): Promise<AcpRunnerResult> {
   const retryConfig = resolveRetryConfig();
@@ -198,6 +251,7 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
   try {
     const clientInfo = input.clientInfo ?? DEFAULT_CLIENT_INFO;
     const clientCapabilities = input.clientCapabilities ?? DEFAULT_CLIENT_CAPABILITIES;
+    const mcpServers = input.mcpServers ?? DEFAULT_MCP_SERVERS;
     const initResult = await client.call<InitializeResult>('initialize', {
       protocolVersion: 1,
       clientCapabilities,
@@ -205,31 +259,36 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
     }, timeouts.initMs);
 
     let sessionId = input.sessionId;
-    const supportsLoad = initResult.agentCapabilities?.loadSession === true;
+    const reconnectMethod = selectSessionReconnectMethod(initResult);
 
-    if (sessionId && supportsLoad) {
+    if (process.env.ACP_DEBUG === '1' || process.env.ACP_DEBUG === 'true') {
+      console.error('[acp/runner] capabilities:', JSON.stringify({
+        reconnectMethod,
+        sessionResume: supportsSessionResume(initResult),
+        sessionList: supportsSessionList(initResult),
+        sessionClose: supportsSessionClose(initResult),
+        loadSession: initResult.agentCapabilities?.loadSession === true,
+        mcpCapabilities: initResult.agentCapabilities?.mcpCapabilities,
+      }));
+    }
+
+    if (sessionId && reconnectMethod !== 'none') {
+      const method = reconnectMethod === 'resume' ? 'session/resume' : 'session/load';
       try {
-        await client.call('session/load', {
-          sessionId,
-          cwd: input.cwd,
-          mcpServers: [],
-        }, timeouts.sessionMs);
+        await client.call<SessionReconnectResult>(method, buildSessionReconnectParams(sessionId, input.cwd, mcpServers), timeouts.sessionMs);
       } catch (err) {
         if (isDefinitiveSessionInvalidError(err)) {
-          console.warn('[acp/runner] session/load found invalid saved session, starting fresh:', err);
+          console.warn(`[acp/runner] ${method} found invalid saved session, starting fresh:`, err);
           sessionId = undefined;
         } else {
-          console.warn('[acp/runner] session/load failed transiently, preserving saved session:', err);
+          console.warn(`[acp/runner] ${method} failed transiently, preserving saved session:`, err);
           throw err;
         }
       }
     }
 
     if (!sessionId) {
-      const newSession = await client.call<SessionNewResult>('session/new', {
-        cwd: input.cwd,
-        mcpServers: [],
-      }, timeouts.sessionMs);
+      const newSession = await client.call<SessionNewResult>('session/new', buildSessionNewParams(input.cwd, mcpServers), timeouts.sessionMs);
       sessionId = newSession.sessionId;
       console.warn('[acp/runner] started new ACP session:', sessionId);
     }
@@ -237,6 +296,12 @@ async function runAcpOnce(input: AcpRunnerInput, callbacks?: AcpRunnerCallbacks)
     const textChunks: string[] = [];
     let markPromptProgress = () => {};
     const unsub = client.onNotification((method, params) => {
+      if (method === 'session_info_update') {
+        if (process.env.ACP_DEBUG === '1' || process.env.ACP_DEBUG === 'true') {
+          console.error('[acp/runner] session_info_update raw:', JSON.stringify(params));
+        }
+        return;
+      }
       if (method !== 'session/update') return;
       markPromptProgress();
 
@@ -407,6 +472,85 @@ export function __testCreatePromptProgressTimeouts(input: {
 
 export function __testIsDefinitiveSessionInvalidError(err: unknown): boolean {
   return isDefinitiveSessionInvalidError(err);
+}
+
+export function __testSelectSessionReconnectMethod(initResult: InitializeResult): SessionReconnectMethod {
+  return selectSessionReconnectMethod(initResult);
+}
+
+export function __testSupportsSessionResume(initResult: InitializeResult): boolean {
+  return supportsSessionResume(initResult);
+}
+
+export function __testSupportsSessionList(initResult: InitializeResult): boolean {
+  return supportsSessionList(initResult);
+}
+
+export function __testSupportsSessionClose(initResult: InitializeResult): boolean {
+  return supportsSessionClose(initResult);
+}
+
+export async function listAcpSessions(input: Omit<AcpRunnerInput, 'userText'> & { cursor?: string }): Promise<ListSessionsResult> {
+  const timeouts = resolveTimeoutConfig();
+  const client = new AcpClient(input.agent, input.cwd, {
+    commandOverrides: input.commandOverrides,
+    envOverrides: input.envOverrides,
+    unsetEnv: mergeUnsetEnv(input.unsetEnv, ALWAYS_UNSET_ENV_KEYS),
+  });
+
+  try {
+    const initResult = await client.call<InitializeResult>('initialize', {
+      protocolVersion: 1,
+      clientCapabilities: input.clientCapabilities ?? DEFAULT_CLIENT_CAPABILITIES,
+      clientInfo: input.clientInfo ?? DEFAULT_CLIENT_INFO,
+    }, timeouts.initMs);
+
+    if (!supportsSessionList(initResult)) {
+      throw new Error('ACP agent does not support session/list');
+    }
+
+    return await client.call<ListSessionsResult>('session/list', buildSessionListParams(input.cwd, input.cursor), timeouts.sessionMs);
+  } finally {
+    client.kill();
+  }
+}
+
+export async function closeAcpSession(input: Omit<AcpRunnerInput, 'userText'>): Promise<boolean> {
+  if (!input.sessionId) return false;
+
+  const timeouts = resolveTimeoutConfig();
+  const client = new AcpClient(input.agent, input.cwd, {
+    commandOverrides: input.commandOverrides,
+    envOverrides: input.envOverrides,
+    unsetEnv: mergeUnsetEnv(input.unsetEnv, ALWAYS_UNSET_ENV_KEYS),
+  });
+
+  try {
+    const initResult = await client.call<InitializeResult>('initialize', {
+      protocolVersion: 1,
+      clientCapabilities: input.clientCapabilities ?? DEFAULT_CLIENT_CAPABILITIES,
+      clientInfo: input.clientInfo ?? DEFAULT_CLIENT_INFO,
+    }, timeouts.initMs);
+
+    if (!supportsSessionClose(initResult)) {
+      return false;
+    }
+
+    const reconnectMethod = selectSessionReconnectMethod(initResult);
+    if (reconnectMethod !== 'none') {
+      const method = reconnectMethod === 'resume' ? 'session/resume' : 'session/load';
+      await client.call<SessionReconnectResult>(
+        method,
+        buildSessionReconnectParams(input.sessionId, input.cwd, input.mcpServers ?? DEFAULT_MCP_SERVERS),
+        timeouts.sessionMs,
+      );
+    }
+
+    await client.call('session/close', { sessionId: input.sessionId }, timeouts.sessionMs);
+    return true;
+  } finally {
+    client.kill();
+  }
 }
 
 function wrapCallbacks(

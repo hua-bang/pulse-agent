@@ -7,10 +7,14 @@ export type {
   AcpRunnerResult,
   AcpClientOptions,
   AcpClientCapabilities,
+  AcpMcpServer,
+  AcpSessionInfo,
   AcpInitializeInput,
   SessionUpdateNotification,
   InitializeResult,
+  ListSessionsResult,
   SessionNewResult,
+  SessionReconnectResult,
   PromptResult,
   PermissionOption,
   PermissionRequest,
@@ -19,7 +23,7 @@ export type {
 } from './types.js';
 
 export { AcpClient, AcpTimeoutError } from './client.js';
-export { runAcp } from './runner.js';
+export { closeAcpSession, listAcpSessions, runAcp } from './runner.js';
 export { FileAcpStateStore } from './state-store.js';
 export {
   buildAcpEnableState,

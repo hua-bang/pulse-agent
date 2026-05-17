@@ -23,6 +23,18 @@ export interface AcpRunnerCallbacks {
   onClarificationRequest?: (request: ClarificationRequest) => Promise<string>;
 }
 
+export type AcpMcpServer =
+  | { type?: 'stdio'; name: string; command: string; args: string[]; env: Array<{ name: string; value: string }>; [key: string]: unknown }
+  | { type: 'http' | 'sse'; name: string; url: string; headers: Array<{ name: string; value: string }>; [key: string]: unknown };
+
+export interface AcpSessionInfo {
+  sessionId: string;
+  cwd: string;
+  title?: string | null;
+  updatedAt?: string | null;
+  [key: string]: unknown;
+}
+
 export interface AcpRunnerInput {
   platformKey: string;
   agent: AcpAgent;
@@ -40,6 +52,7 @@ export interface AcpRunnerInput {
     version?: string;
   };
   clientCapabilities?: AcpClientCapabilities;
+  mcpServers?: AcpMcpServer[];
   commandOverrides?: Partial<Record<AcpAgent, string>>;
 }
 
@@ -82,6 +95,7 @@ export interface AcpClientCapabilities {
     readTextFile?: boolean;
     writeTextFile?: boolean;
   };
+  terminal?: boolean;
 }
 
 export interface AcpInitializeInput {
@@ -111,13 +125,37 @@ export interface InitializeResult {
   protocolVersion: number;
   agentCapabilities: {
     loadSession?: boolean;
+    sessionCapabilities?: {
+      resume?: Record<string, unknown> | null;
+      list?: Record<string, unknown> | null;
+      close?: Record<string, unknown> | null;
+      [key: string]: unknown;
+    };
+    mcpCapabilities?: {
+      http?: boolean;
+      sse?: boolean;
+      [key: string]: unknown;
+    };
     [key: string]: unknown;
   };
-  agentInfo: { name: string; title?: string; version?: string };
+  agentInfo?: { name: string; title?: string; version?: string } | null;
+  authMethods?: unknown[];
 }
 
 export interface SessionNewResult {
   sessionId: string;
+  configOptions?: unknown[] | null;
+  modes?: unknown | null;
+}
+
+export interface SessionReconnectResult {
+  configOptions?: unknown[] | null;
+  modes?: unknown | null;
+}
+
+export interface ListSessionsResult {
+  sessions: AcpSessionInfo[];
+  nextCursor?: string | null;
 }
 
 export interface PromptResult {

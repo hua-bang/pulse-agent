@@ -1,6 +1,14 @@
 import { promises as fs } from 'fs';
 import { resolve as resolvePath } from 'path';
-import { buildAcpEnableState, clearAcpState, getAcpState, setAcpState, updateAcpCwd } from 'pulse-coder-acp';
+import {
+  buildAcpEnableState,
+  clearAcpState,
+  closeAcpSession,
+  getAcpState,
+  listAcpSessions,
+  setAcpState,
+  updateAcpCwd,
+} from 'pulse-coder-acp';
 import type { AcpAgent } from 'pulse-coder-acp';
 
 const DEFAULT_ACP_USER = 'local';
@@ -78,8 +86,38 @@ export async function handleAcpCommand(platformKey: string, args: string[]): Pro
     if (!existing) {
       return 'ℹ️ ACP 本来就是关闭状态。';
     }
+
+    const closeLine = await tryCloseAcpSession(platformKey, existing);
     await clearAcpState(platformKey);
-    return '✅ ACP 已关闭，恢复使用 pulse-agent。';
+    return ['✅ ACP 已关闭，恢复使用 pulse-agent。', closeLine].filter(Boolean).join('\n');
+  }
+
+  if (sub === 'sessions') {
+    const state = await getAcpState(platformKey);
+    if (!state) {
+      return '❌ ACP 未启用，请先 `/acp on <claude|codex>`。';
+    }
+
+    try {
+      const result = await listAcpSessions({
+        platformKey,
+        agent: state.agent,
+        cwd: state.cwd,
+        sessionId: state.sessionId,
+        clientInfo: ACP_CLIENT_INFO,
+      });
+      if (result.sessions.length === 0) return 'ℹ️ 当前 ACP agent 未返回已有 session。';
+      const lines = result.sessions.slice(0, 20).map((session) => {
+        const marker = session.sessionId === state.sessionId ? ' *' : '';
+        const title = session.title ? ` — ${session.title}` : '';
+        const updated = session.updatedAt ? ` (${session.updatedAt})` : '';
+        return `- ${session.sessionId}${marker}\n  cwd: ${session.cwd}${title}${updated}`;
+      });
+      const more = result.nextCursor ? '\n… 还有更多 session（当前命令暂未翻页）。' : '';
+      return `📚 ACP sessions\n${lines.join('\n')}${more}`;
+    } catch (err) {
+      return `❌ 当前 ACP agent 不支持或无法执行 session/list：${formatError(err)}`;
+    }
   }
 
   if (sub === 'cd') {
@@ -104,8 +142,9 @@ export async function handleAcpCommand(platformKey: string, args: string[]): Pro
   return [
     '⚠️ 未知子命令。ACP 用法：',
     '`/acp on <claude|codex> [cwd]` — 开启 ACP 模式',
-    '`/acp off`                     — 关闭，恢复 pulse-agent',
+    '`/acp off`                     — 关闭，恢复 pulse-agent（支持时关闭 ACP session）',
     '`/acp cd <path>`               — 切换工作目录（重置 session）',
+    '`/acp sessions`                — 列出 agent 已知 session（若支持）',
     '`/acp status`                  — 查看当前状态',
   ].join('\n');
 }
@@ -121,4 +160,24 @@ async function dirExists(p: string): Promise<boolean> {
 
 function isValidAgent(value: string): value is AcpAgent {
   return (VALID_AGENTS as string[]).includes(value);
+}
+
+async function tryCloseAcpSession(platformKey: string, state: { agent: AcpAgent; cwd: string; sessionId?: string }): Promise<string | null> {
+  if (!state.sessionId) return null;
+  try {
+    const closed = await closeAcpSession({
+      platformKey,
+      agent: state.agent,
+      cwd: state.cwd,
+      sessionId: state.sessionId,
+      clientInfo: ACP_CLIENT_INFO,
+    });
+    return closed ? '- ACP session 已通过 session/close 关闭。' : '- ACP agent 未声明 session/close，已仅清除本地状态。';
+  } catch (err) {
+    return `- session/close 执行失败，已仅清除本地状态：${formatError(err)}`;
+  }
+}
+
+function formatError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
