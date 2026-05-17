@@ -223,11 +223,16 @@ export const useCanvasMouseHandlers = ({
     const onUp = () => {
       if (isDraggingRef.current) handleMouseUp();
     };
+    const onBlur = () => {
+      if (isDraggingRef.current) handleMouseUp();
+    };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, [handleWindowDragMove, handleMouseUp]);
 

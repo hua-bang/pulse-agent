@@ -34,6 +34,8 @@
   pointer-events: auto;
 }
 
+.canvas-container--iframe-shielding iframe,
+.canvas-container--iframe-shielding webview,
 .canvas-container--iframe-shielding .iframe-frame {
   pointer-events: none;
 }
