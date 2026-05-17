@@ -123,35 +123,33 @@ const createWindow = () => {
 // Feishu / Notion docs — anything later misses the popup and the click
 // looks dead to the user.
 //
-// Also: many SPAs (Lark wiki is one) handle link clicks by calling
-// `location.assign(url)` or `<a href>` directly instead of `window.open` —
-// that path fires `will-navigate` on the *webview's* webContents, not the
-// open handler. We intercept top-frame navigations to a different origin
-// and route them to the OS browser too, so clicking a wiki link / external
-// link does something visible instead of dying silently.
-app.on("web-contents-created", (_event, contents) => {
-  const tag = `wc#${contents.id}/${contents.getType()}`;
-  console.log(`[main] ${tag} created — installing popup + nav handlers`);
+// Instead of opening every intercepted URL in the system browser, forward
+// it to the host renderer (the BrowserWindow this webContents lives in)
+// over the `link:open` channel. The renderer surfaces it in a side
+// drawer with a webview preview and explicit "open in system browser" /
+// "add to current canvas" actions.
+//
+// `will-navigate` is also forwarded so that SPAs (Lark wiki etc.) which
+// use `location.assign` or plain `<a href>` for cross-origin links land
+// in the drawer instead of dying silently inside the embed.
+function forwardLinkToRenderer(contents: Electron.WebContents, url: string) {
+  // For `<webview>`, the message must reach the embedder (the main
+  // renderer hosting the drawer), not the guest itself. `hostWebContents`
+  // is undefined for top-level webContents — there, `contents` already IS
+  // the renderer we want to talk to.
+  const target = contents.hostWebContents ?? contents;
+  if (target.isDestroyed()) return;
+  target.send("link:open", { url });
+}
 
+app.on("web-contents-created", (_event, contents) => {
   contents.setWindowOpenHandler(({ url }) => {
-    const safe = isSafeExternalUrl(url);
-    console.log(`[main] ${tag} window.open intercepted url=${url} safe=${safe}`);
-    if (safe) {
-      shell.openExternal(url).catch((err) => {
-        console.warn(
-          `[main] ${tag} shell.openExternal failed for ${url}: ${
-            err instanceof Error ? err.message : String(err)
-          }`,
-        );
-      });
+    if (isSafeExternalUrl(url)) {
+      forwardLinkToRenderer(contents, url);
     }
     return { action: "deny" };
   });
 
-  // Only intercept navigations on guest webviews — top-frame navigation in
-  // the main renderer is handled separately in `createWindow`. For webview
-  // guests, send cross-origin clicks to the OS browser; same-origin links
-  // (e.g. moving between Lark wiki docs) still navigate inside the webview.
   if (contents.getType() === "webview") {
     contents.on("will-navigate", (event, url) => {
       const currentUrl = contents.getURL();
@@ -161,12 +159,9 @@ app.on("web-contents-created", (_event, contents) => {
       } catch {
         crossOrigin = true;
       }
-      console.log(
-        `[main] ${tag} will-navigate ${currentUrl} → ${url} crossOrigin=${crossOrigin}`,
-      );
       if (crossOrigin && isSafeExternalUrl(url)) {
         event.preventDefault();
-        void shell.openExternal(url);
+        forwardLinkToRenderer(contents, url);
       }
     });
   }

@@ -5,6 +5,7 @@ import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
+import { LinkDrawer } from './components/LinkDrawer';
 import { Sidebar } from './components/Sidebar';
 import { getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
@@ -396,6 +397,7 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
+      <LinkDrawer activeWorkspaceId={activeId} />
     </div>
   );
 };

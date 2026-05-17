@@ -248,6 +248,45 @@ export const Canvas = ({
     onCreated: (node) => setSelectedNodeIds([node.id]),
   });
 
+  // External entry point for "add this URL as an iframe node" — currently
+  // dispatched by the LinkDrawer when the user clicks "加入当前画布".
+  // Listening on `window` keeps the drawer fully decoupled from canvas
+  // internals; the workspace match avoids cross-canvas pollution.
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent).detail as
+        | { workspaceId?: string; url?: string }
+        | undefined;
+      if (!detail?.url || detail.workspaceId !== canvasId) return;
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const center = screenToCanvas(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+        container,
+      );
+      // Default iframe node is 520×400; offset by half so the new node
+      // lands centered on the visible viewport.
+      const node = addNode("iframe", center.x - 260, center.y - 200);
+      let title = node.title;
+      try {
+        title = new URL(detail.url).host || title;
+      } catch {
+        // Leave default title if URL is malformed.
+      }
+      updateNode(node.id, {
+        title,
+        data: { url: detail.url, html: "", mode: "url", prompt: "" },
+      });
+      setSelectedNodeIds([node.id]);
+    };
+    window.addEventListener("canvas:add-iframe-from-url", handler);
+    return () => {
+      window.removeEventListener("canvas:add-iframe-from-url", handler);
+    };
+  }, [canvasId, addNode, updateNode, screenToCanvas, setSelectedNodeIds]);
+
   const paletteCommands = useCanvasPaletteCommands({
     selectedNodeIds, setSelectedNodeIds, nodesRef,
     duplicateNode, requestRemoveNodes: actions.requestRemoveNodes,
