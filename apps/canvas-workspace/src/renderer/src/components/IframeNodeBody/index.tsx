@@ -95,6 +95,21 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
 
+  // React 18 silently strips boolean values from unknown HTML attributes on
+  // non-custom elements (`<webview>` has no hyphen so React treats it as a
+  // regular HTML tag — `shouldRemoveAttribute` returns true for any boolean
+  // value whose attribute name doesn't start with `data-` or `aria-`). That
+  // makes JSX `allowpopups={true}` never make it to the DOM, and Electron's
+  // `<webview>` then blocks every `window.open` so `setWindowOpenHandler`
+  // is never reached and external links die silently. Setting the attribute
+  // via a callback ref bypasses React's prop coercion entirely.
+  const attachWebviewRef = useCallback((el: WebviewTag | null) => {
+    webviewRef.current = el;
+    if (el && !el.hasAttribute("allowpopups")) {
+      el.setAttribute("allowpopups", "");
+    }
+  }, []);
+
   // ── Streaming refs (avoid re-renders per token) ────────────────────
   const streamIframeRef = useRef<HTMLIFrameElement>(null);
   const streamBuf = useRef("");
@@ -687,11 +702,10 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
         {renderMode === "url" ? (
           <>
             <webview
-              ref={webviewRef as unknown as React.Ref<HTMLWebViewElement>}
+              ref={attachWebviewRef as unknown as React.Ref<HTMLWebViewElement>}
               key={webviewKey}
               className="iframe-frame"
               src={url}
-              allowpopups={true}
             />
             {loadState === "failed" && (
               <div className="iframe-load-error">
