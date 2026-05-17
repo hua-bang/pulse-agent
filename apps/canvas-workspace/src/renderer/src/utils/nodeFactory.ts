@@ -19,6 +19,32 @@ const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; 
   mindmap:  { title: 'Mindmap',  width: 640, height: 420 },
 };
 
+/** Default width/height for a node type — single source of truth so
+ *  callers that need to center a new node on the viewport derive the
+ *  offset from the same numbers `createDefaultNode` will assign. */
+export const getNodeDefaultSize = (
+  type: CanvasNode['type'],
+): { width: number; height: number } => {
+  const def = NODE_DEFAULTS[type];
+  return { width: def.width, height: def.height };
+};
+
+/** Human-readable type names used for toast feedback after adding a
+ *  node. Kept aligned with the FloatingToolbar button labels so the
+ *  user sees the same word in the toolbar tooltip and in the toast. */
+export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
+  file:     'Note',
+  terminal: 'Terminal',
+  frame:    'Frame',
+  group:    'Group',
+  agent:    'Coding agent',
+  text:     'Text',
+  iframe:   'Web page',
+  image:    'Image',
+  shape:    'Shape',
+  mindmap:  'Mindmap',
+};
+
 export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData => {
   switch (type) {
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };

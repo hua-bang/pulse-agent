@@ -1,5 +1,7 @@
 import { useCallback, useState, type RefObject } from 'react';
 import type { CanvasNode } from '../../../types';
+import { getNodeDefaultSize, NODE_TYPE_LABELS } from '../../../utils/nodeFactory';
+import type { ToastInput } from '../../../types/ui-interaction';
 
 type CreatableNodeType =
   | 'file'
@@ -27,6 +29,12 @@ interface Options {
   ) => { x: number; y: number };
   addNode: (type: CreatableNodeType, x: number, y: number) => CanvasNode;
   setSelectedNodeIds: (ids: string[]) => void;
+  /** Brief flash on the new node so the user can spot it after a
+   *  context-menu/toolbar/palette add. Reuses the existing 1.5s
+   *  `nodeHighlight` animation. */
+  setHighlightedId: (id: string | null) => void;
+  /** Toast surface for the post-add confirmation. */
+  notify: (toast: ToastInput) => string;
 }
 
 /**
@@ -40,8 +48,28 @@ export const useCanvasContextMenu = ({
   screenToCanvas,
   addNode,
   setSelectedNodeIds,
+  setHighlightedId,
+  notify,
 }: Options) => {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  /** Shared post-add side effects: select, flash, and toast the new node
+   *  so every entry point (right-click, toolbar, palette, empty-canvas
+   *  hint) gives the same visible confirmation. The placement hint
+   *  varies per entry point — right-click drops at cursor, toolbar
+   *  centers on viewport — so callers pass it in. */
+  const finalizeAddedNode = useCallback(
+    (node: CanvasNode, type: CreatableNodeType, placementHint: string) => {
+      setSelectedNodeIds([node.id]);
+      setHighlightedId(node.id);
+      notify({
+        tone: 'success',
+        title: `${NODE_TYPE_LABELS[type]} added`,
+        description: placementHint,
+      });
+    },
+    [notify, setHighlightedId, setSelectedNodeIds],
+  );
 
   const isBlankCanvasTarget = useCallback((target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return false;
@@ -74,41 +102,37 @@ export const useCanvasContextMenu = ({
   const handleCreateNode = useCallback(
     (type: CreatableNodeType) => {
       if (!contextMenu) return;
+      // Right-click drop point becomes the new node's top-left so the
+      // node grows down-right from the cursor — matches typical
+      // "create here" affordances in design tools.
       const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
-      setSelectedNodeIds([node.id]);
+      finalizeAddedNode(node, type, 'Placed at the cursor');
       setContextMenu(null);
     },
-    [addNode, contextMenu, setSelectedNodeIds],
+    [addNode, contextMenu, finalizeAddedNode],
   );
 
   const handleToolbarAddNode = useCallback(
     (type: CreatableNodeType) => {
       if (!containerRef.current) return;
+      // Center the new node on the current viewport: project the
+      // container's screen-space midpoint into canvas coordinates, then
+      // offset by half the node's default size so the node — not its
+      // top-left corner — lands at that midpoint. Half-dimensions come
+      // from `getNodeDefaultSize` (the same numbers `createDefaultNode`
+      // will write to `node.width`/`node.height`), keeping the centering
+      // honest as defaults evolve.
       const rect = containerRef.current.getBoundingClientRect();
-      const pos = screenToCanvas(
+      const center = screenToCanvas(
         rect.left + rect.width / 2,
         rect.top + rect.height / 2,
         containerRef.current,
       );
-      const halfW =
-        type === 'file' ? 210
-        : type === 'terminal' ? 240
-        : type === 'agent' ? 260
-        : type === 'text' ? 130
-        : type === 'iframe' ? 260
-        : type === 'mindmap' ? 320
-        : 300;
-      const halfH =
-        type === 'frame' ? 200
-        : type === 'group' ? 120
-        : type === 'text' ? 60
-        : type === 'iframe' ? 200
-        : type === 'mindmap' ? 210
-        : 150;
-      const node = addNode(type, pos.x - halfW, pos.y - halfH);
-      setSelectedNodeIds([node.id]);
+      const { width, height } = getNodeDefaultSize(type);
+      const node = addNode(type, center.x - width / 2, center.y - height / 2);
+      finalizeAddedNode(node, type, 'Centered on the current viewport');
     },
-    [addNode, screenToCanvas, setSelectedNodeIds, containerRef],
+    [addNode, screenToCanvas, finalizeAddedNode, containerRef],
   );
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
