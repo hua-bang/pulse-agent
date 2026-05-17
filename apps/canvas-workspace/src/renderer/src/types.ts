@@ -696,6 +696,7 @@ export interface AgentApi {
 
 export interface CanvasWorkspaceApi {
   version: string;
+  debugTraceEnabled: boolean;
   pty: {
     spawn: (
       id: string,

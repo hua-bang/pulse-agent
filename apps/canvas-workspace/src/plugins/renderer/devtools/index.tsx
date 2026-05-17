@@ -33,6 +33,9 @@ interface RunRef {
 
 export const DevtoolsRendererPlugin: RendererCanvasPlugin = {
   id: 'devtools',
+  enabledWhen: () =>
+    (globalThis as { canvasWorkspace?: { debugTraceEnabled?: boolean } })
+      .canvasWorkspace?.debugTraceEnabled === true,
   activate(ctx) {
     ctx.registerRoute('/debug', () => <DebugRoute invoke={ctx.invoke} />);
     ctx.registerChatCard<RunRef, AgentDebugTrace>({

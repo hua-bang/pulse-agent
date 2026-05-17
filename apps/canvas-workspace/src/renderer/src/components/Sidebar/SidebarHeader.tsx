@@ -64,16 +64,18 @@ export const SidebarHeader = ({
         </span>
         <span className="sidebar-nav-label">AI Chat</span>
       </button>
-      <button
-        className={`sidebar-nav-item${activeView === '/debug' ? ' sidebar-nav-item--active' : ''}`}
-        onClick={onEnterDebug}
-        title="Canvas Agent DevTools"
-      >
-        <span className="sidebar-nav-icon">
-          <SettingsIcon size={14} />
-        </span>
-        <span className="sidebar-nav-label">DevTools</span>
-      </button>
+      {window.canvasWorkspace?.debugTraceEnabled && (
+        <button
+          className={`sidebar-nav-item${activeView === '/debug' ? ' sidebar-nav-item--active' : ''}`}
+          onClick={onEnterDebug}
+          title="Canvas Agent DevTools"
+        >
+          <span className="sidebar-nav-icon">
+            <SettingsIcon size={14} />
+          </span>
+          <span className="sidebar-nav-label">DevTools</span>
+        </button>
+      )}
     </div>
 
     <div className="sidebar-section-header">

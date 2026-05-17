@@ -12,8 +12,13 @@ window.addEventListener("unhandledrejection", (event) => {
   sendLog("renderer", "unhandledrejection", String(event.reason));
 });
 
+const debugTraceFlag = process.env.CANVAS_AGENT_DEBUG_TRACE?.trim().toLowerCase();
+const debugTraceEnabled =
+  debugTraceFlag !== undefined && ["1", "true", "on", "yes"].includes(debugTraceFlag);
+
 contextBridge.exposeInMainWorld("canvasWorkspace", {
   version: "0.1.0",
+  debugTraceEnabled,
 
   pty: {
     spawn: (id: string, cols?: number, rows?: number, cwd?: string, workspaceId?: string) =>
