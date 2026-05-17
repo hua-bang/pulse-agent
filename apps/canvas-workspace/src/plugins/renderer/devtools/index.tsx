@@ -1,4 +1,5 @@
 import { useLocation } from 'wouter';
+import { SettingsIcon } from '../../../renderer/src/components/icons';
 import type { AgentDebugTrace } from '../../../renderer/src/types';
 import type { RendererCanvasPlugin, RendererCtx } from '../../types';
 import { AgentDebugPage } from './AgentDebugPage';
@@ -31,13 +32,22 @@ interface RunRef {
   runId: string;
 }
 
+const FLAG_ID = 'canvas-agent-debug-trace';
+
 export const DevtoolsRendererPlugin: RendererCanvasPlugin = {
   id: 'devtools',
   enabledWhen: () =>
-    (globalThis as { canvasWorkspace?: { debugTraceEnabled?: boolean } })
-      .canvasWorkspace?.debugTraceEnabled === true,
+    (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
+      .canvasWorkspace?.pluginFlags?.[FLAG_ID] === true,
   activate(ctx) {
     ctx.registerRoute('/debug', () => <DebugRoute invoke={ctx.invoke} />);
+    ctx.registerNavItem({
+      id: 'devtools',
+      path: '/debug',
+      label: 'DevTools',
+      title: 'Canvas Agent DevTools',
+      icon: SettingsIcon,
+    });
     ctx.registerChatCard<RunRef, AgentDebugTrace>({
       id: 'debug-trace',
       // Assistant messages carry only a runId pointer; the trace is

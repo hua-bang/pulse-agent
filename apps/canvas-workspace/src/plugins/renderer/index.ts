@@ -2,6 +2,7 @@ export {
   activateCanvasPlugins,
   findMatchingChatCard,
   getRegisteredChatCards,
+  getRegisteredNavItems,
   getRegisteredRoutes,
 } from './registry';
 export { PluginChatCardForMessage } from './chat-card';

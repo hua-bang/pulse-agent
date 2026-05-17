@@ -12,13 +12,18 @@ window.addEventListener("unhandledrejection", (event) => {
   sendLog("renderer", "unhandledrejection", String(event.reason));
 });
 
-const debugTraceFlag = process.env.CANVAS_AGENT_DEBUG_TRACE?.trim().toLowerCase();
-const debugTraceEnabled =
-  debugTraceFlag !== undefined && ["1", "true", "on", "yes"].includes(debugTraceFlag);
+const truthy = (value: string | undefined): boolean => {
+  const normalized = value?.trim().toLowerCase();
+  return normalized !== undefined && ["1", "true", "on", "yes"].includes(normalized);
+};
+
+const pluginFlags: Record<string, boolean> = {
+  "canvas-agent-debug-trace": truthy(process.env.CANVAS_AGENT_DEBUG_TRACE),
+};
 
 contextBridge.exposeInMainWorld("canvasWorkspace", {
   version: "0.1.0",
-  debugTraceEnabled,
+  pluginFlags,
 
   pty: {
     spawn: (id: string, cols?: number, rows?: number, cwd?: string, workspaceId?: string) =>

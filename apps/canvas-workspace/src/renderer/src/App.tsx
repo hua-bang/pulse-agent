@@ -6,7 +6,7 @@ import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
 import { Sidebar } from './components/Sidebar';
-import { getRegisteredRoutes } from '../../plugins/renderer';
+import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
@@ -25,10 +25,11 @@ const AppContent = () => {
     () => parseCanvasLocation(location),
     [location],
   );
-  // Routes contributed by built-in plugins. Snapshot at mount: built-in
-  // plugins register synchronously at renderer bootstrap, so a one-shot
-  // read is sufficient.
+  // Routes and nav items contributed by built-in plugins. Snapshot at
+  // mount: built-in plugins register synchronously at renderer bootstrap,
+  // so a one-shot read is sufficient.
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
+  const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
   const activeView: ActiveView =
     routePath === ROUTE_CHAT
       ? 'chat'
@@ -94,10 +95,10 @@ const AppContent = () => {
     setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
-  // The devtools plugin owns selection state via its own URL query;
-  // App.tsx just hands off to the route URL it advertises.
-  const enterDebugView = useCallback(() => {
-    setLocation('/debug');
+  // Plugin nav items declare their own paths; just hand off the URL to
+  // the router without the host knowing about specific plugins.
+  const navigateToPath = useCallback((path: string) => {
+    setLocation(path);
   }, [setLocation]);
 
   const handleSelectWorkspace = useCallback((id: string) => {
@@ -365,7 +366,8 @@ const AppContent = () => {
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
           onEnterChat={enterChatView}
-          onEnterDebug={() => enterDebugView()}
+          pluginNavItems={pluginNavItems}
+          onNavigate={navigateToPath}
           onExitChat={exitChatView}
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
