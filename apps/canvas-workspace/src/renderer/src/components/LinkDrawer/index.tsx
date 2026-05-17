@@ -25,9 +25,15 @@ interface Props {
 const DEFAULT_WIDTH = 560;
 const MIN_WIDTH = 360;
 const MAX_WIDTH_VW_RATIO = 0.85;
+const EXIT_ANIMATION_NAME = "link-drawer-out";
 
 export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
+  // `url` holds the currently-rendered URL (kept around during the exit
+  // animation so the webview doesn't snap blank mid-slide). `open` drives
+  // the animation direction. Component unmounts when both are cleared
+  // after the exit animation completes.
   const [url, setUrl] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [width, setWidth] = useState<number>(DEFAULT_WIDTH);
   const hostRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
@@ -36,20 +42,33 @@ export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
   useEffect(() => {
     return window.canvasWorkspace.link.onOpen(({ url: nextUrl }) => {
       setUrl(nextUrl);
+      setOpen(true);
     });
   }, []);
 
-  // ESC closes the drawer. No backdrop on purpose — the canvas under the
-  // drawer's left edge should stay pannable / editable while the preview
-  // is up (the drawer is a side panel, not a modal).
+  // ESC triggers the exit animation. Only bind while the drawer is
+  // actually showing so ESC stays free for everything else.
   useEffect(() => {
-    if (!url) return;
+    if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setUrl(null);
+      if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [url]);
+  }, [open]);
+
+  // After the exit animation finishes, drop the URL so the webview gets
+  // unmounted (releases the guest webContents). If the user re-opened
+  // mid-animation `open` will already be `true` here and we leave URL
+  // alone — the animation restarts forward and the webview survives.
+  const handleAnimationEnd = useCallback(
+    (e: React.AnimationEvent<HTMLElement>) => {
+      if (!open && e.animationName === EXIT_ANIMATION_NAME) {
+        setUrl(null);
+      }
+    },
+    [open],
+  );
 
   // Imperatively mount a fresh `<webview>` every time the drawer opens or
   // the URL changes. The element has to be created off-DOM with
@@ -76,7 +95,7 @@ export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
     };
   }, [url]);
 
-  const close = useCallback(() => setUrl(null), []);
+  const close = useCallback(() => setOpen(false), []);
 
   const handleOpenInBrowser = useCallback(() => {
     if (!url) return;
@@ -135,6 +154,8 @@ export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
   return (
     <aside
       className="link-drawer"
+      data-state={open ? "open" : "closing"}
+      onAnimationEnd={handleAnimationEnd}
       role="dialog"
       aria-label="Link preview"
       style={{ width }}

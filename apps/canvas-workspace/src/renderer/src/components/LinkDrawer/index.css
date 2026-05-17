@@ -14,12 +14,30 @@
   box-shadow: -8px 0 24px rgba(15, 15, 15, 0.08);
   display: flex;
   flex-direction: column;
-  animation: link-drawer-in 0.22s ease-out;
+}
+
+/* Animation direction is driven by `data-state` so the component can play
+ * an exit animation before unmounting. The `forwards` keyword on the
+ * exit animation keeps the drawer parked off-screen between the
+ * animation end and React unmount, otherwise it would snap back into
+ * view for one frame. */
+.link-drawer[data-state="open"] {
+  animation: link-drawer-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.link-drawer[data-state="closing"] {
+  animation: link-drawer-out 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
 }
 
 @keyframes link-drawer-in {
-  from { transform: translateX(20px); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes link-drawer-out {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
 }
 
 /* ── Resize handle ───────────────────────────────────────────────────
