@@ -120,46 +120,43 @@
   flex-shrink: 0;
 }
 
-/* Matches `.artifact-drawer__action` so the whole app's secondary-action
- * buttons read consistently — subtle Notion-style outlined chips, dark
- * filled primary. */
+/* Mirrors `.chat-model-secondary-btn` / `.chat-model-primary-btn` so the
+ * drawer footer matches the Models & Providers dialog footer (the
+ * canonical action-row style in this app). */
 .link-drawer__btn {
-  font-size: 12px;
-  font-weight: 500;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  background: #fff;
   color: #37352f;
-  background: transparent;
-  border: 1px solid rgba(55, 53, 47, 0.16);
-  border-radius: 5px;
-  padding: 5px 12px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 650;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
 }
 
 .link-drawer__btn:hover:not(:disabled) {
-  background: #f1f1ef;
-  border-color: rgba(55, 53, 47, 0.28);
+  background: rgba(55, 53, 47, 0.05);
 }
 
 .link-drawer__btn:disabled {
-  color: #8a8a87;
-  border-color: rgba(55, 53, 47, 0.08);
-  cursor: default;
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .link-drawer__btn--primary {
-  background: #37352f;
+  border-color: #2383e2;
+  background: #2383e2;
   color: #fff;
-  border-color: #37352f;
 }
 
 .link-drawer__btn--primary:hover:not(:disabled) {
-  background: #2f2e2a;
-  border-color: #2f2e2a;
-}
-
-.link-drawer__btn--primary:disabled {
-  background: rgba(55, 53, 47, 0.3);
-  border-color: rgba(55, 53, 47, 0.3);
-  color: #fff;
+  background: #1f76cc;
+  border-color: #1f76cc;
 }
