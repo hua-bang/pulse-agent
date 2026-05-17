@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, ipcMain, net, protocol, shell } from "electron";
 import { existsSync, promises as fs } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { dirname, join, normalize, isAbsolute } from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 import { setupPtyIpc, killAllPty } from "./pty-manager";
 import { setupCanvasStoreIpc, teardownCanvasWatchers } from "./canvas-store";
 import { setupFileManagerIpc } from "./file-manager";
@@ -38,6 +38,27 @@ const resolvedIconPath = iconCandidates.find((p) => p && existsSync(p));
 const logDir = join(app.getPath("userData"), "logs");
 const logFile = join(logDir, "app.log");
 
+// Custom scheme for serving local image/file assets to the renderer.
+// Chromium blocks `file://` URLs in renderer-loaded pages for security
+// reasons, so any <img src="file://…"> from disk fails to load. We expose
+// the same bytes under `pulse-canvas://local/<absolute-path>` so the
+// renderer can reference local files without disabling webSecurity.
+//
+// This MUST run before `app.whenReady()` — privileged scheme registration
+// is only effective during app startup.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "pulse-canvas",
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      bypassCSP: true,
+    },
+  },
+]);
+
 const writeLog = async (level: string, message: string, details?: string) => {
   const timestamp = new Date().toISOString();
   const line = details
@@ -50,6 +71,40 @@ const writeLog = async (level: string, message: string, details?: string) => {
   } catch (error) {
     console.error("Failed to write log", error);
   }
+};
+
+const registerPulseCanvasProtocol = () => {
+  protocol.handle("pulse-canvas", async (request) => {
+    try {
+      const url = new URL(request.url);
+      if (url.hostname !== "local") {
+        return new Response("Unsupported host", { status: 400 });
+      }
+      // pathname is like "/Users/foo/.pulse-coder/canvas/ws-x/images/img.png"
+      // — percent-decode each segment, then join with the platform separator.
+      const segments = url.pathname.split("/").map((s) => {
+        try {
+          return decodeURIComponent(s);
+        } catch {
+          return s;
+        }
+      });
+      const joined = segments.join("/");
+      const normalized = normalize(joined);
+      if (!isAbsolute(normalized)) {
+        return new Response("Path must be absolute", { status: 400 });
+      }
+      // Reject path traversal attempts after normalization.
+      if (normalized.includes("..")) {
+        return new Response("Forbidden", { status: 403 });
+      }
+      // Defer existence checks to fetch — it returns the right status code.
+      return net.fetch(pathToFileURL(normalized).toString());
+    } catch (error) {
+      void writeLog("protocol", "pulse-canvas handler failed", String(error));
+      return new Response("Internal error", { status: 500 });
+    }
+  });
 };
 
 const createWindow = () => {
@@ -127,6 +182,8 @@ const createWindow = () => {
 };
 
 app.whenReady().then(() => {
+  registerPulseCanvasProtocol();
+
   // Set the macOS dock icon in dev/preview (packaged builds use the .icns
   // from electron-builder, so this is a no-op there).
   if (process.platform === "darwin" && resolvedIconPath && app.dock) {

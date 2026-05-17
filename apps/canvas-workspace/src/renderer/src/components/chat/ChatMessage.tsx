@@ -98,7 +98,7 @@ export const ChatMessage = ({
               if (!image?.outputPath) return null;
               return (
                 <figure key={`generated-${tool.id}`} className="chat-generated-image-card">
-                  <img src={`file://${image.outputPath}`} alt={image.title ?? 'Generated image'} />
+                  <img src={toFileUrl(image.outputPath)} alt={image.title ?? 'Generated image'} />
                   <figcaption>
                     <span>{image.title ?? 'Generated image'}</span>
                     <button

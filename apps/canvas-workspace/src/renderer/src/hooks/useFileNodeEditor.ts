@@ -51,14 +51,15 @@ const EmptyLinePreservingParagraph = Paragraph.extend({
   },
 });
 
-const FILE_IMAGE_MARKDOWN_RE = /!\[([^\]]*)\]\((file:\/\/[^\s)]+)(?:\s+"([^"]*)")?\)/g;
+const FILE_IMAGE_MARKDOWN_RE = /!\[([^\]]*)\]\(((?:file:\/\/|pulse-canvas:\/\/)[^\s)]+)(?:\s+"([^"]*)")?\)/g;
+const LOCAL_IMAGE_HINT_RE = /\]\((?:file:\/\/|pulse-canvas:\/\/)/;
 
 const restoreLocalImageMarkdown = (element: HTMLElement) => {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   const textNodes: Text[] = [];
   while (walker.nextNode()) {
     const node = walker.currentNode;
-    if (node.textContent?.includes('![') && node.textContent.includes('](file://')) {
+    if (node.textContent?.includes('![') && LOCAL_IMAGE_HINT_RE.test(node.textContent)) {
       textNodes.push(node as Text);
     }
   }
@@ -78,7 +79,9 @@ const restoreLocalImageMarkdown = (element: HTMLElement) => {
       }
 
       const img = document.createElement('img');
-      img.setAttribute('src', match[2] ?? '');
+      // Legacy notes may contain `file://…` URLs that Chromium refuses to
+      // load; route everything through the custom scheme.
+      img.setAttribute('src', toFileUrl(match[2] ?? ''));
       img.setAttribute('alt', match[1] ?? '');
       if (match[3]) img.setAttribute('title', match[3]);
       fragment.append(img);
@@ -106,14 +109,16 @@ const MarkdownSafeImage = Image.extend({
           state.write(`![${alt}](${src}${title})`);
         },
         parse: {
-          // markdown-it rejects file:// links by default, so reloading a note
-          // with a locally saved pasted image leaves literal ![](...) text.
-          // File nodes intentionally store local canvas images as file URLs.
+          // markdown-it rejects file:// and custom-scheme links by default,
+          // so reloading a note with a locally saved pasted image leaves
+          // literal ![](...) text. File nodes intentionally store local
+          // canvas images as file URLs (`pulse-canvas://` for new content,
+          // legacy `file://` for notes created before the protocol switch).
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           setup(markdownit: any) {
             const originalValidateLink = markdownit.validateLink.bind(markdownit);
             markdownit.validateLink = (url: string) => {
-              if (/^file:\/\//i.test(url)) return true;
+              if (/^(file|pulse-canvas):\/\//i.test(url)) return true;
               return originalValidateLink(url);
             };
           },
