@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./index.css";
 import type { Artifact, CanvasNode, IframeNodeData } from "../../types";
 import { useArtifactDrawer } from "../artifacts";
@@ -94,6 +94,55 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
+  const webviewHostRef = useRef<HTMLDivElement>(null);
+
+  // Imperative `<webview>` mounting. We have to create the element
+  // off-DOM, set `allowpopups` synchronously, and only then append it —
+  // because Electron creates the guest webContents during the element's
+  // `connectedCallback` (which fires when it's inserted into the DOM)
+  // using whatever attributes are present *at that moment*. React's
+  // callback refs (and useLayoutEffect on the element itself) run
+  // *after* connection, so any `setAttribute('allowpopups', '')` we do
+  // there is too late: the guest is already configured with popups
+  // disabled, and every `window.open` is silently denied before it can
+  // reach `setWindowOpenHandler`.
+  //
+  // On top of that, React 18 strips boolean values from unknown HTML
+  // attributes on non-custom elements (`<webview>` has no hyphen, so
+  // React treats it as a regular HTML tag and `shouldRemoveAttribute`
+  // returns true for any non-`data-`/`aria-` boolean) — so even
+  // `<webview allowpopups={true}>` in JSX never makes it to the DOM.
+  // Building the element by hand sidesteps both issues at once.
+  useLayoutEffect(() => {
+    if (editing || mode !== "url") return;
+    const host = webviewHostRef.current;
+    if (!host) return;
+
+    const webview = document.createElement("webview") as WebviewTag;
+    webview.setAttribute("allowpopups", "");
+    webview.setAttribute("src", url);
+    webview.className = "iframe-frame";
+    host.appendChild(webview);
+    webviewRef.current = webview;
+
+    return () => {
+      webview.remove();
+      if (webviewRef.current === webview) {
+        webviewRef.current = null;
+      }
+    };
+    // Recreate only when the host or rendering mode changes — `src`
+    // updates are pushed to the same element below so we don't pay for
+    // a webContents rebuild on every URL edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, mode, webviewKey]);
+
+  // Sync src without recreating the webview (cheap navigation).
+  useEffect(() => {
+    const el = webviewRef.current;
+    if (!el || mode !== "url" || editing) return;
+    if (el.getAttribute("src") !== url) el.setAttribute("src", url);
+  }, [url, editing, mode]);
 
   // ── Streaming refs (avoid re-renders per token) ────────────────────
   const streamIframeRef = useRef<HTMLIFrameElement>(null);
@@ -152,28 +201,15 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       setLoadError(detail.errorDescription || "This page failed to load.");
     };
 
-    // `target="_blank"` links and `window.open()` calls inside the embedded
-    // page emit `new-window` on the webview. Without a handler Electron either
-    // silently drops them (newer versions) or spawns a useless empty Electron
-    // window — both look like "links don't work" to the user. Route every
-    // popup to the OS browser instead.
-    const handleNewWindow = (event: Event) => {
-      const detail = event as Event & { url?: string };
-      event.preventDefault();
-      if (detail.url) void window.canvasWorkspace.shell.openExternal(detail.url);
-    };
-
     el.addEventListener("page-title-updated", handlePageTitleUpdated);
     el.addEventListener("did-start-loading", handleDidStartLoading);
     el.addEventListener("did-stop-loading", handleDidStopLoading);
     el.addEventListener("did-fail-load", handleDidFailLoad);
-    el.addEventListener("new-window", handleNewWindow);
     return () => {
       el.removeEventListener("page-title-updated", handlePageTitleUpdated);
       el.removeEventListener("did-start-loading", handleDidStartLoading);
       el.removeEventListener("did-stop-loading", handleDidStopLoading);
       el.removeEventListener("did-fail-load", handleDidFailLoad);
-      el.removeEventListener("new-window", handleNewWindow);
     };
   }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
 
@@ -699,12 +735,10 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
         {isResizing && <div className="iframe-pointer-shield" aria-hidden="true" />}
         {renderMode === "url" ? (
           <>
-            <webview
-              ref={webviewRef as unknown as React.Ref<HTMLWebViewElement>}
+            <div
+              ref={webviewHostRef}
               key={webviewKey}
-              className="iframe-frame"
-              src={url}
-              allowpopups={true as unknown as undefined}
+              className="iframe-frame-host"
             />
             {loadState === "failed" && (
               <div className="iframe-load-error">

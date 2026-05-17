@@ -145,6 +145,18 @@
   min-height: 0;
 }
 
+/* Host for imperatively-mounted Electron `<webview>` (URL mode). React
+ * can't create the webview itself because Electron reads `allowpopups`
+ * during the element's `connectedCallback` — by then React's prop
+ * coercion has already stripped boolean values. We append a real
+ * `<webview>` into this div from a useLayoutEffect. */
+.iframe-frame-host {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  min-height: 0;
+}
+
 .iframe-frame-wrapper--streaming .iframe-frame {
   border-radius: 2px;
 }

@@ -754,11 +754,17 @@ export interface CanvasWorkspaceApi {
   llm: LlmApi;
   artifacts: ArtifactsApi;
   shell: ShellApi;
+  link: LinkApi;
   plugin: PluginBridge;
 }
 
 export interface ShellApi {
   openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
+export interface LinkApi {
+  /** Subscribe to URLs intercepted from embedded webviews / iframes. Returns unsubscribe fn. */
+  onOpen: (callback: (data: { url: string }) => void) => () => void;
 }
 
 export interface LlmApi {

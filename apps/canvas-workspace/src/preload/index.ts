@@ -155,6 +155,20 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       ipcRenderer.invoke("shell:openExternal", { url }) as Promise<{ ok: boolean; error?: string }>
   },
 
+  link: {
+    // Main forwards every intercepted external URL (popup / cross-origin
+    // navigation from embedded webviews + the main renderer's own
+    // sandboxed iframes) here. The drawer subscribes and renders the URL.
+    onOpen: (callback: (data: { url: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { url: string }) =>
+        callback(data);
+      ipcRenderer.on("link:open", handler);
+      return () => {
+        ipcRenderer.removeListener("link:open", handler);
+      };
+    },
+  },
+
   llm: {
     generateHTML: (prompt: string) =>
       ipcRenderer.invoke("llm:generate-html", { prompt }) as Promise<{ ok: boolean; html?: string; error?: string }>,

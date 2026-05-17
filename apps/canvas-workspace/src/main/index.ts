@@ -126,21 +126,10 @@ const createWindow = () => {
     }
   });
 
-  // Sandboxed iframe canvas nodes (HTML / AI / artifact previews) get
-  // `allow-popups` so their `<a target="_blank">` and `window.open()` reach
-  // the parent window. Without a handler here those popups would either
-  // open a useless blank Electron window or be denied outright — route
-  // every popup through the OS browser instead.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (isSafeExternalUrl(url)) {
-      void shell.openExternal(url);
-    }
-    return { action: "deny" };
-  });
-
-  // Same idea for in-place navigations: the main renderer should never
-  // navigate away from the app shell. If a sandboxed iframe somehow tries
-  // to top-navigate, push the URL to the OS browser and cancel the load.
+  // The main renderer should never navigate away from the app shell. If a
+  // sandboxed iframe somehow tries to top-navigate, push the URL to the OS
+  // browser and cancel the load. (Popups from this webContents are handled
+  // by the app-level `web-contents-created` listener below.)
   win.webContents.on("will-navigate", (event, url) => {
     if (url === win.webContents.getURL()) return;
     event.preventDefault();
@@ -182,6 +171,58 @@ const createWindow = () => {
     win.loadFile(filePath);
   }
 };
+
+// Centralized popup policy. Fires for every webContents the app ever
+// creates: the main BrowserWindow, sandboxed `<iframe>`s within it, and
+// every `<webview>` tag mounted by an iframe canvas node. The handler is
+// installed before the embedded page can run any JavaScript, which is the
+// only timing that survives SPA-driven `window.open` calls in Lark /
+// Feishu / Notion docs — anything later misses the popup and the click
+// looks dead to the user.
+//
+// Instead of opening every intercepted URL in the system browser, forward
+// it to the host renderer (the BrowserWindow this webContents lives in)
+// over the `link:open` channel. The renderer surfaces it in a side
+// drawer with a webview preview and explicit "open in system browser" /
+// "add to current canvas" actions.
+//
+// `will-navigate` is also forwarded so that SPAs (Lark wiki etc.) which
+// use `location.assign` or plain `<a href>` for cross-origin links land
+// in the drawer instead of dying silently inside the embed.
+function forwardLinkToRenderer(contents: Electron.WebContents, url: string) {
+  // For `<webview>`, the message must reach the embedder (the main
+  // renderer hosting the drawer), not the guest itself. `hostWebContents`
+  // is undefined for top-level webContents — there, `contents` already IS
+  // the renderer we want to talk to.
+  const target = contents.hostWebContents ?? contents;
+  if (target.isDestroyed()) return;
+  target.send("link:open", { url });
+}
+
+app.on("web-contents-created", (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) {
+      forwardLinkToRenderer(contents, url);
+    }
+    return { action: "deny" };
+  });
+
+  if (contents.getType() === "webview") {
+    contents.on("will-navigate", (event, url) => {
+      const currentUrl = contents.getURL();
+      let crossOrigin = false;
+      try {
+        crossOrigin = new URL(url).origin !== new URL(currentUrl).origin;
+      } catch {
+        crossOrigin = true;
+      }
+      if (crossOrigin && isSafeExternalUrl(url)) {
+        event.preventDefault();
+        forwardLinkToRenderer(contents, url);
+      }
+    });
+  }
+});
 
 app.whenReady().then(() => {
   registerPulseCanvasProtocol();
