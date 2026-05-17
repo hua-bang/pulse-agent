@@ -20,6 +20,21 @@ interface ContextMenuState {
   canvasY: number;
 }
 
+/** Diagonal step applied when a proposed slot is already occupied.
+ *  Matches the +24/+24 cascade used by `duplicateNode`/`pasteNodes`
+ *  so consecutive adds and duplicates feel the same. */
+const CASCADE_STEP = 24;
+/** Two nodes whose top-lefts differ by less than this are treated as
+ *  "the same slot". 12 is small enough that intentional partial
+ *  overlap (e.g. dropping a text label onto a frame) is preserved,
+ *  but large enough to catch the "user clicked the same toolbar
+ *  button twice" case where the math would otherwise pixel-stack. */
+const STACK_TOLERANCE = 12;
+/** Upper bound on the cascade walk so we don't loop forever on a
+ *  densely-filled diagonal. After this many tries we give up and let
+ *  the cascaded position stand — still better than perfect overlap. */
+const MAX_CASCADE_STEPS = 16;
+
 interface Options {
   containerRef: RefObject<HTMLDivElement>;
   screenToCanvas: (
@@ -28,6 +43,9 @@ interface Options {
     container: HTMLDivElement,
   ) => { x: number; y: number };
   addNode: (type: CreatableNodeType, x: number, y: number) => CanvasNode;
+  /** Live read of the current node list, used to detect stacked
+   *  positions before placing a new node. */
+  nodesRef: RefObject<CanvasNode[]>;
   setSelectedNodeIds: (ids: string[]) => void;
   /** Brief flash on the new node so the user can spot it after a
    *  context-menu/toolbar/palette add. Reuses the existing 1.5s
@@ -36,6 +54,30 @@ interface Options {
   /** Toast surface for the post-add confirmation. */
   notify: (toast: ToastInput) => string;
 }
+
+/** Walk diagonally from the desired top-left until we find a slot
+ *  whose top-left doesn't sit on top of any existing node within
+ *  `STACK_TOLERANCE` pixels. Returns whether a cascade actually
+ *  happened so callers can adjust their feedback copy. */
+const resolveNonStackingSlot = (
+  existing: readonly CanvasNode[],
+  desiredX: number,
+  desiredY: number,
+): { x: number; y: number; cascaded: boolean } => {
+  let x = desiredX;
+  let y = desiredY;
+  for (let step = 0; step < MAX_CASCADE_STEPS; step += 1) {
+    const collides = existing.some(
+      (n) =>
+        Math.abs(n.x - x) < STACK_TOLERANCE &&
+        Math.abs(n.y - y) < STACK_TOLERANCE,
+    );
+    if (!collides) return { x, y, cascaded: step > 0 };
+    x += CASCADE_STEP;
+    y += CASCADE_STEP;
+  }
+  return { x, y, cascaded: true };
+};
 
 /**
  * Owns the right-click / double-click context menu state plus the
@@ -47,6 +89,7 @@ export const useCanvasContextMenu = ({
   containerRef,
   screenToCanvas,
   addNode,
+  nodesRef,
   setSelectedNodeIds,
   setHighlightedId,
   notify,
@@ -105,11 +148,20 @@ export const useCanvasContextMenu = ({
       // Right-click drop point becomes the new node's top-left so the
       // node grows down-right from the cursor — matches typical
       // "create here" affordances in design tools.
-      const node = addNode(type, contextMenu.canvasX, contextMenu.canvasY);
-      finalizeAddedNode(node, type, 'Placed at the cursor');
+      const slot = resolveNonStackingSlot(
+        nodesRef.current ?? [],
+        contextMenu.canvasX,
+        contextMenu.canvasY,
+      );
+      const node = addNode(type, slot.x, slot.y);
+      finalizeAddedNode(
+        node,
+        type,
+        slot.cascaded ? 'Offset to avoid stacking' : 'Placed at the cursor',
+      );
       setContextMenu(null);
     },
-    [addNode, contextMenu, finalizeAddedNode],
+    [addNode, contextMenu, finalizeAddedNode, nodesRef],
   );
 
   const handleToolbarAddNode = useCallback(
@@ -121,7 +173,8 @@ export const useCanvasContextMenu = ({
       // top-left corner — lands at that midpoint. Half-dimensions come
       // from `getNodeDefaultSize` (the same numbers `createDefaultNode`
       // will write to `node.width`/`node.height`), keeping the centering
-      // honest as defaults evolve.
+      // honest as defaults evolve. The cascade walk after centering
+      // prevents repeat clicks from pixel-stacking new nodes.
       const rect = containerRef.current.getBoundingClientRect();
       const center = screenToCanvas(
         rect.left + rect.width / 2,
@@ -129,10 +182,21 @@ export const useCanvasContextMenu = ({
         containerRef.current,
       );
       const { width, height } = getNodeDefaultSize(type);
-      const node = addNode(type, center.x - width / 2, center.y - height / 2);
-      finalizeAddedNode(node, type, 'Centered on the current viewport');
+      const slot = resolveNonStackingSlot(
+        nodesRef.current ?? [],
+        center.x - width / 2,
+        center.y - height / 2,
+      );
+      const node = addNode(type, slot.x, slot.y);
+      finalizeAddedNode(
+        node,
+        type,
+        slot.cascaded
+          ? 'Offset to avoid stacking'
+          : 'Centered on the current viewport',
+      );
     },
-    [addNode, screenToCanvas, finalizeAddedNode, containerRef],
+    [addNode, screenToCanvas, finalizeAddedNode, containerRef, nodesRef],
   );
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);

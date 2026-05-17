@@ -126,7 +126,7 @@ export const Canvas = ({
   });
 
   const ctxMenu = useCanvasContextMenu({
-    containerRef, screenToCanvas, addNode, setSelectedNodeIds,
+    containerRef, screenToCanvas, addNode, nodesRef, setSelectedNodeIds,
     setHighlightedId, notify,
   });
 
