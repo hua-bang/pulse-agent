@@ -143,14 +143,12 @@ export function setupWebviewRegistryIpc(): void {
         { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
         payload.webContentsId,
       );
-      // Set up a popup handler on the webview's webContents. The renderer-side
-      // `new-window` listener is unreliable in modern Electron (the event has
-      // been deprecated in favor of `setWindowOpenHandler` since Electron 22+
-      // and the DOM event fires inconsistently for SPA-driven `window.open`
-      // calls — e.g. Feishu / Notion / Lark docs). Setting the handler on the
-      // guest webContents from main is the canonical path: every popup the
-      // embedded page tries to open lands here, and we route it to the OS
-      // browser instead of dropping it silently.
+      // When the embedded page tries to open a popup (target="_blank" or
+      // `window.open` — including SPA-driven ones like Feishu / Notion that
+      // bypass `new-window` entirely), hand the URL off to the OS browser.
+      // This matches the user's mental model from a real browser where
+      // `target="_blank"` opens a new tab. The current webview keeps the
+      // existing page so the user doesn't lose context.
       const wc = allWebContents.fromId(payload.webContentsId);
       if (wc && !wc.isDestroyed()) {
         wc.setWindowOpenHandler(({ url }) => {

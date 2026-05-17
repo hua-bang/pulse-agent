@@ -8,6 +8,52 @@ type EditMode = "url" | "html" | "ai";
 
 const BLANK_PAGE_URL = "about:blank";
 
+/**
+ * Capture-phase link interceptor injected into the guest page.
+ *
+ * Feishu / Lark / Notion-style SPAs attach click handlers in the bubble
+ * phase that call `e.preventDefault()` and route via an internal client
+ * router instead of letting the browser open a new tab. That cancels the
+ * default `window.open` behavior before our `setWindowOpenHandler` can
+ * see it — to the user the link just looks dead.
+ *
+ * Running on the document in the capture phase lets us beat the page's
+ * own bubble handler: if the click was on a real `<a href>` going to an
+ * http(s) page that isn't just an in-page anchor, we call
+ * `window.open(href, '_blank')` ourselves, which goes through the host's
+ * popup handler (→ system browser). Same-page fragments, modifier-click
+ * gestures and `javascript:` links pass through untouched.
+ */
+const LINK_INTERCEPTOR_SCRIPT = `
+  (function() {
+    if (window.__pulseCanvasLinkHookInstalled) return;
+    window.__pulseCanvasLinkHookInstalled = true;
+    document.addEventListener('click', function(e) {
+      if (e.defaultPrevented) return;
+      if (e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      var node = e.target;
+      var anchor = null;
+      while (node && node !== document) {
+        if (node.tagName === 'A' && node.href) { anchor = node; break; }
+        node = node.parentNode;
+      }
+      if (!anchor) return;
+      var href = anchor.href;
+      if (!href || href.indexOf('javascript:') === 0) return;
+      try {
+        var u = new URL(href, window.location.href);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:' && u.protocol !== 'mailto:') return;
+        var cur = window.location;
+        if (u.origin === cur.origin && u.pathname === cur.pathname && u.search === cur.search) return;
+      } catch (_) { return; }
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      try { window.open(href, '_blank'); } catch (_) {}
+    }, true);
+  })();
+`;
+
 interface Props {
   node: CanvasNode;
   workspaceId?: string;
@@ -152,28 +198,15 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       setLoadError(detail.errorDescription || "This page failed to load.");
     };
 
-    // `target="_blank"` links and `window.open()` calls inside the embedded
-    // page emit `new-window` on the webview. Without a handler Electron either
-    // silently drops them (newer versions) or spawns a useless empty Electron
-    // window — both look like "links don't work" to the user. Route every
-    // popup to the OS browser instead.
-    const handleNewWindow = (event: Event) => {
-      const detail = event as Event & { url?: string };
-      event.preventDefault();
-      if (detail.url) void window.canvasWorkspace.shell.openExternal(detail.url);
-    };
-
     el.addEventListener("page-title-updated", handlePageTitleUpdated);
     el.addEventListener("did-start-loading", handleDidStartLoading);
     el.addEventListener("did-stop-loading", handleDidStopLoading);
     el.addEventListener("did-fail-load", handleDidFailLoad);
-    el.addEventListener("new-window", handleNewWindow);
     return () => {
       el.removeEventListener("page-title-updated", handlePageTitleUpdated);
       el.removeEventListener("did-start-loading", handleDidStartLoading);
       el.removeEventListener("did-stop-loading", handleDidStopLoading);
       el.removeEventListener("did-fail-load", handleDidFailLoad);
-      el.removeEventListener("new-window", handleNewWindow);
     };
   }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
 
@@ -251,7 +284,17 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
 
     tryRegister("mount");
     const onAttach = () => tryRegister("did-attach");
-    const onDomReady = () => tryRegister("dom-ready");
+    const onDomReady = () => {
+      tryRegister("dom-ready");
+      // Re-inject on every dom-ready: the SPA may have wiped the document
+      // (route change, hard reload) since we last installed the hook.
+      try {
+        void el.executeJavaScript(LINK_INTERCEPTOR_SCRIPT, false);
+      } catch {
+        // executeJavaScript can throw if dom-ready races a navigation
+        // away — the next dom-ready will retry.
+      }
+    };
     el.addEventListener("did-attach", onAttach);
     el.addEventListener("dom-ready", onDomReady);
 
@@ -423,10 +466,30 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
   );
 
   const handleOpenExternal = useCallback(() => {
-    if (mode === "url" && url) {
-      void window.canvasWorkspace.shell.openExternal(url);
+    if (mode !== "url") return;
+    // Prefer the webview's live URL so the button still works after the user
+    // has navigated within the embedded page; fall back to the saved url when
+    // the webview hasn't attached yet.
+    let target = url;
+    try {
+      const live = webviewRef.current?.getURL?.();
+      if (live && live !== "about:blank") target = live;
+    } catch {
+      // getURL may throw before did-attach — ignore and keep the saved url.
     }
+    if (target) void window.canvasWorkspace.shell.openExternal(target);
   }, [mode, url]);
+
+  const handleOpenDevTools = useCallback(() => {
+    const el = webviewRef.current;
+    if (!el) return;
+    try {
+      if (el.isDevToolsOpened?.()) el.closeDevTools?.();
+      else el.openDevTools?.();
+    } catch {
+      // openDevTools throws if the webview hasn't attached yet — silently ignore.
+    }
+  }, []);
 
   const handleReload = useCallback(() => {
     setLoadState(mode === "url" && url ? "loading" : "idle");
@@ -678,6 +741,19 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
         {mode === "url" && (
           <button
             className="iframe-bar-btn"
+            onClick={handleOpenDevTools}
+            title="Inspect (open DevTools)"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <circle cx="5" cy="5" r="3" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M7.5 7.5L10 10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+
+        {mode === "url" && (
+          <button
+            className="iframe-bar-btn"
             onClick={handleOpenExternal}
             title="Open externally"
           >
@@ -790,5 +866,10 @@ function shouldSyncIframeTitle(title: string, data: IframeNodeData, url: string)
 
 interface WebviewTag extends HTMLElement {
   getWebContentsId(): number;
+  getURL(): string;
   reload(): void;
+  executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+  openDevTools(): void;
+  closeDevTools(): void;
+  isDevToolsOpened(): boolean;
 }

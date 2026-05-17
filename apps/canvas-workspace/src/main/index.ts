@@ -73,25 +73,14 @@ const createWindow = () => {
 
   // Sandboxed iframe canvas nodes (HTML / AI / artifact previews) get
   // `allow-popups` so their `<a target="_blank">` and `window.open()` reach
-  // the parent window. Without a handler here those popups would either
-  // open a useless blank Electron window or be denied outright — route
-  // every popup through the OS browser instead.
+  // the main window. Route those popups to the OS browser — sandbox
+  // iframes have no real URL of their own, so in-place navigation isn't
+  // an option.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isSafeExternalUrl(url)) {
       void shell.openExternal(url);
     }
     return { action: "deny" };
-  });
-
-  // Same idea for in-place navigations: the main renderer should never
-  // navigate away from the app shell. If a sandboxed iframe somehow tries
-  // to top-navigate, push the URL to the OS browser and cancel the load.
-  win.webContents.on("will-navigate", (event, url) => {
-    if (url === win.webContents.getURL()) return;
-    event.preventDefault();
-    if (isSafeExternalUrl(url)) {
-      void shell.openExternal(url);
-    }
   });
 
   win.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
