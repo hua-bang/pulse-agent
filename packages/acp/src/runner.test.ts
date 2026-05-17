@@ -4,6 +4,10 @@ import {
   __testCreatePromptProgressTimeouts,
   __testIsDefinitiveSessionInvalidError,
   __testResolveTimeoutConfig,
+  __testSelectSessionReconnectMethod,
+  __testSupportsSessionResume,
+  __testSupportsSessionClose,
+  __testSupportsSessionList,
 } from './runner.js';
 
 const ENV_KEYS = [
@@ -112,5 +116,69 @@ describe('ACP session invalid error detection', () => {
     expect(__testIsDefinitiveSessionInvalidError(new Error('session not found: abc123'))).toBe(true);
     expect(__testIsDefinitiveSessionInvalidError(new Error('ACP error 404: conversation not found'))).toBe(true);
     expect(__testIsDefinitiveSessionInvalidError({ code: -32001, message: 'unknown session' })).toBe(true);
+  });
+});
+
+describe('ACP session capability detection', () => {
+  it('prefers latest session/resume capability over legacy loadSession', () => {
+    expect(__testSelectSessionReconnectMethod({
+      protocolVersion: 1,
+      agentCapabilities: {
+        loadSession: true,
+        sessionCapabilities: { resume: {} },
+      },
+      agentInfo: { name: 'agent' },
+    })).toBe('resume');
+  });
+
+  it('falls back to legacy loadSession when resume is not advertised', () => {
+    expect(__testSelectSessionReconnectMethod({
+      protocolVersion: 1,
+      agentCapabilities: { loadSession: true },
+      agentInfo: { name: 'agent' },
+    })).toBe('load');
+  });
+
+  it('does not reconnect when neither resume nor load is advertised', () => {
+    expect(__testSelectSessionReconnectMethod({
+      protocolVersion: 1,
+      agentCapabilities: {},
+      agentInfo: { name: 'agent' },
+    })).toBe('none');
+  });
+
+  it('treats null session capabilities as unsupported', () => {
+    const initResult = {
+      protocolVersion: 1,
+      agentCapabilities: {
+        sessionCapabilities: {
+          resume: null,
+          list: null,
+          close: null,
+        },
+      },
+      agentInfo: { name: 'agent' },
+    };
+
+    expect(__testSelectSessionReconnectMethod(initResult)).toBe('none');
+    expect(__testSupportsSessionResume(initResult)).toBe(false);
+    expect(__testSupportsSessionList(initResult)).toBe(false);
+    expect(__testSupportsSessionClose(initResult)).toBe(false);
+  });
+
+  it('detects latest list and close capabilities', () => {
+    const initResult = {
+      protocolVersion: 1,
+      agentCapabilities: {
+        sessionCapabilities: {
+          list: {},
+          close: {},
+        },
+      },
+      agentInfo: { name: 'agent' },
+    };
+
+    expect(__testSupportsSessionList(initResult)).toBe(true);
+    expect(__testSupportsSessionClose(initResult)).toBe(true);
   });
 });
