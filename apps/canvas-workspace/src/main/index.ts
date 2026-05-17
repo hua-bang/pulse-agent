@@ -13,7 +13,7 @@ import { setupSkillInstallerIpc } from "./skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
 import { setupCanvasModelIpc } from "./canvas-model-ipc";
 import { setupCanvasPromptIpc } from "./canvas-prompt-ipc";
-import { installWebviewPopupHandler, setupWebviewRegistryIpc } from "./webview-registry";
+import { setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
 import { setupArtifactIpc } from "./artifact-ipc";
 import { setupShellIpc, isSafeExternalUrl } from "./shell-ipc";
@@ -71,40 +71,16 @@ const createWindow = () => {
     }
   });
 
-  // Sandboxed iframe canvas nodes (HTML / AI / artifact previews) get
-  // `allow-popups` so their `<a target="_blank">` and `window.open()` reach
-  // the parent window. Without a handler here those popups would either
-  // open a useless blank Electron window or be denied outright — route
-  // every popup through the OS browser instead.
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (isSafeExternalUrl(url)) {
-      void shell.openExternal(url);
-    }
-    return { action: "deny" };
-  });
-
-  // Same idea for in-place navigations: the main renderer should never
-  // navigate away from the app shell. If a sandboxed iframe somehow tries
-  // to top-navigate, push the URL to the OS browser and cancel the load.
+  // The main renderer should never navigate away from the app shell. If a
+  // sandboxed iframe somehow tries to top-navigate, push the URL to the OS
+  // browser and cancel the load. (Popups from this webContents are handled
+  // by the app-level `web-contents-created` listener below.)
   win.webContents.on("will-navigate", (event, url) => {
     if (url === win.webContents.getURL()) return;
     event.preventDefault();
     if (isSafeExternalUrl(url)) {
       void shell.openExternal(url);
     }
-  });
-
-  // Install the popup handler on every `<webview>` the moment it attaches,
-  // before the embedded page has a chance to run any JavaScript. Going via
-  // the renderer-side IPC registration leaves a window where an SPA
-  // (Feishu / Lark / Notion) can call `window.open` against the Electron
-  // default, which silently denies it — to the user that looks like
-  // "external links don't work at all".
-  win.webContents.on("did-attach-webview", (_event, webContents) => {
-    installWebviewPopupHandler(webContents);
-    console.log(
-      `[main] attached webview wc#${webContents.id}; popup handler installed`,
-    );
   });
 
   win.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
@@ -138,6 +114,29 @@ const createWindow = () => {
     win.loadFile(filePath);
   }
 };
+
+// Centralized popup policy. Fires for every webContents the app ever
+// creates: the main BrowserWindow, sandboxed `<iframe>`s within it, and
+// every `<webview>` tag mounted by an iframe canvas node. The handler is
+// installed before the embedded page can run any JavaScript, which is the
+// only timing that survives SPA-driven `window.open` calls in Lark /
+// Feishu / Notion docs — anything later misses the popup and the click
+// looks dead to the user.
+app.on("web-contents-created", (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    const safe = isSafeExternalUrl(url);
+    if (safe) {
+      shell.openExternal(url).catch((err) => {
+        console.warn(
+          `[main] shell.openExternal failed for ${url}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
+    }
+    return { action: "deny" };
+  });
+});
 
 app.whenReady().then(() => {
   // Set the macOS dock icon in dev/preview (packaged builds use the .icns

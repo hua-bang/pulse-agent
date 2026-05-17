@@ -152,28 +152,15 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       setLoadError(detail.errorDescription || "This page failed to load.");
     };
 
-    // `target="_blank"` links and `window.open()` calls inside the embedded
-    // page emit `new-window` on the webview. Without a handler Electron either
-    // silently drops them (newer versions) or spawns a useless empty Electron
-    // window — both look like "links don't work" to the user. Route every
-    // popup to the OS browser instead.
-    const handleNewWindow = (event: Event) => {
-      const detail = event as Event & { url?: string };
-      event.preventDefault();
-      if (detail.url) void window.canvasWorkspace.shell.openExternal(detail.url);
-    };
-
     el.addEventListener("page-title-updated", handlePageTitleUpdated);
     el.addEventListener("did-start-loading", handleDidStartLoading);
     el.addEventListener("did-stop-loading", handleDidStopLoading);
     el.addEventListener("did-fail-load", handleDidFailLoad);
-    el.addEventListener("new-window", handleNewWindow);
     return () => {
       el.removeEventListener("page-title-updated", handlePageTitleUpdated);
       el.removeEventListener("did-start-loading", handleDidStartLoading);
       el.removeEventListener("did-stop-loading", handleDidStopLoading);
       el.removeEventListener("did-fail-load", handleDidFailLoad);
-      el.removeEventListener("new-window", handleNewWindow);
     };
   }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
 
@@ -214,23 +201,6 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
       shellReady.current = false;
     };
   }, [streamingActive]);
-
-  // Force `allowpopups` to be present on the webview as a real HTML boolean
-  // attribute. The JSX `allowpopups={…}` path is unreliable: React's handling
-  // of unknown boolean props on custom elements has changed across versions,
-  // and if Electron doesn't see `hasAttribute('allowpopups')` it silently
-  // denies every `window.open` — which is the "external links do nothing"
-  // symptom for Lark / Feishu / Notion docs. `setAttribute` with an empty
-  // value is the canonical way to set an HTML boolean attribute and works
-  // regardless of React's prop coercion.
-  useEffect(() => {
-    if (editing || mode !== "url") return;
-    const el = webviewRef.current;
-    if (!el) return;
-    if (!el.hasAttribute("allowpopups")) {
-      el.setAttribute("allowpopups", "");
-    }
-  }, [editing, mode, webviewKey]);
 
   // Register the webview's webContents with main (URL mode only).
   useEffect(() => {
@@ -721,7 +691,7 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
               key={webviewKey}
               className="iframe-frame"
               src={url}
-              allowpopups={true as unknown as undefined}
+              allowpopups={true}
             />
             {loadState === "failed" && (
               <div className="iframe-load-error">
