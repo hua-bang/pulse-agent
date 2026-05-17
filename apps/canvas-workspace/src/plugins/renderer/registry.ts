@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type {
   ChatCardSpec,
   ChatMessageRef,
+  NavItem,
   PluginBridge,
   RendererCanvasPlugin,
   RendererCtx,
@@ -18,8 +19,14 @@ interface ChatCardEntry {
   spec: ChatCardSpec<unknown>;
 }
 
+interface NavItemEntry {
+  pluginId: string;
+  item: NavItem;
+}
+
 const routes: RouteEntry[] = [];
 const chatCards: ChatCardEntry[] = [];
+const navItems: NavItemEntry[] = [];
 const activated = new Set<string>();
 
 // The preload-side bridge is looked up lazily on each invoke so renderer
@@ -68,6 +75,15 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
           spec: spec as ChatCardSpec<unknown>,
         });
       },
+      registerNavItem(item) {
+        if (navItems.some((n) => n.item.id === item.id)) {
+          console.warn(
+            `[canvas-plugins] duplicate nav item "${item.id}" from ${plugin.id}, skipping`,
+          );
+          return;
+        }
+        navItems.push({ pluginId: plugin.id, item });
+      },
       invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
         return resolveBridge(plugin.id).invoke<T>(plugin.id, channel, ...args);
       },
@@ -88,6 +104,10 @@ export function getRegisteredRoutes(): ReadonlyArray<RouteEntry> {
 
 export function getRegisteredChatCards(): ReadonlyArray<ChatCardEntry> {
   return chatCards;
+}
+
+export function getRegisteredNavItems(): ReadonlyArray<NavItem> {
+  return navItems.map((entry) => entry.item);
 }
 
 export function findMatchingChatCard<T extends ChatMessageRef>(

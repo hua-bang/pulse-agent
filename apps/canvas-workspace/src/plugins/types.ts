@@ -70,11 +70,20 @@ export interface ChatCardSpec<TRef = unknown, TPayload = TRef> {
   Error?: ComponentType<{ ref: TRef; error: unknown }>;
 }
 
+export interface NavItem {
+  id: string;
+  path: string;
+  label: string;
+  title?: string;
+  icon?: ComponentType<{ size?: number }>;
+}
+
 export interface RendererCtx {
   registerRoute(path: string, Component: ComponentType): void;
   registerChatCard<TRef = unknown, TPayload = TRef>(
     spec: ChatCardSpec<TRef, TPayload>,
   ): void;
+  registerNavItem(item: NavItem): void;
   // Mirror of ipcRenderer.invoke: call a channel registered by this
   // plugin's main half via ctx.handle. Plugin id is bound on activation
   // so the renderer code does not have to repeat it.

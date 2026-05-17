@@ -38,19 +38,8 @@ interface ToolResultInput {
 }
 
 export function isCanvasAgentDebugTraceEnabled(): boolean {
-  const override = process.env.CANVAS_AGENT_DEBUG_TRACE?.trim().toLowerCase();
-  if (override) {
-    if (['0', 'false', 'off', 'no'].includes(override)) return false;
-    if (['1', 'true', 'on', 'yes'].includes(override)) return true;
-  }
-
-  const lifecycleEvent = process.env.npm_lifecycle_event?.trim().toLowerCase();
-  if (lifecycleEvent === 'dev') return true;
-
-  const lifecycleScript = process.env.npm_lifecycle_script?.trim().toLowerCase() ?? '';
-  if (lifecycleScript.includes('electron-vite dev')) return true;
-
-  return process.env.NODE_ENV === 'development' && !!process.env.VITE_DEV_SERVER_URL;
+  const value = process.env.CANVAS_AGENT_DEBUG_TRACE?.trim().toLowerCase();
+  return value !== undefined && ['1', 'true', 'on', 'yes'].includes(value);
 }
 
 export function createCanvasAgentDebugTrace(input: StartTraceInput): CanvasAgentDebugTrace {
