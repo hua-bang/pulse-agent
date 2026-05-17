@@ -1,10 +1,19 @@
 export type ToastTone = 'success' | 'error' | 'loading' | 'info';
 
+/** Optional inline button rendered alongside the toast body. The toast
+ *  is dismissed automatically when the action fires so callers don't
+ *  need to thread the dismiss id through to the handler. */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastInput {
   tone: ToastTone;
   title: string;
   description?: string;
   autoCloseMs?: number;
+  action?: ToastAction;
 }
 
 export interface ToastRecord extends ToastInput {

@@ -174,6 +174,20 @@ const ToastViewport = ({
             <div className="shell-toast__description">{toast.description}</div>
           )}
         </div>
+        {toast.action && (
+          <button
+            type="button"
+            className="shell-toast__action"
+            onClick={() => {
+              // Dismiss before firing so action handlers that themselves
+              // open a new toast don't race against this one.
+              onDismiss(toast.id);
+              toast.action?.onClick();
+            }}
+          >
+            {toast.action.label}
+          </button>
+        )}
         <button
           type="button"
           className="shell-toast__close"

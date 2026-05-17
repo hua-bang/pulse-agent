@@ -22,6 +22,7 @@ import { useCanvasPaletteCommands } from './hooks/useCanvasPaletteCommands';
 import { useCanvasEdgeHandlers } from './hooks/useCanvasEdgeHandlers';
 import { useCanvasRenderOrder } from './hooks/useCanvasRenderOrder';
 import { useAppShell } from '../AppShellProvider';
+import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
 import type { CanvasNode } from '../../types';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
@@ -84,6 +85,44 @@ export const Canvas = ({
 
   const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
 
+  /** When the Agent (canvas-cli) creates a node off-screen, show a
+   *  toast with a "Jump" action — the existing 2.5s purple
+   *  agent-edited ring is enough on its own when the node is already
+   *  visible, so we suppress the toast in that case to avoid noise on
+   *  bulk creates the user can clearly see. */
+  const handleAgentCreated = useCallback(
+    (node: CanvasNode) => {
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      // Project node center to container-relative screen space. The
+      // forward transform mirrors the inverse in useCanvas.screenToCanvas:
+      //   screen = canvas * scale + transform
+      const screenCenterX =
+        (node.x + node.width / 2) * transform.scale + transform.x;
+      const screenCenterY =
+        (node.y + node.height / 2) * transform.scale + transform.y;
+      const inViewport =
+        screenCenterX >= 0 &&
+        screenCenterX <= rect.width &&
+        screenCenterY >= 0 &&
+        screenCenterY <= rect.height;
+      if (inViewport) return;
+
+      notify({
+        tone: 'info',
+        title: `Agent added a ${NODE_TYPE_LABELS[node.type]}`,
+        description: 'Placed outside the current viewport',
+        autoCloseMs: 8000,
+        action: {
+          label: 'Jump',
+          onClick: () => handleFocusNode(node),
+        },
+      });
+    },
+    [transform, notify, handleFocusNode],
+  );
+
   const {
     nodes, edges, loaded, externallyEditedIds,
     addNode, updateNode, removeNode, removeNodes,
@@ -92,10 +131,14 @@ export const Canvas = ({
     setTransformForSave, flushSave, commitHistory,
     undo, redo, duplicateNode, pasteNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
-  } = useNodes(canvasId, (savedTransform) => {
-    hasAutoFittedRef.current = true;
-    setTransform(savedTransform);
-  });
+  } = useNodes(
+    canvasId,
+    (savedTransform) => {
+      hasAutoFittedRef.current = true;
+      setTransform(savedTransform);
+    },
+    handleAgentCreated,
+  );
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 

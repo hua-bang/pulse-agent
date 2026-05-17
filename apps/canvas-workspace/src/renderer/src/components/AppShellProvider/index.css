@@ -12,10 +12,9 @@
 
 .shell-toast {
   pointer-events: auto;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 20px;
+  display: flex;
+  align-items: flex-start;
   gap: 10px;
-  align-items: start;
   padding: 12px 12px 12px 10px;
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -38,6 +37,7 @@
 }
 
 .shell-toast__icon {
+  flex-shrink: 0;
   width: 28px;
   height: 28px;
   border-radius: 999px;
@@ -59,6 +59,7 @@
 }
 
 .shell-toast__body {
+  flex: 1;
   min-width: 0;
 }
 
@@ -76,6 +77,7 @@
 }
 
 .shell-toast__close {
+  flex-shrink: 0;
   width: 20px;
   height: 20px;
   border: none;
@@ -92,6 +94,23 @@
 .shell-toast__close:hover {
   color: var(--text-secondary);
   background: rgba(0, 0, 0, 0.05);
+}
+
+.shell-toast__action {
+  flex-shrink: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.shell-toast__action:hover {
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .shell-spinner {
