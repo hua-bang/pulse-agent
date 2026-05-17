@@ -122,13 +122,24 @@ const createWindow = () => {
 // only timing that survives SPA-driven `window.open` calls in Lark /
 // Feishu / Notion docs — anything later misses the popup and the click
 // looks dead to the user.
+//
+// Also: many SPAs (Lark wiki is one) handle link clicks by calling
+// `location.assign(url)` or `<a href>` directly instead of `window.open` —
+// that path fires `will-navigate` on the *webview's* webContents, not the
+// open handler. We intercept top-frame navigations to a different origin
+// and route them to the OS browser too, so clicking a wiki link / external
+// link does something visible instead of dying silently.
 app.on("web-contents-created", (_event, contents) => {
+  const tag = `wc#${contents.id}/${contents.getType()}`;
+  console.log(`[main] ${tag} created — installing popup + nav handlers`);
+
   contents.setWindowOpenHandler(({ url }) => {
     const safe = isSafeExternalUrl(url);
+    console.log(`[main] ${tag} window.open intercepted url=${url} safe=${safe}`);
     if (safe) {
       shell.openExternal(url).catch((err) => {
         console.warn(
-          `[main] shell.openExternal failed for ${url}: ${
+          `[main] ${tag} shell.openExternal failed for ${url}: ${
             err instanceof Error ? err.message : String(err)
           }`,
         );
@@ -136,6 +147,29 @@ app.on("web-contents-created", (_event, contents) => {
     }
     return { action: "deny" };
   });
+
+  // Only intercept navigations on guest webviews — top-frame navigation in
+  // the main renderer is handled separately in `createWindow`. For webview
+  // guests, send cross-origin clicks to the OS browser; same-origin links
+  // (e.g. moving between Lark wiki docs) still navigate inside the webview.
+  if (contents.getType() === "webview") {
+    contents.on("will-navigate", (event, url) => {
+      const currentUrl = contents.getURL();
+      let crossOrigin = false;
+      try {
+        crossOrigin = new URL(url).origin !== new URL(currentUrl).origin;
+      } catch {
+        crossOrigin = true;
+      }
+      console.log(
+        `[main] ${tag} will-navigate ${currentUrl} → ${url} crossOrigin=${crossOrigin}`,
+      );
+      if (crossOrigin && isSafeExternalUrl(url)) {
+        event.preventDefault();
+        void shell.openExternal(url);
+      }
+    });
+  }
 });
 
 app.whenReady().then(() => {
