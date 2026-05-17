@@ -34,14 +34,16 @@ export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
     });
   }, []);
 
-  // Lock background scroll while drawer is open.
+  // ESC closes the drawer. No backdrop on purpose — the canvas under the
+  // drawer's left edge should stay pannable / editable while the preview
+  // is up (the drawer is a side panel, not a modal).
   useEffect(() => {
     if (!url) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setUrl(null);
     };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, [url]);
 
   // Imperatively mount a fresh `<webview>` every time the drawer opens or
@@ -96,9 +98,7 @@ export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
   if (!url) return null;
 
   return (
-    <>
-      <div className="link-drawer__backdrop" onClick={close} />
-      <aside className="link-drawer" role="dialog" aria-label="Link preview">
+    <aside className="link-drawer" role="dialog" aria-label="Link preview">
         <header className="link-drawer__header">
           <button
             type="button"
@@ -154,6 +154,5 @@ export const LinkDrawer = ({ activeWorkspaceId }: Props) => {
           </button>
         </footer>
       </aside>
-    </>
   );
 };

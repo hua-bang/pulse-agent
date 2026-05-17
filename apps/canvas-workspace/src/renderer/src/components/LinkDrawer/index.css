@@ -1,23 +1,15 @@
-.link-drawer__backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 15, 15, 0.32);
-  z-index: 200;
-  animation: link-drawer-backdrop-in 0.18s ease-out;
-}
-
-@keyframes link-drawer-backdrop-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-
+/* No backdrop on purpose: the drawer is a side panel, not a modal —
+ * the canvas underneath stays pannable / editable. ESC closes it.
+ *
+ * z-index is set above every in-canvas overlay (FloatingToolbar = 600,
+ * canvas fullscreen chrome = 1010) so the drawer always sits on top. */
 .link-drawer {
   position: fixed;
   top: 0;
   right: 0;
   height: 100vh;
   width: min(560px, 50vw);
-  z-index: 201;
+  z-index: 1100;
   background: var(--surface, #fff);
   border-left: 1px solid var(--border, rgba(0, 0, 0, 0.1));
   box-shadow: -8px 0 24px rgba(0, 0, 0, 0.08);
