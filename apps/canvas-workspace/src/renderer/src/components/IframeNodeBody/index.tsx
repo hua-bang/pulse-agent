@@ -215,6 +215,23 @@ export const IframeNodeBody = ({ node, workspaceId, onUpdate, isResizing, readOn
     };
   }, [streamingActive]);
 
+  // Force `allowpopups` to be present on the webview as a real HTML boolean
+  // attribute. The JSX `allowpopups={…}` path is unreliable: React's handling
+  // of unknown boolean props on custom elements has changed across versions,
+  // and if Electron doesn't see `hasAttribute('allowpopups')` it silently
+  // denies every `window.open` — which is the "external links do nothing"
+  // symptom for Lark / Feishu / Notion docs. `setAttribute` with an empty
+  // value is the canonical way to set an HTML boolean attribute and works
+  // regardless of React's prop coercion.
+  useEffect(() => {
+    if (editing || mode !== "url") return;
+    const el = webviewRef.current;
+    if (!el) return;
+    if (!el.hasAttribute("allowpopups")) {
+      el.setAttribute("allowpopups", "");
+    }
+  }, [editing, mode, webviewKey]);
+
   // Register the webview's webContents with main (URL mode only).
   useEffect(() => {
     if (editing || mode !== "url") return;

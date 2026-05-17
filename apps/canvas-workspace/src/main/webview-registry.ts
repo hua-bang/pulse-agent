@@ -13,12 +13,47 @@
  * loaded), the lookup returns null and the caller falls back to a plain
  * server-side fetch.
  */
-import { ipcMain, shell, webContents as allWebContents } from 'electron';
+import { ipcMain, shell, webContents as allWebContents, type WebContents } from 'electron';
 import { isSafeExternalUrl } from './shell-ipc';
 
 interface RegistryKey {
   workspaceId: string;
   nodeId: string;
+}
+
+/**
+ * Install the popup handler on a webview's webContents.
+ *
+ * Idempotent: Electron's `setWindowOpenHandler` only keeps the most recent
+ * handler, so calling it again from another entry point (e.g. the renderer
+ * registration IPC) just overwrites with the same logic.
+ *
+ * The handler must be installed *before* the embedded page runs JavaScript,
+ * otherwise SPA-driven `window.open` calls (Feishu / Lark / Notion / etc.)
+ * fire against the Electron default, which silently denies popups in
+ * modern Electron — and to the user that looks like "the link does
+ * nothing at all". `did-attach-webview` on the host BrowserWindow is the
+ * earliest reliable hook for this; the IPC-driven registration path is a
+ * safety net for any case where that event was missed.
+ */
+export function installWebviewPopupHandler(wc: WebContents): void {
+  if (wc.isDestroyed()) return;
+  wc.setWindowOpenHandler(({ url }) => {
+    const safe = isSafeExternalUrl(url);
+    console.log(
+      `[webview-registry] window.open intercepted url=${url || '<empty>'} safe=${safe}`,
+    );
+    if (safe) {
+      shell.openExternal(url).catch((err) => {
+        console.warn(
+          `[webview-registry] shell.openExternal failed for ${url}: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      });
+    }
+    return { action: 'deny' };
+  });
 }
 
 function keyOf(k: RegistryKey): string {
@@ -143,23 +178,8 @@ export function setupWebviewRegistryIpc(): void {
         { workspaceId: payload.workspaceId, nodeId: payload.nodeId },
         payload.webContentsId,
       );
-      // Set up a popup handler on the webview's webContents. The renderer-side
-      // `new-window` listener is unreliable in modern Electron (the event has
-      // been deprecated in favor of `setWindowOpenHandler` since Electron 22+
-      // and the DOM event fires inconsistently for SPA-driven `window.open`
-      // calls — e.g. Feishu / Notion / Lark docs). Setting the handler on the
-      // guest webContents from main is the canonical path: every popup the
-      // embedded page tries to open lands here, and we route it to the OS
-      // browser instead of dropping it silently.
       const wc = allWebContents.fromId(payload.webContentsId);
-      if (wc && !wc.isDestroyed()) {
-        wc.setWindowOpenHandler(({ url }) => {
-          if (isSafeExternalUrl(url)) {
-            void shell.openExternal(url);
-          }
-          return { action: 'deny' };
-        });
-      }
+      if (wc) installWebviewPopupHandler(wc);
       console.log(
         `[webview-registry] registered ${payload.workspaceId}::${payload.nodeId} → wc#${payload.webContentsId} (${registry.size} total)`,
       );

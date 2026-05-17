@@ -13,7 +13,7 @@ import { setupSkillInstallerIpc } from "./skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
 import { setupCanvasModelIpc } from "./canvas-model-ipc";
 import { setupCanvasPromptIpc } from "./canvas-prompt-ipc";
-import { setupWebviewRegistryIpc } from "./webview-registry";
+import { installWebviewPopupHandler, setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
 import { setupArtifactIpc } from "./artifact-ipc";
 import { setupShellIpc, isSafeExternalUrl } from "./shell-ipc";
@@ -92,6 +92,19 @@ const createWindow = () => {
     if (isSafeExternalUrl(url)) {
       void shell.openExternal(url);
     }
+  });
+
+  // Install the popup handler on every `<webview>` the moment it attaches,
+  // before the embedded page has a chance to run any JavaScript. Going via
+  // the renderer-side IPC registration leaves a window where an SPA
+  // (Feishu / Lark / Notion) can call `window.open` against the Electron
+  // default, which silently denies it — to the user that looks like
+  // "external links don't work at all".
+  win.webContents.on("did-attach-webview", (_event, webContents) => {
+    installWebviewPopupHandler(webContents);
+    console.log(
+      `[main] attached webview wc#${webContents.id}; popup handler installed`,
+    );
   });
 
   win.webContents.on("did-fail-load", (_event, errorCode, errorDescription) => {
