@@ -21,12 +21,20 @@ const DEFAULT_CANVAS_ID = 'default';
 
 export const useNodes = (
   canvasId = DEFAULT_CANVAS_ID,
-  onRestoreTransform?: (t: CanvasTransform) => void
+  onRestoreTransform?: (t: CanvasTransform) => void,
+  /** Fires once per CLI-created node detected via the external-update
+   *  socket. The hook hides update/delete events from the callback so
+   *  callers can treat it strictly as "Agent introduced a new node".
+   *  Stored in a ref so callback identity changes don't tear down the
+   *  subscription effect on every render. */
+  onAgentCreated?: (node: CanvasNode) => void,
 ) => {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transformRef = useRef<CanvasTransform>({ x: 0, y: 0, scale: 1 });
   const onRestoreTransformRef = useRef(onRestoreTransform);
   onRestoreTransformRef.current = onRestoreTransform;
+  const onAgentCreatedRef = useRef(onAgentCreated);
+  onAgentCreatedRef.current = onAgentCreated;
 
   /**
    * Mirrors `loaded` state so `doSave`/`flushSave` (stable callbacks) can
@@ -179,11 +187,18 @@ export const useNodes = (
           nextNodes.push(cur);
         }
       }
-      // Append CLI-created nodes that weren't in memory yet.
+      // Append CLI-created nodes that weren't in memory yet. These are
+      // the only events surfaced through `onAgentCreated` — pure
+      // updates and deletes are intentionally hidden so the consumer
+      // (e.g. an "Agent added X" toast) only fires on actual new nodes.
+      const cliCreated: CanvasNode[] = [];
       for (const id of changedIds) {
         if (seen.has(id)) continue;
         const disk = diskById.get(id);
-        if (disk) nextNodes.push(disk);
+        if (disk) {
+          nextNodes.push(disk);
+          cliCreated.push(disk);
+        }
       }
 
       // Apply directly without history / scheduleSave to avoid a write-back loop.
@@ -219,6 +234,14 @@ export const useNodes = (
           externalClearTimers.current.delete(id);
         }, 2500);
         externalClearTimers.current.set(id, t);
+      }
+
+      // Notify the consumer about CLI-created nodes after state has
+      // been applied, so handlers that re-read state (e.g. a viewport
+      // visibility check) see the new nodes already in nodesRef.
+      const notify = onAgentCreatedRef.current;
+      if (notify) {
+        for (const node of cliCreated) notify(node);
       }
     });
 

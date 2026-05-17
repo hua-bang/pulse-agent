@@ -94,6 +94,23 @@
   background: rgba(0, 0, 0, 0.05);
 }
 
+.shell-toast__action {
+  flex-shrink: 0;
+  border: none;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.shell-toast__action:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
 .shell-spinner {
   width: 14px;
   height: 14px;
