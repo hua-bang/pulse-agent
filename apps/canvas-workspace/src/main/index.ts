@@ -118,7 +118,9 @@ const createWindow = () => {
   if (process.env.ELECTRON_RENDERER_URL) {
     void writeLog("main", "loadURL", process.env.ELECTRON_RENDERER_URL);
     win.loadURL(process.env.ELECTRON_RENDERER_URL);
-    win.webContents.openDevTools({ mode: "detach" });
+    if (process.env.OPEN_DEVTOOLS === "1") {
+      win.webContents.openDevTools({ mode: "detach" });
+    }
   } else {
     const filePath = join(currentDir, "../renderer/index.html");
     void writeLog("main", "loadFile", filePath);
