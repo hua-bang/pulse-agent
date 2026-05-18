@@ -51,21 +51,21 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const references = referencesByWorkspace[activeWorkspaceId] ?? EMPTY_REFERENCES;
   const activeReferenceId = activeReferenceIdByWorkspace[activeWorkspaceId];
   const activeReference = activeReferenceId
-    ? references.find((entry) => entry.nodeId === activeReferenceId)
+    ? references.find((entry) => ('kind' in entry && entry.kind === 'url' ? entry.id : entry.nodeId) === activeReferenceId)
     : undefined;
-  const activeReferenceNode = activeReference
+  const activeReferenceNode = activeReference && (!('kind' in activeReference) || activeReference.kind !== 'url')
     ? activeNodes.find((node) => node.id === activeReference.nodeId)
     : undefined;
 
-  const removeReference = useCallback((nodeId: string) => {
+  const removeReference = useCallback((referenceId: string) => {
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];
-      const next = current.filter((entry) => entry.nodeId !== nodeId);
+      const next = current.filter((entry) => ('kind' in entry && entry.kind === 'url' ? entry.id : entry.nodeId) !== referenceId);
       if (next.length === current.length) return prev;
       return { ...prev, [activeWorkspaceId]: next };
     });
     setActiveReferenceIdByWorkspace((prev) => {
-      if (prev[activeWorkspaceId] !== nodeId) return prev;
+      if (prev[activeWorkspaceId] !== referenceId) return prev;
       return { ...prev, [activeWorkspaceId]: undefined };
     });
   }, [activeWorkspaceId]);
@@ -81,13 +81,14 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     }));
   }, [activeWorkspaceId]);
 
-  const setReferenceGroup = useCallback((nodeId: string, group: string | undefined) => {
+  const setReferenceGroup = useCallback((referenceId: string, group: string | undefined) => {
     const normalized = group?.trim() ? group.trim() : undefined;
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];
       let changed = false;
       const next = current.map((entry) => {
-        if (entry.nodeId !== nodeId) return entry;
+        const id = 'kind' in entry && entry.kind === 'url' ? entry.id : entry.nodeId;
+        if (id !== referenceId) return entry;
         if ((entry.group ?? undefined) === normalized) return entry;
         changed = true;
         return { ...entry, group: normalized };
@@ -112,20 +113,21 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     const current = referencesByWorkspace[activeWorkspaceId];
     if (!current?.length) return;
     const known = new Set(activeNodes.map((node) => node.id));
-    const filtered = current.filter((entry) => known.has(entry.nodeId));
+    const filtered = current.filter((entry) => ('kind' in entry && entry.kind === 'url') || known.has(entry.nodeId));
     if (filtered.length === current.length) return;
     setReferencesByWorkspace((prev) => ({ ...prev, [activeWorkspaceId]: filtered }));
     setActiveReferenceIdByWorkspace((prev) => {
       const currentActive = prev[activeWorkspaceId];
-      if (currentActive && filtered.some((entry) => entry.nodeId === currentActive)) return prev;
-      return { ...prev, [activeWorkspaceId]: filtered[0]?.nodeId };
+      if (currentActive && filtered.some((entry) => ('kind' in entry && entry.kind === 'url' ? entry.id : entry.nodeId) === currentActive)) return prev;
+      const nextActive = filtered[0] ? ('kind' in filtered[0] && filtered[0].kind === 'url' ? filtered[0].id : filtered[0].nodeId) : undefined;
+      return { ...prev, [activeWorkspaceId]: nextActive };
     });
   }, [activeWorkspaceId, activeNodes, referencesByWorkspace]);
 
   const pinReferenceNode = useCallback((nodeId: string, group?: string) => {
     setReferencesByWorkspace((prev) => {
       const current = prev[activeWorkspaceId] ?? [];
-      const exists = current.some((entry) => entry.nodeId === nodeId);
+      const exists = current.some((entry) => (!('kind' in entry) || entry.kind !== 'url') && entry.nodeId === nodeId);
       if (exists) return prev;
       const entry: ReferenceEntry = group ? { nodeId, group } : { nodeId };
       return { ...prev, [activeWorkspaceId]: [...current, entry] };
@@ -133,6 +135,22 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     setActiveReferenceIdByWorkspace((prev) => ({
       ...prev,
       [activeWorkspaceId]: nodeId,
+    }));
+    setReferenceDrawerOpen(true);
+  }, [activeWorkspaceId]);
+
+  const pinReferenceUrl = useCallback((url: string, title?: string) => {
+    const id = `url:${url}`;
+    setReferencesByWorkspace((prev) => {
+      const current = prev[activeWorkspaceId] ?? [];
+      const exists = current.some((entry) => 'kind' in entry && entry.kind === 'url' && entry.url === url);
+      if (exists) return prev;
+      const entry: ReferenceEntry = { kind: 'url', id, url, title };
+      return { ...prev, [activeWorkspaceId]: [...current, entry] };
+    });
+    setActiveReferenceIdByWorkspace((prev) => ({
+      ...prev,
+      [activeWorkspaceId]: id,
     }));
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId]);
@@ -171,6 +189,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       <ReferenceDrawer
         open={referenceDrawerOpen}
         references={references}
+        activeReference={activeReference}
         activeReferenceNode={activeReferenceNode}
         activeReferenceGroup={activeReference?.group}
         nodes={activeNodes}
@@ -180,6 +199,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
         onRemoveReference={removeReference}
         onClearAll={clearAllReferences}
         onAddReference={pinReferenceNode}
+        onAddUrlReference={pinReferenceUrl}
         onSetReferenceGroup={setReferenceGroup}
         onFocusNode={handleFocusReferenceNode}
       />
