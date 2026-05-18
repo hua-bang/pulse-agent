@@ -184,29 +184,36 @@ export const Workbench: React.FC<WorkbenchProps> = ({
         onFocusNode={handleFocusReferenceNode}
       />
       <div className="canvas-viewport">
-        {workspaces
-          .filter((ws) => ws.id === activeWorkspaceId)
-          .map((ws) => (
-            <Canvas
+        {workspaces.map((ws) => {
+          const isActive = ws.id === activeWorkspaceId;
+          return (
+            <div
               key={ws.id}
-              canvasId={ws.id}
-              canvasName={ws.name}
-              rootFolder={ws.rootFolder}
-              onNodesChange={handleNodesChange}
-              onSelectionChange={handleSelectionChange}
-              focusNodeId={ws.id === focusRequest?.workspaceId ? focusRequest.nodeId : undefined}
-              onFocusComplete={clearFocusRequest}
-              deleteNodeId={ws.id === deleteRequest?.workspaceId ? deleteRequest.nodeId : undefined}
-              onDeleteComplete={clearDeleteRequest}
-              renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
-              onRenameComplete={clearRenameRequest}
-              chatPanelOpen={chatPanelOpen}
-              onChatToggle={() => setChatPanelOpen((prev) => !prev)}
-              referenceDrawerOpen={referenceDrawerOpen}
-              onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
-              onPinReferenceNode={pinReferenceNode}
-            />
-          ))}
+              className="canvas-host"
+              style={isActive ? undefined : { display: 'none' }}
+            >
+              <Canvas
+                canvasId={ws.id}
+                canvasName={ws.name}
+                rootFolder={ws.rootFolder}
+                isActive={isActive}
+                onNodesChange={handleNodesChange}
+                onSelectionChange={handleSelectionChange}
+                focusNodeId={ws.id === focusRequest?.workspaceId ? focusRequest.nodeId : undefined}
+                onFocusComplete={clearFocusRequest}
+                deleteNodeId={ws.id === deleteRequest?.workspaceId ? deleteRequest.nodeId : undefined}
+                onDeleteComplete={clearDeleteRequest}
+                renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
+                onRenameComplete={clearRenameRequest}
+                chatPanelOpen={chatPanelOpen}
+                onChatToggle={() => setChatPanelOpen((prev) => !prev)}
+                referenceDrawerOpen={referenceDrawerOpen}
+                onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
+                onPinReferenceNode={pinReferenceNode}
+              />
+            </div>
+          );
+        })}
       </div>
       {workspaces.map((ws) => (
         <div

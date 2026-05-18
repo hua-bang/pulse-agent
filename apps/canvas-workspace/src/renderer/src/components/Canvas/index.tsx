@@ -33,6 +33,12 @@ interface CanvasProps {
   canvasId: string;
   canvasName?: string;
   rootFolder?: string;
+  /** False while this canvas is mounted-but-hidden (workspace not in
+   *  focus). Lets the component stay alive so transform/selection/tool
+   *  state survives a workspace switch, while suppressing global
+   *  side-effects (window-level keyboard shortcuts, clipboard paste)
+   *  that would otherwise fire from every mounted canvas at once. */
+  isActive?: boolean;
   onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
   onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
   focusNodeId?: string;
@@ -52,6 +58,7 @@ export const Canvas = ({
   canvasId,
   canvasName,
   rootFolder,
+  isActive = true,
   onNodesChange,
   onSelectionChange,
   focusNodeId,
@@ -283,11 +290,14 @@ export const Canvas = ({
     onExitFocusMode: focus.exitFocusMode,
     fullscreenActive: focus.fullscreenNodeId != null,
     onExitFullscreen: focus.exitFullscreen,
-    keyboardLocked: isOverlayOpen,
+    // Hidden canvases stay mounted to preserve their UI state across
+    // workspace switches; gate global keyboard shortcuts so only the
+    // visible one reacts.
+    keyboardLocked: !isActive || isOverlayOpen,
   });
 
   useCanvasImagePaste({
-    canvasId, active: true, containerRef, screenToCanvas,
+    canvasId, active: isActive, containerRef, screenToCanvas,
     addNode, updateNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
   });
