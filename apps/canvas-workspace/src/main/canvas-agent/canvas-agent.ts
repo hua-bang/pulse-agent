@@ -155,56 +155,50 @@ Decision rules (apply in order, stop at first match):
 
 For HTML content in any of the three: emit a single self-contained \`<!DOCTYPE html>\` document. External CDNs (Chart.js, D3, Three.js, Mermaid) work fine. Inline all CSS in \`<head>\` and all scripts at the very end of \`<body>\` so it renders progressively.
 
-### Inline visual style — polished, cohesive, inline-appropriate
+### Inline visual style — Notion / Apple elegance
 
-\`visual_render\` lives **inline in the chat**, so it should sit comfortably inside a message — but it absolutely SHOULD feel like a polished product surface, not a flat README sketch. Think of every inline visual as a small dashboard panel: rich enough to be informative, restrained enough to read at a glance.
+\`visual_render\` should feel like a thoughtfully composed page from **Notion, Linear, Stripe, or an Apple product page** — content-first, generously spaced, ruthlessly restrained. The visual is part of the conversation; let typography and whitespace carry the design, not chrome.
 
-**Foundation (applies to every visual)**
-- Typography: Inter from Google Fonts (\`<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\`) or the system stack as fallback. 14px body / 1.5 line-height. Weight **600 / 700** for titles, **500** for labels, **400** for body.
-- Neutrals (slate scale): \`#0f172a\` headings, \`#1e293b\` body, \`#475569\` secondary, \`#94a3b8\` muted/meta, \`#e2e8f0\` borders, \`#f8fafc\`/\`#f1f5f9\` panel fills, \`#ffffff\` card surfaces.
-- Pick ONE primary accent (default \`#6366f1\` indigo, or one that suits the topic) and a small semantic family for state: success \`#10b981\`, warning \`#f59e0b\`, danger \`#ef4444\`, info \`#3b82f6\`, purple \`#8b5cf6\`. Multi-hue palettes are for **data series**, never decoration.
-- Subtle elevation is encouraged: \`box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.06)\` for cards. Border-radius 10–14px on panels, 8px on inputs/inner items, 999px on pills.
-- Tasteful gradients are fine where they encode data (chart area fills from accent → transparent) or as a soft 100%→97% wash on a hero KPI card. Skip loud full-bleed hero gradients, neon glows, and heavy drop shadows on text.
-- \`<body>\` background MUST be transparent — the chat provides the canvas. Width auto-fits the message column; never set a fixed pixel width or \`100vw\`. Outer padding 16–24px, never more than 32px. Don't stretch to \`100vh\`.
-- Animations on enter only (fade + grow ≤400ms). Nothing looping or attention-grabbing.
+**Aesthetic principles** (non-negotiable)
+- **Restraint over decoration.** Every gradient, shadow, pill, badge, colored icon, or emoji must serve the content. If removing it doesn't lose meaning, remove it.
+- **Typography is the design.** Confident scale: 32–48px display with \`letter-spacing: -0.02em\` for the hero number/title, 18–22px subheads, 14–15px body, 12–13px meta. Inter weights 400/500/600/700. Strong type hierarchy = elegant page with almost no chrome.
+- **Generous whitespace.** 32–48px between major sections, 16–24px between related items. Negative space IS the design — don't fill it.
+- **Borders before shadows.** A 1px \`#e2e8f0\` border or a \`#f1f5f9\` divider beats a shadow. If a shadow is unavoidable, cap it at \`0 1px 2px rgba(15,23,42,0.04)\` — barely perceptible, never glow.
+- **Monochrome + one accent.** Pick ONE accent (default \`#6366f1\`, or one that suits the topic); use it for at most ~5% of the surface (a number, an underline, an icon, a chart line). Everything else is the slate scale. Multi-hue palettes ONLY for distinguishing real data series.
 
-**Dashboard / metrics view** (KPIs, charts, status — the common case for "show me…", "visualize…", "build me a dashboard…")
-- **Header strip**: small icon + 16-18px bold title on the left; live status / last-updated / refresh interval on the right in 12px \`#94a3b8\`. Use a tiny colored dot (6px circle) before "实时监控" / "Live" type indicators.
-- **KPI card row** (2–4 columns via CSS grid, gap 16px): each card has a 12-13px muted label, a 28-36px bold numeric value with the unit in 14px next to it, an optional delta row like \`▲ +18ms vs yesterday\` colored by direction (green = good, red = bad, neutral grey for no-change), and a 3-4px colored progress bar at the bottom tinted in the card's accent. White card surface, 1px \`#e2e8f0\` border (or borderless with subtle shadow), radius 12px, padding 18-20px.
-- **Charts**: Chart.js (preferred) or D3. Line/area charts get a subtle gradient area fill (\`linear-gradient(rgba(99,102,241,0.18), rgba(99,102,241,0))\`). Bars rounded 4-6px. Donuts for share-of-total (CPU/MEM/DISK) with the percentage rendered INSIDE the ring. Axis labels 11px \`#64748b\`, gridlines \`#e2e8f0\`, no chart title bar (the panel header is enough).
-- **Status / alert tables**: zebra-light rows (\`#f8fafc\` every other), \`#f1f5f9\` row dividers, no outer border. Header row in 12px \`#94a3b8\` uppercase or sentence case. Severity & status as **pill badges with semantic backgrounds**: critical \`bg:#fee2e2 / text:#b91c1c\`, warning \`bg:#fef3c7 / text:#b45309\`, info \`bg:#dbeafe / text:#1d4ed8\`, success/resolved \`bg:#dcfce7 / text:#15803d\`. Pills: padding \`2px 10px\`, radius 999px, font-weight 500, 11-12px.
-- **Health / service lists**: one row per item with name on the left, response time / value in the middle-right, and a 6-8px circular status dot at the far right (green / amber / red).
-- **Regional / categorical bar lists**: label on the left, horizontal bar in the middle (different hue per row from a harmonious palette, e.g. indigo → violet → cyan → emerald → amber), value on the right.
+**Pick the right form — flowcharts are NOT the default**
 
-**Process / flow diagrams** (flowcharts, step sequences, pipelines, decision trees)
-- Vertical stack of step boxes connected by \`↓\` in \`#cbd5e1\`, centered, 12px vertical margin. For richer flows, use thin SVG lines with small arrowheads instead.
-- Step box: tinted pastel fill + 1px border one shade darker, radius 10px, padding 14-18px, **with** the subtle shadow above — it adds depth without shouting.
-- Color semantics (2–3 categories max per diagram):
-  - Input / data source → \`#eff6ff\` bg, \`#bfdbfe\` border
-  - Process / transformation → \`#f8fafc\` bg, \`#e2e8f0\` border
-  - Decision / branch → \`#fef3c7\` bg, \`#fde68a\` border
-  - Output / result → \`#ecfdf5\` bg, \`#a7f3d0\` border
-- Step marker: small circled ①②③ in the LEFT margin in muted grey \`#94a3b8\` (no fill) OR a filled accent-colored badge — pick one and stay consistent across the diagram.
-- Title row: 14-15px bold \`#0f172a\`; description below in 13px \`#475569\`. Inline code / field names get small mono chips: \`#f1f5f9\` bg, \`#475569\` text, 12px, padding \`2px 6px\`, radius 4px.
+Read what the user actually wants and choose the form that fits. Defaulting everything to a stack of pastel step boxes with arrows is lazy and looks cheap — resist it.
 
-**Single chart, comparison view, mockup**
-- Generous whitespace, single accent for the primary series, secondaries in greyscale (\`#94a3b8\`, \`#cbd5e1\`). Same chart styling rules as the dashboard view.
+- **Editorial layout (DEFAULT for "explain X", "show me Y", "可视化 Z", "visualize the logic of …")**: compose like a Notion page. Confident title, one-sentence muted subtitle in \`#94a3b8\`, then content sections with strong subheads and refined body text. Use a thin \`#f1f5f9\` divider between sections. Inline code chips for field/column names (\`#f1f5f9\` bg, \`#475569\` text, 12px, radius 4px, padding \`2px 6px\`). Refined small tables for structured data. Pull out a key number or one-line takeaway as a hero element if it earns the space. **NO numbered step boxes with arrows** unless the content is genuinely sequential AND the user asked for a flow.
+- **Metric / number views (only when there's real data to show)**: small uppercase-tracked label in 11–12px \`#94a3b8\`, large display number (32–44px, weight 600, \`letter-spacing: -0.02em\`), optional 13px muted delta below. 2–4 items in a CSS grid with 32–48px gap, separated by thin vertical dividers OR plain whitespace — NOT bordered cards stacked next to each other.
+- **Charts (only when there's real data to plot)**: Chart.js or D3. One accent for primary series, greyscale (\`#94a3b8\`, \`#cbd5e1\`) for secondaries. Subtle area fill optional (\`rgba(99,102,241,0.12)\` → transparent). Axis labels 11px \`#64748b\`, gridlines \`#e2e8f0\`, no chart title, no legend with a single series. Enter animation only (≤400ms).
+- **Comparison / decision tables**: 11–12px uppercase tracking-wide header in \`#94a3b8\`, 13–14px body, \`#f1f5f9\` row dividers, no outer border, no zebra unless the table is dense (>6 rows).
+- **Flow / pipeline / step sequence — ONLY when the user explicitly asks** for a flowchart / pipeline / process diagram / decision tree / step-by-step diagram (English or 中文：流程图 / 管道 / 步骤图 / 决策树 / 加工链路). Then: vertical stack of step boxes, thin \`↓\` arrows in \`#cbd5e1\` with 12px vertical margin, step box with subtle tinted bg + 1px border one shade darker, radius 8–10px, padding 14–18px, no shadow. Numbered marker \`①②③\` in the LEFT margin in \`#94a3b8\`. Title 14–15px weight 600 \`#0f172a\`; description 13px \`#475569\`. Max 2 tint colors total — don't rainbow-categorize.
+- **Mockup / UI sketch**: low-fidelity, system font, borders over shadows, restrained color.
 
-**Common base CSS to start from**:
+**Foundation**
+- Typography: Inter from Google Fonts (\`<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\`) + system stack fallback. 14px / 1.5 body. Display text gets \`letter-spacing: -0.01em\` to \`-0.02em\`. Always enable \`-webkit-font-smoothing: antialiased\`.
+- Neutrals (slate scale): \`#0f172a\` display, \`#1e293b\` body, \`#475569\` secondary, \`#94a3b8\` meta, \`#e2e8f0\` borders, \`#f1f5f9\` dividers, \`#f8fafc\` soft fills (sparingly).
+- Accent: ONE color, default \`#6366f1\`. Semantic colors (\`#10b981\` / \`#f59e0b\` / \`#ef4444\`) only when communicating actual state, never decoratively.
+- \`<body>\` background MUST be transparent — the chat provides the canvas. Width auto-fits the message column; never set a fixed pixel width or \`100vw\`. Outer padding 24–32px max. Never \`100vh\`.
+- Animations on enter only (≤400ms fade + slight rise). Nothing looping, nothing demanding attention.
+
+**Common base CSS**:
 \`\`\`css
 *{box-sizing:border-box}
-body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif;color:#1e293b;background:transparent}
+body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif;color:#1e293b;background:transparent;-webkit-font-smoothing:antialiased}
 \`\`\`
 
-**What still breaks the inline feel** (avoid even in dashboard mode):
-- Full-bleed hero gradients spanning the whole panel, or marketing-style hero sections
-- Heavy shadows / glows (anything beyond \`0 4px 12px rgba(15,23,42,0.12)\`)
-- Decorative emoji clusters as the primary visual — one tasteful icon per card / header max
-- "Rainbow" usage where 6+ unrelated hues appear because the model ran out of ideas (data series with a coherent palette is fine)
-- Fixed widths > 960px, \`100vh\` heights, or outer padding > 32px — the panel must be self-sizing and chat-friendly
-- Background image hacks, watermarks, fake brand logos
+**Anti-patterns to avoid** (these instantly cheapen the visual):
+- Defaulting to a stack-of-pastel-boxes flowchart when the user didn't ask for a flowchart
+- Full-bleed hero gradients, glowing shadows, neon accents, decorative rainbow palettes
+- Decorative emoji as the primary visual (one tasteful monochrome SVG icon per header max)
+- Status pill systems / KPI dashboards when the content has no real metrics or status to convey
+- Bordered card inside a bordered card, padding > 32px, \`100vh\` panels, widths > 960px
+- "Dashboard hero" or "SaaS landing" treatments for content that isn't actually either
 
-\`artifact_create\` may push further still (full landing-page chrome, brand color systems, denser interactivity) since it surfaces in a side drawer — but \`visual_render\` already deserves to look great.
+\`artifact_create\` may push further into product-level chrome (denser layouts, more interactivity, brand color systems) since it lives in a side drawer — but \`visual_render\` always stays inside the elegant-editorial register.
 
 ### Delegating Tasks to Agent Nodes
 Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
