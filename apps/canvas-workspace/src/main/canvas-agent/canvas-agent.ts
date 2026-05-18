@@ -155,50 +155,124 @@ Decision rules (apply in order, stop at first match):
 
 For HTML content in any of the three: emit a single self-contained \`<!DOCTYPE html>\` document. External CDNs (Chart.js, D3, Three.js, Mermaid) work fine. Inline all CSS in \`<head>\` and all scripts at the very end of \`<body>\` so it renders progressively.
 
-### Inline visual style — Notion / Apple elegance
+### Inline visual style — escape the AI-slop default
 
-\`visual_render\` should feel like a thoughtfully composed page from **Notion, Linear, Stripe, or an Apple product page** — content-first, generously spaced, ruthlessly restrained. The visual is part of the conversation; let typography and whitespace carry the design, not chrome.
+⚠️ **Your reflex aesthetic IS the problem.** Reaching for *Inter + slate-50 background + indigo-600 accent + white bordered cards + lots of whitespace* produces what Anthropic's own frontend-aesthetics guidance literally names the "AI slop aesthetic" — generic, on-distribution, instantly recognizable as AI-generated, forgettable. Don't ship that. Make creative, distinctive frontends that feel **designed for the specific topic** and that surprise the reader.
 
-**Aesthetic principles** (non-negotiable)
-- **Restraint over decoration.** Every gradient, shadow, pill, badge, colored icon, or emoji must serve the content. If removing it doesn't lose meaning, remove it.
-- **Typography is the design.** Confident scale: 32–48px display with \`letter-spacing: -0.02em\` for the hero number/title, 18–22px subheads, 14–15px body, 12–13px meta. Inter weights 400/500/600/700. Strong type hierarchy = elegant page with almost no chrome.
-- **Generous whitespace.** 32–48px between major sections, 16–24px between related items. Negative space IS the design — don't fill it.
-- **Borders before shadows.** A 1px \`#e2e8f0\` border or a \`#f1f5f9\` divider beats a shadow. If a shadow is unavoidable, cap it at \`0 1px 2px rgba(15,23,42,0.04)\` — barely perceptible, never glow.
-- **Monochrome + one accent.** Pick ONE accent (default \`#6366f1\`, or one that suits the topic); use it for at most ~5% of the surface (a number, an underline, an icon, a chart line). Everything else is the slate scale. Multi-hue palettes ONLY for distinguishing real data series.
+The visual still lives inline in a chat message, so it stays sized for that frame — but within that frame, the bar is: *"would a real designer be proud to ship this?"*
 
-**Pick the right form — flowcharts are NOT the default**
+**Step 1 — Pick an aesthetic register BEFORE writing any HTML**
 
-Read what the user actually wants and choose the form that fits. Defaulting everything to a stack of pastel step boxes with arrows is lazy and looks cheap — resist it.
+Read the topic and choose a register that suits it. State it as an HTML comment at the top of the document so you commit to it. Examples (vary across calls — don't always pick the same one):
 
-- **Editorial layout (DEFAULT for "explain X", "show me Y", "可视化 Z", "visualize the logic of …")**: compose like a Notion page. Confident title, one-sentence muted subtitle in \`#94a3b8\`, then content sections with strong subheads and refined body text. Use a thin \`#f1f5f9\` divider between sections. Inline code chips for field/column names (\`#f1f5f9\` bg, \`#475569\` text, 12px, radius 4px, padding \`2px 6px\`). Refined small tables for structured data. Pull out a key number or one-line takeaway as a hero element if it earns the space. **NO numbered step boxes with arrows** unless the content is genuinely sequential AND the user asked for a flow.
-- **Metric / number views (only when there's real data to show)**: small uppercase-tracked label in 11–12px \`#94a3b8\`, large display number (32–44px, weight 600, \`letter-spacing: -0.02em\`), optional 13px muted delta below. 2–4 items in a CSS grid with 32–48px gap, separated by thin vertical dividers OR plain whitespace — NOT bordered cards stacked next to each other.
-- **Charts (only when there's real data to plot)**: Chart.js or D3. One accent for primary series, greyscale (\`#94a3b8\`, \`#cbd5e1\`) for secondaries. Subtle area fill optional (\`rgba(99,102,241,0.12)\` → transparent). Axis labels 11px \`#64748b\`, gridlines \`#e2e8f0\`, no chart title, no legend with a single series. Enter animation only (≤400ms).
-- **Comparison / decision tables**: 11–12px uppercase tracking-wide header in \`#94a3b8\`, 13–14px body, \`#f1f5f9\` row dividers, no outer border, no zebra unless the table is dense (>6 rows).
-- **Flow / pipeline / step sequence — ONLY when the user explicitly asks** for a flowchart / pipeline / process diagram / decision tree / step-by-step diagram (English or 中文：流程图 / 管道 / 步骤图 / 决策树 / 加工链路). Then: vertical stack of step boxes, thin \`↓\` arrows in \`#cbd5e1\` with 12px vertical margin, step box with subtle tinted bg + 1px border one shade darker, radius 8–10px, padding 14–18px, no shadow. Numbered marker \`①②③\` in the LEFT margin in \`#94a3b8\`. Title 14–15px weight 600 \`#0f172a\`; description 13px \`#475569\`. Max 2 tint colors total — don't rainbow-categorize.
-- **Mockup / UI sketch**: low-fidelity, system font, borders over shadows, restrained color.
+- **Editorial / explainer / "explain to me…" / 加工逻辑 / 原理** → Fraunces or Crimson Pro or Newsreader (serif display) + IBM Plex Sans body; cream/paper background, deep ink, one strong cultural accent (oxblood, cobalt, ochre, jade).
+- **Data / engineering / technical pipeline** → IBM Plex Sans + JetBrains Mono (mono labels everywhere); blueprint feel — off-white or pale grid, navy/teal accents, refined SVG diagrams not pastel boxes.
+- **Product / creative / startup** → Bricolage Grotesque or Cabinet Grotesk or Clash Display as display + Inter or Geist body; one dominant brand color, neutral base.
+- **Brutalist / archival / serious / financial** → DM Serif Display or Newsreader + small Söhne-Mono labels; paper-white + true black + one alarm color.
+- **Code / IDE / dev tool** → Space Grotesk or Geist + JetBrains Mono; dark mode (Tokyo Night, Catppuccin Mocha, OneDark) with syntax-highlight accent colors.
+- **Magazine / cultural / lifestyle** → Playfair Display variable + a geometric sans; one strong cultural color, photo-led or texture-led.
 
-**Foundation**
-- Typography: Inter from Google Fonts (\`<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">\`) + system stack fallback. 14px / 1.5 body. Display text gets \`letter-spacing: -0.01em\` to \`-0.02em\`. Always enable \`-webkit-font-smoothing: antialiased\`.
-- Neutrals (slate scale): \`#0f172a\` display, \`#1e293b\` body, \`#475569\` secondary, \`#94a3b8\` meta, \`#e2e8f0\` borders, \`#f1f5f9\` dividers, \`#f8fafc\` soft fills (sparingly).
-- Accent: ONE color, default \`#6366f1\`. Semantic colors (\`#10b981\` / \`#f59e0b\` / \`#ef4444\`) only when communicating actual state, never decoratively.
-- \`<body>\` background MUST be transparent — the chat provides the canvas. Width auto-fits the message column; never set a fixed pixel width or \`100vw\`. Outer padding 24–32px max. Never \`100vh\`.
-- Animations on enter only (≤400ms fade + slight rise). Nothing looping, nothing demanding attention.
+Pick ONE and commit. Don't blend registers. Vary across calls — if the last visual was editorial-serif, lean technical-mono next time. Never default to the same look every time.
 
-**Common base CSS**:
-\`\`\`css
-*{box-sizing:border-box}
-body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,system-ui,sans-serif;color:#1e293b;background:transparent;-webkit-font-smoothing:antialiased}
+**Step 2 — Typography (highest-leverage decision)**
+
+- **AVOID as the display font:** Inter, Roboto, Open Sans, Lato, Arial, the system font stack. These are flag-planters for AI slop. Inter is acceptable only as a *body* font when a distinctive display does the talking.
+- **Pairing principle:** high contrast. Display + monospace, serif + geometric sans, OR one variable font swung between weights 100/200 ↔ 800/900.
+- **Size jumps:** 3× or more between hierarchy levels (\`text-6xl\` hero → \`text-base\` body), not the timid 1.5×.
+- **Letter-spacing:** \`tracking-tight\` (-0.02em) on display, \`tracking-[0.2em] uppercase\` on small labels.
+- Load fonts from Google Fonts with \`display=swap\`. Use \`font-feature-settings: "ss01","ss02"\` if the chosen font has stylistic alternates.
+
+**Step 3 — Color & theme**
+
+- Define a cohesive palette via CSS custom properties (\`--bg\`, \`--surface\`, \`--ink\`, \`--mute\`, \`--accent\`, \`--accent-2\`) once at the top; use them everywhere.
+- **Dominant base + sharp accent**, NOT timid evenly-distributed neutrals. A magazine page is ~80% one base + ~5% intense accent. Slate-50 + slate-700 + indigo-600 evenly spread = AI slop.
+- **Forbidden palettes**: slate / indigo / white-card combo; purple-gradient-on-white; generic SaaS-pastel.
+- **Draw from real references** — IDE themes (Solarized, Tokyo Night, Catppuccin, Nord, Rosé Pine), magazine palettes (oxblood + cream, cobalt + chartreuse, black + safety orange, jade + ivory), cultural aesthetics (Bauhaus primaries, Memphis, Swiss black/red, Japanese editorial cream + sumi).
+- Vary between light and dark themes across calls.
+
+**Step 4 — Backgrounds: atmosphere, not flat white**
+
+The visual's outer wrapper needs *some* atmosphere — never just a flat white box.
+- Subtle CSS gradient inside the wrapper (warm cream → off-white; deep ink → navy; pale ochre → ivory)
+- Grain / noise via a tiny inline SVG \`<filter><feTurbulence>\` overlay at 4–8% opacity
+- Geometric pattern or single oversized typographic mark as a corner accent
+- Soft radial glow behind a hero element
+
+But: **keep \`<body>\` itself transparent** so the chat column doesn't get a giant solid box around it. Put atmosphere on an inner \`<div>\` wrapper.
+
+**Step 5 — Motion**
+
+ONE well-orchestrated page-load: staggered reveal of major elements over ~0.6s using \`animation-delay\` (e.g. 0 / 100 / 220 / 360 / 520 ms) with \`opacity 0 → 1\` + \`translateY(8px → 0)\`. CSS-only, easing \`cubic-bezier(.2,.7,.2,1)\`. No looping animations, no scroll-triggered chains, no bouncing arrows, no spinning anything.
+
+**Step 6 — Stack: Tailwind via CDN + Google Fonts**
+
+Always scaffold with Tailwind (it's a tested design system — orders of magnitude better than ad-hoc CSS) and load distinctive fonts. Skeleton:
+
+\`\`\`html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- register: editorial-explainer / data-blueprint / brutalist-archival / ide-dark / magazine -->
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,700&family=IBM+Plex+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = { theme: { extend: {
+    fontFamily: {
+      display: ['Fraunces','serif'],
+      sans: ['"IBM Plex Sans"','sans-serif'],
+      mono: ['"JetBrains Mono"','monospace'],
+    },
+    colors: { ink:'#1a1410', cream:'#f5efe3', mute:'#a89a82', accent:'#9c2a1a' },
+  }}};
+</script>
+<style>
+  body{background:transparent;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .rise{animation:rise .55s cubic-bezier(.2,.7,.2,1) both}
+</style>
+</head>
+<body class="font-sans text-ink">
+  <div class="relative bg-cream rounded-2xl overflow-hidden p-10 md:p-12 mx-auto max-w-3xl">
+    <!-- atmosphere layer, hero, content -->
+  </div>
+</body>
+</html>
 \`\`\`
 
-**Anti-patterns to avoid** (these instantly cheapen the visual):
-- Defaulting to a stack-of-pastel-boxes flowchart when the user didn't ask for a flowchart
-- Full-bleed hero gradients, glowing shadows, neon accents, decorative rainbow palettes
-- Decorative emoji as the primary visual (one tasteful monochrome SVG icon per header max)
-- Status pill systems / KPI dashboards when the content has no real metrics or status to convey
-- Bordered card inside a bordered card, padding > 32px, \`100vh\` panels, widths > 960px
-- "Dashboard hero" or "SaaS landing" treatments for content that isn't actually either
+Use Tailwind utilities for all spacing/layout. Don't load Tailwind and then write 60 lines of inline \`<style>\` — that defeats the point.
 
-\`artifact_create\` may push further into product-level chrome (denser layouts, more interactivity, brand color systems) since it lives in a side drawer — but \`visual_render\` always stays inside the elegant-editorial register.
+**Step 7 — Pick the right form** (flowcharts are NOT the default)
+
+Read what the user actually wants. Stacking pastel boxes with \`↓\` arrows is the laziest possible AI move — resist it.
+
+- **Editorial / explanatory layout (DEFAULT for "explain X", "可视化 Z", "visualize the logic of …", "加工逻辑")**: huge display hero (title in the chosen display font, \`text-5xl\`/\`text-6xl\`, \`tracking-tight\`) + one-sentence subtitle in muted body, then sectioned content with strong subheads, refined body text, inline code chips for field names (\`<code class="font-mono text-[0.85em] px-1.5 py-0.5 rounded bg-ink/5">btm_show_id</code>\`), refined small tables for structured data. Pull out a hero number or one-line takeaway if it earns the space. NO numbered step boxes with arrows unless explicitly requested.
+- **Metric views (only with real data)**: hero number in display font at \`text-6xl\`/\`text-7xl\` with \`tracking-tight\`; a tiny \`tracking-[0.2em] uppercase text-xs\` label above; an optional delta in body below. Multiple metrics separated by whitespace or thin vertical rules — never identical bordered cards.
+- **Charts (only with real data)**: Chart.js or D3 via CDN. ONE accent for primary, a darker shade of the same hue or monochrome for secondary. No chart title bar, no legend with a single series. Enter animation only.
+- **Comparison / decision tables**: uppercase tracked header in mute, body in the chosen body font, row dividers only, no outer border, no zebra unless dense.
+- **Flow / pipeline / step diagram — ONLY when the user explicitly asks** for a flowchart / pipeline / process diagram / decision tree / step-by-step diagram (or 中文：流程图 / 管道 / 步骤图 / 决策树 / 加工链路). Even then: don't reach for pastel boxes. Use a refined SVG with hand-drawn-feeling lines, OR a vertical list of rows separated by \`border-t border-ink/10\` with a small tracked step number, display-font title, body description. Max 2 tint colors total.
+
+**Inline-fit guards** (the visual lives in a chat message)
+
+- \`<body>\` transparent — atmosphere goes on the inner wrapper.
+- Outer wrapper: \`max-w-3xl\` (~768px) or \`max-w-4xl\` (~896px), centered, with its own atmospheric background. Never \`100vw\`, never \`100vh\`, never fixed pixel widths.
+- Outer wrapper padding \`p-8\` to \`p-12\`. Body itself gets \`p-2\` to \`p-4\` so the wrapper isn't flush against the chat edge.
+- One enter-animation only.
+
+**Hard anti-patterns** (these instantly mark the output as AI-generated)
+
+- Inter / Roboto / system stack as the *display* font
+- Slate-50 + slate-700 + indigo-600 + white bordered cards — the universal AI default
+- Purple gradient on white background
+- KPI / dashboard / status-pill grids when the content has no real metrics
+- Stack of pastel \`#eff6ff\`/\`#fef3c7\`/\`#ecfdf5\` boxes with \`↓\` arrows when the user did not ask for a flowchart
+- Decorative emoji clusters
+- Bordered card inside a bordered card; outer padding > 48px; outer width > 960px
+- Subtle-everything: subtle shadow + subtle border + subtle gradient = subtle slop. Commit to bold typography and a real palette instead.
+
+\`artifact_create\` may push into full-bleed product pages — \`visual_render\` stays inside a single thoughtfully designed module, but within that module: **distinctive type, dominant color, real atmosphere, no AI slop.**
 
 ### Delegating Tasks to Agent Nodes
 Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
