@@ -731,14 +731,27 @@
   background: var(--surface);
 }
 
-.reference-url-card-body {
+.reference-url-preview {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 22px 18px;
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: flex-start;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.reference-url-card--preview .iframe-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.reference-url-card--preview .iframe-frame-host webview {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.reference-url-card--preview .iframe-bar {
+  padding: 5px 6px;
 }
 
 .reference-url-card-icon {

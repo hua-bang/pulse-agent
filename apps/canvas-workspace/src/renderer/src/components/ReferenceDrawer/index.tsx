@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
+import { IframeNodeBody } from '../IframeNodeBody';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { copyTextToClipboard } from '../../utils/clipboard';
 
@@ -53,6 +54,21 @@ const getUrlHostname = (url: string) => {
 };
 
 const getUrlReferenceLabel = (entry: UrlReferenceEntry) => entry.title?.trim() || getUrlHostname(entry.url) || entry.url;
+
+const createUrlPreviewNode = (entry: UrlReferenceEntry, drawerWidth: number): CanvasNode => ({
+  id: entry.id,
+  type: 'iframe',
+  title: getUrlReferenceLabel(entry),
+  x: 0,
+  y: 0,
+  width: Math.max(MIN_REFERENCE_DRAWER_WIDTH - 32, drawerWidth - 32),
+  height: 420,
+  data: {
+    mode: 'url',
+    url: entry.url,
+    pageTitle: entry.title,
+  },
+});
 
 const normalizeReferenceUrl = (value: string) => {
   const trimmed = value.trim();
@@ -598,23 +614,14 @@ export const ReferenceDrawer = ({
             </div>
 
             {activeReference && activeReferenceVisible && isUrlReference(activeReference) ? (
-              <div className="reference-url-card">
-                <div className="reference-url-card-body">
-                  <div className="reference-url-card-icon" aria-hidden="true">
-                    <svg width="22" height="22" viewBox="0 0 16 16" fill="none">
-                      <path d="M6.4 5.2l1.1-1.1a3 3 0 014.2 4.2l-1.2 1.2M9.6 10.8l-1.1 1.1a3 3 0 01-4.2-4.2l1.2-1.2M6.4 9.6l3.2-3.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-                    </svg>
-                  </div>
-                  <div className="reference-url-card-kicker">URL reference</div>
-                  <h3>{getUrlReferenceLabel(activeReference)}</h3>
-                  <button
-                    type="button"
-                    className="reference-url-link"
-                    onClick={() => openUrl(activeReference.url)}
-                    title={activeReference.url}
-                  >
-                    {activeReference.url}
-                  </button>
+              <div className="reference-url-card reference-url-card--preview">
+                <div className="reference-url-preview">
+                  <IframeNodeBody
+                    node={createUrlPreviewNode(activeReference, drawerWidth)}
+                    onUpdate={() => undefined}
+                    isResizing={false}
+                    readOnly
+                  />
                 </div>
                 <div className="reference-card-footer">
                   {labelEditor}
