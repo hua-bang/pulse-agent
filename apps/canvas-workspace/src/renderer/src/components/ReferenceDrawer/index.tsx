@@ -40,10 +40,50 @@ interface UrlReferenceEntry {
 
 export type ReferenceEntry = NodeReferenceEntry | UrlReferenceEntry;
 
-type ReferenceGroupKey = CanvasNode['type'] | 'url' | 'unknown';
+type ReferenceGroupKey = CanvasNode['type'] | 'url' | 'missing';
+
+const REFERENCE_GROUP_ORDER: ReferenceGroupKey[] = [
+  'file',
+  'text',
+  'image',
+  'iframe',
+  'url',
+  'agent',
+  'terminal',
+  'mindmap',
+  'shape',
+  'frame',
+  'group',
+  'missing',
+];
 
 const isUrlReference = (entry: ReferenceEntry): entry is UrlReferenceEntry => entry.kind === 'url';
 const getReferenceId = (entry: ReferenceEntry) => isUrlReference(entry) ? entry.id : entry.nodeId;
+const getReferenceGroupKey = (entry: ReferenceEntry, nodeById: Map<string, CanvasNode>): ReferenceGroupKey => {
+  if (isUrlReference(entry)) return 'url';
+  return nodeById.get(entry.nodeId)?.type ?? 'missing';
+};
+const getReferenceGroupLabel = (type: ReferenceGroupKey) => {
+  if (type === 'url') return 'URL';
+  if (type === 'missing') return 'Missing nodes';
+  return NODE_TYPE_LABELS[type];
+};
+const getReferenceGroupIcon = (type: ReferenceGroupKey) => {
+  switch (type) {
+    case 'file': return '📄';
+    case 'text': return 'T';
+    case 'image': return '🖼';
+    case 'iframe': return '🌐';
+    case 'url': return '🔗';
+    case 'agent': return '🤖';
+    case 'terminal': return '⌘';
+    case 'mindmap': return '☊';
+    case 'shape': return '◼';
+    case 'frame': return '▣';
+    case 'group': return '☷';
+    case 'missing': return '?';
+  }
+};
 
 const getUrlHostname = (url: string) => {
   try {
@@ -250,18 +290,19 @@ export const ReferenceDrawer = ({
   const typeGroups = useMemo(() => {
     const map = new Map<ReferenceGroupKey, ReferenceEntry[]>();
     for (const entry of filteredReferences) {
-      const key: ReferenceGroupKey = isUrlReference(entry)
-        ? 'url'
-        : nodeById.get(entry.nodeId)?.type ?? 'unknown';
+      const key = getReferenceGroupKey(entry, nodeById);
       const list = map.get(key);
       if (list) list.push(entry);
       else map.set(key, [entry]);
     }
-    return Array.from(map, ([type, entries]) => ({
-      type,
-      name: type === 'url' ? 'URL' : type === 'unknown' ? 'Missing nodes' : NODE_TYPE_LABELS[type],
-      entries,
-    }));
+
+    return REFERENCE_GROUP_ORDER
+      .filter((type) => map.has(type))
+      .map((type) => ({
+        type,
+        name: getReferenceGroupLabel(type),
+        entries: map.get(type) ?? [],
+      }));
   }, [filteredReferences, nodeById]);
 
   const knownGroupNames = useMemo(() => {
@@ -602,6 +643,7 @@ export const ReferenceDrawer = ({
                 <ReferenceGroupSection
                   key={group.type}
                   name={group.name}
+                  type={group.type}
                   entries={group.entries}
                   nodeById={nodeById}
                   activeId={activeReferenceId}
@@ -784,16 +826,18 @@ const ReferenceEntryList = ({
 
 interface ReferenceGroupSectionProps extends ReferenceEntryListProps {
   name: string;
+  type: ReferenceGroupKey;
 }
 
 const ReferenceGroupSection = ({
   name,
+  type,
   entries,
   ...listProps
 }: ReferenceGroupSectionProps) => {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <div className={`reference-group${collapsed ? ' reference-group--collapsed' : ''}`}>
+    <div className={`reference-group reference-group--type-${type}${collapsed ? ' reference-group--collapsed' : ''}`}>
       <button
         className="reference-group-header"
         type="button"
@@ -810,6 +854,7 @@ const ReferenceGroupSection = ({
         >
           <path d="M4 3l4 3-4 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
+        <span className="reference-group-type-icon" aria-hidden="true">{getReferenceGroupIcon(type)}</span>
         <span className="reference-group-name">{name}</span>
         <span className="reference-group-count">{entries.length}</span>
       </button>

@@ -405,6 +405,41 @@
   transform: rotate(90deg);
 }
 
+.reference-group-type-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.045);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.reference-group--type-url .reference-group-type-icon,
+.reference-group--type-iframe .reference-group-type-icon {
+  background: rgba(35, 131, 226, 0.09);
+  color: var(--accent);
+}
+
+.reference-group--type-agent .reference-group-type-icon {
+  background: rgba(139, 92, 246, 0.1);
+  color: #6d48c8;
+}
+
+.reference-group--type-terminal .reference-group-type-icon {
+  background: rgba(0, 0, 0, 0.08);
+  color: var(--text);
+}
+
+.reference-group--type-missing .reference-group-type-icon {
+  background: rgba(192, 57, 43, 0.1);
+  color: #c0392b;
+}
+
 .reference-group-name {
   flex: 1;
   overflow: hidden;
