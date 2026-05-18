@@ -626,6 +626,7 @@ const CanvasNodeViewComponent = ({
             className="node-reference"
             type="button"
             onClick={handleReference}
+            onMouseDown={(e) => e.stopPropagation()}
             title="Reference"
             aria-label={`Pin ${node.title} as reference`}
           >
@@ -641,14 +642,26 @@ const CanvasNodeViewComponent = ({
           </button>
         ) : null}
         {fullscreenButton}
-        <button className="node-focus" onClick={handleFocus} title="Focus">
+        <button
+          className="node-focus"
+          type="button"
+          onClick={handleFocus}
+          onMouseDown={(e) => e.stopPropagation()}
+          title="Focus"
+        >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3" />
             <path d="M6 1v2M6 9v2M1 6h2M9 6h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
           </svg>
         </button>
         {readOnly ? null : (
-          <button className="node-close" onClick={handleClose} title="Remove">
+          <button
+            className="node-close"
+            type="button"
+            onClick={handleClose}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Remove"
+          >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
