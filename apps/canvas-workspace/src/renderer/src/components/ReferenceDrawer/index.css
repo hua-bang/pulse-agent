@@ -292,8 +292,16 @@
   gap: 4px;
 }
 
-.reference-search {
+.reference-search-row {
   margin: 8px 14px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.reference-search {
+  flex: 1 1 auto;
+  min-width: 0;
   height: 28px;
   display: flex;
   align-items: center;
@@ -538,6 +546,11 @@
   margin-right: auto;
 }
 
+.reference-card-meta-group--toolbar {
+  flex: 0 0 auto;
+  margin-right: 0;
+}
+
 .reference-group-chip {
   border: 1px dashed var(--border-light);
   background: transparent;
@@ -563,7 +576,7 @@
 .reference-group-editor {
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 0;
+  right: 0;
   width: 220px;
   padding: 10px;
   background: var(--surface);

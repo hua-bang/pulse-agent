@@ -378,15 +378,15 @@ export const ReferenceDrawer = ({
   const searchActive = debouncedSearch.length > 0;
   const canPinSelected = !!selectedNode && !references.some((entry) => !isUrlReference(entry) && entry.nodeId === selectedNode.id);
 
-  const labelEditor = activeReferenceId ? (
-    <div className="reference-card-meta-group" ref={groupEditorRef}>
+  const groupControl = activeReferenceId ? (
+    <div className="reference-card-meta-group reference-card-meta-group--toolbar" ref={groupEditorRef}>
       <button
         type="button"
         className="reference-group-chip"
         onClick={openGroupEditor}
-        title="Change custom group label"
+        title="Change reference group"
       >
-        {activeReferenceGroup ? `Label: ${activeReferenceGroup}` : '+ Label'}
+        {activeReferenceGroup ? `Group: ${activeReferenceGroup}` : 'Group'}
       </button>
       {groupEditorOpen && (
         <div className="reference-group-editor" role="dialog">
@@ -394,7 +394,7 @@ export const ReferenceDrawer = ({
             autoFocus
             className="reference-group-input"
             value={groupDraft}
-            placeholder="Custom label"
+            placeholder="Custom group"
             onChange={(e) => setGroupDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -602,32 +602,35 @@ export const ReferenceDrawer = ({
         </div>
       </div>
 
-      <div className="reference-search">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M7.1 12.2a5.1 5.1 0 100-10.2 5.1 5.1 0 000 10.2zM11 11l3 3"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
+      <div className="reference-search-row">
+        <div className="reference-search">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path
+              d="M7.1 12.2a5.1 5.1 0 100-10.2 5.1 5.1 0 000 10.2zM11 11l3 3"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+          </svg>
+          <input
+            value={searchDraft}
+            onChange={(e) => setSearchDraft(e.target.value)}
+            placeholder="Search references"
+            aria-label="Search references"
           />
-        </svg>
-        <input
-          value={searchDraft}
-          onChange={(e) => setSearchDraft(e.target.value)}
-          placeholder="Search references and canvas nodes"
-          aria-label="Search references"
-        />
-        {searchDraft && (
-          <button
-            type="button"
-            className="reference-search-clear"
-            onClick={() => setSearchDraft('')}
-            aria-label="Clear reference search"
-            title="Clear search"
-          >
-            ×
-          </button>
-        )}
+          {searchDraft && (
+            <button
+              type="button"
+              className="reference-search-clear"
+              onClick={() => setSearchDraft('')}
+              aria-label="Clear reference search"
+              title="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        {groupControl}
       </div>
 
       <div className="reference-drawer-content">
@@ -660,7 +663,6 @@ export const ReferenceDrawer = ({
               <div className="reference-url-card reference-url-card--preview">
                 <ReferenceUrlWebPreview reference={activeReference} drawerWidth={drawerWidth} />
                 <div className="reference-card-footer">
-                  {labelEditor}
                   <button
                     className="reference-drawer-secondary"
                     type="button"
@@ -700,7 +702,6 @@ export const ReferenceDrawer = ({
                   onFocusNode={onFocusNode}
                 />
                 <div className="reference-card-footer">
-                  {labelEditor}
                   <button
                     className="reference-drawer-secondary"
                     type="button"
