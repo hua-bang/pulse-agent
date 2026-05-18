@@ -389,17 +389,14 @@
   animation: reference-content-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.reference-group-list {
+.reference-entry-list {
   padding: 6px 10px 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   flex: 0 0 auto;
   max-height: 30%;
   overflow-y: auto;
 }
 
-.reference-group {
+.reference-picker-group {
   display: flex;
   flex-direction: column;
 }
@@ -436,7 +433,7 @@
   transform: rotate(0deg);
 }
 
-.reference-group:not(.reference-group--collapsed) .reference-group-caret {
+.reference-picker-group:not(.reference-group--collapsed) .reference-group-caret {
   transform: rotate(90deg);
 }
 
@@ -496,7 +493,7 @@
   gap: 2px;
 }
 
-.reference-group .reference-group-items {
+.reference-picker-group .reference-group-items {
   padding-left: 14px;
 }
 
@@ -566,6 +563,25 @@
 .reference-group-item-remove:hover {
   background: rgba(0, 0, 0, 0.06);
   color: var(--text);
+}
+
+.reference-picker-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 14px;
+}
+
+.reference-entry-list .reference-group-items {
+  gap: 2px;
+}
+
+.reference-entry-list .reference-group-item {
+  padding: 4px 6px;
+}
+
+.reference-picker-group-items .reference-picker-item {
+  width: 100%;
 }
 
 .reference-group-suggestions {

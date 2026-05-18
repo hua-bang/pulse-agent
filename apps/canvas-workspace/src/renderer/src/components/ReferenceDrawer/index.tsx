@@ -57,12 +57,12 @@ const REFERENCE_GROUP_ORDER: ReferenceGroupKey[] = [
   'missing',
 ];
 
+const PICKER_NODE_TYPE_GROUP_ORDER = REFERENCE_GROUP_ORDER.filter(
+  (type): type is CanvasNode['type'] => type !== 'url' && type !== 'missing',
+);
+
 const isUrlReference = (entry: ReferenceEntry): entry is UrlReferenceEntry => entry.kind === 'url';
 const getReferenceId = (entry: ReferenceEntry) => isUrlReference(entry) ? entry.id : entry.nodeId;
-const getReferenceGroupKey = (entry: ReferenceEntry, nodeById: Map<string, CanvasNode>): ReferenceGroupKey => {
-  if (isUrlReference(entry)) return 'url';
-  return nodeById.get(entry.nodeId)?.type ?? 'missing';
-};
 const getReferenceGroupLabel = (type: ReferenceGroupKey) => {
   if (type === 'url') return 'URL';
   if (type === 'missing') return 'Missing nodes';
@@ -249,24 +249,6 @@ export const ReferenceDrawer = ({
     return map;
   }, [nodes]);
 
-  const typeGroups = useMemo(() => {
-    const map = new Map<ReferenceGroupKey, ReferenceEntry[]>();
-    for (const entry of references) {
-      const key = getReferenceGroupKey(entry, nodeById);
-      const list = map.get(key);
-      if (list) list.push(entry);
-      else map.set(key, [entry]);
-    }
-
-    return REFERENCE_GROUP_ORDER
-      .filter((type) => map.has(type))
-      .map((type) => ({
-        type,
-        name: getReferenceGroupLabel(type),
-        entries: map.get(type) ?? [],
-      }));
-  }, [references, nodeById]);
-
   const knownGroupNames = useMemo(() => {
     const set = new Set<string>();
     for (const entry of references) {
@@ -291,6 +273,23 @@ export const ReferenceDrawer = ({
         .some((value) => value.toLowerCase().includes(debouncedSearch));
     });
   }, [eligiblePickableNodes, debouncedSearch]);
+
+  const pickableNodeGroups = useMemo(() => {
+    const map = new Map<CanvasNode['type'], CanvasNode[]>();
+    for (const node of pickableNodes) {
+      const list = map.get(node.type);
+      if (list) list.push(node);
+      else map.set(node.type, [node]);
+    }
+
+    return PICKER_NODE_TYPE_GROUP_ORDER
+      .filter((type) => map.has(type))
+      .map((type) => ({
+        type,
+        name: getReferenceGroupLabel(type),
+        nodes: map.get(type) ?? [],
+      }));
+  }, [pickableNodes]);
 
   const handlePinSelected = useCallback(() => {
     if (!selectedNode) return;
@@ -458,16 +457,14 @@ export const ReferenceDrawer = ({
                     {searchActive ? 'No canvas nodes match this search.' : 'All eligible nodes are pinned.'}
                   </div>
                 ) : (
-                  pickableNodes.map((node) => (
-                    <button
-                      key={node.id}
-                      className="reference-picker-item"
-                      type="button"
-                      onClick={() => handleAddFromPicker(node.id)}
-                    >
-                      <span className="reference-picker-item-type">{node.type}</span>
-                      <span className="reference-picker-item-label">{getNodeDisplayLabel(node)}</span>
-                    </button>
+                  pickableNodeGroups.map((group) => (
+                    <ReferencePickerGroupSection
+                      key={group.type}
+                      type={group.type}
+                      name={group.name}
+                      nodes={group.nodes}
+                      onPick={handleAddFromPicker}
+                    />
                   ))
                 )}
               </div>
@@ -541,21 +538,16 @@ export const ReferenceDrawer = ({
           <ReferenceEmptyState selectedNode={selectedNode} />
         ) : (
           <>
-            <div className="reference-group-list">
-              {typeGroups.map((group) => (
-                <ReferenceGroupSection
-                  key={group.type}
-                  name={group.name}
-                  type={group.type}
-                  entries={group.entries}
-                  nodeById={nodeById}
-                  activeId={activeReferenceId}
-                  onSelect={onSelectReference}
-                  onFocus={onFocusNode}
-                  onOpenUrl={openUrl}
-                  onRemove={onRemoveReference}
-                />
-              ))}
+            <div className="reference-entry-list">
+              <ReferenceEntryList
+                entries={references}
+                nodeById={nodeById}
+                activeId={activeReferenceId}
+                onSelect={onSelectReference}
+                onFocus={onFocusNode}
+                onOpenUrl={openUrl}
+                onRemove={onRemoveReference}
+              />
             </div>
 
             {activeReference && isUrlReference(activeReference) ? (
@@ -770,20 +762,22 @@ const ReferenceEntryList = ({
   </ul>
 );
 
-interface ReferenceGroupSectionProps extends ReferenceEntryListProps {
+interface ReferencePickerGroupSectionProps {
   name: string;
-  type: ReferenceGroupKey;
+  type: CanvasNode['type'];
+  nodes: CanvasNode[];
+  onPick: (nodeId: string) => void;
 }
 
-const ReferenceGroupSection = ({
+const ReferencePickerGroupSection = ({
   name,
   type,
-  entries,
-  ...listProps
-}: ReferenceGroupSectionProps) => {
+  nodes,
+  onPick,
+}: ReferencePickerGroupSectionProps) => {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <div className={`reference-group reference-group--type-${type}${collapsed ? ' reference-group--collapsed' : ''}`}>
+    <div className={`reference-picker-group reference-group--type-${type}${collapsed ? ' reference-group--collapsed' : ''}`}>
       <button
         className="reference-group-header"
         type="button"
@@ -802,10 +796,22 @@ const ReferenceGroupSection = ({
         </svg>
         <span className="reference-group-type-icon" aria-hidden="true">{getReferenceGroupIcon(type)}</span>
         <span className="reference-group-name">{name}</span>
-        <span className="reference-group-count">{entries.length}</span>
+        <span className="reference-group-count">{nodes.length}</span>
       </button>
       {!collapsed && (
-        <ReferenceEntryList entries={entries} {...listProps} />
+        <div className="reference-picker-group-items">
+          {nodes.map((node) => (
+            <button
+              key={node.id}
+              className="reference-picker-item"
+              type="button"
+              onClick={() => onPick(node.id)}
+            >
+              <span className="reference-picker-item-type">{node.type}</span>
+              <span className="reference-picker-item-label">{getNodeDisplayLabel(node)}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
