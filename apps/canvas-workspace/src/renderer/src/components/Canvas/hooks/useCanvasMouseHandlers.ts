@@ -176,7 +176,6 @@ export const useCanvasMouseHandlers = ({
     (e: React.MouseEvent, node: CanvasNode) => {
       if (e.button === 0 && !e.altKey) {
         isDraggingRef.current = true;
-        setNodeGestureActive(true);
       }
       onDragStart(e, node);
     },
@@ -195,7 +194,6 @@ export const useCanvasMouseHandlers = ({
     ) => {
       if (e.button === 0) {
         isDraggingRef.current = true;
-        setNodeGestureActive(true);
       }
       onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
     },
@@ -226,7 +224,18 @@ export const useCanvasMouseHandlers = ({
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      if (isDraggingRef.current) handleWindowDragMove(e);
+      if (isDraggingRef.current) {
+        handleWindowDragMove(e);
+        // Defer mounting the interaction shield until we actually see drag
+        // motion. Mounting on mousedown swallows the trailing mouseup /
+        // click / dblclick on top of the originating node (the shield is
+        // the highest-z element when mouseup fires, so click and dblclick
+        // resolve on its common ancestor instead of the node) — which
+        // silently breaks "double-click a text node to edit" and similar
+        // node interactions. Idempotent setState skips re-renders past the
+        // first move.
+        setNodeGestureActive(true);
+      }
     };
     const onUp = () => {
       if (isDraggingRef.current) handleMouseUp();
