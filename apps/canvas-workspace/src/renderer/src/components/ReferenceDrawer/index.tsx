@@ -57,9 +57,18 @@ const REFERENCE_GROUP_ORDER: ReferenceGroupKey[] = [
   'missing',
 ];
 
-const PICKER_NODE_TYPE_GROUP_ORDER = REFERENCE_GROUP_ORDER.filter(
-  (type): type is CanvasNode['type'] => type !== 'url' && type !== 'missing',
-);
+const PICKER_NODE_TYPE_GROUP_ORDER: CanvasNode['type'][] = [
+  'iframe',
+  'file',
+  'text',
+  'image',
+  'agent',
+  'terminal',
+  'mindmap',
+  'shape',
+  'frame',
+  'group',
+];
 
 const isUrlReference = (entry: ReferenceEntry): entry is UrlReferenceEntry => entry.kind === 'url';
 const getReferenceId = (entry: ReferenceEntry) => isUrlReference(entry) ? entry.id : entry.nodeId;
