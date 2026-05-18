@@ -423,6 +423,8 @@ export const Canvas = ({
         />
       )}
 
+      {mouse.interactionShieldActive && <div className="canvas-interaction-shield" aria-hidden="true" />}
+
       <CanvasOverlays
         nodes={nodes}
         contextMenu={ctxMenu.contextMenu}
