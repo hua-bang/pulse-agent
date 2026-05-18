@@ -162,7 +162,6 @@ export const ReferenceDrawer = ({
   const [urlEditorOpen, setUrlEditorOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
   const [urlError, setUrlError] = useState<string | undefined>();
-  const [groupDraft, setGroupDraft] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -249,14 +248,6 @@ export const ReferenceDrawer = ({
     return map;
   }, [nodes]);
 
-  const knownGroupNames = useMemo(() => {
-    const set = new Set<string>();
-    for (const entry of references) {
-      if (entry.group?.trim()) set.add(entry.group.trim());
-    }
-    return Array.from(set);
-  }, [references]);
-
   const eligiblePickableNodes = useMemo(() => {
     const referenced = new Set(references.filter((entry) => !isUrlReference(entry)).map((entry) => entry.nodeId));
     return nodes
@@ -297,10 +288,9 @@ export const ReferenceDrawer = ({
   }, [selectedNode, onAddReference]);
 
   const handleAddFromPicker = useCallback((nodeId: string) => {
-    const group = groupDraft.trim() || undefined;
-    onAddReference(nodeId, group);
+    onAddReference(nodeId);
     setPickerOpen(false);
-  }, [groupDraft, onAddReference]);
+  }, [onAddReference]);
 
   const handleAddUrl = useCallback(() => {
     const normalized = normalizeReferenceUrl(urlDraft);
@@ -428,28 +418,6 @@ export const ReferenceDrawer = ({
                     </button>
                   )}
                 </div>
-                <label className="reference-picker-group-field">
-                  <span>Group</span>
-                  <input
-                    value={groupDraft}
-                    onChange={(e) => setGroupDraft(e.target.value)}
-                    placeholder="Optional group for added nodes"
-                  />
-                </label>
-                {knownGroupNames.length > 0 && (
-                  <div className="reference-group-suggestions">
-                    {knownGroupNames.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        className="reference-group-suggestion"
-                        onClick={() => setGroupDraft(name)}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
               <div className="reference-picker-list" role="listbox">
                 {pickableNodes.length === 0 ? (
