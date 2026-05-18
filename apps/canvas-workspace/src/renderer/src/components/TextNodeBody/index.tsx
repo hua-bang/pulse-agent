@@ -69,7 +69,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
       // invisible on the canvas (transparent bg, no chrome). The placeholder
       // doubles as a "there's a node here" marker at rest.
       Placeholder.configure({
-        placeholder: "Double-click to edit",
+        placeholder: "Double-click or press Enter to edit",
         showOnlyWhenEditable: false,
       }),
       // Markdown extension kept for keyboard shortcuts (`# `, `- `, etc.)
@@ -133,6 +133,32 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
       editor?.commands.blur();
     }
   }, [isSelected, editing, editor]);
+
+  // Enter / F2 on a selected (but not yet editing) text node → drop into edit
+  // mode with the caret at the end. Matches Figma / tldraw / Excalidraw. Without
+  // this, a user who single-clicks a populated text node and tries to type sees
+  // nothing happen: drag mode swallows the click, the "Double-click to edit"
+  // placeholder only shows on empty nodes, and no other hint exists. Capture
+  // phase + defaultPrevented dedupe means multi-select picks one winner.
+  useEffect(() => {
+    if (!editor || !isSelected || editing || readOnly) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key !== "Enter" && e.key !== "F2") return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (
+        active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable
+      )) return;
+      e.preventDefault();
+      setEditing(true);
+      requestAnimationFrame(() => editor.commands.focus("end"));
+    };
+    window.addEventListener("keydown", handler, { capture: true });
+    return () => window.removeEventListener("keydown", handler, { capture: true });
+  }, [editor, isSelected, editing, readOnly]);
 
   // Auto-size the wrapper to fit content. Height ALWAYS tracks content so a
   // text node can never clip or scroll (prosemirror's auto-scroll-into-view
