@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type MutableRefObject, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
 import type { CanvasNode } from '../../../types';
 import type { EdgeInteractionState } from '../../../hooks/useEdgeInteraction';
 import type { ResizeEdge } from '../../../hooks/useNodeResize';
@@ -105,6 +105,7 @@ export const useCanvasMouseHandlers = ({
   // seeing a consistent stream. Track the gesture at the window level too
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
+  const [nodeGestureActive, setNodeGestureActive] = useState(false);
   const pendingParentNodesRef = useRef<CanvasNode[] | null>(null);
 
   const handleCanvasClick = useCallback(
@@ -173,7 +174,10 @@ export const useCanvasMouseHandlers = ({
 
   const handleSurfaceDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
-      if (e.button === 0 && !e.altKey) isDraggingRef.current = true;
+      if (e.button === 0 && !e.altKey) {
+        isDraggingRef.current = true;
+        setNodeGestureActive(true);
+      }
       onDragStart(e, node);
     },
     [onDragStart],
@@ -189,7 +193,10 @@ export const useCanvasMouseHandlers = ({
       minWidth?: number,
       minHeight?: number,
     ) => {
-      if (e.button === 0) isDraggingRef.current = true;
+      if (e.button === 0) {
+        isDraggingRef.current = true;
+        setNodeGestureActive(true);
+      }
       onResizeStart(e, nodeId, width, height, edge, minWidth, minHeight);
     },
     [onResizeStart],
@@ -209,6 +216,7 @@ export const useCanvasMouseHandlers = ({
     onDragEnd();
     onResizeEnd();
     isDraggingRef.current = false;
+    setNodeGestureActive(false);
     if (wasNodeGesture) {
       commitHistory();
       onNodesChange?.(canvasId, pendingParentNodesRef.current ?? nodesRef.current);
@@ -255,17 +263,35 @@ export const useCanvasMouseHandlers = ({
     : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
     : '';
 
-  const iframeShieldClass =
-    activeTool === 'hand' ||
-    moving ||
+  const edgeDragging = isEdgeDragging(edgeInteractionState);
+  const interactionShieldActive =
     panning ||
     marquee.active ||
     shapeDraft !== null ||
-    isDraggingRef.current ||
+    nodeGestureActive ||
     resizingId !== null ||
-    isEdgeDragging(edgeInteractionState)
-      ? ' canvas-container--iframe-shielding'
-      : '';
+    edgeDragging;
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const active = interactionShieldActive;
+    root.classList.toggle('canvas-workspace-interaction-active', active);
+
+    return () => {
+      if (active) {
+        root.classList.remove('canvas-workspace-interaction-active');
+      }
+    };
+  }, [interactionShieldActive]);
+
+  const iframeShieldActive =
+    activeTool === 'hand' ||
+    moving ||
+    interactionShieldActive;
+
+  const iframeShieldClass = iframeShieldActive
+    ? ' canvas-container--iframe-shielding'
+    : '';
 
   return {
     isDraggingRef,
@@ -278,6 +304,7 @@ export const useCanvasMouseHandlers = ({
     handleSurfaceResizeStart,
     cursorClass,
     iframeShieldClass,
+    interactionShieldActive,
     isEdgeDragging: () => isEdgeDragging(edgeInteractionState),
   };
 };

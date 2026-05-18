@@ -40,6 +40,21 @@
   pointer-events: none;
 }
 
+.canvas-interaction-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 1800;
+  background: transparent;
+  pointer-events: auto;
+  cursor: inherit;
+}
+
+.canvas-workspace-interaction-active iframe,
+.canvas-workspace-interaction-active webview,
+.canvas-workspace-interaction-active .iframe-frame {
+  pointer-events: none !important;
+}
+
 .canvas-container--shape {
   cursor: crosshair;
 }
