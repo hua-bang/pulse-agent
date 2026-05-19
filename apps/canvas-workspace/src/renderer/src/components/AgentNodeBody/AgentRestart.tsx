@@ -85,12 +85,13 @@ export const AgentRestart = ({
   const cwdDisplay = cwd ? truncatePath(cwd, 36) : 'Working Directory';
   const hasPrompt = !!(prompt && prompt.trim().length > 0);
   const promptPreview = hasPrompt ? '已保存' : '未提供';
-  // Claude Code is the only agent that can actually resume the
-  // previous conversation (via `--resume <uuid>`). For the others a
-  // restart is really a fresh launch, so we keep the "编辑初始化参数"
-  // escape hatch. For Claude, the saved config is what gets resumed
-  // verbatim — no need to expose an edit affordance from here.
-  const canResume = agentType === 'claude-code';
+  // Agents whose restart actually picks up the previous conversation:
+  // Claude Code does it via `--resume <uuid>` and Codex CLI via
+  // `codex resume --last`. For these the saved config is what gets
+  // resumed verbatim, so the "编辑初始化参数" escape hatch would be
+  // misleading. Pulse-Coder restart is still a fresh launch — keep
+  // the edit affordance there.
+  const canResume = agentType === 'claude-code' || agentType === 'codex';
   const restartLabel = canResume ? '继续上次会话' : '重新启动会话';
   const restartTitle = canResume
     ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`

@@ -71,24 +71,31 @@ export const detectAgentView = (data: AgentNodeData): ViewMode => {
 
 /**
  * After a cold reload, decide whether to silently resume instead of
- * showing the Restart card. Limited to Claude Code because only its
- * CLI supports caller-supplied --resume <uuid> that actually picks up
- * the prior conversation; Codex / Pulse-Coder would silently start a
- * fresh session and confusingly lose context. Also limited to
- * `status === 'running'`, so a node the user saw exit (status='done'
- * or 'error') still surfaces the Restart card and waits for an
- * explicit user action — auto-reviving an agent the user thought was
- * stopped would be surprising.
+ * showing the Restart card. Each agent gets in based on whether its
+ * CLI actually has a "pick up the conversation" affordance we can
+ * invoke headlessly:
+ *   - Claude Code: pinned to a caller-supplied cliSessionId on first
+ *     spawn → resumed via `claude --resume <uuid>` deterministically.
+ *   - Codex CLI: no caller-supplied id, but `codex resume --last`
+ *     picks the most recent session in the current cwd — close
+ *     enough for our per-node continuity model.
+ *   - Pulse-Coder: no resume integration yet, stays on Restart card.
+ *
+ * Limited to `status === 'running'` across the board so a node the
+ * user saw exit (status='done' or 'error') still surfaces the Restart
+ * card; auto-reviving an agent the user thought was stopped would be
+ * surprising.
  */
 const shouldAutoResume = (data: AgentNodeData): boolean => {
-  if (data.agentType !== 'claude-code') return false;
-  if (!data.cliSessionId) return false;
   if (data.status !== 'running') return false;
   if (data.viewMode !== 'running') return false;
-  return !!(
-    (data.sessionId && data.sessionId.length > 0)
-    || (data.scrollback && data.scrollback.length > 0)
-  );
+  const hasPriorSession =
+    !!(data.sessionId && data.sessionId.length > 0)
+    || !!(data.scrollback && data.scrollback.length > 0);
+  if (!hasPriorSession) return false;
+  if (data.agentType === 'claude-code') return !!data.cliSessionId;
+  if (data.agentType === 'codex') return true;
+  return false;
 };
 
 export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
@@ -141,6 +148,13 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
    *  `running`, so the resumed spawn uses `--resume <uuid>` instead
    *  of `--session-id <uuid>`. */
   const pendingResumeRef = useRef(shouldAutoResume(data));
+  /** True only on initial mount when shouldAutoResume(data) was true.
+   *  Consumed by the spawn effect to force a fresh backend PTY:
+   *  without this, the main process's still-warm session map would
+   *  short-circuit `pty:spawn` into `{ reused: true }` and the new
+   *  xterm would reattach to a Claude whose alt-screen state we have
+   *  no way to recover, leaving the panel visually frozen. */
+  const needsAutoMintRef = useRef(shouldAutoResume(data));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -148,7 +162,6 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   const cleanupRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sessionId = data.sessionId || node.id;
   const nodeIdRef = useRef(node.id);
   nodeIdRef.current = node.id;
   const dataRef = useRef(data);
@@ -162,8 +175,9 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     async (
       agentType: string,
       cwd: string,
-      inlinePromptOverride?: string,
-      resumeMode = false,
+      inlinePromptOverride: string | undefined,
+      resumeMode: boolean,
+      sessionId: string,
     ) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
 
@@ -206,6 +220,15 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         return true;
       });
 
+      // Fit synchronously *before* spawn so the PTY is created at the
+      // terminal's actual rendered dimensions. Without this, spawn
+      // would use xterm's default 80×24, and TUI agents like Claude
+      // Code lay out their input prompt at what they think is the
+      // bottom (row 24) — which in our larger panel ends up parked
+      // partway down the screen with empty space underneath. A second
+      // RAF-deferred fit covers the rare case where the container
+      // hadn't finished layout at this point.
+      try { fitAddon.fit(); } catch { /* ignore */ }
       requestAnimationFrame(() => {
         try { fitAddon.fit(); } catch { /* ignore */ }
       });
@@ -217,21 +240,21 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       }
 
       // Resolve the agent command to write once the shell is ready.
-      // For Claude Code we pin the conversation to a caller-supplied
-      // session uuid: `--session-id <uuid>` on the first spawn so the
-      // CLI files the conversation under our id, and `--resume <uuid>`
-      // on subsequent spawns of the same node so the conversation
-      // continues exactly where it left off. This sidesteps having to
-      // scan ~/.claude/projects or parse the terminal output.
+      // Two agents currently understand "pick up where you left off":
+      //   - Claude Code: we mint a UUID ourselves and pin the
+      //     conversation to it via `--session-id <uuid>` on the first
+      //     spawn, then `--resume <uuid>` on every restart. The id
+      //     lives on the node so resume is deterministic regardless
+      //     of what else has run in the same cwd.
+      //   - Codex CLI: doesn't accept a caller-supplied id, but does
+      //     expose `codex resume --last` which continues the most
+      //     recent session in the current cwd — close enough for our
+      //     per-node continuity model. No id to track on the node.
+      // Other agents (Pulse-Coder) fall through to a plain spawn.
       const command = getAgentCommand(agentType);
       const existingCliSessionId = dataRef.current.cliSessionId;
       const cliSessionId = existingCliSessionId || crypto.randomUUID();
-      const canResume = !!existingCliSessionId;
-      const buildClaudeFlags = (): string => {
-        if (agentType !== 'claude-code') return '';
-        const flag = resumeMode && canResume ? '--resume' : '--session-id';
-        return ` ${flag} ${cliSessionId}`;
-      };
+      const canResumeClaude = !!existingCliSessionId;
       const writeCommandTimeRef = { current: 0 };
       const writeCommand = () => {
         if (!command) {
@@ -240,18 +263,32 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
           return;
         }
         writeCommandTimeRef.current = Date.now();
-        const flags = buildClaudeFlags();
+
         const { inlinePrompt, promptFile, agentArgs } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
-        if (effectivePrompt) {
-          const escaped = effectivePrompt.replace(/'/g, "'\\''");
-          api.write(sessionId, `${command}${flags} '${escaped}'\n`);
-        } else if (promptFile) {
-          api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
-        } else if (agentArgs) {
-          api.write(sessionId, `${command}${flags} ${agentArgs}\n`);
+
+        // Codex `resume --last` ignores any trailing prompt argument
+        // and reads input from the resumed session's prompt, so on a
+        // resume spawn for Codex we skip the prompt entirely. The user
+        // already saw the prior conversation; they'll type their next
+        // message into the picker/prompt that comes up.
+        if (agentType === 'codex' && resumeMode) {
+          api.write(sessionId, `${command} resume --last\n`);
         } else {
-          api.write(sessionId, `${command}${flags}\n`);
+          const flags =
+            agentType === 'claude-code'
+              ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
+              : '';
+          if (effectivePrompt) {
+            const escaped = effectivePrompt.replace(/'/g, "'\\''");
+            api.write(sessionId, `${command}${flags} '${escaped}'\n`);
+          } else if (promptFile) {
+            api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
+          } else if (agentArgs) {
+            api.write(sessionId, `${command}${flags} ${agentArgs}\n`);
+          } else {
+            api.write(sessionId, `${command}${flags}\n`);
+          }
         }
 
         if (effectivePrompt || promptFile) {
@@ -279,31 +316,60 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       // happily waits for events.
       let prompted = false;
       const removeDataRef: { current: (() => void) | null } = { current: null };
-      // Dismiss the loading overlay on the first chunk that arrives at
-      // least ~400ms after writeCommand fires — that filters out the
-      // shell's instant echo of our launch command, so the overlay
-      // stays up through the multi-second CLI bootstrap and goes away
-      // the moment the agent itself starts emitting output.
+      // Two-phase loading-overlay dismissal so the spinner stays up
+      // through the multi-second CLI startup and goes away the moment
+      // the user can actually interact:
+      //   Phase 1: after writeCommand, ignore the first ~300ms of
+      //            output (that's the shell echoing our launch command,
+      //            not the agent itself). The next chunk after that
+      //            window marks "banner started".
+      //   Phase 2: once banner started, each chunk resets a 500ms
+      //            quiescence timer. When the agent finally falls
+      //            silent — the natural signal that the banner is
+      //            done printing and it's waiting for input —
+      //            quiescence elapses and we dismiss.
+      // A 15s fail-safe still covers pathological cases (agent never
+      // emits anything past the echo). The shell-error / agent-exit /
+      // effect-cleanup paths also call dismissLoading() so it can't
+      // wedge.
+      const ECHO_WINDOW_MS = 300;
+      const QUIESCENCE_MS = 500;
+      const FAILSAFE_MS = 15_000;
       let loadingDismissed = false;
+      let bannerStarted = false;
+      let quiescenceTimer: ReturnType<typeof setTimeout> | null = null;
       const dismissLoading = () => {
         if (loadingDismissed) return;
         loadingDismissed = true;
+        if (quiescenceTimer) {
+          clearTimeout(quiescenceTimer);
+          quiescenceTimer = null;
+        }
         setLoading(false);
       };
-      // Fail-safe in case the agent never produces post-echo output
-      // (e.g. exits immediately, hangs on first prompt).
-      const loadingTimeout = setTimeout(dismissLoading, 12_000);
+      const scheduleQuiescence = () => {
+        if (loadingDismissed) return;
+        if (quiescenceTimer) clearTimeout(quiescenceTimer);
+        quiescenceTimer = setTimeout(() => {
+          quiescenceTimer = null;
+          dismissLoading();
+        }, QUIESCENCE_MS);
+      };
+      const loadingTimeout = setTimeout(dismissLoading, FAILSAFE_MS);
 
       const attachPermanentListener = () => {
         removeDataRef.current = api.onData(sessionId, (d: string) => {
           term.write(d);
-          if (
-            !loadingDismissed
-            && writeCommandTimeRef.current > 0
-            && Date.now() - writeCommandTimeRef.current > 400
-          ) {
-            dismissLoading();
+          if (loadingDismissed) return;
+          if (writeCommandTimeRef.current === 0) return;
+          const since = Date.now() - writeCommandTimeRef.current;
+          if (!bannerStarted) {
+            // Still inside the shell-echo window — wait for the next
+            // post-echo chunk before treating output as "banner".
+            if (since <= ECHO_WINDOW_MS) return;
+            bannerStarted = true;
           }
+          scheduleQuiescence();
         });
       };
 
@@ -375,16 +441,34 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         api.kill(sessionId);
       };
     },
-    [sessionId, rootFolder, workspaceId, readOnly],
+    [rootFolder, workspaceId, readOnly],
   );
 
   useEffect(() => {
     if (viewMode === 'running' && !spawnedRef.current) {
+      let runSessionId = dataRef.current.sessionId || nodeIdRef.current;
+      if (needsAutoMintRef.current) {
+        // Auto-resume cold-reload prep: the handler-triggered paths
+        // (handleLaunch / handleRestartSession) already mint a fresh
+        // PTY sessionId before flipping viewMode, but this auto-mount
+        // path bypasses them. Without the kill+mint, the backend's
+        // still-warm pty:spawn returns `reused: true` for our old id
+        // and the new xterm wires up to a Claude whose alt-screen
+        // state it can't see.
+        needsAutoMintRef.current = false;
+        const apiPty = window.canvasWorkspace?.pty;
+        if (apiPty && runSessionId) apiPty.kill(runSessionId);
+        runSessionId = mintSessionId(nodeIdRef.current);
+        onUpdateRef.current(nodeIdRef.current, {
+          data: { ...dataRef.current, sessionId: runSessionId, scrollback: '' },
+        });
+      }
       void spawnAgent(
         pendingAgentRef.current,
         pendingCwdRef.current,
         pendingPromptRef.current,
         pendingResumeRef.current,
+        runSessionId,
       );
     }
     return () => {
@@ -394,7 +478,8 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       const api = window.canvasWorkspace?.pty;
       if (termRef.current && api && viewMode === 'running') {
         const scrollback = serializeBuffer(termRef.current);
-        void api.getCwd(sessionId).then((r) => {
+        const activeSessionId = dataRef.current.sessionId || nodeIdRef.current;
+        void api.getCwd(activeSessionId).then((r) => {
           const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
           onUpdateRef.current(nodeIdRef.current, {
             data: { ...dataRef.current, scrollback, cwd },
@@ -484,10 +569,11 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         : undefined;
       const label = filePath ? filePath.split('/').pop() : selected.title;
       const mention = `@[${label}](canvas:${selected.id})`;
-      void api.write(sessionId, mention);
+      const activeSessionId = dataRef.current.sessionId || nodeIdRef.current;
+      void api.write(activeSessionId, mention);
     }
     termRef.current?.focus();
-  }, [sessionId, readOnly]);
+  }, [readOnly]);
 
   const handleMentionClose = useCallback(() => {
     setPickerOpen(false);
@@ -507,7 +593,12 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     pendingAgentRef.current = savedAgent;
     pendingCwdRef.current = savedCwd;
     pendingPromptRef.current = savedPrompt;
-    pendingResumeRef.current = !!dataRef.current.cliSessionId && savedAgent === 'claude-code';
+    // Resume strategies that the spawn supports:
+    //   - Claude Code with a stored cliSessionId → `--resume <uuid>`
+    //   - Codex CLI (any prior session in this cwd)  → `resume --last`
+    pendingResumeRef.current =
+      (savedAgent === 'claude-code' && !!dataRef.current.cliSessionId)
+      || savedAgent === 'codex';
     const api = window.canvasWorkspace?.pty;
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
