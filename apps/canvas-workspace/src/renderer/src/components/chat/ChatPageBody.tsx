@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { CanvasNode } from '../../types';
-import { CloseIcon } from '../icons';
+import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import './ChatPage.css';
 import './ChatPanel.css';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
-import { useChatSessions } from './hooks/useChatSessions';
-import { useChatStream } from './hooks/useChatStream';
-import { useMentions } from './hooks/useMentions';
+import { ModelSettingsDrawer } from './ModelSettings';
+import { PromptSettingsDrawer } from './PromptSettings';
+import { useChatComposerState } from './hooks/useChatComposerState';
 import type { WorkspaceOption } from './types';
 
 const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
@@ -57,58 +57,56 @@ export const ChatPageBody = ({
 
   const {
     abort,
+    addImageToCanvas,
     answerClarification,
+    attachments,
+    canvasModels,
     clarifyInput,
+    clearInput,
     collapsedSections,
+    editableRef,
     expandedTools,
-    loading,
-    messageTools,
-    messages,
-    pendingClarify,
-    replaceMessages,
-    sendMessage,
-    setClarifyInput,
-    streamingTools,
-    toggleSection,
-    toggleToolExpand,
-  } = useChatStream({ workspaceId, allWorkspaces });
-
-  const {
-    otherSessions,
+    focusInput,
+    handleAttachFiles,
+    handleInput,
+    handleKeyDown,
     handleLoadSession,
     handleNewSession,
+    handlePaste,
+    input,
+    loading,
+    mentionIndex,
+    mentionItems,
+    mentionOpen,
+    messageTools,
+    messages,
+    modelSettingsOpen,
+    setModelSettingsOpen,
+    otherSessions,
+    pendingClarify,
+    promptProfile,
+    promptSettingsOpen,
+    setPromptSettingsOpen,
+    removeAttachment,
+    selectMention,
+    sendMessage,
     sessions,
-  } = useChatSessions({
+    setClarifyInput,
+    setMentionIndex,
+    streamingTools,
+    submitCurrentInput,
+    toggleSection,
+    toggleToolExpand,
+  } = useChatComposerState({
     workspaceId,
     allWorkspaces,
-    onMessagesLoaded: replaceMessages,
+    nodes,
+    rootFolder,
     eagerLoad: true,
     // If we're about to load a specific session on mount, don't also fetch
     // the current active-session history — it would race with the pending
     // load and potentially overwrite it.
     skipInitialHistory: initialPendingRef.current !== null,
-  });
-
-  const {
-    clearInput,
-    editableRef,
-    focusInput,
-    handleInput,
-    handleKeyDown,
-    handlePaste,
-    input,
-    mentionIndex,
-    mentionItems,
-    mentionOpen,
-    selectMention,
-    setMentionIndex,
-    submitCurrentInput,
-  } = useMentions({
-    allWorkspaces,
-    workspaceId,
-    nodes,
-    rootFolder,
-    onSubmit: sendMessage,
   });
 
   useEffect(() => {
@@ -179,6 +177,7 @@ export const ChatPageBody = ({
   }, [sessions, otherSessions, workspaceId, allWorkspaces]);
 
   return (
+    <>
     <div className="chat-page">
       <div className={`chat-page-rail-wrapper${railCollapsed ? ' chat-page-rail-wrapper--collapsed' : ''}`}>
         <ChatSessionsRail
@@ -199,6 +198,30 @@ export const ChatPageBody = ({
             <RailToggleIcon size={16} />
           </button>
           <div className="chat-page-topbar-spacer" />
+          <button
+            className="chat-panel-action-btn"
+            onClick={() => setPromptSettingsOpen(true)}
+            title="回复风格 / 自定义提示词"
+            aria-label="Reply style and custom prompt"
+          >
+            <SparklesIcon size={16} strokeWidth={1.25} />
+          </button>
+          <button
+            className="chat-panel-action-btn"
+            onClick={() => setModelSettingsOpen(true)}
+            title="AI model settings"
+            aria-label="AI model settings"
+          >
+            <SettingsIcon size={16} strokeWidth={1.25} />
+          </button>
+          <button
+            className="chat-panel-action-btn"
+            onClick={() => void handleNewSession()}
+            title="New AI chat"
+            aria-label="New AI chat"
+          >
+            <PlusIcon size={16} strokeWidth={1.3} />
+          </button>
           <button
             className="chat-panel-action-btn"
             onClick={onExit}
@@ -224,10 +247,12 @@ export const ChatPageBody = ({
           onAnswerClarification={answerClarification}
           onToggleSection={toggleSection}
           onToggleToolExpand={toggleToolExpand}
+          onAddImageToCanvas={addImageToCanvas}
           nodes={nodes}
           onNodeFocus={handleNodeFocus}
           onQuickAction={handleQuickAction}
           input={input}
+          attachments={attachments}
           editableRef={editableRef}
           mentionOpen={mentionOpen}
           mentionItems={mentionItems}
@@ -237,10 +262,37 @@ export const ChatPageBody = ({
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onAttachFiles={handleAttachFiles}
+          onRemoveAttachment={removeAttachment}
           onSubmit={submitCurrentInput}
           onAbort={abort}
+          modelStatus={canvasModels.status}
+          modelSelection={canvasModels.selection}
+          modelLabel={canvasModels.selectedLabel}
+          onSelectAutoModel={canvasModels.selectAuto}
+          onSelectModel={canvasModels.selectModel}
+          onOpenModelSettings={() => setModelSettingsOpen(true)}
+          contextComposer
         />
       </div>
     </div>
+    <ModelSettingsDrawer
+      open={modelSettingsOpen}
+      status={canvasModels.status}
+      error={canvasModels.error}
+      onClose={() => setModelSettingsOpen(false)}
+      onSaveProvider={canvasModels.upsertProvider}
+      onRemoveProvider={canvasModels.removeProvider}
+      onFetchModels={canvasModels.fetchModels}
+    />
+    <PromptSettingsDrawer
+      open={promptSettingsOpen}
+      profile={promptProfile.profile}
+      error={promptProfile.error}
+      onClose={() => setPromptSettingsOpen(false)}
+      onSave={promptProfile.save}
+      onReset={promptProfile.reset}
+    />
+    </>
   );
 };
