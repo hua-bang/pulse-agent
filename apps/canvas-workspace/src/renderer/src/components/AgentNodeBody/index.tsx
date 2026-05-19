@@ -71,24 +71,31 @@ export const detectAgentView = (data: AgentNodeData): ViewMode => {
 
 /**
  * After a cold reload, decide whether to silently resume instead of
- * showing the Restart card. Limited to Claude Code because only its
- * CLI supports caller-supplied --resume <uuid> that actually picks up
- * the prior conversation; Codex / Pulse-Coder would silently start a
- * fresh session and confusingly lose context. Also limited to
- * `status === 'running'`, so a node the user saw exit (status='done'
- * or 'error') still surfaces the Restart card and waits for an
- * explicit user action — auto-reviving an agent the user thought was
- * stopped would be surprising.
+ * showing the Restart card. Each agent gets in based on whether its
+ * CLI actually has a "pick up the conversation" affordance we can
+ * invoke headlessly:
+ *   - Claude Code: pinned to a caller-supplied cliSessionId on first
+ *     spawn → resumed via `claude --resume <uuid>` deterministically.
+ *   - Codex CLI: no caller-supplied id, but `codex resume --last`
+ *     picks the most recent session in the current cwd — close
+ *     enough for our per-node continuity model.
+ *   - Pulse-Coder: no resume integration yet, stays on Restart card.
+ *
+ * Limited to `status === 'running'` across the board so a node the
+ * user saw exit (status='done' or 'error') still surfaces the Restart
+ * card; auto-reviving an agent the user thought was stopped would be
+ * surprising.
  */
 const shouldAutoResume = (data: AgentNodeData): boolean => {
-  if (data.agentType !== 'claude-code') return false;
-  if (!data.cliSessionId) return false;
   if (data.status !== 'running') return false;
   if (data.viewMode !== 'running') return false;
-  return !!(
-    (data.sessionId && data.sessionId.length > 0)
-    || (data.scrollback && data.scrollback.length > 0)
-  );
+  const hasPriorSession =
+    !!(data.sessionId && data.sessionId.length > 0)
+    || !!(data.scrollback && data.scrollback.length > 0);
+  if (!hasPriorSession) return false;
+  if (data.agentType === 'claude-code') return !!data.cliSessionId;
+  if (data.agentType === 'codex') return true;
+  return false;
 };
 
 export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
@@ -233,21 +240,21 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       }
 
       // Resolve the agent command to write once the shell is ready.
-      // For Claude Code we pin the conversation to a caller-supplied
-      // session uuid: `--session-id <uuid>` on the first spawn so the
-      // CLI files the conversation under our id, and `--resume <uuid>`
-      // on subsequent spawns of the same node so the conversation
-      // continues exactly where it left off. This sidesteps having to
-      // scan ~/.claude/projects or parse the terminal output.
+      // Two agents currently understand "pick up where you left off":
+      //   - Claude Code: we mint a UUID ourselves and pin the
+      //     conversation to it via `--session-id <uuid>` on the first
+      //     spawn, then `--resume <uuid>` on every restart. The id
+      //     lives on the node so resume is deterministic regardless
+      //     of what else has run in the same cwd.
+      //   - Codex CLI: doesn't accept a caller-supplied id, but does
+      //     expose `codex resume --last` which continues the most
+      //     recent session in the current cwd — close enough for our
+      //     per-node continuity model. No id to track on the node.
+      // Other agents (Pulse-Coder) fall through to a plain spawn.
       const command = getAgentCommand(agentType);
       const existingCliSessionId = dataRef.current.cliSessionId;
       const cliSessionId = existingCliSessionId || crypto.randomUUID();
-      const canResume = !!existingCliSessionId;
-      const buildClaudeFlags = (): string => {
-        if (agentType !== 'claude-code') return '';
-        const flag = resumeMode && canResume ? '--resume' : '--session-id';
-        return ` ${flag} ${cliSessionId}`;
-      };
+      const canResumeClaude = !!existingCliSessionId;
       const writeCommandTimeRef = { current: 0 };
       const writeCommand = () => {
         if (!command) {
@@ -256,18 +263,32 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
           return;
         }
         writeCommandTimeRef.current = Date.now();
-        const flags = buildClaudeFlags();
+
         const { inlinePrompt, promptFile, agentArgs } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
-        if (effectivePrompt) {
-          const escaped = effectivePrompt.replace(/'/g, "'\\''");
-          api.write(sessionId, `${command}${flags} '${escaped}'\n`);
-        } else if (promptFile) {
-          api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
-        } else if (agentArgs) {
-          api.write(sessionId, `${command}${flags} ${agentArgs}\n`);
+
+        // Codex `resume --last` ignores any trailing prompt argument
+        // and reads input from the resumed session's prompt, so on a
+        // resume spawn for Codex we skip the prompt entirely. The user
+        // already saw the prior conversation; they'll type their next
+        // message into the picker/prompt that comes up.
+        if (agentType === 'codex' && resumeMode) {
+          api.write(sessionId, `${command} resume --last\n`);
         } else {
-          api.write(sessionId, `${command}${flags}\n`);
+          const flags =
+            agentType === 'claude-code'
+              ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
+              : '';
+          if (effectivePrompt) {
+            const escaped = effectivePrompt.replace(/'/g, "'\\''");
+            api.write(sessionId, `${command}${flags} '${escaped}'\n`);
+          } else if (promptFile) {
+            api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
+          } else if (agentArgs) {
+            api.write(sessionId, `${command}${flags} ${agentArgs}\n`);
+          } else {
+            api.write(sessionId, `${command}${flags}\n`);
+          }
         }
 
         if (effectivePrompt || promptFile) {
@@ -572,7 +593,12 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     pendingAgentRef.current = savedAgent;
     pendingCwdRef.current = savedCwd;
     pendingPromptRef.current = savedPrompt;
-    pendingResumeRef.current = !!dataRef.current.cliSessionId && savedAgent === 'claude-code';
+    // Resume strategies that the spawn supports:
+    //   - Claude Code with a stored cliSessionId → `--resume <uuid>`
+    //   - Codex CLI (any prior session in this cwd)  → `resume --last`
+    pendingResumeRef.current =
+      (savedAgent === 'claude-code' && !!dataRef.current.cliSessionId)
+      || savedAgent === 'codex';
     const api = window.canvasWorkspace?.pty;
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
