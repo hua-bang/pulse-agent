@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
@@ -7,7 +6,6 @@ interface AgentRestartProps {
   agentType: string;
   cwd?: string;
   prompt?: string;
-  scrollback?: string;
   onRestart: () => void;
   onEdit: () => void;
 }
@@ -76,22 +74,27 @@ const PencilGlyph = () => (
   </svg>
 );
 
-const tailLines = (text: string, count = 12): string =>
-  text.split('\n').slice(-count).join('\n').replace(/^\s+|\s+$/g, '');
-
 export const AgentRestart = ({
   agentType,
   cwd,
   prompt,
-  scrollback,
   onRestart,
   onEdit,
 }: AgentRestartProps) => {
-  const [showDetails, setShowDetails] = useState(false);
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
   const cwdDisplay = cwd ? truncatePath(cwd, 36) : 'Working Directory';
   const hasPrompt = !!(prompt && prompt.trim().length > 0);
   const promptPreview = hasPrompt ? '已保存' : '未提供';
+  // Claude Code is the only agent that can actually resume the
+  // previous conversation (via `--resume <uuid>`). For the others a
+  // restart is really a fresh launch, so we keep the "编辑初始化参数"
+  // escape hatch. For Claude, the saved config is what gets resumed
+  // verbatim — no need to expose an edit affordance from here.
+  const canResume = agentType === 'claude-code';
+  const restartLabel = canResume ? '继续上次会话' : '重新启动会话';
+  const restartTitle = canResume
+    ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`
+    : 'Restart with saved configuration';
 
   return (
     <div className="agent-body-wrap agent-body-wrap--restart">
@@ -140,52 +143,23 @@ export const AgentRestart = ({
             type="button"
             className="agent-primary-btn"
             onClick={onRestart}
-            title="Restart with saved configuration"
+            title={restartTitle}
           >
             <PlayGlyph />
-            重新启动会话
+            {restartLabel}
           </button>
-          <button
-            type="button"
-            className="agent-secondary-btn"
-            onClick={onEdit}
-            title="Edit initial parameters"
-          >
-            <PencilGlyph />
-            编辑初始化参数
-          </button>
+          {!canResume && (
+            <button
+              type="button"
+              className="agent-secondary-btn"
+              onClick={onEdit}
+              title="Edit initial parameters"
+            >
+              <PencilGlyph />
+              编辑初始化参数
+            </button>
+          )}
         </div>
-
-        <button
-          type="button"
-          className="agent-text-link agent-text-link--center"
-          onClick={() => setShowDetails((v) => !v)}
-          title="View last configuration"
-        >
-          {showDetails ? '收起' : '查看上次配置'}
-        </button>
-
-        {showDetails && (
-          <div className="agent-details">
-            {hasPrompt && (
-              <div className="agent-details-block">
-                <div className="agent-details-label">Initial Prompt</div>
-                <pre className="agent-details-content">{prompt}</pre>
-              </div>
-            )}
-            {scrollback && scrollback.trim().length > 0 && (
-              <div className="agent-details-block">
-                <div className="agent-details-label">Last Output</div>
-                <pre className="agent-details-content agent-details-content--scrollback">
-                  {tailLines(scrollback)}
-                </pre>
-              </div>
-            )}
-            {!hasPrompt && (!scrollback || !scrollback.trim()) && (
-              <div className="agent-details-empty">无更多保存信息。</div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

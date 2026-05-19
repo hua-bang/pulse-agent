@@ -544,7 +544,6 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         agentType={data.agentType || 'claude-code'}
         cwd={data.cwd}
         prompt={data.lastInitPrompt}
-        scrollback={data.scrollback}
         onRestart={handleRestartSession}
         onEdit={handleEditInit}
       />
