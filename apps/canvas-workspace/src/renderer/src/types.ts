@@ -76,6 +76,15 @@ export interface AgentNodeData {
    * nodes won't have it; consumers should fall back to a derived value.
    */
   viewMode?: 'setup' | 'running' | 'restart';
+  /**
+   * Caller-supplied session id for the underlying coding-agent CLI.
+   * Currently only consumed by Claude Code (via `--session-id <uuid>` on
+   * first spawn and `--resume <uuid>` on restart) so the conversation
+   * survives across PTY teardowns without us having to parse the CLI's
+   * output or scan its on-disk session store. Generated via
+   * `crypto.randomUUID()`; absent on legacy nodes and non-Claude agents.
+   */
+  cliSessionId?: string;
 }
 
 /**

@@ -101,6 +101,10 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   const pendingAgentRef = useRef(data.agentType || 'claude-code');
   const pendingCwdRef = useRef(data.cwd || '');
   const pendingPromptRef = useRef(data.inlinePrompt || '');
+  /** True when the next spawn should resume an existing CLI session
+   *  instead of creating a new one. Flipped by handleRestartSession,
+   *  reset by handleLaunch. */
+  const pendingResumeRef = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -119,7 +123,12 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   getAllNodesRef.current = getAllNodes;
 
   const spawnAgent = useCallback(
-    async (agentType: string, cwd: string, inlinePromptOverride?: string) => {
+    async (
+      agentType: string,
+      cwd: string,
+      inlinePromptOverride?: string,
+      resumeMode = false,
+    ) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
 
       if (readOnly) {
@@ -170,24 +179,39 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         return;
       }
 
-      // Resolve the agent command to write once the shell is ready
+      // Resolve the agent command to write once the shell is ready.
+      // For Claude Code we pin the conversation to a caller-supplied
+      // session uuid: `--session-id <uuid>` on the first spawn so the
+      // CLI files the conversation under our id, and `--resume <uuid>`
+      // on subsequent spawns of the same node so the conversation
+      // continues exactly where it left off. This sidesteps having to
+      // scan ~/.claude/projects or parse the terminal output.
       const command = getAgentCommand(agentType);
+      const existingCliSessionId = dataRef.current.cliSessionId;
+      const cliSessionId = existingCliSessionId || crypto.randomUUID();
+      const canResume = !!existingCliSessionId;
+      const buildClaudeFlags = (): string => {
+        if (agentType !== 'claude-code') return '';
+        const flag = resumeMode && canResume ? '--resume' : '--session-id';
+        return ` ${flag} ${cliSessionId}`;
+      };
       const writeCommand = () => {
         if (!command) {
           term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
           return;
         }
+        const flags = buildClaudeFlags();
         const { inlinePrompt, promptFile, agentArgs } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
         if (effectivePrompt) {
           const escaped = effectivePrompt.replace(/'/g, "'\\''");
-          api.write(sessionId, `${command} '${escaped}'\n`);
+          api.write(sessionId, `${command}${flags} '${escaped}'\n`);
         } else if (promptFile) {
-          api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command} "$__prompt"\n`);
+          api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
         } else if (agentArgs) {
-          api.write(sessionId, `${command} ${agentArgs}\n`);
+          api.write(sessionId, `${command}${flags} ${agentArgs}\n`);
         } else {
-          api.write(sessionId, `${command}\n`);
+          api.write(sessionId, `${command}${flags}\n`);
         }
 
         if (effectivePrompt || promptFile) {
@@ -257,7 +281,14 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       term.onResize(({ cols, rows }) => { api.resize(sessionId, cols, rows); });
 
       onUpdateRef.current(nodeIdRef.current, {
-        data: { ...dataRef.current, agentType, cwd: spawnCwd ?? '', status: 'running', sessionId },
+        data: {
+          ...dataRef.current,
+          agentType,
+          cwd: spawnCwd ?? '',
+          status: 'running',
+          sessionId,
+          cliSessionId,
+        },
       });
 
       saveTimerRef.current = setInterval(async () => {
@@ -285,6 +316,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         pendingAgentRef.current,
         pendingCwdRef.current,
         pendingPromptRef.current,
+        pendingResumeRef.current,
       );
     }
     return () => {
@@ -339,6 +371,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     pendingAgentRef.current = selectedAgent;
     pendingCwdRef.current = effectiveCwd;
     pendingPromptRef.current = prompt;
+    pendingResumeRef.current = false;
     if (effectiveCwd) {
       setRecentCwds(pushRecentCwd(effectiveCwd));
     }
@@ -346,6 +379,11 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
     const freshSessionId = mintSessionId(nodeIdRef.current);
+    // 初始化 always starts a brand-new conversation: mint a fresh
+    // cliSessionId so Claude Code files this run under our id (and so
+    // any orphaned id from a previously-active agent type doesn't get
+    // misinterpreted as resumable).
+    const freshCliSessionId = crypto.randomUUID();
     // Persist the launch intent to disk immediately. If the user reloads
     // before spawnAgent's own post-spawn update commits, the node will
     // reopen in the Restart view (because sessionId/scrollback get persisted
@@ -360,6 +398,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         status: 'running',
         sessionId: freshSessionId,
         scrollback: '',
+        cliSessionId: freshCliSessionId,
       },
     });
     setFromRestart(false);
@@ -387,8 +426,10 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   }, []);
 
   /** Restart with saved config from the Restart view. Mints a fresh
-   * sessionId and explicitly kills any leftover backend session so a
-   * cold-reload-leaked PTY doesn't intercept the new spawn. */
+   * PTY sessionId and explicitly kills any leftover backend session so a
+   * cold-reload-leaked PTY doesn't intercept the new spawn. The CLI-level
+   * session (cliSessionId) is preserved so Claude Code can resume the
+   * conversation in-place via `--resume <uuid>`. */
   const handleRestartSession = useCallback(() => {
     if (readOnly) return;
     const savedAgent = data.agentType || selectedAgent;
@@ -397,6 +438,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     pendingAgentRef.current = savedAgent;
     pendingCwdRef.current = savedCwd;
     pendingPromptRef.current = savedPrompt;
+    pendingResumeRef.current = !!dataRef.current.cliSessionId && savedAgent === 'claude-code';
     const api = window.canvasWorkspace?.pty;
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
