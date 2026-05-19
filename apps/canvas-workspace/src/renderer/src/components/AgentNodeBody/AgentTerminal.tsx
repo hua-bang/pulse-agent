@@ -8,6 +8,11 @@ interface AgentTerminalProps {
   status: string;
   agentType: string;
   cwd?: string;
+  /** True while the PTY + agent CLI are bootstrapping. Used to render a
+   *  loading overlay on top of the otherwise-empty terminal so the user
+   *  doesn't stare at a black panel during the 1–3s Claude / Codex
+   *  startup window. */
+  loading?: boolean;
 }
 
 const FolderGlyph = () => (
@@ -32,10 +37,16 @@ export const AgentTerminal = ({
   status,
   agentType,
   cwd,
+  loading = false,
 }: AgentTerminalProps) => {
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
   const statusInfo = STATUS_TEXT[status] ?? STATUS_TEXT.running;
   const displayCwd = cwd ? truncatePath(cwd, 32) : '—';
+  const loadingLabel = loading
+    ? `正在启动 ${agentDef?.label ?? agentType}…`
+    : '';
+  const loadStripText = loading ? '启动中' : statusInfo.load;
+  const loadStripTone = loading ? 'running' : statusInfo.tone;
 
   return (
     <div className="agent-body-wrap agent-body-wrap--running">
@@ -51,17 +62,30 @@ export const AgentTerminal = ({
             <span className="agent-info-text agent-info-text--mono">{displayCwd}</span>
           </span>
           <span className="agent-info-sep" aria-hidden="true" />
-          <span className={`agent-info-cell agent-info-load agent-info-load--${statusInfo.tone}`}>
+          <span
+            className={`agent-info-cell agent-info-load agent-info-load--${loadStripTone}${
+              loading ? ' agent-info-load--pulsing' : ''
+            }`}
+          >
             <span className="agent-info-load-dot" />
-            {statusInfo.load}
+            {loadStripText}
           </span>
         </div>
 
-        <div
-          ref={containerRef}
-          className="agent-xterm-container"
-          onMouseDown={(e) => e.stopPropagation()}
-        />
+        <div className="agent-xterm-wrap">
+          <div
+            ref={containerRef}
+            className="agent-xterm-container"
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+          {loading && (
+            <div className="agent-loading-overlay" aria-live="polite">
+              <div className="agent-loading-spinner" aria-hidden="true" />
+              <div className="agent-loading-text">{loadingLabel}</div>
+              <div className="agent-loading-hint">首次加载会慢一些，稍候即可</div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

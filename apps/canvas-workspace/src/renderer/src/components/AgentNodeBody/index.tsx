@@ -95,6 +95,11 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
    * so we can show a Back link and route the next launch back to Restart on
    * cancel. */
   const [fromRestart, setFromRestart] = useState(false);
+  /** True from the moment spawnAgent starts until the agent CLI has
+   *  printed something substantive (or a 12s fail-safe elapses).
+   *  Drives the loading overlay shown over the otherwise-empty
+   *  terminal during the multi-second CLI bootstrap. */
+  const [loading, setLoading] = useState(false);
 
   // Refs that survive across the setup→running transition so the
   // useEffect that spawns after re-render can read the user's selection.
@@ -153,6 +158,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         return;
       }
       spawnedRef.current = true;
+      setLoading(true);
 
       const term = new Terminal(TERMINAL_OPTIONS);
       const fitAddon = new FitAddon();
@@ -195,11 +201,14 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         const flag = resumeMode && canResume ? '--resume' : '--session-id';
         return ` ${flag} ${cliSessionId}`;
       };
+      const writeCommandTimeRef = { current: 0 };
       const writeCommand = () => {
         if (!command) {
           term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
+          setLoading(false);
           return;
         }
+        writeCommandTimeRef.current = Date.now();
         const flags = buildClaudeFlags();
         const { inlinePrompt, promptFile, agentArgs } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
@@ -239,9 +248,32 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       // happily waits for events.
       let prompted = false;
       const removeDataRef: { current: (() => void) | null } = { current: null };
+      // Dismiss the loading overlay on the first chunk that arrives at
+      // least ~400ms after writeCommand fires — that filters out the
+      // shell's instant echo of our launch command, so the overlay
+      // stays up through the multi-second CLI bootstrap and goes away
+      // the moment the agent itself starts emitting output.
+      let loadingDismissed = false;
+      const dismissLoading = () => {
+        if (loadingDismissed) return;
+        loadingDismissed = true;
+        setLoading(false);
+      };
+      // Fail-safe in case the agent never produces post-echo output
+      // (e.g. exits immediately, hangs on first prompt).
+      const loadingTimeout = setTimeout(dismissLoading, 12_000);
 
       const attachPermanentListener = () => {
-        removeDataRef.current = api.onData(sessionId, (d: string) => { term.write(d); });
+        removeDataRef.current = api.onData(sessionId, (d: string) => {
+          term.write(d);
+          if (
+            !loadingDismissed
+            && writeCommandTimeRef.current > 0
+            && Date.now() - writeCommandTimeRef.current > 400
+          ) {
+            dismissLoading();
+          }
+        });
       };
 
       const promptRemove = api.onData(sessionId, (d: string) => {
@@ -256,6 +288,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
 
       const removeExit = api.onExit(sessionId, (code: number) => {
         term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
+        dismissLoading();
         onUpdateRef.current(nodeIdRef.current, {
           data: { ...dataRef.current, status: 'done' },
         });
@@ -267,6 +300,8 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         if (!prompted) promptRemove();
         removeDataRef.current?.();
         removeExit();
+        clearTimeout(loadingTimeout);
+        dismissLoading();
         term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
         onUpdateRef.current(nodeIdRef.current, {
           data: { ...dataRef.current, status: 'error' },
@@ -304,6 +339,8 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         if (!prompted) promptRemove();
         removeDataRef.current?.();
         removeExit();
+        clearTimeout(loadingTimeout);
+        dismissLoading();
         api.kill(sessionId);
       };
     },
@@ -340,6 +377,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       fitRef.current = null;
       spawnedRef.current = false;
       cleanupRef.current = null;
+      setLoading(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewMode]);
@@ -527,6 +565,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         status={status}
         agentType={data.agentType || 'claude-code'}
         cwd={data.cwd}
+        loading={loading}
       />
     </>
   );
