@@ -1,27 +1,57 @@
-/** Monoline SVG icon per agent, matching the app's stroke-icon style. */
-export const AgentIcon = ({ id }: { id: string }) => {
+/**
+ * Per-agent brand mark. Each glyph is sized inside a 16×16 viewBox so it
+ * can be dropped into pills, tabs, info strips, or saved-config rows with
+ * consistent visual weight.
+ */
+export const AgentIcon = ({ id, size = 14 }: { id: string; size?: number }) => {
   switch (id) {
     case 'claude-code':
       return (
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M5.5 6.5L7.5 8.5 5.5 10.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M9 10.5h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          <rect x="1.5" y="2.5" width="13" height="11" rx="2" stroke="currentColor" strokeWidth="1.3" />
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <g stroke="#e07b3f" strokeWidth="1.4" strokeLinecap="round">
+            <path d="M8 1.5v13" />
+            <path d="M1.5 8h13" />
+            <path d="M3.4 3.4l9.2 9.2" />
+            <path d="M12.6 3.4l-9.2 9.2" />
+          </g>
         </svg>
       );
     case 'codex':
       return (
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M8 1.5l5.6 3v6.9L8 14.5l-5.6-3.1V4.5L8 1.5z"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M2.6 4.7L8 7.8l5.4-3.1M8 7.8v6.6"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case 'pulse-coder':
+      return (
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path
+            d="M1.5 8h2.2l1.6-4 2 8 1.6-5 1.4 3h4.2"
+            stroke="#6366f1"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </svg>
       );
     default:
       return (
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-          <path d="M4 13V8l4-5 4 5v5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          <path d="M7 13v-3h2v3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
+          <path d="M8 5v3l2 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
         </svg>
       );
   }
 };
+

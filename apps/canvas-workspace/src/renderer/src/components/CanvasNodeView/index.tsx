@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import "./index.css";
-import type { CanvasNode, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, GroupNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
@@ -86,12 +86,6 @@ function formatRelativeTime(epochMs: number): string {
   return `${Math.floor(diffHr / 24)}d ago`;
 }
 
-const AGENT_STATUS_LABEL: Record<string, string> = {
-  running: 'Running',
-  done: 'Done',
-  error: 'Error',
-  idle: 'Idle',
-};
 
 function isCanvasPanGesture(e: React.MouseEvent): boolean {
   const handToolActive = e.currentTarget.closest('.canvas-container--hand') != null;
@@ -336,9 +330,6 @@ const CanvasNodeViewComponent = ({
     </button>
   ) : null;
 
-  const agentStatus = node.type === "agent"
-    ? ((node.data as AgentNodeData).status ?? 'idle')
-    : null;
 
   const relativeTime = node.updatedAt ? formatRelativeTime(node.updatedAt) : null;
 
@@ -563,15 +554,17 @@ const CanvasNodeViewComponent = ({
               <path d="M2 8h12M8 2c2 2 2 10 0 12M8 2c-2 2-2 10 0 12" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
             </svg>
           ) : (
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="5.5" r="3" stroke="currentColor" strokeWidth="1.3" />
-              <path d="M4 14c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-              <circle cx="6.5" cy="5" r="0.8" fill="currentColor" />
-              <circle cx="9.5" cy="5" r="0.8" fill="currentColor" />
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path
+                d="M9.2 2.2l1.1 2.9 2.9 1.1-2.9 1.1-1.1 2.9-1.1-2.9L5.2 6.2l2.9-1.1 1.1-2.9z"
+                fill="currentColor"
+              />
+              <path
+                d="M4.3 9.8l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4L2.3 11.8l1.4-.6.6-1.4z"
+                fill="currentColor"
+                opacity="0.55"
+              />
             </svg>
-          )}
-          {node.type === "agent" && agentStatus && agentStatus !== "idle" && (
-            <span className={`node-status-dot node-status-dot--${agentStatus}`} />
           )}
         </span>
         <span
@@ -605,12 +598,7 @@ const CanvasNodeViewComponent = ({
             Ungroup
           </button>
         )}
-        {node.type === "agent" && agentStatus && agentStatus !== 'idle' && (
-          <span className={`node-status-label node-status-label--${agentStatus}`}>
-            {AGENT_STATUS_LABEL[agentStatus] ?? agentStatus}
-          </span>
-        )}
-        {relativeTime && !(node.type === "agent" && agentStatus && agentStatus !== 'idle') && (
+        {relativeTime && (
           <span className="node-time-label" title={new Date(node.updatedAt!).toLocaleString()}>
             {relativeTime}
           </span>

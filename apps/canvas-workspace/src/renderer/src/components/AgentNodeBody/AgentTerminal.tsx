@@ -1,84 +1,97 @@
 import type React from 'react';
+import { AGENT_REGISTRY } from '../../config/agentRegistry';
+import { AgentIcon } from './AgentIcon';
+import { truncatePath } from './utils/terminal';
 
 interface AgentTerminalProps {
   containerRef: React.RefObject<HTMLDivElement>;
   status: string;
-  onRestart: () => void;
-  onStop?: () => void;
-  onSendPrompt?: (prompt: string) => void;
+  agentType: string;
+  cwd?: string;
+  /** True while the PTY + agent CLI are bootstrapping. Used to render a
+   *  loading overlay on top of the otherwise-empty terminal so the user
+   *  doesn't stare at a black panel during the 1–3s Claude / Codex
+   *  startup window. */
+  loading?: boolean;
 }
 
-const CONTINUE_PROMPT = 'continue';
-const SUMMARIZE_PROMPT = 'please summarize what you have done so far';
+const FolderGlyph = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M2 4.5A1.5 1.5 0 013.5 3H6l1.5 1.5h5A1.5 1.5 0 0114 6v5.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-7z"
+      stroke="currentColor"
+      strokeWidth="1.25"
+    />
+  </svg>
+);
+
+const STATUS_TEXT: Record<string, { load: string; tone: 'running' | 'done' | 'error' }> = {
+  running: { load: '已加载', tone: 'running' },
+  done: { load: '已退出', tone: 'done' },
+  error: { load: '出错', tone: 'error' },
+  idle: { load: '空闲', tone: 'done' },
+};
 
 export const AgentTerminal = ({
   containerRef,
   status,
-  onRestart,
-  onStop,
-  onSendPrompt,
-}: AgentTerminalProps) => (
-  <div className="agent-body-wrap">
-    <div
-      ref={containerRef}
-      className="agent-xterm-container"
-      onMouseDown={(e) => e.stopPropagation()}
-    />
-    {status === 'running' && (
-      <div className="agent-quick-actions">
-        <button
-          type="button"
-          className="agent-quick-btn"
-          onClick={() => onSendPrompt?.(CONTINUE_PROMPT)}
-          title="Send 'continue' to agent"
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <path d="M5 3l6 5-6 5V3z" fill="currentColor" />
-          </svg>
-          Continue
-        </button>
-        <button
-          type="button"
-          className="agent-quick-btn"
-          onClick={() => onSendPrompt?.(SUMMARIZE_PROMPT)}
-          title="Ask agent to summarize"
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4h10M3 7.5h7M3 11h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-          Summarize
-        </button>
-        <button
-          type="button"
-          className="agent-quick-btn agent-quick-btn--stop"
-          onClick={onStop}
-          title="Stop agent"
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" />
-          </svg>
-          Stop
-        </button>
-      </div>
-    )}
-    {(status === 'done' || status === 'error') && (
-      <button
-        type="button"
-        className="agent-restart-btn"
-        onClick={onRestart}
-        title="Restart agent"
-      >
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-          <path
-            d="M13 8a5 5 0 1 1-1.5-3.6M13 3v2.5H10.5"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+  agentType,
+  cwd,
+  loading = false,
+}: AgentTerminalProps) => {
+  const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
+  const statusInfo = STATUS_TEXT[status] ?? STATUS_TEXT.running;
+  const displayCwd = cwd ? truncatePath(cwd, 32) : '—';
+  const loadStripText = loading ? '启动中' : statusInfo.load;
+  const loadStripTone = loading ? 'running' : statusInfo.tone;
+
+  return (
+    <div className="agent-body-wrap agent-body-wrap--running">
+      <div className="agent-card">
+        <div className="agent-info-strip">
+          <span className="agent-info-cell">
+            <AgentIcon id={agentType} size={14} />
+            <span className="agent-info-text">{agentDef?.label ?? agentType}</span>
+          </span>
+          <span className="agent-info-sep" aria-hidden="true" />
+          <span className="agent-info-cell agent-info-cell--cwd" title={cwd ?? ''}>
+            <FolderGlyph />
+            <span className="agent-info-text agent-info-text--mono">{displayCwd}</span>
+          </span>
+          <span className="agent-info-sep" aria-hidden="true" />
+          <span
+            className={`agent-info-cell agent-info-load agent-info-load--${loadStripTone}${
+              loading ? ' agent-info-load--pulsing' : ''
+            }`}
+          >
+            <span className="agent-info-load-dot" />
+            {loadStripText}
+          </span>
+        </div>
+
+        <div className="agent-xterm-wrap">
+          <div
+            ref={containerRef}
+            className="agent-xterm-container"
+            onMouseDown={(e) => e.stopPropagation()}
           />
-        </svg>
-        Restart
-      </button>
-    )}
-  </div>
-);
+          {loading && (
+            <div
+              className={`agent-loading-overlay agent-loading-overlay--${agentType}`}
+              role="status"
+              aria-label={`Starting ${agentDef?.label ?? agentType}`}
+            >
+              <div className="agent-loading-mark" aria-hidden="true">
+                <span className="agent-loading-halo agent-loading-halo--outer" />
+                <span className="agent-loading-halo agent-loading-halo--inner" />
+                <span className="agent-loading-icon">
+                  <AgentIcon id={agentType} size={22} />
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

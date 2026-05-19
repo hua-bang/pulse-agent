@@ -60,6 +60,31 @@ export interface AgentNodeData {
   inlinePrompt?: string;
   /** Relative path to a prompt file in cwd for long prompts. */
   promptFile?: string;
+  /**
+   * Snapshot of the prompt the user supplied at launch time. `inlinePrompt`
+   * is cleared after being sent to the CLI to prevent re-sending on the
+   * next spawn, but the Restart view needs the original text to show what
+   * the previous session was started with.
+   */
+  lastInitPrompt?: string;
+  /**
+   * Current AgentNodeBody view ('setup' | 'running' | 'restart'). Persisted
+   * so the outer `CanvasNodeView` header can render the status pill that
+   * matches the body — and so a cold reload mid-running session can be
+   * distinguished from an active live PTY (the body rewrites this on
+   * mount based on the cold-reload heuristic). Optional because legacy
+   * nodes won't have it; consumers should fall back to a derived value.
+   */
+  viewMode?: 'setup' | 'running' | 'restart';
+  /**
+   * Caller-supplied session id for the underlying coding-agent CLI.
+   * Currently only consumed by Claude Code (via `--session-id <uuid>` on
+   * first spawn and `--resume <uuid>` on restart) so the conversation
+   * survives across PTY teardowns without us having to parse the CLI's
+   * output or scan its on-disk session store. Generated via
+   * `crypto.randomUUID()`; absent on legacy nodes and non-Claude agents.
+   */
+  cliSessionId?: string;
 }
 
 /**

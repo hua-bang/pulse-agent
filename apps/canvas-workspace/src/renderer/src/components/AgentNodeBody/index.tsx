@@ -13,6 +13,7 @@ import {
 } from './utils/terminal';
 import { AgentPicker } from './AgentPicker';
 import { AgentTerminal } from './AgentTerminal';
+import { AgentRestart } from './AgentRestart';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 
 interface Props {
@@ -25,36 +26,121 @@ interface Props {
   readOnly?: boolean;
 }
 
+type ViewMode = 'setup' | 'running' | 'restart';
+
+/**
+ * Mint a fresh PTY session id for a new spawn. We deliberately avoid
+ * reusing the node id (or a stale persisted sessionId) because the
+ * backend's `pty:spawn` short-circuits with `{ reused: true }` when the
+ * id is already in its map — and `pty:kill` is a fire-and-forget IPC,
+ * so a kill+respawn on the same id races and can attach the renderer
+ * to a session that gets torn down a moment later (resulting in an
+ * empty, dead terminal).
+ */
+const mintSessionId = (nodeId: string): string =>
+  `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+/**
+ * Read the current agent view from persisted data. The body keeps
+ * `data.viewMode` in sync with its real runtime view, so this function
+ * trusts that field above all else — including the presence of saved
+ * scrollback, which can be a legitimate live-session artifact (the save
+ * timer writes scrollback every 2s while the PTY is alive).
+ *
+ * Exported so the outer `CanvasNodeView` header can render a matching
+ * status pill from persisted data without needing a callback handshake
+ * with the body.
+ *
+ * Mount-time cold-reload detection lives in `AgentNodeBody`'s own
+ * `useState` initializer below — the body needs that nuance, the header
+ * doesn't.
+ */
+export const detectAgentView = (data: AgentNodeData): ViewMode => {
+  if (data.viewMode === 'setup') return 'setup';
+  if (data.viewMode === 'running') return 'running';
+  if (data.viewMode === 'restart') return 'restart';
+  // Legacy fallback for nodes persisted before `viewMode` existed.
+  const status = data.status ?? 'idle';
+  const hasPriorSession =
+    !!(data.sessionId && data.sessionId.length > 0)
+    || !!(data.scrollback && data.scrollback.length > 0);
+  if (hasPriorSession) return 'restart';
+  if (status === 'running' || status === 'done' || status === 'error') return 'running';
+  return 'setup';
+};
+
+/**
+ * After a cold reload, decide whether to silently resume instead of
+ * showing the Restart card. Limited to Claude Code because only its
+ * CLI supports caller-supplied --resume <uuid> that actually picks up
+ * the prior conversation; Codex / Pulse-Coder would silently start a
+ * fresh session and confusingly lose context. Also limited to
+ * `status === 'running'`, so a node the user saw exit (status='done'
+ * or 'error') still surfaces the Restart card and waits for an
+ * explicit user action — auto-reviving an agent the user thought was
+ * stopped would be surprising.
+ */
+const shouldAutoResume = (data: AgentNodeData): boolean => {
+  if (data.agentType !== 'claude-code') return false;
+  if (!data.cliSessionId) return false;
+  if (data.status !== 'running') return false;
+  if (data.viewMode !== 'running') return false;
+  return !!(
+    (data.sessionId && data.sessionId.length > 0)
+    || (data.scrollback && data.scrollback.length > 0)
+  );
+};
+
 export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
   const data = node.data as AgentNodeData;
   const status = data.status ?? 'idle';
 
   const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
   const [cwdInput, setCwdInput] = useState(data.cwd || '');
-  const [promptInput, setPromptInput] = useState(data.inlinePrompt || '');
+  const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
-  // Treat any of the following as evidence that the node has been launched
-  // before and should skip the picker on mount:
-  //   - an explicit running/done/error status,
-  //   - saved scrollback (the 2s interval writes this even when a status
-  //     update was lost to the debounced-save race),
-  //   - a persisted sessionId (only set after spawn succeeds).
-  // The scrollback/sessionId fallbacks rescue nodes that were launched under
-  // an earlier buggy code path where status never made it to disk.
-  const [launched, setLaunched] = useState(
-    status === 'running'
-      || status === 'done'
-      || status === 'error'
-      || !!(data.scrollback && data.scrollback.length > 0)
-      || !!(data.sessionId && data.sessionId.length > 0),
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    // Mount-time cold-reload override: if the persisted `viewMode` is
+    // `running` but the renderer just remounted (i.e. this useState
+    // initializer is firing), the PTY that backed it is gone. Saved
+    // sessionId / scrollback are the proof that a live session existed
+    // at some point. Normally we'd land on Restart so the user picks
+    // up where they left off explicitly — except Claude Code with a
+    // persisted cliSessionId can be silently resumed via `--resume
+    // <uuid>`, which is the truly seamless behavior. In that case we
+    // skip the Restart card entirely and route straight back to the
+    // running view; the spawn below picks the right flag because
+    // pendingResumeRef gets initialized to true alongside.
+    if (shouldAutoResume(data)) return 'running';
+    const hasPriorSession =
+      !!(data.sessionId && data.sessionId.length > 0)
+      || !!(data.scrollback && data.scrollback.length > 0);
+    if (data.viewMode === 'running' && hasPriorSession) return 'restart';
+    return detectAgentView(data);
+  });
+  /** True after a Setup view was entered via the Restart card's "Edit" action,
+   * so we can show a Back link and route the next launch back to Restart on
+   * cancel. */
+  const [fromRestart, setFromRestart] = useState(false);
+  /** True from the moment spawnAgent starts until the agent CLI has
+   *  printed something substantive (or a 12s fail-safe elapses).
+   *  Drives the loading overlay shown over the otherwise-empty
+   *  terminal during the multi-second CLI bootstrap. */
+  const [loading, setLoading] = useState(false);
 
-  // Refs that survive across the picker→terminal transition so the
+  // Refs that survive across the setup→running transition so the
   // useEffect that spawns after re-render can read the user's selection.
   const pendingAgentRef = useRef(data.agentType || 'claude-code');
   const pendingCwdRef = useRef(data.cwd || '');
   const pendingPromptRef = useRef(data.inlinePrompt || '');
+  /** True when the next spawn should resume an existing CLI session
+   *  instead of creating a new one. Flipped by handleRestartSession,
+   *  reset by handleLaunch. Initialized to true on mount when the
+   *  cold-reload heuristic auto-routes a Claude Code node into
+   *  `running`, so the resumed spawn uses `--resume <uuid>` instead
+   *  of `--session-id <uuid>`. */
+  const pendingResumeRef = useRef(shouldAutoResume(data));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -71,49 +157,28 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   onUpdateRef.current = onUpdate;
   const getAllNodesRef = useRef(getAllNodes);
   getAllNodesRef.current = getAllNodes;
-  const initialScrollback = useRef(data.scrollback ?? '');
-  /**
-   * Distinguishes a fresh user-initiated launch (picker → Start click) from
-   * the other ways `launched` can become true on mount. On a cold reload
-   * of a previously spawned PTY the backing shell has been torn down and
-   * cannot be reattached, so we must NOT re-spawn and re-run the agent
-   * command — doing so both destroys the saved terminal output and can
-   * race with status persistence.
-   *
-   * Note: this ref alone isn't sufficient to identify a cold reload — a
-   * tool-triggered auto-launch (e.g. `canvas_create_agent_node` with
-   * `autoLaunch: true`) also mounts with `launched=true` without a Start
-   * click but has never spawned a PTY. The mount effect combines this
-   * ref with `data.sessionId`/`data.scrollback` to tell the two apart.
-   *
-   * Stays `false` across re-renders; flipped to `true` in `handleLaunch`
-   * and reset in `handleRestart`.
-   */
-  const userLaunchedRef = useRef(false);
-  /** Tracks whether spawnAgent entered the restored (no-PTY) branch so the
-   * cleanup effect knows to skip PTY-related teardown. */
-  const isRestoredRef = useRef(false);
 
   const spawnAgent = useCallback(
     async (
       agentType: string,
       cwd: string,
       inlinePromptOverride?: string,
-      isRestored = false,
+      resumeMode = false,
     ) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
+
       if (readOnly) {
         spawnedRef.current = true;
-        isRestoredRef.current = true;
         const term = new Terminal(TERMINAL_OPTIONS);
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
         term.open(containerRef.current);
         termRef.current = term;
         fitRef.current = fitAddon;
-        if (initialScrollback.current) {
+        const saved = dataRef.current.scrollback;
+        if (saved) {
           term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
-          term.write(initialScrollback.current.split('\n').join('\r\n'));
+          term.write(saved.split('\n').join('\r\n'));
           term.writeln('');
         } else {
           term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
@@ -124,7 +189,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         return;
       }
       spawnedRef.current = true;
-      isRestoredRef.current = isRestored;
+      setLoading(true);
 
       const term = new Terminal(TERMINAL_OPTIONS);
       const fitAddon = new FitAddon();
@@ -145,74 +210,101 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         try { fitAddon.fit(); } catch { /* ignore */ }
       });
 
-      if (isRestored) {
-        // Cold reload: the PTY was killed on the previous unmount, so we
-        // cannot reattach. Replay the full saved scrollback as static
-        // output and mark status as 'done' so the Restart button shows.
-        // The user can click Restart to explicitly spawn a fresh session.
-        if (initialScrollback.current) {
-          term.writeln('\x1b[2m--- restored from previous session ---\x1b[0m');
-          term.write(initialScrollback.current.split('\n').join('\r\n'));
-          term.writeln('');
-        } else {
-          term.writeln('\x1b[2m--- previous session (no saved output) ---\x1b[0m');
-        }
-        if (dataRef.current.status !== 'done') {
-          onUpdateRef.current(nodeIdRef.current, {
-            data: { ...dataRef.current, status: 'done' },
-          });
-        }
-        return;
-      }
-
       const api = window.canvasWorkspace?.pty;
       if (!api) {
         term.writeln('\x1b[31mError: pty API not available (preload missing)\x1b[0m');
         return;
       }
 
-      const spawnCwd = cwd || rootFolder || undefined;
-      const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId);
-      if (!result.ok) {
-        term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
-        onUpdateRef.current(nodeIdRef.current, {
-          data: { ...dataRef.current, status: 'error' },
-        });
-        return;
-      }
-
-      // Resolve the agent command to write once the shell is ready
+      // Resolve the agent command to write once the shell is ready.
+      // For Claude Code we pin the conversation to a caller-supplied
+      // session uuid: `--session-id <uuid>` on the first spawn so the
+      // CLI files the conversation under our id, and `--resume <uuid>`
+      // on subsequent spawns of the same node so the conversation
+      // continues exactly where it left off. This sidesteps having to
+      // scan ~/.claude/projects or parse the terminal output.
       const command = getAgentCommand(agentType);
+      const existingCliSessionId = dataRef.current.cliSessionId;
+      const cliSessionId = existingCliSessionId || crypto.randomUUID();
+      const canResume = !!existingCliSessionId;
+      const buildClaudeFlags = (): string => {
+        if (agentType !== 'claude-code') return '';
+        const flag = resumeMode && canResume ? '--resume' : '--session-id';
+        return ` ${flag} ${cliSessionId}`;
+      };
+      const writeCommandTimeRef = { current: 0 };
       const writeCommand = () => {
         if (!command) {
           term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
+          setLoading(false);
           return;
         }
+        writeCommandTimeRef.current = Date.now();
+        const flags = buildClaudeFlags();
         const { inlinePrompt, promptFile, agentArgs } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
         if (effectivePrompt) {
           const escaped = effectivePrompt.replace(/'/g, "'\\''");
-          api.write(sessionId, `${command} '${escaped}'\n`);
+          api.write(sessionId, `${command}${flags} '${escaped}'\n`);
         } else if (promptFile) {
-          api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command} "$__prompt"\n`);
+          api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
         } else if (agentArgs) {
-          api.write(sessionId, `${command} ${agentArgs}\n`);
+          api.write(sessionId, `${command}${flags} ${agentArgs}\n`);
         } else {
-          api.write(sessionId, `${command}\n`);
+          api.write(sessionId, `${command}${flags}\n`);
         }
 
         if (effectivePrompt || promptFile) {
+          // Clear `inlinePrompt`/`promptFile` so they don't re-fire on next
+          // spawn, but stash a copy in `lastInitPrompt` so the Restart view
+          // can show what the previous session was started with.
           onUpdateRef.current(nodeIdRef.current, {
-            data: { ...dataRef.current, inlinePrompt: '', promptFile: '' },
+            data: {
+              ...dataRef.current,
+              inlinePrompt: '',
+              promptFile: '',
+              lastInitPrompt: effectivePrompt || dataRef.current.lastInitPrompt || '',
+            },
           });
         }
       };
 
+      // Attach the data listener BEFORE awaiting spawn. The backend creates
+      // the PTY synchronously inside the spawn handler and the shell starts
+      // emitting its prompt almost immediately, so if we wait for the await
+      // to resolve before attaching, the first chunk of output arrives on
+      // an IPC channel with no listener and is dropped — producing a black
+      // terminal that never prints anything. Attaching first is safe: until
+      // the spawn handler runs there's no one to emit, and ipcRenderer.on
+      // happily waits for events.
       let prompted = false;
-      let removeData: (() => void) | null = null;
+      const removeDataRef: { current: (() => void) | null } = { current: null };
+      // Dismiss the loading overlay on the first chunk that arrives at
+      // least ~400ms after writeCommand fires — that filters out the
+      // shell's instant echo of our launch command, so the overlay
+      // stays up through the multi-second CLI bootstrap and goes away
+      // the moment the agent itself starts emitting output.
+      let loadingDismissed = false;
+      const dismissLoading = () => {
+        if (loadingDismissed) return;
+        loadingDismissed = true;
+        setLoading(false);
+      };
+      // Fail-safe in case the agent never produces post-echo output
+      // (e.g. exits immediately, hangs on first prompt).
+      const loadingTimeout = setTimeout(dismissLoading, 12_000);
 
       const attachPermanentListener = () => {
-        removeData = api.onData(sessionId, (d: string) => { term.write(d); });
+        removeDataRef.current = api.onData(sessionId, (d: string) => {
+          term.write(d);
+          if (
+            !loadingDismissed
+            && writeCommandTimeRef.current > 0
+            && Date.now() - writeCommandTimeRef.current > 400
+          ) {
+            dismissLoading();
+          }
+        });
       };
 
       const promptRemove = api.onData(sessionId, (d: string) => {
@@ -227,10 +319,26 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
 
       const removeExit = api.onExit(sessionId, (code: number) => {
         term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
+        dismissLoading();
         onUpdateRef.current(nodeIdRef.current, {
           data: { ...dataRef.current, status: 'done' },
         });
       });
+
+      const spawnCwd = cwd || rootFolder || undefined;
+      const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId);
+      if (!result.ok) {
+        if (!prompted) promptRemove();
+        removeDataRef.current?.();
+        removeExit();
+        clearTimeout(loadingTimeout);
+        dismissLoading();
+        term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
+        onUpdateRef.current(nodeIdRef.current, {
+          data: { ...dataRef.current, status: 'error' },
+        });
+        return;
+      }
 
       term.onData((d: string) => {
         api.write(sessionId, d);
@@ -239,7 +347,14 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       term.onResize(({ cols, rows }) => { api.resize(sessionId, cols, rows); });
 
       onUpdateRef.current(nodeIdRef.current, {
-        data: { ...dataRef.current, agentType, cwd: spawnCwd ?? '', status: 'running', sessionId },
+        data: {
+          ...dataRef.current,
+          agentType,
+          cwd: spawnCwd ?? '',
+          status: 'running',
+          sessionId,
+          cliSessionId,
+        },
       });
 
       saveTimerRef.current = setInterval(async () => {
@@ -253,8 +368,10 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
 
       cleanupRef.current = () => {
         if (!prompted) promptRemove();
-        removeData?.();
+        removeDataRef.current?.();
         removeExit();
+        clearTimeout(loadingTimeout);
+        dismissLoading();
         api.kill(sessionId);
       };
     },
@@ -262,37 +379,20 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   );
 
   useEffect(() => {
-    if (launched && !spawnedRef.current) {
-      // If the component is mounting with launched=true but the user did
-      // NOT click Start in this render lifecycle, there are two sub-cases:
-      //   a) Cold reload of a real previous session — the prior PTY had
-      //      spawned (so `sessionId` was persisted by spawnAgent) or had
-      //      output serialized to `scrollback`. The PTY was killed on the
-      //      previous unmount and cannot be reattached; replay scrollback.
-      //   b) A tool just created this node (e.g.
-      //      `canvas_create_agent_node` with autoLaunch) and persisted
-      //      `status: 'running'` without ever spawning a PTY. `sessionId`
-      //      and `scrollback` are both empty — we must do a FRESH spawn,
-      //      otherwise the terminal hangs showing "previous session (no
-      //      saved output)" and the agent never runs.
-      const hasPriorSession =
-        !!(data.sessionId && data.sessionId.length > 0)
-        || !!(data.scrollback && data.scrollback.length > 0);
-      const isRestored = !userLaunchedRef.current && hasPriorSession;
+    if (viewMode === 'running' && !spawnedRef.current) {
       void spawnAgent(
         pendingAgentRef.current,
         pendingCwdRef.current,
         pendingPromptRef.current,
-        isRestored,
+        pendingResumeRef.current,
       );
     }
     return () => {
-      const api = window.canvasWorkspace?.pty;
       // Only snapshot terminal contents back to the node when there was a
-      // live PTY to serialize. Restored nodes already hold the authoritative
-      // scrollback on disk; re-serializing the xterm buffer would round-trip
-      // through display formatting and drift the saved output over time.
-      if (termRef.current && api && !isRestoredRef.current) {
+      // live PTY. The Restart view persists its own data and shouldn't
+      // round-trip the dead xterm buffer.
+      const api = window.canvasWorkspace?.pty;
+      if (termRef.current && api && viewMode === 'running') {
         const scrollback = serializeBuffer(termRef.current);
         void api.getCwd(sessionId).then((r) => {
           const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
@@ -308,10 +408,10 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       fitRef.current = null;
       spawnedRef.current = false;
       cleanupRef.current = null;
-      isRestoredRef.current = false;
+      setLoading(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [launched]);
+  }, [viewMode]);
 
   useEffect(() => {
     if (!fitRef.current) return;
@@ -320,7 +420,18 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     });
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [launched]);
+  }, [viewMode]);
+
+  // Persist viewMode so the outer canvas-node header can render a matching
+  // status pill. Skipped while readOnly to avoid mutating a node opened in
+  // a viewer / shared workspace.
+  useEffect(() => {
+    if (readOnly) return;
+    if (dataRef.current.viewMode === viewMode) return;
+    onUpdateRef.current(nodeIdRef.current, {
+      data: { ...dataRef.current, viewMode },
+    });
+  }, [viewMode, readOnly]);
 
   const handleLaunch = useCallback(() => {
     if (readOnly) return;
@@ -329,43 +440,39 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     pendingAgentRef.current = selectedAgent;
     pendingCwdRef.current = effectiveCwd;
     pendingPromptRef.current = prompt;
+    pendingResumeRef.current = false;
     if (effectiveCwd) {
       setRecentCwds(pushRecentCwd(effectiveCwd));
     }
-    // Mark this launch as user-initiated so the mount effect doesn't treat
-    // the upcoming render as a cold-reload restore.
-    userLaunchedRef.current = true;
+    const api = window.canvasWorkspace?.pty;
+    const oldSessionId = dataRef.current.sessionId;
+    if (api && oldSessionId) api.kill(oldSessionId);
+    const freshSessionId = mintSessionId(nodeIdRef.current);
+    // 初始化 always starts a brand-new conversation: mint a fresh
+    // cliSessionId so Claude Code files this run under our id (and so
+    // any orphaned id from a previously-active agent type doesn't get
+    // misinterpreted as resumable).
+    const freshCliSessionId = crypto.randomUUID();
     // Persist the launch intent to disk immediately. If the user reloads
     // before spawnAgent's own post-spawn update commits, the node will
-    // still reopen in launched state (terminal view) instead of regressing
-    // to the initial picker.
+    // reopen in the Restart view (because sessionId/scrollback get persisted
+    // a moment later by the save timer) instead of regressing to Setup.
     onUpdateRef.current(nodeIdRef.current, {
       data: {
         ...dataRef.current,
         agentType: selectedAgent,
         cwd: effectiveCwd,
         inlinePrompt: prompt,
+        lastInitPrompt: prompt || dataRef.current.lastInitPrompt || '',
         status: 'running',
+        sessionId: freshSessionId,
+        scrollback: '',
+        cliSessionId: freshCliSessionId,
       },
     });
-    setLaunched(true);
+    setFromRestart(false);
+    setViewMode('running');
   }, [selectedAgent, cwdInput, promptInput, rootFolder, readOnly]);
-
-  const handleStop = useCallback(() => {
-    if (readOnly) return;
-    const api = window.canvasWorkspace?.pty;
-    if (api) api.kill(sessionId);
-    onUpdateRef.current(nodeIdRef.current, {
-      data: { ...dataRef.current, status: 'done' },
-    });
-  }, [sessionId, readOnly]);
-
-  const handleSendPrompt = useCallback((prompt: string) => {
-    if (readOnly) return;
-    const api = window.canvasWorkspace?.pty;
-    if (!api) return;
-    api.write(sessionId, `\n${prompt}\n`);
-  }, [sessionId, readOnly]);
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
     if (readOnly) return;
@@ -387,27 +494,52 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     termRef.current?.focus();
   }, []);
 
-  const handleRestart = useCallback(() => {
+  /** Restart with saved config from the Restart view. Mints a fresh
+   * PTY sessionId and explicitly kills any leftover backend session so a
+   * cold-reload-leaked PTY doesn't intercept the new spawn. The CLI-level
+   * session (cliSessionId) is preserved so Claude Code can resume the
+   * conversation in-place via `--resume <uuid>`. */
+  const handleRestartSession = useCallback(() => {
     if (readOnly) return;
-    if (saveTimerRef.current) clearInterval(saveTimerRef.current);
-    cleanupRef.current?.();
-    termRef.current?.dispose();
-    termRef.current = null;
-    fitRef.current = null;
-    spawnedRef.current = false;
-    cleanupRef.current = null;
-    initialScrollback.current = '';
-    // Next Start click must be treated as a fresh user launch, not a
-    // restore — clear the flag so the mount effect won't short-circuit.
-    userLaunchedRef.current = false;
-    isRestoredRef.current = false;
-
+    const savedAgent = data.agentType || selectedAgent;
+    const savedCwd = data.cwd || rootFolder || '';
+    const savedPrompt = data.lastInitPrompt || '';
+    pendingAgentRef.current = savedAgent;
+    pendingCwdRef.current = savedCwd;
+    pendingPromptRef.current = savedPrompt;
+    pendingResumeRef.current = !!dataRef.current.cliSessionId && savedAgent === 'claude-code';
+    const api = window.canvasWorkspace?.pty;
+    const oldSessionId = dataRef.current.sessionId;
+    if (api && oldSessionId) api.kill(oldSessionId);
+    const freshSessionId = mintSessionId(nodeIdRef.current);
     onUpdateRef.current(nodeIdRef.current, {
-      data: { ...dataRef.current, status: 'idle', scrollback: '', sessionId: '' },
+      data: {
+        ...dataRef.current,
+        agentType: savedAgent,
+        cwd: savedCwd,
+        inlinePrompt: savedPrompt,
+        status: 'running',
+        sessionId: freshSessionId,
+        scrollback: '',
+      },
     });
+    setFromRestart(false);
+    setViewMode('running');
+  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, rootFolder, readOnly]);
 
-    setLaunched(false);
-  }, [readOnly]);
+  const handleEditInit = useCallback(() => {
+    if (readOnly) return;
+    setSelectedAgent(data.agentType || selectedAgent);
+    setCwdInput(data.cwd || '');
+    setPromptInput(data.lastInitPrompt || '');
+    setFromRestart(true);
+    setViewMode('setup');
+  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, readOnly]);
+
+  const handleBackToRestart = useCallback(() => {
+    setFromRestart(false);
+    setViewMode('restart');
+  }, []);
 
   const handlePickFolder = useCallback(async () => {
     if (readOnly) return;
@@ -419,7 +551,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     }
   }, [readOnly]);
 
-  if (!launched) {
+  if (viewMode === 'setup') {
     return (
       <AgentPicker
         selectedAgent={selectedAgent}
@@ -427,6 +559,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         promptInput={promptInput}
         rootFolder={rootFolder}
         recentCwds={recentCwds}
+        onBack={fromRestart ? handleBackToRestart : undefined}
         onAgentChange={setSelectedAgent}
         onCwdChange={setCwdInput}
         onPromptChange={setPromptInput}
@@ -436,8 +569,20 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     );
   }
 
+  if (viewMode === 'restart') {
+    return (
+      <AgentRestart
+        agentType={data.agentType || 'claude-code'}
+        cwd={data.cwd}
+        prompt={data.lastInitPrompt}
+        onRestart={handleRestartSession}
+        onEdit={handleEditInit}
+      />
+    );
+  }
+
   return (
-    <div className="agent-body-wrap">
+    <>
       {!readOnly && pickerOpen && (
         <NodeMentionPicker
           nodes={getAllNodesRef.current?.() ?? []}
@@ -448,10 +593,10 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       <AgentTerminal
         containerRef={containerRef}
         status={status}
-        onRestart={handleRestart}
-        onStop={handleStop}
-        onSendPrompt={handleSendPrompt}
+        agentType={data.agentType || 'claude-code'}
+        cwd={data.cwd}
+        loading={loading}
       />
-    </div>
+    </>
   );
 };

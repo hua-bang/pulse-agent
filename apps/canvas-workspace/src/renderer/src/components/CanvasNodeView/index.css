@@ -179,7 +179,9 @@
 }
 
 .node-type-badge--agent {
-  color: #7c5cff;
+  color: var(--accent);
+  background: var(--accent-light);
+  border-radius: 5px;
 }
 
 .node-type-badge--iframe {
