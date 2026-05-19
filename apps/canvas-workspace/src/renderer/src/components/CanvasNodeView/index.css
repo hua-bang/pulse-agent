@@ -208,38 +208,6 @@
   box-shadow: 0 0 0 1.5px var(--accent-border);
 }
 
-/* Agent status label pill */
-.node-status-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 1px 6px;
-  border-radius: 999px;
-  flex-shrink: 0;
-  white-space: nowrap;
-  opacity: 0;
-  transition: opacity 0.1s;
-}
-
-.canvas-node:hover .node-status-label {
-  opacity: 1;
-}
-
-.node-status-label--running {
-  background: rgba(16, 185, 129, 0.12);
-  color: #059669;
-}
-
-.node-status-label--done {
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--text-muted);
-}
-
-.node-status-label--error {
-  background: rgba(224, 62, 62, 0.1);
-  color: #e03e3e;
-}
-
 /* Last active time label */
 .node-time-label {
   font-size: 10px;
@@ -747,7 +715,6 @@
 .canvas-node--fullscreen .text-color-trigger,
 .canvas-node--fullscreen .group-ungroup-button,
 .canvas-node--fullscreen .group-count-label,
-.canvas-node--fullscreen .node-status-label,
 .canvas-node--fullscreen .node-close--floating,
 .canvas-node--fullscreen .node-fullscreen--floating {
   display: none !important;
