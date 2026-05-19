@@ -19,6 +19,11 @@ import { useNodeHistory } from './useNodeHistory';
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_CANVAS_ID = 'default';
 
+interface AddNodeOptions {
+  fileName?: string;
+  fileContent?: string;
+}
+
 export const useNodes = (
   canvasId = DEFAULT_CANVAS_ID,
   onRestoreTransform?: (t: CanvasTransform) => void,
@@ -327,18 +332,31 @@ export const useNodes = (
   }, [canvasId]);
 
   const addNode = useCallback(
-    (type: CanvasNode['type'], x: number, y: number) => {
+    (type: CanvasNode['type'], x: number, y: number, options?: AddNodeOptions) => {
       const node = { ...createDefaultNode(type, x, y), updatedAt: Date.now() };
 
       if (type === 'file') {
         const api = window.canvasWorkspace?.file;
         if (api) {
-          void api.createNote(canvasId).then((res) => {
+          void api.createNote(canvasId, options?.fileName).then(async (res) => {
             if (res.ok && res.filePath) {
+              if (typeof options?.fileContent === 'string') {
+                await api.write(res.filePath, options.fileContent);
+              }
               setNodes((prev) => {
                 const updated = prev.map((n) =>
                   n.id === node.id
-                    ? { ...n, title: res.fileName?.replace(/\.md$/, '') || n.title, data: { ...n.data, filePath: res.filePath ?? '' } }
+                    ? {
+                        ...n,
+                        title: res.fileName?.replace(/\.md$/, '') || n.title,
+                        data: {
+                          ...n.data,
+                          filePath: res.filePath ?? '',
+                          content: options?.fileContent ?? (n.data as FileNodeData).content,
+                          saved: true,
+                          modified: false,
+                        },
+                      }
                     : n
                 );
                 nodesRef.current = updated;

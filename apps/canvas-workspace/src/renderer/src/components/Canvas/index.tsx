@@ -192,6 +192,24 @@ export const Canvas = ({
 
   useCanvasContext(rootFolder, nodes, canvasName);
 
+  const pasteMarkdownAsNote = useCallback(async (markdown: string): Promise<CanvasNode | null> => {
+    const container = containerRef.current;
+    if (!container) return null;
+
+    const rect = container.getBoundingClientRect();
+    const center = screenToCanvas(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+      container,
+    );
+    const titleMatch = markdown.match(/^#\s+(.+)$/m);
+    const title = titleMatch?.[1]?.trim() || 'Pasted Markdown';
+    return addNode('file', center.x - 210, center.y - 180, {
+      fileName: title,
+      fileContent: markdown,
+    });
+  }, [addNode, screenToCanvas]);
+
   const handleNodeViewportFocus = useCallback((node: CanvasNode) => {
     setSelectedNodeIds([node.id]);
     setHighlightedId(node.id);
@@ -269,7 +287,7 @@ export const Canvas = ({
   useCanvasKeyboard({
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
-    duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes,
+    duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, pasteMarkdownAsNote,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     removeNodes: actions.requestRemoveNodes,
