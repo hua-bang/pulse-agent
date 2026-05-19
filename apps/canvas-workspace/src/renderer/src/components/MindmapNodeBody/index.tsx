@@ -653,24 +653,29 @@ const TopicPill = ({
           onKeyAction({ kind: 'exit' });
           return;
         }
-        // Ship the in-flight editor text alongside the structural action
-        // so the parent can apply both in a single root update. Issuing
-        // commit() here as a separate applyRoot would race with the
-        // following addSibling/addChild/unindent — both calls would close
-        // over the same stale root and the second would clobber the
-        // first, silently dropping the user's typing.
-        const readPendingText = (): string => {
-          const el = editorRef.current;
-          return el ? el.innerText.replace(/\n+$/, '') : topic.text;
-        };
         if (e.key === 'Enter' && !e.shiftKey) {
+          // Enter while editing: commit current text and leave edit mode
+          // without spawning a sibling. The user can press Enter again
+          // from the selected (non-editing) state to add a sibling — that
+          // separation matches Xmind-style behavior and avoids creating a
+          // node mid-typing. `commit()` mutates the tree only when the
+          // text actually changed, and `exit` only touches local editing
+          // state, so the two updates don't race the way the old
+          // commit + addSibling pair did.
           consume();
-          onKeyAction({ kind: 'addSibling', pendingText: readPendingText() });
+          commit();
+          onKeyAction({ kind: 'exit' });
           return;
         }
         if (e.key === 'Tab') {
+          // Tab still adds a child / unindents in one shot. Ship the
+          // in-flight editor text along with the action so the parent
+          // can fold the commit and the structural change into a single
+          // root update — two separate applyRoot calls would close over
+          // the same stale root and the second would clobber the first.
           consume();
-          const pendingText = readPendingText();
+          const el = editorRef.current;
+          const pendingText = el ? el.innerText.replace(/\n+$/, '') : topic.text;
           if (e.shiftKey) onKeyAction({ kind: 'unindent', pendingText });
           else onKeyAction({ kind: 'addChild', pendingText });
           return;
