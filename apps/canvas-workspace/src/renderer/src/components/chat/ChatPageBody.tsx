@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
-import { CloseIcon } from '../icons';
+import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import './ChatPage.css';
 import './ChatPanel.css';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
+import { ModelSettingsDrawer, useCanvasModels } from './ModelSettings';
+import { PromptSettingsDrawer, usePromptProfile } from './PromptSettings';
 import { useChatSessions } from './hooks/useChatSessions';
 import { useChatStream } from './hooks/useChatStream';
 import { useMentions } from './hooks/useMentions';
@@ -55,8 +57,14 @@ export const ChatPageBody = ({
   // we saw when this body was constructed (after a workspace switch).
   const initialPendingRef = useRef(initialPendingSessionId);
 
+  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+  const [promptSettingsOpen, setPromptSettingsOpen] = useState(false);
+  const canvasModels = useCanvasModels();
+  const promptProfile = usePromptProfile();
+
   const {
     abort,
+    addImageToCanvas,
     answerClarification,
     clarifyInput,
     collapsedSections,
@@ -90,9 +98,11 @@ export const ChatPageBody = ({
   });
 
   const {
+    attachments,
     clearInput,
     editableRef,
     focusInput,
+    handleAttachFiles,
     handleInput,
     handleKeyDown,
     handlePaste,
@@ -100,6 +110,7 @@ export const ChatPageBody = ({
     mentionIndex,
     mentionItems,
     mentionOpen,
+    removeAttachment,
     selectMention,
     setMentionIndex,
     submitCurrentInput,
@@ -179,6 +190,7 @@ export const ChatPageBody = ({
   }, [sessions, otherSessions, workspaceId, allWorkspaces]);
 
   return (
+    <>
     <div className="chat-page">
       <div className={`chat-page-rail-wrapper${railCollapsed ? ' chat-page-rail-wrapper--collapsed' : ''}`}>
         <ChatSessionsRail
@@ -199,6 +211,30 @@ export const ChatPageBody = ({
             <RailToggleIcon size={16} />
           </button>
           <div className="chat-page-topbar-spacer" />
+          <button
+            className="chat-panel-action-btn"
+            onClick={() => setPromptSettingsOpen(true)}
+            title="回复风格 / 自定义提示词"
+            aria-label="Reply style and custom prompt"
+          >
+            <SparklesIcon size={16} strokeWidth={1.25} />
+          </button>
+          <button
+            className="chat-panel-action-btn"
+            onClick={() => setModelSettingsOpen(true)}
+            title="AI model settings"
+            aria-label="AI model settings"
+          >
+            <SettingsIcon size={16} strokeWidth={1.25} />
+          </button>
+          <button
+            className="chat-panel-action-btn"
+            onClick={() => void handleNewSession()}
+            title="New AI chat"
+            aria-label="New AI chat"
+          >
+            <PlusIcon size={16} strokeWidth={1.3} />
+          </button>
           <button
             className="chat-panel-action-btn"
             onClick={onExit}
@@ -224,10 +260,12 @@ export const ChatPageBody = ({
           onAnswerClarification={answerClarification}
           onToggleSection={toggleSection}
           onToggleToolExpand={toggleToolExpand}
+          onAddImageToCanvas={addImageToCanvas}
           nodes={nodes}
           onNodeFocus={handleNodeFocus}
           onQuickAction={handleQuickAction}
           input={input}
+          attachments={attachments}
           editableRef={editableRef}
           mentionOpen={mentionOpen}
           mentionItems={mentionItems}
@@ -237,10 +275,37 @@ export const ChatPageBody = ({
           onInput={handleInput}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onAttachFiles={handleAttachFiles}
+          onRemoveAttachment={removeAttachment}
           onSubmit={submitCurrentInput}
           onAbort={abort}
+          modelStatus={canvasModels.status}
+          modelSelection={canvasModels.selection}
+          modelLabel={canvasModels.selectedLabel}
+          onSelectAutoModel={canvasModels.selectAuto}
+          onSelectModel={canvasModels.selectModel}
+          onOpenModelSettings={() => setModelSettingsOpen(true)}
+          contextComposer
         />
       </div>
     </div>
+    <ModelSettingsDrawer
+      open={modelSettingsOpen}
+      status={canvasModels.status}
+      error={canvasModels.error}
+      onClose={() => setModelSettingsOpen(false)}
+      onSaveProvider={canvasModels.upsertProvider}
+      onRemoveProvider={canvasModels.removeProvider}
+      onFetchModels={canvasModels.fetchModels}
+    />
+    <PromptSettingsDrawer
+      open={promptSettingsOpen}
+      profile={promptProfile.profile}
+      error={promptProfile.error}
+      onClose={() => setPromptSettingsOpen(false)}
+      onSave={promptProfile.save}
+      onReset={promptProfile.reset}
+    />
+    </>
   );
 };
