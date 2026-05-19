@@ -237,8 +237,7 @@
   color: var(--accent);
 }
 
-.reference-picker-search input,
-.reference-picker-group-field input {
+.reference-picker-search input {
   min-width: 0;
   width: 100%;
   border: 0;
@@ -246,31 +245,6 @@
   background: transparent;
   color: var(--text);
   font-size: 12px;
-}
-
-.reference-picker-group-field {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--border-light);
-  border-radius: 7px;
-  background: rgba(0, 0, 0, 0.015);
-}
-
-.reference-picker-group-field:focus-within {
-  border-color: rgba(35, 131, 226, 0.42);
-  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1);
-}
-
-.reference-picker-group-field span {
-  flex: 0 0 auto;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .reference-picker-list {
@@ -582,28 +556,6 @@
 
 .reference-picker-group-items .reference-picker-item {
   width: 100%;
-}
-
-.reference-group-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.reference-group-suggestion {
-  border: 1px solid var(--border-light);
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 999px;
-  padding: 2px 8px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: background 0.1s ease, color 0.1s ease;
-}
-
-.reference-group-suggestion:hover {
-  background: rgba(35, 131, 226, 0.08);
-  color: var(--accent);
 }
 
 .reference-pick-hint {
