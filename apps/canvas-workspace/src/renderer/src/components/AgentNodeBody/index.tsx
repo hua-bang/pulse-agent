@@ -69,6 +69,28 @@ export const detectAgentView = (data: AgentNodeData): ViewMode => {
   return 'setup';
 };
 
+/**
+ * After a cold reload, decide whether to silently resume instead of
+ * showing the Restart card. Limited to Claude Code because only its
+ * CLI supports caller-supplied --resume <uuid> that actually picks up
+ * the prior conversation; Codex / Pulse-Coder would silently start a
+ * fresh session and confusingly lose context. Also limited to
+ * `status === 'running'`, so a node the user saw exit (status='done'
+ * or 'error') still surfaces the Restart card and waits for an
+ * explicit user action — auto-reviving an agent the user thought was
+ * stopped would be surprising.
+ */
+const shouldAutoResume = (data: AgentNodeData): boolean => {
+  if (data.agentType !== 'claude-code') return false;
+  if (!data.cliSessionId) return false;
+  if (data.status !== 'running') return false;
+  if (data.viewMode !== 'running') return false;
+  return !!(
+    (data.sessionId && data.sessionId.length > 0)
+    || (data.scrollback && data.scrollback.length > 0)
+  );
+};
+
 export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
   const data = node.data as AgentNodeData;
   const status = data.status ?? 'idle';
@@ -83,8 +105,14 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     // `running` but the renderer just remounted (i.e. this useState
     // initializer is firing), the PTY that backed it is gone. Saved
     // sessionId / scrollback are the proof that a live session existed
-    // at some point. Land on Restart so the user gets a clear recovery
-    // affordance instead of a dead terminal pretending to be live.
+    // at some point. Normally we'd land on Restart so the user picks
+    // up where they left off explicitly — except Claude Code with a
+    // persisted cliSessionId can be silently resumed via `--resume
+    // <uuid>`, which is the truly seamless behavior. In that case we
+    // skip the Restart card entirely and route straight back to the
+    // running view; the spawn below picks the right flag because
+    // pendingResumeRef gets initialized to true alongside.
+    if (shouldAutoResume(data)) return 'running';
     const hasPriorSession =
       !!(data.sessionId && data.sessionId.length > 0)
       || !!(data.scrollback && data.scrollback.length > 0);
@@ -108,8 +136,11 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   const pendingPromptRef = useRef(data.inlinePrompt || '');
   /** True when the next spawn should resume an existing CLI session
    *  instead of creating a new one. Flipped by handleRestartSession,
-   *  reset by handleLaunch. */
-  const pendingResumeRef = useRef(false);
+   *  reset by handleLaunch. Initialized to true on mount when the
+   *  cold-reload heuristic auto-routes a Claude Code node into
+   *  `running`, so the resumed spawn uses `--resume <uuid>` instead
+   *  of `--session-id <uuid>`. */
+  const pendingResumeRef = useRef(shouldAutoResume(data));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
