@@ -1,84 +1,140 @@
 import type React from 'react';
+import { AGENT_REGISTRY } from '../../config/agentRegistry';
+import { AgentAvatar, AgentIcon } from './AgentIcon';
+import { truncatePath } from './utils/terminal';
 
 interface AgentTerminalProps {
   containerRef: React.RefObject<HTMLDivElement>;
   status: string;
+  agentType: string;
+  cwd?: string;
   onRestart: () => void;
   onStop?: () => void;
-  onSendPrompt?: (prompt: string) => void;
+  onFocusTerminal?: () => void;
 }
 
-const CONTINUE_PROMPT = 'continue';
-const SUMMARIZE_PROMPT = 'please summarize what you have done so far';
+const FolderGlyph = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M2 4.5A1.5 1.5 0 013.5 3H6l1.5 1.5h5A1.5 1.5 0 0114 6v5.5a1.5 1.5 0 01-1.5 1.5h-9A1.5 1.5 0 012 11.5v-7z"
+      stroke="currentColor"
+      strokeWidth="1.25"
+    />
+  </svg>
+);
+
+const StopGlyph = () => (
+  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <rect x="3.5" y="3.5" width="9" height="9" rx="1.3" stroke="currentColor" strokeWidth="1.4" />
+  </svg>
+);
+
+const TerminalGlyph = () => (
+  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M3 5l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M8 11h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+const STATUS_TEXT: Record<string, { badge: string; load: string; tone: 'running' | 'done' | 'error' }> = {
+  running: { badge: 'Running', load: '已加载', tone: 'running' },
+  done: { badge: 'Done', load: '已退出', tone: 'done' },
+  error: { badge: 'Error', load: '出错', tone: 'error' },
+  idle: { badge: 'Idle', load: '空闲', tone: 'done' },
+};
 
 export const AgentTerminal = ({
   containerRef,
   status,
+  agentType,
+  cwd,
   onRestart,
   onStop,
-  onSendPrompt,
-}: AgentTerminalProps) => (
-  <div className="agent-body-wrap">
-    <div
-      ref={containerRef}
-      className="agent-xterm-container"
-      onMouseDown={(e) => e.stopPropagation()}
-    />
-    {status === 'running' && (
-      <div className="agent-quick-actions">
-        <button
-          type="button"
-          className="agent-quick-btn"
-          onClick={() => onSendPrompt?.(CONTINUE_PROMPT)}
-          title="Send 'continue' to agent"
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <path d="M5 3l6 5-6 5V3z" fill="currentColor" />
-          </svg>
-          Continue
-        </button>
-        <button
-          type="button"
-          className="agent-quick-btn"
-          onClick={() => onSendPrompt?.(SUMMARIZE_PROMPT)}
-          title="Ask agent to summarize"
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <path d="M3 4h10M3 7.5h7M3 11h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-          Summarize
-        </button>
-        <button
-          type="button"
-          className="agent-quick-btn agent-quick-btn--stop"
-          onClick={onStop}
-          title="Stop agent"
-        >
-          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
-            <rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor" />
-          </svg>
-          Stop
-        </button>
+  onFocusTerminal,
+}: AgentTerminalProps) => {
+  const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
+  const statusInfo = STATUS_TEXT[status] ?? STATUS_TEXT.running;
+  const exited = status === 'done' || status === 'error';
+  const displayCwd = cwd ? truncatePath(cwd, 32) : '—';
+
+  return (
+    <div className="agent-body-wrap agent-body-wrap--running">
+      <div className="agent-card">
+        <div className="agent-card-header">
+          <div className="agent-card-header-left">
+            <AgentAvatar />
+            <span className="agent-card-title">Agent</span>
+          </div>
+          <span className={`agent-status-pill agent-status-pill--${statusInfo.tone}`}>
+            <span className="agent-status-pill-dot" />
+            {statusInfo.badge}
+          </span>
+        </div>
+
+        <div className="agent-info-strip">
+          <span className="agent-info-cell">
+            <AgentIcon id={agentType} size={14} />
+            <span className="agent-info-text">{agentDef?.label ?? agentType}</span>
+          </span>
+          <span className="agent-info-sep" aria-hidden="true" />
+          <span className="agent-info-cell agent-info-cell--cwd" title={cwd ?? ''}>
+            <FolderGlyph />
+            <span className="agent-info-text agent-info-text--mono">{displayCwd}</span>
+          </span>
+          <span className="agent-info-sep" aria-hidden="true" />
+          <span className={`agent-info-cell agent-info-load agent-info-load--${statusInfo.tone}`}>
+            <span className="agent-info-load-dot" />
+            {statusInfo.load}
+          </span>
+        </div>
+
+        <div
+          ref={containerRef}
+          className="agent-xterm-container"
+          onMouseDown={(e) => e.stopPropagation()}
+        />
+
+        <div className="agent-card-footer">
+          {exited ? (
+            <button
+              type="button"
+              className="agent-secondary-btn"
+              onClick={onRestart}
+              title="Restart agent"
+            >
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path
+                  d="M13 8a5 5 0 11-1.5-3.6M13 3v2.5H10.5"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              重启
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="agent-secondary-btn agent-secondary-btn--stop"
+              onClick={onStop}
+              title="Stop agent"
+            >
+              <StopGlyph />
+              停止
+            </button>
+          )}
+          <button
+            type="button"
+            className="agent-primary-btn"
+            onClick={onFocusTerminal}
+            title="Focus terminal"
+          >
+            <TerminalGlyph />
+            打开终端
+          </button>
+        </div>
       </div>
-    )}
-    {(status === 'done' || status === 'error') && (
-      <button
-        type="button"
-        className="agent-restart-btn"
-        onClick={onRestart}
-        title="Restart agent"
-      >
-        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-          <path
-            d="M13 8a5 5 0 1 1-1.5-3.6M13 3v2.5H10.5"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        Restart
-      </button>
-    )}
-  </div>
-);
+    </div>
+  );
+};

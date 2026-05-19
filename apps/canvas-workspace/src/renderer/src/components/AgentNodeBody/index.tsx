@@ -13,6 +13,7 @@ import {
 } from './utils/terminal';
 import { AgentPicker } from './AgentPicker';
 import { AgentTerminal } from './AgentTerminal';
+import { AgentRestart } from './AgentRestart';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 
 interface Props {
@@ -25,32 +26,43 @@ interface Props {
   readOnly?: boolean;
 }
 
+type ViewMode = 'setup' | 'running' | 'restart';
+
+/**
+ * Decide which view to mount based on persisted node data. A node lands in
+ * `restart` only when the previous session left behind enough breadcrumbs
+ * (sessionId or scrollback) to make it clear the PTY was alive at some
+ * point, but the current process tree no longer has it — i.e. a cold
+ * reload of the renderer. Fresh `autoLaunch`-created nodes still have
+ * `status: 'running'` but no breadcrumbs, so they correctly route to
+ * `running` and spawn a real PTY.
+ */
+const detectInitialView = (data: AgentNodeData): ViewMode => {
+  const status = data.status ?? 'idle';
+  const hasPriorSession =
+    !!(data.sessionId && data.sessionId.length > 0)
+    || !!(data.scrollback && data.scrollback.length > 0);
+  if (hasPriorSession) return 'restart';
+  if (status === 'running' || status === 'done' || status === 'error') return 'running';
+  return 'setup';
+};
+
 export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
   const data = node.data as AgentNodeData;
   const status = data.status ?? 'idle';
 
   const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
   const [cwdInput, setCwdInput] = useState(data.cwd || '');
-  const [promptInput, setPromptInput] = useState(data.inlinePrompt || '');
+  const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
-  // Treat any of the following as evidence that the node has been launched
-  // before and should skip the picker on mount:
-  //   - an explicit running/done/error status,
-  //   - saved scrollback (the 2s interval writes this even when a status
-  //     update was lost to the debounced-save race),
-  //   - a persisted sessionId (only set after spawn succeeds).
-  // The scrollback/sessionId fallbacks rescue nodes that were launched under
-  // an earlier buggy code path where status never made it to disk.
-  const [launched, setLaunched] = useState(
-    status === 'running'
-      || status === 'done'
-      || status === 'error'
-      || !!(data.scrollback && data.scrollback.length > 0)
-      || !!(data.sessionId && data.sessionId.length > 0),
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>(() => detectInitialView(data));
+  /** True after a Setup view was entered via the Restart card's "Edit" action,
+   * so we can show a Back link and route the next launch back to Restart on
+   * cancel. */
+  const [fromRestart, setFromRestart] = useState(false);
 
-  // Refs that survive across the picker→terminal transition so the
+  // Refs that survive across the setup→running transition so the
   // useEffect that spawns after re-render can read the user's selection.
   const pendingAgentRef = useRef(data.agentType || 'claude-code');
   const pendingCwdRef = useRef(data.cwd || '');
@@ -71,49 +83,23 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   onUpdateRef.current = onUpdate;
   const getAllNodesRef = useRef(getAllNodes);
   getAllNodesRef.current = getAllNodes;
-  const initialScrollback = useRef(data.scrollback ?? '');
-  /**
-   * Distinguishes a fresh user-initiated launch (picker → Start click) from
-   * the other ways `launched` can become true on mount. On a cold reload
-   * of a previously spawned PTY the backing shell has been torn down and
-   * cannot be reattached, so we must NOT re-spawn and re-run the agent
-   * command — doing so both destroys the saved terminal output and can
-   * race with status persistence.
-   *
-   * Note: this ref alone isn't sufficient to identify a cold reload — a
-   * tool-triggered auto-launch (e.g. `canvas_create_agent_node` with
-   * `autoLaunch: true`) also mounts with `launched=true` without a Start
-   * click but has never spawned a PTY. The mount effect combines this
-   * ref with `data.sessionId`/`data.scrollback` to tell the two apart.
-   *
-   * Stays `false` across re-renders; flipped to `true` in `handleLaunch`
-   * and reset in `handleRestart`.
-   */
-  const userLaunchedRef = useRef(false);
-  /** Tracks whether spawnAgent entered the restored (no-PTY) branch so the
-   * cleanup effect knows to skip PTY-related teardown. */
-  const isRestoredRef = useRef(false);
 
   const spawnAgent = useCallback(
-    async (
-      agentType: string,
-      cwd: string,
-      inlinePromptOverride?: string,
-      isRestored = false,
-    ) => {
+    async (agentType: string, cwd: string, inlinePromptOverride?: string) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
+
       if (readOnly) {
         spawnedRef.current = true;
-        isRestoredRef.current = true;
         const term = new Terminal(TERMINAL_OPTIONS);
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
         term.open(containerRef.current);
         termRef.current = term;
         fitRef.current = fitAddon;
-        if (initialScrollback.current) {
+        const saved = dataRef.current.scrollback;
+        if (saved) {
           term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
-          term.write(initialScrollback.current.split('\n').join('\r\n'));
+          term.write(saved.split('\n').join('\r\n'));
           term.writeln('');
         } else {
           term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
@@ -124,7 +110,6 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         return;
       }
       spawnedRef.current = true;
-      isRestoredRef.current = isRestored;
 
       const term = new Terminal(TERMINAL_OPTIONS);
       const fitAddon = new FitAddon();
@@ -144,26 +129,6 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       requestAnimationFrame(() => {
         try { fitAddon.fit(); } catch { /* ignore */ }
       });
-
-      if (isRestored) {
-        // Cold reload: the PTY was killed on the previous unmount, so we
-        // cannot reattach. Replay the full saved scrollback as static
-        // output and mark status as 'done' so the Restart button shows.
-        // The user can click Restart to explicitly spawn a fresh session.
-        if (initialScrollback.current) {
-          term.writeln('\x1b[2m--- restored from previous session ---\x1b[0m');
-          term.write(initialScrollback.current.split('\n').join('\r\n'));
-          term.writeln('');
-        } else {
-          term.writeln('\x1b[2m--- previous session (no saved output) ---\x1b[0m');
-        }
-        if (dataRef.current.status !== 'done') {
-          onUpdateRef.current(nodeIdRef.current, {
-            data: { ...dataRef.current, status: 'done' },
-          });
-        }
-        return;
-      }
 
       const api = window.canvasWorkspace?.pty;
       if (!api) {
@@ -202,8 +167,16 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         }
 
         if (effectivePrompt || promptFile) {
+          // Clear `inlinePrompt`/`promptFile` so they don't re-fire on next
+          // spawn, but stash a copy in `lastInitPrompt` so the Restart view
+          // can show what the previous session was started with.
           onUpdateRef.current(nodeIdRef.current, {
-            data: { ...dataRef.current, inlinePrompt: '', promptFile: '' },
+            data: {
+              ...dataRef.current,
+              inlinePrompt: '',
+              promptFile: '',
+              lastInitPrompt: effectivePrompt || dataRef.current.lastInitPrompt || '',
+            },
           });
         }
       };
@@ -262,37 +235,19 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   );
 
   useEffect(() => {
-    if (launched && !spawnedRef.current) {
-      // If the component is mounting with launched=true but the user did
-      // NOT click Start in this render lifecycle, there are two sub-cases:
-      //   a) Cold reload of a real previous session — the prior PTY had
-      //      spawned (so `sessionId` was persisted by spawnAgent) or had
-      //      output serialized to `scrollback`. The PTY was killed on the
-      //      previous unmount and cannot be reattached; replay scrollback.
-      //   b) A tool just created this node (e.g.
-      //      `canvas_create_agent_node` with autoLaunch) and persisted
-      //      `status: 'running'` without ever spawning a PTY. `sessionId`
-      //      and `scrollback` are both empty — we must do a FRESH spawn,
-      //      otherwise the terminal hangs showing "previous session (no
-      //      saved output)" and the agent never runs.
-      const hasPriorSession =
-        !!(data.sessionId && data.sessionId.length > 0)
-        || !!(data.scrollback && data.scrollback.length > 0);
-      const isRestored = !userLaunchedRef.current && hasPriorSession;
+    if (viewMode === 'running' && !spawnedRef.current) {
       void spawnAgent(
         pendingAgentRef.current,
         pendingCwdRef.current,
         pendingPromptRef.current,
-        isRestored,
       );
     }
     return () => {
-      const api = window.canvasWorkspace?.pty;
       // Only snapshot terminal contents back to the node when there was a
-      // live PTY to serialize. Restored nodes already hold the authoritative
-      // scrollback on disk; re-serializing the xterm buffer would round-trip
-      // through display formatting and drift the saved output over time.
-      if (termRef.current && api && !isRestoredRef.current) {
+      // live PTY. The Restart view persists its own data and shouldn't
+      // round-trip the dead xterm buffer.
+      const api = window.canvasWorkspace?.pty;
+      if (termRef.current && api && viewMode === 'running') {
         const scrollback = serializeBuffer(termRef.current);
         void api.getCwd(sessionId).then((r) => {
           const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
@@ -308,10 +263,9 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       fitRef.current = null;
       spawnedRef.current = false;
       cleanupRef.current = null;
-      isRestoredRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [launched]);
+  }, [viewMode]);
 
   useEffect(() => {
     if (!fitRef.current) return;
@@ -320,7 +274,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     });
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [launched]);
+  }, [viewMode]);
 
   const handleLaunch = useCallback(() => {
     if (readOnly) return;
@@ -332,23 +286,22 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     if (effectiveCwd) {
       setRecentCwds(pushRecentCwd(effectiveCwd));
     }
-    // Mark this launch as user-initiated so the mount effect doesn't treat
-    // the upcoming render as a cold-reload restore.
-    userLaunchedRef.current = true;
     // Persist the launch intent to disk immediately. If the user reloads
     // before spawnAgent's own post-spawn update commits, the node will
-    // still reopen in launched state (terminal view) instead of regressing
-    // to the initial picker.
+    // reopen in the Restart view (because sessionId/scrollback get persisted
+    // a moment later by the save timer) instead of regressing to Setup.
     onUpdateRef.current(nodeIdRef.current, {
       data: {
         ...dataRef.current,
         agentType: selectedAgent,
         cwd: effectiveCwd,
         inlinePrompt: prompt,
+        lastInitPrompt: prompt || dataRef.current.lastInitPrompt || '',
         status: 'running',
       },
     });
-    setLaunched(true);
+    setFromRestart(false);
+    setViewMode('running');
   }, [selectedAgent, cwdInput, promptInput, rootFolder, readOnly]);
 
   const handleStop = useCallback(() => {
@@ -360,12 +313,9 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     });
   }, [sessionId, readOnly]);
 
-  const handleSendPrompt = useCallback((prompt: string) => {
-    if (readOnly) return;
-    const api = window.canvasWorkspace?.pty;
-    if (!api) return;
-    api.write(sessionId, `\n${prompt}\n`);
-  }, [sessionId, readOnly]);
+  const handleFocusTerminal = useCallback(() => {
+    termRef.current?.focus();
+  }, []);
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
     if (readOnly) return;
@@ -387,27 +337,69 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     termRef.current?.focus();
   }, []);
 
-  const handleRestart = useCallback(() => {
+  /**
+   * Triggered from the in-terminal "重启" button (live session that has
+   * exited). Tears down the dead PTY and routes to the Restart card so the
+   * user can decide whether to re-launch with the same config or edit it.
+   * Snapshots the final scrollback before disposing the terminal so the
+   * Restart card's "查看上次配置" panel can replay it.
+   */
+  const handleGoToRestart = useCallback(() => {
     if (readOnly) return;
     if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+    if (termRef.current) {
+      const finalScrollback = serializeBuffer(termRef.current);
+      onUpdateRef.current(nodeIdRef.current, {
+        data: { ...dataRef.current, scrollback: finalScrollback },
+      });
+    }
     cleanupRef.current?.();
     termRef.current?.dispose();
     termRef.current = null;
     fitRef.current = null;
     spawnedRef.current = false;
     cleanupRef.current = null;
-    initialScrollback.current = '';
-    // Next Start click must be treated as a fresh user launch, not a
-    // restore — clear the flag so the mount effect won't short-circuit.
-    userLaunchedRef.current = false;
-    isRestoredRef.current = false;
-
-    onUpdateRef.current(nodeIdRef.current, {
-      data: { ...dataRef.current, status: 'idle', scrollback: '', sessionId: '' },
-    });
-
-    setLaunched(false);
+    setViewMode('restart');
   }, [readOnly]);
+
+  /** Restart with saved config from the Restart view. Clears prior session
+   * artifacts so spawnAgent starts cleanly. */
+  const handleRestartSession = useCallback(() => {
+    if (readOnly) return;
+    const savedAgent = data.agentType || selectedAgent;
+    const savedCwd = data.cwd || rootFolder || '';
+    const savedPrompt = data.lastInitPrompt || '';
+    pendingAgentRef.current = savedAgent;
+    pendingCwdRef.current = savedCwd;
+    pendingPromptRef.current = savedPrompt;
+    onUpdateRef.current(nodeIdRef.current, {
+      data: {
+        ...dataRef.current,
+        agentType: savedAgent,
+        cwd: savedCwd,
+        inlinePrompt: savedPrompt,
+        status: 'running',
+        sessionId: '',
+        scrollback: '',
+      },
+    });
+    setFromRestart(false);
+    setViewMode('running');
+  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, rootFolder, readOnly]);
+
+  const handleEditInit = useCallback(() => {
+    if (readOnly) return;
+    setSelectedAgent(data.agentType || selectedAgent);
+    setCwdInput(data.cwd || '');
+    setPromptInput(data.lastInitPrompt || '');
+    setFromRestart(true);
+    setViewMode('setup');
+  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, readOnly]);
+
+  const handleBackToRestart = useCallback(() => {
+    setFromRestart(false);
+    setViewMode('restart');
+  }, []);
 
   const handlePickFolder = useCallback(async () => {
     if (readOnly) return;
@@ -419,7 +411,7 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     }
   }, [readOnly]);
 
-  if (!launched) {
+  if (viewMode === 'setup') {
     return (
       <AgentPicker
         selectedAgent={selectedAgent}
@@ -427,6 +419,8 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         promptInput={promptInput}
         rootFolder={rootFolder}
         recentCwds={recentCwds}
+        badge={fromRestart ? 'edit' : 'setup'}
+        onBack={fromRestart ? handleBackToRestart : undefined}
         onAgentChange={setSelectedAgent}
         onCwdChange={setCwdInput}
         onPromptChange={setPromptInput}
@@ -436,8 +430,21 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     );
   }
 
+  if (viewMode === 'restart') {
+    return (
+      <AgentRestart
+        agentType={data.agentType || 'claude-code'}
+        cwd={data.cwd}
+        prompt={data.lastInitPrompt}
+        scrollback={data.scrollback}
+        onRestart={handleRestartSession}
+        onEdit={handleEditInit}
+      />
+    );
+  }
+
   return (
-    <div className="agent-body-wrap">
+    <>
       {!readOnly && pickerOpen && (
         <NodeMentionPicker
           nodes={getAllNodesRef.current?.() ?? []}
@@ -448,10 +455,12 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       <AgentTerminal
         containerRef={containerRef}
         status={status}
-        onRestart={handleRestart}
+        agentType={data.agentType || 'claude-code'}
+        cwd={data.cwd}
+        onRestart={handleGoToRestart}
         onStop={handleStop}
-        onSendPrompt={handleSendPrompt}
+        onFocusTerminal={handleFocusTerminal}
       />
-    </div>
+    </>
   );
 };

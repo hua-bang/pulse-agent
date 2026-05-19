@@ -1,223 +1,284 @@
+/* ────────────────────────────────────────────────────────────────
+ * AgentNodeBody — three view modes share one card chrome.
+ *   - .agent-body-wrap--setup    : configuration entry
+ *   - .agent-body-wrap--running  : live PTY with embedded xterm
+ *   - .agent-body-wrap--restart  : cold-reload recovery
+ * The agent identity uses a local purple accent so it reads as
+ * distinct from the global blue accent without leaking outward.
+ * ──────────────────────────────────────────────────────────────── */
+
 .agent-body-wrap {
+  --agent-accent: #5b5bf2;
+  --agent-accent-hover: #4747e8;
+  --agent-accent-soft: #eef0ff;
+  --agent-accent-border: rgba(91, 91, 242, 0.35);
+  --agent-warning: #d97706;
+  --agent-warning-soft: #fff4e2;
+  --agent-warning-border: rgba(217, 119, 6, 0.32);
+  --agent-success: #10b981;
+  --agent-success-soft: rgba(16, 185, 129, 0.12);
+  --agent-danger: #e03e3e;
+  --agent-text: var(--text);
+  --agent-muted: var(--text-secondary);
+  --agent-faint: var(--text-muted);
+  --agent-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans", "Microsoft YaHei", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  font-family: var(--agent-sans);
   position: relative;
   width: 100%;
   height: 100%;
 }
 
-/* ── Picker (idle state) ──────────────────────────────── */
+/* ── Card chrome shared by all three views ─────────────────────── */
 
-.agent-picker {
+.agent-card {
   display: flex;
   flex-direction: column;
-  padding: 12px;
   height: 100%;
+  padding: 14px;
+  gap: 12px;
   box-sizing: border-box;
-}
-
-/* Single "launcher card" that fills the body: textarea hero on top,
- * toolbar chrome at the bottom. Mirrors modern AI chat input patterns. */
-.agent-launcher-card {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
   background: var(--surface);
   overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.agent-launcher-card:focus-within {
-  border-color: var(--accent-border);
-  box-shadow: 0 0 0 3px var(--accent-light);
-}
-
-/* ── Hero prompt textarea ── */
-
-.agent-launcher-prompt {
-  flex: 1;
-  min-height: 72px;
-  padding: 14px 16px 12px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 14px;
-  font-family: var(--font);
-  line-height: 1.55;
-  resize: none;
-  outline: none;
-  box-sizing: border-box;
-}
-
-.agent-launcher-prompt::placeholder {
-  color: var(--text-muted);
-}
-
-/* ── Toolbar (bottom of the card) ── */
-
-.agent-launcher-toolbar {
+.agent-card-header {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
   gap: 8px;
-  padding: 10px 10px 10px;
-  border-top: 1px solid var(--border-light);
-  background: var(--surface-hover);
 }
 
-/* Agent pills row */
-
-.agent-pills {
+.agent-card-header-left {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
-.agent-pill {
+.agent-card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--agent-text);
+  letter-spacing: -0.01em;
+  font-family: var(--agent-sans);
+}
+
+.agent-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--agent-accent-soft);
+  color: var(--agent-accent);
+  flex-shrink: 0;
+}
+
+/* ── Status pill (Setup / Running / Restart / Edit) ───────────── */
+
+.agent-status-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 26px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--agent-sans);
+  white-space: nowrap;
+}
+
+.agent-status-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.agent-status-pill--setup,
+.agent-status-pill--edit {
+  background: var(--agent-accent-soft);
+  color: var(--agent-accent);
+}
+
+.agent-status-pill--running {
+  background: var(--agent-success-soft);
+  color: var(--agent-success);
+}
+
+.agent-status-pill--restart {
+  background: var(--agent-warning-soft);
+  color: var(--agent-warning);
+}
+
+.agent-status-pill--done {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--agent-muted);
+}
+
+.agent-status-pill--error {
+  background: rgba(224, 62, 62, 0.1);
+  color: var(--agent-danger);
+}
+
+/* ── Body & sections ───────────────────────────────────────────── */
+
+.agent-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.agent-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--agent-text);
+  font-family: var(--agent-sans);
+}
+
+.agent-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agent-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--agent-muted);
+  font-family: var(--agent-sans);
+}
+
+.agent-field-label svg {
+  color: var(--agent-muted);
+  flex-shrink: 0;
+}
+
+/* ── Setup: agent tabs ─────────────────────────────────────────── */
+
+.agent-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.agent-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 44px;
   padding: 0 10px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--surface);
-  color: var(--text-secondary);
-  font-size: 11px;
+  color: var(--agent-text);
+  font-size: 13px;
   font-weight: 500;
-  font-family: var(--font);
+  font-family: var(--agent-sans);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s, color 0.12s,
     box-shadow 0.12s;
   white-space: nowrap;
+  min-width: 0;
 }
 
-.agent-pill svg {
-  flex-shrink: 0;
+.agent-tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.agent-pill:hover {
-  color: var(--text);
-  background: var(--surface);
-  border-color: var(--text-muted);
+.agent-tab:hover {
+  border-color: var(--agent-accent-border);
 }
 
-.agent-pill--active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
-  box-shadow: 0 1px 2px rgba(35, 131, 226, 0.22);
+.agent-tab--active {
+  background: var(--agent-accent-soft);
+  border-color: var(--agent-accent-border);
+  color: var(--agent-accent);
+  box-shadow: 0 0 0 1px var(--agent-accent-border) inset;
 }
 
-.agent-pill--active:hover {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #ffffff;
-  filter: brightness(1.06);
+.agent-tab--active:hover {
+  filter: brightness(0.98);
 }
 
-/* Directory + Start row */
-
-.agent-toolbar-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+/* ── Setup: working directory field ────────────────────────────── */
 
 .agent-dir-field {
-  flex: 1;
   display: flex;
   align-items: center;
-  gap: 2px;
-  min-width: 0;
-  height: 28px;
-  padding: 0 2px 0 4px;
+  height: 36px;
+  padding: 0 4px 0 12px;
   border: 1px solid var(--border);
-  border-radius: 7px;
+  border-radius: 10px;
   background: var(--surface);
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
 .agent-dir-field:focus-within {
-  border-color: var(--accent-border);
-  box-shadow: 0 0 0 2px var(--accent-light);
-}
-
-.agent-dir-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.12s, color 0.12s;
-}
-
-.agent-dir-icon:hover {
-  background: var(--border-light);
-  color: var(--text);
+  border-color: var(--agent-accent-border);
+  box-shadow: 0 0 0 3px var(--agent-accent-soft);
 }
 
 .agent-dir-input {
   flex: 1;
   min-width: 0;
   height: 100%;
-  padding: 0 6px;
   border: none;
   background: transparent;
-  color: var(--text);
-  font-size: 11px;
+  color: var(--agent-text);
+  font-size: 13px;
   font-family: var(--font-mono);
   outline: none;
 }
 
 .agent-dir-input::placeholder {
-  color: var(--text-muted);
-  font-family: var(--font);
-  font-size: 11px;
+  color: var(--agent-faint);
+  font-family: var(--font-mono);
 }
 
-/* Primary Start button */
-
-.agent-launch-btn {
+.agent-dir-icon {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  width: 28px;
   height: 28px;
-  padding: 0 14px;
+  margin-left: 4px;
   border: none;
   border-radius: 7px;
-  background: var(--accent);
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  font-family: var(--font);
+  background: transparent;
+  color: var(--agent-muted);
   cursor: pointer;
   flex-shrink: 0;
-  transition: filter 0.12s, box-shadow 0.12s, transform 0.08s;
-  box-shadow: 0 1px 2px rgba(35, 131, 226, 0.25);
+  transition: background 0.12s, color 0.12s;
 }
 
-.agent-launch-btn:hover {
-  filter: brightness(1.08);
-  box-shadow: 0 2px 6px rgba(35, 131, 226, 0.3);
+.agent-dir-icon:hover {
+  background: var(--agent-accent-soft);
+  color: var(--agent-accent);
 }
 
-.agent-launch-btn:active {
-  transform: translateY(0.5px);
-  filter: brightness(0.96);
-}
-
-.agent-launch-btn svg {
-  color: #ffffff;
-}
-
-/* Recent folders chip strip */
+/* ── Setup: recents row ────────────────────────────────────────── */
 
 .agent-recent {
   display: flex;
@@ -229,8 +290,8 @@
 
 .agent-recent-label {
   font-size: 9px;
-  font-weight: 600;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: var(--agent-faint);
   letter-spacing: 0.5px;
   text-transform: uppercase;
   padding-right: 2px;
@@ -241,7 +302,7 @@
   border: 1px dashed var(--border);
   border-radius: 10px;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--agent-muted);
   font-size: 10px;
   font-family: var(--font-mono);
   cursor: pointer;
@@ -253,19 +314,218 @@
 }
 
 .agent-recent-chip:hover {
-  background: var(--accent-light);
+  background: var(--agent-accent-soft);
   border-style: solid;
-  border-color: var(--accent-border);
-  color: var(--accent);
+  border-color: var(--agent-accent-border);
+  color: var(--agent-accent);
 }
 
-/* ── Terminal (running state) ─────────────────────────── */
+/* ── Setup: prompt textarea ────────────────────────────────────── */
+
+.agent-prompt-input {
+  width: 100%;
+  min-height: 76px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--agent-text);
+  font-size: 13px;
+  font-family: var(--agent-sans);
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.agent-prompt-input:focus {
+  border-color: var(--agent-accent-border);
+  box-shadow: 0 0 0 3px var(--agent-accent-soft);
+}
+
+.agent-prompt-input::placeholder {
+  color: var(--agent-faint);
+}
+
+/* ── Card footer with primary CTA ──────────────────────────────── */
+
+.agent-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-light);
+}
+
+.agent-card-footer--restart {
+  justify-content: stretch;
+}
+
+.agent-card-footer--restart .agent-primary-btn {
+  flex: 1;
+}
+
+.agent-card-footer--restart .agent-secondary-btn {
+  flex: 1;
+}
+
+.agent-primary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 10px;
+  background: var(--agent-accent);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--agent-sans);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, box-shadow 0.12s, transform 0.08s;
+  box-shadow: 0 1px 2px rgba(91, 91, 242, 0.25);
+}
+
+.agent-primary-btn:hover {
+  background: var(--agent-accent-hover);
+  box-shadow: 0 2px 8px rgba(91, 91, 242, 0.32);
+}
+
+.agent-primary-btn:active {
+  transform: translateY(0.5px);
+}
+
+.agent-primary-btn svg {
+  color: #ffffff;
+}
+
+.agent-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1px solid var(--agent-accent-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--agent-accent);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--agent-sans);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.agent-secondary-btn:hover {
+  background: var(--agent-accent-soft);
+}
+
+.agent-secondary-btn--stop {
+  color: var(--agent-muted);
+  border-color: var(--border);
+}
+
+.agent-secondary-btn--stop:hover {
+  color: var(--agent-danger);
+  border-color: var(--agent-danger);
+  background: rgba(224, 62, 62, 0.06);
+}
+
+/* ── Running: info strip ───────────────────────────────────────── */
+
+.agent-info-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  min-height: 36px;
+  flex-shrink: 0;
+}
+
+.agent-info-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--agent-text);
+  font-size: 12px;
+  font-family: var(--agent-sans);
+  min-width: 0;
+}
+
+.agent-info-cell--cwd {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-info-cell svg {
+  color: var(--agent-muted);
+  flex-shrink: 0;
+}
+
+.agent-info-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.agent-info-text--mono {
+  font-family: var(--font-mono);
+  color: var(--agent-muted);
+  font-weight: 400;
+}
+
+.agent-info-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.agent-info-load {
+  font-weight: 600;
+}
+
+.agent-info-load-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.agent-info-load--running {
+  color: var(--agent-success);
+}
+
+.agent-info-load--done {
+  color: var(--agent-muted);
+}
+
+.agent-info-load--error {
+  color: var(--agent-danger);
+}
+
+/* ── Running: terminal panel ───────────────────────────────────── */
 
 .agent-xterm-container {
-  height: 100%;
-  background: #fafaf9;
-  padding: 6px 4px 4px;
+  flex: 1;
+  min-height: 120px;
+  border-radius: 10px;
+  background: #1e1f24;
+  padding: 8px 6px 6px;
   overflow: hidden;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04) inset;
 }
 
 .agent-xterm-container .xterm {
@@ -282,84 +542,166 @@
 }
 
 .agent-xterm-container .xterm-rows {
-  padding: 0 4px;
+  padding: 0 6px;
 }
 
-/* ── Quick action buttons (running state) ── */
+/* ── Restart: saved-config list ────────────────────────────────── */
 
-.agent-quick-actions {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  z-index: 10;
+.agent-saved-list {
   display: flex;
-  gap: 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.agent-body-wrap:hover .agent-quick-actions {
-  opacity: 1;
+.agent-saved-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-family: var(--agent-sans);
 }
 
-.agent-quick-btn {
+.agent-saved-row-left {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  color: var(--text-secondary);
-  font-size: 11px;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-saved-row-left svg {
+  color: var(--agent-muted);
+  flex-shrink: 0;
+}
+
+.agent-saved-row-label {
+  font-size: 13px;
   font-weight: 500;
-  font-family: var(--font);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  color: var(--agent-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
 }
 
-.agent-quick-btn:hover {
-  background: var(--surface);
-  border-color: var(--text-muted);
-  color: var(--text);
+.agent-saved-row-label--mono {
+  font-family: var(--font-mono);
+  color: var(--agent-muted);
+  font-weight: 400;
+  font-size: 12px;
 }
 
-.agent-quick-btn--stop:hover {
-  background: rgba(224, 62, 62, 0.08);
-  border-color: #e03e3e;
-  color: #e03e3e;
-}
-
-/* ── Restart button (top-right of running body) ── */
-
-.agent-restart-btn {
-  position: absolute;
-  top: 6px;
-  right: 8px;
-  z-index: 10;
+.agent-saved-row-check {
+  color: var(--agent-accent);
   display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 9px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 500;
-  font-family: var(--font);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.agent-restart-btn:hover {
-  background: var(--surface);
-  border-color: var(--text-muted);
-  color: var(--text);
+.agent-saved-row-meta {
+  font-size: 11px;
+  color: var(--agent-accent);
+  font-weight: 600;
+  font-family: var(--agent-sans);
+}
+
+/* ── Restart: warning banner ───────────────────────────────────── */
+
+.agent-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--agent-warning-soft);
+  border: 1px solid var(--agent-warning-border);
+  border-radius: 10px;
+}
+
+.agent-warning-icon {
+  color: var(--agent-warning);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.agent-warning-text {
+  font-size: 12px;
+  color: var(--agent-warning);
+  font-family: var(--agent-sans);
+  line-height: 1.4;
+}
+
+/* ── Text links ────────────────────────────────────────────────── */
+
+.agent-text-link {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-family: var(--agent-sans);
+  color: var(--agent-accent);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+
+.agent-text-link:hover {
+  background: var(--agent-accent-soft);
+}
+
+.agent-text-link--center {
+  align-self: center;
+  margin-top: 4px;
+}
+
+/* ── Restart: details panel (查看上次配置) ──────────────────────── */
+
+.agent-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--surface-hover);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.agent-details-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agent-details-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--agent-faint);
+  font-family: var(--agent-sans);
+}
+
+.agent-details-content {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--agent-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.agent-details-content--scrollback {
+  color: var(--agent-muted);
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.agent-details-empty {
+  font-size: 12px;
+  color: var(--agent-faint);
+  font-family: var(--agent-sans);
+  text-align: center;
+  padding: 4px;
 }

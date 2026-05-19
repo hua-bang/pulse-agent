@@ -7,8 +7,8 @@ export interface AgentDef {
 
 export const AGENT_REGISTRY: AgentDef[] = [
   { id: 'claude-code', label: 'Claude Code', command: 'claude', description: 'Anthropic' },
-  { id: 'codex', label: 'Codex', command: 'codex', description: 'OpenAI' },
-  { id: 'pulse-coder', label: 'Pulse Coder', command: 'pulse-coder', description: 'Pulse' },
+  { id: 'codex', label: 'Codex CLI', command: 'codex', description: 'OpenAI' },
+  { id: 'pulse-coder', label: 'Pulse-Coder', command: 'pulse-coder', description: 'Pulse' },
 ];
 
 export const getAgentCommand = (agentType: string): string | undefined =>

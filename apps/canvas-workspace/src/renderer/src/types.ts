@@ -60,6 +60,13 @@ export interface AgentNodeData {
   inlinePrompt?: string;
   /** Relative path to a prompt file in cwd for long prompts. */
   promptFile?: string;
+  /**
+   * Snapshot of the prompt the user supplied at launch time. `inlinePrompt`
+   * is cleared after being sent to the CLI to prevent re-sending on the
+   * next spawn, but the Restart view needs the original text to show what
+   * the previous session was started with.
+   */
+  lastInitPrompt?: string;
 }
 
 /**
