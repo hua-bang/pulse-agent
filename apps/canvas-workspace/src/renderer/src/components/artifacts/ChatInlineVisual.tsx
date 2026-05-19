@@ -67,9 +67,16 @@ export const ChatInlineVisual = ({
 }: ChatInlineVisualProps) => {
   const { openArtifact } = useArtifactDrawer();
   const [savedId, setSavedId] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [pinning, setPinning] = useState(false);
+  const [pinned, setPinned] = useState(false);
   const [copied, setCopied] = useState(false);
   const [height, setHeight] = useState(MIN_HEIGHT);
+  // Dedup concurrent promotion: Open and Save both lazily create the artifact.
+  // The first to fire owns the in-flight create; the second awaits the same
+  // promise so we never end up with two artifact rows for the same inline
+  // visual.
+  const promotionPromise = useRef<Promise<string | null> | null>(null);
 
   // Build the live payload from the highest-fidelity source available.
   // Side-channel streamedContent is preferred (already-unescaped HTML),
@@ -145,11 +152,14 @@ export const ChatInlineVisual = ({
     return () => cancelAnimationFrame(rafId.current);
   }, [isStreamingHtml, livePayload]);
 
-  const handleSaveAsArtifact = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!livePayload || savedId || saving) return;
-    setSaving(true);
-    try {
+  // Lazily promote the inline visual to a persistent artifact and return its
+  // id. Both Open and Save funnel through this — repeated calls reuse the
+  // first artifact instead of creating duplicates.
+  const promoteToArtifact = useCallback(async (): Promise<string | null> => {
+    if (savedId) return savedId;
+    if (promotionPromise.current) return await promotionPromise.current;
+    if (!livePayload?.content) return null;
+    const pending = (async (): Promise<string | null> => {
       const result = await window.canvasWorkspace.artifacts.create(workspaceId, {
         type: livePayload.type,
         title: livePayload.title || 'Saved visual',
@@ -158,12 +168,29 @@ export const ChatInlineVisual = ({
       });
       if (result.ok && result.artifact) {
         setSavedId(result.artifact.id);
-        openArtifact(workspaceId, result.artifact.id);
+        return result.artifact.id;
       }
+      return null;
+    })();
+    promotionPromise.current = pending;
+    try {
+      return await pending;
     } finally {
-      setSaving(false);
+      promotionPromise.current = null;
     }
-  }, [savedId, saving, workspaceId, livePayload, openArtifact]);
+  }, [savedId, workspaceId, livePayload]);
+
+  const handleOpen = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (opening) return;
+    setOpening(true);
+    try {
+      const id = await promoteToArtifact();
+      if (id) openArtifact(workspaceId, id);
+    } finally {
+      setOpening(false);
+    }
+  }, [opening, promoteToArtifact, openArtifact, workspaceId]);
 
   const handleCopy = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -177,10 +204,19 @@ export const ChatInlineVisual = ({
     }
   }, [livePayload]);
 
-  const handleOpenSaved = useCallback((e: React.MouseEvent) => {
+  const handleSaveToCanvas = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (savedId) openArtifact(workspaceId, savedId);
-  }, [savedId, workspaceId, openArtifact]);
+    if (pinning || pinned) return;
+    setPinning(true);
+    try {
+      const id = await promoteToArtifact();
+      if (!id) return;
+      const result = await window.canvasWorkspace.artifacts.pinToCanvas(workspaceId, id, {});
+      if (result?.ok) setPinned(true);
+    } finally {
+      setPinning(false);
+    }
+  }, [pinning, pinned, promoteToArtifact, workspaceId]);
 
   // ── Render branches ──────────────────────────────────────────────────
 
@@ -252,17 +288,17 @@ export const ChatInlineVisual = ({
       <div className="chat-inline-visual__toolbar" aria-hidden={!livePayload.content}>
         {!isFinal ? (
           <span className="chat-inline-visual__cursor" aria-hidden="true" />
-        ) : savedId ? (
-          <button
-            type="button"
-            className="chat-inline-visual__btn"
-            onClick={handleOpenSaved}
-            title="Open in drawer"
-          >
-            Open
-          </button>
         ) : (
           <>
+            <button
+              type="button"
+              className="chat-inline-visual__btn"
+              onClick={(e) => void handleOpen(e)}
+              disabled={opening || !livePayload.content}
+              title="Open in side drawer"
+            >
+              {opening ? 'Opening…' : 'Open'}
+            </button>
             <button
               type="button"
               className="chat-inline-visual__btn"
@@ -275,11 +311,11 @@ export const ChatInlineVisual = ({
             <button
               type="button"
               className="chat-inline-visual__btn chat-inline-visual__btn--primary"
-              onClick={(e) => void handleSaveAsArtifact(e)}
-              disabled={saving || !livePayload.content}
-              title="Save as artifact"
+              onClick={(e) => void handleSaveToCanvas(e)}
+              disabled={pinning || pinned || !livePayload.content}
+              title="Save to canvas"
             >
-              {saving ? 'Saving' : 'Save'}
+              {pinning ? 'Saving…' : pinned ? 'Saved' : 'Save'}
             </button>
           </>
         )}
