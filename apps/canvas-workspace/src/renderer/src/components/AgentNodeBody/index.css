@@ -541,51 +541,144 @@
 /* ── Loading overlay shown over the terminal while CLI bootstraps ─ */
 
 .agent-loading-overlay {
+  /* Per-agent accent — each coding agent gets its own tinted halo so
+   * the loading state feels branded rather than generic. */
+  --loading-accent: var(--agent-accent);
+  --loading-tint: rgba(91, 91, 242, 0.13);
+  --loading-tint-strong: rgba(91, 91, 242, 0.22);
+
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 14px;
   border-radius: 10px;
-  background: rgba(250, 250, 249, 0.92);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
+  background:
+    radial-gradient(
+      circle at center,
+      var(--loading-tint) 0%,
+      rgba(250, 250, 249, 0.96) 65%
+    );
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   z-index: 5;
   pointer-events: none;
-  animation: agent-fade-in 0.18s ease-out;
+  animation: agent-fade-in 0.22s ease-out;
+}
+
+.agent-loading-overlay--claude-code {
+  --loading-accent: #e07b3f;
+  --loading-tint: rgba(224, 123, 63, 0.14);
+  --loading-tint-strong: rgba(224, 123, 63, 0.26);
+}
+
+.agent-loading-overlay--pulse-coder {
+  --loading-accent: #6366f1;
+  --loading-tint: rgba(99, 102, 241, 0.14);
+  --loading-tint-strong: rgba(99, 102, 241, 0.26);
 }
 
 @keyframes agent-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.agent-loading-spinner {
-  width: 24px;
-  height: 24px;
-  border: 2.5px solid var(--agent-accent-soft);
-  border-top-color: var(--agent-accent);
+/* Stacked-halo mark: two concentric circles pulsing out of phase
+ * behind the agent's own brand icon. Reads as a soft "radar ping". */
+.agent-loading-mark {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+}
+
+.agent-loading-halo {
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  animation: agent-spin 0.8s linear infinite;
+  background: var(--loading-tint);
 }
 
-@keyframes agent-spin {
-  to { transform: rotate(360deg); }
+.agent-loading-halo--outer {
+  animation: agent-halo-ping 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.agent-loading-text {
+.agent-loading-halo--inner {
+  inset: 8px;
+  background: var(--loading-tint-strong);
+  animation: agent-halo-ping 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation-delay: 0.4s;
+}
+
+@keyframes agent-halo-ping {
+  0%   { transform: scale(0.7); opacity: 0.85; }
+  70%  { transform: scale(1.15); opacity: 0; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+
+.agent-loading-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.05);
+  animation: agent-icon-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes agent-icon-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+
+.agent-loading-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: var(--agent-accent);
+  color: var(--text);
   font-family: var(--agent-sans);
+  letter-spacing: 0.01em;
+}
+
+.agent-loading-dots {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  padding-bottom: 2px;
+}
+
+.agent-loading-dots > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--loading-accent);
+  animation: agent-dot-bounce 1.4s ease-in-out infinite;
+}
+
+.agent-loading-dots > span:nth-child(2) { animation-delay: 0.18s; }
+.agent-loading-dots > span:nth-child(3) { animation-delay: 0.36s; }
+
+@keyframes agent-dot-bounce {
+  0%, 60%, 100% { opacity: 0.28; transform: translateY(0); }
+  30%           { opacity: 1;    transform: translateY(-3px); }
 }
 
 .agent-loading-hint {
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-family: var(--agent-sans);
+  letter-spacing: 0.02em;
 }
 
 /* ── Restart: saved-config list ────────────────────────────────── */
