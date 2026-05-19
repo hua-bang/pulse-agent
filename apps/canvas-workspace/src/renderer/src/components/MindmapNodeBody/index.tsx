@@ -103,6 +103,27 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
     if (!stillExists) setSelectedId(root.id);
   }, [root, selectedId]);
 
+  // While a topic is being edited, clicking anywhere outside that topic
+  // should commit and exit edit mode. The natural browser behavior would
+  // blur the contentEditable on outside-click, but the canvas wrapper's
+  // `onMouseDown` calls `e.preventDefault()` (via `useNodeDrag`) to
+  // suppress text-selection during node drags — that also blocks the
+  // focus change, stranding the editor in focus. Forcing the blur
+  // ourselves in capture phase makes the editor's `onBlur` (commit +
+  // exit) run regardless of what upstream handlers do.
+  useEffect(() => {
+    if (!editingId || readOnly) return;
+    const onMouseDownAnywhere = (e: MouseEvent) => {
+      if (!(e.target instanceof Element)) return;
+      const editingPill = e.target.closest('[data-topic-id]');
+      if (editingPill?.getAttribute('data-topic-id') === editingId) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLElement) active.blur();
+    };
+    document.addEventListener('mousedown', onMouseDownAnywhere, true);
+    return () => document.removeEventListener('mousedown', onMouseDownAnywhere, true);
+  }, [editingId, readOnly]);
+
   /* ---- Mutation helpers ---- */
 
   const applyRoot = useCallback(
@@ -118,50 +139,80 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
     [data, node.id, onUpdate],
   );
 
+  // Helper: fold an in-flight text edit into the given root snapshot.
+  // Used by Tab/Enter/Shift+Tab paths so the keystroke that commits the
+  // editor's current text and the structural change (add child / add
+  // sibling / unindent) land in a single applyRoot call. Two separate
+  // applyRoot calls would each close over the same stale root and the
+  // second would clobber the first — that's the bug where pressing
+  // Enter mid-typing dropped the typed text.
+  const foldPendingEdit = useCallback(
+    (base: MindmapTopic, pendingEdit?: { topicId: string; text: string }) => {
+      if (!pendingEdit) return base;
+      const current = findTopicPath(base, pendingEdit.topicId)?.slice(-1)[0];
+      if (!current || current.text === pendingEdit.text) return base;
+      return setTopicText(base, pendingEdit.topicId, pendingEdit.text);
+    },
+    [],
+  );
+
   const addChild = useCallback(
-    (parentId: string, afterId?: string) => {
+    (parentId: string, afterId?: string, pendingEdit?: { topicId: string; text: string }) => {
       const id = genTopicId();
       const topic: MindmapTopic = { id, text: '', children: [] };
-      applyRoot(insertChild(root, parentId, topic, afterId));
+      const baseRoot = foldPendingEdit(root, pendingEdit);
+      applyRoot(insertChild(baseRoot, parentId, topic, afterId));
       pendingFocusRef.current = id;
     },
-    [applyRoot, root],
+    [applyRoot, foldPendingEdit, root],
   );
 
   const addSibling = useCallback(
-    (siblingId: string) => {
+    (siblingId: string, pendingEdit?: { topicId: string; text: string }) => {
       if (siblingId === root.id) {
-        addChild(root.id);
+        addChild(root.id, undefined, pendingEdit);
         return;
       }
       const parent = findParent(root, siblingId);
-      if (!parent) return;
-      addChild(parent.id, siblingId);
+      if (!parent) {
+        // No parent to insert under, but the user's pending text edit
+        // should still land — otherwise their keystrokes vanish.
+        const baseRoot = foldPendingEdit(root, pendingEdit);
+        if (baseRoot !== root) applyRoot(baseRoot);
+        return;
+      }
+      addChild(parent.id, siblingId, pendingEdit);
     },
-    [addChild, root],
+    [addChild, applyRoot, foldPendingEdit, root],
   );
 
   const unindentTopic = useCallback(
-    (topicId: string) => {
-      if (topicId === root.id) return;
-      const parent = findParent(root, topicId);
-      if (!parent || parent.id === root.id) return; // already top level
-      const grandparent = findParent(root, parent.id);
-      if (!grandparent) return;
+    (topicId: string, pendingEdit?: { topicId: string; text: string }) => {
+      const baseRoot = foldPendingEdit(root, pendingEdit);
+      // Even when unindent itself is a no-op (root / already top level /
+      // missing grandparent), the text edit must still commit — pressing
+      // Shift+Tab on a top-level branch shouldn't throw away typing.
+      const bailWithTextOnly = () => {
+        if (baseRoot !== root) applyRoot(baseRoot);
+      };
 
-      // Capture the topic BEFORE removing it so we can re-insert the
-      // same subtree under its grandparent.
-      const path = findTopicPath(root, topicId);
+      if (topicId === root.id) return bailWithTextOnly();
+      const parent = findParent(baseRoot, topicId);
+      if (!parent || parent.id === root.id) return bailWithTextOnly();
+      const grandparent = findParent(baseRoot, parent.id);
+      if (!grandparent) return bailWithTextOnly();
+
+      const path = findTopicPath(baseRoot, topicId);
       const original = path?.[path.length - 1];
-      if (!original) return;
+      if (!original) return bailWithTextOnly();
 
-      const removed = deleteTopic(root, topicId);
-      if (!removed) return;
+      const removed = deleteTopic(baseRoot, topicId);
+      if (!removed) return bailWithTextOnly();
       const next = insertChild(removed.root, grandparent.id, original, parent.id);
       applyRoot(next);
       pendingFocusRef.current = topicId;
     },
-    [applyRoot, root],
+    [applyRoot, foldPendingEdit, root],
   );
 
   const removeTopic = useCallback(
@@ -425,15 +476,20 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
               onToggleCollapsed={() => toggle(t.id)}
               onKeyAction={(action) => {
                 if (readOnly) return;
+                const pendingEdit =
+                  (action.kind === 'addChild' || action.kind === 'addSibling' || action.kind === 'unindent') &&
+                  action.pendingText !== undefined
+                    ? { topicId: t.id, text: action.pendingText }
+                    : undefined;
                 switch (action.kind) {
                   case 'addChild':
-                    addChild(t.id);
+                    addChild(t.id, undefined, pendingEdit);
                     break;
                   case 'addSibling':
-                    addSibling(t.id);
+                    addSibling(t.id, pendingEdit);
                     break;
                   case 'unindent':
-                    unindentTopic(t.id);
+                    unindentTopic(t.id, pendingEdit);
                     break;
                   case 'delete':
                     removeTopic(t.id);
@@ -461,9 +517,13 @@ export const MindmapNodeBody = ({ node, isSelected, isOuterDragging = false, onU
 /* ---- Topic pill ---- */
 
 type KeyAction =
-  | { kind: 'addChild' }
-  | { kind: 'addSibling' }
-  | { kind: 'unindent' }
+  // pendingText carries the in-flight contentEditable text when the
+  // shortcut fires mid-edit. The parent applies it to the focused topic
+  // in the same root snapshot as the structural change so the typed
+  // text and the new node both land in one update.
+  | { kind: 'addChild'; pendingText?: string }
+  | { kind: 'addSibling'; pendingText?: string }
+  | { kind: 'unindent'; pendingText?: string }
   | { kind: 'delete' }
   | { kind: 'toggle' }
   | { kind: 'exit' }
@@ -594,16 +654,30 @@ const TopicPill = ({
           return;
         }
         if (e.key === 'Enter' && !e.shiftKey) {
+          // Enter while editing: commit current text and leave edit mode
+          // without spawning a sibling. The user can press Enter again
+          // from the selected (non-editing) state to add a sibling — that
+          // separation matches Xmind-style behavior and avoids creating a
+          // node mid-typing. `commit()` mutates the tree only when the
+          // text actually changed, and `exit` only touches local editing
+          // state, so the two updates don't race the way the old
+          // commit + addSibling pair did.
           consume();
           commit();
-          onKeyAction({ kind: 'addSibling' });
+          onKeyAction({ kind: 'exit' });
           return;
         }
         if (e.key === 'Tab') {
+          // Tab still adds a child / unindents in one shot. Ship the
+          // in-flight editor text along with the action so the parent
+          // can fold the commit and the structural change into a single
+          // root update — two separate applyRoot calls would close over
+          // the same stale root and the second would clobber the first.
           consume();
-          commit();
-          if (e.shiftKey) onKeyAction({ kind: 'unindent' });
-          else onKeyAction({ kind: 'addChild' });
+          const el = editorRef.current;
+          const pendingText = el ? el.innerText.replace(/\n+$/, '') : topic.text;
+          if (e.shiftKey) onKeyAction({ kind: 'unindent', pendingText });
+          else onKeyAction({ kind: 'addChild', pendingText });
           return;
         }
         return;
