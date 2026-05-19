@@ -141,6 +141,13 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
    *  `running`, so the resumed spawn uses `--resume <uuid>` instead
    *  of `--session-id <uuid>`. */
   const pendingResumeRef = useRef(shouldAutoResume(data));
+  /** True only on initial mount when shouldAutoResume(data) was true.
+   *  Consumed by the spawn effect to force a fresh backend PTY:
+   *  without this, the main process's still-warm session map would
+   *  short-circuit `pty:spawn` into `{ reused: true }` and the new
+   *  xterm would reattach to a Claude whose alt-screen state we have
+   *  no way to recover, leaving the panel visually frozen. */
+  const needsAutoMintRef = useRef(shouldAutoResume(data));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -148,7 +155,6 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
   const cleanupRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sessionId = data.sessionId || node.id;
   const nodeIdRef = useRef(node.id);
   nodeIdRef.current = node.id;
   const dataRef = useRef(data);
@@ -162,8 +168,9 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     async (
       agentType: string,
       cwd: string,
-      inlinePromptOverride?: string,
-      resumeMode = false,
+      inlinePromptOverride: string | undefined,
+      resumeMode: boolean,
+      sessionId: string,
     ) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
 
@@ -206,6 +213,15 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         return true;
       });
 
+      // Fit synchronously *before* spawn so the PTY is created at the
+      // terminal's actual rendered dimensions. Without this, spawn
+      // would use xterm's default 80×24, and TUI agents like Claude
+      // Code lay out their input prompt at what they think is the
+      // bottom (row 24) — which in our larger panel ends up parked
+      // partway down the screen with empty space underneath. A second
+      // RAF-deferred fit covers the rare case where the container
+      // hadn't finished layout at this point.
+      try { fitAddon.fit(); } catch { /* ignore */ }
       requestAnimationFrame(() => {
         try { fitAddon.fit(); } catch { /* ignore */ }
       });
@@ -404,16 +420,34 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         api.kill(sessionId);
       };
     },
-    [sessionId, rootFolder, workspaceId, readOnly],
+    [rootFolder, workspaceId, readOnly],
   );
 
   useEffect(() => {
     if (viewMode === 'running' && !spawnedRef.current) {
+      let runSessionId = dataRef.current.sessionId || nodeIdRef.current;
+      if (needsAutoMintRef.current) {
+        // Auto-resume cold-reload prep: the handler-triggered paths
+        // (handleLaunch / handleRestartSession) already mint a fresh
+        // PTY sessionId before flipping viewMode, but this auto-mount
+        // path bypasses them. Without the kill+mint, the backend's
+        // still-warm pty:spawn returns `reused: true` for our old id
+        // and the new xterm wires up to a Claude whose alt-screen
+        // state it can't see.
+        needsAutoMintRef.current = false;
+        const apiPty = window.canvasWorkspace?.pty;
+        if (apiPty && runSessionId) apiPty.kill(runSessionId);
+        runSessionId = mintSessionId(nodeIdRef.current);
+        onUpdateRef.current(nodeIdRef.current, {
+          data: { ...dataRef.current, sessionId: runSessionId, scrollback: '' },
+        });
+      }
       void spawnAgent(
         pendingAgentRef.current,
         pendingCwdRef.current,
         pendingPromptRef.current,
         pendingResumeRef.current,
+        runSessionId,
       );
     }
     return () => {
@@ -423,7 +457,8 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       const api = window.canvasWorkspace?.pty;
       if (termRef.current && api && viewMode === 'running') {
         const scrollback = serializeBuffer(termRef.current);
-        void api.getCwd(sessionId).then((r) => {
+        const activeSessionId = dataRef.current.sessionId || nodeIdRef.current;
+        void api.getCwd(activeSessionId).then((r) => {
           const cwd = r.ok && r.cwd ? r.cwd : dataRef.current.cwd;
           onUpdateRef.current(nodeIdRef.current, {
             data: { ...dataRef.current, scrollback, cwd },
@@ -513,10 +548,11 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
         : undefined;
       const label = filePath ? filePath.split('/').pop() : selected.title;
       const mention = `@[${label}](canvas:${selected.id})`;
-      void api.write(sessionId, mention);
+      const activeSessionId = dataRef.current.sessionId || nodeIdRef.current;
+      void api.write(activeSessionId, mention);
     }
     termRef.current?.focus();
-  }, [sessionId, readOnly]);
+  }, [readOnly]);
 
   const handleMentionClose = useCallback(() => {
     setPickerOpen(false);
