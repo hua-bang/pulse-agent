@@ -42,7 +42,6 @@ export const AgentTerminal = ({
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
   const statusInfo = STATUS_TEXT[status] ?? STATUS_TEXT.running;
   const displayCwd = cwd ? truncatePath(cwd, 32) : '—';
-  const loadingLabel = `正在启动 ${agentDef?.label ?? agentType}`;
   const loadStripText = loading ? '启动中' : statusInfo.load;
   const loadStripTone = loading ? 'running' : statusInfo.tone;
 
@@ -79,7 +78,8 @@ export const AgentTerminal = ({
           {loading && (
             <div
               className={`agent-loading-overlay agent-loading-overlay--${agentType}`}
-              aria-live="polite"
+              role="status"
+              aria-label={`Starting ${agentDef?.label ?? agentType}`}
             >
               <div className="agent-loading-mark" aria-hidden="true">
                 <span className="agent-loading-halo agent-loading-halo--outer" />
@@ -88,15 +88,6 @@ export const AgentTerminal = ({
                   <AgentIcon id={agentType} size={22} />
                 </span>
               </div>
-              <div className="agent-loading-label">
-                <span>{loadingLabel}</span>
-                <span className="agent-loading-dots" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-              </div>
-              <div className="agent-loading-hint">首次启动会慢一些，稍候即可</div>
             </div>
           )}
         </div>
