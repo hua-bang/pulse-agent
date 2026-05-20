@@ -305,48 +305,38 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
 
         if (agentType === 'codex') {
           if (resumeMode) {
+            // Captured cliSessionId wins (deterministic); fall back to
+            // --last (most-recent session in this cwd) when capture
+            // failed on first launch.
             const target = existingCliSessionId || '--last';
-            console.log('[agent:codex] resume', { target, existingCliSessionId });
             api.write(sessionId, `${command} resume ${target}\n`);
           } else if (!existingCliSessionId) {
-            // First-ever Codex spawn for this node: launch bare,
-            // capture the session id via /status, then send the
-            // prompt. Best-effort; if capture fails (TUI changes
-            // format, timeout, no UUID in output) we just send the
-            // prompt and restart falls back to `resume --last`.
-            console.log('[agent:codex] capture flow: launching bare codex');
+            // First-ever Codex spawn for this node. Codex doesn't
+            // accept a caller-supplied id, so we launch bare, run
+            // /status to surface the id Codex assigned itself, parse
+            // the UUID out of the rendered panel, persist it, then
+            // send the user's prompt. The default agent-node size is
+            // wide enough that /status renders the full UUID without
+            // truncation; if the user has shrunk the node below that
+            // threshold the capture fails and restart falls back to
+            // `codex resume --last`.
             api.write(sessionId, `${command}\n`);
             // Wait for codex banner / TUI to finish drawing.
             await waitForQuiescence(900, 12_000);
-            // Capture everything that follows so we can see what Codex
-            // is rendering at each step (picker, main TUI, /status
-            // panel). Reset before each phase so logs stay focused.
+            // Codex shows an interactive "Update available" picker
+            // at startup when a newer version is on npm. Default
+            // selection is "Skip" so a bare \r dismisses it. If no
+            // picker is up the \r is a no-op against empty input.
+            // Without this, /status would be eaten by the picker.
             captureBuffer = '';
             capturing = true;
-            // Codex may show an interactive "Update available" picker
-            // at startup. Default selection is "Skip" so a bare \r
-            // dismisses it. If no picker is up, the \r should be a
-            // no-op against the empty input.
-            console.log('[agent:codex] dismissing any startup picker');
             api.write(sessionId, '\r');
-            // Let the picker dismissal animation + main-TUI redraw
-            // settle. waitForQuiescence is self-adjusting: bails on
-            // 600ms idle if there's a picker (since dismissal triggers
-            // a flurry of redraw bytes), or times out at maxMs in the
-            // no-picker case where \r produces nothing.
             await waitForQuiescence(600, 2_500);
-            console.log('[agent:codex] after dismiss', {
-              bytes: captureBuffer.length,
-              sample: stripAnsi(captureBuffer).slice(0, 600),
-            });
-            // Reset and capture only the /status response.
-            captureBuffer = '';
             // Type /status one char at a time, then a brief settle,
             // then \r as a discrete "Enter keypress". A single
             // \r-terminated burst lands in the input as a paste-like
-            // chunk and \r gets treated as "insert newline" instead
-            // of "submit".
-            console.log('[agent:codex] typing /status keystrokes');
+            // chunk where \r is treated as "insert newline".
+            captureBuffer = '';
             for (const ch of '/status') {
               api.write(sessionId, ch);
               await new Promise((r) => setTimeout(r, 25));
@@ -357,21 +347,6 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
             capturing = false;
             const stripped = stripAnsi(captureBuffer);
             const match = stripped.match(UUID_RE);
-            // Pull the actual "Session" line out of the buffer too —
-            // the Codex /status panel renders it at fixed column width
-            // and truncates long UUIDs to fit, so log what's actually
-            // there to confirm whether the UUID is present but cut off
-            // (vs. completely absent / under a different label).
-            const sessionIdx = stripped.search(/session/i);
-            const sessionSnippet =
-              sessionIdx >= 0 ? stripped.slice(sessionIdx, sessionIdx + 120) : null;
-            console.log('[agent:codex] /status captured', {
-              bytes: captureBuffer.length,
-              strippedHead: stripped.slice(0, 600),
-              strippedTail: stripped.slice(-600),
-              sessionSnippet,
-              matchedUuid: match?.[0] ?? null,
-            });
             if (match) {
               onUpdateRef.current(nodeIdRef.current, {
                 data: { ...dataRef.current, cliSessionId: match[0] },
