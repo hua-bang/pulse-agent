@@ -318,25 +318,41 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
             api.write(sessionId, `${command}\n`);
             // Wait for codex banner / TUI to finish drawing.
             await waitForQuiescence(900, 12_000);
-            // Codex shows an interactive "Update available" picker at
-            // startup when a newer version is on npm — defaults to
-            // "Skip" so a bare \r dismisses it. If no picker is up,
-            // the \r is a harmless no-op against the empty input box.
-            // Without this, the first /status we send gets eaten as
-            // keystrokes into the picker and never makes it to the
-            // main TUI.
-            console.log('[agent:codex] dismissing any startup picker');
-            api.write(sessionId, '\r');
-            await new Promise((r) => setTimeout(r, 500));
-            console.log('[agent:codex] banner quiesced, sending /status');
-            // Run /status; everything written to the channel from
-            // here until quiescence is captured for parsing.
+            // Capture everything that follows so we can see what Codex
+            // is rendering at each step (picker, main TUI, /status
+            // panel). Reset before each phase so logs stay focused.
             captureBuffer = '';
             capturing = true;
-            // Use \r (carriage return) — that's the byte a real Enter
-            // key emits in TUI raw mode. \n alone is treated by Codex
-            // as "insert newline" inside its multi-line input box.
-            api.write(sessionId, '/status\r');
+            // Codex may show an interactive "Update available" picker
+            // at startup. Default selection is "Skip" so a bare \r
+            // dismisses it. If no picker is up, the \r should be a
+            // no-op against the empty input.
+            console.log('[agent:codex] dismissing any startup picker');
+            api.write(sessionId, '\r');
+            // Let the picker dismissal animation + main-TUI redraw
+            // settle. waitForQuiescence is self-adjusting: bails on
+            // 600ms idle if there's a picker (since dismissal triggers
+            // a flurry of redraw bytes), or times out at maxMs in the
+            // no-picker case where \r produces nothing.
+            await waitForQuiescence(600, 2_500);
+            console.log('[agent:codex] after dismiss', {
+              bytes: captureBuffer.length,
+              sample: stripAnsi(captureBuffer).slice(0, 600),
+            });
+            // Reset and capture only the /status response.
+            captureBuffer = '';
+            // Type /status one char at a time, then a brief settle,
+            // then \r as a discrete "Enter keypress". A single
+            // \r-terminated burst lands in the input as a paste-like
+            // chunk and \r gets treated as "insert newline" instead
+            // of "submit".
+            console.log('[agent:codex] typing /status keystrokes');
+            for (const ch of '/status') {
+              api.write(sessionId, ch);
+              await new Promise((r) => setTimeout(r, 25));
+            }
+            await new Promise((r) => setTimeout(r, 150));
+            api.write(sessionId, '\r');
             await waitForQuiescence(600, 5_000);
             capturing = false;
             const stripped = stripAnsi(captureBuffer);
