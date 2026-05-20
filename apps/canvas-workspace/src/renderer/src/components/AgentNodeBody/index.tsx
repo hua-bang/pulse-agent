@@ -357,9 +357,19 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
             capturing = false;
             const stripped = stripAnsi(captureBuffer);
             const match = stripped.match(UUID_RE);
+            // Pull the actual "Session" line out of the buffer too —
+            // the Codex /status panel renders it at fixed column width
+            // and truncates long UUIDs to fit, so log what's actually
+            // there to confirm whether the UUID is present but cut off
+            // (vs. completely absent / under a different label).
+            const sessionIdx = stripped.search(/session/i);
+            const sessionSnippet =
+              sessionIdx >= 0 ? stripped.slice(sessionIdx, sessionIdx + 120) : null;
             console.log('[agent:codex] /status captured', {
               bytes: captureBuffer.length,
-              strippedSample: stripped.slice(0, 600),
+              strippedHead: stripped.slice(0, 600),
+              strippedTail: stripped.slice(-600),
+              sessionSnippet,
               matchedUuid: match?.[0] ?? null,
             });
             if (match) {
