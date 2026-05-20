@@ -323,7 +323,10 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
             // here until quiescence is captured for parsing.
             captureBuffer = '';
             capturing = true;
-            api.write(sessionId, '/status\n');
+            // Use \r (carriage return) — that's the byte a real Enter
+            // key emits in TUI raw mode. \n alone is treated by Codex
+            // as "insert newline" inside its multi-line input box.
+            api.write(sessionId, '/status\r');
             await waitForQuiescence(600, 5_000);
             capturing = false;
             const stripped = stripAnsi(captureBuffer);
@@ -343,8 +346,18 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
             api.write(sessionId, '\x1b');
             await new Promise((r) => setTimeout(r, 200));
             if (effectivePrompt) {
-              api.write(sessionId, `${effectivePrompt}\n`);
+              // Write the text first, give the TUI a beat to render
+              // (so it doesn't see one big burst it might treat as a
+              // paste), then send the actual Enter as a separate \r.
+              api.write(sessionId, effectivePrompt);
+              await new Promise((r) => setTimeout(r, 80));
+              api.write(sessionId, '\r');
             }
+            // No-prompt case: just leave Codex sitting at its empty
+            // input box. The /status capture + ESC has already run,
+            // so cliSessionId is persisted (or we'll fall back to
+            // --last on restart). User types their first message
+            // manually.
           } else {
             // Codex with a captured id from a prior spawn but no
             // resumeMode (shouldn't normally happen — Setup → 初始化
