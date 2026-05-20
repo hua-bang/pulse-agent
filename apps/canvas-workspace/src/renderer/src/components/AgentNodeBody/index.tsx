@@ -605,11 +605,16 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
     const freshSessionId = mintSessionId(nodeIdRef.current);
-    // 初始化 always starts a brand-new conversation: mint a fresh
-    // cliSessionId so Claude Code files this run under our id (and so
-    // any orphaned id from a previously-active agent type doesn't get
-    // misinterpreted as resumable).
-    const freshCliSessionId = crypto.randomUUID();
+    // 初始化 always starts a brand-new conversation. cliSessionId is
+    // pre-minted only for Claude Code, whose CLI accepts our UUID via
+    // --session-id. For Codex we must clear it so spawnAgent's
+    // "no prior id" branch fires and runs the /status capture; a
+    // randomly minted UUID here would short-circuit that detection
+    // (Codex doesn't accept caller-supplied ids — a stale random UUID
+    // isn't a real Codex session and would just confuse resume later).
+    // Other agents (Pulse-Coder) don't use cliSessionId at all.
+    const freshCliSessionId =
+      selectedAgent === 'claude-code' ? crypto.randomUUID() : '';
     // Persist the launch intent to disk immediately. If the user reloads
     // before spawnAgent's own post-spawn update commits, the node will
     // reopen in the Restart view (because sessionId/scrollback get persisted
