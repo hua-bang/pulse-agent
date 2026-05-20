@@ -16,7 +16,6 @@ interface Options {
   clipboardNodes: CanvasNode[];
   setClipboardNodes: (nodes: CanvasNode[]) => void;
   pasteNodes: (nodes: CanvasNode[]) => CanvasNode[];
-  pasteMarkdownAsNote?: (markdown: string) => Promise<CanvasNode | null>;
   /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
   /** Dissolve selected group nodes while keeping their children on canvas. */
@@ -58,7 +57,7 @@ interface Options {
 export const useCanvasKeyboard = ({
   undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
-  duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, pasteMarkdownAsNote, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
+  duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
   searchOpen, setSearchOpen,
   findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches,
@@ -174,18 +173,6 @@ export const useCanvasKeyboard = ({
           e.preventDefault();
           const created = pasteNodes(clipboardNodes);
           setSelectedNodeIds(created.map((n) => n.id));
-          return;
-        }
-
-        if (pasteMarkdownAsNote && navigator.clipboard?.readText) {
-          e.preventDefault();
-          void navigator.clipboard.readText().then(async (text) => {
-            if (!text.trim()) return;
-            const created = await pasteMarkdownAsNote(text);
-            if (created) setSelectedNodeIds([created.id]);
-          }).catch(() => {
-            // If clipboard read permission is denied, leave the canvas unchanged.
-          });
         }
         return;
       }
@@ -250,7 +237,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, pasteMarkdownAsNote, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
+  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {
