@@ -267,11 +267,20 @@ export const AgentNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUp
       let lastDataTime = Date.now();
       let capturing = false;
       let captureBuffer = '';
+      // Snapshot lastDataTime when waitForQuiescence starts, and only
+      // resolve once we've seen new data after that snapshot AND then
+      // gone idle for idleMs. Without the "new data" check, calling
+      // waitForQuiescence right after the previous burst ended would
+      // see "already idle for 900ms" and return instantly — before
+      // the IPC we just sent (e.g. `/status`) had any chance to be
+      // processed by the PTY and emit a response.
       const waitForQuiescence = (idleMs: number, maxMs: number) =>
         new Promise<void>((resolve) => {
           const start = Date.now();
+          const baseline = lastDataTime;
           const tick = () => {
-            if (Date.now() - lastDataTime >= idleMs) return resolve();
+            const sawNewData = lastDataTime > baseline;
+            if (sawNewData && Date.now() - lastDataTime >= idleMs) return resolve();
             if (Date.now() - start >= maxMs) return resolve();
             setTimeout(tick, 80);
           };
