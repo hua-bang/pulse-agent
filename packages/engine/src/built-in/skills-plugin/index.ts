@@ -5,7 +5,7 @@
 
 import { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
 import { Tool } from '../../shared/types';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, realpathSync } from 'fs';
 import { globSync } from 'glob';
 import matter from 'gray-matter';
 import { homedir } from 'os';
@@ -129,20 +129,28 @@ export class BuiltInSkillRegistry {
 
   /**
    * 扫描技能文件
+   *
+   * 顺序：项目级 → 用户级。同一文件（按 realpath 去重）只解析一次，避免
+   * 当 cwd === HOME 或目录互为 symlink 时把同一份 SKILL.md 收两遍。
+   * 跨工具的同名 skill 仍由 initialize() 里的 Map.set(name, …) 决定谁覆盖谁。
    */
   private async scanSkills(cwd: string): Promise<SkillInfo[]> {
     const skills: SkillInfo[] = [];
+    const seenPaths = new Set<string>();
 
     const scanPaths = [
-      // 项目级技能（优先 .pulse-coder，兼容 .agents / 旧版 .coder 和 .claude）
+      // 项目级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
       { base: cwd, pattern: '.pulse-coder/skills/**/SKILL.md' },
       { base: cwd, pattern: '.agents/skills/**/SKILL.md' },
       { base: cwd, pattern: '.coder/skills/**/SKILL.md' },
       { base: cwd, pattern: '.claude/skills/**/SKILL.md' },
-      // 用户级技能（优先 .pulse-coder，兼容 .agents / 旧版 .coder）
+      { base: cwd, pattern: '.codex/skills/**/SKILL.md' },
+      // 用户级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
       { base: homedir(), pattern: '.pulse-coder/skills/**/SKILL.md' },
       { base: homedir(), pattern: '.agents/skills/**/SKILL.md' },
-      { base: homedir(), pattern: '.coder/skills/**/SKILL.md' }
+      { base: homedir(), pattern: '.coder/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.claude/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.codex/skills/**/SKILL.md' }
     ];
 
     for (const { base, pattern } of scanPaths) {
@@ -150,6 +158,16 @@ export class BuiltInSkillRegistry {
         const files = globSync(pattern, { cwd: base, absolute: true });
 
         for (const filePath of files) {
+          let canonical = filePath;
+          try {
+            canonical = realpathSync(filePath);
+          } catch {
+            // realpath can fail for dangling symlinks — fall back to the
+            // glob-returned absolute path so we still dedupe within a run.
+          }
+          if (seenPaths.has(canonical)) continue;
+          seenPaths.add(canonical);
+
           try {
             const skillInfo = this.parseSkillFile(filePath);
             if (skillInfo) {
