@@ -240,6 +240,16 @@ app.on("web-contents-created", (_event, contents) => {
 });
 
 app.whenReady().then(() => {
+  // Notion (and a handful of other services) reject embedded `<webview>`s
+  // the moment the UA string contains the "Electron/x.y.z" token, surfacing
+  // a "Your browser is not compatible" page even though the underlying
+  // Chromium is perfectly capable. Strip the Electron and product-name
+  // tokens from the default fallback so each webContents looks like stock
+  // Chromium. Must run before any webContents navigates.
+  app.userAgentFallback = app.userAgentFallback
+    .replace(/\s?Electron\/\S+/g, "")
+    .replace(/\s?PulseCanvas\/\S+/g, "");
+
   registerPulseCanvasProtocol();
 
   // Set the macOS dock icon in dev/preview (packaged builds use the .icns
