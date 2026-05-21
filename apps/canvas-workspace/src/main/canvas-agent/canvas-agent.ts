@@ -363,6 +363,7 @@ Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm ru
 
 ## Skills
 - \`skill\`: Load a skill by name to get detailed step-by-step instructions for specialized tasks (e.g. canvas operations via pulse-canvas CLI, canvas-bootstrap for deep-research workspace creation)
+- When the user's message contains a chip like \`@[skill:<name>]\`, treat it as an explicit request to load that skill — call the \`skill\` tool with that name BEFORE doing anything else, then follow the skill's step-by-step guidance.
 
 Use these alongside canvas_* tools for full workspace control.
 
@@ -797,6 +798,19 @@ export class CanvasAgent {
    */
   getMessageCount(): number {
     return this.sessionStore.getMessages().length;
+  }
+
+  /**
+   * List all skills the engine has loaded — name + description only.
+   * Used by the ChatPanel `/`-trigger popup; the full skill body is fetched
+   * via the `skill` tool when the agent actually runs.
+   */
+  listSkills(): Array<{ name: string; description: string }> {
+    const registry = this.engine?.getService?.('skillRegistry') as
+      | { getAll: () => Array<{ name: string; description: string }> }
+      | undefined;
+    if (!registry) return [];
+    return registry.getAll().map(s => ({ name: s.name, description: s.description }));
   }
 
   /**

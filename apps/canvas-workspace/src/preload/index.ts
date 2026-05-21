@@ -366,6 +366,9 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     getStatus: (workspaceId: string) =>
       ipcRenderer.invoke("canvas-agent:status", { workspaceId }),
 
+    listSkills: (workspaceId: string) =>
+      ipcRenderer.invoke("canvas-agent:list-skills", { workspaceId }),
+
     getHistory: (workspaceId: string) =>
       ipcRenderer.invoke("canvas-agent:history", { workspaceId }),
 

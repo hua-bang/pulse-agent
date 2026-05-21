@@ -27,11 +27,13 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'workspace';
+  type: 'node' | 'file' | 'workspace' | 'skill';
   label: string;
   nodeType?: CanvasNode['type'];
   path?: string;
   workspaceId?: string;
+  /** For type === 'skill': the skill's description, shown in the popup row. */
+  description?: string;
 }
 
 export interface PendingClarification {

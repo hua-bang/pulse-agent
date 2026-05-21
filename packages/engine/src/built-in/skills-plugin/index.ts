@@ -5,7 +5,7 @@
 
 import { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
 import { Tool } from '../../shared/types';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, realpathSync } from 'fs';
 import { globSync } from 'glob';
 import matter from 'gray-matter';
 import { homedir } from 'os';
@@ -129,20 +129,31 @@ export class BuiltInSkillRegistry {
 
   /**
    * 扫描技能文件
+   *
+   * 顺序：项目级 → 用户级，每段内部 .pulse-coder 排在最前。两层去重：
+   *   1. realpath 去重 — 同一物理文件（symlink / cwd===HOME 等）只解析一次。
+   *   2. 名字去重（大小写不敏感）— 同名 skill 以**先扫到的为准**，匹配
+   *      注释里"优先 .pulse-coder"的意图。这样 ~/.pulse-coder/foo 会盖住
+   *      ~/.codex/foo，而不是反过来。
    */
   private async scanSkills(cwd: string): Promise<SkillInfo[]> {
     const skills: SkillInfo[] = [];
+    const seenPaths = new Set<string>();
+    const seenNames = new Set<string>();
 
     const scanPaths = [
-      // 项目级技能（优先 .pulse-coder，兼容 .agents / 旧版 .coder 和 .claude）
+      // 项目级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
       { base: cwd, pattern: '.pulse-coder/skills/**/SKILL.md' },
       { base: cwd, pattern: '.agents/skills/**/SKILL.md' },
       { base: cwd, pattern: '.coder/skills/**/SKILL.md' },
       { base: cwd, pattern: '.claude/skills/**/SKILL.md' },
-      // 用户级技能（优先 .pulse-coder，兼容 .agents / 旧版 .coder）
+      { base: cwd, pattern: '.codex/skills/**/SKILL.md' },
+      // 用户级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
       { base: homedir(), pattern: '.pulse-coder/skills/**/SKILL.md' },
       { base: homedir(), pattern: '.agents/skills/**/SKILL.md' },
-      { base: homedir(), pattern: '.coder/skills/**/SKILL.md' }
+      { base: homedir(), pattern: '.coder/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.claude/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.codex/skills/**/SKILL.md' }
     ];
 
     for (const { base, pattern } of scanPaths) {
@@ -150,11 +161,29 @@ export class BuiltInSkillRegistry {
         const files = globSync(pattern, { cwd: base, absolute: true });
 
         for (const filePath of files) {
+          let canonical = filePath;
+          try {
+            canonical = realpathSync(filePath);
+          } catch {
+            // realpath can fail for dangling symlinks — fall back to the
+            // glob-returned absolute path so we still dedupe within a run.
+          }
+          if (seenPaths.has(canonical)) continue;
+          seenPaths.add(canonical);
+
           try {
             const skillInfo = this.parseSkillFile(filePath);
-            if (skillInfo) {
-              skills.push(skillInfo);
+            if (!skillInfo) continue;
+
+            const nameKey = skillInfo.name.toLowerCase();
+            if (seenNames.has(nameKey)) {
+              console.debug(
+                `[Skills] Skipping ${filePath}: name "${skillInfo.name}" already loaded from a higher-priority source`
+              );
+              continue;
             }
+            seenNames.add(nameKey);
+            skills.push(skillInfo);
           } catch (error) {
             console.warn(`Failed to parse skill file ${filePath}:`, error);
           }

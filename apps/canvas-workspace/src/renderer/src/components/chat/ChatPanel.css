@@ -1138,6 +1138,16 @@
   text-transform: capitalize;
 }
 
+.chat-mention-item-description {
+  flex: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.45);
+}
+
 /* ─── @ Mention chips (inline in messages) ──────────────── */
 
 .chat-mention-chip {
@@ -1239,6 +1249,16 @@
 .chat-mention-chip--clickable.chat-mention-chip--workspace:hover {
   background: rgba(88, 166, 255, 0.16);
   border-color: rgba(88, 166, 255, 0.28);
+}
+
+.chat-mention-chip[data-node-type="skill"],
+.chat-mention-chip--skill {
+  background: rgba(34, 197, 94, 0.08);
+  border-color: rgba(34, 197, 94, 0.2);
+}
+.chat-mention-chip[data-node-type="skill"] .chat-mention-chip-icon,
+.chat-mention-chip--skill .chat-mention-chip-icon {
+  color: rgba(34, 197, 94, 0.85);
 }
 
 /* Input chip variant — inline non-editable mention in contentEditable */

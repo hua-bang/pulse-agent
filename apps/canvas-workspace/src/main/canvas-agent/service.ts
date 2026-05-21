@@ -121,6 +121,17 @@ export class CanvasAgentService {
   }
 
   /**
+   * List skills (name + description) available to the workspace's agent.
+   * Auto-activates the agent so the engine — and the skills plugin — is
+   * initialized before reading the registry.
+   */
+  async listSkills(workspaceId: string): Promise<Array<{ name: string; description: string }>> {
+    await this.activate(workspaceId);
+    const agent = this.agents.get(workspaceId)!;
+    return agent.listSkills();
+  }
+
+  /**
    * Get conversation history for the current session.
    */
   getHistory(workspaceId: string): CanvasAgentMessage[] {
