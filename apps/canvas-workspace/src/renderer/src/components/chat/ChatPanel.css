@@ -2074,3 +2074,98 @@
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
 }
 
+/* ─── Chat anchors (TOC) ──────────────────────────────────── */
+
+.chat-anchors {
+  position: relative;
+}
+
+.chat-anchors-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 120;
+  min-width: 240px;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  padding: 4px;
+  animation: chat-menu-in 0.12s ease-out;
+}
+
+.chat-anchors-menu-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9b9a97;
+  padding: 4px 10px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chat-anchors-menu-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-anchors-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #37352f;
+  text-align: left;
+  line-height: 1.4;
+  transition: background 0.1s;
+}
+
+.chat-anchors-menu-item:hover {
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.chat-anchors-menu-item-num {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: right;
+  font-size: 11px;
+  color: #b4b4b0;
+  padding-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-anchors-menu-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+/* Brief highlight pulse on the anchored message after a jump. */
+.chat-message--anchor-flash {
+  animation: chat-anchor-flash 1.2s ease-out;
+  border-radius: 8px;
+}
+
+@keyframes chat-anchor-flash {
+  0% {
+    background: rgba(35, 131, 226, 0.16);
+    box-shadow: 0 0 0 4px rgba(35, 131, 226, 0.1);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 0 rgba(35, 131, 226, 0);
+  }
+}
+

@@ -3,6 +3,7 @@ import type { AgentChatMessage, CanvasNode } from '../../types';
 import { AvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
 import type { PendingClarification, ToolCallStatus } from './types';
+import { buildAnchorElementId } from './utils/anchors';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -144,6 +145,7 @@ export const ChatMessages = ({
             onToggleSection={() => onToggleSection(index)}
             onToggleToolExpand={onToggleToolExpand}
             onAddImageToCanvas={onAddImageToCanvas}
+            anchorId={buildAnchorElementId(workspaceId, index)}
           />
         );
       })}

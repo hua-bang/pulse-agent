@@ -42,6 +42,8 @@ interface ChatMessageProps {
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
+  /** DOM id used by ChatAnchors to scroll this message into view. */
+  anchorId?: string;
 }
 
 const LoadingDots = () => (
@@ -64,8 +66,9 @@ export const ChatMessage = ({
   onToggleSection,
   onToggleToolExpand,
   onAddImageToCanvas,
+  anchorId,
 }: ChatMessageProps) => (
-  <div className={`chat-message chat-message-${message.role}`}>
+  <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
     {message.role === 'assistant' && (
       <div className="chat-message-avatar">
         <AvatarIcon size={14} />
