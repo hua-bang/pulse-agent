@@ -378,6 +378,9 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     newSession: (workspaceId: string) =>
       ipcRenderer.invoke("canvas-agent:new-session", { workspaceId }),
 
+    rewindMessages: (workspaceId: string, fromIndex: number) =>
+      ipcRenderer.invoke("canvas-agent:rewind-messages", { workspaceId, fromIndex }),
+
     loadSession: (workspaceId: string, sessionId: string) =>
       ipcRenderer.invoke("canvas-agent:load-session", { workspaceId, sessionId }),
 

@@ -701,6 +701,10 @@ export interface AgentApi {
   newSession: (
     workspaceId: string
   ) => Promise<{ ok: boolean; error?: string }>;
+  rewindMessages: (
+    workspaceId: string,
+    fromIndex: number,
+  ) => Promise<{ ok: boolean; error?: string }>;
   loadSession: (
     workspaceId: string,
     sessionId: string

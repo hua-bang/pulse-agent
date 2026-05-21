@@ -51,6 +51,18 @@ markdown.renderer.rules.fence = (tokens, idx) => {
   const rawCode = token.content;
   const info = (token.info || '').trim();
   const requestedLang = info.split(/\s+/)[0] ?? '';
+
+  // Mermaid diagrams render as a placeholder; the real SVG is mounted by
+  // ChatMessage's effect after the parent message lands in the DOM.
+  if (requestedLang.toLowerCase() === 'mermaid') {
+    return (
+      '<div class="chat-mermaid" data-rendered="false"'
+      + ` data-source="${escapeAttr(rawCode)}">`
+      + '<div class="chat-mermaid-loading">Rendering diagram…</div>'
+      + '</div>'
+    );
+  }
+
   const { html: highlighted, lang } = highlightCode(rawCode, requestedLang);
   const displayLang = requestedLang || lang || 'text';
   const codeHtml = highlighted

@@ -1058,6 +1058,124 @@
   border-color: rgba(46, 160, 67, 0.2);
 }
 
+.chat-message-toolbar-btn--icon {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-message-toolbar-btn--primary {
+  background: #2383e2;
+  border-color: #2383e2;
+  color: #fff;
+}
+
+.chat-message-toolbar-btn--primary:hover {
+  background: #1f76cc;
+  border-color: #1f76cc;
+  color: #fff;
+}
+
+.chat-message-toolbar-btn--primary:disabled {
+  background: rgba(55, 53, 47, 0.18);
+  border-color: rgba(55, 53, 47, 0.18);
+  color: #fff;
+  cursor: not-allowed;
+}
+
+/* ─── Inline user-message editor ───────────────────────────── */
+
+.chat-message-edit {
+  width: 100%;
+  max-width: min(92%, 560px);
+  background: #fff;
+  border: 1px solid rgba(35, 131, 226, 0.4);
+  border-radius: 12px;
+  border-bottom-right-radius: 4px;
+  padding: 8px 10px 6px;
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-message-edit-input {
+  width: 100%;
+  min-height: 40px;
+  resize: vertical;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #37352f;
+  padding: 0;
+}
+
+.chat-message-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chat-message-edit-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  color: rgba(55, 53, 47, 0.42);
+}
+
+/* ─── Mermaid diagrams ────────────────────────────────────── */
+
+.chat-mermaid {
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid rgba(55, 53, 47, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.chat-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.chat-mermaid-loading {
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.45);
+  font-style: italic;
+  padding: 18px 0;
+}
+
+.chat-mermaid[data-rendered="error"] {
+  text-align: left;
+  border-color: rgba(218, 54, 51, 0.2);
+  background: rgba(218, 54, 51, 0.04);
+}
+
+.chat-mermaid-error-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8b2f2a;
+  margin-bottom: 4px;
+}
+
+.chat-mermaid-error-detail {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: rgba(139, 47, 42, 0.85);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ─── Task list (GFM `- [x]` / `- [ ]`) ────────────────────── */
 
 .chat-md .task-list-item {

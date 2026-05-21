@@ -408,6 +408,78 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
     }
   }, [activeSessionId, clarifyInput, pendingClarify]);
 
+  /**
+   * Drop the conversation tail at and after `fromIndex` in both the
+   * renderer's local state and the main-process session, so the next
+   * `sendMessage` starts from a clean prefix. Used by edit / regenerate.
+   */
+  const rewindTo = useCallback(async (fromIndex: number): Promise<boolean> => {
+    if (loading) return false;
+    if (fromIndex < 0) return false;
+    setMessages(prev => (fromIndex < prev.length ? prev.slice(0, fromIndex) : prev));
+    setMessageTools(prev => {
+      const next = new Map<number, ToolCallStatus[]>();
+      prev.forEach((tools, idx) => {
+        if (idx < fromIndex) next.set(idx, tools);
+      });
+      return next;
+    });
+    setCollapsedSections(prev => {
+      const next = new Set<number>();
+      prev.forEach(idx => {
+        if (idx < fromIndex) next.add(idx);
+      });
+      return next;
+    });
+    try {
+      const result = await window.canvasWorkspace.agent.rewindMessages(workspaceId, fromIndex);
+      return !!result?.ok;
+    } catch (error) {
+      console.error('[chat-panel] rewind failed:', error);
+      return false;
+    }
+  }, [loading, workspaceId]);
+
+  /**
+   * Replace the user message at `userIndex` with `newContent` and
+   * re-run the turn. Drops every message at and after `userIndex` first.
+   */
+  const editUserMessage = useCallback(async (
+    userIndex: number,
+    newContent: string,
+    requestContext?: AgentRequestContext,
+  ): Promise<boolean> => {
+    const trimmed = newContent.trim();
+    if (!trimmed || loading) return false;
+    const original = messages[userIndex];
+    if (!original || original.role !== 'user') return false;
+    const ok = await rewindTo(userIndex);
+    if (!ok) return false;
+    return await sendMessage(trimmed, requestContext, original.attachments ?? []);
+  }, [loading, messages, rewindTo, sendMessage]);
+
+  /**
+   * Regenerate the assistant reply at `assistantIndex` by replaying the
+   * preceding user turn. Drops both messages (and everything after)
+   * before re-sending.
+   */
+  const regenerateAssistantMessage = useCallback(async (
+    assistantIndex: number,
+    requestContext?: AgentRequestContext,
+  ): Promise<boolean> => {
+    if (loading) return false;
+    const assistant = messages[assistantIndex];
+    if (!assistant || assistant.role !== 'assistant') return false;
+    // Walk back to the most recent user turn that triggered this reply.
+    let userIndex = assistantIndex - 1;
+    while (userIndex >= 0 && messages[userIndex].role !== 'user') userIndex--;
+    if (userIndex < 0) return false;
+    const userMessage = messages[userIndex];
+    const ok = await rewindTo(userIndex);
+    if (!ok) return false;
+    return await sendMessage(userMessage.content, requestContext, userMessage.attachments ?? []);
+  }, [loading, messages, rewindTo, sendMessage]);
+
   const toggleSection = useCallback((messageIndex: number) => {
     setCollapsedSections(prev => {
       const next = new Set(prev);
@@ -432,11 +504,13 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
     answerClarification,
     clarifyInput,
     collapsedSections,
+    editUserMessage,
     expandedTools,
     loading,
     messageTools,
     messages,
     pendingClarify,
+    regenerateAssistantMessage,
     replaceMessages,
     sendMessage,
     setClarifyInput,

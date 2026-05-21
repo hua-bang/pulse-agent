@@ -32,6 +32,8 @@ export const ChatPanel = ({
     canvasModels,
     clarifyInput,
     clearInput,
+    editUserMessage,
+    regenerateAssistantMessage,
     collapsedSections,
     editableRef,
     expandedTools,
@@ -126,6 +128,16 @@ export const ChatPanel = ({
     setExecutionMode(mode => mode === 'auto' ? 'ask' : 'auto');
   }, []);
 
+  const handleEditUserMessage = useCallback(
+    (index: number, newContent: string) => editUserMessage(index, newContent, requestContextRef.current),
+    [editUserMessage],
+  );
+
+  const handleRegenerate = useCallback(
+    (index: number) => regenerateAssistantMessage(index, requestContextRef.current),
+    [regenerateAssistantMessage],
+  );
+
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 
   const handleJumpAnchor = useCallback((index: number) => {
@@ -204,6 +216,8 @@ export const ChatPanel = ({
       onToggleExecutionMode={handleToggleExecutionMode}
       anchors={anchors}
       onJumpAnchor={handleJumpAnchor}
+      onEditUserMessage={handleEditUserMessage}
+      onRegenerate={handleRegenerate}
     />
       <ModelSettingsDrawer
         open={modelSettingsOpen}

@@ -1,9 +1,10 @@
-import { memo, useCallback, useMemo, useState, type SyntheticEvent } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { AvatarIcon } from '../icons';
+import { AvatarIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
+import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
 import { PluginChatCardForMessage } from '../../../../plugins/renderer';
@@ -58,6 +59,8 @@ const parseGeneratedImage = (result?: string): GeneratedImagePayload | null => {
 
 interface ChatMessageProps {
   message: AgentChatMessage;
+  /** Index in the parent's `messages` array — used by edit / regenerate. */
+  index: number;
   isStreaming: boolean;
   loading: boolean;
   tools?: ToolCallStatus[];
@@ -70,6 +73,10 @@ interface ChatMessageProps {
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   /** DOM id used by ChatAnchors to scroll this message into view. */
   anchorId?: string;
+  /** Replace this user message with `newContent` and re-run the turn. */
+  onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
+  /** Re-run the user turn that produced this assistant message. */
+  onRegenerate?: (index: number) => Promise<boolean> | void;
 }
 
 const LoadingDots = () => (
@@ -82,6 +89,7 @@ const LoadingDots = () => (
 
 export const ChatMessage = ({
   message,
+  index,
   isStreaming,
   loading,
   tools,
@@ -93,6 +101,8 @@ export const ChatMessage = ({
   onToggleToolExpand,
   onAddImageToCanvas,
   anchorId,
+  onEditUserMessage,
+  onRegenerate,
 }: ChatMessageProps) => {
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
@@ -112,10 +122,66 @@ export const ChatMessage = ({
   const relativeTime = formatRelativeTime(message.timestamp);
   const absoluteTime = formatAbsoluteTime(message.timestamp);
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+
+  const canEdit = message.role === 'user'
+    && !!onEditUserMessage
+    && !loading
+    && !isStreaming;
+  const canRegenerate = message.role === 'assistant'
+    && !!onRegenerate
+    && !loading
+    && !isStreaming;
+
+  const handleStartEdit = useCallback(() => {
+    setEditValue(message.content);
+    setIsEditing(true);
+  }, [message.content]);
+
+  const handleCancelEdit = useCallback(() => {
+    setIsEditing(false);
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!onEditUserMessage) return;
+    const trimmed = editValue.trim();
+    if (!trimmed) return;
+    setIsEditing(false);
+    await onEditUserMessage(index, trimmed);
+  }, [editValue, index, onEditUserMessage]);
+
+  const handleEditKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      handleCancelEdit();
+      return;
+    }
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void handleSaveEdit();
+    }
+  }, [handleCancelEdit, handleSaveEdit]);
+
+  const handleRegenerate = useCallback(() => {
+    if (!onRegenerate) return;
+    void onRegenerate(index);
+  }, [index, onRegenerate]);
+
   const handleImageError = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
     const card = event.currentTarget.closest('.chat-message-image-card');
     card?.classList.add('chat-message-image-card--broken');
   }, []);
+
+  // After every (re-)render of the assistant body, render any pending
+  // mermaid placeholders. We skip while streaming because partial
+  // diagrams will always fail to parse — they get picked up once the
+  // stream completes.
+  const assistantBodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (message.role !== 'assistant' || isStreaming) return;
+    renderMermaidIn(assistantBodyRef.current);
+  }, [assistantHtml, isStreaming, message.role]);
 
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
@@ -237,6 +303,7 @@ export const ChatMessage = ({
         isStreaming ? (
           message.content ? (
             <div
+              ref={assistantBodyRef}
               className="chat-message-content chat-md chat-md--streaming"
               dangerouslySetInnerHTML={{ __html: assistantHtml }}
             />
@@ -245,15 +312,45 @@ export const ChatMessage = ({
           ) : null
         ) : (
           <div
+            ref={assistantBodyRef}
             className="chat-message-content chat-md"
             dangerouslySetInnerHTML={{ __html: assistantHtml }}
           />
         )
+      ) : isEditing ? (
+        <div className="chat-message-edit">
+          <textarea
+            className="chat-message-edit-input"
+            value={editValue}
+            onChange={(event) => setEditValue(event.target.value)}
+            onKeyDown={handleEditKeyDown}
+            autoFocus
+            rows={Math.min(8, Math.max(2, editValue.split('\n').length))}
+          />
+          <div className="chat-message-edit-actions">
+            <span className="chat-message-edit-hint">⌘↵ to save · Esc to cancel</span>
+            <button
+              type="button"
+              className="chat-message-toolbar-btn"
+              onClick={handleCancelEdit}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="chat-message-toolbar-btn chat-message-toolbar-btn--primary"
+              onClick={() => void handleSaveEdit()}
+              disabled={!editValue.trim()}
+            >
+              Save &amp; resend
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="chat-message-content">{userBody}</div>
       )}
       <PluginChatCardForMessage message={message} />
-      {(showCopyToolbar || relativeTime) && (
+      {!isEditing && (showCopyToolbar || canEdit || canRegenerate || relativeTime) && (
         <div className="chat-message-toolbar">
           {relativeTime && (
             <time
@@ -263,6 +360,28 @@ export const ChatMessage = ({
             >
               {relativeTime}
             </time>
+          )}
+          {canEdit && (
+            <button
+              type="button"
+              className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
+              title="Edit & resend"
+              aria-label="Edit and resend"
+              onClick={handleStartEdit}
+            >
+              <PencilIcon size={12} />
+            </button>
+          )}
+          {canRegenerate && (
+            <button
+              type="button"
+              className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
+              title="Regenerate response"
+              aria-label="Regenerate response"
+              onClick={handleRegenerate}
+            >
+              <RefreshIcon size={12} />
+            </button>
           )}
           {showCopyToolbar && <CopyMessageButton content={message.content} />}
         </div>

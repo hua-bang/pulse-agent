@@ -877,6 +877,19 @@ export class CanvasAgent {
   }
 
   /**
+   * Drop messages at and after `fromIndex` from both the in-memory
+   * LLM context and the persisted session. Used by edit / regenerate
+   * flows in the chat panel.
+   */
+  rewindTo(fromIndex: number): void {
+    if (fromIndex < 0) return;
+    if (fromIndex < this.messages.length) {
+      this.messages.length = fromIndex;
+    }
+    this.sessionStore.truncateMessages(fromIndex);
+  }
+
+  /**
    * Destroy the agent (called when workspace is closed).
    */
   async destroy(): Promise<void> {

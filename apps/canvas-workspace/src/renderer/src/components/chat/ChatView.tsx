@@ -73,6 +73,11 @@ interface ChatViewProps {
   anchors?: ChatAnchor[];
   onJumpAnchor?: (index: number) => void;
 
+  // Edit / regenerate hooks — wired from ChatPanel into the per-message
+  // hover toolbar inside ChatMessage.
+  onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
+  onRegenerate?: (index: number) => Promise<boolean> | void;
+
   // Optional decoration
   onResizeStart?: (e: ReactMouseEvent) => void;
 }
@@ -130,6 +135,8 @@ export const ChatView = ({
   onToggleExecutionMode,
   anchors,
   onJumpAnchor,
+  onEditUserMessage,
+  onRegenerate,
   onResizeStart,
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading;
@@ -161,6 +168,8 @@ export const ChatView = ({
           onNodeFocus={onNodeFocus}
           anchors={anchors}
           onJumpAnchor={onJumpAnchor}
+          onEditUserMessage={onEditUserMessage}
+          onRegenerate={onRegenerate}
         />
       ) : (
         <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} />

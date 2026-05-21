@@ -27,6 +27,8 @@ interface ChatMessagesProps {
   /** When present, render the anchor rail glued to the left of the messages. */
   anchors?: ChatAnchor[];
   onJumpAnchor?: (index: number) => void;
+  onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
+  onRegenerate?: (index: number) => Promise<boolean> | void;
 }
 
 const LoadingPlaceholder = () => (
@@ -113,6 +115,8 @@ export const ChatMessages = ({
   onNodeFocus,
   anchors,
   onJumpAnchor,
+  onEditUserMessage,
+  onRegenerate,
 }: ChatMessagesProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -169,6 +173,7 @@ export const ChatMessages = ({
         return (
           <ChatMessage
             key={index}
+            index={index}
             message={message}
             isStreaming={isStreaming}
             loading={loading}
@@ -181,6 +186,8 @@ export const ChatMessages = ({
             onToggleToolExpand={onToggleToolExpand}
             onAddImageToCanvas={onAddImageToCanvas}
             anchorId={buildAnchorElementId(workspaceId, index)}
+            onEditUserMessage={onEditUserMessage}
+            onRegenerate={onRegenerate}
           />
         );
       })}
