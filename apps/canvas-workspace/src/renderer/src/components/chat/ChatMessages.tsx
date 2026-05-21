@@ -139,13 +139,6 @@ export const ChatMessages = ({
 
   return (
     <div className="chat-messages-area">
-      {showRail && (
-        <ChatAnchorRail
-          anchors={anchors!}
-          activeIndex={activeAnchorIndex}
-          onJump={onJumpAnchor!}
-        />
-      )}
       <div className="chat-messages" ref={containerRef} onClick={handleMessageClick}>
       {messages.map((message, index) => {
         const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
@@ -179,6 +172,13 @@ export const ChatMessages = ({
       )}
       <div ref={messagesEndRef} />
       </div>
+      {showRail && (
+        <ChatAnchorRail
+          anchors={anchors!}
+          activeIndex={activeAnchorIndex}
+          onJump={onJumpAnchor!}
+        />
+      )}
     </div>
   );
 };

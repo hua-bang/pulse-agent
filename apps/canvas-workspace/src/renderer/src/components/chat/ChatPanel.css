@@ -2152,32 +2152,28 @@
   word-break: break-word;
 }
 
-/* Wrapper that hosts both the messages scroll area and the anchor rail. */
+/* Wrapper that hosts both the messages scroll area and the anchor rail.
+   Flex-row so the rail is a real sibling column on the right — it sits
+   outside the scroll container, so it never overlaps with the inner
+   scrollbar or chat content. */
 .chat-messages-area {
   flex: 1;
   min-height: 0;
-  position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
 }
 
-/* The .chat-messages selector above keeps `flex: 1; overflow-y: auto;`,
-   so wrapping it changes nothing about scroll behavior. */
-
 .chat-anchor-rail {
-  position: absolute;
-  top: 18px;
-  bottom: 18px;
-  left: 6px;
-  width: 10px;
-  z-index: 5;
+  flex-shrink: 0;
+  width: 14px;
+  padding: 18px 0 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 6px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  pointer-events: auto;
   scrollbar-width: none;
 }
 
