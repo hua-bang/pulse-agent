@@ -1,5 +1,6 @@
 import hljs from 'highlight.js/lib/common';
 import MarkdownIt from 'markdown-it';
+import taskLists from 'markdown-it-task-lists';
 
 function escapeAttr(value: string): string {
   return value
@@ -33,6 +34,11 @@ const markdown = new MarkdownIt({
   linkify: true,
   breaks: true,
 });
+
+// GitHub-style task lists (`- [x] done`, `- [ ] todo`). Checkboxes stay
+// disabled — toggling state in chat replies isn't a useful interaction
+// for the assistant's output.
+markdown.use(taskLists, { enabled: false, label: true, labelAfter: false });
 
 /**
  * Wrap fenced code blocks in a header that exposes the language label
@@ -86,6 +92,18 @@ markdown.renderer.rules.link_open = (tokens, idx, options, env, self) => {
  *  blow out the panel width on narrow layouts. */
 markdown.renderer.rules.table_open = () => '<div class="chat-md-table-scroll"><table>';
 markdown.renderer.rules.table_close = () => '</table></div>';
+
+/** Lazy-load images so long conversations don't burn bandwidth and
+ *  layout time up front. */
+const defaultImageRenderer = markdown.renderer.rules.image
+  ?? ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options));
+
+markdown.renderer.rules.image = (tokens, idx, options, env, self) => {
+  const token = tokens[idx];
+  if (token.attrIndex('loading') < 0) token.attrPush(['loading', 'lazy']);
+  if (token.attrIndex('decoding') < 0) token.attrPush(['decoding', 'async']);
+  return defaultImageRenderer(tokens, idx, options, env, self);
+};
 
 export function renderMarkdown(content: string): string {
   return markdown.render(content);

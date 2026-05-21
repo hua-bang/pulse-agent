@@ -1,9 +1,10 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { AvatarIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
+import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
 import { PluginChatCardForMessage } from '../../../../plugins/renderer';
 import {
@@ -108,6 +109,13 @@ export const ChatMessage = ({
   const showCopyToolbar = message.role === 'assistant'
     && !isStreaming
     && !!message.content;
+  const relativeTime = formatRelativeTime(message.timestamp);
+  const absoluteTime = formatAbsoluteTime(message.timestamp);
+
+  const handleImageError = useCallback((event: SyntheticEvent<HTMLImageElement>) => {
+    const card = event.currentTarget.closest('.chat-message-image-card');
+    card?.classList.add('chat-message-image-card--broken');
+  }, []);
 
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
@@ -121,7 +129,13 @@ export const ChatMessage = ({
         <div className="chat-message-images">
           {message.attachments.map(attachment => (
             <figure key={attachment.id} className="chat-message-image-card">
-              <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? 'image'} />
+              <img
+                src={toFileUrl(attachment.path)}
+                alt={attachment.fileName ?? 'image'}
+                loading="lazy"
+                decoding="async"
+                onError={handleImageError}
+              />
               {attachment.fileName && <figcaption>{attachment.fileName}</figcaption>}
             </figure>
           ))}
@@ -239,9 +253,18 @@ export const ChatMessage = ({
         <div className="chat-message-content">{userBody}</div>
       )}
       <PluginChatCardForMessage message={message} />
-      {showCopyToolbar && (
+      {(showCopyToolbar || relativeTime) && (
         <div className="chat-message-toolbar">
-          <CopyMessageButton content={message.content} />
+          {relativeTime && (
+            <time
+              className="chat-message-timestamp"
+              dateTime={new Date(message.timestamp).toISOString()}
+              title={absoluteTime}
+            >
+              {relativeTime}
+            </time>
+          )}
+          {showCopyToolbar && <CopyMessageButton content={message.content} />}
         </div>
       )}
     </div>

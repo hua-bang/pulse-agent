@@ -109,6 +109,7 @@
     "highlight.js": "^11.11.1",
     "lowlight": "^3.3.0",
     "markdown-it": "^14.1.0",
+    "markdown-it-task-lists": "^2.1.1",
     "node-pty": "^1.1.0",
     "pulse-coder-engine": "workspace:*",
     "react": "^18.3.1",
