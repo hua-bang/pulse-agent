@@ -2,6 +2,16 @@ import type { MentionItem, QuickAction } from './types';
 
 export const CANVAS_MENTION_PREFIX = 'canvas:';
 
+/**
+ * Sentinel workspace id used when the chat is in "unbound" mode (no workspace
+ * picked). The UI surface keeps a nullable workspaceId, but every layer below
+ * ChatPageBody — hooks, IPC, the canvas-agent — keeps treating workspaceId
+ * as a string. The unbound state is stored under a regular workspace bucket
+ * at `~/.pulse-coder/canvas/__global__/` so session storage and history just
+ * work without further special-casing.
+ */
+export const GLOBAL_WORKSPACE_ID = '__global__';
+
 export const MENTION_GROUPS = [
   { key: 'file', label: 'File' },
   { key: 'text', label: 'Text' },
@@ -46,6 +56,24 @@ export const QUICK_ACTIONS: QuickAction[] = [
     label: '整理选中内容',
     prompt: '整理当前选中的节点内容。',
     requiresSelection: true,
+  },
+];
+
+export const UNBOUND_QUICK_ACTIONS: QuickAction[] = [
+  {
+    key: 'brainstorm_topic',
+    label: '帮我头脑风暴一个话题',
+    prompt: '我想头脑风暴一个新话题，请引导我从不同角度展开思考。',
+  },
+  {
+    key: 'explain_concept',
+    label: '解释一个概念',
+    prompt: '请用通俗易懂的方式解释一个我不熟悉的概念。',
+  },
+  {
+    key: 'draft_text',
+    label: '帮我起草一段文字',
+    prompt: '帮我起草一段文字，先告诉我你需要哪些信息。',
   },
 ];
 

@@ -5,8 +5,10 @@ import './ChatPage.css';
 import './ChatPanel.css';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
+import { GLOBAL_WORKSPACE_ID } from './constants';
 import { ModelSettingsDrawer } from './ModelSettings';
 import { PromptSettingsDrawer } from './PromptSettings';
+import { WorkspaceChip } from './WorkspaceChip';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import type { WorkspaceOption } from './types';
 
@@ -18,13 +20,21 @@ const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
 );
 
 export interface ChatPageBodyProps {
-  workspaceId: string;
+  /**
+   * `null` means the chat is in "unbound" mode — no workspace picked. The
+   * body internally routes all backend calls to a shared `__global__`
+   * workspace bucket so session storage and tools still work, while the
+   * topbar chip + empty state surface the unbound semantics to the user.
+   */
+  workspaceId: string | null;
   /** Initial session to load on mount (only read at mount time, via ref). */
   initialPendingSessionId: string | null;
   /** Reactive pendingSessionId for same-workspace clicks after mount. */
   pendingSessionId: string | null;
   onSessionConsumed: () => void;
   onSelectSession: (session: UnifiedSession) => void;
+  /** User picked a workspace from the topbar chip (or chose "无工作区"). */
+  onChangeWorkspace: (workspaceId: string | null) => void;
   onWorkspaceContextRequest?: (workspaceId: string) => void;
   allWorkspaces: WorkspaceOption[];
   nodes?: CanvasNode[];
@@ -41,6 +51,7 @@ export const ChatPageBody = ({
   pendingSessionId,
   onSessionConsumed,
   onSelectSession,
+  onChangeWorkspace,
   onWorkspaceContextRequest,
   allWorkspaces,
   nodes,
@@ -50,6 +61,11 @@ export const ChatPageBody = ({
   railCollapsed,
   onToggleRail,
 }: ChatPageBodyProps) => {
+  // Sentinel-based effective id: every layer below this component keeps a
+  // plain string contract. Null only exists at the ChatPage / ChatPageBody
+  // boundary so the empty state and topbar chip can render their unbound UI.
+  const effectiveWorkspaceId = workspaceId ?? GLOBAL_WORKSPACE_ID;
+  const isBound = workspaceId !== null;
   // Snapshot at mount: the caller might change pendingSessionId later (e.g.
   // for a same-workspace click), but on mount we only care about the value
   // we saw when this body was constructed (after a workspace switch).
@@ -98,7 +114,7 @@ export const ChatPageBody = ({
     toggleSection,
     toggleToolExpand,
   } = useChatComposerState({
-    workspaceId,
+    workspaceId: effectiveWorkspaceId,
     allWorkspaces,
     nodes,
     rootFolder,
@@ -110,7 +126,7 @@ export const ChatPageBody = ({
   });
 
   useEffect(() => {
-    onWorkspaceContextRequest?.(workspaceId);
+    if (workspaceId !== null) onWorkspaceContextRequest?.(workspaceId);
   }, [onWorkspaceContextRequest, workspaceId]);
 
   // Load the pending session whenever it's set. This uniformly handles both
@@ -140,21 +156,26 @@ export const ChatPageBody = ({
   }, [clearInput, focusInput, sendMessage]);
 
   // Clicking a mention chip should jump back to the canvas and focus the node.
+  // No-op in unbound mode — there is no canvas to navigate back to.
   const handleNodeFocus = useCallback((nodeId: string) => {
+    if (workspaceId === null) return;
     onNodeFocus?.(workspaceId, nodeId);
     onExit();
   }, [onExit, onNodeFocus, workspaceId]);
 
   // Merge sessions from the current workspace with sessions from every other
-  // workspace into a single list, sorted by date (newest first).
+  // workspace into a single list, sorted by date (newest first). In unbound
+  // mode the "current workspace" sessions are actually stored under the
+  // GLOBAL_WORKSPACE_ID bucket; we label them as "无工作区" in the rail.
   const allSessions: UnifiedSession[] = useMemo(() => {
-    const currentWorkspaceName =
-      allWorkspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId;
+    const currentWorkspaceName = isBound
+      ? (allWorkspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId!)
+      : '无工作区';
 
     const unified: UnifiedSession[] = [
       ...sessions.map((s) => ({
         sessionId: s.sessionId,
-        workspaceId,
+        workspaceId: effectiveWorkspaceId,
         workspaceName: currentWorkspaceName,
         date: s.date,
         messageCount: s.messageCount,
@@ -174,7 +195,7 @@ export const ChatPageBody = ({
 
     unified.sort((a, b) => b.date.localeCompare(a.date));
     return unified;
-  }, [sessions, otherSessions, workspaceId, allWorkspaces]);
+  }, [sessions, otherSessions, workspaceId, effectiveWorkspaceId, isBound, allWorkspaces]);
 
   return (
     <>
@@ -197,6 +218,11 @@ export const ChatPageBody = ({
           >
             <RailToggleIcon size={16} />
           </button>
+          <WorkspaceChip
+            workspaceId={workspaceId}
+            allWorkspaces={allWorkspaces}
+            onChange={onChangeWorkspace}
+          />
           <div className="chat-page-topbar-spacer" />
           <button
             className="chat-panel-action-btn"
@@ -236,7 +262,8 @@ export const ChatPageBody = ({
           className="chat-page-body"
           messages={messages}
           loading={loading}
-          workspaceId={workspaceId}
+          workspaceId={effectiveWorkspaceId}
+          workspaceBound={isBound}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}

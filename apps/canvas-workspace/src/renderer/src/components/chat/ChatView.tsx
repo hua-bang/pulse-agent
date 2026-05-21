@@ -40,6 +40,8 @@ interface ChatViewProps {
 
   // Quick actions (empty state)
   onQuickAction: (prompt: string, quickAction?: string) => Promise<void> | void;
+  /** When false, the empty state shows generic (workspace-agnostic) prompts. Defaults to true. */
+  workspaceBound?: boolean;
 
   // Input
   input: string;
@@ -98,6 +100,7 @@ export const ChatView = ({
   selectedNodes,
   onNodeFocus,
   onQuickAction,
+  workspaceBound = true,
   input,
   attachments,
   editableRef,
@@ -153,7 +156,7 @@ export const ChatView = ({
           onNodeFocus={onNodeFocus}
         />
       ) : (
-        <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} />
+        <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} bound={workspaceBound} />
       )}
       <ChatInput
         loading={loading}

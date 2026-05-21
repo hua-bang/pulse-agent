@@ -381,7 +381,7 @@ const AppContent = () => {
           </PulseRouterView>
           <PulseRouterView name="chat">
             <ChatPage
-              initialWorkspaceId={activeId}
+              initialWorkspaceId={null}
               allWorkspaces={workspaces}
               getWorkspaceNodes={getWorkspaceNodes}
               getWorkspaceRootFolder={getWorkspaceRootFolder}

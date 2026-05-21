@@ -41,7 +41,14 @@ export interface PendingClarification {
 }
 
 export interface QuickAction {
-  key: 'summarize_canvas' | 'analyze_relations' | 'create_mindmap' | 'organize_selection';
+  key:
+    | 'summarize_canvas'
+    | 'analyze_relations'
+    | 'create_mindmap'
+    | 'organize_selection'
+    | 'brainstorm_topic'
+    | 'explain_concept'
+    | 'draft_text';
   label: string;
   prompt: string;
   requiresSelection?: boolean;
