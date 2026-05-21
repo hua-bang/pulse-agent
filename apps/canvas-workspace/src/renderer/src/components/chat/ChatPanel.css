@@ -2152,6 +2152,67 @@
   word-break: break-word;
 }
 
+/* Wrapper that hosts both the messages scroll area and the anchor rail. */
+.chat-messages-area {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The .chat-messages selector above keeps `flex: 1; overflow-y: auto;`,
+   so wrapping it changes nothing about scroll behavior. */
+
+.chat-anchor-rail {
+  position: absolute;
+  top: 18px;
+  bottom: 18px;
+  left: 6px;
+  width: 10px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  scrollbar-width: none;
+}
+
+.chat-anchor-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-anchor-rail-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(55, 53, 47, 0.18);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s, width 0.15s, height 0.15s, box-shadow 0.15s;
+}
+
+.chat-anchor-rail-dot:hover {
+  background: rgba(55, 53, 47, 0.4);
+  transform: scale(1.25);
+}
+
+.chat-anchor-rail-dot--active {
+  background: #2383e2;
+  width: 8px;
+  height: 8px;
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.16);
+}
+
+.chat-anchor-rail-dot--active:hover {
+  background: #1f76cc;
+}
+
 /* Brief highlight pulse on the anchored message after a jump. */
 .chat-message--anchor-flash {
   animation: chat-anchor-flash 1.2s ease-out;

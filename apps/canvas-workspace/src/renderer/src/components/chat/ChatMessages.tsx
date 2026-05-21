@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { AvatarIcon } from '../icons';
+import { ChatAnchorRail } from './ChatAnchorRail';
 import { ChatMessage } from './ChatMessage';
+import { useActiveAnchor } from './hooks/useActiveAnchor';
 import type { PendingClarification, ToolCallStatus } from './types';
-import { buildAnchorElementId } from './utils/anchors';
+import { buildAnchorElementId, type ChatAnchor } from './utils/anchors';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -22,6 +24,9 @@ interface ChatMessagesProps {
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   onNodeFocus?: (nodeId: string) => void;
+  /** When present, render the anchor rail glued to the left of the messages. */
+  anchors?: ChatAnchor[];
+  onJumpAnchor?: (index: number) => void;
 }
 
 const LoadingPlaceholder = () => (
@@ -106,8 +111,12 @@ export const ChatMessages = ({
   onToggleToolExpand,
   onAddImageToCanvas,
   onNodeFocus,
+  anchors,
+  onJumpAnchor,
 }: ChatMessagesProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const activeAnchorIndex = useActiveAnchor(containerRef, anchors ?? [], workspaceId);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -126,8 +135,18 @@ export const ChatMessages = ({
     && messages.length > 0
     && messages[messages.length - 1].role === 'assistant';
 
+  const showRail = !!anchors && anchors.length > 0 && !!onJumpAnchor;
+
   return (
-    <div className="chat-messages" onClick={handleMessageClick}>
+    <div className="chat-messages-area">
+      {showRail && (
+        <ChatAnchorRail
+          anchors={anchors!}
+          activeIndex={activeAnchorIndex}
+          onJump={onJumpAnchor!}
+        />
+      )}
+      <div className="chat-messages" ref={containerRef} onClick={handleMessageClick}>
       {messages.map((message, index) => {
         const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
         const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
@@ -159,6 +178,7 @@ export const ChatMessages = ({
         />
       )}
       <div ref={messagesEndRef} />
+      </div>
     </div>
   );
 };

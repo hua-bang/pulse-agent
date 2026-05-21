@@ -11,6 +11,7 @@ import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
 import type { MentionItem, PendingClarification, ToolCallStatus } from './types';
+import type { ChatAnchor } from './utils/anchors';
 
 interface ChatViewProps {
   className?: string;
@@ -67,6 +68,11 @@ interface ChatViewProps {
   executionMode?: 'auto' | 'ask';
   onToggleExecutionMode?: () => void;
 
+  // Anchor rail (TOC) — when provided, ChatMessages renders the rail
+  // glued to the left of the scroll area.
+  anchors?: ChatAnchor[];
+  onJumpAnchor?: (index: number) => void;
+
   // Optional decoration
   onResizeStart?: (e: ReactMouseEvent) => void;
 }
@@ -122,6 +128,8 @@ export const ChatView = ({
   onOpenModelSettings,
   executionMode = 'auto',
   onToggleExecutionMode,
+  anchors,
+  onJumpAnchor,
   onResizeStart,
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading;
@@ -151,6 +159,8 @@ export const ChatView = ({
           onToggleToolExpand={onToggleToolExpand}
           onAddImageToCanvas={onAddImageToCanvas}
           onNodeFocus={onNodeFocus}
+          anchors={anchors}
+          onJumpAnchor={onJumpAnchor}
         />
       ) : (
         <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} />

@@ -202,6 +202,8 @@ export const ChatPanel = ({
       contextComposer
       executionMode={executionMode}
       onToggleExecutionMode={handleToggleExecutionMode}
+      anchors={anchors}
+      onJumpAnchor={handleJumpAnchor}
     />
       <ModelSettingsDrawer
         open={modelSettingsOpen}
