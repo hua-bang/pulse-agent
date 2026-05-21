@@ -22,9 +22,11 @@ export const ChatMentionPopup = ({
       const showHeader = previousGroupKey !== groupKey;
       const nodeType = item.type === 'workspace'
         ? 'workspace'
-        : item.type === 'node'
-          ? item.nodeType ?? 'file'
-          : 'file';
+        : item.type === 'skill'
+          ? 'skill'
+          : item.type === 'node'
+            ? item.nodeType ?? 'file'
+            : 'file';
 
       return (
         <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>
@@ -43,6 +45,9 @@ export const ChatMentionPopup = ({
               <MentionNodeIcon size={14} nodeType={nodeType} />
             </span>
             <span className="chat-mention-item-label">{item.label}</span>
+            {item.type === 'skill' && item.description && (
+              <span className="chat-mention-item-description">{item.description}</span>
+            )}
           </button>
         </div>
       );

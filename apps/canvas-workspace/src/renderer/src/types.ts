@@ -689,6 +689,9 @@ export interface AgentApi {
   getStatus: (
     workspaceId: string
   ) => Promise<{ ok: boolean; active: boolean; messageCount: number }>;
+  listSkills: (
+    workspaceId: string
+  ) => Promise<{ ok: boolean; skills?: Array<{ name: string; description: string }>; error?: string }>;
   getHistory: (
     workspaceId: string
   ) => Promise<{ ok: boolean; messages?: AgentChatMessage[] }>;

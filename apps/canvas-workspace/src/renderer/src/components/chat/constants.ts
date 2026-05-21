@@ -1,8 +1,10 @@
 import type { MentionItem, QuickAction } from './types';
 
 export const CANVAS_MENTION_PREFIX = 'canvas:';
+export const SKILL_MENTION_PREFIX = 'skill:';
 
 export const MENTION_GROUPS = [
+  { key: 'skill', label: 'Skills' },
   { key: 'file', label: 'File' },
   { key: 'text', label: 'Text' },
   { key: 'mindmap', label: 'Mindmap' },
@@ -50,6 +52,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 ];
 
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
+  if (item.type === 'skill') return 'skill';
   if (item.type === 'workspace') return 'canvas';
   if (item.type === 'file') return 'proj-file';
 

@@ -54,6 +54,13 @@ export function useMentions({
   const [attachments, setAttachments] = useState<ChatImageAttachment[]>([]);
   const editableRef = useRef<HTMLDivElement>(null);
   const filesCacheRef = useRef<MentionItem[] | null>(null);
+  const skillsCacheRef = useRef<MentionItem[] | null>(null);
+  /**
+   * Which trigger char opened the popup — '@' lists workspaces/nodes/files,
+   * '/' lists skills. Captured at popup-open time so selectMention knows
+   * which prefix to strip when it splices the chip in.
+   */
+  const mentionTriggerRef = useRef<'@' | '/'>('@');
 
   const clearInput = useCallback(() => {
     setInput('');
@@ -70,7 +77,32 @@ export function useMentions({
     editableRef.current?.focus();
   }, []);
 
-  const buildMentionItems = useCallback(async (query: string) => {
+  const loadSkillItems = useCallback(async (): Promise<MentionItem[]> => {
+    if (skillsCacheRef.current) return skillsCacheRef.current;
+    try {
+      const result = await window.canvasWorkspace.agent.listSkills(workspaceId);
+      skillsCacheRef.current = result.ok && result.skills
+        ? result.skills.map(s => ({ type: 'skill', label: s.name, description: s.description }))
+        : [];
+    } catch {
+      skillsCacheRef.current = [];
+    }
+    return skillsCacheRef.current;
+  }, [workspaceId]);
+
+  const buildMentionItems = useCallback(async (query: string, trigger: '@' | '/') => {
+    if (trigger === '/') {
+      const skills = await loadSkillItems();
+      const normalized = query.toLowerCase();
+      const filtered = normalized
+        ? skills.filter(item =>
+            item.label.toLowerCase().includes(normalized)
+            || (item.description ?? '').toLowerCase().includes(normalized),
+          )
+        : skills;
+      return filtered.slice(0, MENTION_MAX_ITEMS);
+    }
+
     const items: MentionItem[] = [];
 
     if (allWorkspaces) {
@@ -120,7 +152,7 @@ export function useMentions({
     });
 
     return filtered.slice(0, MENTION_MAX_ITEMS);
-  }, [allWorkspaces, nodes, rootFolder, workspaceId]);
+  }, [allWorkspaces, loadSkillItems, nodes, rootFolder, workspaceId]);
 
   const handleInput = useCallback(() => {
     const element = editableRef.current;
@@ -140,15 +172,25 @@ export function useMentions({
     }
 
     const textBeforeCursor = (selection.anchorNode.textContent ?? '').slice(0, selection.anchorOffset);
-    const atMatch = textBeforeCursor.match(/@([^\s@]*)$/);
+    // Trigger on @ (mentions: workspaces/nodes/files) or / (skills). We pick
+    // whichever marker is closer to the cursor so typing "/foo @bar" still
+    // opens the @-popup once the user is past the slash query.
+    const atMatch = textBeforeCursor.match(/@([^\s@/]*)$/);
+    const slashMatch = textBeforeCursor.match(/(?:^|\s)\/([^\s@/]*)$/);
+    const match = atMatch && slashMatch
+      ? (atMatch.index! >= slashMatch.index! ? atMatch : slashMatch)
+      : atMatch ?? slashMatch;
 
-    if (!atMatch) {
+    if (!match) {
       setMentionOpen(false);
       return;
     }
 
+    const trigger: '@' | '/' = match === atMatch ? '@' : '/';
+    mentionTriggerRef.current = trigger;
+
     setMentionIndex(0);
-    void buildMentionItems(atMatch[1]).then(items => {
+    void buildMentionItems(match[1], trigger).then(items => {
       setMentionItems(items);
       setMentionOpen(items.length > 0);
     });
@@ -166,10 +208,11 @@ export function useMentions({
 
     const text = anchorNode.textContent ?? '';
     const before = text.slice(0, anchorOffset);
-    const atIndex = before.lastIndexOf('@');
-    if (atIndex < 0) return;
+    const trigger = mentionTriggerRef.current;
+    const triggerIndex = before.lastIndexOf(trigger);
+    if (triggerIndex < 0) return;
 
-    const beforeAt = text.slice(0, atIndex);
+    const beforeAt = text.slice(0, triggerIndex);
     const afterCursor = text.slice(anchorOffset);
     const chip = createMentionChipElement(item, nodes);
     const parent = anchorNode.parentNode;

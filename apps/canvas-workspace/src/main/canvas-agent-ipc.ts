@@ -6,6 +6,7 @@
  *   canvas-agent:abort             — interrupt the currently-running chat turn
  *   canvas-agent:clarify-answer    — deliver a user reply to a pending clarification
  *   canvas-agent:status            — check if agent is active
+ *   canvas-agent:list-skills       — list skills (name + description) for the / popup
  *   canvas-agent:history           — get current session messages
  *   canvas-agent:sessions          — list all sessions (current + archived)
  *   canvas-agent:new-session       — start a new session
@@ -218,6 +219,18 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:status',
     (_event, payload: { workspaceId: string }) => {
       return svc.getStatus(payload.workspaceId);
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-agent:list-skills',
+    async (_event, payload: { workspaceId: string }) => {
+      try {
+        const skills = await svc.listSkills(payload.workspaceId);
+        return { ok: true, skills };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
     },
   );
 
