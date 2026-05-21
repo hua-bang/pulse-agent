@@ -122,8 +122,31 @@ export const ChatMessages = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, pendingClarify, streamingTools]);
 
-  const handleMessageClick = useCallback((event: React.MouseEvent) => {
-    const chip = (event.target as HTMLElement).closest('.chat-mention-chip--clickable') as HTMLElement | null;
+  const handleMessageClick = useCallback(async (event: React.MouseEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+
+    // Copy-code button rendered by the markdown fence renderer.
+    const copyBtn = target.closest<HTMLButtonElement>('[data-action="copy-code"]');
+    if (copyBtn) {
+      const codeEl = copyBtn.closest('.chat-code-block')?.querySelector('code');
+      const code = (codeEl?.textContent ?? '').replace(/\n$/, '');
+      try {
+        await navigator.clipboard.writeText(code);
+        copyBtn.dataset.state = 'copied';
+        copyBtn.textContent = 'Copied';
+        window.setTimeout(() => {
+          delete copyBtn.dataset.state;
+          copyBtn.textContent = 'Copy';
+        }, 1200);
+      } catch {
+        /* clipboard unavailable — ignore */
+      }
+      return;
+    }
+
+    // Mention chip → focus the canvas node it references.
+    const chip = target.closest('.chat-mention-chip--clickable') as HTMLElement | null;
     if (!chip || !onNodeFocus) return;
     const nodeId = chip.dataset.nodeId;
     if (nodeId) {

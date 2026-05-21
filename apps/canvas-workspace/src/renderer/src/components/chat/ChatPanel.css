@@ -896,6 +896,159 @@
   font-weight: 600;
 }
 
+/* Tables can run wider than the panel; let them scroll instead of
+   pushing the message body. */
+.chat-md-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.chat-md-table-scroll > table {
+  margin: 0;
+}
+
+/* ─── Fenced code blocks (header + copy button + hljs) ───── */
+
+.chat-code-block {
+  margin: 8px 0;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: 8px;
+  background: #fafaf8;
+  overflow: hidden;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.chat-code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 4px 12px;
+  background: rgba(55, 53, 47, 0.04);
+  border-bottom: 1px solid rgba(55, 53, 47, 0.06);
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.55);
+  font-family: var(--font);
+}
+
+.chat-code-block-lang {
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.chat-code-block-copy {
+  border: none;
+  background: transparent;
+  color: rgba(55, 53, 47, 0.5);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.chat-code-block-copy:hover {
+  background: rgba(55, 53, 47, 0.08);
+  color: #37352f;
+}
+
+.chat-code-block-copy[data-state="copied"] {
+  background: rgba(46, 160, 67, 0.12);
+  color: #2f8a3d;
+}
+
+/* Beats `.chat-md pre` (specificity 0,2,0 > 0,1,1). */
+.chat-md .chat-code-block-pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: transparent;
+  border-radius: 0;
+  overflow-x: auto;
+}
+
+.chat-md .chat-code-block-pre code {
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* Minimal highlight.js theme, tuned for the Notion-ish neutral palette. */
+.hljs { color: #37352f; }
+.hljs-keyword,
+.hljs-built_in,
+.hljs-literal,
+.hljs-meta { color: #a23ba1; }
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-regexp { color: #2f8a3d; }
+.hljs-number { color: #1d4ed8; }
+.hljs-comment,
+.hljs-quote { color: #9b9a97; font-style: italic; }
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_ { color: #1d4ed8; }
+.hljs-variable,
+.hljs-name { color: #37352f; }
+.hljs-tag { color: #a23ba1; }
+.hljs-type,
+.hljs-class .hljs-title { color: #c2410c; }
+.hljs-doctag,
+.hljs-section { color: #5b21b6; }
+.hljs-link { color: #2eaadc; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* ─── Per-message copy toolbar (assistant only, hover-reveal) ─ */
+
+.chat-message-assistant .chat-message-body {
+  position: relative;
+}
+
+.chat-message-toolbar {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+
+.chat-message-assistant:hover .chat-message-toolbar,
+.chat-message-toolbar:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-message-toolbar-btn {
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  background: #fff;
+  color: rgba(55, 53, 47, 0.65);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.chat-message-toolbar-btn:hover {
+  background: rgba(55, 53, 47, 0.05);
+  color: #37352f;
+}
+
+.chat-message-toolbar-btn--copied {
+  background: rgba(46, 160, 67, 0.12);
+  color: #2f8a3d;
+  border-color: rgba(46, 160, 67, 0.2);
+}
+
 /* ─── Resize handle ──────────────────────────────────────── */
 
 .chat-panel-resize {

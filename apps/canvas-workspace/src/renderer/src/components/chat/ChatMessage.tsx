@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo, useState } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
 import { AvatarIcon } from '../icons';
@@ -10,6 +11,30 @@ import {
   ChatInlineVisual,
   parseVisualToolResult,
 } from '../artifacts';
+
+const CopyMessageButton = memo(({ content }: { content: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable — ignore */
+    }
+  }, [content]);
+  return (
+    <button
+      type="button"
+      className={`chat-message-toolbar-btn${copied ? ' chat-message-toolbar-btn--copied' : ''}`}
+      title="Copy message (markdown source)"
+      onClick={handleCopy}
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+});
+CopyMessageButton.displayName = 'CopyMessageButton';
 
 interface GeneratedImagePayload {
   ok?: boolean;
@@ -67,8 +92,25 @@ export const ChatMessage = ({
   onToggleToolExpand,
   onAddImageToCanvas,
   anchorId,
-}: ChatMessageProps) => (
-  <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
+}: ChatMessageProps) => {
+  const assistantHtml = useMemo(
+    () => (message.role === 'assistant'
+      ? renderMdWithMentions(message.content, nodes)
+      : ''),
+    [message.role, message.content, nodes],
+  );
+  const userBody = useMemo(
+    () => (message.role === 'user'
+      ? renderUserContent(message.content, nodes)
+      : null),
+    [message.role, message.content, nodes],
+  );
+  const showCopyToolbar = message.role === 'assistant'
+    && !isStreaming
+    && !!message.content;
+
+  return (
+    <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
     {message.role === 'assistant' && (
       <div className="chat-message-avatar">
         <AvatarIcon size={14} />
@@ -182,7 +224,7 @@ export const ChatMessage = ({
           message.content ? (
             <div
               className="chat-message-content chat-md chat-md--streaming"
-              dangerouslySetInnerHTML={{ __html: renderMdWithMentions(message.content, nodes) }}
+              dangerouslySetInnerHTML={{ __html: assistantHtml }}
             />
           ) : (!tools || tools.length === 0) ? (
             <LoadingDots />
@@ -190,13 +232,19 @@ export const ChatMessage = ({
         ) : (
           <div
             className="chat-message-content chat-md"
-            dangerouslySetInnerHTML={{ __html: renderMdWithMentions(message.content, nodes) }}
+            dangerouslySetInnerHTML={{ __html: assistantHtml }}
           />
         )
       ) : (
-        <div className="chat-message-content">{renderUserContent(message.content, nodes)}</div>
+        <div className="chat-message-content">{userBody}</div>
       )}
       <PluginChatCardForMessage message={message} />
+      {showCopyToolbar && (
+        <div className="chat-message-toolbar">
+          <CopyMessageButton content={message.content} />
+        </div>
+      )}
     </div>
   </div>
-);
+  );
+};
