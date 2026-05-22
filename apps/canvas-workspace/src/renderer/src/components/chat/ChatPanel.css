@@ -1008,23 +1008,20 @@
   position: relative;
 }
 
-/* When a message has a toolbar we reserve space for it INSIDE the body
-   via padding-bottom. The toolbar is absolutely positioned within that
-   reserved zone, so it sits in the body's hit area — hovering the
-   bubble or the toolbar both keep `.chat-message:hover` true, with no
-   dead gap to interrupt the pointer-events handoff. */
-.chat-message-body--has-toolbar {
-  padding-bottom: 30px;
-}
-
+/* Toolbar floats just below the bubble. The `top: calc(100% - 1px)`
+   keeps a 1px overlap with the body so the mouse never crosses a dead
+   gap when moving from bubble to button — `.chat-message:hover` stays
+   continuously true, so pointer-events flips to auto in time for the
+   click. z-index lifts it above the next message in the column. */
 .chat-message-toolbar {
   position: absolute;
+  top: calc(100% - 1px);
   right: 0;
-  bottom: 0;
   z-index: 3;
   display: flex;
   align-items: center;
   gap: 4px;
+  padding-top: 4px;
   opacity: 0;
   transition: opacity 0.12s;
   pointer-events: none;
@@ -1079,8 +1076,8 @@
 }
 
 .chat-message-toolbar-btn--icon {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   padding: 0;
 }
 
