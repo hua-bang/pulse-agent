@@ -3,12 +3,14 @@ import type { CanvasNode } from '../../types';
 import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import './ChatPage.css';
 import './ChatPanel.css';
+import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { ModelSettingsDrawer } from './ModelSettings';
 import { PromptSettingsDrawer } from './PromptSettings';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import type { WorkspaceOption } from './types';
+import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 
 const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -65,6 +67,7 @@ export const ChatPageBody = ({
     clearInput,
     collapsedSections,
     editableRef,
+    editUserMessage,
     expandedTools,
     focusInput,
     handleAttachFiles,
@@ -87,6 +90,7 @@ export const ChatPageBody = ({
     promptProfile,
     promptSettingsOpen,
     setPromptSettingsOpen,
+    regenerateAssistantMessage,
     removeAttachment,
     selectMention,
     sendMessage,
@@ -145,6 +149,29 @@ export const ChatPageBody = ({
     onExit();
   }, [onExit, onNodeFocus, workspaceId]);
 
+  const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
+
+  const handleJumpAnchor = useCallback((messageIndex: number) => {
+    const id = buildAnchorElementId(workspaceId, messageIndex);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('chat-message--anchor-flash');
+    window.setTimeout(() => {
+      el.classList.remove('chat-message--anchor-flash');
+    }, 1200);
+  }, [workspaceId]);
+
+  const handleEditUserMessage = useCallback(
+    (messageIndex: number, newContent: string) => editUserMessage(messageIndex, newContent),
+    [editUserMessage],
+  );
+
+  const handleRegenerate = useCallback(
+    (messageIndex: number) => regenerateAssistantMessage(messageIndex),
+    [regenerateAssistantMessage],
+  );
+
   // Merge sessions from the current workspace with sessions from every other
   // workspace into a single list, sorted by date (newest first).
   const allSessions: UnifiedSession[] = useMemo(() => {
@@ -198,6 +225,7 @@ export const ChatPageBody = ({
             <RailToggleIcon size={16} />
           </button>
           <div className="chat-page-topbar-spacer" />
+          <ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />
           <button
             className="chat-panel-action-btn"
             onClick={() => setPromptSettingsOpen(true)}
@@ -273,6 +301,8 @@ export const ChatPageBody = ({
           onSelectModel={canvasModels.selectModel}
           onOpenModelSettings={() => setModelSettingsOpen(true)}
           contextComposer
+          onEditUserMessage={handleEditUserMessage}
+          onRegenerate={handleRegenerate}
         />
       </div>
     </div>
