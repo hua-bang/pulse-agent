@@ -1008,15 +1008,19 @@
   position: relative;
 }
 
-/* Toolbar floats just below the bubble in the gap between messages.
-   `z-index` raises it above the next sibling message in the chat-messages
-   column — without it the toolbar paints UNDER the following message
-   (later DOM order = later paint), which makes the buttons unclickable. */
+/* When a message has a toolbar we reserve space for it INSIDE the body
+   via padding-bottom. The toolbar is absolutely positioned within that
+   reserved zone, so it sits in the body's hit area — hovering the
+   bubble or the toolbar both keep `.chat-message:hover` true, with no
+   dead gap to interrupt the pointer-events handoff. */
+.chat-message-body--has-toolbar {
+  padding-bottom: 30px;
+}
+
 .chat-message-toolbar {
   position: absolute;
-  top: 100%;
   right: 0;
-  margin-top: 4px;
+  bottom: 0;
   z-index: 3;
   display: flex;
   align-items: center;

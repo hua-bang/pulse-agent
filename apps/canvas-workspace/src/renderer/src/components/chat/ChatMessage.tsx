@@ -184,6 +184,14 @@ export const ChatMessage = ({
     renderMermaidIn(assistantBodyRef.current);
   }, [assistantHtml, isStreaming, message.role]);
 
+  // The toolbar lives inside the body's padding-bottom so that hovering
+  // anywhere in the body's hit area (including where the toolbar sits)
+  // keeps `.chat-message:hover` true — closing the hover gap that
+  // previously made Copy / Edit / Regen unclickable.
+  const hasToolbar = !isEditing && (
+    showCopyToolbar || canEdit || canRegenerate || !!relativeTime
+  );
+
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
     {message.role === 'assistant' && (
@@ -191,7 +199,7 @@ export const ChatMessage = ({
         <AvatarIcon size={14} />
       </div>
     )}
-    <div className="chat-message-body">
+    <div className={`chat-message-body${hasToolbar ? ' chat-message-body--has-toolbar' : ''}`}>
       {message.attachments && message.attachments.length > 0 && (
         <div className="chat-message-images">
           {message.attachments.map(attachment => (
