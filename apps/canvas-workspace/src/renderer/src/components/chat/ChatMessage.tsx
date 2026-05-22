@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { AvatarIcon, PencilIcon, RefreshIcon } from '../icons';
+import { AvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions, renderUserContent } from './utils/mentions';
 import { renderMermaidIn } from './utils/mermaid';
@@ -28,11 +28,12 @@ const CopyMessageButton = memo(({ content }: { content: string }) => {
   return (
     <button
       type="button"
-      className={`chat-message-toolbar-btn${copied ? ' chat-message-toolbar-btn--copied' : ''}`}
-      title="Copy message (markdown source)"
+      className={`chat-message-toolbar-btn chat-message-toolbar-btn--icon${copied ? ' chat-message-toolbar-btn--copied' : ''}`}
+      title={copied ? 'Copied!' : 'Copy message (markdown source)'}
+      aria-label="Copy message"
       onClick={handleCopy}
     >
-      {copied ? 'Copied' : 'Copy'}
+      {copied ? <CheckIcon size={12} strokeWidth={1.8} /> : <CopyIcon size={12} />}
     </button>
   );
 });

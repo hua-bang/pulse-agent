@@ -213,6 +213,29 @@ export const ListLinesIcon = ({ size = 14, className }: IconProps) => (
   </svg>
 );
 
+/** Two overlapping squares — duplicate / copy. */
+export const CopyIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 14 14" fill="none" className={className}>
+    <path
+      d="M9.5 4V3a1 1 0 00-1-1H3a1 1 0 00-1 1v5.5a1 1 0 001 1H4"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <rect
+      x="4.5"
+      y="4.5"
+      width="7"
+      height="7"
+      rx="1.2"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      fill="#fff"
+    />
+  </svg>
+);
+
 /** Landscape / image attachment icon. */
 export const ImageIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>

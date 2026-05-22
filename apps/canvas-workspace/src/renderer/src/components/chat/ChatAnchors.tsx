@@ -7,9 +7,29 @@ interface ChatAnchorsProps {
   onJump: (index: number) => void;
 }
 
+const HOVER_CLOSE_DELAY = 220;
+
 export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<number | undefined>(undefined);
+
+  const cancelClose = useCallback(() => {
+    if (closeTimerRef.current !== undefined) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false);
+      closeTimerRef.current = undefined;
+    }, HOVER_CLOSE_DELAY);
+  }, [cancelClose]);
+
+  useEffect(() => () => cancelClose(), [cancelClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -24,20 +44,27 @@ export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
   }, [open]);
 
   const handleSelect = useCallback((index: number) => {
-    onJump(index);
+    cancelClose();
     setOpen(false);
-  }, [onJump]);
+    onJump(index);
+  }, [cancelClose, onJump]);
 
   if (anchors.length === 0) return null;
 
   return (
-    <div className="chat-anchors" ref={wrapperRef}>
+    <div
+      className="chat-anchors"
+      ref={wrapperRef}
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}
+    >
       <button
         type="button"
         className="chat-panel-action-btn"
         title={`聊天锚点 (${anchors.length})`}
         aria-label="聊天锚点"
         aria-expanded={open}
+        onFocus={() => { cancelClose(); setOpen(true); }}
         onClick={() => setOpen(prev => !prev)}
       >
         <ListLinesIcon size={16} />

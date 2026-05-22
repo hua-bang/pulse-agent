@@ -1002,20 +1002,25 @@
 .hljs-emphasis { font-style: italic; }
 .hljs-strong { font-weight: 700; }
 
-/* ─── Per-message hover toolbar (timestamp + copy) ─────────── */
+/* ─── Per-message hover toolbar (timestamp + copy / edit / regen) ── */
 
 .chat-message-body {
   position: relative;
 }
 
+/* Toolbar floats just below the bubble in the gap between messages.
+   `z-index` raises it above the next sibling message in the chat-messages
+   column — without it the toolbar paints UNDER the following message
+   (later DOM order = later paint), which makes the buttons unclickable. */
 .chat-message-toolbar {
   position: absolute;
   top: 100%;
   right: 0;
   margin-top: 4px;
+  z-index: 3;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   opacity: 0;
   transition: opacity 0.12s;
   pointer-events: none;
@@ -1033,23 +1038,28 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: default;
+  padding-right: 2px;
 }
 
 .chat-message-toolbar-btn {
   border: 1px solid rgba(55, 53, 47, 0.1);
   background: #fff;
-  color: rgba(55, 53, 47, 0.65);
+  color: rgba(55, 53, 47, 0.55);
   font-size: 11px;
   font-weight: 600;
   padding: 3px 9px;
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.1s, color 0.1s, border-color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chat-message-toolbar-btn:hover {
   background: rgba(55, 53, 47, 0.05);
   color: #37352f;
+  border-color: rgba(55, 53, 47, 0.18);
 }
 
 .chat-message-toolbar-btn--copied {
@@ -1058,13 +1068,16 @@
   border-color: rgba(46, 160, 67, 0.2);
 }
 
+.chat-message-toolbar-btn--copied:hover {
+  background: rgba(46, 160, 67, 0.16);
+  color: #2f8a3d;
+  border-color: rgba(46, 160, 67, 0.28);
+}
+
 .chat-message-toolbar-btn--icon {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .chat-message-toolbar-btn--primary {
@@ -2473,63 +2486,6 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   word-break: break-word;
-}
-
-/* Wrapper that hosts both the messages scroll area and the anchor rail.
-   Flex-row so the rail is a real sibling column on the right — it sits
-   outside the scroll container, so it never overlaps with the inner
-   scrollbar or chat content. */
-.chat-messages-area {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-}
-
-.chat-anchor-rail {
-  flex-shrink: 0;
-  width: 14px;
-  padding: 18px 0 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-}
-
-.chat-anchor-rail::-webkit-scrollbar {
-  display: none;
-}
-
-.chat-anchor-rail-dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: rgba(55, 53, 47, 0.18);
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.15s, width 0.15s, height 0.15s, box-shadow 0.15s;
-}
-
-.chat-anchor-rail-dot:hover {
-  background: rgba(55, 53, 47, 0.4);
-  transform: scale(1.25);
-}
-
-.chat-anchor-rail-dot--active {
-  background: #2383e2;
-  width: 8px;
-  height: 8px;
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.16);
-}
-
-.chat-anchor-rail-dot--active:hover {
-  background: #1f76cc;
 }
 
 /* Brief highlight pulse on the anchored message after a jump. */

@@ -11,7 +11,6 @@ import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
 import type { MentionItem, PendingClarification, ToolCallStatus } from './types';
-import type { ChatAnchor } from './utils/anchors';
 
 interface ChatViewProps {
   className?: string;
@@ -67,11 +66,6 @@ interface ChatViewProps {
   onOpenModelSettings?: () => void;
   executionMode?: 'auto' | 'ask';
   onToggleExecutionMode?: () => void;
-
-  // Anchor rail (TOC) — when provided, ChatMessages renders the rail
-  // glued to the left of the scroll area.
-  anchors?: ChatAnchor[];
-  onJumpAnchor?: (index: number) => void;
 
   // Edit / regenerate hooks — wired from ChatPanel into the per-message
   // hover toolbar inside ChatMessage.
@@ -133,8 +127,6 @@ export const ChatView = ({
   onOpenModelSettings,
   executionMode = 'auto',
   onToggleExecutionMode,
-  anchors,
-  onJumpAnchor,
   onEditUserMessage,
   onRegenerate,
   onResizeStart,
@@ -166,8 +158,6 @@ export const ChatView = ({
           onToggleToolExpand={onToggleToolExpand}
           onAddImageToCanvas={onAddImageToCanvas}
           onNodeFocus={onNodeFocus}
-          anchors={anchors}
-          onJumpAnchor={onJumpAnchor}
           onEditUserMessage={onEditUserMessage}
           onRegenerate={onRegenerate}
         />

@@ -214,8 +214,6 @@ export const ChatPanel = ({
       contextComposer
       executionMode={executionMode}
       onToggleExecutionMode={handleToggleExecutionMode}
-      anchors={anchors}
-      onJumpAnchor={handleJumpAnchor}
       onEditUserMessage={handleEditUserMessage}
       onRegenerate={handleRegenerate}
     />
