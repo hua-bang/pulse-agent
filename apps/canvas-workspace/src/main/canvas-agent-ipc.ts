@@ -265,6 +265,17 @@ export function setupCanvasAgentIpc(): void {
   );
 
   ipcMain.handle(
+    'canvas-agent:rewind-messages',
+    async (_event, payload: { workspaceId: string; fromIndex: number }) => {
+      try {
+        return await svc.rewindMessages(payload.workspaceId, payload.fromIndex);
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
     'canvas-agent:load-session',
     async (_event, payload: { workspaceId: string; sessionId: string }) => {
       try {

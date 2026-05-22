@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
@@ -8,6 +9,7 @@ import { useChatComposerState } from './hooks/useChatComposerState';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentRequestContext } from '../../types';
 import type { ChatPanelProps } from './types';
+import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 
 export const ChatPanel = ({
   workspaceId,
@@ -30,6 +32,8 @@ export const ChatPanel = ({
     canvasModels,
     clarifyInput,
     clearInput,
+    editUserMessage,
+    regenerateAssistantMessage,
     collapsedSections,
     editableRef,
     expandedTools,
@@ -124,6 +128,29 @@ export const ChatPanel = ({
     setExecutionMode(mode => mode === 'auto' ? 'ask' : 'auto');
   }, []);
 
+  const handleEditUserMessage = useCallback(
+    (index: number, newContent: string) => editUserMessage(index, newContent, requestContextRef.current),
+    [editUserMessage],
+  );
+
+  const handleRegenerate = useCallback(
+    (index: number) => regenerateAssistantMessage(index, requestContextRef.current),
+    [regenerateAssistantMessage],
+  );
+
+  const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
+
+  const handleJumpAnchor = useCallback((index: number) => {
+    const id = buildAnchorElementId(workspaceId, index);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.add('chat-message--anchor-flash');
+    window.setTimeout(() => {
+      el.classList.remove('chat-message--anchor-flash');
+    }, 1200);
+  }, [workspaceId]);
+
   return (
     <>
       <ChatView
@@ -142,6 +169,7 @@ export const ChatPanel = ({
           onOpenPromptSettings={() => setPromptSettingsOpen(true)}
           onLoadSession={handleLoadSession}
           onClose={onClose}
+          anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
         />
       }
       messages={messages}
@@ -186,6 +214,8 @@ export const ChatPanel = ({
       contextComposer
       executionMode={executionMode}
       onToggleExecutionMode={handleToggleExecutionMode}
+      onEditUserMessage={handleEditUserMessage}
+      onRegenerate={handleRegenerate}
     />
       <ModelSettingsDrawer
         open={modelSettingsOpen}

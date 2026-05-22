@@ -149,6 +149,22 @@ export class CanvasAgentService {
   }
 
   /**
+   * Drop the tail of the current session at and after `fromIndex`.
+   * Used by edit / regenerate so the next chat turn picks up from a
+   * clean slate without leaking the abandoned messages into context.
+   */
+  async rewindMessages(workspaceId: string, fromIndex: number): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await this.activate(workspaceId);
+      const agent = this.agents.get(workspaceId)!;
+      agent.rewindTo(fromIndex);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  /**
    * Start a new session for a workspace.
    */
   async newSession(workspaceId: string): Promise<{ ok: boolean; error?: string }> {

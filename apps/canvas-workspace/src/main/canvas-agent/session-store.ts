@@ -101,6 +101,19 @@ export class SessionStore {
   }
 
   /**
+   * Drop messages at and after `fromIndex` from the current session.
+   * Used by edit / regenerate flows so the next agent turn doesn't see
+   * the abandoned tail.
+   */
+  truncateMessages(fromIndex: number): void {
+    if (!this.session) return;
+    if (fromIndex < 0) return;
+    if (fromIndex >= this.session.messages.length) return;
+    this.session.messages.length = fromIndex;
+    void this.persist();
+  }
+
+  /**
    * Archive the current session and clear it.
    */
   async archiveSession(): Promise<void> {

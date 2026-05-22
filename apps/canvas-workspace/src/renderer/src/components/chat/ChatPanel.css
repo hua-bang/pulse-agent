@@ -310,7 +310,10 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  gap: 18px;
+  /* The hover toolbar is absolutely positioned at top:100% below each
+     bubble (out of flow), so this gap IS the visible spacing between
+     messages. Toolbar overlays the gap on hover. */
+  gap: 10px;
 }
 
 .chat-message {
@@ -894,6 +897,353 @@
 .chat-md th {
   background: rgba(55, 53, 47, 0.04);
   font-weight: 600;
+}
+
+/* Tables can run wider than the panel; let them scroll instead of
+   pushing the message body. */
+.chat-md-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.chat-md-table-scroll > table {
+  margin: 0;
+}
+
+/* ─── Fenced code blocks (header + copy button + hljs) ───── */
+
+.chat-code-block {
+  margin: 8px 0;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: 8px;
+  background: #fafaf8;
+  overflow: hidden;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.chat-code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 4px 12px;
+  background: rgba(55, 53, 47, 0.04);
+  border-bottom: 1px solid rgba(55, 53, 47, 0.06);
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.55);
+  font-family: var(--font);
+}
+
+.chat-code-block-lang {
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.chat-code-block-copy {
+  border: none;
+  background: transparent;
+  color: rgba(55, 53, 47, 0.5);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.chat-code-block-copy:hover {
+  background: rgba(55, 53, 47, 0.08);
+  color: #37352f;
+}
+
+.chat-code-block-copy[data-state="copied"] {
+  background: rgba(46, 160, 67, 0.12);
+  color: #2f8a3d;
+}
+
+/* Beats `.chat-md pre` (specificity 0,2,0 > 0,1,1). */
+.chat-md .chat-code-block-pre {
+  margin: 0;
+  padding: 10px 12px;
+  background: transparent;
+  border-radius: 0;
+  overflow-x: auto;
+}
+
+.chat-md .chat-code-block-pre code {
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+/* Minimal highlight.js theme, tuned for the Notion-ish neutral palette. */
+.hljs { color: #37352f; }
+.hljs-keyword,
+.hljs-built_in,
+.hljs-literal,
+.hljs-meta { color: #a23ba1; }
+.hljs-string,
+.hljs-attr,
+.hljs-symbol,
+.hljs-regexp { color: #2f8a3d; }
+.hljs-number { color: #1d4ed8; }
+.hljs-comment,
+.hljs-quote { color: #9b9a97; font-style: italic; }
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_ { color: #1d4ed8; }
+.hljs-variable,
+.hljs-name { color: #37352f; }
+.hljs-tag { color: #a23ba1; }
+.hljs-type,
+.hljs-class .hljs-title { color: #c2410c; }
+.hljs-doctag,
+.hljs-section { color: #5b21b6; }
+.hljs-link { color: #2eaadc; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* ─── Per-message hover toolbar (timestamp + copy / edit / regen) ── */
+
+.chat-message-body {
+  position: relative;
+}
+
+/* Toolbar floats below the bubble (top: 100%) and is out of flow so it
+   doesn't reserve vertical space. `padding-top` gives a small visual
+   gap from the bubble while keeping the toolbar's hit area flush with
+   the bubble's bottom edge — so hovering bubble → toolbar stays
+   continuous, no dead gap to break `.chat-message:hover`. */
+.chat-message-toolbar {
+  position: absolute;
+  top: 100%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+  pointer-events: none;
+}
+
+/* Anchor the toolbar to the same side as its bubble: user messages are
+   right-aligned, assistant messages are left-aligned. */
+.chat-message-user .chat-message-toolbar {
+  right: 0;
+}
+
+.chat-message-assistant .chat-message-toolbar {
+  left: 0;
+  flex-direction: row-reverse;
+}
+
+.chat-message:hover .chat-message-toolbar,
+.chat-message-toolbar:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.chat-message-timestamp {
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.42);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+  padding-right: 2px;
+}
+
+.chat-message-toolbar-btn {
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  background: #fff;
+  color: rgba(55, 53, 47, 0.55);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-message-toolbar-btn:hover {
+  background: rgba(55, 53, 47, 0.05);
+  color: #37352f;
+  border-color: rgba(55, 53, 47, 0.18);
+}
+
+.chat-message-toolbar-btn--copied {
+  background: rgba(46, 160, 67, 0.12);
+  color: #2f8a3d;
+  border-color: rgba(46, 160, 67, 0.2);
+}
+
+.chat-message-toolbar-btn--copied:hover {
+  background: rgba(46, 160, 67, 0.16);
+  color: #2f8a3d;
+  border-color: rgba(46, 160, 67, 0.28);
+}
+
+.chat-message-toolbar-btn--icon {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+.chat-message-toolbar-btn--primary {
+  background: #2383e2;
+  border-color: #2383e2;
+  color: #fff;
+}
+
+.chat-message-toolbar-btn--primary:hover {
+  background: #1f76cc;
+  border-color: #1f76cc;
+  color: #fff;
+}
+
+.chat-message-toolbar-btn--primary:disabled {
+  background: rgba(55, 53, 47, 0.18);
+  border-color: rgba(55, 53, 47, 0.18);
+  color: #fff;
+  cursor: not-allowed;
+}
+
+/* ─── Inline user-message editor ───────────────────────────── */
+
+.chat-message-edit {
+  width: 100%;
+  max-width: min(92%, 560px);
+  background: #fff;
+  border: 1px solid rgba(35, 131, 226, 0.4);
+  border-radius: 12px;
+  border-bottom-right-radius: 4px;
+  padding: 8px 10px 6px;
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-message-edit-input {
+  width: 100%;
+  min-height: 40px;
+  resize: vertical;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #37352f;
+  padding: 0;
+}
+
+.chat-message-edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chat-message-edit-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  color: rgba(55, 53, 47, 0.42);
+}
+
+/* ─── Mermaid diagrams ────────────────────────────────────── */
+
+.chat-mermaid {
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid rgba(55, 53, 47, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.chat-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.chat-mermaid-loading {
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.45);
+  font-style: italic;
+  padding: 18px 0;
+}
+
+.chat-mermaid[data-rendered="error"] {
+  text-align: left;
+  border-color: rgba(218, 54, 51, 0.2);
+  background: rgba(218, 54, 51, 0.04);
+}
+
+.chat-mermaid-error-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8b2f2a;
+  margin-bottom: 4px;
+}
+
+.chat-mermaid-error-detail {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 11px;
+  color: rgba(139, 47, 42, 0.85);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ─── Task list (GFM `- [x]` / `- [ ]`) ────────────────────── */
+
+.chat-md .task-list-item {
+  list-style: none;
+  margin-left: -20px;
+  padding-left: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.chat-md .task-list-item input[type="checkbox"] {
+  margin: 4px 0 0;
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  accent-color: #2383e2;
+  cursor: default;
+}
+
+.chat-md .task-list-item label {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ─── Broken image placeholder ─────────────────────────────── */
+
+.chat-message-image-card--broken img {
+  display: none;
+}
+
+.chat-message-image-card--broken::before {
+  content: '⚠ image unavailable';
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  background: rgba(55, 53, 47, 0.04);
+  color: rgba(55, 53, 47, 0.45);
+  font-size: 12px;
+  font-style: italic;
 }
 
 /* ─── Resize handle ──────────────────────────────────────── */
@@ -2072,5 +2422,100 @@
 .chat-prompt-custom-textarea:focus {
   border-color: rgba(35, 131, 226, 0.45);
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+}
+
+/* ─── Chat anchors (TOC) ──────────────────────────────────── */
+
+.chat-anchors {
+  position: relative;
+}
+
+.chat-anchors-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 120;
+  min-width: 240px;
+  max-width: 320px;
+  background: #fff;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.02);
+  padding: 4px;
+  animation: chat-menu-in 0.12s ease-out;
+}
+
+.chat-anchors-menu-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9b9a97;
+  padding: 4px 10px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chat-anchors-menu-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-anchors-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #37352f;
+  text-align: left;
+  line-height: 1.4;
+  transition: background 0.1s;
+}
+
+.chat-anchors-menu-item:hover {
+  background: rgba(55, 53, 47, 0.06);
+}
+
+.chat-anchors-menu-item-num {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: right;
+  font-size: 11px;
+  color: #b4b4b0;
+  padding-top: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-anchors-menu-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+/* Brief highlight pulse on the anchored message after a jump. */
+.chat-message--anchor-flash {
+  animation: chat-anchor-flash 1.2s ease-out;
+  border-radius: 8px;
+}
+
+@keyframes chat-anchor-flash {
+  0% {
+    background: rgba(35, 131, 226, 0.16);
+    box-shadow: 0 0 0 4px rgba(35, 131, 226, 0.1);
+  }
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 0 rgba(35, 131, 226, 0);
+  }
 }
 

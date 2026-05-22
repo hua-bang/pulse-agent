@@ -3,6 +3,7 @@ import type { AgentChatMessage, CanvasNode } from '../../types';
 import { AvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
 import type { PendingClarification, ToolCallStatus } from './types';
+import { buildAnchorElementId } from './utils/anchors';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -21,6 +22,8 @@ interface ChatMessagesProps {
   onToggleToolExpand: (toolId: number) => void;
   onAddImageToCanvas?: (imagePath: string, title?: string) => Promise<void> | void;
   onNodeFocus?: (nodeId: string) => void;
+  onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
+  onRegenerate?: (index: number) => Promise<boolean> | void;
 }
 
 const LoadingPlaceholder = () => (
@@ -105,6 +108,8 @@ export const ChatMessages = ({
   onToggleToolExpand,
   onAddImageToCanvas,
   onNodeFocus,
+  onEditUserMessage,
+  onRegenerate,
 }: ChatMessagesProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -112,8 +117,31 @@ export const ChatMessages = ({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, pendingClarify, streamingTools]);
 
-  const handleMessageClick = useCallback((event: React.MouseEvent) => {
-    const chip = (event.target as HTMLElement).closest('.chat-mention-chip--clickable') as HTMLElement | null;
+  const handleMessageClick = useCallback(async (event: React.MouseEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (!target) return;
+
+    // Copy-code button rendered by the markdown fence renderer.
+    const copyBtn = target.closest<HTMLButtonElement>('[data-action="copy-code"]');
+    if (copyBtn) {
+      const codeEl = copyBtn.closest('.chat-code-block')?.querySelector('code');
+      const code = (codeEl?.textContent ?? '').replace(/\n$/, '');
+      try {
+        await navigator.clipboard.writeText(code);
+        copyBtn.dataset.state = 'copied';
+        copyBtn.textContent = 'Copied';
+        window.setTimeout(() => {
+          delete copyBtn.dataset.state;
+          copyBtn.textContent = 'Copy';
+        }, 1200);
+      } catch {
+        /* clipboard unavailable — ignore */
+      }
+      return;
+    }
+
+    // Mention chip → focus the canvas node it references.
+    const chip = target.closest('.chat-mention-chip--clickable') as HTMLElement | null;
     if (!chip || !onNodeFocus) return;
     const nodeId = chip.dataset.nodeId;
     if (nodeId) {
@@ -133,6 +161,7 @@ export const ChatMessages = ({
         return (
           <ChatMessage
             key={index}
+            index={index}
             message={message}
             isStreaming={isStreaming}
             loading={loading}
@@ -144,6 +173,9 @@ export const ChatMessages = ({
             onToggleSection={() => onToggleSection(index)}
             onToggleToolExpand={onToggleToolExpand}
             onAddImageToCanvas={onAddImageToCanvas}
+            anchorId={buildAnchorElementId(workspaceId, index)}
+            onEditUserMessage={onEditUserMessage}
+            onRegenerate={onRegenerate}
           />
         );
       })}

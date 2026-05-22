@@ -67,6 +67,11 @@ interface ChatViewProps {
   executionMode?: 'auto' | 'ask';
   onToggleExecutionMode?: () => void;
 
+  // Edit / regenerate hooks — wired from ChatPanel into the per-message
+  // hover toolbar inside ChatMessage.
+  onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
+  onRegenerate?: (index: number) => Promise<boolean> | void;
+
   // Optional decoration
   onResizeStart?: (e: ReactMouseEvent) => void;
 }
@@ -122,6 +127,8 @@ export const ChatView = ({
   onOpenModelSettings,
   executionMode = 'auto',
   onToggleExecutionMode,
+  onEditUserMessage,
+  onRegenerate,
   onResizeStart,
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading;
@@ -151,6 +158,8 @@ export const ChatView = ({
           onToggleToolExpand={onToggleToolExpand}
           onAddImageToCanvas={onAddImageToCanvas}
           onNodeFocus={onNodeFocus}
+          onEditUserMessage={onEditUserMessage}
+          onRegenerate={onRegenerate}
         />
       ) : (
         <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} />

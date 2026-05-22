@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 
@@ -19,6 +20,8 @@ interface ChatHeaderProps {
   onOpenModelSettings: () => void;
   onOpenPromptSettings: () => void;
   onClose: () => void;
+  /** Slot for the in-chat anchor / TOC control. */
+  anchors?: ReactNode;
 }
 
 const PulseCanvasMark = () => (
@@ -48,6 +51,7 @@ export const ChatHeader = ({
   onOpenModelSettings,
   onOpenPromptSettings,
   onClose,
+  anchors,
 }: ChatHeaderProps) => (
   <div className="chat-panel-header">
     <div className="chat-panel-title-wrapper" ref={sessionMenuRef}>
@@ -117,6 +121,7 @@ export const ChatHeader = ({
       )}
     </div>
     <div className="chat-panel-actions">
+      {anchors}
       <button
         className="chat-panel-action-btn"
         onClick={onOpenPromptSettings}
