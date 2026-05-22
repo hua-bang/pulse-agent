@@ -1016,9 +1016,10 @@
    via padding-bottom. The toolbar is absolutely positioned within that
    reserved zone, so it sits in the body's hit area — hovering the
    bubble or the toolbar both keep `.chat-message:hover` true, with no
-   dead gap to interrupt the pointer-events handoff. */
+   dead gap to interrupt the pointer-events handoff. Must be >= the
+   toolbar's rendered height (icon buttons are 22px below). */
 .chat-message-body--has-toolbar {
-  padding-bottom: 30px;
+  padding-bottom: 22px;
 }
 
 .chat-message-toolbar {
@@ -1083,8 +1084,8 @@
 }
 
 .chat-message-toolbar-btn--icon {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   padding: 0;
 }
 
