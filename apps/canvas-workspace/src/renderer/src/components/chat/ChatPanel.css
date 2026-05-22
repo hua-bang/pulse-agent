@@ -310,11 +310,10 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  /* Each message body reserves 30px below for its hover toolbar
-     (.chat-message-body--has-toolbar), which already provides visual
-     separation. A small gap on top of that is enough — 18px stacks
-     on the reserved zone and reads as a too-wide gap. */
-  gap: 4px;
+  /* The hover toolbar is absolutely positioned at top:100% below each
+     bubble (out of flow), so this gap IS the visible spacing between
+     messages. Toolbar overlays the gap on hover. */
+  gap: 10px;
 }
 
 .chat-message {
@@ -1012,27 +1011,33 @@
   position: relative;
 }
 
-/* When a message has a toolbar we reserve space for it INSIDE the body
-   via padding-bottom. The toolbar is absolutely positioned within that
-   reserved zone, so it sits in the body's hit area — hovering the
-   bubble or the toolbar both keep `.chat-message:hover` true, with no
-   dead gap to interrupt the pointer-events handoff. Must be >= the
-   toolbar's rendered height (icon buttons are 22px below). */
-.chat-message-body--has-toolbar {
-  padding-bottom: 22px;
-}
-
+/* Toolbar floats below the bubble (top: 100%) and is out of flow so it
+   doesn't reserve vertical space. `padding-top` gives a small visual
+   gap from the bubble while keeping the toolbar's hit area flush with
+   the bubble's bottom edge — so hovering bubble → toolbar stays
+   continuous, no dead gap to break `.chat-message:hover`. */
 .chat-message-toolbar {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  top: 100%;
   z-index: 3;
   display: flex;
   align-items: center;
   gap: 4px;
+  padding-top: 2px;
   opacity: 0;
   transition: opacity 0.12s;
   pointer-events: none;
+}
+
+/* Anchor the toolbar to the same side as its bubble: user messages are
+   right-aligned, assistant messages are left-aligned. */
+.chat-message-user .chat-message-toolbar {
+  right: 0;
+}
+
+.chat-message-assistant .chat-message-toolbar {
+  left: 0;
+  flex-direction: row-reverse;
 }
 
 .chat-message:hover .chat-message-toolbar,
