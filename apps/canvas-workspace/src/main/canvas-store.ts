@@ -10,6 +10,9 @@ import {
   writeCanvasFull,
   migrateToV2,
   detectSchemaVersion,
+  isSafeNodeId,
+  getNodesDir,
+  getNodeFilePath,
   type MigrationProgress,
   type ReadJsonResult,
 } from "./canvas-storage";
@@ -800,6 +803,155 @@ const startWorkspaceWatcher = (workspaceId: string): void => {
   watchers.set(workspaceId, watcher);
 };
 
+// ─── Per-node file watcher (v2 workspaces) ──────────────────────────────
+//
+// In v2 storage, edits to a single node's `data` land in
+// `nodes/<id>.json` instead of `canvas.json`. The canvas.json watcher
+// above only fires for layout / membership changes; without a separate
+// per-node watcher, canvas-cli or canvas-agent edits to per-node data
+// would never reach the renderer until the next full canvas:load.
+//
+// Echo suppression: every save / load updates `lastPerNodeContent` to
+// match the on-disk state. The watcher fire compares per-file content
+// against that snapshot; if identical (our own write echoing back), we
+// suppress. The renderer's external-update handler highlights nodes for
+// 2.5s, so unsuppressed echoes would visually flicker on every save.
+
+/** workspaceId → (nodeId → exact file bytes last seen on disk). */
+const lastPerNodeContent = new Map<string, Map<string, string>>();
+const nodeFileWatchers = new Map<string, FSWatcher>();
+/** Debounced (workspaceId → pending event timer). Batches multi-file events. */
+const nodeFileDebounce = new Map<string, NodeJS.Timeout>();
+/** Accumulator (workspaceId → set of node ids touched since last batch fire). */
+const nodeFileBatch = new Map<string, Set<string>>();
+
+/**
+ * Read every per-node file currently in `nodes/` and refresh the in-memory
+ * snapshot used for watcher echo suppression. Called after canvas:load
+ * (initial seed) and after every canvas:save (to record what we just
+ * wrote). Bounded by the workspace size; typical workspaces under 30ms.
+ */
+const seedPerNodeContent = async (workspaceId: string): Promise<void> => {
+  const dir = getNodesDir(workspaceId);
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch (err) {
+    // No nodes/ dir → v1 workspace, or v2 with zero nodes. Drop any
+    // stale snapshot from a previous lifecycle.
+    if (isEnoent(err)) {
+      lastPerNodeContent.delete(workspaceId);
+      return;
+    }
+    console.warn(`[canvas-store] could not list nodes/ for ${workspaceId}:`, err);
+    return;
+  }
+  const inner = new Map<string, string>();
+  for (const name of entries) {
+    if (!name.endsWith('.json')) continue;
+    const nodeId = name.slice(0, -'.json'.length);
+    if (!isSafeNodeId(nodeId)) continue;
+    try {
+      const raw = await fs.readFile(getNodeFilePath(workspaceId, nodeId), 'utf-8');
+      inner.set(nodeId, raw);
+    } catch {
+      // Skip — transient or just-deleted.
+    }
+  }
+  lastPerNodeContent.set(workspaceId, inner);
+};
+
+const handlePerNodeBatchFire = async (workspaceId: string): Promise<void> => {
+  const batch = nodeFileBatch.get(workspaceId);
+  if (!batch || batch.size === 0) return;
+  const nodeIds = Array.from(batch);
+  nodeFileBatch.delete(workspaceId);
+
+  const inner = lastPerNodeContent.get(workspaceId) ?? new Map<string, string>();
+  const changedIds: string[] = [];
+
+  for (const nodeId of nodeIds) {
+    let raw: string;
+    try {
+      raw = await fs.readFile(getNodeFilePath(workspaceId, nodeId), 'utf-8');
+    } catch (err) {
+      if (isEnoent(err)) {
+        // Per-node file was deleted. Broadcast iff we knew about it.
+        if (inner.has(nodeId)) {
+          inner.delete(nodeId);
+          changedIds.push(nodeId);
+        }
+        continue;
+      }
+      // Transient I/O error — skip; next fire will re-check.
+      continue;
+    }
+    const prev = inner.get(nodeId);
+    if (prev === raw) continue; // echo of our own write — suppress
+    inner.set(nodeId, raw);
+    changedIds.push(nodeId);
+  }
+
+  lastPerNodeContent.set(workspaceId, inner);
+  if (changedIds.length > 0) {
+    broadcastExternalUpdate(workspaceId, changedIds);
+  }
+};
+
+const startNodesWatcher = (workspaceId: string): void => {
+  if (nodeFileWatchers.has(workspaceId)) return;
+  const dir = getNodesDir(workspaceId);
+  let watcher: FSWatcher;
+  try {
+    watcher = fsWatch(dir, { persistent: false });
+  } catch (err) {
+    // ENOENT for v1 / empty-v2 workspaces. Not an error — we'll try
+    // again next time canvas:load runs for this workspace (typically
+    // right after the first save creates nodes/).
+    if (!isEnoent(err)) {
+      console.warn(`[canvas-store] nodes/ watch failed for ${workspaceId}:`, err);
+    }
+    return;
+  }
+  watcher.on('change', (_eventType, filename) => {
+    if (typeof filename !== 'string' || !filename.endsWith('.json')) return;
+    if (filename.endsWith('.tmp')) return; // tmp file noise from atomic writes
+    const nodeId = filename.slice(0, -'.json'.length);
+    if (!isSafeNodeId(nodeId)) return;
+
+    const batch = nodeFileBatch.get(workspaceId) ?? new Set<string>();
+    batch.add(nodeId);
+    nodeFileBatch.set(workspaceId, batch);
+
+    const existing = nodeFileDebounce.get(workspaceId);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      nodeFileDebounce.delete(workspaceId);
+      void handlePerNodeBatchFire(workspaceId);
+    }, 100);
+    nodeFileDebounce.set(workspaceId, t);
+  });
+  watcher.on('error', (err) => {
+    console.warn(`[canvas-store] nodes/ watcher error for ${workspaceId}:`, err);
+  });
+  nodeFileWatchers.set(workspaceId, watcher);
+};
+
+const stopNodesWatcher = (workspaceId: string): void => {
+  const w = nodeFileWatchers.get(workspaceId);
+  if (w) {
+    try { w.close(); } catch { /* ignore */ }
+    nodeFileWatchers.delete(workspaceId);
+  }
+  const t = nodeFileDebounce.get(workspaceId);
+  if (t) {
+    clearTimeout(t);
+    nodeFileDebounce.delete(workspaceId);
+  }
+  nodeFileBatch.delete(workspaceId);
+  lastPerNodeContent.delete(workspaceId);
+};
+
 const stopWorkspaceWatcher = (workspaceId: string): void => {
   const w = watchers.get(workspaceId);
   if (w) {
@@ -812,10 +964,14 @@ const stopWorkspaceWatcher = (workspaceId: string): void => {
     watcherDebounce.delete(workspaceId);
   }
   lastSnapshot.delete(workspaceId);
+  stopNodesWatcher(workspaceId);
 };
 
 export const teardownCanvasWatchers = (): void => {
   for (const id of Array.from(watchers.keys())) stopWorkspaceWatcher(id);
+  // Defensive: any nodes/ watchers without a paired canvas.json watcher
+  // (theoretically impossible) also get cleaned up.
+  for (const id of Array.from(nodeFileWatchers.keys())) stopNodesWatcher(id);
 };
 
 export const setupCanvasStoreIpc = () => {
@@ -874,6 +1030,14 @@ export const setupCanvasStoreIpc = () => {
             // node as changed on every save in v2 mode.
             const onDiskMap = await readOnDiskNodeMap(payload.id);
             lastSnapshot.set(payload.id, onDiskMap);
+            // Same idea for v2 per-node files: snapshot their exact
+            // bytes so the nodes/ watcher's debounced fire can diff
+            // against them and suppress the echo of our own write.
+            // Also ensures the nodes/ watcher is running — first save
+            // on a freshly-migrated workspace creates the directory,
+            // and we need to start watching it now.
+            await seedPerNodeContent(payload.id);
+            startNodesWatcher(payload.id);
             // mergedMap (full v1-shape) is what the renderer cares about
             // for the pickedUp broadcast below — that comparison is
             // memory-vs-memory, not against the watcher snapshot.
@@ -975,6 +1139,13 @@ export const setupCanvasStoreIpc = () => {
           // exist by this point.
           lastSnapshot.set(payload.id, await readOnDiskNodeMap(payload.id));
           startWorkspaceWatcher(payload.id);
+          // For v2 workspaces, also seed the per-node content snapshot
+          // and start watching nodes/ so per-node data edits (canvas-cli
+          // editing scrollback, mindmap nodes, etc.) propagate to the
+          // renderer in real time. No-ops for v1 workspaces (nodes/ dir
+          // doesn't exist yet) and harmless to re-call across loads.
+          await seedPerNodeContent(payload.id);
+          startNodesWatcher(payload.id);
         }
         return { ok: true, data };
       } catch (err: unknown) {
