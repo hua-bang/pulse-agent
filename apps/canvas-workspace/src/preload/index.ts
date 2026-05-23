@@ -398,6 +398,27 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
 
     addImageToCanvas: (workspaceId: string, imagePath: string, title?: string) =>
       ipcRenderer.invoke("canvas-agent:add-image-to-canvas", { workspaceId, imagePath, title }),
+
+    streamWorkspaceDoc: (payload: { workspaceName: string; intent: string; currentContent?: string }) =>
+      ipcRenderer.invoke("canvas-agent:stream-workspace-doc", payload) as Promise<{ ok: boolean; requestId?: string; error?: string }>,
+
+    onWorkspaceDocDelta: (requestId: string, callback: (delta: string) => void) => {
+      const channel = `canvas-agent:workspace-doc-delta:${requestId}`;
+      const handler = (_event: Electron.IpcRendererEvent, delta: string) => callback(delta);
+      ipcRenderer.on(channel, handler);
+      return () => { ipcRenderer.removeListener(channel, handler); };
+    },
+
+    onWorkspaceDocComplete: (
+      requestId: string,
+      callback: (result: { ok: boolean; content?: string; error?: string }) => void,
+    ) => {
+      const channel = `canvas-agent:workspace-doc-complete:${requestId}`;
+      const handler = (_event: Electron.IpcRendererEvent, result: { ok: boolean; content?: string; error?: string }) =>
+        callback(result);
+      ipcRenderer.on(channel, handler);
+      return () => { ipcRenderer.removeListener(channel, handler); };
+    },
   },
 
   artifacts: {

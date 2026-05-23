@@ -51,6 +51,8 @@ export const WorkspaceSettingsDrawer = ({
   const [savingDoc, setSavingDoc] = useState(false);
   const [error, setError] = useState<string>();
   const [savedHint, setSavedHint] = useState(false);
+  const [intent, setIntent] = useState('');
+  const [generating, setGenerating] = useState(false);
   const initializedRef = useRef(false);
 
   // Reload state whenever the drawer (re)opens for a workspace.
@@ -65,6 +67,8 @@ export const WorkspaceSettingsDrawer = ({
     setError(undefined);
     setSavedHint(false);
     setAgentsDocLoaded(false);
+    setIntent('');
+    setGenerating(false);
 
     if (!workspace.rootFolder) {
       setAgentsDoc('');
@@ -130,6 +134,59 @@ export const WorkspaceSettingsDrawer = ({
       setSavingDoc(false);
     }
   }, [agentsDoc, workspace]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!workspace) return;
+    const trimmed = intent.trim();
+    if (!trimmed) return;
+
+    const hasUserContent = agentsDoc.trim().length > 0
+      && agentsDoc.trim() !== buildWorkspaceDocTemplate(workspace.name).trim();
+    if (hasUserContent) {
+      const ok = window.confirm(
+        'Replace the current pulse-workspace.md draft with an AI-generated one?\nThe existing content will be sent to the model as context so good parts can be kept.',
+      );
+      if (!ok) return;
+    }
+
+    setGenerating(true);
+    setError(undefined);
+    const api = window.canvasWorkspace?.agent;
+    if (!api) {
+      setGenerating(false);
+      return;
+    }
+
+    const startRes = await api.streamWorkspaceDoc({
+      workspaceName: workspace.name,
+      intent: trimmed,
+      currentContent: hasUserContent ? agentsDoc : undefined,
+    });
+    if (!startRes.ok || !startRes.requestId) {
+      setError(startRes.error ?? 'Failed to start generation');
+      setGenerating(false);
+      return;
+    }
+
+    let buffer = '';
+    setAgentsDoc('');
+    const offDelta = api.onWorkspaceDocDelta(startRes.requestId, (delta) => {
+      buffer += delta;
+      setAgentsDoc(buffer);
+    });
+    const offComplete = api.onWorkspaceDocComplete(startRes.requestId, (result) => {
+      offDelta();
+      offComplete();
+      setGenerating(false);
+      if (!result.ok) {
+        setError(result.error ?? 'Generation failed');
+        return;
+      }
+      if (typeof result.content === 'string') {
+        setAgentsDoc(result.content);
+      }
+    });
+  }, [agentsDoc, intent, workspace]);
 
   if (!open || !workspace) return null;
 
@@ -209,12 +266,36 @@ export const WorkspaceSettingsDrawer = ({
               <div className="workspace-settings-empty">Loading…</div>
             ) : (
               <>
+                <div className="workspace-settings-generate-row">
+                  <input
+                    className="workspace-settings-input workspace-settings-generate-input"
+                    placeholder="Describe what this workspace is for, AI will draft a pulse-workspace.md…"
+                    value={intent}
+                    onChange={(e) => setIntent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && intent.trim() && !generating) {
+                        e.preventDefault();
+                        void handleGenerate();
+                      }
+                    }}
+                    disabled={generating}
+                  />
+                  <button
+                    type="button"
+                    className="workspace-settings-secondary-btn workspace-settings-generate-btn"
+                    onClick={() => void handleGenerate()}
+                    disabled={!intent.trim() || generating}
+                  >
+                    {generating ? 'Generating…' : '✨ Generate'}
+                  </button>
+                </div>
                 <textarea
                   className="workspace-settings-textarea"
                   value={agentsDoc}
                   rows={16}
                   onChange={(e) => setAgentsDoc(e.target.value)}
                   spellCheck={false}
+                  readOnly={generating}
                 />
                 <div className="workspace-settings-field-hint">
                   {agentsDocExists ? 'Saved at ' : 'Will be created at '}

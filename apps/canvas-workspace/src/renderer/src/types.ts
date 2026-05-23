@@ -724,6 +724,16 @@ export interface AgentApi {
     imagePath: string,
     title?: string
   ) => Promise<{ ok: boolean; nodeId?: string; error?: string }>;
+  streamWorkspaceDoc: (payload: {
+    workspaceName: string;
+    intent: string;
+    currentContent?: string;
+  }) => Promise<{ ok: boolean; requestId?: string; error?: string }>;
+  onWorkspaceDocDelta: (requestId: string, callback: (delta: string) => void) => () => void;
+  onWorkspaceDocComplete: (
+    requestId: string,
+    callback: (result: { ok: boolean; content?: string; error?: string }) => void,
+  ) => () => void;
 }
 
 export interface CanvasWorkspaceApi {

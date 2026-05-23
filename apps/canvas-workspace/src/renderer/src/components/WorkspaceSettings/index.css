@@ -188,6 +188,22 @@
   font-family: inherit;
 }
 
+.workspace-settings-generate-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace-settings-generate-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.workspace-settings-generate-btn {
+  flex-shrink: 0;
+}
+
 .workspace-settings-textarea {
   width: 100%;
   padding: 10px 12px;
