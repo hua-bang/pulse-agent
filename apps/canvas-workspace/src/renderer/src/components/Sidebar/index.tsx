@@ -25,6 +25,7 @@ interface Props {
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
+  onOpenSettings: (id: string) => void;
   onImport: () => void;
   onCreateFolder: (name: string) => void;
   onRenameFolder: (id: string, name: string) => void;
@@ -53,7 +54,7 @@ const FOLDER_DRAG = 'application/x-folder-id';
 
 export const Sidebar = ({
   collapsed, onToggle, workspaces, folders, activeId, onSelect, onCreate, onRename, onDelete,
-  onExport, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
+  onExport, onOpenSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
   onReorderWorkspace, onReorderFolder,
   activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
 }: Props) => {
@@ -277,7 +278,7 @@ export const Sidebar = ({
       isDropBefore={wsDropBeforeId === ws.id}
       onSelect={onSelect} onStartRename={startRename} onRenameChange={setRenameValue}
       onRenameCommit={commitRename} onRenameCancel={() => setRenamingId(null)}
-      onDelete={onDelete} onExport={onExport}
+      onDelete={onDelete} onExport={onExport} onOpenSettings={onOpenSettings}
       onDragStart={handleWsDragStart} onDragEnd={handleWsDragEnd}
       onReorderDragOver={(e) => handleWsReorderDragOver(e, ws.id)}
       onReorderDragLeave={(e) => handleWsReorderDragLeave(e, ws.id)}

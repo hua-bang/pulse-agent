@@ -211,7 +211,8 @@
 
 .sidebar-item-delete,
 .sidebar-item-export,
-.sidebar-item-rename {
+.sidebar-item-rename,
+.sidebar-item-settings {
   flex-shrink: 0;
   width: 22px;
   height: 22px;
@@ -231,23 +232,29 @@
   right: 6px;
 }
 
-.sidebar-item-rename {
+.sidebar-item-settings {
   right: 30px;
 }
 
-.sidebar-item-export {
+.sidebar-item-rename {
   right: 54px;
+}
+
+.sidebar-item-export {
+  right: 78px;
 }
 
 .sidebar-item-row:hover .sidebar-item-delete,
 .sidebar-item-row:hover .sidebar-item-export,
-.sidebar-item-row:hover .sidebar-item-rename {
+.sidebar-item-row:hover .sidebar-item-rename,
+.sidebar-item-row:hover .sidebar-item-settings {
   display: flex;
 }
 
 .sidebar-item-delete:hover,
 .sidebar-item-export:hover,
-.sidebar-item-rename:hover {
+.sidebar-item-rename:hover,
+.sidebar-item-settings:hover {
   background: rgba(0, 0, 0, 0.06);
   color: var(--text-secondary);
 }

@@ -7,6 +7,7 @@ import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
 import { LinkDrawer } from './components/LinkDrawer';
 import { Sidebar } from './components/Sidebar';
+import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
 import { useWorkspaces } from './hooks/useWorkspaces';
@@ -42,6 +43,7 @@ const AppContent = () => {
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
 
   const {
     workspaces,
@@ -51,6 +53,7 @@ const AppContent = () => {
     createWorkspace,
     renameWorkspace,
     deleteWorkspace,
+    setRootFolder,
     importWorkspace,
     createFolder,
     renameFolder,
@@ -355,6 +358,7 @@ const AppContent = () => {
           onRename={handleRenameWorkspace}
           onDelete={handleDeleteWorkspace}
           onExport={handleExportWorkspace}
+          onOpenSettings={setSettingsWorkspaceId}
           onImport={handleImportWorkspace}
           onCreateFolder={handleCreateFolder}
           onRenameFolder={handleRenameFolder}
@@ -402,6 +406,16 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <LinkDrawer activeWorkspaceId={activeId} />
+      <WorkspaceSettingsDrawer
+        workspace={
+          settingsWorkspaceId
+            ? workspaces.find((ws) => ws.id === settingsWorkspaceId) ?? null
+            : null
+        }
+        onClose={() => setSettingsWorkspaceId(null)}
+        onRename={renameWorkspace}
+        onSetRootFolder={setRootFolder}
+      />
     </div>
   );
 };
