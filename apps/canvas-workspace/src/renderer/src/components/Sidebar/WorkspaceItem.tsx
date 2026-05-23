@@ -84,6 +84,11 @@ export const WorkspaceItem = ({
         </button>
       )}
       {!isRenaming && (
+        <button className="sidebar-item-export" onClick={() => onExport(ws.id)} title="Export workspace">
+          <ExportIcon size={12} strokeWidth={1.5} />
+        </button>
+      )}
+      {!isRenaming && (
         <button
           className="sidebar-item-rename"
           onClick={() => onStartRename(ws)}
@@ -91,11 +96,6 @@ export const WorkspaceItem = ({
           aria-label="Rename workspace"
         >
           <PencilIcon size={12} strokeWidth={1.4} />
-        </button>
-      )}
-      {!isRenaming && (
-        <button className="sidebar-item-export" onClick={() => onExport(ws.id)} title="Export workspace">
-          <ExportIcon size={12} strokeWidth={1.5} />
         </button>
       )}
       {!isRenaming && (
@@ -114,10 +114,5 @@ export const WorkspaceItem = ({
         </button>
       )}
     </div>
-    {ws.rootFolder && (
-      <div className="sidebar-root-folder" title={ws.rootFolder}>
-        {ws.rootFolder.split('/').slice(-2).join('/')}
-      </div>
-    )}
   </div>
 );
