@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAppShell } from '../AppShellProvider';
 import './index.css';
 
 type MigrationPhase =
@@ -26,19 +27,23 @@ interface VisibleState {
 }
 
 /**
- * Non-blocking spinner for canvas storage migration.
+ * Non-blocking spinner + post-migration toast for canvas storage migration.
  *
- * Subscribes to `canvas:migration-progress` IPC events and reveals itself
- * only when a migration runs longer than {@link DELAY_MS}. Short migrations
- * (typical workspaces complete in well under 1s) never show anything, so
- * the migration stays imperceptible — matching the "no user-facing v1/v2
- * concept" goal.
+ * Subscribes to `canvas:migration-progress` IPC events and:
+ *   - Reveals a spinner pill only when a migration runs longer than
+ *     {@link DELAY_MS}. Short migrations stay imperceptible — matching
+ *     the "no user-facing v1/v2 concept" goal.
+ *   - Fires a one-shot success toast after a *real* migration completes
+ *     (one that emitted the `backup` phase, i.e. did actual work rather
+ *     than no-op on an already-v2 workspace). The toast is intentionally
+ *     light: short title + brief description pointing at the .v1.bak
+ *     archive, auto-dismissed.
  *
- * Dormant in PR1 because no caller fires the IPC event yet; PR3 wires
- * lazy auto-migration into `readCanvasFull` and this component lights up
- * for any workspace large enough to notice.
+ * Tracks per-workspace whether a real migration was observed so the
+ * toast fires once per workspace per migration, not per event.
  */
 const DELAY_MS = 1000;
+const SUCCESS_TOAST_AUTOCLOSE_MS = 6000;
 
 const PHASE_LABELS: Record<MigrationPhase, string> = {
   starting: '准备升级存储格式…',
@@ -50,11 +55,18 @@ const PHASE_LABELS: Record<MigrationPhase, string> = {
 };
 
 export const MigrationSpinner = (): JSX.Element | null => {
+  const { notify } = useAppShell();
+
   const [visible, setVisible] = useState<VisibleState | null>(null);
   // Buffer the latest event from the moment a migration starts; the timer
   // promotes it to `visible` once DELAY_MS elapses without a `done`/`error`.
   const pendingRef = useRef<VisibleState | null>(null);
   const timerRef = useRef<number | null>(null);
+  // Per-workspace flag: true once we've seen 'backup' for that id, meaning
+  // a real migration is in flight (no-ops on already-v2 workspaces never
+  // emit 'backup'). Used to fire the success toast only when real work
+  // happened.
+  const realMigrationRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const api = window.canvasWorkspace?.store;
@@ -68,13 +80,31 @@ export const MigrationSpinner = (): JSX.Element | null => {
     };
 
     const unsubscribe = api.onMigrationProgress((event: MigrationEvent) => {
+      // Track "real migration" markers per workspace independently of the
+      // visible spinner state — the toast should fire even for sub-1s
+      // migrations the spinner never surfaced.
+      if (event.phase === 'backup') {
+        realMigrationRef.current.add(event.workspaceId);
+      }
+
       if (event.phase === 'done') {
-        // Workspace finished; tear down. If the spinner had already
-        // surfaced, hide it; if it was still buffering, nothing visible
-        // ever appeared.
+        // Workspace finished; tear down the spinner.
         pendingRef.current = null;
         clearTimer();
         setVisible(null);
+        // Fire the success toast iff we observed real migration work
+        // (the `backup` phase) for this workspace. Already-v2 / missing
+        // workspaces emit only 'starting' → 'done' and stay silent.
+        if (realMigrationRef.current.has(event.workspaceId)) {
+          realMigrationRef.current.delete(event.workspaceId);
+          notify({
+            tone: 'success',
+            title: '画布存储已升级',
+            description:
+              '原数据已备份到工作区目录下的 canvas.json.v1.bak（需要时可手工恢复）。',
+            autoCloseMs: SUCCESS_TOAST_AUTOCLOSE_MS,
+          });
+        }
         return;
       }
 
@@ -83,6 +113,7 @@ export const MigrationSpinner = (): JSX.Element | null => {
         // user should see "升级失败" rather than nothing.
         pendingRef.current = null;
         clearTimer();
+        realMigrationRef.current.delete(event.workspaceId);
         setVisible({
           workspaceId: event.workspaceId,
           phase: 'error',
@@ -129,7 +160,7 @@ export const MigrationSpinner = (): JSX.Element | null => {
     // setter, which gives us "stale but consistent" UX (rapid phase
     // updates won't ping-pong). Subscribing once is correct.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [notify]);
 
   if (!visible) return null;
 
