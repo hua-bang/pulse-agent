@@ -107,6 +107,44 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
       return () => {
         ipcRenderer.removeListener("canvas:external-update", handler);
       };
+    },
+
+    /**
+     * Subscribe to canvas storage migration progress.
+     *
+     * Dormant in PR1 (no migration is triggered yet); the channel is in
+     * place so PR3 can flip on lazy v1→v2 auto-migration without further
+     * preload/renderer wiring. Returns the unsubscribe fn.
+     */
+    onMigrationProgress: (
+      callback: (event: {
+        workspaceId: string;
+        phase: "starting" | "backup" | "split-nodes" | "commit" | "done" | "error";
+        current?: number;
+        total?: number;
+        message?: string;
+      }) => void
+    ) => {
+      const handler = (
+        _event: Electron.IpcRendererEvent,
+        payload: {
+          workspaceId: string;
+          phase:
+            | "starting"
+            | "backup"
+            | "split-nodes"
+            | "commit"
+            | "done"
+            | "error";
+          current?: number;
+          total?: number;
+          message?: string;
+        }
+      ) => callback(payload);
+      ipcRenderer.on("canvas:migration-progress", handler);
+      return () => {
+        ipcRenderer.removeListener("canvas:migration-progress", handler);
+      };
     }
   },
 

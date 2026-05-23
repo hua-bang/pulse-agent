@@ -3,109 +3,53 @@ import { ipcMain, BrowserWindow, dialog } from "electron";
 import { promises as fs, watch as fsWatch, FSWatcher } from "fs";
 import { join, basename, dirname, relative, resolve, sep, isAbsolute } from "path";
 import { homedir } from "os";
+import {
+  atomicWriteJson,
+  readJsonWithRecovery,
+  type ReadJsonResult,
+} from "./canvas-storage";
 
 const STORE_DIR = join(homedir(), ".pulse-coder", "canvas");
 const MANIFEST_ID = '__workspaces__';
 
 /**
- * Atomically write canvas JSON to disk with a rolling backup.
+ * Atomically write a canvas JSON file with a rolling `.bak` backup.
  *
- * Node's `fs.writeFile` is NOT atomic — it truncates first, then streams
- * the bytes. If the process crashes mid-write, or if another reader
- * catches the truncate window, the file is left empty/partial and future
- * loads fail with `Unexpected end of JSON input`. With multiple writers
- * (canvas-workspace + canvas-cli + canvas-agent + MCP server) racing on
- * the same file, this is a real data-loss path.
- *
- * This helper:
- *   1. Writes the new content to `<path>.tmp`.
- *   2. If the current `<path>` parses and contains at least one node,
- *      copies it to `<path>.bak` (rolling last-known-good snapshot).
- *   3. `rename()`s `<path>.tmp` → `<path>`. Rename is atomic on the same
- *      filesystem: any concurrent reader sees either the old file or the
- *      new one, never a truncated one.
+ * Thin wrapper over `atomicWriteJson` from `canvas-storage.ts`. The shared
+ * implementation is the single source of truth for atomic file publishing
+ * (tmp + rename + optional rolling backup) — `canvas-store.ts`,
+ * `mcp-server.ts`, `canvas-agent/tools.ts`, and `canvas-cli` will all
+ * converge on it across PR2/PR3, replacing five near-duplicate copies.
  *
  * Recovery: `canvas:load` falls back to `<path>.bak` when the primary
  * file fails to parse, so even a pre-existing corruption from an older
  * non-atomic write path can self-heal on next load.
  */
-const atomicWriteCanvasJson = async (
+const atomicWriteCanvasJson = (
   finalPath: string,
   serialized: string,
-): Promise<void> => {
-  const dir = dirname(finalPath);
-  const base = basename(finalPath);
-  const tmpPath = join(dir, `${base}.tmp`);
-  const bakPath = join(dir, `${base}.bak`);
-
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(tmpPath, serialized, 'utf-8');
-
-  // Rotate last-known-good into .bak BEFORE overwriting. Only rotate if
-  // the current file is actually a good snapshot — parses and has at
-  // least one node. That prevents a single corrupt save from poisoning
-  // the backup.
-  try {
-    const currentRaw = await fs.readFile(finalPath, 'utf-8');
-    try {
-      const current = JSON.parse(currentRaw) as { nodes?: unknown[] };
-      if (Array.isArray(current.nodes) && current.nodes.length > 0) {
-        await fs.copyFile(finalPath, bakPath).catch(() => undefined);
-      }
-    } catch {
-      // Current file is already corrupt — don't overwrite the good .bak.
-    }
-  } catch {
-    // No current file yet (first write for this workspace) — nothing to back up.
-  }
-
-  await fs.rename(tmpPath, finalPath);
-};
+): Promise<void> =>
+  atomicWriteJson(finalPath, serialized, { rollingBackup: true });
 
 /**
  * Read canvas JSON with transparent fallback to the rolling `.bak` if
  * the primary file is missing or unparseable. Returns the parsed data
  * plus a `recoveredFromBackup` flag so callers can log / re-persist.
+ *
+ * Thin wrapper over `readJsonWithRecovery` from `canvas-storage.ts`. Kept
+ * for the warning log: the shared helper stays silent so it can also be
+ * used outside the Electron main process.
  */
 const readCanvasJsonWithRecovery = async (
   finalPath: string,
-): Promise<
-  | { kind: 'ok'; data: unknown; recoveredFromBackup: boolean }
-  | { kind: 'missing' }
-  | { kind: 'unrecoverable'; err: unknown }
-> => {
-  const bakPath = `${finalPath}.bak`;
-  let primaryErr: unknown = null;
-  try {
-    const raw = await fs.readFile(finalPath, 'utf-8');
-    try {
-      const data = JSON.parse(raw);
-      return { kind: 'ok', data, recoveredFromBackup: false };
-    } catch (err) {
-      primaryErr = err;
-    }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
-      // Primary file missing. Try backup; if that's also missing,
-      // treat the whole workspace as fresh.
-    } else {
-      primaryErr = err;
-    }
-  }
-
-  try {
-    const bakRaw = await fs.readFile(bakPath, 'utf-8');
-    const data = JSON.parse(bakRaw);
+): Promise<ReadJsonResult> => {
+  const result = await readJsonWithRecovery(finalPath);
+  if (result.kind === 'ok' && result.recoveredFromBackup) {
     console.warn(
-      `[canvas-store] primary canvas.json unreadable (${String(primaryErr ?? 'missing')}); recovered from ${basename(bakPath)}`,
+      `[canvas-store] primary canvas.json unreadable; recovered from ${basename(`${finalPath}.bak`)}`,
     );
-    return { kind: 'ok', data, recoveredFromBackup: true };
-  } catch (bakErr) {
-    if ((bakErr as NodeJS.ErrnoException)?.code === 'ENOENT') {
-      return primaryErr ? { kind: 'unrecoverable', err: primaryErr } : { kind: 'missing' };
-    }
-    return { kind: 'unrecoverable', err: primaryErr ?? bakErr };
   }
+  return result;
 };
 
 const AGENTS_MD_TEMPLATE = `# Canvas Agent Config

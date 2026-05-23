@@ -6,6 +6,7 @@ import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
 import { LinkDrawer } from './components/LinkDrawer';
+import { MigrationSpinner } from './components/MigrationSpinner';
 import { Sidebar } from './components/Sidebar';
 import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
@@ -406,6 +407,7 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <LinkDrawer activeWorkspaceId={activeId} />
+      <MigrationSpinner />
       <WorkspaceSettingsDrawer
         workspace={
           settingsWorkspaceId
