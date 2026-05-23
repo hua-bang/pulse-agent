@@ -119,10 +119,13 @@ export interface MigrationSentinel {
 
 /**
  * Progress callback payload for `migrateToV2`. Phases run in order; total +
- * current are only meaningful during `split-nodes`.
+ * current are only meaningful during `split-nodes`. `error` is not emitted
+ * by `migrateToV2` itself (it throws on failure) but is included so the
+ * canvas-store-side broadcaster can publish error events on the same
+ * channel as progress events without a separate type.
  */
 export interface MigrationProgress {
-  phase: 'starting' | 'backup' | 'split-nodes' | 'commit' | 'done';
+  phase: 'starting' | 'backup' | 'split-nodes' | 'commit' | 'done' | 'error';
   current?: number;
   total?: number;
   message?: string;
@@ -346,6 +349,31 @@ export async function deleteSentinel(
 }
 
 /**
+ * In-process set of workspace ids whose migration is currently in
+ * flight. Used to suppress recovery cleanup when another reader in the
+ * same process catches the sentinel mid-migration — that's not a "crash
+ * leftover", it's a live operation we'd be racing.
+ *
+ * Cross-process safety: this only covers concurrent callers in *this*
+ * Node process (typically the Electron main process). canvas-cli is a
+ * separate process and doesn't run recovery at all, so it never races
+ * here either.
+ */
+const activeMigrations = new Set<string>();
+
+export function markMigrationActive(workspaceId: string): void {
+  activeMigrations.add(workspaceId);
+}
+
+export function clearMigrationActive(workspaceId: string): void {
+  activeMigrations.delete(workspaceId);
+}
+
+export function isMigrationActive(workspaceId: string): boolean {
+  return activeMigrations.has(workspaceId);
+}
+
+/**
  * If a `.migrating` sentinel is present from a previous interrupted migration,
  * clean up so the next `readCanvasFull` lands in a sane state. Three cases:
  *
@@ -357,12 +385,16 @@ export async function deleteSentinel(
  *  - canvas.json unparseable (rename collision, extremely rare): restore
  *    from `canvas.json.v1.bak`, clean per-node files, drop the sentinel.
  *
+ * Skipped when an in-process migration is currently in flight for the
+ * workspace — that's a live operation, not a crash leftover.
+ *
  * Returns `true` iff a sentinel was found (caller may log).
  */
 export async function recoverInterruptedMigration(
   workspaceId: string,
   root: string = STORE_DIR,
 ): Promise<boolean> {
+  if (isMigrationActive(workspaceId)) return false;
   const sentinel = await readSentinel(workspaceId, root);
   if (!sentinel) return false;
 
@@ -748,106 +780,119 @@ export async function migrateToV2(
   const root = opts.root ?? STORE_DIR;
   const onProgress = opts.onProgress ?? (() => undefined);
 
-  onProgress({ phase: 'starting' });
+  // Mark active *before* writing the sentinel so any concurrent
+  // `readCanvasFull` in this process sees the live-migration flag and
+  // skips recovery — recovery here would clean up our in-flight writes.
+  markMigrationActive(workspaceId);
+  try {
+    onProgress({ phase: 'starting' });
 
-  // Pre-flight: recover any leftover sentinel before starting fresh.
-  await recoverInterruptedMigration(workspaceId, root);
+    // Pre-flight: recover any leftover sentinel from a *previous*
+    // interrupted run. With the active flag set above, this won't be a
+    // self-recovery — it strictly handles past crashes.
+    clearMigrationActive(workspaceId); // temporarily clear so the
+    // pre-flight recovery can actually inspect the sentinel
+    await recoverInterruptedMigration(workspaceId, root);
+    markMigrationActive(workspaceId);
 
-  const canvasPath = getCanvasJsonPath(workspaceId, root);
-  const existing = await readJsonWithRecovery<CanvasSaveData>(canvasPath);
-  if (existing.kind === 'missing') {
-    // Nothing to migrate.
-    onProgress({ phase: 'done' });
-    return;
-  }
-  if (existing.kind === 'unrecoverable') {
-    throw existing.err;
-  }
-  if (detectSchemaVersion(existing.data) === 2) {
-    onProgress({ phase: 'done' });
-    return;
-  }
+    const canvasPath = getCanvasJsonPath(workspaceId, root);
+    const existing = await readJsonWithRecovery<CanvasSaveData>(canvasPath);
+    if (existing.kind === 'missing') {
+      // Nothing to migrate.
+      onProgress({ phase: 'done' });
+      return;
+    }
+    if (existing.kind === 'unrecoverable') {
+      throw existing.err;
+    }
+    if (detectSchemaVersion(existing.data) === 2) {
+      onProgress({ phase: 'done' });
+      return;
+    }
 
-  const v1 = existing.data;
-  const nodes = Array.isArray(v1.nodes) ? v1.nodes : [];
-  const expectedNodeIds = nodes
-    .map((n) => n.id)
-    .filter((id): id is string => typeof id === 'string' && isSafeNodeId(id));
+    const v1 = existing.data;
+    const nodes = Array.isArray(v1.nodes) ? v1.nodes : [];
+    const expectedNodeIds = nodes
+      .map((n) => n.id)
+      .filter((id): id is string => typeof id === 'string' && isSafeNodeId(id));
 
-  // 1. Sentinel first, before anything destructive.
-  const sentinel: MigrationSentinel = {
-    startedAt: Date.now(),
-    workspaceId,
-    sourceUpdatedAt: extractWorkspaceUpdatedAt(v1),
-    expectedNodeIds,
-  };
-  await writeSentinel(workspaceId, sentinel, root);
+    // 1. Sentinel first, before anything destructive.
+    const sentinel: MigrationSentinel = {
+      startedAt: Date.now(),
+      workspaceId,
+      sourceUpdatedAt: extractWorkspaceUpdatedAt(v1),
+      expectedNodeIds,
+    };
+    await writeSentinel(workspaceId, sentinel, root);
 
-  // 2. Permanent v1 archive. Copy the raw bytes (not the parsed value)
-  //    to preserve exact byte-level state, including any user-meaningful
-  //    formatting in the original file.
-  onProgress({ phase: 'backup' });
-  await fs.copyFile(canvasPath, getV1BackupPath(workspaceId, root));
+    // 2. Permanent v1 archive. Copy the raw bytes (not the parsed value)
+    //    to preserve exact byte-level state, including any user-meaningful
+    //    formatting in the original file.
+    onProgress({ phase: 'backup' });
+    await fs.copyFile(canvasPath, getV1BackupPath(workspaceId, root));
 
-  // 3. Per-node files. Sequential to keep memory and FS pressure modest;
-  //    a typical workspace has tens of nodes, big ones have hundreds.
-  const total = nodes.length;
-  let current = 0;
-  for (const node of nodes) {
-    if (!node.id || !isSafeNodeId(node.id)) {
-      // Defensive: skip but don't fail the migration on one bad id.
+    // 3. Per-node files. Sequential to keep memory and FS pressure modest;
+    //    a typical workspace has tens of nodes, big ones have hundreds.
+    const total = nodes.length;
+    let current = 0;
+    for (const node of nodes) {
+      if (!node.id || !isSafeNodeId(node.id)) {
+        // Defensive: skip but don't fail the migration on one bad id.
+        current += 1;
+        onProgress({ phase: 'split-nodes', current, total });
+        continue;
+      }
+
+      const incomingUpdatedAt =
+        typeof node.updatedAt === 'number' ? node.updatedAt : sentinel.startedAt;
+
+      // updatedAt arbitration. The per-node file shouldn't exist yet on
+      // first-time migration, but if it does (interrupted migration retry,
+      // or a parallel writer raced in), keep the newer copy.
+      const existingPerNode = await readNodeFile(workspaceId, node.id, root);
+      const existingUpdatedAt =
+        existingPerNode && typeof existingPerNode.updatedAt === 'number'
+          ? existingPerNode.updatedAt
+          : 0;
+
+      if (!existingPerNode || incomingUpdatedAt >= existingUpdatedAt) {
+        const file: PerNodeFile = {
+          schemaVersion: PER_NODE_SCHEMA_VERSION,
+          id: node.id,
+          type: node.type,
+          title: node.title,
+          data: (node.data ?? {}) as Record<string, unknown>,
+          updatedAt: incomingUpdatedAt,
+          createdAt: existingPerNode?.createdAt ?? incomingUpdatedAt,
+        };
+        await writeNodeFile(workspaceId, file, root);
+      }
+
       current += 1;
       onProgress({ phase: 'split-nodes', current, total });
-      continue;
     }
 
-    const incomingUpdatedAt =
-      typeof node.updatedAt === 'number' ? node.updatedAt : sentinel.startedAt;
+    // 4. Commit. Build v2 layout and atomic-write canvas.json. From this
+    //    rename onward, the workspace is v2.
+    onProgress({ phase: 'commit' });
+    const layout: CanvasSaveData = {
+      ...v1,
+      schemaVersion: 2,
+      nodes: nodes.map((n) => stripDataFromNode(n)),
+    };
+    await atomicWriteJson(
+      canvasPath,
+      JSON.stringify(layout, null, 2),
+      { rollingBackup: true },
+    );
 
-    // updatedAt arbitration. The per-node file shouldn't exist yet on
-    // first-time migration, but if it does (interrupted migration retry,
-    // or a parallel writer raced in), keep the newer copy.
-    const existingPerNode = await readNodeFile(workspaceId, node.id, root);
-    const existingUpdatedAt =
-      existingPerNode && typeof existingPerNode.updatedAt === 'number'
-        ? existingPerNode.updatedAt
-        : 0;
+    // 5. Remove sentinel. From now on, recovery has nothing to do.
+    await deleteSentinel(workspaceId, root);
 
-    if (!existingPerNode || incomingUpdatedAt >= existingUpdatedAt) {
-      const file: PerNodeFile = {
-        schemaVersion: PER_NODE_SCHEMA_VERSION,
-        id: node.id,
-        type: node.type,
-        title: node.title,
-        data: (node.data ?? {}) as Record<string, unknown>,
-        updatedAt: incomingUpdatedAt,
-        createdAt: existingPerNode?.createdAt ?? incomingUpdatedAt,
-      };
-      await writeNodeFile(workspaceId, file, root);
-    }
-
-    current += 1;
-    onProgress({ phase: 'split-nodes', current, total });
+    onProgress({ phase: 'done' });
+  } finally {
+    clearMigrationActive(workspaceId);
   }
-
-  // 4. Commit. Build v2 layout and atomic-write canvas.json. From this
-  //    rename onward, the workspace is v2.
-  onProgress({ phase: 'commit' });
-  const layout: CanvasSaveData = {
-    ...v1,
-    schemaVersion: 2,
-    nodes: nodes.map((n) => stripDataFromNode(n)),
-  };
-  await atomicWriteJson(
-    canvasPath,
-    JSON.stringify(layout, null, 2),
-    { rollingBackup: true },
-  );
-
-  // 5. Remove sentinel. From now on, recovery has nothing to do.
-  await deleteSentinel(workspaceId, root);
-
-  onProgress({ phase: 'done' });
 }
 
 /**

@@ -22,6 +22,8 @@ import {
   recoverInterruptedMigration,
   writeSentinel,
   readSentinel,
+  markMigrationActive,
+  clearMigrationActive,
   CANVAS_SCHEMA_VERSION_V2,
   PER_NODE_SCHEMA_VERSION,
   type CanvasSaveData,
@@ -680,6 +682,44 @@ describe('recoverInterruptedMigration', () => {
       await fs.readFile(getCanvasJsonPath(wsId, root), 'utf-8'),
     );
     expect(restored.nodes[0].id).toBe('rescued');
+  });
+
+  it('skips recovery while a migration is actively in flight in this process', async () => {
+    await seedV1();
+    // Simulate an in-flight migration: sentinel + partial nodes file
+    // exist, AND the workspace is flagged as active. A concurrent
+    // readCanvasFull must NOT touch those files.
+    await writeNodeFile(
+      wsId,
+      {
+        schemaVersion: PER_NODE_SCHEMA_VERSION,
+        id: 'partial',
+        type: 'text',
+        data: { content: 'mid-migration write' },
+      },
+      root,
+    );
+    await writeSentinel(
+      wsId,
+      {
+        startedAt: Date.now(),
+        workspaceId: wsId,
+        sourceUpdatedAt: null,
+        expectedNodeIds: ['partial'],
+      },
+      root,
+    );
+
+    markMigrationActive(wsId);
+    try {
+      const recovered = await recoverInterruptedMigration(wsId, root);
+      expect(recovered).toBe(false);
+      // partial file and sentinel still present — recovery was correctly suppressed.
+      expect(await readNodeFile(wsId, 'partial', root)).not.toBeNull();
+      expect(await readSentinel(wsId, root)).not.toBeNull();
+    } finally {
+      clearMigrationActive(wsId);
+    }
   });
 
   it('readCanvasFull runs recovery transparently before reading', async () => {

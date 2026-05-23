@@ -6,6 +6,11 @@ import { homedir } from "os";
 import {
   atomicWriteJson,
   readJsonWithRecovery,
+  readCanvasFull,
+  writeCanvasFull,
+  migrateToV2,
+  detectSchemaVersion,
+  type MigrationProgress,
   type ReadJsonResult,
 } from "./canvas-storage";
 
@@ -380,27 +385,111 @@ const readDiskCanvas = async (
   attempts = 3,
   delayMs = 30,
 ): Promise<DiskReadOutcome> => {
-  let lastParseErr: unknown = null;
+  let lastErr: unknown = null;
   for (let i = 0; i < attempts; i++) {
-    let raw: string;
     try {
-      raw = await fs.readFile(getFilePath(id), 'utf-8');
-    } catch (err) {
-      if (isEnoent(err)) return { kind: 'missing' };
-      return { kind: 'ioerror', err };
-    }
-    try {
-      const diskData = JSON.parse(raw) as CanvasSaveData;
-      const nodes = Array.isArray(diskData.nodes) ? diskData.nodes : [];
+      // `readCanvasFull` always returns v1-shape regardless of on-disk
+      // schema: for v2 workspaces it reads `canvas.json` (layout) plus
+      // `nodes/<id>.json` and assembles them back into inline `data`.
+      // The merge logic below works on v1-shape and doesn't need to
+      // know about v2 storage details.
+      const result = await readCanvasFull(id);
+      if (result.data === null) return { kind: 'missing' };
+      const nodes = Array.isArray(result.data.nodes) ? (result.data.nodes as CanvasNode[]) : [];
       return { kind: 'ok', nodes };
     } catch (err) {
-      lastParseErr = err;
+      // Parse failure almost always means we caught another writer
+      // (canvas-cli mid-flush). A brief backoff almost always lands on
+      // the completed write.
+      lastErr = err;
       if (i < attempts - 1) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
   }
-  return { kind: 'unparseable', err: lastParseErr };
+  return { kind: 'unparseable', err: lastErr };
+};
+
+/**
+ * Broadcast a migration progress event to every renderer window. Powers
+ * the MigrationSpinner UI (which only surfaces after a 1s delay, so
+ * sub-second migrations stay invisible).
+ */
+const broadcastMigrationProgress = (
+  workspaceId: string,
+  progress: MigrationProgress,
+): void => {
+  const payload = {
+    workspaceId,
+    phase: progress.phase,
+    current: progress.current,
+    total: progress.total,
+    message: progress.message,
+  };
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send('canvas:migration-progress', payload);
+  }
+};
+
+/**
+ * If a workspace is still on the v1 storage format, migrate it to v2.
+ *
+ * This is the single trigger point for lazy auto-migration. Called from
+ * both `canvas:load` and `canvas:save` IPC handlers so the migration
+ * happens silently whenever the user first interacts with a workspace.
+ * Other consumers (mcp-server, canvas-agent, artifact-ipc, canvas-cli)
+ * do NOT trigger migration — they observe whatever schema exists on
+ * disk and adapt via the shared helper.
+ *
+ * Held inside `withSaveLock` so concurrent saves serialize through it.
+ * Cheap when the workspace is already v2: a single canvas.json peek
+ * before taking the lock skips the entire lock round-trip.
+ *
+ * On any error: we log and proceed. The save/load handler then continues
+ * with whatever state is on disk — worst case it's still v1 and the next
+ * call retries. We deliberately do not fail the user-facing operation
+ * over a migration hiccup.
+ */
+const ensureMigrated = async (workspaceId: string): Promise<void> => {
+  if (workspaceId === MANIFEST_ID) return;
+
+  // Cheap pre-check: peek canvas.json, return early when already v2.
+  const peekPath = getFilePath(workspaceId);
+  try {
+    const raw = await fs.readFile(peekPath, 'utf-8');
+    const parsed: unknown = JSON.parse(raw);
+    if (detectSchemaVersion(parsed) === 2) return;
+  } catch (err) {
+    if (isEnoent(err)) return; // fresh workspace, nothing to migrate
+    // Parse failure — fall through; recoverInterruptedMigration inside
+    // `readCanvasFull` will sort it out, or migration will throw and we
+    // surface that on the next interaction.
+  }
+
+  await withSaveLock(workspaceId, async () => {
+    // Re-check inside the lock — another save may have migrated already.
+    try {
+      const raw = await fs.readFile(peekPath, 'utf-8');
+      if (detectSchemaVersion(JSON.parse(raw)) === 2) return;
+    } catch (err) {
+      if (isEnoent(err)) return;
+      // Same fall-through as above.
+    }
+    try {
+      await migrateToV2(workspaceId, {
+        onProgress: (p) => broadcastMigrationProgress(workspaceId, p),
+      });
+    } catch (err) {
+      console.warn(
+        `[canvas-store] migration to v2 failed for ${workspaceId}: ${String(err)}; leaving workspace on v1 until next interaction`,
+      );
+      broadcastMigrationProgress(workspaceId, {
+        phase: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
 };
 
 const mergeExternalNodes = async (
@@ -602,6 +691,30 @@ const nodesToMap = (nodes: CanvasNode[] | undefined): Map<string, CanvasNode> =>
   return m;
 };
 
+/**
+ * Read whatever canvas.json holds on disk RIGHT NOW, in its on-disk shape:
+ *   - v1 workspaces: nodes carry inline `data`.
+ *   - v2 workspaces: nodes are layout-only (no `data` field).
+ *
+ * Used to seed `lastSnapshot` so the `fs.watch` echo-suppression diff is
+ * apples-to-apples. The watcher handler reads canvas.json the same way,
+ * so a snapshot in any other shape would falsely report every node as
+ * changed on every save.
+ */
+const readOnDiskNodeMap = async (
+  workspaceId: string,
+): Promise<Map<string, CanvasNode>> => {
+  try {
+    const raw = await fs.readFile(getFilePath(workspaceId), 'utf-8');
+    const parsed = JSON.parse(raw) as CanvasSaveData;
+    return nodesToMap(parsed.nodes);
+  } catch {
+    // Missing or unparseable: treat as empty so the next watcher fire
+    // (with a parseable file) registers every node as "new" and broadcasts.
+    return new Map<string, CanvasNode>();
+  }
+};
+
 const diffSnapshots = (
   before: Map<string, CanvasNode>,
   after: Map<string, CanvasNode>,
@@ -718,6 +831,11 @@ export const setupCanvasStoreIpc = () => {
           );
         } else {
           await ensureWorkspaceDir(payload.id);
+          // Lazy migration: if this is a v1 workspace, transparently
+          // promote to v2 before merging. Holds the same save lock so
+          // any concurrent save is serialized after the migration. No-op
+          // for already-v2 workspaces.
+          await ensureMigrated(payload.id);
           await withSaveLock(payload.id, async () => {
             // Snapshot what the renderer actually had in memory when it
             // sent this save. We compare against this after the merge
@@ -742,16 +860,24 @@ export const setupCanvasStoreIpc = () => {
             // second read somehow fails to include them.
             const merged = await mergeExternalNodes(payload.id, firstPass);
             if (merged === SKIP_WRITE) return;
-            await atomicWriteCanvasJson(
-              getFilePath(payload.id),
-              JSON.stringify(merged, null, 2),
-            );
+            // writeCanvasFull adapts to the current on-disk schema: for
+            // v2 workspaces it splits node.data into nodes/<id>.json
+            // files and writes a layout-only canvas.json; for v1 it
+            // writes the whole thing inline. The canvas.json swap is
+            // the commit point in both paths.
+            await writeCanvasFull(payload.id, merged as CanvasSaveData);
             // Update the watcher's last-known snapshot to match what we
-            // just wrote. The debounced fs.watch callback will see an
-            // empty diff and skip broadcasting, suppressing the echo of
-            // our own write.
+            // just wrote. Re-read the on-disk canvas.json so the
+            // snapshot has the exact shape the fs.watch handler will see
+            // — for v2 that's layout-only; for v1 it's full inline data.
+            // Without this, the watcher's diff would falsely flag every
+            // node as changed on every save in v2 mode.
+            const onDiskMap = await readOnDiskNodeMap(payload.id);
+            lastSnapshot.set(payload.id, onDiskMap);
+            // mergedMap (full v1-shape) is what the renderer cares about
+            // for the pickedUp broadcast below — that comparison is
+            // memory-vs-memory, not against the watcher snapshot.
             const mergedMap = nodesToMap(merged.nodes);
-            lastSnapshot.set(payload.id, mergedMap);
             // Now that the write has landed, mark every persisted id as
             // known so subsequent `mergeExternalNodes` calls can tell
             // "memory-only node the user just created" (not in known →
@@ -794,23 +920,39 @@ export const setupCanvasStoreIpc = () => {
         if (payload.id !== MANIFEST_ID) {
           await migrateIfNeeded(payload.id);
           await ensureWorkspaceDir(payload.id);
+          // Lazy auto-migrate v1 → v2 silently. Returns immediately if
+          // already v2 or missing. MigrationSpinner only surfaces if
+          // the migration takes longer than 1s.
+          await ensureMigrated(payload.id);
         }
         const filePath = getFilePath(payload.id);
-        const readResult = await readCanvasJsonWithRecovery(filePath);
-        if (readResult.kind === 'missing') {
-          return { ok: true, data: null };
+        let data: CanvasSaveData;
+        let recoveredFromBackup = false;
+        if (payload.id === MANIFEST_ID) {
+          const readResult = await readCanvasJsonWithRecovery(filePath);
+          if (readResult.kind === 'missing') return { ok: true, data: null };
+          if (readResult.kind === 'unrecoverable') {
+            return { ok: false, error: String(readResult.err) };
+          }
+          data = readResult.data as CanvasSaveData;
+          recoveredFromBackup = readResult.recoveredFromBackup;
+        } else {
+          // `readCanvasFull` returns v1-shape (with inline node.data)
+          // regardless of on-disk schema. The renderer never sees v2
+          // layout-only data; it observes the same shape it always has.
+          const full = await readCanvasFull(payload.id);
+          if (full.data === null) return { ok: true, data: null };
+          data = full.data as CanvasSaveData;
+          recoveredFromBackup = full.recoveredFromBackup;
         }
-        if (readResult.kind === 'unrecoverable') {
-          return { ok: false, error: String(readResult.err) };
-        }
-        const data: CanvasSaveData = readResult.data as CanvasSaveData;
         if (payload.id !== MANIFEST_ID) {
           const dirty = await migrateNotePaths(payload.id, data);
           // Re-persist if migration rewrote note paths OR if we recovered
           // from the rolling backup (the primary file was corrupt; writing
-          // the recovered data back heals it).
-          if (dirty || readResult.recoveredFromBackup) {
-            await atomicWriteCanvasJson(filePath, JSON.stringify(data, null, 2));
+          // the recovered data back heals it). Uses writeCanvasFull so v2
+          // workspaces stay v2; v1 workspaces stay v1.
+          if (dirty || recoveredFromBackup) {
+            await writeCanvasFull(payload.id, data);
           }
           // Seed the known-id set the first time we load this workspace in
           // this app session. Do NOT re-seed on subsequent loads — the
@@ -826,12 +968,12 @@ export const setupCanvasStoreIpc = () => {
             );
             knownNodeIds.set(payload.id, known);
           }
-          // Seed / refresh the watcher's last-known snapshot and ensure
-          // the fs.watch listener is running for this workspace. Starting
-          // here (instead of at app launch) means we only watch workspaces
-          // the user has actually opened, and guarantees the canvas.json
-          // file already exists by the time we call fs.watch on it.
-          lastSnapshot.set(payload.id, nodesToMap(data.nodes));
+          // Seed / refresh the watcher's last-known snapshot using the
+          // on-disk shape (layout-only for v2, full for v1). Starting the
+          // watcher here means we only watch workspaces the user has
+          // actually opened, and the canvas.json file is guaranteed to
+          // exist by this point.
+          lastSnapshot.set(payload.id, await readOnDiskNodeMap(payload.id));
           startWorkspaceWatcher(payload.id);
         }
         return { ok: true, data };
