@@ -887,8 +887,18 @@ const handlePerNodeBatchFire = async (workspaceId: string): Promise<void> => {
       continue;
     }
     const prev = inner.get(nodeId);
-    if (prev === raw) continue; // echo of our own write — suppress
+    // Update the snapshot unconditionally — even if we end up suppressing
+    // the broadcast, the freshest bytes are the ones we want to compare
+    // against next time.
     inner.set(nodeId, raw);
+    if (prev === raw) continue; // exact-bytes echo of our own write
+    if (prev !== undefined && !visibleFieldsChanged(prev, raw)) {
+      // Only metadata (updatedAt / createdAt) churned, or `data` keys got
+      // reordered by a spread upstream. The renderer can't see this
+      // difference, so broadcasting would just trigger a false "agent
+      // edited" highlight without anything visibly changing.
+      continue;
+    }
     changedIds.push(nodeId);
   }
 
@@ -896,6 +906,55 @@ const handlePerNodeBatchFire = async (workspaceId: string): Promise<void> => {
   if (changedIds.length > 0) {
     broadcastExternalUpdate(workspaceId, changedIds);
   }
+};
+
+/**
+ * Compare two per-node JSON files for *user-visible* differences.
+ *
+ * Returns true iff `data`, `type`, or `title` differ — the three fields
+ * the renderer actually reflects in the canvas. Field-order changes
+ * within `data` (e.g. `{ a, b }` vs `{ b, a }` from an upstream object
+ * spread) and pure metadata churn (`updatedAt` / `createdAt` only)
+ * return false. Without this filter, the nodes/ watcher would broadcast
+ * for every save echo even when nothing user-visible changed, falsely
+ * lighting up the renderer's "externally edited" highlight on every
+ * autosave.
+ *
+ * Conservative: if parsing fails, treat as changed and broadcast.
+ * Comparing the raw bytes would be a stricter test but it's the very
+ * thing we're trying to relax here.
+ */
+const visibleFieldsChanged = (prevRaw: string, nextRaw: string): boolean => {
+  type PerNodeShape = { data?: unknown; type?: unknown; title?: unknown };
+  let prev: PerNodeShape;
+  let next: PerNodeShape;
+  try {
+    prev = JSON.parse(prevRaw) as PerNodeShape;
+    next = JSON.parse(nextRaw) as PerNodeShape;
+  } catch {
+    return true;
+  }
+  if (prev.type !== next.type) return true;
+  if (prev.title !== next.title) return true;
+  return stableStringify(prev.data) !== stableStringify(next.data);
+};
+
+/**
+ * Deterministic JSON serialization with sorted object keys, so two
+ * structurally-equal objects with different key insertion orders produce
+ * the same string. Used inside `visibleFieldsChanged` to defeat the
+ * "renderer spread reorders keys" false positive.
+ */
+const stableStringify = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return '[' + value.map(stableStringify).join(',') + ']';
+  }
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  const parts = keys.map(
+    (k) => JSON.stringify(k) + ':' + stableStringify((value as Record<string, unknown>)[k]),
+  );
+  return '{' + parts.join(',') + '}';
 };
 
 const startNodesWatcher = (workspaceId: string): void => {
