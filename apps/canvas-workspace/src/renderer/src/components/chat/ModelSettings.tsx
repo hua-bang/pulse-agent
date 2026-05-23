@@ -218,24 +218,38 @@ export const ModelSwitcher = ({
 
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const hasConfiguredModels = providers.some(provider => provider.models.length > 0);
+  // Not configured = status loaded and the resolver couldn't find an API key.
+  // While status is still undefined we treat it as configured so we don't
+  // flash the warning style on startup.
+  const notConfigured = status !== undefined && !status.apiKeyPresent;
 
   return (
     <div className="chat-model-switcher">
       <button
         ref={triggerRef}
         type="button"
-        className={`chat-model-switcher-btn${!status?.apiKeyPresent ? ' chat-model-switcher-btn--warning' : ''}`}
-        onClick={() => setOpen(value => !value)}
-        title="选择本次使用的模型"
-        aria-label="选择模型"
+        className={`chat-model-switcher-btn${notConfigured ? ' chat-model-switcher-btn--warning' : ''}`}
+        onClick={() => {
+          if (notConfigured) {
+            // Skip the dropdown — there's nothing useful in it yet; go
+            // straight to Settings so the user can add a provider.
+            onOpenSettings();
+            return;
+          }
+          setOpen(value => !value);
+        }}
+        title={notConfigured ? '还没配模型，点击去 Settings 配置' : '选择本次使用的模型'}
+        aria-label={notConfigured ? '配置模型 provider' : '选择模型'}
       >
         <span className="chat-model-switcher-dot" />
-        <span className="chat-model-switcher-label">{label}</span>
-        <span className="chat-model-switcher-chevron" aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2.75 4L5 6.25L7.25 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
+        <span className="chat-model-switcher-label">{notConfigured ? 'Configure model' : label}</span>
+        {!notConfigured && (
+          <span className="chat-model-switcher-chevron" aria-hidden="true">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2.75 4L5 6.25L7.25 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        )}
       </button>
       {open && createPortal(
         <div

@@ -162,7 +162,12 @@ export const ChatView = ({
           onRegenerate={onRegenerate}
         />
       ) : (
-        <ChatEmptyState selectedCount={selectedNodes?.length ?? 0} onQuickAction={onQuickAction} />
+        <ChatEmptyState
+          selectedCount={selectedNodes?.length ?? 0}
+          onQuickAction={onQuickAction}
+          modelStatus={modelStatus}
+          onConfigureModel={onOpenModelSettings}
+        />
       )}
       <ChatInput
         loading={loading}

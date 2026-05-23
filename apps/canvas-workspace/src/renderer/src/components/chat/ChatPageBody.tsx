@@ -128,7 +128,15 @@ export const ChatPageBody = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSessionId]);
 
+  // See ChatPanel for the rationale; treat loading state as configured to
+  // avoid bouncing the user to Settings before status loads.
+  const notConfigured = canvasModels.status !== undefined && !canvasModels.status.apiKeyPresent;
+
   const handleQuickAction = useCallback(async (prompt: string) => {
+    if (notConfigured) {
+      onOpenAppSettings('models');
+      return;
+    }
     if (!prompt) {
       focusInput();
       return;
@@ -138,7 +146,15 @@ export const ChatPageBody = ({
     if (ok) {
       clearInput();
     }
-  }, [clearInput, focusInput, sendMessage]);
+  }, [clearInput, focusInput, notConfigured, onOpenAppSettings, sendMessage]);
+
+  const handleSubmit = useCallback(async () => {
+    if (notConfigured) {
+      onOpenAppSettings('models');
+      return false;
+    }
+    return await submitCurrentInput();
+  }, [notConfigured, onOpenAppSettings, submitCurrentInput]);
 
   // Clicking a mention chip should jump back to the canvas and focus the node.
   const handleNodeFocus = useCallback((nodeId: string) => {
@@ -289,7 +305,7 @@ export const ChatPageBody = ({
           onPaste={handlePaste}
           onAttachFiles={handleAttachFiles}
           onRemoveAttachment={removeAttachment}
-          onSubmit={submitCurrentInput}
+          onSubmit={handleSubmit}
           onAbort={abort}
           modelStatus={canvasModels.status}
           modelSelection={canvasModels.selection}

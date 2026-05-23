@@ -102,7 +102,16 @@ export const ChatPanel = ({
     return title.length > 24 ? `${title.slice(0, 23)}…` : title;
   }, [messages, requestContext.scope]);
 
+  // status.apiKeyPresent is the main process's resolved verdict — false means
+  // no provider with a key is configured. Treat undefined (still loading) as
+  // "configured" so we don't bounce the user into Settings on first paint.
+  const notConfigured = canvasModels.status !== undefined && !canvasModels.status.apiKeyPresent;
+
   const handleQuickAction = useCallback(async (prompt: string, quickAction?: string) => {
+    if (notConfigured) {
+      onOpenAppSettings('models');
+      return;
+    }
     if (!prompt) {
       focusInput();
       return;
@@ -112,11 +121,15 @@ export const ChatPanel = ({
     if (ok) {
       clearInput();
     }
-  }, [clearInput, focusInput, requestContext, sendMessage]);
+  }, [clearInput, focusInput, notConfigured, onOpenAppSettings, requestContext, sendMessage]);
 
   const handleSubmit = useCallback(async () => {
+    if (notConfigured) {
+      onOpenAppSettings('models');
+      return false;
+    }
     return await submitCurrentInput(requestContext);
-  }, [requestContext, submitCurrentInput]);
+  }, [notConfigured, onOpenAppSettings, requestContext, submitCurrentInput]);
 
   const handleToggleExecutionMode = useCallback(() => {
     setExecutionMode(mode => mode === 'auto' ? 'ask' : 'auto');
