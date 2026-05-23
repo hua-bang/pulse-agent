@@ -9,7 +9,7 @@
  */
 
 import { promises as fs } from 'fs';
-import { join, dirname, basename, extname } from 'path';
+import { join, basename, extname } from 'path';
 import { homedir } from 'os';
 import { randomUUID } from 'crypto';
 import { BrowserWindow } from 'electron';
@@ -32,6 +32,11 @@ import {
 import { pinArtifactToCanvas } from '../artifact-ipc';
 import { getWebContentsForNode } from '../webview-registry';
 import { readDOM, readA11y, captureScreenshot } from '../webpage-reader-ipc';
+import {
+  readCanvasFull,
+  writeCanvasFull,
+  getCanvasJsonPath,
+} from '../canvas-storage';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const BLANK_PAGE_URL = 'about:blank';
@@ -151,43 +156,29 @@ const DEFAULT_DIMENSIONS: Record<NodeType, { title: string; width: number; heigh
 // ─── Helpers ───────────────────────────────────────────────────────
 
 function canvasPath(workspaceId: string): string {
-  return join(STORE_DIR, workspaceId, 'canvas.json');
-}
-
-function isEnoent(err: unknown): boolean {
-  return !!err && typeof err === 'object' && (err as { code?: string }).code === 'ENOENT';
+  return getCanvasJsonPath(workspaceId);
 }
 
 /**
  * Load `canvas.json` for a workspace.
  *
- * Returns `null` ONLY when the file is genuinely missing (ENOENT). Any
- * other failure (I/O error, JSON parse error from catching another writer
+ * Returns `null` ONLY when the file is genuinely missing. Any other
+ * failure (I/O error, JSON parse error from catching another writer
  * mid-flush) is rethrown so callers don't confuse "unreadable right now"
  * with "doesn't exist" and wipe real data by bootstrapping an empty
- * canvas. This mirrors `packages/canvas-cli/src/core/store.ts#loadCanvas`.
+ * canvas.
+ *
+ * Thin wrapper over the shared `readCanvasFull` helper — gives us
+ * transparent v1/v2 read support and `.bak` recovery for free.
  */
 async function loadCanvas(workspaceId: string): Promise<CanvasSaveData | null> {
-  let raw: string;
-  try {
-    raw = await fs.readFile(canvasPath(workspaceId), 'utf-8');
-  } catch (err) {
-    if (isEnoent(err)) return null;
-    throw err;
-  }
-  try {
-    const data = JSON.parse(raw) as CanvasSaveData;
-    data.nodes = data.nodes ?? [];
-    return data;
-  } catch (err) {
-    // Parse failure almost always means another writer caught mid-flush.
-    // Do NOT return null here — the caller might treat that as "no canvas"
-    // and overwrite real user data with an empty bootstrap.
-    throw new Error(
-      `[canvas-agent] failed to parse canvas.json for workspace "${workspaceId}": ` +
-      `${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+  const { data } = await readCanvasFull(workspaceId);
+  if (!data) return null;
+  // Mirror the legacy guarantee that `nodes` is always an array; some
+  // downstream tool handlers index into it without a length check.
+  const out = data as CanvasSaveData;
+  out.nodes = out.nodes ?? [];
+  return out;
 }
 
 interface SaveCanvasOptions {
@@ -208,83 +199,31 @@ async function saveCanvas(
 ): Promise<void> {
   data.savedAt = new Date().toISOString();
 
-  // Mirror the guard in canvas-store.ts / packages/canvas-cli so every
-  // write path into canvas.json refuses to silently clobber existing
-  // nodes with an empty list.
+  // Empty-write guard: refuse to overwrite a populated canvas with a
+  // zero-node payload. Mirrors the same guard in canvas-store.ts /
+  // canvas-cli — every writer to canvas.json enforces this contract.
   if (!opts.allowEmpty && Array.isArray(data.nodes) && data.nodes.length === 0) {
-    let raw: string | null = null;
-    try {
-      raw = await fs.readFile(canvasPath(workspaceId), 'utf-8');
-    } catch (err) {
-      if (!isEnoent(err)) {
-        // Can't verify what's on disk — refuse rather than risk wiping a
-        // populated canvas that just happened to be unreadable this turn.
-        throw new Error(
-          `[canvas-agent] failed to read canvas.json while guarding empty write ` +
-          `for workspace "${workspaceId}": ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      // ENOENT → nothing on disk, fall through and write.
-    }
-    if (raw !== null) {
-      let existingNodes: CanvasNode[];
-      try {
-        const existing = JSON.parse(raw) as CanvasSaveData;
-        existingNodes = Array.isArray(existing.nodes) ? existing.nodes : [];
-      } catch (err) {
-        // Parse failure mid-flight: treating "unparseable" as "nothing to
-        // protect" is exactly how silent wipes happen. Refuse the write.
-        throw new Error(
-          `[canvas-agent] failed to parse existing canvas.json while guarding empty write ` +
-          `for workspace "${workspaceId}": ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      if (existingNodes.length > 0) {
-        throw new Error(
-          `[canvas-agent] refusing to overwrite ${existingNodes.length} on-disk nodes ` +
+    const existing = await readCanvasFull(workspaceId).catch(() => {
+      // Can't verify what's on disk — refuse rather than risk wiping a
+      // populated canvas that just happened to be unreadable this turn.
+      throw new Error(
+        `[canvas-agent] failed to read canvas.json while guarding empty write ` +
+          `for workspace "${workspaceId}"`,
+      );
+    });
+    const existingNodes = Array.isArray(existing.data?.nodes)
+      ? existing.data!.nodes
+      : [];
+    if (existingNodes.length > 0) {
+      throw new Error(
+        `[canvas-agent] refusing to overwrite ${existingNodes.length} on-disk nodes ` +
           `with empty nodes for workspace "${workspaceId}". ` +
           `Pass { allowEmpty: true } to saveCanvas if this wipe is intentional.`,
-        );
-      }
+      );
     }
   }
 
-  await atomicWriteCanvasJson(canvasPath(workspaceId), JSON.stringify(data, null, 2));
-}
-
-/**
- * Atomically persist a canvas.json update with a rolling `.bak` backup.
- * Mirrors the helper in `apps/canvas-workspace/src/main/canvas-store.ts`
- * and `packages/canvas-cli/src/core/store.ts` so every writer uses the
- * same safe rename-based write; see those files for the full rationale.
- */
-async function atomicWriteCanvasJson(
-  finalPath: string,
-  serialized: string,
-): Promise<void> {
-  const dir = dirname(finalPath);
-  const base = basename(finalPath);
-  const tmpPath = join(dir, `${base}.tmp`);
-  const bakPath = join(dir, `${base}.bak`);
-
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(tmpPath, serialized, 'utf-8');
-
-  try {
-    const currentRaw = await fs.readFile(finalPath, 'utf-8');
-    try {
-      const current = JSON.parse(currentRaw) as { nodes?: unknown[] };
-      if (Array.isArray(current.nodes) && current.nodes.length > 0) {
-        await fs.copyFile(finalPath, bakPath).catch(() => undefined);
-      }
-    } catch {
-      // Current file already corrupt — leave existing .bak alone.
-    }
-  } catch {
-    // No current file; nothing to back up.
-  }
-
-  await fs.rename(tmpPath, finalPath);
+  await writeCanvasFull(workspaceId, data);
 }
 
 /**

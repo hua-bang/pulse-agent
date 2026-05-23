@@ -57,6 +57,12 @@ export const CANVAS_SCHEMA_VERSION_V2 = 2;
  * with in memory. `data` is the polymorphic payload that varies by `type`.
  * In v2 on-disk format, `data` lives in `nodes/<id>.json` instead of being
  * inlined here, but assembled reads still hand callers this shape.
+ *
+ * Intentionally NO `[k: string]: unknown` index signature: consumers
+ * (canvas-store, canvas-agent/tools, mcp-server, etc.) have their own
+ * strictly-typed `CanvasNode` interfaces and a wildcard signature here
+ * would block structural assignment from them. The helper itself only
+ * reads named fields, so the wider shape isn't needed.
  */
 export interface CanvasNode {
   id?: string;
@@ -69,7 +75,6 @@ export interface CanvasNode {
   data?: Record<string, unknown>;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
-  [k: string]: unknown;
 }
 
 /**
@@ -85,7 +90,6 @@ export interface CanvasSaveData {
   edges?: unknown[];
   transform?: unknown;
   savedAt?: string;
-  [k: string]: unknown;
 }
 
 /** On-disk shape of `nodes/<nodeId>.json`. Self-describing for knowledge-base reuse. */
