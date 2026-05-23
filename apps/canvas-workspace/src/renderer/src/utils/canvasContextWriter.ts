@@ -12,9 +12,6 @@ const extractDescription = (content: string): string => {
   return '';
 };
 
-const MARKER_START = (id: string) => `<!-- canvas-workspace:${id} -->`;
-const MARKER_END = (id: string) => `<!-- /canvas-workspace:${id} -->`;
-
 const buildCanvasContext = (
   nodes: CanvasNode[],
   workspaceFolder: string,
@@ -63,20 +60,15 @@ const buildCanvasContext = (
   return lines.join('\n');
 };
 
-const upsertSection = (existing: string, id: string, section: string): string => {
-  const start = MARKER_START(id);
-  const end = MARKER_END(id);
-  const block = `${start}\n${section}\n${end}`;
-  const startIdx = existing.indexOf(start);
-  const endIdx = existing.indexOf(end);
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    return existing.slice(0, startIdx) + block + existing.slice(endIdx + end.length);
-  }
-  const trimmed = existing.trimEnd();
-  return trimmed ? `${trimmed}\n\n${block}\n` : `${block}\n`;
-};
-
-/** Commands that trigger lazy canvas context injection into CLAUDE.md / AGENTS.md */
+/**
+ * Commands that trigger lazy canvas context refresh. Originally also
+ * injected a marker block into the user's `<cwd>/CLAUDE.md` and
+ * `<cwd>/AGENTS.md` so external coding agents would discover the
+ * workspace on launch — that path is disabled for now (we don't want to
+ * silently modify project files). The internal `<canvasDir>/AGENTS.md`
+ * snapshot is still refreshed because the Canvas Agent's context-builder
+ * reads it for its own prompt.
+ */
 export const AI_TOOL_PATTERN = /\b(claude|codex|pulse-coder|pulsecoder)\b/;
 
 const writeCanvasAgentsMd = async (
@@ -101,21 +93,6 @@ const writeCanvasAgentsMd = async (
   await fileApi.write(`${canvasDir}/AGENTS.md`, updated);
 };
 
-const buildPointerSection = (canvasDir: string, wsId: string, label: string): string => {
-  const lines = [
-    `## Pulse Canvas (${label})`,
-    '',
-    `Canvas agent config: \`${canvasDir}/AGENTS.md\``,
-    '',
-    '> 读取上方文件获取画布结构、笔记列表和 Agent 指令。',
-    '',
-    `**Workspace Isolation:** Environment variable \`PULSE_CANVAS_WORKSPACE_ID=${wsId}\` is injected into this terminal.`,
-    'Always use this workspace ID when calling canvas MCP tools to avoid cross-canvas reads/writes.',
-    '',
-  ];
-  return lines.join('\n');
-};
-
 export const writeCanvasContext = async (
   nodes: CanvasNode[],
   cwd: string,
@@ -136,28 +113,14 @@ export const writeCanvasContext = async (
   const context = buildCanvasContext(nodes, cwd, workspaceId, workspaceName, canvasDir);
   if (!context) return;
 
-  const label = workspaceName
-    ? `${workspaceName}${workspaceId ? ` (${workspaceId})` : ''}`
-    : wsId;
-
+  // Only the internal canvasDir snapshot is refreshed. We intentionally
+  // do NOT write into the user's `<cwd>/CLAUDE.md` or `<cwd>/AGENTS.md`
+  // anymore — Pulse should not silently modify project files.
   await writeCanvasAgentsMd(fileApi, canvasDir, context);
 
-  const pointer = buildPointerSection(canvasDir, wsId, label);
-  const [claudeRead, agentsRead] = await Promise.all([
-    fileApi.read(`${cwd}/CLAUDE.md`),
-    fileApi.read(`${cwd}/AGENTS.md`),
-  ]);
-  const claudeContent = upsertSection(claudeRead.ok ? (claudeRead.content ?? '') : '', wsId, pointer);
-  const agentsContent = upsertSection(agentsRead.ok ? (agentsRead.content ?? '') : '', wsId, pointer);
-  await Promise.all([
-    fileApi.write(`${cwd}/CLAUDE.md`, claudeContent),
-    fileApi.write(`${cwd}/AGENTS.md`, agentsContent),
-  ]);
-
   if (term) {
-    const action = (ok: boolean) => ok ? 'updated' : 'created';
     term.writeln(
-      `\x1b[2m[canvas] canvas/AGENTS.md updated · CLAUDE.md ${action(claudeRead.ok)} / AGENTS.md ${action(agentsRead.ok)}\x1b[0m`
+      `\x1b[2m[canvas] canvas/AGENTS.md updated (project CLAUDE.md / AGENTS.md left untouched)\x1b[0m`
     );
   }
 };
