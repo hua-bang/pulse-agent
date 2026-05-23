@@ -1932,73 +1932,9 @@
   color: #2383e2;
 }
 
-.chat-model-settings-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1900;
-  display: flex;
-  justify-content: flex-end;
-  background: rgba(15, 15, 15, 0.18);
-  backdrop-filter: blur(2px);
-}
-
-.chat-model-settings {
-  width: min(100vw, 880px);
-  height: 100vh;
-  background: #fdfcfb;
-  border-left: 1px solid rgba(55, 53, 47, 0.1);
-  box-shadow: -20px 0 54px rgba(55, 53, 47, 0.18);
-  display: flex;
-  flex-direction: column;
-  animation: chat-settings-in 0.16s cubic-bezier(0.2, 0.9, 0.2, 1);
-}
-
-@keyframes chat-settings-in {
-  from { transform: translateX(16px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-.chat-model-settings-header {
-  min-height: 58px;
-  padding: 13px 16px 12px 18px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.07);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.chat-model-settings-kicker {
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: rgba(55, 53, 47, 0.42);
-}
-
-.chat-model-settings-header h2 {
-  margin: 3px 0 0;
-  font-size: 16px;
-  line-height: 1.2;
-  color: #37352f;
-}
-
-.chat-model-settings-close {
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #9b9a97;
-  font-size: 21px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.chat-model-settings-close:hover {
-  background: rgba(55, 53, 47, 0.07);
-  color: #37352f;
-}
+/* Chat ModelSettings & PromptSettings drawer body/form styles.
+ * The shell (backdrop, aside, header, close button, slide-in) lives in
+ * components/SettingsDrawer/index.css and is shared with WorkspaceSettings. */
 
 .chat-model-settings-body {
   flex: 1;
@@ -2361,13 +2297,10 @@
   font-size: 11px;
 }
 
-/* Prompt settings drawer — reuses .chat-model-settings shell but
-   drops the provider rail because there's only one user profile. */
-.chat-prompt-settings {
-  width: min(100vw, 640px);
-}
-
-.chat-prompt-settings .chat-prompt-settings-body {
+/* Prompt settings drawer — same shell as ModelSettings (via SettingsDrawer),
+   but the body is a single column because there's only one user profile.
+   Width override is set via the `width` prop on <SettingsDrawer>. */
+.chat-prompt-settings-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;

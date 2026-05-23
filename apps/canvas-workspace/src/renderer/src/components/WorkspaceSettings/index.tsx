@@ -15,8 +15,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
+import { SettingsDrawer } from '../SettingsDrawer';
 import './index.css';
 
 interface Props {
@@ -89,16 +89,6 @@ export const WorkspaceSettingsDrawer = ({
       setAgentsDocLoaded(true);
     });
   }, [open, workspace]);
-
-  // ESC closes the drawer.
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [open, onClose]);
 
   const handleNameBlur = useCallback(() => {
     if (!workspace) return;
@@ -188,140 +178,125 @@ export const WorkspaceSettingsDrawer = ({
     });
   }, [agentsDoc, intent, workspace]);
 
-  if (!open || !workspace) return null;
+  if (!workspace) return null;
 
-  return createPortal(
-    <div className="workspace-settings-backdrop" onMouseDown={onClose}>
-      <aside
-        className="workspace-settings"
-        onMouseDown={(event) => event.stopPropagation()}
-        aria-label="Workspace settings"
-      >
-        <div className="workspace-settings-header">
-          <div>
-            <div className="workspace-settings-kicker">Workspace Settings</div>
-            <h2>{workspace.name}</h2>
+  return (
+    <SettingsDrawer
+      open={open}
+      onClose={onClose}
+      kicker="Workspace Settings"
+      title={workspace.name}
+      ariaLabel="Workspace settings"
+      width={640}
+    >
+      <div className="workspace-settings-body">
+        {error && <div className="workspace-settings-error">{error}</div>}
+
+        <section className="workspace-settings-section">
+          <div className="workspace-settings-section-title">Identity</div>
+          <label className="workspace-settings-field">
+            <span>Name</span>
+            <input
+              className="workspace-settings-input"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={handleNameBlur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+            />
+          </label>
+          <div className="workspace-settings-field-hint">id: {workspace.id}</div>
+        </section>
+
+        <section className="workspace-settings-section">
+          <div className="workspace-settings-section-title">Environment</div>
+          <div className="workspace-settings-field">
+            <span>Root folder</span>
+            <div className="workspace-settings-folder-row">
+              <div className="workspace-settings-folder-path" title={workspace.rootFolder}>
+                {workspace.rootFolder ?? <em>not set</em>}
+              </div>
+              <button
+                type="button"
+                className="workspace-settings-secondary-btn"
+                onClick={() => void handlePickFolder()}
+              >
+                {workspace.rootFolder ? 'Change…' : 'Set folder…'}
+              </button>
+            </div>
+            <div className="workspace-settings-field-hint">
+              The directory where this workspace's work lives. <code>pulse-workspace.md</code> is
+              read/written here. Optional — leave empty for pure-thinking workspaces.
+            </div>
           </div>
-          <button
-            type="button"
-            className="workspace-settings-close"
-            onClick={onClose}
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
+        </section>
 
-        <div className="workspace-settings-body">
-          {error && <div className="workspace-settings-error">{error}</div>}
-
-          <section className="workspace-settings-section">
-            <div className="workspace-settings-section-title">Identity</div>
-            <label className="workspace-settings-field">
-              <span>Name</span>
-              <input
-                className="workspace-settings-input"
-                value={nameDraft}
-                onChange={(e) => setNameDraft(e.target.value)}
-                onBlur={handleNameBlur}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                }}
-              />
-            </label>
-            <div className="workspace-settings-field-hint">id: {workspace.id}</div>
-          </section>
-
-          <section className="workspace-settings-section">
-            <div className="workspace-settings-section-title">Environment</div>
-            <div className="workspace-settings-field">
-              <span>Root folder</span>
-              <div className="workspace-settings-folder-row">
-                <div className="workspace-settings-folder-path" title={workspace.rootFolder}>
-                  {workspace.rootFolder ?? <em>not set</em>}
-                </div>
+        <section className="workspace-settings-section">
+          <div className="workspace-settings-section-title">Intent &amp; State (pulse-workspace.md)</div>
+          {!workspace.rootFolder ? (
+            <div className="workspace-settings-empty">
+              Set a root folder first — <code>pulse-workspace.md</code> lives inside it so both
+              you and the agent can read it.
+            </div>
+          ) : !agentsDocLoaded ? (
+            <div className="workspace-settings-empty">Loading…</div>
+          ) : (
+            <>
+              <div className="workspace-settings-generate-row">
+                <input
+                  className="workspace-settings-input workspace-settings-generate-input"
+                  placeholder="Describe what this workspace is for, AI will draft a pulse-workspace.md…"
+                  value={intent}
+                  onChange={(e) => setIntent(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && intent.trim() && !generating) {
+                      e.preventDefault();
+                      void handleGenerate();
+                    }
+                  }}
+                  disabled={generating}
+                />
                 <button
                   type="button"
-                  className="workspace-settings-secondary-btn"
-                  onClick={() => void handlePickFolder()}
+                  className="workspace-settings-secondary-btn workspace-settings-generate-btn"
+                  onClick={() => void handleGenerate()}
+                  disabled={!intent.trim() || generating}
                 >
-                  {workspace.rootFolder ? 'Change…' : 'Set folder…'}
+                  {generating ? 'Generating…' : '✨ Generate'}
                 </button>
               </div>
+              <textarea
+                className="workspace-settings-textarea"
+                value={agentsDoc}
+                rows={16}
+                onChange={(e) => setAgentsDoc(e.target.value)}
+                spellCheck={false}
+                readOnly={generating}
+              />
               <div className="workspace-settings-field-hint">
-                The directory where this workspace's work lives. <code>pulse-workspace.md</code> is
-                read/written here. Optional — leave empty for pure-thinking workspaces.
+                {agentsDocExists ? 'Saved at ' : 'Will be created at '}
+                <code>{joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME)}</code> · injected
+                into the Canvas Agent's system prompt every turn.
               </div>
-            </div>
-          </section>
+            </>
+          )}
+        </section>
+      </div>
 
-          <section className="workspace-settings-section">
-            <div className="workspace-settings-section-title">Intent &amp; State (pulse-workspace.md)</div>
-            {!workspace.rootFolder ? (
-              <div className="workspace-settings-empty">
-                Set a root folder first — <code>pulse-workspace.md</code> lives inside it so both
-                you and the agent can read it.
-              </div>
-            ) : !agentsDocLoaded ? (
-              <div className="workspace-settings-empty">Loading…</div>
-            ) : (
-              <>
-                <div className="workspace-settings-generate-row">
-                  <input
-                    className="workspace-settings-input workspace-settings-generate-input"
-                    placeholder="Describe what this workspace is for, AI will draft a pulse-workspace.md…"
-                    value={intent}
-                    onChange={(e) => setIntent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey && intent.trim() && !generating) {
-                        e.preventDefault();
-                        void handleGenerate();
-                      }
-                    }}
-                    disabled={generating}
-                  />
-                  <button
-                    type="button"
-                    className="workspace-settings-secondary-btn workspace-settings-generate-btn"
-                    onClick={() => void handleGenerate()}
-                    disabled={!intent.trim() || generating}
-                  >
-                    {generating ? 'Generating…' : '✨ Generate'}
-                  </button>
-                </div>
-                <textarea
-                  className="workspace-settings-textarea"
-                  value={agentsDoc}
-                  rows={16}
-                  onChange={(e) => setAgentsDoc(e.target.value)}
-                  spellCheck={false}
-                  readOnly={generating}
-                />
-                <div className="workspace-settings-field-hint">
-                  {agentsDocExists ? 'Saved at ' : 'Will be created at '}
-                  <code>{joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME)}</code> · injected
-                  into the Canvas Agent's system prompt every turn.
-                </div>
-              </>
-            )}
-          </section>
-        </div>
-
-        <div className="workspace-settings-footer">
-          <button type="button" className="workspace-settings-secondary-btn" onClick={onClose}>
-            Close
-          </button>
-          <button
-            type="button"
-            className="workspace-settings-primary-btn"
-            disabled={!workspace.rootFolder || savingDoc || !agentsDocLoaded}
-            onClick={() => void handleSaveDoc()}
-          >
-            {savingDoc ? 'Saving…' : savedHint ? 'Saved ✓' : 'Save pulse-workspace.md'}
-          </button>
-        </div>
-      </aside>
-    </div>,
-    document.body,
+      <div className="workspace-settings-footer">
+        <button type="button" className="workspace-settings-secondary-btn" onClick={onClose}>
+          Close
+        </button>
+        <button
+          type="button"
+          className="workspace-settings-primary-btn"
+          disabled={!workspace.rootFolder || savingDoc || !agentsDocLoaded}
+          onClick={() => void handleSaveDoc()}
+        >
+          {savingDoc ? 'Saving…' : savedHint ? 'Saved ✓' : 'Save pulse-workspace.md'}
+        </button>
+      </div>
+    </SettingsDrawer>
   );
 };
