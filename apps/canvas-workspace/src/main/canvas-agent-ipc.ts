@@ -29,6 +29,7 @@ import { promises as fs } from 'fs';
 import { basename, join } from 'path';
 import { homedir } from 'os';
 import { CanvasAgentService } from './canvas-agent/service';
+import { streamWorkspaceDoc } from './canvas-agent/workspace-doc-generator';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
@@ -334,6 +335,51 @@ export function setupCanvasAgentIpc(): void {
       } catch (err) {
         return { ok: false, error: String(err) };
       }
+    },
+  );
+
+  // ── Workspace doc one-shot generation (user-triggered from settings) ──
+  // The renderer subscribes to delta + complete events keyed by requestId
+  // returned synchronously from the invoke. Mirrors the llm:stream-html
+  // pattern. Never invoked from the agent loop.
+  ipcMain.handle(
+    'canvas-agent:stream-workspace-doc',
+    (
+      event,
+      payload: { workspaceName: string; intent: string; currentContent?: string },
+    ) => {
+      if (!payload?.intent?.trim()) {
+        return { ok: false, error: 'Intent is required' };
+      }
+      const requestId = randomUUID();
+      const sender = event.sender;
+
+      void (async () => {
+        try {
+          const result = await streamWorkspaceDoc(
+            payload.workspaceName?.trim() || 'Workspace',
+            payload.intent.trim(),
+            payload.currentContent,
+            (delta) => {
+              if (!sender.isDestroyed()) {
+                sender.send(`canvas-agent:workspace-doc-delta:${requestId}`, delta);
+              }
+            },
+          );
+          if (!sender.isDestroyed()) {
+            sender.send(`canvas-agent:workspace-doc-complete:${requestId}`, result);
+          }
+        } catch (err) {
+          if (!sender.isDestroyed()) {
+            sender.send(`canvas-agent:workspace-doc-complete:${requestId}`, {
+              ok: false,
+              error: String(err),
+            });
+          }
+        }
+      })();
+
+      return { ok: true, requestId };
     },
   );
 }

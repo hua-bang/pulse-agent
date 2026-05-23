@@ -1,6 +1,6 @@
 import type React from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import { CloseIcon, ExportIcon, PencilIcon, WorkspaceIcon } from '../icons';
+import { CloseIcon, ExportIcon, PencilIcon, SettingsIcon, WorkspaceIcon } from '../icons';
 
 export interface WorkspaceItemProps {
   ws: WorkspaceEntry;
@@ -18,6 +18,7 @@ export interface WorkspaceItemProps {
   onRenameCancel: () => void;
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
+  onOpenSettings: (id: string) => void;
   onDragStart: (e: React.DragEvent, id: string) => void;
   onDragEnd: (e: React.DragEvent) => void;
   onReorderDragOver: (e: React.DragEvent) => void;
@@ -41,6 +42,7 @@ export const WorkspaceItem = ({
   onRenameCancel,
   onDelete,
   onExport,
+  onOpenSettings,
   onDragStart,
   onDragEnd,
   onReorderDragOver,
@@ -82,6 +84,11 @@ export const WorkspaceItem = ({
         </button>
       )}
       {!isRenaming && (
+        <button className="sidebar-item-export" onClick={() => onExport(ws.id)} title="Export workspace">
+          <ExportIcon size={12} strokeWidth={1.5} />
+        </button>
+      )}
+      {!isRenaming && (
         <button
           className="sidebar-item-rename"
           onClick={() => onStartRename(ws)}
@@ -92,8 +99,13 @@ export const WorkspaceItem = ({
         </button>
       )}
       {!isRenaming && (
-        <button className="sidebar-item-export" onClick={() => onExport(ws.id)} title="Export workspace">
-          <ExportIcon size={12} strokeWidth={1.5} />
+        <button
+          className="sidebar-item-settings"
+          onClick={() => onOpenSettings(ws.id)}
+          title="Workspace settings"
+          aria-label="Workspace settings"
+        >
+          <SettingsIcon size={12} strokeWidth={1.4} />
         </button>
       )}
       {!isOnlyWorkspace && !isRenaming && (
@@ -102,10 +114,5 @@ export const WorkspaceItem = ({
         </button>
       )}
     </div>
-    {ws.rootFolder && (
-      <div className="sidebar-root-folder" title={ws.rootFolder}>
-        {ws.rootFolder.split('/').slice(-2).join('/')}
-      </div>
-    )}
   </div>
 );

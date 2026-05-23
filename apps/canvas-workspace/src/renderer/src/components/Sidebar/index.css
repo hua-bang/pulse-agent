@@ -211,7 +211,8 @@
 
 .sidebar-item-delete,
 .sidebar-item-export,
-.sidebar-item-rename {
+.sidebar-item-rename,
+.sidebar-item-settings {
   flex-shrink: 0;
   width: 22px;
   height: 22px;
@@ -224,30 +225,19 @@
   justify-content: center;
   color: var(--text-muted);
   transition: background 0.1s, color 0.1s;
-  position: absolute;
-}
-
-.sidebar-item-delete {
-  right: 6px;
-}
-
-.sidebar-item-rename {
-  right: 30px;
-}
-
-.sidebar-item-export {
-  right: 54px;
 }
 
 .sidebar-item-row:hover .sidebar-item-delete,
 .sidebar-item-row:hover .sidebar-item-export,
-.sidebar-item-row:hover .sidebar-item-rename {
-  display: flex;
+.sidebar-item-row:hover .sidebar-item-rename,
+.sidebar-item-row:hover .sidebar-item-settings {
+  display: inline-flex;
 }
 
 .sidebar-item-delete:hover,
 .sidebar-item-export:hover,
-.sidebar-item-rename:hover {
+.sidebar-item-rename:hover,
+.sidebar-item-settings:hover {
   background: rgba(0, 0, 0, 0.06);
   color: var(--text-secondary);
 }
@@ -274,16 +264,6 @@
 .sidebar-workspace-entry {
   display: flex;
   flex-direction: column;
-}
-
-.sidebar-root-folder {
-  padding: 1px 10px 4px 36px;
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0.75;
 }
 
 .sidebar-item-folder {

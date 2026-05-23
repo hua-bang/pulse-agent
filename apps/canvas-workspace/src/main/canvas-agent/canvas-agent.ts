@@ -19,6 +19,7 @@ import {
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
+import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
 import {
   attachTraceModel,
   createCanvasAgentDebugTrace,
@@ -379,11 +380,45 @@ Use these alongside canvas_* tools for full workspace control.
 
 `;
 
+function formatWorkspaceContextSection(rootFolder: string | undefined, workspaceDoc: string | null): string {
+  if (!rootFolder && !workspaceDoc) return '';
+
+  const parts: string[] = [];
+
+  if (rootFolder) {
+    parts.push(
+      '\n## Workspace Environment',
+      `- Root folder: \`${rootFolder}\``,
+      '- When creating agent or terminal nodes via `canvas_create_agent_node` / `canvas_create_terminal_node`, omit the `cwd` argument to use the workspace root automatically. Only pass an explicit `cwd` when the work needs to happen outside the root (e.g. a sibling repo or a specific subdirectory).',
+      '- File-system tools (`read`, `write`, `edit`, `grep`, `ls`, `bash`) should resolve relative paths against the workspace root.',
+      '',
+    );
+  }
+
+  if (workspaceDoc) {
+    const docPath = rootFolder ? `${rootFolder}/${WORKSPACE_DOC_FILENAME}` : WORKSPACE_DOC_FILENAME;
+    parts.push(
+      `## Workspace Context (${docPath})`,
+      'The following document is authored jointly by the user and you. ' +
+        'It captures the goal, current status, and any decisions for this workspace. ' +
+        'Treat it as authoritative context — refer back to it when planning your next steps. ' +
+        'When you make meaningful progress, change direction, or resolve a blocker, ' +
+        'use the `edit` tool to update the relevant section so the user sees fresh state next time.',
+      '',
+      workspaceDoc.trim(),
+      '',
+    );
+  }
+
+  return parts.join('\n');
+}
+
 function buildSystemPrompt(
   summary: WorkspaceSummary | null,
   mentionedCanvases: Array<{ id: string; name: string }> = [],
   requestContext?: CanvasAgentRequestContext,
   promptProfileSection: string = '',
+  workspaceDocSection: string = '',
 ): string {
   const selectedNodes = requestContext?.selectedNodes ?? [];
 
@@ -449,7 +484,7 @@ function buildSystemPrompt(
     base += lines.join('\n') + '\n';
   }
 
-  if (mentionedCanvases.length === 0) return base + promptProfileSection;
+  if (mentionedCanvases.length === 0) return base + workspaceDocSection + promptProfileSection;
 
   const lines: string[] = [
     '',
@@ -478,7 +513,7 @@ function buildSystemPrompt(
     lines.push(`- **${c.name}** — workspaceId: \`${c.id}\``);
   }
   lines.push('');
-  return base + lines.join('\n') + promptProfileSection;
+  return base + lines.join('\n') + workspaceDocSection + promptProfileSection;
 }
 
 // ─── Canvas Agent ──────────────────────────────────────────────────
@@ -576,8 +611,17 @@ export class CanvasAgent {
       console.warn('[canvas-agent] Failed to load prompt profile, using defaults:', err);
     }
 
+    let workspaceDocSection = '';
+    try {
+      const meta = await readWorkspaceMeta(this.config.workspaceId);
+      const workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
+      workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, workspaceDoc);
+    } catch (err) {
+      console.warn(`[canvas-agent] Failed to load workspace environment / ${WORKSPACE_DOC_FILENAME}:`, err);
+    }
+
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : '(empty workspace — no nodes yet)';
-    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection);
+    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection);
     const debugTrace = isCanvasAgentDebugTraceEnabled()
       ? createCanvasAgentDebugTrace({
           sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',

@@ -23,6 +23,7 @@ import {
 } from './context-builder';
 import { hasSession, writeToSession } from '../pty-manager';
 import { generateHTML } from '../html-generator';
+import { readWorkspaceMeta } from './workspace-meta';
 import {
   addArtifactVersion as storeAddArtifactVersion,
   createArtifact as storeCreateArtifact,
@@ -1358,7 +1359,8 @@ ${outline}`;
         title: z.string().optional().describe('Node title (e.g. "Codex: Implement login").'),
         agentType: z.enum(['claude-code', 'codex', 'pulse-coder']).optional()
           .describe('Agent type. Defaults to "claude-code".'),
-        cwd: z.string().describe('Working directory for the agent.'),
+        cwd: z.string().optional()
+          .describe('Working directory for the agent. Defaults to the workspace root folder when set; omit unless the agent needs to run outside the workspace root.'),
         prompt: z.string().optional()
           .describe('Task instructions and context for the agent. Written to .canvas-agent-task.md in cwd. Include relevant canvas content (file contents, PRDs, terminal output, etc.) so the agent has full context.'),
         autoLaunch: z.boolean().optional()
@@ -1373,7 +1375,8 @@ ${outline}`;
         if (!canvas) return 'Error: workspace not found';
 
         const agentType = (input.agentType as string) ?? 'claude-code';
-        const cwd = input.cwd as string;
+        const explicitCwd = (input.cwd as string | undefined) ?? '';
+        const cwd = explicitCwd || (await readWorkspaceMeta(workspaceId)).rootFolder || '';
         const prompt = (input.prompt as string) ?? '';
         const agentArgs = (input.agentArgs as string) ?? '';
         const autoLaunch = input.autoLaunch ?? !!prompt;
@@ -1532,7 +1535,8 @@ ${outline}`;
         if (!canvas) return 'Error: workspace not found';
 
         const title = (input.title as string) ?? DEFAULT_DIMENSIONS.terminal.title;
-        const cwd = (input.cwd as string) ?? '';
+        const explicitCwd = (input.cwd as string | undefined) ?? '';
+        const cwd = explicitCwd || (await readWorkspaceMeta(workspaceId)).rootFolder || '';
         const initialCommand = (input.command as string) ?? '';
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
