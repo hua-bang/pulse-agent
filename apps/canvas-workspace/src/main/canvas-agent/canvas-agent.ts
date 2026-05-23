@@ -19,7 +19,7 @@ import {
 import { createCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
-import { readAgentsDoc, readWorkspaceMeta } from './workspace-meta';
+import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
 import {
   attachTraceModel,
   createCanvasAgentDebugTrace,
@@ -380,8 +380,8 @@ Use these alongside canvas_* tools for full workspace control.
 
 `;
 
-function formatWorkspaceContextSection(rootFolder: string | undefined, agentsDoc: string | null): string {
-  if (!rootFolder && !agentsDoc) return '';
+function formatWorkspaceContextSection(rootFolder: string | undefined, workspaceDoc: string | null): string {
+  if (!rootFolder && !workspaceDoc) return '';
 
   const parts: string[] = [];
 
@@ -395,18 +395,17 @@ function formatWorkspaceContextSection(rootFolder: string | undefined, agentsDoc
     );
   }
 
-  if (agentsDoc) {
+  if (workspaceDoc) {
+    const docPath = rootFolder ? `${rootFolder}/${WORKSPACE_DOC_FILENAME}` : WORKSPACE_DOC_FILENAME;
     parts.push(
-      rootFolder
-        ? `## Workspace Context (AGENTS.md @ ${rootFolder}/AGENTS.md)`
-        : '## Workspace Context (AGENTS.md)',
+      `## Workspace Context (${docPath})`,
       'The following document is authored jointly by the user and you. ' +
         'It captures the goal, current status, and any decisions for this workspace. ' +
         'Treat it as authoritative context — refer back to it when planning your next steps. ' +
         'When you make meaningful progress, change direction, or resolve a blocker, ' +
         'use the `edit` tool to update the relevant section so the user sees fresh state next time.',
       '',
-      agentsDoc.trim(),
+      workspaceDoc.trim(),
       '',
     );
   }
@@ -615,10 +614,10 @@ export class CanvasAgent {
     let workspaceDocSection = '';
     try {
       const meta = await readWorkspaceMeta(this.config.workspaceId);
-      const agentsDoc = await readAgentsDoc(meta.rootFolder);
-      workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, agentsDoc);
+      const workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
+      workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, workspaceDoc);
     } catch (err) {
-      console.warn('[canvas-agent] Failed to load workspace environment / AGENTS.md:', err);
+      console.warn(`[canvas-agent] Failed to load workspace environment / ${WORKSPACE_DOC_FILENAME}:`, err);
     }
 
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : '(empty workspace — no nodes yet)';

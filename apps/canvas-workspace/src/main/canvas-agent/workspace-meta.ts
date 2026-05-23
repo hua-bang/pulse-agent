@@ -1,10 +1,14 @@
 /**
  * Workspace meta reader — lets the agent learn the workspace's rootFolder
- * (from the renderer-owned manifest) and load its AGENTS.md if present.
+ * (from the renderer-owned manifest) and load its pulse-workspace.md if
+ * present.
  *
- * AGENTS.md is the workspace's shared "brain" — humans and the agent both
- * edit it. Its content is appended to the system prompt every turn so the
- * agent always sees the latest goal/status the human wrote.
+ * pulse-workspace.md is the workspace's shared "brain" — humans and the
+ * Canvas Agent both edit it. Its content is appended to the system prompt
+ * every turn so the agent always sees the latest goal/status the human
+ * wrote. We use a Pulse-specific filename (rather than the community
+ * AGENTS.md convention) so that other coding agents opening the same
+ * folder don't pick it up as instructions to themselves.
  */
 
 import { promises as fs } from 'fs';
@@ -14,7 +18,7 @@ import { homedir } from 'os';
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const MANIFEST_PATH = join(STORE_DIR, '__workspaces__.json');
 
-export const AGENTS_DOC_FILENAME = 'AGENTS.md';
+export const WORKSPACE_DOC_FILENAME = 'pulse-workspace.md';
 
 interface ManifestWorkspace {
   id: string;
@@ -43,10 +47,10 @@ export async function readWorkspaceMeta(workspaceId: string): Promise<WorkspaceM
   }
 }
 
-export async function readAgentsDoc(rootFolder: string | undefined): Promise<string | null> {
+export async function readWorkspaceDoc(rootFolder: string | undefined): Promise<string | null> {
   if (!rootFolder) return null;
   try {
-    const content = await fs.readFile(join(rootFolder, AGENTS_DOC_FILENAME), 'utf-8');
+    const content = await fs.readFile(join(rootFolder, WORKSPACE_DOC_FILENAME), 'utf-8');
     const trimmed = content.trim();
     return trimmed.length > 0 ? content : null;
   } catch {

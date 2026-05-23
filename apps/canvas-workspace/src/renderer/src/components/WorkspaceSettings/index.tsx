@@ -4,10 +4,12 @@
  * Three sections, mirroring the long-term workspace model:
  *  1. Identity   — name (editable)
  *  2. Environment — rootFolder (the directory where work lands)
- *  3. Intent & State — AGENTS.md content (shared brain for human + agent)
+ *  3. Intent & State — pulse-workspace.md content (shared brain for
+ *     human + Canvas Agent)
  *
- * AGENTS.md lives at <rootFolder>/AGENTS.md so it's git-friendly,
- * shareable, and visible to other agent tools that honor the convention.
+ * pulse-workspace.md lives at <rootFolder>/pulse-workspace.md so it's
+ * git-friendly and shareable, while the Pulse-specific filename keeps
+ * other coding agents from auto-loading it as their own instructions.
  * Its content is injected into the Canvas Agent's system prompt on every
  * chat turn (see canvas-agent/canvas-agent.ts).
  */
@@ -24,9 +26,9 @@ interface Props {
   onSetRootFolder: (id: string, folderPath: string) => void;
 }
 
-const AGENTS_DOC_FILENAME = 'AGENTS.md';
+const WORKSPACE_DOC_FILENAME = 'pulse-workspace.md';
 
-const buildAgentsDocTemplate = (workspaceName: string): string =>
+const buildWorkspaceDocTemplate = (workspaceName: string): string =>
   `# ${workspaceName}\n\n## Goal\n<What are we trying to accomplish in this workspace?>\n\n## Status\n<Where are we right now? What's next?>\n\n## Notes\n<Decisions, references, open questions — both you and the agent edit this freely.>\n`;
 
 const joinPath = (folder: string, file: string): string => {
@@ -71,13 +73,13 @@ export const WorkspaceSettingsDrawer = ({
       return;
     }
 
-    const filePath = joinPath(workspace.rootFolder, AGENTS_DOC_FILENAME);
+    const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
     void window.canvasWorkspace?.file.read(filePath).then((res) => {
       if (res.ok && typeof res.content === 'string') {
         setAgentsDoc(res.content);
         setAgentsDocExists(true);
       } else {
-        setAgentsDoc(buildAgentsDocTemplate(workspace.name));
+        setAgentsDoc(buildWorkspaceDocTemplate(workspace.name));
         setAgentsDocExists(false);
       }
       setAgentsDocLoaded(true);
@@ -106,7 +108,7 @@ export const WorkspaceSettingsDrawer = ({
     const res = await window.canvasWorkspace?.dialog.openFolder();
     if (!res?.ok || !res.folderPath) return;
     onSetRootFolder(workspace.id, res.folderPath);
-    // Trigger AGENTS.md reload from the new location.
+    // Trigger pulse-workspace.md reload from the new location.
     initializedRef.current = false;
   }, [onSetRootFolder, workspace]);
 
@@ -115,10 +117,10 @@ export const WorkspaceSettingsDrawer = ({
     setSavingDoc(true);
     setError(undefined);
     try {
-      const filePath = joinPath(workspace.rootFolder, AGENTS_DOC_FILENAME);
+      const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
       const res = await window.canvasWorkspace?.file.write(filePath, agentsDoc);
       if (!res?.ok) {
-        setError(res?.error ?? 'Failed to save AGENTS.md');
+        setError(res?.error ?? `Failed to save ${WORKSPACE_DOC_FILENAME}`);
         return;
       }
       setAgentsDocExists(true);
@@ -190,17 +192,18 @@ export const WorkspaceSettingsDrawer = ({
                 </button>
               </div>
               <div className="workspace-settings-field-hint">
-                The directory where this workspace's work lives. AGENTS.md is read/written here.
-                Optional — leave empty for pure-thinking workspaces.
+                The directory where this workspace's work lives. <code>pulse-workspace.md</code> is
+                read/written here. Optional — leave empty for pure-thinking workspaces.
               </div>
             </div>
           </section>
 
           <section className="workspace-settings-section">
-            <div className="workspace-settings-section-title">Intent &amp; State (AGENTS.md)</div>
+            <div className="workspace-settings-section-title">Intent &amp; State (pulse-workspace.md)</div>
             {!workspace.rootFolder ? (
               <div className="workspace-settings-empty">
-                Set a root folder first — AGENTS.md lives inside it so both you and the agent can read it.
+                Set a root folder first — <code>pulse-workspace.md</code> lives inside it so both
+                you and the agent can read it.
               </div>
             ) : !agentsDocLoaded ? (
               <div className="workspace-settings-empty">Loading…</div>
@@ -215,8 +218,8 @@ export const WorkspaceSettingsDrawer = ({
                 />
                 <div className="workspace-settings-field-hint">
                   {agentsDocExists ? 'Saved at ' : 'Will be created at '}
-                  <code>{joinPath(workspace.rootFolder, AGENTS_DOC_FILENAME)}</code> · injected into
-                  the Canvas Agent's system prompt every turn.
+                  <code>{joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME)}</code> · injected
+                  into the Canvas Agent's system prompt every turn.
                 </div>
               </>
             )}
@@ -233,7 +236,7 @@ export const WorkspaceSettingsDrawer = ({
             disabled={!workspace.rootFolder || savingDoc || !agentsDocLoaded}
             onClick={() => void handleSaveDoc()}
           >
-            {savingDoc ? 'Saving…' : savedHint ? 'Saved ✓' : 'Save AGENTS.md'}
+            {savingDoc ? 'Saving…' : savedHint ? 'Saved ✓' : 'Save pulse-workspace.md'}
           </button>
         </div>
       </aside>
