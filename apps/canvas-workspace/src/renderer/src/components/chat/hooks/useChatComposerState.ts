@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import type { AgentRequestContext, CanvasNode } from '../../../types';
 import { useCanvasModels } from '../ModelSettings';
-import { usePromptProfile } from '../PromptSettings';
 import type { WorkspaceOption } from '../types';
 import { useChatSessions } from './useChatSessions';
 import { useChatStream } from './useChatStream';
@@ -22,10 +20,13 @@ interface UseChatComposerStateOptions {
 
 /**
  * Wires up the shared chat-surface state (streaming, sessions, mentions,
- * model picker, prompt profile, drawer state) used by both the right-side
- * ChatPanel and the full-screen ChatPage. Each caller renders its own
- * layout chrome (resize handle / session rail / header) around the
- * returned state.
+ * model picker) used by both the right-side ChatPanel and the full-screen
+ * ChatPage. Each caller renders its own layout chrome (resize handle /
+ * session rail / header) around the returned state.
+ *
+ * Prompt profile and global-settings open state aren't here anymore:
+ * they live in the top-level Settings drawer, opened via an
+ * `onOpenAppSettings(section)` callback threaded down from App.
  */
 export function useChatComposerState({
   workspaceId,
@@ -36,10 +37,7 @@ export function useChatComposerState({
   skipInitialHistory,
   getRequestContext,
 }: UseChatComposerStateOptions) {
-  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
-  const [promptSettingsOpen, setPromptSettingsOpen] = useState(false);
   const canvasModels = useCanvasModels();
-  const promptProfile = usePromptProfile();
 
   const chatStream = useChatStream({ workspaceId, allWorkspaces });
 
@@ -65,10 +63,5 @@ export function useChatComposerState({
     ...chatSessions,
     ...mentions,
     canvasModels,
-    promptProfile,
-    modelSettingsOpen,
-    setModelSettingsOpen,
-    promptSettingsOpen,
-    setPromptSettingsOpen,
   };
 }

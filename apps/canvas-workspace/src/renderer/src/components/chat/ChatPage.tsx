@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { CanvasNode } from '../../types';
+import type { SettingsSection } from '../Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
 import type { WorkspaceOption } from './types';
@@ -19,6 +20,8 @@ interface ChatPageProps {
   onWorkspaceContextRequest?: (workspaceId: string) => void;
   onExit: () => void;
   onNodeFocus?: (workspaceId: string, nodeId: string) => void;
+  /** Opens the global Settings drawer focused on the given section. */
+  onOpenAppSettings: (section: SettingsSection) => void;
 }
 
 /**
@@ -44,6 +47,7 @@ export const ChatPage = ({
   onWorkspaceContextRequest,
   onExit,
   onNodeFocus,
+  onOpenAppSettings,
 }: ChatPageProps) => {
   const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId);
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
@@ -89,6 +93,7 @@ export const ChatPage = ({
       onNodeFocus={onNodeFocus}
       railCollapsed={railCollapsed}
       onToggleRail={handleToggleRail}
+      onOpenAppSettings={onOpenAppSettings}
     />
   );
 };

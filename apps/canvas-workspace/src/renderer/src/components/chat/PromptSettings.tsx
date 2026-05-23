@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../types';
 
 interface UsePromptProfileResult {
@@ -87,10 +86,10 @@ const PRESETS: PresetMeta[] = [
   },
 ];
 
-interface PromptSettingsDrawerProps {
-  open: boolean;
+interface ReplyStyleSectionProps {
   profile?: PromptProfileStatus;
   error?: string;
+  /** Closes the surrounding Settings drawer (footer Close button). */
   onClose: () => void;
   onSave: (next: Partial<PromptProfile>) => Promise<void>;
   onReset: () => Promise<void>;
@@ -98,34 +97,28 @@ interface PromptSettingsDrawerProps {
 
 const MAX_CUSTOM_PROMPT_LENGTH = 4000;
 
-export const PromptSettingsDrawer = ({
-  open,
+export const ReplyStyleSection = ({
   profile,
   error,
   onClose,
   onSave,
   onReset,
-}: PromptSettingsDrawerProps) => {
+}: ReplyStyleSectionProps) => {
   const [preset, setPreset] = useState<PromptPreset>(DEFAULT_PRESET);
   const [customPrompt, setCustomPrompt] = useState('');
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState<string>();
   const [savedHint, setSavedHint] = useState(false);
 
-  // Reset the draft each time the drawer opens so cancel = "go back to saved".
+  // Initialize the draft from the loaded profile once. Section unmounts
+  // on switch-away, so cancel = back to saved is preserved automatically.
   const initializedRef = useRef(false);
   useEffect(() => {
-    if (!open) {
-      initializedRef.current = false;
-      setLocalError(undefined);
-      setSavedHint(false);
-      return;
-    }
     if (initializedRef.current || !profile) return;
     initializedRef.current = true;
     setPreset(profile.preset);
     setCustomPrompt(profile.customPrompt);
-  }, [open, profile]);
+  }, [profile]);
 
   const dirty =
     profile != null && (preset !== profile.preset || customPrompt.trim() !== profile.customPrompt.trim());
@@ -160,103 +153,79 @@ export const PromptSettingsDrawer = ({
     }
   }, [onReset]);
 
-  if (!open) return null;
-
-  return createPortal(
-    <div className="chat-model-settings-backdrop" onMouseDown={onClose}>
-      <aside
-        className="chat-model-settings chat-prompt-settings"
-        onMouseDown={event => event.stopPropagation()}
-        aria-label="AI reply style settings"
-      >
-        <div className="chat-model-settings-header">
+  return (
+    <>
+      <div className="chat-prompt-settings-body">
+        <div className="chat-model-settings-card chat-model-settings-card--intro">
           <div>
-            <div className="chat-model-settings-kicker">AI Settings</div>
-            <h2>Reply Style &amp; Custom Prompt</h2>
+            <strong>调整助手的回复风格</strong>
+            <p>
+              选择一个预设来控制助手回复的详略，并可以再写一段自定义提示词补充偏好（例如"用中文"、"先列要点再展开"）。
+              自定义提示词不会覆盖安全规则、工具使用规则和确认规则。
+            </p>
           </div>
-          <button
-            type="button"
-            className="chat-model-settings-close"
-            onClick={onClose}
-            aria-label="关闭"
-          >
-            ×
-          </button>
         </div>
 
-        <div className="chat-prompt-settings-body">
-          <div className="chat-model-settings-card chat-model-settings-card--intro">
-            <div>
-              <strong>调整助手的回复风格</strong>
-              <p>
-                选择一个预设来控制助手回复的详略，并可以再写一段自定义提示词补充偏好（例如"用中文"、"先列要点再展开"）。
-                自定义提示词不会覆盖安全规则、工具使用规则和确认规则。
-              </p>
-            </div>
+        {(localError || error) && (
+          <div className="chat-model-settings-error">{localError || error}</div>
+        )}
+
+        <div className="chat-model-field">
+          <span>预设 / Preset</span>
+          <div className="chat-prompt-preset-grid" role="radiogroup" aria-label="Reply style preset">
+            {PRESETS.map(item => {
+              const active = preset === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={`chat-model-protocol-option chat-prompt-preset-option${active ? ' chat-model-protocol-option--active' : ''}`}
+                  onClick={() => setPreset(item.id)}
+                >
+                  <span className="chat-model-protocol-title">{item.title}</span>
+                  <span className="chat-model-protocol-sub">{item.subtitle}</span>
+                  <span className="chat-prompt-preset-desc">{item.description}</span>
+                </button>
+              );
+            })}
           </div>
-
-          {(localError || error) && (
-            <div className="chat-model-settings-error">{localError || error}</div>
-          )}
-
-          <div className="chat-model-field">
-            <span>预设 / Preset</span>
-            <div className="chat-prompt-preset-grid" role="radiogroup" aria-label="Reply style preset">
-              {PRESETS.map(item => {
-                const active = preset === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    className={`chat-model-protocol-option chat-prompt-preset-option${active ? ' chat-model-protocol-option--active' : ''}`}
-                    onClick={() => setPreset(item.id)}
-                  >
-                    <span className="chat-model-protocol-title">{item.title}</span>
-                    <span className="chat-model-protocol-sub">{item.subtitle}</span>
-                    <span className="chat-prompt-preset-desc">{item.description}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <label className="chat-model-field chat-prompt-custom-field">
-            <span>自定义提示词 / Custom Prompt</span>
-            <textarea
-              className="chat-prompt-custom-textarea"
-              placeholder="例如：默认使用中文。代码块请加语言标签。不要在结尾问 &quot;还需要帮忙吗？&quot;"
-              value={customPrompt}
-              maxLength={MAX_CUSTOM_PROMPT_LENGTH}
-              rows={6}
-              onChange={event => setCustomPrompt(event.target.value)}
-            />
-            <span className="chat-model-field-hint">
-              {customPrompt.trim().length}/{MAX_CUSTOM_PROMPT_LENGTH} 字符 · 不会覆盖工具/安全/确认规则
-            </span>
-          </label>
         </div>
 
-        <div className="chat-model-settings-footer">
-          <span>{profile?.path}</span>
-          <button type="button" className="chat-model-secondary-btn" onClick={() => void reset()} disabled={saving}>
-            恢复默认
-          </button>
-          <button type="button" className="chat-model-secondary-btn" onClick={onClose} disabled={saving}>
-            关闭
-          </button>
-          <button
-            type="button"
-            className="chat-model-primary-btn"
-            onClick={() => void save()}
-            disabled={saving || !dirty}
-          >
-            {saving ? '保存中…' : savedHint ? '已保存 ✓' : '保存'}
-          </button>
-        </div>
-      </aside>
-    </div>,
-    document.body,
+        <label className="chat-model-field chat-prompt-custom-field">
+          <span>自定义提示词 / Custom Prompt</span>
+          <textarea
+            className="chat-prompt-custom-textarea"
+            placeholder="例如：默认使用中文。代码块请加语言标签。不要在结尾问 &quot;还需要帮忙吗？&quot;"
+            value={customPrompt}
+            maxLength={MAX_CUSTOM_PROMPT_LENGTH}
+            rows={6}
+            onChange={event => setCustomPrompt(event.target.value)}
+          />
+          <span className="chat-model-field-hint">
+            {customPrompt.trim().length}/{MAX_CUSTOM_PROMPT_LENGTH} 字符 · 不会覆盖工具/安全/确认规则
+          </span>
+        </label>
+      </div>
+
+      <div className="chat-model-settings-footer">
+        <span>{profile?.path}</span>
+        <button type="button" className="chat-model-secondary-btn" onClick={() => void reset()} disabled={saving}>
+          恢复默认
+        </button>
+        <button type="button" className="chat-model-secondary-btn" onClick={onClose} disabled={saving}>
+          关闭
+        </button>
+        <button
+          type="button"
+          className="chat-model-primary-btn"
+          onClick={() => void save()}
+          disabled={saving || !dirty}
+        >
+          {saving ? '保存中…' : savedHint ? '已保存 ✓' : '保存'}
+        </button>
+      </div>
+    </>
   );
 };

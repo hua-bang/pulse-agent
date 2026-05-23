@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { CanvasNode } from '../../types';
 import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
+import type { SettingsSection } from '../Settings';
 import './ChatPage.css';
 import './ChatPanel.css';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
-import { ModelSettingsDrawer } from './ModelSettings';
-import { PromptSettingsDrawer } from './PromptSettings';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import type { WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
@@ -35,6 +34,8 @@ export interface ChatPageBodyProps {
   onNodeFocus?: (workspaceId: string, nodeId: string) => void;
   railCollapsed: boolean;
   onToggleRail: () => void;
+  /** Opens the global Settings drawer focused on the given section. */
+  onOpenAppSettings: (section: SettingsSection) => void;
 }
 
 export const ChatPageBody = ({
@@ -51,6 +52,7 @@ export const ChatPageBody = ({
   onNodeFocus,
   railCollapsed,
   onToggleRail,
+  onOpenAppSettings,
 }: ChatPageBodyProps) => {
   // Snapshot at mount: the caller might change pendingSessionId later (e.g.
   // for a same-workspace click), but on mount we only care about the value
@@ -83,13 +85,8 @@ export const ChatPageBody = ({
     mentionOpen,
     messageTools,
     messages,
-    modelSettingsOpen,
-    setModelSettingsOpen,
     otherSessions,
     pendingClarify,
-    promptProfile,
-    promptSettingsOpen,
-    setPromptSettingsOpen,
     regenerateAssistantMessage,
     removeAttachment,
     selectMention,
@@ -131,7 +128,15 @@ export const ChatPageBody = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingSessionId]);
 
+  // See ChatPanel for the rationale; treat loading state as configured to
+  // avoid bouncing the user to Settings before status loads.
+  const notConfigured = canvasModels.status !== undefined && !canvasModels.status.apiKeyPresent;
+
   const handleQuickAction = useCallback(async (prompt: string) => {
+    if (notConfigured) {
+      onOpenAppSettings('models');
+      return;
+    }
     if (!prompt) {
       focusInput();
       return;
@@ -141,7 +146,15 @@ export const ChatPageBody = ({
     if (ok) {
       clearInput();
     }
-  }, [clearInput, focusInput, sendMessage]);
+  }, [clearInput, focusInput, notConfigured, onOpenAppSettings, sendMessage]);
+
+  const handleSubmit = useCallback(async () => {
+    if (notConfigured) {
+      onOpenAppSettings('models');
+      return false;
+    }
+    return await submitCurrentInput();
+  }, [notConfigured, onOpenAppSettings, submitCurrentInput]);
 
   // Clicking a mention chip should jump back to the canvas and focus the node.
   const handleNodeFocus = useCallback((nodeId: string) => {
@@ -228,7 +241,7 @@ export const ChatPageBody = ({
           <ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />
           <button
             className="chat-panel-action-btn"
-            onClick={() => setPromptSettingsOpen(true)}
+            onClick={() => onOpenAppSettings('reply-style')}
             title="回复风格 / 自定义提示词"
             aria-label="Reply style and custom prompt"
           >
@@ -236,7 +249,7 @@ export const ChatPageBody = ({
           </button>
           <button
             className="chat-panel-action-btn"
-            onClick={() => setModelSettingsOpen(true)}
+            onClick={() => onOpenAppSettings('models')}
             title="AI model settings"
             aria-label="AI model settings"
           >
@@ -292,37 +305,20 @@ export const ChatPageBody = ({
           onPaste={handlePaste}
           onAttachFiles={handleAttachFiles}
           onRemoveAttachment={removeAttachment}
-          onSubmit={submitCurrentInput}
+          onSubmit={handleSubmit}
           onAbort={abort}
           modelStatus={canvasModels.status}
           modelSelection={canvasModels.selection}
           modelLabel={canvasModels.selectedLabel}
           onSelectAutoModel={canvasModels.selectAuto}
           onSelectModel={canvasModels.selectModel}
-          onOpenModelSettings={() => setModelSettingsOpen(true)}
+          onOpenModelSettings={() => onOpenAppSettings('models')}
           contextComposer
           onEditUserMessage={handleEditUserMessage}
           onRegenerate={handleRegenerate}
         />
       </div>
     </div>
-    <ModelSettingsDrawer
-      open={modelSettingsOpen}
-      status={canvasModels.status}
-      error={canvasModels.error}
-      onClose={() => setModelSettingsOpen(false)}
-      onSaveProvider={canvasModels.upsertProvider}
-      onRemoveProvider={canvasModels.removeProvider}
-      onFetchModels={canvasModels.fetchModels}
-    />
-    <PromptSettingsDrawer
-      open={promptSettingsOpen}
-      profile={promptProfile.profile}
-      error={promptProfile.error}
-      onClose={() => setPromptSettingsOpen(false)}
-      onSave={promptProfile.save}
-      onReset={promptProfile.reset}
-    />
     </>
   );
 };

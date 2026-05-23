@@ -38,6 +38,33 @@
   justify-content: center;
 }
 
+.sidebar-footer {
+  margin-top: auto;
+  padding: 8px 8px 12px;
+  border-top: 1px solid var(--border-light, rgba(55, 53, 47, 0.07));
+}
+
+.sidebar-footer-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary, rgba(55, 53, 47, 0.65));
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.sidebar-footer-btn:hover {
+  background: rgba(55, 53, 47, 0.05);
+  color: var(--text, #37352f);
+}
+
 /* ---- Top-level view nav (Canvas / AI Chat) ---- */
 
 .sidebar-nav {

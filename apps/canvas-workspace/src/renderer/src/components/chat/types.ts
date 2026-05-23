@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react';
 import type { AgentChatToolCall, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { SettingsSection } from '../Settings';
 
 export interface WorkspaceOption {
   id: string;
@@ -15,6 +16,8 @@ export interface ChatPanelProps {
   onClose: () => void;
   onResizeStart?: (e: MouseEvent) => void;
   onNodeFocus?: (nodeId: string) => void;
+  /** Opens the global Settings drawer focused on the given section. */
+  onOpenAppSettings: (section: SettingsSection) => void;
 }
 
 export interface OtherWorkspaceSession extends AgentSessionInfo {

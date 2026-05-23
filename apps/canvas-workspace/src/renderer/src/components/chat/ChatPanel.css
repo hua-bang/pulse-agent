@@ -239,6 +239,56 @@
   gap: 0;
 }
 
+.chat-empty-configure-banner {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  margin-bottom: 18px;
+  border: 1px solid rgba(217, 119, 6, 0.32);
+  border-radius: 10px;
+  background: rgba(254, 243, 199, 0.55);
+  color: #78350f;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.chat-empty-configure-banner:hover {
+  background: rgba(254, 243, 199, 0.85);
+  border-color: rgba(217, 119, 6, 0.5);
+}
+
+.chat-empty-configure-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.chat-empty-configure-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.chat-empty-configure-text strong {
+  font-weight: 650;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.chat-empty-configure-cta {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: #b45309;
+}
+
 .chat-empty-icon {
   width: 54px;
   height: 54px;
@@ -1785,8 +1835,21 @@
 }
 
 .chat-model-switcher-btn--warning {
-  background: rgba(233, 168, 0, 0.08);
-  border-color: rgba(233, 168, 0, 0.18);
+  background: rgba(254, 243, 199, 0.55);
+  border-color: rgba(217, 119, 6, 0.32);
+  color: #92400e;
+  max-width: 180px;
+}
+
+.chat-model-switcher-btn--warning:hover {
+  background: rgba(254, 243, 199, 0.85);
+  border-color: rgba(217, 119, 6, 0.5);
+  color: #78350f;
+}
+
+.chat-model-switcher-btn--warning .chat-model-switcher-dot {
+  background: #d97706;
+  opacity: 0.9;
 }
 
 .chat-model-switcher-dot {
@@ -1932,73 +1995,9 @@
   color: #2383e2;
 }
 
-.chat-model-settings-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1900;
-  display: flex;
-  justify-content: flex-end;
-  background: rgba(15, 15, 15, 0.18);
-  backdrop-filter: blur(2px);
-}
-
-.chat-model-settings {
-  width: min(100vw, 880px);
-  height: 100vh;
-  background: #fdfcfb;
-  border-left: 1px solid rgba(55, 53, 47, 0.1);
-  box-shadow: -20px 0 54px rgba(55, 53, 47, 0.18);
-  display: flex;
-  flex-direction: column;
-  animation: chat-settings-in 0.16s cubic-bezier(0.2, 0.9, 0.2, 1);
-}
-
-@keyframes chat-settings-in {
-  from { transform: translateX(16px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-.chat-model-settings-header {
-  min-height: 58px;
-  padding: 13px 16px 12px 18px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.07);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.chat-model-settings-kicker {
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: rgba(55, 53, 47, 0.42);
-}
-
-.chat-model-settings-header h2 {
-  margin: 3px 0 0;
-  font-size: 16px;
-  line-height: 1.2;
-  color: #37352f;
-}
-
-.chat-model-settings-close {
-  width: 28px;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #9b9a97;
-  font-size: 21px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.chat-model-settings-close:hover {
-  background: rgba(55, 53, 47, 0.07);
-  color: #37352f;
-}
+/* Chat ModelSettings & PromptSettings drawer body/form styles.
+ * The shell (backdrop, aside, header, close button, slide-in) lives in
+ * components/SettingsDrawer/index.css and is shared with WorkspaceSettings. */
 
 .chat-model-settings-body {
   flex: 1;
@@ -2361,13 +2360,10 @@
   font-size: 11px;
 }
 
-/* Prompt settings drawer — reuses .chat-model-settings shell but
-   drops the provider rail because there's only one user profile. */
-.chat-prompt-settings {
-  width: min(100vw, 640px);
-}
-
-.chat-prompt-settings .chat-prompt-settings-body {
+/* Prompt settings drawer — same shell as ModelSettings (via SettingsDrawer),
+   but the body is a single column because there's only one user profile.
+   Width override is set via the `width` prop on <SettingsDrawer>. */
+.chat-prompt-settings-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;

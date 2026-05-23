@@ -218,24 +218,38 @@ export const ModelSwitcher = ({
 
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const hasConfiguredModels = providers.some(provider => provider.models.length > 0);
+  // Not configured = status loaded and the resolver couldn't find an API key.
+  // While status is still undefined we treat it as configured so we don't
+  // flash the warning style on startup.
+  const notConfigured = status !== undefined && !status.apiKeyPresent;
 
   return (
     <div className="chat-model-switcher">
       <button
         ref={triggerRef}
         type="button"
-        className={`chat-model-switcher-btn${!status?.apiKeyPresent ? ' chat-model-switcher-btn--warning' : ''}`}
-        onClick={() => setOpen(value => !value)}
-        title="选择本次使用的模型"
-        aria-label="选择模型"
+        className={`chat-model-switcher-btn${notConfigured ? ' chat-model-switcher-btn--warning' : ''}`}
+        onClick={() => {
+          if (notConfigured) {
+            // Skip the dropdown — there's nothing useful in it yet; go
+            // straight to Settings so the user can add a provider.
+            onOpenSettings();
+            return;
+          }
+          setOpen(value => !value);
+        }}
+        title={notConfigured ? '还没配模型，点击去 Settings 配置' : '选择本次使用的模型'}
+        aria-label={notConfigured ? '配置模型 provider' : '选择模型'}
       >
         <span className="chat-model-switcher-dot" />
-        <span className="chat-model-switcher-label">{label}</span>
-        <span className="chat-model-switcher-chevron" aria-hidden="true">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2.75 4L5 6.25L7.25 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </span>
+        <span className="chat-model-switcher-label">{notConfigured ? 'Configure model' : label}</span>
+        {!notConfigured && (
+          <span className="chat-model-switcher-chevron" aria-hidden="true">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2.75 4L5 6.25L7.25 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        )}
       </button>
       {open && createPortal(
         <div
@@ -316,10 +330,10 @@ export const ModelSwitcher = ({
   );
 };
 
-interface ModelSettingsDrawerProps {
-  open: boolean;
+interface ModelsSectionProps {
   status?: CanvasModelStatus;
   error?: string;
+  /** Closes the surrounding Settings drawer (footer Cancel button). */
   onClose: () => void;
   onSaveProvider: (provider: CanvasModelProviderConfig) => Promise<CanvasModelStatus | undefined>;
   onRemoveProvider: (providerId: string) => Promise<void>;
@@ -378,15 +392,14 @@ const ApiKeyStatusHint = ({ status, drafting }: ApiKeyStatusHintProps) => {
   return <span className="chat-model-field-hint chat-model-field-hint--warn">未设置 API Key — 调用模型时会失败</span>;
 };
 
-export const ModelSettingsDrawer = ({
-  open,
+export const ModelsSection = ({
   status,
   error,
   onClose,
   onSaveProvider,
   onRemoveProvider,
   onFetchModels,
-}: ModelSettingsDrawerProps) => {
+}: ModelsSectionProps) => {
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const [activeProviderId, setActiveProviderId] = useState<string>('new');
   const [draft, setDraft] = useState<CanvasModelProviderConfig>(emptyProvider());
@@ -524,168 +537,155 @@ export const ModelSettingsDrawer = ({
     }
   }, [draft, activeProviderStatus, onSaveProvider, onFetchModels]);
 
-  if (!open) return null;
-
-  return createPortal(
-    <div className="chat-model-settings-backdrop" onMouseDown={onClose}>
-      <aside className="chat-model-settings" onMouseDown={event => event.stopPropagation()} aria-label="AI model settings">
-        <div className="chat-model-settings-header">
-          <div>
-            <div className="chat-model-settings-kicker">AI Settings</div>
-            <h2>Models & Providers</h2>
-          </div>
-          <button type="button" className="chat-model-settings-close" onClick={onClose} aria-label="关闭模型设置">×</button>
-        </div>
-
-        <div className="chat-model-settings-body">
-          <div className="chat-model-provider-rail">
-            <button
-              type="button"
-              className={`chat-model-provider-tab${activeProviderId === 'new' ? ' chat-model-provider-tab--active' : ''}`}
-              onClick={() => selectProvider('new')}
-            >
-              <PlusIcon size={13} />
-              <span>Add provider</span>
-            </button>
-            {providers.map(provider => (
-              <button
-                key={provider.id}
-                type="button"
-                className={`chat-model-provider-tab${activeProviderId === provider.id ? ' chat-model-provider-tab--active' : ''}`}
-                onClick={() => selectProvider(provider.id)}
-              >
-                <span className={`chat-model-provider-status${provider.apiKeyPresent ? ' chat-model-provider-status--ok' : ''}`} />
-                <span className="chat-model-provider-tab-text">
-                  <strong>{provider.name}</strong>
-                  <small>{provider.models.length} models</small>
-                </span>
-              </button>
-            ))}
-          </div>
-
-          <div className="chat-model-settings-form">
-            <div className="chat-model-settings-card chat-model-settings-card--intro">
-              <div>
-                <strong>{activeProviderId === 'new' ? 'Add a model provider' : `Edit ${draft.name || 'provider'}`}</strong>
-                <p>填好协议、URL、API Key，点"测试并保存"会先连接 provider 拉取可用模型，确认 URL + Key + 协议都对得上后再落盘。</p>
-              </div>
-              {activeProviderId !== 'new' && (
-                <button
-                  type="button"
-                  className="chat-model-danger-btn"
-                  onClick={() => void onRemoveProvider(activeProviderId)}
-                >
-                  <TrashIcon />
-                </button>
-              )}
-            </div>
-
-            {(localError || error) && <div className="chat-model-settings-error">{localError || error}</div>}
-
-            <label className="chat-model-field">
-              <span>Provider name</span>
-              <input value={draft.name} placeholder="DeepSeek / OpenRouter / Local" onChange={event => setDraftField('name', event.target.value)} />
-            </label>
-
-            <div className="chat-model-field">
-              <span>协议 / Protocol</span>
-              <div
-                role="radiogroup"
-                aria-label="协议格式"
-                className="chat-model-protocol-toggle"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={(draft.provider_type ?? 'openai') === 'openai'}
-                  className={`chat-model-protocol-option${(draft.provider_type ?? 'openai') === 'openai' ? ' chat-model-protocol-option--active' : ''}`}
-                  onClick={() => setDraftField('provider_type', 'openai')}
-                >
-                  <span className="chat-model-protocol-title">OpenAI 兼容</span>
-                  <span className="chat-model-protocol-sub">/v1/chat/completions</span>
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={draft.provider_type === 'claude'}
-                  className={`chat-model-protocol-option${draft.provider_type === 'claude' ? ' chat-model-protocol-option--active' : ''}`}
-                  onClick={() => setDraftField('provider_type', 'claude')}
-                >
-                  <span className="chat-model-protocol-title">Claude (Anthropic)</span>
-                  <span className="chat-model-protocol-sub">/v1/messages</span>
-                </button>
-              </div>
-            </div>
-
-            <label className="chat-model-field">
-              <span>API URL / Base URL</span>
-              <input
-                value={draft.base_url ?? ''}
-                placeholder={draft.provider_type === 'claude' ? 'https://api.anthropic.com/v1' : 'https://api.deepseek.com/v1'}
-                onChange={event => setDraftField('base_url', event.target.value)}
-              />
-            </label>
-
-            <label className="chat-model-field">
-              <span>API Key</span>
-              <input
-                value={draft.api_key ?? ''}
-                type="password"
-                placeholder={activeProviderStatus?.apiKeyPresent ? '留空则保留已保存的 API Key' : '请输入 API Key'}
-                onChange={event => setDraftField('api_key', event.target.value)}
-              />
-              {activeProviderId !== 'new' && (
-                <ApiKeyStatusHint
-                  status={activeProviderStatus}
-                  drafting={Boolean(draft.api_key && draft.api_key.length > 0)}
-                />
-              )}
-            </label>
-
-            <div className="chat-model-field-row">
-              <label className="chat-model-field chat-model-field--grow">
-                <span>Models</span>
-                <input
-                  value={manualModel}
-                  placeholder="deepseek-chat"
-                  onChange={event => setManualModel(event.target.value)}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addManualModel();
-                    }
-                  }}
-                />
-              </label>
-              <button type="button" className="chat-model-secondary-btn" onClick={addManualModel}>Add</button>
-              <button type="button" className="chat-model-secondary-btn" onClick={() => void fetchModels()} disabled={fetching}>
-                <RefreshIcon />
-                {fetching ? 'Fetching' : 'Fetch'}
-              </button>
-            </div>
-
-            <div className="chat-model-model-list">
-              {(draft.models ?? []).length > 0 ? draft.models?.map(model => (
-                <span key={model.id} className="chat-model-chip">
-                  {model.name ?? model.id}
-                  <button type="button" onClick={() => removeModel(model.id)} aria-label={`Remove ${model.id}`}>×</button>
-                </span>
-              )) : (
-                <div className="chat-model-settings-empty">还没有模型。可以 Fetch Models，或手动输入 model id 后 Add。</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="chat-model-settings-footer">
-          <span>{status?.path}</span>
-          <button type="button" className="chat-model-secondary-btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
-            {saving ? '测试中…' : '测试并保存'}
+  return (
+    <>
+      <div className="chat-model-settings-body">
+        <div className="chat-model-provider-rail">
+          <button
+            type="button"
+            className={`chat-model-provider-tab${activeProviderId === 'new' ? ' chat-model-provider-tab--active' : ''}`}
+            onClick={() => selectProvider('new')}
+          >
+            <PlusIcon size={13} />
+            <span>Add provider</span>
           </button>
+          {providers.map(provider => (
+            <button
+              key={provider.id}
+              type="button"
+              className={`chat-model-provider-tab${activeProviderId === provider.id ? ' chat-model-provider-tab--active' : ''}`}
+              onClick={() => selectProvider(provider.id)}
+            >
+              <span className={`chat-model-provider-status${provider.apiKeyPresent ? ' chat-model-provider-status--ok' : ''}`} />
+              <span className="chat-model-provider-tab-text">
+                <strong>{provider.name}</strong>
+                <small>{provider.models.length} models</small>
+              </span>
+            </button>
+          ))}
         </div>
-      </aside>
-    </div>,
-    document.body,
+
+        <div className="chat-model-settings-form">
+          <div className="chat-model-settings-card chat-model-settings-card--intro">
+            <div>
+              <strong>{activeProviderId === 'new' ? 'Add a model provider' : `Edit ${draft.name || 'provider'}`}</strong>
+              <p>填好协议、URL、API Key，点"测试并保存"会先连接 provider 拉取可用模型，确认 URL + Key + 协议都对得上后再落盘。</p>
+            </div>
+            {activeProviderId !== 'new' && (
+              <button
+                type="button"
+                className="chat-model-danger-btn"
+                onClick={() => void onRemoveProvider(activeProviderId)}
+              >
+                <TrashIcon />
+              </button>
+            )}
+          </div>
+
+          {(localError || error) && <div className="chat-model-settings-error">{localError || error}</div>}
+
+          <label className="chat-model-field">
+            <span>Provider name</span>
+            <input value={draft.name} placeholder="DeepSeek / OpenRouter / Local" onChange={event => setDraftField('name', event.target.value)} />
+          </label>
+
+          <div className="chat-model-field">
+            <span>协议 / Protocol</span>
+            <div
+              role="radiogroup"
+              aria-label="协议格式"
+              className="chat-model-protocol-toggle"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={(draft.provider_type ?? 'openai') === 'openai'}
+                className={`chat-model-protocol-option${(draft.provider_type ?? 'openai') === 'openai' ? ' chat-model-protocol-option--active' : ''}`}
+                onClick={() => setDraftField('provider_type', 'openai')}
+              >
+                <span className="chat-model-protocol-title">OpenAI 兼容</span>
+                <span className="chat-model-protocol-sub">/v1/chat/completions</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={draft.provider_type === 'claude'}
+                className={`chat-model-protocol-option${draft.provider_type === 'claude' ? ' chat-model-protocol-option--active' : ''}`}
+                onClick={() => setDraftField('provider_type', 'claude')}
+              >
+                <span className="chat-model-protocol-title">Claude (Anthropic)</span>
+                <span className="chat-model-protocol-sub">/v1/messages</span>
+              </button>
+            </div>
+          </div>
+
+          <label className="chat-model-field">
+            <span>API URL / Base URL</span>
+            <input
+              value={draft.base_url ?? ''}
+              placeholder={draft.provider_type === 'claude' ? 'https://api.anthropic.com/v1' : 'https://api.deepseek.com/v1'}
+              onChange={event => setDraftField('base_url', event.target.value)}
+            />
+          </label>
+
+          <label className="chat-model-field">
+            <span>API Key</span>
+            <input
+              value={draft.api_key ?? ''}
+              type="password"
+              placeholder={activeProviderStatus?.apiKeyPresent ? '留空则保留已保存的 API Key' : '请输入 API Key'}
+              onChange={event => setDraftField('api_key', event.target.value)}
+            />
+            {activeProviderId !== 'new' && (
+              <ApiKeyStatusHint
+                status={activeProviderStatus}
+                drafting={Boolean(draft.api_key && draft.api_key.length > 0)}
+              />
+            )}
+          </label>
+
+          <div className="chat-model-field-row">
+            <label className="chat-model-field chat-model-field--grow">
+              <span>Models</span>
+              <input
+                value={manualModel}
+                placeholder="deepseek-chat"
+                onChange={event => setManualModel(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addManualModel();
+                  }
+                }}
+              />
+            </label>
+            <button type="button" className="chat-model-secondary-btn" onClick={addManualModel}>Add</button>
+            <button type="button" className="chat-model-secondary-btn" onClick={() => void fetchModels()} disabled={fetching}>
+              <RefreshIcon />
+              {fetching ? 'Fetching' : 'Fetch'}
+            </button>
+          </div>
+
+          <div className="chat-model-model-list">
+            {(draft.models ?? []).length > 0 ? draft.models?.map(model => (
+              <span key={model.id} className="chat-model-chip">
+                {model.name ?? model.id}
+                <button type="button" onClick={() => removeModel(model.id)} aria-label={`Remove ${model.id}`}>×</button>
+              </span>
+            )) : (
+              <div className="chat-model-settings-empty">还没有模型。可以 Fetch Models，或手动输入 model id 后 Add。</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="chat-model-settings-footer">
+        <span>{status?.path}</span>
+        <button type="button" className="chat-model-secondary-btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
+          {saving ? '测试中…' : '测试并保存'}
+        </button>
+      </div>
+    </>
   );
 };

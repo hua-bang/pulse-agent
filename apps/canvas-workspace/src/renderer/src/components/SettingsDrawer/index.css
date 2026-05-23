@@ -1,0 +1,72 @@
+/* Shared shell for right-side modal settings drawers
+ * (WorkspaceSettings, ModelSettings, PromptSettings).
+ * Notion-warm cream + #2383e2 accent + 8px radii. */
+
+.settings-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1900;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 15, 15, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+.settings-drawer {
+  height: 100vh;
+  background: #fdfcfb;
+  border-left: 1px solid rgba(55, 53, 47, 0.1);
+  box-shadow: -20px 0 54px rgba(55, 53, 47, 0.18);
+  display: flex;
+  flex-direction: column;
+  animation: settings-drawer-in 0.16s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+@keyframes settings-drawer-in {
+  from { transform: translateX(16px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.settings-drawer-header {
+  min-height: 58px;
+  padding: 13px 16px 12px 18px;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-drawer-kicker {
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(55, 53, 47, 0.42);
+}
+
+.settings-drawer-header h2 {
+  margin: 3px 0 0;
+  font-size: 16px;
+  line-height: 1.2;
+  color: #37352f;
+  word-break: break-word;
+}
+
+.settings-drawer-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #9b9a97;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-drawer-close:hover {
+  background: rgba(55, 53, 47, 0.07);
+  color: #37352f;
+}
