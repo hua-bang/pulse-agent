@@ -1,8 +1,9 @@
 import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { promises as fs } from 'fs';
-import { join, dirname, basename } from 'path';
+import { join } from 'path';
 import { homedir } from 'os';
 import { execInSession, hasSession } from './pty-manager';
+import { readCanvasFull, writeCanvasFull } from './canvas-storage';
 
 export const MCP_PORT = 3333;
 
@@ -65,33 +66,18 @@ function getNodeCapabilities(type: NodeType): NodeCapability[] {
 
 // --- Canvas data access ---
 
-function isEnoent(err: unknown): boolean {
-  return !!err && typeof err === 'object' && (err as { code?: string }).code === 'ENOENT';
-}
-
 /**
- * Returns null ONLY when canvas.json is truly missing (ENOENT). Any other
- * failure (I/O, JSON parse error from catching another writer mid-flush)
- * is rethrown so callers don't confuse "unreadable right now" with "doesn't
- * exist" and overwrite real data. Mirrors canvas-cli / canvas-agent.
+ * Returns null ONLY when canvas.json is truly missing. Any other failure
+ * (I/O, JSON parse from catching another writer mid-flush) is rethrown so
+ * callers don't confuse "unreadable right now" with "doesn't exist" and
+ * overwrite real data. Mirrors canvas-cli / canvas-agent.
+ *
+ * Thin wrapper over `readCanvasFull` — gains `.bak` recovery and
+ * transparent v1/v2 read for free.
  */
 async function loadCanvas(workspaceId: string): Promise<CanvasSaveData | null> {
-  const filePath = join(STORE_DIR, workspaceId, 'canvas.json');
-  let raw: string;
-  try {
-    raw = await fs.readFile(filePath, 'utf-8');
-  } catch (err) {
-    if (isEnoent(err)) return null;
-    throw err;
-  }
-  try {
-    return JSON.parse(raw) as CanvasSaveData;
-  } catch (err) {
-    throw new Error(
-      `[canvas-mcp] failed to parse canvas.json for workspace "${workspaceId}": ` +
-      `${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
+  const { data } = await readCanvasFull(workspaceId);
+  return (data as CanvasSaveData | null) ?? null;
 }
 
 interface SaveCanvasOptions {
@@ -111,81 +97,30 @@ async function saveCanvas(
   data: CanvasSaveData,
   opts: SaveCanvasOptions = {},
 ): Promise<void> {
-  const filePath = join(STORE_DIR, workspaceId, 'canvas.json');
-
-  // Mirror the guard in canvas-store.ts / packages/canvas-cli so every
-  // write path into canvas.json refuses to silently clobber existing
-  // nodes with an empty list.
+  // Empty-write guard: refuse to overwrite a populated canvas with a
+  // zero-node payload. Mirrors the same guard in canvas-store.ts /
+  // canvas-agent / canvas-cli — every writer to canvas.json enforces
+  // this contract.
   if (!opts.allowEmpty && Array.isArray(data.nodes) && data.nodes.length === 0) {
-    let raw: string | null = null;
-    try {
-      raw = await fs.readFile(filePath, 'utf-8');
-    } catch (err) {
-      if (!isEnoent(err)) {
-        throw new Error(
-          `[canvas-mcp] failed to read canvas.json while guarding empty write ` +
-          `for workspace "${workspaceId}": ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      // ENOENT → nothing on disk, fall through and write.
-    }
-    if (raw !== null) {
-      let existingNodes: CanvasNode[];
-      try {
-        const existing = JSON.parse(raw) as CanvasSaveData;
-        existingNodes = Array.isArray(existing.nodes) ? existing.nodes : [];
-      } catch (err) {
-        // Caught another writer mid-flush: refuse rather than wipe.
-        throw new Error(
-          `[canvas-mcp] failed to parse existing canvas.json while guarding empty write ` +
-          `for workspace "${workspaceId}": ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      if (existingNodes.length > 0) {
-        throw new Error(
-          `[canvas-mcp] refusing to overwrite ${existingNodes.length} on-disk nodes ` +
+    const existing = await readCanvasFull(workspaceId).catch(() => {
+      throw new Error(
+        `[canvas-mcp] failed to read canvas.json while guarding empty write ` +
+          `for workspace "${workspaceId}"`,
+      );
+    });
+    const existingNodes = Array.isArray(existing.data?.nodes)
+      ? existing.data!.nodes
+      : [];
+    if (existingNodes.length > 0) {
+      throw new Error(
+        `[canvas-mcp] refusing to overwrite ${existingNodes.length} on-disk nodes ` +
           `with empty nodes for workspace "${workspaceId}". ` +
           `Pass { allowEmpty: true } to saveCanvas if this wipe is intentional.`,
-        );
-      }
+      );
     }
   }
 
-  await atomicWriteCanvasJson(filePath, JSON.stringify(data, null, 2));
-}
-
-/**
- * Atomically persist canvas.json (or any JSON file) with a rolling
- * `.bak` snapshot. Mirrors the helpers in canvas-store.ts and
- * canvas-cli's store.ts — see those files for the full rationale.
- */
-async function atomicWriteCanvasJson(
-  finalPath: string,
-  serialized: string,
-): Promise<void> {
-  const dir = dirname(finalPath);
-  const base = basename(finalPath);
-  const tmpPath = join(dir, `${base}.tmp`);
-  const bakPath = join(dir, `${base}.bak`);
-
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(tmpPath, serialized, 'utf-8');
-
-  try {
-    const currentRaw = await fs.readFile(finalPath, 'utf-8');
-    try {
-      const current = JSON.parse(currentRaw) as { nodes?: unknown[] };
-      if (Array.isArray(current.nodes) && current.nodes.length > 0) {
-        await fs.copyFile(finalPath, bakPath).catch(() => undefined);
-      }
-    } catch {
-      // Current file corrupt — keep the last-known-good .bak intact.
-    }
-  } catch {
-    // No current file; nothing to back up.
-  }
-
-  await fs.rename(tmpPath, finalPath);
+  await writeCanvasFull(workspaceId, data);
 }
 
 async function loadWorkspaceManifest(): Promise<WorkspaceManifest> {

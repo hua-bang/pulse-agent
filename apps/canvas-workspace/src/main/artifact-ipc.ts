@@ -15,9 +15,8 @@
  */
 
 import { ipcMain } from 'electron';
-import { promises as fs } from 'fs';
-import { dirname, basename, join } from 'path';
 import { getWorkspaceDir } from './canvas-store';
+import { readCanvasFull, writeCanvasFull } from './canvas-storage';
 import {
   addArtifactVersion,
   createArtifact,
@@ -59,28 +58,16 @@ interface CanvasSaveData {
   savedAt: string;
 }
 
-function canvasPath(workspaceId: string): string {
-  return join(getWorkspaceDir(workspaceId), 'canvas.json');
-}
-
-async function atomicWrite(finalPath: string, body: string): Promise<void> {
-  const dir = dirname(finalPath);
-  const tmp = join(dir, `${basename(finalPath)}.tmp`);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(tmp, body, 'utf-8');
-  await fs.rename(tmp, finalPath);
-}
-
+/**
+ * Thin wrapper over `readCanvasFull` — gains `.bak` recovery and
+ * transparent v1/v2 read for free vs. the previous local implementation.
+ */
 async function loadCanvas(workspaceId: string): Promise<CanvasSaveData | null> {
-  try {
-    const raw = await fs.readFile(canvasPath(workspaceId), 'utf-8');
-    const data = JSON.parse(raw) as CanvasSaveData;
-    data.nodes = data.nodes ?? [];
-    return data;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
-    throw err;
-  }
+  const { data } = await readCanvasFull(workspaceId);
+  if (!data) return null;
+  const out = data as CanvasSaveData;
+  out.nodes = out.nodes ?? [];
+  return out;
 }
 
 function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
@@ -157,7 +144,7 @@ async function writeWithNewNode(
 
   canvas.nodes.push(node);
   canvas.savedAt = new Date().toISOString();
-  await atomicWrite(canvasPath(workspaceId), JSON.stringify(canvas, null, 2));
+  await writeCanvasFull(workspaceId, canvas);
 
   // Mark artifact as pinned (best-effort — failure here doesn't undo the node).
   const updated = await updateArtifact(workspaceId, artifact.id, { pinnedNodeId: nodeId }) ?? artifact;

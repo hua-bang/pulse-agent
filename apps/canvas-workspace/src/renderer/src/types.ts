@@ -786,6 +786,26 @@ export interface CanvasWorkspaceApi {
         source: string;
       }) => void
     ) => () => void;
+    /**
+     * Subscribe to canvas storage migration progress events. Dormant in PR1
+     * (no migration is triggered yet); the channel is in place so PR3 can
+     * enable lazy v1→v2 auto-migration without further preload wiring.
+     */
+    onMigrationProgress: (
+      callback: (event: {
+        workspaceId: string;
+        phase:
+          | "starting"
+          | "backup"
+          | "split-nodes"
+          | "commit"
+          | "done"
+          | "error";
+        current?: number;
+        total?: number;
+        message?: string;
+      }) => void
+    ) => () => void;
   };
   file: FileApi;
   dialog: DialogApi;

@@ -1,0 +1,90 @@
+/* Non-blocking pill in the bottom-right corner, above most UI but below
+ * modals. Stays out of the way; never blocks input. */
+.migration-spinner {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 950;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  font-size: 12.5px;
+  color: #1a1a1a;
+  pointer-events: none;
+  user-select: none;
+  animation: migration-spinner-in 200ms ease-out;
+}
+
+.migration-spinner--error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.migration-spinner__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(37, 99, 235, 0.25);
+  border-top-color: #2563eb;
+  animation: migration-spinner-spin 800ms linear infinite;
+}
+
+.migration-spinner__label {
+  white-space: nowrap;
+}
+
+.migration-spinner__count {
+  font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  color: #6b7280;
+}
+
+@keyframes migration-spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes migration-spinner-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .migration-spinner {
+    background: rgba(30, 30, 30, 0.96);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: #e5e7eb;
+  }
+  .migration-spinner--error {
+    background: rgba(80, 20, 20, 0.96);
+    border-color: rgba(220, 38, 38, 0.4);
+    color: #fecaca;
+  }
+  .migration-spinner__count {
+    color: #9ca3af;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .migration-spinner {
+    animation: none;
+  }
+  .migration-spinner__dot {
+    animation: none;
+    background: #2563eb;
+    border-color: #2563eb;
+  }
+}

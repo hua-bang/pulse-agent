@@ -3,109 +3,61 @@ import { ipcMain, BrowserWindow, dialog } from "electron";
 import { promises as fs, watch as fsWatch, FSWatcher } from "fs";
 import { join, basename, dirname, relative, resolve, sep, isAbsolute } from "path";
 import { homedir } from "os";
+import {
+  atomicWriteJson,
+  readJsonWithRecovery,
+  readCanvasFull,
+  writeCanvasFull,
+  migrateToV2,
+  detectSchemaVersion,
+  isSafeNodeId,
+  getNodesDir,
+  getNodeFilePath,
+  type MigrationProgress,
+  type ReadJsonResult,
+} from "./canvas-storage";
 
 const STORE_DIR = join(homedir(), ".pulse-coder", "canvas");
 const MANIFEST_ID = '__workspaces__';
 
 /**
- * Atomically write canvas JSON to disk with a rolling backup.
+ * Atomically write a canvas JSON file with a rolling `.bak` backup.
  *
- * Node's `fs.writeFile` is NOT atomic — it truncates first, then streams
- * the bytes. If the process crashes mid-write, or if another reader
- * catches the truncate window, the file is left empty/partial and future
- * loads fail with `Unexpected end of JSON input`. With multiple writers
- * (canvas-workspace + canvas-cli + canvas-agent + MCP server) racing on
- * the same file, this is a real data-loss path.
- *
- * This helper:
- *   1. Writes the new content to `<path>.tmp`.
- *   2. If the current `<path>` parses and contains at least one node,
- *      copies it to `<path>.bak` (rolling last-known-good snapshot).
- *   3. `rename()`s `<path>.tmp` → `<path>`. Rename is atomic on the same
- *      filesystem: any concurrent reader sees either the old file or the
- *      new one, never a truncated one.
+ * Thin wrapper over `atomicWriteJson` from `canvas-storage.ts`. The shared
+ * implementation is the single source of truth for atomic file publishing
+ * (tmp + rename + optional rolling backup) — `canvas-store.ts`,
+ * `mcp-server.ts`, `canvas-agent/tools.ts`, and `canvas-cli` will all
+ * converge on it across PR2/PR3, replacing five near-duplicate copies.
  *
  * Recovery: `canvas:load` falls back to `<path>.bak` when the primary
  * file fails to parse, so even a pre-existing corruption from an older
  * non-atomic write path can self-heal on next load.
  */
-const atomicWriteCanvasJson = async (
+const atomicWriteCanvasJson = (
   finalPath: string,
   serialized: string,
-): Promise<void> => {
-  const dir = dirname(finalPath);
-  const base = basename(finalPath);
-  const tmpPath = join(dir, `${base}.tmp`);
-  const bakPath = join(dir, `${base}.bak`);
-
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(tmpPath, serialized, 'utf-8');
-
-  // Rotate last-known-good into .bak BEFORE overwriting. Only rotate if
-  // the current file is actually a good snapshot — parses and has at
-  // least one node. That prevents a single corrupt save from poisoning
-  // the backup.
-  try {
-    const currentRaw = await fs.readFile(finalPath, 'utf-8');
-    try {
-      const current = JSON.parse(currentRaw) as { nodes?: unknown[] };
-      if (Array.isArray(current.nodes) && current.nodes.length > 0) {
-        await fs.copyFile(finalPath, bakPath).catch(() => undefined);
-      }
-    } catch {
-      // Current file is already corrupt — don't overwrite the good .bak.
-    }
-  } catch {
-    // No current file yet (first write for this workspace) — nothing to back up.
-  }
-
-  await fs.rename(tmpPath, finalPath);
-};
+): Promise<void> =>
+  atomicWriteJson(finalPath, serialized, { rollingBackup: true });
 
 /**
  * Read canvas JSON with transparent fallback to the rolling `.bak` if
  * the primary file is missing or unparseable. Returns the parsed data
  * plus a `recoveredFromBackup` flag so callers can log / re-persist.
+ *
+ * Thin wrapper over `readJsonWithRecovery` from `canvas-storage.ts`. Kept
+ * for the warning log: the shared helper stays silent so it can also be
+ * used outside the Electron main process.
  */
 const readCanvasJsonWithRecovery = async (
   finalPath: string,
-): Promise<
-  | { kind: 'ok'; data: unknown; recoveredFromBackup: boolean }
-  | { kind: 'missing' }
-  | { kind: 'unrecoverable'; err: unknown }
-> => {
-  const bakPath = `${finalPath}.bak`;
-  let primaryErr: unknown = null;
-  try {
-    const raw = await fs.readFile(finalPath, 'utf-8');
-    try {
-      const data = JSON.parse(raw);
-      return { kind: 'ok', data, recoveredFromBackup: false };
-    } catch (err) {
-      primaryErr = err;
-    }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
-      // Primary file missing. Try backup; if that's also missing,
-      // treat the whole workspace as fresh.
-    } else {
-      primaryErr = err;
-    }
-  }
-
-  try {
-    const bakRaw = await fs.readFile(bakPath, 'utf-8');
-    const data = JSON.parse(bakRaw);
+): Promise<ReadJsonResult> => {
+  const result = await readJsonWithRecovery(finalPath);
+  if (result.kind === 'ok' && result.recoveredFromBackup) {
     console.warn(
-      `[canvas-store] primary canvas.json unreadable (${String(primaryErr ?? 'missing')}); recovered from ${basename(bakPath)}`,
+      `[canvas-store] primary canvas.json unreadable; recovered from ${basename(`${finalPath}.bak`)}`,
     );
-    return { kind: 'ok', data, recoveredFromBackup: true };
-  } catch (bakErr) {
-    if ((bakErr as NodeJS.ErrnoException)?.code === 'ENOENT') {
-      return primaryErr ? { kind: 'unrecoverable', err: primaryErr } : { kind: 'missing' };
-    }
-    return { kind: 'unrecoverable', err: primaryErr ?? bakErr };
   }
+  return result;
 };
 
 const AGENTS_MD_TEMPLATE = `# Canvas Agent Config
@@ -436,27 +388,111 @@ const readDiskCanvas = async (
   attempts = 3,
   delayMs = 30,
 ): Promise<DiskReadOutcome> => {
-  let lastParseErr: unknown = null;
+  let lastErr: unknown = null;
   for (let i = 0; i < attempts; i++) {
-    let raw: string;
     try {
-      raw = await fs.readFile(getFilePath(id), 'utf-8');
-    } catch (err) {
-      if (isEnoent(err)) return { kind: 'missing' };
-      return { kind: 'ioerror', err };
-    }
-    try {
-      const diskData = JSON.parse(raw) as CanvasSaveData;
-      const nodes = Array.isArray(diskData.nodes) ? diskData.nodes : [];
+      // `readCanvasFull` always returns v1-shape regardless of on-disk
+      // schema: for v2 workspaces it reads `canvas.json` (layout) plus
+      // `nodes/<id>.json` and assembles them back into inline `data`.
+      // The merge logic below works on v1-shape and doesn't need to
+      // know about v2 storage details.
+      const result = await readCanvasFull(id);
+      if (result.data === null) return { kind: 'missing' };
+      const nodes = Array.isArray(result.data.nodes) ? (result.data.nodes as CanvasNode[]) : [];
       return { kind: 'ok', nodes };
     } catch (err) {
-      lastParseErr = err;
+      // Parse failure almost always means we caught another writer
+      // (canvas-cli mid-flush). A brief backoff almost always lands on
+      // the completed write.
+      lastErr = err;
       if (i < attempts - 1) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
     }
   }
-  return { kind: 'unparseable', err: lastParseErr };
+  return { kind: 'unparseable', err: lastErr };
+};
+
+/**
+ * Broadcast a migration progress event to every renderer window. Powers
+ * the MigrationSpinner UI (which only surfaces after a 1s delay, so
+ * sub-second migrations stay invisible).
+ */
+const broadcastMigrationProgress = (
+  workspaceId: string,
+  progress: MigrationProgress,
+): void => {
+  const payload = {
+    workspaceId,
+    phase: progress.phase,
+    current: progress.current,
+    total: progress.total,
+    message: progress.message,
+  };
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send('canvas:migration-progress', payload);
+  }
+};
+
+/**
+ * If a workspace is still on the v1 storage format, migrate it to v2.
+ *
+ * This is the single trigger point for lazy auto-migration. Called from
+ * both `canvas:load` and `canvas:save` IPC handlers so the migration
+ * happens silently whenever the user first interacts with a workspace.
+ * Other consumers (mcp-server, canvas-agent, artifact-ipc, canvas-cli)
+ * do NOT trigger migration — they observe whatever schema exists on
+ * disk and adapt via the shared helper.
+ *
+ * Held inside `withSaveLock` so concurrent saves serialize through it.
+ * Cheap when the workspace is already v2: a single canvas.json peek
+ * before taking the lock skips the entire lock round-trip.
+ *
+ * On any error: we log and proceed. The save/load handler then continues
+ * with whatever state is on disk — worst case it's still v1 and the next
+ * call retries. We deliberately do not fail the user-facing operation
+ * over a migration hiccup.
+ */
+const ensureMigrated = async (workspaceId: string): Promise<void> => {
+  if (workspaceId === MANIFEST_ID) return;
+
+  // Cheap pre-check: peek canvas.json, return early when already v2.
+  const peekPath = getFilePath(workspaceId);
+  try {
+    const raw = await fs.readFile(peekPath, 'utf-8');
+    const parsed: unknown = JSON.parse(raw);
+    if (detectSchemaVersion(parsed) === 2) return;
+  } catch (err) {
+    if (isEnoent(err)) return; // fresh workspace, nothing to migrate
+    // Parse failure — fall through; recoverInterruptedMigration inside
+    // `readCanvasFull` will sort it out, or migration will throw and we
+    // surface that on the next interaction.
+  }
+
+  await withSaveLock(workspaceId, async () => {
+    // Re-check inside the lock — another save may have migrated already.
+    try {
+      const raw = await fs.readFile(peekPath, 'utf-8');
+      if (detectSchemaVersion(JSON.parse(raw)) === 2) return;
+    } catch (err) {
+      if (isEnoent(err)) return;
+      // Same fall-through as above.
+    }
+    try {
+      await migrateToV2(workspaceId, {
+        onProgress: (p) => broadcastMigrationProgress(workspaceId, p),
+      });
+    } catch (err) {
+      console.warn(
+        `[canvas-store] migration to v2 failed for ${workspaceId}: ${String(err)}; leaving workspace on v1 until next interaction`,
+      );
+      broadcastMigrationProgress(workspaceId, {
+        phase: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
 };
 
 const mergeExternalNodes = async (
@@ -658,6 +694,30 @@ const nodesToMap = (nodes: CanvasNode[] | undefined): Map<string, CanvasNode> =>
   return m;
 };
 
+/**
+ * Read whatever canvas.json holds on disk RIGHT NOW, in its on-disk shape:
+ *   - v1 workspaces: nodes carry inline `data`.
+ *   - v2 workspaces: nodes are layout-only (no `data` field).
+ *
+ * Used to seed `lastSnapshot` so the `fs.watch` echo-suppression diff is
+ * apples-to-apples. The watcher handler reads canvas.json the same way,
+ * so a snapshot in any other shape would falsely report every node as
+ * changed on every save.
+ */
+const readOnDiskNodeMap = async (
+  workspaceId: string,
+): Promise<Map<string, CanvasNode>> => {
+  try {
+    const raw = await fs.readFile(getFilePath(workspaceId), 'utf-8');
+    const parsed = JSON.parse(raw) as CanvasSaveData;
+    return nodesToMap(parsed.nodes);
+  } catch {
+    // Missing or unparseable: treat as empty so the next watcher fire
+    // (with a parseable file) registers every node as "new" and broadcasts.
+    return new Map<string, CanvasNode>();
+  }
+};
+
 const diffSnapshots = (
   before: Map<string, CanvasNode>,
   after: Map<string, CanvasNode>,
@@ -743,6 +803,266 @@ const startWorkspaceWatcher = (workspaceId: string): void => {
   watchers.set(workspaceId, watcher);
 };
 
+// ─── Per-node file watcher (v2 workspaces) ──────────────────────────────
+//
+// In v2 storage, edits to a single node's `data` land in
+// `nodes/<id>.json` instead of `canvas.json`. The canvas.json watcher
+// above only fires for layout / membership changes; without a separate
+// per-node watcher, canvas-cli or canvas-agent edits to per-node data
+// would never reach the renderer until the next full canvas:load.
+//
+// Echo suppression: every save / load updates `lastPerNodeContent` to
+// match the on-disk state. The watcher fire compares per-file content
+// against that snapshot; if identical (our own write echoing back), we
+// suppress. The renderer's external-update handler highlights nodes for
+// 2.5s, so unsuppressed echoes would visually flicker on every save.
+
+/** workspaceId → (nodeId → exact file bytes last seen on disk). */
+const lastPerNodeContent = new Map<string, Map<string, string>>();
+const nodeFileWatchers = new Map<string, FSWatcher>();
+/** Debounced (workspaceId → pending event timer). Batches multi-file events. */
+const nodeFileDebounce = new Map<string, NodeJS.Timeout>();
+/** Accumulator (workspaceId → set of node ids touched since last batch fire). */
+const nodeFileBatch = new Map<string, Set<string>>();
+/**
+ * Recent self-writes — workspaceId → (nodeId → epoch millis of our last write).
+ * Watcher events inside {@link SELF_WRITE_WINDOW_MS} of a recorded write are
+ * suppressed as our own echoes, independent of byte / field diff. This
+ * defends against the race where seedPerNodeContent hasn't refreshed the
+ * snapshot yet when the watcher's debounced fire reads the file (most
+ * likely for nodes whose data is mutated *after* canvas:load by an async
+ * source like an iframe webview's page-title-updated event).
+ */
+const recentSelfWrites = new Map<string, Map<string, number>>();
+const SELF_WRITE_WINDOW_MS = 500;
+
+/**
+ * Read every per-node file currently in `nodes/` and refresh the in-memory
+ * snapshot used for watcher echo suppression. Called after canvas:load
+ * (initial seed) and after every canvas:save (to record what we just
+ * wrote). Bounded by the workspace size; typical workspaces under 30ms.
+ */
+const seedPerNodeContent = async (workspaceId: string): Promise<void> => {
+  const dir = getNodesDir(workspaceId);
+  let entries: string[];
+  try {
+    entries = await fs.readdir(dir);
+  } catch (err) {
+    // No nodes/ dir → v1 workspace, or v2 with zero nodes. Drop any
+    // stale snapshot from a previous lifecycle.
+    if (isEnoent(err)) {
+      lastPerNodeContent.delete(workspaceId);
+      return;
+    }
+    console.warn(`[canvas-store] could not list nodes/ for ${workspaceId}:`, err);
+    return;
+  }
+  const inner = new Map<string, string>();
+  for (const name of entries) {
+    if (!name.endsWith('.json')) continue;
+    const nodeId = name.slice(0, -'.json'.length);
+    if (!isSafeNodeId(nodeId)) continue;
+    try {
+      const raw = await fs.readFile(getNodeFilePath(workspaceId, nodeId), 'utf-8');
+      inner.set(nodeId, raw);
+    } catch {
+      // Skip — transient or just-deleted.
+    }
+  }
+  lastPerNodeContent.set(workspaceId, inner);
+};
+
+/**
+ * Mark the given node ids as having just been written by us. Watcher
+ * events that arrive within {@link SELF_WRITE_WINDOW_MS} are then
+ * treated as our own echoes and suppressed — regardless of how the
+ * snapshot diff turns out.
+ *
+ * This is the backstop. Bytes / visible-fields diffs depend on the
+ * snapshot map being refreshed *before* the watcher's debounced fire
+ * reads the file, which is a timing race we can lose under load or
+ * when an async render path (iframe page-title-updated, file node
+ * content read-back) triggers a save right after canvas:load — both
+ * cases users have reported as a spurious "agent edited" flash.
+ */
+const markSelfWrites = (workspaceId: string, nodeIds: Iterable<string>): void => {
+  const inner = recentSelfWrites.get(workspaceId) ?? new Map<string, number>();
+  const now = Date.now();
+  for (const id of nodeIds) inner.set(id, now);
+  recentSelfWrites.set(workspaceId, inner);
+};
+
+const handlePerNodeBatchFire = async (workspaceId: string): Promise<void> => {
+  const batch = nodeFileBatch.get(workspaceId);
+  if (!batch || batch.size === 0) return;
+  const nodeIds = Array.from(batch);
+  nodeFileBatch.delete(workspaceId);
+
+  const inner = lastPerNodeContent.get(workspaceId) ?? new Map<string, string>();
+  const selfWrites = recentSelfWrites.get(workspaceId);
+  const now = Date.now();
+  const changedIds: string[] = [];
+
+  for (const nodeId of nodeIds) {
+    let raw: string;
+    try {
+      raw = await fs.readFile(getNodeFilePath(workspaceId, nodeId), 'utf-8');
+    } catch (err) {
+      if (isEnoent(err)) {
+        // Per-node file was deleted. Broadcast iff we knew about it.
+        if (inner.has(nodeId)) {
+          inner.delete(nodeId);
+          changedIds.push(nodeId);
+        }
+        continue;
+      }
+      // Transient I/O error — skip; next fire will re-check.
+      continue;
+    }
+    const prev = inner.get(nodeId);
+    // Update the snapshot unconditionally — even if we end up suppressing
+    // the broadcast, the freshest bytes are the ones we want to compare
+    // against next time.
+    inner.set(nodeId, raw);
+
+    if (prev === raw) continue; // exact-bytes echo of our own write
+    if (prev !== undefined && !visibleFieldsChanged(prev, raw)) {
+      // Only metadata (updatedAt / createdAt) churned, or `data` keys got
+      // reordered by a spread upstream. The renderer can't see this
+      // difference, so broadcasting would just trigger a false "agent
+      // edited" highlight without anything visibly changing.
+      continue;
+    }
+    // Self-write backstop: this watcher event almost certainly echoes a
+    // canvas:save we just performed. The snapshot diff above missed it
+    // (snapshot wasn't refreshed in time, or seedPerNodeContent hadn't
+    // run yet for this node). Trust the timestamp record over a stale
+    // snapshot.
+    const ts = selfWrites?.get(nodeId);
+    if (ts !== undefined && now - ts <= SELF_WRITE_WINDOW_MS) continue;
+
+    changedIds.push(nodeId);
+  }
+
+  // GC: drop self-write entries older than the window so the map doesn't
+  // grow without bound across a long session.
+  if (selfWrites) {
+    for (const [id, ts] of selfWrites) {
+      if (now - ts > SELF_WRITE_WINDOW_MS) selfWrites.delete(id);
+    }
+    if (selfWrites.size === 0) recentSelfWrites.delete(workspaceId);
+  }
+
+  lastPerNodeContent.set(workspaceId, inner);
+  if (changedIds.length > 0) {
+    broadcastExternalUpdate(workspaceId, changedIds);
+  }
+};
+
+/**
+ * Compare two per-node JSON files for *user-visible* differences.
+ *
+ * Returns true iff `data`, `type`, or `title` differ — the three fields
+ * the renderer actually reflects in the canvas. Field-order changes
+ * within `data` (e.g. `{ a, b }` vs `{ b, a }` from an upstream object
+ * spread) and pure metadata churn (`updatedAt` / `createdAt` only)
+ * return false. Without this filter, the nodes/ watcher would broadcast
+ * for every save echo even when nothing user-visible changed, falsely
+ * lighting up the renderer's "externally edited" highlight on every
+ * autosave.
+ *
+ * Conservative: if parsing fails, treat as changed and broadcast.
+ * Comparing the raw bytes would be a stricter test but it's the very
+ * thing we're trying to relax here.
+ */
+const visibleFieldsChanged = (prevRaw: string, nextRaw: string): boolean => {
+  type PerNodeShape = { data?: unknown; type?: unknown; title?: unknown };
+  let prev: PerNodeShape;
+  let next: PerNodeShape;
+  try {
+    prev = JSON.parse(prevRaw) as PerNodeShape;
+    next = JSON.parse(nextRaw) as PerNodeShape;
+  } catch {
+    return true;
+  }
+  if (prev.type !== next.type) return true;
+  if (prev.title !== next.title) return true;
+  return stableStringify(prev.data) !== stableStringify(next.data);
+};
+
+/**
+ * Deterministic JSON serialization with sorted object keys, so two
+ * structurally-equal objects with different key insertion orders produce
+ * the same string. Used inside `visibleFieldsChanged` to defeat the
+ * "renderer spread reorders keys" false positive.
+ */
+const stableStringify = (value: unknown): string => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return '[' + value.map(stableStringify).join(',') + ']';
+  }
+  const keys = Object.keys(value as Record<string, unknown>).sort();
+  const parts = keys.map(
+    (k) => JSON.stringify(k) + ':' + stableStringify((value as Record<string, unknown>)[k]),
+  );
+  return '{' + parts.join(',') + '}';
+};
+
+const startNodesWatcher = (workspaceId: string): void => {
+  if (nodeFileWatchers.has(workspaceId)) return;
+  const dir = getNodesDir(workspaceId);
+  let watcher: FSWatcher;
+  try {
+    watcher = fsWatch(dir, { persistent: false });
+  } catch (err) {
+    // ENOENT for v1 / empty-v2 workspaces. Not an error — we'll try
+    // again next time canvas:load runs for this workspace (typically
+    // right after the first save creates nodes/).
+    if (!isEnoent(err)) {
+      console.warn(`[canvas-store] nodes/ watch failed for ${workspaceId}:`, err);
+    }
+    return;
+  }
+  watcher.on('change', (_eventType, filename) => {
+    if (typeof filename !== 'string' || !filename.endsWith('.json')) return;
+    if (filename.endsWith('.tmp')) return; // tmp file noise from atomic writes
+    const nodeId = filename.slice(0, -'.json'.length);
+    if (!isSafeNodeId(nodeId)) return;
+
+    const batch = nodeFileBatch.get(workspaceId) ?? new Set<string>();
+    batch.add(nodeId);
+    nodeFileBatch.set(workspaceId, batch);
+
+    const existing = nodeFileDebounce.get(workspaceId);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      nodeFileDebounce.delete(workspaceId);
+      void handlePerNodeBatchFire(workspaceId);
+    }, 100);
+    nodeFileDebounce.set(workspaceId, t);
+  });
+  watcher.on('error', (err) => {
+    console.warn(`[canvas-store] nodes/ watcher error for ${workspaceId}:`, err);
+  });
+  nodeFileWatchers.set(workspaceId, watcher);
+};
+
+const stopNodesWatcher = (workspaceId: string): void => {
+  const w = nodeFileWatchers.get(workspaceId);
+  if (w) {
+    try { w.close(); } catch { /* ignore */ }
+    nodeFileWatchers.delete(workspaceId);
+  }
+  const t = nodeFileDebounce.get(workspaceId);
+  if (t) {
+    clearTimeout(t);
+    nodeFileDebounce.delete(workspaceId);
+  }
+  nodeFileBatch.delete(workspaceId);
+  lastPerNodeContent.delete(workspaceId);
+  recentSelfWrites.delete(workspaceId);
+};
+
 const stopWorkspaceWatcher = (workspaceId: string): void => {
   const w = watchers.get(workspaceId);
   if (w) {
@@ -755,10 +1075,14 @@ const stopWorkspaceWatcher = (workspaceId: string): void => {
     watcherDebounce.delete(workspaceId);
   }
   lastSnapshot.delete(workspaceId);
+  stopNodesWatcher(workspaceId);
 };
 
 export const teardownCanvasWatchers = (): void => {
   for (const id of Array.from(watchers.keys())) stopWorkspaceWatcher(id);
+  // Defensive: any nodes/ watchers without a paired canvas.json watcher
+  // (theoretically impossible) also get cleaned up.
+  for (const id of Array.from(nodeFileWatchers.keys())) stopNodesWatcher(id);
 };
 
 export const setupCanvasStoreIpc = () => {
@@ -774,6 +1098,11 @@ export const setupCanvasStoreIpc = () => {
           );
         } else {
           await ensureWorkspaceDir(payload.id);
+          // Lazy migration: if this is a v1 workspace, transparently
+          // promote to v2 before merging. Holds the same save lock so
+          // any concurrent save is serialized after the migration. No-op
+          // for already-v2 workspaces.
+          await ensureMigrated(payload.id);
           await withSaveLock(payload.id, async () => {
             // Snapshot what the renderer actually had in memory when it
             // sent this save. We compare against this after the merge
@@ -798,16 +1127,46 @@ export const setupCanvasStoreIpc = () => {
             // second read somehow fails to include them.
             const merged = await mergeExternalNodes(payload.id, firstPass);
             if (merged === SKIP_WRITE) return;
-            await atomicWriteCanvasJson(
-              getFilePath(payload.id),
-              JSON.stringify(merged, null, 2),
-            );
+            // Mark every node id we're about to write so the nodes/
+            // watcher's batch handler can recognize the upcoming events
+            // as our own echoes and suppress them — even when the
+            // snapshot diff misses (e.g. seedPerNodeContent loses the
+            // race with the watcher's debounced fire, which is the
+            // root cause of the spurious "agent edited" flash users
+            // reported for iframe / file nodes).
+            const mergedNodeIds: string[] = [];
+            if (Array.isArray(merged.nodes)) {
+              for (const n of merged.nodes as CanvasNode[]) {
+                if (n.id) mergedNodeIds.push(n.id);
+              }
+            }
+            markSelfWrites(payload.id, mergedNodeIds);
+            // writeCanvasFull adapts to the current on-disk schema: for
+            // v2 workspaces it splits node.data into nodes/<id>.json
+            // files and writes a layout-only canvas.json; for v1 it
+            // writes the whole thing inline. The canvas.json swap is
+            // the commit point in both paths.
+            await writeCanvasFull(payload.id, merged as CanvasSaveData);
             // Update the watcher's last-known snapshot to match what we
-            // just wrote. The debounced fs.watch callback will see an
-            // empty diff and skip broadcasting, suppressing the echo of
-            // our own write.
+            // just wrote. Re-read the on-disk canvas.json so the
+            // snapshot has the exact shape the fs.watch handler will see
+            // — for v2 that's layout-only; for v1 it's full inline data.
+            // Without this, the watcher's diff would falsely flag every
+            // node as changed on every save in v2 mode.
+            const onDiskMap = await readOnDiskNodeMap(payload.id);
+            lastSnapshot.set(payload.id, onDiskMap);
+            // Same idea for v2 per-node files: snapshot their exact
+            // bytes so the nodes/ watcher's debounced fire can diff
+            // against them and suppress the echo of our own write.
+            // Also ensures the nodes/ watcher is running — first save
+            // on a freshly-migrated workspace creates the directory,
+            // and we need to start watching it now.
+            await seedPerNodeContent(payload.id);
+            startNodesWatcher(payload.id);
+            // mergedMap (full v1-shape) is what the renderer cares about
+            // for the pickedUp broadcast below — that comparison is
+            // memory-vs-memory, not against the watcher snapshot.
             const mergedMap = nodesToMap(merged.nodes);
-            lastSnapshot.set(payload.id, mergedMap);
             // Now that the write has landed, mark every persisted id as
             // known so subsequent `mergeExternalNodes` calls can tell
             // "memory-only node the user just created" (not in known →
@@ -850,23 +1209,39 @@ export const setupCanvasStoreIpc = () => {
         if (payload.id !== MANIFEST_ID) {
           await migrateIfNeeded(payload.id);
           await ensureWorkspaceDir(payload.id);
+          // Lazy auto-migrate v1 → v2 silently. Returns immediately if
+          // already v2 or missing. MigrationSpinner only surfaces if
+          // the migration takes longer than 1s.
+          await ensureMigrated(payload.id);
         }
         const filePath = getFilePath(payload.id);
-        const readResult = await readCanvasJsonWithRecovery(filePath);
-        if (readResult.kind === 'missing') {
-          return { ok: true, data: null };
+        let data: CanvasSaveData;
+        let recoveredFromBackup = false;
+        if (payload.id === MANIFEST_ID) {
+          const readResult = await readCanvasJsonWithRecovery(filePath);
+          if (readResult.kind === 'missing') return { ok: true, data: null };
+          if (readResult.kind === 'unrecoverable') {
+            return { ok: false, error: String(readResult.err) };
+          }
+          data = readResult.data as CanvasSaveData;
+          recoveredFromBackup = readResult.recoveredFromBackup;
+        } else {
+          // `readCanvasFull` returns v1-shape (with inline node.data)
+          // regardless of on-disk schema. The renderer never sees v2
+          // layout-only data; it observes the same shape it always has.
+          const full = await readCanvasFull(payload.id);
+          if (full.data === null) return { ok: true, data: null };
+          data = full.data as CanvasSaveData;
+          recoveredFromBackup = full.recoveredFromBackup;
         }
-        if (readResult.kind === 'unrecoverable') {
-          return { ok: false, error: String(readResult.err) };
-        }
-        const data: CanvasSaveData = readResult.data as CanvasSaveData;
         if (payload.id !== MANIFEST_ID) {
           const dirty = await migrateNotePaths(payload.id, data);
           // Re-persist if migration rewrote note paths OR if we recovered
           // from the rolling backup (the primary file was corrupt; writing
-          // the recovered data back heals it).
-          if (dirty || readResult.recoveredFromBackup) {
-            await atomicWriteCanvasJson(filePath, JSON.stringify(data, null, 2));
+          // the recovered data back heals it). Uses writeCanvasFull so v2
+          // workspaces stay v2; v1 workspaces stay v1.
+          if (dirty || recoveredFromBackup) {
+            await writeCanvasFull(payload.id, data);
           }
           // Seed the known-id set the first time we load this workspace in
           // this app session. Do NOT re-seed on subsequent loads — the
@@ -882,13 +1257,20 @@ export const setupCanvasStoreIpc = () => {
             );
             knownNodeIds.set(payload.id, known);
           }
-          // Seed / refresh the watcher's last-known snapshot and ensure
-          // the fs.watch listener is running for this workspace. Starting
-          // here (instead of at app launch) means we only watch workspaces
-          // the user has actually opened, and guarantees the canvas.json
-          // file already exists by the time we call fs.watch on it.
-          lastSnapshot.set(payload.id, nodesToMap(data.nodes));
+          // Seed / refresh the watcher's last-known snapshot using the
+          // on-disk shape (layout-only for v2, full for v1). Starting the
+          // watcher here means we only watch workspaces the user has
+          // actually opened, and the canvas.json file is guaranteed to
+          // exist by this point.
+          lastSnapshot.set(payload.id, await readOnDiskNodeMap(payload.id));
           startWorkspaceWatcher(payload.id);
+          // For v2 workspaces, also seed the per-node content snapshot
+          // and start watching nodes/ so per-node data edits (canvas-cli
+          // editing scrollback, mindmap nodes, etc.) propagate to the
+          // renderer in real time. No-ops for v1 workspaces (nodes/ dir
+          // doesn't exist yet) and harmless to re-call across loads.
+          await seedPerNodeContent(payload.id);
+          startNodesWatcher(payload.id);
         }
         return { ok: true, data };
       } catch (err: unknown) {

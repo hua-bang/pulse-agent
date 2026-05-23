@@ -90,6 +90,13 @@ export interface CanvasEdge {
 }
 
 export interface CanvasSaveData {
+  /**
+   * On-disk schema version. Absent or `1` = v1 (data inline in canvas.json).
+   * `2` = v2 (data split into nodes/<id>.json). Set by writers when
+   * targeting v2; readers expose v1-shape regardless of on-disk version
+   * (see storage-v2.ts#assembleV2).
+   */
+  schemaVersion?: 1 | 2;
   nodes: CanvasNode[];
   edges?: CanvasEdge[];
   transform: CanvasTransform;

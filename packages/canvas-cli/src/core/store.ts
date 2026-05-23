@@ -2,6 +2,11 @@ import { promises as fs } from 'fs';
 import { join, dirname, basename } from 'path';
 import { DEFAULT_STORE_DIR, AGENTS_MD_TEMPLATE } from './constants';
 import type { CanvasNode, CanvasEdge, CanvasSaveData, WorkspaceManifest, Result } from './types';
+import {
+  detectSchemaVersion,
+  assembleV2,
+  splitV2,
+} from './storage-v2';
 
 function resolveDir(storeDir?: string): string {
   return storeDir ?? DEFAULT_STORE_DIR;
@@ -162,7 +167,7 @@ export async function loadCanvas(workspaceId: string, storeDir?: string): Promis
     try {
       const parsed = JSON.parse(raw) as CanvasSaveData;
       parsed.nodes = parsed.nodes ?? [];
-      return parsed;
+      return await materialize(workspaceId, parsed, storeDir);
     } catch (err) {
       primaryErr = err;
       raw = null;
@@ -180,7 +185,7 @@ export async function loadCanvas(workspaceId: string, storeDir?: string): Promis
         `[canvas-cli] canvas.json for "${workspaceId}" unreadable (${String(primaryErr)}); recovered from canvas.json.bak`,
       );
     }
-    return parsed;
+    return await materialize(workspaceId, parsed, storeDir);
   } catch (bakErr) {
     if (isEnoent(bakErr) && !primaryErr) {
       // Neither file exists — legitimate "no canvas yet".
@@ -191,6 +196,26 @@ export async function loadCanvas(workspaceId: string, storeDir?: string): Promis
     // confuse it with "no canvas" and bootstrap an empty one on top.
     throw new CanvasReadError(workspaceId, primaryErr ?? bakErr);
   }
+}
+
+/**
+ * Materialize a freshly-parsed canvas.json into v1-shape regardless of
+ * on-disk format. For v2 workspaces (split storage), reads each
+ * `nodes/<id>.json` and assembles them back into the inline-data shape
+ * existing callers expect. For v1 (or anything unrecognized) returns the
+ * data as-is.
+ *
+ * canvas-cli does NOT trigger migration — that's owned by canvas-workspace.
+ * Whatever schema is on disk is what the CLI sees and writes back.
+ */
+async function materialize(
+  workspaceId: string,
+  parsed: CanvasSaveData,
+  storeDir?: string,
+): Promise<CanvasSaveData> {
+  if (detectSchemaVersion(parsed) !== 2) return parsed;
+  const wsDir = getWorkspaceDir(workspaceId, storeDir);
+  return (await assembleV2(wsDir, parsed)) as CanvasSaveData;
 }
 
 export interface SaveCanvasOptions {
@@ -268,7 +293,54 @@ export async function saveCanvas(
     }
   }
 
-  await atomicWriteCanvasJson(canvasPath(workspaceId, storeDir), JSON.stringify(data, null, 2));
+  await writeMatchingSchema(workspaceId, data, storeDir);
+}
+
+/**
+ * Write `data` (v1-shape with inline node.data) to disk in whichever
+ * schema is currently in use for this workspace. v1 → write the whole
+ * file inline as before. v2 → split into layout + per-node files and
+ * atomic-write canvas.json as the commit point.
+ *
+ * Fresh workspaces (no canvas.json yet) default to v1. canvas-workspace
+ * is the only path that promotes a workspace to v2 (lazy migration on
+ * read); canvas-cli always preserves whatever format is already there.
+ */
+async function writeMatchingSchema(
+  workspaceId: string,
+  data: CanvasSaveData,
+  storeDir?: string,
+): Promise<void> {
+  const canvasFile = canvasPath(workspaceId, storeDir);
+  const wsDir = getWorkspaceDir(workspaceId, storeDir);
+
+  let currentVersion: 1 | 2 = 1;
+  try {
+    const raw = await fs.readFile(canvasFile, 'utf-8');
+    try {
+      const existing = JSON.parse(raw);
+      currentVersion = detectSchemaVersion(existing);
+    } catch {
+      // Unparseable current file — treat as v1 fresh write; the
+      // empty-write guard upstream already protects against clobbering
+      // a non-empty canvas when memory is empty.
+    }
+  } catch (err) {
+    if (!isEnoent(err)) throw err;
+    // Fresh workspace: stay v1.
+  }
+
+  if (currentVersion === 2) {
+    const layout = await splitV2(wsDir, data);
+    await atomicWriteCanvasJson(canvasFile, JSON.stringify(layout, null, 2));
+    return;
+  }
+
+  // v1: write inline shape, stripping any stray schemaVersion so the
+  // file stays cleanly v1.
+  const payload: CanvasSaveData = { ...data };
+  delete (payload as { schemaVersion?: 1 | 2 }).schemaVersion;
+  await atomicWriteCanvasJson(canvasFile, JSON.stringify(payload, null, 2));
 }
 
 /**

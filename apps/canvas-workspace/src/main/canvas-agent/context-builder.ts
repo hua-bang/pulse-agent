@@ -10,6 +10,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
 import { getNodeRenderedText } from '../webview-registry';
+import { readCanvasFull } from '../canvas-storage';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
@@ -188,9 +189,13 @@ async function readIframeContent(
 // ─── Low-level readers ─────────────────────────────────────────────
 
 async function loadCanvasJson(workspaceId: string): Promise<CanvasSaveData | null> {
+  // Read-only, best-effort: context builder feeds the system prompt, so a
+  // transient read failure should degrade silently to "no extra context"
+  // rather than blow up agent startup. Swallow any error from the shared
+  // helper (its strict mode would throw on unrecoverable parse failures).
   try {
-    const raw = await fs.readFile(join(STORE_DIR, workspaceId, 'canvas.json'), 'utf-8');
-    return JSON.parse(raw) as CanvasSaveData;
+    const { data } = await readCanvasFull(workspaceId);
+    return data as CanvasSaveData | null;
   } catch {
     return null;
   }
