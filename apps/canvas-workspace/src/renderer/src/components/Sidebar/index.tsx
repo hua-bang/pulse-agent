@@ -10,6 +10,7 @@ import { WorkspaceList } from './WorkspaceList';
 import { LayersPanel } from './LayersPanel';
 import { LayerContextMenu } from './LayerContextMenu';
 import { useAppShell } from '../AppShellProvider';
+import { SettingsIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { buildCanvasNodeLink } from '../../utils/canvasLinks';
 import { copyTextToClipboard } from '../../utils/clipboard';
@@ -26,6 +27,8 @@ interface Props {
   onDelete: (id: string) => void;
   onExport: (id: string) => void;
   onOpenSettings: (id: string) => void;
+  /** Opens the global Settings drawer (gear button at the bottom of the sidebar). */
+  onOpenAppSettings: () => void;
   onImport: () => void;
   onCreateFolder: (name: string) => void;
   onRenameFolder: (id: string, name: string) => void;
@@ -54,7 +57,7 @@ const FOLDER_DRAG = 'application/x-folder-id';
 
 export const Sidebar = ({
   collapsed, onToggle, workspaces, folders, activeId, onSelect, onCreate, onRename, onDelete,
-  onExport, onOpenSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
+  onExport, onOpenSettings, onOpenAppSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
   onReorderWorkspace, onReorderFolder,
   activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
 }: Props) => {
@@ -356,6 +359,21 @@ export const Sidebar = ({
         <div className="sidebar-collapsed-toggle">
           <button className="sidebar-toggle" onClick={onToggle} title="Expand sidebar">
             <SidebarToggleIcon size={14} />
+          </button>
+        </div>
+      )}
+
+      {!collapsed && (
+        <div className="sidebar-footer">
+          <button
+            type="button"
+            className="sidebar-footer-btn"
+            onClick={onOpenAppSettings}
+            title="Settings"
+            aria-label="Open settings"
+          >
+            <SettingsIcon size={14} strokeWidth={1.4} />
+            <span>Settings</span>
           </button>
         </div>
       )}

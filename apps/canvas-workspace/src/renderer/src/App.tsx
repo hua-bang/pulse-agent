@@ -7,6 +7,7 @@ import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
 import { LinkDrawer } from './components/LinkDrawer';
 import { MigrationSpinner } from './components/MigrationSpinner';
+import { Settings, type SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
@@ -45,6 +46,13 @@ const AppContent = () => {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
+  // null = global Settings drawer closed. Setting to a section name opens
+  // the drawer focused on that section.
+  const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
+  const openAppSettings = useCallback((section: SettingsSection) => {
+    setAppSettingsSection(section);
+  }, []);
+  const closeAppSettings = useCallback(() => setAppSettingsSection(null), []);
 
   const {
     workspaces,
@@ -360,6 +368,7 @@ const AppContent = () => {
           onDelete={handleDeleteWorkspace}
           onExport={handleExportWorkspace}
           onOpenSettings={setSettingsWorkspaceId}
+          onOpenAppSettings={() => openAppSettings('models')}
           onImport={handleImportWorkspace}
           onCreateFolder={handleCreateFolder}
           onRenameFolder={handleRenameFolder}
@@ -384,6 +393,7 @@ const AppContent = () => {
               activeWorkspaceId={activeId}
               workspaces={workspaces}
               controller={workbench}
+              onOpenAppSettings={openAppSettings}
             />
           </PulseRouterView>
           <PulseRouterView name="chat">
@@ -395,6 +405,7 @@ const AppContent = () => {
               onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
+              onOpenAppSettings={openAppSettings}
             />
           </PulseRouterView>
           {pluginRoutes.map((route) => {
@@ -417,6 +428,11 @@ const AppContent = () => {
         onClose={() => setSettingsWorkspaceId(null)}
         onRename={renameWorkspace}
         onSetRootFolder={setRootFolder}
+      />
+      <Settings
+        open={appSettingsSection !== null}
+        initialSection={appSettingsSection ?? 'models'}
+        onClose={closeAppSettings}
       />
     </div>
   );

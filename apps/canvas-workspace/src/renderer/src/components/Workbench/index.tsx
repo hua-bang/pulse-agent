@@ -3,6 +3,7 @@ import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanel } from '../chat';
 import { ReferenceDrawer, type ReferenceEntry } from '../ReferenceDrawer';
+import type { SettingsSection } from '../Settings';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkbenchController } from './useWorkbenchState';
 
@@ -19,12 +20,15 @@ interface WorkbenchProps {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   controller: WorkbenchController;
+  /** Opens the global Settings drawer focused on the given section. */
+  onOpenAppSettings: (section: SettingsSection) => void;
 }
 
 export const Workbench: React.FC<WorkbenchProps> = ({
   activeWorkspaceId,
   workspaces,
   controller,
+  onOpenAppSettings,
 }) => {
   const {
     allNodes,
@@ -268,6 +272,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             onClose={() => setChatPanelOpen(false)}
             onResizeStart={handleResizeStart}
             onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
+            onOpenAppSettings={onOpenAppSettings}
           />
         </div>
       ))}

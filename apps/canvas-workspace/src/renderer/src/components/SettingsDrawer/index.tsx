@@ -5,7 +5,7 @@
  * and the kicker + title + close-button header. Callers render their own
  * body and footer as children.
  *
- * Used by WorkspaceSettingsDrawer, ModelSettingsDrawer, PromptSettingsDrawer.
+ * Used by WorkspaceSettingsDrawer and the unified Settings drawer.
  */
 
 import { useEffect, type ReactNode } from 'react';

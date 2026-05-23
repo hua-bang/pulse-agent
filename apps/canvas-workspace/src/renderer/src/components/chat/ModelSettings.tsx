@@ -8,7 +8,6 @@ import type {
   CanvasProviderModel,
 } from '../../types';
 import { CheckIcon, PlusIcon, RefreshIcon, TrashIcon } from '../icons';
-import { SettingsDrawer } from '../SettingsDrawer';
 
 interface ModelSelection {
   mode: 'auto' | 'model';
@@ -317,10 +316,10 @@ export const ModelSwitcher = ({
   );
 };
 
-interface ModelSettingsDrawerProps {
-  open: boolean;
+interface ModelsSectionProps {
   status?: CanvasModelStatus;
   error?: string;
+  /** Closes the surrounding Settings drawer (footer Cancel button). */
   onClose: () => void;
   onSaveProvider: (provider: CanvasModelProviderConfig) => Promise<CanvasModelStatus | undefined>;
   onRemoveProvider: (providerId: string) => Promise<void>;
@@ -379,15 +378,14 @@ const ApiKeyStatusHint = ({ status, drafting }: ApiKeyStatusHintProps) => {
   return <span className="chat-model-field-hint chat-model-field-hint--warn">未设置 API Key — 调用模型时会失败</span>;
 };
 
-export const ModelSettingsDrawer = ({
-  open,
+export const ModelsSection = ({
   status,
   error,
   onClose,
   onSaveProvider,
   onRemoveProvider,
   onFetchModels,
-}: ModelSettingsDrawerProps) => {
+}: ModelsSectionProps) => {
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const [activeProviderId, setActiveProviderId] = useState<string>('new');
   const [draft, setDraft] = useState<CanvasModelProviderConfig>(emptyProvider());
@@ -526,15 +524,7 @@ export const ModelSettingsDrawer = ({
   }, [draft, activeProviderStatus, onSaveProvider, onFetchModels]);
 
   return (
-    <SettingsDrawer
-      open={open}
-      onClose={onClose}
-      kicker="AI Settings"
-      title="Models & Providers"
-      ariaLabel="AI model settings"
-      width={880}
-      closeAriaLabel="关闭模型设置"
-    >
+    <>
       <div className="chat-model-settings-body">
         <div className="chat-model-provider-rail">
           <button
@@ -682,6 +672,6 @@ export const ModelSettingsDrawer = ({
           {saving ? '测试中…' : '测试并保存'}
         </button>
       </div>
-    </SettingsDrawer>
+    </>
   );
 };

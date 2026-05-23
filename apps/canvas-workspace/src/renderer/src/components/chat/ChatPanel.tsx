@@ -3,8 +3,6 @@ import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
-import { ModelSettingsDrawer } from './ModelSettings';
-import { PromptSettingsDrawer } from './PromptSettings';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentRequestContext } from '../../types';
@@ -20,6 +18,7 @@ export const ChatPanel = ({
   onClose,
   onResizeStart,
   onNodeFocus,
+  onOpenAppSettings,
 }: ChatPanelProps) => {
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
   const requestContextRef = useRef<AgentRequestContext>();
@@ -51,14 +50,9 @@ export const ChatPanel = ({
     mentionOpen,
     messageTools,
     messages,
-    modelSettingsOpen,
-    setModelSettingsOpen,
     openSessionMenu,
     otherSessions,
     pendingClarify,
-    promptProfile,
-    promptSettingsOpen,
-    setPromptSettingsOpen,
     removeAttachment,
     selectMention,
     sendMessage,
@@ -152,8 +146,7 @@ export const ChatPanel = ({
   }, [workspaceId]);
 
   return (
-    <>
-      <ChatView
+    <ChatView
       className="chat-panel"
       onResizeStart={onResizeStart}
       header={
@@ -165,8 +158,8 @@ export const ChatPanel = ({
           title={sessionTitle}
           onToggleSessionMenu={openSessionMenu}
           onNewSession={handleNewSession}
-          onOpenModelSettings={() => setModelSettingsOpen(true)}
-          onOpenPromptSettings={() => setPromptSettingsOpen(true)}
+          onOpenModelSettings={() => onOpenAppSettings('models')}
+          onOpenPromptSettings={() => onOpenAppSettings('reply-style')}
           onLoadSession={handleLoadSession}
           onClose={onClose}
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
@@ -210,30 +203,12 @@ export const ChatPanel = ({
       modelLabel={canvasModels.selectedLabel}
       onSelectAutoModel={canvasModels.selectAuto}
       onSelectModel={canvasModels.selectModel}
-      onOpenModelSettings={() => setModelSettingsOpen(true)}
+      onOpenModelSettings={() => onOpenAppSettings('models')}
       contextComposer
       executionMode={executionMode}
       onToggleExecutionMode={handleToggleExecutionMode}
       onEditUserMessage={handleEditUserMessage}
       onRegenerate={handleRegenerate}
     />
-      <ModelSettingsDrawer
-        open={modelSettingsOpen}
-        status={canvasModels.status}
-        error={canvasModels.error}
-        onClose={() => setModelSettingsOpen(false)}
-        onSaveProvider={canvasModels.upsertProvider}
-        onRemoveProvider={canvasModels.removeProvider}
-        onFetchModels={canvasModels.fetchModels}
-      />
-      <PromptSettingsDrawer
-        open={promptSettingsOpen}
-        profile={promptProfile.profile}
-        error={promptProfile.error}
-        onClose={() => setPromptSettingsOpen(false)}
-        onSave={promptProfile.save}
-        onReset={promptProfile.reset}
-      />
-    </>
   );
 };

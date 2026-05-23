@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../types';
-import { SettingsDrawer } from '../SettingsDrawer';
 
 interface UsePromptProfileResult {
   profile?: PromptProfileStatus;
@@ -87,10 +86,10 @@ const PRESETS: PresetMeta[] = [
   },
 ];
 
-interface PromptSettingsDrawerProps {
-  open: boolean;
+interface ReplyStyleSectionProps {
   profile?: PromptProfileStatus;
   error?: string;
+  /** Closes the surrounding Settings drawer (footer Close button). */
   onClose: () => void;
   onSave: (next: Partial<PromptProfile>) => Promise<void>;
   onReset: () => Promise<void>;
@@ -98,34 +97,28 @@ interface PromptSettingsDrawerProps {
 
 const MAX_CUSTOM_PROMPT_LENGTH = 4000;
 
-export const PromptSettingsDrawer = ({
-  open,
+export const ReplyStyleSection = ({
   profile,
   error,
   onClose,
   onSave,
   onReset,
-}: PromptSettingsDrawerProps) => {
+}: ReplyStyleSectionProps) => {
   const [preset, setPreset] = useState<PromptPreset>(DEFAULT_PRESET);
   const [customPrompt, setCustomPrompt] = useState('');
   const [saving, setSaving] = useState(false);
   const [localError, setLocalError] = useState<string>();
   const [savedHint, setSavedHint] = useState(false);
 
-  // Reset the draft each time the drawer opens so cancel = "go back to saved".
+  // Initialize the draft from the loaded profile once. Section unmounts
+  // on switch-away, so cancel = back to saved is preserved automatically.
   const initializedRef = useRef(false);
   useEffect(() => {
-    if (!open) {
-      initializedRef.current = false;
-      setLocalError(undefined);
-      setSavedHint(false);
-      return;
-    }
     if (initializedRef.current || !profile) return;
     initializedRef.current = true;
     setPreset(profile.preset);
     setCustomPrompt(profile.customPrompt);
-  }, [open, profile]);
+  }, [profile]);
 
   const dirty =
     profile != null && (preset !== profile.preset || customPrompt.trim() !== profile.customPrompt.trim());
@@ -161,15 +154,7 @@ export const PromptSettingsDrawer = ({
   }, [onReset]);
 
   return (
-    <SettingsDrawer
-      open={open}
-      onClose={onClose}
-      kicker="AI Settings"
-      title="Reply Style & Custom Prompt"
-      ariaLabel="AI reply style settings"
-      width={640}
-      closeAriaLabel="关闭"
-    >
+    <>
       <div className="chat-prompt-settings-body">
         <div className="chat-model-settings-card chat-model-settings-card--intro">
           <div>
@@ -241,6 +226,6 @@ export const PromptSettingsDrawer = ({
           {saving ? '保存中…' : savedHint ? '已保存 ✓' : '保存'}
         </button>
       </div>
-    </SettingsDrawer>
+    </>
   );
 };
