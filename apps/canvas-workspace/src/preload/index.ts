@@ -1,8 +1,4 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { readFileSync } from "fs";
-import { homedir } from "os";
-import { join } from "path";
-import { resolveFeatureValues } from "../shared/experimental-features";
 
 const sendLog = (level: string, message: string, details?: string) => {
   ipcRenderer.send("app:log", { level, message, details });
@@ -21,41 +17,27 @@ const truthy = (value: string | undefined): boolean => {
   return normalized !== undefined && ["1", "true", "on", "yes"].includes(normalized);
 };
 
-// Synchronously load user-persisted experimental-feature overrides so the
-// resolved `pluginFlags` map is available before the renderer activates
-// any plugins. Plugin `enabledWhen()` reads this snapshot — re-runs only
-// on the next preload (i.e. a window reload), which is what the Settings
-// "Reload to apply" button triggers.
-function loadPersistedOverrides(): Record<string, boolean> {
-  try {
-    const path =
-      process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim() ||
-      join(homedir(), ".pulse-coder", "canvas", "experimental-features.json");
-    const raw = readFileSync(path, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-    const out: Record<string, boolean> = {};
-    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof v === "boolean") out[k] = v;
-    }
-    return out;
-  } catch {
-    return {};
+// Resolved experimental-feature flags. Loaded from the main process via a
+// sync IPC because the preload runs in sandbox mode and cannot touch the
+// filesystem directly. Plugin enabledWhen() reads this snapshot — it only
+// re-evaluates on a window reload, which is what the Settings
+// "Reload window" button triggers.
+let baseFlags: Record<string, boolean> = {};
+try {
+  const result = ipcRenderer.sendSync("experimental:read-sync");
+  if (result && typeof result === "object") {
+    baseFlags = result as Record<string, boolean>;
   }
+} catch (err) {
+  sendLog("preload", "experimental:read-sync failed", String(err));
 }
 
 // Legacy env-var escape hatch — still force-enables the matching flag id
 // when set (useful for CI / scripted runs that should not touch the
 // persisted JSON file).
-const envOverrides: Record<string, boolean> = {};
-if (truthy(process.env.CANVAS_AGENT_DEBUG_TRACE)) {
-  envOverrides["canvas-agent-debug-trace"] = true;
-}
-
-const pluginFlags: Record<string, boolean> = resolveFeatureValues({
-  ...loadPersistedOverrides(),
-  ...envOverrides,
-});
+const pluginFlags: Record<string, boolean> = truthy(process.env.CANVAS_AGENT_DEBUG_TRACE)
+  ? { ...baseFlags, "canvas-agent-debug-trace": true }
+  : baseFlags;
 
 contextBridge.exposeInMainWorld("canvasWorkspace", {
   version: "0.1.0",

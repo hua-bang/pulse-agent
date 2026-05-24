@@ -11,7 +11,7 @@
  */
 
 import { BrowserWindow, ipcMain } from 'electron';
-import { promises as fs } from 'fs';
+import { promises as fs, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
 import {
@@ -24,19 +24,35 @@ function getPath(): string {
   return envPath || join(homedir(), '.pulse-coder', 'canvas', 'experimental-features.json');
 }
 
+function normaliseOverrides(parsed: unknown): Record<string, boolean> {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const out: Record<string, boolean> = {};
+  for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+    if (typeof v === 'boolean') out[k] = v;
+  }
+  return out;
+}
+
 async function readOverrides(): Promise<Record<string, boolean>> {
   try {
     const raw = await fs.readFile(getPath(), 'utf8');
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    const out: Record<string, boolean> = {};
-    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (typeof v === 'boolean') out[k] = v;
-    }
-    return out;
+    return normaliseOverrides(JSON.parse(raw));
   } catch (err: any) {
     if (err?.code === 'ENOENT') return {};
     throw err;
+  }
+}
+
+// Synchronous variant used by the sandboxed preload via ipcRenderer.sendSync.
+// Preload can't import `fs` itself in sandbox mode, so the file read has to
+// happen here. Errors swallow to defaults — preload bootstrap must never
+// throw or the renderer loses access to the entire canvasWorkspace bridge.
+function readOverridesSync(): Record<string, boolean> {
+  try {
+    const raw = readFileSync(getPath(), 'utf8');
+    return normaliseOverrides(JSON.parse(raw));
+  } catch {
+    return {};
   }
 }
 
@@ -47,6 +63,13 @@ async function writeOverrides(overrides: Record<string, boolean>): Promise<void>
 }
 
 export function setupExperimentalIpc(): void {
+  // Sync channel for preload — must be `ipcMain.on` with event.returnValue
+  // (not ipcMain.handle, which is async-only). Returns the resolved flag
+  // map; preload exposes it as `window.canvasWorkspace.pluginFlags`.
+  ipcMain.on('experimental:read-sync', (event) => {
+    event.returnValue = resolveFeatureValues(readOverridesSync());
+  });
+
   ipcMain.handle('experimental:list', async () => {
     try {
       const overrides = await readOverrides();
