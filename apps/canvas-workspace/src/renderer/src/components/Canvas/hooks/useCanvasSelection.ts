@@ -10,7 +10,7 @@ interface Options {
 
 /**
  * Centralizes the canvas's selection-related state — selected node ids,
- * selected edge id, clipboard, highlighted id with auto-clear timer, and
+ * selected edge id, highlighted id with auto-clear timer, and
  * the in-flight edge-label edit id. Exposes the click-handler logic for
  * single-node clicks (`handleSelectNode`) and marquee-driven multi-
  * select. The `suppressBlankClickRef` is shared with the root mouse
@@ -20,7 +20,6 @@ interface Options {
 export const useCanvasSelection = ({ nodesRef }: Options) => {
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const [clipboardNodes, setClipboardNodes] = useState<CanvasNode[]>([]);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   // Which edge (if any) is in label-edit mode. Driven by dbl-click on
   // the edge body; cleared on blur/Escape/Enter. Stored here (not inside
@@ -116,8 +115,6 @@ export const useCanvasSelection = ({ nodesRef }: Options) => {
     setSelectedNodeIds,
     selectedEdgeId,
     setSelectedEdgeId,
-    clipboardNodes,
-    setClipboardNodes,
     highlightedId,
     setHighlightedId,
     editingEdgeLabelId,

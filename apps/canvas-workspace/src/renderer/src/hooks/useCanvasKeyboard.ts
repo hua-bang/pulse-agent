@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import type { CanvasNode, FileNodeData } from '../types';
+import type { CanvasClipboard } from '../types/ui-interaction';
 
 interface Options {
+  canvasId: string;
   undo: () => void;
   redo: () => void;
   nodes: CanvasNode[];
@@ -13,9 +15,10 @@ interface Options {
   setSelectedEdgeId: (id: string | null) => void;
   removeEdge: (id: string) => void | Promise<void>;
   duplicateNode: (id: string) => CanvasNode | null;
-  clipboardNodes: CanvasNode[];
-  setClipboardNodes: (nodes: CanvasNode[]) => void;
+  clipboard: CanvasClipboard | null;
+  setClipboard: (clipboard: CanvasClipboard | null) => void;
   pasteNodes: (nodes: CanvasNode[]) => CanvasNode[];
+  pasteReferencedNodes?: (clipboard: CanvasClipboard) => CanvasNode[];
   /** Group the current node selection in a lightweight container. */
   groupSelectedNodes: () => void;
   /** Dissolve selected group nodes while keeping their children on canvas. */
@@ -55,9 +58,10 @@ interface Options {
 }
 
 export const useCanvasKeyboard = ({
+  canvasId,
   undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
   selectedEdgeId, setSelectedEdgeId, removeEdge,
-  duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
+  duplicateNode, clipboard, setClipboard, pasteNodes, pasteReferencedNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes,
   moveNodes, commitHistory,
   searchOpen, setSearchOpen,
   findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches,
@@ -141,7 +145,7 @@ export const useCanvasKeyboard = ({
       if (isMod && e.key === 'c' && !isEditable) {
         const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
         if (selected.length > 0) {
-          setClipboardNodes(selected);
+          setClipboard({ sourceWorkspaceId: canvasId, nodes: selected });
           const markdownNodes = selected.filter((n): n is CanvasNode & { data: FileNodeData } => (
             n.type === 'file' && typeof (n.data as FileNodeData).content === 'string'
           ));
@@ -169,9 +173,11 @@ export const useCanvasKeyboard = ({
         return;
       }
       if (isMod && e.key === 'v' && !isEditable) {
-        if (clipboardNodes.length > 0) {
+        if (clipboard && clipboard.nodes.length > 0) {
           e.preventDefault();
-          const created = pasteNodes(clipboardNodes);
+          const created = clipboard.sourceWorkspaceId === canvasId
+            ? pasteNodes(clipboard.nodes)
+            : pasteReferencedNodes?.(clipboard) ?? [];
           setSelectedNodeIds(created.map((n) => n.id));
         }
         return;
@@ -237,7 +243,7 @@ export const useCanvasKeyboard = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
+  }, [canvasId, undo, redo, nodes, selectedNodeIds, setSelectedNodeIds, selectedEdgeId, setSelectedEdgeId, removeEdge, duplicateNode, clipboard, setClipboard, pasteNodes, pasteReferencedNodes, groupSelectedNodes, ungroupSelectedNodes, removeNodes, moveNodes, commitHistory, searchOpen, setSearchOpen, findOpen, toggleFindBar, closeFindBar, findNext, findPrev, findHasMatches, contextMenu, setContextMenu, focusModeEnabled, canToggleFocusMode, onToggleFocusMode, onExitFocusMode, fullscreenActive, onExitFullscreen, keyboardLocked]);
 
   // Cmd/Ctrl+Tab to cycle through nodes (Shift reverses direction)
   useEffect(() => {

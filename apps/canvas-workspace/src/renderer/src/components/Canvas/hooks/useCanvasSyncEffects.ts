@@ -1,6 +1,6 @@
 import { useEffect, type MutableRefObject } from 'react';
 import type { CanvasNode, CanvasTransform } from '../../../types';
-import type { CanvasNodeRenameRequest } from '../../../types/ui-interaction';
+import type { CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../../types/ui-interaction';
 
 interface Options {
   canvasId: string;
@@ -34,6 +34,8 @@ interface Options {
   onDeleteComplete?: () => void;
   renameRequest?: CanvasNodeRenameRequest;
   onRenameComplete?: () => void;
+  nodePatchRequest?: CanvasNodePatchRequest;
+  onNodePatchComplete?: (requestId: number) => void;
 }
 
 /**
@@ -69,6 +71,8 @@ export const useCanvasSyncEffects = ({
   onDeleteComplete,
   renameRequest,
   onRenameComplete,
+  nodePatchRequest,
+  onNodePatchComplete,
 }: Options) => {
   // Flush pending saves on window close or component unmount
   useEffect(() => {
@@ -145,4 +149,14 @@ export const useCanvasSyncEffects = ({
     }
     onRenameComplete?.();
   }, [renameRequest, loaded, canvasId, updateNode, onRenameComplete, nodesRef]);
+
+  useEffect(() => {
+    if (!loaded) return;
+    if (!nodePatchRequest) return;
+    if (nodePatchRequest.workspaceId !== canvasId) return;
+
+    const node = nodesRef.current.find((item) => item.id === nodePatchRequest.nodeId);
+    if (node) updateNode(node.id, nodePatchRequest.patch);
+    onNodePatchComplete?.(nodePatchRequest.requestId);
+  }, [nodePatchRequest, loaded, canvasId, updateNode, onNodePatchComplete, nodesRef]);
 };

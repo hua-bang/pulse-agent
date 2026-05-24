@@ -22,6 +22,7 @@ export interface WorkbenchController {
   ensureWorkspaceNodesLoaded: (workspaceId: string) => void;
   getWorkspaceNodes: (workspaceId: string) => CanvasNode[];
   handleNodesChange: (workspaceId: string, nodes: CanvasNode[]) => void;
+  patchNodeSnapshot: (workspaceId: string, nodeId: string, patch: Partial<CanvasNode>) => CanvasNode[] | undefined;
   handleSelectionChange: (workspaceId: string, selectedNodeIds: string[]) => void;
   requestNodeFocus: (workspaceId: string, nodeId: string) => void;
   requestActiveNodeFocus: (nodeId: string) => void;
@@ -72,10 +73,27 @@ export function useWorkbenchState({
   }, []);
 
   const handleNodesChange = useCallback((workspaceId: string, nodes: CanvasNode[]) => {
+    allNodesRef.current = { ...allNodesRef.current, [workspaceId]: nodes };
     setAllNodes((prev) => {
       if (prev[workspaceId] === nodes) return prev;
       return { ...prev, [workspaceId]: nodes };
     });
+  }, []);
+
+  const patchNodeSnapshot = useCallback((workspaceId: string, nodeId: string, patch: Partial<CanvasNode>) => {
+    const current = allNodesRef.current[workspaceId];
+    if (!current) return undefined;
+    const now = Date.now();
+    let changed = false;
+    const next = current.map((node) => {
+      if (node.id !== nodeId) return node;
+      changed = true;
+      return { ...node, ...patch, updatedAt: now };
+    });
+    if (!changed) return undefined;
+    allNodesRef.current = { ...allNodesRef.current, [workspaceId]: next };
+    setAllNodes(allNodesRef.current);
+    return next;
   }, []);
 
   const handleSelectionChange = useCallback((workspaceId: string, selectedNodeIds: string[]) => {
@@ -142,6 +160,7 @@ export function useWorkbenchState({
     ensureWorkspaceNodesLoaded,
     getWorkspaceNodes,
     handleNodesChange,
+    patchNodeSnapshot,
     handleSelectionChange,
     requestNodeFocus,
     requestActiveNodeFocus,

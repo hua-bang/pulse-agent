@@ -42,33 +42,74 @@
     0 0 0 2px rgba(35, 131, 226, 0.1);
 }
 
+/* Reference nodes reuse the target node's native body rendering. The outer
+ * wrapper dissolves (no card chrome) so the inner readonly node reads as a
+ * normal node of its type, and a small floating control chip in the top-right
+ * carries the ref-only affordances (workspace label, open source, remove). */
 .canvas-node--reference {
-  background: #fbfcff;
-  border-color: rgba(74, 95, 148, 0.16);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.canvas-node--reference:hover {
+  box-shadow: none;
+  border: 0;
 }
 
 .canvas-node--reference.canvas-node--selected {
-  border-color: rgba(74, 95, 148, 0.42);
-  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(74, 95, 148, 0.12);
+  border: 0;
+  box-shadow: none;
 }
 
 .canvas-node--reference > .node-header {
-  background: #f7f9ff;
+  position: absolute;
+  top: -11px;
+  right: 8px;
+  z-index: 5;
+  min-height: 0;
+  padding: 3px 7px;
+  gap: 5px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-light);
+  color: var(--accent);
+  box-shadow: 0 1px 3px rgba(55, 53, 47, 0.08);
+  font-size: 10px;
+}
+
+.canvas-node--reference > .node-header .node-title {
+  display: none;
 }
 
 .node-type-badge--reference {
-  color: #4a5f94;
+  color: var(--accent);
+  width: 12px;
+  height: 12px;
+}
+
+.canvas-node--reference > .node-header .node-focus,
+.canvas-node--reference > .node-header .node-close {
+  color: var(--accent);
+  opacity: 0.75;
+  background: transparent;
+}
+
+.canvas-node--reference > .node-header .node-focus:hover,
+.canvas-node--reference > .node-header .node-close:hover {
+  opacity: 1;
+  background: rgba(35, 131, 226, 0.12);
 }
 
 .node-reference-source {
   min-width: 0;
   max-width: 110px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: rgba(74, 95, 148, 0.08);
-  color: #4a5f94;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -195,20 +236,62 @@
   user-select: text;
 }
 
-.canvas-node--reference .canvas-node--readonly {
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
+.canvas-node--embedded {
+  position: relative;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-shadow: none;
+}
+
+.canvas-node--embedded:hover {
+  box-shadow: none;
+}
+
+.canvas-node--embedded .node-focus,
+.canvas-node--embedded .node-close,
+.canvas-node--embedded .node-reference,
+.canvas-node--embedded .node-fullscreen,
+.canvas-node--embedded .resize-handle,
+.canvas-node--embedded .node-time-label {
+  display: none;
+}
+
+/* The inner readonly node renders with its own native chrome — no extra
+ * border or background overlay, so the reference looks identical to a real
+ * node of that type. When the reference is selected we add a soft accent
+ * ring around the inner node as the "this is the active reference" cue. */
+.canvas-node--reference.canvas-node--selected .canvas-node--readonly,
+.canvas-node--reference.canvas-node--selected .canvas-node--embedded {
+  box-shadow: 0 0 0 2px var(--accent-border);
+  border-radius: 10px;
 }
 
 .node-body--reference {
   position: relative;
-  padding: 8px;
-  background: #f7f9ff;
+  padding: 0;
+  background: transparent;
   overflow: hidden;
+  height: 100%;
 }
 
-.node-body--reference > .canvas-node--readonly {
+/* Sits above the embedded readonly node so iframes / webviews / terminals
+ * can't swallow the mousedown. Cursor mirrors the regular header so users
+ * know the whole surface is grabbable. */
+.reference-drag-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  cursor: grab;
+  background: transparent;
+}
+
+.reference-drag-overlay:active {
+  cursor: grabbing;
+}
+
+.node-body--reference > .canvas-node--readonly,
+.node-body--reference > .canvas-node--embedded {
   height: 100% !important;
 }
 

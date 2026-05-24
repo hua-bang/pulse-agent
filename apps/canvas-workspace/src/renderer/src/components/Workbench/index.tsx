@@ -11,9 +11,11 @@ import {
 import type { SettingsSection } from '../Settings';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkbenchController } from './useWorkbenchState';
-import type { CanvasNode } from '../../types';
+import type { CanvasNode, ReferenceNodeData } from '../../types';
 import { createDefaultNode } from '../../utils/nodeFactory';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-interaction';
+import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
 
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -23,7 +25,6 @@ const MIN_CHAT_WIDTH = 240;
 const MAX_CHAT_WIDTH = 900;
 
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
-
 interface WorkbenchProps {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
@@ -49,6 +50,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     deleteRequest,
     renameRequest,
     handleNodesChange,
+    patchNodeSnapshot,
     handleSelectionChange,
     ensureWorkspaceNodesLoaded,
     requestNodeFocus,
@@ -61,7 +63,10 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
   const [activeReferenceIdByWorkspace, setActiveReferenceIdByWorkspace] = useState<Record<string, string | undefined>>({});
+  const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
+  const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
+  const patchRequestIdRef = useRef(0);
 
   // Lazy keep-alive: a workspace is mounted the first time it becomes
   // active and stays mounted (hidden via display:none) thereafter, so
@@ -211,6 +216,16 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     };
   }, [allNodes, workspaceNameById]);
 
+  const resolveReferenceSource = useCallback((node: CanvasNode, fallbackWorkspaceId: string) => {
+    if (node.type === 'reference' && node.ref?.kind === 'workspace-node') {
+      const sourceNode = (allNodes[node.ref.workspaceId] ?? []).find((item) => item.id === node.ref?.nodeId);
+      return sourceNode
+        ? { workspaceId: node.ref.workspaceId, node: sourceNode }
+        : undefined;
+    }
+    return { workspaceId: fallbackWorkspaceId, node };
+  }, [allNodes]);
+
   const handleOpenReferenceSource = useCallback((node: CanvasNode) => {
     const ref = node.ref;
     if (!ref || ref.kind !== 'workspace-node') return;
@@ -242,6 +257,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
         };
     const node = {
       ...createDefaultNode('reference', x, y),
+      ...(sourceNode ? { width: sourceNode.width, height: sourceNode.height } : {}),
       title: snapshot.titleSnapshot ? `Ref: ${snapshot.titleSnapshot}` : 'Reference',
       ref: {
         kind: 'workspace-node' as const,
@@ -253,6 +269,122 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     };
     return node;
   }, [allNodes, workspaceNameById]);
+
+  const createReferenceNodeFromSource = useCallback((sourceNode: CanvasNode, sourceWorkspaceId: string, x: number, y: number): CanvasNode | null => {
+    if (!isReferenceableNode(sourceNode)) return null;
+    const workspaceName = workspaceNameById(sourceWorkspaceId);
+    const snapshot = createReferenceNodeDataSnapshot(sourceNode, workspaceName);
+    return {
+      ...createDefaultNode('reference', x, y),
+      width: sourceNode.width,
+      height: sourceNode.height,
+      title: snapshot.titleSnapshot ? `Ref: ${snapshot.titleSnapshot}` : 'Reference',
+      ref: {
+        kind: 'workspace-node' as const,
+        workspaceId: sourceWorkspaceId,
+        nodeId: sourceNode.id,
+      },
+      data: snapshot,
+      updatedAt: Date.now(),
+    };
+  }, [workspaceNameById]);
+
+  const pasteReferencesIntoCanvas = useCallback((targetWorkspaceId: string, clipboard: CanvasClipboard): CanvasNode[] => {
+    if (clipboard.sourceWorkspaceId === targetWorkspaceId || clipboard.nodes.length === 0) return [];
+
+    const created: CanvasNode[] = [];
+    let skipped = 0;
+    for (const source of clipboard.nodes) {
+      const pasteX = source.x + 24;
+      const pasteY = source.y + 24;
+      const resolved = resolveReferenceSource(source, clipboard.sourceWorkspaceId);
+
+      if (source.type === 'reference' && source.ref?.kind === 'workspace-node' && !resolved) {
+        const sourceSnapshot = source.data as ReferenceNodeData;
+        if (sourceSnapshot.typeSnapshot && !isReferenceableNodeType(sourceSnapshot.typeSnapshot)) {
+          skipped += 1;
+          continue;
+        }
+        const snapshot: ReferenceNodeData = {
+          titleSnapshot: sourceSnapshot.titleSnapshot,
+          typeSnapshot: sourceSnapshot.typeSnapshot,
+          workspaceNameSnapshot: sourceSnapshot.workspaceNameSnapshot ?? workspaceNameById(source.ref.workspaceId),
+        };
+        created.push({
+          ...createDefaultNode('reference', pasteX, pasteY),
+          width: source.width,
+          height: source.height,
+          title: snapshot.titleSnapshot ? `Ref: ${snapshot.titleSnapshot}` : source.title,
+          ref: {
+            kind: 'workspace-node',
+            workspaceId: source.ref.workspaceId,
+            nodeId: source.ref.nodeId,
+          },
+          data: snapshot,
+          updatedAt: Date.now(),
+        });
+        continue;
+      }
+
+      const sourceWorkspaceId = resolved?.workspaceId ?? clipboard.sourceWorkspaceId;
+      const sourceNode = resolved?.node ?? source;
+      const refNode = createReferenceNodeFromSource(
+        sourceNode,
+        sourceWorkspaceId,
+        pasteX,
+        pasteY,
+      );
+      if (!refNode) {
+        skipped += 1;
+        continue;
+      }
+      created.push(refNode);
+    }
+
+    if (skipped > 0) {
+      // Keep this quiet for now; unsupported nodes are simply ignored so
+      // mixed selections can still paste the useful references.
+      console.debug(`[canvas] skipped ${skipped} unsupported cross-workspace reference paste node(s)`);
+    }
+
+    return created;
+  }, [createReferenceNodeFromSource, resolveReferenceSource, workspaceNameById]);
+
+  const savePatchedWorkspaceSnapshot = useCallback((workspaceId: string, nodes: CanvasNode[]) => {
+    const api = window.canvasWorkspace?.store;
+    if (!api) return;
+    void api.load(workspaceId).then((result) => {
+      const current = result.ok && result.data
+        ? result.data
+        : { nodes: [], edges: [], transform: { x: 0, y: 0, scale: 1 }, savedAt: new Date().toISOString() };
+      void api.save(workspaceId, {
+        ...current,
+        nodes,
+        savedAt: new Date().toISOString(),
+      });
+    });
+  }, []);
+
+  const patchWorkspaceNodeSnapshot = useCallback((workspaceId: string, nodeId: string, patch: Partial<CanvasNode>) => {
+    const patched = patchNodeSnapshot(workspaceId, nodeId, patch);
+    if (patched) savePatchedWorkspaceSnapshot(workspaceId, patched);
+  }, [patchNodeSnapshot, savePatchedWorkspaceSnapshot]);
+
+  const updateReferenceSourceNode = useCallback((referenceNode: CanvasNode, patch: Partial<CanvasNode>) => {
+    const ref = referenceNode.ref;
+    if (!ref || ref.kind !== 'workspace-node') return;
+    const source = (allNodes[ref.workspaceId] ?? []).find((item) => item.id === ref.nodeId);
+    const sourceType = source?.type ?? (referenceNode.data as { typeSnapshot?: CanvasNode['type'] }).typeSnapshot;
+    if (sourceType && !isReferenceableNodeType(sourceType)) return;
+
+    if (mountedWorkspaceIds.has(ref.workspaceId)) {
+      const requestId = ++patchRequestIdRef.current;
+      setNodePatchRequest({ workspaceId: ref.workspaceId, nodeId: ref.nodeId, patch, requestId });
+      return;
+    }
+
+    patchWorkspaceNodeSnapshot(ref.workspaceId, ref.nodeId, patch);
+  }, [allNodes, mountedWorkspaceIds, patchWorkspaceNodeSnapshot]);
 
   const resizing = useRef(false);
 
@@ -334,9 +466,17 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
                   resolveReferenceNode={resolveReferenceNode}
                   onOpenReferenceSource={handleOpenReferenceSource}
+                  onUpdateReferenceSource={updateReferenceSourceNode}
                   referencePlacementRequest={isActive ? referencePlacementRequest : null}
                   onReferencePlacementComplete={consumeReferencePlacementRequest}
                   createReferenceNode={createReferenceNodeFromEntry}
+                  clipboard={canvasClipboard}
+                  onClipboardChange={setCanvasClipboard}
+                  onPasteReferences={pasteReferencesIntoCanvas}
+                  nodePatchRequest={nodePatchRequest?.workspaceId === ws.id ? nodePatchRequest : undefined}
+                  onNodePatchComplete={(requestId) => {
+                    if (nodePatchRequest?.requestId === requestId) setNodePatchRequest(undefined);
+                  }}
                 />
               </div>
             );
