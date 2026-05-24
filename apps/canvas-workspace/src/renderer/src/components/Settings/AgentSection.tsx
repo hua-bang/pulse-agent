@@ -12,6 +12,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
   const [status, setStatus] = useState<SkillsStatusResult | null>(null);
   const [lastResults, setLastResults] = useState<SkillTargetResult[] | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [cleaningLegacy, setCleaningLegacy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
@@ -38,7 +39,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
       if (failed.length === 0) {
         notify({
           tone: 'success',
-          title: 'Canvas skill installed',
+          title: 'Pulse Canvas skill installed',
           description: `Wrote ${result.results.length} target${result.results.length === 1 ? '' : 's'}`,
         });
       } else {
@@ -57,13 +58,41 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     }
   }, [loadStatus, notify]);
 
+  const cleanupLegacy = useCallback(async () => {
+    setCleaningLegacy(true);
+    try {
+      const result = await window.canvasWorkspace.skills.cleanupLegacy();
+      await loadStatus();
+      const failed = result.results.filter((r) => !r.ok);
+      if (failed.length === 0) {
+        notify({
+          tone: 'success',
+          title: 'Legacy skill dirs removed',
+          description: `Cleaned ${result.results.length} director${result.results.length === 1 ? 'y' : 'ies'}`,
+        });
+      } else {
+        notify({
+          tone: 'error',
+          title: 'Cleanup partially failed',
+          description: `${failed.length} of ${result.results.length} could not be removed`,
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      notify({ tone: 'error', title: 'Cleanup failed', description: msg });
+    } finally {
+      setCleaningLegacy(false);
+    }
+  }, [loadStatus, notify]);
+
   const displayResults = lastResults ?? status?.results ?? [];
   const allInstalled = status?.installed ?? false;
+  const legacyDirs = status?.legacyDirs ?? [];
   const buttonLabel = installing
     ? 'Installing…'
     : allInstalled
-      ? 'Reinstall Canvas Skill'
-      : 'Install Canvas Skill';
+      ? 'Reinstall Pulse Canvas Skill'
+      : 'Install Pulse Canvas Skill';
 
   return (
     <div className="agent-section">
@@ -71,9 +100,9 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
         <div className="agent-section-card">
           <div className="agent-section-card-header">
             <div>
-              <div className="agent-section-card-title">Canvas Skill</div>
+              <div className="agent-section-card-title">Pulse Canvas Skill</div>
               <div className="agent-section-card-desc">
-                Install the <code>canvas</code> skill into Pulse Coder, Claude Code, and Codex
+                Install the <code>pulse-canvas</code> skill into Pulse Coder, Claude Code, and Codex
                 global skill directories so each agent can read and write this workspace via the{' '}
                 <code>pulse-canvas</code> CLI.
               </div>
@@ -89,6 +118,37 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
           </div>
 
           {error && <div className="agent-section-error">{error}</div>}
+
+          {legacyDirs.length > 0 && (
+            <div className="agent-section-warning">
+              <div className="agent-section-warning-header">
+                <div>
+                  <div className="agent-section-warning-title">
+                    Legacy <code>canvas</code> skill detected
+                  </div>
+                  <div className="agent-section-warning-desc">
+                    The skill was renamed to <code>pulse-canvas</code>. Remove the old directories
+                    to avoid agents loading both versions.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="agent-section-secondary-btn"
+                  onClick={() => void cleanupLegacy()}
+                  disabled={cleaningLegacy}
+                >
+                  {cleaningLegacy ? 'Removing…' : 'Remove legacy dirs'}
+                </button>
+              </div>
+              <ul className="agent-section-warning-list">
+                {legacyDirs.map((dir) => (
+                  <li key={dir}>
+                    <code>{dir}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {displayResults.length > 0 && (
             <ul className="agent-section-results" aria-label="Skill install targets">
