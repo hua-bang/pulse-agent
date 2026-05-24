@@ -77,42 +77,53 @@ pulse-canvas workspace list --format json
 - After completing work, write results back to the canvas for the user to review
 `;
 
-async function installSkillFile(): Promise<{ ok: boolean; paths: string[]; error?: string }> {
-  const installed: string[] = [];
+export interface SkillTargetResult {
+  path: string;
+  ok: boolean;
+  error?: string;
+}
+
+async function installSingleTarget(dir: string): Promise<SkillTargetResult> {
+  const targetPath = join(dir, 'SKILL.md');
   try {
-    for (const dir of GLOBAL_SKILL_DIRS) {
-      await fs.mkdir(dir, { recursive: true });
-      const targetPath = join(dir, 'SKILL.md');
-      await fs.writeFile(targetPath, SKILL_CONTENT, 'utf-8');
-      installed.push(targetPath);
-    }
-    return { ok: true, paths: installed };
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(targetPath, SKILL_CONTENT, 'utf-8');
+    return { path: targetPath, ok: true };
   } catch (err) {
-    return { ok: false, paths: installed, error: String(err) };
+    return { path: targetPath, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function checkSingleTarget(dir: string): Promise<SkillTargetResult> {
+  const targetPath = join(dir, 'SKILL.md');
+  try {
+    await fs.access(targetPath);
+    return { path: targetPath, ok: true };
+  } catch {
+    return { path: targetPath, ok: false };
   }
 }
 
 export function setupSkillInstallerIpc(): void {
   ipcMain.handle('skills:install', async () => {
-    const skillResult = await installSkillFile();
-    if (!skillResult.ok) {
-      return {
-        ok: false,
-        skillsInstalled: false,
-        cliInstalled: false,
-        error: skillResult.error,
-        manualCommand: null,
-      };
-    }
-
-    // CLI is not published yet — provide local build instructions
+    const results = await Promise.all(GLOBAL_SKILL_DIRS.map(installSingleTarget));
+    const ok = results.every((r) => r.ok);
     return {
-      ok: true,
-      skillsInstalled: true,
-      skillsPaths: skillResult.paths,
+      ok,
+      skillsInstalled: ok,
+      results,
       cliInstalled: false,
-      manualCommand: 'cd <project-root> && pnpm --filter @pulse-coder/canvas-cli build && pnpm link --global --filter @pulse-coder/canvas-cli',
+      manualCommand:
+        'cd <project-root> && pnpm --filter @pulse-coder/canvas-cli build && pnpm link --global --filter @pulse-coder/canvas-cli',
       cliError: null,
+    };
+  });
+
+  ipcMain.handle('skills:status', async () => {
+    const results = await Promise.all(GLOBAL_SKILL_DIRS.map(checkSingleTarget));
+    return {
+      installed: results.every((r) => r.ok),
+      results,
     };
   });
 }
