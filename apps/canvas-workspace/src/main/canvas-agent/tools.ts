@@ -21,7 +21,7 @@ import {
   readNodeDetail,
   formatSummaryForPrompt,
 } from './context-builder';
-import { hasSession, writeToSession } from '../pty-manager';
+import { sendInputToAgentNode } from '../agent-session-send';
 import { generateHTML } from '../html-generator';
 import { readWorkspaceMeta } from './workspace-meta';
 import {
@@ -1395,61 +1395,40 @@ ${outline}`;
         const nodeId = input.nodeId as string;
         const text = (input.input as string) ?? '';
 
-        const canvas = await loadCanvas(workspaceId);
-        if (!canvas) return 'Error: workspace not found';
+        const result = await sendInputToAgentNode({
+          workspaceId,
+          nodeId,
+          input: text,
+        });
 
-        const node = canvas.nodes.find(n => n.id === nodeId);
-        if (!node) return `Error: node not found: ${nodeId}`;
-        if (node.type !== 'agent') {
-          return `Error: canvas_send_to_agent only works on agent nodes (got "${node.type}"). ` +
-            'For terminal nodes use the MCP `canvas_exec` tool; for file/frame nodes use `canvas_update_node`.';
-        }
-
-        const status = (node.data.status as string) ?? 'idle';
-        if (status !== 'running') {
-          return `Error: agent node "${node.title}" is not running (status="${status}"). ` +
-            'The agent must have been launched (status="running") before you can send follow-up input. ' +
-            'Create a new agent node with a prompt, or ask the user to launch this one.';
-        }
-
-        const sessionId = (node.data.sessionId as string) ?? '';
-        if (!sessionId || !hasSession(sessionId)) {
-          return `Error: agent node "${node.title}" has no active PTY session. ` +
-            'The agent node must be open in the canvas UI — closing or collapsing the node tears ' +
-            'down its PTY. Ask the user to reopen the node, or relaunch the agent.';
-        }
-
-        // Strip any trailing CR/LF the caller might have included so we
-        // control the submit signal ourselves.
-        const body = text.replace(/[\r\n]+$/, '');
-
-        // Write body and Enter as TWO separate writes with a small gap.
-        //
-        // Why: some TUI agents (notably Codex, which uses a ratatui-style
-        // input editor with paste protection) distinguish "paste" from
-        // "keystroke" by timing. If the text body and the \r arrive in the
-        // same read, the \r gets absorbed into the editor buffer as a
-        // literal newline and the prompt is never submitted — you end up
-        // with the text sitting in the input box waiting for a real Enter.
-        // Writing the body, yielding the event loop for ~120ms, then
-        // writing \r as a second call makes the Enter arrive as an
-        // independent keystroke, which Codex's editor treats as submit.
-        // Claude Code is happy either way, so this is safe for all
-        // agent types.
-        if (body) {
-          if (!writeToSession(sessionId, body)) {
-            return `Error: failed to write to PTY session ${sessionId} (session disappeared).`;
+        if (!result.ok) {
+          // Preserve the original tool's helpful guidance per error code,
+          // so the agent gets the same hints it used to.
+          switch (result.code) {
+            case 'workspace_not_found':
+              return 'Error: workspace not found';
+            case 'node_not_found':
+              return `Error: node not found: ${nodeId}`;
+            case 'wrong_node_type':
+              return `Error: canvas_send_to_agent only works on agent nodes. ${result.error}. ` +
+                'For terminal nodes use the MCP `canvas_exec` tool; for file/frame nodes use `canvas_update_node`.';
+            case 'not_running':
+              return `Error: ${result.error}. ` +
+                'The agent must have been launched (status="running") before you can send follow-up input. ' +
+                'Create a new agent node with a prompt, or ask the user to launch this one.';
+            case 'no_session':
+              return `Error: ${result.error}. ` +
+                'The agent node must be open in the canvas UI — closing or collapsing the node tears ' +
+                'down its PTY. Ask the user to reopen the node, or relaunch the agent.';
+            case 'write_failed':
+              return `Error: ${result.error}.`;
           }
-          await new Promise<void>((resolve) => setTimeout(resolve, 120));
-        }
-        if (!writeToSession(sessionId, '\r')) {
-          return `Error: failed to write Enter to PTY session ${sessionId} (session disappeared).`;
         }
 
         return JSON.stringify({
           ok: true,
-          nodeId,
-          bytesSent: body.length + 1,
+          nodeId: result.nodeId,
+          bytesSent: result.bytesSent,
         });
       },
     },

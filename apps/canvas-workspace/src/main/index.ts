@@ -20,6 +20,7 @@ import { setupArtifactIpc } from "./artifact-ipc";
 import { setupShellIpc, isSafeExternalUrl } from "./shell-ipc";
 import { setupWebpageReaderIpc } from "./webpage-reader-ipc";
 import { setupWorkspaceNodeIpc } from "./workspace-node-ipc";
+import { startRuntimeControlServer, stopRuntimeControlServer } from "./runtime-control-server";
 import { BUILT_IN_MAIN_PLUGINS, setupCanvasPlugins } from "../plugins/main";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -314,6 +315,9 @@ app.whenReady().then(() => {
   setupWebpageReaderIpc();
   setupWorkspaceNodeIpc();
   void setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
+  void startRuntimeControlServer().catch((err) => {
+    void writeLog("main", "runtime-control-server failed to start", String(err));
+  });
   // MCP server disabled — canvas-cli is the preferred agent interface now.
   // startMCPServer();
   // void ensureMCPRegistered();
@@ -332,6 +336,7 @@ app.on("window-all-closed", () => {
   teardownFileWatcher();
   teardownCanvasWatchers();
   teardownCanvasAgent();
+  void stopRuntimeControlServer();
   if (process.platform !== "darwin") {
     app.quit();
   }
