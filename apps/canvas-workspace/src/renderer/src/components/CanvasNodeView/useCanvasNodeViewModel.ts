@@ -36,6 +36,7 @@ export const useCanvasNodeViewModel = ({
   onFocus,
   onOpenReferenceSource,
   onReference,
+  onAddToChat,
   onRemove,
   onResizeStart,
   onSelect,
@@ -63,6 +64,7 @@ export const useCanvasNodeViewModel = ({
   | 'onFocus'
   | 'onOpenReferenceSource'
   | 'onReference'
+  | 'onAddToChat'
   | 'onRemove'
   | 'onResizeStart'
   | 'onSelect'
@@ -132,6 +134,14 @@ export const useCanvasNodeViewModel = ({
       onReference?.(node.id);
     },
     [onReference, node.id, readOnly],
+  );
+
+  const handleAddToChat = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      onAddToChat?.(node.id);
+    },
+    [onAddToChat, node.id],
   );
 
   const handleOpenReferenceSource = useCallback(
@@ -255,6 +265,7 @@ export const useCanvasNodeViewModel = ({
     handleNodeClick,
     handleOpenReferenceSource,
     handleReference,
+    handleAddToChat,
     handleReferenceSourceUpdate,
     handleTitleBlur,
     handleTitleDoubleClick,

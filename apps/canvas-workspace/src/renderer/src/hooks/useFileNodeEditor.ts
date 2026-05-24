@@ -264,6 +264,15 @@ export const useFileNodeEditor = ({
     onUpdate: ({ editor }) => {
       if (readOnly) return;
       const markdown = getMarkdown(editor);
+      const previous = dataRef.current.content ?? '';
+      if (
+        !editor.isFocused &&
+        markdown.trim().length === 0 &&
+        previous.trim().length > 0
+      ) {
+        console.warn(`[file-node-editor] skipped empty initialization update for ${nodeIdRef.current}`);
+        return;
+      }
       prevContentRef.current = markdown;
       setModified(true);
       onUpdate(nodeIdRef.current, {

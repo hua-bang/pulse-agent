@@ -484,6 +484,7 @@
 }
 
 .node-reference,
+.node-add-to-chat,
 .node-focus,
 .node-fullscreen,
 .node-close {
@@ -506,6 +507,7 @@
   padding: 0;
 }
 
+.node-add-to-chat,
 .node-focus,
 .node-fullscreen,
 .node-close {
@@ -513,13 +515,15 @@
 }
 
 .canvas-node:hover .node-reference,
+.canvas-node:hover .node-add-to-chat,
 .canvas-node:hover .node-focus,
 .canvas-node:hover .node-fullscreen,
 .canvas-node:hover .node-close {
   opacity: 1;
 }
 
-.node-reference:hover {
+.node-reference:hover,
+.node-add-to-chat:hover {
   background: var(--accent-light);
   color: var(--accent);
 }

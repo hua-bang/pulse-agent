@@ -31,6 +31,7 @@ export interface CanvasNodeViewProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;

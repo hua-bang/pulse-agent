@@ -21,6 +21,7 @@ interface DefaultCanvasNodeProps {
   handleNodeBodyMouseDown: (e: MouseEvent) => void;
   handleNodeClick: (e: MouseEvent) => void;
   handleReference: (e: MouseEvent) => void;
+  handleAddToChat: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
   handleTitleDoubleClick: (e: MouseEvent) => void;
   handleTitleKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
@@ -33,6 +34,7 @@ interface DefaultCanvasNodeProps {
   node: CanvasNode;
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onUngroupSelectedGroups?: () => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
@@ -56,6 +58,7 @@ export const DefaultCanvasNode = ({
   handleNodeBodyMouseDown,
   handleNodeClick,
   handleReference,
+  handleAddToChat,
   handleTitleBlur,
   handleTitleDoubleClick,
   handleTitleKeyDown,
@@ -68,6 +71,7 @@ export const DefaultCanvasNode = ({
   node,
   onDragStart,
   onReference,
+  onAddToChat,
   onSelect,
   onUngroupSelectedGroups,
   onUpdate,
@@ -87,6 +91,7 @@ export const DefaultCanvasNode = ({
       handleFocus={handleFocus}
       handleHeaderMouseDown={handleHeaderMouseDown}
       handleReference={handleReference}
+      handleAddToChat={handleAddToChat}
       handleTitleBlur={handleTitleBlur}
       handleTitleDoubleClick={handleTitleDoubleClick}
       handleTitleKeyDown={handleTitleKeyDown}
@@ -96,6 +101,7 @@ export const DefaultCanvasNode = ({
       isSelected={isSelected}
       node={node}
       onReference={onReference}
+      onAddToChat={onAddToChat}
       onUngroupSelectedGroups={onUngroupSelectedGroups}
       onUpdate={onUpdate}
       readOnly={readOnly}
