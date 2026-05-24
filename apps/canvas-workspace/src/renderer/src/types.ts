@@ -381,11 +381,18 @@ export interface SkillsInstallResult {
 export interface SkillsStatusResult {
   installed: boolean;
   results: SkillTargetResult[];
+  legacyDirs: string[];
+}
+
+export interface SkillsCleanupResult {
+  ok: boolean;
+  results: SkillTargetResult[];
 }
 
 export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
   status: () => Promise<SkillsStatusResult>;
+  cleanupLegacy: () => Promise<SkillsCleanupResult>;
 }
 
 export interface ChatImageAttachment {
