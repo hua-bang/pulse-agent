@@ -300,7 +300,7 @@ export const GraphPage = ({
     graph.d3ReheatSimulation();
 
     const timeout = window.setTimeout(() => {
-      graph.zoomToFit(450, 80);
+      graph.zoomToFit(450, 140);
     }, 60);
     return () => window.clearTimeout(timeout);
   }, [graphData.links.length, graphData.nodes.length, layoutPreset]);
@@ -427,12 +427,7 @@ export const GraphPage = ({
           <button className={`workspace-node-chip${showLabels ? ' is-active' : ''}`} onClick={() => setShowLabels((value) => !value)}>
             {showLabels ? 'Hide labels' : 'Show labels'}
           </button>
-          <button className={`workspace-node-chip${showTags ? ' is-active' : ''}`} onClick={() => setShowTags((value) => !value)}>Tags</button>
-          <button className={`workspace-node-chip${showLinks ? ' is-active' : ''}`} onClick={() => setShowLinks((value) => !value)}>Links</button>
-        </div>
-        <span className="workspace-graph-toolbar__sep" aria-hidden />
-        <div className="workspace-graph-toolbar__group">
-          <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 80)}>Fit</button>
+          <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>Fit</button>
           <div className="workspace-graph-toolbar__more" ref={overflowRef}>
             <button
               className="workspace-node-chip workspace-node-chip--toolbar-action"

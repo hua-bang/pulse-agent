@@ -705,31 +705,35 @@
 
 .workspace-graph-toolbar {
   position: absolute;
-  top: 18px;
-  left: 18px;
+  top: 16px;
+  left: 16px;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid var(--nodes-border);
-  border-radius: 6px;
-  padding: 4px;
-  box-shadow: var(--nodes-shadow);
+  gap: 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
   max-width: calc(100% - 36px);
 }
 
 .workspace-graph-toolbar__group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
+  height: 34px;
+  padding: 3px;
+  border: 1px solid var(--nodes-border);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(15, 15, 15, 0.03);
+  backdrop-filter: blur(8px);
 }
 
 .workspace-graph-toolbar__sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 4px 2px;
-  background: var(--nodes-border);
+  display: none;
 }
 
 .workspace-graph-toolbar span {
@@ -749,7 +753,19 @@
 }
 
 .workspace-graph-toolbar .workspace-node-chip {
-  height: 32px;
+  height: 28px;
+  border-radius: 5px;
+  background: transparent;
+  padding: 0 9px;
+}
+
+.workspace-graph-toolbar .workspace-node-chip:hover {
+  background: var(--nodes-surface-hover);
+}
+
+.workspace-graph-toolbar .workspace-node-chip.is-active {
+  background: var(--nodes-surface-active);
+  color: var(--accent);
 }
 
 .workspace-node-chip--toolbar-action {
