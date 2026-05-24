@@ -378,11 +378,11 @@ describe('migrateToV2', () => {
     transform: { x: 0, y: 0, scale: 1 },
   };
 
-  async function seedV1(): Promise<void> {
+  async function seedV1(data: CanvasSaveData = v1Sample): Promise<void> {
     await fs.mkdir(join(root, wsId), { recursive: true });
     await fs.writeFile(
       getCanvasJsonPath(wsId, root),
-      JSON.stringify(v1Sample, null, 2),
+      JSON.stringify(data, null, 2),
     );
   }
 
@@ -514,7 +514,7 @@ describe('migrateToV2', () => {
           data: { content: 'EDITED' },
           updatedAt: Date.now(),
         },
-        // n2 dropped on purpose to test orphan cleanup.
+        // n2 omitted from the canvas layout; its atom file should remain.
       ],
       transform: { x: 0, y: 0, scale: 1 },
     };
@@ -529,7 +529,80 @@ describe('migrateToV2', () => {
     const n1 = await readNodeFile(wsId, 'n1', root);
     expect(n1?.data.content).toBe('EDITED');
     const n2 = await readNodeFile(wsId, 'n2', root);
-    expect(n2).toBeNull();
+    expect(n2?.data.filePath).toBe('/tmp/x.md');
+  });
+
+  it('keeps workspace node properties and links out of canvas layout', async () => {
+    await seedV1({
+      nodes: [
+        {
+          id: 'n1',
+          type: 'text',
+          title: 'Hello',
+          data: { content: '**hi**' },
+          properties: {
+            kind: 'note',
+            tags: ['AI', 'RAG'],
+          },
+          links: [
+            {
+              relation: 'references',
+              target: { nodeId: 'n2' },
+            },
+          ],
+          updatedAt: 1729000000000,
+        },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+    });
+    await migrateToV2(wsId, { root });
+
+    const layout = JSON.parse(await fs.readFile(getCanvasJsonPath(wsId, root), 'utf-8'));
+    expect(layout.nodes[0].properties).toBeUndefined();
+    expect(layout.nodes[0].links).toBeUndefined();
+
+    const node = await readNodeFile(wsId, 'n1', root);
+    expect(node?.properties?.tags).toEqual(['AI', 'RAG']);
+    expect(node?.links?.[0].relation).toBe('references');
+
+    const readBack = await readCanvasFull(wsId, root);
+    expect(readBack.data?.nodes?.[0].properties?.tags).toEqual(['AI', 'RAG']);
+    expect(readBack.data?.nodes?.[0].links?.[0].target.nodeId).toBe('n2');
+  });
+
+  it('preserves existing properties and links when a canvas save omits them', async () => {
+    await seedV1();
+    await migrateToV2(wsId, { root });
+    const existing = await readNodeFile(wsId, 'n1', root);
+    if (!existing) throw new Error('expected n1');
+    await writeNodeFile(wsId, {
+      ...existing,
+      properties: { kind: 'note', tags: ['AI'] },
+      links: [{ relation: 'related', target: { nodeId: 'n2' } }],
+      updatedAt: 1,
+    }, root);
+
+    await writeCanvasFull(
+      wsId,
+      {
+        nodes: [
+          {
+            id: 'n1',
+            type: 'text',
+            title: 'Hello',
+            data: { content: 'EDITED' },
+            updatedAt: 2,
+          },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+      },
+      root,
+    );
+
+    const node = await readNodeFile(wsId, 'n1', root);
+    expect(node?.data.content).toBe('EDITED');
+    expect(node?.properties?.tags).toEqual(['AI']);
+    expect(node?.links?.[0].target.nodeId).toBe('n2');
   });
 
   it('keeps reference nodes layout-only instead of writing copied per-node data', async () => {
@@ -567,6 +640,29 @@ describe('migrateToV2', () => {
     const readBack = await readCanvasFull(wsId, root);
     expect(readBack.data?.nodes?.[0].data?.titleSnapshot).toBe('Hello');
     expect(readBack.data?.nodes?.[0].ref).toEqual({ kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' });
+  });
+
+  it('does not delete an existing atom file when the same id is saved as a reference node', async () => {
+    await seedV1();
+    await migrateToV2(wsId, { root });
+
+    const data: CanvasSaveData = {
+      nodes: [
+        {
+          id: 'n1',
+          type: 'reference',
+          title: 'Ref: Hello',
+          ref: { kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' },
+          data: { titleSnapshot: 'Hello' },
+          updatedAt: Date.now(),
+        },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+    };
+    await writeCanvasFull(wsId, data, root);
+
+    const n1 = await readNodeFile(wsId, 'n1', root);
+    expect(n1?.data.content).toBe('**hi**');
   });
 
   it('writeCanvasFull respects updatedAt arbitration for per-node files', async () => {

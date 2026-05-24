@@ -27,6 +27,20 @@
 import { promises as fs } from 'fs';
 import { join, basename, dirname } from 'path';
 import { homedir } from 'os';
+import {
+  WORKSPACE_NODE_SCHEMA_VERSION,
+  assertSafeNodeId as assertSafeWorkspaceNodeId,
+  deleteWorkspaceNode,
+  getNodeFilePath as getWorkspaceNodeFilePath,
+  getNodesDir as getWorkspaceNodesDir,
+  isSafeNodeId as isSafeWorkspaceNodeId,
+  listWorkspaceNodeIds,
+  readWorkspaceNode,
+  writeWorkspaceNode,
+  type WorkspaceNodeLink,
+  type WorkspaceNodePropertyValue,
+  type WorkspaceNodeRecord,
+} from './workspace-node-store';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -45,7 +59,7 @@ export const V1_BACKUP_FILENAME = 'canvas.json.v1.bak';
 export const MIGRATION_SENTINEL_FILENAME = '.migrating';
 
 /** Current per-node file schema version. */
-export const PER_NODE_SCHEMA_VERSION = 1;
+export const PER_NODE_SCHEMA_VERSION = WORKSPACE_NODE_SCHEMA_VERSION;
 /** Target canvas.json schema version once migration completes. */
 export const CANVAS_SCHEMA_VERSION_V2 = 2;
 
@@ -74,6 +88,8 @@ export interface CanvasNode {
   height?: number;
   ref?: unknown;
   data?: Record<string, unknown>;
+  properties?: Record<string, WorkspaceNodePropertyValue>;
+  links?: WorkspaceNodeLink[];
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
 }
@@ -93,16 +109,9 @@ export interface CanvasSaveData {
   savedAt?: string;
 }
 
-/** On-disk shape of `nodes/<nodeId>.json`. Self-describing for knowledge-base reuse. */
-export interface PerNodeFile {
-  schemaVersion: typeof PER_NODE_SCHEMA_VERSION;
-  id: string;
-  type: string;
-  title?: string;
-  data: Record<string, unknown>;
-  updatedAt?: number;
-  createdAt?: number;
-}
+/** Back-compat alias for the workspace-local atomic node record. */
+export type PerNodeFile = WorkspaceNodeRecord;
+export type { WorkspaceNodeLink, WorkspaceNodePropertyValue, WorkspaceNodeRecord };
 
 export type SchemaVersion = 1 | 2;
 
@@ -149,7 +158,7 @@ export function getCanvasJsonPath(workspaceId: string, root: string = STORE_DIR)
 }
 
 export function getNodesDir(workspaceId: string, root: string = STORE_DIR): string {
-  return join(getWorkspaceDir(workspaceId, root), NODES_DIR_NAME);
+  return getWorkspaceNodesDir(workspaceId, root);
 }
 
 /**
@@ -158,8 +167,7 @@ export function getNodesDir(workspaceId: string, root: string = STORE_DIR): stri
  * and could be tampered with.
  */
 export function getNodeFilePath(workspaceId: string, nodeId: string, root: string = STORE_DIR): string {
-  assertSafeNodeId(nodeId);
-  return join(getNodesDir(workspaceId, root), `${nodeId}.json`);
+  return getWorkspaceNodeFilePath(workspaceId, nodeId, root);
 }
 
 export function getV1BackupPath(workspaceId: string, root: string = STORE_DIR): string {
@@ -175,16 +183,12 @@ export function getSentinelPath(workspaceId: string, root: string = STORE_DIR): 
  * special chars. Matches the generator in renderer (`node-<ts>-<n>`) and
  * future genId variants while staying conservative.
  */
-const SAFE_NODE_ID = /^[A-Za-z0-9_.-]{1,128}$/;
-
 export function isSafeNodeId(id: string): boolean {
-  return SAFE_NODE_ID.test(id) && id !== '.' && id !== '..';
+  return isSafeWorkspaceNodeId(id);
 }
 
 export function assertSafeNodeId(id: string): void {
-  if (!isSafeNodeId(id)) {
-    throw new Error(`[canvas-storage] refusing unsafe node id: ${JSON.stringify(id)}`);
-  }
+  assertSafeWorkspaceNodeId(id);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -475,17 +479,7 @@ export async function readNodeFile(
   nodeId: string,
   root: string = STORE_DIR,
 ): Promise<PerNodeFile | null> {
-  if (!isSafeNodeId(nodeId)) return null;
-  try {
-    const raw = await fs.readFile(getNodeFilePath(workspaceId, nodeId, root), 'utf-8');
-    return JSON.parse(raw) as PerNodeFile;
-  } catch (err) {
-    if (isEnoent(err)) return null;
-    console.warn(
-      `[canvas-storage] unreadable per-node file ${nodeId} in ${workspaceId}: ${String(err)}`,
-    );
-    return null;
-  }
+  return readWorkspaceNode(workspaceId, nodeId, root);
 }
 
 /** Atomically write a per-node file. No rolling backup — these are small and replaceable. */
@@ -494,9 +488,7 @@ export async function writeNodeFile(
   file: PerNodeFile,
   root: string = STORE_DIR,
 ): Promise<void> {
-  assertSafeNodeId(file.id);
-  const path = getNodeFilePath(workspaceId, file.id, root);
-  await atomicWriteJson(path, JSON.stringify(file, null, 2));
+  await writeWorkspaceNode(workspaceId, file, root);
 }
 
 export async function deleteNodeFile(
@@ -504,8 +496,7 @@ export async function deleteNodeFile(
   nodeId: string,
   root: string = STORE_DIR,
 ): Promise<void> {
-  if (!isSafeNodeId(nodeId)) return;
-  await fs.unlink(getNodeFilePath(workspaceId, nodeId, root)).catch(() => undefined);
+  await deleteWorkspaceNode(workspaceId, nodeId, root);
 }
 
 /** List `<nodeId>` for every parseable per-node file in the workspace. */
@@ -513,21 +504,7 @@ export async function listNodeFiles(
   workspaceId: string,
   root: string = STORE_DIR,
 ): Promise<string[]> {
-  const dir = getNodesDir(workspaceId, root);
-  let entries: string[];
-  try {
-    entries = await fs.readdir(dir);
-  } catch (err) {
-    if (isEnoent(err)) return [];
-    throw err;
-  }
-  const out: string[] = [];
-  for (const name of entries) {
-    if (!name.endsWith('.json')) continue;
-    const id = name.slice(0, -'.json'.length);
-    if (isSafeNodeId(id)) out.push(id);
-  }
-  return out;
+  return listWorkspaceNodeIds(workspaceId, root);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -632,6 +609,8 @@ async function assembleV2(
         type: perNode.type,
         title: perNode.title ?? layoutNode.title,
         data: perNode.data,
+        properties: perNode.properties,
+        links: perNode.links,
         updatedAt: perNode.updatedAt ?? layoutNode.updatedAt,
       } as CanvasNode;
     }),
@@ -692,14 +671,12 @@ async function writeCanvasFullV2(
 ): Promise<void> {
   const nodes = Array.isArray(data.nodes) ? data.nodes : [];
   const now = Date.now();
-  const incomingIds = new Set<string>();
 
   // 1. Write per-node files for every node. Use updatedAt arbitration: if
   //    the on-disk per-node file is newer, keep it (defends against a stale
   //    in-memory snapshot clobbering a fresh CLI-side edit).
   for (const node of nodes) {
     if (!node.id || !isSafeNodeId(node.id)) continue;
-    incomingIds.add(node.id);
 
     const existing = await readNodeFile(workspaceId, node.id, root);
     const incomingUpdatedAt =
@@ -721,24 +698,20 @@ async function writeCanvasFullV2(
         type: node.type,
         title: node.title,
         data: (node.data ?? {}) as Record<string, unknown>,
+        properties: node.properties ?? existing?.properties,
+        links: node.links ?? existing?.links,
         updatedAt: incomingUpdatedAt,
         createdAt: existing?.createdAt ?? incomingUpdatedAt,
       };
       await writeNodeFile(workspaceId, file, root);
-    } else if (existing) {
-      await deleteNodeFile(workspaceId, node.id, root);
     }
   }
 
-  // 2. Delete per-node files for nodes that no longer exist in the incoming
-  //    snapshot. (Tombstoning is a future concern; for now, gone-from-input
-  //    = gone-from-disk.)
-  const onDisk = await listNodeFiles(workspaceId, root);
-  for (const id of onDisk) {
-    if (!incomingIds.has(id)) {
-      await deleteNodeFile(workspaceId, id, root);
-    }
-  }
+  // 2. Do not delete per-node files omitted from the incoming layout. In v2,
+  //    nodes/<id>.json is treated as the workspace-scoped atom store; a
+  //    canvas save only updates the current layout projection. Orphan cleanup
+  //    should be an explicit atom-store operation, not a side effect of saving
+  //    a canvas view.
 
   // 3. Construct the v2 layout: strip data, keep everything else.
   const layout: CanvasSaveData = {
@@ -758,7 +731,7 @@ async function writeCanvasFullV2(
 
 function stripDataFromNode(node: CanvasNode): CanvasNode {
   if (isLayoutOnlyReferenceNode(node)) return node;
-  const { data: _data, ...rest } = node;
+  const { data: _data, properties: _properties, links: _links, ...rest } = node;
   return rest;
 }
 
@@ -883,6 +856,8 @@ export async function migrateToV2(
           type: node.type,
           title: node.title,
           data: (node.data ?? {}) as Record<string, unknown>,
+          properties: node.properties ?? existingPerNode?.properties,
+          links: node.links ?? existingPerNode?.links,
           updatedAt: incomingUpdatedAt,
           createdAt: existingPerNode?.createdAt ?? incomingUpdatedAt,
         };
