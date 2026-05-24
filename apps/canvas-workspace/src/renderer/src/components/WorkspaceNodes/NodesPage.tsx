@@ -40,6 +40,30 @@ export const NodesPage = ({
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<Set<string> | null>(null);
+
+  const activeWorkspaceIds = useMemo(() => {
+    if (selectedWorkspaceIds === null) return new Set(workspaces.map((ws) => ws.id));
+    return selectedWorkspaceIds;
+  }, [selectedWorkspaceIds, workspaces]);
+
+  const toggleWorkspace = (workspaceId: string) => {
+    setSelectedWorkspaceIds((prev) => {
+      const current = new Set(prev ?? workspaces.map((ws) => ws.id));
+      if (current.has(workspaceId)) current.delete(workspaceId);
+      else current.add(workspaceId);
+      return current;
+    });
+  };
+
+  const workspaceCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const node of nodes) {
+      const wsId = getNodeWorkspaceId(node);
+      counts.set(wsId, (counts.get(wsId) ?? 0) + 1);
+    }
+    return counts;
+  }, [nodes]);
 
   const tags = useMemo(() => {
     const counts = new Map<string, number>();
@@ -53,12 +77,13 @@ export const NodesPage = ({
 
   const filteredNodes = useMemo(() => {
     return nodes.filter((node) => {
+      if (!activeWorkspaceIds.has(getNodeWorkspaceId(node))) return false;
       if (!matchesSearch(node, query)) return false;
       if (!filterByType(node, typeFilter)) return false;
       if (tagFilter && !getNodeTags(node).includes(tagFilter)) return false;
       return true;
     });
-  }, [nodes, query, typeFilter, tagFilter]);
+  }, [nodes, query, typeFilter, tagFilter, activeWorkspaceIds]);
 
   const tagLabel = (tagId: string) => tagName(tagId, tagDefinitions);
 
@@ -83,6 +108,30 @@ export const NodesPage = ({
               placeholder="Search title, content, tags..."
               className="workspace-nodes-search"
             />
+            {workspaces.length > 1 && (
+              <div className="workspace-nodes-filter-row">
+                <button
+                  className={`workspace-node-chip${selectedWorkspaceIds === null ? ' is-active' : ''}`}
+                  onClick={() => setSelectedWorkspaceIds(null)}
+                >
+                  All workspaces
+                </button>
+                {workspaces.map((ws) => {
+                  const active = activeWorkspaceIds.has(ws.id);
+                  const count = workspaceCounts.get(ws.id) ?? 0;
+                  return (
+                    <button
+                      key={ws.id}
+                      className={`workspace-node-chip${active ? ' is-active' : ''}`}
+                      onClick={() => toggleWorkspace(ws.id)}
+                    >
+                      {ws.name}
+                      <span className="workspace-node-chip-count">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div className="workspace-nodes-filter-row">
               {NODE_TYPE_FILTERS.map((type) => (
                 <button
