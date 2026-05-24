@@ -6,11 +6,17 @@ import type {
   EdgeStroke,
 } from '../types';
 import {
-  bendHandlePoint,
   resolveEndpoint,
   resolveEndpointToward,
 } from '../utils/edgeFactory';
 import type { EdgeInteractionState, Point } from '../hooks/useEdgeInteraction';
+import {
+  capId,
+  EdgeHandles,
+  Markers,
+  PreviewEdge,
+  SELECTION_COLOR,
+} from './CanvasEdgesLayerParts';
 
 interface Props {
   edges: CanvasEdge[];
@@ -50,9 +56,7 @@ const DEFAULT_STROKE: Required<EdgeStroke> = {
   style: 'solid',
 };
 
-const SELECTION_COLOR = '#2a7fff';
 const HIT_PROXY_WIDTH = 10;
-const HANDLE_RADIUS = 5;
 /** Edges fully outside the focus context fade to this opacity in focus
  * mode — matches the node dim level so the canvas reads as a single
  * cohesive faded layer behind the focused card. */
@@ -121,11 +125,6 @@ const insetTowardOther = (end: Point, other: Point, gap: number): Point => {
   };
 };
 
-const capId = (prefix: string, cap: EdgeArrowCap, color: string): string => {
-  const hex = color.replace(/[^a-zA-Z0-9]/g, '_');
-  return `${prefix}-${cap}-${hex}`;
-};
-
 const useMarkerDefs = (edges: CanvasEdge[]) => {
   return useMemo(() => {
     const markers = new Map<
@@ -148,72 +147,6 @@ const useMarkerDefs = (edges: CanvasEdge[]) => {
     return Array.from(markers.values());
   }, [edges]);
 };
-
-const MarkerShape = ({ cap, color }: { cap: EdgeArrowCap; color: string }) => {
-  switch (cap) {
-    case 'triangle':
-      // A touch slimmer than a square triangle (base 7 vs length 10)
-      // reads as more "arrow-like" than the old 10×10 triangle, which
-      // looked stubby next to longer edges.
-      return <path d="M0,1.5 L10,5 L0,8.5 z" fill={color} />;
-    case 'arrow':
-      // Open chevron. strokeWidth is expressed in the marker's viewBox
-      // coord system, which — thanks to markerUnits="strokeWidth" — is
-      // proportional to the line's stroke-width. A value of 1.8 ends up
-      // ≈0.9× the line's own stroke, matching classic open-arrow weight.
-      return (
-        <path
-          d="M0,1.5 L10,5 L0,8.5"
-          fill="none"
-          stroke={color}
-          strokeWidth={1.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      );
-    case 'dot':
-      return <circle cx={5} cy={5} r={3.2} fill={color} />;
-    case 'bar':
-      return <rect x={4} y={0} width={2} height={10} fill={color} />;
-    case 'none':
-    default:
-      return null;
-  }
-};
-
-const Markers = ({
-  markers,
-}: {
-  markers: Array<{ id: string; cap: EdgeArrowCap; color: string; side: 'head' | 'tail' }>;
-}) => (
-  <defs>
-    {markers.map(({ id, cap, color, side }) => (
-      <marker
-        key={id}
-        id={id}
-        // markerUnits="strokeWidth" makes the marker (and its inner
-        // geometry) scale with the line's stroke-width so the arrow
-        // stays proportional to whichever width the user picks. 4×4
-        // keeps the rendered cap slim — length ≈ 4× stroke, which
-        // matches how tldraw/Figma size their arrow heads.
-        markerWidth={4}
-        markerHeight={4}
-        viewBox="0 0 10 10"
-        orient={side === 'head' ? 'auto' : 'auto-start-reverse'}
-        // 'triangle' and 'arrow' have their point at (10, 5) in the
-        // viewBox — the refPoint must sit *on* the point so that point
-        // lands exactly at the path endpoint. 'dot' and 'bar' are
-        // symmetric, so centering (refX=5) places them *over* the
-        // endpoint, which is the conventional look.
-        refX={cap === 'triangle' || cap === 'arrow' ? 10 : 5}
-        refY={5}
-        markerUnits="strokeWidth"
-      >
-        <MarkerShape cap={cap} color={color} />
-      </marker>
-    ))}
-  </defs>
-);
 
 /**
  * Renders every edge as SVG inside `.canvas-transform`, plus:
@@ -428,148 +361,5 @@ export const CanvasEdgesLayer = ({
         />
       )}
     </svg>
-  );
-};
-
-/**
- * Three handles — start (source), bend midpoint, end (target) —
- * rendered for the currently selected edge. Each handle intercepts
- * mousedown so the interaction hook can begin a drag.
- */
-const EdgeHandles = ({
-  edge,
-  s,
-  t,
-  onHandleMouseDown,
-}: {
-  edge: CanvasEdge;
-  s: Point;
-  t: Point;
-  onHandleMouseDown: (handle: 'source' | 'target' | 'bend', e: React.MouseEvent) => void;
-}) => {
-  const bend = edge.bend ?? 0;
-  const mid = bendHandlePoint(s, t, bend);
-
-  const handleStyle: React.CSSProperties = {
-    pointerEvents: 'all',
-    cursor: 'grab',
-  };
-
-  return (
-    <>
-      <circle
-        cx={s.x}
-        cy={s.y}
-        r={HANDLE_RADIUS}
-        fill="#ffffff"
-        stroke={SELECTION_COLOR}
-        strokeWidth={1.5}
-        vectorEffect="non-scaling-stroke"
-        style={handleStyle}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          onHandleMouseDown('source', e);
-        }}
-      />
-      <circle
-        cx={mid.x}
-        cy={mid.y}
-        r={HANDLE_RADIUS - 0.5}
-        fill="#ffffff"
-        stroke={SELECTION_COLOR}
-        strokeWidth={1.5}
-        vectorEffect="non-scaling-stroke"
-        style={handleStyle}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          onHandleMouseDown('bend', e);
-        }}
-      />
-      <circle
-        cx={t.x}
-        cy={t.y}
-        r={HANDLE_RADIUS}
-        fill="#ffffff"
-        stroke={SELECTION_COLOR}
-        strokeWidth={1.5}
-        vectorEffect="non-scaling-stroke"
-        style={handleStyle}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          onHandleMouseDown('target', e);
-        }}
-      />
-    </>
-  );
-};
-
-/**
- * Dashed preview line rendered while the user is drawing a new edge
- * or dragging an existing endpoint. A faint outline on the hover
- * target node confirms a successful drop will bind to it.
- */
-const PreviewEdge = ({
-  s,
-  t,
-  highlightNodeId,
-  nodesById,
-}: {
-  s: Point;
-  t: Point;
-  highlightNodeId: string | null;
-  nodesById: Map<string, CanvasNode>;
-}) => {
-  const d = `M ${s.x} ${s.y} L ${t.x} ${t.y}`;
-  const node = highlightNodeId ? nodesById.get(highlightNodeId) : null;
-  return (
-    <>
-      <path
-        d={d}
-        fill="none"
-        stroke={SELECTION_COLOR}
-        strokeWidth={1.5}
-        strokeDasharray="5 3"
-        // "butt" to match the committed-edge rendering: since there's a
-        // marker at the end, a rounded cap would poke past the triangle
-        // tip (see the committed-edge comment for the full explanation).
-        strokeLinecap="butt"
-        markerEnd={`url(#${capId('edge-head', 'triangle', SELECTION_COLOR)})`}
-        style={{ pointerEvents: 'none' }}
-      />
-      {/* Also register the preview's triangle-on-blue marker so
-          marker-end="url(#…)" resolves. Duplicate marker defs are
-          harmless; the <defs> above won't include this combo unless an
-          edge already uses blue. Shape + sizing mirrors the committed-
-          edge markers so preview and final arrow look identical. */}
-      <defs>
-        <marker
-          id={capId('edge-head', 'triangle', SELECTION_COLOR)}
-          markerWidth={4}
-          markerHeight={4}
-          viewBox="0 0 10 10"
-          orient="auto"
-          refX={10}
-          refY={5}
-          markerUnits="strokeWidth"
-        >
-          <path d="M0,1.5 L10,5 L0,8.5 z" fill={SELECTION_COLOR} />
-        </marker>
-      </defs>
-      {node && (
-        <rect
-          x={node.x - 2}
-          y={node.y - 2}
-          width={node.width + 4}
-          height={node.height + 4}
-          fill="none"
-          stroke={SELECTION_COLOR}
-          strokeWidth={1.5}
-          strokeDasharray="4 3"
-          vectorEffect="non-scaling-stroke"
-          style={{ pointerEvents: 'none' }}
-          rx={6}
-        />
-      )}
-    </>
   );
 };
