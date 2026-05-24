@@ -25,8 +25,8 @@ interface GraphPageProps {
   onOpenNode: (workspaceId: string, nodeId: string) => void;
 }
 
-type GraphNodeKind = 'node' | 'tag' | 'missing';
-type GraphLinkKind = 'tag' | 'link';
+type GraphNodeKind = 'node' | 'tag' | 'missing' | 'workspace';
+type GraphLinkKind = 'tag' | 'link' | 'workspace';
 type LayoutPreset = 'compact' | 'normal' | 'loose';
 
 interface GraphNode {
@@ -52,10 +52,17 @@ const GRAPH_COLORS = {
   tagText: '#8a4b0d',
   missing: '#9b9a97',
   missingText: 'rgba(55, 53, 47, 0.58)',
+  workspace: '#8b5cf6',
+  workspaceText: '#5b21b6',
   link: 'rgba(55, 53, 47, 0.22)',
   linkHighlight: 'rgba(55, 53, 47, 0.72)',
+  workspaceLink: 'rgba(139, 92, 246, 0.32)',
   labelBg: 'rgba(255, 255, 255, 0.92)',
 };
+
+function workspaceGraphId(workspaceId: string): string {
+  return `ws:${workspaceId}`;
+}
 
 function getGraphId(value: string | number | NodeObject<GraphNode> | null | undefined): string {
   if (value === undefined || value === null) return '';
@@ -86,11 +93,14 @@ function isNodeGraphNode(node: NodeObject<GraphNode>): node is NodeObject<GraphN
 function buildGraphData(
   nodes: WorkspaceNodeListItem[],
   tagDefinitions: ReturnType<typeof useAllWorkspaceNodeList>['tags'],
-  options: { showTags: boolean; showLinks: boolean },
+  workspaces: WorkspaceEntry[],
+  options: { showTags: boolean; showLinks: boolean; showWorkspaceHubs: boolean },
 ): ForceGraphData<GraphNode, GraphLink> {
   const graphNodes = new Map<string, NodeObject<GraphNode>>();
   const graphLinks: LinkObject<GraphNode, GraphLink>[] = [];
   const visibleNodeIds = new Set(nodes.map((node) => nodeGraphId(getNodeWorkspaceId(node), node.id)));
+  const workspaceById = new Map(workspaces.map((ws) => [ws.id, ws] as const));
+  const workspaceUsage = new Map<string, number>();
 
   for (const node of nodes) {
     const workspaceId = getNodeWorkspaceId(node);
@@ -103,6 +113,31 @@ function buildGraphData(
       nodeId: node.id,
       source: node,
     });
+    workspaceUsage.set(workspaceId, (workspaceUsage.get(workspaceId) ?? 0) + 1);
+  }
+
+  if (options.showWorkspaceHubs) {
+    for (const [workspaceId, count] of workspaceUsage) {
+      if (count === 0) continue;
+      const hubId = workspaceGraphId(workspaceId);
+      const ws = workspaceById.get(workspaceId);
+      graphNodes.set(hubId, {
+        id: hubId,
+        kind: 'workspace',
+        label: ws?.name ?? workspaceId,
+        workspaceId,
+      });
+    }
+    for (const node of nodes) {
+      const workspaceId = getNodeWorkspaceId(node);
+      const hubId = workspaceGraphId(workspaceId);
+      if (!graphNodes.has(hubId)) continue;
+      graphLinks.push({
+        source: hubId,
+        target: nodeGraphId(workspaceId, node.id),
+        kind: 'workspace',
+      });
+    }
   }
 
   if (options.showTags) {
@@ -168,6 +203,7 @@ export const GraphPage = ({
   const [activeNodeId, setActiveNodeId] = useState<string | null>(selectedGraphId(selectedNode));
   const [searchOpen, setSearchOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [showWorkspaceHubs, setShowWorkspaceHubs] = useState(true);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -217,8 +253,8 @@ export const GraphPage = ({
   useEffect(() => { setSuggestionIndex(0); }, [query]);
 
   const graphData = useMemo(
-    () => buildGraphData(visibleNodes, tags, { showTags, showLinks }),
-    [showLinks, showTags, tags, visibleNodes],
+    () => buildGraphData(visibleNodes, tags, workspaces, { showTags, showLinks, showWorkspaceHubs }),
+    [showLinks, showTags, showWorkspaceHubs, tags, visibleNodes, workspaces],
   );
 
   const neighbors = useMemo(() => {
@@ -355,11 +391,18 @@ export const GraphPage = ({
     const nodeId = getGraphId(node.id);
     const isTag = node.kind === 'tag';
     const isMissing = node.kind === 'missing';
-    const radius = isTag ? 8 : isMissing ? 5 : 6.5;
+    const isWorkspace = node.kind === 'workspace';
+    const radius = isWorkspace ? 12 : isTag ? 8 : isMissing ? 5 : 6.5;
     const isHighlighted = highlighted.nodeIds.size === 0 || highlighted.nodeIds.has(nodeId);
     const isSelected = activeNodeId === nodeId;
     const isHovered = hoverNodeId === nodeId;
-    const fill = isTag ? GRAPH_COLORS.tag : isMissing ? GRAPH_COLORS.missing : GRAPH_COLORS.node;
+    const fill = isWorkspace
+      ? GRAPH_COLORS.workspace
+      : isTag
+        ? GRAPH_COLORS.tag
+        : isMissing
+          ? GRAPH_COLORS.missing
+          : GRAPH_COLORS.node;
     const alpha = isHighlighted ? 1 : 0.18;
 
     ctx.save();
@@ -378,7 +421,7 @@ export const GraphPage = ({
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
 
-    const shouldShowLabel = showLabels || isSelected || isHovered || globalScale > 2.3;
+    const shouldShowLabel = showLabels || isSelected || isHovered || isWorkspace || globalScale > 2.3;
     if (shouldShowLabel && isHighlighted) {
       const label = node.label || nodeId;
       const fontSize = Math.max(8, 11 / globalScale);
@@ -409,11 +452,13 @@ export const GraphPage = ({
       }
       ctx.fill();
 
-      ctx.fillStyle = isTag
-        ? GRAPH_COLORS.tagText
-        : isMissing
-          ? GRAPH_COLORS.missingText
-          : GRAPH_COLORS.nodeText;
+      ctx.fillStyle = isWorkspace
+        ? GRAPH_COLORS.workspaceText
+        : isTag
+          ? GRAPH_COLORS.tagText
+          : isMissing
+            ? GRAPH_COLORS.missingText
+            : GRAPH_COLORS.nodeText;
       ctx.fillText(label, textX, textY + fontSize / 2 - 2);
     }
 
@@ -427,6 +472,11 @@ export const GraphPage = ({
           <button className={`workspace-node-chip${showLabels ? ' is-active' : ''}`} onClick={() => setShowLabels((value) => !value)}>
             {showLabels ? 'Hide labels' : 'Show labels'}
           </button>
+          {workspaces.length > 1 && (
+            <button className={`workspace-node-chip${showWorkspaceHubs ? ' is-active' : ''}`} onClick={() => setShowWorkspaceHubs((value) => !value)}>
+              {showWorkspaceHubs ? 'Hide workspaces' : 'Group by workspace'}
+            </button>
+          )}
           <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>Fit</button>
           <div className="workspace-graph-toolbar__more" ref={overflowRef}>
             <button
@@ -557,14 +607,18 @@ export const GraphPage = ({
             onSelectNode?.(null);
           }}
           linkWidth={(link) => highlighted.linkIds.size === 0 || highlighted.linkIds.has(linkKey(link)) ? 1.15 : 0.35}
-          linkColor={(link) => highlighted.linkIds.size === 0 || highlighted.linkIds.has(linkKey(link)) ? GRAPH_COLORS.linkHighlight : GRAPH_COLORS.link}
-          linkDirectionalParticles={(link) => highlighted.linkIds.has(linkKey(link)) ? 2 : 0}
+          linkColor={(link) => {
+            const highlightActive = highlighted.linkIds.size === 0 || highlighted.linkIds.has(linkKey(link));
+            if (link.kind === 'workspace') return GRAPH_COLORS.workspaceLink;
+            return highlightActive ? GRAPH_COLORS.linkHighlight : GRAPH_COLORS.link;
+          }}
+          linkDirectionalParticles={(link) => link.kind !== 'workspace' && highlighted.linkIds.has(linkKey(link)) ? 2 : 0}
           linkDirectionalParticleWidth={1.2}
           linkDirectionalParticleSpeed={0.005}
           cooldownTime={12000}
           nodeCanvasObject={renderNode}
           nodePointerAreaPaint={(node, paintColor, ctx) => {
-            const radius = node.kind === 'tag' ? 11 : node.kind === 'missing' ? 8 : 10;
+            const radius = node.kind === 'workspace' ? 16 : node.kind === 'tag' ? 11 : node.kind === 'missing' ? 8 : 10;
             ctx.fillStyle = paintColor;
             ctx.beginPath();
             ctx.arc(node.x ?? 0, node.y ?? 0, radius, 0, Math.PI * 2);
