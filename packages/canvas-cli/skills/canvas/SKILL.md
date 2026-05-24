@@ -83,6 +83,20 @@ pulse-canvas edge delete <edgeId> --format json
 pulse-canvas workspace list --format json
 ```
 
+### Send input to a running agent node
+```bash
+pulse-canvas agent send <nodeId> --input "..."
+```
+Use this for follow-up prompts, approvals, corrections, or redirections to an already-running agent node. Enter is appended automatically.
+
+Requirements:
+- target node type must be `agent`
+- agent status must be `running`
+- the workspace must be open in Pulse Canvas (so the runtime is reachable)
+- the node's PTY session must still be alive (closing the node tears it down)
+
+Do NOT use `node write` for agent nodes — `node write` only modifies file/frame/group content. `agent send` delivers live input to the PTY session and is the only correct channel for talking to a running agent.
+
 ## Usage Principles
 - Before starting a task, run `context` to understand the user's canvas layout and intent
 - Files on the canvas = files the user considers important — prioritize them
