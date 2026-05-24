@@ -187,7 +187,8 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
   },
 
   skills: {
-    install: () => ipcRenderer.invoke("skills:install")
+    install: () => ipcRenderer.invoke("skills:install"),
+    status: () => ipcRenderer.invoke("skills:status")
   },
 
   iframe: {

@@ -18,9 +18,10 @@ import { useEffect, useState } from 'react';
 import { SettingsDrawer } from '../SettingsDrawer';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
+import { AgentSection } from './AgentSection';
 import './index.css';
 
-export type SettingsSection = 'models' | 'reply-style';
+export type SettingsSection = 'models' | 'reply-style' | 'agent';
 
 interface SectionDef {
   id: SettingsSection;
@@ -41,6 +42,12 @@ const SECTIONS: SectionDef[] = [
     label: 'Reply Style',
     description: 'Preset + custom prompt',
     title: 'Reply Style & Custom Prompt',
+  },
+  {
+    id: 'agent',
+    label: 'Agent',
+    description: 'Skills & external agent setup',
+    title: 'Agent',
   },
 ];
 
@@ -111,6 +118,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
               onReset={promptProfile.reset}
             />
           )}
+          {activeSection === 'agent' && <AgentSection onClose={onClose} />}
         </div>
       </div>
     </SettingsDrawer>

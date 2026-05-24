@@ -362,18 +362,30 @@ export interface DialogApi {
   openFolder: () => Promise<{ ok: boolean; canceled?: boolean; folderPath?: string; error?: string }>;
 }
 
+export interface SkillTargetResult {
+  path: string;
+  ok: boolean;
+  error?: string;
+}
+
 export interface SkillsInstallResult {
   ok: boolean;
   skillsInstalled: boolean;
-  skillsPath?: string;
+  results: SkillTargetResult[];
   cliInstalled: boolean;
   manualCommand?: string | null;
   cliError?: string | null;
   error?: string;
 }
 
+export interface SkillsStatusResult {
+  installed: boolean;
+  results: SkillTargetResult[];
+}
+
 export interface SkillsApi {
   install: () => Promise<SkillsInstallResult>;
+  status: () => Promise<SkillsStatusResult>;
 }
 
 export interface ChatImageAttachment {
