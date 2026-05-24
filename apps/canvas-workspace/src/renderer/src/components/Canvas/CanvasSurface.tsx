@@ -81,6 +81,8 @@ interface CanvasSurfaceProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
+  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
+  onOpenReferenceSource?: (node: CanvasNode) => void;
   onUngroupSelectedGroups?: () => void;
   /** Node currently rendered fullscreen, if any. The matching
    *  CanvasNodeView stays in place inside `.canvas-transform` so its
@@ -138,6 +140,8 @@ export const CanvasSurface = ({
   onSelect,
   onFocus,
   onReference,
+  resolveReferenceNode,
+  onOpenReferenceSource,
   onUngroupSelectedGroups,
   fullscreenNodeId = null,
   onToggleFullscreen,
@@ -209,6 +213,8 @@ export const CanvasSurface = ({
           onSelect={onSelect}
           onFocus={onFocus}
           onReference={onReference}
+          resolveReferenceNode={resolveReferenceNode}
+          onOpenReferenceSource={onOpenReferenceSource}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
           isFullscreen={fullscreenNodeId === node.id}
           onToggleFullscreen={onToggleFullscreen}
@@ -256,6 +262,8 @@ export const CanvasSurface = ({
           onSelect={onSelect}
           onFocus={onFocus}
           onReference={onReference}
+          resolveReferenceNode={resolveReferenceNode}
+          onOpenReferenceSource={onOpenReferenceSource}
           onUngroupSelectedGroups={onUngroupSelectedGroups}
           isFullscreen={fullscreenNodeId === node.id}
           onToggleFullscreen={onToggleFullscreen}

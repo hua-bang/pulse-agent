@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
-import type { CanvasNode } from '../../types';
+import type { CanvasNode, ReferenceNodeData } from '../../types';
+import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { IframeNodeBody } from '../IframeNodeBody';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
@@ -19,15 +20,19 @@ const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   iframe: 'Web',
   image: 'Image',
   mindmap: 'Mindmap',
+  reference: 'Reference',
   shape: 'Shape',
   terminal: 'Terminal',
   text: 'Text',
 };
 
 interface NodeReferenceEntry {
-  kind?: 'node';
+  kind: 'node';
+  workspaceId: string;
   nodeId: string;
-  group?: string;
+  titleSnapshot?: string;
+  typeSnapshot?: CanvasNode['type'];
+  workspaceNameSnapshot?: string;
 }
 
 interface UrlReferenceEntry {
@@ -41,6 +46,7 @@ interface UrlReferenceEntry {
 export type ReferenceEntry = NodeReferenceEntry | UrlReferenceEntry;
 
 type ReferenceGroupKey = CanvasNode['type'] | 'url' | 'missing';
+type ReferencePickerMode = 'current' | 'other';
 
 const REFERENCE_GROUP_ORDER: ReferenceGroupKey[] = [
   'file',
@@ -51,6 +57,7 @@ const REFERENCE_GROUP_ORDER: ReferenceGroupKey[] = [
   'agent',
   'terminal',
   'mindmap',
+  'reference',
   'shape',
   'frame',
   'group',
@@ -65,31 +72,38 @@ const PICKER_NODE_TYPE_GROUP_ORDER: CanvasNode['type'][] = [
   'agent',
   'terminal',
   'mindmap',
+  'reference',
   'shape',
   'frame',
   'group',
 ];
 
 const isUrlReference = (entry: ReferenceEntry): entry is UrlReferenceEntry => entry.kind === 'url';
-const getReferenceId = (entry: ReferenceEntry) => isUrlReference(entry) ? entry.id : entry.nodeId;
+const getReferenceId = (entry: ReferenceEntry) => isUrlReference(entry)
+  ? entry.id
+  : `${entry.workspaceId}:${entry.nodeId}`;
+const getNodeReferenceId = (workspaceId: string, nodeId: string) => `${workspaceId}:${nodeId}`;
+
 const getReferenceGroupLabel = (type: ReferenceGroupKey) => {
   if (type === 'url') return 'URL';
   if (type === 'missing') return 'Missing nodes';
   return NODE_TYPE_LABELS[type];
 };
+
 const getReferenceGroupIcon = (type: ReferenceGroupKey) => {
   switch (type) {
-    case 'file': return '📄';
+    case 'file': return 'N';
     case 'text': return 'T';
-    case 'image': return '🖼';
-    case 'iframe': return '🌐';
-    case 'url': return '🔗';
-    case 'agent': return '🤖';
-    case 'terminal': return '⌘';
-    case 'mindmap': return '☊';
-    case 'shape': return '◼';
-    case 'frame': return '▣';
-    case 'group': return '☷';
+    case 'image': return 'I';
+    case 'iframe': return 'W';
+    case 'url': return '@';
+    case 'agent': return 'A';
+    case 'terminal': return '$';
+    case 'mindmap': return 'M';
+    case 'reference': return 'R';
+    case 'shape': return 'S';
+    case 'frame': return 'F';
+    case 'group': return 'G';
     case 'missing': return '?';
   }
 };
@@ -134,26 +148,34 @@ const normalizeReferenceUrl = (value: string) => {
 
 interface ReferenceDrawerProps {
   open: boolean;
+  activeWorkspaceId: string;
+  workspaces: WorkspaceEntry[];
   references: ReferenceEntry[];
   activeReference?: ReferenceEntry;
   activeReferenceNode?: CanvasNode;
   nodes: CanvasNode[];
+  allNodes: Record<string, CanvasNode[]>;
   selectedNode?: CanvasNode;
   onOpenChange: (open: boolean) => void;
   onSelectReference: (referenceId: string | undefined) => void;
   onRemoveReference: (referenceId: string) => void;
   onClearAll: () => void;
-  onAddReference: (nodeId: string, group?: string) => void;
+  onAddReference: (workspaceId: string, nodeId: string) => void;
   onAddUrlReference: (url: string, title?: string) => void;
-  onFocusNode: (nodeId: string) => void;
+  onFocusNode: (workspaceId: string, nodeId: string) => void;
+  onAddReferenceToCanvas: (entry: NodeReferenceEntry) => void;
+  onWorkspaceNodesRequest: (workspaceId: string) => void;
 }
 
 export const ReferenceDrawer = ({
   open,
+  activeWorkspaceId,
+  workspaces,
   references,
   activeReference,
   activeReferenceNode,
   nodes,
+  allNodes,
   selectedNode,
   onOpenChange,
   onSelectReference,
@@ -162,12 +184,15 @@ export const ReferenceDrawer = ({
   onAddReference,
   onAddUrlReference,
   onFocusNode,
+  onAddReferenceToCanvas,
+  onWorkspaceNodesRequest,
 }: ReferenceDrawerProps) => {
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_REFERENCE_DRAWER_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [shouldRender, setShouldRender] = useState(open);
   const [isActive, setIsActive] = useState(open);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState<ReferencePickerMode | null>(null);
+  const [externalWorkspaceId, setExternalWorkspaceId] = useState<string | undefined>();
   const [urlEditorOpen, setUrlEditorOpen] = useState(false);
   const [urlDraft, setUrlDraft] = useState('');
   const [urlError, setUrlError] = useState<string | undefined>();
@@ -199,7 +224,7 @@ export const ReferenceDrawer = ({
     if (!pickerOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (!pickerRef.current?.contains(event.target as Node)) {
-        setPickerOpen(false);
+        setPickerOpen(null);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -216,6 +241,11 @@ export const ReferenceDrawer = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [urlEditorOpen]);
+
+  useEffect(() => {
+    if (!externalWorkspaceId || externalWorkspaceId === activeWorkspaceId) return;
+    onWorkspaceNodesRequest(externalWorkspaceId);
+  }, [activeWorkspaceId, externalWorkspaceId, onWorkspaceNodesRequest]);
 
   const drawerStyle = useMemo(
     () => ({
@@ -251,28 +281,75 @@ export const ReferenceDrawer = ({
     document.addEventListener('mouseup', handleMouseUp);
   }, [drawerWidth]);
 
-  const nodeById = useMemo(() => {
+  const workspaceNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const workspace of workspaces) map.set(workspace.id, workspace.name);
+    return map;
+  }, [workspaces]);
+
+  const externalWorkspaces = useMemo(
+    () => workspaces.filter((workspace) => workspace.id !== activeWorkspaceId),
+    [activeWorkspaceId, workspaces],
+  );
+
+  useEffect(() => {
+    if (externalWorkspaceId && externalWorkspaces.some((workspace) => workspace.id === externalWorkspaceId)) return;
+    setExternalWorkspaceId(externalWorkspaces[0]?.id);
+  }, [externalWorkspaceId, externalWorkspaces]);
+
+  const currentNodeById = useMemo(() => {
     const map = new Map<string, CanvasNode>();
     for (const node of nodes) map.set(node.id, node);
     return map;
   }, [nodes]);
 
-  const eligiblePickableNodes = useMemo(() => {
-    const referenced = new Set(references.filter((entry) => !isUrlReference(entry)).map((entry) => entry.nodeId));
-    return nodes
-      .filter((node) => !referenced.has(node.id))
-      .filter((node) => node.type !== 'frame' && node.type !== 'group');
-  }, [nodes, references]);
+  const getNodeByEntry = useCallback(
+    (entry: NodeReferenceEntry) => {
+      if (entry.workspaceId === activeWorkspaceId) return currentNodeById.get(entry.nodeId);
+      return (allNodes[entry.workspaceId] ?? []).find((node) => node.id === entry.nodeId);
+    },
+    [activeWorkspaceId, allNodes, currentNodeById],
+  );
 
-  const pickableNodes = useMemo(() => {
-    if (!debouncedSearch) return eligiblePickableNodes;
-    return eligiblePickableNodes.filter((node) => {
+  const referenced = useMemo(() => {
+    const set = new Set<string>();
+    for (const entry of references) {
+      if (!isUrlReference(entry)) set.add(getReferenceId(entry));
+    }
+    return set;
+  }, [references]);
+
+  const eligibleCurrentNodes = useMemo(() => (
+    nodes
+      .filter((node) => !referenced.has(getNodeReferenceId(activeWorkspaceId, node.id)))
+      .filter((node) => node.type !== 'frame' && node.type !== 'group')
+  ), [activeWorkspaceId, nodes, referenced]);
+
+  const selectedExternalWorkspaceNodes = externalWorkspaceId
+    ? allNodes[externalWorkspaceId] ?? []
+    : [];
+
+  const eligibleExternalNodes = useMemo(() => {
+    if (!externalWorkspaceId) return [];
+    return selectedExternalWorkspaceNodes
+      .filter((node) => !referenced.has(getNodeReferenceId(externalWorkspaceId, node.id)))
+      .filter((node) => node.type !== 'frame' && node.type !== 'group');
+  }, [externalWorkspaceId, referenced, selectedExternalWorkspaceNodes]);
+
+  const filterNodes = useCallback((items: CanvasNode[]) => {
+    if (!debouncedSearch) return items;
+    return items.filter((node) => {
       const label = getNodeDisplayLabel(node);
       const typeLabel = NODE_TYPE_LABELS[node.type] ?? node.type;
       return [label, node.type, typeLabel, node.id]
         .some((value) => value.toLowerCase().includes(debouncedSearch));
     });
-  }, [eligiblePickableNodes, debouncedSearch]);
+  }, [debouncedSearch]);
+
+  const pickableNodes = useMemo(
+    () => filterNodes(pickerOpen === 'other' ? eligibleExternalNodes : eligibleCurrentNodes),
+    [eligibleCurrentNodes, eligibleExternalNodes, filterNodes, pickerOpen],
+  );
 
   const pickableNodeGroups = useMemo(() => {
     const map = new Map<CanvasNode['type'], CanvasNode[]>();
@@ -291,15 +368,12 @@ export const ReferenceDrawer = ({
       }));
   }, [pickableNodes]);
 
-  const handlePinSelected = useCallback(() => {
-    if (!selectedNode) return;
-    onAddReference(selectedNode.id);
-  }, [selectedNode, onAddReference]);
-
   const handleAddFromPicker = useCallback((nodeId: string) => {
-    onAddReference(nodeId);
-    setPickerOpen(false);
-  }, [onAddReference]);
+    const workspaceId = pickerOpen === 'other' ? externalWorkspaceId : activeWorkspaceId;
+    if (!workspaceId) return;
+    onAddReference(workspaceId, nodeId);
+    setPickerOpen(null);
+  }, [activeWorkspaceId, externalWorkspaceId, onAddReference, pickerOpen]);
 
   const handleAddUrl = useCallback(() => {
     const normalized = normalizeReferenceUrl(urlDraft);
@@ -327,7 +401,6 @@ export const ReferenceDrawer = ({
 
   const hasReferences = references.length > 0;
   const searchActive = debouncedSearch.length > 0;
-  const canPinSelected = !!selectedNode && !references.some((entry) => !isUrlReference(entry) && entry.nodeId === selectedNode.id);
 
   return (
     <aside
@@ -355,64 +428,70 @@ export const ReferenceDrawer = ({
           title="Close reference panel"
           aria-label="Close reference panel"
         >
-          ×
+          x
         </button>
       </header>
 
       <div className="reference-drawer-toolbar">
-        <button
-          className="reference-drawer-action"
-          type="button"
-          onClick={handlePinSelected}
-          disabled={!canPinSelected}
-          title={
-            selectedNode
-              ? canPinSelected
-                ? `Pin "${getNodeDisplayLabel(selectedNode)}"`
-                : 'Already pinned'
-              : 'Select a node on the canvas first'
-          }
-        >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-          Pin selection
-        </button>
         <div className="reference-picker-anchor" ref={pickerRef}>
           <button
-            className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen ? ' reference-drawer-action--open' : ''}`}
+            className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'current' ? ' reference-drawer-action--open' : ''}`}
             type="button"
-            onClick={() => setPickerOpen((prev) => !prev)}
-            disabled={eligiblePickableNodes.length === 0}
-            title={eligiblePickableNodes.length === 0 ? 'No more nodes to pin' : 'Pick a node to pin'}
+            onClick={() => {
+              setSearchDraft('');
+              setPickerOpen((prev) => prev === 'current' ? null : 'current');
+            }}
+            disabled={eligibleCurrentNodes.length === 0}
+            title={eligibleCurrentNodes.length === 0 ? 'No more current workspace nodes to pin' : 'Pick a current workspace node'}
             aria-haspopup="dialog"
-            aria-expanded={pickerOpen}
+            aria-expanded={pickerOpen === 'current'}
           >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-              <path d="M3 6h10M3 10h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-            </svg>
-            From canvas
-            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
-              <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <ListIcon />
+            Current workspace
+          </button>
+
+          <button
+            className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'other' ? ' reference-drawer-action--open' : ''}`}
+            type="button"
+            onClick={() => {
+              setSearchDraft('');
+              setPickerOpen((prev) => prev === 'other' ? null : 'other');
+            }}
+            disabled={externalWorkspaces.length === 0}
+            title={externalWorkspaces.length === 0 ? 'No other workspaces yet' : 'Pick a node from another workspace'}
+            aria-haspopup="dialog"
+            aria-expanded={pickerOpen === 'other'}
+          >
+            <BranchIcon />
+            Other workspace
           </button>
 
           {pickerOpen && (
             <div className="reference-picker-popover" role="dialog" aria-label="Pick canvas reference">
+              {pickerOpen === 'other' && (
+                <div className="reference-workspace-picker">
+                  <label htmlFor="reference-workspace-select">Workspace</label>
+                  <select
+                    id="reference-workspace-select"
+                    value={externalWorkspaceId ?? ''}
+                    onChange={(event) => {
+                      setExternalWorkspaceId(event.target.value || undefined);
+                      setSearchDraft('');
+                    }}
+                  >
+                    {externalWorkspaces.map((workspace) => (
+                      <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div className="reference-picker-controls">
                 <div className="reference-picker-search">
-                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                    <path
-                      d="M7.1 12.2a5.1 5.1 0 100-10.2 5.1 5.1 0 000 10.2zM11 11l3 3"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                  <SearchIcon />
                   <input
                     value={searchDraft}
                     onChange={(e) => setSearchDraft(e.target.value)}
-                    placeholder="Search canvas nodes"
+                    placeholder={pickerOpen === 'other' ? 'Search selected workspace' : 'Search current workspace'}
                     aria-label="Search canvas nodes"
                   />
                   {searchDraft && (
@@ -423,13 +502,15 @@ export const ReferenceDrawer = ({
                       aria-label="Clear canvas node search"
                       title="Clear search"
                     >
-                      ×
+                      x
                     </button>
                   )}
                 </div>
               </div>
               <div className="reference-picker-list" role="listbox">
-                {pickableNodes.length === 0 ? (
+                {pickerOpen === 'other' && externalWorkspaceId && !Object.prototype.hasOwnProperty.call(allNodes, externalWorkspaceId) ? (
+                  <div className="reference-picker-empty">Loading workspace nodes...</div>
+                ) : pickableNodes.length === 0 ? (
                   <div className="reference-picker-empty">
                     {searchActive ? 'No canvas nodes match this search.' : 'All eligible nodes are pinned.'}
                   </div>
@@ -440,6 +521,7 @@ export const ReferenceDrawer = ({
                       type={group.type}
                       name={group.name}
                       nodes={group.nodes}
+                      workspaceName={pickerOpen === 'other' && externalWorkspaceId ? workspaceNameById.get(externalWorkspaceId) : undefined}
                       onPick={handleAddFromPicker}
                     />
                   ))
@@ -448,6 +530,7 @@ export const ReferenceDrawer = ({
             </div>
           )}
         </div>
+
         <div className="reference-url-anchor" ref={urlEditorRef}>
           <button
             className={`reference-drawer-action reference-drawer-action--ghost${urlEditorOpen ? ' reference-drawer-action--open' : ''}`}
@@ -460,9 +543,7 @@ export const ReferenceDrawer = ({
             aria-expanded={urlEditorOpen}
             title="Add URL reference"
           >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
-              <path d="M6.4 5.2l1.1-1.1a3 3 0 014.2 4.2l-1.2 1.2M9.6 10.8l-1.1 1.1a3 3 0 01-4.2-4.2l1.2-1.2M6.4 9.6l3.2-3.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-            </svg>
+            <LinkIcon />
             URL
           </button>
           {urlEditorOpen && (
@@ -518,7 +599,9 @@ export const ReferenceDrawer = ({
             <div className="reference-entry-list">
               <ReferenceEntryList
                 entries={references}
-                nodeById={nodeById}
+                activeWorkspaceId={activeWorkspaceId}
+                workspaceNameById={workspaceNameById}
+                getNodeByEntry={getNodeByEntry}
                 activeId={activeReferenceId}
                 onSelect={onSelectReference}
                 onFocus={onFocusNode}
@@ -567,21 +650,29 @@ export const ReferenceDrawer = ({
                 <ReferenceNativeNodePreview
                   node={activeReferenceNode}
                   drawerWidth={drawerWidth}
-                  onFocusNode={onFocusNode}
+                  workspaceName={workspaceNameById.get(activeReference.workspaceId) ?? activeReference.workspaceNameSnapshot}
+                  onFocusNode={() => onFocusNode(activeReference.workspaceId, activeReference.nodeId)}
                 />
                 <div className="reference-card-footer">
                   <button
                     className="reference-drawer-secondary"
                     type="button"
-                    onClick={() => onFocusNode(activeReferenceNode.id)}
-                    title="Focus on canvas"
+                    onClick={() => onFocusNode(activeReference.workspaceId, activeReference.nodeId)}
+                    title="Open source"
                   >
-                    Focus
+                    Open source
                   </button>
                   <button
                     className="reference-drawer-secondary"
                     type="button"
-                    onClick={() => onRemoveReference(activeReferenceNode.id)}
+                    onClick={() => onAddReferenceToCanvas(activeReference)}
+                  >
+                    Add to canvas
+                  </button>
+                  <button
+                    className="reference-drawer-secondary"
+                    type="button"
+                    onClick={() => onRemoveReference(getReferenceId(activeReference))}
                   >
                     Unpin
                   </button>
@@ -595,6 +686,8 @@ export const ReferenceDrawer = ({
                   </button>
                 </div>
               </div>
+            ) : activeReference && !isUrlReference(activeReference) ? (
+              <div className="reference-pick-hint">Source node is not loaded or no longer exists.</div>
             ) : (
               <div className="reference-pick-hint">Pick a reference above to preview it here.</div>
             )}
@@ -604,7 +697,6 @@ export const ReferenceDrawer = ({
     </aside>
   );
 };
-
 
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;
@@ -634,10 +726,11 @@ ReferenceUrlWebPreview.displayName = 'ReferenceUrlWebPreview';
 interface ReferenceNativeNodePreviewProps {
   node: CanvasNode;
   drawerWidth: number;
-  onFocusNode: (nodeId: string) => void;
+  workspaceName?: string;
+  onFocusNode: () => void;
 }
 
-const ReferenceNativeNodePreview = memo(({ node, drawerWidth, onFocusNode }: ReferenceNativeNodePreviewProps) => {
+const ReferenceNativeNodePreview = memo(({ node, drawerWidth, workspaceName, onFocusNode }: ReferenceNativeNodePreviewProps) => {
   const previewNode = useMemo(
     () => ({
       ...node,
@@ -650,12 +743,13 @@ const ReferenceNativeNodePreview = memo(({ node, drawerWidth, onFocusNode }: Ref
   );
 
   const getPreviewNodes = useCallback(() => [node], [node]);
-  const handleFocus = useCallback(() => onFocusNode(node.id), [node.id, onFocusNode]);
+  const handleFocus = useCallback(() => onFocusNode(), [onFocusNode]);
 
   return (
     <CanvasNodeView
       node={previewNode}
       getAllNodes={getPreviewNodes}
+      workspaceName={workspaceName}
       isDragging={false}
       isResizing={false}
       isSelected={false}
@@ -677,17 +771,21 @@ ReferenceNativeNodePreview.displayName = 'ReferenceNativeNodePreview';
 
 interface ReferenceEntryListProps {
   entries: ReferenceEntry[];
-  nodeById: Map<string, CanvasNode>;
+  activeWorkspaceId: string;
+  workspaceNameById: Map<string, string>;
+  getNodeByEntry: (entry: NodeReferenceEntry) => CanvasNode | undefined;
   activeId?: string;
   onSelect: (referenceId: string | undefined) => void;
-  onFocus: (nodeId: string) => void;
+  onFocus: (workspaceId: string, nodeId: string) => void;
   onOpenUrl: (url: string) => void;
   onRemove: (referenceId: string) => void;
 }
 
 const ReferenceEntryList = ({
   entries,
-  nodeById,
+  activeWorkspaceId,
+  workspaceNameById,
+  getNodeByEntry,
   activeId,
   onSelect,
   onFocus,
@@ -697,21 +795,32 @@ const ReferenceEntryList = ({
   <ul className="reference-group-items">
     {entries.map((entry) => {
       const id = getReferenceId(entry);
-      const node = isUrlReference(entry) ? undefined : nodeById.get(entry.nodeId);
-      const label = isUrlReference(entry) ? getUrlReferenceLabel(entry) : node ? getNodeDisplayLabel(node) : entry.nodeId;
+      const node = isUrlReference(entry) ? undefined : getNodeByEntry(entry);
+      const label = isUrlReference(entry)
+        ? getUrlReferenceLabel(entry)
+        : node
+          ? getNodeDisplayLabel(node)
+          : entry.titleSnapshot ?? entry.nodeId;
+      const type = isUrlReference(entry) ? 'url' : node?.type ?? entry.typeSnapshot ?? 'missing';
       const active = id === activeId;
+      const workspaceLabel = isUrlReference(entry)
+        ? getUrlHostname(entry.url)
+        : entry.workspaceId === activeWorkspaceId
+          ? 'Current'
+          : workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot ?? 'Workspace';
       return (
         <li key={id}>
           <button
             type="button"
             className={`reference-group-item${active ? ' reference-group-item--active' : ''}`}
             onClick={() => onSelect(id)}
-            onDoubleClick={() => isUrlReference(entry) ? onOpenUrl(entry.url) : onFocus(entry.nodeId)}
+            onDoubleClick={() => isUrlReference(entry) ? onOpenUrl(entry.url) : onFocus(entry.workspaceId, entry.nodeId)}
           >
             <span className="reference-group-item-label" title={label}>
               {label}
             </span>
-            <span className="reference-group-item-type">{isUrlReference(entry) ? 'url' : node?.type ?? 'missing'}</span>
+            <span className="reference-group-item-meta" title={workspaceLabel}>{workspaceLabel}</span>
+            <span className="reference-group-item-type">{type}</span>
             <span
               className="reference-group-item-remove"
               role="button"
@@ -730,7 +839,7 @@ const ReferenceEntryList = ({
               aria-label="Remove from references"
               title="Remove"
             >
-              ×
+              x
             </span>
           </button>
         </li>
@@ -743,6 +852,7 @@ interface ReferencePickerGroupSectionProps {
   name: string;
   type: CanvasNode['type'];
   nodes: CanvasNode[];
+  workspaceName?: string;
   onPick: (nodeId: string) => void;
 }
 
@@ -750,6 +860,7 @@ const ReferencePickerGroupSection = ({
   name,
   type,
   nodes,
+  workspaceName,
   onPick,
 }: ReferencePickerGroupSectionProps) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -786,6 +897,7 @@ const ReferencePickerGroupSection = ({
             >
               <span className="reference-picker-item-type">{node.type}</span>
               <span className="reference-picker-item-label">{getNodeDisplayLabel(node)}</span>
+              {workspaceName ? <span className="reference-picker-item-workspace">{workspaceName}</span> : null}
             </button>
           ))}
         </div>
@@ -808,7 +920,7 @@ const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNode }) =>
       </svg>
     </div>
     <h3>No reference pinned</h3>
-    <p>Pin canvas nodes or URLs to keep them at hand. Use "Pin selection", "From canvas", or "URL" above.</p>
+    <p>Pin nodes from the current workspace, another workspace, or a URL.</p>
     {selectedNode ? (
       <div className="reference-selected-hint">
         <span>Selected</span>
@@ -816,8 +928,47 @@ const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNode }) =>
       </div>
     ) : (
       <div className="reference-selected-hint reference-selected-hint--muted">
-        Select a single node to enable "Pin selection", or add a URL directly.
+        Use the current workspace picker for nearby nodes, or the other workspace picker for cross-canvas reuse.
       </div>
     )}
   </div>
 );
+
+const ListIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M3 6h10M3 10h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+const BranchIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M4 3v9M4 6h5a3 3 0 003-3M4 10h5a3 3 0 013 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const SearchIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path
+      d="M7.1 12.2a5.1 5.1 0 100-10.2 5.1 5.1 0 000 10.2zM11 11l3 3"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const LinkIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+    <path d="M6.4 5.2l1.1-1.1a3 3 0 014.2 4.2l-1.2 1.2M9.6 10.8l-1.1 1.1a3 3 0 01-4.2-4.2l1.2-1.2M6.4 9.6l3.2-3.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+  </svg>
+);
+
+export type NodeReferenceEntryForCanvas = NodeReferenceEntry;
+export const createReferenceNodeDataSnapshot = (
+  node: CanvasNode,
+  workspaceName?: string,
+): ReferenceNodeData => ({
+  titleSnapshot: getNodeDisplayLabel(node),
+  typeSnapshot: node.type === 'reference' ? undefined : node.type,
+  workspaceNameSnapshot: workspaceName,
+});

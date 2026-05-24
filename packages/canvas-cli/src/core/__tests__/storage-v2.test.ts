@@ -141,6 +141,31 @@ describe('assembleV2', () => {
     const out = await assembleV2(wsDir, layout);
     expect(out.nodes[0].data).toEqual({});
   });
+
+  it('keeps layout-only reference nodes intact without a per-node file', async () => {
+    const wsDir = join(testDir, wsId);
+    const layout: CanvasSaveData = {
+      schemaVersion: 2,
+      nodes: [
+        {
+          id: 'ref-1',
+          type: 'reference',
+          title: 'Ref: Hello',
+          x: 0,
+          y: 0,
+          width: 420,
+          height: 300,
+          ref: { kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' },
+          data: { titleSnapshot: 'Hello' },
+        },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: '',
+    };
+    const out = await assembleV2(wsDir, layout);
+    expect(out.nodes[0].data.titleSnapshot).toBe('Hello');
+    expect(out.nodes[0].ref).toEqual({ kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' });
+  });
 });
 
 describe('splitV2', () => {
@@ -182,6 +207,33 @@ describe('splitV2', () => {
 
     const n1 = await readNodeFile(wsDir, 'n1');
     expect(n1?.data.content).toBe('A-body');
+  });
+
+  it('keeps reference nodes in layout and does not create copied per-node files', async () => {
+    const wsDir = join(testDir, wsId);
+    const input: CanvasSaveData = {
+      nodes: [
+        {
+          id: 'ref-1',
+          type: 'reference',
+          title: 'Ref: Hello',
+          x: 0,
+          y: 0,
+          width: 420,
+          height: 300,
+          ref: { kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' },
+          data: { titleSnapshot: 'Hello' },
+          updatedAt: 100,
+        },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: '',
+    };
+    const layout = await splitV2(wsDir, input);
+
+    expect(layout.nodes[0].ref).toEqual({ kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' });
+    expect(layout.nodes[0].data.titleSnapshot).toBe('Hello');
+    expect(await readNodeFile(wsDir, 'ref-1')).toBeNull();
   });
 
   it('cleans up orphan per-node files', async () => {

@@ -393,6 +393,7 @@ const AppContent = () => {
               activeWorkspaceId={activeId}
               workspaces={workspaces}
               controller={workbench}
+              onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
             />
           </PulseRouterView>

@@ -28,6 +28,7 @@ import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
+import type { NodeReferenceEntryForCanvas } from '../ReferenceDrawer';
 
 interface CanvasProps {
   canvasId: string;
@@ -52,6 +53,11 @@ interface CanvasProps {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onPinReferenceNode?: (nodeId: string) => void;
+  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
+  onOpenReferenceSource?: (node: CanvasNode) => void;
+  referencePlacementRequest?: NodeReferenceEntryForCanvas | null;
+  onReferencePlacementComplete?: () => void;
+  createReferenceNode?: (entry: NodeReferenceEntryForCanvas, x: number, y: number) => CanvasNode | null;
 }
 
 export const Canvas = ({
@@ -72,6 +78,11 @@ export const Canvas = ({
   referenceDrawerOpen,
   onReferenceToggle,
   onPinReferenceNode,
+  resolveReferenceNode,
+  onOpenReferenceSource,
+  referencePlacementRequest,
+  onReferencePlacementComplete,
+  createReferenceNode,
 }: CanvasProps) => {
   const { confirm, notify, openShortcuts, isOverlayOpen } = useAppShell();
   const [activeTool, setActiveTool] = useState('select');
@@ -341,6 +352,38 @@ export const Canvas = ({
     };
   }, [canvasId, addNode, updateNode, screenToCanvas, setSelectedNodeIds]);
 
+  useEffect(() => {
+    if (!referencePlacementRequest || !createReferenceNode) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const center = screenToCanvas(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+      container,
+    );
+    const next = createReferenceNode(referencePlacementRequest, center.x - 210, center.y - 150);
+    if (!next) return;
+    const node = addNode('reference', next.x, next.y);
+    updateNode(node.id, {
+      title: next.title,
+      ref: next.ref,
+      data: next.data,
+      width: next.width,
+      height: next.height,
+    });
+    setSelectedNodeIds([node.id]);
+    onReferencePlacementComplete?.();
+  }, [
+    addNode,
+    createReferenceNode,
+    onReferencePlacementComplete,
+    referencePlacementRequest,
+    screenToCanvas,
+    setSelectedNodeIds,
+    updateNode,
+  ]);
+
   const paletteCommands = useCanvasPaletteCommands({
     selectedNodeIds, setSelectedNodeIds, nodesRef,
     duplicateNode, requestRemoveNodes: actions.requestRemoveNodes,
@@ -452,6 +495,8 @@ export const Canvas = ({
         onExportMindmapImage={actions.handleExportMindmapImage}
         onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
+        resolveReferenceNode={resolveReferenceNode}
+        onOpenReferenceSource={onOpenReferenceSource}
         onUngroupSelectedGroups={actions.ungroupSelectedNodes}
         fullscreenNodeId={focus.fullscreenNodeId}
         onToggleFullscreen={focus.handleToggleFullscreen}

@@ -1,4 +1,4 @@
-export type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'mindmap';
+export type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'mindmap' | 'reference';
 export type NodeCapability = 'read' | 'write' | 'exec';
 
 /**
@@ -36,6 +36,7 @@ export interface CanvasNode {
   y: number;
   width: number;
   height: number;
+  ref?: { kind: string; [key: string]: unknown };
   data: CanvasNodeData;
   /**
    * Epoch millis of last mutation for this node. Used by the Electron main

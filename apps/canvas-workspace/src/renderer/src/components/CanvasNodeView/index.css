@@ -42,6 +42,38 @@
     0 0 0 2px rgba(35, 131, 226, 0.1);
 }
 
+.canvas-node--reference {
+  background: #fbfcff;
+  border-color: rgba(74, 95, 148, 0.16);
+}
+
+.canvas-node--reference.canvas-node--selected {
+  border-color: rgba(74, 95, 148, 0.42);
+  box-shadow: var(--shadow-card-hover), 0 0 0 2px rgba(74, 95, 148, 0.12);
+}
+
+.canvas-node--reference > .node-header {
+  background: #f7f9ff;
+}
+
+.node-type-badge--reference {
+  color: #4a5f94;
+}
+
+.node-reference-source {
+  min-width: 0;
+  max-width: 110px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(74, 95, 148, 0.08);
+  color: #4a5f94;
+  font-size: 10px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* The header for a note becomes a thin, almost-invisible strip. The
  * type badge / title / buttons remain functional, but the bottom rule
  * dissolves so the header and the editor read as the same page rather
@@ -161,6 +193,53 @@
 
 .canvas-node--readonly .node-body {
   user-select: text;
+}
+
+.canvas-node--reference .canvas-node--readonly {
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+}
+
+.node-body--reference {
+  position: relative;
+  padding: 8px;
+  background: #f7f9ff;
+  overflow: hidden;
+}
+
+.node-body--reference > .canvas-node--readonly {
+  height: 100% !important;
+}
+
+.reference-node-missing {
+  height: 100%;
+  min-height: 90px;
+  border: 1px dashed rgba(74, 95, 148, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  padding: 12px;
+}
+
+.reference-node-missing__title {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.reference-node-missing__meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
 }
 
 .node-header {

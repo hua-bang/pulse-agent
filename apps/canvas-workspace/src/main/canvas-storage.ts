@@ -72,6 +72,7 @@ export interface CanvasNode {
   y?: number;
   width?: number;
   height?: number;
+  ref?: unknown;
   data?: Record<string, unknown>;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
@@ -604,6 +605,9 @@ async function assembleV2(
 
   const assembledNodes = await Promise.all(
     layoutNodes.map(async (layoutNode) => {
+      if (isLayoutOnlyReferenceNode(layoutNode)) {
+        return layoutNode;
+      }
       const id = typeof layoutNode.id === 'string' ? layoutNode.id : null;
       if (!id) {
         // Layout entry without an id — degrade gracefully with empty data
@@ -710,16 +714,20 @@ async function writeCanvasFullV2(
       continue;
     }
 
-    const file: PerNodeFile = {
-      schemaVersion: PER_NODE_SCHEMA_VERSION,
-      id: node.id,
-      type: node.type,
-      title: node.title,
-      data: (node.data ?? {}) as Record<string, unknown>,
-      updatedAt: incomingUpdatedAt,
-      createdAt: existing?.createdAt ?? incomingUpdatedAt,
-    };
-    await writeNodeFile(workspaceId, file, root);
+    if (!isLayoutOnlyReferenceNode(node)) {
+      const file: PerNodeFile = {
+        schemaVersion: PER_NODE_SCHEMA_VERSION,
+        id: node.id,
+        type: node.type,
+        title: node.title,
+        data: (node.data ?? {}) as Record<string, unknown>,
+        updatedAt: incomingUpdatedAt,
+        createdAt: existing?.createdAt ?? incomingUpdatedAt,
+      };
+      await writeNodeFile(workspaceId, file, root);
+    } else if (existing) {
+      await deleteNodeFile(workspaceId, node.id, root);
+    }
   }
 
   // 2. Delete per-node files for nodes that no longer exist in the incoming
@@ -749,8 +757,16 @@ async function writeCanvasFullV2(
 }
 
 function stripDataFromNode(node: CanvasNode): CanvasNode {
+  if (isLayoutOnlyReferenceNode(node)) return node;
   const { data: _data, ...rest } = node;
   return rest;
+}
+
+function isLayoutOnlyReferenceNode(node: CanvasNode): boolean {
+  return !!node
+    && typeof node === 'object'
+    && node.type === 'reference'
+    && node.ref != null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -838,6 +854,11 @@ export async function migrateToV2(
     for (const node of nodes) {
       if (!node.id || !isSafeNodeId(node.id)) {
         // Defensive: skip but don't fail the migration on one bad id.
+        current += 1;
+        onProgress({ phase: 'split-nodes', current, total });
+        continue;
+      }
+      if (isLayoutOnlyReferenceNode(node)) {
         current += 1;
         onProgress({ phase: 'split-nodes', current, total });
         continue;

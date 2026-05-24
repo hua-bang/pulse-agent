@@ -532,6 +532,43 @@ describe('migrateToV2', () => {
     expect(n2).toBeNull();
   });
 
+  it('keeps reference nodes layout-only instead of writing copied per-node data', async () => {
+    await seedV1();
+    await migrateToV2(wsId, { root });
+
+    const data: CanvasSaveData = {
+      nodes: [
+        {
+          id: 'ref-1',
+          type: 'reference',
+          title: 'Ref: Hello',
+          x: 10,
+          y: 20,
+          width: 420,
+          height: 300,
+          ref: { kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' },
+          data: {
+            titleSnapshot: 'Hello',
+            typeSnapshot: 'text',
+            workspaceNameSnapshot: 'Source',
+          },
+          updatedAt: Date.now(),
+        },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+    };
+    await writeCanvasFull(wsId, data, root);
+
+    const layout = JSON.parse(await fs.readFile(getCanvasJsonPath(wsId, root), 'utf-8'));
+    expect(layout.nodes[0].ref).toEqual({ kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' });
+    expect(layout.nodes[0].data.titleSnapshot).toBe('Hello');
+    expect(await readNodeFile(wsId, 'ref-1', root)).toBeNull();
+
+    const readBack = await readCanvasFull(wsId, root);
+    expect(readBack.data?.nodes?.[0].data?.titleSnapshot).toBe('Hello');
+    expect(readBack.data?.nodes?.[0].ref).toEqual({ kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' });
+  });
+
   it('writeCanvasFull respects updatedAt arbitration for per-node files', async () => {
     await seedV1();
     await migrateToV2(wsId, { root });
@@ -771,6 +808,30 @@ describe('readCanvasFull on v2 with edge cases', () => {
 
     const result = await readCanvasFull(wsId, root);
     expect(result.data?.nodes?.[0].data).toEqual({});
+  });
+
+  it('does not warn or synthesize empty data for layout-only reference nodes', async () => {
+    await fs.mkdir(join(root, wsId), { recursive: true });
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        schemaVersion: 2,
+        nodes: [
+          {
+            id: 'ref-1',
+            type: 'reference',
+            title: 'Ref: Hello',
+            ref: { kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' },
+            data: { titleSnapshot: 'Hello' },
+          },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+      }),
+    );
+
+    const result = await readCanvasFull(wsId, root);
+    expect(result.data?.nodes?.[0].data?.titleSnapshot).toBe('Hello');
+    expect(result.data?.nodes?.[0].ref).toEqual({ kind: 'workspace-node', workspaceId: 'source-ws', nodeId: 'source-node' });
   });
 
   it('per-node file wins on type/title drift', async () => {

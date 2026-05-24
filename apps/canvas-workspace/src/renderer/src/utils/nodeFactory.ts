@@ -1,4 +1,4 @@
-import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic } from '../types';
+import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic, ReferenceNodeData } from '../types';
 
 let nodeIdCounter = 0;
 export const genId = (): string => `node-${Date.now()}-${++nodeIdCounter}`;
@@ -17,6 +17,7 @@ const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; 
   image:    { title: 'Image',    width: 320, height: 240 },
   shape:    { title: 'Shape',    width: 200, height: 140 },
   mindmap:  { title: 'Mindmap',  width: 640, height: 420 },
+  reference: { title: 'Reference', width: 420, height: 300 },
 };
 
 /** Default width/height for a node type — single source of truth so
@@ -43,9 +44,10 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   image:    'Image',
   shape:    'Shape',
   mindmap:  'Mindmap',
+  reference: 'Reference',
 };
 
-export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData => {
+export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData | ReferenceNodeData => {
   switch (type) {
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };
     case 'terminal': return { sessionId: '' };
@@ -56,6 +58,7 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
     case 'iframe':   return { url: '', html: '', mode: 'url', prompt: '' };
     case 'image':    return { filePath: '' };
     case 'shape':    return { kind: 'rect', fill: '#E8EEF7', stroke: '#5B7CBF', strokeWidth: 2 };
+    case 'reference': return {};
     case 'mindmap':  return {
       root: {
         id: genTopicId(),

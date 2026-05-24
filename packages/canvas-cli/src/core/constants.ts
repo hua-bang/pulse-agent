@@ -11,6 +11,7 @@ export const NODE_CAPABILITIES: Record<NodeType, NodeCapability[]> = {
   group: ['read', 'write'],
   agent: ['read', 'exec'],
   mindmap: ['read', 'write'],
+  reference: ['read'],
 };
 
 export const DEFAULT_NODE_DIMENSIONS: Record<NodeType, { title: string; width: number; height: number }> = {
@@ -20,6 +21,7 @@ export const DEFAULT_NODE_DIMENSIONS: Record<NodeType, { title: string; width: n
   group: { title: 'Group', width: 360, height: 240 },
   agent: { title: 'Agent', width: 520, height: 380 },
   mindmap: { title: 'Mindmap', width: 640, height: 420 },
+  reference: { title: 'Reference', width: 420, height: 300 },
 };
 
 export const AGENTS_MD_TEMPLATE = `# Canvas Agent Config

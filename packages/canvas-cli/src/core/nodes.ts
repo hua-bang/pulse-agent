@@ -261,6 +261,13 @@ export async function createNode(
       nodeData = { root, layout: 'right', rev: 0 };
       break;
     }
+    case 'reference':
+      nodeData = {
+        titleSnapshot: (inputData as Record<string, string>).titleSnapshot,
+        typeSnapshot: (inputData as Record<string, string>).typeSnapshot,
+        workspaceNameSnapshot: (inputData as Record<string, string>).workspaceNameSnapshot,
+      };
+      break;
   }
 
   // For file nodes, always create a notes file so the node has a valid filePath
