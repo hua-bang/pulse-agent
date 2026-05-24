@@ -52,6 +52,7 @@ interface Props {
   onReference?: (nodeId: string) => void;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
+  onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
   onUngroupSelectedGroups?: () => void;
   /** True when this node is currently rendered fullscreen. The node
    *  stays inside `.canvas-transform` (so its iframe / editor / terminal
@@ -63,6 +64,7 @@ interface Props {
    *  support fullscreen (frame / group / shape). */
   onToggleFullscreen?: (nodeId: string) => void;
   readOnly?: boolean;
+  embedded?: boolean;
 }
 
 /** Node types that get the fullscreen affordance. Containers (frame,
@@ -117,10 +119,12 @@ const CanvasNodeViewComponent = ({
   onReference,
   resolveReferenceNode,
   onOpenReferenceSource,
+  onUpdateReferenceSource,
   onUngroupSelectedGroups,
   isFullscreen = false,
   onToggleFullscreen,
-  readOnly = false
+  readOnly = false,
+  embedded = false,
 }: Props) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [mindmapMenu, setMindmapMenu] = useState<{ x: number; y: number } | null>(null);
@@ -296,6 +300,7 @@ const CanvasNodeViewComponent = ({
     focusState === 'context' && "canvas-node--focus-mode-context",
     focusState === 'dimmed' && "canvas-node--focus-mode-dimmed",
     readOnly && "canvas-node--readonly",
+    embedded && "canvas-node--embedded",
     textAutoSize && "canvas-node--text-auto",
     isFullscreen && "canvas-node--fullscreen"
   ]
@@ -341,6 +346,20 @@ const CanvasNodeViewComponent = ({
       )}
     </button>
   ) : null;
+
+  const sanitizeReferenceSourcePatch = useCallback((patch: Partial<CanvasNode>): Partial<CanvasNode> => {
+    const { x: _x, y: _y, width: _width, height: _height, ref: _ref, ...rest } = patch;
+    return rest;
+  }, []);
+
+  const handleReferenceSourceUpdate = useCallback(
+    (_sourceId: string, patch: Partial<CanvasNode>) => {
+      const sanitized = sanitizeReferenceSourcePatch(patch);
+      if (Object.keys(sanitized).length === 0) return;
+      onUpdateReferenceSource?.(node, sanitized);
+    },
+    [node, onUpdateReferenceSource, sanitizeReferenceSourcePatch],
+  );
 
 
   const relativeTime = node.updatedAt ? formatRelativeTime(node.updatedAt) : null;
@@ -511,7 +530,22 @@ const CanvasNodeViewComponent = ({
             </button>
           )}
         </div>
-        <div className="node-body node-body--reference" onMouseDown={handleNodeBodyMouseDown}>
+        <div
+          className="node-body node-body--reference"
+          onMouseDown={handleNodeBodyMouseDown}
+        >
+          {/* Drag overlay: covers the embedded node so iframes/webviews
+           * can't swallow mousedown. Only active when the reference node
+           * is NOT selected — first click selects + drags, subsequent
+           * interaction passes through to the inner node so users can
+           * actually edit the referenced content. */}
+          {isFullscreen || isSelected ? null : (
+            <div
+              className="reference-drag-overlay"
+              onMouseDown={handleHeaderMouseDown}
+              onClick={handleNodeClick}
+            />
+          )}
           {sourceNode ? (
             <CanvasNodeView
               node={{
@@ -527,17 +561,18 @@ const CanvasNodeViewComponent = ({
               workspaceName={workspaceLabel}
               isDragging={false}
               isResizing={false}
-              isSelected={false}
+              isSelected={isSelected}
               isHighlighted={false}
               onDragStart={() => undefined}
               onResizeStart={() => undefined}
-              onUpdate={() => undefined}
+              onUpdate={handleReferenceSourceUpdate}
               onAutoResize={() => undefined}
               onRemove={() => undefined}
               onExportMindmapImage={() => undefined}
-              onSelect={() => undefined}
+              onSelect={() => onSelect(node.id)}
               onFocus={() => undefined}
-              readOnly
+              readOnly={readOnly || !onUpdateReferenceSource}
+              embedded
             />
           ) : (
             <div className="reference-node-missing">
@@ -852,5 +887,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.onToggleFullscreen === next.onToggleFullscreen &&
   prev.resolveReferenceNode === next.resolveReferenceNode &&
   prev.onOpenReferenceSource === next.onOpenReferenceSource &&
-  prev.readOnly === next.readOnly
+  prev.onUpdateReferenceSource === next.onUpdateReferenceSource &&
+  prev.readOnly === next.readOnly &&
+  prev.embedded === next.embedded
 ));

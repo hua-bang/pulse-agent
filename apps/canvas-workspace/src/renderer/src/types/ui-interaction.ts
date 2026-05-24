@@ -1,3 +1,5 @@
+import type { CanvasNode } from '../types';
+
 export type ToastTone = 'success' | 'error' | 'loading' | 'info';
 
 /** Optional inline button rendered alongside the toast body. The toast
@@ -45,4 +47,16 @@ export interface CanvasNodeRenameRequest {
   workspaceId: string;
   nodeId: string;
   title: string;
+}
+
+export interface CanvasNodePatchRequest {
+  workspaceId: string;
+  nodeId: string;
+  patch: Partial<CanvasNode>;
+  requestId: number;
+}
+
+export interface CanvasClipboard {
+  sourceWorkspaceId: string;
+  nodes: CanvasNode[];
 }

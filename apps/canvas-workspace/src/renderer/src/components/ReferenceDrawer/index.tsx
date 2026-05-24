@@ -6,6 +6,7 @@ import { CanvasNodeView } from '../CanvasNodeView';
 import { IframeNodeBody } from '../IframeNodeBody';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { copyTextToClipboard } from '../../utils/clipboard';
+import { isReferenceableNode } from '../../utils/referenceNodes';
 
 const DEFAULT_REFERENCE_DRAWER_WIDTH = 420;
 const MIN_REFERENCE_DRAWER_WIDTH = 260;
@@ -322,7 +323,7 @@ export const ReferenceDrawer = ({
   const eligibleCurrentNodes = useMemo(() => (
     nodes
       .filter((node) => !referenced.has(getNodeReferenceId(activeWorkspaceId, node.id)))
-      .filter((node) => node.type !== 'frame' && node.type !== 'group')
+      .filter(isReferenceableNode)
   ), [activeWorkspaceId, nodes, referenced]);
 
   const selectedExternalWorkspaceNodes = externalWorkspaceId
@@ -333,7 +334,7 @@ export const ReferenceDrawer = ({
     if (!externalWorkspaceId) return [];
     return selectedExternalWorkspaceNodes
       .filter((node) => !referenced.has(getNodeReferenceId(externalWorkspaceId, node.id)))
-      .filter((node) => node.type !== 'frame' && node.type !== 'group');
+      .filter(isReferenceableNode);
   }, [externalWorkspaceId, referenced, selectedExternalWorkspaceNodes]);
 
   const filterNodes = useCallback((items: CanvasNode[]) => {

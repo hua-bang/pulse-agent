@@ -24,7 +24,7 @@ import { useCanvasRenderOrder } from './hooks/useCanvasRenderOrder';
 import { useAppShell } from '../AppShellProvider';
 import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
 import type { CanvasNode } from '../../types';
-import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
+import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
@@ -55,9 +55,15 @@ interface CanvasProps {
   onPinReferenceNode?: (nodeId: string) => void;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
+  onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
   referencePlacementRequest?: NodeReferenceEntryForCanvas | null;
   onReferencePlacementComplete?: () => void;
   createReferenceNode?: (entry: NodeReferenceEntryForCanvas, x: number, y: number) => CanvasNode | null;
+  clipboard?: CanvasClipboard | null;
+  onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
+  onPasteReferences?: (targetWorkspaceId: string, clipboard: CanvasClipboard) => CanvasNode[];
+  nodePatchRequest?: CanvasNodePatchRequest;
+  onNodePatchComplete?: (requestId: number) => void;
 }
 
 export const Canvas = ({
@@ -80,9 +86,15 @@ export const Canvas = ({
   onPinReferenceNode,
   resolveReferenceNode,
   onOpenReferenceSource,
+  onUpdateReferenceSource,
   referencePlacementRequest,
   onReferencePlacementComplete,
   createReferenceNode,
+  clipboard = null,
+  onClipboardChange,
+  onPasteReferences,
+  nodePatchRequest,
+  onNodePatchComplete,
 }: CanvasProps) => {
   const { confirm, notify, openShortcuts, isOverlayOpen } = useAppShell();
   const [activeTool, setActiveTool] = useState('select');
@@ -163,7 +175,6 @@ export const Canvas = ({
   const {
     selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId,
-    clipboardNodes, setClipboardNodes,
     highlightedId, setHighlightedId,
     editingEdgeLabelId, setEditingEdgeLabelId,
     suppressBlankClickRef,
@@ -211,6 +222,58 @@ export const Canvas = ({
     // produce a double reframe at different scales (visible jitter).
     if (!focus.focusModeActive) handleFocusNode(node);
   }, [handleFocusNode, focus.focusModeActive, setSelectedNodeIds, setHighlightedId]);
+
+  const pasteReferenceNodes = useCallback(
+    (nextClipboard: CanvasClipboard) => {
+      if (!onPasteReferences) return [];
+      const templates = onPasteReferences(canvasId, nextClipboard);
+      if (templates.length === 0) return [];
+      let offsetX = 0;
+      let offsetY = 0;
+      const container = containerRef.current;
+      if (container) {
+        const rect = container.getBoundingClientRect();
+        const viewportCenter = screenToCanvas(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2,
+          container,
+        );
+        const bounds = templates.reduce(
+          (acc, node) => ({
+            minX: Math.min(acc.minX, node.x),
+            minY: Math.min(acc.minY, node.y),
+            maxX: Math.max(acc.maxX, node.x + node.width),
+            maxY: Math.max(acc.maxY, node.y + node.height),
+          }),
+          {
+            minX: Number.POSITIVE_INFINITY,
+            minY: Number.POSITIVE_INFINITY,
+            maxX: Number.NEGATIVE_INFINITY,
+            maxY: Number.NEGATIVE_INFINITY,
+          },
+        );
+        offsetX = viewportCenter.x - (bounds.minX + bounds.maxX) / 2;
+        offsetY = viewportCenter.y - (bounds.minY + bounds.maxY) / 2;
+      }
+      const created: CanvasNode[] = [];
+      for (const template of templates) {
+        const x = template.x + offsetX;
+        const y = template.y + offsetY;
+        const node = addNode('reference', x, y);
+        const patch: Partial<CanvasNode> = {
+          title: template.title,
+          ref: template.ref,
+          data: template.data,
+          width: template.width,
+          height: template.height,
+        };
+        updateNode(node.id, patch);
+        created.push({ ...node, ...patch });
+      }
+      return created;
+    },
+    [addNode, canvasId, onPasteReferences, screenToCanvas, updateNode],
+  );
 
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
@@ -278,9 +341,14 @@ export const Canvas = ({
   });
 
   useCanvasKeyboard({
+    canvasId,
     undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
-    duplicateNode, clipboardNodes, setClipboardNodes, pasteNodes,
+    duplicateNode,
+    clipboard,
+    setClipboard: onClipboardChange ?? (() => undefined),
+    pasteNodes,
+    pasteReferencedNodes: pasteReferenceNodes,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     removeNodes: actions.requestRemoveNodes,
@@ -362,9 +430,11 @@ export const Canvas = ({
       rect.top + rect.height / 2,
       container,
     );
-    const next = createReferenceNode(referencePlacementRequest, center.x - 210, center.y - 150);
+    const next = createReferenceNode(referencePlacementRequest, center.x, center.y);
     if (!next) return;
-    const node = addNode('reference', next.x, next.y);
+    const x = center.x - next.width / 2;
+    const y = center.y - next.height / 2;
+    const node = addNode('reference', x, y);
     updateNode(node.id, {
       title: next.title,
       ref: next.ref,
@@ -429,6 +499,7 @@ export const Canvas = ({
     focusNodeId, onFocusComplete,
     deleteNodeId, onDeleteComplete,
     renameRequest, onRenameComplete,
+    nodePatchRequest, onNodePatchComplete,
   });
 
   if (!loaded) {
@@ -497,6 +568,7 @@ export const Canvas = ({
         onReference={onPinReferenceNode}
         resolveReferenceNode={resolveReferenceNode}
         onOpenReferenceSource={onOpenReferenceSource}
+        onUpdateReferenceSource={onUpdateReferenceSource}
         onUngroupSelectedGroups={actions.ungroupSelectedNodes}
         fullscreenNodeId={focus.fullscreenNodeId}
         onToggleFullscreen={focus.handleToggleFullscreen}
