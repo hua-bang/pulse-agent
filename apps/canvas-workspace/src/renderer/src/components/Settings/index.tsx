@@ -19,9 +19,10 @@ import { SettingsDrawer } from '../SettingsDrawer';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
+import { ExperimentalSection } from './ExperimentalSection';
 import './index.css';
 
-export type SettingsSection = 'models' | 'reply-style' | 'agent';
+export type SettingsSection = 'models' | 'reply-style' | 'agent' | 'experimental';
 
 interface SectionDef {
   id: SettingsSection;
@@ -48,6 +49,12 @@ const SECTIONS: SectionDef[] = [
     label: 'Agent',
     description: 'Skills & external agent setup',
     title: 'Agent',
+  },
+  {
+    id: 'experimental',
+    label: 'Experimental',
+    description: 'Opt in to unstable features',
+    title: 'Experimental Features',
   },
 ];
 
@@ -119,6 +126,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
             />
           )}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
+          {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
         </div>
       </div>
     </SettingsDrawer>

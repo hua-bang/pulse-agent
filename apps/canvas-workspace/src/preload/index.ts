@@ -1,4 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+import { resolveFeatureValues } from "../shared/experimental-features";
 
 const sendLog = (level: string, message: string, details?: string) => {
   ipcRenderer.send("app:log", { level, message, details });
@@ -17,9 +21,41 @@ const truthy = (value: string | undefined): boolean => {
   return normalized !== undefined && ["1", "true", "on", "yes"].includes(normalized);
 };
 
-const pluginFlags: Record<string, boolean> = {
-  "canvas-agent-debug-trace": truthy(process.env.CANVAS_AGENT_DEBUG_TRACE),
-};
+// Synchronously load user-persisted experimental-feature overrides so the
+// resolved `pluginFlags` map is available before the renderer activates
+// any plugins. Plugin `enabledWhen()` reads this snapshot — re-runs only
+// on the next preload (i.e. a window reload), which is what the Settings
+// "Reload to apply" button triggers.
+function loadPersistedOverrides(): Record<string, boolean> {
+  try {
+    const path =
+      process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim() ||
+      join(homedir(), ".pulse-coder", "canvas", "experimental-features.json");
+    const raw = readFileSync(path, "utf8");
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out: Record<string, boolean> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === "boolean") out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+// Legacy env-var escape hatch — still force-enables the matching flag id
+// when set (useful for CI / scripted runs that should not touch the
+// persisted JSON file).
+const envOverrides: Record<string, boolean> = {};
+if (truthy(process.env.CANVAS_AGENT_DEBUG_TRACE)) {
+  envOverrides["canvas-agent-debug-trace"] = true;
+}
+
+const pluginFlags: Record<string, boolean> = resolveFeatureValues({
+  ...loadPersistedOverrides(),
+  ...envOverrides,
+});
 
 contextBridge.exposeInMainWorld("canvasWorkspace", {
   version: "0.1.0",
@@ -190,6 +226,14 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     install: () => ipcRenderer.invoke("skills:install"),
     status: () => ipcRenderer.invoke("skills:status"),
     cleanupLegacy: () => ipcRenderer.invoke("skills:cleanup-legacy")
+  },
+
+  experimental: {
+    list: () => ipcRenderer.invoke("experimental:list"),
+    set: (id: string, enabled: boolean) =>
+      ipcRenderer.invoke("experimental:set", { id, enabled }),
+    reset: () => ipcRenderer.invoke("experimental:reset"),
+    reloadWindow: () => ipcRenderer.invoke("experimental:reload-window")
   },
 
   iframe: {

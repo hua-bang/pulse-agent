@@ -848,6 +848,7 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  experimental: ExperimentalApi;
   model: CanvasModelApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;
@@ -861,6 +862,27 @@ export interface CanvasWorkspaceApi {
 
 export interface ShellApi {
   openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>;
+}
+
+export interface ExperimentalFeatureDef {
+  id: string;
+  label: string;
+  description: string;
+  defaultEnabled: boolean;
+}
+
+export interface ExperimentalApi {
+  list: () => Promise<{
+    ok: boolean;
+    features?: ExperimentalFeatureDef[];
+    values?: Record<string, boolean>;
+    path?: string;
+    error?: string;
+  }>;
+  set: (id: string, enabled: boolean) =>
+    Promise<{ ok: boolean; values?: Record<string, boolean>; error?: string }>;
+  reset: () => Promise<{ ok: boolean; values?: Record<string, boolean>; error?: string }>;
+  reloadWindow: () => Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface LinkApi {

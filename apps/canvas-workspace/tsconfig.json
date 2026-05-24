@@ -16,6 +16,7 @@
   "include": [
     "src/renderer/src",
     "src/plugins/types.ts",
-    "src/plugins/renderer/**/*"
+    "src/plugins/renderer/**/*",
+    "src/shared/**/*"
   ]
 }

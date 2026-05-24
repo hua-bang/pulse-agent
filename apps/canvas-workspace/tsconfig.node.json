@@ -11,6 +11,7 @@
     "src/main",
     "src/preload",
     "src/plugins/types.ts",
-    "src/plugins/main/**/*"
+    "src/plugins/main/**/*",
+    "src/shared/**/*"
   ]
 }

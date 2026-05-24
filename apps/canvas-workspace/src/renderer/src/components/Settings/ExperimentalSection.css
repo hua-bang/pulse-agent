@@ -1,0 +1,235 @@
+.experimental-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.experimental-section-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.experimental-section-intro-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #37352f;
+  margin-bottom: 4px;
+}
+
+.experimental-section-intro-desc {
+  font-size: 12.5px;
+  color: rgba(55, 53, 47, 0.65);
+  line-height: 1.55;
+  max-width: 620px;
+}
+
+.experimental-section-path {
+  margin-top: 8px;
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.5);
+}
+
+.experimental-section-path code,
+.experimental-section-intro-desc code,
+.experimental-section-empty code {
+  background: rgba(55, 53, 47, 0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  word-break: break-all;
+}
+
+.experimental-section-reload-banner {
+  background: rgba(217, 119, 6, 0.07);
+  border: 1px solid rgba(217, 119, 6, 0.22);
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.experimental-section-reload-text {
+  font-size: 12.5px;
+  color: #92400e;
+  font-weight: 500;
+}
+
+.experimental-section-error {
+  background: rgba(226, 70, 70, 0.08);
+  color: #b3261e;
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.experimental-section-empty {
+  border: 1px dashed rgba(55, 53, 47, 0.18);
+  color: rgba(55, 53, 47, 0.6);
+  font-size: 12.5px;
+  border-radius: 8px;
+  padding: 18px;
+  text-align: center;
+  line-height: 1.55;
+}
+
+.experimental-section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.experimental-section-item {
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.experimental-section-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.experimental-section-item-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #37352f;
+  margin-bottom: 3px;
+}
+
+.experimental-section-item-desc {
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.65);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.experimental-section-item-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.5);
+  align-items: center;
+}
+
+.experimental-section-item-meta code {
+  background: rgba(55, 53, 47, 0.05);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  color: rgba(55, 53, 47, 0.7);
+}
+
+.experimental-section-switch {
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  width: 36px;
+  height: 20px;
+  display: inline-block;
+}
+
+.experimental-section-switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  margin: 0;
+}
+
+.experimental-section-switch-track {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: rgba(55, 53, 47, 0.18);
+  border-radius: 999px;
+  transition: background 120ms ease;
+  position: relative;
+}
+
+.experimental-section-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+  transition: transform 120ms ease;
+}
+
+.experimental-section-switch--on .experimental-section-switch-track {
+  background: #2383e2;
+}
+
+.experimental-section-switch--on .experimental-section-switch-thumb {
+  transform: translateX(16px);
+}
+
+.experimental-section-switch--busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.experimental-section-switch--busy input {
+  cursor: progress;
+}
+
+.experimental-section-primary-btn {
+  border: none;
+  background: #2383e2;
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 7px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.experimental-section-primary-btn:hover {
+  background: #1f76cc;
+}
+
+.experimental-section-primary-btn:disabled {
+  background: rgba(35, 131, 226, 0.45);
+  cursor: not-allowed;
+}
+
+.experimental-section-secondary-btn {
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  background: #fff;
+  color: #37352f;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.experimental-section-secondary-btn:hover {
+  background: rgba(55, 53, 47, 0.04);
+}
+
+.experimental-section-footer {
+  border-top: 1px solid rgba(55, 53, 47, 0.07);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
