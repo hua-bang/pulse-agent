@@ -146,6 +146,53 @@
   word-break: break-all;
 }
 
+.agent-section-cli {
+  background: rgba(35, 131, 226, 0.05);
+  border: 1px solid rgba(35, 131, 226, 0.18);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-section-cli-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1f4e8a;
+}
+
+.agent-section-cli-title code,
+.agent-section-cli-desc code {
+  background: rgba(35, 131, 226, 0.12);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+
+.agent-section-cli-desc {
+  font-size: 11.5px;
+  color: rgba(55, 53, 47, 0.7);
+  line-height: 1.5;
+}
+
+.agent-section-cli-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.agent-section-cli-cmd {
+  flex: 1;
+  background: #0d1117;
+  color: #e6edf3;
+  font-size: 11.5px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 .agent-section-results {
   list-style: none;
   margin: 0;

@@ -14,6 +14,8 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
   const [installing, setInstalling] = useState(false);
   const [cleaningLegacy, setCleaningLegacy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualCommand, setManualCommand] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -34,6 +36,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     try {
       const result: SkillsInstallResult = await window.canvasWorkspace.skills.install();
       setLastResults(result.results);
+      setManualCommand(result.manualCommand ?? null);
       await loadStatus();
       const failed = result.results.filter((r) => !r.ok);
       if (failed.length === 0) {
@@ -93,6 +96,21 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     : allInstalled
       ? 'Reinstall Pulse Canvas Skill'
       : 'Install Pulse Canvas Skill';
+
+  const copyManualCommand = useCallback(async () => {
+    if (!manualCommand) return;
+    try {
+      await navigator.clipboard.writeText(manualCommand);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      notify({
+        tone: 'error',
+        title: 'Copy failed',
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [manualCommand, notify]);
 
   return (
     <div className="agent-section">
@@ -167,6 +185,28 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
                 </li>
               ))}
             </ul>
+          )}
+
+          {manualCommand && (
+            <div className="agent-section-cli">
+              <div className="agent-section-cli-title">
+                Next step: install the <code>pulse-canvas</code> CLI
+              </div>
+              <div className="agent-section-cli-desc">
+                The skill requires the <code>pulse-canvas</code> CLI on your PATH. It is not
+                published yet — run this command from the repo root:
+              </div>
+              <div className="agent-section-cli-cmd-row">
+                <code className="agent-section-cli-cmd">{manualCommand}</code>
+                <button
+                  type="button"
+                  className="agent-section-secondary-btn"
+                  onClick={() => void copyManualCommand()}
+                >
+                  {copied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
