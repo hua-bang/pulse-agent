@@ -30,12 +30,30 @@ export interface ExperimentalFeatureDef {
   defaultEnabled: boolean;
 }
 
+export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';
+export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
+export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
+
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
-    id: 'canvas-agent-debug-trace',
+    id: EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
     label: 'Agent DevTools',
     description:
       'Adds a DevTools route that inspects per-run agent debug traces (chat history, tool calls, raw LLM payloads).',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_WORKSPACE_NODES,
+    label: 'Workspace Nodes page',
+    description:
+      'A workspace-wide knowledge library showing every node as a filterable grid, plus a per-node detail page. Surfaces a "Nodes" entry in the sidebar.',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
+    label: 'Workspace Graph page',
+    description:
+      'A force-directed graph view of all nodes in the workspace with grouped toolbar and suggest-search. Surfaces a "Graph" entry in the sidebar.',
     defaultEnabled: false,
   },
 ];

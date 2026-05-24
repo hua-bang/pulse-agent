@@ -19,12 +19,24 @@ import './components/WorkspaceNodes/index.css';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
+import {
+  EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
+  EXPERIMENTAL_FLAG_WORKSPACE_NODES,
+} from '../../shared/experimental-features';
 type SelectedWorkspaceNode = { workspaceId: string; nodeId: string };
 
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
 const ROUTE_GRAPH = '/graph';
+
+// Plugin flags are snapshotted at preload-time, so reading once at module
+// init is fine — toggling in Settings only takes effect after a reload.
+const PLUGIN_FLAGS =
+  (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
+    .canvasWorkspace?.pluginFlags ?? {};
+const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
+const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true;
 
 // Plugin routes contribute their own URL paths; activeView widens to
 // 'canvas' | 'chat' | <plugin route path>.
@@ -42,18 +54,23 @@ const AppContent = () => {
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
   const detailNodeMatch = routePath.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
+  // Disabled experimental routes silently fall back to canvas so a stale
+  // bookmark / deep link still loads something usable.
+  const nodesRouteActive =
+    NODES_ENABLED && (routePath === ROUTE_NODES || detailNodeMatch !== null);
+  const graphRouteActive = GRAPH_ENABLED && routePath === ROUTE_GRAPH;
   const activeView: ActiveView =
     routePath === ROUTE_CHAT
       ? 'chat'
-      : routePath === ROUTE_NODES
-        ? 'nodes'
-        : detailNodeMatch
+      : nodesRouteActive
+        ? detailNodeMatch
           ? 'node-detail'
-          : routePath === ROUTE_GRAPH
-            ? 'graph'
-      : pluginRoutes.some((r) => r.path === routePath)
-        ? routePath
-        : 'canvas';
+          : 'nodes'
+        : graphRouteActive
+          ? 'graph'
+          : pluginRoutes.some((r) => r.path === routePath)
+            ? routePath
+            : 'canvas';
   const routeQuery = routeParams.toString();
 
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
@@ -116,16 +133,31 @@ const AppContent = () => {
     setLocation(ROUTE_CANVAS);
   }, [routePath, routeQuery, routeParams, activeId, workspaces, selectWorkspace, requestNodeFocus, setLocation]);
 
+  // If the user reached a disabled experimental route (typically via a
+  // bookmarked URL after toggling the flag off), bounce them back to the
+  // canvas instead of leaving them on a blank view.
+  useEffect(() => {
+    if (!NODES_ENABLED && (routePath === ROUTE_NODES || detailNodeMatch)) {
+      setLocation(ROUTE_CANVAS);
+      return;
+    }
+    if (!GRAPH_ENABLED && routePath === ROUTE_GRAPH) {
+      setLocation(ROUTE_CANVAS);
+    }
+  }, [routePath, detailNodeMatch, setLocation]);
+
   const enterChatView = useCallback(() => {
     setLocation(ROUTE_CHAT);
   }, [setLocation]);
 
   const enterNodesView = useCallback(() => {
+    if (!NODES_ENABLED) return;
     setSelectedNode(null);
     setLocation(ROUTE_NODES);
   }, [setLocation]);
 
   const enterGraphView = useCallback(() => {
+    if (!GRAPH_ENABLED) return;
     setLocation(ROUTE_GRAPH);
   }, [setLocation]);
 
@@ -414,6 +446,8 @@ const AppContent = () => {
           onEnterChat={enterChatView}
           onEnterNodes={enterNodesView}
           onEnterGraph={enterGraphView}
+          nodesEnabled={NODES_ENABLED}
+          graphEnabled={GRAPH_ENABLED}
           pluginNavItems={pluginNavItems}
           onNavigate={navigateToPath}
           onExitChat={exitChatView}
@@ -440,30 +474,36 @@ const AppContent = () => {
               onOpenAppSettings={openAppSettings}
             />
           </PulseRouterView>
-          <PulseRouterView name="nodes">
-            <NodesPage
-              workspaces={workspaces}
-              selectedNode={selectedNode}
-              onSelectNode={setSelectedNode}
-              onOpenNode={openNodePage}
-            />
-          </PulseRouterView>
-          <PulseRouterView name="node-detail">
-            <NodeDetailPage
-              workspaceId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[1]) : ''}
-              nodeId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[2]) : null}
-              workspaces={workspaces}
-              onBack={enterNodesView}
-            />
-          </PulseRouterView>
-          <PulseRouterView name="graph">
-            <GraphPage
-              workspaces={workspaces}
-              selectedNode={selectedNode}
-              onSelectNode={setSelectedNode}
-              onOpenNode={openNodePage}
-            />
-          </PulseRouterView>
+          {NODES_ENABLED && (
+            <PulseRouterView name="nodes">
+              <NodesPage
+                workspaces={workspaces}
+                selectedNode={selectedNode}
+                onSelectNode={setSelectedNode}
+                onOpenNode={openNodePage}
+              />
+            </PulseRouterView>
+          )}
+          {NODES_ENABLED && (
+            <PulseRouterView name="node-detail">
+              <NodeDetailPage
+                workspaceId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[1]) : ''}
+                nodeId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[2]) : null}
+                workspaces={workspaces}
+                onBack={enterNodesView}
+              />
+            </PulseRouterView>
+          )}
+          {GRAPH_ENABLED && (
+            <PulseRouterView name="graph">
+              <GraphPage
+                workspaces={workspaces}
+                selectedNode={selectedNode}
+                onSelectNode={setSelectedNode}
+                onOpenNode={openNodePage}
+              />
+            </PulseRouterView>
+          )}
           {pluginRoutes.map((route) => {
             return (
               <PulseRouterView key={route.path} name={route.path}>
