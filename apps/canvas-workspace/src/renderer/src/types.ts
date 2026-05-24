@@ -9,6 +9,8 @@ export interface CanvasNode {
   width: number;
   height: number;
   ref?: CanvasNodeRef;
+  properties?: Record<string, WorkspaceNodePropertyValue>;
+  links?: WorkspaceNodeLink[];
   data:
     | FileNodeData
     | TerminalNodeData
@@ -22,6 +24,64 @@ export interface CanvasNode {
     | MindmapNodeData
     | ReferenceNodeData;
   /** Epoch millis of last mutation; used for cross-process merge. */
+  updatedAt?: number;
+}
+
+export type WorkspaceNodePropertyValue =
+  | string
+  | number
+  | boolean
+  | null
+  | string[]
+  | number[]
+  | { type: 'date'; value: string }
+  | { type: 'url'; value: string }
+  | { type: 'file'; path: string }
+  | { type: 'node'; nodeId: string }
+  | { type: 'workspace-node'; workspaceId: string; nodeId: string };
+
+export interface WorkspaceNodeLink {
+  relation: string;
+  target: {
+    workspaceId?: string;
+    nodeId: string;
+  };
+  title?: string;
+  properties?: Record<string, WorkspaceNodePropertyValue>;
+}
+
+export interface WorkspaceNodeRecord {
+  schemaVersion: 1;
+  id: string;
+  type: string;
+  title?: string;
+  data: Record<string, unknown>;
+  properties?: Record<string, WorkspaceNodePropertyValue>;
+  links?: WorkspaceNodeLink[];
+  updatedAt?: number;
+  createdAt?: number;
+}
+
+export interface WorkspaceNodeListItem {
+  workspaceId?: string;
+  workspaceName?: string;
+  id: string;
+  type: string;
+  title?: string;
+  summary?: string;
+  tags: string[];
+  links?: WorkspaceNodeLink[];
+  updatedAt?: number;
+  createdAt?: number;
+  hasData: boolean;
+  linkCount: number;
+}
+
+export interface KnowledgeTagDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt?: number;
   updatedAt?: number;
 }
 
@@ -844,6 +904,39 @@ export interface CanvasWorkspaceApi {
         message?: string;
       }) => void
     ) => () => void;
+  };
+  workspaceNodes: {
+    list: (workspaceId: string) => Promise<{
+      ok: boolean;
+      nodes?: WorkspaceNodeListItem[];
+      tags?: KnowledgeTagDefinition[];
+      error?: string;
+    }>;
+    read: (workspaceId: string, nodeId: string) => Promise<{
+      ok: boolean;
+      node?: WorkspaceNodeRecord | null;
+      error?: string;
+    }>;
+    tags: () => Promise<{
+      ok: boolean;
+      tags?: KnowledgeTagDefinition[];
+      error?: string;
+    }>;
+    upsertTag: (tag: { id?: string; name: string; description?: string }) => Promise<{
+      ok: boolean;
+      tag?: KnowledgeTagDefinition;
+      error?: string;
+    }>;
+    updateTags: (workspaceId: string, nodeId: string, tags: string[]) => Promise<{
+      ok: boolean;
+      node?: WorkspaceNodeRecord | null;
+      error?: string;
+    }>;
+    update: (workspaceId: string, nodeId: string, patch: Partial<WorkspaceNodeRecord>) => Promise<{
+      ok: boolean;
+      node?: WorkspaceNodeRecord | null;
+      error?: string;
+    }>;
   };
   file: FileApi;
   dialog: DialogApi;

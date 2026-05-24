@@ -184,6 +184,33 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId]);
 
+  const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode) => void>>(new Map());
+
+  const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode) => void) => {
+    insertMentionByWorkspaceRef.current.set(workspaceId, fn);
+    return () => {
+      insertMentionByWorkspaceRef.current.delete(workspaceId);
+    };
+  }, []);
+
+  const handleAddNodeToChat = useCallback((workspaceId: string, nodeId: string) => {
+    const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
+    if (!node) return;
+    setChatPanelOpen(true);
+    const tryInsert = () => {
+      const fn = insertMentionByWorkspaceRef.current.get(workspaceId);
+      if (fn) {
+        fn(node);
+        return true;
+      }
+      return false;
+    };
+    if (!tryInsert()) {
+      // ChatPanel may not have registered yet (just opened). Retry on next tick.
+      requestAnimationFrame(() => { tryInsert(); });
+    }
+  }, [allNodes]);
+
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
     [workspaces],
@@ -446,6 +473,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   referenceDrawerOpen={referenceDrawerOpen}
                   onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
                   onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
+                  onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
                   resolveReferenceNode={resolveReferenceNode}
                   onOpenReferenceSource={handleOpenReferenceSource}
                   onUpdateReferenceSource={updateReferenceSourceNode}
@@ -480,6 +508,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
               onResizeStart={handleResizeStart}
               onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
               onOpenAppSettings={onOpenAppSettings}
+              onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
             />
           </div>
         ))}

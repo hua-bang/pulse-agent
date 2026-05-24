@@ -12,12 +12,19 @@ import { Sidebar } from './components/Sidebar';
 import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
+import { GraphPage } from './components/WorkspaceNodes/GraphPage';
+import { NodeDetailPage } from './components/WorkspaceNodes/NodeDetailPage';
+import { NodesPage } from './components/WorkspaceNodes/NodesPage';
+import './components/WorkspaceNodes/index.css';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
+type SelectedWorkspaceNode = { workspaceId: string; nodeId: string };
 
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
+const ROUTE_NODES = '/nodes';
+const ROUTE_GRAPH = '/graph';
 
 // Plugin routes contribute their own URL paths; activeView widens to
 // 'canvas' | 'chat' | <plugin route path>.
@@ -34,9 +41,16 @@ const AppContent = () => {
   // so a one-shot read is sufficient.
   const pluginRoutes = useMemo(() => getRegisteredRoutes(), []);
   const pluginNavItems = useMemo(() => getRegisteredNavItems(), []);
+  const detailNodeMatch = routePath.match(/^\/nodes\/([^/]+)\/([^/]+)$/);
   const activeView: ActiveView =
     routePath === ROUTE_CHAT
       ? 'chat'
+      : routePath === ROUTE_NODES
+        ? 'nodes'
+        : detailNodeMatch
+          ? 'node-detail'
+          : routePath === ROUTE_GRAPH
+            ? 'graph'
       : pluginRoutes.some((r) => r.path === routePath)
         ? routePath
         : 'canvas';
@@ -46,6 +60,7 @@ const AppContent = () => {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<SelectedWorkspaceNode | null>(null);
   // null = global Settings drawer closed. Setting to a section name opens
   // the drawer focused on that section.
   const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
@@ -103,6 +118,15 @@ const AppContent = () => {
 
   const enterChatView = useCallback(() => {
     setLocation(ROUTE_CHAT);
+  }, [setLocation]);
+
+  const enterNodesView = useCallback(() => {
+    setSelectedNode(null);
+    setLocation(ROUTE_NODES);
+  }, [setLocation]);
+
+  const enterGraphView = useCallback(() => {
+    setLocation(ROUTE_GRAPH);
   }, [setLocation]);
 
   const exitChatView = useCallback(() => {
@@ -353,6 +377,11 @@ const AppContent = () => {
     setLocation(ROUTE_CANVAS);
   }, [activeId, selectWorkspace, requestNodeFocus, setLocation]);
 
+  const openNodePage = useCallback((workspaceId: string, nodeId: string) => {
+    setSelectedNode({ workspaceId, nodeId });
+    setLocation(`${ROUTE_NODES}/${encodeURIComponent(workspaceId)}/${encodeURIComponent(nodeId)}`);
+  }, [setLocation]);
+
   return (
     <div className="app">
       <div className="app-body">
@@ -383,6 +412,8 @@ const AppContent = () => {
           onNodeRename={requestActiveNodeRename}
           activeView={activeView}
           onEnterChat={enterChatView}
+          onEnterNodes={enterNodesView}
+          onEnterGraph={enterGraphView}
           pluginNavItems={pluginNavItems}
           onNavigate={navigateToPath}
           onExitChat={exitChatView}
@@ -407,6 +438,30 @@ const AppContent = () => {
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
               onOpenAppSettings={openAppSettings}
+            />
+          </PulseRouterView>
+          <PulseRouterView name="nodes">
+            <NodesPage
+              workspaces={workspaces}
+              selectedNode={selectedNode}
+              onSelectNode={setSelectedNode}
+              onOpenNode={openNodePage}
+            />
+          </PulseRouterView>
+          <PulseRouterView name="node-detail">
+            <NodeDetailPage
+              workspaceId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[1]) : ''}
+              nodeId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[2]) : null}
+              workspaces={workspaces}
+              onBack={enterNodesView}
+            />
+          </PulseRouterView>
+          <PulseRouterView name="graph">
+            <GraphPage
+              workspaces={workspaces}
+              selectedNode={selectedNode}
+              onSelectNode={setSelectedNode}
+              onOpenNode={openNodePage}
             />
           </PulseRouterView>
           {pluginRoutes.map((route) => {

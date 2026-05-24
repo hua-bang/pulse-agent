@@ -14,6 +14,7 @@ type CanvasRootViewProps = Pick<
   | 'referenceDrawerOpen'
   | 'onReferenceToggle'
   | 'onPinReferenceNode'
+  | 'onAddToChat'
   | 'resolveReferenceNode'
   | 'onOpenReferenceSource'
   | 'onUpdateReferenceSource'
@@ -108,6 +109,7 @@ export const CanvasRootView = ({
   onChatToggle,
   onOpenReferenceSource,
   onPinReferenceNode,
+  onAddToChat,
   onReferenceToggle,
   onUpdateReferenceSource,
   openShortcuts,
@@ -199,6 +201,7 @@ export const CanvasRootView = ({
         onExportMindmapImage={actions.handleExportMindmapImage}
         onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
+        onAddToChat={onAddToChat}
         resolveReferenceNode={resolveReferenceNode}
         onOpenReferenceSource={onOpenReferenceSource}
         onUpdateReferenceSource={onUpdateReferenceSource}

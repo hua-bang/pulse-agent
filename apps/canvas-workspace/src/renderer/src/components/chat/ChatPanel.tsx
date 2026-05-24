@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
@@ -19,6 +19,7 @@ export const ChatPanel = ({
   onResizeStart,
   onNodeFocus,
   onOpenAppSettings,
+  onRegisterInsertMention,
 }: ChatPanelProps) => {
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
   const requestContextRef = useRef<AgentRequestContext>();
@@ -44,6 +45,7 @@ export const ChatPanel = ({
     handleNewSession,
     handlePaste,
     input,
+    insertNodeMention,
     loading,
     mentionIndex,
     mentionItems,
@@ -72,6 +74,11 @@ export const ChatPanel = ({
     rootFolder,
     getRequestContext: () => requestContextRef.current,
   });
+
+  useEffect(() => {
+    if (!onRegisterInsertMention) return;
+    return onRegisterInsertMention(insertNodeMention);
+  }, [insertNodeMention, onRegisterInsertMention]);
 
   const selectedNodes = useMemo(() => {
     const ids = new Set(selectedNodeIds ?? []);

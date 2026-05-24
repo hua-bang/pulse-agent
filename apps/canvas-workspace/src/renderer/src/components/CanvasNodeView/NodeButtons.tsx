@@ -88,6 +88,22 @@ export const ReferenceButton = ({
   </button>
 );
 
+export const AddToChatButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+  <button
+    className="node-add-to-chat"
+    type="button"
+    onClick={onClick}
+    onMouseDown={(e) => e.stopPropagation()}
+    title="Add to chat"
+    aria-label="Add node to AI chat"
+  >
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path d="M10 1H2a1 1 0 00-1 1v6a1 1 0 001 1h2l2 2 2-2h2a1 1 0 001-1V2a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
+      <path d="M6 4v3M4.5 5.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  </button>
+);
+
 export const OpenSourceButton = ({
   disabled,
   onClick,

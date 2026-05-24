@@ -184,6 +184,21 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     }
   },
 
+  workspaceNodes: {
+    list: (workspaceId: string) =>
+      ipcRenderer.invoke("workspace-node:list", { workspaceId }),
+    read: (workspaceId: string, nodeId: string) =>
+      ipcRenderer.invoke("workspace-node:read", { workspaceId, nodeId }),
+    tags: () =>
+      ipcRenderer.invoke("workspace-node:tags"),
+    upsertTag: (tag: { id?: string; name: string; description?: string }) =>
+      ipcRenderer.invoke("workspace-node:upsert-tag", { tag }),
+    updateTags: (workspaceId: string, nodeId: string, tags: string[]) =>
+      ipcRenderer.invoke("workspace-node:update-tags", { workspaceId, nodeId, tags }),
+    update: (workspaceId: string, nodeId: string, patch: unknown) =>
+      ipcRenderer.invoke("workspace-node:update", { workspaceId, nodeId, patch }),
+  },
+
   file: {
     createNote: (workspaceId?: string, name?: string) =>
       ipcRenderer.invoke("file:createNote", { workspaceId, name }),
