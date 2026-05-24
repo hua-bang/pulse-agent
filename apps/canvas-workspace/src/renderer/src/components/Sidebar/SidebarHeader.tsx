@@ -23,6 +23,8 @@ interface SidebarHeaderProps {
   onEnterChat: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
+  nodesEnabled: boolean;
+  graphEnabled: boolean;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   showAddMenu: boolean;
@@ -39,6 +41,8 @@ export const SidebarHeader = ({
   onEnterChat,
   onEnterNodes,
   onEnterGraph,
+  nodesEnabled,
+  graphEnabled,
   pluginNavItems,
   onNavigate,
   showAddMenu,
@@ -79,26 +83,30 @@ export const SidebarHeader = ({
         </span>
         <span className="sidebar-nav-label">AI Chat</span>
       </button>
-      <button
-        className={`sidebar-nav-item${activeView === 'nodes' || activeView === 'node-detail' ? ' sidebar-nav-item--active' : ''}`}
-        onClick={onEnterNodes}
-        title="Workspace nodes"
-      >
-        <span className="sidebar-nav-icon">
-          <KnowledgeStoreIcon size={14} />
-        </span>
-        <span className="sidebar-nav-label">Nodes</span>
-      </button>
-      <button
-        className={`sidebar-nav-item${activeView === 'graph' ? ' sidebar-nav-item--active' : ''}`}
-        onClick={onEnterGraph}
-        title="Workspace graph"
-      >
-        <span className="sidebar-nav-icon">
-          <NodeGraphIcon size={14} />
-        </span>
-        <span className="sidebar-nav-label">Graph</span>
-      </button>
+      {nodesEnabled && (
+        <button
+          className={`sidebar-nav-item${activeView === 'nodes' || activeView === 'node-detail' ? ' sidebar-nav-item--active' : ''}`}
+          onClick={onEnterNodes}
+          title="Workspace nodes"
+        >
+          <span className="sidebar-nav-icon">
+            <KnowledgeStoreIcon size={14} />
+          </span>
+          <span className="sidebar-nav-label">Nodes</span>
+        </button>
+      )}
+      {graphEnabled && (
+        <button
+          className={`sidebar-nav-item${activeView === 'graph' ? ' sidebar-nav-item--active' : ''}`}
+          onClick={onEnterGraph}
+          title="Workspace graph"
+        >
+          <span className="sidebar-nav-icon">
+            <NodeGraphIcon size={14} />
+          </span>
+          <span className="sidebar-nav-label">Graph</span>
+        </button>
+      )}
       {pluginNavItems.map((item) => {
         const Icon = item.icon;
         return (

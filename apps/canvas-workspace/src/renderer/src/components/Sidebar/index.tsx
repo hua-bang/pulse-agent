@@ -49,6 +49,10 @@ interface Props {
   onEnterChat: () => void;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
+  /** When false, the Nodes nav button is hidden (experimental flag off). */
+  nodesEnabled: boolean;
+  /** When false, the Graph nav button is hidden (experimental flag off). */
+  graphEnabled: boolean;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   onExitChat: () => void;
@@ -62,7 +66,7 @@ export const Sidebar = ({
   onExport, onOpenSettings, onOpenAppSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
   onReorderWorkspace, onReorderFolder,
   activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
-  onEnterNodes, onEnterGraph,
+  onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
 }: Props) => {
   const { notify } = useAppShell();
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -299,6 +303,7 @@ export const Sidebar = ({
           <SidebarHeader
             onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
             onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
+            nodesEnabled={nodesEnabled} graphEnabled={graphEnabled}
             pluginNavItems={pluginNavItems} onNavigate={onNavigate}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
             addMenuRef={addMenuRef}

@@ -17,9 +17,27 @@ const truthy = (value: string | undefined): boolean => {
   return normalized !== undefined && ["1", "true", "on", "yes"].includes(normalized);
 };
 
-const pluginFlags: Record<string, boolean> = {
-  "canvas-agent-debug-trace": truthy(process.env.CANVAS_AGENT_DEBUG_TRACE),
-};
+// Resolved experimental-feature flags. Loaded from the main process via a
+// sync IPC because the preload runs in sandbox mode and cannot touch the
+// filesystem directly. Plugin enabledWhen() reads this snapshot — it only
+// re-evaluates on a window reload, which is what the Settings
+// "Reload window" button triggers.
+let baseFlags: Record<string, boolean> = {};
+try {
+  const result = ipcRenderer.sendSync("experimental:read-sync");
+  if (result && typeof result === "object") {
+    baseFlags = result as Record<string, boolean>;
+  }
+} catch (err) {
+  sendLog("preload", "experimental:read-sync failed", String(err));
+}
+
+// Legacy env-var escape hatch — still force-enables the matching flag id
+// when set (useful for CI / scripted runs that should not touch the
+// persisted JSON file).
+const pluginFlags: Record<string, boolean> = truthy(process.env.CANVAS_AGENT_DEBUG_TRACE)
+  ? { ...baseFlags, "canvas-agent-debug-trace": true }
+  : baseFlags;
 
 contextBridge.exposeInMainWorld("canvasWorkspace", {
   version: "0.1.0",
@@ -205,6 +223,14 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     install: () => ipcRenderer.invoke("skills:install"),
     status: () => ipcRenderer.invoke("skills:status"),
     cleanupLegacy: () => ipcRenderer.invoke("skills:cleanup-legacy")
+  },
+
+  experimental: {
+    list: () => ipcRenderer.invoke("experimental:list"),
+    set: (id: string, enabled: boolean) =>
+      ipcRenderer.invoke("experimental:set", { id, enabled }),
+    reset: () => ipcRenderer.invoke("experimental:reset"),
+    reloadWindow: () => ipcRenderer.invoke("experimental:reload-window")
   },
 
   iframe: {

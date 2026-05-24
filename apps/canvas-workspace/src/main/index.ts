@@ -13,6 +13,7 @@ import { setupSkillInstallerIpc } from "./skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
 import { setupCanvasModelIpc } from "./canvas-model-ipc";
 import { setupCanvasPromptIpc } from "./canvas-prompt-ipc";
+import { setupExperimentalIpc } from "./experimental-ipc";
 import { setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
 import { setupArtifactIpc } from "./artifact-ipc";
@@ -305,6 +306,7 @@ app.whenReady().then(() => {
   setupCanvasAgentIpc();
   setupCanvasModelIpc();
   setupCanvasPromptIpc();
+  setupExperimentalIpc();
   setupWebviewRegistryIpc();
   setupHtmlGeneratorIpc();
   setupArtifactIpc();
