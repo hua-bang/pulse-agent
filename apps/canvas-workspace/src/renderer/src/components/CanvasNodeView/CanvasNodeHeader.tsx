@@ -2,7 +2,7 @@ import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from
 import type { CanvasNode } from '../../types';
 import { FrameColorPicker } from '../FrameNodeBody';
 import { TextColorPicker } from '../TextNodeBody';
-import { CloseButton, FocusButton, ReferenceButton } from './NodeButtons';
+import { CloseButton, FocusButton, ReferenceButton, AddToChatButton } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
 
 interface CanvasNodeHeaderProps {
@@ -12,6 +12,7 @@ interface CanvasNodeHeaderProps {
   handleFocus: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
   handleReference: (e: MouseEvent) => void;
+  handleAddToChat: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
   handleTitleDoubleClick: (e: MouseEvent) => void;
   handleTitleKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
@@ -21,6 +22,7 @@ interface CanvasNodeHeaderProps {
   isSelected: boolean;
   node: CanvasNode;
   onReference?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   readOnly: boolean;
@@ -35,6 +37,7 @@ export const CanvasNodeHeader = ({
   handleFocus,
   handleHeaderMouseDown,
   handleReference,
+  handleAddToChat,
   handleTitleBlur,
   handleTitleDoubleClick,
   handleTitleKeyDown,
@@ -44,6 +47,7 @@ export const CanvasNodeHeader = ({
   isSelected,
   node,
   onReference,
+  onAddToChat,
   onUngroupSelectedGroups,
   onUpdate,
   readOnly,
@@ -99,6 +103,9 @@ export const CanvasNodeHeader = ({
     )}
     {!readOnly && onReference ? (
       <ReferenceButton nodeTitle={node.title} onClick={handleReference} />
+    ) : null}
+    {!readOnly && onAddToChat ? (
+      <AddToChatButton onClick={handleAddToChat} />
     ) : null}
     {fullscreenButton}
     <FocusButton onClick={handleFocus} />

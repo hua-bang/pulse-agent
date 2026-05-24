@@ -31,6 +31,7 @@ const CanvasNodeViewComponent = ({
   onSelect,
   onFocus,
   onReference,
+  onAddToChat,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -55,6 +56,7 @@ const CanvasNodeViewComponent = ({
     onFocus,
     onOpenReferenceSource,
     onReference,
+    onAddToChat,
     onRemove,
     onResizeStart,
     onSelect,
@@ -181,6 +183,7 @@ const CanvasNodeViewComponent = ({
       handleNodeBodyMouseDown={viewModel.handleNodeBodyMouseDown}
       handleNodeClick={viewModel.handleNodeClick}
       handleReference={viewModel.handleReference}
+      handleAddToChat={viewModel.handleAddToChat}
       handleTitleBlur={viewModel.handleTitleBlur}
       handleTitleDoubleClick={viewModel.handleTitleDoubleClick}
       handleTitleKeyDown={viewModel.handleTitleKeyDown}
@@ -193,6 +196,7 @@ const CanvasNodeViewComponent = ({
       node={node}
       onDragStart={onDragStart}
       onReference={onReference}
+      onAddToChat={onAddToChat}
       onSelect={onSelect}
       onUngroupSelectedGroups={onUngroupSelectedGroups}
       onUpdate={onUpdate}

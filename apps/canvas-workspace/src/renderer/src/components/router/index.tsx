@@ -54,7 +54,17 @@ export const PulseRouterView: React.FC<PulseRouterViewProps> = (props) => {
   const isActive = activeKey === name;
 
   if (keepAlive) {
-    return <div style={{ display: isActive ? 'contents' : 'none' }}>{children}</div>;
+    return (
+      <div
+        style={
+          isActive
+            ? { display: 'flex', flex: 1, minWidth: 0, minHeight: 0 }
+            : { display: 'none' }
+        }
+      >
+        {children}
+      </div>
+    );
   }
 
   return isActive ? children : null;

@@ -116,6 +116,7 @@
     "pulse-coder-engine": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-force-graph-2d": "^1.29.1",
     "tiptap-markdown": "^0.9.0",
     "wouter": "^3.9.0",
     "zod": "^4.0.0"

@@ -81,6 +81,7 @@ interface CanvasSurfaceProps {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
+  onAddToChat?: (nodeId: string) => void;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
@@ -141,6 +142,7 @@ export const CanvasSurface = ({
   onSelect,
   onFocus,
   onReference,
+  onAddToChat,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -215,6 +217,7 @@ export const CanvasSurface = ({
           onSelect={onSelect}
           onFocus={onFocus}
           onReference={onReference}
+          onAddToChat={onAddToChat}
           resolveReferenceNode={resolveReferenceNode}
           onOpenReferenceSource={onOpenReferenceSource}
           onUpdateReferenceSource={onUpdateReferenceSource}
@@ -265,6 +268,7 @@ export const CanvasSurface = ({
           onSelect={onSelect}
           onFocus={onFocus}
           onReference={onReference}
+          onAddToChat={onAddToChat}
           resolveReferenceNode={resolveReferenceNode}
           onOpenReferenceSource={onOpenReferenceSource}
           onUpdateReferenceSource={onUpdateReferenceSource}

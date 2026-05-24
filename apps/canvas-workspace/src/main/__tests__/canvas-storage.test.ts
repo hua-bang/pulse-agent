@@ -701,6 +701,7 @@ describe('migrateToV2', () => {
     const n1 = await readNodeFile(wsId, 'n1', root);
     expect(n1?.data.content).toBe('CLI WINS');
   });
+
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

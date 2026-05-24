@@ -18,6 +18,8 @@ export interface ChatPanelProps {
   onNodeFocus?: (nodeId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  /** Called once the insert-mention function is ready; returns a cleanup fn. */
+  onRegisterInsertMention?: (fn: (node: CanvasNode) => void) => () => void;
 }
 
 export interface OtherWorkspaceSession extends AgentSessionInfo {

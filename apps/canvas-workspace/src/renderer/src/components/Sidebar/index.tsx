@@ -47,6 +47,8 @@ interface Props {
   onNodeRename?: (nodeId: string, title: string) => void;
   activeView: string;
   onEnterChat: () => void;
+  onEnterNodes: () => void;
+  onEnterGraph: () => void;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   onExitChat: () => void;
@@ -60,6 +62,7 @@ export const Sidebar = ({
   onExport, onOpenSettings, onOpenAppSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
   onReorderWorkspace, onReorderFolder,
   activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
+  onEnterNodes, onEnterGraph,
 }: Props) => {
   const { notify } = useAppShell();
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -295,6 +298,7 @@ export const Sidebar = ({
         <>
           <SidebarHeader
             onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
+            onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
             pluginNavItems={pluginNavItems} onNavigate={onNavigate}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
             addMenuRef={addMenuRef}

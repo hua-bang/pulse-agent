@@ -18,6 +18,7 @@ import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
 import { setupArtifactIpc } from "./artifact-ipc";
 import { setupShellIpc, isSafeExternalUrl } from "./shell-ipc";
 import { setupWebpageReaderIpc } from "./webpage-reader-ipc";
+import { setupWorkspaceNodeIpc } from "./workspace-node-ipc";
 import { BUILT_IN_MAIN_PLUGINS, setupCanvasPlugins } from "../plugins/main";
 
 const currentDir = dirname(fileURLToPath(import.meta.url));
@@ -309,6 +310,7 @@ app.whenReady().then(() => {
   setupArtifactIpc();
   setupShellIpc();
   setupWebpageReaderIpc();
+  setupWorkspaceNodeIpc();
   void setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
   // MCP server disabled — canvas-cli is the preferred agent interface now.
   // startMCPServer();

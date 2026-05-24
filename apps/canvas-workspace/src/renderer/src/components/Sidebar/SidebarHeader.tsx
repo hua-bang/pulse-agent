@@ -1,6 +1,14 @@
 import type React from 'react';
 import type { NavItem } from '../../../../plugins/types';
-import { PlusIcon, AvatarIcon, WorkspaceIcon, FolderIcon, ImportIcon } from '../icons';
+import {
+  PlusIcon,
+  AvatarIcon,
+  WorkspaceIcon,
+  FolderIcon,
+  ImportIcon,
+  KnowledgeStoreIcon,
+  NodeGraphIcon,
+} from '../icons';
 
 export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -13,6 +21,8 @@ interface SidebarHeaderProps {
   onToggle: () => void;
   activeView: string;
   onEnterChat: () => void;
+  onEnterNodes: () => void;
+  onEnterGraph: () => void;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
   showAddMenu: boolean;
@@ -27,6 +37,8 @@ export const SidebarHeader = ({
   onToggle,
   activeView,
   onEnterChat,
+  onEnterNodes,
+  onEnterGraph,
   pluginNavItems,
   onNavigate,
   showAddMenu,
@@ -66,6 +78,26 @@ export const SidebarHeader = ({
           <AvatarIcon size={14} />
         </span>
         <span className="sidebar-nav-label">AI Chat</span>
+      </button>
+      <button
+        className={`sidebar-nav-item${activeView === 'nodes' || activeView === 'node-detail' ? ' sidebar-nav-item--active' : ''}`}
+        onClick={onEnterNodes}
+        title="Workspace nodes"
+      >
+        <span className="sidebar-nav-icon">
+          <KnowledgeStoreIcon size={14} />
+        </span>
+        <span className="sidebar-nav-label">Nodes</span>
+      </button>
+      <button
+        className={`sidebar-nav-item${activeView === 'graph' ? ' sidebar-nav-item--active' : ''}`}
+        onClick={onEnterGraph}
+        title="Workspace graph"
+      >
+        <span className="sidebar-nav-icon">
+          <NodeGraphIcon size={14} />
+        </span>
+        <span className="sidebar-nav-label">Graph</span>
       </button>
       {pluginNavItems.map((item) => {
         const Icon = item.icon;

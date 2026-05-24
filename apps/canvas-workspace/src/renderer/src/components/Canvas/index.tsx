@@ -47,6 +47,7 @@ export const Canvas = ({
   referenceDrawerOpen,
   onReferenceToggle,
   onPinReferenceNode,
+  onAddToChat,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -398,6 +399,7 @@ export const Canvas = ({
       onChatToggle={onChatToggle}
       onOpenReferenceSource={onOpenReferenceSource}
       onPinReferenceNode={onPinReferenceNode}
+      onAddToChat={onAddToChat}
       onReferenceToggle={onReferenceToggle}
       onUpdateReferenceSource={onUpdateReferenceSource}
       openShortcuts={openShortcuts}

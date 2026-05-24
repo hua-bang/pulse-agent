@@ -62,6 +62,40 @@ export function useMentions({
    */
   const mentionTriggerRef = useRef<'@' | '/'>('@');
 
+  const insertNodeMention = useCallback((node: CanvasNode) => {
+    const element = editableRef.current;
+    if (!element) return;
+
+    const item: MentionItem = {
+      type: 'node',
+      label: getNodeDisplayLabel(node),
+      nodeType: node.type,
+      path: (node.data as any)?.filePath,
+    };
+    const chip = createMentionChipElement(item, nodes);
+
+    const lastChild = element.lastChild;
+    const lastText = lastChild?.nodeType === Node.TEXT_NODE ? (lastChild.textContent ?? '') : '';
+    if (element.childNodes.length > 0 && !lastText.endsWith(' ')) {
+      element.appendChild(document.createTextNode(' '));
+    }
+    element.appendChild(chip);
+    const spaceNode = document.createTextNode(' ');
+    element.appendChild(spaceNode);
+
+    const selection = window.getSelection();
+    if (selection) {
+      const range = document.createRange();
+      range.setStartAfter(spaceNode);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    setInput(serializeEditable(element));
+    element.focus();
+  }, [nodes]);
+
   const clearInput = useCallback(() => {
     setInput('');
     setMentionOpen(false);
@@ -337,6 +371,7 @@ export function useMentions({
     handleKeyDown,
     handlePaste,
     input,
+    insertNodeMention,
     mentionIndex,
     mentionItems,
     mentionOpen,

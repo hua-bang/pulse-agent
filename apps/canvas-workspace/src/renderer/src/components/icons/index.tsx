@@ -144,6 +144,48 @@ export const WorkspaceIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconP
   </svg>
 );
 
+/** Knowledge store icon — a compact database cylinder for global nodes. */
+export const KnowledgeStoreIcon = ({ size = 14, className, strokeWidth = 1.25 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <ellipse
+      cx="8"
+      cy="4.4"
+      rx="4.6"
+      ry="2.1"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+    />
+    <path
+      d="M3.4 4.4v6.3c0 1.15 2.05 2.1 4.6 2.1s4.6-.95 4.6-2.1V4.4"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+    <path
+      d="M3.4 7.55c0 1.15 2.05 2.1 4.6 2.1s4.6-.95 4.6-2.1"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+/** Node graph icon — connected points for relationship exploration. */
+export const NodeGraphIcon = ({ size = 14, className, strokeWidth = 1.25 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path
+      d="M5.5 5.25l4.7-1M5.35 6.55l2.75 4.1M10.75 5.55l-1.65 4.9"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="4.25" cy="5.5" r="1.55" stroke="currentColor" strokeWidth={strokeWidth} />
+    <circle cx="11.75" cy="3.95" r="1.55" stroke="currentColor" strokeWidth={strokeWidth} />
+    <circle cx="8.75" cy="12.05" r="1.55" stroke="currentColor" strokeWidth={strokeWidth} />
+  </svg>
+);
+
 
 /** Arrow leaving a tray — export current workspace. */
 export const ExportIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
