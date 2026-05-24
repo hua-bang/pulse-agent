@@ -2,12 +2,13 @@ import type { PluginBridge } from '../../plugins/types';
 
 export interface CanvasNode {
   id: string;
-  type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap";
+  type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap" | "reference";
   title: string;
   x: number;
   y: number;
   width: number;
   height: number;
+  ref?: CanvasNodeRef;
   data:
     | FileNodeData
     | TerminalNodeData
@@ -18,10 +19,22 @@ export interface CanvasNode {
     | IframeNodeData
     | ImageNodeData
     | ShapeNodeData
-    | MindmapNodeData;
+    | MindmapNodeData
+    | ReferenceNodeData;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
 }
+
+export type CanvasNodeRef =
+  | {
+      kind: 'workspace-node';
+      workspaceId: string;
+      nodeId: string;
+    }
+  | {
+      kind: 'global-node';
+      nodeId: string;
+    };
 
 export interface FileNodeData {
   filePath: string;
@@ -210,6 +223,12 @@ export interface MindmapNodeData {
   /** Bumped on every topic add/remove/rename — lets external observers
    *  (canvas-cli, agent) diff mindmaps without structural equality. */
   rev?: number;
+}
+
+export interface ReferenceNodeData {
+  titleSnapshot?: string;
+  typeSnapshot?: Exclude<CanvasNode['type'], 'reference'>;
+  workspaceNameSnapshot?: string;
 }
 
 export interface CanvasTransform {

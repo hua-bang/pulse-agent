@@ -1,4 +1,4 @@
-import type { CanvasNode, MindmapNodeData, TextNodeData } from "../types";
+import type { CanvasNode, MindmapNodeData, ReferenceNodeData, TextNodeData } from "../types";
 
 const TEXT_LABEL_MAX_CHARS = 10;
 const MINDMAP_LABEL_MAX_CHARS = 16;
@@ -31,6 +31,11 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
     return rootText.length <= MINDMAP_LABEL_MAX_CHARS
       ? rootText
       : `${rootText.slice(0, MINDMAP_LABEL_MAX_CHARS)}…`;
+  }
+
+  if (node.type === "reference") {
+    const data = node.data as ReferenceNodeData;
+    return data.titleSnapshot?.trim() || node.title || "Reference";
   }
 
   return node.title;

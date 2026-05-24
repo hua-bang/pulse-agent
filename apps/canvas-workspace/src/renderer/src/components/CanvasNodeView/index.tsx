@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, useEffect, useRef } from "react";
 import "./index.css";
-import type { CanvasNode, FrameNodeData, GroupNodeData, TextNodeData } from "../../types";
+import type { CanvasNode, FrameNodeData, GroupNodeData, ReferenceNodeData, TextNodeData } from "../../types";
 import type { ResizeEdge } from "../../hooks/useNodeResize";
 import { FileNodeBody } from "../FileNodeBody";
 import { TerminalNodeBody } from "../TerminalNodeBody";
@@ -50,6 +50,8 @@ interface Props {
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
+  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
+  onOpenReferenceSource?: (node: CanvasNode) => void;
   onUngroupSelectedGroups?: () => void;
   /** True when this node is currently rendered fullscreen. The node
    *  stays inside `.canvas-transform` (so its iframe / editor / terminal
@@ -113,6 +115,8 @@ const CanvasNodeViewComponent = ({
   onSelect,
   onFocus,
   onReference,
+  resolveReferenceNode,
+  onOpenReferenceSource,
   onUngroupSelectedGroups,
   isFullscreen = false,
   onToggleFullscreen,
@@ -187,6 +191,14 @@ const CanvasNodeViewComponent = ({
       onReference?.(node.id);
     },
     [onReference, node.id, readOnly]
+  );
+
+  const handleOpenReferenceSource = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onOpenReferenceSource?.(node);
+    },
+    [node, onOpenReferenceSource]
   );
 
   const handleUngroup = useCallback(
@@ -416,6 +428,127 @@ const CanvasNodeViewComponent = ({
           </button>
         )}
         {readOnly ? null : (
+          <>
+            <div
+              className="resize-handle resize-handle--right"
+              onMouseDown={makeResizeHandler("right")}
+            />
+            <div
+              className="resize-handle resize-handle--bottom"
+              onMouseDown={makeResizeHandler("bottom")}
+            />
+            <div
+              className="resize-handle resize-handle--corner"
+              onMouseDown={makeResizeHandler("bottom-right")}
+            />
+          </>
+        )}
+      </div>
+    );
+  }
+
+  if (node.type === "reference") {
+    const resolved = resolveReferenceNode?.(node);
+    const sourceNode = resolved?.node;
+    const refData = node.data as ReferenceNodeData;
+    const workspaceLabel = resolved?.workspaceName ?? refData.workspaceNameSnapshot ?? 'Workspace';
+
+    return (
+      <div
+        className={classes}
+        style={wrapperStyle}
+        onClick={handleNodeClick}
+      >
+        <div
+          className="node-header"
+          onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
+        >
+          <span className="node-type-badge node-type-badge--reference">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M6.4 5.2l1.1-1.1a3 3 0 014.2 4.2l-1.2 1.2M9.6 10.8l-1.1 1.1a3 3 0 01-4.2-4.2l1.2-1.2M6.4 9.6l3.2-3.2" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
+            </svg>
+          </span>
+          <span
+            ref={titleRef}
+            className="node-title"
+            contentEditable={isEditingTitle}
+            suppressContentEditableWarning
+            spellCheck={false}
+            onBlur={handleTitleBlur}
+            onKeyDown={isEditingTitle ? handleTitleKeyDown : undefined}
+            onDoubleClick={handleTitleDoubleClick}
+            onMouseDown={(e) => {
+              if (isEditingTitle) e.stopPropagation();
+            }}
+          >
+            {node.title}
+          </span>
+          <span className="node-reference-source" title={workspaceLabel}>{workspaceLabel}</span>
+          <button
+            className="node-focus"
+            type="button"
+            onClick={handleOpenReferenceSource}
+            onMouseDown={(e) => e.stopPropagation()}
+            title="Open source"
+            disabled={!sourceNode}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M4.5 2.5H2.8a1 1 0 00-1 1v5.7a1 1 0 001 1h5.7a1 1 0 001-1V7.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              <path d="M7 1.8h3.2V5M5.6 6.4l4.3-4.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {readOnly ? null : (
+            <button
+              className="node-close"
+              type="button"
+              onClick={handleClose}
+              onMouseDown={(e) => e.stopPropagation()}
+              title="Remove"
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <div className="node-body node-body--reference" onMouseDown={handleNodeBodyMouseDown}>
+          {sourceNode ? (
+            <CanvasNodeView
+              node={{
+                ...sourceNode,
+                x: 0,
+                y: 0,
+                width: Math.max(120, node.width - 18),
+                height: Math.max(80, node.height - 70),
+              }}
+              getAllNodes={() => (sourceNode ? [sourceNode] : [])}
+              rootFolder={rootFolder}
+              workspaceId={node.ref?.kind === 'workspace-node' ? node.ref.workspaceId : workspaceId}
+              workspaceName={workspaceLabel}
+              isDragging={false}
+              isResizing={false}
+              isSelected={false}
+              isHighlighted={false}
+              onDragStart={() => undefined}
+              onResizeStart={() => undefined}
+              onUpdate={() => undefined}
+              onAutoResize={() => undefined}
+              onRemove={() => undefined}
+              onExportMindmapImage={() => undefined}
+              onSelect={() => undefined}
+              onFocus={() => undefined}
+              readOnly
+            />
+          ) : (
+            <div className="reference-node-missing">
+              <div className="reference-node-missing__title">Source unavailable</div>
+              <div className="reference-node-missing__meta">
+                {refData.titleSnapshot || node.title}
+              </div>
+            </div>
+          )}
+        </div>
+        {readOnly || isFullscreen ? null : (
           <>
             <div
               className="resize-handle resize-handle--right"
@@ -717,5 +850,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.focusState === next.focusState &&
   prev.isFullscreen === next.isFullscreen &&
   prev.onToggleFullscreen === next.onToggleFullscreen &&
+  prev.resolveReferenceNode === next.resolveReferenceNode &&
+  prev.onOpenReferenceSource === next.onOpenReferenceSource &&
   prev.readOnly === next.readOnly
 ));

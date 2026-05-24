@@ -142,6 +142,7 @@
   align-items: center;
   gap: 4px;
   padding: 6px 14px 0;
+  flex-wrap: wrap;
 }
 
 .reference-drawer-action {
@@ -181,6 +182,7 @@
 .reference-url-anchor {
   position: relative;
   display: inline-flex;
+  gap: 4px;
 }
 
 .reference-drawer-action--open {
@@ -195,7 +197,8 @@
   top: calc(100% + 6px);
   left: 0;
   min-width: 240px;
-  max-width: 320px;
+  width: min(360px, calc(100vw - 80px));
+  max-width: 360px;
   max-height: 360px;
   overflow: hidden;
   padding: 6px;
@@ -209,6 +212,30 @@
   gap: 1px;
 }
 
+.reference-workspace-picker {
+  display: grid;
+  gap: 4px;
+  padding: 2px 2px 6px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 4px;
+}
+
+.reference-workspace-picker label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.reference-workspace-picker select {
+  height: 28px;
+  min-width: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  padding: 0 7px;
+}
 
 .reference-picker-controls {
   display: flex;
@@ -282,6 +309,16 @@
 
 .reference-picker-item-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-picker-item-workspace {
+  max-width: 90px;
+  color: var(--text-muted);
+  font-size: 10px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -502,6 +539,20 @@
 
 .reference-group-item-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-group-item-meta {
+  max-width: 86px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.035);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

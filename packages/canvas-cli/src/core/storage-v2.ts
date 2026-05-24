@@ -42,6 +42,11 @@ export interface PerNodeFile {
   createdAt?: number;
 }
 
+interface LayoutOnlyReferenceNode {
+  type: 'reference';
+  ref?: unknown;
+}
+
 export type SchemaVersion = 1 | 2;
 
 /**
@@ -160,6 +165,9 @@ export async function assembleV2(
 
   const assembledNodes = await Promise.all(
     layoutNodes.map(async (layoutNode) => {
+      if (isLayoutOnlyReferenceNode(layoutNode)) {
+        return layoutNode as CanvasNode;
+      }
       const id = typeof layoutNode.id === 'string' ? layoutNode.id : null;
       if (!id) {
         return { ...layoutNode, data: {} as Record<string, unknown> } as CanvasNode;
@@ -217,6 +225,10 @@ export async function splitV2(
     incomingIds.add(node.id);
 
     const existing = await readNodeFile(workspaceDir, node.id);
+    if (isLayoutOnlyReferenceNode(node)) {
+      if (existing) await deleteNodeFile(workspaceDir, node.id);
+      continue;
+    }
     const incomingUpdatedAt =
       typeof node.updatedAt === 'number' ? node.updatedAt : now;
     const existingUpdatedAt =
@@ -257,6 +269,14 @@ export async function splitV2(
 }
 
 function stripDataFromNode(node: CanvasNode): CanvasNode {
+  if (isLayoutOnlyReferenceNode(node)) return node;
   const { data: _data, ...rest } = node as CanvasNode & { data?: unknown };
   return rest as CanvasNode;
+}
+
+function isLayoutOnlyReferenceNode(node: unknown): node is CanvasNode & LayoutOnlyReferenceNode {
+  return !!node
+    && typeof node === 'object'
+    && (node as LayoutOnlyReferenceNode).type === 'reference'
+    && (node as LayoutOnlyReferenceNode).ref != null;
 }
