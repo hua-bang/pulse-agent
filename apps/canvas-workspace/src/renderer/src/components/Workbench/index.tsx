@@ -16,6 +16,7 @@ import { createDefaultNode } from '../../utils/nodeFactory';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-interaction';
 import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
+import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -67,26 +68,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const patchRequestIdRef = useRef(0);
-
-  // Lazy keep-alive: a workspace is mounted the first time it becomes
-  // active and stays mounted (hidden via display:none) thereafter, so
-  // re-selecting it is instant. Workspaces the user never visits never
-  // mount their Canvas / iframe webviews — this is what keeps startup
-  // from spinning up an Electron webContents for every link node across
-  // every saved workspace.
-  const [mountedWorkspaceIds, setMountedWorkspaceIds] = useState<Set<string>>(
-    () => (activeWorkspaceId ? new Set([activeWorkspaceId]) : new Set()),
-  );
-
-  useEffect(() => {
-    if (!activeWorkspaceId) return;
-    setMountedWorkspaceIds((prev) => {
-      if (prev.has(activeWorkspaceId)) return prev;
-      const next = new Set(prev);
-      next.add(activeWorkspaceId);
-      return next;
-    });
-  }, [activeWorkspaceId]);
+  const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId);
 
   useEffect(() => {
     for (const node of activeNodes) {
@@ -417,26 +399,26 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   return (
     <>
       <FileNodeEditorRegistryProvider>
-          <ReferenceDrawer
-            open={referenceDrawerOpen}
-            activeWorkspaceId={activeWorkspaceId}
-            workspaces={workspaces}
-            references={references}
-            activeReference={activeReference}
-            activeReferenceNode={activeReferenceNode}
-            nodes={activeNodes}
-            allNodes={allNodes}
-            selectedNode={activeSelectedNode}
-            onOpenChange={setReferenceDrawerOpen}
-            onSelectReference={setActiveReference}
-            onRemoveReference={removeReference}
-            onClearAll={clearAllReferences}
-            onAddReference={pinReferenceNode}
-            onAddUrlReference={pinReferenceUrl}
-            onFocusNode={handleFocusReferenceNode}
-            onAddReferenceToCanvas={addReferenceToCanvas}
-            onWorkspaceNodesRequest={ensureWorkspaceNodesLoaded}
-          />
+        <ReferenceDrawer
+          open={referenceDrawerOpen}
+          activeWorkspaceId={activeWorkspaceId}
+          workspaces={workspaces}
+          references={references}
+          activeReference={activeReference}
+          activeReferenceNode={activeReferenceNode}
+          nodes={activeNodes}
+          allNodes={allNodes}
+          selectedNode={activeSelectedNode}
+          onOpenChange={setReferenceDrawerOpen}
+          onSelectReference={setActiveReference}
+          onRemoveReference={removeReference}
+          onClearAll={clearAllReferences}
+          onAddReference={pinReferenceNode}
+          onAddUrlReference={pinReferenceUrl}
+          onFocusNode={handleFocusReferenceNode}
+          onAddReferenceToCanvas={addReferenceToCanvas}
+          onWorkspaceNodesRequest={ensureWorkspaceNodesLoaded}
+        />
         <div className="canvas-viewport">
           {workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id)).map((ws) => {
             const isActive = ws.id === activeWorkspaceId;

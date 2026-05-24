@@ -21,50 +21,13 @@ import { useCanvasMouseHandlers } from './hooks/useCanvasMouseHandlers';
 import { useCanvasPaletteCommands } from './hooks/useCanvasPaletteCommands';
 import { useCanvasEdgeHandlers } from './hooks/useCanvasEdgeHandlers';
 import { useCanvasRenderOrder } from './hooks/useCanvasRenderOrder';
+import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
+import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
+import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
 import type { CanvasNode } from '../../types';
-import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../types/ui-interaction';
-import { CanvasSurface } from './CanvasSurface';
-import { CanvasOverlays } from './CanvasOverlays';
-import { CanvasFullscreenChip } from './CanvasFullscreenChip';
-import type { NodeReferenceEntryForCanvas } from '../ReferenceDrawer';
-
-interface CanvasProps {
-  canvasId: string;
-  canvasName?: string;
-  rootFolder?: string;
-  /** False while this canvas is mounted-but-hidden (workspace not in
-   *  focus). Lets the component stay alive so transform/selection/tool
-   *  state survives a workspace switch, while suppressing global
-   *  side-effects (window-level keyboard shortcuts, clipboard paste)
-   *  that would otherwise fire from every mounted canvas at once. */
-  isActive?: boolean;
-  onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
-  onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
-  focusNodeId?: string;
-  onFocusComplete?: () => void;
-  deleteNodeId?: string;
-  onDeleteComplete?: () => void;
-  renameRequest?: CanvasNodeRenameRequest;
-  onRenameComplete?: () => void;
-  chatPanelOpen?: boolean;
-  onChatToggle?: () => void;
-  referenceDrawerOpen?: boolean;
-  onReferenceToggle?: () => void;
-  onPinReferenceNode?: (nodeId: string) => void;
-  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
-  onOpenReferenceSource?: (node: CanvasNode) => void;
-  onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
-  referencePlacementRequest?: NodeReferenceEntryForCanvas | null;
-  onReferencePlacementComplete?: () => void;
-  createReferenceNode?: (entry: NodeReferenceEntryForCanvas, x: number, y: number) => CanvasNode | null;
-  clipboard?: CanvasClipboard | null;
-  onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
-  onPasteReferences?: (targetWorkspaceId: string, clipboard: CanvasClipboard) => CanvasNode[];
-  nodePatchRequest?: CanvasNodePatchRequest;
-  onNodePatchComplete?: (requestId: number) => void;
-}
+import type { CanvasProps } from './types';
 
 export const Canvas = ({
   canvasId,
@@ -223,57 +186,18 @@ export const Canvas = ({
     if (!focus.focusModeActive) handleFocusNode(node);
   }, [handleFocusNode, focus.focusModeActive, setSelectedNodeIds, setHighlightedId]);
 
-  const pasteReferenceNodes = useCallback(
-    (nextClipboard: CanvasClipboard) => {
-      if (!onPasteReferences) return [];
-      const templates = onPasteReferences(canvasId, nextClipboard);
-      if (templates.length === 0) return [];
-      let offsetX = 0;
-      let offsetY = 0;
-      const container = containerRef.current;
-      if (container) {
-        const rect = container.getBoundingClientRect();
-        const viewportCenter = screenToCanvas(
-          rect.left + rect.width / 2,
-          rect.top + rect.height / 2,
-          container,
-        );
-        const bounds = templates.reduce(
-          (acc, node) => ({
-            minX: Math.min(acc.minX, node.x),
-            minY: Math.min(acc.minY, node.y),
-            maxX: Math.max(acc.maxX, node.x + node.width),
-            maxY: Math.max(acc.maxY, node.y + node.height),
-          }),
-          {
-            minX: Number.POSITIVE_INFINITY,
-            minY: Number.POSITIVE_INFINITY,
-            maxX: Number.NEGATIVE_INFINITY,
-            maxY: Number.NEGATIVE_INFINITY,
-          },
-        );
-        offsetX = viewportCenter.x - (bounds.minX + bounds.maxX) / 2;
-        offsetY = viewportCenter.y - (bounds.minY + bounds.maxY) / 2;
-      }
-      const created: CanvasNode[] = [];
-      for (const template of templates) {
-        const x = template.x + offsetX;
-        const y = template.y + offsetY;
-        const node = addNode('reference', x, y);
-        const patch: Partial<CanvasNode> = {
-          title: template.title,
-          ref: template.ref,
-          data: template.data,
-          width: template.width,
-          height: template.height,
-        };
-        updateNode(node.id, patch);
-        created.push({ ...node, ...patch });
-      }
-      return created;
-    },
-    [addNode, canvasId, onPasteReferences, screenToCanvas, updateNode],
-  );
+  const { pasteReferenceNodes } = useCanvasReferenceActions({
+    addNode,
+    canvasId,
+    containerRef,
+    createReferenceNode,
+    onPasteReferences,
+    onReferencePlacementComplete,
+    referencePlacementRequest,
+    screenToCanvas,
+    setSelectedNodeIds,
+    updateNode,
+  });
 
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
@@ -381,78 +305,14 @@ export const Canvas = ({
     onCreated: (node) => setSelectedNodeIds([node.id]),
   });
 
-  // External entry point for "add this URL as an iframe node" — currently
-  // dispatched by the LinkDrawer when the user clicks "加入当前画布".
-  // Listening on `window` keeps the drawer fully decoupled from canvas
-  // internals; the workspace match avoids cross-canvas pollution.
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const detail = (event as CustomEvent).detail as
-        | { workspaceId?: string; url?: string }
-        | undefined;
-      if (!detail?.url || detail.workspaceId !== canvasId) return;
-      const container = containerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const center = screenToCanvas(
-        rect.left + rect.width / 2,
-        rect.top + rect.height / 2,
-        container,
-      );
-      // Default iframe node is 520×400; offset by half so the new node
-      // lands centered on the visible viewport.
-      const node = addNode("iframe", center.x - 260, center.y - 200);
-      let title = node.title;
-      try {
-        title = new URL(detail.url).host || title;
-      } catch {
-        // Leave default title if URL is malformed.
-      }
-      updateNode(node.id, {
-        title,
-        data: { url: detail.url, html: "", mode: "url", prompt: "" },
-      });
-      setSelectedNodeIds([node.id]);
-    };
-    window.addEventListener("canvas:add-iframe-from-url", handler);
-    return () => {
-      window.removeEventListener("canvas:add-iframe-from-url", handler);
-    };
-  }, [canvasId, addNode, updateNode, screenToCanvas, setSelectedNodeIds]);
-
-  useEffect(() => {
-    if (!referencePlacementRequest || !createReferenceNode) return;
-    const container = containerRef.current;
-    if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const center = screenToCanvas(
-      rect.left + rect.width / 2,
-      rect.top + rect.height / 2,
-      container,
-    );
-    const next = createReferenceNode(referencePlacementRequest, center.x, center.y);
-    if (!next) return;
-    const x = center.x - next.width / 2;
-    const y = center.y - next.height / 2;
-    const node = addNode('reference', x, y);
-    updateNode(node.id, {
-      title: next.title,
-      ref: next.ref,
-      data: next.data,
-      width: next.width,
-      height: next.height,
-    });
-    setSelectedNodeIds([node.id]);
-    onReferencePlacementComplete?.();
-  }, [
+  useCanvasExternalNodeEvents({
     addNode,
-    createReferenceNode,
-    onReferencePlacementComplete,
-    referencePlacementRequest,
+    canvasId,
+    containerRef,
     screenToCanvas,
     setSelectedNodeIds,
     updateNode,
-  ]);
+  });
 
   const paletteCommands = useCanvasPaletteCommands({
     selectedNodeIds, setSelectedNodeIds, nodesRef,
@@ -502,136 +362,68 @@ export const Canvas = ({
     nodePatchRequest, onNodePatchComplete,
   });
 
-  if (!loaded) {
-    return (
-      <div className="canvas-container">
-        <div className="canvas-empty-hint">
-          <div className="hint-text">Loading workspace...</div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div
-      ref={containerRef}
-      className={`canvas-container${mouse.cursorClass}${mouse.iframeShieldClass}`}
-      onWheel={handleWheel}
-      onMouseDown={mouse.handleRootMouseDown}
-      onMouseMove={mouse.handleMouseMove}
-      onMouseUp={mouse.handleMouseUp}
-      onMouseLeave={() => {
-        if (!mouse.isDraggingRef.current && !mouse.isEdgeDragging()) mouse.handleMouseUp();
-      }}
-      onDragStart={(e) => e.preventDefault()}
-      onDoubleClick={ctxMenu.handleDoubleClick}
-      onContextMenu={ctxMenu.handleContextMenu}
-      onClick={mouse.handleCanvasClick}
-      data-focus-mode={focus.focusModeActive ? 'on' : undefined}
-      data-fullscreen={focus.fullscreenNodeId ? 'on' : undefined}
-    >
-      <div className="canvas-grid" />
-
-      <CanvasSurface
-        transform={transform}
-        animating={animating}
-        moving={moving}
-        renderGroups={renderGroups}
-        nodes={nodes}
-        edges={edges}
-        rootFolder={rootFolder}
-        canvasId={canvasId}
-        canvasName={canvasName}
-        draggingId={draggingId}
-        draggingIds={draggingIds}
-        resizingId={resizingId}
-        selectedNodeIdSet={selectedNodeIdSet}
-        selectedEdgeId={selectedEdgeId}
-        highlightedId={highlightedId}
-        externallyEditedIds={externallyEditedIds}
-        edgeInteractionState={edgeInteractionState}
-        edgePreviewEndpoints={getPreviewEndpoints()}
-        shapeDraft={shapeDraft}
-        marqueeRect={marquee.rect}
-        snapLines={snapLines}
-        focusedNodeIds={focus.focusedNodeIds}
-        focusContextNodeIds={focus.focusContextNodeIds}
-        focusModeEnabled={focus.focusModeActive}
-        onDragStart={mouse.handleSurfaceDragStart}
-        onResizeStart={mouse.handleSurfaceResizeStart}
-        onUpdate={updateNode}
-        onAutoResize={resizeNode}
-        onRemove={actions.handleRemoveNode}
-        onSelect={handleSelectNode}
-        onExportMindmapImage={actions.handleExportMindmapImage}
-        onFocus={handleNodeViewportFocus}
-        onReference={onPinReferenceNode}
-        resolveReferenceNode={resolveReferenceNode}
-        onOpenReferenceSource={onOpenReferenceSource}
-        onUpdateReferenceSource={onUpdateReferenceSource}
-        onUngroupSelectedGroups={actions.ungroupSelectedNodes}
-        fullscreenNodeId={focus.fullscreenNodeId}
-        onToggleFullscreen={focus.handleToggleFullscreen}
-        onSelectEdge={(id) => {
-          setSelectedEdgeId(id);
-          if (id) setSelectedNodeIds([]);
-        }}
-        onEdgeHandleMouseDown={edgeHandlers.handleEdgeHandleMouseDown}
-        onEdgeBodyMouseDown={edgeHandlers.handleEdgeBodyMouseDown}
-        onEdgeBodyDoubleClick={edgeHandlers.handleEdgeBodyDoubleClick}
-        onExitFullscreen={focus.exitFullscreen}
-        getAllNodes={getAllNodes}
-      />
-
-      {focus.fullscreenNodeId && (
-        <CanvasFullscreenChip
-          referenceDrawerOpen={referenceDrawerOpen}
-          onReferenceToggle={onReferenceToggle}
-          chatPanelOpen={chatPanelOpen}
-          onChatToggle={onChatToggle}
-          onExitFullscreen={focus.exitFullscreen}
-        />
-      )}
-
-      {mouse.interactionShieldActive && <div className="canvas-interaction-shield" aria-hidden="true" />}
-
-      <CanvasOverlays
-        nodes={nodes}
-        contextMenu={ctxMenu.contextMenu}
-        searchOpen={searchOpen}
-        activeTool={activeTool}
-        scale={transform.scale}
-        selectionCount={selectedNodeIds.length}
-        chatPanelOpen={chatPanelOpen}
-        onChatToggle={onChatToggle}
-        referenceDrawerOpen={referenceDrawerOpen}
-        onReferenceToggle={onReferenceToggle}
-        onCreateNode={ctxMenu.handleCreateNode}
-        onCloseContextMenu={ctxMenu.closeContextMenu}
-        onOpenShortcuts={openShortcuts}
-        onToolChange={setActiveTool}
-        onAddNode={ctxMenu.handleToolbarAddNode}
-        onResetTransform={resetTransform}
-        paletteCommands={paletteCommands}
-        onSearchSelect={handleNodeViewportFocus}
-        onCloseSearch={() => setSearchOpen(false)}
-        findSearch={search}
-        findNodesById={nodesById}
-        onFindMatchActivate={handleSearchMatchActivate}
-        onConnectMouseDown={edgeHandlers.handleConnectOverlayMouseDown}
-        shapeToolActive={shapeToolActive}
-        onShapeMouseDown={handleShapeOverlayMouseDown}
-        selectedEdge={edges.find((e) => e.id === selectedEdgeId) ?? null}
-        transform={transform}
-        onUpdateEdge={(id, patch) => updateEdge(id, patch)}
-        onRemoveEdge={(id) => { void actions.requestRemoveEdge(id); }}
-        edges={edges}
-        editingEdgeLabelId={editingEdgeLabelId}
-        onStartEditEdgeLabel={edgeHandlers.handleEdgeBodyDoubleClick}
-        onCommitEditEdgeLabel={edgeHandlers.handleCommitEditEdgeLabel}
-        onCancelEditEdgeLabel={edgeHandlers.handleCancelEditEdgeLabel}
-        focusModeEnabled={focus.focusModeActive}
-      />
-    </div>
+    <CanvasRootView
+      actions={actions}
+      activeTool={activeTool}
+      animating={animating}
+      canvasId={canvasId}
+      canvasName={canvasName}
+      chatPanelOpen={chatPanelOpen}
+      containerRef={containerRef}
+      ctxMenu={ctxMenu}
+      draggingId={draggingId}
+      draggingIds={draggingIds}
+      edgeHandlers={edgeHandlers}
+      edgeInteractionState={edgeInteractionState}
+      edges={edges}
+      editingEdgeLabelId={editingEdgeLabelId}
+      externallyEditedIds={externallyEditedIds}
+      findNodesById={nodesById}
+      focus={focus}
+      getAllNodes={getAllNodes}
+      getPreviewEndpoints={getPreviewEndpoints}
+      handleNodeViewportFocus={handleNodeViewportFocus}
+      handleSearchMatchActivate={handleSearchMatchActivate}
+      handleSelectNode={handleSelectNode}
+      handleShapeOverlayMouseDown={handleShapeOverlayMouseDown}
+      handleWheel={handleWheel}
+      highlightedId={highlightedId}
+      loaded={loaded}
+      marquee={marquee}
+      mouse={mouse}
+      moving={moving}
+      nodes={nodes}
+      nodesById={nodesById}
+      onChatToggle={onChatToggle}
+      onOpenReferenceSource={onOpenReferenceSource}
+      onPinReferenceNode={onPinReferenceNode}
+      onReferenceToggle={onReferenceToggle}
+      onUpdateReferenceSource={onUpdateReferenceSource}
+      openShortcuts={openShortcuts}
+      paletteCommands={paletteCommands}
+      referenceDrawerOpen={referenceDrawerOpen}
+      renderGroups={renderGroups}
+      resetTransform={resetTransform}
+      resizeNode={resizeNode}
+      resizingId={resizingId}
+      resolveReferenceNode={resolveReferenceNode}
+      rootFolder={rootFolder}
+      search={search}
+      searchOpen={searchOpen}
+      selectedEdgeId={selectedEdgeId}
+      selectedNodeIdSet={selectedNodeIdSet}
+      selectedNodeIds={selectedNodeIds}
+      setActiveTool={setActiveTool}
+      setSearchOpen={setSearchOpen}
+      setSelectedEdgeId={setSelectedEdgeId}
+      setSelectedNodeIds={setSelectedNodeIds}
+      shapeDraft={shapeDraft}
+      shapeToolActive={shapeToolActive}
+      snapLines={snapLines}
+      transform={transform}
+      updateEdge={updateEdge}
+      updateNode={updateNode}
+    />
   );
 };

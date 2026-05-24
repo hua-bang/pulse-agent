@@ -1,0 +1,60 @@
+import type { CanvasNode } from '../../types';
+import type { CanvasNodeViewProps } from './types';
+
+interface ReferenceSourcePreviewProps {
+  CanvasNodeViewComponent: React.ComponentType<CanvasNodeViewProps>;
+  embedded: boolean;
+  handleReferenceSourceUpdate: (sourceId: string, patch: Partial<CanvasNode>) => void;
+  isSelected: boolean;
+  node: CanvasNode;
+  onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
+  onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
+  readOnly: boolean;
+  rootFolder?: string;
+  sourceNode: CanvasNode;
+  workspaceId?: string;
+  workspaceLabel: string;
+}
+
+export const ReferenceSourcePreview = ({
+  CanvasNodeViewComponent,
+  embedded,
+  handleReferenceSourceUpdate,
+  isSelected,
+  node,
+  onSelect,
+  onUpdateReferenceSource,
+  readOnly,
+  rootFolder,
+  sourceNode,
+  workspaceId,
+  workspaceLabel,
+}: ReferenceSourcePreviewProps) => (
+  <CanvasNodeViewComponent
+    node={{
+      ...sourceNode,
+      x: 0,
+      y: 0,
+      width: Math.max(120, node.width - 18),
+      height: Math.max(80, node.height - 70),
+    }}
+    getAllNodes={() => [sourceNode]}
+    rootFolder={rootFolder}
+    workspaceId={node.ref?.kind === 'workspace-node' ? node.ref.workspaceId : workspaceId}
+    workspaceName={workspaceLabel}
+    isDragging={false}
+    isResizing={false}
+    isSelected={isSelected}
+    isHighlighted={false}
+    onDragStart={() => undefined}
+    onResizeStart={() => undefined}
+    onUpdate={handleReferenceSourceUpdate}
+    onAutoResize={() => undefined}
+    onRemove={() => undefined}
+    onExportMindmapImage={() => undefined}
+    onSelect={() => onSelect(node.id)}
+    onFocus={() => undefined}
+    readOnly={readOnly || !onUpdateReferenceSource}
+    embedded={embedded}
+  />
+);

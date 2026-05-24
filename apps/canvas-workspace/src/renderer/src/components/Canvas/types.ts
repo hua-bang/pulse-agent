@@ -1,0 +1,34 @@
+import type { CanvasNode } from '../../types';
+import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../types/ui-interaction';
+import type { NodeReferenceEntryForCanvas } from '../ReferenceDrawer';
+
+export interface CanvasProps {
+  canvasId: string;
+  canvasName?: string;
+  rootFolder?: string;
+  isActive?: boolean;
+  onNodesChange?: (canvasId: string, nodes: CanvasNode[]) => void;
+  onSelectionChange?: (canvasId: string, selectedNodeIds: string[]) => void;
+  focusNodeId?: string;
+  onFocusComplete?: () => void;
+  deleteNodeId?: string;
+  onDeleteComplete?: () => void;
+  renameRequest?: CanvasNodeRenameRequest;
+  onRenameComplete?: () => void;
+  chatPanelOpen?: boolean;
+  onChatToggle?: () => void;
+  referenceDrawerOpen?: boolean;
+  onReferenceToggle?: () => void;
+  onPinReferenceNode?: (nodeId: string) => void;
+  resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
+  onOpenReferenceSource?: (node: CanvasNode) => void;
+  onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
+  referencePlacementRequest?: NodeReferenceEntryForCanvas | null;
+  onReferencePlacementComplete?: () => void;
+  createReferenceNode?: (entry: NodeReferenceEntryForCanvas, x: number, y: number) => CanvasNode | null;
+  clipboard?: CanvasClipboard | null;
+  onClipboardChange?: (clipboard: CanvasClipboard | null) => void;
+  onPasteReferences?: (targetWorkspaceId: string, clipboard: CanvasClipboard) => CanvasNode[];
+  nodePatchRequest?: CanvasNodePatchRequest;
+  onNodePatchComplete?: (requestId: number) => void;
+}
