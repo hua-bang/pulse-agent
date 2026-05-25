@@ -759,15 +759,47 @@
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* The URL card and the native card share the same absolute box so the
+   <webview> inside the URL card has a stable layout slot across switches. */
+.reference-url-card--persistent,
+.reference-native-card--persistent {
+  position: absolute;
+  top: 4px;
+  right: 14px;
+  bottom: 12px;
+  left: 14px;
+  margin: 0;
+  flex: none;
+}
+
+.reference-url-card--persistent {
+  z-index: 1;
+}
+
+.reference-native-card--persistent {
+  z-index: 2;
+}
+
+.reference-pick-hint--overlay {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  bottom: 16px;
+  left: 18px;
+  margin: 0;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  background: var(--surface);
 }
 
 .reference-url-stack {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
 }
 
 .reference-url-slot {
