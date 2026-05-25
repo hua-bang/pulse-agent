@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
 import type { AgentChatToolCall, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
+import type { I18nKey } from '../../i18n';
 
 export interface WorkspaceOption {
   id: string;
@@ -50,6 +51,8 @@ export interface PendingClarification {
 export interface QuickAction {
   key: 'summarize_canvas' | 'analyze_relations' | 'create_mindmap' | 'organize_selection';
   label: string;
+  labelKey?: I18nKey;
   prompt: string;
+  promptKey?: I18nKey;
   requiresSelection?: boolean;
 }

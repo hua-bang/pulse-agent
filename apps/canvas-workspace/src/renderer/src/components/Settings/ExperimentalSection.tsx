@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ExperimentalFeatureDef } from '../../types';
 import { useAppShell } from '../AppShellProvider';
+import { useI18n } from '../../i18n';
 import './ExperimentalSection.css';
 
 interface ExperimentalSectionProps {
@@ -9,6 +10,7 @@ interface ExperimentalSectionProps {
 
 export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
   const { notify } = useAppShell();
+  const { t } = useI18n();
   const [features, setFeatures] = useState<ExperimentalFeatureDef[]>([]);
   const [values, setValues] = useState<Record<string, boolean>>({});
   const [path, setPath] = useState<string>('');
@@ -28,14 +30,14 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         setPath(res.path ?? '');
         setError(null);
       } else {
-        setError(res.error ?? 'Failed to load experimental features');
+        setError(res.error ?? t('experimental.loadFailed'));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -52,8 +54,8 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
           setValues((v) => ({ ...v, [id]: previous ?? false }));
           notify({
             tone: 'error',
-            title: 'Could not update flag',
-            description: res.error ?? 'Unknown error',
+            title: t('experimental.updateFailed'),
+            description: res.error ?? t('experimental.unknownError'),
           });
           return;
         }
@@ -63,7 +65,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         setValues((v) => ({ ...v, [id]: previous ?? false }));
         notify({
           tone: 'error',
-          title: 'Could not update flag',
+          title: t('experimental.updateFailed'),
           description: err instanceof Error ? err.message : String(err),
         });
       } finally {
@@ -74,7 +76,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         });
       }
     },
-    [values, notify],
+    [values, notify, t],
   );
 
   const resetAll = useCallback(async () => {
@@ -84,17 +86,17 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
       setNeedsReload(true);
       notify({
         tone: 'success',
-        title: 'Experimental flags reset',
-        description: 'All flags restored to their defaults.',
+        title: t('experimental.resetSuccess'),
+        description: t('experimental.resetDescription'),
       });
     } else {
       notify({
         tone: 'error',
-        title: 'Reset failed',
-        description: res.error ?? 'Unknown error',
+        title: t('experimental.resetFailed'),
+        description: res.error ?? t('experimental.unknownError'),
       });
     }
-  }, [notify]);
+  }, [notify, t]);
 
   const reload = useCallback(async () => {
     setReloading(true);
@@ -104,25 +106,23 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
       setReloading(false);
       notify({
         tone: 'error',
-        title: 'Reload failed',
+        title: t('experimental.reloadFailed'),
         description: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [notify]);
+  }, [notify, t]);
 
   return (
     <div className="experimental-section">
       <div className="experimental-section-body">
         <div className="experimental-section-intro">
-          <div className="experimental-section-intro-title">Experimental features</div>
+          <div className="experimental-section-intro-title">{t('experimental.title')}</div>
           <div className="experimental-section-intro-desc">
-            Opt in to unfinished or unstable features. They may change behaviour, move,
-            or disappear without notice. Toggling a flag requires a window reload to
-            take effect.
+            {t('experimental.description')}
           </div>
           {path && (
             <div className="experimental-section-path">
-              Stored at <code>{path}</code>
+              {t('experimental.storedAt')} <code>{path}</code>
             </div>
           )}
         </div>
@@ -130,7 +130,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         {needsReload && (
           <div className="experimental-section-reload-banner">
             <div className="experimental-section-reload-text">
-              Reload the window to apply your changes.
+              {t('experimental.reloadPrompt')}
             </div>
             <button
               type="button"
@@ -138,7 +138,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
               onClick={() => void reload()}
               disabled={reloading}
             >
-              {reloading ? 'Reloading…' : 'Reload window'}
+              {reloading ? t('experimental.reloading') : t('experimental.reloadWindow')}
             </button>
           </div>
         )}
@@ -146,14 +146,13 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         {error && <div className="experimental-section-error">{error}</div>}
 
         {loading ? (
-          <div className="experimental-section-empty">Loading…</div>
+          <div className="experimental-section-empty">{t('experimental.loading')}</div>
         ) : features.length === 0 ? (
           <div className="experimental-section-empty">
-            No experimental features registered yet. Add entries to{' '}
-            <code>src/shared/experimental-features.ts</code> to surface a toggle here.
+            {t('experimental.empty')}
           </div>
         ) : (
-          <ul className="experimental-section-list" aria-label="Experimental features">
+          <ul className="experimental-section-list" aria-label={t('experimental.featuresAria')}>
             {features.map((feature) => {
               const enabled = !!values[feature.id];
               const busy = !!pending[feature.id];
@@ -164,7 +163,9 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
                     <div className="experimental-section-item-desc">{feature.description}</div>
                     <div className="experimental-section-item-meta">
                       <code>{feature.id}</code>
-                      <span>· default: {feature.defaultEnabled ? 'on' : 'off'}</span>
+                      <span>· {t('experimental.defaultState', {
+                        state: feature.defaultEnabled ? t('experimental.on') : t('experimental.off'),
+                      })}</span>
                     </div>
                   </div>
                   <label
@@ -175,7 +176,7 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
                       checked={enabled}
                       disabled={busy}
                       onChange={(e) => void toggle(feature.id, e.target.checked)}
-                      aria-label={`Toggle ${feature.label}`}
+                      aria-label={t('experimental.toggleFeature', { label: feature.label })}
                     />
                     <span className="experimental-section-switch-track" aria-hidden>
                       <span className="experimental-section-switch-thumb" />
@@ -194,14 +195,14 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
           className="experimental-section-secondary-btn"
           onClick={() => void resetAll()}
         >
-          Reset all to defaults
+          {t('experimental.resetAll')}
         </button>
         <button
           type="button"
           className="experimental-section-secondary-btn"
           onClick={onClose}
         >
-          Close
+          {t('experimental.close')}
         </button>
       </div>
     </div>

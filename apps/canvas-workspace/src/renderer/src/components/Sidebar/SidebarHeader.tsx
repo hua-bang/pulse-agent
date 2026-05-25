@@ -9,6 +9,7 @@ import {
   KnowledgeStoreIcon,
   NodeGraphIcon,
 } from '../icons';
+import { useI18n } from '../../i18n';
 
 export const SidebarToggleIcon = ({ size = 14 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -51,118 +52,122 @@ export const SidebarHeader = ({
   onNewWorkspace,
   onNewFolder,
   onImportWorkspace,
-}: SidebarHeaderProps) => (
-  <>
-    <div className="sidebar-brand-header">
-      <span className="sidebar-brand-mark" aria-hidden="true">
-        <svg width="22" height="22" viewBox="0 0 512 512" fill="none">
-          <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="#FFFFFF" />
-          <path
-            d="M 80,268 H 188 L 228,178 L 260,370 L 292,148 L 328,268 H 432"
-            stroke="#1D1D1F"
-            strokeWidth="22"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-      <span className="sidebar-brand">Pulse Canvas</span>
-      <button className="sidebar-section-btn" onClick={onToggle} title="Collapse sidebar">
-        <SidebarToggleIcon size={14} />
-      </button>
-    </div>
+}: SidebarHeaderProps) => {
+  const { t } = useI18n();
 
-    <div className="sidebar-nav">
-      <button
-        className={`sidebar-nav-item${activeView === 'chat' ? ' sidebar-nav-item--active' : ''}`}
-        onClick={onEnterChat}
-        title="AI Chat page (⌘/Ctrl+Shift+L)"
-      >
-        <span className="sidebar-nav-icon">
-          <AvatarIcon size={14} />
+  return (
+    <>
+      <div className="sidebar-brand-header">
+        <span className="sidebar-brand-mark" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 512 512" fill="none">
+            <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="#FFFFFF" />
+            <path
+              d="M 80,268 H 188 L 228,178 L 260,370 L 292,148 L 328,268 H 432"
+              stroke="#1D1D1F"
+              strokeWidth="22"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
-        <span className="sidebar-nav-label">AI Chat</span>
-      </button>
-      {nodesEnabled && (
-        <button
-          className={`sidebar-nav-item${activeView === 'nodes' || activeView === 'node-detail' ? ' sidebar-nav-item--active' : ''}`}
-          onClick={onEnterNodes}
-          title="Workspace nodes"
-        >
-          <span className="sidebar-nav-icon">
-            <KnowledgeStoreIcon size={14} />
-          </span>
-          <span className="sidebar-nav-label">Nodes</span>
+        <span className="sidebar-brand">Pulse Canvas</span>
+        <button className="sidebar-section-btn" onClick={onToggle} title={t('sidebar.collapse')}>
+          <SidebarToggleIcon size={14} />
         </button>
-      )}
-      {graphEnabled && (
-        <button
-          className={`sidebar-nav-item${activeView === 'graph' ? ' sidebar-nav-item--active' : ''}`}
-          onClick={onEnterGraph}
-          title="Workspace graph"
-        >
-          <span className="sidebar-nav-icon">
-            <NodeGraphIcon size={14} />
-          </span>
-          <span className="sidebar-nav-label">Graph</span>
-        </button>
-      )}
-      {pluginNavItems.map((item) => {
-        const Icon = item.icon;
-        return (
-          <button
-            key={item.id}
-            className={`sidebar-nav-item${activeView === item.path ? ' sidebar-nav-item--active' : ''}`}
-            onClick={() => onNavigate(item.path)}
-            title={item.title ?? item.label}
-          >
-            {Icon && (
-              <span className="sidebar-nav-icon">
-                <Icon size={14} />
-              </span>
-            )}
-            <span className="sidebar-nav-label">{item.label}</span>
-          </button>
-        );
-      })}
-    </div>
-
-    <div className="sidebar-section-header">
-      <span className="sidebar-section-title">Workspaces</span>
-      <div className="sidebar-section-actions" ref={addMenuRef}>
-        <button
-          className="sidebar-section-btn"
-          onClick={onToggleAddMenu}
-          title="Add workspace or folder"
-        >
-          <PlusIcon size={14} />
-        </button>
-        {showAddMenu && (
-          <div className="sidebar-add-menu">
-            <button
-              className="sidebar-add-menu-item"
-              onClick={onNewWorkspace}
-            >
-              <WorkspaceIcon size={14} />
-              <span>New Workspace</span>
-            </button>
-            <button
-              className="sidebar-add-menu-item"
-              onClick={onNewFolder}
-            >
-              <FolderIcon size={14} />
-              <span>New Folder</span>
-            </button>
-            <button
-              className="sidebar-add-menu-item"
-              onClick={onImportWorkspace}
-            >
-              <ImportIcon size={14} />
-              <span>Import Workspace</span>
-            </button>
-          </div>
-        )}
       </div>
-    </div>
-  </>
-);
+
+      <div className="sidebar-nav">
+        <button
+          className={`sidebar-nav-item${activeView === 'chat' ? ' sidebar-nav-item--active' : ''}`}
+          onClick={onEnterChat}
+          title={t('sidebar.aiChatTitle')}
+        >
+          <span className="sidebar-nav-icon">
+            <AvatarIcon size={14} />
+          </span>
+          <span className="sidebar-nav-label">{t('sidebar.aiChat')}</span>
+        </button>
+        {nodesEnabled && (
+          <button
+            className={`sidebar-nav-item${activeView === 'nodes' || activeView === 'node-detail' ? ' sidebar-nav-item--active' : ''}`}
+            onClick={onEnterNodes}
+            title={t('sidebar.nodesTitle')}
+          >
+            <span className="sidebar-nav-icon">
+              <KnowledgeStoreIcon size={14} />
+            </span>
+            <span className="sidebar-nav-label">{t('sidebar.nodes')}</span>
+          </button>
+        )}
+        {graphEnabled && (
+          <button
+            className={`sidebar-nav-item${activeView === 'graph' ? ' sidebar-nav-item--active' : ''}`}
+            onClick={onEnterGraph}
+            title={t('sidebar.graphTitle')}
+          >
+            <span className="sidebar-nav-icon">
+              <NodeGraphIcon size={14} />
+            </span>
+            <span className="sidebar-nav-label">{t('sidebar.graph')}</span>
+          </button>
+        )}
+        {pluginNavItems.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              className={`sidebar-nav-item${activeView === item.path ? ' sidebar-nav-item--active' : ''}`}
+              onClick={() => onNavigate(item.path)}
+              title={item.title ?? item.label}
+            >
+              {Icon && (
+                <span className="sidebar-nav-icon">
+                  <Icon size={14} />
+                </span>
+              )}
+              <span className="sidebar-nav-label">{item.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="sidebar-section-header">
+        <span className="sidebar-section-title">{t('sidebar.workspaces')}</span>
+        <div className="sidebar-section-actions" ref={addMenuRef}>
+          <button
+            className="sidebar-section-btn"
+            onClick={onToggleAddMenu}
+            title={t('sidebar.addWorkspaceOrFolder')}
+          >
+            <PlusIcon size={14} />
+          </button>
+          {showAddMenu && (
+            <div className="sidebar-add-menu">
+              <button
+                className="sidebar-add-menu-item"
+                onClick={onNewWorkspace}
+              >
+                <WorkspaceIcon size={14} />
+                <span>{t('sidebar.newWorkspace')}</span>
+              </button>
+              <button
+                className="sidebar-add-menu-item"
+                onClick={onNewFolder}
+              >
+                <FolderIcon size={14} />
+                <span>{t('sidebar.newFolder')}</span>
+              </button>
+              <button
+                className="sidebar-add-menu-item"
+                onClick={onImportWorkspace}
+              >
+                <ImportIcon size={14} />
+                <span>{t('sidebar.importWorkspace')}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};

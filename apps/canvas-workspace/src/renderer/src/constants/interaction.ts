@@ -1,5 +1,6 @@
 import type { CanvasNode } from '../types';
 import type { ShortcutSection } from '../types/ui-interaction';
+import type { I18nKey } from '../i18n';
 
 type EmptyCanvasNodeType = Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>;
 
@@ -38,80 +39,83 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
 
 export const EMPTY_CANVAS_ACTIONS: Array<{
   actionKey: string;
-  label: string;
-  description: string;
+  labelKey: I18nKey;
+  descriptionKey: I18nKey;
   nodeType: EmptyCanvasNodeType;
 }> = [
   {
     actionKey: INTERACTION_ACTIONS.emptyStateCreateAgent,
-    label: 'Create Agent',
-    description: 'Start a coding agent with canvas context.',
+    labelKey: 'canvas.empty.createAgent',
+    descriptionKey: 'canvas.empty.createAgentDescription',
     nodeType: 'agent',
   },
   {
     actionKey: INTERACTION_ACTIONS.emptyStateCreateTerminal,
-    label: 'Open Terminal',
-    description: 'Run commands in the workspace shell.',
+    labelKey: 'canvas.empty.openTerminal',
+    descriptionKey: 'canvas.empty.openTerminalDescription',
     nodeType: 'terminal',
   },
   {
     actionKey: INTERACTION_ACTIONS.emptyStateCreateNote,
-    label: 'New Note',
-    description: 'Capture ideas, plans, and summaries.',
+    labelKey: 'canvas.empty.newNote',
+    descriptionKey: 'canvas.empty.newNoteDescription',
     nodeType: 'file',
   },
   {
     actionKey: INTERACTION_ACTIONS.emptyStateCreateWeb,
-    label: 'Web Page',
-    description: 'Embed a URL or open a blank page.',
+    labelKey: 'canvas.empty.webPage',
+    descriptionKey: 'canvas.empty.webPageDescription',
     nodeType: 'iframe',
   },
 ];
 
-export const SHORTCUT_SECTIONS: ShortcutSection[] = [
+export const SHORTCUT_SECTIONS: Array<{
+  titleKey: I18nKey;
+  items: Array<ShortcutSection['items'][number] & { descriptionKey: I18nKey }>;
+}> = [
   {
-    title: 'Canvas',
+    titleKey: 'shortcuts.canvas.title',
     items: [
-      { combo: 'Right-click / Double-click', description: 'Open the create menu on blank canvas.' },
-      { combo: 'Scroll', description: 'Pan the canvas.' },
-      { combo: 'Ctrl/Cmd + Scroll', description: 'Zoom in or out.' },
-      { combo: 'Drag on blank canvas', description: 'Marquee-select every node inside the box.' },
-      { combo: 'Ctrl/Cmd + K', description: 'Open the command palette (search nodes or run a command).' },
-      { combo: 'Ctrl/Cmd + H', description: 'Toggle the command palette.' },
-      { combo: 'Ctrl/Cmd + Tab', description: 'Cycle through nodes.' },
-      { combo: 'F', description: 'Toggle Focus mode for the selected node or frame.' },
+      { combo: 'Right-click / Double-click', description: '', descriptionKey: 'shortcuts.canvas.createMenu' },
+      { combo: 'Scroll', description: '', descriptionKey: 'shortcuts.canvas.pan' },
+      { combo: 'Ctrl/Cmd + Scroll', description: '', descriptionKey: 'shortcuts.canvas.zoom' },
+      { combo: 'Drag on blank canvas', description: '', descriptionKey: 'shortcuts.canvas.marquee' },
+      { combo: 'Ctrl/Cmd + K', description: '', descriptionKey: 'shortcuts.canvas.commandPalette' },
+      { combo: 'Ctrl/Cmd + H', description: '', descriptionKey: 'shortcuts.canvas.togglePalette' },
+      { combo: 'Ctrl/Cmd + Tab', description: '', descriptionKey: 'shortcuts.canvas.cycleNodes' },
+      { combo: 'F', description: '', descriptionKey: 'shortcuts.canvas.focusMode' },
     ],
   },
   {
-    title: 'Selection',
+    titleKey: 'shortcuts.selection.title',
     items: [
-      { combo: 'Click', description: 'Select a single node.' },
-      { combo: 'Shift / Ctrl/Cmd + click', description: 'Add to or toggle the current selection.' },
-      { combo: 'Shift + drag on blank canvas', description: 'Extend the selection with a marquee.' },
-      { combo: 'Arrow keys', description: 'Nudge the selection by 1 pixel.' },
-      { combo: 'Shift + Arrow keys', description: 'Nudge the selection by 10 pixels.' },
-      { combo: 'Ctrl/Cmd while dragging', description: 'Disable snap-to-grid and alignment guides.' },
+      { combo: 'Click', description: '', descriptionKey: 'shortcuts.selection.selectOne' },
+      { combo: 'Shift / Ctrl/Cmd + click', description: '', descriptionKey: 'shortcuts.selection.toggle' },
+      { combo: 'Shift + drag on blank canvas', description: '', descriptionKey: 'shortcuts.selection.extend' },
+      { combo: 'Arrow keys', description: '', descriptionKey: 'shortcuts.selection.nudgeOne' },
+      { combo: 'Shift + Arrow keys', description: '', descriptionKey: 'shortcuts.selection.nudgeTen' },
+      { combo: 'Ctrl/Cmd while dragging', description: '', descriptionKey: 'shortcuts.selection.disableSnap' },
     ],
   },
   {
-    title: 'Edit',
+    titleKey: 'shortcuts.edit.title',
     items: [
-      { combo: 'Ctrl/Cmd + A', description: 'Select all nodes.' },
-      { combo: 'Ctrl/Cmd + D', description: 'Duplicate every selected node.' },
-      { combo: 'Ctrl/Cmd + C / V', description: 'Copy and paste selected nodes.' },
-      { combo: 'Ctrl/Cmd + G', description: 'Group the selected nodes.' },
-      { combo: 'Delete / Backspace', description: 'Delete the current selection with confirmation.' },
-      { combo: 'Ctrl/Cmd + Z', description: 'Undo the last change.' },
-      { combo: 'Ctrl/Cmd + Shift + Z', description: 'Redo the last undone change.' },
+      { combo: 'Ctrl/Cmd + A', description: '', descriptionKey: 'shortcuts.edit.selectAll' },
+      { combo: 'Ctrl/Cmd + D', description: '', descriptionKey: 'shortcuts.edit.duplicate' },
+      { combo: 'Ctrl/Cmd + C / V', description: '', descriptionKey: 'shortcuts.edit.copyPaste' },
+      { combo: 'Ctrl/Cmd + G', description: '', descriptionKey: 'shortcuts.edit.group' },
+      { combo: 'Delete / Backspace', description: '', descriptionKey: 'shortcuts.edit.delete' },
+      { combo: 'Ctrl/Cmd + Z', description: '', descriptionKey: 'shortcuts.edit.undo' },
+      { combo: 'Ctrl/Cmd + Shift + Z', description: '', descriptionKey: 'shortcuts.edit.redo' },
     ],
   },
   {
-    title: 'Panels',
+    titleKey: 'shortcuts.panels.title',
     items: [
-      { combo: 'Ctrl/Cmd + Shift + A', description: 'Toggle the side chat panel.' },
-      { combo: 'Ctrl/Cmd + Shift + L', description: 'Open or close the full chat page.' },
-      { combo: '?', description: 'Open this shortcuts panel.' },
-      { combo: 'Esc', description: 'Close open overlays or return from chat page.' },
+      { combo: 'Ctrl/Cmd + Shift + A', description: '', descriptionKey: 'shortcuts.panels.sideChat' },
+      { combo: 'Ctrl/Cmd + Shift + L', description: '', descriptionKey: 'shortcuts.panels.chatPage' },
+      { combo: '?', description: '', descriptionKey: 'shortcuts.panels.shortcuts' },
+      { combo: 'Esc', description: '', descriptionKey: 'shortcuts.panels.escape' },
     ],
   },
 ];

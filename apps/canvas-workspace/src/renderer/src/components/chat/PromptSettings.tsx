@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../types';
+import { useI18n, type I18nKey } from '../../i18n';
 
 interface UsePromptProfileResult {
   profile?: PromptProfileStatus;
@@ -60,29 +61,29 @@ export function usePromptProfile(): UsePromptProfileResult {
 
 interface PresetMeta {
   id: PromptPreset;
-  title: string;
-  subtitle: string;
-  description: string;
+  titleKey: I18nKey;
+  subtitleKey: I18nKey;
+  descriptionKey: I18nKey;
 }
 
 const PRESETS: PresetMeta[] = [
   {
     id: 'concise',
-    title: '简洁 (Concise)',
-    subtitle: 'Short answers, conclusion-first',
-    description: '助手优先给结论，1-4 句搞定，不展开过程。工具调用结果只总结关键差异。',
+    titleKey: 'prompt.concise.title',
+    subtitleKey: 'prompt.concise.subtitle',
+    descriptionKey: 'prompt.concise.description',
   },
   {
     id: 'balanced',
-    title: '平衡 (Balanced)',
-    subtitle: '默认 — Default',
-    description: '先给短结论，再补必要解释。该列表用列表，该展开才展开。',
+    titleKey: 'prompt.balanced.title',
+    subtitleKey: 'prompt.balanced.subtitle',
+    descriptionKey: 'prompt.balanced.description',
   },
   {
     id: 'detailed',
-    title: '详细 (Detailed)',
-    subtitle: 'Steps, risks, alternatives',
-    description: '答得更细：步骤、风险、可选方案都摆出来，但不重复啰嗦。',
+    titleKey: 'prompt.detailed.title',
+    subtitleKey: 'prompt.detailed.subtitle',
+    descriptionKey: 'prompt.detailed.description',
   },
 ];
 
@@ -104,6 +105,7 @@ export const ReplyStyleSection = ({
   onSave,
   onReset,
 }: ReplyStyleSectionProps) => {
+  const { t } = useI18n();
   const [preset, setPreset] = useState<PromptPreset>(DEFAULT_PRESET);
   const [customPrompt, setCustomPrompt] = useState('');
   const [saving, setSaving] = useState(false);
@@ -158,11 +160,8 @@ export const ReplyStyleSection = ({
       <div className="chat-prompt-settings-body">
         <div className="chat-model-settings-card chat-model-settings-card--intro">
           <div>
-            <strong>调整助手的回复风格</strong>
-            <p>
-              选择一个预设来控制助手回复的详略，并可以再写一段自定义提示词补充偏好（例如"用中文"、"先列要点再展开"）。
-              自定义提示词不会覆盖安全规则、工具使用规则和确认规则。
-            </p>
+            <strong>{t('prompt.introTitle')}</strong>
+            <p>{t('prompt.introDescription')}</p>
           </div>
         </div>
 
@@ -171,8 +170,8 @@ export const ReplyStyleSection = ({
         )}
 
         <div className="chat-model-field">
-          <span>预设 / Preset</span>
-          <div className="chat-prompt-preset-grid" role="radiogroup" aria-label="Reply style preset">
+          <span>{t('prompt.preset')}</span>
+          <div className="chat-prompt-preset-grid" role="radiogroup" aria-label={t('prompt.presetAria')}>
             {PRESETS.map(item => {
               const active = preset === item.id;
               return (
@@ -184,9 +183,9 @@ export const ReplyStyleSection = ({
                   className={`chat-model-protocol-option chat-prompt-preset-option${active ? ' chat-model-protocol-option--active' : ''}`}
                   onClick={() => setPreset(item.id)}
                 >
-                  <span className="chat-model-protocol-title">{item.title}</span>
-                  <span className="chat-model-protocol-sub">{item.subtitle}</span>
-                  <span className="chat-prompt-preset-desc">{item.description}</span>
+                  <span className="chat-model-protocol-title">{t(item.titleKey)}</span>
+                  <span className="chat-model-protocol-sub">{t(item.subtitleKey)}</span>
+                  <span className="chat-prompt-preset-desc">{t(item.descriptionKey)}</span>
                 </button>
               );
             })}
@@ -194,17 +193,17 @@ export const ReplyStyleSection = ({
         </div>
 
         <label className="chat-model-field chat-prompt-custom-field">
-          <span>自定义提示词 / Custom Prompt</span>
+          <span>{t('prompt.customPrompt')}</span>
           <textarea
             className="chat-prompt-custom-textarea"
-            placeholder="例如：默认使用中文。代码块请加语言标签。不要在结尾问 &quot;还需要帮忙吗？&quot;"
+            placeholder={t('prompt.customPlaceholder')}
             value={customPrompt}
             maxLength={MAX_CUSTOM_PROMPT_LENGTH}
             rows={6}
             onChange={event => setCustomPrompt(event.target.value)}
           />
           <span className="chat-model-field-hint">
-            {customPrompt.trim().length}/{MAX_CUSTOM_PROMPT_LENGTH} 字符 · 不会覆盖工具/安全/确认规则
+            {t('prompt.customHint', { count: customPrompt.trim().length, max: MAX_CUSTOM_PROMPT_LENGTH })}
           </span>
         </label>
       </div>
@@ -212,10 +211,10 @@ export const ReplyStyleSection = ({
       <div className="chat-model-settings-footer">
         <span>{profile?.path}</span>
         <button type="button" className="chat-model-secondary-btn" onClick={() => void reset()} disabled={saving}>
-          恢复默认
+          {t('prompt.resetDefault')}
         </button>
         <button type="button" className="chat-model-secondary-btn" onClick={onClose} disabled={saving}>
-          关闭
+          {t('prompt.close')}
         </button>
         <button
           type="button"
@@ -223,7 +222,7 @@ export const ReplyStyleSection = ({
           onClick={() => void save()}
           disabled={saving || !dirty}
         >
-          {saving ? '保存中…' : savedHint ? '已保存 ✓' : '保存'}
+          {saving ? t('prompt.saving') : savedHint ? t('prompt.saved') : t('prompt.save')}
         </button>
       </div>
     </>

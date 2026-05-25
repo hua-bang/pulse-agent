@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { FolderEntry, WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { CloseIcon, ChevronRightIcon, FolderIcon, PencilIcon, PlusIcon } from '../icons';
+import { useI18n } from '../../i18n';
 
 interface FolderItemProps {
   folder: FolderEntry;
@@ -49,6 +50,7 @@ export const FolderItem = ({
   renderWorkspace,
   inlineCreateSlot,
 }: FolderItemProps) => {
+  const { t } = useI18n();
   const isOpen = !folder.collapsed;
 
   return (
@@ -78,7 +80,7 @@ export const FolderItem = ({
           <button
             className="sidebar-folder-toggle"
             onClick={onToggle}
-            title="Toggle"
+            title={t('sidebar.toggleFolder')}
           >
             <span className={`sidebar-folder-chevron${isOpen ? ' sidebar-folder-chevron--open' : ''}`}>
               <ChevronRightIcon size={10} />
@@ -94,24 +96,24 @@ export const FolderItem = ({
             <button
               className="sidebar-folder-action"
               onClick={(e) => { e.stopPropagation(); onCreateWorkspace(); }}
-              title="New workspace in folder"
-              aria-label="New workspace in folder"
+              title={t('sidebar.newWorkspaceInFolder')}
+              aria-label={t('sidebar.newWorkspaceInFolder')}
             >
               <PlusIcon size={12} strokeWidth={1.5} />
             </button>
             <button
               className="sidebar-folder-action"
               onClick={(e) => { e.stopPropagation(); onStartRename(); }}
-              title="Rename folder"
-              aria-label="Rename folder"
+              title={t('sidebar.renameFolder')}
+              aria-label={t('sidebar.renameFolder')}
             >
               <PencilIcon size={12} strokeWidth={1.4} />
             </button>
             <button
               className="sidebar-folder-action sidebar-folder-action--danger"
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
-              title="Delete folder"
-              aria-label="Delete folder"
+              title={t('sidebar.deleteFolder')}
+              aria-label={t('sidebar.deleteFolder')}
             >
               <CloseIcon size={12} strokeWidth={1.5} />
             </button>
@@ -127,7 +129,7 @@ export const FolderItem = ({
           {folderWorkspaces.map(renderWorkspace)}
           {inlineCreateSlot}
           {folderWorkspaces.length === 0 && !inlineCreateSlot && (
-            <div className="sidebar-folder-empty">Drop workspaces here</div>
+            <div className="sidebar-folder-empty">{t('sidebar.dropWorkspacesHere')}</div>
           )}
         </div>
       </div>

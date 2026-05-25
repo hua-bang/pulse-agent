@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { SHAPE_KINDS, SHAPE_KIND_LABEL, ShapePrimitive, type ShapeKind } from '../../utils/shapeGeometry';
+import { SHAPE_KINDS, ShapePrimitive, type ShapeKind } from '../../utils/shapeGeometry';
+import { useI18n, type I18nKey } from '../../i18n';
 
 interface Props {
   activeTool: string;
@@ -7,6 +8,16 @@ interface Props {
 }
 
 const SHAPE_TOOL_PREFIX = 'shape-';
+
+const SHAPE_LABEL_KEYS: Record<ShapeKind, I18nKey> = {
+  rect: 'canvas.shape.rect',
+  'rounded-rect': 'canvas.shape.roundedRect',
+  ellipse: 'canvas.shape.ellipse',
+  triangle: 'canvas.shape.triangle',
+  diamond: 'canvas.shape.diamond',
+  hexagon: 'canvas.shape.hexagon',
+  star: 'canvas.shape.star',
+};
 
 /**
  * Split-button toolbar entry for picking which shape to draw.
@@ -20,6 +31,7 @@ const SHAPE_TOOL_PREFIX = 'shape-';
  *     one click away.
  */
 export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
+  const { t } = useI18n();
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [lastKind, setLastKind] = useState<ShapeKind>('rect');
   const rootRef = useRef<HTMLDivElement>(null);
@@ -76,7 +88,7 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
       <button
         className={`toolbar-btn shape-tool-main${isActive ? ' toolbar-btn--active' : ''}`}
         onClick={handleMainClick}
-        title={`${SHAPE_KIND_LABEL[displayKind]} (drag to draw)`}
+        title={t('canvas.shape.dragToDraw', { shape: t(SHAPE_LABEL_KEYS[displayKind]) })}
       >
         <svg width="18" height="18" viewBox="0 0 18 18">
           <ShapePrimitive
@@ -92,7 +104,7 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
       <button
         className={`toolbar-btn shape-tool-caret${popoverOpen ? ' toolbar-btn--active' : ''}`}
         onClick={handleCaretClick}
-        title="More shapes"
+        title={t('canvas.toolbar.moreShapes')}
       >
         <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
           <path d="M1.5 3l2.5 2.5L6.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
@@ -107,7 +119,7 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
                 key={kind}
                 className={`shape-tool-option${selected ? ' shape-tool-option--active' : ''}`}
                 onClick={() => handlePick(kind)}
-                title={SHAPE_KIND_LABEL[kind]}
+                title={t(SHAPE_LABEL_KEYS[kind])}
               >
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <ShapePrimitive

@@ -1,11 +1,12 @@
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
+import type { I18nKey } from '../../i18n';
 
-export const NODE_TYPE_LABELS: Record<string, string> = {
-  file: 'File',
-  text: 'Text',
-  iframe: 'Web',
-  image: 'Image',
-  mindmap: 'Mindmap',
+export const NODE_TYPE_LABEL_KEYS: Record<string, I18nKey> = {
+  file: 'workspaceNodes.type.file',
+  text: 'workspaceNodes.type.text',
+  iframe: 'workspaceNodes.type.iframe',
+  image: 'workspaceNodes.type.image',
+  mindmap: 'workspaceNodes.type.mindmap',
 };
 
 export const NODE_TYPE_FILTERS = [
@@ -20,14 +21,23 @@ export const NODE_TYPE_FILTERS = [
 
 export type NodeTypeFilter = typeof NODE_TYPE_FILTERS[number];
 
-export function getNodeTitle(node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined): string {
-  if (!node) return 'Untitled';
-  return node.title?.trim() || node.id || 'Untitled';
+export function getNodeTitle(
+  node: WorkspaceNodeListItem | WorkspaceNodeRecord | null | undefined,
+  fallback = 'Untitled',
+): string {
+  if (!node) return fallback;
+  return node.title?.trim() || node.id || fallback;
 }
 
-export function getNodeTypeLabel(type: string | undefined): string {
-  if (!type) return 'Node';
-  return NODE_TYPE_LABELS[type] ?? type;
+export function getNodeTypeLabel(
+  type: string | undefined,
+  t?: (key: I18nKey) => string,
+  fallback = 'Node',
+): string {
+  if (!type) return fallback;
+  const labelKey = NODE_TYPE_LABEL_KEYS[type];
+  if (labelKey && t) return t(labelKey);
+  return type;
 }
 
 export function isKnowledgeNodeType(type: string | undefined): boolean {
@@ -72,11 +82,11 @@ export function tagName(tagId: string, tags: KnowledgeTagDefinition[]): string {
   return tags.find((tag) => tag.id === tagId)?.name ?? tagId;
 }
 
-export function formatTime(value: number | undefined): string {
-  if (!value) return 'No timestamp';
+export function formatTime(value: number | undefined, noTimestamp = 'No timestamp', locale?: string): string {
+  if (!value) return noTimestamp;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'No timestamp';
-  return date.toLocaleDateString(undefined, {
+  if (Number.isNaN(date.getTime())) return noTimestamp;
+  return date.toLocaleDateString(locale, {
     month: 'short',
     day: 'numeric',
     year: date.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',

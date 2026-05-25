@@ -2,8 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { isKnowledgeNodeType } from './utils';
+import { useI18n } from '../../i18n';
 
 export function useWorkspaceNodeList(workspaceId: string) {
+  const { t } = useI18n();
   const [nodes, setNodes] = useState<WorkspaceNodeListItem[]>([]);
   const [tags, setTags] = useState<KnowledgeTagDefinition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -17,7 +19,7 @@ export function useWorkspaceNodeList(workspaceId: string) {
     try {
       const result = await api.list(workspaceId);
       if (!result.ok) {
-        setError(result.error ?? 'Unable to load nodes.');
+        setError(result.error ?? t('workspaceNodes.loadNodesFailed'));
         setNodes([]);
         setTags([]);
         return;
@@ -31,7 +33,7 @@ export function useWorkspaceNodeList(workspaceId: string) {
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, t]);
 
   useEffect(() => {
     void reload();
@@ -41,6 +43,7 @@ export function useWorkspaceNodeList(workspaceId: string) {
 }
 
 export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
+  const { t } = useI18n();
   const [nodes, setNodes] = useState<WorkspaceNodeListItem[]>([]);
   const [tags, setTags] = useState<KnowledgeTagDefinition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +59,7 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
         workspaces.map(async (workspace) => {
           const result = await api.list(workspace.id);
           if (!result.ok) {
-            throw new Error(result.error ?? `Unable to load nodes for ${workspace.name}.`);
+            throw new Error(result.error ?? t('workspaceNodes.loadWorkspaceNodesFailed', { workspaceName: workspace.name }));
           }
           return { workspace, result };
         }),
@@ -84,7 +87,7 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
     } finally {
       setLoading(false);
     }
-  }, [workspaces]);
+  }, [workspaces, t]);
 
   useEffect(() => {
     void reload();
@@ -94,6 +97,7 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
 }
 
 export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
+  const { t } = useI18n();
   const [node, setNode] = useState<WorkspaceNodeRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +113,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
     try {
       const result = await api.read(workspaceId, nodeId);
       if (!result.ok) {
-        setError(result.error ?? 'Unable to load node.');
+        setError(result.error ?? t('workspaceNodes.loadNodeFailed'));
         setNode(null);
         return;
       }
@@ -120,7 +124,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, nodeId]);
+  }, [workspaceId, nodeId, t]);
 
   useEffect(() => {
     void reload();
@@ -130,6 +134,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
 }
 
 export function useKnowledgeTags() {
+  const { t } = useI18n();
   const [tags, setTags] = useState<KnowledgeTagDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,7 +147,7 @@ export function useKnowledgeTags() {
     try {
       const result = await api.tags();
       if (!result.ok) {
-        setError(result.error ?? 'Unable to load tags.');
+        setError(result.error ?? t('workspaceNodes.loadTagsFailed'));
         setTags([]);
         return;
       }
@@ -153,7 +158,7 @@ export function useKnowledgeTags() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void reload();

@@ -8,6 +8,7 @@ import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentRequestContext } from '../../types';
 import type { ChatPanelProps } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
+import { useI18n } from '../../i18n';
 
 export const ChatPanel = ({
   workspaceId,
@@ -21,6 +22,7 @@ export const ChatPanel = ({
   onOpenAppSettings,
   onRegisterInsertMention,
 }: ChatPanelProps) => {
+  const { t } = useI18n();
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
   const requestContextRef = useRef<AgentRequestContext>();
 
@@ -99,15 +101,17 @@ export const ChatPanel = ({
 
   const sessionTitle = useMemo(() => {
     const firstUserMessage = messages.find(message => message.role === 'user')?.content.trim();
-    if (!firstUserMessage) return 'New AI chat';
+    if (!firstUserMessage) return t('chat.newAiChat');
     const cleaned = firstUserMessage
       .replace(/@\[[^\]]+\]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
-    const fallback = requestContext.scope === 'selected_nodes' ? '整理选中节点' : '分析当前画布';
+    const fallback = requestContext.scope === 'selected_nodes'
+      ? t('chat.quick.organizeSelection')
+      : t('chat.quick.analyzeRelations');
     const title = cleaned || fallback;
     return title.length > 24 ? `${title.slice(0, 23)}…` : title;
-  }, [messages, requestContext.scope]);
+  }, [messages, requestContext.scope, t]);
 
   // status.apiKeyPresent is the main process's resolved verdict — false means
   // no provider with a key is configured. Treat undefined (still loading) as

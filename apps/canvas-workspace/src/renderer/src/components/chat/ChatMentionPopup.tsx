@@ -1,6 +1,7 @@
-import { MENTION_GROUP_LABEL, getMentionGroupKey } from './constants';
+import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from './types';
 import { MentionNodeIcon } from './utils/mentions';
+import { useI18n } from '../../i18n';
 
 interface ChatMentionPopupProps {
   mentionItems: MentionItem[];
@@ -14,45 +15,49 @@ export const ChatMentionPopup = ({
   mentionIndex,
   onSelectMention,
   onMentionIndexChange,
-}: ChatMentionPopupProps) => (
-  <div className="chat-mention-popup">
-    {mentionItems.map((item, index) => {
-      const groupKey = getMentionGroupKey(item);
-      const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;
-      const showHeader = previousGroupKey !== groupKey;
-      const nodeType = item.type === 'workspace'
-        ? 'workspace'
-        : item.type === 'skill'
-          ? 'skill'
-          : item.type === 'node'
-            ? item.nodeType ?? 'file'
-            : 'file';
+}: ChatMentionPopupProps) => {
+  const { t } = useI18n();
 
-      return (
-        <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>
-          {showHeader && (
-            <div className="chat-mention-group-header">{MENTION_GROUP_LABEL[groupKey]}</div>
-          )}
-          <button
-            className={`chat-mention-item${index === mentionIndex ? ' chat-mention-item--active' : ''}`}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              onSelectMention(item);
-            }}
-            onMouseEnter={() => onMentionIndexChange(index)}
-          >
-            {item.type !== 'skill' && (
-              <span className="chat-mention-item-icon">
-                <MentionNodeIcon size={14} nodeType={nodeType} />
-              </span>
+  return (
+    <div className="chat-mention-popup">
+      {mentionItems.map((item, index) => {
+        const groupKey = getMentionGroupKey(item);
+        const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;
+        const showHeader = previousGroupKey !== groupKey;
+        const nodeType = item.type === 'workspace'
+          ? 'workspace'
+          : item.type === 'skill'
+            ? 'skill'
+            : item.type === 'node'
+              ? item.nodeType ?? 'file'
+              : 'file';
+
+        return (
+          <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>
+            {showHeader && (
+              <div className="chat-mention-group-header">{t(MENTION_GROUP_LABEL_KEY[groupKey])}</div>
             )}
-            <span className="chat-mention-item-label">{item.label}</span>
-            {item.type === 'skill' && item.description && (
-              <span className="chat-mention-item-description">{item.description}</span>
-            )}
-          </button>
-        </div>
-      );
-    })}
-  </div>
-);
+            <button
+              className={`chat-mention-item${index === mentionIndex ? ' chat-mention-item--active' : ''}`}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onSelectMention(item);
+              }}
+              onMouseEnter={() => onMentionIndexChange(index)}
+            >
+              {item.type !== 'skill' && (
+                <span className="chat-mention-item-icon">
+                  <MentionNodeIcon size={14} nodeType={nodeType} />
+                </span>
+              )}
+              <span className="chat-mention-item-label">{item.label}</span>
+              {item.type === 'skill' && item.description && (
+                <span className="chat-mention-item-description">{item.description}</span>
+              )}
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+};

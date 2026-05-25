@@ -16,6 +16,7 @@ import {
   tagName,
   truncateText,
 } from './utils';
+import { useI18n } from '../../i18n';
 
 interface NodesPageProps {
   workspaces: WorkspaceEntry[];
@@ -38,6 +39,8 @@ export const NodesPage = ({
   onOpenNode,
   onSelectNode,
 }: NodesPageProps) => {
+  const { language, t } = useI18n();
+  const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
   const { nodes, tags: tagDefinitions, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');
@@ -127,11 +130,11 @@ export const NodesPage = ({
         <div className="workspace-nodes-page__top">
           <header className="workspace-nodes-page__header">
             <div>
-              <h1>Nodes</h1>
-              <p>Knowledge library · {nodes.length} items</p>
+              <h1>{t('workspaceNodes.nodes.title')}</h1>
+              <p>{t('workspaceNodes.nodes.subtitle', { count: nodes.length })}</p>
             </div>
             <div className="workspace-nodes-page__header-actions">
-              <button className="workspace-node-button" onClick={() => void reload()}>Refresh</button>
+              <button className="workspace-node-button" onClick={() => void reload()}>{t('workspaceNodes.refresh')}</button>
             </div>
           </header>
 
@@ -139,7 +142,7 @@ export const NodesPage = ({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search title, content, tags..."
+              placeholder={t('workspaceNodes.searchPlaceholder')}
               className="workspace-nodes-search"
             />
             {workspaces.length > 1 && (
@@ -148,7 +151,7 @@ export const NodesPage = ({
                   className={`workspace-node-chip${selectedWorkspaceIds === null ? ' is-active' : ''}`}
                   onClick={() => setSelectedWorkspaceIds(null)}
                 >
-                  All workspaces
+                  {t('workspaceNodes.allWorkspaces')}
                 </button>
                 {workspaces.map((ws) => {
                   const active = activeWorkspaceIds.has(ws.id);
@@ -173,7 +176,11 @@ export const NodesPage = ({
                   className={`workspace-node-chip${typeFilter === type ? ' is-active' : ''}`}
                   onClick={() => setTypeFilter(type)}
                 >
-                  {type === 'all' ? 'All' : type === 'untagged' ? 'Untagged' : getNodeTypeLabel(type)}
+                  {type === 'all'
+                    ? t('workspaceNodes.filter.all')
+                    : type === 'untagged'
+                      ? t('workspaceNodes.filter.untagged')
+                      : getNodeTypeLabel(type, t, t('workspaceNodes.genericNode'))}
                 </button>
               ))}
             </div>
@@ -183,7 +190,7 @@ export const NodesPage = ({
                   className={`workspace-node-chip${tagFilter === null ? ' is-active' : ''}`}
                   onClick={() => setTagFilter(null)}
                 >
-                  All tags
+                  {t('workspaceNodes.allTags')}
                 </button>
                 {tags.map(([tag, count]) => (
                   <button
@@ -204,11 +211,11 @@ export const NodesPage = ({
 
         <div className="workspace-nodes-page__scroll" ref={scrollRef}>
           {error && <div className="workspace-nodes-state workspace-nodes-state--error">{error}</div>}
-          {loading && <div className="workspace-nodes-state">Loading nodes...</div>}
+          {loading && <div className="workspace-nodes-state">{t('workspaceNodes.loadingNodes')}</div>}
           {!loading && filteredNodes.length === 0 && (
             <div className="workspace-nodes-empty">
-              <h2>No nodes found</h2>
-              <p>Nodes appear here after a workspace is migrated to v2 or new atomic nodes are created.</p>
+              <h2>{t('workspaceNodes.emptyTitle')}</h2>
+              <p>{t('workspaceNodes.emptyDescription')}</p>
             </div>
           )}
           <div className="workspace-node-grid">
@@ -224,19 +231,19 @@ export const NodesPage = ({
                   onClick={() => onSelectNode?.({ workspaceId: workspaceIdForNode, nodeId: node.id })}
                 >
                   <div className="workspace-node-card__meta">
-                    <span className="workspace-node-type-pill">{getNodeTypeLabel(node.type)}</span>
-                    <span>{formatTime(node.updatedAt)}</span>
+                    <span className="workspace-node-type-pill">{getNodeTypeLabel(node.type, t, t('workspaceNodes.genericNode'))}</span>
+                    <span>{formatTime(node.updatedAt, t('workspaceNodes.noTimestamp'), dateLocale)}</span>
                   </div>
-                  <h2 onClick={(event) => { event.stopPropagation(); onOpenNode(workspaceIdForNode, node.id); }}>{getNodeTitle(node)}</h2>
-                  <p>{summary ? truncateText(summary, 180) : 'No preview available.'}</p>
+                  <h2 onClick={(event) => { event.stopPropagation(); onOpenNode(workspaceIdForNode, node.id); }}>{getNodeTitle(node, t('workspaceNodes.untitled'))}</h2>
+                  <p>{summary ? truncateText(summary, 180) : t('workspaceNodes.noPreview')}</p>
                   <div className="workspace-node-tags">
                     {tagsForNode.length > 0
                       ? tagsForNode.slice(0, 4).map((tag) => <span key={tag} className="workspace-node-tag">{tagLabel(tag)}</span>)
-                      : <span className="workspace-node-muted">No tags</span>}
+                      : <span className="workspace-node-muted">{t('workspaceNodes.noTags')}</span>}
                   </div>
                   <div className="workspace-node-card__footer">
                     <span>{node.workspaceName ?? workspaceIdForNode}</span>
-                    {node.linkCount > 0 && <span>{node.linkCount} links</span>}
+                    {node.linkCount > 0 && <span>{t('workspaceNodes.linkCount', { count: node.linkCount })}</span>}
                   </div>
                 </article>
               );
