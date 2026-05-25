@@ -31,8 +31,18 @@ export const useMindmapController = ({
   onAutoResize,
   readOnly = false,
 }: Pick<MindmapNodeBodyProps, 'node' | 'onUpdate' | 'onSelectNode' | 'onAutoResize' | 'readOnly'>) => {
-  const data = node.data as MindmapNodeData;
-  const root = data.root;
+  const data = (node.data ?? {}) as Partial<MindmapNodeData>;
+  // Mindmap nodes can reach the renderer with `data.root` missing — e.g. a v2
+  // storage workspace where the per-node file went absent and `assembleV2`
+  // backfilled `data: {}`. Synthesize a stable empty root via a lazy
+  // initializer so the hook doesn't crash on `root.id`, and any edit will
+  // persist a real root through `applyRoot` → `onUpdate`.
+  const [fallbackRoot] = useState<MindmapTopic>(() => ({
+    id: genTopicId(),
+    text: node.title?.trim() || 'Central topic',
+    children: [],
+  }));
+  const root = data.root ?? fallbackRoot;
   const [selectedId, setSelectedId] = useState<string>(root.id);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reorder, setReorder] = useState<{
@@ -77,9 +87,10 @@ export const useMindmapController = ({
       onUpdate(node.id, {
         data: {
           ...data,
+          layout: data.layout ?? 'right',
           root: nextRoot,
           rev: (data.rev ?? 0) + 1,
-        },
+        } satisfies MindmapNodeData,
       });
     },
     [data, node.id, onUpdate],
