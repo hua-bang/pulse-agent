@@ -424,6 +424,11 @@
   padding: 28px;
 }
 
+.workspace-nodes-sentinel {
+  height: 1px;
+  width: 100%;
+}
+
 .workspace-nodes-state--error,
 .workspace-graph-state--error {
   color: var(--error);
