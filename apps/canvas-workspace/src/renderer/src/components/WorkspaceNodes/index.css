@@ -320,21 +320,24 @@
 }
 
 .workspace-node-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
+  column-width: 260px;
+  column-gap: 12px;
 }
 
 .workspace-node-card {
-  min-height: 176px;
+  width: 100%;
   border: 1px solid var(--nodes-border);
   border-radius: 6px;
   background: var(--nodes-surface);
   padding: 14px;
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   gap: 11px;
   cursor: pointer;
+  margin: 0 0 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  -webkit-column-break-inside: avoid;
 }
 
 .workspace-node-card:hover,
@@ -376,7 +379,7 @@
   font-size: 12px;
   line-height: 1.5;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 10;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
