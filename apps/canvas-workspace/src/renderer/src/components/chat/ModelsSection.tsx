@@ -8,6 +8,7 @@ import type {
 import { TrashIcon } from '../icons';
 import { ModelProviderFields } from './ModelProviderFields';
 import { ModelProviderRail } from './ModelProviderRail';
+import { useI18n } from '../../i18n';
 
 interface ModelsSectionProps {
   status?: CanvasModelStatus;
@@ -55,6 +56,7 @@ export const ModelsSection = ({
   onRemoveProvider,
   onFetchModels,
 }: ModelsSectionProps) => {
+  const { t } = useI18n();
   const providers = useMemo(() => status?.providers ?? [], [status?.providers]);
   const [activeProviderId, setActiveProviderId] = useState<string>('new');
   const [draft, setDraft] = useState<CanvasModelProviderConfig>(emptyProvider());
@@ -131,20 +133,20 @@ export const ModelsSection = ({
 
   const save = useCallback(async () => {
     if (!draft.name.trim()) {
-      setLocalError('请填写 Provider name');
+      setLocalError(t('models.nameRequired'));
       return;
     }
     if (!draft.id.trim()) {
-      setLocalError('Provider name 无法生成合法的 id，换个名字试试');
+      setLocalError(t('models.invalidId'));
       return;
     }
     if (!draft.base_url?.trim()) {
-      setLocalError('请填写 API URL / Base URL');
+      setLocalError(t('models.baseUrlRequired'));
       return;
     }
     const hasSavedKey = Boolean(activeProviderStatus?.apiKeyPresent);
     if (!draft.api_key?.trim() && !hasSavedKey) {
-      setLocalError('请填写 API Key');
+      setLocalError(t('models.apiKeyRequired'));
       return;
     }
 
@@ -156,7 +158,7 @@ export const ModelsSection = ({
         fetchedModels = await onFetchModels(draft);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        setLocalError(`连接测试失败：${msg}`);
+        setLocalError(t('models.connectionTestFailed', { message: msg }));
         return;
       }
 
@@ -173,7 +175,7 @@ export const ModelsSection = ({
     } finally {
       setSaving(false);
     }
-  }, [draft, activeProviderStatus, onSaveProvider, onFetchModels]);
+  }, [draft, activeProviderStatus, onSaveProvider, onFetchModels, t]);
 
   return (
     <>
@@ -187,8 +189,12 @@ export const ModelsSection = ({
         <div className="chat-model-settings-form">
           <div className="chat-model-settings-card chat-model-settings-card--intro">
             <div>
-              <strong>{activeProviderId === 'new' ? 'Add a model provider' : `Edit ${draft.name || 'provider'}`}</strong>
-              <p>填好协议、URL、API Key，点"测试并保存"会先连接 provider 拉取可用模型，确认 URL + Key + 协议都对得上后再落盘。</p>
+              <strong>
+                {activeProviderId === 'new'
+                  ? t('models.addTitle')
+                  : t('models.editTitle', { name: draft.name || t('models.providerFallback') })}
+              </strong>
+              <p>{t('models.intro')}</p>
             </div>
             {activeProviderId !== 'new' && (
               <button
@@ -220,9 +226,9 @@ export const ModelsSection = ({
 
       <div className="chat-model-settings-footer">
         <span>{status?.path}</span>
-        <button type="button" className="chat-model-secondary-btn" onClick={onClose}>Cancel</button>
+        <button type="button" className="chat-model-secondary-btn" onClick={onClose}>{t('models.cancel')}</button>
         <button type="button" className="chat-model-primary-btn" onClick={() => void save()} disabled={saving}>
-          {saving ? '测试中...' : '测试并保存'}
+          {saving ? t('models.testing') : t('models.testAndSave')}
         </button>
       </div>
     </>

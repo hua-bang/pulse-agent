@@ -17,6 +17,7 @@ import type { WorkspaceNodeListItem } from '../../types';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
+import { useI18n } from '../../i18n';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -95,6 +96,7 @@ function buildGraphData(
   tagDefinitions: ReturnType<typeof useAllWorkspaceNodeList>['tags'],
   workspaces: WorkspaceEntry[],
   options: { showTags: boolean; showLinks: boolean; showWorkspaceHubs: boolean },
+  labels: { untitled: string },
 ): ForceGraphData<GraphNode, GraphLink> {
   const graphNodes = new Map<string, NodeObject<GraphNode>>();
   const graphLinks: LinkObject<GraphNode, GraphLink>[] = [];
@@ -108,7 +110,7 @@ function buildGraphData(
     graphNodes.set(id, {
       id,
       kind: 'node',
-      label: getNodeTitle(node),
+      label: getNodeTitle(node, labels.untitled),
       workspaceId,
       nodeId: node.id,
       source: node,
@@ -188,6 +190,7 @@ export const GraphPage = ({
   onSelectNode,
   onOpenNode,
 }: GraphPageProps) => {
+  const { t } = useI18n();
   const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastClickRef = useRef<{ nodeId: string; ts: number } | null>(null);
@@ -253,8 +256,14 @@ export const GraphPage = ({
   useEffect(() => { setSuggestionIndex(0); }, [query]);
 
   const graphData = useMemo(
-    () => buildGraphData(visibleNodes, tags, workspaces, { showTags, showLinks, showWorkspaceHubs }),
-    [showLinks, showTags, showWorkspaceHubs, tags, visibleNodes, workspaces],
+    () => buildGraphData(
+      visibleNodes,
+      tags,
+      workspaces,
+      { showTags, showLinks, showWorkspaceHubs },
+      { untitled: t('workspaceNodes.untitled') },
+    ),
+    [showLinks, showTags, showWorkspaceHubs, tags, t, visibleNodes, workspaces],
   );
 
   const neighbors = useMemo(() => {
@@ -470,21 +479,21 @@ export const GraphPage = ({
       <div className="workspace-graph-toolbar">
         <div className="workspace-graph-toolbar__group">
           <button className={`workspace-node-chip${showLabels ? ' is-active' : ''}`} onClick={() => setShowLabels((value) => !value)}>
-            {showLabels ? 'Hide labels' : 'Show labels'}
+            {showLabels ? t('workspaceGraph.hideLabels') : t('workspaceGraph.showLabels')}
           </button>
           {workspaces.length > 1 && (
             <button className={`workspace-node-chip${showWorkspaceHubs ? ' is-active' : ''}`} onClick={() => setShowWorkspaceHubs((value) => !value)}>
-              {showWorkspaceHubs ? 'Hide workspaces' : 'Group by workspace'}
+              {showWorkspaceHubs ? t('workspaceGraph.hideWorkspaces') : t('workspaceGraph.groupByWorkspace')}
             </button>
           )}
-          <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>Fit</button>
+          <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>{t('workspaceGraph.fit')}</button>
           <div className="workspace-graph-toolbar__more" ref={overflowRef}>
             <button
               className="workspace-node-chip workspace-node-chip--toolbar-action"
               onClick={() => setOverflowOpen((value) => !value)}
-              title="More options"
+              title={t('workspaceGraph.moreOptions')}
             >
-              More ⋯
+              {t('workspaceGraph.more')}
             </button>
             {overflowOpen && (
               <div className="workspace-graph-toolbar__menu" role="menu">
@@ -498,19 +507,25 @@ export const GraphPage = ({
                     setIsPaused((value) => !value);
                   }}
                 >
-                  {isPaused ? 'Resume layout' : 'Pause layout'}
+                  {isPaused ? t('workspaceGraph.resumeLayout') : t('workspaceGraph.pauseLayout')}
                 </button>
                 <button
                   className="workspace-graph-toolbar__menu-item"
                   onClick={() => setLayoutPreset((value) => value === 'compact' ? 'normal' : value === 'normal' ? 'loose' : 'compact')}
                 >
-                  Density: {layoutPreset === 'compact' ? 'Compact' : layoutPreset === 'loose' ? 'Loose' : 'Standard'}
+                  {t('workspaceGraph.density', {
+                    value: layoutPreset === 'compact'
+                      ? t('workspaceGraph.density.compact')
+                      : layoutPreset === 'loose'
+                        ? t('workspaceGraph.density.loose')
+                        : t('workspaceGraph.density.standard'),
+                  })}
                 </button>
                 <button
                   className="workspace-graph-toolbar__menu-item"
                   onClick={() => { setOverflowOpen(false); void reload(); }}
                 >
-                  Refresh
+                  {t('workspaceNodes.refresh')}
                 </button>
               </div>
             )}
@@ -525,7 +540,7 @@ export const GraphPage = ({
               ref={searchInputRef}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search graph..."
+              placeholder={t('workspaceGraph.searchPlaceholder')}
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   setSearchOpen(false);
@@ -547,7 +562,7 @@ export const GraphPage = ({
             <button
               className="workspace-node-chip"
               onClick={() => { setQuery(''); setSearchOpen(false); }}
-              title="Close (Esc)"
+              title={t('workspaceGraph.close')}
             >
               ✕
             </button>
@@ -555,7 +570,7 @@ export const GraphPage = ({
           {query.trim() && (
             <div className="workspace-graph-search__list" role="listbox">
               {searchSuggestions.length === 0 ? (
-                <div className="workspace-graph-search__empty">No matches</div>
+                <div className="workspace-graph-search__empty">{t('workspaceGraph.noMatches')}</div>
               ) : (
                 searchSuggestions.map((item, index) => (
                   <button
@@ -567,7 +582,7 @@ export const GraphPage = ({
                     onMouseEnter={() => setSuggestionIndex(index)}
                     onClick={() => pickSuggestion(item)}
                   >
-                    <span className="workspace-graph-search__title">{getNodeTitle(item)}</span>
+                    <span className="workspace-graph-search__title">{getNodeTitle(item, t('workspaceNodes.untitled'))}</span>
                     <span className="workspace-graph-search__meta">{item.workspaceName ?? ''}</span>
                   </button>
                 ))
@@ -578,11 +593,11 @@ export const GraphPage = ({
       )}
 
       {error && <div className="workspace-graph-state workspace-graph-state--error">{error}</div>}
-      {loading && <div className="workspace-graph-state">Loading graph...</div>}
+      {loading && <div className="workspace-graph-state">{t('workspaceGraph.loading')}</div>}
       {!loading && visibleNodes.length === 0 && (
         <div className="workspace-graph-empty">
-          <h2>No graph data yet</h2>
-          <p>Add tags or links to nodes and they will appear here.</p>
+          <h2>{t('workspaceGraph.emptyTitle')}</h2>
+          <p>{t('workspaceGraph.emptyDescription')}</p>
         </div>
       )}
 

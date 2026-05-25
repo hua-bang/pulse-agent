@@ -1,0 +1,93 @@
+.language-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.language-section-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px;
+}
+
+.language-section-card {
+  border: 1px solid rgba(55, 53, 47, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.language-section-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.language-section-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2f2d28;
+}
+
+.language-section-desc,
+.language-section-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(55, 53, 47, 0.62);
+}
+
+.language-section-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.language-section-field > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(55, 53, 47, 0.72);
+}
+
+.language-section-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.language-section-option {
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.86);
+  color: #37352f;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.language-section-option:hover {
+  border-color: rgba(35, 131, 226, 0.32);
+  background: rgba(35, 131, 226, 0.035);
+}
+
+.language-section-option--active {
+  border-color: rgba(35, 131, 226, 0.55);
+  background: rgba(35, 131, 226, 0.08);
+}
+
+.language-section-option-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.language-section-option-sub {
+  font-size: 11px;
+  color: rgba(55, 53, 47, 0.56);
+}

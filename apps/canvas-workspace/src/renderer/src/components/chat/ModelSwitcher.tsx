@@ -4,6 +4,7 @@ import type { CanvasModelStatus } from '../../types';
 import { CheckIcon } from '../icons';
 import type { ModelSelection } from './modelSettingsTypes';
 import { providerLabel } from './modelSettingsTypes';
+import { useI18n } from '../../i18n';
 
 interface ModelSwitcherProps {
   status?: CanvasModelStatus;
@@ -26,6 +27,7 @@ export const ModelSwitcher = ({
   onSelectModel,
   onOpenSettings,
 }: ModelSwitcherProps) => {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -100,11 +102,11 @@ export const ModelSwitcher = ({
           }
           setOpen((value) => !value);
         }}
-        title={notConfigured ? '还没配模型，点击去 Settings 配置' : '选择本次使用的模型'}
-        aria-label={notConfigured ? '配置模型 provider' : '选择模型'}
+        title={notConfigured ? t('chat.model.notConfiguredTitle') : t('chat.model.chooseTitle')}
+        aria-label={notConfigured ? t('chat.model.configureProviderAria') : t('chat.model.chooseModelAria')}
       >
         <span className="chat-model-switcher-dot" />
-        <span className="chat-model-switcher-label">{notConfigured ? 'Configure model' : label}</span>
+        <span className="chat-model-switcher-label">{notConfigured ? t('chat.model.configure') : label}</span>
         {!notConfigured && (
           <span className="chat-model-switcher-chevron" aria-hidden="true">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -123,7 +125,7 @@ export const ModelSwitcher = ({
             visibility: menuPosition ? 'visible' : 'hidden',
           }}
         >
-          <div className="chat-model-menu-label">Use model</div>
+          <div className="chat-model-menu-label">{t('chat.model.useModel')}</div>
           <button
             type="button"
             className={`chat-model-menu-item${selection.mode === 'auto' ? ' chat-model-menu-item--active' : ''}`}
@@ -134,8 +136,8 @@ export const ModelSwitcher = ({
           >
             <span className="chat-model-menu-check">{selection.mode === 'auto' ? <CheckIcon /> : null}</span>
             <span className="chat-model-menu-main">
-              <span className="chat-model-menu-title">Auto</span>
-              <span className="chat-model-menu-subtitle">自动使用当前默认配置</span>
+              <span className="chat-model-menu-title">{t('chat.model.auto')}</span>
+              <span className="chat-model-menu-subtitle">{t('chat.model.autoSubtitle')}</span>
             </span>
           </button>
           {providers.length > 0 && <div className="chat-model-menu-divider" />}
@@ -165,13 +167,13 @@ export const ModelSwitcher = ({
                   </button>
                 );
               }) : (
-                <div className="chat-model-menu-empty">No models yet</div>
+                <div className="chat-model-menu-empty">{t('chat.model.noModels')}</div>
               )}
             </div>
           ))}
           {!hasConfiguredModels && (
             <div className="chat-model-menu-hint">
-              配置 API Key / Base URL 后可拉取模型，也可以手动添加。
+              {t('chat.model.emptyHint')}
             </div>
           )}
           <div className="chat-model-menu-divider" />
@@ -183,7 +185,7 @@ export const ModelSwitcher = ({
               onOpenSettings();
             }}
           >
-            Manage providers...
+            {t('chat.model.manageProviders')}
           </button>
         </div>,
         document.body,

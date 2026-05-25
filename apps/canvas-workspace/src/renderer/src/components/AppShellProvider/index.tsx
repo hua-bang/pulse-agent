@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { DEFAULT_TOAST_DURATION_MS, SHORTCUT_SECTIONS } from '../../constants/interaction';
 import type { ConfirmOptions, ToastInput, ToastRecord } from '../../types/ui-interaction';
+import { useI18n } from '../../i18n';
 import './index.css';
 
 interface AppShellContextValue {
@@ -26,6 +27,7 @@ interface AppShellContextValue {
 const AppShellContext = createContext<AppShellContextValue | null>(null);
 
 export const AppShellProvider = ({ children }: { children: ReactNode }) => {
+  const { t } = useI18n();
   const [toasts, setToasts] = useState<ToastRecord[]>([]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [confirmState, setConfirmState] = useState<ConfirmOptions | null>(null);
@@ -138,6 +140,7 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
           options={confirmState}
           onCancel={() => closeConfirm(false)}
           onConfirm={() => closeConfirm(true)}
+          t={t}
         />
       )}
       {shortcutsOpen && (
@@ -161,47 +164,51 @@ const ToastViewport = ({
 }: {
   toasts: ToastRecord[];
   onDismiss: (id: string) => void;
-}) => (
-  <div className="shell-toast-region" aria-live="polite" aria-atomic="true">
-    {toasts.map((toast) => (
-      <article key={toast.id} className={`shell-toast shell-toast--${toast.tone}`}>
-        <span className="shell-toast__icon" aria-hidden="true">
-          <ToastIcon tone={toast.tone} />
-        </span>
-        <div className="shell-toast__body">
-          <div className="shell-toast__title">{toast.title}</div>
-          {toast.description && (
-            <div className="shell-toast__description">{toast.description}</div>
+}) => {
+  const { t } = useI18n();
+
+  return (
+    <div className="shell-toast-region" aria-live="polite" aria-atomic="true">
+      {toasts.map((toast) => (
+        <article key={toast.id} className={`shell-toast shell-toast--${toast.tone}`}>
+          <span className="shell-toast__icon" aria-hidden="true">
+            <ToastIcon tone={toast.tone} />
+          </span>
+          <div className="shell-toast__body">
+            <div className="shell-toast__title">{toast.title}</div>
+            {toast.description && (
+              <div className="shell-toast__description">{toast.description}</div>
+            )}
+          </div>
+          {toast.action && (
+            <button
+              type="button"
+              className="shell-toast__action"
+              onClick={() => {
+                // Dismiss before firing so action handlers that themselves
+                // open a new toast don't race against this one.
+                onDismiss(toast.id);
+                toast.action?.onClick();
+              }}
+            >
+              {toast.action.label}
+            </button>
           )}
-        </div>
-        {toast.action && (
           <button
             type="button"
-            className="shell-toast__action"
-            onClick={() => {
-              // Dismiss before firing so action handlers that themselves
-              // open a new toast don't race against this one.
-              onDismiss(toast.id);
-              toast.action?.onClick();
-            }}
+            className="shell-toast__close"
+            aria-label={t('shell.dismissNotification')}
+            onClick={() => onDismiss(toast.id)}
           >
-            {toast.action.label}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
           </button>
-        )}
-        <button
-          type="button"
-          className="shell-toast__close"
-          aria-label="Dismiss notification"
-          onClick={() => onDismiss(toast.id)}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          </svg>
-        </button>
-      </article>
-    ))}
-  </div>
-);
+        </article>
+      ))}
+    </div>
+  );
+};
 
 const ToastIcon = ({ tone }: { tone: ToastRecord['tone'] }) => {
   if (tone === 'loading') {
@@ -238,10 +245,12 @@ const ConfirmDialog = ({
   options,
   onCancel,
   onConfirm,
+  t,
 }: {
   options: ConfirmOptions;
   onCancel: () => void;
   onConfirm: () => void;
+  t: ReturnType<typeof useI18n>['t'];
 }) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -272,7 +281,7 @@ const ConfirmDialog = ({
       <div className="shell-dialog" role="dialog" aria-modal="true" aria-labelledby="shell-confirm-title">
         <div className="shell-dialog__header">
           <div className={`shell-dialog__eyebrow${intent === 'danger' ? ' shell-dialog__eyebrow--danger' : ''}`}>
-            {intent === 'danger' ? 'Confirm destructive action' : 'Confirm action'}
+            {intent === 'danger' ? t('shell.confirmDestructive') : t('shell.confirmAction')}
           </div>
           <h2 className="shell-dialog__title" id="shell-confirm-title">{options.title}</h2>
         </div>
@@ -281,14 +290,14 @@ const ConfirmDialog = ({
         )}
         <div className="shell-dialog__footer">
           <button type="button" className="shell-dialog__button" onClick={onCancel}>
-            {options.cancelLabel ?? 'Cancel'}
+            {options.cancelLabel ?? t('shell.cancel')}
           </button>
           <button
             type="button"
             className={`shell-dialog__button${intent === 'danger' ? ' shell-dialog__button--danger' : ' shell-dialog__button--primary'}`}
             onClick={onConfirm}
           >
-            {options.confirmLabel ?? 'Continue'}
+            {options.confirmLabel ?? t('shell.continue')}
           </button>
         </div>
       </div>
@@ -297,6 +306,8 @@ const ConfirmDialog = ({
 };
 
 const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
+  const { t } = useI18n();
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -318,26 +329,26 @@ const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
     >
       <div className="shell-dialog shell-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="shell-shortcuts-title">
         <div className="shell-dialog__header">
-          <div className="shell-dialog__eyebrow">Keyboard shortcuts</div>
-          <h2 className="shell-dialog__title" id="shell-shortcuts-title">Move faster across the canvas</h2>
+          <div className="shell-dialog__eyebrow">{t('shell.shortcutsKicker')}</div>
+          <h2 className="shell-dialog__title" id="shell-shortcuts-title">{t('shell.shortcutsTitle')}</h2>
         </div>
         <div className="shell-shortcuts__intro">
-          The canvas supports a small set of global shortcuts. They stay intentionally lightweight so creation and navigation remain predictable.
+          {t('shell.shortcutsIntro')}
         </div>
         <div className="shell-shortcuts">
           <div className="shell-shortcuts__grid">
             {SHORTCUT_SECTIONS.map((section) => (
-              <section key={section.title} className="shell-shortcuts__section">
-                <div className="shell-shortcuts__section-title">{section.title}</div>
+              <section key={section.titleKey} className="shell-shortcuts__section">
+                <div className="shell-shortcuts__section-title">{t(section.titleKey)}</div>
                 <div className="shell-shortcuts__list">
                   {section.items.map((item) => (
-                    <div key={`${section.title}-${item.combo}`} className="shell-shortcuts__item">
+                    <div key={`${section.titleKey}-${item.combo}`} className="shell-shortcuts__item">
                       <div className="shell-shortcuts__combo" aria-label={item.combo}>
                         {item.combo.split(/\s*\+\s*/).map((part) => (
                           <span key={`${item.combo}-${part}`} className="shell-shortcuts__key">{part}</span>
                         ))}
                       </div>
-                      <div className="shell-shortcuts__item-description">{item.description}</div>
+                      <div className="shell-shortcuts__item-description">{t(item.descriptionKey)}</div>
                     </div>
                   ))}
                 </div>
@@ -347,7 +358,7 @@ const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
         </div>
         <div className="shell-dialog__footer">
           <button type="button" className="shell-dialog__button shell-dialog__button--primary" onClick={onClose}>
-            Close
+            {t('shell.close')}
           </button>
         </div>
       </div>

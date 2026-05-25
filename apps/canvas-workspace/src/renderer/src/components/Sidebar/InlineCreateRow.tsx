@@ -1,5 +1,6 @@
 import type React from 'react';
 import { FolderIcon, WorkspaceIcon } from '../icons';
+import { useI18n } from '../../i18n';
 
 interface InlineCreateRowProps {
   type: 'workspace' | 'folder';
@@ -17,24 +18,28 @@ export const InlineCreateRow = ({
   onChange,
   onCommit,
   onCancel,
-}: InlineCreateRowProps) => (
-  <div className="sidebar-list">
-    <div className="sidebar-inline-create">
-      <span className="sidebar-item-icon">
-        {type === 'folder' ? <FolderIcon size={14} /> : <WorkspaceIcon size={14} />}
-      </span>
-      <input
-        ref={inputRef}
-        className="sidebar-rename-input sidebar-rename-input--new"
-        placeholder={type === 'folder' ? 'Folder name…' : 'Workspace name…'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={() => (value.trim() ? onCommit() : onCancel())}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') onCommit();
-          if (e.key === 'Escape') onCancel();
-        }}
-      />
+}: InlineCreateRowProps) => {
+  const { t } = useI18n();
+
+  return (
+    <div className="sidebar-list">
+      <div className="sidebar-inline-create">
+        <span className="sidebar-item-icon">
+          {type === 'folder' ? <FolderIcon size={14} /> : <WorkspaceIcon size={14} />}
+        </span>
+        <input
+          ref={inputRef}
+          className="sidebar-rename-input sidebar-rename-input--new"
+          placeholder={type === 'folder' ? t('sidebar.folderNamePlaceholder') : t('sidebar.workspaceNamePlaceholder')}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={() => (value.trim() ? onCommit() : onCancel())}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onCommit();
+            if (e.key === 'Escape') onCancel();
+          }}
+        />
+      </div>
     </div>
-  </div>
-);
+  );
+};

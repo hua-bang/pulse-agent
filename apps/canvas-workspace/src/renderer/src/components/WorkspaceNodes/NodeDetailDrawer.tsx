@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KnowledgeTagDefinition } from '../../types';
 import { NodeDetailPanel } from './NodeDetailPanel';
 import { useKnowledgeTags, useWorkspaceNode } from './useWorkspaceNodes';
+import { useI18n } from '../../i18n';
 
 interface NodeDetailDrawerProps {
   workspaceId: string;
@@ -32,6 +33,7 @@ export const NodeDetailDrawer = ({
   onOpenPage,
   onNodeChanged,
 }: NodeDetailDrawerProps) => {
+  const { t } = useI18n();
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
   const [width, setWidth] = useState<number>(() => readStoredWidth());
@@ -77,12 +79,12 @@ export const NodeDetailDrawer = ({
   if (!nodeId) return null;
 
   return (
-    <div className="node-detail-drawer" role="dialog" aria-label="Node detail" style={{ width }}>
+    <div className="node-detail-drawer" role="dialog" aria-label={t('workspaceNodes.nodeDetail')} style={{ width }}>
       <div
         className="node-detail-drawer__resize"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize node detail panel"
+        aria-label={t('workspaceNodes.resizeNodeDetail')}
         onMouseDown={handleResizeMouseDown}
       />
       <NodeDetailPanel

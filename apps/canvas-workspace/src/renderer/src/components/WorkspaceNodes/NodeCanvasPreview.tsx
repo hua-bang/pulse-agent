@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode, WorkspaceNodeRecord } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { isKnowledgeNodeType } from './utils';
+import { useI18n } from '../../i18n';
 
 interface NodeCanvasPreviewProps {
   workspaceId: string;
@@ -28,6 +29,7 @@ export const NodeCanvasPreview = ({
   readOnly = false,
   onPatched,
 }: NodeCanvasPreviewProps) => {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 320, height: minHeight });
 
@@ -104,7 +106,7 @@ export const NodeCanvasPreview = ({
           embedded
         />
       ) : (
-        <div className="node-detail-panel__empty">No preview available for this node type.</div>
+        <div className="node-detail-panel__empty">{t('workspaceNodes.noTypePreview')}</div>
       )}
     </div>
   );

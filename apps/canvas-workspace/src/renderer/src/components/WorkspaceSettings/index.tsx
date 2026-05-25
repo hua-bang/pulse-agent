@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { SettingsDrawer } from '../SettingsDrawer';
+import { useI18n } from '../../i18n';
 import './index.css';
 
 interface Props {
@@ -28,8 +29,11 @@ interface Props {
 
 const WORKSPACE_DOC_FILENAME = 'pulse-workspace.md';
 
-const buildWorkspaceDocTemplate = (workspaceName: string): string =>
-  `# ${workspaceName}\n\n## Goal\n<What are we trying to accomplish in this workspace?>\n\n## Status\n<Where are we right now? What's next?>\n\n## Notes\n<Decisions, references, open questions — both you and the agent edit this freely.>\n`;
+const buildWorkspaceDocTemplate = (
+  workspaceName: string,
+  labels: { goal: string; status: string; notes: string },
+): string =>
+  `# ${workspaceName}\n\n## Goal\n<${labels.goal}>\n\n## Status\n<${labels.status}>\n\n## Notes\n<${labels.notes}>\n`;
 
 const joinPath = (folder: string, file: string): string => {
   const trimmed = folder.endsWith('/') ? folder.slice(0, -1) : folder;
@@ -42,6 +46,7 @@ export const WorkspaceSettingsDrawer = ({
   onRename,
   onSetRootFolder,
 }: Props) => {
+  const { t } = useI18n();
   const open = workspace !== null;
 
   const [nameDraft, setNameDraft] = useState('');
@@ -83,12 +88,16 @@ export const WorkspaceSettingsDrawer = ({
         setAgentsDoc(res.content);
         setAgentsDocExists(true);
       } else {
-        setAgentsDoc(buildWorkspaceDocTemplate(workspace.name));
+        setAgentsDoc(buildWorkspaceDocTemplate(workspace.name, {
+          goal: t('workspaceSettings.goalPlaceholder'),
+          status: t('workspaceSettings.statusPlaceholder'),
+          notes: t('workspaceSettings.notesPlaceholder'),
+        }));
         setAgentsDocExists(false);
       }
       setAgentsDocLoaded(true);
     });
-  }, [open, workspace]);
+  }, [open, workspace, t]);
 
   const handleNameBlur = useCallback(() => {
     if (!workspace) return;
@@ -114,7 +123,7 @@ export const WorkspaceSettingsDrawer = ({
       const filePath = joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME);
       const res = await window.canvasWorkspace?.file.write(filePath, agentsDoc);
       if (!res?.ok) {
-        setError(res?.error ?? `Failed to save ${WORKSPACE_DOC_FILENAME}`);
+        setError(res?.error ?? t('workspaceSettings.saveFailed', { fileName: WORKSPACE_DOC_FILENAME }));
         return;
       }
       setAgentsDocExists(true);
@@ -123,7 +132,7 @@ export const WorkspaceSettingsDrawer = ({
     } finally {
       setSavingDoc(false);
     }
-  }, [agentsDoc, workspace]);
+  }, [agentsDoc, workspace, t]);
 
   const handleGenerate = useCallback(async () => {
     if (!workspace) return;
@@ -131,10 +140,14 @@ export const WorkspaceSettingsDrawer = ({
     if (!trimmed) return;
 
     const hasUserContent = agentsDoc.trim().length > 0
-      && agentsDoc.trim() !== buildWorkspaceDocTemplate(workspace.name).trim();
+      && agentsDoc.trim() !== buildWorkspaceDocTemplate(workspace.name, {
+        goal: t('workspaceSettings.goalPlaceholder'),
+        status: t('workspaceSettings.statusPlaceholder'),
+        notes: t('workspaceSettings.notesPlaceholder'),
+      }).trim();
     if (hasUserContent) {
       const ok = window.confirm(
-        'Replace the current pulse-workspace.md draft with an AI-generated one?\nThe existing content will be sent to the model as context so good parts can be kept.',
+        t('workspaceSettings.replaceConfirm'),
       );
       if (!ok) return;
     }
@@ -153,7 +166,7 @@ export const WorkspaceSettingsDrawer = ({
       currentContent: hasUserContent ? agentsDoc : undefined,
     });
     if (!startRes.ok || !startRes.requestId) {
-      setError(startRes.error ?? 'Failed to start generation');
+      setError(startRes.error ?? t('workspaceSettings.generationStartFailed'));
       setGenerating(false);
       return;
     }
@@ -169,14 +182,14 @@ export const WorkspaceSettingsDrawer = ({
       offComplete();
       setGenerating(false);
       if (!result.ok) {
-        setError(result.error ?? 'Generation failed');
+        setError(result.error ?? t('workspaceSettings.generationFailed'));
         return;
       }
       if (typeof result.content === 'string') {
         setAgentsDoc(result.content);
       }
     });
-  }, [agentsDoc, intent, workspace]);
+  }, [agentsDoc, intent, workspace, t]);
 
   if (!workspace) return null;
 
@@ -184,18 +197,18 @@ export const WorkspaceSettingsDrawer = ({
     <SettingsDrawer
       open={open}
       onClose={onClose}
-      kicker="Workspace Settings"
+      kicker={t('workspaceSettings.kicker')}
       title={workspace.name}
-      ariaLabel="Workspace settings"
+      ariaLabel={t('workspaceSettings.ariaLabel')}
       width={640}
     >
       <div className="workspace-settings-body">
         {error && <div className="workspace-settings-error">{error}</div>}
 
         <section className="workspace-settings-section">
-          <div className="workspace-settings-section-title">Identity</div>
+          <div className="workspace-settings-section-title">{t('workspaceSettings.identity')}</div>
           <label className="workspace-settings-field">
-            <span>Name</span>
+            <span>{t('workspaceSettings.name')}</span>
             <input
               className="workspace-settings-input"
               value={nameDraft}
@@ -210,43 +223,41 @@ export const WorkspaceSettingsDrawer = ({
         </section>
 
         <section className="workspace-settings-section">
-          <div className="workspace-settings-section-title">Environment</div>
+          <div className="workspace-settings-section-title">{t('workspaceSettings.environment')}</div>
           <div className="workspace-settings-field">
-            <span>Root folder</span>
+            <span>{t('workspaceSettings.rootFolder')}</span>
             <div className="workspace-settings-folder-row">
               <div className="workspace-settings-folder-path" title={workspace.rootFolder}>
-                {workspace.rootFolder ?? <em>not set</em>}
+                {workspace.rootFolder ?? <em>{t('workspaceSettings.notSet')}</em>}
               </div>
               <button
                 type="button"
                 className="workspace-settings-secondary-btn"
                 onClick={() => void handlePickFolder()}
               >
-                {workspace.rootFolder ? 'Change…' : 'Set folder…'}
+                {workspace.rootFolder ? t('workspaceSettings.changeFolder') : t('workspaceSettings.setFolder')}
               </button>
             </div>
             <div className="workspace-settings-field-hint">
-              The directory where this workspace's work lives. <code>pulse-workspace.md</code> is
-              read/written here. Optional — leave empty for pure-thinking workspaces.
+              {t('workspaceSettings.rootFolderHint')}
             </div>
           </div>
         </section>
 
         <section className="workspace-settings-section">
-          <div className="workspace-settings-section-title">Intent &amp; State (pulse-workspace.md)</div>
+          <div className="workspace-settings-section-title">{t('workspaceSettings.intentState')}</div>
           {!workspace.rootFolder ? (
             <div className="workspace-settings-empty">
-              Set a root folder first — <code>pulse-workspace.md</code> lives inside it so both
-              you and the agent can read it.
+              {t('workspaceSettings.setRootFirst')}
             </div>
           ) : !agentsDocLoaded ? (
-            <div className="workspace-settings-empty">Loading…</div>
+            <div className="workspace-settings-empty">{t('workspaceSettings.loading')}</div>
           ) : (
             <>
               <div className="workspace-settings-generate-row">
                 <input
                   className="workspace-settings-input workspace-settings-generate-input"
-                  placeholder="Describe what this workspace is for, AI will draft a pulse-workspace.md…"
+                  placeholder={t('workspaceSettings.generatePlaceholder')}
                   value={intent}
                   onChange={(e) => setIntent(e.target.value)}
                   onKeyDown={(e) => {
@@ -263,7 +274,7 @@ export const WorkspaceSettingsDrawer = ({
                   onClick={() => void handleGenerate()}
                   disabled={!intent.trim() || generating}
                 >
-                  {generating ? 'Generating…' : '✨ Generate'}
+                  {generating ? t('workspaceSettings.generating') : t('workspaceSettings.generate')}
                 </button>
               </div>
               <textarea
@@ -275,9 +286,8 @@ export const WorkspaceSettingsDrawer = ({
                 readOnly={generating}
               />
               <div className="workspace-settings-field-hint">
-                {agentsDocExists ? 'Saved at ' : 'Will be created at '}
-                <code>{joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME)}</code> · injected
-                into the Canvas Agent's system prompt every turn.
+                {agentsDocExists ? t('workspaceSettings.savedAt') : t('workspaceSettings.willCreateAt')}{' '}
+                <code>{joinPath(workspace.rootFolder, WORKSPACE_DOC_FILENAME)}</code> · {t('workspaceSettings.injectedHint')}
               </div>
             </>
           )}
@@ -286,7 +296,7 @@ export const WorkspaceSettingsDrawer = ({
 
       <div className="workspace-settings-footer">
         <button type="button" className="workspace-settings-secondary-btn" onClick={onClose}>
-          Close
+          {t('workspaceSettings.close')}
         </button>
         <button
           type="button"
@@ -294,7 +304,7 @@ export const WorkspaceSettingsDrawer = ({
           disabled={!workspace.rootFolder || savingDoc || !agentsDocLoaded}
           onClick={() => void handleSaveDoc()}
         >
-          {savingDoc ? 'Saving…' : savedHint ? 'Saved ✓' : 'Save pulse-workspace.md'}
+          {savingDoc ? t('workspaceSettings.saving') : savedHint ? t('workspaceSettings.saved') : t('workspaceSettings.saveDoc')}
         </button>
       </div>
     </SettingsDrawer>

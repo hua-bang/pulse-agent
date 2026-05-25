@@ -14,6 +14,7 @@ import { SettingsIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { buildCanvasNodeLink } from '../../utils/canvasLinks';
 import { copyTextToClipboard } from '../../utils/clipboard';
+import { useI18n } from '../../i18n';
 
 interface Props {
   collapsed: boolean;
@@ -69,6 +70,7 @@ export const Sidebar = ({
   onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
 }: Props) => {
   const { notify } = useAppShell();
+  const { t } = useI18n();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
@@ -151,7 +153,7 @@ export const Sidebar = ({
     onNodeRename(renamingLayerId, nextTitle);
     notify({
       tone: 'success',
-      title: 'Layer renamed',
+      title: t('sidebar.layerRenamed'),
       description: `${getNodeDisplayLabel(node)} -> ${nextTitle}`,
     });
   };
@@ -190,18 +192,18 @@ export const Sidebar = ({
       await copyTextToClipboard(buildCanvasNodeLink(activeId, nodeId));
       notify({
         tone: 'success',
-        title: 'Node link copied',
+        title: t('sidebar.nodeLinkCopied'),
         description: getNodeDisplayLabel(node),
       });
     } catch (error) {
       notify({
         tone: 'error',
-        title: 'Copy failed',
-        description: error instanceof Error ? error.message : 'Unable to copy the node link.',
+        title: t('sidebar.copyFailed'),
+        description: error instanceof Error ? error.message : t('sidebar.copyFailedDescription'),
         autoCloseMs: 4200,
       });
     }
-  }, [activeNodes, activeId, notify]);
+  }, [activeNodes, activeId, notify, t]);
 
   // Workspace drag
   const handleWsDragStart = (e: DragEvent, wsId: string) => {
@@ -366,7 +368,7 @@ export const Sidebar = ({
 
       {collapsed && (
         <div className="sidebar-collapsed-toggle">
-          <button className="sidebar-toggle" onClick={onToggle} title="Expand sidebar">
+          <button className="sidebar-toggle" onClick={onToggle} title={t('sidebar.expand')}>
             <SidebarToggleIcon size={14} />
           </button>
         </div>
@@ -378,11 +380,11 @@ export const Sidebar = ({
             type="button"
             className="sidebar-footer-btn"
             onClick={onOpenAppSettings}
-            title="Settings"
-            aria-label="Open settings"
+            title={t('sidebar.settings')}
+            aria-label={t('sidebar.openSettings')}
           >
             <SettingsIcon size={14} strokeWidth={1.4} />
-            <span>Settings</span>
+            <span>{t('sidebar.settings')}</span>
           </button>
         </div>
       )}

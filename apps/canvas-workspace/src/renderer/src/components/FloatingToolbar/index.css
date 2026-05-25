@@ -18,6 +18,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
+  flex: 0 0 auto;
 }
 
 .toolbar-divider {
@@ -25,6 +26,7 @@
   height: 20px;
   background: var(--border);
   margin: 0 4px;
+  flex: 0 0 auto;
 }
 
 .toolbar-btn {
@@ -42,6 +44,8 @@
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1;
+  flex: 0 0 auto;
+  white-space: nowrap;
   transition: background 0.1s, color 0.1s;
 }
 
@@ -86,6 +90,8 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1;
+  white-space: nowrap;
+  word-break: keep-all;
   /* Labels are set in the app's default sans stack, which on macOS sits
      ~0.5px above the optical center of the 18px icons. A hairline nudge
      brings the cap-height of the text in line with the icon midline. */

@@ -1,6 +1,7 @@
 import type { CanvasModelStatus } from '../../types';
 import { QUICK_ACTIONS } from './constants';
 import type { QuickAction } from './types';
+import { useI18n } from '../../i18n';
 
 function QuickActionIcon({ action }: { action: QuickAction }) {
   switch (action.key) {
@@ -59,6 +60,7 @@ export const ChatEmptyState = ({
   modelStatus,
   onConfigureModel,
 }: ChatEmptyStateProps) => {
+  const { t } = useI18n();
   const showConfigureBanner = modelStatus !== undefined && !modelStatus.apiKeyPresent;
   return (
     <div className="chat-empty-state">
@@ -67,14 +69,14 @@ export const ChatEmptyState = ({
           type="button"
           className="chat-empty-configure-banner"
           onClick={onConfigureModel}
-          aria-label="Configure a model provider"
+          aria-label={t('chat.configureModelAria')}
         >
           <span className="chat-empty-configure-icon" aria-hidden="true">⚠</span>
           <span className="chat-empty-configure-text">
-            <strong>还没配模型</strong>
-            <span>点这里去 Settings 加一个 provider，否则发送会失败。</span>
+            <strong>{t('chat.configureModelTitle')}</strong>
+            <span>{t('chat.configureModelDescription')}</span>
           </span>
-          <span className="chat-empty-configure-cta">Configure →</span>
+          <span className="chat-empty-configure-cta">{t('chat.configureModelCta')}</span>
         </button>
       )}
       <div className="chat-empty-icon">
@@ -89,18 +91,18 @@ export const ChatEmptyState = ({
           />
         </svg>
       </div>
-      <div className="chat-empty-greeting">想怎么处理这张画布？</div>
+      <div className="chat-empty-greeting">{t('chat.emptyGreeting')}</div>
       <div className="chat-quick-actions">
         {QUICK_ACTIONS.filter(action => !action.requiresSelection || selectedCount > 0).map(action => (
           <button
             key={action.key}
             className="chat-quick-action"
-            onClick={() => onQuickAction(action.prompt, action.key)}
+            onClick={() => onQuickAction(action.promptKey ? t(action.promptKey) : action.prompt, action.key)}
           >
             <span className="chat-quick-action-icon">
               <QuickActionIcon action={action} />
             </span>
-            <span>{action.label}</span>
+            <span>{action.labelKey ? t(action.labelKey) : action.label}</span>
           </button>
         ))}
       </div>

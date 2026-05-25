@@ -4,6 +4,7 @@ import { AvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
 import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
+import { useI18n } from '../../i18n';
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -58,38 +59,63 @@ const ClarificationCard = ({
     </div>
     <div className="chat-message-body">
       <div className="chat-clarify-card">
-        <div className="chat-clarify-label">Needs clarification</div>
-        <div className="chat-clarify-question">{pendingClarify.question}</div>
-        {pendingClarify.context && (
-          <div className="chat-clarify-context">{pendingClarify.context}</div>
-        )}
-        <div className="chat-clarify-form">
-          <input
-            type="text"
-            className="chat-clarify-input"
-            value={clarifyInput}
-            onChange={(event) => onClarifyInputChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                void onAnswerClarification();
-              }
-            }}
-            placeholder="Type your answer…"
-            autoFocus
-          />
-          <button
-            className="chat-clarify-submit"
-            onClick={() => void onAnswerClarification()}
-            disabled={!clarifyInput.trim()}
-          >
-            Reply
-          </button>
-        </div>
+        <ClarificationContent
+          pendingClarify={pendingClarify}
+          clarifyInput={clarifyInput}
+          onClarifyInputChange={onClarifyInputChange}
+          onAnswerClarification={onAnswerClarification}
+        />
       </div>
     </div>
   </div>
 );
+
+const ClarificationContent = ({
+  pendingClarify,
+  clarifyInput,
+  onClarifyInputChange,
+  onAnswerClarification,
+}: {
+  pendingClarify: PendingClarification;
+  clarifyInput: string;
+  onClarifyInputChange: (value: string) => void;
+  onAnswerClarification: () => Promise<void>;
+}) => {
+  const { t } = useI18n();
+
+  return (
+    <>
+      <div className="chat-clarify-label">{t('chat.needsClarification')}</div>
+      <div className="chat-clarify-question">{pendingClarify.question}</div>
+      {pendingClarify.context && (
+        <div className="chat-clarify-context">{pendingClarify.context}</div>
+      )}
+      <div className="chat-clarify-form">
+        <input
+          type="text"
+          className="chat-clarify-input"
+          value={clarifyInput}
+          onChange={(event) => onClarifyInputChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              void onAnswerClarification();
+            }
+          }}
+          placeholder={t('chat.typeAnswer')}
+          autoFocus
+        />
+        <button
+          className="chat-clarify-submit"
+          onClick={() => void onAnswerClarification()}
+          disabled={!clarifyInput.trim()}
+        >
+          {t('chat.reply')}
+        </button>
+      </div>
+    </>
+  );
+};
 
 export const ChatMessages = ({
   messages,
@@ -111,6 +137,7 @@ export const ChatMessages = ({
   onEditUserMessage,
   onRegenerate,
 }: ChatMessagesProps) => {
+  const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -129,10 +156,10 @@ export const ChatMessages = ({
       try {
         await navigator.clipboard.writeText(code);
         copyBtn.dataset.state = 'copied';
-        copyBtn.textContent = 'Copied';
+        copyBtn.textContent = t('chat.copied');
         window.setTimeout(() => {
           delete copyBtn.dataset.state;
-          copyBtn.textContent = 'Copy';
+          copyBtn.textContent = t('chat.copy');
         }, 1200);
       } catch {
         /* clipboard unavailable — ignore */
@@ -147,7 +174,7 @@ export const ChatMessages = ({
     if (nodeId) {
       onNodeFocus(nodeId);
     }
-  }, [onNodeFocus]);
+  }, [onNodeFocus, t]);
 
   const hasStreamingAssistantMessage = loading
     && messages.length > 0

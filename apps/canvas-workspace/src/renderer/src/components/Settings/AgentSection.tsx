@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SkillsInstallResult, SkillsStatusResult, SkillTargetResult } from '../../types';
 import { useAppShell } from '../AppShellProvider';
+import { useI18n } from '../../i18n';
 import './AgentSection.css';
 
 interface AgentSectionProps {
@@ -9,6 +10,7 @@ interface AgentSectionProps {
 
 export const AgentSection = ({ onClose }: AgentSectionProps) => {
   const { notify } = useAppShell();
+  const { t } = useI18n();
   const [status, setStatus] = useState<SkillsStatusResult | null>(null);
   const [lastResults, setLastResults] = useState<SkillTargetResult[] | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -42,24 +44,31 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
       if (failed.length === 0) {
         notify({
           tone: 'success',
-          title: 'Pulse Canvas skill installed',
-          description: `Wrote ${result.results.length} target${result.results.length === 1 ? '' : 's'}`,
+          title: t('agent.skillInstalled'),
+          description: t('agent.wroteTargets', {
+            count: result.results.length,
+            plural: result.results.length === 1 ? '' : 's',
+          }),
         });
       } else {
         notify({
           tone: 'error',
-          title: 'Some targets failed',
-          description: `${failed.length} of ${result.results.length} target${result.results.length === 1 ? '' : 's'} failed — see details below`,
+          title: t('agent.someTargetsFailed'),
+          description: t('agent.someTargetsFailedDescription', {
+            failed: failed.length,
+            total: result.results.length,
+            plural: result.results.length === 1 ? '' : 's',
+          }),
         });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      notify({ tone: 'error', title: 'Install failed', description: msg });
+      notify({ tone: 'error', title: t('agent.installFailed'), description: msg });
     } finally {
       setInstalling(false);
     }
-  }, [loadStatus, notify]);
+  }, [loadStatus, notify, t]);
 
   const cleanupLegacy = useCallback(async () => {
     setCleaningLegacy(true);
@@ -70,32 +79,38 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
       if (failed.length === 0) {
         notify({
           tone: 'success',
-          title: 'Legacy skill dirs removed',
-          description: `Cleaned ${result.results.length} director${result.results.length === 1 ? 'y' : 'ies'}`,
+          title: t('agent.legacyRemoved'),
+          description: t('agent.cleanedDirs', {
+            count: result.results.length,
+            suffix: result.results.length === 1 ? 'y' : 'ies',
+          }),
         });
       } else {
         notify({
           tone: 'error',
-          title: 'Cleanup partially failed',
-          description: `${failed.length} of ${result.results.length} could not be removed`,
+          title: t('agent.cleanupPartiallyFailed'),
+          description: t('agent.cleanupPartiallyFailedDescription', {
+            failed: failed.length,
+            total: result.results.length,
+          }),
         });
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      notify({ tone: 'error', title: 'Cleanup failed', description: msg });
+      notify({ tone: 'error', title: t('agent.cleanupFailed'), description: msg });
     } finally {
       setCleaningLegacy(false);
     }
-  }, [loadStatus, notify]);
+  }, [loadStatus, notify, t]);
 
   const displayResults = lastResults ?? status?.results ?? [];
   const allInstalled = status?.installed ?? false;
   const legacyDirs = status?.legacyDirs ?? [];
   const buttonLabel = installing
-    ? 'Installing…'
+    ? t('agent.installing')
     : allInstalled
-      ? 'Reinstall Pulse Canvas Skill'
-      : 'Install Pulse Canvas Skill';
+      ? t('agent.reinstallSkill')
+      : t('agent.installSkill');
 
   const copyManualCommand = useCallback(async () => {
     if (!manualCommand) return;
@@ -106,11 +121,11 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
     } catch (err) {
       notify({
         tone: 'error',
-        title: 'Copy failed',
+        title: t('agent.copyFailed'),
         description: err instanceof Error ? err.message : String(err),
       });
     }
-  }, [manualCommand, notify]);
+  }, [manualCommand, notify, t]);
 
   return (
     <div className="agent-section">
@@ -118,11 +133,9 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
         <div className="agent-section-card">
           <div className="agent-section-card-header">
             <div>
-              <div className="agent-section-card-title">Pulse Canvas Skill</div>
+              <div className="agent-section-card-title">{t('agent.title')}</div>
               <div className="agent-section-card-desc">
-                Install the <code>pulse-canvas</code> skill into Pulse Coder, Claude Code, and Codex
-                global skill directories so each agent can read and write this workspace via the{' '}
-                <code>pulse-canvas</code> CLI.
+                {t('agent.description')}
               </div>
             </div>
             <button
@@ -142,11 +155,10 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
               <div className="agent-section-warning-header">
                 <div>
                   <div className="agent-section-warning-title">
-                    Legacy <code>canvas</code> skill detected
+                    {t('agent.legacyDetected')}
                   </div>
                   <div className="agent-section-warning-desc">
-                    The skill was renamed to <code>pulse-canvas</code>. Remove the old directories
-                    to avoid agents loading both versions.
+                    {t('agent.legacyDescription')}
                   </div>
                 </div>
                 <button
@@ -155,7 +167,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
                   onClick={() => void cleanupLegacy()}
                   disabled={cleaningLegacy}
                 >
-                  {cleaningLegacy ? 'Removing…' : 'Remove legacy dirs'}
+                  {cleaningLegacy ? t('agent.removing') : t('agent.removeLegacyDirs')}
                 </button>
               </div>
               <ul className="agent-section-warning-list">
@@ -169,7 +181,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
           )}
 
           {displayResults.length > 0 && (
-            <ul className="agent-section-results" aria-label="Skill install targets">
+            <ul className="agent-section-results" aria-label={t('agent.targetsAria')}>
               {displayResults.map((r) => (
                 <li
                   key={r.path}
@@ -190,11 +202,10 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
           {manualCommand && (
             <div className="agent-section-cli">
               <div className="agent-section-cli-title">
-                Next step: install the <code>pulse-canvas</code> CLI
+                {t('agent.nextStepTitle')}
               </div>
               <div className="agent-section-cli-desc">
-                The skill requires the <code>pulse-canvas</code> CLI on your PATH. It is not
-                published yet — run this command from the repo root:
+                {t('agent.nextStepDescription')}
               </div>
               <div className="agent-section-cli-cmd-row">
                 <code className="agent-section-cli-cmd">{manualCommand}</code>
@@ -203,7 +214,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
                   className="agent-section-secondary-btn"
                   onClick={() => void copyManualCommand()}
                 >
-                  {copied ? 'Copied' : 'Copy'}
+                  {copied ? t('agent.copied') : t('agent.copy')}
                 </button>
               </div>
             </div>
@@ -213,7 +224,7 @@ export const AgentSection = ({ onClose }: AgentSectionProps) => {
 
       <div className="agent-section-footer">
         <button type="button" className="agent-section-secondary-btn" onClick={onClose}>
-          Close
+          {t('agent.close')}
         </button>
       </div>
     </div>

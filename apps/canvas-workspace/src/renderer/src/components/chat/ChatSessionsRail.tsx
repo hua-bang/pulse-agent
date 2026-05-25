@@ -1,4 +1,5 @@
 import { ListLinesIcon, PlusIcon } from '../icons';
+import { useI18n } from '../../i18n';
 
 export interface UnifiedSession {
   sessionId: string;
@@ -27,37 +28,41 @@ export const ChatSessionsRail = ({
   allSessions,
   onNewSession,
   onSelectSession,
-}: ChatSessionsRailProps) => (
-  <aside className="chat-page-rail">
-    <button
-      className="chat-page-rail-new"
-      onClick={() => void onNewSession()}
-    >
-      <PlusIcon size={14} strokeWidth={1.3} />
-      <span>New chat</span>
-    </button>
+}: ChatSessionsRailProps) => {
+  const { t } = useI18n();
 
-    <div className="chat-page-rail-scroll">
-      {allSessions.length === 0 ? (
-        <div className="chat-page-rail-empty">No previous chats yet.</div>
-      ) : (
-        <div className="chat-page-rail-list">
-          {allSessions.map((session) => (
-            <button
-              key={`${session.workspaceId}:${session.sessionId}`}
-              className={`chat-page-rail-item${session.isCurrent ? ' chat-page-rail-item--active' : ''}`}
-              onClick={() => onSelectSession(session)}
-              title={`${session.workspaceName} · ${session.preview || session.date}`}
-            >
-              <ListLinesIcon size={14} />
-              <span className="chat-page-rail-item-text">
-                {session.preview || session.date}
-              </span>
-              <span className="chat-page-rail-item-ws">{session.workspaceName}</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  </aside>
-);
+  return (
+    <aside className="chat-page-rail">
+      <button
+        className="chat-page-rail-new"
+        onClick={() => void onNewSession()}
+      >
+        <PlusIcon size={14} strokeWidth={1.3} />
+        <span>{t('chat.newChat')}</span>
+      </button>
+
+      <div className="chat-page-rail-scroll">
+        {allSessions.length === 0 ? (
+          <div className="chat-page-rail-empty">{t('chat.noPreviousChats')}</div>
+        ) : (
+          <div className="chat-page-rail-list">
+            {allSessions.map((session) => (
+              <button
+                key={`${session.workspaceId}:${session.sessionId}`}
+                className={`chat-page-rail-item${session.isCurrent ? ' chat-page-rail-item--active' : ''}`}
+                onClick={() => onSelectSession(session)}
+                title={`${session.workspaceName} · ${session.preview || session.date}`}
+              >
+                <ListLinesIcon size={14} />
+                <span className="chat-page-rail-item-text">
+                  {session.preview || session.date}
+                </span>
+                <span className="chat-page-rail-item-ws">{session.workspaceName}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+};

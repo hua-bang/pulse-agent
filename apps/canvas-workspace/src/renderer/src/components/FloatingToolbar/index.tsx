@@ -1,5 +1,6 @@
 import './index.css';
 import { ShapeToolButton } from './ShapeToolButton';
+import { useI18n, type I18nKey } from '../../i18n';
 
 interface Props {
   activeTool: string;
@@ -11,10 +12,14 @@ interface Props {
   onReferenceToggle?: () => void;
 }
 
-const tools = [
+const tools: Array<{
+  id: string;
+  labelKey: I18nKey;
+  icon: JSX.Element;
+}> = [
   {
     id: "select",
-    label: "Select",
+    labelKey: 'canvas.toolbar.select',
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path
@@ -28,7 +33,7 @@ const tools = [
   },
   {
     id: "hand",
-    label: "Pan",
+    labelKey: 'canvas.toolbar.pan',
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <path
@@ -43,7 +48,7 @@ const tools = [
   },
   {
     id: "connect",
-    label: "Connect",
+    labelKey: 'canvas.toolbar.connect',
     icon: (
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
         <circle cx="4" cy="4" r="2" stroke="currentColor" strokeWidth="1.3" />
@@ -68,6 +73,8 @@ export const FloatingToolbar = ({
   referenceDrawerOpen,
   onReferenceToggle,
 }: Props) => {
+  const { t } = useI18n();
+
   return (
     <div className="floating-toolbar">
       {onChatToggle && (
@@ -76,7 +83,7 @@ export const FloatingToolbar = ({
             <button
               className={`toolbar-btn${chatPanelOpen ? " toolbar-btn--active" : ""}`}
               onClick={onChatToggle}
-              title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
+              title={t('canvas.toolbar.toggleChat')}
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
@@ -99,8 +106,8 @@ export const FloatingToolbar = ({
             <button
               className={`toolbar-btn${referenceDrawerOpen ? " toolbar-btn--active" : ""}`}
               onClick={onReferenceToggle}
-              title="Toggle Reference panel"
-              aria-label="Toggle Reference panel"
+              title={t('canvas.toolbar.toggleReference')}
+              aria-label={t('canvas.toolbar.toggleReference')}
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path
@@ -123,14 +130,14 @@ export const FloatingToolbar = ({
       )}
 
       <div className="toolbar-group">
-        {tools.filter(tool => tool).map((t) => (
+        {tools.map((tool) => (
           <button
-            key={t.id}
-            className={`toolbar-btn${activeTool === t.id ? " toolbar-btn--active" : ""}`}
-            onClick={() => onToolChange(t.id)}
-            title={t.label}
+            key={tool.id}
+            className={`toolbar-btn${activeTool === tool.id ? " toolbar-btn--active" : ""}`}
+            onClick={() => onToolChange(tool.id)}
+            title={t(tool.labelKey)}
           >
-            {t.icon}
+            {tool.icon}
           </button>
         ))}
         <ShapeToolButton activeTool={activeTool} onToolChange={onToolChange} />
@@ -142,7 +149,7 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("text")}
-          title="Add Text"
+          title={t('canvas.toolbar.addText')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path
@@ -150,12 +157,12 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"
             />
           </svg>
-          <span className="toolbar-btn-label">Text</span>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.text')}</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("file")}
-          title="Add Note Card"
+          title={t('canvas.toolbar.addNote')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <rect
@@ -167,12 +174,12 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
             />
           </svg>
-          <span className="toolbar-btn-label">Note</span>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.note')}</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("frame")}
-          title="Add Frame"
+          title={t('canvas.toolbar.addFrame')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <rect
@@ -184,12 +191,12 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1" strokeDasharray="2 1.5"
             />
           </svg>
-          <span className="toolbar-btn-label">Frame</span>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.frame')}</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("iframe")}
-          title="Add Web Page"
+          title={t('canvas.toolbar.addWeb')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.3" />
@@ -198,12 +205,12 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
             />
           </svg>
-          <span className="toolbar-btn-label">Web</span>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.web')}</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("agent")}
-          title="Add Coding Agent"
+          title={t('canvas.toolbar.addCodingAgent')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path
@@ -214,12 +221,12 @@ export const FloatingToolbar = ({
               strokeLinejoin="round"
             />
           </svg>
-          <span className="toolbar-btn-label">Coding</span>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("mindmap")}
-          title="Add Mindmap"
+          title={t('canvas.toolbar.addMindmap')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <circle cx="4.5" cy="9" r="2" stroke="currentColor" strokeWidth="1.3" />
@@ -231,7 +238,7 @@ export const FloatingToolbar = ({
               stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
             />
           </svg>
-          <span className="toolbar-btn-label">Mindmap</span>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.mindmap')}</span>
         </button>
       </div>
     </div>

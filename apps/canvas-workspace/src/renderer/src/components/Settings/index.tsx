@@ -20,41 +20,49 @@ import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
 import { ExperimentalSection } from './ExperimentalSection';
+import { LanguageSection } from './LanguageSection';
+import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'reply-style' | 'agent' | 'experimental';
+export type SettingsSection = 'models' | 'reply-style' | 'agent' | 'experimental' | 'language';
 
 interface SectionDef {
   id: SettingsSection;
-  label: string;
-  description: string;
-  title: string;
+  labelKey: I18nKey;
+  descriptionKey: I18nKey;
+  titleKey: I18nKey;
 }
 
 const SECTIONS: SectionDef[] = [
   {
     id: 'models',
-    label: 'Models',
-    description: 'Providers, API keys, current model',
-    title: 'Models & Providers',
+    labelKey: 'settings.models.label',
+    descriptionKey: 'settings.models.description',
+    titleKey: 'settings.models.title',
   },
   {
     id: 'reply-style',
-    label: 'Reply Style',
-    description: 'Preset + custom prompt',
-    title: 'Reply Style & Custom Prompt',
+    labelKey: 'settings.replyStyle.label',
+    descriptionKey: 'settings.replyStyle.description',
+    titleKey: 'settings.replyStyle.title',
   },
   {
     id: 'agent',
-    label: 'Agent',
-    description: 'Skills & external agent setup',
-    title: 'Agent',
+    labelKey: 'settings.agent.label',
+    descriptionKey: 'settings.agent.description',
+    titleKey: 'settings.agent.title',
   },
   {
     id: 'experimental',
-    label: 'Experimental',
-    description: 'Opt in to unstable features',
-    title: 'Experimental Features',
+    labelKey: 'settings.experimental.label',
+    descriptionKey: 'settings.experimental.description',
+    titleKey: 'settings.experimental.title',
+  },
+  {
+    id: 'language',
+    labelKey: 'settings.language.label',
+    descriptionKey: 'settings.language.description',
+    titleKey: 'settings.language.title',
   },
 ];
 
@@ -65,6 +73,7 @@ interface SettingsProps {
 }
 
 export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
+  const { t } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const canvasModels = useCanvasModels();
   const promptProfile = usePromptProfile();
@@ -82,13 +91,13 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
     <SettingsDrawer
       open={open}
       onClose={onClose}
-      kicker="Settings"
-      title={activeDef.title}
-      ariaLabel="Settings"
+      kicker={t('settings.kicker')}
+      title={t(activeDef.titleKey)}
+      ariaLabel={t('settings.ariaLabel')}
       width={1000}
     >
       <div className="settings-body">
-        <nav className="settings-rail" aria-label="Settings sections">
+        <nav className="settings-rail" aria-label={t('settings.sectionsAria')}>
           {SECTIONS.map((section) => {
             const active = section.id === activeSection;
             return (
@@ -99,8 +108,8 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
                 aria-current={active ? 'page' : undefined}
                 onClick={() => setActiveSection(section.id)}
               >
-                <span className="settings-rail-label">{section.label}</span>
-                <span className="settings-rail-desc">{section.description}</span>
+                <span className="settings-rail-label">{t(section.labelKey)}</span>
+                <span className="settings-rail-desc">{t(section.descriptionKey)}</span>
               </button>
             );
           })}
@@ -127,6 +136,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           )}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
+          {activeSection === 'language' && <LanguageSection />}
         </div>
       </div>
     </SettingsDrawer>

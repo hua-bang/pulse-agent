@@ -10,6 +10,7 @@ import { ChatView } from './ChatView';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import type { WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
+import { useI18n } from '../../i18n';
 
 const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -54,6 +55,7 @@ export const ChatPageBody = ({
   onToggleRail,
   onOpenAppSettings,
 }: ChatPageBodyProps) => {
+  const { t } = useI18n();
   // Snapshot at mount: the caller might change pendingSessionId later (e.g.
   // for a same-workspace click), but on mount we only care about the value
   // we saw when this body was constructed (after a workspace switch).
@@ -232,8 +234,8 @@ export const ChatPageBody = ({
           <button
             className="chat-panel-action-btn"
             onClick={onToggleRail}
-            title={railCollapsed ? 'Show session list' : 'Hide session list'}
-            aria-label={railCollapsed ? 'Show session list' : 'Hide session list'}
+            title={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
+            aria-label={railCollapsed ? t('chat.showSessionList') : t('chat.hideSessionList')}
           >
             <RailToggleIcon size={16} />
           </button>
@@ -242,32 +244,32 @@ export const ChatPageBody = ({
           <button
             className="chat-panel-action-btn"
             onClick={() => onOpenAppSettings('reply-style')}
-            title="回复风格 / 自定义提示词"
-            aria-label="Reply style and custom prompt"
+            title={t('chat.replyStyleSettings')}
+            aria-label={t('chat.replyStyleSettings')}
           >
             <SparklesIcon size={16} strokeWidth={1.25} />
           </button>
           <button
             className="chat-panel-action-btn"
             onClick={() => onOpenAppSettings('models')}
-            title="AI model settings"
-            aria-label="AI model settings"
+            title={t('chat.modelSettings')}
+            aria-label={t('chat.modelSettings')}
           >
             <SettingsIcon size={16} strokeWidth={1.25} />
           </button>
           <button
             className="chat-panel-action-btn"
             onClick={() => void handleNewSession()}
-            title="New AI chat"
-            aria-label="New AI chat"
+            title={t('chat.newAiChat')}
+            aria-label={t('chat.newAiChat')}
           >
             <PlusIcon size={16} strokeWidth={1.3} />
           </button>
           <button
             className="chat-panel-action-btn"
             onClick={onExit}
-            title="Back to canvas (Esc)"
-            aria-label="Back to canvas"
+            title={t('chat.backToCanvasEsc')}
+            aria-label={t('chat.backToCanvas')}
           >
             <CloseIcon size={16} strokeWidth={1.3} />
           </button>

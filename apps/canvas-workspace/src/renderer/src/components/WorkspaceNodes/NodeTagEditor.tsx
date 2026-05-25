@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../types';
 import { tagName } from './utils';
+import { useI18n } from '../../i18n';
 
 interface NodeTagEditorProps {
   node: WorkspaceNodeRecord;
@@ -36,6 +37,7 @@ export const NodeTagEditor = ({
   onNodePatched,
   onTagsChanged,
 }: NodeTagEditorProps) => {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -66,7 +68,7 @@ export const NodeTagEditor = ({
     try {
       const result = await api.updateTags(workspaceId, node.id, nextTags);
       if (!result.ok || !result.node) {
-        setError(result.error ?? 'Unable to update tags.');
+        setError(result.error ?? t('workspaceNodes.updateTagsFailed'));
         return;
       }
       onNodePatched?.(result.node);
@@ -102,7 +104,7 @@ export const NodeTagEditor = ({
     try {
       const result = await api.upsertTag({ name });
       if (!result.ok || !result.tag) {
-        setError(result.error ?? 'Unable to create tag.');
+        setError(result.error ?? t('workspaceNodes.createTagFailed'));
         return;
       }
       onTagsChanged?.();
@@ -125,7 +127,7 @@ export const NodeTagEditor = ({
                 <button
                   type="button"
                   className="workspace-node-tag__remove"
-                  aria-label={`Remove ${tagName(tag, definitions)}`}
+                  aria-label={t('workspaceNodes.removeTag', { tag: tagName(tag, definitions) })}
                   disabled={saving}
                   onClick={() => { void removeTag(tag); }}
                 >
@@ -134,7 +136,7 @@ export const NodeTagEditor = ({
               )}
             </span>
           ))
-          : <span className="workspace-node-muted">No tags</span>}
+          : <span className="workspace-node-muted">{t('workspaceNodes.noTags')}</span>}
         {!readOnly && (
           <button
             type="button"
@@ -142,7 +144,7 @@ export const NodeTagEditor = ({
             disabled={saving}
             onClick={() => setOpen((value) => !value)}
           >
-            + Tag
+            {t('workspaceNodes.addTag')}
           </button>
         )}
       </div>
@@ -153,7 +155,7 @@ export const NodeTagEditor = ({
             className="node-tag-editor__input"
             value={input}
             disabled={saving}
-            placeholder="Search or create tag..."
+            placeholder={t('workspaceNodes.searchOrCreateTag')}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
@@ -188,11 +190,11 @@ export const NodeTagEditor = ({
                 disabled={saving}
                 onClick={() => { void createOrAddFromInput(); }}
               >
-                Create "{input.trim()}"
+                {t('workspaceNodes.createTag', { name: input.trim() })}
               </button>
             )}
             {!availableTags.length && !input.trim() && (
-              <div className="node-tag-editor__empty">No tags yet.</div>
+              <div className="node-tag-editor__empty">{t('workspaceNodes.noTagsYet')}</div>
             )}
           </div>
           {error && <div className="node-tag-editor__error">{error}</div>}

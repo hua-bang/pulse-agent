@@ -3,6 +3,7 @@ import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../types';
 import { NodeCanvasPreview } from './NodeCanvasPreview';
 import { NodeTagEditor } from './NodeTagEditor';
 import { getNodeTags, getNodeTitle, getNodeTypeLabel, formatTime } from './utils';
+import { useI18n } from '../../i18n';
 
 interface NodeDetailPanelProps {
   node: WorkspaceNodeRecord | null;
@@ -50,6 +51,8 @@ export const NodeDetailPanel = ({
   onNodePatched,
   onTagsChanged,
 }: NodeDetailPanelProps) => {
+  const { language, t } = useI18n();
+  const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
   const tags = getNodeTags(node);
   const properties = propertyEntries(node);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
@@ -57,7 +60,7 @@ export const NodeDetailPanel = ({
   if (loading) {
     return (
       <section className={`node-detail-panel node-detail-panel--${mode}`}>
-        <div className="node-detail-panel__empty">Loading node...</div>
+        <div className="node-detail-panel__empty">{t('workspaceNodes.loadingNode')}</div>
       </section>
     );
   }
@@ -73,7 +76,7 @@ export const NodeDetailPanel = ({
   if (!node) {
     return (
       <section className={`node-detail-panel node-detail-panel--${mode}`}>
-        <div className="node-detail-panel__empty">Select a node to inspect its details.</div>
+        <div className="node-detail-panel__empty">{t('workspaceNodes.selectNode')}</div>
       </section>
     );
   }
@@ -82,15 +85,15 @@ export const NodeDetailPanel = ({
     <section className={`node-detail-panel node-detail-panel--${mode}`}>
       <header className="node-detail-panel__header">
         <div className="node-detail-panel__title">
-          <span className="workspace-node-type-pill">{getNodeTypeLabel(node.type)}</span>
-          <h2 title={getNodeTitle(node)}>{getNodeTitle(node)}</h2>
+          <span className="workspace-node-type-pill">{getNodeTypeLabel(node.type, t, t('workspaceNodes.genericNode'))}</span>
+          <h2 title={getNodeTitle(node, t('workspaceNodes.untitled'))}>{getNodeTitle(node, t('workspaceNodes.untitled'))}</h2>
         </div>
         <div className="node-detail-panel__header-actions">
           {mode === 'drawer' && onOpenPage && (
-            <button className="workspace-node-button" onClick={() => onOpenPage(node.id)}>Full</button>
+            <button className="workspace-node-button" onClick={() => onOpenPage(node.id)}>{t('workspaceNodes.full')}</button>
           )}
           {onClose && (
-            <button className="workspace-node-icon-button" onClick={onClose} aria-label="Close node detail">x</button>
+            <button className="workspace-node-icon-button" onClick={onClose} aria-label={t('workspaceNodes.closeNodeDetail')}>x</button>
           )}
         </div>
       </header>
@@ -112,12 +115,12 @@ export const NodeDetailPanel = ({
             >
               <path d="M3 2.5 L6.5 5 L3 7.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <span>Properties</span>
+            <span>{t('workspaceNodes.properties')}</span>
           </button>
           <div className={`node-detail-panel__collapse${propertiesOpen ? ' is-open' : ''}`}>
             <div className="node-detail-panel__collapse-inner">
               <div className="node-detail-panel__property-row node-detail-panel__property-row--tags">
-                <span>Tags</span>
+                <span>{t('workspaceNodes.tags')}</span>
                 <NodeTagEditor
                   node={node}
                   workspaceId={workspaceId}
@@ -129,8 +132,8 @@ export const NodeDetailPanel = ({
                 />
               </div>
               <div className="node-detail-panel__property-row">
-                <span>Updated</span>
-                <strong>{formatTime(node.updatedAt)}</strong>
+                <span>{t('workspaceNodes.updated')}</span>
+                <strong>{formatTime(node.updatedAt, t('workspaceNodes.noTimestamp'), dateLocale)}</strong>
               </div>
               {properties.map(([key, value]) => (
                 <div key={key} className="node-detail-panel__property-row">
@@ -155,7 +158,7 @@ export const NodeDetailPanel = ({
         {node.links && node.links.length > 0 && (
           <section className="node-detail-panel__section">
             <div className="node-detail-panel__section-title">
-              <span>Links</span>
+              <span>{t('workspaceNodes.links')}</span>
             </div>
             <div className="node-detail-panel__links">
               {node.links.map((link, index) => (

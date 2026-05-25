@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
+import { useI18n } from '../../i18n';
 
 interface ChatHeaderProps {
   title: string;
@@ -52,103 +53,107 @@ export const ChatHeader = ({
   onOpenPromptSettings,
   onClose,
   anchors,
-}: ChatHeaderProps) => (
-  <div className="chat-panel-header">
-    <div className="chat-panel-title-wrapper" ref={sessionMenuRef}>
-      <button className="chat-panel-title-btn" onClick={() => void onToggleSessionMenu()}>
-        <PulseCanvasMark />
-        <span className="chat-panel-title-text">{title}</span>
-        <svg className="chat-panel-title-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
-          <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      {sessionMenuOpen && (
-        <div className="chat-session-menu">
-          <button className="chat-session-menu-new" onClick={() => void onNewSession()}>
-            <PlusIcon size={14} strokeWidth={1.3} />
-            <span>New AI chat</span>
-          </button>
-          {sessions.length > 0 && (
-            <>
-              <div className="chat-session-menu-divider" />
-              <div className="chat-session-menu-label">Recent</div>
-              <div className="chat-session-menu-list">
-                {sessions.map(session => (
-                  <button
-                    key={session.sessionId}
-                    className={`chat-session-menu-item${session.isCurrent ? ' chat-session-menu-item--active' : ''}`}
-                    onClick={() => {
-                      if (!session.isCurrent) {
-                        void onLoadSession(session.sessionId);
-                        return;
-                      }
-                      void onToggleSessionMenu();
-                    }}
-                  >
-                    <ListLinesIcon size={14} />
-                    <span className="chat-session-menu-item-text">
-                      {session.preview || (session.isCurrent ? 'Current chat' : session.date)}
-                    </span>
-                    <span className="chat-session-menu-item-count">{session.messageCount}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {otherSessions.length > 0 && (
-            <>
-              <div className="chat-session-menu-divider" />
-              <div className="chat-session-menu-label">Other Workspaces</div>
-              <div className="chat-session-menu-list">
-                {otherSessions.map(session => (
-                  <button
-                    key={session.sessionId}
-                    className="chat-session-menu-item chat-session-menu-item--other-ws"
-                    onClick={() => void onLoadSession(session.sessionId, session.sourceWorkspaceId)}
-                  >
-                    <ListLinesIcon size={14} />
-                    <span className="chat-session-menu-item-text">
-                      {session.preview || session.date}
-                    </span>
-                    <span className="chat-session-menu-item-ws">{session.workspaceName}</span>
-                    <span className="chat-session-menu-item-count">{session.messageCount}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+}: ChatHeaderProps) => {
+  const { t } = useI18n();
+
+  return (
+    <div className="chat-panel-header">
+      <div className="chat-panel-title-wrapper" ref={sessionMenuRef}>
+        <button className="chat-panel-title-btn" onClick={() => void onToggleSessionMenu()}>
+          <PulseCanvasMark />
+          <span className="chat-panel-title-text">{title}</span>
+          <svg className="chat-panel-title-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        {sessionMenuOpen && (
+          <div className="chat-session-menu">
+            <button className="chat-session-menu-new" onClick={() => void onNewSession()}>
+              <PlusIcon size={14} strokeWidth={1.3} />
+              <span>{t('chat.newAiChat')}</span>
+            </button>
+            {sessions.length > 0 && (
+              <>
+                <div className="chat-session-menu-divider" />
+                <div className="chat-session-menu-label">{t('chat.recent')}</div>
+                <div className="chat-session-menu-list">
+                  {sessions.map(session => (
+                    <button
+                      key={session.sessionId}
+                      className={`chat-session-menu-item${session.isCurrent ? ' chat-session-menu-item--active' : ''}`}
+                      onClick={() => {
+                        if (!session.isCurrent) {
+                          void onLoadSession(session.sessionId);
+                          return;
+                        }
+                        void onToggleSessionMenu();
+                      }}
+                    >
+                      <ListLinesIcon size={14} />
+                      <span className="chat-session-menu-item-text">
+                        {session.preview || (session.isCurrent ? t('chat.currentChat') : session.date)}
+                      </span>
+                      <span className="chat-session-menu-item-count">{session.messageCount}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            {otherSessions.length > 0 && (
+              <>
+                <div className="chat-session-menu-divider" />
+                <div className="chat-session-menu-label">{t('chat.otherWorkspaces')}</div>
+                <div className="chat-session-menu-list">
+                  {otherSessions.map(session => (
+                    <button
+                      key={session.sessionId}
+                      className="chat-session-menu-item chat-session-menu-item--other-ws"
+                      onClick={() => void onLoadSession(session.sessionId, session.sourceWorkspaceId)}
+                    >
+                      <ListLinesIcon size={14} />
+                      <span className="chat-session-menu-item-text">
+                        {session.preview || session.date}
+                      </span>
+                      <span className="chat-session-menu-item-ws">{session.workspaceName}</span>
+                      <span className="chat-session-menu-item-count">{session.messageCount}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="chat-panel-actions">
+        {anchors}
+        <button
+          className="chat-panel-action-btn"
+          onClick={onOpenPromptSettings}
+          title={t('chat.replyStyleSettings')}
+          aria-label={t('chat.replyStyleSettings')}
+        >
+          <SparklesIcon size={16} strokeWidth={1.25} />
+        </button>
+        <button
+          className="chat-panel-action-btn"
+          onClick={onOpenModelSettings}
+          title={t('chat.modelSettings')}
+          aria-label={t('chat.modelSettings')}
+        >
+          <SettingsIcon size={16} strokeWidth={1.25} />
+        </button>
+        <button
+          className="chat-panel-action-btn"
+          onClick={() => void onNewSession()}
+          title={t('chat.newAiChat')}
+          aria-label={t('chat.newAiChat')}
+        >
+          <PlusIcon size={16} strokeWidth={1.3} />
+        </button>
+        <button className="chat-panel-action-btn" onClick={onClose} title={t('chat.closePanel')} aria-label={t('chat.closePanel')}>
+          <CloseIcon size={16} strokeWidth={1.3} />
+        </button>
+      </div>
     </div>
-    <div className="chat-panel-actions">
-      {anchors}
-      <button
-        className="chat-panel-action-btn"
-        onClick={onOpenPromptSettings}
-        title="回复风格 / 自定义提示词"
-        aria-label="Reply style and custom prompt"
-      >
-        <SparklesIcon size={16} strokeWidth={1.25} />
-      </button>
-      <button
-        className="chat-panel-action-btn"
-        onClick={onOpenModelSettings}
-        title="AI model settings"
-        aria-label="AI model settings"
-      >
-        <SettingsIcon size={16} strokeWidth={1.25} />
-      </button>
-      <button
-        className="chat-panel-action-btn"
-        onClick={() => void onNewSession()}
-        title="New AI chat"
-        aria-label="New AI chat"
-      >
-        <PlusIcon size={16} strokeWidth={1.3} />
-      </button>
-      <button className="chat-panel-action-btn" onClick={onClose} title="收起面板" aria-label="收起面板">
-        <CloseIcon size={16} strokeWidth={1.3} />
-      </button>
-    </div>
-  </div>
-);
+  );
+};

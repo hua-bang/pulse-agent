@@ -23,6 +23,7 @@ import {
   EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
   EXPERIMENTAL_FLAG_WORKSPACE_NODES,
 } from '../../shared/experimental-features';
+import { I18nProvider, useI18n } from './i18n';
 type SelectedWorkspaceNode = { workspaceId: string; nodeId: string };
 
 const ROUTE_CANVAS = '/';
@@ -43,6 +44,7 @@ const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true;
 type ActiveView = 'canvas' | 'chat' | string;
 
 const AppContent = () => {
+  const { t } = useI18n();
   const [location, setLocation] = useLocation();
   const { path: routePath, params: routeParams } = useMemo(
     () => parseCanvasLocation(location),
@@ -182,15 +184,15 @@ const AppContent = () => {
   }, [activeId, ensureWorkspaceNodesLoaded]);
 
   const handleCreateWorkspace = useCallback((name: string, folderId?: string) => {
-    const trimmed = name.trim() || 'Untitled';
+    const trimmed = name.trim() || t('app.untitledWorkspace');
     const id = createWorkspace(name, folderId);
     notify({
       tone: 'success',
-      title: 'Workspace created',
+      title: t('app.workspaceCreated'),
       description: trimmed,
     });
     return id;
-  }, [createWorkspace, notify]);
+  }, [createWorkspace, notify, t]);
 
   const handleRenameWorkspace = useCallback((id: string, name: string) => {
     const workspace = workspaces.find((item) => item.id === id);
@@ -199,10 +201,10 @@ const AppContent = () => {
     renameWorkspace(id, trimmed);
     notify({
       tone: 'success',
-      title: 'Workspace renamed',
+      title: t('app.workspaceRenamed'),
       description: `${workspace.name} -> ${trimmed}`,
     });
-  }, [workspaces, renameWorkspace, notify]);
+  }, [workspaces, renameWorkspace, notify, t]);
 
   const handleDeleteWorkspace = useCallback(async (id: string) => {
     const workspace = workspaces.find((item) => item.id === id);
@@ -210,24 +212,24 @@ const AppContent = () => {
 
     const accepted = await confirm({
       intent: 'danger',
-      title: `Delete "${workspace.name}"?`,
-      description: 'This removes the workspace canvas and its saved workspace directory from disk. This action cannot be undone.',
-      confirmLabel: 'Delete workspace',
+      title: t('app.deleteWorkspaceTitle', { name: workspace.name }),
+      description: t('app.deleteWorkspaceDescription'),
+      confirmLabel: t('app.deleteWorkspaceConfirm'),
     });
     if (!accepted) return;
 
     const toastId = notify({
       tone: 'loading',
-      title: `Deleting ${workspace.name}...`,
-      description: 'Removing workspace data and saved canvas state.',
+      title: t('app.deletingWorkspaceTitle', { name: workspace.name }),
+      description: t('app.deletingWorkspaceDescription'),
     });
 
     const result = await deleteWorkspace(id);
     if (!result.ok) {
       updateToast(toastId, {
         tone: 'error',
-        title: 'Workspace deletion failed',
-        description: result.error ?? 'The workspace could not be deleted.',
+        title: t('app.workspaceDeletionFailed'),
+        description: result.error ?? t('app.workspaceDeletionFailedDescription'),
         autoCloseMs: 4200,
       });
       return;
@@ -235,11 +237,11 @@ const AppContent = () => {
 
     updateToast(toastId, {
       tone: 'success',
-      title: 'Workspace deleted',
+      title: t('app.workspaceDeleted'),
       description: workspace.name,
       autoCloseMs: 2400,
     });
-  }, [workspaces, confirm, notify, updateToast, deleteWorkspace]);
+  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, t]);
 
 
   const handleExportWorkspace = useCallback(async (id: string) => {
@@ -249,8 +251,8 @@ const AppContent = () => {
 
     const toastId = notify({
       tone: 'loading',
-      title: `Exporting ${workspace.name}...`,
-      description: 'Packaging canvas state and workspace files.',
+      title: t('app.exportingWorkspaceTitle', { name: workspace.name }),
+      description: t('app.exportingWorkspaceDescription'),
     });
 
     const result = await api.exportWorkspace(workspace.id, workspace.name);
@@ -258,7 +260,7 @@ const AppContent = () => {
       if (result.canceled) {
         updateToast(toastId, {
           tone: 'info',
-          title: 'Export canceled',
+          title: t('app.exportCanceled'),
           description: workspace.name,
           autoCloseMs: 1800,
         });
@@ -266,8 +268,8 @@ const AppContent = () => {
       }
       updateToast(toastId, {
         tone: 'error',
-        title: 'Workspace export failed',
-        description: result.error ?? 'The workspace could not be exported.',
+        title: t('app.workspaceExportFailed'),
+        description: result.error ?? t('app.workspaceExportFailedDescription'),
         autoCloseMs: 4200,
       });
       return;
@@ -275,17 +277,17 @@ const AppContent = () => {
 
     updateToast(toastId, {
       tone: 'success',
-      title: 'Workspace exported',
+      title: t('app.workspaceExported'),
       description: result.filePath ?? `${workspace.name} (${result.fileCount ?? 0} files)`,
       autoCloseMs: 3600,
     });
-  }, [workspaces, notify, updateToast]);
+  }, [workspaces, notify, updateToast, t]);
 
   const handleImportWorkspace = useCallback(async () => {
     const toastId = notify({
       tone: 'loading',
-      title: 'Importing workspace...',
-      description: 'Reading Pulse Canvas export file.',
+      title: t('app.importingWorkspaceTitle'),
+      description: t('app.importingWorkspaceDescription'),
     });
 
     const result = await importWorkspace();
@@ -293,16 +295,16 @@ const AppContent = () => {
       if (result.canceled) {
         updateToast(toastId, {
           tone: 'info',
-          title: 'Import canceled',
-          description: 'No workspace was imported.',
+          title: t('app.importCanceled'),
+          description: t('app.importCanceledDescription'),
           autoCloseMs: 1800,
         });
         return;
       }
       updateToast(toastId, {
         tone: 'error',
-        title: 'Workspace import failed',
-        description: result.error ?? 'The workspace export could not be imported.',
+        title: t('app.workspaceImportFailed'),
+        description: result.error ?? t('app.workspaceImportFailedDescription'),
         autoCloseMs: 4200,
       });
       return;
@@ -310,23 +312,23 @@ const AppContent = () => {
 
     updateToast(toastId, {
       tone: 'success',
-      title: 'Workspace imported',
-      description: `${result.workspace?.name ?? 'Imported Workspace'} (${result.fileCount ?? 0} files)`,
+      title: t('app.workspaceImported'),
+      description: `${result.workspace?.name ?? t('app.importedWorkspaceFallback')} (${result.fileCount ?? 0} files)`,
       autoCloseMs: 3000,
     });
     setLocation(ROUTE_CANVAS);
-  }, [importWorkspace, notify, updateToast, setLocation]);
+  }, [importWorkspace, notify, updateToast, setLocation, t]);
 
   const handleCreateFolder = useCallback((name: string) => {
-    const trimmed = name.trim() || 'Untitled Folder';
+    const trimmed = name.trim() || t('app.untitledFolder');
     const id = createFolder(name);
     notify({
       tone: 'success',
-      title: 'Folder created',
+      title: t('app.folderCreated'),
       description: trimmed,
     });
     return id;
-  }, [createFolder, notify]);
+  }, [createFolder, notify, t]);
 
   const handleRenameFolder = useCallback((id: string, name: string) => {
     const folder = folders.find((item) => item.id === id);
@@ -335,10 +337,10 @@ const AppContent = () => {
     renameFolder(id, trimmed);
     notify({
       tone: 'success',
-      title: 'Folder renamed',
+      title: t('app.folderRenamed'),
       description: `${folder.name} -> ${trimmed}`,
     });
-  }, [folders, renameFolder, notify]);
+  }, [folders, renameFolder, notify, t]);
 
   const handleDeleteFolder = useCallback(async (id: string) => {
     const folder = folders.find((item) => item.id === id);
@@ -346,19 +348,19 @@ const AppContent = () => {
 
     const accepted = await confirm({
       intent: 'danger',
-      title: `Delete folder "${folder.name}"?`,
-      description: 'The folder will be removed and its workspaces will move back to the root list.',
-      confirmLabel: 'Delete folder',
+      title: t('app.deleteFolderTitle', { name: folder.name }),
+      description: t('app.deleteFolderDescription'),
+      confirmLabel: t('app.deleteFolderConfirm'),
     });
     if (!accepted) return;
 
     deleteFolder(id);
     notify({
       tone: 'success',
-      title: 'Folder deleted',
-      description: `${folder.name} was removed. Nested workspaces were kept.`,
+      title: t('app.folderDeleted'),
+      description: t('app.folderDeletedDescription', { name: folder.name }),
     });
-  }, [folders, confirm, deleteFolder, notify]);
+  }, [folders, confirm, deleteFolder, notify, t]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -535,12 +537,14 @@ const AppContent = () => {
 };
 
 const App = () => (
-  <AppShellProvider>
-    <ArtifactDrawerProvider>
-      <AppContent />
-      <ArtifactDrawer />
-    </ArtifactDrawerProvider>
-  </AppShellProvider>
+  <I18nProvider>
+    <AppShellProvider>
+      <ArtifactDrawerProvider>
+        <AppContent />
+        <ArtifactDrawer />
+      </ArtifactDrawerProvider>
+    </AppShellProvider>
+  </I18nProvider>
 );
 
 export default App;

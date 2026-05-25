@@ -5,6 +5,7 @@ import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { toFileUrl } from '../../utils/fileUrl';
 import { MentionNodeIcon } from './utils/mentions';
 import { ModelSwitcher } from './ModelSettings';
+import { useI18n } from '../../i18n';
 
 interface ChatInputProps {
   loading: boolean;
@@ -55,6 +56,7 @@ export const ChatInput = ({
   onAbort,
   onToggleExecutionMode,
 }: ChatInputProps) => {
+  const { t } = useI18n();
   const contextNodes = (selectedNodes && selectedNodes.length > 0)
     ? selectedNodes
     : [];
@@ -63,11 +65,11 @@ export const ChatInput = ({
     <div className="chat-input-container">
       {mentionPopup}
       {contextComposer && loading && (
-        <div className="chat-generating-status" aria-live="polite">正在生成，可继续输入</div>
+        <div className="chat-generating-status" aria-live="polite">{t('chat.generatingCanContinue')}</div>
       )}
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
         {contextComposer && contextNodes.length > 0 && (
-          <div className="chat-context-chips" aria-label="当前上下文">
+          <div className="chat-context-chips" aria-label={t('chat.currentContext')}>
             {contextNodes.map(node => (
               <span key={node.id} className="chat-context-chip" data-node-type={node.type}>
                 <span className="chat-context-chip-icon">
@@ -79,12 +81,12 @@ export const ChatInput = ({
           </div>
         )}
         {attachments.length > 0 && (
-          <div className="chat-attachment-strip" aria-label="待发送图片">
+          <div className="chat-attachment-strip" aria-label={t('chat.pendingImages')}>
             {attachments.map(attachment => (
               <div key={attachment.id} className="chat-attachment-chip">
-                <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? 'attachment'} />
-                <span>{attachment.fileName ?? 'Image'}</span>
-                <button type="button" onClick={() => onRemoveAttachment?.(attachment.id)} aria-label="移除图片">×</button>
+                <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? t('chat.attachmentAlt')} />
+                <span>{attachment.fileName ?? t('chat.imageFallback')}</span>
+                <button type="button" onClick={() => onRemoveAttachment?.(attachment.id)} aria-label={t('chat.removeImage')}>×</button>
               </div>
             ))}
           </div>
@@ -95,8 +97,8 @@ export const ChatInput = ({
           contentEditable={true}
           role="textbox"
           data-placeholder={contextComposer
-            ? (contextNodes.length > 0 ? '问问这些节点…' : '问问当前画布…')
-            : (loading ? 'Generating… you can type your next message' : 'Ask anything...')}
+            ? (contextNodes.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
+            : (loading ? t('chat.generatingPlaceholder') : t('chat.askAnything'))}
           onInput={onInput}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
@@ -108,8 +110,8 @@ export const ChatInput = ({
               <button
                 type="button"
                 className="chat-input-icon-btn"
-                title="添加上下文"
-                aria-label="添加上下文"
+                title={t('chat.addContext')}
+                aria-label={t('chat.addContext')}
                 onClick={() => {
                   editableRef.current?.focus();
                   document.execCommand('insertText', false, '@');
@@ -121,8 +123,8 @@ export const ChatInput = ({
               <button
                 type="button"
                 className="chat-input-icon-btn"
-                title="添加图片"
-                aria-label="添加图片"
+                title={t('chat.addImage')}
+                aria-label={t('chat.addImage')}
                 onClick={() => {
                   const input = document.createElement('input');
                   input.type = 'file';
@@ -142,7 +144,7 @@ export const ChatInput = ({
                 <div className="chat-loading-dot" />
                 <div className="chat-loading-dot" />
                 <div className="chat-loading-dot" />
-                <span className="chat-generating-label">Generating…</span>
+                <span className="chat-generating-label">{t('chat.generating')}</span>
               </div>
             ) : null}
           </div>
@@ -164,8 +166,8 @@ export const ChatInput = ({
               <button
                 className="chat-send-btn chat-send-btn--stop"
                 onClick={() => void onAbort()}
-                title="Stop generating"
-                aria-label="Stop generating"
+                title={t('chat.stopGenerating')}
+                aria-label={t('chat.stopGenerating')}
               >
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <rect x="3" y="3" width="8" height="8" rx="1.5" fill="currentColor" />
@@ -176,7 +178,7 @@ export const ChatInput = ({
                 className={`chat-send-btn${(input.trim() || attachments.length > 0) ? ' chat-send-btn--active' : ''}`}
                 onClick={() => void onSend()}
                 disabled={!input.trim() && attachments.length === 0}
-                title="Send message"
+                title={t('chat.sendMessage')}
               >
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M8 13V4.5M8 4.5l-3.5 3.5M8 4.5l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
