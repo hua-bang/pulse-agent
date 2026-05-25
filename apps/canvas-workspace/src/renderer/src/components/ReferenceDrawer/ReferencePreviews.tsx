@@ -13,6 +13,7 @@ interface ReferencePreviewPanelProps {
   activeReferenceNode?: CanvasNode;
   copyUrl: (url: string) => void;
   drawerWidth: number;
+  getNodeByEntry: (entry: NodeReferenceEntry) => CanvasNode | undefined;
   onAddReferenceToCanvas: (entry: NodeReferenceEntry) => void;
   onClearAll: () => void;
   onFocusNode: (workspaceId: string, nodeId: string) => void;
@@ -46,6 +47,7 @@ export const ReferencePreviewPanel = ({
   activeReferenceNode,
   copyUrl,
   drawerWidth,
+  getNodeByEntry,
   onAddReferenceToCanvas,
   onClearAll,
   onFocusNode,
@@ -57,11 +59,19 @@ export const ReferencePreviewPanel = ({
     () => references.filter(isUrlReference),
     [references],
   );
+  const nodeReferences = useMemo(
+    () => references.filter((entry): entry is NodeReferenceEntry => !isUrlReference(entry)),
+    [references],
+  );
 
   // Track URL references that have ever been opened. Their iframes stay
   // mounted until the reference itself disappears from `references` (Unpin /
   // Clear all / delete from the entry list).
   const [mountedUrlIds, setMountedUrlIds] = useState<Set<string>>(() => new Set());
+  // Node references can also point at iframe nodes. Keep those iframe previews
+  // mounted independently so switching the active reference doesn't navigate a
+  // single reused <webview> back and forth.
+  const [mountedNodeReferenceIds, setMountedNodeReferenceIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (activeReference && isUrlReference(activeReference)) {
@@ -74,6 +84,19 @@ export const ReferencePreviewPanel = ({
       });
     }
   }, [activeReference]);
+
+  useEffect(() => {
+    if (!activeReference || isUrlReference(activeReference)) return;
+    if (activeReferenceNode?.type !== 'iframe') return;
+
+    const id = getReferenceId(activeReference);
+    setMountedNodeReferenceIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, [activeReference, activeReferenceNode]);
 
   useEffect(() => {
     setMountedUrlIds((prev) => {
@@ -89,16 +112,57 @@ export const ReferencePreviewPanel = ({
     });
   }, [urlReferences]);
 
+  useEffect(() => {
+    setMountedNodeReferenceIds((prev) => {
+      if (prev.size === 0) return prev;
+      const liveIds = new Set(nodeReferences.map(getReferenceId));
+      const next = new Set<string>();
+      let changed = false;
+
+      for (const entry of nodeReferences) {
+        const id = getReferenceId(entry);
+        if (!prev.has(id)) continue;
+        const node = getNodeByEntry(entry);
+        if (!node || node.type === 'iframe') next.add(id);
+        else changed = true;
+      }
+
+      prev.forEach((id) => {
+        if (!liveIds.has(id)) changed = true;
+      });
+      if (next.size !== prev.size) changed = true;
+      return changed ? next : prev;
+    });
+  }, [getNodeByEntry, nodeReferences]);
+
   const activeIsUrl = !!(activeReference && isUrlReference(activeReference));
   const activeUrlReference = activeIsUrl ? (activeReference as UrlReferenceEntry) : undefined;
   const activeReferenceId = activeReference ? getReferenceId(activeReference) : undefined;
+  const activeNodeReferenceIsPersistent = !!(
+    activeReference
+    && !isUrlReference(activeReference)
+    && activeReferenceNode?.type === 'iframe'
+  );
+  const activePersistentNodeReferenceId = activeNodeReferenceIsPersistent
+    ? activeReferenceId
+    : undefined;
 
   const persistentUrlPreviews = urlReferences.filter((ref) => mountedUrlIds.has(ref.id));
+  const persistentNodePreviews = nodeReferences
+    .filter((entry) => {
+      const id = getReferenceId(entry);
+      return mountedNodeReferenceIds.has(id) || id === activePersistentNodeReferenceId;
+    })
+    .map((entry) => ({ entry, node: getNodeByEntry(entry) }))
+    .filter((item): item is { entry: NodeReferenceEntry; node: CanvasNode } => item.node?.type === 'iframe');
 
   return (
     <div className="reference-preview-area">
       {persistentUrlPreviews.length > 0 && (
-        <div className="reference-url-card reference-url-card--preview reference-url-card--persistent">
+        <div
+          className="reference-url-card reference-url-card--preview reference-url-card--persistent"
+          style={activeIsUrl ? ACTIVE_SLOT_STYLE : INACTIVE_SLOT_STYLE}
+        >
           <div className="reference-url-stack">
             {persistentUrlPreviews.map((ref) => (
               <div
@@ -146,7 +210,35 @@ export const ReferencePreviewPanel = ({
         </div>
       )}
 
-      {activeReference && !isUrlReference(activeReference) && activeReferenceNode && (
+      {persistentNodePreviews.map(({ entry, node }) => {
+        const id = getReferenceId(entry);
+        const isActive = id === activeReferenceId;
+        return (
+          <div
+            key={id}
+            className="reference-native-card reference-native-card--persistent"
+            style={isActive ? ACTIVE_SLOT_STYLE : INACTIVE_SLOT_STYLE}
+          >
+            <ReferenceNativeNodePreview
+              node={node}
+              drawerWidth={drawerWidth}
+              workspaceName={workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot}
+              onFocusNode={() => onFocusNode(entry.workspaceId, entry.nodeId)}
+            />
+            {isActive && (
+              <NodeReferenceFooter
+                entry={entry}
+                onAddReferenceToCanvas={onAddReferenceToCanvas}
+                onClearAll={onClearAll}
+                onFocusNode={onFocusNode}
+                onRemoveReference={onRemoveReference}
+              />
+            )}
+          </div>
+        );
+      })}
+
+      {activeReference && !isUrlReference(activeReference) && activeReferenceNode && !activeNodeReferenceIsPersistent && (
         <div className="reference-native-card reference-native-card--persistent">
           <ReferenceNativeNodePreview
             node={activeReferenceNode}
@@ -154,38 +246,13 @@ export const ReferencePreviewPanel = ({
             workspaceName={workspaceNameById.get(activeReference.workspaceId) ?? activeReference.workspaceNameSnapshot}
             onFocusNode={() => onFocusNode(activeReference.workspaceId, activeReference.nodeId)}
           />
-          <div className="reference-card-footer">
-            <button
-              className="reference-drawer-secondary"
-              type="button"
-              onClick={() => onFocusNode(activeReference.workspaceId, activeReference.nodeId)}
-              title="Open source"
-            >
-              Open source
-            </button>
-            <button
-              className="reference-drawer-secondary"
-              type="button"
-              onClick={() => onAddReferenceToCanvas(activeReference)}
-            >
-              Add to canvas
-            </button>
-            <button
-              className="reference-drawer-secondary"
-              type="button"
-              onClick={() => onRemoveReference(getReferenceId(activeReference))}
-            >
-              Unpin
-            </button>
-            <button
-              className="reference-drawer-secondary"
-              type="button"
-              onClick={onClearAll}
-              title="Remove all references"
-            >
-              Clear all
-            </button>
-          </div>
+          <NodeReferenceFooter
+            entry={activeReference}
+            onAddReferenceToCanvas={onAddReferenceToCanvas}
+            onClearAll={onClearAll}
+            onFocusNode={onFocusNode}
+            onRemoveReference={onRemoveReference}
+          />
         </div>
       )}
 
@@ -199,6 +266,55 @@ export const ReferencePreviewPanel = ({
     </div>
   );
 };
+
+interface NodeReferenceFooterProps {
+  entry: NodeReferenceEntry;
+  onAddReferenceToCanvas: (entry: NodeReferenceEntry) => void;
+  onClearAll: () => void;
+  onFocusNode: (workspaceId: string, nodeId: string) => void;
+  onRemoveReference: (referenceId: string) => void;
+}
+
+const NodeReferenceFooter = ({
+  entry,
+  onAddReferenceToCanvas,
+  onClearAll,
+  onFocusNode,
+  onRemoveReference,
+}: NodeReferenceFooterProps) => (
+  <div className="reference-card-footer">
+    <button
+      className="reference-drawer-secondary"
+      type="button"
+      onClick={() => onFocusNode(entry.workspaceId, entry.nodeId)}
+      title="Open source"
+    >
+      Open source
+    </button>
+    <button
+      className="reference-drawer-secondary"
+      type="button"
+      onClick={() => onAddReferenceToCanvas(entry)}
+    >
+      Add to canvas
+    </button>
+    <button
+      className="reference-drawer-secondary"
+      type="button"
+      onClick={() => onRemoveReference(getReferenceId(entry))}
+    >
+      Unpin
+    </button>
+    <button
+      className="reference-drawer-secondary"
+      type="button"
+      onClick={onClearAll}
+      title="Remove all references"
+    >
+      Clear all
+    </button>
+  </div>
+);
 
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;

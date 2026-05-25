@@ -148,6 +148,7 @@ export const ReferenceDrawer = ({
               activeReferenceNode={activeReferenceNode}
               copyUrl={state.copyUrl}
               drawerWidth={state.drawerWidth}
+              getNodeByEntry={state.getNodeByEntry}
               onAddReferenceToCanvas={onAddReferenceToCanvas}
               onClearAll={onClearAll}
               onFocusNode={onFocusNode}
