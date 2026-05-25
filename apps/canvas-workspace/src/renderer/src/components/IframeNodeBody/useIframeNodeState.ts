@@ -94,8 +94,12 @@ export const useIframeNodeState = ({
     webview.className = 'iframe-frame';
     host.appendChild(webview);
     webviewRef.current = webview;
+    // [debug] remove once webview persistence is confirmed
+    console.log('[webview] CREATE', { node: node.id, url, webviewKey });
 
     return () => {
+      // [debug] remove once webview persistence is confirmed
+      console.log('[webview] DESTROY', { node: node.id, url, webviewKey });
       webview.remove();
       if (webviewRef.current === webview) webviewRef.current = null;
     };
@@ -105,7 +109,11 @@ export const useIframeNodeState = ({
   useEffect(() => {
     const el = webviewRef.current;
     if (!el || mode !== 'url') return;
-    if (el.getAttribute('src') !== url) el.setAttribute('src', url);
+    if (el.getAttribute('src') !== url) {
+      // [debug] remove once webview persistence is confirmed
+      console.log('[webview] SRC RESET', { node: node.id, from: el.getAttribute('src'), to: url });
+      el.setAttribute('src', url);
+    }
   }, [url, mode]);
 
   useEffect(() => { setDraftUrl(url); }, [url]);
