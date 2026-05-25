@@ -84,13 +84,13 @@ export const useIframeNodeState = ({
   const pendingMorph = useRef<string | null>(null);
 
   useLayoutEffect(() => {
-    if (editing || mode !== 'url') return;
+    if (mode !== 'url') return;
     const host = webviewHostRef.current;
     if (!host) return;
 
     const webview = document.createElement('webview') as WebviewTag;
     webview.setAttribute('allowpopups', '');
-    webview.setAttribute('src', url);
+    if (url) webview.setAttribute('src', url);
     webview.className = 'iframe-frame';
     host.appendChild(webview);
     webviewRef.current = webview;
@@ -100,13 +100,13 @@ export const useIframeNodeState = ({
       if (webviewRef.current === webview) webviewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing, mode, webviewKey]);
+  }, [mode, webviewKey]);
 
   useEffect(() => {
     const el = webviewRef.current;
-    if (!el || mode !== 'url' || editing) return;
+    if (!el || mode !== 'url') return;
     if (el.getAttribute('src') !== url) el.setAttribute('src', url);
-  }, [url, editing, mode]);
+  }, [url, mode]);
 
   useEffect(() => { setDraftUrl(url); }, [url]);
   useEffect(() => { setDraftHtml(html); }, [html]);

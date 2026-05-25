@@ -21,7 +21,24 @@ interface ReferencePreviewPanelProps {
   workspaceNameById: Map<string, string>;
 }
 
-const HIDDEN_STYLE: CSSProperties = { display: 'none' };
+// Electron's <webview> tag is sensitive to layout / visibility changes on any
+// ancestor — display:none, visibility:hidden, AND opacity:0 can all cause the
+// compositor to drop the guest's layer and reload it next time it's shown.
+// The only reliable persistence is to keep every <webview> at a stable layout
+// box AND keep it fully painted; we layer them with z-index so the active one
+// is on top while the others stay alive underneath, fully rendered.
+const INACTIVE_SLOT_STYLE: CSSProperties = {
+  zIndex: 1,
+  pointerEvents: 'none',
+};
+
+const ACTIVE_SLOT_STYLE: CSSProperties = {
+  zIndex: 2,
+};
+
+// Card-level covering: when the active reference is NOT a URL, the native card
+// or hint overlay simply paints on top with its own opaque background; the URL
+// card stays at z-index 1 with all its webviews fully alive underneath.
 
 export const ReferencePreviewPanel = ({
   references,
@@ -41,10 +58,9 @@ export const ReferencePreviewPanel = ({
     [references],
   );
 
-  // Track which URL references have been opened at least once. Their iframes
-  // stay mounted (just hidden) when the user switches away, so they don't
-  // reload on the next visit. An entry is removed only when the reference
-  // itself disappears from `references` (Unpin / Clear all / delete).
+  // Track URL references that have ever been opened. Their iframes stay
+  // mounted until the reference itself disappears from `references` (Unpin /
+  // Clear all / delete from the entry list).
   const [mountedUrlIds, setMountedUrlIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -80,20 +96,20 @@ export const ReferencePreviewPanel = ({
   const persistentUrlPreviews = urlReferences.filter((ref) => mountedUrlIds.has(ref.id));
 
   return (
-    <>
+    <div className="reference-preview-area">
       {persistentUrlPreviews.length > 0 && (
-        <div
-          className="reference-url-card reference-url-card--preview"
-          style={activeIsUrl ? undefined : HIDDEN_STYLE}
-        >
-          {persistentUrlPreviews.map((ref) => (
-            <ReferenceUrlWebPreview
-              key={ref.id}
-              reference={ref}
-              drawerWidth={drawerWidth}
-              hidden={ref.id !== activeReferenceId}
-            />
-          ))}
+        <div className="reference-url-card reference-url-card--preview reference-url-card--persistent">
+          <div className="reference-url-stack">
+            {persistentUrlPreviews.map((ref) => (
+              <div
+                key={ref.id}
+                className="reference-url-slot"
+                style={ref.id === activeReferenceId ? ACTIVE_SLOT_STYLE : INACTIVE_SLOT_STYLE}
+              >
+                <ReferenceUrlWebPreview reference={ref} drawerWidth={drawerWidth} />
+              </div>
+            ))}
+          </div>
           {activeUrlReference && (
             <div className="reference-card-footer">
               <button
@@ -131,7 +147,7 @@ export const ReferencePreviewPanel = ({
       )}
 
       {activeReference && !isUrlReference(activeReference) && activeReferenceNode && (
-        <div className="reference-native-card">
+        <div className="reference-native-card reference-native-card--persistent">
           <ReferenceNativeNodePreview
             node={activeReferenceNode}
             drawerWidth={drawerWidth}
@@ -174,33 +190,29 @@ export const ReferencePreviewPanel = ({
       )}
 
       {activeReference && !isUrlReference(activeReference) && !activeReferenceNode && (
-        <div className="reference-pick-hint">Source node is not loaded or no longer exists.</div>
+        <div className="reference-pick-hint reference-pick-hint--overlay">Source node is not loaded or no longer exists.</div>
       )}
 
       {!activeReference && (
-        <div className="reference-pick-hint">Pick a reference above to preview it here.</div>
+        <div className="reference-pick-hint reference-pick-hint--overlay">Pick a reference above to preview it here.</div>
       )}
-    </>
+    </div>
   );
 };
 
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;
   drawerWidth: number;
-  hidden?: boolean;
 }
 
-const ReferenceUrlWebPreview = memo(({ reference, drawerWidth, hidden }: ReferenceUrlWebPreviewProps) => {
+const ReferenceUrlWebPreview = memo(({ reference, drawerWidth }: ReferenceUrlWebPreviewProps) => {
   const previewNode = useMemo(
     () => createUrlPreviewNode(reference, drawerWidth),
     [reference, drawerWidth],
   );
 
   return (
-    <div
-      className="reference-url-preview"
-      style={hidden ? HIDDEN_STYLE : undefined}
-    >
+    <div className="reference-url-preview">
       <IframeNodeBody
         node={previewNode}
         onUpdate={() => undefined}
