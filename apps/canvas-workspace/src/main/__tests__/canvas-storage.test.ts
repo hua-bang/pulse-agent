@@ -471,9 +471,13 @@ describe('migrateToV2', () => {
     expect(phases[phases.length - 1]).toBe('done');
   });
 
-  it('respects updatedAt arbitration when per-node file is newer', async () => {
+  it('refuses to migrate when any v1 id already has a per-node file', async () => {
     await seedV1();
-    // Pretend a CLI raced in and wrote a newer per-node file first.
+    // The pollution signature: a per-node file exists for an id that's
+    // about to appear in incoming v1 nodes. detectV1Pollution is strict
+    // id-overlap — we don't try to inspect data-meaningfulness on either
+    // side because the overlap alone shouldn't happen for any legitimate
+    // v1 workspace (no v1-aware code path writes per-node files).
     await writeNodeFile(
       wsId,
       {
@@ -481,17 +485,20 @@ describe('migrateToV2', () => {
         id: 'n1',
         type: 'text',
         title: 'Hello',
-        data: { content: 'NEWER FROM CLI' },
+        data: { content: 'EXISTING' },
         updatedAt: 1729999999999,
         createdAt: 1729000000000,
       },
       root,
     );
 
-    await migrateToV2(wsId, { root });
+    await expect(migrateToV2(wsId, { root })).rejects.toBeInstanceOf(
+      CanvasPollutionDetectedError,
+    );
 
+    // Per-node file is untouched — migration aborted before any writes.
     const n1 = await readNodeFile(wsId, 'n1', root);
-    expect(n1?.data.content).toBe('NEWER FROM CLI');
+    expect(n1?.data.content).toBe('EXISTING');
   });
 
   it('after migrate: readCanvasFull returns v1-shape with assembled data', async () => {

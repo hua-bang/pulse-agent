@@ -385,27 +385,33 @@ export class CanvasPollutionDetectedError extends Error {
 
 /**
  * For each node id mentioned in the incoming v1-shape canvas, check whether
- * a v2 per-node file with real data exists on disk and the incoming v1
- * node has empty/missing data. Returns the subset of ids that match.
+ * a `nodes/<id>.json` file already exists on disk. Returns the subset of
+ * ids that overlap.
  *
  * The signature we're catching: a v1-unaware writer reads v2 canvas.json
- * (which is layout-only, no `data` field per node), then writes it back
- * verbatim — incoming nodes carry no `data`, but the per-node files in
- * `nodes/<id>.json` still hold the real content. If we let migration
- * proceed in that state, `updatedAt` arbitration would overwrite each
- * per-node file with the empty `data: {}` from the incoming v1 layout
- * and the user's content would be permanently lost.
+ * (layout-only, no `data` per node) and writes it back verbatim. The
+ * per-node files in `nodes/<id>.json` still hold the real content, and
+ * letting migration proceed in that state would let `updatedAt`
+ * arbitration overwrite each per-node file with the incoming v1 layout
+ * and permanently destroy the user's data.
  *
- * We deliberately do NOT flag when both sides have real data — that's a
- * legitimate "concurrent writer race" scenario where the existing
- * `updatedAt` comparison should arbitrate normally. The pollution
- * marker is specifically `per-node has data` ∧ `incoming v1 lacks
- * data`, because no legitimate code path produces that shape.
+ * Detection is strictly id-overlap: if even one incoming v1 node id has
+ * a corresponding per-node file, we refuse. We deliberately do NOT try
+ * to inspect data-meaningfulness on either side — the "id overlap"
+ * signature alone is enough, because no legitimate code path produces
+ * a v1-shape canvas.json with ids that match existing per-node files.
+ * (The one synthetic scenario that conflicts with this — a CLI writing
+ * a per-node file ahead of a fresh v1 → v2 migration — is unreachable
+ * in practice: canvas-cli's `writeMatchingSchema` never writes per-node
+ * files for v1 workspaces.)
  *
  * After the workspace-node-store refactor `nodes/<id>.json` is also
  * used as a workspace-scoped atom store independent of any canvas
- * view, so we can't use plain "nodes/ is non-empty" as the signal —
- * the id-intersection is what makes this specific to pollution.
+ * view, so "nodes/ is non-empty" by itself isn't a useful signal —
+ * but the *id intersection* is, because those ids being in the
+ * incoming v1 layout means they came from reading a v2 canvas.json.
+ *
+ * Cheap: stats files in parallel, no large reads.
  */
 export async function detectV1Pollution(
   workspaceId: string,
@@ -413,42 +419,23 @@ export async function detectV1Pollution(
   root: string = STORE_DIR,
 ): Promise<string[]> {
   if (!Array.isArray(incomingNodes) || incomingNodes.length === 0) return [];
-  const byId = new Map<string, CanvasNode>();
-  for (const n of incomingNodes) {
-    if (typeof n.id === 'string' && isSafeNodeId(n.id)) byId.set(n.id, n);
-  }
-  if (byId.size === 0) return [];
+  const ids = incomingNodes
+    .map((n) => n.id)
+    .filter((id): id is string => typeof id === 'string' && isSafeNodeId(id));
+  if (ids.length === 0) return [];
 
   const conflicts: string[] = [];
   await Promise.all(
-    Array.from(byId).map(async ([id, incoming]) => {
-      if (incomingHasMeaningfulData(incoming)) {
-        // Incoming v1 has real data → not the pollution shape; let
-        // updatedAt arbitration handle whichever side wins.
-        return;
+    ids.map(async (id) => {
+      try {
+        await fs.access(getNodeFilePath(workspaceId, id, root));
+        conflicts.push(id);
+      } catch {
+        // ENOENT or any other error → not a conflict.
       }
-      const existing = await readNodeFile(workspaceId, id, root);
-      if (!existing) return; // no per-node file → no conflict
-      if (!perNodeHasMeaningfulData(existing)) {
-        // Existing per-node is already empty — nothing to lose.
-        return;
-      }
-      conflicts.push(id);
     }),
   );
   return conflicts;
-}
-
-function incomingHasMeaningfulData(node: CanvasNode): boolean {
-  const data = node.data;
-  if (!data || typeof data !== 'object') return false;
-  return Object.keys(data).length > 0;
-}
-
-function perNodeHasMeaningfulData(file: PerNodeFile): boolean {
-  const data = (file as { data?: unknown }).data;
-  if (!data || typeof data !== 'object') return false;
-  return Object.keys(data as Record<string, unknown>).length > 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
