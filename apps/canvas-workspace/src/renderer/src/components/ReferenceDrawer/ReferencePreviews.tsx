@@ -22,15 +22,23 @@ interface ReferencePreviewPanelProps {
 }
 
 // Electron's <webview> tag is sensitive to layout / visibility changes on any
-// ancestor — display:none, visibility:hidden, or even flipping position between
-// static and absolute can all cause the guest WebContents to detach and reload
-// next time it's shown. The strategy here keeps every persistent URL preview at
-// a stable absolute position the whole time and only switches `opacity` +
-// `pointer-events`, so each <webview>'s layout box never moves.
-const HIDDEN_OPACITY_STYLE: CSSProperties = {
-  opacity: 0,
+// ancestor — display:none, visibility:hidden, AND opacity:0 can all cause the
+// compositor to drop the guest's layer and reload it next time it's shown.
+// The only reliable persistence is to keep every <webview> at a stable layout
+// box AND keep it fully painted; we layer them with z-index so the active one
+// is on top while the others stay alive underneath, fully rendered.
+const INACTIVE_SLOT_STYLE: CSSProperties = {
+  zIndex: 1,
   pointerEvents: 'none',
 };
+
+const ACTIVE_SLOT_STYLE: CSSProperties = {
+  zIndex: 2,
+};
+
+// Card-level covering: when the active reference is NOT a URL, the native card
+// or hint overlay simply paints on top with its own opaque background; the URL
+// card stays at z-index 1 with all its webviews fully alive underneath.
 
 export const ReferencePreviewPanel = ({
   references,
@@ -90,16 +98,13 @@ export const ReferencePreviewPanel = ({
   return (
     <div className="reference-preview-area">
       {persistentUrlPreviews.length > 0 && (
-        <div
-          className="reference-url-card reference-url-card--preview reference-url-card--persistent"
-          style={activeIsUrl ? undefined : HIDDEN_OPACITY_STYLE}
-        >
+        <div className="reference-url-card reference-url-card--preview reference-url-card--persistent">
           <div className="reference-url-stack">
             {persistentUrlPreviews.map((ref) => (
               <div
                 key={ref.id}
                 className="reference-url-slot"
-                style={ref.id === activeReferenceId ? undefined : HIDDEN_OPACITY_STYLE}
+                style={ref.id === activeReferenceId ? ACTIVE_SLOT_STYLE : INACTIVE_SLOT_STYLE}
               >
                 <ReferenceUrlWebPreview reference={ref} drawerWidth={drawerWidth} />
               </div>
