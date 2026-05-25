@@ -13,9 +13,22 @@ import {
   isSafeNodeId,
   getNodesDir,
   getNodeFilePath,
+  CanvasPollutionDetectedError,
   type MigrationProgress,
   type ReadJsonResult,
 } from "./canvas-storage";
+
+/**
+ * Extra fields the canvas-store side attaches to migration-progress events
+ * before they leave the process. `errorKind` lets the renderer (i.e. the
+ * MigrationSpinner) distinguish a critical data-integrity event from a
+ * generic migration hiccup so it can render a sticky alert instead of a
+ * 4s auto-dismissed toast.
+ */
+type MigrationEventExtras = {
+  errorKind?: 'pollution' | 'other';
+  conflictingNodeIds?: string[];
+};
 
 const STORE_DIR = join(homedir(), ".pulse-coder", "canvas");
 const MANIFEST_ID = '__workspaces__';
@@ -421,6 +434,7 @@ const readDiskCanvas = async (
 const broadcastMigrationProgress = (
   workspaceId: string,
   progress: MigrationProgress,
+  extras: MigrationEventExtras = {},
 ): void => {
   const payload = {
     workspaceId,
@@ -428,6 +442,7 @@ const broadcastMigrationProgress = (
     current: progress.current,
     total: progress.total,
     message: progress.message,
+    ...extras,
   };
   for (const win of BrowserWindow.getAllWindows()) {
     if (win.isDestroyed()) continue;
@@ -484,13 +499,44 @@ const ensureMigrated = async (workspaceId: string): Promise<void> => {
         onProgress: (p) => broadcastMigrationProgress(workspaceId, p),
       });
     } catch (err) {
+      if (err instanceof CanvasPollutionDetectedError) {
+        // Critical: a v1-unaware writer (old binary or external script)
+        // has rewritten canvas.json on top of a v2 workspace. The real
+        // data is still safe in nodes/<id>.json — bail loudly so the
+        // user can recover before any subsequent save destroys it.
+        // canvas:save's own pollution guard will refuse follow-up writes
+        // for the same reason; this branch surfaces the situation to
+        // the UI via a sticky alert (the renderer demotes any non-
+        // pollution `phase: 'error'` event to a 4s toast).
+        console.error(
+          `[canvas-store] REFUSING to migrate ${workspaceId}: ${err.message}`,
+        );
+        broadcastMigrationProgress(
+          workspaceId,
+          {
+            phase: 'error',
+            message:
+              '检测到旧版本工具污染了 canvas.json。原始数据仍保留在 nodes/ 中，' +
+              '已拒绝执行迁移以防止数据丢失。请使用 canvas-cli restore 或参考文档恢复。',
+          },
+          {
+            errorKind: 'pollution',
+            conflictingNodeIds: err.conflictingNodeIds,
+          },
+        );
+        return;
+      }
       console.warn(
         `[canvas-store] migration to v2 failed for ${workspaceId}: ${String(err)}; leaving workspace on v1 until next interaction`,
       );
-      broadcastMigrationProgress(workspaceId, {
-        phase: 'error',
-        message: err instanceof Error ? err.message : String(err),
-      });
+      broadcastMigrationProgress(
+        workspaceId,
+        {
+          phase: 'error',
+          message: err instanceof Error ? err.message : String(err),
+        },
+        { errorKind: 'other' },
+      );
     }
   });
 };

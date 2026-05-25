@@ -130,9 +130,11 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     /**
      * Subscribe to canvas storage migration progress.
      *
-     * Dormant in PR1 (no migration is triggered yet); the channel is in
-     * place so PR3 can flip on lazy v1→v2 auto-migration without further
-     * preload/renderer wiring. Returns the unsubscribe fn.
+     * `errorKind` distinguishes a critical data-integrity event
+     * (`'pollution'` — a v1-unaware writer clobbered canvas.json over a
+     * v2 workspace) from a generic migration hiccup, so the renderer
+     * can surface the former as a sticky alert and the latter as a
+     * short toast. Returns the unsubscribe fn.
      */
     onMigrationProgress: (
       callback: (event: {
@@ -141,6 +143,8 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
         current?: number;
         total?: number;
         message?: string;
+        errorKind?: "pollution" | "other";
+        conflictingNodeIds?: string[];
       }) => void
     ) => {
       const handler = (
@@ -157,6 +161,8 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
           current?: number;
           total?: number;
           message?: string;
+          errorKind?: "pollution" | "other";
+          conflictingNodeIds?: string[];
         }
       ) => callback(payload);
       ipcRenderer.on("canvas:migration-progress", handler);
