@@ -39,9 +39,35 @@ const pluginFlags: Record<string, boolean> = truthy(process.env.CANVAS_AGENT_DEB
   ? { ...baseFlags, "canvas-agent-debug-trace": true }
   : baseFlags;
 
+// Snapshot the persisted UI locale so the renderer's i18n layer can
+// initialise synchronously before the first React render. Mirrors the
+// experimental:read-sync pattern — preload can't touch fs in sandbox
+// mode, so the main process serves the value via a sync IPC.
+let initialLocale = "en";
+try {
+  const value = ipcRenderer.sendSync("locale:read-sync");
+  if (typeof value === "string") initialLocale = value;
+} catch (err) {
+  sendLog("preload", "locale:read-sync failed", String(err));
+}
+
 contextBridge.exposeInMainWorld("canvasWorkspace", {
   version: "0.1.0",
   pluginFlags,
+
+  locale: {
+    initial: initialLocale,
+    get: () => ipcRenderer.invoke("locale:get"),
+    set: (locale: string) => ipcRenderer.invoke("locale:set", { locale }),
+    onChange: (callback: (payload: { locale: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: { locale: string }) =>
+        callback(payload);
+      ipcRenderer.on("locale:changed", handler);
+      return () => {
+        ipcRenderer.removeListener("locale:changed", handler);
+      };
+    }
+  },
 
   pty: {
     spawn: (id: string, cols?: number, rows?: number, cwd?: string, workspaceId?: string) =>

@@ -18,6 +18,7 @@ import { setupCanvasAgentIpc, teardownCanvasAgent } from "./canvas-agent-ipc";
 import { setupCanvasModelIpc } from "./canvas-model-ipc";
 import { setupCanvasPromptIpc } from "./canvas-prompt-ipc";
 import { setupExperimentalIpc } from "./experimental-ipc";
+import { setupLocaleIpc } from "./locale-ipc";
 import { setupWebviewRegistryIpc } from "./webview-registry";
 import { setupHtmlGeneratorIpc } from "./html-generator-ipc";
 import { setupArtifactIpc } from "./artifact-ipc";
@@ -317,6 +318,9 @@ app.whenReady().then(() => {
   setupCanvasModelIpc();
   setupCanvasPromptIpc();
   setupExperimentalIpc();
+  // Locale IPC must be registered before `createWindow()` so the
+  // sandboxed preload's `locale:read-sync` call resolves on first paint.
+  setupLocaleIpc();
   setupWebviewRegistryIpc();
   setupHtmlGeneratorIpc();
   setupArtifactIpc();

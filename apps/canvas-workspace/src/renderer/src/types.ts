@@ -959,6 +959,7 @@ export interface CanvasWorkspaceApi {
   dialog: DialogApi;
   skills: SkillsApi;
   experimental: ExperimentalApi;
+  locale: LocaleApi;
   model: CanvasModelApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;
@@ -979,6 +980,20 @@ export interface ExperimentalFeatureDef {
   label: string;
   description: string;
   defaultEnabled: boolean;
+}
+
+export interface LocaleApi {
+  /** Locale resolved synchronously at preload bootstrap (one of {@link SUPPORTED_LOCALES}). */
+  initial: string;
+  get: () => Promise<{
+    ok: boolean;
+    locale?: string;
+    supported?: readonly string[];
+    error?: string;
+  }>;
+  set: (locale: string) => Promise<{ ok: boolean; locale?: string; error?: string }>;
+  /** Notifies of locale changes initiated in other windows. Returns unsubscribe fn. */
+  onChange: (callback: (payload: { locale: string }) => void) => () => void;
 }
 
 export interface ExperimentalApi {

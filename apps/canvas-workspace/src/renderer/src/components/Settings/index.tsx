@@ -14,48 +14,35 @@
  * becomes a real problem.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { SettingsDrawer } from '../SettingsDrawer';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
 import { ExperimentalSection } from './ExperimentalSection';
+import { LanguageSection } from './LanguageSection';
 import './index.css';
 
-export type SettingsSection = 'models' | 'reply-style' | 'agent' | 'experimental';
+export type SettingsSection =
+  | 'models'
+  | 'reply-style'
+  | 'agent'
+  | 'experimental'
+  | 'language';
 
 interface SectionDef {
   id: SettingsSection;
-  label: string;
-  description: string;
-  title: string;
+  /** i18n key suffix under `settings.sections.*` (camelCase). */
+  i18nKey: 'models' | 'replyStyle' | 'agent' | 'experimental' | 'language';
 }
 
 const SECTIONS: SectionDef[] = [
-  {
-    id: 'models',
-    label: 'Models',
-    description: 'Providers, API keys, current model',
-    title: 'Models & Providers',
-  },
-  {
-    id: 'reply-style',
-    label: 'Reply Style',
-    description: 'Preset + custom prompt',
-    title: 'Reply Style & Custom Prompt',
-  },
-  {
-    id: 'agent',
-    label: 'Agent',
-    description: 'Skills & external agent setup',
-    title: 'Agent',
-  },
-  {
-    id: 'experimental',
-    label: 'Experimental',
-    description: 'Opt in to unstable features',
-    title: 'Experimental Features',
-  },
+  { id: 'models', i18nKey: 'models' },
+  { id: 'reply-style', i18nKey: 'replyStyle' },
+  { id: 'agent', i18nKey: 'agent' },
+  { id: 'experimental', i18nKey: 'experimental' },
+  { id: 'language', i18nKey: 'language' },
 ];
 
 interface SettingsProps {
@@ -65,6 +52,7 @@ interface SettingsProps {
 }
 
 export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
+  const { t } = useTranslation();
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const canvasModels = useCanvasModels();
   const promptProfile = usePromptProfile();
@@ -77,19 +65,28 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
   }, [open, initialSection]);
 
   const activeDef = SECTIONS.find((s) => s.id === activeSection) ?? SECTIONS[0];
+  const railItems = useMemo(
+    () =>
+      SECTIONS.map((section) => ({
+        ...section,
+        label: t(`settings.sections.${section.i18nKey}.label`),
+        description: t(`settings.sections.${section.i18nKey}.description`),
+      })),
+    [t],
+  );
 
   return (
     <SettingsDrawer
       open={open}
       onClose={onClose}
-      kicker="Settings"
-      title={activeDef.title}
-      ariaLabel="Settings"
+      kicker={t('settings.kicker')}
+      title={t(`settings.sections.${activeDef.i18nKey}.title`)}
+      ariaLabel={t('settings.ariaLabel')}
       width={1000}
     >
       <div className="settings-body">
-        <nav className="settings-rail" aria-label="Settings sections">
-          {SECTIONS.map((section) => {
+        <nav className="settings-rail" aria-label={t('settings.sectionsAriaLabel')}>
+          {railItems.map((section) => {
             const active = section.id === activeSection;
             return (
               <button
@@ -127,6 +124,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           )}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
+          {activeSection === 'language' && <LanguageSection onClose={onClose} />}
         </div>
       </div>
     </SettingsDrawer>

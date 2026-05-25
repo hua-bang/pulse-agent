@@ -4,6 +4,7 @@ import { useHashLocation } from "wouter/use-hash-location";
 import App from "./App";
 import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
+import { initI18n } from "./i18n";
 import {
   activateCanvasPlugins,
   BUILT_IN_RENDERER_PLUGINS,
@@ -15,6 +16,11 @@ console.log("Renderer bootstrap", { rootFound: Boolean(root) });
 if (!root) {
   throw new Error("Root element not found");
 }
+
+// Resources are bundled inline, so init is synchronous from React's
+// perspective. Doing it here guarantees `useTranslation` works in the
+// first render without a Suspense boundary.
+initI18n();
 
 // Activate renderer-side built-in plugins synchronously before the first
 // React render so any registered routes / chat cards are visible to the

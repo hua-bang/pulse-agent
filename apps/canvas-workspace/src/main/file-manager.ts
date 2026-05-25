@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from "electron";
 import { promises as fs } from "fs";
 import { join, basename } from "path";
 import { homedir } from "os";
+import { t } from "./i18n";
 
 const IGNORED_DIRS = new Set([
   'node_modules', '.git', '.DS_Store', 'dist', '.next', '.nuxt', '__pycache__', '.venv',
@@ -127,7 +128,7 @@ export const setupFileManagerIpc = () => {
   ipcMain.handle("dialog:openFolder", async (_event) => {
     const win = BrowserWindow.getFocusedWindow();
     const result = await dialog.showOpenDialog(win!, {
-      title: "Select Project Folder",
+      title: t("dialog.openFolder.title"),
       properties: ["openDirectory"]
     });
     if (result.canceled || result.filePaths.length === 0) {
@@ -140,10 +141,10 @@ export const setupFileManagerIpc = () => {
   ipcMain.handle("file:openDialog", async (_event) => {
     const win = BrowserWindow.getFocusedWindow();
     const result = await dialog.showOpenDialog(win!, {
-      title: "Open File",
+      title: t("dialog.openFile.title"),
       filters: [
-        { name: "Markdown", extensions: ["md", "markdown", "txt"] },
-        { name: "All Files", extensions: ["*"] }
+        { name: t("dialog.filter.markdown"), extensions: ["md", "markdown", "txt"] },
+        { name: t("dialog.filter.allFiles"), extensions: ["*"] }
       ],
       properties: ["openFile"]
     });
@@ -191,11 +192,11 @@ export const setupFileManagerIpc = () => {
           : `img-${Date.now()}.${ext}`;
         const win = BrowserWindow.getFocusedWindow();
         const result = await dialog.showSaveDialog(win!, {
-          title: "Export Image",
+          title: t("dialog.exportImage.title"),
           defaultPath: defaultName,
           filters: [
-            { name: "PNG Image", extensions: ["png"] },
-            { name: "All Files", extensions: ["*"] }
+            { name: t("dialog.filter.pngImage"), extensions: ["png"] },
+            { name: t("dialog.filter.allFiles"), extensions: ["*"] }
           ]
         });
         if (result.canceled || !result.filePath) {
@@ -216,11 +217,11 @@ export const setupFileManagerIpc = () => {
     async (_event, payload: { defaultName?: string; content: string }) => {
       const win = BrowserWindow.getFocusedWindow();
       const result = await dialog.showSaveDialog(win!, {
-        title: "Save As",
+        title: t("dialog.saveAs.title"),
         defaultPath: payload.defaultName || "untitled.md",
         filters: [
-          { name: "Markdown", extensions: ["md"] },
-          { name: "All Files", extensions: ["*"] }
+          { name: t("dialog.filter.markdown"), extensions: ["md"] },
+          { name: t("dialog.filter.allFiles"), extensions: ["*"] }
         ]
       });
       if (result.canceled || !result.filePath) {
