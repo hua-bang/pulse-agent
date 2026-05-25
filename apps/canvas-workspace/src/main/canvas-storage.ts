@@ -24,6 +24,7 @@
  * Migration is workspace-scoped and atomic at the canvas.json swap.
  */
 
+import type { Dirent } from 'fs';
 import { promises as fs } from 'fs';
 import { join, basename, dirname } from 'path';
 import { homedir } from 'os';
@@ -174,6 +175,27 @@ export function getV1BackupPath(workspaceId: string, root: string = STORE_DIR): 
   return join(getWorkspaceDir(workspaceId, root), V1_BACKUP_FILENAME);
 }
 
+/**
+ * Path to a timestamped immutable v1 archive. Each migration writes a new
+ * one of these and never overwrites prior files, so the original
+ * pre-v2 snapshot survives even if a later (e.g., pollution-triggered)
+ * re-migration overwrites the stable `canvas.json.v1.bak` alias.
+ *
+ * Naming: `canvas.json.v1.<ISO-UTC-stamp>.bak`, with `:`/`.` swapped to
+ * `-` so the filename is filesystem-friendly on every OS.
+ */
+export function getV1TimestampedBackupPath(
+  workspaceId: string,
+  timestamp: Date = new Date(),
+  root: string = STORE_DIR,
+): string {
+  const stamp = timestamp.toISOString().replace(/[:.]/g, '-');
+  return join(
+    getWorkspaceDir(workspaceId, root),
+    `canvas.json.v1.${stamp}.bak`,
+  );
+}
+
 export function getSentinelPath(workspaceId: string, root: string = STORE_DIR): string {
   return join(getWorkspaceDir(workspaceId, root), MIGRATION_SENTINEL_FILENAME);
 }
@@ -315,6 +337,159 @@ export function detectSchemaVersion(parsed: unknown): SchemaVersion {
     if (v === 2) return 2;
   }
   return 1;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pollution detection
+//
+// Background: a v1-unaware writer (old binary, external script that does
+// fs.readFile + JSON.parse + fs.writeFile on canvas.json) that touches a
+// v2 workspace will produce a v1-shape canvas.json — node entries without
+// `data` fields and without `schemaVersion: 2`. By itself that's just a
+// stale canvas.json; the real data is still safe in nodes/<id>.json. But
+// the next v2 read would treat it as a legitimate v1 workspace and trigger
+// `migrateToV2`, which would copy the empty-data v1 layout into per-node
+// files (since updatedAt arbitration almost always lets incoming win) and
+// permanently destroy the original data. This guard refuses both the
+// v1-shape write and the migration once the signature is present.
+
+/**
+ * Thrown when a write or migration that would normally produce a v1-shape
+ * canvas.json detects existing v2 per-node files for the same workspace.
+ * The fact that nodes/<id>.json exists for ids that the incoming
+ * v1-shape canvas mentions is the smoking gun: this workspace was
+ * previously v2, and a v1-unaware code path is now trying to clobber it.
+ */
+export class CanvasPollutionDetectedError extends Error {
+  readonly workspaceId: string;
+  readonly conflictingNodeIds: string[];
+  constructor(workspaceId: string, conflictingNodeIds: string[]) {
+    const sample = conflictingNodeIds.slice(0, 5).join(', ');
+    const more =
+      conflictingNodeIds.length > 5
+        ? `, +${conflictingNodeIds.length - 5} more`
+        : '';
+    super(
+      `[canvas-storage] refusing v1-shape write/migration for workspace ` +
+        `"${workspaceId}": ${conflictingNodeIds.length} node id(s) already ` +
+        `have v2 per-node files on disk (${sample}${more}). This is the ` +
+        `signature of a v1-unaware writer (old binary or external script) ` +
+        `having clobbered canvas.json. The real data is still in the ` +
+        `nodes/<id>.json files — do NOT migrate, restore canvas.json ` +
+        `instead (see docs).`,
+    );
+    this.name = 'CanvasPollutionDetectedError';
+    this.workspaceId = workspaceId;
+    this.conflictingNodeIds = conflictingNodeIds;
+  }
+}
+
+/**
+ * For each node id mentioned in the incoming v1-shape canvas, check whether
+ * a `nodes/<id>.json` file already exists on disk. Returns the subset of
+ * ids that overlap.
+ *
+ * The signature we're catching: a v1-unaware writer reads v2 canvas.json
+ * (layout-only, no `data` per node) and writes it back verbatim. The
+ * per-node files in `nodes/<id>.json` still hold the real content, and
+ * letting migration proceed in that state would let `updatedAt`
+ * arbitration overwrite each per-node file with the incoming v1 layout
+ * and permanently destroy the user's data.
+ *
+ * Detection is strictly id-overlap: if even one incoming v1 node id has
+ * a corresponding per-node file, we refuse. We deliberately do NOT try
+ * to inspect data-meaningfulness on either side — the "id overlap"
+ * signature alone is enough, because no legitimate code path produces
+ * a v1-shape canvas.json with ids that match existing per-node files.
+ * (The one synthetic scenario that conflicts with this — a CLI writing
+ * a per-node file ahead of a fresh v1 → v2 migration — is unreachable
+ * in practice: canvas-cli's `writeMatchingSchema` never writes per-node
+ * files for v1 workspaces.)
+ *
+ * After the workspace-node-store refactor `nodes/<id>.json` is also
+ * used as a workspace-scoped atom store independent of any canvas
+ * view, so "nodes/ is non-empty" by itself isn't a useful signal —
+ * but the *id intersection* is, because those ids being in the
+ * incoming v1 layout means they came from reading a v2 canvas.json.
+ *
+ * Cheap: stats files in parallel, no large reads.
+ */
+export async function detectV1Pollution(
+  workspaceId: string,
+  incomingNodes: CanvasNode[] | undefined,
+  root: string = STORE_DIR,
+): Promise<string[]> {
+  if (!Array.isArray(incomingNodes) || incomingNodes.length === 0) return [];
+  const ids = incomingNodes
+    .map((n) => n.id)
+    .filter((id): id is string => typeof id === 'string' && isSafeNodeId(id));
+  if (ids.length === 0) return [];
+
+  const conflicts: string[] = [];
+  await Promise.all(
+    ids.map(async (id) => {
+      try {
+        await fs.access(getNodeFilePath(workspaceId, id, root));
+        conflicts.push(id);
+      } catch {
+        // ENOENT or any other error → not a conflict.
+      }
+    }),
+  );
+  return conflicts;
+}
+
+/**
+ * Walk every workspace directory under `root` and return those whose
+ * on-disk state matches the v1-pollution signature (canvas.json is v1
+ * shape AND at least one of its node ids has a corresponding
+ * nodes/<id>.json file).
+ *
+ * Used at app startup so the renderer can surface a sticky alert for
+ * each affected workspace before the user clicks one — surfacing only
+ * on open would mean the user has to actually try to interact with the
+ * polluted workspace to learn it's broken, by which point the
+ * canvas:save guard would refuse but the spinner's error toast might
+ * be missed.
+ *
+ * Cheap: skips workspaces whose canvas.json already says v2 (the
+ * common case) before reaching for any per-node files.
+ */
+export async function scanForPollutedWorkspaces(
+  root: string = STORE_DIR,
+): Promise<Array<{ workspaceId: string; conflictingNodeIds: string[] }>> {
+  let entries: Dirent[];
+  try {
+    entries = (await fs.readdir(root, { withFileTypes: true })) as Dirent[];
+  } catch (err) {
+    if (isEnoent(err)) return [];
+    throw err;
+  }
+
+  const findings: Array<{ workspaceId: string; conflictingNodeIds: string[] }> = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === MANIFEST_ID) continue;
+    const workspaceId = entry.name;
+    const canvasPath = getCanvasJsonPath(workspaceId, root);
+
+    let parsed: CanvasSaveData;
+    try {
+      const raw = await fs.readFile(canvasPath, 'utf-8');
+      parsed = JSON.parse(raw) as CanvasSaveData;
+    } catch {
+      // Workspace with missing or unreadable canvas.json — not the
+      // pollution signature; skip.
+      continue;
+    }
+
+    if (detectSchemaVersion(parsed) === 2) continue;
+
+    const conflicts = await detectV1Pollution(workspaceId, parsed.nodes, root);
+    if (conflicts.length > 0) {
+      findings.push({ workspaceId, conflictingNodeIds: conflicts });
+    }
+  }
+  return findings;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -647,6 +822,16 @@ export async function writeCanvasFull(
     existing.kind === 'ok' ? detectSchemaVersion(existing.data) : 1;
 
   if (currentVersion === 1) {
+    // Pollution guard: if any incoming node id has a corresponding v2
+    // per-node file on disk, refuse. Writing v1-shape would set up the
+    // workspace for a destructive re-migration on the next read (the
+    // exact bug that motivated this check). Migration is the only path
+    // that should ever produce a transition from v2-backed nodes to a
+    // v1 canvas.json, and migration runs in the other direction.
+    const conflicts = await detectV1Pollution(workspaceId, data.nodes, root);
+    if (conflicts.length > 0) {
+      throw new CanvasPollutionDetectedError(workspaceId, conflicts);
+    }
     // Preserve v1 inline layout. Strip any stray schemaVersion the caller
     // may have set so the written file stays cleanly v1.
     const payload: CanvasSaveData = { ...data };
@@ -801,6 +986,20 @@ export async function migrateToV2(
 
     const v1 = existing.data;
     const nodes = Array.isArray(v1.nodes) ? v1.nodes : [];
+
+    // Pollution guard. If any v1 node id already has a v2 per-node file
+    // on disk, the v1-shape we just loaded almost certainly came from a
+    // v1-unaware writer (old binary or external script) clobbering
+    // canvas.json — the real data is still in those per-node files, and
+    // running the migration here would let updatedAt arbitration
+    // overwrite them with the empty-data v1 layout. Bail loudly; the
+    // upstream IPC handler surfaces this to the renderer so the user
+    // can recover before any damage is done.
+    const conflicts = await detectV1Pollution(workspaceId, nodes, root);
+    if (conflicts.length > 0) {
+      throw new CanvasPollutionDetectedError(workspaceId, conflicts);
+    }
+
     const expectedNodeIds = nodes
       .map((n) => n.id)
       .filter((id): id is string => typeof id === 'string' && isSafeNodeId(id));
@@ -814,10 +1013,26 @@ export async function migrateToV2(
     };
     await writeSentinel(workspaceId, sentinel, root);
 
-    // 2. Permanent v1 archive. Copy the raw bytes (not the parsed value)
-    //    to preserve exact byte-level state, including any user-meaningful
-    //    formatting in the original file.
+    // 2. Permanent v1 archive. Two files are written:
+    //
+    //    a) `canvas.json.v1.<ISO>.bak` — immutable historical record.
+    //       Never overwritten by subsequent migrations; even a future
+    //       pollution-triggered re-migration (which the guard above is
+    //       designed to prevent, but might be bypassed by future changes)
+    //       cannot destroy this snapshot. Users can `ls *.v1.*.bak` to
+    //       see the full migration history.
+    //
+    //    b) `canvas.json.v1.bak` — stable alias for backward compatibility
+    //       with the documented manual recovery procedure. Always points
+    //       at the same bytes as the latest timestamped archive.
+    //
+    //    Copy the raw bytes (not the parsed value) to preserve exact
+    //    byte-level state, including any user-meaningful formatting.
     onProgress({ phase: 'backup' });
+    await fs.copyFile(
+      canvasPath,
+      getV1TimestampedBackupPath(workspaceId, new Date(sentinel.startedAt), root),
+    );
     await fs.copyFile(canvasPath, getV1BackupPath(workspaceId, root));
 
     // 3. Per-node files. Sequential to keep memory and FS pressure modest;

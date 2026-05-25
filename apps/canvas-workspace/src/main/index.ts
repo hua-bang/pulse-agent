@@ -3,7 +3,11 @@ import { existsSync, promises as fs } from "fs";
 import { dirname, join, normalize, isAbsolute } from "path";
 import { fileURLToPath, pathToFileURL } from "url";
 import { setupPtyIpc, killAllPty } from "./pty-manager";
-import { setupCanvasStoreIpc, teardownCanvasWatchers } from "./canvas-store";
+import {
+  setupCanvasStoreIpc,
+  teardownCanvasWatchers,
+  auditPollutedWorkspacesAtStartup,
+} from "./canvas-store";
 import { setupFileManagerIpc } from "./file-manager";
 // MCP server disabled — canvas-cli is the preferred agent interface now.
 // import { startMCPServer } from "./mcp-server";
@@ -301,6 +305,11 @@ app.whenReady().then(() => {
 
   setupPtyIpc();
   setupCanvasStoreIpc();
+  // Audit pollution-shaped workspaces in the background; surfaces a log
+  // entry per finding. The renderer's MigrationSpinner separately
+  // surfaces user-visible sticky alerts via canvas:listPollutedWorkspaces
+  // when it mounts.
+  void auditPollutedWorkspacesAtStartup();
   setupFileManagerIpc();
   setupFileWatcherIpc();
   setupSkillInstallerIpc();

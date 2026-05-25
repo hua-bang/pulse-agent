@@ -875,6 +875,17 @@ export interface CanvasWorkspaceApi {
       fileCount?: number;
       error?: string;
     }>;
+    /**
+     * Returns workspaces whose canvas.json was clobbered by a v1-unaware
+     * writer (signature: v1-shape canvas.json with node ids that overlap
+     * existing nodes/<id>.json files). Renderer surfaces sticky alerts
+     * for each; recovery is via `canvas-cli restore`.
+     */
+    listPollutedWorkspaces: () => Promise<{
+      ok: boolean;
+      polluted?: Array<{ workspaceId: string; conflictingNodeIds: string[] }>;
+      error?: string;
+    }>;
     watchWorkspace: (workspaceId: string) => Promise<{ ok: boolean }>;
     onExternalUpdate: (
       callback: (event: {
@@ -885,9 +896,13 @@ export interface CanvasWorkspaceApi {
       }) => void
     ) => () => void;
     /**
-     * Subscribe to canvas storage migration progress events. Dormant in PR1
-     * (no migration is triggered yet); the channel is in place so PR3 can
-     * enable lazy v1→v2 auto-migration without further preload wiring.
+     * Subscribe to canvas storage migration progress events.
+     *
+     * `errorKind` distinguishes a critical data-integrity event
+     * (`'pollution'` — a v1-unaware writer clobbered canvas.json over a
+     * v2 workspace) from a generic migration hiccup; the renderer should
+     * surface the former as a sticky alert and the latter as a short
+     * toast.
      */
     onMigrationProgress: (
       callback: (event: {
@@ -902,6 +917,8 @@ export interface CanvasWorkspaceApi {
         current?: number;
         total?: number;
         message?: string;
+        errorKind?: "pollution" | "other";
+        conflictingNodeIds?: string[];
       }) => void
     ) => () => void;
   };

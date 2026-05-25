@@ -11,7 +11,10 @@ import {
   getNodeFilePath,
   getNodesDir,
   getV1BackupPath,
+  getV1TimestampedBackupPath,
   getSentinelPath,
+  getWorkspaceDir,
+  scanForPollutedWorkspaces,
   readNodeFile,
   writeNodeFile,
   deleteNodeFile,
@@ -24,6 +27,8 @@ import {
   readSentinel,
   markMigrationActive,
   clearMigrationActive,
+  detectV1Pollution,
+  CanvasPollutionDetectedError,
   CANVAS_SCHEMA_VERSION_V2,
   PER_NODE_SCHEMA_VERSION,
   type CanvasSaveData,
@@ -467,9 +472,13 @@ describe('migrateToV2', () => {
     expect(phases[phases.length - 1]).toBe('done');
   });
 
-  it('respects updatedAt arbitration when per-node file is newer', async () => {
+  it('refuses to migrate when any v1 id already has a per-node file', async () => {
     await seedV1();
-    // Pretend a CLI raced in and wrote a newer per-node file first.
+    // The pollution signature: a per-node file exists for an id that's
+    // about to appear in incoming v1 nodes. detectV1Pollution is strict
+    // id-overlap — we don't try to inspect data-meaningfulness on either
+    // side because the overlap alone shouldn't happen for any legitimate
+    // v1 workspace (no v1-aware code path writes per-node files).
     await writeNodeFile(
       wsId,
       {
@@ -477,17 +486,20 @@ describe('migrateToV2', () => {
         id: 'n1',
         type: 'text',
         title: 'Hello',
-        data: { content: 'NEWER FROM CLI' },
+        data: { content: 'EXISTING' },
         updatedAt: 1729999999999,
         createdAt: 1729000000000,
       },
       root,
     );
 
-    await migrateToV2(wsId, { root });
+    await expect(migrateToV2(wsId, { root })).rejects.toBeInstanceOf(
+      CanvasPollutionDetectedError,
+    );
 
+    // Per-node file is untouched — migration aborted before any writes.
     const n1 = await readNodeFile(wsId, 'n1', root);
-    expect(n1?.data.content).toBe('NEWER FROM CLI');
+    expect(n1?.data.content).toBe('EXISTING');
   });
 
   it('after migrate: readCanvasFull returns v1-shape with assembled data', async () => {
@@ -957,5 +969,292 @@ describe('readCanvasFull on v2 with edge cases', () => {
     expect(result.data?.nodes?.[0].type).toBe('text');
     expect(result.data?.nodes?.[0].title).toBe('Real title');
     expect(result.data?.nodes?.[0].data?.content).toBe('real');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pollution detection — catches the scenario where a v1-unaware writer
+// (old binary, external script) clobbered a v2 workspace's canvas.json
+// and a follow-up v2 read would otherwise destructively re-migrate.
+
+async function seedV2Workspace(): Promise<void> {
+  await fs.mkdir(getNodesDir(wsId, root), { recursive: true });
+  await fs.writeFile(
+    getCanvasJsonPath(wsId, root),
+    JSON.stringify({
+      schemaVersion: 2,
+      nodes: [
+        { id: 'n1', type: 'text', title: 'A', x: 0, y: 0, width: 100, height: 80, updatedAt: 100 },
+        { id: 'n2', type: 'text', title: 'B', x: 0, y: 0, width: 100, height: 80, updatedAt: 100 },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+    }),
+  );
+  await writeNodeFile(wsId, {
+    schemaVersion: PER_NODE_SCHEMA_VERSION,
+    id: 'n1',
+    type: 'text',
+    title: 'A',
+    data: { content: 'real-A' },
+    updatedAt: 100,
+    createdAt: 100,
+  }, root);
+  await writeNodeFile(wsId, {
+    schemaVersion: PER_NODE_SCHEMA_VERSION,
+    id: 'n2',
+    type: 'text',
+    title: 'B',
+    data: { content: 'real-B' },
+    updatedAt: 100,
+    createdAt: 100,
+  }, root);
+}
+
+describe('detectV1Pollution', () => {
+  it('returns empty for fresh workspace with no nodes/ files', async () => {
+    const result = await detectV1Pollution(
+      wsId,
+      [{ id: 'n1', type: 'text', title: 'A' }],
+      root,
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('returns the ids that overlap with on-disk nodes/ files', async () => {
+    await seedV2Workspace();
+    const result = await detectV1Pollution(
+      wsId,
+      [
+        { id: 'n1', type: 'text', title: 'A' },
+        { id: 'never-existed', type: 'text', title: 'X' },
+        { id: 'n2', type: 'text', title: 'B' },
+      ],
+      root,
+    );
+    expect(result.sort()).toEqual(['n1', 'n2']);
+  });
+
+  it('ignores unsafe ids (defensive)', async () => {
+    await seedV2Workspace();
+    const result = await detectV1Pollution(
+      wsId,
+      [{ id: '../escape', type: 'text', title: 'X' }],
+      root,
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('returns empty when incoming has no nodes', async () => {
+    await seedV2Workspace();
+    expect(await detectV1Pollution(wsId, [], root)).toEqual([]);
+    expect(await detectV1Pollution(wsId, undefined, root)).toEqual([]);
+  });
+});
+
+describe('writeCanvasFull pollution guard', () => {
+  it('refuses to write v1-shape when overlapping nodes/<id>.json exists', async () => {
+    await seedV2Workspace();
+    // Simulate the v1-unaware-writer scenario: someone read v2 canvas.json
+    // (got empty-data layout) and is about to write it back as a v1
+    // canvas. To get writeCanvasFull onto the v1 branch we degrade the
+    // on-disk canvas.json to v1 shape first (this is the state any
+    // v1-unaware code path would have left behind).
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        nodes: [
+          { id: 'n1', type: 'text', title: 'A', x: 0, y: 0, width: 100, height: 80, data: {} },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+      }),
+    );
+
+    const incoming: CanvasSaveData = {
+      nodes: [
+        { id: 'n1', type: 'text', title: 'A', x: 0, y: 0, width: 100, height: 80, data: {} },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+    };
+
+    await expect(writeCanvasFull(wsId, incoming, root)).rejects.toBeInstanceOf(
+      CanvasPollutionDetectedError,
+    );
+    // And the real per-node file is still intact — the throw was BEFORE any
+    // destructive disk operation.
+    const n1 = await readNodeFile(wsId, 'n1', root);
+    expect(n1?.data?.content).toBe('real-A');
+  });
+
+  it('permits v1 write when no per-node files exist (legit fresh v1 workspace)', async () => {
+    await fs.mkdir(join(root, wsId), { recursive: true });
+    const incoming: CanvasSaveData = {
+      nodes: [
+        { id: 'fresh', type: 'text', title: '', x: 0, y: 0, width: 10, height: 10, data: { content: 'hi' } },
+      ],
+      transform: { x: 0, y: 0, scale: 1 },
+    };
+    await writeCanvasFull(wsId, incoming, root);
+    const raw = JSON.parse(await fs.readFile(getCanvasJsonPath(wsId, root), 'utf-8'));
+    expect(raw.nodes[0].data.content).toBe('hi');
+  });
+});
+
+describe('migrateToV2 pollution guard', () => {
+  it('refuses migration when v1 ids overlap existing per-node files', async () => {
+    await seedV2Workspace();
+    // Same shape as the v1-unaware-writer aftermath: canvas.json now
+    // looks v1 (no schemaVersion, no data fields) but nodes/ still has
+    // the real per-node files.
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        nodes: [
+          { id: 'n1', type: 'text', title: 'A', x: 0, y: 0, width: 100, height: 80 },
+          { id: 'n2', type: 'text', title: 'B', x: 0, y: 0, width: 100, height: 80 },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+      }),
+    );
+
+    await expect(migrateToV2(wsId, { root })).rejects.toBeInstanceOf(
+      CanvasPollutionDetectedError,
+    );
+    // Per-node files still hold real data — migration aborted before
+    // overwriting them. This is the property the user lost in the
+    // original incident.
+    expect((await readNodeFile(wsId, 'n1', root))?.data?.content).toBe('real-A');
+    expect((await readNodeFile(wsId, 'n2', root))?.data?.content).toBe('real-B');
+    // No sentinel was written either — abort happened pre-side-effects.
+    expect(await readSentinel(wsId, root)).toBeNull();
+  });
+
+  it('still migrates legitimate v1 workspaces with no per-node files', async () => {
+    await fs.mkdir(join(root, wsId), { recursive: true });
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        nodes: [
+          { id: 'a', type: 'text', title: 'A', x: 0, y: 0, width: 10, height: 10, data: { content: 'va' }, updatedAt: 1 },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+        savedAt: 'x',
+      }),
+    );
+    await migrateToV2(wsId, { root });
+    const layout = JSON.parse(await fs.readFile(getCanvasJsonPath(wsId, root), 'utf-8'));
+    expect(layout.schemaVersion).toBe(CANVAS_SCHEMA_VERSION_V2);
+    const n = await readNodeFile(wsId, 'a', root);
+    expect(n?.data?.content).toBe('va');
+  });
+});
+
+describe('migrateToV2 timestamped backups', () => {
+  it('writes both the timestamped archive and the stable .v1.bak alias', async () => {
+    await fs.mkdir(join(root, wsId), { recursive: true });
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        nodes: [
+          { id: 'a', type: 'text', title: '', x: 0, y: 0, width: 10, height: 10, data: { content: 'X' }, updatedAt: 1 },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+        savedAt: 'x',
+      }),
+    );
+    await migrateToV2(wsId, { root });
+
+    // Stable alias exists with the original v1 content.
+    const stable = JSON.parse(await fs.readFile(getV1BackupPath(wsId, root), 'utf-8'));
+    expect(stable.nodes[0].data.content).toBe('X');
+
+    // And exactly one timestamped archive exists with the same content.
+    const wsDir = getWorkspaceDir(wsId, root);
+    const archives = (await fs.readdir(wsDir)).filter(
+      (f) => f.startsWith('canvas.json.v1.') && f.endsWith('.bak') && f !== 'canvas.json.v1.bak',
+    );
+    expect(archives).toHaveLength(1);
+    const tsArchive = JSON.parse(
+      await fs.readFile(join(wsDir, archives[0]), 'utf-8'),
+    );
+    expect(tsArchive.nodes[0].data.content).toBe('X');
+  });
+
+  it('getV1TimestampedBackupPath produces a filesystem-friendly filename', () => {
+    const p = getV1TimestampedBackupPath(
+      wsId,
+      new Date('2026-05-25T09:30:42.123Z'),
+      root,
+    );
+    // No raw colons or dots-as-time-separator in the timestamp segment.
+    const filename = p.split('/').pop()!;
+    expect(filename).toMatch(/^canvas\.json\.v1\.2026-05-25T09-30-42-123Z\.bak$/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Startup-time pollution scanner
+
+describe('scanForPollutedWorkspaces', () => {
+  it('returns empty for a fresh store', async () => {
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
+  });
+
+  it('skips workspaces whose canvas.json is already v2', async () => {
+    const wsDir = getWorkspaceDir(wsId, root);
+    await fs.mkdir(wsDir, { recursive: true });
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        schemaVersion: 2,
+        nodes: [{ id: 'a', type: 'text', title: 'A', x: 0, y: 0, width: 10, height: 10 }],
+        transform: { x: 0, y: 0, scale: 1 },
+      }),
+    );
+    await writeNodeFile(wsId, {
+      schemaVersion: PER_NODE_SCHEMA_VERSION,
+      id: 'a',
+      type: 'text',
+      title: 'A',
+      data: { content: 'real' },
+    }, root);
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
+  });
+
+  it('skips workspaces with an unreadable canvas.json (not the pollution signature)', async () => {
+    await fs.mkdir(getWorkspaceDir(wsId, root), { recursive: true });
+    // No canvas.json — should be silently skipped.
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
+  });
+
+  it('reports workspaces where v1 canvas.json overlaps existing nodes/ files', async () => {
+    const wsDir = getWorkspaceDir(wsId, root);
+    await fs.mkdir(wsDir, { recursive: true });
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        nodes: [
+          { id: 'a', type: 'text', title: 'A', x: 0, y: 0, width: 10, height: 10 },
+          { id: 'b', type: 'text', title: 'B', x: 0, y: 0, width: 10, height: 10 },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+      }),
+    );
+    await writeNodeFile(wsId, {
+      schemaVersion: PER_NODE_SCHEMA_VERSION,
+      id: 'a',
+      type: 'text',
+      title: 'A',
+      data: { content: 'real-a' },
+    }, root);
+
+    const findings = await scanForPollutedWorkspaces(root);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].workspaceId).toBe(wsId);
+    expect(findings[0].conflictingNodeIds).toEqual(['a']);
+  });
+
+  it('ignores the __workspaces__ manifest directory entry', async () => {
+    await fs.mkdir(join(root, '__workspaces__'), { recursive: true });
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
   });
 });

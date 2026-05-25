@@ -16,6 +16,14 @@ interface MigrationEvent {
   current?: number;
   total?: number;
   message?: string;
+  /**
+   * Set on `'error'` events. `'pollution'` signals the canvas-store-side
+   * pollution guard refused a migration because canvas.json was clobbered
+   * by a v1-unaware writer — this is a critical data-integrity event that
+   * deserves a sticky alert rather than the usual 4s auto-dismissed toast.
+   */
+  errorKind?: 'pollution' | 'other';
+  conflictingNodeIds?: string[];
 }
 
 interface VisibleState {
@@ -110,16 +118,38 @@ export const MigrationSpinner = (): JSX.Element | null => {
 
       if (event.phase === 'error') {
         // Surface errors immediately even if we're under DELAY_MS — the
-        // user should see "升级失败" rather than nothing.
+        // user should see something rather than nothing.
         pendingRef.current = null;
         clearTimer();
         realMigrationRef.current.delete(event.workspaceId);
+
+        if (event.errorKind === 'pollution') {
+          // Critical data-integrity event: canvas.json was clobbered by
+          // a v1-unaware writer, and the canvas-store-side guard refused
+          // to migrate. Don't surface this through the auto-dismissed
+          // spinner pill — fire a sticky `error` toast via the global
+          // notify channel that requires explicit dismissal. Data is NOT
+          // lost yet (it lives in nodes/<id>.json), but the user must
+          // recover before any subsequent save (which the save handler's
+          // own guard will also refuse).
+          notify({
+            tone: 'error',
+            title: '检测到画布存储被旧版工具污染',
+            description:
+              event.message ??
+              '已拒绝执行迁移以防止数据丢失。请使用 canvas-cli restore 或参考文档恢复。',
+            // No autoCloseMs → sticky; user must dismiss.
+          });
+          return;
+        }
+
         setVisible({
           workspaceId: event.workspaceId,
           phase: 'error',
           message: event.message,
         });
-        // Auto-hide after a few seconds so an error toast doesn't pile up.
+        // Auto-hide after a few seconds so a transient error toast doesn't
+        // pile up.
         window.setTimeout(() => setVisible(null), 4000);
         return;
       }
@@ -160,6 +190,37 @@ export const MigrationSpinner = (): JSX.Element | null => {
     // setter, which gives us "stale but consistent" UX (rapid phase
     // updates won't ping-pong). Subscribing once is correct.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notify]);
+
+  // ─── Startup pollution audit ────────────────────────────────────────
+  // Query the main-process scanner once on mount. Each polluted
+  // workspace surfaces as a sticky `notify` alert, so users learn about
+  // the corruption before clicking into the workspace and seeing empty
+  // nodes. Same toast tone/treatment as the live pollution alert above.
+  useEffect(() => {
+    const api = window.canvasWorkspace?.store;
+    if (!api?.listPollutedWorkspaces) return;
+
+    let cancelled = false;
+    void api.listPollutedWorkspaces().then((result) => {
+      if (cancelled) return;
+      if (!result.ok || !Array.isArray(result.polluted)) return;
+      for (const finding of result.polluted) {
+        notify({
+          tone: 'error',
+          title: `工作区 "${finding.workspaceId}" 检测到存储污染`,
+          description:
+            `${finding.conflictingNodeIds.length} 个节点的真实数据仍在 nodes/ 中，` +
+            `但 canvas.json 已被旧版工具破坏。请使用 ` +
+            `\`canvas-cli restore apply ${finding.workspaceId} --from <snapshot>\` 恢复。`,
+          // No autoCloseMs → sticky.
+        });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [notify]);
 
   if (!visible) return null;

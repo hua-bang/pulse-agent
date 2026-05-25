@@ -101,6 +101,16 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     importWorkspace: () =>
       ipcRenderer.invoke("canvas:importWorkspace"),
 
+    /**
+     * Snapshot of every workspace whose canvas.json was clobbered by a
+     * v1-unaware writer (signature: v1-shape canvas.json with node ids
+     * that overlap existing nodes/<id>.json files). The renderer surfaces
+     * these as sticky alerts on mount; recovery is via
+     * `canvas-cli restore`.
+     */
+    listPollutedWorkspaces: () =>
+      ipcRenderer.invoke("canvas:listPollutedWorkspaces"),
+
     watchWorkspace: (workspaceId: string) =>
       ipcRenderer.invoke("canvas:watchWorkspace", { workspaceId }),
 
@@ -130,9 +140,11 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     /**
      * Subscribe to canvas storage migration progress.
      *
-     * Dormant in PR1 (no migration is triggered yet); the channel is in
-     * place so PR3 can flip on lazy v1→v2 auto-migration without further
-     * preload/renderer wiring. Returns the unsubscribe fn.
+     * `errorKind` distinguishes a critical data-integrity event
+     * (`'pollution'` — a v1-unaware writer clobbered canvas.json over a
+     * v2 workspace) from a generic migration hiccup, so the renderer
+     * can surface the former as a sticky alert and the latter as a
+     * short toast. Returns the unsubscribe fn.
      */
     onMigrationProgress: (
       callback: (event: {
@@ -141,6 +153,8 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
         current?: number;
         total?: number;
         message?: string;
+        errorKind?: "pollution" | "other";
+        conflictingNodeIds?: string[];
       }) => void
     ) => {
       const handler = (
@@ -157,6 +171,8 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
           current?: number;
           total?: number;
           message?: string;
+          errorKind?: "pollution" | "other";
+          conflictingNodeIds?: string[];
         }
       ) => callback(payload);
       ipcRenderer.on("canvas:migration-progress", handler);
