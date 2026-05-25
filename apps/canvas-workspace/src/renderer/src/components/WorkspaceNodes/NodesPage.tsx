@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkspaceNodeListItem } from '../../types';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
@@ -23,6 +23,8 @@ interface NodesPageProps {
   onOpenNode: (workspaceId: string, nodeId: string) => void;
   onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
 }
+
+const NODES_PAGE_SIZE = 30;
 
 function filterByType(node: WorkspaceNodeListItem, type: NodeTypeFilter): boolean {
   if (type === 'all') return true;
@@ -84,6 +86,38 @@ export const NodesPage = ({
       return true;
     });
   }, [nodes, query, typeFilter, tagFilter, activeWorkspaceIds]);
+
+  const [visibleCount, setVisibleCount] = useState(NODES_PAGE_SIZE);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setVisibleCount(NODES_PAGE_SIZE);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [filteredNodes]);
+
+  const visibleNodes = useMemo(
+    () => filteredNodes.slice(0, visibleCount),
+    [filteredNodes, visibleCount],
+  );
+  const hasMore = visibleCount < filteredNodes.length;
+
+  useEffect(() => {
+    if (!hasMore) return;
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisibleCount((current) => current + NODES_PAGE_SIZE);
+        }
+      },
+      { root, rootMargin: '600px 0px' },
+    );
+    io.observe(sentinel);
+    return () => io.disconnect();
+  }, [hasMore, filteredNodes.length]);
 
   const tagLabel = (tagId: string) => tagName(tagId, tagDefinitions);
 
@@ -168,7 +202,7 @@ export const NodesPage = ({
           </div>
         </div>
 
-        <div className="workspace-nodes-page__scroll">
+        <div className="workspace-nodes-page__scroll" ref={scrollRef}>
           {error && <div className="workspace-nodes-state workspace-nodes-state--error">{error}</div>}
           {loading && <div className="workspace-nodes-state">Loading nodes...</div>}
           {!loading && filteredNodes.length === 0 && (
@@ -178,7 +212,7 @@ export const NodesPage = ({
             </div>
           )}
           <div className="workspace-node-grid">
-            {filteredNodes.map((node) => {
+            {visibleNodes.map((node) => {
               const tagsForNode = getNodeTags(node);
               const summary = getNodeSummary(node);
               const workspaceIdForNode = getNodeWorkspaceId(node);
@@ -208,6 +242,9 @@ export const NodesPage = ({
               );
             })}
           </div>
+          {hasMore && (
+            <div ref={sentinelRef} className="workspace-nodes-sentinel" aria-hidden="true" />
+          )}
         </div>
       </section>
 
