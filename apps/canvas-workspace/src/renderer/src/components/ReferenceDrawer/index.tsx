@@ -143,6 +143,7 @@ export const ReferenceDrawer = ({
             </div>
 
             <ReferencePreviewPanel
+              references={references}
               activeReference={activeReference}
               activeReferenceNode={activeReferenceNode}
               copyUrl={state.copyUrl}
