@@ -21,7 +21,20 @@ interface ReferencePreviewPanelProps {
   workspaceNameById: Map<string, string>;
 }
 
-const HIDDEN_STYLE: CSSProperties = { display: 'none' };
+// Electron <webview> tags detach (and reload on next show) when an ancestor
+// gets display:none. To keep them alive while hidden we only ever toggle
+// visibility + absolute positioning — the webview's layout box, and therefore
+// its guest WebContents, stays attached.
+const HIDDEN_LAYER_STYLE: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  visibility: 'hidden',
+  pointerEvents: 'none',
+};
+
+const HIDDEN_SLOT_STYLE: CSSProperties = {
+  visibility: 'hidden',
+};
 
 export const ReferencePreviewPanel = ({
   references,
@@ -41,10 +54,9 @@ export const ReferencePreviewPanel = ({
     [references],
   );
 
-  // Track which URL references have been opened at least once. Their iframes
-  // stay mounted (just hidden) when the user switches away, so they don't
-  // reload on the next visit. An entry is removed only when the reference
-  // itself disappears from `references` (Unpin / Clear all / delete).
+  // Track which URL references have ever been opened. Their iframes stay
+  // mounted until the reference itself disappears from `references` (Unpin /
+  // Clear all / delete from the entry list).
   const [mountedUrlIds, setMountedUrlIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -80,20 +92,23 @@ export const ReferencePreviewPanel = ({
   const persistentUrlPreviews = urlReferences.filter((ref) => mountedUrlIds.has(ref.id));
 
   return (
-    <>
+    <div className="reference-preview-area">
       {persistentUrlPreviews.length > 0 && (
         <div
           className="reference-url-card reference-url-card--preview"
-          style={activeIsUrl ? undefined : HIDDEN_STYLE}
+          style={activeIsUrl ? undefined : HIDDEN_LAYER_STYLE}
         >
-          {persistentUrlPreviews.map((ref) => (
-            <ReferenceUrlWebPreview
-              key={ref.id}
-              reference={ref}
-              drawerWidth={drawerWidth}
-              hidden={ref.id !== activeReferenceId}
-            />
-          ))}
+          <div className="reference-url-stack">
+            {persistentUrlPreviews.map((ref) => (
+              <div
+                key={ref.id}
+                className="reference-url-slot"
+                style={ref.id === activeReferenceId ? undefined : HIDDEN_SLOT_STYLE}
+              >
+                <ReferenceUrlWebPreview reference={ref} drawerWidth={drawerWidth} />
+              </div>
+            ))}
+          </div>
           {activeUrlReference && (
             <div className="reference-card-footer">
               <button
@@ -180,27 +195,23 @@ export const ReferencePreviewPanel = ({
       {!activeReference && (
         <div className="reference-pick-hint">Pick a reference above to preview it here.</div>
       )}
-    </>
+    </div>
   );
 };
 
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;
   drawerWidth: number;
-  hidden?: boolean;
 }
 
-const ReferenceUrlWebPreview = memo(({ reference, drawerWidth, hidden }: ReferenceUrlWebPreviewProps) => {
+const ReferenceUrlWebPreview = memo(({ reference, drawerWidth }: ReferenceUrlWebPreviewProps) => {
   const previewNode = useMemo(
     () => createUrlPreviewNode(reference, drawerWidth),
     [reference, drawerWidth],
   );
 
   return (
-    <div
-      className="reference-url-preview"
-      style={hidden ? HIDDEN_STYLE : undefined}
-    >
+    <div className="reference-url-preview">
       <IframeNodeBody
         node={previewNode}
         onUpdate={() => undefined}
