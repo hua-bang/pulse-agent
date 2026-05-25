@@ -5,6 +5,7 @@ import { registerContextCommand } from './commands/context';
 import { registerInstallSkillsCommand } from './commands/install-skills';
 import { registerEdgeCommands } from './commands/edge';
 import { registerAgentCommands } from './commands/agent';
+import { registerRestoreCommand } from './commands/restore';
 
 export const ENV_WORKSPACE_ID = 'PULSE_CANVAS_WORKSPACE_ID';
 
@@ -23,6 +24,7 @@ export function createCli(): Command {
   registerNodeCommands(program);
   registerEdgeCommands(program);
   registerAgentCommands(program);
+  registerRestoreCommand(program);
   registerContextCommand(program);
   registerInstallSkillsCommand(program);
 

@@ -24,6 +24,7 @@
  * Migration is workspace-scoped and atomic at the canvas.json swap.
  */
 
+import type { Dirent } from 'fs';
 import { promises as fs } from 'fs';
 import { join, basename, dirname } from 'path';
 import { homedir } from 'os';
@@ -436,6 +437,59 @@ export async function detectV1Pollution(
     }),
   );
   return conflicts;
+}
+
+/**
+ * Walk every workspace directory under `root` and return those whose
+ * on-disk state matches the v1-pollution signature (canvas.json is v1
+ * shape AND at least one of its node ids has a corresponding
+ * nodes/<id>.json file).
+ *
+ * Used at app startup so the renderer can surface a sticky alert for
+ * each affected workspace before the user clicks one — surfacing only
+ * on open would mean the user has to actually try to interact with the
+ * polluted workspace to learn it's broken, by which point the
+ * canvas:save guard would refuse but the spinner's error toast might
+ * be missed.
+ *
+ * Cheap: skips workspaces whose canvas.json already says v2 (the
+ * common case) before reaching for any per-node files.
+ */
+export async function scanForPollutedWorkspaces(
+  root: string = STORE_DIR,
+): Promise<Array<{ workspaceId: string; conflictingNodeIds: string[] }>> {
+  let entries: Dirent[];
+  try {
+    entries = (await fs.readdir(root, { withFileTypes: true })) as Dirent[];
+  } catch (err) {
+    if (isEnoent(err)) return [];
+    throw err;
+  }
+
+  const findings: Array<{ workspaceId: string; conflictingNodeIds: string[] }> = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name === MANIFEST_ID) continue;
+    const workspaceId = entry.name;
+    const canvasPath = getCanvasJsonPath(workspaceId, root);
+
+    let parsed: CanvasSaveData;
+    try {
+      const raw = await fs.readFile(canvasPath, 'utf-8');
+      parsed = JSON.parse(raw) as CanvasSaveData;
+    } catch {
+      // Workspace with missing or unreadable canvas.json — not the
+      // pollution signature; skip.
+      continue;
+    }
+
+    if (detectSchemaVersion(parsed) === 2) continue;
+
+    const conflicts = await detectV1Pollution(workspaceId, parsed.nodes, root);
+    if (conflicts.length > 0) {
+      findings.push({ workspaceId, conflictingNodeIds: conflicts });
+    }
+  }
+  return findings;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ import {
   getV1TimestampedBackupPath,
   getSentinelPath,
   getWorkspaceDir,
+  scanForPollutedWorkspaces,
   readNodeFile,
   writeNodeFile,
   deleteNodeFile,
@@ -1187,5 +1188,73 @@ describe('migrateToV2 timestamped backups', () => {
     // No raw colons or dots-as-time-separator in the timestamp segment.
     const filename = p.split('/').pop()!;
     expect(filename).toMatch(/^canvas\.json\.v1\.2026-05-25T09-30-42-123Z\.bak$/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Startup-time pollution scanner
+
+describe('scanForPollutedWorkspaces', () => {
+  it('returns empty for a fresh store', async () => {
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
+  });
+
+  it('skips workspaces whose canvas.json is already v2', async () => {
+    const wsDir = getWorkspaceDir(wsId, root);
+    await fs.mkdir(wsDir, { recursive: true });
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        schemaVersion: 2,
+        nodes: [{ id: 'a', type: 'text', title: 'A', x: 0, y: 0, width: 10, height: 10 }],
+        transform: { x: 0, y: 0, scale: 1 },
+      }),
+    );
+    await writeNodeFile(wsId, {
+      schemaVersion: PER_NODE_SCHEMA_VERSION,
+      id: 'a',
+      type: 'text',
+      title: 'A',
+      data: { content: 'real' },
+    }, root);
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
+  });
+
+  it('skips workspaces with an unreadable canvas.json (not the pollution signature)', async () => {
+    await fs.mkdir(getWorkspaceDir(wsId, root), { recursive: true });
+    // No canvas.json — should be silently skipped.
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
+  });
+
+  it('reports workspaces where v1 canvas.json overlaps existing nodes/ files', async () => {
+    const wsDir = getWorkspaceDir(wsId, root);
+    await fs.mkdir(wsDir, { recursive: true });
+    await fs.writeFile(
+      getCanvasJsonPath(wsId, root),
+      JSON.stringify({
+        nodes: [
+          { id: 'a', type: 'text', title: 'A', x: 0, y: 0, width: 10, height: 10 },
+          { id: 'b', type: 'text', title: 'B', x: 0, y: 0, width: 10, height: 10 },
+        ],
+        transform: { x: 0, y: 0, scale: 1 },
+      }),
+    );
+    await writeNodeFile(wsId, {
+      schemaVersion: PER_NODE_SCHEMA_VERSION,
+      id: 'a',
+      type: 'text',
+      title: 'A',
+      data: { content: 'real-a' },
+    }, root);
+
+    const findings = await scanForPollutedWorkspaces(root);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].workspaceId).toBe(wsId);
+    expect(findings[0].conflictingNodeIds).toEqual(['a']);
+  });
+
+  it('ignores the __workspaces__ manifest directory entry', async () => {
+    await fs.mkdir(join(root, '__workspaces__'), { recursive: true });
+    expect(await scanForPollutedWorkspaces(root)).toEqual([]);
   });
 });

@@ -101,6 +101,16 @@ contextBridge.exposeInMainWorld("canvasWorkspace", {
     importWorkspace: () =>
       ipcRenderer.invoke("canvas:importWorkspace"),
 
+    /**
+     * Snapshot of every workspace whose canvas.json was clobbered by a
+     * v1-unaware writer (signature: v1-shape canvas.json with node ids
+     * that overlap existing nodes/<id>.json files). The renderer surfaces
+     * these as sticky alerts on mount; recovery is via
+     * `canvas-cli restore`.
+     */
+    listPollutedWorkspaces: () =>
+      ipcRenderer.invoke("canvas:listPollutedWorkspaces"),
+
     watchWorkspace: (workspaceId: string) =>
       ipcRenderer.invoke("canvas:watchWorkspace", { workspaceId }),
 

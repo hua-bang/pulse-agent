@@ -13,6 +13,7 @@ import {
   isSafeNodeId,
   getNodesDir,
   getNodeFilePath,
+  scanForPollutedWorkspaces,
   CanvasPollutionDetectedError,
   type MigrationProgress,
   type ReadJsonResult,
@@ -1504,4 +1505,53 @@ export const setupCanvasStoreIpc = () => {
       }
     }
   );
+
+  /**
+   * Lists every workspace whose on-disk state matches the v1-pollution
+   * signature (v1 canvas.json + overlapping nodes/<id>.json). Cheap;
+   * skips already-v2 workspaces without touching their per-node files.
+   *
+   * The renderer calls this on mount (and re-calls after a recovery)
+   * to surface a sticky alert per affected workspace — that way the
+   * user learns about the problem before clicking into the workspace
+   * and seeing empty nodes.
+   */
+  ipcMain.handle('canvas:listPollutedWorkspaces', async () => {
+    try {
+      const findings = await scanForPollutedWorkspaces();
+      return { ok: true, polluted: findings };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
+};
+
+/**
+ * Run the pollution scanner once at app startup and log any findings.
+ * Called from main/index.ts after `setupCanvasStoreIpc`. The renderer's
+ * MigrationSpinner separately queries `canvas:listPollutedWorkspaces`
+ * on mount to surface the user-visible sticky alerts; this function is
+ * the main-process side that produces an audit-log entry independent of
+ * any renderer being ready to listen.
+ */
+export const auditPollutedWorkspacesAtStartup = async (): Promise<void> => {
+  try {
+    const findings = await scanForPollutedWorkspaces();
+    if (findings.length === 0) return;
+    console.warn(
+      `[canvas-store] startup pollution scan: ${findings.length} workspace(s) ` +
+        `appear to have been clobbered by a v1-unaware writer. The pollution ` +
+        `guard will refuse migration; user can recover via canvas-cli restore.`,
+    );
+    for (const finding of findings) {
+      console.warn(
+        `  - ${finding.workspaceId}: ${finding.conflictingNodeIds.length} ` +
+          `conflicting node id(s) (${finding.conflictingNodeIds.slice(0, 5).join(', ')}` +
+          (finding.conflictingNodeIds.length > 5 ? ', ...' : '') +
+          `)`,
+      );
+    }
+  } catch (err) {
+    console.warn(`[canvas-store] startup pollution scan failed: ${String(err)}`);
+  }
 };

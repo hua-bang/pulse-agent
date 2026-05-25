@@ -192,6 +192,37 @@ export const MigrationSpinner = (): JSX.Element | null => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notify]);
 
+  // ─── Startup pollution audit ────────────────────────────────────────
+  // Query the main-process scanner once on mount. Each polluted
+  // workspace surfaces as a sticky `notify` alert, so users learn about
+  // the corruption before clicking into the workspace and seeing empty
+  // nodes. Same toast tone/treatment as the live pollution alert above.
+  useEffect(() => {
+    const api = window.canvasWorkspace?.store;
+    if (!api?.listPollutedWorkspaces) return;
+
+    let cancelled = false;
+    void api.listPollutedWorkspaces().then((result) => {
+      if (cancelled) return;
+      if (!result.ok || !Array.isArray(result.polluted)) return;
+      for (const finding of result.polluted) {
+        notify({
+          tone: 'error',
+          title: `工作区 "${finding.workspaceId}" 检测到存储污染`,
+          description:
+            `${finding.conflictingNodeIds.length} 个节点的真实数据仍在 nodes/ 中，` +
+            `但 canvas.json 已被旧版工具破坏。请使用 ` +
+            `\`canvas-cli restore apply ${finding.workspaceId} --from <snapshot>\` 恢复。`,
+          // No autoCloseMs → sticky.
+        });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [notify]);
+
   if (!visible) return null;
 
   const isError = visible.phase === 'error';

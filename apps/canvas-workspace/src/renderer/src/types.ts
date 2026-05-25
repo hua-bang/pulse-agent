@@ -875,6 +875,17 @@ export interface CanvasWorkspaceApi {
       fileCount?: number;
       error?: string;
     }>;
+    /**
+     * Returns workspaces whose canvas.json was clobbered by a v1-unaware
+     * writer (signature: v1-shape canvas.json with node ids that overlap
+     * existing nodes/<id>.json files). Renderer surfaces sticky alerts
+     * for each; recovery is via `canvas-cli restore`.
+     */
+    listPollutedWorkspaces: () => Promise<{
+      ok: boolean;
+      polluted?: Array<{ workspaceId: string; conflictingNodeIds: string[] }>;
+      error?: string;
+    }>;
     watchWorkspace: (workspaceId: string) => Promise<{ ok: boolean }>;
     onExternalUpdate: (
       callback: (event: {
