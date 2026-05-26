@@ -2291,9 +2291,10 @@ ${outline}`;
         'Use this when the user wants to UNDERSTAND something via a visual, not when they want to KEEP or iterate on it. ' +
         'For keep-and-iterate flows, call `artifact_create` instead. ' +
         'For HTML, return a SINGLE self-contained `<!DOCTYPE html>` document — it will render in a sandboxed iframe and CDN libs (Chart.js, D3, Mermaid) load fine. ' +
-        'For SVG, return a single `<svg>` element (no surrounding HTML). For Mermaid, return the Mermaid source only.',
+        'For SVG, return a single `<svg>` element (no surrounding HTML). For Mermaid, return the Mermaid source only (e.g. starting with `graph TD` / `sequenceDiagram` / `flowchart LR`) — no code fences, no surrounding HTML. ' +
+        'Pick `mermaid` for quick flowcharts, sequence/state/ER diagrams, gantt charts, and similar structural diagrams; it streams faster than full HTML and renders crisply at any zoom.',
       inputSchema: z.object({
-        type: z.enum(['html', 'svg', 'mermaid']).describe('Visual format. v1 supports html; svg and mermaid reserved.'),
+        type: z.enum(['html', 'svg', 'mermaid']).describe('Visual format. `html` renders in a sandboxed iframe; `svg` renders the element directly; `mermaid` parses the source and renders as an SVG diagram.'),
         title: z.string().optional().describe('Short label shown above the visual.'),
         content: z.string().describe('The full visual content (HTML doc, SVG element, or Mermaid source).'),
       }),
@@ -2380,7 +2381,7 @@ ${outline}`;
         'For throwaway visuals that just illustrate a point mid-explanation, use `visual_render` instead. ' +
         'Content format matches `visual_render`: a self-contained HTML doc for type=html.',
       inputSchema: z.object({
-        type: z.enum(['html', 'svg', 'mermaid']).describe('Artifact type. v1 supports html; svg and mermaid reserved.'),
+        type: z.enum(['html', 'svg', 'mermaid']).describe('Artifact type. `html` renders in a sandboxed iframe; `svg` renders the element directly; `mermaid` parses the source and renders as an SVG diagram.'),
         title: z.string().describe('Short title — appears in the artifact card and as the canvas node title once pinned.'),
         content: z.string().describe('Full content of the first version.'),
         prompt: z.string().optional().describe('Optional record of the prompt/spec that produced this version (helps diff future iterations).'),

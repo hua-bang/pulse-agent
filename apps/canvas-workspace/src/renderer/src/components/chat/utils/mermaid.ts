@@ -28,27 +28,42 @@ const loadMermaid = (): Promise<MermaidApi> => {
   return mermaidPromise;
 };
 
-const renderInto = async (host: HTMLElement): Promise<void> => {
-  const source = host.dataset.source ?? '';
-  if (!source.trim()) {
-    host.dataset.rendered = 'error';
-    host.innerHTML = '<div class="chat-mermaid-error">Empty diagram</div>';
-    return;
-  }
+export type MermaidRenderResult =
+  | { ok: true; svg: string }
+  | { ok: false; error: string };
 
+/**
+ * Render mermaid source to an SVG string. Used by React surfaces (inline
+ * `visual_render`, artifact drawer) that want to manage their own host
+ * element + loading state — unlike `renderMermaidIn`, this doesn't write
+ * to the DOM itself.
+ */
+export const renderMermaidSource = async (source: string): Promise<MermaidRenderResult> => {
+  const trimmed = source.trim();
+  if (!trimmed) return { ok: false, error: 'Empty diagram' };
   try {
     const mermaid = await loadMermaid();
     const id = `chat-mermaid-${++diagramIdCounter}-${Date.now().toString(36)}`;
-    const { svg } = await mermaid.render(id, source);
-    host.innerHTML = svg;
-    host.dataset.rendered = 'true';
+    const { svg } = await mermaid.render(id, trimmed);
+    return { ok: true, svg };
   } catch (err) {
-    host.dataset.rendered = 'error';
     const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: message };
+  }
+};
+
+const renderInto = async (host: HTMLElement): Promise<void> => {
+  const source = host.dataset.source ?? '';
+  const result = await renderMermaidSource(source);
+  if (result.ok) {
+    host.innerHTML = result.svg;
+    host.dataset.rendered = 'true';
+  } else {
+    host.dataset.rendered = 'error';
     host.innerHTML = (
       '<div class="chat-mermaid-error">'
       + '<div class="chat-mermaid-error-title">Mermaid render failed</div>'
-      + `<div class="chat-mermaid-error-detail">${escapeHtml(message)}</div>`
+      + `<div class="chat-mermaid-error-detail">${escapeHtml(result.error)}</div>`
       + '</div>'
     );
   }
