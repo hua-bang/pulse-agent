@@ -38,6 +38,16 @@ import {
   writeCanvasFull,
   getCanvasJsonPath,
 } from '../canvas-storage';
+import {
+  listWorkspaceNodes,
+  readWorkspaceNode,
+  writeWorkspaceNode,
+  WORKSPACE_NODE_SCHEMA_VERSION,
+  type WorkspaceNodeRecord,
+  type WorkspaceNodeLink,
+  type WorkspaceNodePropertyValue,
+} from '../workspace-node-store';
+import { readKnowledgeTags, upsertKnowledgeTag } from '../tag-store';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const BLANK_PAGE_URL = 'about:blank';
@@ -1283,6 +1293,435 @@ ${outline}`;
         broadcastUpdate(workspaceId, [nodeId]);
 
         return JSON.stringify({ ok: true, nodeId });
+      },
+    },
+
+    // ─── Graph / search / grouping ──────────────────────────────────
+
+    canvas_search_nodes: {
+      name: 'canvas_search_nodes',
+      description:
+        'Search canvas nodes by query, type, or workspace-node tag. ' +
+        'Returns a compact list (id, type, title, snippet) so you can avoid pulling the whole canvas summary when you only need a few matches. ' +
+        'Use this before `canvas_read_node` to narrow down which nodes to read in detail.',
+      inputSchema: z.object({
+        query: z.string().optional().describe(
+          'Case-insensitive substring matched against node title, label, content, url, and filePath.',
+        ),
+        type: z.union([
+          z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap']),
+          z.array(z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap'])),
+        ]).optional().describe('Restrict to one or more node types.'),
+        tag: z.union([z.string(), z.array(z.string())]).optional().describe(
+          'Filter by workspace-node tag(s). A node matches when its workspace-node record has ALL provided tags in `properties.tags`. ' +
+          'Tags live in the knowledge layer (`workspace-node-store`), not on the canvas node itself.',
+        ),
+        limit: z.number().int().positive().max(200).optional().describe('Max results to return. Default 30.'),
+        workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace.'),
+      }),
+      execute: async (input) => {
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const canvas = await loadCanvas(targetWorkspaceId);
+        if (!canvas) return `Error: workspace not found: ${targetWorkspaceId}`;
+
+        const query = typeof input.query === 'string' ? input.query.trim().toLowerCase() : '';
+        const typeFilter = (() => {
+          if (!input.type) return null;
+          const arr = Array.isArray(input.type) ? input.type : [input.type];
+          return new Set(arr as string[]);
+        })();
+        const tagFilter = (() => {
+          if (!input.tag) return null;
+          const arr: unknown[] = Array.isArray(input.tag) ? input.tag : [input.tag];
+          const cleaned = arr
+            .filter((t: unknown): t is string => typeof t === 'string')
+            .map((t: string) => t.trim())
+            .filter(Boolean);
+          return cleaned.length ? cleaned : null;
+        })();
+        const limit = (input.limit as number | undefined) ?? 30;
+
+        const wsNodeById = new Map<string, WorkspaceNodeRecord>();
+        if (tagFilter) {
+          const records = await listWorkspaceNodes(targetWorkspaceId);
+          for (const record of records) wsNodeById.set(record.id, record);
+        }
+
+        const matchHaystacks = (node: CanvasNode): string[] => {
+          const fields: string[] = [node.title ?? '', node.type ?? ''];
+          const data = node.data ?? {};
+          for (const key of ['content', 'label', 'url', 'filePath', 'cwd', 'prompt', 'html']) {
+            const v = data[key];
+            if (typeof v === 'string') fields.push(v);
+          }
+          return fields;
+        };
+
+        const snippetFor = (node: CanvasNode): string => {
+          const data = node.data ?? {};
+          const candidates: Array<string | undefined> = [
+            typeof data.content === 'string' ? (data.content as string) : undefined,
+            typeof data.label === 'string' ? (data.label as string) : undefined,
+            typeof data.url === 'string' ? (data.url as string) : undefined,
+            typeof data.filePath === 'string' ? (data.filePath as string) : undefined,
+          ];
+          const first = candidates.find((c) => c && c.trim().length > 0) ?? '';
+          const normalized = first.replace(/\s+/g, ' ').trim();
+          return normalized.length > 160 ? `${normalized.slice(0, 157)}...` : normalized;
+        };
+
+        const matches: Array<{
+          id: string;
+          type: string;
+          title: string;
+          snippet: string;
+          x: number;
+          y: number;
+          tags?: string[];
+        }> = [];
+
+        for (const node of canvas.nodes) {
+          if (typeFilter && !typeFilter.has(node.type)) continue;
+
+          if (tagFilter) {
+            const record = wsNodeById.get(node.id);
+            const rawTags: unknown[] = Array.isArray(record?.properties?.tags)
+              ? (record!.properties!.tags as unknown[])
+              : [];
+            const tagSet = new Set(
+              rawTags.filter((t: unknown): t is string => typeof t === 'string'),
+            );
+            const hasAll = tagFilter.every((t: string) => tagSet.has(t));
+            if (!hasAll) continue;
+          }
+
+          if (query) {
+            const hay = matchHaystacks(node).join('\n').toLowerCase();
+            if (!hay.includes(query)) continue;
+          }
+
+          const record = wsNodeById.get(node.id);
+          const tags = Array.isArray(record?.properties?.tags)
+            ? (record!.properties!.tags as string[]).filter((t): t is string => typeof t === 'string')
+            : undefined;
+
+          matches.push({
+            id: node.id,
+            type: node.type,
+            title: node.title ?? '',
+            snippet: snippetFor(node),
+            x: node.x,
+            y: node.y,
+            ...(tags && tags.length ? { tags } : {}),
+          });
+          if (matches.length >= limit) break;
+        }
+
+        return JSON.stringify({
+          ok: true,
+          workspaceId: targetWorkspaceId,
+          total: matches.length,
+          truncated: matches.length >= limit,
+          matches,
+        });
+      },
+    },
+
+    canvas_add_to_group: {
+      name: 'canvas_add_to_group',
+      description:
+        'Add one or more nodes to a group node\'s explicit child list (`data.childIds`). ' +
+        'Use this to make grouping deterministic — frames rely on spatial bbox containment, but groups own their members explicitly via childIds. ' +
+        'Targets that are already in the group are ignored (dedup). Cannot add the group to itself.',
+      inputSchema: z.object({
+        groupId: z.string().describe('The group node id. Must reference a node of type "group".'),
+        nodeIds: z.array(z.string()).min(1).describe('Node ids to add to the group.'),
+      }),
+      execute: async (input) => {
+        const groupId = input.groupId as string;
+        const requested = (input.nodeIds as string[]).filter((id) => typeof id === 'string' && id);
+
+        const canvas = await loadCanvas(workspaceId);
+        if (!canvas) return 'Error: workspace not found';
+
+        const group = canvas.nodes.find((n) => n.id === groupId);
+        if (!group) return `Error: group not found: ${groupId}`;
+        if (group.type !== 'group') {
+          return `Error: node ${groupId} is type "${group.type}", not "group". Use canvas_update_node for frames; frame membership is spatial.`;
+        }
+
+        const validIds = new Set(canvas.nodes.map((n) => n.id));
+        const missing = requested.filter((id) => !validIds.has(id));
+        const selfRef = requested.includes(groupId);
+        const candidates = requested.filter((id) => validIds.has(id) && id !== groupId);
+
+        const existing: string[] = Array.isArray(group.data.childIds)
+          ? (group.data.childIds as unknown[]).filter((v): v is string => typeof v === 'string')
+          : [];
+        const existingSet = new Set(existing);
+        const added: string[] = [];
+        for (const id of candidates) {
+          if (existingSet.has(id)) continue;
+          existingSet.add(id);
+          added.push(id);
+        }
+
+        if (added.length === 0) {
+          return JSON.stringify({
+            ok: true,
+            groupId,
+            added: [],
+            childIds: existing,
+            note: 'No changes — all targets were already members (or invalid).',
+            ...(missing.length ? { missing } : {}),
+            ...(selfRef ? { selfRef: true } : {}),
+          });
+        }
+
+        // Re-read so concurrent edits to OTHER fields of the group survive.
+        const fresh = (await loadCanvas(workspaceId)) ?? canvas;
+        const idx = fresh.nodes.findIndex((n) => n.id === groupId);
+        if (idx === -1) return `Error: group ${groupId} was deleted concurrently; add aborted`;
+        const freshGroup = fresh.nodes[idx];
+        const freshExisting: string[] = Array.isArray(freshGroup.data.childIds)
+          ? (freshGroup.data.childIds as unknown[]).filter((v): v is string => typeof v === 'string')
+          : [];
+        const merged = [...freshExisting];
+        const mergedSet = new Set(freshExisting);
+        for (const id of added) {
+          if (mergedSet.has(id)) continue;
+          mergedSet.add(id);
+          merged.push(id);
+        }
+        freshGroup.data.childIds = merged;
+        freshGroup.updatedAt = Date.now();
+
+        await saveCanvas(workspaceId, fresh);
+        broadcastUpdate(workspaceId, [groupId]);
+
+        return JSON.stringify({
+          ok: true,
+          groupId,
+          added,
+          childIds: merged,
+          ...(missing.length ? { missing } : {}),
+          ...(selfRef ? { selfRef: true } : {}),
+        });
+      },
+    },
+
+    canvas_remove_from_group: {
+      name: 'canvas_remove_from_group',
+      description:
+        'Remove one or more nodes from a group node\'s explicit child list (`data.childIds`). ' +
+        'Targets not currently in the group are ignored. Does NOT delete the nodes themselves.',
+      inputSchema: z.object({
+        groupId: z.string().describe('The group node id.'),
+        nodeIds: z.array(z.string()).min(1).describe('Node ids to remove from the group.'),
+      }),
+      execute: async (input) => {
+        const groupId = input.groupId as string;
+        const requested = new Set(
+          (input.nodeIds as string[]).filter((id) => typeof id === 'string' && id),
+        );
+
+        const fresh = await loadCanvas(workspaceId);
+        if (!fresh) return 'Error: workspace not found';
+
+        const idx = fresh.nodes.findIndex((n) => n.id === groupId);
+        if (idx === -1) return `Error: group not found: ${groupId}`;
+        const group = fresh.nodes[idx];
+        if (group.type !== 'group') {
+          return `Error: node ${groupId} is type "${group.type}", not "group".`;
+        }
+
+        const existing: string[] = Array.isArray(group.data.childIds)
+          ? (group.data.childIds as unknown[]).filter((v): v is string => typeof v === 'string')
+          : [];
+        const next = existing.filter((id) => !requested.has(id));
+        const removed = existing.filter((id) => requested.has(id));
+
+        if (removed.length === 0) {
+          return JSON.stringify({
+            ok: true,
+            groupId,
+            removed: [],
+            childIds: existing,
+            note: 'No changes — none of the targets were group members.',
+          });
+        }
+
+        group.data.childIds = next;
+        group.updatedAt = Date.now();
+
+        await saveCanvas(workspaceId, fresh);
+        broadcastUpdate(workspaceId, [groupId]);
+
+        return JSON.stringify({
+          ok: true,
+          groupId,
+          removed,
+          childIds: next,
+        });
+      },
+    },
+
+    // ─── Workspace-node metadata layer (knowledge atoms) ────────────
+
+    workspace_node_list: {
+      name: 'workspace_node_list',
+      description:
+        'List workspace-node knowledge atoms — the separate metadata layer that stores `properties` (tags, summary, kind, sourceUrl...) and `links` (relations between nodes) alongside the visual canvas. ' +
+        'A workspace-node has the SAME id as the canvas node it annotates (when one exists), but they are stored separately. ' +
+        'Use this to surface what knowledge metadata already exists before reading or editing.',
+      inputSchema: z.object({
+        workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace.'),
+      }),
+      execute: async (input) => {
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const records = await listWorkspaceNodes(targetWorkspaceId);
+        const tags = await readKnowledgeTags();
+        const nodes = records.map((record) => {
+          const tagsArr = Array.isArray(record.properties?.tags)
+            ? (record.properties!.tags as unknown[]).filter((t): t is string => typeof t === 'string')
+            : [];
+          return {
+            id: record.id,
+            type: record.type,
+            title: record.title,
+            tags: tagsArr,
+            linkCount: Array.isArray(record.links) ? record.links.length : 0,
+            propertyKeys: record.properties ? Object.keys(record.properties) : [],
+            updatedAt: record.updatedAt,
+          };
+        });
+        return JSON.stringify({
+          ok: true,
+          workspaceId: targetWorkspaceId,
+          total: nodes.length,
+          nodes,
+          knownTags: tags.map((t) => ({ id: t.id, name: t.name, description: t.description })),
+        });
+      },
+    },
+
+    workspace_node_get: {
+      name: 'workspace_node_get',
+      description:
+        'Read the full workspace-node metadata record for a given node id (properties, links, data, tags). ' +
+        'Returns null when no metadata atom exists yet — use `workspace_node_upsert` to create one.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('The node id (matches the canvas node id when annotating one).'),
+        workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace.'),
+      }),
+      execute: async (input) => {
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const nodeId = input.nodeId as string;
+        const record = await readWorkspaceNode(targetWorkspaceId, nodeId);
+        return JSON.stringify({ ok: true, workspaceId: targetWorkspaceId, nodeId, record });
+      },
+    },
+
+    workspace_node_upsert: {
+      name: 'workspace_node_upsert',
+      description:
+        'Create or merge-update a workspace-node knowledge atom (separate from the canvas layout). ' +
+        'Use this to attach `tags`, `properties` (kind, summary, sourceUrl, custom values), and `links` (typed relations to other nodes) to a node id. ' +
+        'When the record already exists, the patch is merged: `properties` are shallow-merged, `links` REPLACES the existing array when provided, and `tags` REPLACES `properties.tags` when provided. ' +
+        'Tags referenced here are auto-registered as `KnowledgeTagDefinition`s if they don\'t already exist.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('Node id. Use the canvas node id when annotating an existing canvas node.'),
+        type: z.string().optional().describe('Node type. Defaults to "note" for new records; ignored for existing records unless explicitly set.'),
+        title: z.string().optional().describe('Optional display title.'),
+        tags: z.array(z.string()).optional().describe('Tag names. Replaces `properties.tags` entirely when provided. New names are auto-registered in the global tag store.'),
+        properties: z.record(z.string(), z.unknown()).optional().describe(
+          'Properties to merge into `properties`. Values may be string | number | boolean | null | string[] | number[] | { type: "date"|"url"|"file"|"node"|"workspace-node", ... }. ' +
+          'Keys not provided are left untouched. Pass `null` for a key to clear it.',
+        ),
+        links: z.array(z.object({
+          relation: z.string().describe('Relation name, e.g. "references", "implements", "depends-on".'),
+          targetNodeId: z.string().describe('The target node id.'),
+          targetWorkspaceId: z.string().optional().describe('Cross-workspace target. Omit for same-workspace links.'),
+          title: z.string().optional(),
+        })).optional().describe('When provided, REPLACES the full `links` array. Omit to keep existing links.'),
+        data: z.record(z.string(), z.unknown()).optional().describe('Optional data payload (free-form). Shallow-merged when patching.'),
+        workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace.'),
+      }),
+      execute: async (input) => {
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const nodeId = input.nodeId as string;
+
+        const existing = await readWorkspaceNode(targetWorkspaceId, nodeId);
+        const now = Date.now();
+
+        const patchProperties = input.properties as Record<string, WorkspaceNodePropertyValue | null> | undefined;
+        const mergedProperties: Record<string, WorkspaceNodePropertyValue> = { ...(existing?.properties ?? {}) };
+        if (patchProperties) {
+          for (const [k, v] of Object.entries(patchProperties)) {
+            if (v === null || v === undefined) {
+              delete mergedProperties[k];
+            } else {
+              mergedProperties[k] = v as WorkspaceNodePropertyValue;
+            }
+          }
+        }
+        if (Array.isArray(input.tags)) {
+          const cleanTags = (input.tags as unknown[])
+            .filter((t): t is string => typeof t === 'string')
+            .map((t) => t.trim())
+            .filter(Boolean);
+          const dedup = Array.from(new Set(cleanTags));
+          mergedProperties.tags = dedup;
+          // Auto-register tags so the renderer's tag picker shows them.
+          for (const name of dedup) {
+            try {
+              await upsertKnowledgeTag({ name });
+            } catch {
+              // tag-store rejects unsafe ids; skip silently rather than fail the whole upsert.
+            }
+          }
+        }
+
+        const nextLinks: WorkspaceNodeLink[] | undefined = Array.isArray(input.links)
+          ? (input.links as Array<{
+              relation: string;
+              targetNodeId: string;
+              targetWorkspaceId?: string;
+              title?: string;
+            }>).map((l) => ({
+              relation: l.relation,
+              target: l.targetWorkspaceId
+                ? { workspaceId: l.targetWorkspaceId, nodeId: l.targetNodeId }
+                : { nodeId: l.targetNodeId },
+              ...(l.title ? { title: l.title } : {}),
+            }))
+          : existing?.links;
+
+        const mergedData: Record<string, unknown> = {
+          ...(existing?.data ?? {}),
+          ...(input.data ? (input.data as Record<string, unknown>) : {}),
+        };
+
+        const next: WorkspaceNodeRecord = {
+          schemaVersion: WORKSPACE_NODE_SCHEMA_VERSION,
+          id: nodeId,
+          type: (input.type as string | undefined) ?? existing?.type ?? 'note',
+          ...(input.title !== undefined ? { title: input.title as string } : existing?.title !== undefined ? { title: existing.title } : {}),
+          data: mergedData,
+          ...(Object.keys(mergedProperties).length ? { properties: mergedProperties } : {}),
+          ...(nextLinks && nextLinks.length ? { links: nextLinks } : {}),
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
+        };
+
+        await writeWorkspaceNode(targetWorkspaceId, next);
+        return JSON.stringify({
+          ok: true,
+          workspaceId: targetWorkspaceId,
+          nodeId,
+          created: !existing,
+          record: next,
+        });
       },
     },
 
