@@ -122,6 +122,7 @@ export function createWebviewPageControlTools(
   return {
     page_eval: {
       name: 'page_eval',
+      defer_loading: true,
       description:
         'Run arbitrary JavaScript inside the iframe node\'s page and return its result. ' +
         'The code body should `return` a JSON-serialisable value (or a Promise that resolves to one). ' +
@@ -152,6 +153,7 @@ export function createWebviewPageControlTools(
 
     page_click: {
       name: 'page_click',
+      defer_loading: true,
       description:
         'Click an element matching a CSS selector via CDP — produces a real ' +
         'mousePressed/mouseReleased pair through Chromium\'s input router (not a JS ' +
@@ -186,6 +188,7 @@ export function createWebviewPageControlTools(
 
     page_click_at: {
       name: 'page_click_at',
+      defer_loading: true,
       description:
         'Click at absolute viewport coordinates (x, y) via CDP. Use this when paired ' +
         'with `canvas_read_webpage({ strategy: "screenshot" })` + vision — the agent ' +
@@ -223,6 +226,7 @@ export function createWebviewPageControlTools(
 
     page_fill: {
       name: 'page_fill',
+      defer_loading: true,
       description:
         'Fill an <input>, <textarea>, or contenteditable element with `value`. ' +
         'Focuses the element, clears the existing value (React-safe via the native ' +
@@ -258,6 +262,7 @@ export function createWebviewPageControlTools(
 
     page_press: {
       name: 'page_press',
+      defer_loading: true,
       description:
         'Dispatch a keyDown + keyUp pair via CDP — real keyboard events with proper ' +
         '`isTrusted=true` and user-activation, so React shortcuts (Cmd+K, Ctrl+S, etc.) ' +
@@ -294,6 +299,7 @@ export function createWebviewPageControlTools(
 
     page_scroll: {
       name: 'page_scroll',
+      defer_loading: true,
       description:
         'Scroll the page. Provide exactly one of: ' +
         '`top: true` (scroll to start), `bottom: true` (scroll to end), ' +
@@ -354,6 +360,7 @@ export function createWebviewPageControlTools(
 
     page_wait_for: {
       name: 'page_wait_for',
+      defer_loading: true,
       description:
         'Poll the page until a condition is met or timeout. Provide EITHER `selector` ' +
         '(waits for a visible element matching the CSS selector) OR `predicate` (a JS ' +

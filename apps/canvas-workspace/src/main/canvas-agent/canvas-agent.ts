@@ -146,24 +146,24 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - \`canvas_read_node\`: Read a single node's content in detail
 - \`canvas_search_nodes\`: Search nodes by query / type / tag — use this BEFORE \`canvas_read_node\` when the canvas has many nodes so you don't blow the context window pulling the full summary
 - \`canvas_create_node\`: Create new file/frame/text/image/iframe/mindmap nodes (generic)
-- \`canvas_analyze_image\`: Read/OCR/analyze image nodes or local image paths
-- \`canvas_generate_image\`: Generate an AI image and place it on the canvas as an image node
 - \`canvas_create_agent_node\`: **Create and launch an AI agent node** — preferred for agent creation
-- \`canvas_send_to_agent\`: **Send a follow-up prompt to an already-running agent node** — use for any interaction AFTER the initial launch
-- \`canvas_create_terminal_node\`: **Create a terminal node** — preferred for terminal creation
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
-- \`canvas_delete_node\`: Remove a node from the canvas
-- \`canvas_move_node\`: Reposition a node
+- \`visual_render\`: Inline visual rendering (default for any visual request — see Visualization Tools below)
+- \`artifact_create\`: Persistent, versioned visual artifact (only when the user explicitly asks to save / keep / iterate — see Visualization Tools below)
 - \`canvas_ask_user\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing.
 
 ## Deferred Tools (discover via tool_search)
-The following tools are NOT loaded by default — call \`tool_search_tool_bm25\` (natural language) or \`tool_search_tool_regex\` (regex) with a relevant query to surface them, then invoke the returned tool. Group them by intent:
+The following tools are NOT loaded by default — call \`tool_search_tool_bm25\` (natural language) or \`tool_search_tool_regex\` (regex) with a relevant query to surface them, then invoke the returned tool. Grouped by intent:
+- **Node mutation (delete / move)**: \`canvas_delete_node\`, \`canvas_move_node\` — load when the user asks to remove or reposition a specific node.
+- **Specialized creators**: \`canvas_create_terminal_node\` (preferred for terminal creation), \`canvas_create_shape\` (precise shape sizing).
+- **Agent follow-ups**: \`canvas_send_to_agent\` — load whenever you need to interact with an ALREADY-running agent node (after the initial launch).
+- **Image / vision**: \`canvas_analyze_image\` (read/OCR/analyze image nodes or local paths), \`canvas_generate_image\` (AI-generated image as a canvas image node), \`canvas_generate_mindmap_image\` (visual export of an existing mindmap node).
 - **Edges / connections**: \`canvas_list_edges\`, \`canvas_create_edge\`, \`canvas_update_edge\`, \`canvas_delete_edge\` — load when the user asks to connect / link / draw arrows between nodes.
-- **Group membership**: \`canvas_add_to_group\`, \`canvas_remove_from_group\` — load when the user asks to add/remove nodes to/from a group (groups own members via \`data.childIds\`; frames use spatial containment, no tool needed — just \`canvas_move_node\` into the frame's bbox).
+- **Group membership**: \`canvas_add_to_group\`, \`canvas_remove_from_group\` — load when the user asks to add/remove nodes to/from a group (groups own members via \`data.childIds\`; frames use spatial containment, no tool needed — just move into the frame's bbox).
 - **Workspace-node knowledge layer**: \`workspace_node_list\`, \`workspace_node_get\`, \`workspace_node_upsert\` — load when the user is tagging nodes, building a knowledge graph, or asking "find/group/connect nodes by X". Separate metadata store with tags / properties / typed links.
-- **Visual specialties**: \`canvas_create_shape\` (precise shape sizing), \`canvas_generate_mindmap_image\` (visual export of a mindmap node).
-- **Artifact versioning**: \`artifact_update\` (only when iterating on an already-created artifact).
-- **Webpage scraping**: \`canvas_read_webpage\` (DOM/a11y/screenshot from an open iframe node).
+- **Artifact follow-ups**: \`artifact_update\` (only when iterating on an already-created artifact), \`artifact_pin_to_canvas\` (only after \`artifact_create\` — pins an existing artifact onto the canvas as an iframe node, used to lay out / compare side-by-side).
+- **Webpage scraping**: \`canvas_read_webpage\` (DOM / a11y / screenshot from an open iframe node).
+- **Page control (driving an open iframe)**: \`page_eval\`, \`page_click\`, \`page_click_at\`, \`page_fill\`, \`page_press\`, \`page_scroll\`, \`page_wait_for\` — load when the user asks you to interact with the contents of an iframe node (click a button, fill a form, scroll, wait for an element). These act on the live page inside the iframe.
 
 When in doubt about which tool exists for an operation, just call \`tool_search_tool_bm25\` with a description of what you want to do.
 

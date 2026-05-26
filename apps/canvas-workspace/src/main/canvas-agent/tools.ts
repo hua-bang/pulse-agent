@@ -992,6 +992,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
 
     canvas_analyze_image: {
       name: 'canvas_analyze_image',
+      defer_loading: true,
       description:
         'Read/analyze one or more image nodes or local image paths using a vision model. ' +
         'Use this when the user asks what is in an image on the canvas, asks to OCR/summarize a picture, ' +
@@ -1044,6 +1045,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
 
     canvas_generate_image: {
       name: 'canvas_generate_image',
+      defer_loading: true,
       description:
         'Generate an image with the engine generate_image implementation and return it to the chat. ' +
         'Use this when the user asks to create/draw/generate a picture, diagram, poster, or visual asset. ' +
@@ -1246,6 +1248,7 @@ ${outline}`;
 
     canvas_delete_node: {
       name: 'canvas_delete_node',
+      defer_loading: true,
       description: 'Delete a node from the canvas.',
       inputSchema: z.object({
         nodeId: z.string().describe('The ID of the node to delete.'),
@@ -1273,6 +1276,7 @@ ${outline}`;
 
     canvas_move_node: {
       name: 'canvas_move_node',
+      defer_loading: true,
       description: 'Move a node to a new position on the canvas.',
       inputSchema: z.object({
         nodeId: z.string().describe('The ID of the node to move.'),
@@ -1826,6 +1830,7 @@ ${outline}`;
 
     canvas_send_to_agent: {
       name: 'canvas_send_to_agent',
+      defer_loading: true,
       description:
         'Send a follow-up prompt to an existing, RUNNING agent node (Claude Code / Codex / Pulse Coder). ' +
         'Writes the text directly to the agent\'s PTY as if the user typed it, and auto-appends Enter ' +
@@ -1890,6 +1895,7 @@ ${outline}`;
 
     canvas_create_terminal_node: {
       name: 'canvas_create_terminal_node',
+      defer_loading: true,
       description:
         'Create and spawn an interactive terminal node on the canvas. ' +
         'The shell starts automatically. Use `command` to execute a command after the shell is ready ' +
@@ -2446,6 +2452,7 @@ ${outline}`;
 
     artifact_pin_to_canvas: {
       name: 'artifact_pin_to_canvas',
+      defer_loading: true,
       description:
         'Pin an existing artifact onto the spatial canvas as an iframe node. The node renders the artifact\'s current version live — any future `artifact_update` ' +
         'updates the on-canvas node too. Use this when the user asks to keep multiple visuals side by side, compare options, or build a spatial dashboard.',
