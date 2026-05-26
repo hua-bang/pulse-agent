@@ -246,7 +246,7 @@ app.on("web-contents-created", (_event, contents) => {
   }
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Notion (and a handful of other services) reject embedded `<webview>`s
   // on two grounds: the UA string contains the "Electron/x.y.z" token, AND
   // the Chrome major version bundled with Electron 30 (Chromium 124) is now
@@ -323,7 +323,11 @@ app.whenReady().then(() => {
   setupShellIpc();
   setupWebpageReaderIpc();
   setupWorkspaceNodeIpc();
-  void setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
+  // Plugin activation can register canvas-agent tools; we need that done
+  // BEFORE any canvas-agent is constructed (which happens when the
+  // renderer first calls into canvas-agent IPC). Await so the registry
+  // is fully populated by the time the window comes up.
+  await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
   void startRuntimeControlServer().catch((err) => {
     void writeLog("main", "runtime-control-server failed to start", String(err));
   });

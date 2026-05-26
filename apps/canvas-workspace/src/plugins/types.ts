@@ -44,7 +44,30 @@ export interface MainCtx {
   // existing host IPC.
   handle(channel: string, handler: PluginIpcHandler): void;
   onAgent(event: AgentEvent, handler: (turn: AgentTurn) => void): () => void;
+  /**
+   * Register a factory that contributes canvas-agent tools. The factory
+   * is invoked once per workspace at canvas-agent construction time —
+   * it receives the workspaceId and returns a name → tool map. Tools
+   * from all registered factories are merged into the canvas-agent's
+   * tool set; later entries with the same name shadow earlier ones.
+   *
+   * The factory's return value is intentionally typed as `unknown` here
+   * so this shared types module does not have to import the host's
+   * `CanvasTool` definition (which lives in main and cannot be imported
+   * from the renderer half). The host casts to the concrete type at
+   * the registry boundary.
+   */
+  registerCanvasTool(factory: CanvasToolFactory): void;
 }
+
+/**
+ * Factory contract for plugin-contributed canvas-agent tools. Called
+ * once per workspace when the canvas-agent boots; the plugin can use
+ * the workspaceId to scope tool behaviour. Returns a `Record<toolName, tool>`
+ * where each tool conforms to the host's `CanvasTool` shape — checked
+ * structurally at the boundary, not via a TS import.
+ */
+export type CanvasToolFactory = (workspaceId: string) => Record<string, unknown>;
 
 // Minimal contract — hosts pass any chat-message object that has at
 // least a `role`. Plugins' match() functions cast to read whatever
