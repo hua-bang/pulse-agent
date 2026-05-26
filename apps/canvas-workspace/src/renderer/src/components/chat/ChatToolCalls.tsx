@@ -74,7 +74,17 @@ function formatToolLabel(name: string, status: ToolCallStatus['status']): string
     case 'bash':
       return `${prefix}运行命令`;
     default:
-      return status === 'running' ? `正在执行 ${name}` : `已执行 ${name}`;
+      return status === 'running' ? '正在执行' : '已执行';
+  }
+}
+
+function formatArgs(args: unknown): string {
+  if (args === undefined || args === null) return '';
+  if (typeof args === 'string') return args;
+  try {
+    return JSON.stringify(args, null, 2);
+  } catch {
+    return String(args);
   }
 }
 
@@ -135,7 +145,8 @@ export const ChatToolCalls = ({
               )}
             </span>
             <span className="chat-tool-call-sig" title={formatToolSignature(tool.name, tool.args)}>
-              {formatToolLabel(tool.name, tool.status)}
+              <span className="chat-tool-call-label">{formatToolLabel(tool.name, tool.status)}</span>
+              <span className="chat-tool-call-name">{tool.name}</span>
             </span>
             {tool.status === 'done' && tool.result && (
               <span className={`chat-tool-call-chevron${expandedTools.has(tool.id) ? ' chat-tool-call-chevron--open' : ''}`}>
@@ -145,9 +156,20 @@ export const ChatToolCalls = ({
               </span>
             )}
           </div>
-          {expandedTools.has(tool.id) && tool.result && (
+          {expandedTools.has(tool.id) && (tool.result || tool.args !== undefined) && (
             <div className="chat-tool-call-result">
-              <pre>{tool.result.length > 2000 ? `${tool.result.slice(0, 2000)}\n...(truncated)` : tool.result}</pre>
+              {tool.args !== undefined && (
+                <div className="chat-tool-call-section">
+                  <div className="chat-tool-call-section-label">{tool.name} · input</div>
+                  <pre>{formatArgs(tool.args)}</pre>
+                </div>
+              )}
+              {tool.result && (
+                <div className="chat-tool-call-section">
+                  <div className="chat-tool-call-section-label">output</div>
+                  <pre>{tool.result.length > 2000 ? `${tool.result.slice(0, 2000)}\n...(truncated)` : tool.result}</pre>
+                </div>
+              )}
             </div>
           )}
         </div>

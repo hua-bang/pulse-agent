@@ -1420,10 +1420,24 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+}
+
+.chat-tool-call-label {
+  color: inherit;
+}
+
+.chat-tool-call-name {
+  margin-left: 6px;
+  color: rgba(55, 53, 47, 0.4);
 }
 
 .chat-tool-call--done .chat-tool-call-sig {
   color: rgba(55, 53, 47, 0.4);
+}
+
+.chat-tool-call--done .chat-tool-call-name {
+  color: rgba(55, 53, 47, 0.32);
 }
 
 .chat-tool-call-chevron {
@@ -1456,6 +1470,21 @@
   color: rgba(55, 53, 47, 0.6);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.chat-tool-call-section + .chat-tool-call-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(55, 53, 47, 0.06);
+}
+
+.chat-tool-call-section-label {
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(55, 53, 47, 0.45);
+  margin-bottom: 4px;
 }
 
 /* ─── @ Mention popup ────────────────────────────────────── */
