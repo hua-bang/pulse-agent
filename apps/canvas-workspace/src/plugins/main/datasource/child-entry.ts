@@ -9,8 +9,10 @@
  * Responsibilities:
  *   1. Receive a `DatasourceSpec` over IPC.
  *   2. Start the runner that owns the fetch loop / subscription.
- *   3. On every raw value, apply the optional transform via pulse-sandbox
- *      (a separate fork — true isolation for LLM-authored code).
+ *   3. On every raw value, apply the optional transform inline via a
+ *      Node `vm` sandbox (no fetch / require / process; sync code only
+ *      with a 1s timeout). Same-process isolation — fine for trusted
+ *      LLM output, NOT a security boundary.
  *   4. Listen on a random localhost port and serve:
  *        - GET /         → an HTML page wrapping the spec's ui that
  *                          subscribes to /stream.
