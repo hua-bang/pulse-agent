@@ -96,6 +96,30 @@ describe('evaluateActionPolicyWith', () => {
       expect(evaluateActionPolicyWith('https://mybank.com', cfg).allow).toBe(false);
       expect(evaluateActionPolicyWith('https://example.com', cfg).allow).toBe(true);
     });
+
+    it('ignores non-string entries instead of crashing on .toLowerCase()', () => {
+      // Hand-built config bypassing the loader's normalisation. Should
+      // skip non-string entries cleanly rather than throw, so a typo in
+      // user JSON degrades to "treated as no extra rule" rather than
+      // bricking the tool entirely.
+      const cfg = {
+        denyHostPatterns: ['*bank*', 123 as unknown as string, null as unknown as string],
+        allowHostPatterns: ['example.com', 42 as unknown as string],
+      };
+      expect(() => evaluateActionPolicyWith('https://example.com', cfg)).not.toThrow();
+      expect(evaluateActionPolicyWith('https://example.com', cfg).allow).toBe(true);
+      expect(evaluateActionPolicyWith('https://mybank.com', cfg).allow).toBe(false);
+    });
+  });
+
+  describe('default-list coverage', () => {
+    it('blocks Auth0 tenant subdomains, not only the exact apex', () => {
+      // Tenant logins live on subdomains like tenant.us.auth0.com — the
+      // exact-only pattern previously let them through.
+      expect(evaluateActionPolicyWith('https://auth0.com', {}).allow).toBe(false);
+      expect(evaluateActionPolicyWith('https://tenant.us.auth0.com', {}).allow).toBe(false);
+      expect(evaluateActionPolicyWith('https://example.auth0.com/login', {}).allow).toBe(false);
+    });
   });
 
   describe('host matching', () => {

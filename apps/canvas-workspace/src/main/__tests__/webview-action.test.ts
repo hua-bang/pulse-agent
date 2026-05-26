@@ -5,11 +5,13 @@ import {
   buildFillScript,
   buildPressScript,
   buildProbeScript,
+  buildScrollScript,
   clickSelector,
   evalInPage,
   fillSelector,
   pressKey,
   resolveKeySpec,
+  scrollPage,
   waitForCondition,
   type PageRunner,
 } from '../webview-action';
@@ -84,9 +86,13 @@ describe('resolveKeySpec', () => {
     expect(resolveKeySpec('ArrowDown')).toEqual({ key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 });
   });
 
-  it('maps single characters', () => {
-    expect(resolveKeySpec('a')).toEqual({ key: 'a', code: 'KeyA', keyCode: 97 });
+  it('maps single characters with legacy-uppercase keyCode for letters', () => {
+    // keyCode follows the legacy physical-key convention: both 'a' and 'A'
+    // produce keyCode 65, matching what older shortcut handlers expect.
+    expect(resolveKeySpec('a')).toEqual({ key: 'a', code: 'KeyA', keyCode: 65 });
+    expect(resolveKeySpec('A')).toEqual({ key: 'A', code: 'KeyA', keyCode: 65 });
     expect(resolveKeySpec('Z')).toEqual({ key: 'Z', code: 'KeyZ', keyCode: 90 });
+    expect(resolveKeySpec('z')).toEqual({ key: 'z', code: 'KeyZ', keyCode: 90 });
     expect(resolveKeySpec('5')).toEqual({ key: '5', code: 'Digit5', keyCode: 53 });
   });
 
@@ -204,5 +210,135 @@ describe('waitForCondition', () => {
     expect(r.ok).toBe(false);
     expect(r.timedOut).toBe(true);
     expect(r.error).toContain('probe blew up');
+  });
+
+  it('enforces a per-probe timeout so a hung predicate does not block forever', async () => {
+    // First probe never resolves. With per-probe timeout enforced, the
+    // outer wait should still return within roughly timeoutMs and surface
+    // the per-probe timeout as the last error.
+    const runner = makeRunner(
+      () =>
+        new Promise(() => {
+          /* never resolves */
+        }),
+    );
+    const start = Date.now();
+    const r = await waitForCondition(runner, {
+      predicate: 'while(1){}; return false',
+      timeoutMs: 200,
+      intervalMs: 50,
+    });
+    const elapsed = Date.now() - start;
+    expect(r.ok).toBe(false);
+    expect(r.timedOut).toBe(true);
+    expect(elapsed).toBeLessThan(600); // sanity: didn't hang
+  });
+
+  it('aborts immediately when abortCheck returns a reason', async () => {
+    let calls = 0;
+    const runner = makeRunner(() => {
+      calls += 1;
+      return { ok: true, matched: false };
+    });
+    const r = await waitForCondition(runner, {
+      selector: '.x',
+      timeoutMs: 1000,
+      intervalMs: 10,
+      abortCheck: () => (calls >= 2 ? 'policy changed mid-wait' : null),
+    });
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('policy changed mid-wait');
+    // abortCheck fires BEFORE the probe each iteration, so we abort
+    // before running probe #3.
+    expect(calls).toBe(2);
+  });
+});
+
+describe('evalInPage — non-serialisable results', () => {
+  it('rejects BigInt values with a structured error', async () => {
+    const runner = makeRunner(() => ({ ok: true, value: 1n }));
+    const r = await evalInPage(runner, 'return 1n');
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/not JSON-serialisable/);
+  });
+
+  it('rejects cyclic values with a structured error', async () => {
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    const runner = makeRunner(() => ({ ok: true, value: cycle }));
+    const r = await evalInPage(runner, 'var x={}; x.self=x; return x');
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/not JSON-serialisable/);
+  });
+
+  it('accepts plain JSON-friendly values', async () => {
+    const runner = makeRunner(() => ({ ok: true, value: { a: 1, b: [2, 'three'] } }));
+    const r = await evalInPage(runner, 'return { a: 1, b: [2, "three"] }');
+    expect(r.ok).toBe(true);
+    expect(r.data?.value).toEqual({ a: 1, b: [2, 'three'] });
+  });
+});
+
+describe('scrollPage', () => {
+  it('rejects calls with no target before talking to the runner', async () => {
+    let called = false;
+    const runner = makeRunner(() => {
+      called = true;
+      return { ok: true };
+    });
+    const r = await scrollPage(runner, {});
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/top, bottom, selector/);
+    expect(called).toBe(false);
+  });
+
+  it('scrolls to top and returns the resulting position', async () => {
+    const runner = makeRunner(() => ({
+      ok: true,
+      scrollX: 0,
+      scrollY: 0,
+      scrollHeight: 5000,
+      innerHeight: 800,
+      atTop: true,
+      atBottom: false,
+    }));
+    const r = await scrollPage(runner, { top: true });
+    expect(r.ok).toBe(true);
+    expect(r.data).toMatchObject({ scrollY: 0, atTop: true, atBottom: false });
+  });
+
+  it('scrolls by a relative offset', async () => {
+    const runner = makeRunner(() => ({
+      ok: true,
+      scrollX: 0,
+      scrollY: 800,
+      scrollHeight: 5000,
+      innerHeight: 800,
+      atTop: false,
+      atBottom: false,
+    }));
+    const r = await scrollPage(runner, { by: { y: 800 } });
+    expect(r.ok).toBe(true);
+    expect(r.data?.scrollY).toBe(800);
+  });
+
+  it('reports the selector when scrollIntoView misses', async () => {
+    const runner = makeRunner(() => ({ ok: false, error: 'selector not found: .missing' }));
+    const r = await scrollPage(runner, { selector: '.missing' });
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain('selector not found');
+  });
+});
+
+describe('buildScrollScript', () => {
+  it('embeds the spec as a JSON literal', () => {
+    const script = buildScrollScript({ selector: '#footer', block: 'end' });
+    expect(script).toContain(JSON.stringify({ selector: '#footer', block: 'end' }));
+    expect(script).toContain('scrollIntoView');
+  });
+
+  it('is JS-parse-clean against hostile selectors', () => {
+    const script = buildScrollScript({ selector: 'a"); alert(1); //' });
+    expect(() => new Function(script)).not.toThrow();
   });
 });

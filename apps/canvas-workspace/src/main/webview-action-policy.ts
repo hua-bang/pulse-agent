@@ -64,8 +64,10 @@ const DEFAULT_DENY_HOST_PATTERNS: ReadonlyArray<string> = [
   'icloud.com',
   '*.icloud.com',
   'auth0.com',
+  '*.auth0.com',
   'okta.com',
   '*.okta.com',
+  '*.oktapreview.com',
   'id.atlassian.com',
 ];
 
@@ -85,12 +87,30 @@ export function getPolicyConfigPath(): string {
   return envPath || join(homedir(), '.pulse-coder', 'canvas', 'webview-action-policy.json');
 }
 
+/** Keep only string entries — protects matchHostPattern from numeric / null
+ *  entries that would throw on `.toLowerCase()`. */
+function filterStrings(input: unknown): string[] | undefined {
+  if (!Array.isArray(input)) return undefined;
+  return input.filter((v): v is string => typeof v === 'string' && v.length > 0);
+}
+
+function normalisePolicyConfig(parsed: unknown): WebviewActionPolicyConfig {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+  const src = parsed as Record<string, unknown>;
+  const out: WebviewActionPolicyConfig = {};
+  const denySchemes = filterStrings(src.denySchemes);
+  if (denySchemes) out.denySchemes = denySchemes;
+  const denyHostPatterns = filterStrings(src.denyHostPatterns);
+  if (denyHostPatterns) out.denyHostPatterns = denyHostPatterns;
+  const allowHostPatterns = filterStrings(src.allowHostPatterns);
+  if (allowHostPatterns) out.allowHostPatterns = allowHostPatterns;
+  return out;
+}
+
 function readPolicyConfig(): WebviewActionPolicyConfig {
   try {
     const raw = readFileSync(getPolicyConfigPath(), 'utf8');
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-    return parsed as WebviewActionPolicyConfig;
+    return normalisePolicyConfig(JSON.parse(raw));
   } catch {
     return {};
   }
@@ -131,7 +151,12 @@ export function evaluateActionPolicyWith(
   }
 
   const scheme = parsed.protocol.toLowerCase();
-  const denySchemes = config.denySchemes ?? DEFAULT_DENY_SCHEMES;
+  // Defensively filter to strings — `config` is sometimes hand-built by
+  // tests or callers passing un-validated JSON. Production `readPolicyConfig`
+  // normalises already; this is belt-and-suspenders.
+  const denySchemes = (config.denySchemes ?? DEFAULT_DENY_SCHEMES).filter(
+    (v): v is string => typeof v === 'string',
+  );
   if (denySchemes.includes(scheme)) {
     return { allow: false, reason: `scheme ${scheme} is denied by policy` };
   }
@@ -144,15 +169,19 @@ export function evaluateActionPolicyWith(
   const host = parsed.hostname.toLowerCase();
   if (!host) return { allow: false, reason: 'URL has no hostname' };
 
-  const denyPatterns = config.denyHostPatterns ?? DEFAULT_DENY_HOST_PATTERNS;
+  const denyPatterns = (config.denyHostPatterns ?? DEFAULT_DENY_HOST_PATTERNS).filter(
+    (v): v is string => typeof v === 'string',
+  );
   for (const pat of denyPatterns) {
     if (matchHostPattern(host, pat)) {
       return { allow: false, reason: `host ${host} matches deny pattern "${pat}"` };
     }
   }
 
-  const allowPatterns = config.allowHostPatterns;
-  if (Array.isArray(allowPatterns) && allowPatterns.length > 0) {
+  const allowPatterns = Array.isArray(config.allowHostPatterns)
+    ? config.allowHostPatterns.filter((v): v is string => typeof v === 'string')
+    : undefined;
+  if (allowPatterns && allowPatterns.length > 0) {
     const hit = allowPatterns.some((pat) => matchHostPattern(host, pat));
     if (!hit) {
       return {

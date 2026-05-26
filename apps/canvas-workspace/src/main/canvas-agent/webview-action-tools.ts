@@ -29,6 +29,7 @@ import {
   evalInPage,
   fillSelector,
   pressKey,
+  scrollPage,
   waitForCondition,
   type PageActionResult,
 } from '../webview-action';
@@ -105,16 +106,28 @@ function audit(action: string, nodeId: string, url: string, extra: Record<string
 
 function serialise(action: string, nodeId: string, url: string, result: PageActionResult): string {
   audit(action, nodeId, url, { ok: result.ok, ...(result.error ? { error: result.error } : {}) });
-  if (result.ok) {
-    return JSON.stringify({ ok: true, action, url, ...result.data });
+  try {
+    if (result.ok) {
+      return JSON.stringify({ ok: true, action, url, ...result.data });
+    }
+    return JSON.stringify({
+      ok: false,
+      action,
+      url,
+      error: result.error,
+      ...(result.timedOut ? { timedOut: true } : {}),
+    });
+  } catch (e) {
+    // BigInt / cycle / Date / other non-JSON-friendly content snuck in.
+    // evalInPage normally catches this earlier; this is the last-line
+    // defense so the tool never throws into the engine.
+    return JSON.stringify({
+      ok: false,
+      action,
+      url,
+      error: `result was not JSON-serialisable: ${e instanceof Error ? e.message : String(e)}`,
+    });
   }
-  return JSON.stringify({
-    ok: false,
-    action,
-    url,
-    error: result.error,
-    ...(result.timedOut ? { timedOut: true } : {}),
-  });
 }
 
 const baseDescription =
@@ -244,6 +257,66 @@ export function maybeCreateWebviewActionTools(
       },
     },
 
+    page_scroll: {
+      name: 'page_scroll',
+      description:
+        'Scroll the page. Provide exactly one of: ' +
+        '`top: true` (scroll to start), `bottom: true` (scroll to end), ' +
+        '`selector` (scrollIntoView on the matching element), or ' +
+        '`by: { x, y }` (relative scroll in pixels — positive y scrolls down). ' +
+        'Returns the post-scroll position plus atTop / atBottom booleans so ' +
+        'the agent can decide whether to scroll again (e.g. infinite-scroll pagination). ' +
+        baseDescription,
+      inputSchema: z
+        .object({
+          nodeId: z.string().describe('ID of the iframe canvas node.'),
+          top: z.boolean().optional().describe('Scroll to the top of the page.'),
+          bottom: z.boolean().optional().describe('Scroll to the bottom of the page.'),
+          selector: z
+            .string()
+            .optional()
+            .describe('CSS selector — scrollIntoView() this element.'),
+          by: z
+            .object({
+              x: z.number().optional(),
+              y: z.number().optional(),
+            })
+            .optional()
+            .describe('Relative scroll in pixels. Positive y scrolls down.'),
+          block: z
+            .enum(['start', 'center', 'end', 'nearest'])
+            .optional()
+            .describe(
+              'scrollIntoView block alignment when using `selector`. Default "center".',
+            ),
+          timeoutMs: z.number().int().positive().optional(),
+        })
+        .refine(
+          (v) =>
+            !!v.top ||
+            !!v.bottom ||
+            !!v.selector ||
+            (!!v.by && (typeof v.by.x === 'number' || typeof v.by.y === 'number')),
+          { message: 'Provide one of: top, bottom, selector, or by{x,y}.' },
+        ),
+      execute: async (input) => {
+        const r = resolveTarget(workspaceId, input.nodeId as string);
+        if (!r.ok) return JSON.stringify({ ok: false, action: 'page_scroll', error: r.error });
+        const result = await scrollPage(
+          r.target.wc,
+          {
+            top: input.top as boolean | undefined,
+            bottom: input.bottom as boolean | undefined,
+            selector: input.selector as string | undefined,
+            by: input.by as { x?: number; y?: number } | undefined,
+            block: input.block as 'start' | 'center' | 'end' | 'nearest' | undefined,
+          },
+          input.timeoutMs as number | undefined,
+        );
+        return serialise('page_scroll', input.nodeId as string, r.target.url, result);
+      },
+    },
+
     page_wait_for: {
       name: 'page_wait_for',
       description:
@@ -285,6 +358,22 @@ export function maybeCreateWebviewActionTools(
           predicate: input.predicate as string | undefined,
           timeoutMs: input.timeoutMs as number | undefined,
           intervalMs: input.intervalMs as number | undefined,
+          // Re-validate policy on every probe — pages can redirect during
+          // a long wait (neutral page → login). If the live URL becomes
+          // blocked, abort the wait with the policy reason instead of
+          // continuing to inject probe scripts on the new origin.
+          abortCheck: () => {
+            try {
+              const liveUrl = r.target.wc.getURL();
+              const decision = evaluateActionPolicy(liveUrl);
+              if (!decision.allow) {
+                return `policy blocked action on ${liveUrl}: ${decision.reason}`;
+              }
+              return null;
+            } catch (e) {
+              return `failed to re-validate URL policy: ${e instanceof Error ? e.message : String(e)}`;
+            }
+          },
         });
         return serialise('page_wait_for', input.nodeId as string, r.target.url, result);
       },

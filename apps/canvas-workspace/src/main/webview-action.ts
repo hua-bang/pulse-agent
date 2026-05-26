@@ -176,13 +176,26 @@ export function resolveKeySpec(key: string): { key: string; code: string; keyCod
   // Single printable character — treat as a literal key. Code is 'KeyX'
   // for letters, 'DigitN' for digits, otherwise empty (apps usually
   // care about `key` rather than `code` for typed text).
+  //
+  // keyCode follows the legacy "physical key" convention: letters always
+  // map to their uppercase char code (a → 65), digits to their char code
+  // (5 → 53). Many older shortcut handlers branch on `keyCode`/`which`
+  // and expect 65 for both 'a' and 'A' — sending 97 for 'a' would silently
+  // miss those handlers.
   if (key.length === 1) {
     const ch = key;
-    const cc = ch.charCodeAt(0);
     let code = '';
-    if (/^[a-zA-Z]$/.test(ch)) code = 'Key' + ch.toUpperCase();
-    else if (/^[0-9]$/.test(ch)) code = 'Digit' + ch;
-    return { key: ch, code, keyCode: cc };
+    let keyCode: number;
+    if (/^[a-zA-Z]$/.test(ch)) {
+      code = 'Key' + ch.toUpperCase();
+      keyCode = ch.toUpperCase().charCodeAt(0);
+    } else if (/^[0-9]$/.test(ch)) {
+      code = 'Digit' + ch;
+      keyCode = ch.charCodeAt(0);
+    } else {
+      keyCode = ch.charCodeAt(0);
+    }
+    return { key: ch, code, keyCode };
   }
   return null;
 }
@@ -203,6 +216,53 @@ try {
   target.dispatchEvent(new KeyboardEvent('keypress', init));
   target.dispatchEvent(new KeyboardEvent('keyup', init));
   return { ok: true, key: spec.key };
+} catch (e) {
+  return { ok: false, error: String(e && e.message || e) };
+}
+`);
+}
+
+export interface ScrollSpec {
+  /** Scroll to top of page. */
+  top?: boolean;
+  /** Scroll to bottom of page (full scrollHeight). */
+  bottom?: boolean;
+  /** CSS selector for an element to scrollIntoView(). */
+  selector?: string;
+  /** Relative scroll — { x, y } in pixels. */
+  by?: { x?: number; y?: number };
+  /** scrollIntoView block alignment (only used with `selector`). */
+  block?: 'start' | 'center' | 'end' | 'nearest';
+}
+
+export function buildScrollScript(spec: ScrollSpec): string {
+  return asIife(`
+try {
+  var spec = ${lit(spec)};
+  if (spec.selector) {
+    var el = document.querySelector(spec.selector);
+    if (!el) return { ok: false, error: 'selector not found: ' + spec.selector };
+    el.scrollIntoView({ block: spec.block || 'center', inline: 'nearest', behavior: 'instant' });
+  } else if (spec.top) {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  } else if (spec.bottom) {
+    window.scrollTo({ top: document.documentElement.scrollHeight, left: 0, behavior: 'instant' });
+  } else if (spec.by) {
+    var dx = (spec.by && typeof spec.by.x === 'number') ? spec.by.x : 0;
+    var dy = (spec.by && typeof spec.by.y === 'number') ? spec.by.y : 0;
+    window.scrollBy({ top: dy, left: dx, behavior: 'instant' });
+  } else {
+    return { ok: false, error: 'no scroll target — provide top, bottom, selector, or by{x,y}' };
+  }
+  return {
+    ok: true,
+    scrollX: window.scrollX,
+    scrollY: window.scrollY,
+    scrollHeight: document.documentElement.scrollHeight,
+    innerHeight: window.innerHeight,
+    atTop: window.scrollY <= 1,
+    atBottom: window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 1
+  };
 } catch (e) {
   return { ok: false, error: String(e && e.message || e) };
 }
@@ -246,6 +306,20 @@ export async function evalInPage(
       timeoutMs,
     )) as { ok: boolean; value?: unknown; error?: string };
     if (!raw?.ok) return { ok: false, error: raw?.error ?? 'eval failed' };
+    // `executeJavaScript` will hand us back BigInt / cyclic graphs / DOM
+    // node wrappers depending on what the user's code returned. The
+    // outer serialise() runs JSON.stringify and that throws on BigInt /
+    // cycles — verify here so the failure surfaces as a structured tool
+    // result rather than an unhandled exception.
+    try {
+      JSON.stringify(raw.value);
+    } catch (jsonErr) {
+      const msg = jsonErr instanceof Error ? jsonErr.message : String(jsonErr);
+      return {
+        ok: false,
+        error: `eval result is not JSON-serialisable: ${msg}. Return a plain object/array/string/number/boolean instead.`,
+      };
+    }
     return { ok: true, data: { value: raw.value } };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -311,9 +385,71 @@ export async function pressKey(
   }
 }
 
+export async function scrollPage(
+  wc: PageRunner,
+  spec: ScrollSpec,
+  timeoutMs = DEFAULT_TIMEOUT_MS,
+): Promise<PageActionResult> {
+  // Validate at the API surface so the agent gets a clean error before
+  // we even hit the guest.
+  const hasTarget =
+    !!spec.top ||
+    !!spec.bottom ||
+    !!spec.selector ||
+    (!!spec.by && (typeof spec.by.x === 'number' || typeof spec.by.y === 'number'));
+  if (!hasTarget) {
+    return {
+      ok: false,
+      error: 'scroll needs one of: top, bottom, selector, by{x,y}',
+    };
+  }
+  try {
+    const raw = (await runWithTimeout(
+      wc.executeJavaScript(buildScrollScript(spec), false),
+      timeoutMs,
+    )) as {
+      ok: boolean;
+      scrollX?: number;
+      scrollY?: number;
+      scrollHeight?: number;
+      innerHeight?: number;
+      atTop?: boolean;
+      atBottom?: boolean;
+      error?: string;
+    };
+    if (!raw?.ok) return { ok: false, error: raw?.error ?? 'scroll failed' };
+    return {
+      ok: true,
+      data: {
+        scrollX: raw.scrollX,
+        scrollY: raw.scrollY,
+        scrollHeight: raw.scrollHeight,
+        innerHeight: raw.innerHeight,
+        atTop: raw.atTop,
+        atBottom: raw.atBottom,
+      },
+    };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, error: msg, timedOut: msg.includes('timed out') };
+  }
+}
+
 export async function waitForCondition(
   wc: PageRunner,
-  opts: { selector?: string; predicate?: string; timeoutMs?: number; intervalMs?: number },
+  opts: {
+    selector?: string;
+    predicate?: string;
+    timeoutMs?: number;
+    intervalMs?: number;
+    /**
+     * Optional re-check called between probes. Returning a non-null string
+     * aborts the wait with that reason as the error. Used by the tool
+     * layer to revalidate the URL policy in case the page redirected to
+     * a blocked host mid-wait.
+     */
+    abortCheck?: () => string | null;
+  },
 ): Promise<PageActionResult> {
   const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const interval = opts.intervalMs ?? DEFAULT_WAIT_INTERVAL_MS;
@@ -325,9 +461,25 @@ export async function waitForCondition(
   let lastError: string | undefined;
   let attempts = 0;
   while (Date.now() < deadline) {
+    // Re-check the abort condition before every probe — covers the case
+    // where the page redirected to a now-blocked URL since the previous
+    // iteration. The first call also fires before the first probe, so a
+    // policy that becomes false between resolveTarget and waitForCondition
+    // is still caught.
+    if (opts.abortCheck) {
+      const reason = opts.abortCheck();
+      if (reason) return { ok: false, error: reason };
+    }
     attempts += 1;
     try {
-      const raw = (await wc.executeJavaScript(script, false)) as {
+      // Per-probe timeout: prevents a non-terminating predicate from
+      // blocking past the configured deadline. We cap each call at the
+      // remaining budget so a hung guest can't outlive timeoutMs.
+      const probeTimeout = Math.max(50, Math.min(interval * 5, deadline - Date.now()));
+      const raw = (await runWithTimeout(
+        wc.executeJavaScript(script, false),
+        probeTimeout,
+      )) as {
         ok: boolean;
         matched?: boolean;
         text?: string;
