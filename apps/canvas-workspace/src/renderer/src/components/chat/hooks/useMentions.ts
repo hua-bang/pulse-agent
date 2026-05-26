@@ -22,21 +22,23 @@ interface UseMentionsOptions {
 }
 
 function flattenEntries(entries: DirEntry[], rootFolder: string, prefix = ''): MentionItem[] {
-  const files: MentionItem[] = [];
+  const items: MentionItem[] = [];
 
   for (const entry of entries) {
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.type === 'file') {
-      files.push({ type: 'file', label: path, path: `${rootFolder}/${path}` });
+      items.push({ type: 'file', label: path, path: `${rootFolder}/${path}` });
       continue;
     }
 
+    // Directory: add it as a mention candidate, then recurse into children.
+    items.push({ type: 'folder', label: `${path}/`, path: `${rootFolder}/${path}` });
     if (entry.children) {
-      files.push(...flattenEntries(entry.children, rootFolder, path));
+      items.push(...flattenEntries(entry.children, rootFolder, path));
     }
   }
 
-  return files;
+  return items;
 }
 
 export function useMentions({

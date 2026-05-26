@@ -33,7 +33,7 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'workspace' | 'skill';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill';
   label: string;
   nodeType?: CanvasNode['type'];
   path?: string;

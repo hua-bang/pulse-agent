@@ -261,6 +261,7 @@ const en = {
   'chat.mention.group': 'Group',
   'chat.mention.canvas': 'Canvas',
   'chat.mention.projectFiles': 'Project Files',
+  'chat.mention.projectFolders': 'Project Folders',
 
   'models.addProvider': 'Add provider',
   'models.providerCount': '{count} models',
@@ -716,6 +717,7 @@ const zh: Record<keyof typeof en, string> = {
   'chat.mention.group': '编组',
   'chat.mention.canvas': '画布',
   'chat.mention.projectFiles': '项目文件',
+  'chat.mention.projectFolders': '项目文件夹',
 
   'models.addProvider': '添加 Provider',
   'models.providerCount': '{count} 个模型',
