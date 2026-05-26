@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto';
+import { getExperimentalFlagSync } from '../experimental-ipc';
+import { EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE } from '../../shared/experimental-features';
 import type {
   CanvasAgentDebugTrace,
   CanvasAgentDebugTraceContextRead,
@@ -38,8 +40,18 @@ interface ToolResultInput {
 }
 
 export function isCanvasAgentDebugTraceEnabled(): boolean {
+  // Two sources, OR'd together — matches preload's pluginFlags logic so
+  // main and renderer agree on whether the trace pipeline is on:
+  //   1. CANVAS_AGENT_DEBUG_TRACE env var (legacy escape hatch for CI /
+  //      scripted runs that should not touch persisted state)
+  //   2. The 'canvas-agent-debug-trace' experimental flag the user
+  //      toggles via Settings → Experimental (persisted at
+  //      ~/.pulse-coder/canvas/experimental-features.json)
+  // Read each turn so toggling + window reload takes effect without an
+  // app restart — main process keeps running across renderer reloads.
   const value = process.env.CANVAS_AGENT_DEBUG_TRACE?.trim().toLowerCase();
-  return value !== undefined && ['1', 'true', 'on', 'yes'].includes(value);
+  if (value !== undefined && ['1', 'true', 'on', 'yes'].includes(value)) return true;
+  return getExperimentalFlagSync(EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE);
 }
 
 export function createCanvasAgentDebugTrace(input: StartTraceInput): CanvasAgentDebugTrace {
