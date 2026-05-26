@@ -27,6 +27,10 @@ interface RunningInstance {
   id: string;
   child: ChildProcess;
   port: number;
+  /** Epoch millis when start() resolved — used by the reconciler to
+   *  skip recently-spawned children whose canvas node / persisted spec
+   *  may not have been written yet. */
+  startedAt: number;
 }
 
 export class DataSourceManager {
@@ -120,7 +124,7 @@ export class DataSourceManager {
 
     const { port } = await ready;
 
-    this.instances.set(id, { id, child, port });
+    this.instances.set(id, { id, child, port, startedAt: Date.now() });
     // Clean up the map entry if the child dies on its own later.
     child.on("exit", () => {
       const current = this.instances.get(id);
@@ -143,11 +147,17 @@ export class DataSourceManager {
     }
   }
 
-  list(): Array<{ id: string; port: number; pid: number | undefined }> {
+  list(): Array<{
+    id: string;
+    port: number;
+    pid: number | undefined;
+    startedAt: number;
+  }> {
     return Array.from(this.instances.values()).map((i) => ({
       id: i.id,
       port: i.port,
       pid: i.child.pid,
+      startedAt: i.startedAt,
     }));
   }
 }

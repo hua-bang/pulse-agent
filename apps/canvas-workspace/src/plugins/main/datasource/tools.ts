@@ -177,12 +177,19 @@ export function createDatasourceTools(
         }
         const { title, spec, x, y, width, height } = parsed.data;
         const datasourceNodeId = `ds-${Date.now()}-${randomUUID().slice(0, 8)}`;
+        const specKey = `workspace/${workspaceId}/spec/${datasourceNodeId}`;
         try {
+          // Order matters for crash-safety: fork child → persist spec →
+          // write canvas node. If we crash between spec and node, the
+          // reconciler sees a spec without a node and tears down. If we
+          // crash before persisting the spec, the child dies with the
+          // process and nothing leaks. The reconciler also honours a
+          // grace window so a mid-create tick does not reap us.
           const { port } = await manager.start(
             datasourceNodeId,
             spec as DatasourceSpec,
           );
-          await store.set(`workspace/${workspaceId}/spec/${datasourceNodeId}`, {
+          await store.set(specKey, {
             id: datasourceNodeId,
             spec,
             createdAt: Date.now(),
@@ -203,9 +210,10 @@ export function createDatasourceTools(
             url,
           });
         } catch (err) {
-          // Best-effort cleanup if start succeeded but the canvas write
-          // failed — we don't want orphan children listening on ports.
+          // Best-effort cleanup if any step failed — don't leave a child
+          // listening on a port or an orphan spec on disk.
           await manager.stop(datasourceNodeId).catch(() => undefined);
+          await store.delete(specKey).catch(() => undefined);
           return JSON.stringify({
             ok: false,
             error: err instanceof Error ? err.message : String(err),
