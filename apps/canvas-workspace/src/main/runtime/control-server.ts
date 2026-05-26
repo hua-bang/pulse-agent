@@ -21,7 +21,7 @@ import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
-import { sendInputToAgentNode } from './agent-session-send';
+import { sendInputToAgentNode } from '../agent/session-send';
 
 const RUNTIME_DIR = join(homedir(), '.pulse-coder', 'canvas-runtime');
 const RUNTIME_FILE = join(RUNTIME_DIR, 'canvas-workspace.json');

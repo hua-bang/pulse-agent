@@ -23,7 +23,7 @@
  */
 
 import { z } from 'zod';
-import { getWebContentsForNode } from '../../../main/webview-registry';
+import { getWebContentsForNode } from '../../../main/webview/registry';
 import {
   evalInPage,
   scrollPage,
@@ -37,7 +37,7 @@ import {
   cdpPressKey,
 } from './cdp-actions';
 import { evaluateActionPolicy } from './policy';
-import type { CanvasTool } from '../../../main/canvas-agent/tools';
+import type { CanvasTool } from '../../../main/agent/tools';
 
 interface ResolvedTarget {
   wc: NonNullable<ReturnType<typeof getWebContentsForNode>>;

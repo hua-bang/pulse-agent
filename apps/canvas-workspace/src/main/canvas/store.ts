@@ -17,7 +17,7 @@ import {
   CanvasPollutionDetectedError,
   type MigrationProgress,
   type ReadJsonResult,
-} from "./canvas-storage";
+} from "./storage";
 
 /**
  * Extra fields the canvas-store side attaches to migration-progress events

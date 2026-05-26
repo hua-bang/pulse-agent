@@ -37,7 +37,7 @@ vi.mock('electron', () => ({
 // node-pty fails to load without its native binding in the test env; the
 // transitive `agent-session-send` → `pty-manager` import would otherwise crash
 // the module before any test runs. Mirrors the stub in agent-session-send.test.
-vi.mock('../../pty-manager', () => ({
+vi.mock('../../terminal/pty-manager', () => ({
   hasSession: () => false,
   writeToSession: () => false,
 }));
@@ -65,12 +65,12 @@ import {
   readCanvasFull,
   writeCanvasFull,
   type CanvasSaveData,
-} from '../../canvas-storage';
+} from '../../canvas/storage';
 import {
   readWorkspaceNode,
   writeWorkspaceNode,
   WORKSPACE_NODE_SCHEMA_VERSION,
-} from '../../workspace-node-store';
+} from '../../canvas/nodes/store';
 
 const wsId = 'ws-tools-test';
 

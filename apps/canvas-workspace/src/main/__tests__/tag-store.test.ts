@@ -7,7 +7,7 @@ import {
   readKnowledgeTags,
   upsertKnowledgeTag,
   writeKnowledgeTags,
-} from '../tag-store';
+} from '../canvas/nodes/tags';
 
 let root: string;
 

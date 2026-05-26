@@ -11,12 +11,12 @@
  *   artifact:pin-to-canvas (workspaceId, artifactId, placement)  → { nodeId, artifact }
  *
  * Plus a broadcast channel `artifact:change` for renderer subscriptions
- * (fired from artifact-store.ts directly).
+ * (fired from artifacts/store.ts directly).
  */
 
 import { ipcMain } from 'electron';
-import { getWorkspaceDir } from './canvas-store';
-import { readCanvasFull, writeCanvasFull } from './canvas-storage';
+import { getWorkspaceDir } from '../canvas/store';
+import { readCanvasFull, writeCanvasFull } from '../canvas/storage';
 import {
   addArtifactVersion,
   createArtifact,
@@ -26,8 +26,8 @@ import {
   updateArtifact,
   type Artifact,
   type ArtifactType,
-} from './artifact-store';
-import { broadcastCanvasUpdate } from './canvas-broadcast';
+} from './store';
+import { broadcastCanvasUpdate } from '../canvas/broadcast';
 
 const BLANK_PAGE_URL = 'about:blank';
 

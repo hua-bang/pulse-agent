@@ -2,7 +2,7 @@ import type {
   CanvasAgentDebugRunDetail,
   CanvasAgentDebugRunSummary,
   CanvasAgentDebugTrace,
-} from '../../main/canvas-agent/types';
+} from '../../main/agent/types';
 import type { MainCanvasPlugin } from '../types';
 
 interface StoredRun {

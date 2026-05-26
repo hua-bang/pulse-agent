@@ -1,7 +1,7 @@
 /**
- * webpage-reader-ipc — reads a webpage that is already open in a canvas iframe node.
+ * Webview reader — reads a webpage that is already open in a canvas iframe node.
  *
- * Only operates on webviews already registered in the webview-registry — i.e.
+ * Only operates on webviews already registered in the webview registry — i.e.
  * iframe/link canvas nodes whose <webview> is currently mounted and loaded.
  * For reading arbitrary URLs use the existing jina_ai_read / tavily tools.
  *
@@ -21,7 +21,7 @@ import { ipcMain } from 'electron';
 import { tmpdir } from 'os';
 import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
-import { getWebContentsForNode } from './webview-registry';
+import { getWebContentsForNode } from './registry';
 import { withCdp, type CdpSender } from './cdp-session';
 
 // ---------------------------------------------------------------------------

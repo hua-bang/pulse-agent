@@ -41,7 +41,7 @@ import {
   type WorkspaceNodeLink,
   type WorkspaceNodePropertyValue,
   type WorkspaceNodeRecord,
-} from './workspace-node-store';
+} from './nodes/store';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants

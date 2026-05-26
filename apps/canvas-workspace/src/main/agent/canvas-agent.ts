@@ -9,7 +9,7 @@
 import { Engine } from 'pulse-coder-engine';
 import { builtInSkillsPlugin, builtInToolSearchPlugin } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
-import { resolveCanvasModel } from './model-config';
+import { resolveCanvasModel } from './model/config';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,

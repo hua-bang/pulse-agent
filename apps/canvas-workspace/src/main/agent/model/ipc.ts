@@ -12,7 +12,7 @@ import {
   type CanvasModelConfig,
   type CanvasModelOption,
   type CanvasModelProviderConfig,
-} from './canvas-agent/model-config';
+} from './config';
 
 export function setupCanvasModelIpc(): void {
   ipcMain.handle('canvas-model:status', async () => {
