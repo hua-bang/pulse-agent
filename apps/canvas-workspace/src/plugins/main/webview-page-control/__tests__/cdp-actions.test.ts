@@ -5,8 +5,8 @@ import {
   cdpFillSelector,
   cdpPressKey,
   modifierMask,
-} from '../webview-cdp-actions';
-import type { CdpHost } from '../cdp-session';
+} from '../cdp-actions';
+import type { CdpHost } from '../../../../main/cdp-session';
 
 interface FakeHost extends CdpHost {
   executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;

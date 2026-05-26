@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { evaluateActionPolicyWith } from '../webview-action-policy';
+import { evaluateActionPolicyWith } from '../policy';
 
 describe('evaluateActionPolicyWith', () => {
   describe('defaults', () => {

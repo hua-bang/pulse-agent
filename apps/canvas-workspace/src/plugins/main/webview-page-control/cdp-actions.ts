@@ -23,8 +23,8 @@
  * JS source — so injection is not a concern on this path.
  */
 
-import { withCdp, type CdpHost, type CdpSender } from './cdp-session';
-import { resolveKeySpec, type PageActionResult, type PageRunner } from './webview-action';
+import { withCdp, type CdpHost, type CdpSender } from '../../../main/cdp-session';
+import { resolveKeySpec, type PageActionResult, type PageRunner } from './js-primitives';
 
 const DEFAULT_TIMEOUT_MS = 5_000;
 

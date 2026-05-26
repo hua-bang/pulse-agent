@@ -1,8 +1,11 @@
 /**
  * Canvas-agent tools that **write** to webview pages — click, fill, press
- * keys, wait for selectors, run arbitrary JS. Gated by the experimental
- * flag {@link EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL}; the caller
- * decides whether to register them via {@link maybeCreateWebviewActionTools}.
+ * keys, wait for selectors, run arbitrary JS.
+ *
+ * Registered as a canvas plugin (see `./index.ts`); gating on the
+ * `webview-page-control` experimental flag is handled by the plugin's
+ * `enabledWhen` — by the time this file's factory is called, the flag
+ * is known to be on.
  *
  * Every tool follows the same shape:
  *   1. Resolve the live `WebContents` for the iframe node via the
@@ -10,64 +13,31 @@
  *      no mounted webview.
  *   2. Run `evaluateActionPolicy(wc.getURL())` — fail with the policy
  *      reason if the page isn't in scope.
- *   3. Invoke the primitive from `webview-action.ts` and serialise the
- *      result as a JSON string for the agent.
+ *   3. Invoke the primitive (CDP or JS) and serialise the result as a
+ *      JSON string for the agent.
  *   4. Emit one `console.info('[webview-action] …')` audit line.
  *
  * Returns are JSON strings (matching the existing `canvas_*` tool
- * convention in tools.ts). Errors always have the same `{ ok: false,
- * error }` shape so the agent can branch reliably.
+ * convention). Errors always have the same `{ ok: false, error }` shape
+ * so the agent can branch reliably.
  */
 
-import { readFileSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
 import { z } from 'zod';
-import { getWebContentsForNode } from '../webview-registry';
+import { getWebContentsForNode } from '../../../main/webview-registry';
 import {
   evalInPage,
   scrollPage,
   waitForCondition,
   type PageActionResult,
-} from '../webview-action';
+} from './js-primitives';
 import {
   cdpClickAt,
   cdpClickSelector,
   cdpFillSelector,
   cdpPressKey,
-} from '../webview-cdp-actions';
-import { evaluateActionPolicy } from '../webview-action-policy';
-import {
-  EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
-  resolveFeatureValues,
-} from '../../shared/experimental-features';
-import type { CanvasTool } from './tools';
-
-function experimentalFlagsPath(): string {
-  const envPath = process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim();
-  return envPath || join(homedir(), '.pulse-coder', 'canvas', 'experimental-features.json');
-}
-
-function readFlagSync(id: string): boolean {
-  try {
-    const raw = readFileSync(experimentalFlagsPath(), 'utf8');
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const overrides: Record<string, boolean> = {};
-      for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-        if (typeof v === 'boolean') overrides[k] = v;
-      }
-      return resolveFeatureValues(overrides)[id] === true;
-    }
-  } catch {
-    // missing / unparseable file → fall through to defaults
-  }
-  return resolveFeatureValues({})[id] === true;
-}
-
-export function isWebviewScriptInjectionEnabled(): boolean {
-  return readFlagSync(EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL);
-}
+} from './cdp-actions';
+import { evaluateActionPolicy } from './policy';
+import type { CanvasTool } from '../../../main/canvas-agent/tools';
 
 interface ResolvedTarget {
   wc: NonNullable<ReturnType<typeof getWebContentsForNode>>;
@@ -141,15 +111,14 @@ const baseDescription =
   'Customize the policy via ~/.pulse-coder/canvas/webview-action-policy.json.';
 
 /**
- * Build the webview-action tool map for a workspace. Returns `null` when
- * the experimental flag is off — callers should treat that as "don't
- * register these at all" so the agent doesn't even see the tool names.
+ * Build the webview-page-control tool map for a workspace. Called by
+ * the plugin's `registerCanvasTool` factory at canvas-agent boot — the
+ * plugin's `enabledWhen` has already gated activation, so by the time
+ * we get here the experimental flag is on.
  */
-export function maybeCreateWebviewActionTools(
+export function createWebviewPageControlTools(
   workspaceId: string,
-): Record<string, CanvasTool> | null {
-  if (!isWebviewScriptInjectionEnabled()) return null;
-
+): Record<string, CanvasTool> {
   return {
     page_eval: {
       name: 'page_eval',

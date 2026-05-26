@@ -14,7 +14,7 @@ import {
   scrollPage,
   waitForCondition,
   type PageRunner,
-} from '../webview-action';
+} from '../js-primitives';
 
 /**
  * Stub PageRunner that returns whatever the caller programs. Lets tests

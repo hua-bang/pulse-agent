@@ -1,9 +1,17 @@
 import { ipcMain } from 'electron';
-import type { MainCanvasPlugin, MainCtx } from '../types';
+import type { CanvasToolFactory, MainCanvasPlugin, MainCtx } from '../types';
 import { agentBus } from './agent-bus';
 import { createPluginStore } from './plugin-store';
 
 const loaded = new Set<string>();
+
+/**
+ * Registered canvas-tool factories, keyed by plugin id so a plugin
+ * activating twice (in dev with HMR, say) replaces its own factory
+ * cleanly. The host calls {@link getRegisteredCanvasToolFactories} at
+ * canvas-agent construction time to assemble plugin-contributed tools.
+ */
+const canvasToolFactories = new Map<string, CanvasToolFactory>();
 
 export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<void> {
   for (const plugin of plugins) {
@@ -23,6 +31,15 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<v
   }
 }
 
+/**
+ * Snapshot of the registered tool factories at call time. Returned as
+ * `[pluginId, factory]` pairs so the host can attribute tools to their
+ * source plugin in errors / logs.
+ */
+export function getRegisteredCanvasToolFactories(): ReadonlyArray<[string, CanvasToolFactory]> {
+  return Array.from(canvasToolFactories.entries());
+}
+
 function createMainCtx(pluginId: string): MainCtx {
   return {
     store: createPluginStore(pluginId),
@@ -37,6 +54,14 @@ function createMainCtx(pluginId: string): MainCtx {
       return () => {
         agentBus.off(event, handler);
       };
+    },
+    registerCanvasTool(factory) {
+      if (canvasToolFactories.has(pluginId)) {
+        console.warn(
+          `[canvas-plugins] ${pluginId} called registerCanvasTool twice; replacing previous factory`,
+        );
+      }
+      canvasToolFactories.set(pluginId, factory);
     },
   };
 }

@@ -32,7 +32,7 @@ import {
 import { pinArtifactToCanvas } from '../artifact-ipc';
 import { getWebContentsForNode } from '../webview-registry';
 import { readDOM, readA11y, captureScreenshot } from '../webpage-reader-ipc';
-import { maybeCreateWebviewActionTools } from './webview-action-tools';
+import { getRegisteredCanvasToolFactories } from '../../plugins/main';
 import {
   readCanvasFull,
   writeCanvasFull,
@@ -2105,13 +2105,22 @@ ${outline}`;
     },
   };
 
-  // Experimental: webview page-control tools (page_click / page_click_at /
-  // page_fill / page_press / page_scroll / page_wait_for / page_eval).
-  // Registered ONLY when the `webview-page-control` experimental flag is on.
-  // When off, the agent doesn't see these tool names at all.
-  const webviewActions = maybeCreateWebviewActionTools(workspaceId);
-  if (webviewActions) {
-    Object.assign(base, webviewActions);
+  // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's
+  // factory is in the registry iff its `enabledWhen` returned true at
+  // bootstrap, so flag-gating is already enforced — we just merge what
+  // each factory produces for this workspace. Last writer wins on name
+  // collisions; that matters if a future plugin shadows a built-in tool
+  // intentionally (none do today).
+  for (const [pluginId, factory] of getRegisteredCanvasToolFactories()) {
+    try {
+      const contributed = factory(workspaceId) as Record<string, CanvasTool>;
+      Object.assign(base, contributed);
+    } catch (err) {
+      console.error(
+        `[canvas-tools] plugin ${pluginId} tool factory threw; skipping its tools`,
+        err,
+      );
+    }
   }
 
   return base;
