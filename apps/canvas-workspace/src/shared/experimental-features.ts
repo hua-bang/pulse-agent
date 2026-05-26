@@ -59,9 +59,9 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   },
   {
     id: EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION,
-    label: 'Webview script injection (agent)',
+    label: 'Webview page control (agent)',
     description:
-      'Lets the Canvas Agent control pages inside iframe nodes — click, fill, press keys, wait for selectors, run arbitrary JS. Blocked on file://, chrome://, devtools:// and a built-in sensitive-domain list (banks, payments, mainstream login). Customize via ~/.pulse-coder/canvas/webview-action-policy.json. Treat this as giving an LLM access to whatever you are currently logged into.',
+      'Lets the Canvas Agent control pages inside iframe nodes — click (by selector or pixel coordinates), fill, press keys, scroll, wait for selectors, run arbitrary JS. Clicks and key presses go through Chromium DevTools Protocol (real input events that fire pointer / hover / user-activation handlers) — the OS cursor does not move. Blocked on file://, chrome://, devtools:// and a built-in sensitive-domain list (banks, payments, mainstream login). Customize via ~/.pulse-coder/canvas/webview-action-policy.json. Treat this as giving an LLM access to whatever you are currently logged into.',
     defaultEnabled: false,
   },
 ];

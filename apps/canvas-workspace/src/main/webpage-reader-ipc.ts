@@ -22,6 +22,7 @@ import { tmpdir } from 'os';
 import { promises as fs } from 'fs';
 import { randomUUID } from 'crypto';
 import { getWebContentsForNode } from './webview-registry';
+import { withCdp, type CdpSender } from './cdp-session';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -120,26 +121,26 @@ export async function readA11y(
   wc: AnyWebContents,
 ): Promise<{ ok: boolean; text: string; error?: string }> {
   try {
-    wc.debugger.attach('1.3');
-    await wc.debugger.sendCommand('Accessibility.enable');
-
-    const result = await Promise.race([
-      wc.debugger.sendCommand('Accessibility.getFullAXTree') as Promise<{
-        nodes: Array<{
-          nodeId: string;
-          role?: { value?: string };
-          name?: { value?: string };
-          description?: { value?: string };
-          value?: { value?: string };
-          childIds?: string[];
-        }>;
-      }>,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('a11y extraction timed out')), EXTRACT_TIMEOUT_MS),
-      ),
-    ]);
-
-    wc.debugger.detach();
+    // Go through the per-wc mutex so a concurrent screenshot read or
+    // CDP-based click can't race us on `debugger.attach`.
+    const result = await withCdp(wc, async (send: CdpSender) => {
+      await send('Accessibility.enable');
+      return (await Promise.race([
+        send<{
+          nodes: Array<{
+            nodeId: string;
+            role?: { value?: string };
+            name?: { value?: string };
+            description?: { value?: string };
+            value?: { value?: string };
+            childIds?: string[];
+          }>;
+        }>('Accessibility.getFullAXTree'),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('a11y extraction timed out')), EXTRACT_TIMEOUT_MS),
+        ),
+      ]));
+    });
 
     const { nodes } = result;
     const idMap = new Map(nodes.map((n) => [n.nodeId, n]));
@@ -147,8 +148,6 @@ export async function readA11y(
     const lines = root ? flattenA11yNodes(nodes, idMap, root.nodeId) : [];
     return { ok: true, text: lines.join('\n') || '(empty a11y tree)' };
   } catch (err) {
-    // Best-effort detach in case we attached before the error.
-    try { wc.debugger.detach(); } catch { /* ignore */ }
     return { ok: false, text: '', error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -159,67 +158,61 @@ export async function captureScreenshot(
   const MAX_HEIGHT_PX = 8_000;
   const DEFAULT_WIDTH_PX = 1_280;
 
-  let debuggerAttached = false;
-  let viewportOverrideSet = false;
   try {
-    wc.debugger.attach('1.3');
-    debuggerAttached = true;
+    const result = await withCdp(wc, async (send: CdpSender) => {
+      // Read both the full content size and the current visual viewport
+      // size so we can restore the exact original dimensions after.
+      const metrics = await send<{
+        contentSize: { width: number; height: number };
+        visualViewport: { clientWidth: number; clientHeight: number };
+      }>('Page.getLayoutMetrics');
 
-    // Read both the full content size and the current visual viewport size
-    // so we can restore the exact original dimensions afterwards.
-    const metrics = await wc.debugger.sendCommand('Page.getLayoutMetrics') as {
-      contentSize: { width: number; height: number };
-      visualViewport: { clientWidth: number; clientHeight: number };
-    };
+      const origWidth = metrics.visualViewport.clientWidth || DEFAULT_WIDTH_PX;
+      const origHeight = metrics.visualViewport.clientHeight || 900;
+      const fullWidth = Math.max(Math.ceil(metrics.contentSize.width), DEFAULT_WIDTH_PX);
+      const fullHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
 
-    const origWidth  = metrics.visualViewport.clientWidth  || DEFAULT_WIDTH_PX;
-    const origHeight = metrics.visualViewport.clientHeight || 900;
-    const fullWidth  = Math.max(Math.ceil(metrics.contentSize.width),  DEFAULT_WIDTH_PX);
-    const fullHeight = Math.min(Math.ceil(metrics.contentSize.height), MAX_HEIGHT_PX);
+      const needsExpansion = fullHeight > origHeight;
+      let viewportOverrideSet = false;
 
-    const needsExpansion = fullHeight > origHeight;
+      try {
+        if (needsExpansion) {
+          await send('Emulation.setDeviceMetricsOverride', {
+            width: fullWidth,
+            height: fullHeight,
+            deviceScaleFactor: 1,
+            mobile: false,
+          });
+          viewportOverrideSet = true;
+        }
 
-    if (needsExpansion) {
-      await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
-        width: fullWidth,
-        height: fullHeight,
-        deviceScaleFactor: 1,
-        mobile: false,
-      });
-      viewportOverrideSet = true;
-    }
-
-    const result = await wc.debugger.sendCommand('Page.captureScreenshot', {
-      format: 'png',
-      fromSurface: true,
-    }) as { data: string };
-
-    // Restore original viewport before returning — minimise visible impact.
-    if (viewportOverrideSet) {
-      await wc.debugger.sendCommand('Emulation.setDeviceMetricsOverride', {
-        width: origWidth,
-        height: origHeight,
-        deviceScaleFactor: 1,
-        mobile: false,
-      });
-      // Clear the override so the webview reverts to its natural CSS-driven size.
-      await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride');
-      viewportOverrideSet = false;
-    }
-
-    wc.debugger.detach();
-    debuggerAttached = false;
+        return await send<{ data: string }>('Page.captureScreenshot', {
+          format: 'png',
+          fromSurface: true,
+        });
+      } finally {
+        // Always restore viewport — even on screenshot failure — so the
+        // webview doesn't stay stretched.
+        if (viewportOverrideSet) {
+          try {
+            await send('Emulation.setDeviceMetricsOverride', {
+              width: origWidth,
+              height: origHeight,
+              deviceScaleFactor: 1,
+              mobile: false,
+            });
+            await send('Emulation.clearDeviceMetricsOverride');
+          } catch {
+            /* best-effort cleanup */
+          }
+        }
+      }
+    });
 
     const imagePath = `${tmpdir()}/pulse-screenshot-${randomUUID()}.png`;
     await fs.writeFile(imagePath, Buffer.from(result.data, 'base64'));
     return { ok: true, imagePath };
   } catch (err) {
-    if (debuggerAttached) {
-      if (viewportOverrideSet) {
-        try { await wc.debugger.sendCommand('Emulation.clearDeviceMetricsOverride'); } catch { /* ignore */ }
-      }
-      try { wc.debugger.detach(); } catch { /* ignore */ }
-    }
     return { ok: false, imagePath: '', error: err instanceof Error ? err.message : String(err) };
   }
 }

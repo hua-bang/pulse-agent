@@ -25,14 +25,17 @@ import { join } from 'path';
 import { z } from 'zod';
 import { getWebContentsForNode } from '../webview-registry';
 import {
-  clickSelector,
   evalInPage,
-  fillSelector,
-  pressKey,
   scrollPage,
   waitForCondition,
   type PageActionResult,
 } from '../webview-action';
+import {
+  cdpClickAt,
+  cdpClickSelector,
+  cdpFillSelector,
+  cdpPressKey,
+} from '../webview-cdp-actions';
 import { evaluateActionPolicy } from '../webview-action-policy';
 import {
   EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION,
@@ -181,47 +184,104 @@ export function maybeCreateWebviewActionTools(
     page_click: {
       name: 'page_click',
       description:
-        'Click an element matching a CSS selector. Scrolls the element into view first and ' +
-        'verifies it has non-zero size before dispatching a real click. ' +
+        'Click an element matching a CSS selector via CDP — produces a real ' +
+        'mousePressed/mouseReleased pair through Chromium\'s input router (not a JS ' +
+        '`el.click()`), so hover handlers, pointer events, user-activation-gated APIs ' +
+        '(clipboard write, popup, fullscreen) all behave as if a human clicked. ' +
+        'Scrolls the element into view first. Accepts modifiers (shift / ctrl / meta / alt) ' +
+        'and button (left / middle / right). ' +
         baseDescription,
       inputSchema: z.object({
         nodeId: z.string().describe('ID of the iframe canvas node.'),
         selector: z.string().describe('CSS selector for the element to click.'),
+        button: z.enum(['left', 'middle', 'right']).optional().describe('Mouse button. Default "left".'),
+        clickCount: z.number().int().positive().optional().describe('1 for click, 2 for double-click.'),
+        modifiers: z
+          .array(z.enum(['shift', 'ctrl', 'control', 'meta', 'cmd', 'command', 'alt']))
+          .optional()
+          .describe('Keyboard modifiers held during the click.'),
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
         const r = resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_click', error: r.error });
-        const result = await clickSelector(
-          r.target.wc,
-          input.selector as string,
-          input.timeoutMs as number | undefined,
-        );
+        const result = await cdpClickSelector(r.target.wc, input.selector as string, {
+          button: input.button as 'left' | 'middle' | 'right' | undefined,
+          clickCount: input.clickCount as number | undefined,
+          modifiers: input.modifiers as string[] | undefined,
+          timeoutMs: input.timeoutMs as number | undefined,
+        });
         return serialise('page_click', input.nodeId as string, r.target.url, result);
+      },
+    },
+
+    page_click_at: {
+      name: 'page_click_at',
+      description:
+        'Click at absolute viewport coordinates (x, y) via CDP. Use this when paired ' +
+        'with `canvas_read_webpage({ strategy: "screenshot" })` + vision — the agent ' +
+        'sees a screenshot, picks a pixel, then clicks there. Coordinates are in CSS ' +
+        'pixels relative to the visual viewport top-left. ' +
+        baseDescription,
+      inputSchema: z.object({
+        nodeId: z.string().describe('ID of the iframe canvas node.'),
+        x: z.number().describe('Viewport x coordinate (CSS pixels).'),
+        y: z.number().describe('Viewport y coordinate (CSS pixels).'),
+        button: z.enum(['left', 'middle', 'right']).optional(),
+        clickCount: z.number().int().positive().optional(),
+        modifiers: z
+          .array(z.enum(['shift', 'ctrl', 'control', 'meta', 'cmd', 'command', 'alt']))
+          .optional(),
+        timeoutMs: z.number().int().positive().optional(),
+      }),
+      execute: async (input) => {
+        const r = resolveTarget(workspaceId, input.nodeId as string);
+        if (!r.ok) return JSON.stringify({ ok: false, action: 'page_click_at', error: r.error });
+        const result = await cdpClickAt(
+          r.target.wc,
+          input.x as number,
+          input.y as number,
+          {
+            button: input.button as 'left' | 'middle' | 'right' | undefined,
+            clickCount: input.clickCount as number | undefined,
+            modifiers: input.modifiers as string[] | undefined,
+            timeoutMs: input.timeoutMs as number | undefined,
+          },
+        );
+        return serialise('page_click_at', input.nodeId as string, r.target.url, result);
       },
     },
 
     page_fill: {
       name: 'page_fill',
       description:
-        'Set the value of an <input>, <textarea>, <select>, or contenteditable element. ' +
-        'Uses the React-safe native value setter and dispatches input/change events so framework state tracking sees the update. ' +
-        'Does NOT submit forms — call page_press({ key: "Enter" }) or page_click on a submit button to commit. ' +
+        'Fill an <input>, <textarea>, or contenteditable element with `value`. ' +
+        'Focuses the element, clears the existing value (React-safe via the native ' +
+        'setter), then inserts the new value via CDP `Input.insertText` — single atomic ' +
+        'insert, like a paste. Does NOT submit forms — follow up with page_press({ key: "Enter" }) ' +
+        'or page_click on a submit button. ' +
         baseDescription,
       inputSchema: z.object({
         nodeId: z.string().describe('ID of the iframe canvas node.'),
         selector: z.string().describe('CSS selector for the editable element.'),
-        value: z.string().describe('Replacement value. Replaces the entire current value.'),
+        value: z.string().describe('Replacement value. Replaces the entire current value by default.'),
+        clearFirst: z
+          .boolean()
+          .optional()
+          .describe('If false, appends instead of replacing. Default true.'),
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
         const r = resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_fill', error: r.error });
-        const result = await fillSelector(
+        const result = await cdpFillSelector(
           r.target.wc,
           input.selector as string,
           input.value as string,
-          input.timeoutMs as number | undefined,
+          {
+            clearFirst: input.clearFirst as boolean | undefined,
+            timeoutMs: input.timeoutMs as number | undefined,
+          },
         );
         return serialise('page_fill', input.nodeId as string, r.target.url, result);
       },
@@ -230,10 +290,13 @@ export function maybeCreateWebviewActionTools(
     page_press: {
       name: 'page_press',
       description:
-        'Dispatch a single keyboard event (keydown + keypress + keyup) to the page. ' +
-        'Useful for Enter to submit, Tab to advance focus, Escape to close menus, arrow keys to navigate lists. ' +
+        'Dispatch a keyDown + keyUp pair via CDP — real keyboard events with proper ' +
+        '`isTrusted=true` and user-activation, so React shortcuts (Cmd+K, Ctrl+S, etc.) ' +
+        'and native form-submit-on-Enter work. ' +
+        'Supports modifiers (shift / ctrl / meta / alt). ' +
+        'Supported keys: Enter, Tab, Escape, Backspace, Delete, ArrowUp/Down/Left/Right, ' +
+        'Home, End, PageUp, PageDown, Space, or any single character. ' +
         'For multi-character text input, prefer page_fill. ' +
-        'Supported keys: Enter, Tab, Escape, Backspace, Delete, ArrowUp/Down/Left/Right, Home, End, PageUp, PageDown, Space, or any single character. ' +
         baseDescription,
       inputSchema: z.object({
         nodeId: z.string().describe('ID of the iframe canvas node.'),
@@ -242,17 +305,20 @@ export function maybeCreateWebviewActionTools(
           .string()
           .optional()
           .describe('Optional element to focus before pressing. Defaults to the currently focused element.'),
+        modifiers: z
+          .array(z.enum(['shift', 'ctrl', 'control', 'meta', 'cmd', 'command', 'alt']))
+          .optional()
+          .describe('Keyboard modifiers (e.g. ["meta"] for Cmd+key, ["ctrl","shift"] for Ctrl+Shift+key).'),
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
         const r = resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_press', error: r.error });
-        const result = await pressKey(
-          r.target.wc,
-          input.key as string,
-          input.selector as string | undefined,
-          input.timeoutMs as number | undefined,
-        );
+        const result = await cdpPressKey(r.target.wc, input.key as string, {
+          selector: input.selector as string | undefined,
+          modifiers: input.modifiers as string[] | undefined,
+          timeoutMs: input.timeoutMs as number | undefined,
+        });
         return serialise('page_press', input.nodeId as string, r.target.url, result);
       },
     },
