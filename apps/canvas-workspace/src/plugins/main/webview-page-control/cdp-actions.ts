@@ -78,7 +78,18 @@ async function runWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 // Selector → coordinate resolution (JS-side, fast, no debugger needed)
 // ---------------------------------------------------------------------------
 
-interface CdpActionHost extends CdpHost, PageRunner {}
+interface CdpActionHost extends CdpHost, PageRunner {
+  /**
+   * Optional — grab OS-level input routing focus before CDP input dispatch.
+   * `Input.insertText` / `Input.dispatchKeyEvent` deliver to whichever widget
+   * currently owns the focused input route. In Electron, when the user is
+   * typing into the host window (e.g. the chat compose box), the guest
+   * webContents doesn't own that route — even though its DOM has `focus()`'d
+   * an element — so text would leak into the host. Calling `wc.focus()`
+   * forces the guest to become the focused widget.
+   */
+  focus?(): void;
+}
 
 interface CenterResult {
   ok: boolean;
@@ -240,6 +251,14 @@ export async function cdpPressKey(
     }
   }
 
+  // Steal OS-level input focus to the guest before dispatchKeyEvent —
+  // see the note in cdpFillSelector.
+  try {
+    wc.focus?.();
+  } catch {
+    // best-effort
+  }
+
   try {
     return await runWithTimeout(
       withCdp(wc, async (send: CdpSender) => {
@@ -344,6 +363,16 @@ export async function cdpFillSelector(
   if (!prep?.ok) return { ok: false, error: prep?.error ?? 'fill prep failed' };
   if (!prep.editable) {
     return { ok: false, error: `element is not editable (tag=${prep.tag})` };
+  }
+
+  // Steal OS-level input focus to the guest before insertText. Without
+  // this, if the host window owns the focused widget (e.g. the chat
+  // compose box), Chromium's input router delivers the text there
+  // instead of into the iframe.
+  try {
+    wc.focus?.();
+  } catch {
+    // best-effort
   }
 
   try {

@@ -10,6 +10,8 @@ import type { CdpHost } from '../../../../main/webview/cdp-session';
 
 interface FakeHost extends CdpHost {
   executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+  focus(): void;
+  focusCount: number;
   cdpCalls: Array<{ method: string; params?: Record<string, unknown> }>;
   jsCalls: string[];
 }
@@ -24,6 +26,10 @@ function makeHost(opts: {
   const host: FakeHost = {
     cdpCalls,
     jsCalls,
+    focusCount: 0,
+    focus() {
+      this.focusCount++;
+    },
     debugger: {
       isAttached: () => attached,
       attach: () => {
@@ -194,6 +200,12 @@ describe('cdpPressKey', () => {
     expect(r.error).toContain('unsupported');
     expect(host.cdpCalls).toHaveLength(0);
   });
+
+  it('steals OS-level input focus to the guest before dispatching keys', async () => {
+    const host = makeHost();
+    await cdpPressKey(host, 'a');
+    expect(host.focusCount).toBe(1);
+  });
 });
 
 describe('cdpFillSelector', () => {
@@ -217,6 +229,14 @@ describe('cdpFillSelector', () => {
     expect(r.ok).toBe(false);
     expect(r.error).toContain('not editable');
     expect(host.cdpCalls).toHaveLength(0);
+  });
+
+  it('steals OS-level input focus to the guest before inserting text', async () => {
+    const host = makeHost({
+      jsResponse: { ok: true, tag: 'input', editable: true },
+    });
+    await cdpFillSelector(host, 'input#q', 'hello');
+    expect(host.focusCount).toBe(1);
   });
 
   it('reports JS-side selector failure without touching CDP', async () => {
