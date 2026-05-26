@@ -3,6 +3,7 @@ import type { I18nKey } from '../../i18n';
 
 export const CANVAS_MENTION_PREFIX = 'canvas:';
 export const SKILL_MENTION_PREFIX = 'skill:';
+export const FOLDER_MENTION_PREFIX = 'folder:';
 
 export const MENTION_GROUPS = [
   { key: 'skill', label: 'Skills', labelKey: 'chat.mention.skills' },
@@ -15,6 +16,7 @@ export const MENTION_GROUPS = [
   { key: 'frame', label: 'Frame', labelKey: 'chat.mention.frame' },
   { key: 'group', label: 'Group', labelKey: 'chat.mention.group' },
   { key: 'canvas', label: 'Canvas', labelKey: 'chat.mention.canvas' },
+  { key: 'proj-folder', label: 'Project Folders', labelKey: 'chat.mention.projectFolders' },
   { key: 'proj-file', label: 'Project Files', labelKey: 'chat.mention.projectFiles' },
 ] as const;
 
@@ -67,6 +69,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
   if (item.type === 'skill') return 'skill';
   if (item.type === 'workspace') return 'canvas';
+  if (item.type === 'folder') return 'proj-folder';
   if (item.type === 'file') return 'proj-file';
 
   switch (item.nodeType) {

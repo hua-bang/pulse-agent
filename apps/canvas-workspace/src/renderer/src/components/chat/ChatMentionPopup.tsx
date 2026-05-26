@@ -28,9 +28,11 @@ export const ChatMentionPopup = ({
           ? 'workspace'
           : item.type === 'skill'
             ? 'skill'
-            : item.type === 'node'
-              ? item.nodeType ?? 'file'
-              : 'file';
+            : item.type === 'folder'
+              ? 'folder'
+              : item.type === 'node'
+                ? item.nodeType ?? 'file'
+                : 'file';
 
         return (
           <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>

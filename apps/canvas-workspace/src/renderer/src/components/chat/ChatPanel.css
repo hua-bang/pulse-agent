@@ -1661,6 +1661,16 @@
   color: rgba(34, 197, 94, 0.85);
 }
 
+.chat-mention-chip[data-node-type="folder"],
+.chat-mention-chip--folder {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+.chat-mention-chip[data-node-type="folder"] .chat-mention-chip-icon,
+.chat-mention-chip--folder .chat-mention-chip-icon {
+  color: rgba(245, 158, 11, 0.9);
+}
+
 /* Input chip variant — inline non-editable mention in contentEditable */
 .chat-mention-chip--input {
   font-size: inherit;
