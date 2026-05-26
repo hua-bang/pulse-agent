@@ -104,6 +104,9 @@ importers:
       pulse-coder-engine:
         specifier: workspace:*
         version: link:../../packages/engine
+      pulse-sandbox:
+        specifier: workspace:*
+        version: link:../../packages/pulse-sandbox
       react:
         specifier: ^18.3.1
         version: 18.3.1
