@@ -1,6 +1,3 @@
-import {
-  isCanvasAgentDebugTraceEnabled,
-} from '../../main/canvas-agent/debug-trace';
 import type {
   CanvasAgentDebugRunDetail,
   CanvasAgentDebugRunSummary,
@@ -59,9 +56,18 @@ function buildStoredRun(payload: TurnTracePayload): StoredRun {
 // and serves the renderer half via IPC. The plugin no longer reaches
 // into session-store; canvas-agent and this plugin only share the
 // event bus contract.
+//
+// Always activates — `setupCanvasPlugins` only runs once at main-process
+// startup, but the trace flag (`canvas-agent-debug-trace`) can be flipped
+// later from Settings → Experimental + window reload, with no full app
+// restart. If we gated activation on the flag's startup value we'd never
+// register the `turnEnd` listener or `list-runs`/`get-run` IPC handlers
+// for users who turned it on after launching. The plugin is inert when
+// the flag is off: canvas-agent doesn't emit `turnEnd` without a trace
+// (canvas-agent.ts) and the renderer half isn't activated, so nobody
+// invokes the IPC handlers.
 export const DevtoolsMainPlugin: MainCanvasPlugin = {
   id: 'devtools',
-  enabledWhen: isCanvasAgentDebugTraceEnabled,
   activate(ctx) {
     ctx.onAgent('turnEnd', async (turn) => {
       const payload = turn.data as TurnTracePayload | undefined;

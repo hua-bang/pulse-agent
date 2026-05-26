@@ -47,13 +47,27 @@ async function readOverrides(): Promise<Record<string, boolean>> {
 // Preload can't import `fs` itself in sandbox mode, so the file read has to
 // happen here. Errors swallow to defaults — preload bootstrap must never
 // throw or the renderer loses access to the entire canvasWorkspace bridge.
-function readOverridesSync(): Record<string, boolean> {
+export function readOverridesSync(): Record<string, boolean> {
   try {
     const raw = readFileSync(getPath(), 'utf8');
     return normaliseOverrides(JSON.parse(raw));
   } catch {
     return {};
   }
+}
+
+/**
+ * Synchronously resolve a single experimental flag from the persisted
+ * overrides file, falling back to the registered default. Use this from
+ * main-side modules that need to gate behaviour on a flag the user
+ * toggled in Settings, without going through the renderer.
+ *
+ * Cheap (small JSON read, swallowed on error), so callers may invoke it
+ * per-event without caching. That keeps the flag reactive to Settings
+ * toggles + window reloads, where the main process keeps running.
+ */
+export function getExperimentalFlagSync(id: string): boolean {
+  return resolveFeatureValues(readOverridesSync())[id] === true;
 }
 
 async function writeOverrides(overrides: Record<string, boolean>): Promise<void> {
