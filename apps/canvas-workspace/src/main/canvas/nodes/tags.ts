@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { basename, dirname, join } from 'path';
-import { STORE_DIR } from './workspace-node-store';
+import { STORE_DIR } from './store';
 
 export const TAGS_FILENAME = 'tags.json';
 export const TAGS_SCHEMA_VERSION = 1;

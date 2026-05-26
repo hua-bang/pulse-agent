@@ -34,7 +34,7 @@ import {
   type CanvasSaveData,
   type MigrationProgress,
   type PerNodeFile,
-} from '../canvas-storage';
+} from '../canvas/storage';
 
 let root: string;
 const wsId = 'ws-test';

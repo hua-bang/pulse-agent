@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { getExperimentalFlagSync } from '../experimental-ipc';
+import { getExperimentalFlagSync } from '../settings/experimental-ipc';
 import { EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE } from '../../shared/experimental-features';
 import type {
   CanvasAgentDebugTrace,

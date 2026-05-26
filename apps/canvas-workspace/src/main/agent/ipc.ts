@@ -28,8 +28,8 @@ import { randomUUID } from 'crypto';
 import { promises as fs } from 'fs';
 import { basename, join } from 'path';
 import { homedir } from 'os';
-import { CanvasAgentService } from './canvas-agent/service';
-import { streamWorkspaceDoc } from './canvas-agent/workspace-doc-generator';
+import { CanvasAgentService } from './service';
+import { streamWorkspaceDoc } from './workspace-doc-generator';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 

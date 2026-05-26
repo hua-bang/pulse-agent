@@ -4,7 +4,7 @@ import {
   resetPromptProfile,
   savePromptProfile,
   type PromptProfile,
-} from './canvas-agent/prompt-profile';
+} from './prompt-profile';
 
 export function setupCanvasPromptIpc(): void {
   ipcMain.handle('canvas-prompt-profile:get', async () => {

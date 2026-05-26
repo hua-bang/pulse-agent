@@ -10,8 +10,8 @@
  * see the comment at the writeToSession call site for the full story.
  */
 
-import { readCanvasFull } from './canvas-storage';
-import { hasSession, writeToSession } from './pty-manager';
+import { readCanvasFull } from '../canvas/storage';
+import { hasSession, writeToSession } from '../terminal/pty-manager';
 
 export interface SendInputToAgentNodeInput {
   workspaceId: string;

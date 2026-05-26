@@ -14,7 +14,7 @@
  */
 
 import { generateText, streamText } from 'ai';
-import { resolveCanvasModel } from './canvas-agent/model-config';
+import { resolveCanvasModel } from '../agent/model/config';
 
 const SYSTEM_PROMPT = `You are a world-class frontend developer who creates stunning, production-quality interactive HTML visuals. The user will describe what they want — your job is to make it look incredible.
 

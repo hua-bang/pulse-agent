@@ -7,7 +7,7 @@ import { tmpdir } from 'os';
 const sessionWrites: Array<{ id: string; data: string }> = [];
 const liveSessions = new Set<string>();
 
-vi.mock('../pty-manager', () => ({
+vi.mock('../terminal/pty-manager', () => ({
   hasSession: (id: string) => liveSessions.has(id),
   writeToSession: (id: string, data: string) => {
     if (!liveSessions.has(id)) return false;
@@ -18,11 +18,11 @@ vi.mock('../pty-manager', () => ({
 
 // Mock canvas-storage to load from a temp directory we control.
 let mockCanvas: { nodes: Array<Record<string, unknown>> } | null = null;
-vi.mock('../canvas-storage', () => ({
+vi.mock('../canvas/storage', () => ({
   readCanvasFull: async () => ({ data: mockCanvas }),
 }));
 
-import { sendInputToAgentNode } from '../agent-session-send';
+import { sendInputToAgentNode } from '../agent/session-send';
 
 let tmp: string;
 

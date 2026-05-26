@@ -13,7 +13,7 @@ import {
   readWorkspaceNode,
   writeWorkspaceNode,
   type WorkspaceNodeRecord,
-} from '../workspace-node-store';
+} from '../canvas/nodes/store';
 
 let root: string;
 const wsId = 'ws-test';

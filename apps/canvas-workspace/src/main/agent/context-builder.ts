@@ -9,8 +9,8 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
-import { getNodeRenderedText } from '../webview-registry';
-import { readCanvasFull } from '../canvas-storage';
+import { getNodeRenderedText } from '../webview/registry';
+import { readCanvasFull } from '../canvas/storage';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 

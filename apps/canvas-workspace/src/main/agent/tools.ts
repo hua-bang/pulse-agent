@@ -21,23 +21,23 @@ import {
   readNodeDetail,
   formatSummaryForPrompt,
 } from './context-builder';
-import { sendInputToAgentNode } from '../agent-session-send';
-import { generateHTML } from '../html-generator';
+import { sendInputToAgentNode } from './session-send';
+import { generateHTML } from '../generation/html-generator';
 import { readWorkspaceMeta } from './workspace-meta';
 import {
   addArtifactVersion as storeAddArtifactVersion,
   createArtifact as storeCreateArtifact,
   getArtifact as storeGetArtifact,
-} from '../artifact-store';
-import { pinArtifactToCanvas } from '../artifact-ipc';
-import { getWebContentsForNode } from '../webview-registry';
-import { readDOM, readA11y, captureScreenshot } from '../webpage-reader-ipc';
+} from '../artifacts/store';
+import { pinArtifactToCanvas } from '../artifacts/ipc';
+import { getWebContentsForNode } from '../webview/registry';
+import { readDOM, readA11y, captureScreenshot } from '../webview/reader';
 import { getRegisteredCanvasToolFactories } from '../../plugins/main';
 import {
   readCanvasFull,
   writeCanvasFull,
   getCanvasJsonPath,
-} from '../canvas-storage';
+} from '../canvas/storage';
 import {
   listWorkspaceNodes,
   readWorkspaceNode,
@@ -46,8 +46,8 @@ import {
   type WorkspaceNodeRecord,
   type WorkspaceNodeLink,
   type WorkspaceNodePropertyValue,
-} from '../workspace-node-store';
-import { readKnowledgeTags, upsertKnowledgeTag } from '../tag-store';
+} from '../canvas/nodes/store';
+import { readKnowledgeTags, upsertKnowledgeTag } from '../canvas/nodes/tags';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 const BLANK_PAGE_URL = 'about:blank';

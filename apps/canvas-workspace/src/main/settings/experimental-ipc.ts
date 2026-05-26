@@ -17,7 +17,7 @@ import { dirname, join } from 'path';
 import {
   EXPERIMENTAL_FEATURES,
   resolveFeatureValues,
-} from '../shared/experimental-features';
+} from '../../shared/experimental-features';
 
 function getPath(): string {
   const envPath = process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim();

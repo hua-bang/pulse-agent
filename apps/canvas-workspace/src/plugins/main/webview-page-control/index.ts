@@ -9,9 +9,9 @@
  * never sees the tool names.
  *
  * URL policy and CDP infrastructure live in sibling files inside this
- * folder; the only outward dependency is on `main/cdp-session.ts`
+ * folder; the only outward dependency is on `main/webview/cdp-session.ts`
  * (shared with the reader path so they don't fight over the debugger
- * slot) and `main/webview-registry.ts` (live `WebContents` lookup).
+ * slot) and `main/webview/registry.ts` (live `WebContents` lookup).
  */
 
 import { readFileSync } from 'fs';

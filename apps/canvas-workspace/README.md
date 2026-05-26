@@ -37,13 +37,15 @@ An Electron desktop app that provides a free-form canvas workspace for AI-assist
 ```
 src/
   main/             # Electron main process
-    canvas-agent/   # CanvasAgent + CanvasAgentService (engine-backed AI chat)
-    canvas-store.ts # Canvas state persistence (JSON per workspace)
-    file-manager.ts # File read/write/dialog IPC handlers
-    file-watcher.ts # Filesystem watcher → external update events
-    mcp-server.ts   # Local MCP server exposed to agent nodes
-    pty-manager.ts  # node-pty session management
-    skill-installer.ts
+    app/            # Electron bootstrap, window, protocol, logging, link policy
+    agent/          # CanvasAgent + CanvasAgentService (engine-backed AI chat)
+    artifacts/      # Artifact persistence and artifact IPC
+    canvas/         # Canvas persistence, storage migration, nodes, tags, broadcast
+    files/          # File read/write/dialog IPC and filesystem watcher
+    generation/     # HTML generation and streaming IPC
+    runtime/        # Runtime control server and MCP helpers
+    terminal/       # node-pty session management
+    webview/        # Webview registry, CDP helpers, page reader
   preload/          # Context bridge (exposes window.canvasWorkspace API)
   renderer/src/
     components/     # Canvas, Sidebar, AgentNodeBody, FileNodeBody, chat/, …
@@ -52,6 +54,9 @@ src/
 ```
 
 The renderer communicates with the main process exclusively through `window.canvasWorkspace` (defined in `types.ts`), which is bridged via `src/preload/`.
+
+See `docs/main-domain-modules.md` for the domain-based `src/main` module layout
+and remaining migration plan.
 
 ## Dev & Build Commands
 
@@ -79,7 +84,7 @@ Packaged output goes to `release/`. App ID: `com.pulse-coder.canvas-workspace`.
 
 ## Canvas Agent
 
-The AI chat feature is powered by `CanvasAgentService` (`src/main/canvas-agent/`), which wraps `pulse-coder-engine`. Each workspace maintains its own agent session, persisted under the workspace data directory. The agent receives a workspace/node summary as context on every turn.
+The AI chat feature is powered by `CanvasAgentService` (`src/main/agent/`), which wraps `pulse-coder-engine`. Each workspace maintains its own agent session, persisted under the workspace data directory. The agent receives a workspace/node summary as context on every turn.
 
 
 ### Custom model configuration
@@ -105,4 +110,4 @@ The renderer can also manage the same config through `window.canvasWorkspace.mod
 
 ## Data Persistence
 
-Canvas state (node positions, types, data) is saved per workspace as JSON via `canvas-store.ts`. File nodes are backed by real files on disk; the file watcher pushes external changes into the renderer via IPC.
+Canvas state (node positions, types, data) is saved per workspace as JSON via `src/main/canvas/`. File nodes are backed by real files on disk; the file watcher pushes external changes into the renderer via IPC.

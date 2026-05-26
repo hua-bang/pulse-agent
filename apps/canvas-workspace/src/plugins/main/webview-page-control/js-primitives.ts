@@ -1,7 +1,7 @@
 /**
  * Low-level page-action primitives executed inside an iframe-node webview.
  *
- * These are the write side of {@link ./webpage-reader-ipc.ts}. They run
+ * These are the write side of the main-process webview reader. They run
  * inside the guest's isolated world via `webContents.executeJavaScript`,
  * so they can't see our renderer globals and the guest can't see us. The
  * tools layer ({@link ./canvas-agent/webview-action-tools.ts}) wraps each

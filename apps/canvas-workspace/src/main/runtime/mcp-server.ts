@@ -2,8 +2,8 @@ import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { execInSession, hasSession } from './pty-manager';
-import { readCanvasFull, writeCanvasFull } from './canvas-storage';
+import { execInSession, hasSession } from '../terminal/pty-manager';
+import { readCanvasFull, writeCanvasFull } from '../canvas/storage';
 
 export const MCP_PORT = 3333;
 

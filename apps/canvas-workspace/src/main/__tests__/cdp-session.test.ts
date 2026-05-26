@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { withCdp, type CdpHost } from '../cdp-session';
+import { withCdp, type CdpHost } from '../webview/cdp-session';
 
 function makeHost(opts: {
   alreadyAttached?: boolean;

@@ -4,8 +4,8 @@ import {
   readWorkspaceNode,
   writeWorkspaceNode,
   type WorkspaceNodeRecord,
-} from './workspace-node-store';
-import { readKnowledgeTags, upsertKnowledgeTag, type KnowledgeTagDefinition } from './tag-store';
+} from './store';
+import { readKnowledgeTags, upsertKnowledgeTag, type KnowledgeTagDefinition } from './tags';
 
 export interface WorkspaceNodeListItem {
   id: string;
