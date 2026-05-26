@@ -32,6 +32,7 @@ import {
 import { pinArtifactToCanvas } from '../artifact-ipc';
 import { getWebContentsForNode } from '../webview-registry';
 import { readDOM, readA11y, captureScreenshot } from '../webpage-reader-ipc';
+import { maybeCreateWebviewActionTools } from './webview-action-tools';
 import {
   readCanvasFull,
   writeCanvasFull,
@@ -653,7 +654,7 @@ function buildEndpoint(args: {
 // ─── Tool definitions ──────────────────────────────────────────────
 
 export function createCanvasTools(workspaceId: string): Record<string, CanvasTool> {
-  return {
+  const base: Record<string, CanvasTool> = {
     canvas_ask_user: {
       name: 'canvas_ask_user',
       description:
@@ -2103,4 +2104,15 @@ ${outline}`;
       },
     },
   };
+
+  // Experimental: webview script-injection tools (page_click / page_fill /
+  // page_press / page_wait_for / page_eval). Registered ONLY when the
+  // `webview-script-injection` experimental flag is on. When off, the
+  // agent doesn't see these tool names at all.
+  const webviewActions = maybeCreateWebviewActionTools(workspaceId);
+  if (webviewActions) {
+    Object.assign(base, webviewActions);
+  }
+
+  return base;
 }

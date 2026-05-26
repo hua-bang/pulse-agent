@@ -33,6 +33,7 @@ export interface ExperimentalFeatureDef {
 export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';
 export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
 export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
+export const EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION = 'webview-script-injection';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
@@ -54,6 +55,13 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     label: 'Workspace Graph page',
     description:
       'A force-directed graph view of all nodes in the workspace with grouped toolbar and suggest-search. Surfaces a "Graph" entry in the sidebar.',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION,
+    label: 'Webview script injection (agent)',
+    description:
+      'Lets the Canvas Agent control pages inside iframe nodes — click, fill, press keys, wait for selectors, run arbitrary JS. Blocked on file://, chrome://, devtools:// and a built-in sensitive-domain list (banks, payments, mainstream login). Customize via ~/.pulse-coder/canvas/webview-action-policy.json. Treat this as giving an LLM access to whatever you are currently logged into.',
     defaultEnabled: false,
   },
 ];
