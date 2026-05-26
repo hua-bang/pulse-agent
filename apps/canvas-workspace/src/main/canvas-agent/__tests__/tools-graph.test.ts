@@ -306,3 +306,53 @@ describe('homedir isolation', () => {
     expect(sandboxHome.startsWith('/tmp') || sandboxHome.startsWith(tmpRoot)).toBe(true);
   });
 });
+
+describe('deferred tool partition', () => {
+  // Locks in the eager/deferred split so a future edit to tools.ts that
+  // accidentally drops or adds a `defer_loading` flag fails loudly.
+  it('matches the documented eager / deferred sets', () => {
+    const tools = createCanvasTools(wsId);
+    const eager: string[] = [];
+    const deferred: string[] = [];
+    for (const [name, tool] of Object.entries(tools)) {
+      if (tool.defer_loading) deferred.push(name);
+      else eager.push(name);
+    }
+    eager.sort();
+    deferred.sort();
+
+    expect(eager).toEqual([
+      'artifact_create',
+      'artifact_pin_to_canvas',
+      'canvas_analyze_image',
+      'canvas_ask_user',
+      'canvas_create_agent_node',
+      'canvas_create_node',
+      'canvas_create_terminal_node',
+      'canvas_delete_node',
+      'canvas_generate_image',
+      'canvas_move_node',
+      'canvas_read_context',
+      'canvas_read_node',
+      'canvas_search_nodes',
+      'canvas_send_to_agent',
+      'canvas_update_node',
+      'visual_render',
+    ]);
+    expect(deferred).toEqual([
+      'artifact_update',
+      'canvas_add_to_group',
+      'canvas_create_edge',
+      'canvas_create_shape',
+      'canvas_delete_edge',
+      'canvas_generate_mindmap_image',
+      'canvas_list_edges',
+      'canvas_read_webpage',
+      'canvas_remove_from_group',
+      'canvas_update_edge',
+      'workspace_node_get',
+      'workspace_node_list',
+      'workspace_node_upsert',
+    ]);
+  });
+});

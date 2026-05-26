@@ -7,7 +7,7 @@
  */
 
 import { Engine } from 'pulse-coder-engine';
-import { builtInSkillsPlugin } from 'pulse-coder-engine/built-in';
+import { builtInSkillsPlugin, builtInToolSearchPlugin } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model-config';
 import { agentBus } from '../../plugins/main';
@@ -141,23 +141,31 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 - Use \`canvas_read_node\` to read a specific node's full content
 - Use \`canvas_read_context\` with detail="full" for everything at once
 
-## Canvas Tools
+## Canvas Tools (always loaded)
 - \`canvas_read_context\`: Read workspace overview or full context
 - \`canvas_read_node\`: Read a single node's content in detail
+- \`canvas_search_nodes\`: Search nodes by query / type / tag — use this BEFORE \`canvas_read_node\` when the canvas has many nodes so you don't blow the context window pulling the full summary
 - \`canvas_create_node\`: Create new file/frame/text/image/iframe/mindmap nodes (generic)
 - \`canvas_analyze_image\`: Read/OCR/analyze image nodes or local image paths
 - \`canvas_generate_image\`: Generate an AI image and place it on the canvas as an image node
-- \`canvas_generate_mindmap_image\`: Generate a polished visual image from an existing mindmap node
 - \`canvas_create_agent_node\`: **Create and launch an AI agent node** — preferred for agent creation
 - \`canvas_send_to_agent\`: **Send a follow-up prompt to an already-running agent node** — use for any interaction AFTER the initial launch
 - \`canvas_create_terminal_node\`: **Create a terminal node** — preferred for terminal creation
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
 - \`canvas_delete_node\`: Remove a node from the canvas
 - \`canvas_move_node\`: Reposition a node
-- \`canvas_search_nodes\`: Search nodes by query / type / tag — use this BEFORE \`canvas_read_node\` when the canvas has many nodes so you don't blow the context window pulling the full summary
-- \`canvas_add_to_group\` / \`canvas_remove_from_group\`: Manage explicit membership of group nodes (group nodes own their members via \`data.childIds\`; frames use spatial containment instead — move a node into the frame's bbox with \`canvas_move_node\`)
-- \`workspace_node_list\` / \`workspace_node_get\` / \`workspace_node_upsert\`: Read & write the **workspace-node knowledge layer** — a separate metadata store (per-workspace, on-disk) that attaches \`tags\`, \`properties\` (kind, summary, sourceUrl, custom values), and typed \`links\` (relations between nodes) to a node id. Use these whenever the user is curating a knowledge graph, tagging nodes, or asking "find/group/connect nodes by X"
 - \`canvas_ask_user\`: **Ask the user a clarifying question** — use this whenever the request is ambiguous, you need a choice between options, or you need confirmation before taking a destructive action. Prefer asking over guessing.
+
+## Deferred Tools (discover via tool_search)
+The following tools are NOT loaded by default — call \`tool_search_tool_bm25\` (natural language) or \`tool_search_tool_regex\` (regex) with a relevant query to surface them, then invoke the returned tool. Group them by intent:
+- **Edges / connections**: \`canvas_list_edges\`, \`canvas_create_edge\`, \`canvas_update_edge\`, \`canvas_delete_edge\` — load when the user asks to connect / link / draw arrows between nodes.
+- **Group membership**: \`canvas_add_to_group\`, \`canvas_remove_from_group\` — load when the user asks to add/remove nodes to/from a group (groups own members via \`data.childIds\`; frames use spatial containment, no tool needed — just \`canvas_move_node\` into the frame's bbox).
+- **Workspace-node knowledge layer**: \`workspace_node_list\`, \`workspace_node_get\`, \`workspace_node_upsert\` — load when the user is tagging nodes, building a knowledge graph, or asking "find/group/connect nodes by X". Separate metadata store with tags / properties / typed links.
+- **Visual specialties**: \`canvas_create_shape\` (precise shape sizing), \`canvas_generate_mindmap_image\` (visual export of a mindmap node).
+- **Artifact versioning**: \`artifact_update\` (only when iterating on an already-created artifact).
+- **Webpage scraping**: \`canvas_read_webpage\` (DOM/a11y/screenshot from an open iframe node).
+
+When in doubt about which tool exists for an operation, just call \`tool_search_tool_bm25\` with a description of what you want to do.
 
 ## Visualization Tools — visual_render is the DEFAULT
 
@@ -548,7 +556,13 @@ export class CanvasAgent {
     this.engine = new Engine({
       disableBuiltInPlugins: true,
       enginePlugins: {
-        plugins: [builtInSkillsPlugin],
+        // tool-search hides tools marked `defer_loading: true` from the
+        // immediate set sent to the LLM and surfaces them through
+        // `tool_search_tool_bm25` / `_regex`. The canvas agent has ~29 tools
+        // and many are domain-specialized (edges, knowledge layer, niche
+        // creators); keeping them deferred keeps the per-turn tool catalog
+        // focused on the common read/write/move/visual path.
+        plugins: [builtInSkillsPlugin, builtInToolSearchPlugin],
       },
       model: config.model,
       tools: canvasTools,

@@ -611,6 +611,13 @@ export interface CanvasTool {
   name: string;
   description: string;
   inputSchema: z.ZodType;
+  /**
+   * When true the tool is hidden from the immediate tool list passed to the
+   * LLM and only surfaces after `tool_search_tool_bm25` / `_regex` discovers
+   * it. Engine-side this is consumed by the built-in tool-search plugin
+   * (`packages/engine/src/built-in/tool-search-plugin`).
+   */
+  defer_loading?: boolean;
   execute: (input: any, ctx?: CanvasToolExecutionContext) => Promise<string>;
 }
 
@@ -1108,6 +1115,7 @@ ${outline}`;
 
     canvas_generate_mindmap_image: {
       name: 'canvas_generate_mindmap_image',
+      defer_loading: true,
       description:
         'Generate a visual image from an existing mindmap node and return it to the chat. ' +
         'Use this for requests like "turn this mindmap into an image/poster/diagram". ' +
@@ -1429,6 +1437,7 @@ ${outline}`;
 
     canvas_add_to_group: {
       name: 'canvas_add_to_group',
+      defer_loading: true,
       description:
         'Add one or more nodes to a group node\'s explicit child list (`data.childIds`). ' +
         'Use this to make grouping deterministic — frames rely on spatial bbox containment, but groups own their members explicitly via childIds. ' +
@@ -1512,6 +1521,7 @@ ${outline}`;
 
     canvas_remove_from_group: {
       name: 'canvas_remove_from_group',
+      defer_loading: true,
       description:
         'Remove one or more nodes from a group node\'s explicit child list (`data.childIds`). ' +
         'Targets not currently in the group are ignored. Does NOT delete the nodes themselves.',
@@ -1570,6 +1580,7 @@ ${outline}`;
 
     workspace_node_list: {
       name: 'workspace_node_list',
+      defer_loading: true,
       description:
         'List workspace-node knowledge atoms — the separate metadata layer that stores `properties` (tags, summary, kind, sourceUrl...) and `links` (relations between nodes) alongside the visual canvas. ' +
         'A workspace-node has the SAME id as the canvas node it annotates (when one exists), but they are stored separately. ' +
@@ -1607,6 +1618,7 @@ ${outline}`;
 
     workspace_node_get: {
       name: 'workspace_node_get',
+      defer_loading: true,
       description:
         'Read the full workspace-node metadata record for a given node id (properties, links, data, tags). ' +
         'Returns null when no metadata atom exists yet — use `workspace_node_upsert` to create one.',
@@ -1624,6 +1636,7 @@ ${outline}`;
 
     workspace_node_upsert: {
       name: 'workspace_node_upsert',
+      defer_loading: true,
       description:
         'Create or merge-update a workspace-node knowledge atom (separate from the canvas layout). ' +
         'Use this to attach `tags`, `properties` (kind, summary, sourceUrl, custom values), and `links` (typed relations to other nodes) to a node id. ' +
@@ -1928,6 +1941,7 @@ ${outline}`;
 
     canvas_create_shape: {
       name: 'canvas_create_shape',
+      defer_loading: true,
       description:
         'Create a primitive geometric shape on the canvas. Supported kinds: ' +
         '"rect", "rounded-rect", "ellipse", "triangle", "diamond", "hexagon", "star". ' +
@@ -1999,6 +2013,7 @@ ${outline}`;
 
     canvas_list_edges: {
       name: 'canvas_list_edges',
+      defer_loading: true,
       description:
         'List every edge (connection / arrow) on the canvas with resolved endpoint titles. ' +
         'Useful when you need to understand what the user has linked together — e.g. to figure out ' +
@@ -2034,6 +2049,7 @@ ${outline}`;
 
     canvas_create_edge: {
       name: 'canvas_create_edge',
+      defer_loading: true,
       description:
         'Connect two nodes (or free points) on the canvas with an arrow. ' +
         'Endpoints are node-bound by default: pass `sourceNodeId` / `targetNodeId`. For a free-floating ' +
@@ -2146,6 +2162,7 @@ ${outline}`;
 
     canvas_update_edge: {
       name: 'canvas_update_edge',
+      defer_loading: true,
       description:
         'Update fields on an existing edge. Supports changing label, kind, payload, arrow caps, stroke, and bend. ' +
         'Endpoint mutation is intentionally not supported — delete the edge and create a new one instead to keep the ' +
@@ -2223,6 +2240,7 @@ ${outline}`;
 
     canvas_delete_edge: {
       name: 'canvas_delete_edge',
+      defer_loading: true,
       description: 'Delete an edge by id.',
       inputSchema: z.object({
         edgeId: z.string().describe('The ID of the edge to delete.'),
@@ -2389,6 +2407,7 @@ ${outline}`;
 
     artifact_update: {
       name: 'artifact_update',
+      defer_loading: true,
       description:
         'Add a new version to an existing artifact. The new version becomes the current one; previous versions remain accessible in the drawer. ' +
         'Use this when the user asks to refine, iterate on, or fix an artifact you (or a previous turn) already created. ' +
@@ -2462,6 +2481,7 @@ ${outline}`;
 
     canvas_read_webpage: {
       name: 'canvas_read_webpage',
+      defer_loading: true,
       description:
         'Read a webpage that is currently open in a canvas iframe node using the richest available strategy.\n' +
         'Requires the iframe node to be mounted and loaded in the canvas.\n\n' +
