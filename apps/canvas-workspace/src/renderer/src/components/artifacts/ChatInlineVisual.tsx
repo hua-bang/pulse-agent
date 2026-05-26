@@ -20,6 +20,7 @@ import type { ArtifactType } from '../../types';
 import { useArtifactDrawer } from './ArtifactContext';
 import { extractPartialStringField } from './partialJson';
 import { STREAMING_SHELL, withAutoHeight } from './streamingShell';
+import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
 
 export interface InlineVisualPayload {
   type: ArtifactType;
@@ -152,6 +153,24 @@ export const ChatInlineVisual = ({
     return () => cancelAnimationFrame(rafId.current);
   }, [isStreamingHtml, livePayload]);
 
+  // Mermaid source can't be parsed mid-stream, so we wait for the final
+  // payload before kicking off a render. Re-runs when the source changes
+  // (rare here, but cheap; mermaid.render is memoizable in practice).
+  const mermaidSource = payload?.type === 'mermaid' ? payload.content : null;
+  const [mermaidResult, setMermaidResult] = useState<MermaidRenderResult | null>(null);
+  useEffect(() => {
+    if (!mermaidSource) {
+      setMermaidResult(null);
+      return;
+    }
+    let cancelled = false;
+    setMermaidResult(null);
+    void renderMermaidSource(mermaidSource).then(result => {
+      if (!cancelled) setMermaidResult(result);
+    });
+    return () => { cancelled = true; };
+  }, [mermaidSource]);
+
   // Lazily promote the inline visual to a persistent artifact and return its
   // id. Both Open and Save funnel through this — repeated calls reuse the
   // first artifact instead of creating duplicates.
@@ -271,6 +290,36 @@ export const ChatInlineVisual = ({
         <div
           className="chat-inline-visual__svg"
           dangerouslySetInnerHTML={{ __html: livePayload.content }}
+        />
+      );
+    }
+    if (livePayload.type === 'mermaid') {
+      if (!payload) {
+        return (
+          <div className="chat-inline-visual__mermaid chat-inline-visual__mermaid--loading">
+            <span className="chat-inline-visual__loading-label">Preparing diagram</span>
+          </div>
+        );
+      }
+      if (!mermaidResult) {
+        return (
+          <div className="chat-inline-visual__mermaid chat-inline-visual__mermaid--loading">
+            <span className="chat-inline-visual__loading-label">Rendering diagram</span>
+          </div>
+        );
+      }
+      if (!mermaidResult.ok) {
+        return (
+          <div className="chat-inline-visual__mermaid chat-inline-visual__mermaid--error">
+            <div className="chat-inline-visual__mermaid-error-title">Mermaid render failed</div>
+            <pre className="chat-inline-visual__mermaid-error-detail">{mermaidResult.error}</pre>
+          </div>
+        );
+      }
+      return (
+        <div
+          className="chat-inline-visual__mermaid"
+          dangerouslySetInnerHTML={{ __html: mermaidResult.svg }}
         />
       );
     }

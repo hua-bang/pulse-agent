@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Artifact, ArtifactVersion } from '../../types';
 import { useArtifactDrawer } from './ArtifactContext';
+import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
 
 const TYPE_LABEL: Record<string, string> = {
   html: 'HTML',
@@ -182,6 +183,14 @@ export const ArtifactDrawer = () => {
         />
       );
     }
+    if (artifact.type === 'mermaid') {
+      return (
+        <ArtifactDrawerMermaid
+          key={viewedVersion.id}
+          source={viewedVersion.content}
+        />
+      );
+    }
     return <div className="artifact-drawer__empty">Unsupported artifact type</div>;
   };
 
@@ -232,5 +241,35 @@ export const ArtifactDrawer = () => {
         <div className="artifact-drawer__body">{renderBody()}</div>
       </aside>
     </>
+  );
+};
+
+const ArtifactDrawerMermaid = ({ source }: { source: string }) => {
+  const [result, setResult] = useState<MermaidRenderResult | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setResult(null);
+    void renderMermaidSource(source).then(r => {
+      if (!cancelled) setResult(r);
+    });
+    return () => { cancelled = true; };
+  }, [source]);
+
+  if (!result) {
+    return <div className="artifact-drawer__mermaid-host artifact-drawer__mermaid-host--loading">Rendering diagram…</div>;
+  }
+  if (!result.ok) {
+    return (
+      <div className="artifact-drawer__mermaid-host artifact-drawer__mermaid-host--error">
+        <div className="artifact-drawer__mermaid-error-title">Mermaid render failed</div>
+        <pre className="artifact-drawer__mermaid-error-detail">{result.error}</pre>
+      </div>
+    );
+  }
+  return (
+    <div
+      className="artifact-drawer__mermaid-host"
+      dangerouslySetInnerHTML={{ __html: result.svg }}
+    />
   );
 };
