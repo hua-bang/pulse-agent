@@ -1,7 +1,7 @@
 /**
  * Canvas-agent tools that **write** to webview pages — click, fill, press
  * keys, wait for selectors, run arbitrary JS. Gated by the experimental
- * flag {@link EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION}; the caller
+ * flag {@link EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL}; the caller
  * decides whether to register them via {@link maybeCreateWebviewActionTools}.
  *
  * Every tool follows the same shape:
@@ -38,7 +38,7 @@ import {
 } from '../webview-cdp-actions';
 import { evaluateActionPolicy } from '../webview-action-policy';
 import {
-  EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION,
+  EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
   resolveFeatureValues,
 } from '../../shared/experimental-features';
 import type { CanvasTool } from './tools';
@@ -66,7 +66,7 @@ function readFlagSync(id: string): boolean {
 }
 
 export function isWebviewScriptInjectionEnabled(): boolean {
-  return readFlagSync(EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION);
+  return readFlagSync(EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL);
 }
 
 interface ResolvedTarget {
@@ -134,7 +134,7 @@ function serialise(action: string, nodeId: string, url: string, result: PageActi
 }
 
 const baseDescription =
-  'Experimental — requires the `webview-script-injection` flag. ' +
+  'Experimental — requires the `webview-page-control` flag. ' +
   'Operates on iframe nodes whose <webview> is mounted in URL mode. ' +
   'Blocked on file://, chrome://, devtools://, view-source://, and a ' +
   'built-in sensitive-domain deny list (banks, payments, mainstream auth). ' +

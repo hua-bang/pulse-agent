@@ -1,7 +1,7 @@
 /**
- * URL policy for the experimental webview script-injection tools.
+ * URL policy for the experimental webview page-control tools.
  *
- * The experimental flag `webview-script-injection` decides whether the
+ * The experimental flag `webview-page-control` decides whether the
  * `page_*` tools are registered at all. This module decides — per call —
  * whether the **current URL** of the target webview is one the agent is
  * allowed to touch. Tools call {@link evaluateActionPolicy} with the

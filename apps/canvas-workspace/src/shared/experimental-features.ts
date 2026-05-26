@@ -33,7 +33,7 @@ export interface ExperimentalFeatureDef {
 export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';
 export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
 export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
-export const EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION = 'webview-script-injection';
+export const EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL = 'webview-page-control';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
@@ -58,7 +58,7 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     defaultEnabled: false,
   },
   {
-    id: EXPERIMENTAL_FLAG_WEBVIEW_SCRIPT_INJECTION,
+    id: EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL,
     label: 'Webview page control (agent)',
     description:
       'Lets the Canvas Agent control pages inside iframe nodes — click (by selector or pixel coordinates), fill, press keys, scroll, wait for selectors, run arbitrary JS. Clicks and key presses go through Chromium DevTools Protocol (real input events that fire pointer / hover / user-activation handlers) — the OS cursor does not move. Blocked on file://, chrome://, devtools:// and a built-in sensitive-domain list (banks, payments, mainstream login). Customize via ~/.pulse-coder/canvas/webview-action-policy.json. Treat this as giving an LLM access to whatever you are currently logged into.',

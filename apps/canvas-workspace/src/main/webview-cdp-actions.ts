@@ -20,7 +20,7 @@
  *
  * Inputs that come from outside (selectors, text, key names) are passed
  * to the guest via CDP command params — never string-concatenated into
- * JS source — so script-injection is not a concern on this path.
+ * JS source — so injection is not a concern on this path.
  */
 
 import { withCdp, type CdpHost, type CdpSender } from './cdp-session';
