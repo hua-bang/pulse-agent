@@ -20,6 +20,8 @@ export type AgentEvent = 'turnStart' | 'turnEnd';
 export interface PluginStore {
   get<T>(key: string): Promise<T | undefined>;
   set<T>(key: string, value: T): Promise<void>;
+  /** Remove the value at `key`. No-op when the key is absent. */
+  delete(key: string): Promise<void>;
   list(prefix?: string): Promise<string[]>;
 }
 

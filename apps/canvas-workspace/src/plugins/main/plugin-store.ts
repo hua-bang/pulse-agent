@@ -37,6 +37,15 @@ export function createPluginStore(pluginId: string): PluginStore {
       await fs.mkdir(dirname(path), { recursive: true });
       await fs.writeFile(path, JSON.stringify(value), 'utf8');
     },
+    async delete(key: string): Promise<void> {
+      const path = resolveKey(key);
+      try {
+        await fs.unlink(path);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return;
+        throw err;
+      }
+    },
     async list(prefix?: string): Promise<string[]> {
       try {
         await fs.mkdir(baseDir, { recursive: true });

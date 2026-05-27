@@ -34,6 +34,7 @@ export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';
 export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
 export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
 export const EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL = 'webview-page-control';
+export const EXPERIMENTAL_FLAG_DYNAMIC_APP = 'dynamic-app';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
@@ -62,6 +63,13 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     label: 'Webview page control (agent)',
     description:
       'Lets the Canvas Agent control pages inside iframe nodes — click (by selector or pixel coordinates), fill, press keys, scroll, wait for selectors, run arbitrary JS. Clicks and key presses go through Chromium DevTools Protocol (real input events that fire pointer / hover / user-activation handlers) — the OS cursor does not move. Blocked on file://, chrome://, devtools:// and a built-in sensitive-domain list (banks, payments, mainstream login). Customize via ~/.pulse-coder/canvas/webview-action-policy.json. Treat this as giving an LLM access to whatever you are currently logged into.',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_DYNAMIC_APP,
+    label: 'Dynamic apps (agent)',
+    description:
+      'Lets the Canvas Agent create live, server-backed iframe nodes — either polling apps (pull an external JSON endpoint on a schedule, optionally transform, render in LLM-authored HTML) or stateful apps (own their state, accept user mutations via POST actions, persist across restarts; todos / notes / counters / small forms). Each app gets its own loopback HTTP server in the Electron main process. LLM-authored transforms and action handlers run in a vm sandbox (no fetch / require / process; 1s sync timeout). State and spec files live under ~/.pulse-coder/canvas/<workspaceId>/dynamic-apps/. Off by default because this surfaces three new agent tools and a long-running HTTP server.',
     defaultEnabled: false,
   },
 ];
