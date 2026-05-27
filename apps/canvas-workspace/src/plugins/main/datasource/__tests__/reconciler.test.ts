@@ -8,7 +8,7 @@ let specs: Array<{
   persisted: {
     version: number;
     id: string;
-    spec: { fetcher: unknown; presentation: unknown };
+    spec: { fetcher: unknown; ui: unknown };
     createdAt: number;
   };
 }> = [];
@@ -80,7 +80,7 @@ function makeManager(opts: {
 
 const SPEC = {
   fetcher: { type: "http_poll", url: "http://x.test/", interval: 500 },
-  presentation: { type: "inline_html", html: "<div></div>" },
+  ui: { html: "<div></div>" },
 };
 
 function persistedFor(id: string): {

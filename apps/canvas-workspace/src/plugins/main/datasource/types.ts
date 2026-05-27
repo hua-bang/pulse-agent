@@ -9,19 +9,14 @@
  *       publishes shaped values as JSON. Exposed at:
  *         GET /api/<id>          → latest snapshot
  *         GET /api/<id>/stream   → SSE of every shaped value
- *       Same datasource can drive multiple presentations.
  *
- *   presentation
- *     ─ how the data shows up in an iframe. Two flavours:
- *         inline_html: LLM writes raw html/script/css; we wrap it in a
- *                      page that exposes the SSE endpoint as
- *                      window.__ENDPOINT__.
- *         template:    pick a pre-built HTML template by name and
- *                      provide params. Template code lives in
- *                      `templates/`; renderer composes the final HTML.
+ *   ui (LLM-authored html / script / css)
+ *     ─ iframe page that subscribes to the SSE endpoint and renders
+ *       however the LLM wrote it. The framework wraps the body in a
+ *       minimal document and exposes the SSE URL as
+ *       `window.__ENDPOINT__`.
  *
- * The iframe canvas node loads /ui/<id>; that route dispatches on
- * presentation.type to render the appropriate HTML body.
+ * The iframe canvas node loads /ui/<id>.
  */
 
 export interface HttpPollFetcher {
@@ -67,30 +62,14 @@ export interface TransformSpec {
  * document, injects `script` (after DOM ready), and sets
  * `window.__ENDPOINT__` to the SSE stream URL.
  */
-export interface InlineHtmlPresentation {
-  type: "inline_html";
+export interface UiSpec {
   html: string;
   script?: string;
   css?: string;
 }
 
-/**
- * Pick a pre-built HTML template by name and provide its params.
- * Template definitions live in `templates/`; params are validated
- * against the template's Zod schema before render.
- */
-export interface TemplatePresentation {
-  type: "template";
-  /** Registry key — e.g. 'big_number', 'line_chart'. */
-  template: string;
-  /** Template-specific params; validated by the template's schema. */
-  params: Record<string, unknown>;
-}
-
-export type PresentationSpec = InlineHtmlPresentation | TemplatePresentation;
-
 export interface DatasourceSpec {
   fetcher: Fetcher;
   transform?: TransformSpec;
-  presentation: PresentationSpec;
+  ui: UiSpec;
 }

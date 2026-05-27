@@ -5,12 +5,12 @@
  *
  *   GET /api/<id>          → latest JSON snapshot
  *   GET /api/<id>/stream   → SSE event stream of every shaped value
- *   GET /ui/<id>           → iframe page (built from spec.presentation)
+ *   GET /ui/<id>           → iframe page (built from spec.ui)
  *
- * /api/* is the headless data interface — usable by the bundled iframe
- * page, by other tooling, by `curl`, by future "reference" presentations
- * that bind multiple iframes to the same datasource. /ui/* is one
- * particular HTML embedding for the canvas iframe node.
+ * /api/* is the headless data interface — usable by the iframe page,
+ * by other tooling, by `curl`, or by additional iframes binding to the
+ * same datasource. /ui/* is one HTML embedding for the canvas iframe
+ * node, authored by the LLM as raw html/script/css.
  */
 
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
@@ -18,12 +18,7 @@ import { app } from "electron";
 import { startHttpPoll, type RunnerHandle } from "./runners/http-poll";
 import { startMock } from "./runners/mock";
 import { runTransform } from "./sandbox-runner";
-import { getTemplate } from "./templates";
-import type {
-  DatasourceSpec,
-  InlineHtmlPresentation,
-  PresentationSpec,
-} from "./types";
+import type { DatasourceSpec, UiSpec } from "./types";
 
 interface Runner {
   id: string;
@@ -45,14 +40,15 @@ function escapeForScriptTag(value: string): string {
   return value.replace(/<\/(script)/gi, "<\\/$1");
 }
 
-/** Wrap LLM-authored html/script/css into the same page shape templates
- *  use. Templates and inline_html therefore both reach the iframe via
- *  identical scaffolding — only the body differs. */
-function renderInlineHtml(spec: InlineHtmlPresentation, endpoint: string): string {
-  const userScript = spec.script
-    ? `<script>(function(){\n${spec.script}\n})();</script>`
+/** Wrap LLM-authored html/script/css into the iframe page served at
+ *  /ui/<id>. Body is the LLM's html; we add a doctype, a tiny default
+ *  stylesheet, and inject `window.__ENDPOINT__` so the script can do
+ *  `new EventSource(window.__ENDPOINT__)`. */
+function renderUi(ui: UiSpec, endpoint: string): string {
+  const userScript = ui.script
+    ? `<script>(function(){\n${ui.script}\n})();</script>`
     : "";
-  const userCss = spec.css ? `<style>${spec.css}</style>` : "";
+  const userCss = ui.css ? `<style>${ui.css}</style>` : "";
   const initScript = `<script>window.__ENDPOINT__ = ${JSON.stringify(escapeForScriptTag(endpoint))};</script>`;
   return `<!doctype html>
 <html>
@@ -66,35 +62,11 @@ function renderInlineHtml(spec: InlineHtmlPresentation, endpoint: string): strin
 ${userCss}
 </head>
 <body>
-${spec.html}
+${ui.html}
 ${initScript}
 ${userScript}
 </body>
 </html>`;
-}
-
-function renderPresentation(
-  presentation: PresentationSpec,
-  dsUrl: string,
-): string {
-  if (presentation.type === "inline_html") {
-    return renderInlineHtml(presentation, `${dsUrl}/stream`);
-  }
-  if (presentation.type === "template") {
-    const tpl = getTemplate(presentation.template);
-    const parsed = tpl.paramsSchema.safeParse(presentation.params);
-    if (!parsed.success) {
-      throw new Error(
-        `template "${presentation.template}": invalid params — ${parsed.error.message}`,
-      );
-    }
-    return tpl.render(parsed.data, { dsUrl });
-  }
-  // exhaustiveness guard
-  const exhaustive: never = presentation;
-  throw new Error(
-    `unknown presentation type: ${JSON.stringify((exhaustive as { type?: string }).type)}`,
-  );
 }
 
 const UI_RE = /^\/ui\/([^/?#]+)\/?$/;
@@ -261,9 +233,9 @@ export class DataSourceManager {
     await this.stop(id);
     await this.ensureServer();
 
-    // Render presentation HTML up-front so a bad template / param spec
-    // surfaces synchronously and we don't even register the runner.
-    const indexHtml = renderPresentation(spec.presentation, this.buildDsUrl(id));
+    // Render the iframe page up-front so any rendering errors surface
+    // synchronously before we register the runner.
+    const indexHtml = renderUi(spec.ui, `${this.buildDsUrl(id)}/stream`);
 
     const runner: Runner = {
       id,

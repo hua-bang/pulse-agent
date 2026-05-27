@@ -25,7 +25,7 @@ import {
 
 const SAMPLE_SPEC = {
   fetcher: { type: "mock" as const, scenario: "counter" as const, interval: 1000 },
-  presentation: { type: "inline_html" as const, html: "<div></div>" },
+  ui: { html: "<div></div>" },
 };
 
 beforeEach(() => {
