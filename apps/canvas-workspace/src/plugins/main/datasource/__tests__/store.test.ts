@@ -24,6 +24,7 @@ import {
 } from "../store";
 
 const SAMPLE_SPEC = {
+  kind: "polling" as const,
   fetcher: { type: "mock" as const, scenario: "counter" as const, interval: 1000 },
   ui: { html: "<div></div>" },
 };

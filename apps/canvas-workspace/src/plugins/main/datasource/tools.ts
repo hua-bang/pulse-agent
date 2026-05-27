@@ -65,17 +65,34 @@ const TransformSchema = z.object({
   code: z.string().min(1).max(20_000),
 });
 
+const ActionSchema = z.object({
+  code: z.string().min(1).max(20_000),
+});
+
 const UiSchema = z.object({
   html: z.string().min(1).max(20_000),
   script: z.string().max(20_000).optional(),
   css: z.string().max(20_000).optional(),
 });
 
-const SpecSchema = z.object({
+const PollingSpecSchema = z.object({
+  kind: z.literal("polling"),
   fetcher: FetcherSchema,
   transform: TransformSchema.optional(),
   ui: UiSchema,
 });
+
+const StatefulSpecSchema = z.object({
+  kind: z.literal("stateful"),
+  state: z.object({ initial: z.unknown() }),
+  actions: z.record(z.string().min(1).max(60), ActionSchema),
+  ui: UiSchema,
+});
+
+const SpecSchema = z.discriminatedUnion("kind", [
+  PollingSpecSchema,
+  StatefulSpecSchema,
+]);
 
 const CreateInputSchema = z.object({
   title: z.string().min(1).max(120),
@@ -94,8 +111,12 @@ const UpdateInputSchema = z
     patch: z
       .object({
         title: z.string().min(1).max(120).optional(),
+        // Per-field patches preserve the spec's kind: a polling node
+        // stays polling, stateful stays stateful. To convert between
+        // kinds, delete + recreate.
         fetcher: FetcherSchema.optional(),
         transform: TransformSchema.optional(),
+        actions: z.record(z.string().min(1).max(60), ActionSchema).optional(),
         ui: UiSchema.optional(),
       })
       .strict()
@@ -104,8 +125,12 @@ const UpdateInputSchema = z
           p.title !== undefined ||
           p.fetcher !== undefined ||
           p.transform !== undefined ||
+          p.actions !== undefined ||
           p.ui !== undefined,
-        { message: "patch must include at least one of title/fetcher/transform/ui" },
+        {
+          message:
+            "patch must include at least one of title/fetcher/transform/actions/ui",
+        },
       ),
   });
 
@@ -232,42 +257,81 @@ export function createDatasourceTools(
     datasource_node_create: {
       name: "datasource_node_create",
       description:
-        "Create a LIVE data node on the canvas. Backed by a runner in the " +
-        "Electron main process that fetches on a schedule and publishes " +
-        "shaped values; the iframe subscribes via SSE. Use when the user " +
-        "wants 'live' / 'real-time' / 'updates automatically' — NOT for " +
-        "static charts (use artifact_* tools instead).\n\n" +
-        "Spec = fetcher + optional transform + ui.\n\n" +
-        "fetcher: ONE of:\n" +
-        "  { type: 'http_poll', url, interval, headers?, method?, body? }\n" +
-        "      Poll a JSON HTTP endpoint. interval is ms, min 250.\n" +
-        "  { type: 'mock', scenario, interval, initial?, volatility? }\n" +
-        "      Synthetic data, no network. scenarios:\n" +
-        "        'counter'     → { tick, ts } each interval.\n" +
-        "        'random_walk' → { value, ts } multiplicative random walk\n" +
-        "                        from `initial` (default 100), per-tick\n" +
-        "                        `volatility` (default 0.01). Stock-shaped.\n\n" +
-        "transform? (optional, recommended): { code }\n" +
-        "  Function body. `input` global holds the raw fetched value; must\n" +
-        "  `return` the shaped output. NO fetch / require / process / Buffer.\n" +
-        "  Sync only, 1s timeout. Use to rename / pluck fields.\n" +
-        "  Example: `return { price: input.value, ts: input.ts };`\n\n" +
-        "ui: { html, script?, css? }\n" +
-        "  Author the iframe page yourself. `html` is the body markup.\n" +
-        "  `script` runs after DOM ready and may use `window.__ENDPOINT__`\n" +
-        "  (SSE URL) — typically\n" +
-        "  `new EventSource(window.__ENDPOINT__).onmessage = e => { ... }`.\n" +
-        "  Each message's data is the JSON-stringified shaped value.\n" +
-        "  You may load third-party libs from CDN inside `html` via <script src=...>.\n\n" +
-        "Worked example (mock BTC price ticker):\n" +
+        "Create a LIVE data node on the canvas. Two kinds, picked via " +
+        "`spec.kind`:\n\n" +
+        "  'polling'  — pull data from an external source on a schedule.\n" +
+        "               Read-only. Use for: prices, status dashboards,\n" +
+        "               anything where the data comes from outside.\n" +
+        "  'stateful' — owns its own state (todos, notes, counters,\n" +
+        "               forms). User interactions mutate it via actions.\n" +
+        "               State persists across restarts.\n\n" +
+        "iframe globals injected for the LLM-authored ui.script:\n" +
+        "  window.__API__     — GET this URL for a snapshot of the current\n" +
+        "                       payload (returns JSON).\n" +
+        "  window.__STREAM__  — SSE URL; subscribe with\n" +
+        "                       `new EventSource(window.__STREAM__)` for\n" +
+        "                       push updates whenever the payload changes.\n" +
+        "  window.__ACTIONS__ — { actionName: postUrl }. Stateful only.\n" +
+        "                       POST JSON body to mutate state.\n\n" +
+        "Pick the consumption style by use case: fetch + POST for purely\n" +
+        "interactive single-user UIs (TODO, notes); EventSource for live\n" +
+        "or multi-window views. Both can be combined.\n\n" +
+        "─── POLLING SPEC ───────────────────────────────────────────────\n" +
+        "{\n" +
+        "  kind: 'polling',\n" +
+        "  fetcher: ONE of:\n" +
+        "    { type: 'http_poll', url, interval, headers?, method?, body? }\n" +
+        "        Poll a JSON HTTP endpoint. interval is ms, min 250.\n" +
+        "    { type: 'mock', scenario, interval, initial?, volatility? }\n" +
+        "        Synthetic data, no network. scenarios:\n" +
+        "          'counter'     → { tick, ts } each interval.\n" +
+        "          'random_walk' → { value, ts } multiplicative walk.\n" +
+        "  transform?: { code }   // (input) => shapedValue, sync, 1s timeout\n" +
+        "  ui: { html, script?, css? }\n" +
+        "}\n\n" +
+        "─── STATEFUL SPEC ──────────────────────────────────────────────\n" +
+        "{\n" +
+        "  kind: 'stateful',\n" +
+        "  state: { initial: <seed value> },          // any JSON value\n" +
+        "  actions: {                                  // RPC reducers\n" +
+        "    <name>: { code: '(state, input) => newState body' },\n" +
+        "    ...\n" +
+        "  },\n" +
+        "  ui: { html, script?, css? }\n" +
+        "}\n" +
+        "Action code rules: function body, has `state` and `input` as\n" +
+        "globals, must `return` the new state. Sync only, 1s timeout, no\n" +
+        "fetch / require / process. The new state is persisted, broadcast\n" +
+        "to SSE clients, and returned in the POST response. POST returns\n" +
+        "HTTP 200 on success, 400 on bad input, 500 on action throw.\n\n" +
+        "─── Worked examples ─────────────────────────────────────────\n" +
+        "polling (mock BTC ticker):\n" +
         "  {\n" +
         "    title: 'BTC (mock)',\n" +
         "    spec: {\n" +
+        "      kind: 'polling',\n" +
         "      fetcher: { type: 'mock', scenario: 'random_walk', interval: 1000, initial: 50000, volatility: 0.005 },\n" +
-        "      transform: { code: \"return { price: input.value, ts: input.ts };\" },\n" +
+        "      transform: { code: \"return { price: input.value };\" },\n" +
         "      ui: {\n" +
-        "        html: \"<div style='padding:20px;font-family:system-ui'><div style='font-size:11px;color:#666'>BTC/USD</div><div id='p' style='font-size:48px;font-weight:600'>…</div></div>\",\n" +
-        "        script: \"new EventSource(window.__ENDPOINT__).onmessage = e => { const d = JSON.parse(e.data); document.getElementById('p').textContent = '$' + d.price.toFixed(2); };\"\n" +
+        "        html: \"<div id='p' style='padding:24px;font:48px/1 system-ui'>…</div>\",\n" +
+        "        script: \"new EventSource(window.__STREAM__).onmessage = e => { document.getElementById('p').textContent = '$' + JSON.parse(e.data).price.toFixed(2); };\"\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }\n\n" +
+        "stateful (TODO):\n" +
+        "  {\n" +
+        "    title: 'Todos',\n" +
+        "    spec: {\n" +
+        "      kind: 'stateful',\n" +
+        "      state: { initial: [] },\n" +
+        "      actions: {\n" +
+        "        add:    { code: \"return [...state, { id: Date.now(), text: input.text, done: false }];\" },\n" +
+        "        toggle: { code: \"return state.map(t => t.id === input.id ? { ...t, done: !t.done } : t);\" },\n" +
+        "        remove: { code: \"return state.filter(t => t.id !== input.id);\" }\n" +
+        "      },\n" +
+        "      ui: {\n" +
+        "        html: \"<input id='i' placeholder='new todo…'><button id='b'>add</button><ul id='l'></ul>\",\n" +
+        "        script: \"const A=window.__ACTIONS__; async function call(u,b){return (await fetch(u,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})})).json();} function render(s){l.innerHTML=s.map(t=>`<li><input type=checkbox ${t.done?'checked':''} data-id=${t.id}> ${t.text} <button data-rm=${t.id}>x</button></li>`).join('');} l.onclick=async e=>{if(e.target.matches('[data-id]')){render(await call(A.toggle,{id:+e.target.dataset.id}));}else if(e.target.matches('[data-rm]')){render(await call(A.remove,{id:+e.target.dataset.rm}));}}; b.onclick=async()=>{if(!i.value)return;render(await call(A.add,{text:i.value}));i.value='';}; (async()=>render(await (await fetch(window.__API__)).json()))();\"\n" +
         "      }\n" +
         "    }\n" +
         "  }\n\n" +
@@ -292,6 +356,7 @@ export function createDatasourceTools(
           // with the process and nothing leaks. The reconciler also
           // honours a grace window so a mid-create tick does not reap us.
           const { url } = await manager.start(
+            workspaceId,
             datasourceNodeId,
             spec as DatasourceSpec,
           );
@@ -312,7 +377,7 @@ export function createDatasourceTools(
         } catch (err) {
           // Best-effort cleanup if any step failed — don't leave a
           // runner attached to a dead spec.
-          await manager.stop(datasourceNodeId).catch(() => undefined);
+          await manager.destroy(workspaceId, datasourceNodeId).catch(() => undefined);
           await deleteSpec(workspaceId, datasourceNodeId).catch(() => undefined);
           return JSON.stringify({
             ok: false,
@@ -328,12 +393,13 @@ export function createDatasourceTools(
         "List every LIVE data node currently in this workspace. Use as the " +
         "first step before datasource_node_update — natural-language refs " +
         "like 'the BTC node' / 'the last one I added' need a real " +
-        "datasourceNodeId to act on. Results include the canvas node id " +
-        "(useful for canvas_delete_node) and a summary of each node's " +
-        "fetcher so you can disambiguate.\n\n" +
+        "datasourceNodeId to act on.\n\n" +
         "Returns JSON `{ ok, nodes: [{ datasourceNodeId, nodeId, title, " +
-        "fetcher, hasTransform }] }`. Nodes whose spec exists but whose " +
-        "canvas iframe is gone are omitted (the reconciler will GC them).",
+        "kind, summary }] }`. `kind` is 'polling' | 'stateful'. " +
+        "`summary` is a short human-readable hint about what the node " +
+        "shows (fetcher type for polling, action names for stateful). " +
+        "Nodes whose spec exists but whose canvas iframe is gone are " +
+        "omitted (the reconciler will GC them).",
       inputSchema: ListInputSchema,
       async execute(): Promise<string> {
         try {
@@ -342,8 +408,8 @@ export function createDatasourceTools(
             datasourceNodeId: string;
             nodeId: string | undefined;
             title: string | undefined;
-            fetcher: unknown;
-            hasTransform: boolean;
+            kind: "polling" | "stateful";
+            summary: string;
           }> = [];
           for (const entry of specs) {
             const location = await findIframeNodeByDsId(
@@ -351,12 +417,18 @@ export function createDatasourceTools(
               entry.datasourceNodeId,
             );
             if (!location) continue;
+            const spec = entry.persisted.spec;
+            const summary =
+              spec.kind === "polling"
+                ? `${spec.fetcher.type} every ${spec.fetcher.interval}ms` +
+                  (spec.transform ? " + transform" : "")
+                : `actions: ${Object.keys(spec.actions).join(", ") || "(none)"}`;
             nodes.push({
               datasourceNodeId: entry.datasourceNodeId,
               nodeId: location.node.id,
               title: location.node.title,
-              fetcher: entry.persisted.spec.fetcher,
-              hasTransform: entry.persisted.spec.transform !== undefined,
+              kind: spec.kind,
+              summary,
             });
           }
           return JSON.stringify({ ok: true, nodes });
@@ -423,21 +495,52 @@ export function createDatasourceTools(
           });
         }
 
-        // Per-field replacement merge. Omitted fields stay untouched.
-        const merged: DatasourceSpec = {
-          fetcher: patch.fetcher ?? persisted.spec.fetcher,
-          transform:
-            patch.transform !== undefined
-              ? patch.transform
-              : persisted.spec.transform,
-          ui: patch.ui ?? persisted.spec.ui,
-        };
+        // Per-field merge — patch fields replace, omitted stay.
+        // Kind-checked so a polling node can't accidentally inherit
+        // a `actions` patch and vice versa.
+        let merged: DatasourceSpec;
+        if (persisted.spec.kind === "polling") {
+          if (patch.actions !== undefined) {
+            return JSON.stringify({
+              ok: false,
+              error:
+                "cannot patch `actions` on a polling node. Delete and " +
+                "recreate as kind:'stateful' if you want mutation handlers.",
+            });
+          }
+          merged = {
+            kind: "polling",
+            fetcher: patch.fetcher ?? persisted.spec.fetcher,
+            transform:
+              patch.transform !== undefined
+                ? patch.transform
+                : persisted.spec.transform,
+            ui: patch.ui ?? persisted.spec.ui,
+          };
+        } else {
+          if (patch.fetcher !== undefined || patch.transform !== undefined) {
+            return JSON.stringify({
+              ok: false,
+              error:
+                "cannot patch `fetcher` / `transform` on a stateful node. " +
+                "Delete and recreate as kind:'polling' instead.",
+            });
+          }
+          merged = {
+            kind: "stateful",
+            state: persisted.spec.state,
+            actions: patch.actions ?? persisted.spec.actions,
+            ui: patch.ui ?? persisted.spec.ui,
+          };
+        }
 
         try {
           // manager.start internally stops the old runner first; if the
           // new spec is bad, we end up with no runner but the OLD spec
           // still on disk — the 30s reconciler will respawn the old.
-          const { url } = await manager.start(datasourceNodeId, merged);
+          // stateful state file is left in place across the restart;
+          // only spec.actions / spec.ui changes.
+          const { url } = await manager.start(workspaceId, datasourceNodeId, merged);
           await setSpec(workspaceId, datasourceNodeId, merged);
           await patchCanvasIframeNode(workspaceId, location, {
             title: patch.title,

@@ -63,7 +63,7 @@ function makeManager(opts: {
   let counter = 0;
   const running = new Map<string, { id: string; startedAt: number; url: string }>();
   const manager: DataSourceManager = {
-    async start(id: string) {
+    async start(_workspaceId: string, id: string) {
       // Mirror the real manager: start() implicitly stops the existing
       // runner with the same id before booting a new one.
       if (running.has(id)) {
@@ -76,6 +76,10 @@ function makeManager(opts: {
       const url = `http://127.0.0.1:5000${counter}/ui/${id}`;
       running.set(id, { id, startedAt: Date.now(), url });
       return { url };
+    },
+    async destroy(_workspaceId: string, id: string) {
+      calls.stop.push(id);
+      running.delete(id);
     },
     async stop(id: string) {
       calls.stop.push(id);
@@ -92,9 +96,21 @@ const WS = "ws-test";
 
 function basicSpec(): DatasourceSpec {
   return {
+    kind: "polling",
     fetcher: { type: "mock", scenario: "counter", interval: 1000 },
     transform: { code: "return { tick: input.tick };" },
     ui: { html: "<div id='v'></div>" },
+  };
+}
+
+function todoSpec(): DatasourceSpec {
+  return {
+    kind: "stateful",
+    state: { initial: [] },
+    actions: {
+      add: { code: "return [...state, { text: input.text }];" },
+    },
+    ui: { html: "<div></div>" },
   };
 }
 
@@ -160,6 +176,7 @@ describe("datasource_node_create", () => {
       await tools.datasource_node_create.execute({
         title: "X",
         spec: {
+          kind: "polling",
           fetcher: { type: "mock", scenario: "no_such_scenario", interval: 1000 },
           ui: { html: "<div></div>" },
         },
@@ -212,13 +229,18 @@ describe("datasource_node_update", () => {
 
     // Merged spec preserves the un-patched fields and replaces the patched ones.
     const persisted = specStore.get(specKey(WS, dsId))!;
+    if (persisted.spec.kind !== "polling") {
+      throw new Error("expected polling spec");
+    }
     expect(persisted.spec.fetcher).toEqual({
       type: "mock",
       scenario: "counter",
       interval: 5000,
     });
-    expect(persisted.spec.transform).toEqual(basicSpec().transform);
-    expect(persisted.spec.ui).toEqual(basicSpec().ui);
+    const original = basicSpec();
+    if (original.kind !== "polling") throw new Error("unreachable");
+    expect(persisted.spec.transform).toEqual(original.transform);
+    expect(persisted.spec.ui).toEqual(original.ui);
 
     // Canvas node's title is updated and the URL has a cache-buster.
     const written = canvasWrites.at(-1)!.data as { nodes: any[] };
@@ -281,8 +303,8 @@ describe("datasource_node_list", () => {
     for (const n of res.nodes) {
       expect(n.datasourceNodeId).toMatch(/^ds-/);
       expect(n.nodeId).toMatch(/^node-/);
-      expect(n.fetcher).toEqual(basicSpec().fetcher);
-      expect(n.hasTransform).toBe(true);
+      expect(n.kind).toBe("polling");
+      expect(n.summary).toMatch(/mock every 1000ms/);
     }
   });
 
@@ -308,5 +330,72 @@ describe("datasource_node_list", () => {
     const res = JSON.parse(await tools.datasource_node_list.execute({}));
     expect(res.ok).toBe(true);
     expect(res.nodes).toEqual([]);
+  });
+});
+
+describe("stateful create + list", () => {
+  it("creates a stateful node and surfaces kind + action summary", async () => {
+    const { manager } = makeManager();
+    const tools = createDatasourceTools(WS, manager);
+
+    const createRes = JSON.parse(
+      await tools.datasource_node_create.execute({
+        title: "Todos",
+        spec: todoSpec(),
+      }),
+    );
+    expect(createRes.ok).toBe(true);
+
+    const listRes = JSON.parse(await tools.datasource_node_list.execute({}));
+    expect(listRes.ok).toBe(true);
+    expect(listRes.nodes).toHaveLength(1);
+    expect(listRes.nodes[0].kind).toBe("stateful");
+    expect(listRes.nodes[0].summary).toMatch(/actions: add/);
+  });
+
+  it("rejects update.fetcher patch against a stateful spec", async () => {
+    const { manager } = makeManager();
+    const tools = createDatasourceTools(WS, manager);
+
+    const created = JSON.parse(
+      await tools.datasource_node_create.execute({
+        title: "Todos",
+        spec: todoSpec(),
+      }),
+    );
+
+    const res = JSON.parse(
+      await tools.datasource_node_update.execute({
+        datasourceNodeId: created.datasourceNodeId,
+        patch: {
+          fetcher: { type: "mock", scenario: "counter", interval: 1000 },
+        },
+      }),
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/cannot patch.*on a stateful node/i);
+  });
+
+  it("rejects update.actions patch against a polling spec", async () => {
+    const { manager } = makeManager();
+    const tools = createDatasourceTools(WS, manager);
+
+    const created = JSON.parse(
+      await tools.datasource_node_create.execute({
+        title: "BTC",
+        spec: basicSpec(),
+      }),
+    );
+
+    const res = JSON.parse(
+      await tools.datasource_node_update.execute({
+        datasourceNodeId: created.datasourceNodeId,
+        patch: {
+          actions: { add: { code: "return state;" } },
+        },
+      }),
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/cannot patch.*on a polling node/i);
   });
 });

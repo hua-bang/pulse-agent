@@ -1,59 +1,51 @@
 /**
- * Minimal in-process sandbox for the LLM-authored `transform` step.
+ * Minimal in-process sandbox for LLM-authored code: transforms (polling
+ * datasources) and actions (stateful datasources).
  *
  * Uses Node's `vm` module with a stripped-down global object — no
  * fetch / require / process / Buffer / timers, and `codeGeneration`
  * disabled so eval / new Function / wasm can't escape. Runs inside the
- * datasource child process so a misbehaving transform can crash that
- * child but not the Electron main process.
+ * Electron main process; a runaway transform / action will impact the
+ * main thread for at most one second before vm's `timeout` kills it.
  *
- * Safety boundaries we DO enforce:
+ * Safety boundaries enforced:
  *   - no host I/O (network / fs / process control)
  *   - no eval / new Function / wasm
- *   - sync infinite loops killed by vm's `timeout` option
+ *   - sync infinite loops killed by vm `timeout`
  *
- * Safety boundaries we do NOT enforce — by design, MVP:
- *   - heap is shared with the host child (a transform that builds a
- *     huge object will OOM the child, not "the sandbox")
+ * NOT enforced (by design, MVP):
+ *   - heap is shared with the host (a transform that builds a huge
+ *     object will OOM the host, not "the sandbox")
  *   - async loops cannot be timed out (we run sync only — see below)
  *   - this is NOT a security boundary against an adversarial author.
- *     For that we'd switch to worker_threads or a forked child; the
- *     export shape stays Promise-returning so upgrading later is a
- *     pure implementation swap.
  *
- * Contract for `code`: a function body. Has `input` as a global (the
- * raw fetched value) and must `return` the shaped output. NO `await` —
- * the body runs synchronously; returning a Promise will surface that
- * Promise as the result (caller is welcome to await it but the
- * sandbox doesn't).
+ * Contract for `code`: a function body that uses the supplied globals
+ * and ends with `return <value>`. NO `await`; sync only. Returning a
+ * Promise will surface the Promise as the result; callers do not
+ * unwrap it.
  */
 
 import vm from "node:vm";
 
-const TRANSFORM_TIMEOUT_MS = 1_000;
+const EXEC_TIMEOUT_MS = 1_000;
 const MAX_CODE_LENGTH = 20_000;
 
-/**
- * Expose a narrow set of built-ins. Anything not listed here is
- * `undefined` inside the sandbox — which is the right default for
- * data-shaping code.
- */
-function buildContext(input: unknown): vm.Context {
-  // `console` is a no-op proxy: transforms that accidentally log
-  // shouldn't spam the child's stderr.
-  const noopConsole: Pick<
-    Console,
-    "log" | "info" | "warn" | "error" | "debug"
-  > = {
-    log: () => undefined,
-    info: () => undefined,
-    warn: () => undefined,
-    error: () => undefined,
-    debug: () => undefined,
-  };
+const noopConsole: Pick<
+  Console,
+  "log" | "info" | "warn" | "error" | "debug"
+> = {
+  log: () => undefined,
+  info: () => undefined,
+  warn: () => undefined,
+  error: () => undefined,
+  debug: () => undefined,
+};
 
+/** Build a vm context that exposes only data-shaping built-ins plus
+ *  the supplied per-call globals. Used identically for transforms
+ *  and actions; the only difference is what's in `extras`. */
+function buildContext(extras: Record<string, unknown>): vm.Context {
   const sandbox: Record<string, unknown> = {
-    input,
     JSON,
     Math,
     Date,
@@ -71,50 +63,63 @@ function buildContext(input: unknown): vm.Context {
     isFinite,
     isNaN,
     console: noopConsole,
+    ...extras,
   };
   sandbox.globalThis = sandbox;
   sandbox.global = sandbox;
-
   return vm.createContext(sandbox, {
     codeGeneration: { strings: false, wasm: false },
   });
 }
 
+function runInSandbox(
+  code: string,
+  extras: Record<string, unknown>,
+  filename: string,
+): unknown {
+  if (typeof code !== "string" || code.length === 0) {
+    throw new Error("code must be a non-empty string");
+  }
+  if (code.length > MAX_CODE_LENGTH) {
+    throw new Error(`code exceeds ${MAX_CODE_LENGTH} characters`);
+  }
+  const context = buildContext(extras);
+  const wrapped = `'use strict';\n(function () {\n${code}\n})();`;
+  const script = new vm.Script(wrapped, { filename });
+  return script.runInContext(context, { timeout: EXEC_TIMEOUT_MS });
+}
+
 /**
- * Async signature kept on purpose: callers don't need to change when we
- * eventually swap the implementation for a worker thread / forked
- * process to get hard isolation.
+ * `(input) => output`. Used by polling fetchers to shape raw data
+ * before broadcasting. Async signature kept for forward-compat with a
+ * future worker-thread / forked sandbox.
  */
 export async function runTransform(
   code: string,
   input: unknown,
 ): Promise<unknown> {
-  if (typeof code !== "string" || code.length === 0) {
-    throw new Error("transform: code must be a non-empty string");
-  }
-  if (code.length > MAX_CODE_LENGTH) {
-    throw new Error(
-      `transform: code exceeds ${MAX_CODE_LENGTH} characters`,
-    );
-  }
-
-  const context = buildContext(input);
-  // Wrap so the body can `return`. Strict mode locks down a few
-  // historic footguns (octal literals, implicit globals, etc.).
-  const wrapped = `'use strict';\n(function () {\n${code}\n})();`;
-  const script = new vm.Script(wrapped, {
-    filename: "datasource-transform.js",
-  });
-
   try {
-    return script.runInContext(context, {
-      timeout: TRANSFORM_TIMEOUT_MS,
-      // breakOnSigint not set — we never SIGINT a datasource child
-      // mid-transform; the parent kills with SIGTERM and the runner
-      // cleans up on the way out.
-    });
+    return runInSandbox(code, { input }, "datasource-transform.js");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`transform failed: ${message}`);
+  }
+}
+
+/**
+ * `(state, input) => newState`. Used by stateful actions: caller is
+ * expected to have acquired the runner's mutex so two actions can't
+ * read the same `state` and race.
+ */
+export async function runAction(
+  code: string,
+  state: unknown,
+  input: unknown,
+): Promise<unknown> {
+  try {
+    return runInSandbox(code, { state, input }, "datasource-action.js");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`action failed: ${message}`);
   }
 }

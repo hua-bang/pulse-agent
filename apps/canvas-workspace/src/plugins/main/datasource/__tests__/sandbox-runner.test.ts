@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runTransform } from "../sandbox-runner";
+import { runAction, runTransform } from "../sandbox-runner";
 
 describe("runTransform", () => {
   it("returns the shaped value", async () => {
@@ -57,6 +57,42 @@ describe("runTransform", () => {
     await expect(runTransform("", null)).rejects.toThrow(/non-empty/);
     await expect(runTransform("a".repeat(30_000), null)).rejects.toThrow(
       /exceeds/,
+    );
+  });
+});
+
+describe("runAction", () => {
+  it("returns the new state computed from (state, input)", async () => {
+    const out = await runAction(
+      "return [...state, { text: input.text }];",
+      [{ text: "old" }],
+      { text: "new" },
+    );
+    expect(out).toEqual([{ text: "old" }, { text: "new" }]);
+  });
+
+  it("exposes both state and input as globals; nothing else", async () => {
+    const probes = [
+      ["return typeof state;", "object"],
+      ["return typeof input;", "object"],
+      ["return typeof fetch;", "undefined"],
+      ["return typeof require;", "undefined"],
+      ["return typeof process;", "undefined"],
+    ];
+    for (const [code, expected] of probes) {
+      expect(await runAction(code, [], {})).toBe(expected);
+    }
+  });
+
+  it("propagates runtime errors as 'action failed'", async () => {
+    await expect(
+      runAction("return state.deeply.nested;", { deeply: null }, {}),
+    ).rejects.toThrow(/action failed/i);
+  });
+
+  it("kills sync infinite loops via vm timeout", async () => {
+    await expect(runAction("while (true) {}", null, null)).rejects.toThrow(
+      /action failed/i,
     );
   });
 });

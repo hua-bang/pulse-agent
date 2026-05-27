@@ -139,7 +139,11 @@ export async function reconcileOnce(
 
     // Node exists, child missing. Respawn.
     try {
-      const { url } = await manager.start(datasourceNodeId, persisted.spec);
+      const { url } = await manager.start(
+        workspaceId,
+        datasourceNodeId,
+        persisted.spec,
+      );
       await patchNodeUrl(workspaceId, match, url);
       console.info(
         `[datasource] respawned ${datasourceNodeId} (workspace=${workspaceId}) → ${url}`,

@@ -53,6 +53,15 @@ function specPath(workspaceId: string, datasourceNodeId: string): string {
   return join(specsDir(workspaceId), `${datasourceNodeId}.json`);
 }
 
+/** State file for a stateful datasource. Lives next to the spec file,
+ *  named `<id>.state.json` so it doesn't show up in spec listings. */
+function statePath(workspaceId: string, datasourceNodeId: string): string {
+  if (!/^[a-zA-Z0-9._-]+$/.test(datasourceNodeId)) {
+    throw new Error(`invalid datasource id: ${datasourceNodeId}`);
+  }
+  return join(specsDir(workspaceId), `${datasourceNodeId}.state.json`);
+}
+
 function isEnoent(err: unknown): boolean {
   return !!err && typeof err === "object" && (err as { code?: string }).code === "ENOENT";
 }
@@ -104,6 +113,55 @@ export async function deleteSpec(
   try {
     await fs.unlink(specPath(workspaceId, datasourceNodeId));
   } catch (err) {
+    if (isEnoent(err)) {
+      // fall through — also try to clean up the state file
+    } else {
+      throw err;
+    }
+  }
+  // Tear down the sidecar state file too — orphan state would otherwise
+  // re-hydrate if a future spec with the same id ever appears.
+  await deleteState(workspaceId, datasourceNodeId);
+}
+
+/** Read the persisted state for a stateful datasource. Returns null
+ *  when no state file exists yet (first-time run). */
+export async function getState(
+  workspaceId: string,
+  datasourceNodeId: string,
+): Promise<unknown | null> {
+  try {
+    const raw = await fs.readFile(
+      statePath(workspaceId, datasourceNodeId),
+      "utf-8",
+    );
+    return JSON.parse(raw);
+  } catch (err) {
+    if (isEnoent(err)) return null;
+    throw err;
+  }
+}
+
+/** Write state to disk atomically. Called after every action mutation. */
+export async function setState(
+  workspaceId: string,
+  datasourceNodeId: string,
+  state: unknown,
+): Promise<void> {
+  await atomicWrite(
+    statePath(workspaceId, datasourceNodeId),
+    JSON.stringify(state),
+  );
+}
+
+/** Delete the state file (e.g. when the datasource is removed). */
+export async function deleteState(
+  workspaceId: string,
+  datasourceNodeId: string,
+): Promise<void> {
+  try {
+    await fs.unlink(statePath(workspaceId, datasourceNodeId));
+  } catch (err) {
     if (isEnoent(err)) return;
     throw err;
   }
@@ -122,6 +180,9 @@ export async function listWorkspaceSpecs(
   const out: SpecEntry[] = [];
   for (const entry of entries) {
     if (!entry.endsWith(".json") || entry.endsWith(".tmp")) continue;
+    // Skip state sidecar files — they share the same .json extension
+    // and would otherwise be loaded as if they were specs.
+    if (entry.endsWith(".state.json")) continue;
     const datasourceNodeId = entry.slice(0, -".json".length);
     const persisted = await getSpec(workspaceId, datasourceNodeId);
     if (persisted) {

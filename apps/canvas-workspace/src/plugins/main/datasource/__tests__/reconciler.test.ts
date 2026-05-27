@@ -60,7 +60,7 @@ function makeManager(opts: {
     ]),
   );
   const manager: DataSourceManager = {
-    async start(id: string) {
+    async start(_workspaceId: string, id: string) {
       calls.start.push(id);
       const port = 20_000 + calls.start.length;
       const url = `http://127.0.0.1:${port}/ui/${encodeURIComponent(id)}`;
@@ -79,6 +79,7 @@ function makeManager(opts: {
 }
 
 const SPEC = {
+  kind: "polling" as const,
   fetcher: { type: "http_poll", url: "http://x.test/", interval: 500 },
   ui: { html: "<div></div>" },
 };
