@@ -43,6 +43,7 @@ import type {
   StatefulSpec,
   UiSpec,
 } from "./types";
+import { stripRequestQuery } from "./utils";
 
 interface BaseRunner {
   id: string;
@@ -117,6 +118,7 @@ const UI_RE = /^\/ui\/([^/?#]+)\/?$/;
 const API_SNAPSHOT_RE = /^\/api\/([^/?#]+)\/?$/;
 const API_STREAM_RE = /^\/api\/([^/?#]+)\/stream\/?$/;
 const API_ACTION_RE = /^\/api\/([^/?#]+)\/actions\/([^/?#]+)\/?$/;
+
 
 const MAX_POST_BODY_BYTES = 1 << 20; // 1 MB
 
@@ -209,7 +211,7 @@ export class DynamicAppManager {
   // ─── Request routing ─────────────────────────────────────────────
 
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
-    const url = req.url ?? "/";
+    const url = stripRequestQuery(req.url ?? "/");
 
     let m = UI_RE.exec(url);
     if (m) {
