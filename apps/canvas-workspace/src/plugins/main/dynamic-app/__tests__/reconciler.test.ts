@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // vi.mock factories below close over them via getter.
 let specs: Array<{
   workspaceId: string;
-  datasourceNodeId: string;
+  dynamicAppId: string;
   persisted: {
     version: number;
     id: string;
@@ -23,7 +23,7 @@ vi.mock("../store", () => ({
   deleteSpec: vi.fn(async (workspaceId: string, id: string) => {
     deletedSpecs.push({ workspaceId, id });
     specs = specs.filter(
-      (s) => !(s.workspaceId === workspaceId && s.datasourceNodeId === id),
+      (s) => !(s.workspaceId === workspaceId && s.dynamicAppId === id),
     );
   }),
 }));
@@ -47,11 +47,11 @@ vi.mock("../../../../main/canvas/broadcast", () => ({
 }));
 
 import { reconcileOnce } from "../reconciler";
-import type { DataSourceManager } from "../manager";
+import type { DynamicAppManager } from "../manager";
 
 function makeManager(opts: {
   running?: Array<{ id: string; startedAt: number }>;
-} = {}): { manager: DataSourceManager; calls: { start: string[]; stop: string[] } } {
+} = {}): { manager: DynamicAppManager; calls: { start: string[]; stop: string[] } } {
   const calls = { start: [] as string[], stop: [] as string[] };
   const running = new Map(
     (opts.running ?? []).map((i) => [
@@ -59,7 +59,7 @@ function makeManager(opts: {
       { id: i.id, startedAt: i.startedAt, url: `http://127.0.0.1:9999/ui/${i.id}` },
     ]),
   );
-  const manager: DataSourceManager = {
+  const manager: DynamicAppManager = {
     async start(_workspaceId: string, id: string) {
       calls.start.push(id);
       const port = 20_000 + calls.start.length;
@@ -74,7 +74,7 @@ function makeManager(opts: {
     list() {
       return Array.from(running.values());
     },
-  } as unknown as DataSourceManager;
+  } as unknown as DynamicAppManager;
   return { manager, calls };
 }
 
@@ -104,7 +104,7 @@ beforeEach(() => {
 describe("reconcileOnce", () => {
   it("respawns a child for a persisted spec whose canvas node still exists", async () => {
     specs = [
-      { workspaceId: "ws1", datasourceNodeId: "ds-1", persisted: persistedFor("ds-1") },
+      { workspaceId: "ws1", dynamicAppId: "ds-1", persisted: persistedFor("ds-1") },
     ];
     canvases.set("ws1", {
       nodes: [
@@ -113,7 +113,7 @@ describe("reconcileOnce", () => {
           type: "iframe",
           data: {
             url: "http://127.0.0.1:1/ui/ds-1",
-            datasourceNodeId: "ds-1",
+            dynamicAppId: "ds-1",
           },
         },
       ],
@@ -139,7 +139,7 @@ describe("reconcileOnce", () => {
 
   it("deletes an orphan spec when no canvas node references it", async () => {
     specs = [
-      { workspaceId: "ws1", datasourceNodeId: "ds-orphan", persisted: persistedFor("ds-orphan") },
+      { workspaceId: "ws1", dynamicAppId: "ds-orphan", persisted: persistedFor("ds-orphan") },
     ];
     canvases.set("ws1", { nodes: [] });
     const { manager, calls } = makeManager();
@@ -173,14 +173,14 @@ describe("reconcileOnce", () => {
 
   it("leaves spec+node+running children alone", async () => {
     specs = [
-      { workspaceId: "ws1", datasourceNodeId: "ds-1", persisted: persistedFor("ds-1") },
+      { workspaceId: "ws1", dynamicAppId: "ds-1", persisted: persistedFor("ds-1") },
     ];
     canvases.set("ws1", {
       nodes: [
         {
           id: "node-a",
           type: "iframe",
-          data: { url: "http://127.0.0.1:1/ui/ds-1", datasourceNodeId: "ds-1" },
+          data: { url: "http://127.0.0.1:1/ui/ds-1", dynamicAppId: "ds-1" },
         },
       ],
     });

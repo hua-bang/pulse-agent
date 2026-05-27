@@ -37,7 +37,7 @@ afterEach(() => {
   rmSync(TMP_ROOT, { recursive: true, force: true });
 });
 
-describe("datasource store", () => {
+describe("dynamic-app store", () => {
   it("set + get round-trip", async () => {
     await setSpec("ws1", "ds-a", SAMPLE_SPEC, 12345);
     const out = await getSpec("ws1", "ds-a");
@@ -63,9 +63,9 @@ describe("datasource store", () => {
     await expect(deleteSpec("ws1", "nope")).resolves.toBeUndefined();
   });
 
-  it("rejects invalid characters in the datasource id", async () => {
+  it("rejects invalid characters in the dynamic-app id", async () => {
     await expect(setSpec("ws1", "../escape", SAMPLE_SPEC)).rejects.toThrow(
-      /invalid datasource id/,
+      /invalid dynamic-app id/,
     );
   });
 
@@ -74,7 +74,7 @@ describe("datasource store", () => {
     await setSpec("ws1", "ds-b", SAMPLE_SPEC);
     await setSpec("ws2", "ds-c", SAMPLE_SPEC);
     const ws1 = await listWorkspaceSpecs("ws1");
-    expect(ws1.map((s) => s.datasourceNodeId).sort()).toEqual(["ds-a", "ds-b"]);
+    expect(ws1.map((s) => s.dynamicAppId).sort()).toEqual(["ds-a", "ds-b"]);
   });
 
   it("listAllSpecs walks every workspace dir", async () => {
@@ -83,7 +83,7 @@ describe("datasource store", () => {
     const all = await listAllSpecs();
     expect(
       all
-        .map((s) => `${s.workspaceId}/${s.datasourceNodeId}`)
+        .map((s) => `${s.workspaceId}/${s.dynamicAppId}`)
         .sort(),
     ).toEqual(["ws1/ds-a", "ws2/ds-b"]);
   });
@@ -98,7 +98,7 @@ describe("datasource store", () => {
 
   it("writes specs to the expected on-disk path under the workspace dir", async () => {
     await setSpec("ws1", "ds-a", SAMPLE_SPEC);
-    const path = join(TMP_ROOT, "ws1", "datasources", "ds-a.json");
+    const path = join(TMP_ROOT, "ws1", "dynamic-apps", "ds-a.json");
     const raw = await fs.readFile(path, "utf-8");
     expect(JSON.parse(raw)).toMatchObject({ id: "ds-a", spec: SAMPLE_SPEC });
   });

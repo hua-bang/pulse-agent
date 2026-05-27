@@ -1,7 +1,8 @@
 /**
- * Shared types for the datasource plugin.
+ * Shared types for the dynamic-app plugin.
  *
- * A "datasource node" lives on a canvas and shows live data. Two kinds:
+ * A "dynamic app" is a live, server-backed iframe node on the canvas.
+ * Two kinds:
  *
  *   polling
  *     ─ pull from external source on a schedule. Read-only from the
@@ -14,7 +15,7 @@
  *       disk; survives restart. `state.initial` is the seed; `actions`
  *       are LLM-authored `(state, input) => newState` reducers.
  *
- * Three HTTP routes per node regardless of kind:
+ * Three HTTP routes per app regardless of kind:
  *   GET  /api/<id>                   → latest payload (one-shot snapshot)
  *   POST /api/<id>/actions/<name>    → run action, return new state
  *                                       (stateful only)
@@ -91,4 +92,4 @@ export interface StatefulSpec {
   ui: UiSpec;
 }
 
-export type DatasourceSpec = PollingSpec | StatefulSpec;
+export type DynamicAppSpec = PollingSpec | StatefulSpec;

@@ -1,5 +1,5 @@
 import type { MainCanvasPlugin } from '../types';
-import { DatasourcePlugin } from './datasource';
+import { DynamicAppPlugin } from './dynamic-app';
 import { DevtoolsMainPlugin } from './devtools';
 import { WebviewPageControlPlugin } from './webview-page-control';
 
@@ -7,5 +7,5 @@ import { WebviewPageControlPlugin } from './webview-page-control';
 export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
   DevtoolsMainPlugin,
   WebviewPageControlPlugin,
-  DatasourcePlugin,
+  DynamicAppPlugin,
 ];

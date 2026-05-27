@@ -1,7 +1,7 @@
 /**
  * `http_poll` runner — periodically GETs/POSTs a URL and emits the
  * parsed JSON body. Used for the simplest "snapshot every N seconds"
- * datasources. SSE / WebSocket / MCP-subscribe runners will sit
+ * polling apps. SSE / WebSocket / MCP-subscribe runners will sit
  * alongside this file later with the same `start()` shape.
  */
 

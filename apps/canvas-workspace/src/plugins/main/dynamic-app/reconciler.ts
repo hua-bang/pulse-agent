@@ -1,5 +1,5 @@
 /**
- * Datasource reconciler — keeps `(persisted spec) × (canvas node) ×
+ * Dynamic-app reconciler — keeps `(persisted spec) × (canvas node) ×
  * (running child)` in sync.
  *
  * One pass walks every persisted spec and decides:
@@ -27,7 +27,7 @@ import {
 } from "../../../main/canvas/storage";
 import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
 import { deleteSpec, listAllSpecs } from "./store";
-import type { DataSourceManager } from "./manager";
+import type { DynamicAppManager } from "./manager";
 
 interface NodeMatch {
   canvas: CanvasSaveData;
@@ -45,9 +45,9 @@ const INITIAL_DELAY_MS = 1_500;
  */
 const CREATE_GRACE_MS = 10_000;
 
-async function findDatasourceNode(
+async function findDynamicAppNode(
   workspaceId: string,
-  datasourceNodeId: string,
+  dynamicAppId: string,
 ): Promise<NodeMatch | null> {
   let canvas: CanvasSaveData | null;
   try {
@@ -60,11 +60,11 @@ async function findDatasourceNode(
   for (let i = 0; i < canvas.nodes.length; i += 1) {
     const node = canvas.nodes[i];
     const data = node.data as Record<string, unknown> | undefined;
-    // Match on the `datasourceNodeId` marker alone — `mode` is left as
+    // Match on the `dynamicAppId` marker alone — `mode` is left as
     // the default 'url' so the iframe renderer auto-loads it.
     if (
       node.type === "iframe" &&
-      data?.datasourceNodeId === datasourceNodeId
+      data?.dynamicAppId === dynamicAppId
     ) {
       return { canvas, node, nodeIndex: i };
     }
@@ -87,19 +87,19 @@ async function patchNodeUrl(
       workspaceId,
       [node.id],
       "update",
-      "datasource-plugin",
+      "dynamic-app-plugin",
     );
   }
 }
 
 export async function reconcileOnce(
-  manager: DataSourceManager,
+  manager: DynamicAppManager,
 ): Promise<void> {
   let entries;
   try {
     entries = await listAllSpecs();
   } catch (err) {
-    console.warn("[datasource] reconcile: listAllSpecs failed", err);
+    console.warn("[dynamic-app] reconcile: listAllSpecs failed", err);
     return;
   }
 
@@ -109,48 +109,48 @@ export async function reconcileOnce(
   const persistedIds = new Set<string>();
   const now = Date.now();
 
-  for (const { workspaceId, datasourceNodeId, persisted } of entries) {
-    persistedIds.add(datasourceNodeId);
+  for (const { workspaceId, dynamicAppId, persisted } of entries) {
+    persistedIds.add(dynamicAppId);
 
     // Skip every action this tick for children still inside the create
     // grace window — their canvas node may not be on disk yet.
-    if (runningIds.has(datasourceNodeId)) {
-      const startedAt = startedAtById.get(datasourceNodeId) ?? 0;
+    if (runningIds.has(dynamicAppId)) {
+      const startedAt = startedAtById.get(dynamicAppId) ?? 0;
       if (now - startedAt < CREATE_GRACE_MS) continue;
     }
 
-    const match = await findDatasourceNode(workspaceId, datasourceNodeId);
+    const match = await findDynamicAppNode(workspaceId, dynamicAppId);
 
     if (!match) {
       // Orphan: no canvas node references this spec. Tear down.
-      if (runningIds.has(datasourceNodeId)) {
-        await manager.stop(datasourceNodeId).catch(() => undefined);
+      if (runningIds.has(dynamicAppId)) {
+        await manager.stop(dynamicAppId).catch(() => undefined);
       }
-      await deleteSpec(workspaceId, datasourceNodeId).catch((err) => {
+      await deleteSpec(workspaceId, dynamicAppId).catch((err) => {
         console.warn(
-          `[datasource] reconcile: delete orphan ${workspaceId}/${datasourceNodeId} failed`,
+          `[dynamic-app] reconcile: delete orphan ${workspaceId}/${dynamicAppId} failed`,
           err,
         );
       });
       continue;
     }
 
-    if (runningIds.has(datasourceNodeId)) continue;
+    if (runningIds.has(dynamicAppId)) continue;
 
     // Node exists, child missing. Respawn.
     try {
       const { url } = await manager.start(
         workspaceId,
-        datasourceNodeId,
+        dynamicAppId,
         persisted.spec,
       );
       await patchNodeUrl(workspaceId, match, url);
       console.info(
-        `[datasource] respawned ${datasourceNodeId} (workspace=${workspaceId}) → ${url}`,
+        `[dynamic-app] respawned ${dynamicAppId} (workspace=${workspaceId}) → ${url}`,
       );
     } catch (err) {
       console.warn(
-        `[datasource] respawn ${datasourceNodeId} failed:`,
+        `[dynamic-app] respawn ${dynamicAppId} failed:`,
         err instanceof Error ? err.message : err,
       );
     }
@@ -167,7 +167,7 @@ export async function reconcileOnce(
   }
 }
 
-export function startReconciler(manager: DataSourceManager): () => void {
+export function startReconciler(manager: DynamicAppManager): () => void {
   let timer: NodeJS.Timeout | null = null;
   let stopped = false;
   let running = false;
@@ -178,7 +178,7 @@ export function startReconciler(manager: DataSourceManager): () => void {
     try {
       await reconcileOnce(manager);
     } catch (err) {
-      console.warn("[datasource] reconcile tick failed:", err);
+      console.warn("[dynamic-app] reconcile tick failed:", err);
     } finally {
       running = false;
       if (!stopped) {

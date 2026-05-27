@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DatasourceSpec } from "../types";
-import type { DataSourceManager } from "../manager";
+import type { DynamicAppSpec } from "../types";
+import type { DynamicAppManager } from "../manager";
 
 // ─── Mock state ────────────────────────────────────────────────────
 
-const specStore = new Map<string, { id: string; spec: DatasourceSpec; createdAt: number }>();
+const specStore = new Map<string, { id: string; spec: DynamicAppSpec; createdAt: number }>();
 const canvases = new Map<string, { nodes: any[] }>();
 let canvasWrites: Array<{ workspaceId: string; data: unknown }> = [];
 let broadcasts: Array<{ workspaceId: string; nodeIds: string[]; kind: string }> = [];
@@ -17,7 +17,7 @@ vi.mock("../store", () => ({
   async getSpec(ws: string, id: string) {
     return specStore.get(specKey(ws, id)) ?? null;
   },
-  async setSpec(ws: string, id: string, spec: DatasourceSpec) {
+  async setSpec(ws: string, id: string, spec: DynamicAppSpec) {
     const entry = { version: 1, id, spec, createdAt: Date.now() };
     specStore.set(specKey(ws, id), entry);
     return entry;
@@ -30,7 +30,7 @@ vi.mock("../store", () => ({
       .filter(([k]) => k.startsWith(`${ws}/`))
       .map(([k, persisted]) => ({
         workspaceId: ws,
-        datasourceNodeId: k.split("/")[1],
+        dynamicAppId: k.split("/")[1],
         persisted: { ...persisted, version: 1 },
       }));
   },
@@ -54,15 +54,15 @@ vi.mock("../../../../main/canvas/broadcast", () => ({
   ),
 }));
 
-import { createDatasourceTools } from "../tools";
+import { createDynamicAppTools } from "../tools";
 
 function makeManager(opts: {
   startFails?: boolean;
-} = {}): { manager: DataSourceManager; calls: { start: string[]; stop: string[] } } {
+} = {}): { manager: DynamicAppManager; calls: { start: string[]; stop: string[] } } {
   const calls = { start: [] as string[], stop: [] as string[] };
   let counter = 0;
   const running = new Map<string, { id: string; startedAt: number; url: string }>();
-  const manager: DataSourceManager = {
+  const manager: DynamicAppManager = {
     async start(_workspaceId: string, id: string) {
       // Mirror the real manager: start() implicitly stops the existing
       // runner with the same id before booting a new one.
@@ -88,13 +88,13 @@ function makeManager(opts: {
     list() {
       return Array.from(running.values());
     },
-  } as unknown as DataSourceManager;
+  } as unknown as DynamicAppManager;
   return { manager, calls };
 }
 
 const WS = "ws-test";
 
-function basicSpec(): DatasourceSpec {
+function basicSpec(): DynamicAppSpec {
   return {
     kind: "polling",
     fetcher: { type: "mock", scenario: "counter", interval: 1000 },
@@ -103,7 +103,7 @@ function basicSpec(): DatasourceSpec {
   };
 }
 
-function todoSpec(): DatasourceSpec {
+function todoSpec(): DynamicAppSpec {
   return {
     kind: "stateful",
     state: { initial: [] },
@@ -121,21 +121,21 @@ beforeEach(() => {
   broadcasts = [];
 });
 
-describe("datasource_node_create", () => {
+describe("dynamic_app_create", () => {
   it("starts runner, persists spec, appends iframe node, returns ok", async () => {
     const { manager, calls } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
     const res = JSON.parse(
-      await tools.datasource_node_create.execute({
+      await tools.dynamic_app_create.execute({
         title: "BTC",
         spec: basicSpec(),
       }),
     );
 
     expect(res.ok).toBe(true);
-    expect(res.datasourceNodeId).toMatch(/^ds-/);
-    expect(res.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/ui\/ds-/);
+    expect(res.dynamicAppId).toMatch(/^app-/);
+    expect(res.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/ui\/app-/);
     expect(calls.start).toHaveLength(1);
 
     // spec persisted
@@ -148,15 +148,15 @@ describe("datasource_node_create", () => {
     expect(node.type).toBe("iframe");
     expect(node.title).toBe("BTC");
     expect(node.data.url).toBe(res.url);
-    expect(node.data.datasourceNodeId).toBe(res.datasourceNodeId);
+    expect(node.data.dynamicAppId).toBe(res.dynamicAppId);
   });
 
   it("rolls back persisted spec + runner when manager.start fails", async () => {
     const { manager } = makeManager({ startFails: true });
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
     const res = JSON.parse(
-      await tools.datasource_node_create.execute({
+      await tools.dynamic_app_create.execute({
         title: "X",
         spec: basicSpec(),
       }),
@@ -170,10 +170,10 @@ describe("datasource_node_create", () => {
 
   it("rejects an invalid spec via the input schema", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
     const res = JSON.parse(
-      await tools.datasource_node_create.execute({
+      await tools.dynamic_app_create.execute({
         title: "X",
         spec: {
           kind: "polling",
@@ -188,24 +188,24 @@ describe("datasource_node_create", () => {
   });
 });
 
-describe("datasource_node_update", () => {
+describe("dynamic_app_update", () => {
   async function seedNode(
-    manager: DataSourceManager,
+    manager: DynamicAppManager,
     title = "BTC",
   ): Promise<string> {
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
     const res = JSON.parse(
-      await tools.datasource_node_create.execute({
+      await tools.dynamic_app_create.execute({
         title,
         spec: basicSpec(),
       }),
     );
-    return res.datasourceNodeId;
+    return res.dynamicAppId;
   }
 
   it("merges patch into existing spec, restarts runner, cache-busts URL", async () => {
     const { manager, calls } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
     const dsId = await seedNode(manager, "BTC");
 
     canvasWrites = []; // ignore the create write
@@ -214,8 +214,8 @@ describe("datasource_node_update", () => {
     calls.stop.length = 0;
 
     const res = JSON.parse(
-      await tools.datasource_node_update.execute({
-        datasourceNodeId: dsId,
+      await tools.dynamic_app_update.execute({
+        dynamicAppId: dsId,
         patch: {
           title: "BTC v2",
           fetcher: { type: "mock", scenario: "counter", interval: 5000 },
@@ -251,13 +251,13 @@ describe("datasource_node_update", () => {
     expect(broadcasts[0].kind).toBe("update");
   });
 
-  it("errors when datasourceNodeId is unknown", async () => {
+  it("errors when dynamicAppId is unknown", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
     const res = JSON.parse(
-      await tools.datasource_node_update.execute({
-        datasourceNodeId: "ds-nope",
+      await tools.dynamic_app_update.execute({
+        dynamicAppId: "app-nope",
         patch: { title: "X" },
       }),
     );
@@ -267,12 +267,12 @@ describe("datasource_node_update", () => {
 
   it("rejects an empty patch", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
     const dsId = await seedNode(manager);
 
     const res = JSON.parse(
-      await tools.datasource_node_update.execute({
-        datasourceNodeId: dsId,
+      await tools.dynamic_app_update.execute({
+        dynamicAppId: dsId,
         patch: {},
       }),
     );
@@ -281,27 +281,27 @@ describe("datasource_node_update", () => {
   });
 });
 
-describe("datasource_node_list", () => {
+describe("dynamic_app_list", () => {
   it("returns every spec that has a matching canvas node", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
-    await tools.datasource_node_create.execute({
+    await tools.dynamic_app_create.execute({
       title: "A",
       spec: basicSpec(),
     });
-    await tools.datasource_node_create.execute({
+    await tools.dynamic_app_create.execute({
       title: "B",
       spec: basicSpec(),
     });
 
-    const res = JSON.parse(await tools.datasource_node_list.execute({}));
+    const res = JSON.parse(await tools.dynamic_app_list.execute({}));
     expect(res.ok).toBe(true);
     expect(res.nodes).toHaveLength(2);
     const titles = res.nodes.map((n: any) => n.title).sort();
     expect(titles).toEqual(["A", "B"]);
     for (const n of res.nodes) {
-      expect(n.datasourceNodeId).toMatch(/^ds-/);
+      expect(n.dynamicAppId).toMatch(/^app-/);
       expect(n.nodeId).toMatch(/^node-/);
       expect(n.kind).toBe("polling");
       expect(n.summary).toMatch(/mock every 1000ms/);
@@ -310,8 +310,8 @@ describe("datasource_node_list", () => {
 
   it("skips specs whose canvas node has been deleted", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
-    await tools.datasource_node_create.execute({
+    const tools = createDynamicAppTools(WS, manager);
+    await tools.dynamic_app_create.execute({
       title: "A",
       spec: basicSpec(),
     });
@@ -319,15 +319,15 @@ describe("datasource_node_list", () => {
     // Wipe the canvas behind the plugin's back — spec stays orphaned.
     canvases.set(WS, { nodes: [] });
 
-    const res = JSON.parse(await tools.datasource_node_list.execute({}));
+    const res = JSON.parse(await tools.dynamic_app_list.execute({}));
     expect(res.ok).toBe(true);
     expect(res.nodes).toEqual([]);
   });
 
   it("returns empty array when no specs exist", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
-    const res = JSON.parse(await tools.datasource_node_list.execute({}));
+    const tools = createDynamicAppTools(WS, manager);
+    const res = JSON.parse(await tools.dynamic_app_list.execute({}));
     expect(res.ok).toBe(true);
     expect(res.nodes).toEqual([]);
   });
@@ -336,17 +336,17 @@ describe("datasource_node_list", () => {
 describe("stateful create + list", () => {
   it("creates a stateful node and surfaces kind + action summary", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
     const createRes = JSON.parse(
-      await tools.datasource_node_create.execute({
+      await tools.dynamic_app_create.execute({
         title: "Todos",
         spec: todoSpec(),
       }),
     );
     expect(createRes.ok).toBe(true);
 
-    const listRes = JSON.parse(await tools.datasource_node_list.execute({}));
+    const listRes = JSON.parse(await tools.dynamic_app_list.execute({}));
     expect(listRes.ok).toBe(true);
     expect(listRes.nodes).toHaveLength(1);
     expect(listRes.nodes[0].kind).toBe("stateful");
@@ -355,18 +355,18 @@ describe("stateful create + list", () => {
 
   it("rejects update.fetcher patch against a stateful spec", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
     const created = JSON.parse(
-      await tools.datasource_node_create.execute({
+      await tools.dynamic_app_create.execute({
         title: "Todos",
         spec: todoSpec(),
       }),
     );
 
     const res = JSON.parse(
-      await tools.datasource_node_update.execute({
-        datasourceNodeId: created.datasourceNodeId,
+      await tools.dynamic_app_update.execute({
+        dynamicAppId: created.dynamicAppId,
         patch: {
           fetcher: { type: "mock", scenario: "counter", interval: 1000 },
         },
@@ -378,18 +378,18 @@ describe("stateful create + list", () => {
 
   it("rejects update.actions patch against a polling spec", async () => {
     const { manager } = makeManager();
-    const tools = createDatasourceTools(WS, manager);
+    const tools = createDynamicAppTools(WS, manager);
 
     const created = JSON.parse(
-      await tools.datasource_node_create.execute({
+      await tools.dynamic_app_create.execute({
         title: "BTC",
         spec: basicSpec(),
       }),
     );
 
     const res = JSON.parse(
-      await tools.datasource_node_update.execute({
-        datasourceNodeId: created.datasourceNodeId,
+      await tools.dynamic_app_update.execute({
+        dynamicAppId: created.dynamicAppId,
         patch: {
           actions: { add: { code: "return state;" } },
         },

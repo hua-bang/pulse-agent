@@ -1,13 +1,13 @@
 /**
- * Canvas-agent tools contributed by the datasource plugin.
+ * Canvas-agent tools contributed by the dynamic-app plugin.
  *
- * Surfaces ONE tool for now — `datasource_node_create` — covering the
+ * Surfaces ONE tool for now — `dynamic_app_create` — covering the
  * full "user says X → live node appears on canvas" flow:
  *
  *   1. Validate the spec (Zod schema mirrors the JSON shape in
  *      `types.ts`; LLM gets actionable errors back).
- *   2. Fork a child datasource process via `DataSourceManager`.
- *   3. Persist the spec under the canvas plugin store (`plugin:datasource:`
+ *   2. Fork a child runner via `DynamicAppManager`.
+ *   3. Persist the spec under the canvas plugin store (`plugin:dynamic-app:`
  *      namespace) keyed by `<workspaceId>/<nodeId>` — survives across
  *      relaunches even though the MVP doesn't auto-respawn yet.
  *   4. Append an `iframe` node to the workspace canvas pointing at
@@ -25,8 +25,8 @@ import {
   type CanvasSaveData,
 } from "../../../main/canvas/storage";
 import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
-import type { DatasourceSpec } from "./types";
-import type { DataSourceManager } from "./manager";
+import type { DynamicAppSpec } from "./types";
+import type { DynamicAppManager } from "./manager";
 import { deleteSpec, getSpec, listWorkspaceSpecs, setSpec } from "./store";
 
 interface CanvasTool {
@@ -107,7 +107,7 @@ const ListInputSchema = z.object({}).strict();
 
 const UpdateInputSchema = z
   .object({
-    datasourceNodeId: z.string().min(1).max(100),
+    dynamicAppId: z.string().min(1).max(100),
     patch: z
       .object({
         title: z.string().min(1).max(120).optional(),
@@ -156,11 +156,11 @@ interface IframeNodeLocation {
 }
 
 /** Walk the workspace canvas and find the iframe node that owns this
- *  datasourceNodeId. Returns the canvas in-memory along with the node
+ *  dynamicAppId. Returns the canvas in-memory along with the node
  *  so the caller can mutate + write back in one pass. */
-async function findIframeNodeByDsId(
+async function findIframeNodeByAppId(
   workspaceId: string,
-  datasourceNodeId: string,
+  dynamicAppId: string,
 ): Promise<IframeNodeLocation | null> {
   const result = await readCanvasFull(workspaceId).catch(() => ({ data: null }));
   const canvas = (result.data as CanvasSaveData | null) ?? null;
@@ -169,7 +169,7 @@ async function findIframeNodeByDsId(
     const data = node.data as Record<string, unknown> | undefined;
     if (
       node.type === "iframe" &&
-      data?.datasourceNodeId === datasourceNodeId
+      data?.dynamicAppId === dynamicAppId
     ) {
       return { canvas, node };
     }
@@ -195,7 +195,7 @@ async function patchCanvasIframeNode(
   canvas.savedAt = new Date().toISOString();
   await writeCanvasFull(workspaceId, canvas);
   if (node.id) {
-    broadcastCanvasUpdate(workspaceId, [node.id], "update", "datasource-plugin");
+    broadcastCanvasUpdate(workspaceId, [node.id], "update", "dynamic-app-plugin");
   }
 }
 
@@ -203,7 +203,7 @@ async function appendIframeNode(
   workspaceId: string,
   url: string,
   title: string,
-  datasourceNodeId: string,
+  dynamicAppId: string,
   placement: { x?: number; y?: number; width?: number; height?: number },
 ): Promise<string> {
   const { data } = await readCanvasFull(workspaceId).catch(() => ({ data: null }));
@@ -231,31 +231,31 @@ async function appendIframeNode(
     height: placement.height ?? 400,
     // Use the standard `mode: 'url'` shape so the existing iframe-node
     // renderer auto-loads the URL on mount instead of showing its
-    // "paste a URL" editor. The `datasourceNodeId` field is how the
+    // "paste a URL" editor. The `dynamicAppId` field is how the
     // reconciler / future tools identify nodes we own.
     data: {
       url,
       mode: "url",
-      datasourceNodeId,
+      dynamicAppId,
     },
     updatedAt: Date.now(),
   };
   canvas.nodes.push(node);
   canvas.savedAt = new Date().toISOString();
   await writeCanvasFull(workspaceId, canvas);
-  broadcastCanvasUpdate(workspaceId, [nodeId], "create", "datasource-plugin");
+  broadcastCanvasUpdate(workspaceId, [nodeId], "create", "dynamic-app-plugin");
   return nodeId;
 }
 
 // ─── Tool factory ──────────────────────────────────────────────────
 
-export function createDatasourceTools(
+export function createDynamicAppTools(
   workspaceId: string,
-  manager: DataSourceManager,
+  manager: DynamicAppManager,
 ): Record<string, CanvasTool> {
   return {
-    datasource_node_create: {
-      name: "datasource_node_create",
+    dynamic_app_create: {
+      name: "dynamic_app_create",
       description:
         "Create a LIVE data node on the canvas. Two kinds, picked via " +
         "`spec.kind`:\n\n" +
@@ -335,7 +335,7 @@ export function createDatasourceTools(
         "      }\n" +
         "    }\n" +
         "  }\n\n" +
-        "Returns JSON `{ ok, nodeId, datasourceNodeId, url }` on success or " +
+        "Returns JSON `{ ok, nodeId, dynamicAppId, url }` on success or " +
         "`{ ok: false, error }` on failure.",
       inputSchema: CreateInputSchema,
       async execute(input: unknown): Promise<string> {
@@ -347,7 +347,7 @@ export function createDatasourceTools(
           });
         }
         const { title, spec, x, y, width, height } = parsed.data;
-        const datasourceNodeId = `ds-${Date.now()}-${randomUUID().slice(0, 8)}`;
+        const dynamicAppId = `app-${Date.now()}-${randomUUID().slice(0, 8)}`;
         try {
           // Order matters for crash-safety: start runner → persist spec
           // → write canvas node. If we crash between spec and node, the
@@ -357,28 +357,28 @@ export function createDatasourceTools(
           // honours a grace window so a mid-create tick does not reap us.
           const { url } = await manager.start(
             workspaceId,
-            datasourceNodeId,
-            spec as DatasourceSpec,
+            dynamicAppId,
+            spec as DynamicAppSpec,
           );
-          await setSpec(workspaceId, datasourceNodeId, spec as DatasourceSpec);
+          await setSpec(workspaceId, dynamicAppId, spec as DynamicAppSpec);
           const nodeId = await appendIframeNode(
             workspaceId,
             url,
             title,
-            datasourceNodeId,
+            dynamicAppId,
             { x, y, width, height },
           );
           return JSON.stringify({
             ok: true,
             nodeId,
-            datasourceNodeId,
+            dynamicAppId,
             url,
           });
         } catch (err) {
           // Best-effort cleanup if any step failed — don't leave a
           // runner attached to a dead spec.
-          await manager.destroy(workspaceId, datasourceNodeId).catch(() => undefined);
-          await deleteSpec(workspaceId, datasourceNodeId).catch(() => undefined);
+          await manager.destroy(workspaceId, dynamicAppId).catch(() => undefined);
+          await deleteSpec(workspaceId, dynamicAppId).catch(() => undefined);
           return JSON.stringify({
             ok: false,
             error: err instanceof Error ? err.message : String(err),
@@ -387,14 +387,14 @@ export function createDatasourceTools(
       },
     },
 
-    datasource_node_list: {
-      name: "datasource_node_list",
+    dynamic_app_list: {
+      name: "dynamic_app_list",
       description:
         "List every LIVE data node currently in this workspace. Use as the " +
-        "first step before datasource_node_update — natural-language refs " +
+        "first step before dynamic_app_update — natural-language refs " +
         "like 'the BTC node' / 'the last one I added' need a real " +
-        "datasourceNodeId to act on.\n\n" +
-        "Returns JSON `{ ok, nodes: [{ datasourceNodeId, nodeId, title, " +
+        "dynamicAppId to act on.\n\n" +
+        "Returns JSON `{ ok, nodes: [{ dynamicAppId, nodeId, title, " +
         "kind, summary }] }`. `kind` is 'polling' | 'stateful'. " +
         "`summary` is a short human-readable hint about what the node " +
         "shows (fetcher type for polling, action names for stateful). " +
@@ -405,16 +405,16 @@ export function createDatasourceTools(
         try {
           const specs = await listWorkspaceSpecs(workspaceId);
           const nodes: Array<{
-            datasourceNodeId: string;
+            dynamicAppId: string;
             nodeId: string | undefined;
             title: string | undefined;
             kind: "polling" | "stateful";
             summary: string;
           }> = [];
           for (const entry of specs) {
-            const location = await findIframeNodeByDsId(
+            const location = await findIframeNodeByAppId(
               workspaceId,
-              entry.datasourceNodeId,
+              entry.dynamicAppId,
             );
             if (!location) continue;
             const spec = entry.persisted.spec;
@@ -424,7 +424,7 @@ export function createDatasourceTools(
                   (spec.transform ? " + transform" : "")
                 : `actions: ${Object.keys(spec.actions).join(", ") || "(none)"}`;
             nodes.push({
-              datasourceNodeId: entry.datasourceNodeId,
+              dynamicAppId: entry.dynamicAppId,
               nodeId: location.node.id,
               title: location.node.title,
               kind: spec.kind,
@@ -441,8 +441,8 @@ export function createDatasourceTools(
       },
     },
 
-    datasource_node_update: {
-      name: "datasource_node_update",
+    dynamic_app_update: {
+      name: "dynamic_app_update",
       description:
         "Modify an existing LIVE data node in place — change the title, " +
         "swap the fetcher (e.g. different polling interval / URL), replace " +
@@ -450,9 +450,9 @@ export function createDatasourceTools(
         "create when the user says 'change X to Y' on a node that already " +
         "exists.\n\n" +
         "Inputs:\n" +
-        "  datasourceNodeId: the id returned by datasource_node_create\n" +
+        "  dynamicAppId: the id returned by dynamic_app_create\n" +
         "                    (NOT the canvas nodeId; the iframe node's\n" +
-        "                    data.datasourceNodeId field).\n" +
+        "                    data.dynamicAppId field).\n" +
         "  patch: any subset of { title, fetcher, transform, ui }. Each\n" +
         "         provided field REPLACES the corresponding spec field\n" +
         "         wholesale; omitted fields stay as-is. At least one\n" +
@@ -461,7 +461,7 @@ export function createDatasourceTools(
         "persisted spec is rewritten, and the canvas iframe is forced to\n" +
         "reload (the URL gets a cache-buster). Old in-memory state of the\n" +
         "previous runner is lost.\n\n" +
-        "Returns JSON `{ ok, datasourceNodeId, nodeId, url }` on success " +
+        "Returns JSON `{ ok, dynamicAppId, nodeId, url }` on success " +
         "or `{ ok: false, error }` on failure.",
       inputSchema: UpdateInputSchema,
       async execute(input: unknown): Promise<string> {
@@ -472,33 +472,33 @@ export function createDatasourceTools(
             error: `invalid input: ${parsed.error.message}`,
           });
         }
-        const { datasourceNodeId, patch } = parsed.data;
+        const { dynamicAppId, patch } = parsed.data;
 
-        const persisted = await getSpec(workspaceId, datasourceNodeId);
+        const persisted = await getSpec(workspaceId, dynamicAppId);
         if (!persisted) {
           return JSON.stringify({
             ok: false,
-            error: `no spec found for datasourceNodeId "${datasourceNodeId}"`,
+            error: `no spec found for dynamicAppId "${dynamicAppId}"`,
           });
         }
 
-        const location = await findIframeNodeByDsId(
+        const location = await findIframeNodeByAppId(
           workspaceId,
-          datasourceNodeId,
+          dynamicAppId,
         );
         if (!location) {
           return JSON.stringify({
             ok: false,
             error:
-              `no canvas iframe node found for datasourceNodeId ` +
-              `"${datasourceNodeId}"`,
+              `no canvas iframe node found for dynamicAppId ` +
+              `"${dynamicAppId}"`,
           });
         }
 
         // Per-field merge — patch fields replace, omitted stay.
         // Kind-checked so a polling node can't accidentally inherit
         // a `actions` patch and vice versa.
-        let merged: DatasourceSpec;
+        let merged: DynamicAppSpec;
         if (persisted.spec.kind === "polling") {
           if (patch.actions !== undefined) {
             return JSON.stringify({
@@ -540,15 +540,15 @@ export function createDatasourceTools(
           // still on disk — the 30s reconciler will respawn the old.
           // stateful state file is left in place across the restart;
           // only spec.actions / spec.ui changes.
-          const { url } = await manager.start(workspaceId, datasourceNodeId, merged);
-          await setSpec(workspaceId, datasourceNodeId, merged);
+          const { url } = await manager.start(workspaceId, dynamicAppId, merged);
+          await setSpec(workspaceId, dynamicAppId, merged);
           await patchCanvasIframeNode(workspaceId, location, {
             title: patch.title,
             url,
           });
           return JSON.stringify({
             ok: true,
-            datasourceNodeId,
+            dynamicAppId,
             nodeId: location.node.id,
             url,
           });

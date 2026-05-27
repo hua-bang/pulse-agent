@@ -1,6 +1,6 @@
 /**
  * Minimal in-process sandbox for LLM-authored code: transforms (polling
- * datasources) and actions (stateful datasources).
+ * apps) and actions (stateful apps).
  *
  * Uses Node's `vm` module with a stripped-down global object — no
  * fetch / require / process / Buffer / timers, and `codeGeneration`
@@ -99,7 +99,7 @@ export async function runTransform(
   input: unknown,
 ): Promise<unknown> {
   try {
-    return runInSandbox(code, { input }, "datasource-transform.js");
+    return runInSandbox(code, { input }, "dynamic-app-transform.js");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`transform failed: ${message}`);
@@ -117,7 +117,7 @@ export async function runAction(
   input: unknown,
 ): Promise<unknown> {
   try {
-    return runInSandbox(code, { state, input }, "datasource-action.js");
+    return runInSandbox(code, { state, input }, "dynamic-app-action.js");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`action failed: ${message}`);

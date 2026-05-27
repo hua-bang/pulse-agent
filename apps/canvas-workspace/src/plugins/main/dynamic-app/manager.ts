@@ -1,8 +1,8 @@
 /**
- * DataSourceManager — in-process datasource hosting.
+ * DynamicAppManager — in-process dynamic-app hosting.
  *
  * One shared loopback HTTP server, one in-memory `Runner` per active
- * datasource. Two flavours of runner cover the spec union:
+ * dynamic app. Two flavours of runner cover the spec union:
  *
  *   polling  — owns a fetcher loop; payload is the most recent
  *              transformed value. Read-only from the iframe POV.
@@ -38,7 +38,7 @@ import {
   setState,
 } from "./store";
 import type {
-  DatasourceSpec,
+  DynamicAppSpec,
   PollingSpec,
   StatefulSpec,
   UiSpec,
@@ -98,7 +98,7 @@ function renderUi(args: {
 <html>
 <head>
 <meta charset="utf-8">
-<title>datasource</title>
+<title>dynamic app</title>
 <style>
   html, body { margin: 0; padding: 0; }
   body { font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; padding: 12px; }
@@ -154,7 +154,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
-export class DataSourceManager {
+export class DynamicAppManager {
   private runners = new Map<string, Runner>();
   private server: http.Server | null = null;
   private serverPort: number | null = null;
@@ -195,7 +195,7 @@ export class DataSourceManager {
       server.listen(0, "127.0.0.1", () => {
         const addr = server.address();
         if (!addr || typeof addr === "string") {
-          reject(new Error("failed to bind datasource server"));
+          reject(new Error("failed to bind dynamic-app server"));
           return;
         }
         this.server = server;
@@ -249,7 +249,7 @@ export class DataSourceManager {
       if (!runner) return this.send404(res);
       if (runner.kind !== "stateful") {
         sendJson(res, 405, {
-          error: "datasource is not stateful — no actions available",
+          error: "dynamic app is not stateful — no actions available",
         });
         return;
       }
@@ -322,14 +322,14 @@ export class DataSourceManager {
 
   private buildUiUrl(id: string): string {
     if (this.serverPort == null) {
-      throw new Error("datasource server not yet bound");
+      throw new Error("dynamic-app server not yet bound");
     }
     return `http://127.0.0.1:${this.serverPort}/ui/${encodeURIComponent(id)}`;
   }
 
   private buildApiUrl(id: string): string {
     if (this.serverPort == null) {
-      throw new Error("datasource server not yet bound");
+      throw new Error("dynamic-app server not yet bound");
     }
     return `http://127.0.0.1:${this.serverPort}/api/${encodeURIComponent(id)}`;
   }
@@ -381,7 +381,7 @@ export class DataSourceManager {
   async start(
     workspaceId: string,
     id: string,
-    spec: DatasourceSpec,
+    spec: DynamicAppSpec,
   ): Promise<{ url: string }> {
     this.installShutdownHook();
     await this.stop(id);
@@ -469,7 +469,7 @@ export class DataSourceManager {
   }
 
   /** Stop the runner AND delete its persisted state file. Use when
-   *  the datasource is being removed entirely; plain `stop()` is what
+   *  the dynamic app is being removed entirely; plain `stop()` is what
    *  you want for restart / update flows where state should survive. */
   async destroy(workspaceId: string, id: string): Promise<void> {
     await this.stop(id);
