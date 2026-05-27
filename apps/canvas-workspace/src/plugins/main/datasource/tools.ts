@@ -25,10 +25,10 @@ import {
   type CanvasSaveData,
 } from "../../../main/canvas/storage";
 import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
-import type { PluginStore } from "../../types";
 import type { DatasourceSpec } from "./types";
 import type { DataSourceManager } from "./manager";
 import { describeTemplates } from "./templates";
+import { deleteSpec, setSpec } from "./store";
 
 interface CanvasTool {
   name: string;
@@ -168,7 +168,6 @@ async function appendIframeNode(
 export function createDatasourceTools(
   workspaceId: string,
   manager: DataSourceManager,
-  store: PluginStore,
 ): Record<string, CanvasTool> {
   return {
     datasource_node_create: {
@@ -236,7 +235,6 @@ export function createDatasourceTools(
         }
         const { title, spec, x, y, width, height } = parsed.data;
         const datasourceNodeId = `ds-${Date.now()}-${randomUUID().slice(0, 8)}`;
-        const specKey = `workspace/${workspaceId}/spec/${datasourceNodeId}`;
         try {
           // Order matters for crash-safety: start runner → persist spec
           // → write canvas node. If we crash between spec and node, the
@@ -248,11 +246,7 @@ export function createDatasourceTools(
             datasourceNodeId,
             spec as DatasourceSpec,
           );
-          await store.set(specKey, {
-            id: datasourceNodeId,
-            spec,
-            createdAt: Date.now(),
-          });
+          await setSpec(workspaceId, datasourceNodeId, spec as DatasourceSpec);
           const nodeId = await appendIframeNode(
             workspaceId,
             url,
@@ -270,7 +264,7 @@ export function createDatasourceTools(
           // Best-effort cleanup if any step failed — don't leave a
           // runner attached to a dead spec.
           await manager.stop(datasourceNodeId).catch(() => undefined);
-          await store.delete(specKey).catch(() => undefined);
+          await deleteSpec(workspaceId, datasourceNodeId).catch(() => undefined);
           return JSON.stringify({
             ok: false,
             error: err instanceof Error ? err.message : String(err),

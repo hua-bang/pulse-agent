@@ -1,11 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// vi.mock factories must be hoist-safe: they cannot capture test-file
-// constants. We expose mutable holders via getters on the mocked module
-// and rebind them inside `beforeEach`.
+// Test-mutable mocks. Holders are reassigned in beforeEach; the
+// vi.mock factories below close over them via getter.
+let specs: Array<{
+  workspaceId: string;
+  datasourceNodeId: string;
+  persisted: {
+    version: number;
+    id: string;
+    spec: { fetcher: unknown; presentation: unknown };
+    createdAt: number;
+  };
+}> = [];
+let deletedSpecs: Array<{ workspaceId: string; id: string }> = [];
+
 const canvases = new Map<string, { nodes: unknown[] }>();
 let canvasWrites: Array<{ workspaceId: string; data: unknown }> = [];
 let broadcasts: Array<{ workspaceId: string; nodeIds: string[]; kind: string }> = [];
+
+vi.mock("../store", () => ({
+  listAllSpecs: vi.fn(async () => specs),
+  deleteSpec: vi.fn(async (workspaceId: string, id: string) => {
+    deletedSpecs.push({ workspaceId, id });
+    specs = specs.filter(
+      (s) => !(s.workspaceId === workspaceId && s.datasourceNodeId === id),
+    );
+  }),
+}));
 
 vi.mock("../../../../main/canvas/storage", () => ({
   readCanvasFull: vi.fn(async (workspaceId: string) => ({
@@ -27,28 +48,6 @@ vi.mock("../../../../main/canvas/broadcast", () => ({
 
 import { reconcileOnce } from "../reconciler";
 import type { DataSourceManager } from "../manager";
-import type { PluginStore } from "../../../types";
-
-function makeStore(): PluginStore & { readonly data: Map<string, unknown> } {
-  const data = new Map<string, unknown>();
-  return {
-    data,
-    async get<T>(key: string): Promise<T | undefined> {
-      return data.get(key) as T | undefined;
-    },
-    async set<T>(key: string, value: T): Promise<void> {
-      data.set(key, value);
-    },
-    async delete(key: string): Promise<void> {
-      data.delete(key);
-    },
-    async list(prefix?: string): Promise<string[]> {
-      return Array.from(data.keys()).filter((k) =>
-        prefix ? k.startsWith(prefix) : true,
-      );
-    },
-  };
-}
 
 function makeManager(opts: {
   running?: Array<{ id: string; startedAt: number }>;
@@ -57,14 +56,14 @@ function makeManager(opts: {
   const running = new Map(
     (opts.running ?? []).map((i) => [
       i.id,
-      { id: i.id, startedAt: i.startedAt, url: `http://127.0.0.1:9999/ds/${i.id}/` },
+      { id: i.id, startedAt: i.startedAt, url: `http://127.0.0.1:9999/ui/${i.id}` },
     ]),
   );
   const manager: DataSourceManager = {
     async start(id: string) {
       calls.start.push(id);
       const port = 20_000 + calls.start.length;
-      const url = `http://127.0.0.1:${port}/ds/${encodeURIComponent(id)}/`;
+      const url = `http://127.0.0.1:${port}/ui/${encodeURIComponent(id)}`;
       running.set(id, { id, startedAt: Date.now(), url });
       return { url };
     },
@@ -84,7 +83,18 @@ const SPEC = {
   presentation: { type: "inline_html", html: "<div></div>" },
 };
 
+function persistedFor(id: string): {
+  version: number;
+  id: string;
+  spec: typeof SPEC;
+  createdAt: number;
+} {
+  return { version: 1, id, spec: SPEC, createdAt: 0 };
+}
+
 beforeEach(() => {
+  specs = [];
+  deletedSpecs = [];
   canvases.clear();
   canvasWrites = [];
   broadcasts = [];
@@ -92,20 +102,16 @@ beforeEach(() => {
 
 describe("reconcileOnce", () => {
   it("respawns a child for a persisted spec whose canvas node still exists", async () => {
-    const store = makeStore();
-    await store.set("workspace/ws1/spec/ds-1", {
-      id: "ds-1",
-      spec: SPEC,
-      createdAt: 0,
-    });
+    specs = [
+      { workspaceId: "ws1", datasourceNodeId: "ds-1", persisted: persistedFor("ds-1") },
+    ];
     canvases.set("ws1", {
       nodes: [
         {
           id: "node-a",
           type: "iframe",
           data: {
-            url: "http://127.0.0.1:1/",
-            mode: "live",
+            url: "http://127.0.0.1:1/ui/ds-1",
             datasourceNodeId: "ds-1",
           },
         },
@@ -113,17 +119,17 @@ describe("reconcileOnce", () => {
     });
     const { manager, calls } = makeManager();
 
-    await reconcileOnce(manager, store);
+    await reconcileOnce(manager);
 
     expect(calls.start).toEqual(["ds-1"]);
     expect(calls.stop).toEqual([]);
-    // Node URL was patched with the fresh port.
+    // Node URL was patched with the fresh URL.
     expect(canvasWrites).toHaveLength(1);
     const writtenNode = (
       canvasWrites[0].data as { nodes: Array<{ data: { url: string } }> }
     ).nodes[0];
     expect(writtenNode.data.url).toMatch(
-      /^http:\/\/127\.0\.0\.1:\d+\/ds\/[^/]+\/$/,
+      /^http:\/\/127\.0\.0\.1:\d+\/ui\/[^/]+$/,
     );
     expect(broadcasts).toEqual([
       { workspaceId: "ws1", nodeIds: ["node-a"], kind: "update" },
@@ -131,62 +137,49 @@ describe("reconcileOnce", () => {
   });
 
   it("deletes an orphan spec when no canvas node references it", async () => {
-    const store = makeStore();
-    await store.set("workspace/ws1/spec/ds-orphan", {
-      id: "ds-orphan",
-      spec: SPEC,
-      createdAt: 0,
-    });
+    specs = [
+      { workspaceId: "ws1", datasourceNodeId: "ds-orphan", persisted: persistedFor("ds-orphan") },
+    ];
     canvases.set("ws1", { nodes: [] });
     const { manager, calls } = makeManager();
 
-    await reconcileOnce(manager, store);
+    await reconcileOnce(manager);
 
-    expect(await store.list("workspace/")).toEqual([]);
+    expect(deletedSpecs).toEqual([{ workspaceId: "ws1", id: "ds-orphan" }]);
     expect(calls.start).toEqual([]);
     expect(calls.stop).toEqual([]);
   });
 
   it("stops orphan running children whose spec has disappeared", async () => {
-    const store = makeStore();
     const { manager, calls } = makeManager({
       running: [{ id: "ds-stale", startedAt: 0 }],
     });
 
-    await reconcileOnce(manager, store);
+    await reconcileOnce(manager);
 
     expect(calls.stop).toEqual(["ds-stale"]);
   });
 
   it("does NOT reap children inside the create grace window", async () => {
-    const store = makeStore();
     const { manager, calls } = makeManager({
-      // started 1ms ago — well inside the 10s grace
       running: [{ id: "ds-fresh", startedAt: Date.now() - 1 }],
     });
 
-    await reconcileOnce(manager, store);
+    await reconcileOnce(manager);
 
     expect(calls.stop).toEqual([]);
   });
 
   it("leaves spec+node+running children alone", async () => {
-    const store = makeStore();
-    await store.set("workspace/ws1/spec/ds-1", {
-      id: "ds-1",
-      spec: SPEC,
-      createdAt: 0,
-    });
+    specs = [
+      { workspaceId: "ws1", datasourceNodeId: "ds-1", persisted: persistedFor("ds-1") },
+    ];
     canvases.set("ws1", {
       nodes: [
         {
           id: "node-a",
           type: "iframe",
-          data: {
-            url: "http://127.0.0.1:1/",
-            mode: "live",
-            datasourceNodeId: "ds-1",
-          },
+          data: { url: "http://127.0.0.1:1/ui/ds-1", datasourceNodeId: "ds-1" },
         },
       ],
     });
@@ -194,7 +187,7 @@ describe("reconcileOnce", () => {
       running: [{ id: "ds-1", startedAt: Date.now() - 60_000 }],
     });
 
-    await reconcileOnce(manager, store);
+    await reconcileOnce(manager);
 
     expect(calls.start).toEqual([]);
     expect(calls.stop).toEqual([]);

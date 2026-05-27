@@ -26,15 +26,8 @@ import {
   type CanvasSaveData,
 } from "../../../main/canvas/storage";
 import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
-import type { PluginStore } from "../../types";
+import { deleteSpec, listAllSpecs } from "./store";
 import type { DataSourceManager } from "./manager";
-import type { DatasourceSpec } from "./types";
-
-interface PersistedSpec {
-  id: string;
-  spec: DatasourceSpec;
-  createdAt: number;
-}
 
 interface NodeMatch {
   canvas: CanvasSaveData;
@@ -42,7 +35,6 @@ interface NodeMatch {
   nodeIndex: number;
 }
 
-const SPEC_KEY_RE = /^workspace\/([^/]+)\/spec\/(.+)$/;
 const RECONCILE_INTERVAL_MS = 30_000;
 const INITIAL_DELAY_MS = 1_500;
 /**
@@ -52,14 +44,6 @@ const INITIAL_DELAY_MS = 1_500;
  * landing mid-create would see "no spec, running child" and kill it.
  */
 const CREATE_GRACE_MS = 10_000;
-
-function parseSpecKey(
-  key: string,
-): { workspaceId: string; datasourceNodeId: string } | null {
-  const m = SPEC_KEY_RE.exec(key);
-  if (!m) return null;
-  return { workspaceId: m[1], datasourceNodeId: m[2] };
-}
 
 async function findDatasourceNode(
   workspaceId: string,
@@ -110,13 +94,12 @@ async function patchNodeUrl(
 
 export async function reconcileOnce(
   manager: DataSourceManager,
-  store: PluginStore,
 ): Promise<void> {
-  let keys: string[];
+  let entries;
   try {
-    keys = await store.list("workspace/");
+    entries = await listAllSpecs();
   } catch (err) {
-    console.warn("[datasource] reconcile: list failed", err);
+    console.warn("[datasource] reconcile: listAllSpecs failed", err);
     return;
   }
 
@@ -126,10 +109,7 @@ export async function reconcileOnce(
   const persistedIds = new Set<string>();
   const now = Date.now();
 
-  for (const key of keys) {
-    const parsed = parseSpecKey(key);
-    if (!parsed) continue;
-    const { workspaceId, datasourceNodeId } = parsed;
+  for (const { workspaceId, datasourceNodeId, persisted } of entries) {
     persistedIds.add(datasourceNodeId);
 
     // Skip every action this tick for children still inside the create
@@ -146,8 +126,11 @@ export async function reconcileOnce(
       if (runningIds.has(datasourceNodeId)) {
         await manager.stop(datasourceNodeId).catch(() => undefined);
       }
-      await store.delete(key).catch((err) => {
-        console.warn(`[datasource] reconcile: delete orphan ${key} failed`, err);
+      await deleteSpec(workspaceId, datasourceNodeId).catch((err) => {
+        console.warn(
+          `[datasource] reconcile: delete orphan ${workspaceId}/${datasourceNodeId} failed`,
+          err,
+        );
       });
       continue;
     }
@@ -155,15 +138,6 @@ export async function reconcileOnce(
     if (runningIds.has(datasourceNodeId)) continue;
 
     // Node exists, child missing. Respawn.
-    let persisted: PersistedSpec | undefined;
-    try {
-      persisted = await store.get<PersistedSpec>(key);
-    } catch (err) {
-      console.warn(`[datasource] reconcile: read ${key} failed`, err);
-      continue;
-    }
-    if (!persisted?.spec) continue;
-
     try {
       const { url } = await manager.start(datasourceNodeId, persisted.spec);
       await patchNodeUrl(workspaceId, match, url);
@@ -189,10 +163,7 @@ export async function reconcileOnce(
   }
 }
 
-export function startReconciler(
-  manager: DataSourceManager,
-  store: PluginStore,
-): () => void {
+export function startReconciler(manager: DataSourceManager): () => void {
   let timer: NodeJS.Timeout | null = null;
   let stopped = false;
   let running = false;
@@ -201,7 +172,7 @@ export function startReconciler(
     if (stopped || running) return;
     running = true;
     try {
-      await reconcileOnce(manager, store);
+      await reconcileOnce(manager);
     } catch (err) {
       console.warn("[datasource] reconcile tick failed:", err);
     } finally {
