@@ -1,22 +1,16 @@
 /**
  * DataSourceManager — in-process datasource hosting.
  *
- * One shared loopback HTTP server, one in-memory `Runner` per active
- * datasource. The previous design forked a Node child per datasource
- * and made each its own HTTP server; that bought process isolation we
- * weren't actually using (transforms already run inside a vm sandbox,
- * fetchers are setInterval + fetch) at the cost of per-node fork
- * overhead, an `index.ts` argv-routing branch, and `ELECTRON_RUN_AS_NODE`
- * mode. This module collapses all of that back into the Electron main.
+ * Owns one shared loopback HTTP server with three route families:
  *
- * Per-datasource isolation can be added later by swapping a Runner
- * implementation for one backed by `worker_threads` or `child_process.fork`
- * — the public manager surface (`start / stop / list`) does not change.
+ *   GET /api/<id>          → latest JSON snapshot
+ *   GET /api/<id>/stream   → SSE event stream of every shaped value
+ *   GET /ui/<id>           → iframe page (built from spec.presentation)
  *
- * URLs are stable for the lifetime of an Electron process: server picks
- * a random loopback port on first `start()`, every datasource gets
- * `http://127.0.0.1:<port>/ds/<id>/`. Across restarts the port changes;
- * the reconciler patches every iframe node's `data.url` on respawn.
+ * /api/* is the headless data interface — usable by the bundled iframe
+ * page, by other tooling, by `curl`, by future "reference" presentations
+ * that bind multiple iframes to the same datasource. /ui/* is one
+ * particular HTML embedding for the canvas iframe node.
  */
 
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
@@ -24,7 +18,12 @@ import { app } from "electron";
 import { startHttpPoll, type RunnerHandle } from "./runners/http-poll";
 import { startMock } from "./runners/mock";
 import { runTransform } from "./sandbox-runner";
-import type { DatasourceSpec, UiSpec } from "./types";
+import { getTemplate } from "./templates";
+import type {
+  DatasourceSpec,
+  InlineHtmlPresentation,
+  PresentationSpec,
+} from "./types";
 
 interface Runner {
   id: string;
@@ -34,41 +33,73 @@ interface Runner {
    *  successful fetch + transform. */
   latest: unknown;
   clients: Set<ServerResponse>;
-  /** Pre-rendered HTML page served at `/ds/<id>/`. */
+  /** Pre-rendered HTML page served at `/ui/<id>`. */
   indexHtml: string;
   startedAt: number;
 }
 
 function escapeForScriptTag(value: string): string {
   // </script> inside a string literal breaks out of the injected
-  // <script> block. The HTML parser only looks for the literal sequence
+  // <script> block. HTML parser only looks for the literal sequence
   // "</script", case-insensitive — escaping the `<` is enough.
   return value.replace(/<\/(script)/gi, "<\\/$1");
 }
 
-function buildIndexHtml(ui: UiSpec, endpoint: string): string {
-  const userScript = ui.script
-    ? `<script>(function(){\n${ui.script}\n})();</script>`
+/** Wrap LLM-authored html/script/css into the same page shape templates
+ *  use. Templates and inline_html therefore both reach the iframe via
+ *  identical scaffolding — only the body differs. */
+function renderInlineHtml(spec: InlineHtmlPresentation, endpoint: string): string {
+  const userScript = spec.script
+    ? `<script>(function(){\n${spec.script}\n})();</script>`
     : "";
-  const userCss = ui.css ? `<style>${ui.css}</style>` : "";
+  const userCss = spec.css ? `<style>${spec.css}</style>` : "";
   const initScript = `<script>window.__ENDPOINT__ = ${JSON.stringify(escapeForScriptTag(endpoint))};</script>`;
   return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <title>datasource</title>
-<style>body{margin:0;padding:12px;font:14px/1.4 system-ui,sans-serif;}</style>
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; padding: 12px; }
+</style>
 ${userCss}
 </head>
 <body>
-${ui.html}
+${spec.html}
 ${initScript}
 ${userScript}
 </body>
 </html>`;
 }
 
-const PATH_RE = /^\/ds\/([^/?#]+)(\/[^?#]*)?/;
+function renderPresentation(
+  presentation: PresentationSpec,
+  dsUrl: string,
+): string {
+  if (presentation.type === "inline_html") {
+    return renderInlineHtml(presentation, `${dsUrl}/stream`);
+  }
+  if (presentation.type === "template") {
+    const tpl = getTemplate(presentation.template);
+    const parsed = tpl.paramsSchema.safeParse(presentation.params);
+    if (!parsed.success) {
+      throw new Error(
+        `template "${presentation.template}": invalid params — ${parsed.error.message}`,
+      );
+    }
+    return tpl.render(parsed.data, { dsUrl });
+  }
+  // exhaustiveness guard
+  const exhaustive: never = presentation;
+  throw new Error(
+    `unknown presentation type: ${JSON.stringify((exhaustive as { type?: string }).type)}`,
+  );
+}
+
+const UI_RE = /^\/ui\/([^/?#]+)\/?$/;
+const API_SNAPSHOT_RE = /^\/api\/([^/?#]+)\/?$/;
+const API_STREAM_RE = /^\/api\/([^/?#]+)\/stream\/?$/;
 
 export class DataSourceManager {
   private runners = new Map<string, Runner>();
@@ -82,17 +113,9 @@ export class DataSourceManager {
     this.shutdownInstalled = true;
     app.on("before-quit", () => {
       for (const r of this.runners.values()) {
-        try {
-          r.fetcher.stop();
-        } catch {
-          // ignore
-        }
+        try { r.fetcher.stop(); } catch { /* ignore */ }
         for (const c of r.clients) {
-          try {
-            c.end();
-          } catch {
-            // ignore
-          }
+          try { c.end(); } catch { /* ignore */ }
         }
       }
       this.runners.clear();
@@ -131,32 +154,26 @@ export class DataSourceManager {
 
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
     const url = req.url ?? "/";
-    const m = PATH_RE.exec(url);
-    if (!m) {
-      res.writeHead(404, { "content-type": "text/plain" });
-      res.end("not found");
-      return;
-    }
-    const runnerId = decodeURIComponent(m[1]);
-    const runner = this.runners.get(runnerId);
-    if (!runner) {
-      res.writeHead(404, { "content-type": "text/plain" });
-      res.end("not found");
-      return;
-    }
-    const sub = m[2] ?? "/";
-    if (sub === "/" || sub === "/index.html") {
+
+    let m = UI_RE.exec(url);
+    if (m) {
+      const runner = this.runners.get(decodeURIComponent(m[1]));
+      if (!runner) return this.send404(res);
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(runner.indexHtml);
       return;
     }
-    if (sub === "/stream") {
+
+    m = API_STREAM_RE.exec(url);
+    if (m) {
+      const runner = this.runners.get(decodeURIComponent(m[1]));
+      if (!runner) return this.send404(res);
       res.writeHead(200, {
         "content-type": "text/event-stream",
         "cache-control": "no-cache, no-transform",
         connection: "keep-alive",
       });
-      // Flush headers immediately so the client enters the OPEN state.
+      // Flush headers immediately so the client enters OPEN state.
       res.write(":ok\n\n");
       if (runner.latest !== undefined) {
         res.write(`data: ${JSON.stringify(runner.latest)}\n\n`);
@@ -165,44 +182,56 @@ export class DataSourceManager {
       req.on("close", () => runner.clients.delete(res));
       return;
     }
+
+    m = API_SNAPSHOT_RE.exec(url);
+    if (m) {
+      const runner = this.runners.get(decodeURIComponent(m[1]));
+      if (!runner) return this.send404(res);
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify(runner.latest ?? null));
+      return;
+    }
+
+    this.send404(res);
+  }
+
+  private send404(res: ServerResponse): void {
     res.writeHead(404, { "content-type": "text/plain" });
     res.end("not found");
   }
 
-  private buildUrl(id: string): string {
+  /** Public URL for the iframe canvas node to load. */
+  private buildUiUrl(id: string): string {
     if (this.serverPort == null) {
       throw new Error("datasource server not yet bound");
     }
-    return `http://127.0.0.1:${this.serverPort}/ds/${encodeURIComponent(id)}/`;
+    return `http://127.0.0.1:${this.serverPort}/ui/${encodeURIComponent(id)}`;
+  }
+
+  /** Data API base — `${dsUrl}` is the snapshot, `${dsUrl}/stream` is SSE. */
+  private buildDsUrl(id: string): string {
+    if (this.serverPort == null) {
+      throw new Error("datasource server not yet bound");
+    }
+    return `http://127.0.0.1:${this.serverPort}/api/${encodeURIComponent(id)}`;
   }
 
   private pushData(runner: Runner, value: unknown): void {
     runner.latest = value;
     const line = `data: ${JSON.stringify(value)}\n\n`;
     for (const client of runner.clients) {
-      try {
-        client.write(line);
-      } catch {
-        // close handler will clean the entry up
-      }
+      try { client.write(line); } catch { /* close handler cleans up */ }
     }
   }
 
   private pushError(runner: Runner, err: Error): void {
     const line = `event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`;
     for (const client of runner.clients) {
-      try {
-        client.write(line);
-      } catch {
-        // ignore
-      }
+      try { client.write(line); } catch { /* ignore */ }
     }
   }
 
-  private startFetcher(
-    spec: DatasourceSpec,
-    runner: Runner,
-  ): RunnerHandle {
+  private startFetcher(spec: DatasourceSpec, runner: Runner): RunnerHandle {
     const onData = async (raw: unknown): Promise<void> => {
       try {
         const shaped = spec.transform
@@ -217,18 +246,11 @@ export class DataSourceManager {
 
     const fetcher = spec.fetcher;
     if (fetcher.type === "http_poll") {
-      return startHttpPoll(fetcher, {
-        onData: (v) => void onData(v),
-        onError,
-      });
+      return startHttpPoll(fetcher, { onData: (v) => void onData(v), onError });
     }
     if (fetcher.type === "mock") {
-      return startMock(fetcher, {
-        onData: (v) => void onData(v),
-        onError,
-      });
+      return startMock(fetcher, { onData: (v) => void onData(v), onError });
     }
-    // When new fetcher kinds are added, branch them above this point.
     throw new Error(
       `unknown fetcher type: ${JSON.stringify((fetcher as { type?: string }).type)}`,
     );
@@ -239,45 +261,32 @@ export class DataSourceManager {
     await this.stop(id);
     await this.ensureServer();
 
+    // Render presentation HTML up-front so a bad template / param spec
+    // surfaces synchronously and we don't even register the runner.
+    const indexHtml = renderPresentation(spec.presentation, this.buildDsUrl(id));
+
     const runner: Runner = {
       id,
       spec,
       fetcher: { stop: () => undefined }, // overwritten below
       latest: undefined,
       clients: new Set(),
-      indexHtml: buildIndexHtml(
-        spec.ui,
-        `${this.buildUrl(id)}stream`,
-      ),
+      indexHtml,
       startedAt: Date.now(),
     };
-
-    try {
-      runner.fetcher = this.startFetcher(spec, runner);
-    } catch (err) {
-      // Bad fetcher spec — surface synchronously, don't register.
-      throw err;
-    }
+    runner.fetcher = this.startFetcher(spec, runner);
 
     this.runners.set(id, runner);
-    return { url: this.buildUrl(id) };
+    return { url: this.buildUiUrl(id) };
   }
 
   async stop(id: string): Promise<void> {
     const r = this.runners.get(id);
     if (!r) return;
     this.runners.delete(id);
-    try {
-      r.fetcher.stop();
-    } catch {
-      // ignore
-    }
+    try { r.fetcher.stop(); } catch { /* ignore */ }
     for (const client of r.clients) {
-      try {
-        client.end();
-      } catch {
-        // ignore
-      }
+      try { client.end(); } catch { /* ignore */ }
     }
   }
 
@@ -285,7 +294,7 @@ export class DataSourceManager {
     return Array.from(this.runners.values()).map((r) => ({
       id: r.id,
       startedAt: r.startedAt,
-      url: this.serverPort == null ? null : this.buildUrl(r.id),
+      url: this.serverPort == null ? null : this.buildUiUrl(r.id),
     }));
   }
 }

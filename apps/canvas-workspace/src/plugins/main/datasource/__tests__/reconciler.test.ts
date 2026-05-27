@@ -81,7 +81,7 @@ function makeManager(opts: {
 
 const SPEC = {
   fetcher: { type: "http_poll", url: "http://x.test/", interval: 500 },
-  ui: { html: "<div></div>" },
+  presentation: { type: "inline_html", html: "<div></div>" },
 };
 
 beforeEach(() => {

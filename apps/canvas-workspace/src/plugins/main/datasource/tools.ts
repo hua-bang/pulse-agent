@@ -28,6 +28,7 @@ import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
 import type { PluginStore } from "../../types";
 import type { DatasourceSpec } from "./types";
 import type { DataSourceManager } from "./manager";
+import { describeTemplates } from "./templates";
 
 interface CanvasTool {
   name: string;
@@ -65,16 +66,28 @@ const TransformSchema = z.object({
   code: z.string().min(1).max(20_000),
 });
 
-const UiSchema = z.object({
+const InlineHtmlPresentationSchema = z.object({
+  type: z.literal("inline_html"),
   html: z.string().min(1).max(20_000),
   script: z.string().max(20_000).optional(),
   css: z.string().max(20_000).optional(),
 });
 
+const TemplatePresentationSchema = z.object({
+  type: z.literal("template"),
+  template: z.string().min(1).max(60),
+  params: z.record(z.string(), z.unknown()),
+});
+
+const PresentationSchema = z.discriminatedUnion("type", [
+  InlineHtmlPresentationSchema,
+  TemplatePresentationSchema,
+]);
+
 const SpecSchema = z.object({
   fetcher: FetcherSchema,
   transform: TransformSchema.optional(),
-  ui: UiSchema,
+  presentation: PresentationSchema,
 });
 
 const CreateInputSchema = z.object({
@@ -161,42 +174,53 @@ export function createDatasourceTools(
     datasource_node_create: {
       name: "datasource_node_create",
       description:
-        "Create a LIVE data node on the canvas. The node renders an iframe " +
-        "that subscribes (via SSE) to a backing runner in the Electron main " +
-        "process; the runner fetches on a schedule and pushes shaped values. " +
-        "Use this when the user wants a 'live' / 'real-time' / 'updates " +
-        "automatically' view — NOT for static charts (use artifact_* tools).\n\n" +
-        "Spec shape:\n" +
-        "  fetcher: ONE of:\n" +
-        "    { type: 'http_poll', url, interval, headers?, method?, body? }\n" +
-        "        Poll a JSON HTTP endpoint. interval is ms, min 250.\n" +
-        "    { type: 'mock', scenario, interval, initial?, volatility? }\n" +
-        "        Synthetic data for demos / tests (no network). scenario:\n" +
-        "          'counter'     → { tick, ts } each interval.\n" +
-        "          'random_walk' → { value, ts } following a multiplicative\n" +
-        "                          random walk from `initial` (default 100)\n" +
-        "                          with per-tick `volatility` (default 0.01).\n" +
-        "                          Looks like a stock-price series.\n" +
-        "  transform?: { code }\n" +
-        "      Function body. `input` global holds the fetched value; must\n" +
-        "      `return` the shaped output. NO fetch / require / process /\n" +
-        "      Buffer — pure computation only, 1s timeout.\n" +
-        "      Example: `return { stars: input.stargazers_count };`\n" +
-        "  ui: { html, script?, css? }\n" +
-        "      html is body markup. script runs after DOM ready and may use\n" +
-        "      `window.__ENDPOINT__` (an SSE URL) — typically\n" +
-        "      `new EventSource(window.__ENDPOINT__).onmessage = e => { ... }`.\n" +
-        "      Each message's data is the JSON-stringified shaped value.\n\n" +
-        "Worked mock example (fake BTC price ticker):\n" +
+        "Create a LIVE data node on the canvas. Backed by a runner in the " +
+        "Electron main process that fetches on a schedule and publishes " +
+        "shaped values; the iframe subscribes via SSE. Use when the user " +
+        "wants 'live' / 'real-time' / 'updates automatically' — NOT for " +
+        "static charts (use artifact_* tools instead).\n\n" +
+        "Spec = fetcher + optional transform + presentation.\n\n" +
+        "fetcher: ONE of:\n" +
+        "  { type: 'http_poll', url, interval, headers?, method?, body? }\n" +
+        "      Poll a JSON HTTP endpoint. interval is ms, min 250.\n" +
+        "  { type: 'mock', scenario, interval, initial?, volatility? }\n" +
+        "      Synthetic data, no network. scenarios:\n" +
+        "        'counter'     → { tick, ts } each interval.\n" +
+        "        'random_walk' → { value, ts } multiplicative random walk\n" +
+        "                        from `initial` (default 100), per-tick\n" +
+        "                        `volatility` (default 0.01). Stock-shaped.\n\n" +
+        "transform? (optional, recommended): { code }\n" +
+        "  Function body. `input` global holds the raw fetched value; must\n" +
+        "  `return` the shaped output. NO fetch / require / process / Buffer.\n" +
+        "  Sync only, 1s timeout. Use to rename / pluck fields.\n" +
+        "  Example: `return { price: input.value, ts: input.ts };`\n\n" +
+        "presentation: ONE of:\n" +
+        "  { type: 'template', template, params }\n" +
+        "      PREFERRED for common shapes. Pre-built, polished, consistent.\n" +
+        "      Available templates:\n" +
+        describeTemplates() +
+        "\n" +
+        "      `params` is template-specific; see each template's schema.\n" +
+        "  { type: 'inline_html', html, script?, css? }\n" +
+        "      Fallback when no template fits. `script` runs after DOM and\n" +
+        "      may use `window.__ENDPOINT__` (SSE URL) — typically\n" +
+        "      `new EventSource(window.__ENDPOINT__).onmessage = e => { ... }`.\n\n" +
+        "Worked example (template — mock BTC price big number):\n" +
         "  {\n" +
         "    title: 'BTC (mock)',\n" +
         "    spec: {\n" +
         "      fetcher: { type: 'mock', scenario: 'random_walk', interval: 1000, initial: 50000, volatility: 0.005 },\n" +
-        "      transform: { code: \"return { symbol: 'BTC', price: input.value, ts: input.ts };\" },\n" +
-        "      ui: {\n" +
-        "        html: \"<div>BTC <span id='p'>...</span></div>\",\n" +
-        "        script: \"new EventSource(window.__ENDPOINT__).onmessage = e => { const d = JSON.parse(e.data); document.getElementById('p').textContent = d.price.toFixed(2); };\"\n" +
-        "      }\n" +
+        "      transform: { code: \"return { price: input.value, ts: input.ts };\" },\n" +
+        "      presentation: { type: 'template', template: 'big_number', params: { label: 'BTC/USD', valueField: 'price', format: 'currency' } }\n" +
+        "    }\n" +
+        "  }\n\n" +
+        "Worked example (template — line chart):\n" +
+        "  {\n" +
+        "    title: 'BTC chart',\n" +
+        "    spec: {\n" +
+        "      fetcher: { type: 'mock', scenario: 'random_walk', interval: 500, initial: 50000, volatility: 0.003 },\n" +
+        "      transform: { code: \"return { price: input.value, ts: input.ts };\" },\n" +
+        "      presentation: { type: 'template', template: 'line_chart', params: { title: 'BTC/USD', valueField: 'price', tsField: 'ts', maxPoints: 120 } }\n" +
         "    }\n" +
         "  }\n\n" +
         "Returns JSON `{ ok, nodeId, datasourceNodeId, url }` on success or " +
