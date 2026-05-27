@@ -11,6 +11,7 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   frame: 'Frame',
   group: 'Group',
   iframe: 'Web',
+  'dynamic-app': 'Dynamic App',
   image: 'Image',
   mindmap: 'Mindmap',
   reference: 'Reference',
@@ -21,6 +22,7 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
 
 export const PICKER_NODE_TYPE_GROUP_ORDER: CanvasNode['type'][] = [
   'iframe',
+  'dynamic-app',
   'file',
   'text',
   'image',

@@ -1,6 +1,7 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
 import type { CanvasNode } from '../../types';
 import { AgentNodeBody } from '../AgentNodeBody';
+import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
 import { FileNodeBody } from '../FileNodeBody';
 import { FrameNodeBody } from '../FrameNodeBody';
 import { IframeNodeBody } from '../IframeNodeBody';
@@ -126,6 +127,8 @@ export const DefaultCanvasNode = ({
         />
       ) : node.type === 'iframe' ? (
         <IframeNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
+      ) : node.type === 'dynamic-app' ? (
+        <DynamicAppNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
       ) : (
         <AgentNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
       )}

@@ -2,7 +2,19 @@ import type { PluginBridge } from '../../plugins/types';
 
 export interface CanvasNode {
   id: string;
-  type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "image" | "shape" | "mindmap" | "reference";
+  type:
+    | "file"
+    | "terminal"
+    | "frame"
+    | "group"
+    | "agent"
+    | "text"
+    | "iframe"
+    | "image"
+    | "shape"
+    | "mindmap"
+    | "reference"
+    | "dynamic-app";
   title: string;
   x: number;
   y: number;
@@ -22,9 +34,26 @@ export interface CanvasNode {
     | ImageNodeData
     | ShapeNodeData
     | MindmapNodeData
-    | ReferenceNodeData;
+    | ReferenceNodeData
+    | DynamicAppNodeData;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
+}
+
+/**
+ * Backing data for a `type: 'dynamic-app'` canvas node. The
+ * dynamic-app plugin (gated behind the `dynamic-app` experimental
+ * flag) owns the runner and the URL; we just persist enough to find
+ * the right runner and render the iframe.
+ */
+export interface DynamicAppNodeData {
+  /** Full loopback URL the iframe should load — `/ui/<id>` on the
+   *  plugin's shared HTTP server, with a `?v=<ts>` cache-buster
+   *  whenever the runner was restarted. */
+  url: string;
+  /** Identity hook for the persisted spec / state files and for the
+   *  plugin's IPC channels. Matches `tools.ts` and the reconciler. */
+  dynamicAppId: string;
 }
 
 export type WorkspaceNodePropertyValue =

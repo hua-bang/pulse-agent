@@ -1,19 +1,20 @@
 /**
  * Canvas-agent tools contributed by the dynamic-app plugin.
  *
- * Surfaces ONE tool for now — `dynamic_app_create` — covering the
- * full "user says X → live node appears on canvas" flow:
+ * Three tools:
+ *   - dynamic_app_create:  validate spec → start runner → persist spec
+ *                          → append a `dynamic-app` canvas node pointing
+ *                          at the runner's `/ui/<id>` URL.
+ *   - dynamic_app_list:    enumerate this workspace's dynamic apps,
+ *                          returning ids + kind + summary so the agent
+ *                          can disambiguate natural-language refs.
+ *   - dynamic_app_update:  merge a patch into the persisted spec,
+ *                          restart the runner, force the iframe to
+ *                          reload via a cache-busted URL.
  *
- *   1. Validate the spec (Zod schema mirrors the JSON shape in
- *      `types.ts`; LLM gets actionable errors back).
- *   2. Fork a child runner via `DynamicAppManager`.
- *   3. Persist the spec under the canvas plugin store (`plugin:dynamic-app:`
- *      namespace) keyed by `<workspaceId>/<nodeId>` — survives across
- *      relaunches even though the MVP doesn't auto-respawn yet.
- *   4. Append an `iframe` node to the workspace canvas pointing at
- *      `http://127.0.0.1:<port>/`. Reuses the same canvas storage path
- *      that `pinArtifactToCanvas` uses, so the renderer renders it with
- *      its existing iframe-node component — zero renderer changes needed.
+ * Nodes use `type: 'dynamic-app'` so the renderer has its own body
+ * component (no URL-editor chrome). The reconciler and the inspector
+ * IPC find them via `data.dynamicAppId`.
  */
 
 import { z } from "zod";
@@ -158,27 +159,27 @@ function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
   return { x: maxRight + 40, y: bestY };
 }
 
-interface IframeNodeLocation {
+interface DynamicAppNodeLocation {
   canvas: CanvasSaveData;
   node: CanvasNode;
-  /** Always populated for iframe nodes we own. */
+  /** Always populated for dynamic-app nodes we own. */
   dynamicAppId: string;
 }
 
-/** Walk the workspace canvas and find a dynamic-app iframe node by
- *  EITHER its canvas node id (what `@`-mentions resolve to) or its
- *  `dynamicAppId` (what `dynamic_app_create` returns). Caller passes
- *  exactly one. Returns the canvas in-memory along with the node so
- *  mutate-then-write is one pass. */
-async function findIframeNode(
+/** Walk the workspace canvas and find a dynamic-app node by EITHER its
+ *  canvas node id (what `@`-mentions resolve to) or its `dynamicAppId`
+ *  (what `dynamic_app_create` returns). Caller passes exactly one.
+ *  Returns the canvas in-memory along with the node so mutate-then-write
+ *  is one pass. */
+async function findDynamicAppNode(
   workspaceId: string,
   ref: { nodeId?: string; dynamicAppId?: string },
-): Promise<IframeNodeLocation | null> {
+): Promise<DynamicAppNodeLocation | null> {
   const result = await readCanvasFull(workspaceId).catch(() => ({ data: null }));
   const canvas = (result.data as CanvasSaveData | null) ?? null;
   if (!canvas?.nodes) return null;
   for (const node of canvas.nodes) {
-    if (node.type !== "iframe") continue;
+    if (node.type !== "dynamic-app") continue;
     const data = node.data as Record<string, unknown> | undefined;
     const nodeAppId = data?.dynamicAppId;
     if (typeof nodeAppId !== "string") continue;
@@ -195,9 +196,9 @@ async function findIframeNode(
 /** Mutate an iframe node's title and/or url in place, persist the
  *  canvas, and broadcast. URL changes get a cache-buster query so the
  *  renderer's <webview> actually reloads — same URL would no-op. */
-async function patchCanvasIframeNode(
+async function patchCanvasDynamicAppNode(
   workspaceId: string,
-  location: IframeNodeLocation,
+  location: DynamicAppNodeLocation,
   patch: { title?: string; url?: string },
 ): Promise<void> {
   const { canvas, node } = location;
@@ -214,7 +215,7 @@ async function patchCanvasIframeNode(
   }
 }
 
-async function appendIframeNode(
+async function appendDynamicAppNode(
   workspaceId: string,
   url: string,
   title: string,
@@ -238,19 +239,18 @@ async function appendIframeNode(
   const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const node: CanvasNode = {
     id: nodeId,
-    type: "iframe",
+    type: "dynamic-app",
     title,
     x: pos.x,
     y: pos.y,
     width: placement.width ?? 520,
     height: placement.height ?? 400,
-    // Use the standard `mode: 'url'` shape so the existing iframe-node
-    // renderer auto-loads the URL on mount instead of showing its
-    // "paste a URL" editor. The `dynamicAppId` field is how the
-    // reconciler / future tools identify nodes we own.
+    // Dedicated canvas type — the renderer has a node body that loads
+    // `data.url` directly with no URL-editor chrome. The `dynamicAppId`
+    // field is the identity hook used by the reconciler, the update /
+    // list tools, and the renderer-side inspector IPC.
     data: {
       url,
-      mode: "url",
       dynamicAppId,
     },
     updatedAt: Date.now(),
@@ -376,7 +376,7 @@ export function createDynamicAppTools(
             spec as DynamicAppSpec,
           );
           await setSpec(workspaceId, dynamicAppId, spec as DynamicAppSpec);
-          const nodeId = await appendIframeNode(
+          const nodeId = await appendDynamicAppNode(
             workspaceId,
             url,
             title,
@@ -433,7 +433,7 @@ export function createDynamicAppTools(
             summary: string;
           }> = [];
           for (const entry of specs) {
-            const location = await findIframeNode(workspaceId, {
+            const location = await findDynamicAppNode(workspaceId, {
               dynamicAppId: entry.dynamicAppId,
             });
             if (!location) continue;
@@ -501,7 +501,7 @@ export function createDynamicAppTools(
 
         // Resolve the node first — whichever id was supplied — so we
         // can then key the spec lookup on the canonical dynamicAppId.
-        const location = await findIframeNode(workspaceId, {
+        const location = await findDynamicAppNode(workspaceId, {
           nodeId,
           dynamicAppId: providedAppId,
         });
@@ -571,7 +571,7 @@ export function createDynamicAppTools(
           // only spec.actions / spec.ui changes.
           const { url } = await manager.start(workspaceId, dynamicAppId, merged);
           await setSpec(workspaceId, dynamicAppId, merged);
-          await patchCanvasIframeNode(workspaceId, location, {
+          await patchCanvasDynamicAppNode(workspaceId, location, {
             title: patch.title,
             url,
           });

@@ -145,7 +145,7 @@ describe("dynamic_app_create", () => {
     // canvas node appended pointing at the runner URL
     const written = canvasWrites.at(-1)!.data as { nodes: any[] };
     const node = written.nodes[0];
-    expect(node.type).toBe("iframe");
+    expect(node.type).toBe("dynamic-app");
     expect(node.title).toBe("BTC");
     expect(node.data.url).toBe(res.url);
     expect(node.data.dynamicAppId).toBe(res.dynamicAppId);

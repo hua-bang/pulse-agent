@@ -31,6 +31,7 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   agent: 'Agent',
   text: 'Text',
   iframe: 'Link',
+  'dynamic-app': 'Dynamic App',
   image: 'Image',
   shape: 'Shape',
   mindmap: 'Mindmap',
