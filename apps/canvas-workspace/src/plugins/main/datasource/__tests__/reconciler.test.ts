@@ -55,17 +55,18 @@ function makeManager(opts: {
 } = {}): { manager: DataSourceManager; calls: { start: string[]; stop: string[] } } {
   const calls = { start: [] as string[], stop: [] as string[] };
   const running = new Map(
-    (opts.running ?? []).map((i, idx) => [
+    (opts.running ?? []).map((i) => [
       i.id,
-      { id: i.id, port: 10_000 + idx, pid: 1000 + idx, startedAt: i.startedAt },
+      { id: i.id, startedAt: i.startedAt, url: `http://127.0.0.1:9999/ds/${i.id}/` },
     ]),
   );
   const manager: DataSourceManager = {
     async start(id: string) {
       calls.start.push(id);
       const port = 20_000 + calls.start.length;
-      running.set(id, { id, port, pid: 5000, startedAt: Date.now() });
-      return { port };
+      const url = `http://127.0.0.1:${port}/ds/${encodeURIComponent(id)}/`;
+      running.set(id, { id, startedAt: Date.now(), url });
+      return { url };
     },
     async stop(id: string) {
       calls.stop.push(id);
@@ -121,7 +122,9 @@ describe("reconcileOnce", () => {
     const writtenNode = (
       canvasWrites[0].data as { nodes: Array<{ data: { url: string } }> }
     ).nodes[0];
-    expect(writtenNode.data.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+    expect(writtenNode.data.url).toMatch(
+      /^http:\/\/127\.0\.0\.1:\d+\/ds\/[^/]+\/$/,
+    );
     expect(broadcasts).toEqual([
       { workspaceId: "ws1", nodeIds: ["node-a"], kind: "update" },
     ]);

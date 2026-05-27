@@ -53,22 +53,3 @@ export interface DatasourceSpec {
   transform?: TransformSpec;
   ui: UiSpec;
 }
-
-// ─── child ↔ parent messages ───────────────────────────────────────
-
-export interface ChildInitMessage {
-  type: "init";
-  spec: DatasourceSpec;
-}
-
-export interface ChildReadyMessage {
-  type: "ready";
-  port: number;
-}
-
-export interface ChildErrorMessage {
-  type: "error";
-  message: string;
-}
-
-export type ChildToParentMessage = ChildReadyMessage | ChildErrorMessage;

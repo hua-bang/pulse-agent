@@ -179,13 +179,13 @@ export function createDatasourceTools(
         const datasourceNodeId = `ds-${Date.now()}-${randomUUID().slice(0, 8)}`;
         const specKey = `workspace/${workspaceId}/spec/${datasourceNodeId}`;
         try {
-          // Order matters for crash-safety: fork child → persist spec →
-          // write canvas node. If we crash between spec and node, the
+          // Order matters for crash-safety: start runner → persist spec
+          // → write canvas node. If we crash between spec and node, the
           // reconciler sees a spec without a node and tears down. If we
-          // crash before persisting the spec, the child dies with the
-          // process and nothing leaks. The reconciler also honours a
-          // grace window so a mid-create tick does not reap us.
-          const { port } = await manager.start(
+          // crash before persisting the spec, the in-memory runner dies
+          // with the process and nothing leaks. The reconciler also
+          // honours a grace window so a mid-create tick does not reap us.
+          const { url } = await manager.start(
             datasourceNodeId,
             spec as DatasourceSpec,
           );
@@ -194,7 +194,6 @@ export function createDatasourceTools(
             spec,
             createdAt: Date.now(),
           });
-          const url = `http://127.0.0.1:${port}/`;
           const nodeId = await appendIframeNode(
             workspaceId,
             url,
@@ -206,12 +205,11 @@ export function createDatasourceTools(
             ok: true,
             nodeId,
             datasourceNodeId,
-            port,
             url,
           });
         } catch (err) {
-          // Best-effort cleanup if any step failed — don't leave a child
-          // listening on a port or an orphan spec on disk.
+          // Best-effort cleanup if any step failed — don't leave a
+          // runner attached to a dead spec.
           await manager.stop(datasourceNodeId).catch(() => undefined);
           await store.delete(specKey).catch(() => undefined);
           return JSON.stringify({

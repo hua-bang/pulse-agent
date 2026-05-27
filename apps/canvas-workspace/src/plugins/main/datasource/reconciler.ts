@@ -164,10 +164,10 @@ export async function reconcileOnce(
     if (!persisted?.spec) continue;
 
     try {
-      const { port } = await manager.start(datasourceNodeId, persisted.spec);
-      await patchNodeUrl(workspaceId, match, `http://127.0.0.1:${port}/`);
+      const { url } = await manager.start(datasourceNodeId, persisted.spec);
+      await patchNodeUrl(workspaceId, match, url);
       console.info(
-        `[datasource] respawned ${datasourceNodeId} (workspace=${workspaceId}) on port ${port}`,
+        `[datasource] respawned ${datasourceNodeId} (workspace=${workspaceId}) → ${url}`,
       );
     } catch (err) {
       console.warn(
