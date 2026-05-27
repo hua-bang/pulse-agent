@@ -52,6 +52,13 @@ interface AppPaths {
 }
 
 export function bootstrap({ mainDir }: BootstrapOptions): void {
+  // Without this, dev runs inherit the Electron binary's identity — dock label,
+  // About panel, userData path, and `ps`/Activity Monitor all read "Electron".
+  // Packaged builds get this from electron-builder's productName, but dev does
+  // not, so set it explicitly before any other Electron API touches app.name.
+  app.setName("Pulse Canvas");
+  process.title = "Pulse Canvas";
+
   const paths = resolveAppPaths(mainDir);
   const { writeLog } = createMainLogger();
 
