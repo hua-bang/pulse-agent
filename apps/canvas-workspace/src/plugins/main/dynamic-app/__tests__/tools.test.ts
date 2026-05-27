@@ -262,7 +262,7 @@ describe("dynamic_app_update", () => {
       }),
     );
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/no spec found/i);
+    expect(res.error).toMatch(/no canvas iframe node found/i);
   });
 
   it("rejects an empty patch", async () => {
@@ -278,6 +278,46 @@ describe("dynamic_app_update", () => {
     );
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/at least one/i);
+  });
+
+  it("accepts canvas `nodeId` directly so @-mentioned nodes skip list", async () => {
+    const { manager } = makeManager();
+    const tools = createDynamicAppTools(WS, manager);
+    const created = JSON.parse(
+      await tools.dynamic_app_create.execute({
+        title: "BTC",
+        spec: basicSpec(),
+      }),
+    );
+
+    canvasWrites = [];
+    broadcasts = [];
+
+    const res = JSON.parse(
+      await tools.dynamic_app_update.execute({
+        nodeId: created.nodeId,
+        patch: { title: "BTC renamed" },
+      }),
+    );
+    expect(res.ok).toBe(true);
+    expect(res.dynamicAppId).toBe(created.dynamicAppId);
+    expect(res.nodeId).toBe(created.nodeId);
+
+    const written = canvasWrites.at(-1)!.data as { nodes: any[] };
+    expect(written.nodes[0].title).toBe("BTC renamed");
+  });
+
+  it("rejects when neither nodeId nor dynamicAppId is provided", async () => {
+    const { manager } = makeManager();
+    const tools = createDynamicAppTools(WS, manager);
+
+    const res = JSON.parse(
+      await tools.dynamic_app_update.execute({
+        patch: { title: "X" },
+      }),
+    );
+    expect(res.ok).toBe(false);
+    expect(res.error).toMatch(/must provide either/i);
   });
 });
 
