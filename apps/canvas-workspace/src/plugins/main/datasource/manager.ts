@@ -22,6 +22,7 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { app } from "electron";
 import { startHttpPoll, type RunnerHandle } from "./runners/http-poll";
+import { startMock } from "./runners/mock";
 import { runTransform } from "./sandbox-runner";
 import type { DatasourceSpec, UiSpec } from "./types";
 
@@ -217,6 +218,12 @@ export class DataSourceManager {
     const fetcher = spec.fetcher;
     if (fetcher.type === "http_poll") {
       return startHttpPoll(fetcher, {
+        onData: (v) => void onData(v),
+        onError,
+      });
+    }
+    if (fetcher.type === "mock") {
+      return startMock(fetcher, {
         onData: (v) => void onData(v),
         onError,
       });

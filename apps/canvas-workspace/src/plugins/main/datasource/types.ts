@@ -25,8 +25,25 @@ export interface HttpPollFetcher {
   body?: unknown;
 }
 
+/**
+ * Synthetic data source — no network, no external API. Used for demos,
+ * dev fixtures, and end-to-end tests of the pipeline. The mock runner
+ * keeps its own scenario state across ticks (unlike the transform,
+ * which is pure) so series can look coherent.
+ */
+export interface MockFetcher {
+  type: "mock";
+  /** Tick interval in milliseconds. */
+  interval: number;
+  scenario: "random_walk" | "counter";
+  /** random_walk: starting value (default 100). */
+  initial?: number;
+  /** random_walk: per-tick relative volatility (default 0.01 = 1%). */
+  volatility?: number;
+}
+
 // Discriminated union — add 'sse', 'ws', 'mcp_subscribe' etc. as siblings.
-export type Fetcher = HttpPollFetcher;
+export type Fetcher = HttpPollFetcher | MockFetcher;
 
 export interface TransformSpec {
   /**

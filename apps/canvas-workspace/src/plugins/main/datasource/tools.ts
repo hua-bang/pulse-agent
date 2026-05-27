@@ -48,7 +48,18 @@ const HttpPollFetcherSchema = z.object({
   body: z.unknown().optional(),
 });
 
-const FetcherSchema = HttpPollFetcherSchema;
+const MockFetcherSchema = z.object({
+  type: z.literal("mock"),
+  interval: z.number().int().positive().min(250).max(60 * 60 * 1000),
+  scenario: z.enum(["random_walk", "counter"]),
+  initial: z.number().optional(),
+  volatility: z.number().nonnegative().max(1).optional(),
+});
+
+const FetcherSchema = z.discriminatedUnion("type", [
+  HttpPollFetcherSchema,
+  MockFetcherSchema,
+]);
 
 const TransformSchema = z.object({
   code: z.string().min(1).max(20_000),
@@ -146,14 +157,22 @@ export function createDatasourceTools(
     datasource_node_create: {
       name: "datasource_node_create",
       description:
-        "Create a LIVE data node on the canvas. The node owns a small child " +
-        "process that fetches data on a schedule and pushes shaped values to an " +
-        "iframe via SSE. Use this when the user wants a 'live' / 'real-time' / " +
-        "'updates automatically' view — NOT for static charts (use artifact_* " +
-        "tools for those).\n\n" +
+        "Create a LIVE data node on the canvas. The node renders an iframe " +
+        "that subscribes (via SSE) to a backing runner in the Electron main " +
+        "process; the runner fetches on a schedule and pushes shaped values. " +
+        "Use this when the user wants a 'live' / 'real-time' / 'updates " +
+        "automatically' view — NOT for static charts (use artifact_* tools).\n\n" +
         "Spec shape:\n" +
-        "  fetcher: { type: 'http_poll', url, interval, headers?, method?, body? }\n" +
-        "      interval is milliseconds, min 250.\n" +
+        "  fetcher: ONE of:\n" +
+        "    { type: 'http_poll', url, interval, headers?, method?, body? }\n" +
+        "        Poll a JSON HTTP endpoint. interval is ms, min 250.\n" +
+        "    { type: 'mock', scenario, interval, initial?, volatility? }\n" +
+        "        Synthetic data for demos / tests (no network). scenario:\n" +
+        "          'counter'     → { tick, ts } each interval.\n" +
+        "          'random_walk' → { value, ts } following a multiplicative\n" +
+        "                          random walk from `initial` (default 100)\n" +
+        "                          with per-tick `volatility` (default 0.01).\n" +
+        "                          Looks like a stock-price series.\n" +
         "  transform?: { code }\n" +
         "      Function body. `input` global holds the fetched value; must\n" +
         "      `return` the shaped output. NO fetch / require / process /\n" +
@@ -164,7 +183,19 @@ export function createDatasourceTools(
         "      `window.__ENDPOINT__` (an SSE URL) — typically\n" +
         "      `new EventSource(window.__ENDPOINT__).onmessage = e => { ... }`.\n" +
         "      Each message's data is the JSON-stringified shaped value.\n\n" +
-        "Returns JSON `{ ok, nodeId, datasourceNodeId, port }` on success or " +
+        "Worked mock example (fake BTC price ticker):\n" +
+        "  {\n" +
+        "    title: 'BTC (mock)',\n" +
+        "    spec: {\n" +
+        "      fetcher: { type: 'mock', scenario: 'random_walk', interval: 1000, initial: 50000, volatility: 0.005 },\n" +
+        "      transform: { code: \"return { symbol: 'BTC', price: input.value, ts: input.ts };\" },\n" +
+        "      ui: {\n" +
+        "        html: \"<div>BTC <span id='p'>...</span></div>\",\n" +
+        "        script: \"new EventSource(window.__ENDPOINT__).onmessage = e => { const d = JSON.parse(e.data); document.getElementById('p').textContent = d.price.toFixed(2); };\"\n" +
+        "      }\n" +
+        "    }\n" +
+        "  }\n\n" +
+        "Returns JSON `{ ok, nodeId, datasourceNodeId, url }` on success or " +
         "`{ ok: false, error }` on failure.",
       inputSchema: CreateInputSchema,
       async execute(input: unknown): Promise<string> {
