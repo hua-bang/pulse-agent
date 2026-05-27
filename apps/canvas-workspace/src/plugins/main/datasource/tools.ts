@@ -27,7 +27,7 @@ import {
 import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
 import type { DatasourceSpec } from "./types";
 import type { DataSourceManager } from "./manager";
-import { deleteSpec, getSpec, setSpec } from "./store";
+import { deleteSpec, getSpec, listWorkspaceSpecs, setSpec } from "./store";
 
 interface CanvasTool {
   name: string;
@@ -85,6 +85,8 @@ const CreateInputSchema = z.object({
   width: z.number().positive().optional(),
   height: z.number().positive().optional(),
 });
+
+const ListInputSchema = z.object({}).strict();
 
 const UpdateInputSchema = z
   .object({
@@ -312,6 +314,53 @@ export function createDatasourceTools(
           // runner attached to a dead spec.
           await manager.stop(datasourceNodeId).catch(() => undefined);
           await deleteSpec(workspaceId, datasourceNodeId).catch(() => undefined);
+          return JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+
+    datasource_node_list: {
+      name: "datasource_node_list",
+      description:
+        "List every LIVE data node currently in this workspace. Use as the " +
+        "first step before datasource_node_update — natural-language refs " +
+        "like 'the BTC node' / 'the last one I added' need a real " +
+        "datasourceNodeId to act on. Results include the canvas node id " +
+        "(useful for canvas_delete_node) and a summary of each node's " +
+        "fetcher so you can disambiguate.\n\n" +
+        "Returns JSON `{ ok, nodes: [{ datasourceNodeId, nodeId, title, " +
+        "fetcher, hasTransform }] }`. Nodes whose spec exists but whose " +
+        "canvas iframe is gone are omitted (the reconciler will GC them).",
+      inputSchema: ListInputSchema,
+      async execute(): Promise<string> {
+        try {
+          const specs = await listWorkspaceSpecs(workspaceId);
+          const nodes: Array<{
+            datasourceNodeId: string;
+            nodeId: string | undefined;
+            title: string | undefined;
+            fetcher: unknown;
+            hasTransform: boolean;
+          }> = [];
+          for (const entry of specs) {
+            const location = await findIframeNodeByDsId(
+              workspaceId,
+              entry.datasourceNodeId,
+            );
+            if (!location) continue;
+            nodes.push({
+              datasourceNodeId: entry.datasourceNodeId,
+              nodeId: location.node.id,
+              title: location.node.title,
+              fetcher: entry.persisted.spec.fetcher,
+              hasTransform: entry.persisted.spec.transform !== undefined,
+            });
+          }
+          return JSON.stringify({ ok: true, nodes });
+        } catch (err) {
           return JSON.stringify({
             ok: false,
             error: err instanceof Error ? err.message : String(err),
