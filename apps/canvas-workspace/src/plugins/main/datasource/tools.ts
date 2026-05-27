@@ -27,7 +27,7 @@ import {
 import { broadcastCanvasUpdate } from "../../../main/canvas/broadcast";
 import type { DatasourceSpec } from "./types";
 import type { DataSourceManager } from "./manager";
-import { deleteSpec, setSpec } from "./store";
+import { deleteSpec, getSpec, setSpec } from "./store";
 
 interface CanvasTool {
   name: string;
@@ -86,6 +86,27 @@ const CreateInputSchema = z.object({
   height: z.number().positive().optional(),
 });
 
+const UpdateInputSchema = z
+  .object({
+    datasourceNodeId: z.string().min(1).max(100),
+    patch: z
+      .object({
+        title: z.string().min(1).max(120).optional(),
+        fetcher: FetcherSchema.optional(),
+        transform: TransformSchema.optional(),
+        ui: UiSchema.optional(),
+      })
+      .strict()
+      .refine(
+        (p) =>
+          p.title !== undefined ||
+          p.fetcher !== undefined ||
+          p.transform !== undefined ||
+          p.ui !== undefined,
+        { message: "patch must include at least one of title/fetcher/transform/ui" },
+      ),
+  });
+
 // ─── Canvas helpers ────────────────────────────────────────────────
 
 function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
@@ -100,6 +121,55 @@ function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {
     }
   }
   return { x: maxRight + 40, y: bestY };
+}
+
+interface IframeNodeLocation {
+  canvas: CanvasSaveData;
+  node: CanvasNode;
+}
+
+/** Walk the workspace canvas and find the iframe node that owns this
+ *  datasourceNodeId. Returns the canvas in-memory along with the node
+ *  so the caller can mutate + write back in one pass. */
+async function findIframeNodeByDsId(
+  workspaceId: string,
+  datasourceNodeId: string,
+): Promise<IframeNodeLocation | null> {
+  const result = await readCanvasFull(workspaceId).catch(() => ({ data: null }));
+  const canvas = (result.data as CanvasSaveData | null) ?? null;
+  if (!canvas?.nodes) return null;
+  for (const node of canvas.nodes) {
+    const data = node.data as Record<string, unknown> | undefined;
+    if (
+      node.type === "iframe" &&
+      data?.datasourceNodeId === datasourceNodeId
+    ) {
+      return { canvas, node };
+    }
+  }
+  return null;
+}
+
+/** Mutate an iframe node's title and/or url in place, persist the
+ *  canvas, and broadcast. URL changes get a cache-buster query so the
+ *  renderer's <webview> actually reloads — same URL would no-op. */
+async function patchCanvasIframeNode(
+  workspaceId: string,
+  location: IframeNodeLocation,
+  patch: { title?: string; url?: string },
+): Promise<void> {
+  const { canvas, node } = location;
+  if (patch.title !== undefined) node.title = patch.title;
+  if (patch.url !== undefined) {
+    const cacheBusted = `${patch.url}${patch.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
+    node.data = { ...(node.data ?? {}), url: cacheBusted };
+  }
+  node.updatedAt = Date.now();
+  canvas.savedAt = new Date().toISOString();
+  await writeCanvasFull(workspaceId, canvas);
+  if (node.id) {
+    broadcastCanvasUpdate(workspaceId, [node.id], "update", "datasource-plugin");
+  }
 }
 
 async function appendIframeNode(
@@ -242,6 +312,95 @@ export function createDatasourceTools(
           // runner attached to a dead spec.
           await manager.stop(datasourceNodeId).catch(() => undefined);
           await deleteSpec(workspaceId, datasourceNodeId).catch(() => undefined);
+          return JSON.stringify({
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      },
+    },
+
+    datasource_node_update: {
+      name: "datasource_node_update",
+      description:
+        "Modify an existing LIVE data node in place — change the title, " +
+        "swap the fetcher (e.g. different polling interval / URL), replace " +
+        "the transform, or rewrite the UI. Use this instead of delete + " +
+        "create when the user says 'change X to Y' on a node that already " +
+        "exists.\n\n" +
+        "Inputs:\n" +
+        "  datasourceNodeId: the id returned by datasource_node_create\n" +
+        "                    (NOT the canvas nodeId; the iframe node's\n" +
+        "                    data.datasourceNodeId field).\n" +
+        "  patch: any subset of { title, fetcher, transform, ui }. Each\n" +
+        "         provided field REPLACES the corresponding spec field\n" +
+        "         wholesale; omitted fields stay as-is. At least one\n" +
+        "         field is required.\n\n" +
+        "Behaviour: the runner is restarted with the merged spec, the\n" +
+        "persisted spec is rewritten, and the canvas iframe is forced to\n" +
+        "reload (the URL gets a cache-buster). Old in-memory state of the\n" +
+        "previous runner is lost.\n\n" +
+        "Returns JSON `{ ok, datasourceNodeId, nodeId, url }` on success " +
+        "or `{ ok: false, error }` on failure.",
+      inputSchema: UpdateInputSchema,
+      async execute(input: unknown): Promise<string> {
+        const parsed = UpdateInputSchema.safeParse(input);
+        if (!parsed.success) {
+          return JSON.stringify({
+            ok: false,
+            error: `invalid input: ${parsed.error.message}`,
+          });
+        }
+        const { datasourceNodeId, patch } = parsed.data;
+
+        const persisted = await getSpec(workspaceId, datasourceNodeId);
+        if (!persisted) {
+          return JSON.stringify({
+            ok: false,
+            error: `no spec found for datasourceNodeId "${datasourceNodeId}"`,
+          });
+        }
+
+        const location = await findIframeNodeByDsId(
+          workspaceId,
+          datasourceNodeId,
+        );
+        if (!location) {
+          return JSON.stringify({
+            ok: false,
+            error:
+              `no canvas iframe node found for datasourceNodeId ` +
+              `"${datasourceNodeId}"`,
+          });
+        }
+
+        // Per-field replacement merge. Omitted fields stay untouched.
+        const merged: DatasourceSpec = {
+          fetcher: patch.fetcher ?? persisted.spec.fetcher,
+          transform:
+            patch.transform !== undefined
+              ? patch.transform
+              : persisted.spec.transform,
+          ui: patch.ui ?? persisted.spec.ui,
+        };
+
+        try {
+          // manager.start internally stops the old runner first; if the
+          // new spec is bad, we end up with no runner but the OLD spec
+          // still on disk — the 30s reconciler will respawn the old.
+          const { url } = await manager.start(datasourceNodeId, merged);
+          await setSpec(workspaceId, datasourceNodeId, merged);
+          await patchCanvasIframeNode(workspaceId, location, {
+            title: patch.title,
+            url,
+          });
+          return JSON.stringify({
+            ok: true,
+            datasourceNodeId,
+            nodeId: location.node.id,
+            url,
+          });
+        } catch (err) {
           return JSON.stringify({
             ok: false,
             error: err instanceof Error ? err.message : String(err),
