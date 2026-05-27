@@ -132,9 +132,13 @@ async function appendIframeNode(
     y: pos.y,
     width: placement.width ?? 520,
     height: placement.height ?? 400,
+    // Use the standard `mode: 'url'` shape so the existing iframe-node
+    // renderer auto-loads the URL on mount instead of showing its
+    // "paste a URL" editor. The `datasourceNodeId` field is how the
+    // reconciler / future tools identify nodes we own.
     data: {
       url,
-      mode: "live",
+      mode: "url",
       datasourceNodeId,
     },
     updatedAt: Date.now(),

@@ -61,7 +61,7 @@ function parseSpecKey(
   return { workspaceId: m[1], datasourceNodeId: m[2] };
 }
 
-async function findLiveNode(
+async function findDatasourceNode(
   workspaceId: string,
   datasourceNodeId: string,
 ): Promise<NodeMatch | null> {
@@ -76,9 +76,10 @@ async function findLiveNode(
   for (let i = 0; i < canvas.nodes.length; i += 1) {
     const node = canvas.nodes[i];
     const data = node.data as Record<string, unknown> | undefined;
+    // Match on the `datasourceNodeId` marker alone — `mode` is left as
+    // the default 'url' so the iframe renderer auto-loads it.
     if (
       node.type === "iframe" &&
-      data?.mode === "live" &&
       data?.datasourceNodeId === datasourceNodeId
     ) {
       return { canvas, node, nodeIndex: i };
@@ -138,7 +139,7 @@ export async function reconcileOnce(
       if (now - startedAt < CREATE_GRACE_MS) continue;
     }
 
-    const match = await findLiveNode(workspaceId, datasourceNodeId);
+    const match = await findDatasourceNode(workspaceId, datasourceNodeId);
 
     if (!match) {
       // Orphan: no canvas node references this spec. Tear down.
