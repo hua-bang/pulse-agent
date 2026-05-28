@@ -6,6 +6,7 @@ interface AgentPickerProps {
   selectedAgent: string;
   cwdInput: string;
   promptInput: string;
+  dangerousMode: boolean;
   rootFolder?: string;
   recentCwds: string[];
   /** Optional Back button used when entering Setup from the Restart view. */
@@ -13,6 +14,7 @@ interface AgentPickerProps {
   onAgentChange: (id: string) => void;
   onCwdChange: (value: string) => void;
   onPromptChange: (value: string) => void;
+  onDangerousModeChange: (value: boolean) => void;
   onPickFolder: () => void;
   onLaunch: () => void;
 }
@@ -48,12 +50,14 @@ export const AgentPicker = ({
   selectedAgent,
   cwdInput,
   promptInput,
+  dangerousMode,
   rootFolder,
   recentCwds,
   onBack,
   onAgentChange,
   onCwdChange,
   onPromptChange,
+  onDangerousModeChange,
   onPickFolder,
   onLaunch,
 }: AgentPickerProps) => {
@@ -61,9 +65,16 @@ export const AgentPicker = ({
   const effectiveCwd = cwdInput || rootFolder || '';
   const previewCmd = agentDef?.command ?? 'agent';
   const visibleRecents = recentCwds.filter((p) => p !== cwdInput).slice(0, 3);
+  const dangerousFlag =
+    selectedAgent === 'claude-code'
+      ? '--dangerously-skip-permissions'
+      : selectedAgent === 'codex'
+        ? '--dangerously-bypass-approvals-and-sandbox'
+        : '';
+  const supportsDangerous = dangerousFlag !== '';
   const startTitle = `Start ${agentDef?.label ?? 'agent'}  —  ${previewCmd}${
-    effectiveCwd ? ` in ${effectiveCwd}` : ''
-  }`;
+    dangerousMode && supportsDangerous ? ` ${dangerousFlag}` : ''
+  }${effectiveCwd ? ` in ${effectiveCwd}` : ''}`;
 
   return (
     <div className="agent-body-wrap agent-body-wrap--setup">
@@ -174,6 +185,21 @@ export const AgentPicker = ({
               rows={3}
             />
           </div>
+
+          {supportsDangerous && (
+            <div className="agent-field">
+              <label className="agent-dangerous-toggle" title={`Adds \`${dangerousFlag}\` to the launch command`}>
+                <input
+                  type="checkbox"
+                  checked={dangerousMode}
+                  onChange={(e) => onDangerousModeChange(e.target.checked)}
+                />
+                <span className="agent-dangerous-toggle-text">
+                  跳过权限确认 <code>{dangerousFlag}</code>
+                </span>
+              </label>
+            </div>
+          )}
         </div>
 
         <div className="agent-card-footer">

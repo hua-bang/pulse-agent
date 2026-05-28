@@ -158,6 +158,13 @@ export interface AgentNodeData {
   agentType: string;
   status?: 'idle' | 'running' | 'done' | 'error';
   agentArgs?: string;
+  /**
+   * When true, launch the agent in unrestricted mode:
+   *   - claude-code → adds `--dangerously-skip-permissions`
+   *   - codex       → adds `--dangerously-bypass-approvals-and-sandbox`
+   * Other agent types ignore this flag.
+   */
+  dangerousMode?: boolean;
   /** Short prompt passed directly as a CLI argument. */
   inlinePrompt?: string;
   /** Relative path to a prompt file in cwd for long prompts. */
