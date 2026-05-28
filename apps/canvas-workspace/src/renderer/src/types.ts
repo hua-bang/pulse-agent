@@ -996,6 +996,7 @@ export interface CanvasWorkspaceApi {
   artifacts: ArtifactsApi;
   shell: ShellApi;
   link: LinkApi;
+  web: WebApi;
   plugin: PluginBridge;
 }
 
@@ -1038,6 +1039,26 @@ export interface LlmApi {
   onHTMLDelta: (requestId: string, callback: (delta: string) => void) => () => void;
   /** Subscribe to generation completion. Returns unsubscribe fn. */
   onHTMLComplete: (requestId: string, callback: (result: { ok: boolean; html?: string; error?: string }) => void) => () => void;
+}
+
+export type WebReadStrategy = 'auto' | 'dom' | 'a11y' | 'screenshot';
+
+export interface WebReadInput {
+  workspaceId: string;
+  nodeId: string;
+  strategy?: WebReadStrategy;
+  maxChars?: number;
+  sparseThreshold?: number;
+}
+
+export type WebReadResult =
+  | { ok: true; nodeId: string; strategy: 'dom'; text: string; title: string; url: string }
+  | { ok: true; nodeId: string; strategy: 'a11y'; text: string }
+  | { ok: true; nodeId: string; strategy: 'screenshot'; imagePath: string }
+  | { ok: false; nodeId: string; strategy: WebReadStrategy; error: string };
+
+export interface WebApi {
+  read: (payload: WebReadInput) => Promise<WebReadResult>;
 }
 
 /**
