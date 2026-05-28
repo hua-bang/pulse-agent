@@ -757,6 +757,78 @@ export interface CanvasModelApi {
   reset: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
 }
 
+// --- User-configurable Skills & MCP (global + per-workspace scope) ---
+
+export type CanvasConfigScope =
+  | { level: 'global' }
+  | { level: 'workspace'; workspaceId: string };
+
+export interface CanvasSkillEntry {
+  name: string;
+  description: string;
+  body: string;
+  scope: 'global' | 'workspace';
+  path: string;
+}
+
+export interface CanvasSkillsStatus {
+  scope: 'global' | 'workspace';
+  dir: string;
+  skills: CanvasSkillEntry[];
+}
+
+export interface CanvasSkillInput {
+  name: string;
+  description: string;
+  body: string;
+  originalName?: string;
+}
+
+export interface CanvasSkillsApi {
+  list: (scope: CanvasConfigScope) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
+  upsert: (
+    scope: CanvasConfigScope,
+    skill: CanvasSkillInput,
+  ) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
+  remove: (
+    scope: CanvasConfigScope,
+    name: string,
+  ) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
+}
+
+export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
+
+export interface CanvasMcpServer {
+  name: string;
+  transport: CanvasMcpTransport;
+  url?: string;
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  deferTools?: boolean;
+}
+
+export interface CanvasMcpStatus {
+  scope: 'global' | 'workspace';
+  path: string;
+  servers: CanvasMcpServer[];
+}
+
+export interface CanvasMcpApi {
+  list: (scope: CanvasConfigScope) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  upsert: (
+    scope: CanvasConfigScope,
+    server: CanvasMcpServer,
+    originalName?: string,
+  ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  remove: (
+    scope: CanvasConfigScope,
+    name: string,
+  ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+}
+
 export interface AgentApi {
   chat: (
     workspaceId: string,
@@ -994,6 +1066,8 @@ export interface CanvasWorkspaceApi {
   file: FileApi;
   dialog: DialogApi;
   skills: SkillsApi;
+  canvasSkills: CanvasSkillsApi;
+  canvasMcp: CanvasMcpApi;
   experimental: ExperimentalApi;
   model: CanvasModelApi;
   promptProfile: PromptProfileApi;

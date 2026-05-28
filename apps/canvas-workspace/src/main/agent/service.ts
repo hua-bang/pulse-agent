@@ -254,6 +254,31 @@ export class CanvasAgentService {
 
 
   /**
+   * Re-scan skills for active agents after a skills config change.
+   * Global-scope edits affect every workspace, so pass no id to refresh all
+   * active agents; pass a workspaceId to refresh just that one.
+   */
+  async reloadSkills(workspaceId?: string): Promise<void> {
+    const agents = workspaceId
+      ? [this.agents.get(workspaceId)].filter((a): a is CanvasAgent => Boolean(a))
+      : Array.from(this.agents.values());
+    await Promise.all(agents.map((agent) => agent.rescanSkills()));
+  }
+
+  /**
+   * Rebuild the Engine for active agents after an MCP config change.
+   * Global-scope edits affect every workspace; pass a workspaceId to reload
+   * just that one. No-op for workspaces without an active agent (they pick up
+   * the new config on next activation).
+   */
+  async reloadMcp(workspaceId?: string): Promise<void> {
+    const agents = workspaceId
+      ? [this.agents.get(workspaceId)].filter((a): a is CanvasAgent => Boolean(a))
+      : Array.from(this.agents.values());
+    await Promise.all(agents.map((agent) => agent.reloadEngine()));
+  }
+
+  /**
    * Deactivate and archive the Canvas Agent for a workspace.
    */
   async deactivate(workspaceId: string): Promise<void> {

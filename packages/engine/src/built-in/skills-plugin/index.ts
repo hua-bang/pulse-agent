@@ -91,23 +91,65 @@ export interface SkillInfo {
 }
 
 /**
+ * 技能扫描路径：base 目录 + glob 模式（相对 base）。
+ */
+export interface SkillScanPath {
+  base: string;
+  pattern: string;
+}
+
+/**
+ * 技能注册表配置。
+ * - `scanPaths` 显式指定扫描路径（顺序即优先级，先扫到的同名 skill 胜出）。
+ *   不传则回退到默认的 cwd（项目级）+ homedir（用户级）路径集。
+ */
+export interface SkillRegistryOptions {
+  scanPaths?: SkillScanPath[];
+}
+
+/**
  * 技能注册表
  */
 export class BuiltInSkillRegistry {
   private skills: Map<string, SkillInfo> = new Map();
   private initialized = false;
+  private scanPathsOverride?: SkillScanPath[];
+  private cwd: string = process.cwd();
+
+  constructor(options: SkillRegistryOptions = {}) {
+    this.scanPathsOverride = options.scanPaths;
+  }
 
   /**
-   * 初始化注册表，扫描并加载所有技能（含远程）
+   * 初始化注册表，扫描并加载所有技能（含远程）。
    */
-  async initialize(cwd: string): Promise<void> {
+  async initialize(cwd: string = process.cwd()): Promise<void> {
     if (this.initialized) {
       console.warn('SkillRegistry already initialized');
       return;
     }
 
+    this.cwd = cwd;
     console.log('Scanning built-in skills...');
-    const skillList = await this.scanSkills(cwd);
+    await this.load();
+    this.initialized = true;
+    console.log(`Loaded ${this.skills.size} skill(s) total`);
+  }
+
+  /**
+   * 重新扫描磁盘并刷新技能列表（运行期热加载）。
+   * 与 `initialize` 不同，`rescan` 不受幂等守卫限制，可重复调用。
+   */
+  async rescan(): Promise<void> {
+    await this.load();
+    console.log(`[Skills] Rescanned, ${this.skills.size} skill(s) total`);
+  }
+
+  /**
+   * 执行一次完整加载：清空 → 扫描本地 → 合并远程。
+   */
+  private async load(): Promise<void> {
+    const skillList = await this.scanSkills(this.cwd);
 
     this.skills.clear();
     for (const skill of skillList) {
@@ -115,16 +157,33 @@ export class BuiltInSkillRegistry {
     }
 
     // 加载远程技能
-    const remoteConfig = await loadRemoteSkillsConfig(cwd);
+    const remoteConfig = await loadRemoteSkillsConfig(this.cwd);
     if (remoteConfig.endpoints.length > 0) {
       const remoteSkills = await fetchRemoteSkills(remoteConfig.endpoints);
       for (const skill of remoteSkills) {
         this.skills.set(skill.name, skill);
       }
     }
+  }
 
-    this.initialized = true;
-    console.log(`Loaded ${this.skills.size} skill(s) total`);
+  /**
+   * 默认扫描路径：项目级（cwd）→ 用户级（homedir），每段内部优先 .pulse-coder。
+   */
+  private defaultScanPaths(cwd: string): SkillScanPath[] {
+    return [
+      // 项目级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
+      { base: cwd, pattern: '.pulse-coder/skills/**/SKILL.md' },
+      { base: cwd, pattern: '.agents/skills/**/SKILL.md' },
+      { base: cwd, pattern: '.coder/skills/**/SKILL.md' },
+      { base: cwd, pattern: '.claude/skills/**/SKILL.md' },
+      { base: cwd, pattern: '.codex/skills/**/SKILL.md' },
+      // 用户级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
+      { base: homedir(), pattern: '.pulse-coder/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.agents/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.coder/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.claude/skills/**/SKILL.md' },
+      { base: homedir(), pattern: '.codex/skills/**/SKILL.md' }
+    ];
   }
 
   /**
@@ -141,20 +200,7 @@ export class BuiltInSkillRegistry {
     const seenPaths = new Set<string>();
     const seenNames = new Set<string>();
 
-    const scanPaths = [
-      // 项目级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
-      { base: cwd, pattern: '.pulse-coder/skills/**/SKILL.md' },
-      { base: cwd, pattern: '.agents/skills/**/SKILL.md' },
-      { base: cwd, pattern: '.coder/skills/**/SKILL.md' },
-      { base: cwd, pattern: '.claude/skills/**/SKILL.md' },
-      { base: cwd, pattern: '.codex/skills/**/SKILL.md' },
-      // 用户级技能（优先 .pulse-coder，兼容 .agents / .coder / .claude / .codex）
-      { base: homedir(), pattern: '.pulse-coder/skills/**/SKILL.md' },
-      { base: homedir(), pattern: '.agents/skills/**/SKILL.md' },
-      { base: homedir(), pattern: '.coder/skills/**/SKILL.md' },
-      { base: homedir(), pattern: '.claude/skills/**/SKILL.md' },
-      { base: homedir(), pattern: '.codex/skills/**/SKILL.md' }
-    ];
+    const scanPaths = this.scanPathsOverride ?? this.defaultScanPaths(cwd);
 
     for (const { base, pattern } of scanPaths) {
       try {
@@ -337,36 +383,57 @@ function generateSkillTool(registry: BuiltInSkillRegistry): Tool<SkillToolInput,
 }
 
 /**
- * 内置技能插件
+ * 技能插件配置。
+ * - `scanPaths` 显式指定扫描路径（多 scope 场景，如 canvas 的全局 + workspace 目录）。
+ * - `cwd` 默认扫描路径的根目录（仅当未提供 scanPaths 时生效）。
  */
-export const builtInSkillsPlugin: EnginePlugin = {
-  name: 'pulse-coder-engine/built-in-skills',
-  version: '1.0.0',
+export interface SkillsPluginOptions {
+  scanPaths?: SkillScanPath[];
+  cwd?: string;
+}
 
-  async initialize(context: EnginePluginContext) {
-    const registry = new BuiltInSkillRegistry();
-    await registry.initialize(process.cwd());
+/**
+ * 创建内置技能插件。
+ *
+ * 注册的 `skillRegistry` 服务暴露 `rescan()`，宿主（如 canvas）可在用户改动
+ * 技能后调用以热刷新——由于 `skill` 工具通过 `beforeRun` 钩子每轮重新生成，
+ * 下一轮对话即可见到最新技能，无需重建 Engine。
+ */
+export function createSkillsPlugin(options: SkillsPluginOptions = {}): EnginePlugin {
+  return {
+    name: 'pulse-coder-engine/built-in-skills',
+    version: '1.0.0',
 
-    context.registerService('skillRegistry', registry);
-    context.registerTool('skill', generateSkillTool(registry));
+    async initialize(context: EnginePluginContext) {
+      const registry = new BuiltInSkillRegistry({ scanPaths: options.scanPaths });
+      await registry.initialize(options.cwd ?? process.cwd());
 
-    context.registerHook('beforeRun', ({ tools }) => {
-      return {
-        tools: {
-          ...tools,
-          skill: generateSkillTool(registry)
-        }
-      };
-    });
+      context.registerService('skillRegistry', registry);
+      context.registerTool('skill', generateSkillTool(registry));
 
-    const skills = registry.getAll();
-    if (skills.length === 0) {
-      console.log('[Skills] No skills found');
-      return;
+      context.registerHook('beforeRun', ({ tools }) => {
+        return {
+          tools: {
+            ...tools,
+            skill: generateSkillTool(registry)
+          }
+        };
+      });
+
+      const skills = registry.getAll();
+      if (skills.length === 0) {
+        console.log('[Skills] No skills found');
+        return;
+      }
+
+      console.log(`[Skills] Registered ${skills.length} skill(s)`);
     }
+  };
+}
 
-    console.log(`[Skills] Registered ${skills.length} skill(s)`);
-  }
-};
+/**
+ * 内置技能插件（默认实例，使用 cwd + homedir 默认扫描路径）。
+ */
+export const builtInSkillsPlugin: EnginePlugin = createSkillsPlugin();
 
 export default builtInSkillsPlugin;

@@ -8,6 +8,8 @@ import { createLogSender, installRendererErrorLogging } from "./bridge/logging";
 import { createPluginBridge } from "./bridge/plugin";
 import { createPtyApi } from "./bridge/pty";
 import {
+  createCanvasMcpApi,
+  createCanvasSkillsApi,
   createDialogApi,
   createExperimentalApi,
   createModelApi,
@@ -36,6 +38,8 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   file: createFileApi(ipcRenderer),
   dialog: createDialogApi(ipcRenderer),
   skills: createSkillsApi(ipcRenderer),
+  canvasSkills: createCanvasSkillsApi(ipcRenderer),
+  canvasMcp: createCanvasMcpApi(ipcRenderer),
   experimental: createExperimentalApi(ipcRenderer),
   iframe: createIframeApi(ipcRenderer),
   shell: createShellApi(ipcRenderer),

@@ -17,6 +17,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { SettingsDrawer } from '../SettingsDrawer';
+import { SkillsManager } from '../settings-config/SkillsManager';
+import { McpManager } from '../settings-config/McpManager';
 import { useI18n } from '../../i18n';
 import './index.css';
 
@@ -291,6 +293,17 @@ export const WorkspaceSettingsDrawer = ({
               </div>
             </>
           )}
+        </section>
+
+        <section className="workspace-settings-section">
+          <div className="workspace-settings-section-title">{t('settings.skills.title')}</div>
+          <div className="workspace-settings-field-hint">{t('skillsConfig.scopeHint.workspace')}</div>
+          <SkillsManager scope={{ level: 'workspace', workspaceId: workspace.id }} />
+        </section>
+
+        <section className="workspace-settings-section">
+          <div className="workspace-settings-section-title">{t('settings.mcp.title')}</div>
+          <McpManager scope={{ level: 'workspace', workspaceId: workspace.id }} />
         </section>
       </div>
 

@@ -15,6 +15,8 @@ import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
 import { setupSkillInstallerIpc } from "../files/skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "../agent/ipc";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
+import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
+import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
 import { setupExperimentalIpc } from "../settings/experimental-ipc";
 import { setupWebviewRegistryIpc } from "../webview/registry";
@@ -84,6 +86,8 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupSkillInstallerIpc();
     setupCanvasAgentIpc();
     setupCanvasModelIpc();
+    setupCanvasSkillsIpc();
+    setupCanvasMcpIpc();
     setupCanvasPromptIpc();
     setupExperimentalIpc();
     setupWebviewRegistryIpc();

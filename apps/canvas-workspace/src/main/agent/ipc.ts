@@ -43,11 +43,15 @@ let service: CanvasAgentService | null = null;
  */
 const sessionWorkspaceMap = new Map<string, string>();
 
-function getService(): CanvasAgentService {
+export function getCanvasAgentService(): CanvasAgentService {
   if (!service) {
     service = new CanvasAgentService();
   }
   return service;
+}
+
+function getService(): CanvasAgentService {
+  return getCanvasAgentService();
 }
 
 export function setupCanvasAgentIpc(): void {
