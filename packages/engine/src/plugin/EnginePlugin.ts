@@ -164,6 +164,12 @@ export interface EnginePluginContext {
   // Tool registration
   registerTool(name: string, tool: any): void;
   registerTools(tools: Record<string, any>): void;
+  /**
+   * Remove a previously-registered tool by name. Used by plugins that
+   * reconcile their tool set at runtime (e.g. workspace-config swapping
+   * MCP servers). Returns true if a tool was removed.
+   */
+  unregisterTool(name: string): boolean;
   getTool(name: string): any;
   /** Returns a snapshot of all tools registered by plugins so far. */
   getTools(): Record<string, any>;

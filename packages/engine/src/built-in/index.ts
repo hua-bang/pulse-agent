@@ -32,8 +32,10 @@ export const builtInPlugins = [
 /**
  * 单独导出各个内置插件，便于外部使用
  */
-export { builtInMCPPlugin } from './mcp-plugin';
+export { builtInMCPPlugin, loadMCPConfig, normalizeServerConfig, createTransport } from './mcp-plugin';
+export type { MCPPluginConfig, NormalizedMCPServerConfig, RawMCPServerConfig } from './mcp-plugin';
 export { builtInSkillsPlugin, BuiltInSkillRegistry } from './skills-plugin';
+export type { SkillInfo, RemoteSkillEndpoint, RemoteSkillsConfig } from './skills-plugin';
 export { builtInPlanModePlugin, BuiltInPlanModeService } from './plan-mode-plugin';
 export { builtInToolSearchPlugin } from './tool-search-plugin';
 export { builtInTaskTrackingPlugin, TaskListService } from './task-tracking-plugin';

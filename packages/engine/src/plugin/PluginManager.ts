@@ -176,6 +176,7 @@ export class PluginManager {
             this.tools.set(name, tool);
           });
         },
+        unregisterTool: (name) => this.tools.delete(name),
         getTool: (name) => this.tools.get(name),
         getTools: () => Object.fromEntries(this.tools),
 

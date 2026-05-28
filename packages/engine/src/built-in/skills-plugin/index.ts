@@ -106,7 +106,33 @@ export class BuiltInSkillRegistry {
       return;
     }
 
-    console.log('Scanning built-in skills...');
+    await this.reload({ cwd });
+    this.initialized = true;
+  }
+
+  /**
+   * Rebuild the in-memory skill set from scratch. Safe to call repeatedly
+   * — used by workspace-config plugin to reconcile after a config change.
+   *
+   * `cwd` defaults to the cwd used during the original `initialize()` call
+   * if known; callers that always want to override pass it explicitly.
+   *
+   * Resolution order (later overrides earlier on name collision):
+   *   1. File system scan rooted at `cwd` + home (existing behaviour).
+   *   2. Remote endpoints loaded from `.pulse-coder/skills/remote.json` plus
+   *      any `extraEndpoints` the caller supplied.
+   *   3. `extraSkills` — fully materialised SkillInfo passed by the caller
+   *      (used for inline / cached-remote skills coming from the workspace
+   *      config store).
+   */
+  async reload(sources: {
+    cwd?: string;
+    extraEndpoints?: RemoteSkillEndpoint[];
+    extraSkills?: SkillInfo[];
+  } = {}): Promise<void> {
+    const cwd = sources.cwd ?? this.lastCwd ?? process.cwd();
+    this.lastCwd = cwd;
+
     const skillList = await this.scanSkills(cwd);
 
     this.skills.clear();
@@ -114,18 +140,24 @@ export class BuiltInSkillRegistry {
       this.skills.set(skill.name, skill);
     }
 
-    // 加载远程技能
     const remoteConfig = await loadRemoteSkillsConfig(cwd);
-    if (remoteConfig.endpoints.length > 0) {
-      const remoteSkills = await fetchRemoteSkills(remoteConfig.endpoints);
+    const allEndpoints = [...remoteConfig.endpoints, ...(sources.extraEndpoints ?? [])];
+    if (allEndpoints.length > 0) {
+      const remoteSkills = await fetchRemoteSkills(allEndpoints);
       for (const skill of remoteSkills) {
         this.skills.set(skill.name, skill);
       }
     }
 
-    this.initialized = true;
-    console.log(`Loaded ${this.skills.size} skill(s) total`);
+    for (const skill of sources.extraSkills ?? []) {
+      if (!skill?.name) continue;
+      this.skills.set(skill.name, skill);
+    }
+
+    console.log(`[Skills] Loaded ${this.skills.size} skill(s) total`);
   }
+
+  private lastCwd?: string;
 
   /**
    * 扫描技能文件

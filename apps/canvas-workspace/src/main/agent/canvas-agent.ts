@@ -8,6 +8,7 @@
 
 import { Engine } from 'pulse-coder-engine';
 import { builtInSkillsPlugin } from 'pulse-coder-engine/built-in';
+import { createWorkspaceConfigPlugin } from '../../plugins/main/workspace-config';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model/config';
 import { agentBus } from '../../plugins/main';
@@ -554,7 +555,10 @@ export class CanvasAgent {
     this.engine = new Engine({
       disableBuiltInPlugins: true,
       enginePlugins: {
-        plugins: [builtInSkillsPlugin],
+        plugins: [
+          builtInSkillsPlugin,
+          createWorkspaceConfigPlugin({ workspaceId: config.workspaceId }),
+        ],
       },
       model: config.model,
       tools: canvasTools,

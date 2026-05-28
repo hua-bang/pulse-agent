@@ -104,7 +104,14 @@ function readDeferTools(raw: RawMCPServerConfig, serverName: string): boolean | 
 }
 
 
-function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): NormalizedMCPServerConfig | null {
+export type {
+  HTTPOrSSEServerConfig,
+  StdioServerConfig,
+  NormalizedMCPServerConfig,
+  RawMCPServerConfig,
+};
+
+export function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): NormalizedMCPServerConfig | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     console.warn(`[MCP] Server "${serverName}" config must be an object, skipping`);
     return null;
@@ -180,7 +187,7 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
 }
 
 
-function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['transport'] {
+export function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['transport'] {
   if (config.transport === 'stdio') {
     return new Experimental_StdioMCPTransport({
       command: config.command,

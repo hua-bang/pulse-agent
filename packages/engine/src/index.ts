@@ -28,6 +28,9 @@ export { PluginManager } from './plugin/PluginManager.js';
 export {
   builtInPlugins,
   builtInMCPPlugin,
+  loadMCPConfig,
+  normalizeServerConfig,
+  createTransport,
   builtInSkillsPlugin,
   builtInPlanModePlugin,
   builtInTaskTrackingPlugin,
@@ -37,6 +40,14 @@ export {
   BuiltInSkillRegistry,
   BuiltInPlanModeService,
   TaskListService,
+} from './built-in/index.js';
+export type {
+  MCPPluginConfig,
+  NormalizedMCPServerConfig,
+  RawMCPServerConfig,
+  SkillInfo,
+  RemoteSkillEndpoint,
+  RemoteSkillsConfig,
 } from './built-in/index.js';
 export type {
   PlanMode,
