@@ -21,10 +21,19 @@ import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { LanguageSection } from './LanguageSection';
+import { ScopedMcpEditor, ScopedSkillsEditor } from '../WorkspaceConfigEditors/scoped';
+import '../WorkspaceConfigEditors/index.css';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'reply-style' | 'agent' | 'experimental' | 'language';
+export type SettingsSection =
+  | 'models'
+  | 'reply-style'
+  | 'agent'
+  | 'mcp'
+  | 'skills'
+  | 'experimental'
+  | 'language';
 
 interface SectionDef {
   id: SettingsSection;
@@ -51,6 +60,18 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.agent.label',
     descriptionKey: 'settings.agent.description',
     titleKey: 'settings.agent.title',
+  },
+  {
+    id: 'mcp',
+    labelKey: 'settings.mcp.label',
+    descriptionKey: 'settings.mcp.description',
+    titleKey: 'settings.mcp.title',
+  },
+  {
+    id: 'skills',
+    labelKey: 'settings.skills.label',
+    descriptionKey: 'settings.skills.description',
+    titleKey: 'settings.skills.title',
   },
   {
     id: 'experimental',
@@ -135,6 +156,8 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
             />
           )}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
+          {activeSection === 'mcp' && <ScopedMcpEditor scope={{ kind: 'global' }} />}
+          {activeSection === 'skills' && <ScopedSkillsEditor scope={{ kind: 'global' }} />}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
           {activeSection === 'language' && <LanguageSection />}
         </div>

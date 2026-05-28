@@ -4,8 +4,24 @@ import type {
   DialogApi,
   ExperimentalApi,
   PromptProfileApi,
-  SkillsApi
+  SkillsApi,
+  WorkspaceConfigApi
 } from "../../renderer/src/types";
+
+export const createWorkspaceConfigApi = (
+  ipcRenderer: IpcRenderer
+): WorkspaceConfigApi => ({
+  get: (workspaceId) =>
+    ipcRenderer.invoke("workspace-config:get", { workspaceId }),
+  getScope: (scope) =>
+    ipcRenderer.invoke("workspace-config:get-scope", { scope }),
+  saveMcp: (scope, config) =>
+    ipcRenderer.invoke("workspace-config:save-mcp", { scope, config }),
+  saveSkills: (scope, config) =>
+    ipcRenderer.invoke("workspace-config:save-skills", { scope, config }),
+  fetchSkillPreview: (entry) =>
+    ipcRenderer.invoke("workspace-config:fetch-skill-preview", { entry })
+});
 
 export const createDialogApi = (ipcRenderer: IpcRenderer): DialogApi => ({
   openFolder: () => ipcRenderer.invoke("dialog:openFolder")

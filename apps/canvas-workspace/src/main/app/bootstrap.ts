@@ -17,6 +17,7 @@ import { setupCanvasAgentIpc, teardownCanvasAgent } from "../agent/ipc";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
 import { setupExperimentalIpc } from "../settings/experimental-ipc";
+import { setupWorkspaceConfigIpc } from "../config/ipc";
 import { setupWebviewRegistryIpc } from "../webview/registry";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
 import { setupArtifactIpc } from "../artifacts/ipc";
@@ -86,6 +87,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupCanvasModelIpc();
     setupCanvasPromptIpc();
     setupExperimentalIpc();
+    setupWorkspaceConfigIpc();
     setupWebviewRegistryIpc();
     setupHtmlGeneratorIpc();
     setupArtifactIpc();

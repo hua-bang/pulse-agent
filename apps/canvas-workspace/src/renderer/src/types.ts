@@ -158,6 +158,13 @@ export interface AgentNodeData {
   agentType: string;
   status?: 'idle' | 'running' | 'done' | 'error';
   agentArgs?: string;
+  /**
+   * When true, launch the agent in unrestricted mode:
+   *   - claude-code → adds `--dangerously-skip-permissions`
+   *   - codex       → adds `--dangerously-bypass-approvals-and-sandbox`
+   * Other agent types ignore this flag.
+   */
+  dangerousMode?: boolean;
   /** Short prompt passed directly as a CLI argument. */
   inlinePrompt?: string;
   /** Relative path to a prompt file in cwd for long prompts. */
@@ -998,6 +1005,7 @@ export interface CanvasWorkspaceApi {
   link: LinkApi;
   web: WebApi;
   plugin: PluginBridge;
+  workspaceConfig: WorkspaceConfigApi;
 }
 
 export interface ShellApi {
@@ -1161,6 +1169,66 @@ export interface IframeApi {
     workspaceId: string,
     nodeId: string,
   ) => Promise<{ ok: boolean }>;
+}
+
+// ---------------------------------------------------------------------------
+// Workspace-config (MCP + Skills) — global + per-workspace JSON config.
+//
+// The on-disk shape is read/written verbatim; the renderer treats config
+// payloads as opaque JSON for the JSON-editor path but uses the structured
+// types below when building skill entries.
+// ---------------------------------------------------------------------------
+
+export type WorkspaceConfigScope =
+  | { kind: 'global' }
+  | { kind: 'workspace'; workspaceId: string };
+
+export type WorkspaceSkillSource =
+  | { type: 'inline'; content: string }
+  | { type: 'url'; url: string; headers?: Record<string, string> }
+  | { type: 'git'; url: string; ref?: string; path?: string };
+
+export interface WorkspaceSkillEntry {
+  name: string;
+  description?: string;
+  source: WorkspaceSkillSource;
+}
+
+export interface MergedWorkspaceConfig {
+  mcpServers: Record<string, unknown>;
+  skills: WorkspaceSkillEntry[];
+  configHash: string;
+}
+
+export interface WorkspaceConfigApi {
+  get: (
+    workspaceId: string,
+  ) => Promise<{ ok: boolean; merged?: MergedWorkspaceConfig; error?: string }>;
+  getScope: (
+    scope: WorkspaceConfigScope,
+  ) => Promise<{
+    ok: boolean;
+    scope?: {
+      mcp: { mcpServers?: Record<string, unknown> };
+      skills: { skills?: WorkspaceSkillEntry[] };
+    };
+    error?: string;
+  }>;
+  saveMcp: (
+    scope: WorkspaceConfigScope,
+    config: { mcpServers?: Record<string, unknown> },
+  ) => Promise<{ ok: boolean; error?: string }>;
+  saveSkills: (
+    scope: WorkspaceConfigScope,
+    config: { skills?: WorkspaceSkillEntry[] },
+  ) => Promise<{ ok: boolean; error?: string }>;
+  fetchSkillPreview: (
+    entry: WorkspaceSkillEntry,
+  ) => Promise<{
+    ok: boolean;
+    preview?: { name: string; description: string; location: string; content: string };
+    error?: string;
+  }>;
 }
 
 declare global {

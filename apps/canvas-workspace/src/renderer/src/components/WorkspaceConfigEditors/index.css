@@ -1,0 +1,190 @@
+.workspace-config-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workspace-config-editor-row {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.workspace-config-editor-hint {
+  font-size: 12px;
+  color: var(--color-text-secondary, #6b7280);
+  line-height: 1.4;
+}
+
+.workspace-config-error {
+  font-size: 13px;
+  color: var(--color-danger, #b91c1c);
+  background: rgba(185, 28, 28, 0.06);
+  border: 1px solid rgba(185, 28, 28, 0.18);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.workspace-config-empty {
+  font-size: 13px;
+  color: var(--color-text-secondary, #6b7280);
+  padding: 12px;
+  border: 1px dashed var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.workspace-config-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  background: var(--color-bg-elevated, #fff);
+  color: var(--color-text, #111827);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.workspace-config-textarea--mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.workspace-config-input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  background: var(--color-bg-elevated, #fff);
+  color: var(--color-text, #111827);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.workspace-config-primary-btn,
+.workspace-config-secondary-btn,
+.workspace-config-link-btn {
+  border-radius: 6px;
+  border: 1px solid transparent;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.workspace-config-primary-btn {
+  background: var(--color-accent, #2563eb);
+  color: #fff;
+  font-weight: 500;
+}
+
+.workspace-config-primary-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.workspace-config-secondary-btn {
+  background: transparent;
+  border-color: var(--color-border, #e5e7eb);
+  color: var(--color-text, #111827);
+}
+
+.workspace-config-secondary-btn:hover {
+  background: var(--color-bg-elevated, #f3f4f6);
+}
+
+.workspace-config-link-btn {
+  background: transparent;
+  color: var(--color-text-secondary, #6b7280);
+  padding: 6px 8px;
+}
+
+.workspace-config-link-btn:hover {
+  color: var(--color-danger, #b91c1c);
+}
+
+.workspace-config-skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-config-skill-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 8px;
+  background: var(--color-bg, #fafafa);
+}
+
+.workspace-config-skill-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.workspace-config-preview {
+  margin-top: 6px;
+  padding: 10px;
+  border: 1px solid var(--color-border, #e5e7eb);
+  border-radius: 6px;
+  background: var(--color-bg-elevated, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.workspace-config-preview-meta {
+  font-size: 13px;
+  color: var(--color-text, #111827);
+}
+
+.workspace-config-preview-body {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  background: var(--color-bg, #f9fafb);
+  padding: 8px;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Scope tab switch used at the top of MCP / Skills sections in the
+   global Settings drawer. */
+.workspace-config-scope-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: var(--color-bg, #f3f4f6);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+.workspace-config-scope-tab {
+  background: transparent;
+  border: none;
+  padding: 5px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text-secondary, #6b7280);
+}
+
+.workspace-config-scope-tab--active {
+  background: var(--color-bg-elevated, #fff);
+  color: var(--color-text, #111827);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}

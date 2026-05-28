@@ -182,6 +182,33 @@ export function validateSkillsConfig(raw: unknown): WorkspaceSkillsConfig {
 // Public API
 // ---------------------------------------------------------------------------
 
+/**
+ * Read a single scope (global OR workspace, not merged). Used by the
+ * settings UI to populate per-scope editors with exactly what's on
+ * disk for that scope, so saving from one scope doesn't accidentally
+ * persist merged values from the other.
+ */
+export async function readScopeConfig(
+  scope: { kind: 'global' } | { kind: 'workspace'; workspaceId: string },
+): Promise<{ mcp: WorkspaceMCPConfig; skills: WorkspaceSkillsConfig }> {
+  const mcpPath =
+    scope.kind === 'global'
+      ? join(GLOBAL_DIR(), MCP_FILE)
+      : join(workspaceDir(scope.workspaceId), MCP_FILE);
+  const skillsPath =
+    scope.kind === 'global'
+      ? join(GLOBAL_DIR(), SKILLS_FILE)
+      : join(workspaceDir(scope.workspaceId), SKILLS_FILE);
+  const [mcpRaw, skillsRaw] = await Promise.all([
+    readJsonFile<unknown>(mcpPath),
+    readJsonFile<unknown>(skillsPath),
+  ]);
+  return {
+    mcp: validateMCPConfig(mcpRaw),
+    skills: validateSkillsConfig(skillsRaw),
+  };
+}
+
 export async function readMergedConfig(workspaceId: string): Promise<MergedWorkspaceConfig> {
   const paths = configPaths(workspaceId);
 

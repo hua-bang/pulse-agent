@@ -18,6 +18,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { SettingsDrawer } from '../SettingsDrawer';
 import { useI18n } from '../../i18n';
+import { ScopedMcpEditor, ScopedSkillsEditor } from '../WorkspaceConfigEditors/scoped';
+import '../WorkspaceConfigEditors/index.css';
 import './index.css';
 
 interface Props {
@@ -200,7 +202,7 @@ export const WorkspaceSettingsDrawer = ({
       kicker={t('workspaceSettings.kicker')}
       title={workspace.name}
       ariaLabel={t('workspaceSettings.ariaLabel')}
-      width={640}
+      width={760}
     >
       <div className="workspace-settings-body">
         {error && <div className="workspace-settings-error">{error}</div>}
@@ -291,6 +293,24 @@ export const WorkspaceSettingsDrawer = ({
               </div>
             </>
           )}
+        </section>
+
+        <section className="workspace-settings-section">
+          <div className="workspace-settings-section-title">MCP Servers</div>
+          <div className="workspace-settings-field-hint">
+            Per-workspace MCP servers. Overrides global servers with the
+            same name. JSON shape: <code>{`{ "mcpServers": { … } }`}</code>.
+          </div>
+          <ScopedMcpEditor scope={{ kind: 'workspace', workspaceId: workspace.id }} />
+        </section>
+
+        <section className="workspace-settings-section">
+          <div className="workspace-settings-section-title">Skills</div>
+          <div className="workspace-settings-field-hint">
+            Per-workspace skills. Inline (write SKILL.md here), URL, or git
+            repo. Overrides global on name collision.
+          </div>
+          <ScopedSkillsEditor scope={{ kind: 'workspace', workspaceId: workspace.id }} />
         </section>
       </div>
 
