@@ -52,6 +52,7 @@ export const useAgentNodeController = ({
   const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
   const [cwdInput, setCwdInput] = useState(data.cwd || '');
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
+  const [dangerousMode, setDangerousMode] = useState(data.dangerousMode ?? false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
@@ -158,16 +159,23 @@ export const useAgentNodeController = ({
         }
         writeCommandTimeRef.current = Date.now();
 
-        const { inlinePrompt, promptFile, agentArgs } = dataRef.current;
+        const { inlinePrompt, promptFile, agentArgs, dangerousMode } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
+        const dangerousFlag = dangerousMode
+          ? agentType === 'claude-code'
+            ? ' --dangerously-skip-permissions'
+            : agentType === 'codex'
+              ? ' --dangerously-bypass-approvals-and-sandbox'
+              : ''
+          : '';
 
         if (agentType === 'codex' && resumeMode) {
-          api.write(sessionId, `${command} resume --last\n`);
+          api.write(sessionId, `${command}${dangerousFlag} resume --last\n`);
         } else {
           const flags =
-            agentType === 'claude-code'
+            (agentType === 'claude-code'
               ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
-              : '';
+              : '') + dangerousFlag;
           if (effectivePrompt) {
             const escaped = effectivePrompt.replace(/'/g, "'\\''");
             api.write(sessionId, `${command}${flags} '${escaped}'\n`);
@@ -386,6 +394,7 @@ export const useAgentNodeController = ({
         cwd: effectiveCwd,
         inlinePrompt: prompt,
         lastInitPrompt: prompt || dataRef.current.lastInitPrompt || '',
+        dangerousMode,
         status: 'running',
         sessionId: freshSessionId,
         scrollback: '',
@@ -394,7 +403,7 @@ export const useAgentNodeController = ({
     });
     setFromRestart(false);
     setViewMode('running');
-  }, [selectedAgent, cwdInput, promptInput, rootFolder, readOnly]);
+  }, [selectedAgent, cwdInput, promptInput, dangerousMode, rootFolder, readOnly]);
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
     if (readOnly) return;
@@ -452,9 +461,10 @@ export const useAgentNodeController = ({
     setSelectedAgent(data.agentType || selectedAgent);
     setCwdInput(data.cwd || '');
     setPromptInput(data.lastInitPrompt || '');
+    setDangerousMode(data.dangerousMode ?? false);
     setFromRestart(true);
     setViewMode('setup');
-  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, readOnly]);
+  }, [data.agentType, data.cwd, data.lastInitPrompt, data.dangerousMode, selectedAgent, readOnly]);
 
   const handleBackToRestart = useCallback(() => {
     setFromRestart(false);
@@ -491,6 +501,8 @@ export const useAgentNodeController = ({
     setCwdInput,
     setPromptInput,
     setSelectedAgent,
+    dangerousMode,
+    setDangerousMode,
     status: data.status ?? 'idle',
     viewMode,
     visibleNodes: getAllNodesRef.current?.() ?? [],

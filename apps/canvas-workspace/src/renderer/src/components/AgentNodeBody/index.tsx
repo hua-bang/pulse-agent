@@ -31,12 +31,14 @@ export const AgentNodeBody = ({
         selectedAgent={controller.selectedAgent}
         cwdInput={controller.cwdInput}
         promptInput={controller.promptInput}
+        dangerousMode={controller.dangerousMode}
         rootFolder={rootFolder}
         recentCwds={controller.recentCwds}
         onBack={controller.fromRestart ? controller.handleBackToRestart : undefined}
         onAgentChange={controller.setSelectedAgent}
         onCwdChange={controller.setCwdInput}
         onPromptChange={controller.setPromptInput}
+        onDangerousModeChange={controller.setDangerousMode}
         onPickFolder={controller.handlePickFolder}
         onLaunch={controller.handleLaunch}
       />
