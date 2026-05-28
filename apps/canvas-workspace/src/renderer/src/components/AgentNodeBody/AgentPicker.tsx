@@ -72,9 +72,8 @@ export const AgentPicker = ({
         ? '--dangerously-bypass-approvals-and-sandbox'
         : '';
   const supportsDangerous = dangerousFlag !== '';
-  const startTitle = `Start ${agentDef?.label ?? 'agent'}  —  ${previewCmd}${
-    dangerousMode && supportsDangerous ? ` ${dangerousFlag}` : ''
-  }${effectiveCwd ? ` in ${effectiveCwd}` : ''}`;
+  const startTitle = `Start ${agentDef?.label ?? 'agent'}  —  ${previewCmd}${dangerousMode && supportsDangerous ? ` ${dangerousFlag}` : ''
+    }${effectiveCwd ? ` in ${effectiveCwd}` : ''}`;
 
   return (
     <div className="agent-body-wrap agent-body-wrap--setup">
@@ -100,9 +99,8 @@ export const AgentPicker = ({
                 type="button"
                 role="tab"
                 aria-selected={selectedAgent === a.id}
-                className={`agent-tab${
-                  selectedAgent === a.id ? ' agent-tab--active' : ''
-                }`}
+                className={`agent-tab${selectedAgent === a.id ? ' agent-tab--active' : ''
+                  }`}
                 onClick={() => onAgentChange(a.id)}
                 title={`${a.label} — ${a.description}`}
               >
@@ -202,10 +200,11 @@ export const AgentPicker = ({
           )}
         </div>
 
-        <div className="agent-card-footer">
+        <div className="agent-card-footer" style={{ border: 'none' }}>
           <button
             type="button"
             className="agent-primary-btn"
+            style={{ opacity: 0.8 }}
             onClick={onLaunch}
             title={startTitle}
           >

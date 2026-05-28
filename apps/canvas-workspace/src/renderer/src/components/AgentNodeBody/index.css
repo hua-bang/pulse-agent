@@ -809,27 +809,43 @@
 }
 
 .agent-dangerous-toggle {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
+  height: 20px;
   font-size: 12px;
-  color: var(--agent-warning, #d97706);
+  line-height: 20px;
+  color: var(--agent-muted, rgba(55, 53, 47, 0.65));
   font-family: var(--agent-sans);
   cursor: pointer;
   user-select: none;
 }
 
 .agent-dangerous-toggle input[type='checkbox'] {
-  accent-color: var(--agent-warning, #d97706);
+  margin: 0;
+  width: 14px;
+  height: 14px;
   cursor: pointer;
+  flex-shrink: 0;
+}
+
+.agent-dangerous-toggle-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  line-height: 20px;
 }
 
 .agent-dangerous-toggle-text code {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
   font-size: 11px;
-  background: var(--agent-warning-soft, #fff4e2);
-  border: 1px solid var(--agent-warning-border, rgba(217, 119, 6, 0.32));
-  padding: 1px 5px;
+  line-height: 1;
+  background: rgba(55, 53, 47, 0.06);
   border-radius: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  margin-left: 2px;
+  color: rgba(55, 53, 47, 0.7);
 }
