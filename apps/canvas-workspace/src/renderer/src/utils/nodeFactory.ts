@@ -1,4 +1,4 @@
-import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic, ReferenceNodeData } from '../types';
+import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic, ReferenceNodeData, DynamicAppNodeData } from '../types';
 
 let nodeIdCounter = 0;
 export const genId = (): string => `node-${Date.now()}-${++nodeIdCounter}`;
@@ -14,6 +14,7 @@ const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; 
   agent:    { title: 'Coding Agent', width: 520, height: 380 },
   text:     { title: 'Text',     width: 260, height: 120 },
   iframe:   { title: 'Web',      width: 520, height: 400 },
+  'dynamic-app': { title: 'Dynamic App', width: 520, height: 400 },
   image:    { title: 'Image',    width: 320, height: 240 },
   shape:    { title: 'Shape',    width: 200, height: 140 },
   mindmap:  { title: 'Mindmap',  width: 640, height: 420 },
@@ -41,13 +42,14 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   agent:    'Coding agent',
   text:     'Text',
   iframe:   'Web page',
+  'dynamic-app': 'Dynamic app',
   image:    'Image',
   shape:    'Shape',
   mindmap:  'Mindmap',
   reference: 'Reference',
 };
 
-export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData | ReferenceNodeData => {
+export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData | ReferenceNodeData | DynamicAppNodeData => {
   switch (type) {
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };
     case 'terminal': return { sessionId: '' };
@@ -56,6 +58,12 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
     case 'agent':    return { sessionId: '', agentType: 'claude-code', status: 'idle' };
     case 'text':     return { content: '', textColor: '#1f2328', backgroundColor: 'transparent', fontSize: 18, autoSize: true };
     case 'iframe':   return { url: '', html: '', mode: 'url', prompt: '' };
+    // Dynamic-app nodes are exclusively materialised by `dynamic_app_create`,
+    // which fills `url` / `dynamicAppId` from the runner. Creating an empty
+    // shell from the user-facing factory would be invalid (would never bind
+    // to a runner), so we hand back a sentinel that the body component
+    // recognises and shows an "uninitialized" placeholder for.
+    case 'dynamic-app': return { url: '', dynamicAppId: '' };
     case 'image':    return { filePath: '' };
     case 'shape':    return { kind: 'rect', fill: '#E8EEF7', stroke: '#5B7CBF', strokeWidth: 2 };
     case 'reference': return {};

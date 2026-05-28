@@ -110,7 +110,7 @@ describe("reconcileOnce", () => {
       nodes: [
         {
           id: "node-a",
-          type: "iframe",
+          type: "dynamic-app",
           data: {
             url: "http://127.0.0.1:1/ui/ds-1",
             dynamicAppId: "ds-1",
@@ -179,7 +179,7 @@ describe("reconcileOnce", () => {
       nodes: [
         {
           id: "node-a",
-          type: "iframe",
+          type: "dynamic-app",
           data: { url: "http://127.0.0.1:1/ui/ds-1", dynamicAppId: "ds-1" },
         },
       ],

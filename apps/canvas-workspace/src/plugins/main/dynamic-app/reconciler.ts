@@ -60,12 +60,7 @@ async function findDynamicAppNode(
   for (let i = 0; i < canvas.nodes.length; i += 1) {
     const node = canvas.nodes[i];
     const data = node.data as Record<string, unknown> | undefined;
-    // Match on the `dynamicAppId` marker alone — `mode` is left as
-    // the default 'url' so the iframe renderer auto-loads it.
-    if (
-      node.type === "iframe" &&
-      data?.dynamicAppId === dynamicAppId
-    ) {
+    if (node.type === "dynamic-app" && data?.dynamicAppId === dynamicAppId) {
       return { canvas, node, nodeIndex: i };
     }
   }

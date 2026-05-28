@@ -34,6 +34,7 @@ import {
 import { DynamicAppManager } from "./manager";
 import { startReconciler } from "./reconciler";
 import { createDynamicAppTools } from "./tools";
+import { deleteState, getSpec } from "./store";
 
 function experimentalFlagsPath(): string {
   const envPath = process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim();
@@ -74,5 +75,75 @@ export const DynamicAppPlugin: MainCanvasPlugin = {
       createDynamicAppTools(workspaceId, manager),
     );
     startReconciler(manager);
+
+    // Renderer-side inspector IPC. Channels auto-prefixed `plugin:dynamic-app:`
+    // by the plugin registry.
+
+    ctx.handle("get-spec", async (_event, ...args: unknown[]) => {
+      const [workspaceId, dynamicAppId] = args as [string, string];
+      try {
+        const persisted = await getSpec(workspaceId, dynamicAppId);
+        if (!persisted) return { ok: false, error: "spec not found" };
+        return { ok: true, spec: persisted.spec, createdAt: persisted.createdAt };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    });
+
+    /** Restart the runner with the existing persisted spec. State (for
+     *  stateful apps) survives — `manager.start` reads the state file
+     *  on init. Returns the new URL so the renderer can refresh the
+     *  iframe with a cache buster. */
+    ctx.handle("restart", async (_event, ...args: unknown[]) => {
+      const [workspaceId, dynamicAppId] = args as [string, string];
+      try {
+        const persisted = await getSpec(workspaceId, dynamicAppId);
+        if (!persisted) return { ok: false, error: "spec not found" };
+        const { url } = await manager.start(
+          workspaceId,
+          dynamicAppId,
+          persisted.spec,
+        );
+        return { ok: true, url };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    });
+
+    /** Stateful only: wipe the persisted state file, then restart the
+     *  runner. `manager.start` will fall back to `spec.state.initial`
+     *  because no state file exists. */
+    ctx.handle("reset-state", async (_event, ...args: unknown[]) => {
+      const [workspaceId, dynamicAppId] = args as [string, string];
+      try {
+        const persisted = await getSpec(workspaceId, dynamicAppId);
+        if (!persisted) return { ok: false, error: "spec not found" };
+        if (persisted.spec.kind !== "stateful") {
+          return {
+            ok: false,
+            error: "reset-state only applies to stateful apps",
+          };
+        }
+        await manager.stop(dynamicAppId);
+        await deleteState(workspaceId, dynamicAppId);
+        const { url } = await manager.start(
+          workspaceId,
+          dynamicAppId,
+          persisted.spec,
+        );
+        return { ok: true, url };
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    });
   },
 };
