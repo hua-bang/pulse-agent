@@ -70,6 +70,7 @@ export function useMentions({
 
     const item: MentionItem = {
       type: 'node',
+      nodeId: node.id,
       label: getNodeDisplayLabel(node),
       nodeType: node.type,
       path: (node.data as any)?.filePath,
@@ -152,6 +153,7 @@ export function useMentions({
       for (const node of nodes) {
         items.push({
           type: 'node',
+          nodeId: node.id,
           label: getNodeDisplayLabel(node),
           nodeType: node.type,
           path: (node.data as any)?.filePath,
