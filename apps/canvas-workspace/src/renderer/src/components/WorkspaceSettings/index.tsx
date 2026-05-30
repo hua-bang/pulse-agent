@@ -298,7 +298,7 @@ export const WorkspaceSettingsDrawer = ({
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('settings.skills.title')}</div>
           <div className="workspace-settings-field-hint">{t('skillsConfig.scopeHint.workspace')}</div>
-          <SkillsManager scope={{ level: 'workspace', workspaceId: workspace.id }} />
+          <SkillsManager scope={{ level: 'workspace', workspaceId: workspace.id }} showInherited />
         </section>
 
         <section className="workspace-settings-section">

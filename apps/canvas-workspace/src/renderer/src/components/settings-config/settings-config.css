@@ -295,6 +295,64 @@ select.cfg-input {
   font-weight: 600;
 }
 
+/* ─── Inherited (global) skills surfaced inside a workspace panel ─ */
+
+.cfg-inherited {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(55, 53, 47, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cfg-inherited-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cfg-inherited-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: rgba(55, 53, 47, 0.55);
+}
+
+.cfg-inherited-manage {
+  font-size: 10.5px;
+  color: rgba(55, 53, 47, 0.4);
+}
+
+/* Read-only rows inside the inherited section — no hover-reveal actions,
+ * and a subtle visual cue that they live somewhere else. */
+.cfg-list-item--readonly:hover {
+  background: transparent;
+}
+
+.cfg-list-item--readonly .cfg-list-title {
+  color: rgba(55, 53, 47, 0.8);
+}
+
+.cfg-list-item--shadowed .cfg-list-title,
+.cfg-list-item--shadowed .cfg-list-desc {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.cfg-shadow-warn {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(180, 130, 0, 0.95);
+  background: rgba(255, 196, 0, 0.1);
+  border: 1px solid rgba(180, 130, 0, 0.2);
+  border-radius: 4px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* ─── Path / dir hint ─────────────────────────────────────────── */
 
 .cfg-dir-hint {

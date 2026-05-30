@@ -17,6 +17,14 @@ import './settings-config.css';
 
 interface Props {
   scope: CanvasConfigScope;
+  /**
+   * When true and `scope` is a workspace, also show the global skills the
+   * agent inherits — read-only, with an "overridden by this workspace"
+   * badge on any name collisions. The agent's actual loaded skill set is
+   * (workspace ∪ global) with workspace winning on same-name, so surfacing
+   * the global half here keeps the panel honest about what's loaded.
+   */
+  showInherited?: boolean;
 }
 
 interface Draft {
@@ -28,10 +36,11 @@ interface Draft {
 
 const EMPTY_DRAFT: Draft = { name: '', description: '', body: '' };
 
-export const SkillsManager = ({ scope }: Props) => {
+export const SkillsManager = ({ scope, showInherited = false }: Props) => {
   const { t } = useI18n();
   const { notify } = useAppShell();
   const [skills, setSkills] = useState<CanvasSkillEntry[]>([]);
+  const [inherited, setInherited] = useState<CanvasSkillEntry[]>([]);
   const [dir, setDir] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -43,6 +52,7 @@ export const SkillsManager = ({ scope }: Props) => {
   // when the cursor truly leaves the manager surface.
   const dragDepth = useRef(0);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
+  const inheritedEnabled = showInherited && scope.level === 'workspace';
 
   const load = useCallback(async () => {
     const res = await window.canvasWorkspace.canvasSkills.list(scope);
@@ -52,8 +62,14 @@ export const SkillsManager = ({ scope }: Props) => {
     } else {
       notify({ tone: 'error', title: t('skillsConfig.loadFailed'), description: res.error ?? '' });
     }
+    if (inheritedEnabled) {
+      const g = await window.canvasWorkspace.canvasSkills.list({ level: 'global' });
+      if (g.ok && g.status) setInherited(g.status.skills);
+    } else {
+      setInherited([]);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeKey, t]);
+  }, [scopeKey, inheritedEnabled, t]);
 
   useEffect(() => {
     setDraft(null);
@@ -336,6 +352,43 @@ export const SkillsManager = ({ scope }: Props) => {
             </li>
           ))}
         </ul>
+      )}
+
+      {inheritedEnabled && inherited.length > 0 && (
+        <div className="cfg-inherited">
+          <div className="cfg-inherited-header">
+            <span className="cfg-inherited-title">
+              {t('skillsConfig.inheritedTitle', { count: inherited.length })}
+            </span>
+            <span className="cfg-inherited-manage">{t('skillsConfig.inheritedManage')}</span>
+          </div>
+          <ul className="cfg-list">
+            {inherited.map((skill) => {
+              const overridden = skills.some(
+                (s) => s.name.toLowerCase() === skill.name.toLowerCase(),
+              );
+              return (
+                <li
+                  key={skill.path}
+                  className={`cfg-list-item cfg-list-item--readonly${overridden ? ' cfg-list-item--shadowed' : ''}`}
+                >
+                  <div className="cfg-list-main">
+                    <div className="cfg-list-title">
+                      {skill.name}
+                      <span className="cfg-tag">global</span>
+                    </div>
+                    <div className="cfg-list-desc">{skill.description}</div>
+                  </div>
+                  {overridden && (
+                    <span className="cfg-shadow-warn" title={t('skillsConfig.inheritedOverridden')}>
+                      ⚠ {t('skillsConfig.inheritedOverridden')}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
 
       {dir && (

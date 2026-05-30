@@ -505,6 +505,9 @@ const en = {
   'skillsConfig.importMdReplaced': 'Replaced "{name}".',
   'skillsConfig.dropHere': 'Drop .md or .zip to import',
   'skillsConfig.dropUnsupported': 'Only .md and .zip files can be imported.',
+  'skillsConfig.inheritedTitle': 'Inherited from global ({count})',
+  'skillsConfig.inheritedManage': 'Manage in global Settings',
+  'skillsConfig.inheritedOverridden': 'Overridden by this workspace',
 
   'mcpConfig.empty': 'No MCP servers yet.',
   'mcpConfig.add': 'Add server',
@@ -1033,6 +1036,9 @@ const zh: Record<keyof typeof en, string> = {
   'skillsConfig.importMdReplaced': '已覆盖“{name}”。',
   'skillsConfig.dropHere': '拖入 .md 或 .zip 文件即可导入',
   'skillsConfig.dropUnsupported': '只支持 .md 与 .zip 文件。',
+  'skillsConfig.inheritedTitle': '继承自全局（{count}）',
+  'skillsConfig.inheritedManage': '在全局设置中管理',
+  'skillsConfig.inheritedOverridden': '已被当前工作区覆盖',
 
   'mcpConfig.empty': '还没有 MCP 服务。',
   'mcpConfig.add': '添加服务',
