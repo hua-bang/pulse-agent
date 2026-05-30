@@ -19,7 +19,11 @@ vi.mock('os', async () => {
 });
 
 import { importCanvasMcpJson, getCanvasMcpStatus } from '../mcp/config';
-import { importCanvasSkillsZip, listCanvasSkills } from '../skills/config';
+import {
+  importCanvasSkillMd,
+  importCanvasSkillsZip,
+  listCanvasSkills,
+} from '../skills/config';
 
 const GLOBAL = { level: 'global' as const };
 
@@ -191,5 +195,48 @@ describe('importCanvasSkillsZip', () => {
   it('throws when the zip has no SKILL.md anywhere', async () => {
     const bytes = zipSync({ 'README.md': strToU8('hello') });
     await expect(importCanvasSkillsZip(GLOBAL, bytes)).rejects.toThrow(/SKILL\.md/);
+  });
+});
+
+describe('importCanvasSkillMd', () => {
+  const md = [
+    '---',
+    'name: "code-review"',
+    'description: "When reviewing code"',
+    '---',
+    '',
+    '1. Step one.',
+    '',
+  ].join('\n');
+
+  it('imports a fresh SKILL.md and reports "imported"', async () => {
+    const result = await importCanvasSkillMd(GLOBAL, md);
+    expect(result.result).toBe('imported');
+    expect(result.name).toBe('code-review');
+    expect((await listCanvasSkills(GLOBAL)).map((s) => s.name)).toEqual(['code-review']);
+  });
+
+  it('reports "replaced" when a skill of the same name already exists', async () => {
+    await importCanvasSkillMd(GLOBAL, md);
+    const second = await importCanvasSkillMd(
+      GLOBAL,
+      md.replace('When reviewing code', 'Updated description'),
+    );
+    expect(second.result).toBe('replaced');
+    const skills = await listCanvasSkills(GLOBAL);
+    expect(skills.find((s) => s.name === 'code-review')?.description).toBe('Updated description');
+  });
+
+  it('rejects content without front matter', async () => {
+    await expect(importCanvasSkillMd(GLOBAL, '# just markdown')).rejects.toThrow(/front matter/);
+  });
+
+  it('rejects content missing name or description', async () => {
+    const noDesc = '---\nname: "foo"\n---\n\nbody';
+    await expect(importCanvasSkillMd(GLOBAL, noDesc)).rejects.toThrow(/name.*description|description.*name/);
+  });
+
+  it('rejects empty input', async () => {
+    await expect(importCanvasSkillMd(GLOBAL, '   ')).rejects.toThrow(/empty/);
   });
 });

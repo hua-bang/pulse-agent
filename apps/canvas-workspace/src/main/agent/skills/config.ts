@@ -10,7 +10,7 @@
 
 import { promises as fs } from 'fs';
 import { dirname, join } from 'path';
-import { unzipSync, strFromU8 } from 'fflate';
+import { unzipSync, strFromU8, strToU8 } from 'fflate';
 import { scopeSkillsDir, type CanvasConfigScope } from '../config-scope';
 
 export interface CanvasSkill {
@@ -159,6 +159,54 @@ export async function removeCanvasSkill(
   const slug = skillSlug(normalizeStr(name));
   await fs.rm(join(scopeSkillsDir(scope), slug), { recursive: true, force: true });
   return getCanvasSkillsStatus(scope);
+}
+
+// ─── Pasted SKILL.md import ──────────────────────────────────────────
+//
+// The fastest path for "I'm reading a SKILL.md somewhere and just want it":
+// paste the file's contents verbatim. Reuses the same on-disk shape and
+// validation as a zip import, just for one skill.
+
+export interface CanvasSkillMdImportResult {
+  status: CanvasSkillsStatus;
+  /** 'imported' for a new skill, 'replaced' when overwriting one of the same name. */
+  result: 'imported' | 'replaced';
+  name: string;
+}
+
+export async function importCanvasSkillMd(
+  scope: CanvasConfigScope,
+  text: string,
+): Promise<CanvasSkillMdImportResult> {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error('Pasted content is empty');
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(trimmed);
+  if (!match) {
+    throw new Error('Expected a SKILL.md with YAML front matter (--- name + description ---)');
+  }
+  const fm = parseFrontMatterOnly(strToU8(trimmed));
+  if (!fm.name || !fm.description) {
+    throw new Error('SKILL.md must declare both `name` and `description` in the front matter');
+  }
+  const slug = skillSlug(fm.name);
+  const targetDir = join(scopeSkillsDir(scope), slug);
+  let existed = false;
+  try {
+    await fs.access(join(targetDir, 'SKILL.md'));
+    existed = true;
+  } catch {
+    /* fresh */
+  }
+  await upsertCanvasSkill(scope, {
+    name: fm.name,
+    description: fm.description,
+    body: match[2].replace(/^\s+/, ''),
+  });
+  return {
+    status: await getCanvasSkillsStatus(scope),
+    result: existed ? 'replaced' : 'imported',
+    name: fm.name,
+  };
 }
 
 // ─── Zip import ───────────────────────────────────────────────────────

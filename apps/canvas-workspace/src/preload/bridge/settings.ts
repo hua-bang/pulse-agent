@@ -29,7 +29,10 @@ export const createCanvasSkillsApi = (ipcRenderer: IpcRenderer): CanvasSkillsApi
     ipcRenderer.invoke("canvas-skills:remove", { scope, name }),
 
   importZip: (scope, bytes) =>
-    ipcRenderer.invoke("canvas-skills:import-zip", { scope, bytes })
+    ipcRenderer.invoke("canvas-skills:import-zip", { scope, bytes }),
+
+  importMd: (scope, text) =>
+    ipcRenderer.invoke("canvas-skills:import-md", { scope, text })
 });
 
 export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({

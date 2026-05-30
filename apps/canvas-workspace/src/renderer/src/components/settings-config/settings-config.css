@@ -9,6 +9,35 @@
   flex-direction: column;
   gap: 10px;
   min-width: 0;
+  position: relative;
+}
+
+/* Drop-target affordance — activated when dragging .md/.zip over the surface.
+ * The overlay sits above the form/list but its inner padding is generous
+ * enough that clicks on the underlying controls still feel reachable when
+ * the user releases without dropping. */
+.cfg-manager--drag::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px dashed rgba(35, 131, 226, 0.5);
+  border-radius: 12px;
+  background: rgba(35, 131, 226, 0.04);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cfg-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  font-weight: 650;
+  color: rgba(35, 131, 226, 0.9);
+  pointer-events: none;
+  z-index: 2;
 }
 
 /* ─── Toolbar ─────────────────────────────────────────────────── */

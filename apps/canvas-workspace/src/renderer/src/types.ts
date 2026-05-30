@@ -809,6 +809,16 @@ export interface CanvasSkillsApi {
     entries?: CanvasSkillImportEntry[];
     error?: string;
   }>;
+  importMd: (
+    scope: CanvasConfigScope,
+    text: string,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasSkillsStatus;
+    name?: string;
+    result?: 'imported' | 'replaced';
+    error?: string;
+  }>;
 }
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';

@@ -1,9 +1,15 @@
 /**
  * SkillsManager — CRUD UI for user-defined skills at a given scope.
  * Reused by the global Settings panel and the per-workspace settings drawer.
+ *
+ * Onboarding paths, ordered by friction:
+ *   1. Drag-and-drop a `.md` or `.zip` onto the manager surface (lowest)
+ *   2. Paste a full SKILL.md into the inline textarea
+ *   3. Click "Import .zip" to file-pick a bundle
+ *   4. "+ Add skill" for a from-scratch form
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
@@ -30,7 +36,12 @@ export const SkillsManager = ({ scope }: Props) => {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [mdText, setMdText] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Drag/leave fires per descendant. Count entries so the overlay only hides
+  // when the cursor truly leaves the manager surface.
+  const dragDepth = useRef(0);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
 
   const load = useCallback(async () => {
@@ -46,6 +57,7 @@ export const SkillsManager = ({ scope }: Props) => {
 
   useEffect(() => {
     setDraft(null);
+    setMdText(null);
     void load();
   }, [load]);
 
@@ -79,37 +91,106 @@ export const SkillsManager = ({ scope }: Props) => {
     [scope, notify, t],
   );
 
-  const onPickFile = useCallback(
-    async (file: File) => {
-      setImporting(true);
-      try {
-        const bytes = await file.arrayBuffer();
-        const res = await window.canvasWorkspace.canvasSkills.importZip(scope, bytes);
-        if (res.ok && res.status) {
-          setSkills(res.status.skills);
-          const entries = res.entries ?? [];
-          const counts = { imported: 0, replaced: 0, skipped: 0 };
-          for (const e of entries) counts[e.status] += 1;
-          notify({
-            tone: counts.skipped > 0 && counts.imported + counts.replaced === 0 ? 'error' : 'success',
-            title: t('skillsConfig.importDone', counts),
-            description: entries
-              .filter((e) => e.status === 'skipped')
-              .map((e) => `${e.name}: ${e.reason ?? ''}`)
-              .join('\n') || undefined,
-          });
-        } else {
-          notify({ tone: 'error', title: t('skillsConfig.importFailed'), description: res.error });
-        }
-      } finally {
-        setImporting(false);
+  const runZipImport = useCallback(
+    async (bytes: ArrayBuffer) => {
+      const res = await window.canvasWorkspace.canvasSkills.importZip(scope, bytes);
+      if (res.ok && res.status) {
+        setSkills(res.status.skills);
+        const entries = res.entries ?? [];
+        const counts = { imported: 0, replaced: 0, skipped: 0 };
+        for (const e of entries) counts[e.status] += 1;
+        notify({
+          tone: counts.skipped > 0 && counts.imported + counts.replaced === 0 ? 'error' : 'success',
+          title: t('skillsConfig.importDone', counts),
+          description: entries
+            .filter((e) => e.status === 'skipped')
+            .map((e) => `${e.name}: ${e.reason ?? ''}`)
+            .join('\n') || undefined,
+        });
+      } else {
+        notify({ tone: 'error', title: t('skillsConfig.importFailed'), description: res.error });
       }
     },
     [scope, notify, t],
   );
 
+  const runMdImport = useCallback(
+    async (text: string) => {
+      const res = await window.canvasWorkspace.canvasSkills.importMd(scope, text);
+      if (res.ok && res.status) {
+        setSkills(res.status.skills);
+        notify({
+          tone: 'success',
+          title: t(
+            res.result === 'replaced' ? 'skillsConfig.importMdReplaced' : 'skillsConfig.importMdDone',
+            { name: res.name ?? '' },
+          ),
+        });
+        setMdText(null);
+      } else {
+        notify({ tone: 'error', title: t('skillsConfig.importFailed'), description: res.error });
+      }
+    },
+    [scope, notify, t],
+  );
+
+  const handleFile = useCallback(
+    async (file: File) => {
+      const lower = file.name.toLowerCase();
+      setImporting(true);
+      try {
+        if (lower.endsWith('.zip')) {
+          await runZipImport(await file.arrayBuffer());
+        } else if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
+          await runMdImport(await file.text());
+        } else {
+          notify({ tone: 'error', title: t('skillsConfig.dropUnsupported') });
+        }
+      } finally {
+        setImporting(false);
+      }
+    },
+    [runZipImport, runMdImport, notify, t],
+  );
+
+  const onDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragOver(true);
+  }, []);
+
+  const onDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+  }, []);
+
+  const onDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  }, []);
+
+  const onDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDragOver(false);
+      const file = e.dataTransfer.files[0];
+      if (file) void handleFile(file);
+    },
+    [handleFile],
+  );
+
   return (
-    <div className="cfg-manager">
+    <div
+      className={`cfg-manager${dragOver ? ' cfg-manager--drag' : ''}`}
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {dragOver && <div className="cfg-drop-overlay">{t('skillsConfig.dropHere')}</div>}
       <div className="cfg-toolbar">
         <input
           ref={fileInputRef}
@@ -119,14 +200,22 @@ export const SkillsManager = ({ scope }: Props) => {
           onChange={(e) => {
             const file = e.target.files?.[0];
             e.target.value = '';
-            if (file) void onPickFile(file);
+            if (file) void handleFile(file);
           }}
         />
         <button
           type="button"
           className="cfg-secondary-btn"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => setMdText(mdText === null ? '' : null)}
           disabled={importing || draft !== null}
+        >
+          {t('skillsConfig.importMd')}
+        </button>
+        <button
+          type="button"
+          className="cfg-secondary-btn"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing || draft !== null || mdText !== null}
         >
           {importing ? t('skillsConfig.importing') : t('skillsConfig.importZip')}
         </button>
@@ -134,11 +223,49 @@ export const SkillsManager = ({ scope }: Props) => {
           type="button"
           className="cfg-secondary-btn"
           onClick={() => setDraft({ ...EMPTY_DRAFT })}
-          disabled={draft !== null || importing}
+          disabled={draft !== null || importing || mdText !== null}
         >
           + {t('skillsConfig.add')}
         </button>
       </div>
+
+      {mdText !== null && (
+        <div className="cfg-form">
+          <label className="cfg-field">
+            <span>{t('skillsConfig.importMd')}</span>
+            <textarea
+              className="cfg-textarea"
+              rows={10}
+              value={mdText}
+              placeholder={t('skillsConfig.importMdPlaceholder')}
+              spellCheck={false}
+              autoFocus
+              onChange={(e) => setMdText(e.target.value)}
+            />
+            <div className="cfg-toolbar-hint" style={{ flex: 'none', marginTop: 4 }}>
+              {t('skillsConfig.importMdHint')}
+            </div>
+          </label>
+          <div className="cfg-form-actions">
+            <button
+              type="button"
+              className="cfg-secondary-btn"
+              onClick={() => setMdText(null)}
+              disabled={importing}
+            >
+              {t('skillsConfig.cancel')}
+            </button>
+            <button
+              type="button"
+              className="cfg-primary-btn"
+              onClick={() => void runMdImport(mdText)}
+              disabled={importing || !mdText.trim()}
+            >
+              {importing ? t('skillsConfig.importing') : t('skillsConfig.save')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {draft && (
         <div className="cfg-form">
@@ -182,7 +309,7 @@ export const SkillsManager = ({ scope }: Props) => {
         </div>
       )}
 
-      {skills.length === 0 && !draft ? (
+      {skills.length === 0 && !draft && mdText === null ? (
         <div className="cfg-empty">{t('skillsConfig.empty')}</div>
       ) : (
         <ul className="cfg-list">
