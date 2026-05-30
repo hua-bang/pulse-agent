@@ -12,6 +12,7 @@ import { promises as fs } from 'fs';
 import { dirname, join } from 'path';
 import { unzipSync, strFromU8, strToU8 } from 'fflate';
 import {
+  prettyPath,
   scopeSkillsDir,
   skillSourceDirs,
   type CanvasConfigScope,
@@ -181,7 +182,7 @@ export async function listCanvasSkills(scope: CanvasConfigScope): Promise<Canvas
 export async function getCanvasSkillsStatus(scope: CanvasConfigScope): Promise<CanvasSkillsStatus> {
   return {
     scope: scope.level,
-    dir: scopeSkillsDir(scope),
+    dir: prettyPath(scopeSkillsDir(scope)),
     skills: await listCanvasSkills(scope),
   };
 }
@@ -268,6 +269,85 @@ export async function importCanvasSkillMd(
     result: existed ? 'replaced' : 'imported',
     name: fm.name,
   };
+}
+
+// ─── URL import ───────────────────────────────────────────────────────
+//
+// Paste a URL — we fetch, sniff, and route to the existing md/zip importer.
+// GitHub blob URLs are auto-rewritten to raw.githubusercontent.com so the
+// user doesn't have to remember; a Content-Type / magic-byte check picks
+// between SKILL.md text and a zip bundle.
+
+const SKILL_URL_FETCH_TIMEOUT_MS = 10_000;
+const SKILL_URL_MAX_BYTES = 5 * 1024 * 1024;
+
+export type CanvasSkillUrlImportResult =
+  | ({ kind: 'md' } & CanvasSkillMdImportResult)
+  | ({ kind: 'zip' } & CanvasSkillImportResult);
+
+/**
+ * Rewrite `github.com/<owner>/<repo>/blob/<branch>/<path>` to
+ * `raw.githubusercontent.com/<owner>/<repo>/<branch>/<path>` so users can
+ * paste the URL they're looking at in their browser. Other hosts (incl.
+ * `raw.githubusercontent.com` already) pass through unchanged.
+ */
+export function toRawGitHubUrl(url: URL): URL {
+  if (url.hostname !== 'github.com') return url;
+  const match = url.pathname.match(/^\/([^/]+)\/([^/]+)\/blob\/(.+)$/);
+  if (!match) return url;
+  const [, owner, repo, rest] = match;
+  return new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${rest}`);
+}
+
+export async function importCanvasSkillFromUrl(
+  scope: CanvasConfigScope,
+  urlStr: string,
+): Promise<CanvasSkillUrlImportResult> {
+  let url: URL;
+  try {
+    url = new URL(urlStr.trim());
+  } catch {
+    throw new Error(`Invalid URL: ${urlStr}`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`Unsupported URL scheme: ${url.protocol}`);
+  }
+  url = toRawGitHubUrl(url);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SKILL_URL_FETCH_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), { signal: controller.signal });
+  } catch (err) {
+    if ((err as { name?: string })?.name === 'AbortError') {
+      throw new Error(`Fetch timed out after ${SKILL_URL_FETCH_TIMEOUT_MS}ms`);
+    }
+    throw new Error(`Fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!response.ok) {
+    throw new Error(`Fetch failed: HTTP ${response.status} ${response.statusText}`);
+  }
+
+  const buf = new Uint8Array(await response.arrayBuffer());
+  if (buf.length === 0) throw new Error('Fetched content is empty');
+  if (buf.length > SKILL_URL_MAX_BYTES) {
+    throw new Error(
+      `Content too large (${buf.length} bytes; max ${SKILL_URL_MAX_BYTES})`,
+    );
+  }
+
+  // Detect zip by PK\x03\x04 magic bytes; otherwise decode as UTF-8 text.
+  const isZip =
+    buf.length >= 4 && buf[0] === 0x50 && buf[1] === 0x4b && buf[2] === 0x03 && buf[3] === 0x04;
+  if (isZip) {
+    const result = await importCanvasSkillsZip(scope, buf);
+    return { kind: 'zip', ...result };
+  }
+  const result = await importCanvasSkillMd(scope, strFromU8(buf));
+  return { kind: 'md', ...result };
 }
 
 // ─── Zip import ───────────────────────────────────────────────────────

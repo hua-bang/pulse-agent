@@ -16,7 +16,19 @@
  */
 
 import { homedir } from 'os';
-import { join } from 'path';
+import { join, sep } from 'path';
+
+/**
+ * Replace the user's home directory prefix with `~` for display.
+ * Keeps disk paths readable in the settings UI without sacrificing the
+ * full path in tooltips (we apply this only to the user-visible string).
+ */
+export function prettyPath(absPath: string): string {
+  const home = homedir();
+  if (absPath === home) return '~';
+  if (absPath.startsWith(home + sep)) return '~' + absPath.slice(home.length);
+  return absPath;
+}
 
 export const CANVAS_STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
