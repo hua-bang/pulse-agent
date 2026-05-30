@@ -10,7 +10,7 @@ import { Engine } from 'pulse-coder-engine';
 import { createSkillsPlugin, createMcpPlugin } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model/config';
-import { scopeSkillsDir, scopeMcpConfigPath } from './config-scope';
+import { scopeMcpConfigPath, skillSourceDirs } from './config-scope';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
@@ -564,10 +564,14 @@ export class CanvasAgent {
     const globalScope = { level: 'global' as const };
     const wsScope = { level: 'workspace' as const, workspaceId };
 
-    // Skills: workspace scanned first so it overrides global on same name.
+    // Skills: workspace dirs scanned first, then every standard global skill
+    // dir (canvas-managed, plus whatever the user has under ~/.pulse-coder,
+    // ~/.claude, ~/.codex, etc.). Earlier sources win on same-name — so the
+    // workspace's own skills override globals, and canvas-managed globals
+    // override skills from other tools.
     const skillsScanPaths = [
-      { base: scopeSkillsDir(wsScope), pattern: '**/SKILL.md' },
-      { base: scopeSkillsDir(globalScope), pattern: '**/SKILL.md' },
+      ...skillSourceDirs(wsScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })),
+      ...skillSourceDirs(globalScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })),
     ];
     // MCP: global first, workspace later so it overrides on same server name.
     const mcpConfigPaths = [

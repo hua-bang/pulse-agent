@@ -166,3 +166,112 @@ export async function removeCanvasMcpServer(
   await writeFile(scope, { servers });
   return getCanvasMcpStatus(scope);
 }
+
+// ─── JSON import ──────────────────────────────────────────────────────
+//
+// Accepts two shapes:
+//   - Our native:        { "servers":    { <name>: { transport, ... } } }
+//   - Claude Desktop:    { "mcpServers": { <name>: { command|url, ... } } }
+//
+// Transport is inferred when omitted: `command` → stdio, `url` → http.
+// Existing servers with the same name are overwritten (this is an explicit
+// user action). Returns a per-server summary so the UI can show what happened.
+
+export interface CanvasMcpImportEntryResult {
+  name: string;
+  status: 'added' | 'replaced' | 'skipped';
+  reason?: string;
+}
+
+export interface CanvasMcpImportResult {
+  status: CanvasMcpStatus;
+  entries: CanvasMcpImportEntryResult[];
+}
+
+function inferTransport(raw: Record<string, unknown>): CanvasMcpTransport {
+  const explicit = normalizeStr(raw.transport).toLowerCase();
+  if (explicit === 'http' || explicit === 'sse' || explicit === 'stdio') return explicit;
+  if (typeof raw.command === 'string' && raw.command.trim()) return 'stdio';
+  if (typeof raw.url === 'string' && raw.url.trim()) return 'http';
+  // Default to http; normalizeServer will then fail loudly on missing url.
+  return 'http';
+}
+
+function rawToServer(name: string, raw: Record<string, unknown>): CanvasMcpServer {
+  const transport = inferTransport(raw);
+  const server: CanvasMcpServer = { name, transport };
+  if (raw.deferTools === true) server.deferTools = true;
+  if (transport === 'stdio') {
+    if (typeof raw.command === 'string') server.command = raw.command;
+    if (Array.isArray(raw.args)) {
+      const args = raw.args.filter((a): a is string => typeof a === 'string');
+      if (args.length) server.args = args;
+    }
+    const env = normalizeStringMap(raw.env);
+    if (env) server.env = env;
+    if (typeof raw.cwd === 'string' && raw.cwd.trim()) server.cwd = raw.cwd.trim();
+  } else {
+    if (typeof raw.url === 'string') server.url = raw.url;
+    const headers = normalizeStringMap(raw.headers);
+    if (headers) server.headers = headers;
+  }
+  return server;
+}
+
+export async function importCanvasMcpJson(
+  scope: CanvasConfigScope,
+  jsonText: string,
+): Promise<CanvasMcpImportResult> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch (err) {
+    throw new Error(`Invalid JSON: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Expected a JSON object with a "servers" or "mcpServers" map');
+  }
+  const root = parsed as { servers?: unknown; mcpServers?: unknown };
+  const rawServers =
+    (root.servers && typeof root.servers === 'object' && !Array.isArray(root.servers)
+      ? (root.servers as Record<string, unknown>)
+      : undefined) ??
+    (root.mcpServers && typeof root.mcpServers === 'object' && !Array.isArray(root.mcpServers)
+      ? (root.mcpServers as Record<string, unknown>)
+      : undefined);
+  if (!rawServers) {
+    throw new Error('No "servers" or "mcpServers" object found in JSON');
+  }
+
+  const file = await readFile(scope);
+  const existing = { ...(file.servers ?? {}) };
+  const entries: CanvasMcpImportEntryResult[] = [];
+
+  for (const [name, raw] of Object.entries(rawServers)) {
+    const cleanName = normalizeStr(name);
+    if (!cleanName) {
+      entries.push({ name, status: 'skipped', reason: 'empty server name' });
+      continue;
+    }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      entries.push({ name: cleanName, status: 'skipped', reason: 'config must be an object' });
+      continue;
+    }
+    try {
+      const server = rawToServer(cleanName, raw as Record<string, unknown>);
+      const { name: normalizedName, config } = normalizeServer(server);
+      const replaced = normalizedName in existing;
+      existing[normalizedName] = config;
+      entries.push({ name: normalizedName, status: replaced ? 'replaced' : 'added' });
+    } catch (err) {
+      entries.push({
+        name: cleanName,
+        status: 'skipped',
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  await writeFile(scope, { servers: existing });
+  return { status: await getCanvasMcpStatus(scope), entries };
+}

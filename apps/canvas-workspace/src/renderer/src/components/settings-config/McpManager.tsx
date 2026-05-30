@@ -102,6 +102,8 @@ export const McpManager = ({ scope }: Props) => {
   const [path, setPath] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [jsonText, setJsonText] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
 
   const load = useCallback(async () => {
@@ -150,21 +152,94 @@ export const McpManager = ({ scope }: Props) => {
     [scope, notify, t],
   );
 
+  const importJson = useCallback(async () => {
+    if (jsonText === null) return;
+    setImporting(true);
+    try {
+      const res = await window.canvasWorkspace.canvasMcp.importJson(scope, jsonText);
+      if (res.ok && res.status) {
+        setServers(res.status.servers);
+        const entries = res.entries ?? [];
+        const counts = { added: 0, replaced: 0, skipped: 0 };
+        for (const e of entries) counts[e.status] += 1;
+        notify({
+          tone: counts.skipped > 0 && counts.added + counts.replaced === 0 ? 'error' : 'success',
+          title: t('mcpConfig.importDone', counts),
+          description: entries
+            .filter((e) => e.status === 'skipped')
+            .map((e) => `${e.name}: ${e.reason ?? ''}`)
+            .join('\n') || undefined,
+        });
+        setJsonText(null);
+      } else {
+        notify({ tone: 'error', title: t('mcpConfig.importFailed'), description: res.error });
+      }
+    } finally {
+      setImporting(false);
+    }
+  }, [jsonText, scope, notify, t]);
+
   const isStdio = draft?.transport === 'stdio';
 
   return (
     <div className="cfg-manager">
       <div className="cfg-toolbar">
+        <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
         <button
           type="button"
-          className="cfg-primary-btn"
-          onClick={() => setDraft({ ...EMPTY_DRAFT })}
+          className="cfg-secondary-btn"
+          onClick={() => setJsonText(jsonText === null ? '' : null)}
           disabled={draft !== null}
         >
-          {t('mcpConfig.add')}
+          {t('mcpConfig.importJson')}
         </button>
-        <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
+        <button
+          type="button"
+          className="cfg-secondary-btn"
+          onClick={() => setDraft({ ...EMPTY_DRAFT })}
+          disabled={draft !== null || jsonText !== null}
+        >
+          + {t('mcpConfig.add')}
+        </button>
       </div>
+
+      {jsonText !== null && (
+        <div className="cfg-form">
+          <label className="cfg-field">
+            <span>{t('mcpConfig.importJson')}</span>
+            <textarea
+              className="cfg-textarea"
+              rows={10}
+              value={jsonText}
+              placeholder={t('mcpConfig.importJsonPlaceholder')}
+              spellCheck={false}
+              autoFocus
+              onChange={(e) => setJsonText(e.target.value)}
+            />
+            <div className="cfg-toolbar-hint" style={{ flex: 'none', marginTop: 4 }}>
+              {t('mcpConfig.importJsonHint')}
+            </div>
+          </label>
+          <div className="cfg-form-actions">
+            <button
+              type="button"
+              className="cfg-secondary-btn"
+              onClick={() => setJsonText(null)}
+              disabled={importing}
+            >
+              {t('mcpConfig.cancel')}
+            </button>
+            <button
+              type="button"
+              className="cfg-primary-btn"
+              onClick={() => void importJson()}
+              disabled={importing || !jsonText.trim()}
+            >
+              {importing ? t('mcpConfig.importing') : t('mcpConfig.parseAndImport')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {draft && (
         <div className="cfg-form">
@@ -299,7 +374,11 @@ export const McpManager = ({ scope }: Props) => {
         </ul>
       )}
 
-      {path && <div className="cfg-dir-hint">{t('mcpConfig.dirHint', { path })}</div>}
+      {path && (
+        <div className="cfg-dir-hint" title={path}>
+          {path}
+        </div>
+      )}
     </div>
   );
 };

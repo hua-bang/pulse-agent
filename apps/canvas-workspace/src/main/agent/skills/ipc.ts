@@ -16,6 +16,8 @@ import { parseScopePayload, type CanvasConfigScope } from '../config-scope';
 import { getCanvasAgentService } from '../ipc';
 import {
   getCanvasSkillsStatus,
+  importCanvasSkillMd,
+  importCanvasSkillsZip,
   removeCanvasSkill,
   upsertCanvasSkill,
   type UpsertCanvasSkillInput,
@@ -58,6 +60,43 @@ export function setupCanvasSkillsIpc(): void {
         const status = await removeCanvasSkill(scope, payload.name);
         await refreshAgents(scope);
         return { ok: true, status };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-skills:import-md',
+    async (_event, payload: { scope?: unknown; text: string }) => {
+      try {
+        const scope = parseScopePayload(payload?.scope);
+        const result = await importCanvasSkillMd(scope, payload.text);
+        await refreshAgents(scope);
+        return { ok: true, ...result };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-skills:import-zip',
+    async (_event, payload: { scope?: unknown; bytes: Uint8Array | ArrayBuffer }) => {
+      try {
+        const scope = parseScopePayload(payload?.scope);
+        // ipcRenderer.invoke serializes Uint8Array as ArrayBuffer in some
+        // electron-vite setups; normalize to Uint8Array before unzipping.
+        const raw = payload.bytes;
+        const bytes =
+          raw instanceof Uint8Array
+            ? raw
+            : raw instanceof ArrayBuffer
+              ? new Uint8Array(raw)
+              : new Uint8Array(raw as ArrayBufferLike);
+        const result = await importCanvasSkillsZip(scope, bytes);
+        await refreshAgents(scope);
+        return { ok: true, ...result };
       } catch (err) {
         return { ok: false, error: String(err) };
       }

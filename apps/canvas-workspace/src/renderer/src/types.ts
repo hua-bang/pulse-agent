@@ -763,12 +763,23 @@ export type CanvasConfigScope =
   | { level: 'global' }
   | { level: 'workspace'; workspaceId: string };
 
+export type CanvasSkillSourceName =
+  | 'canvas'
+  | 'pulse-coder'
+  | 'agents'
+  | 'coder'
+  | 'claude'
+  | 'codex';
+
 export interface CanvasSkillEntry {
   name: string;
   description: string;
   body: string;
   scope: 'global' | 'workspace';
   path: string;
+  source: CanvasSkillSourceName;
+  /** False for skills owned by other agent tools — Edit/Delete are hidden. */
+  writable: boolean;
 }
 
 export interface CanvasSkillsStatus {
@@ -784,6 +795,12 @@ export interface CanvasSkillInput {
   originalName?: string;
 }
 
+export interface CanvasSkillImportEntry {
+  name: string;
+  status: 'imported' | 'replaced' | 'skipped';
+  reason?: string;
+}
+
 export interface CanvasSkillsApi {
   list: (scope: CanvasConfigScope) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
   upsert: (
@@ -794,6 +811,25 @@ export interface CanvasSkillsApi {
     scope: CanvasConfigScope,
     name: string,
   ) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
+  importZip: (
+    scope: CanvasConfigScope,
+    bytes: ArrayBuffer,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasSkillsStatus;
+    entries?: CanvasSkillImportEntry[];
+    error?: string;
+  }>;
+  importMd: (
+    scope: CanvasConfigScope,
+    text: string,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasSkillsStatus;
+    name?: string;
+    result?: 'imported' | 'replaced';
+    error?: string;
+  }>;
 }
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
@@ -816,6 +852,12 @@ export interface CanvasMcpStatus {
   servers: CanvasMcpServer[];
 }
 
+export interface CanvasMcpImportEntry {
+  name: string;
+  status: 'added' | 'replaced' | 'skipped';
+  reason?: string;
+}
+
 export interface CanvasMcpApi {
   list: (scope: CanvasConfigScope) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
   upsert: (
@@ -827,6 +869,15 @@ export interface CanvasMcpApi {
     scope: CanvasConfigScope,
     name: string,
   ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  importJson: (
+    scope: CanvasConfigScope,
+    json: string,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasMcpStatus;
+    entries?: CanvasMcpImportEntry[];
+    error?: string;
+  }>;
 }
 
 export interface AgentApi {
