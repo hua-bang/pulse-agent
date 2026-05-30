@@ -12,6 +12,7 @@ import { promises as fs } from 'fs';
 import { dirname, join } from 'path';
 import { unzipSync, strFromU8, strToU8 } from 'fflate';
 import {
+  prettyPath,
   scopeSkillsDir,
   skillSourceDirs,
   type CanvasConfigScope,
@@ -181,7 +182,7 @@ export async function listCanvasSkills(scope: CanvasConfigScope): Promise<Canvas
 export async function getCanvasSkillsStatus(scope: CanvasConfigScope): Promise<CanvasSkillsStatus> {
   return {
     scope: scope.level,
-    dir: scopeSkillsDir(scope),
+    dir: prettyPath(scopeSkillsDir(scope)),
     skills: await listCanvasSkills(scope),
   };
 }

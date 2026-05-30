@@ -123,6 +123,42 @@ describe('importCanvasMcpJson', () => {
     await expect(importCanvasMcpJson(GLOBAL, 'not json')).rejects.toThrow(/Invalid JSON/);
     await expect(importCanvasMcpJson(GLOBAL, '{}')).rejects.toThrow(/servers/);
   });
+
+  it('accepts the DeepWiki-style `serverUrl` alias and infers http', async () => {
+    const result = await importCanvasMcpJson(
+      GLOBAL,
+      JSON.stringify({
+        mcpServers: {
+          deepwiki: { serverUrl: 'https://mcp.deepwiki.com/mcp' },
+        },
+      }),
+    );
+    expect(result.entries).toEqual([{ name: 'deepwiki', status: 'added' }]);
+    const [server] = result.status.servers;
+    expect(server).toMatchObject({
+      name: 'deepwiki',
+      transport: 'http',
+      url: 'https://mcp.deepwiki.com/mcp',
+    });
+  });
+
+  it('accepts `httpUrl` as a synonym of `url`', async () => {
+    const result = await importCanvasMcpJson(
+      GLOBAL,
+      JSON.stringify({ mcpServers: { x: { httpUrl: 'https://x' } } }),
+    );
+    expect(result.entries).toEqual([{ name: 'x', status: 'added' }]);
+    expect(result.status.servers[0]).toMatchObject({ transport: 'http', url: 'https://x' });
+  });
+
+  it('treats `sseUrl` as a transport hint and uses sse', async () => {
+    const result = await importCanvasMcpJson(
+      GLOBAL,
+      JSON.stringify({ mcpServers: { y: { sseUrl: 'https://y/sse' } } }),
+    );
+    expect(result.entries).toEqual([{ name: 'y', status: 'added' }]);
+    expect(result.status.servers[0]).toMatchObject({ transport: 'sse', url: 'https://y/sse' });
+  });
 });
 
 function makeSkillMd(name: string, description: string, body: string): Uint8Array {

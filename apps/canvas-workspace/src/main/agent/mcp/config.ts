@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
-import { scopeMcpConfigPath, type CanvasConfigScope } from '../config-scope';
+import { prettyPath, scopeMcpConfigPath, type CanvasConfigScope } from '../config-scope';
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
 
@@ -137,7 +137,7 @@ export async function getCanvasMcpStatus(scope: CanvasConfigScope): Promise<Canv
   const file = await readFile(scope);
   const servers = Object.entries(file.servers ?? {}).map(([name, raw]) => readServer(name, raw));
   servers.sort((a, b) => a.name.localeCompare(b.name));
-  return { scope: scope.level, path: scopeMcpConfigPath(scope), servers };
+  return { scope: scope.level, path: prettyPath(scopeMcpConfigPath(scope)), servers };
 }
 
 export async function upsertCanvasMcpServer(
@@ -192,9 +192,27 @@ function inferTransport(raw: Record<string, unknown>): CanvasMcpTransport {
   const explicit = normalizeStr(raw.transport).toLowerCase();
   if (explicit === 'http' || explicit === 'sse' || explicit === 'stdio') return explicit;
   if (typeof raw.command === 'string' && raw.command.trim()) return 'stdio';
-  if (typeof raw.url === 'string' && raw.url.trim()) return 'http';
+  // Accept the URL aliases seen in real-world configs (DeepWiki uses
+  // `serverUrl`, some MCP READMEs use `httpUrl` / `sseUrl`). If sseUrl is
+  // present we infer sse; otherwise any url-ish field implies http.
+  if (typeof raw.sseUrl === 'string' && raw.sseUrl.trim()) return 'sse';
+  if (
+    (typeof raw.url === 'string' && raw.url.trim()) ||
+    (typeof raw.serverUrl === 'string' && raw.serverUrl.trim()) ||
+    (typeof raw.httpUrl === 'string' && raw.httpUrl.trim())
+  ) {
+    return 'http';
+  }
   // Default to http; normalizeServer will then fail loudly on missing url.
   return 'http';
+}
+
+function pickUrl(raw: Record<string, unknown>): string | undefined {
+  for (const key of ['url', 'serverUrl', 'httpUrl', 'sseUrl'] as const) {
+    const v = raw[key];
+    if (typeof v === 'string' && v.trim()) return v;
+  }
+  return undefined;
 }
 
 function rawToServer(name: string, raw: Record<string, unknown>): CanvasMcpServer {
@@ -211,7 +229,8 @@ function rawToServer(name: string, raw: Record<string, unknown>): CanvasMcpServe
     if (env) server.env = env;
     if (typeof raw.cwd === 'string' && raw.cwd.trim()) server.cwd = raw.cwd.trim();
   } else {
-    if (typeof raw.url === 'string') server.url = raw.url;
+    const url = pickUrl(raw);
+    if (url) server.url = url;
     const headers = normalizeStringMap(raw.headers);
     if (headers) server.headers = headers;
   }

@@ -184,7 +184,9 @@ export const McpManager = ({ scope }: Props) => {
   return (
     <div className="cfg-manager">
       <div className="cfg-toolbar">
-        <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
+        {servers.length > 0 && (
+          <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
+        )}
         <button
           type="button"
           className="cfg-secondary-btn"
