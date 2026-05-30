@@ -11,7 +11,12 @@
 import { promises as fs } from 'fs';
 import { dirname, join } from 'path';
 import { unzipSync, strFromU8, strToU8 } from 'fflate';
-import { scopeSkillsDir, type CanvasConfigScope } from '../config-scope';
+import {
+  scopeSkillsDir,
+  skillSourceDirs,
+  type CanvasConfigScope,
+  type CanvasSkillSourceName,
+} from '../config-scope';
 
 export interface CanvasSkill {
   /** Unique skill name (also drives the on-disk directory slug). */
@@ -23,6 +28,14 @@ export interface CanvasSkill {
 export interface CanvasSkillEntry extends CanvasSkill {
   scope: 'global' | 'workspace';
   path: string;
+  /** Which standard skills directory the file came from. */
+  source: CanvasSkillSourceName;
+  /**
+   * Whether Canvas can edit/delete this skill. False for skills owned by
+   * other tools (~/.claude/skills, ~/.codex/skills, ...) — they're shown
+   * for visibility but managed elsewhere.
+   */
+  writable: boolean;
 }
 
 export interface CanvasSkillsStatus {
@@ -89,29 +102,77 @@ function parseSkill(content: string): { name: string; description: string; body:
   return { name, description, body: body.replace(/^\s+/, '') };
 }
 
-export async function listCanvasSkills(scope: CanvasConfigScope): Promise<CanvasSkillEntry[]> {
-  const dir = scopeSkillsDir(scope);
-  let entries: import('fs').Dirent[];
-  try {
-    entries = await fs.readdir(dir, { withFileTypes: true });
-  } catch (err: any) {
-    if (err?.code === 'ENOENT') return [];
-    throw err;
-  }
-
-  const skills: CanvasSkillEntry[] = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const path = join(dir, entry.name, 'SKILL.md');
-    let content: string;
+/**
+ * Recursively find every `SKILL.md` under `base`. Mirrors the engine's
+ * `**​/SKILL.md` glob so the UI shows the same set of files the agent will
+ * actually load. Missing directories yield an empty result rather than
+ * throwing, since most users won't have all six source dirs.
+ */
+async function findSkillFiles(base: string): Promise<string[]> {
+  const out: string[] = [];
+  async function walk(dir: string): Promise<void> {
+    let entries: import('fs').Dirent[];
     try {
-      content = await fs.readFile(path, 'utf8');
+      entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
-      continue;
+      return;
     }
-    const parsed = parseSkill(content);
-    if (!parsed) continue;
-    skills.push({ ...parsed, scope: scope.level, path });
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full);
+      } else if (entry.isFile() && entry.name === 'SKILL.md') {
+        out.push(full);
+      }
+    }
+  }
+  await walk(base);
+  return out;
+}
+
+export async function listCanvasSkills(scope: CanvasConfigScope): Promise<CanvasSkillEntry[]> {
+  // Iterate every source dir for the scope, in priority order. Dedupe by
+  // realpath (symlinked files) and then by name (case-insensitive) so the
+  // higher-priority source — canvas-managed first, then external tools —
+  // wins on collisions, matching the engine's first-wins scan rule.
+  const sources = skillSourceDirs(scope);
+  const skills: CanvasSkillEntry[] = [];
+  const seenPaths = new Set<string>();
+  const seenNames = new Set<string>();
+
+  for (const src of sources) {
+    const files = await findSkillFiles(src.base);
+    for (const path of files) {
+      let canonical = path;
+      try {
+        canonical = await fs.realpath(path);
+      } catch {
+        /* dangling symlink — fall back to the path we already have */
+      }
+      if (seenPaths.has(canonical)) continue;
+      seenPaths.add(canonical);
+
+      let content: string;
+      try {
+        content = await fs.readFile(path, 'utf8');
+      } catch {
+        continue;
+      }
+      const parsed = parseSkill(content);
+      if (!parsed) continue;
+
+      const nameKey = parsed.name.toLowerCase();
+      if (seenNames.has(nameKey)) continue;
+      seenNames.add(nameKey);
+
+      skills.push({
+        ...parsed,
+        scope: scope.level,
+        path,
+        source: src.source,
+        writable: src.writable,
+      });
+    }
   }
   skills.sort((a, b) => a.name.localeCompare(b.name));
   return skills;

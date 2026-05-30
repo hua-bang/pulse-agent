@@ -508,6 +508,9 @@ const en = {
   'skillsConfig.inheritedTitle': 'Inherited from global ({count})',
   'skillsConfig.inheritedManage': 'Manage in global Settings',
   'skillsConfig.inheritedOverridden': 'Overridden by this workspace',
+  'skillsConfig.search': 'Search skills...',
+  'skillsConfig.noMatches': 'No skills match "{query}".',
+  'skillsConfig.readonlyHint': 'Read-only — managed by {source}',
 
   'mcpConfig.empty': 'No MCP servers yet.',
   'mcpConfig.add': 'Add server',
@@ -1039,6 +1042,9 @@ const zh: Record<keyof typeof en, string> = {
   'skillsConfig.inheritedTitle': '继承自全局（{count}）',
   'skillsConfig.inheritedManage': '在全局设置中管理',
   'skillsConfig.inheritedOverridden': '已被当前工作区覆盖',
+  'skillsConfig.search': '搜索技能……',
+  'skillsConfig.noMatches': '没有匹配“{query}”的技能。',
+  'skillsConfig.readonlyHint': '只读 — 由 {source} 管理',
 
   'mcpConfig.empty': '还没有 MCP 服务。',
   'mcpConfig.add': '添加服务',

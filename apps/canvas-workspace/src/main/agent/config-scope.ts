@@ -38,6 +38,51 @@ export function scopeSkillsDir(scope: CanvasConfigScope): string {
   return join(scopeRootDir(scope), 'skills');
 }
 
+/**
+ * Where a skill came from. `canvas` skills are the only ones Canvas itself
+ * writes/edits; everything else is surfaced read-only so other agent tools
+ * (Claude Code, Codex, pulse-coder CLI, …) stay the source of truth for
+ * their own skill conventions.
+ */
+export type CanvasSkillSourceName =
+  | 'canvas'
+  | 'pulse-coder'
+  | 'agents'
+  | 'coder'
+  | 'claude'
+  | 'codex';
+
+export interface SkillSourceDir {
+  base: string;
+  source: CanvasSkillSourceName;
+  /** UI shows Edit/Delete only for writable sources; the engine reads them all. */
+  writable: boolean;
+}
+
+/**
+ * Source directories scanned for a given scope, in priority order (earlier
+ * sources win on same-name collisions, matching the engine's scan semantics).
+ *
+ * Workspace scope is canvas-only — other tools don't have a per-workspace
+ * skills concept. Global scope expands to every standard home-level skills
+ * directory so the agent inherits whatever the user already has installed
+ * via Claude Code / Codex / the pulse-coder CLI.
+ */
+export function skillSourceDirs(scope: CanvasConfigScope): SkillSourceDir[] {
+  if (scope.level === 'workspace') {
+    return [{ base: scopeSkillsDir(scope), source: 'canvas', writable: true }];
+  }
+  const home = homedir();
+  return [
+    { base: join(CANVAS_STORE_DIR, 'skills'), source: 'canvas', writable: true },
+    { base: join(home, '.pulse-coder', 'skills'), source: 'pulse-coder', writable: false },
+    { base: join(home, '.agents', 'skills'), source: 'agents', writable: false },
+    { base: join(home, '.coder', 'skills'), source: 'coder', writable: false },
+    { base: join(home, '.claude', 'skills'), source: 'claude', writable: false },
+    { base: join(home, '.codex', 'skills'), source: 'codex', writable: false },
+  ];
+}
+
 /** MCP config file path for a given scope (`<root>/mcp.json`). */
 export function scopeMcpConfigPath(scope: CanvasConfigScope): string {
   return join(scopeRootDir(scope), 'mcp.json');

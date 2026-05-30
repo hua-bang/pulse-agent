@@ -210,6 +210,17 @@ select.cfg-input {
   line-height: 1.5;
 }
 
+/* ─── Search ──────────────────────────────────────────────────── */
+
+.cfg-search {
+  /* Same metrics as cfg-input; the leading magnifier glyph cue is the
+   * native <input type=search> affordance. */
+  background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 14 14' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='6' cy='6' r='4.5' stroke='%2337352f' stroke-opacity='0.4' stroke-width='1.5' fill='none'/%3E%3Cpath d='M9.5 9.5l3 3' stroke='%2337352f' stroke-opacity='0.4' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 10px center;
+  padding-left: 32px;
+}
+
 /* ─── List of entries ─────────────────────────────────────────── */
 
 .cfg-list {
@@ -219,6 +230,14 @@ select.cfg-input {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* Cap long inherited lists at roughly half the viewport so the rest of
+ * the settings panel stays reachable without endless scrolling. */
+.cfg-list--scrollable {
+  max-height: 42vh;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .cfg-list-item {

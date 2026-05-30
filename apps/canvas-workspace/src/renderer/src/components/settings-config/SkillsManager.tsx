@@ -47,6 +47,7 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
   const [importing, setImporting] = useState(false);
   const [mdText, setMdText] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [query, setQuery] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // Drag/leave fires per descendant. Count entries so the overlay only hides
   // when the cursor truly leaves the manager surface.
@@ -198,6 +199,21 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
     [handleFile],
   );
 
+  // Case-insensitive substring filter over name + description.
+  const matches = useCallback(
+    (skill: CanvasSkillEntry): boolean => {
+      const q = query.trim().toLowerCase();
+      if (!q) return true;
+      return (
+        skill.name.toLowerCase().includes(q) || skill.description.toLowerCase().includes(q)
+      );
+    },
+    [query],
+  );
+  const filteredSkills = skills.filter(matches);
+  const filteredInherited = inherited.filter(matches);
+  const showSearch = skills.length + inherited.length >= 8;
+
   return (
     <div
       className={`cfg-manager${dragOver ? ' cfg-manager--drag' : ''}`}
@@ -325,30 +341,56 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
         </div>
       )}
 
+      {showSearch && (
+        <input
+          type="search"
+          className="cfg-input cfg-search"
+          placeholder={t('skillsConfig.search')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
+
       {skills.length === 0 && !draft && mdText === null ? (
         <div className="cfg-empty">{t('skillsConfig.empty')}</div>
+      ) : filteredSkills.length === 0 && query ? (
+        // The search hides every workspace skill — only render the empty
+        // hint when the inherited section is also empty below.
+        inheritedEnabled && filteredInherited.length > 0 ? null : (
+          <div className="cfg-empty">{t('skillsConfig.noMatches', { query })}</div>
+        )
       ) : (
         <ul className="cfg-list">
-          {skills.map((skill) => (
+          {filteredSkills.map((skill) => (
             <li key={skill.path} className="cfg-list-item">
               <div className="cfg-list-main">
-                <div className="cfg-list-title">{skill.name}</div>
+                <div className="cfg-list-title">
+                  {skill.name}
+                  {skill.source !== 'canvas' && <span className="cfg-tag">{skill.source}</span>}
+                </div>
                 <div className="cfg-list-desc">{skill.description}</div>
               </div>
-              <div className="cfg-list-actions">
-                <button
-                  type="button"
-                  className="cfg-secondary-btn"
-                  onClick={() =>
-                    setDraft({ originalName: skill.name, name: skill.name, description: skill.description, body: skill.body })
-                  }
-                >
-                  {t('skillsConfig.edit')}
-                </button>
-                <button type="button" className="cfg-danger-btn" onClick={() => void remove(skill.name)}>
-                  {t('skillsConfig.delete')}
-                </button>
-              </div>
+              {skill.writable && (
+                <div className="cfg-list-actions">
+                  <button
+                    type="button"
+                    className="cfg-secondary-btn"
+                    onClick={() =>
+                      setDraft({
+                        originalName: skill.name,
+                        name: skill.name,
+                        description: skill.description,
+                        body: skill.body,
+                      })
+                    }
+                  >
+                    {t('skillsConfig.edit')}
+                  </button>
+                  <button type="button" className="cfg-danger-btn" onClick={() => void remove(skill.name)}>
+                    {t('skillsConfig.delete')}
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -362,32 +404,37 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
             </span>
             <span className="cfg-inherited-manage">{t('skillsConfig.inheritedManage')}</span>
           </div>
-          <ul className="cfg-list">
-            {inherited.map((skill) => {
-              const overridden = skills.some(
-                (s) => s.name.toLowerCase() === skill.name.toLowerCase(),
-              );
-              return (
-                <li
-                  key={skill.path}
-                  className={`cfg-list-item cfg-list-item--readonly${overridden ? ' cfg-list-item--shadowed' : ''}`}
-                >
-                  <div className="cfg-list-main">
-                    <div className="cfg-list-title">
-                      {skill.name}
-                      <span className="cfg-tag">global</span>
+          {filteredInherited.length === 0 ? (
+            <div className="cfg-empty">{t('skillsConfig.noMatches', { query })}</div>
+          ) : (
+            <ul className="cfg-list cfg-list--scrollable">
+              {filteredInherited.map((skill) => {
+                const overridden = skills.some(
+                  (s) => s.name.toLowerCase() === skill.name.toLowerCase(),
+                );
+                return (
+                  <li
+                    key={skill.path}
+                    className={`cfg-list-item cfg-list-item--readonly${overridden ? ' cfg-list-item--shadowed' : ''}`}
+                    title={t('skillsConfig.readonlyHint', { source: skill.source })}
+                  >
+                    <div className="cfg-list-main">
+                      <div className="cfg-list-title">
+                        {skill.name}
+                        <span className="cfg-tag">{skill.source}</span>
+                      </div>
+                      <div className="cfg-list-desc">{skill.description}</div>
                     </div>
-                    <div className="cfg-list-desc">{skill.description}</div>
-                  </div>
-                  {overridden && (
-                    <span className="cfg-shadow-warn" title={t('skillsConfig.inheritedOverridden')}>
-                      ⚠ {t('skillsConfig.inheritedOverridden')}
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                    {overridden && (
+                      <span className="cfg-shadow-warn" title={t('skillsConfig.inheritedOverridden')}>
+                        ⚠ {t('skillsConfig.inheritedOverridden')}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
 

@@ -763,12 +763,23 @@ export type CanvasConfigScope =
   | { level: 'global' }
   | { level: 'workspace'; workspaceId: string };
 
+export type CanvasSkillSourceName =
+  | 'canvas'
+  | 'pulse-coder'
+  | 'agents'
+  | 'coder'
+  | 'claude'
+  | 'codex';
+
 export interface CanvasSkillEntry {
   name: string;
   description: string;
   body: string;
   scope: 'global' | 'workspace';
   path: string;
+  source: CanvasSkillSourceName;
+  /** False for skills owned by other agent tools — Edit/Delete are hidden. */
+  writable: boolean;
 }
 
 export interface CanvasSkillsStatus {
