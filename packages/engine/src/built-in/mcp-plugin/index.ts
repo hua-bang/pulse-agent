@@ -59,6 +59,18 @@ function readMCPConfigFile(configPath: string): MCPPluginConfig {
   }
 }
 
+/**
+ * 按给定顺序合并多个配置文件的 servers，后者覆盖前者（同名 server）。
+ */
+export function loadMCPConfigFromPaths(configPaths: string[]): MCPPluginConfig {
+  const mergedServers: Record<string, RawMCPServerConfig> = {};
+  for (const configPath of configPaths) {
+    const { servers } = readMCPConfigFile(configPath);
+    Object.assign(mergedServers, servers);
+  }
+  return { servers: mergedServers };
+}
+
 export async function loadMCPConfig(cwd: string): Promise<MCPPluginConfig> {
   // 合并用户级与项目级配置，后者覆盖前者
   const projectConfigPath = path.join(cwd, '.pulse-coder', 'mcp.json');
@@ -66,21 +78,12 @@ export async function loadMCPConfig(cwd: string): Promise<MCPPluginConfig> {
   const homeConfigPath = path.join(homedir(), '.pulse-coder', 'mcp.json');
   const legacyHomeConfigPath = path.join(homedir(), '.coder', 'mcp.json');
 
-  const configsInOrder = [
+  return loadMCPConfigFromPaths([
     legacyHomeConfigPath,
     homeConfigPath,
     legacyProjectConfigPath,
     projectConfigPath
-  ];
-
-  const mergedServers: Record<string, RawMCPServerConfig> = {};
-
-  for (const configPath of configsInOrder) {
-    const { servers } = readMCPConfigFile(configPath);
-    Object.assign(mergedServers, servers);
-  }
-
-  return { servers: mergedServers };
+  ]);
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -197,61 +200,115 @@ function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['tr
   };
 }
 
-export const builtInMCPPlugin: EnginePlugin = {
-  name: 'pulse-coder-engine/built-in-mcp',
-  version: '1.1.0',
+/**
+ * 管理本插件创建的所有 MCP client，便于宿主在重建 Engine 前统一关闭，
+ * 避免 stdio 子进程 / 长连接泄漏。注册为服务 `mcp:__manager__`。
+ */
+export interface MCPClientManager {
+  closeAll(): Promise<void>;
+}
 
-  async initialize(context: EnginePluginContext) {
-    const config = await loadMCPConfig(process.cwd());
+/**
+ * MCP 插件配置。
+ * - `configPaths` 显式指定按序合并的配置文件路径（多 scope 场景，后者覆盖前者）。
+ * - `cwd` 默认配置路径集的根目录（仅当未提供 configPaths 时生效）。
+ */
+export interface MCPPluginOptions {
+  configPaths?: string[];
+  cwd?: string;
+}
 
-    const serverCount = Object.keys(config.servers).length;
-    if (serverCount === 0) {
-      console.log('[MCP] No MCP servers configured');
-      return;
-    }
+/**
+ * 创建内置 MCP 插件。
+ *
+ * MCP 工具在 initialize 期静态注册进引擎工具表，没有 per-run 注入，
+ * 因此配置变更后需由宿主重建 Engine 生效；重建前请调用 `mcp:__manager__`
+ * 服务（或插件 destroy）的 closeAll 关闭旧 client。
+ */
+export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
+  const clients: Array<{ close?: () => Promise<void> | void }> = [];
 
-    let loadedCount = 0;
-
-    for (const [serverName, rawServerConfig] of Object.entries(config.servers)) {
+  const closeAll = async () => {
+    for (const client of clients.splice(0)) {
       try {
-        const normalizedConfig = normalizeServerConfig(serverName, rawServerConfig);
-        if (!normalizedConfig) {
-          continue;
-        }
-
-        const transport = createTransport(normalizedConfig);
-        const client = await createMCPClient({ transport });
-
-        const tools = await client.tools();
-        const shouldDeferTools = normalizedConfig.deferTools === true;
-
-        // 注册工具到引擎，使用命名空间前缀
-        const namespacedTools = Object.fromEntries(
-          Object.entries(tools).map(([toolName, tool]) => [
-            `mcp_${serverName}_${toolName}`,
-            shouldDeferTools ? { ...(tool as any), defer_loading: true } : (tool as any)
-          ])
-        );
-
-        context.registerTools(namespacedTools);
-
-        loadedCount++;
-        console.log(`[MCP] Server "${serverName}" loaded (${Object.keys(tools).length} tools)`);
-
-        // 注册服务供其他插件使用
-        context.registerService(`mcp:${serverName}`, client);
-
+        await client.close?.();
       } catch (error) {
-        console.warn(`[MCP] Failed to load server "${serverName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.warn(`[MCP] Failed to close client: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
+  };
 
-    if (loadedCount > 0) {
-      console.log(`[MCP] Successfully loaded ${loadedCount}/${serverCount} MCP servers`);
-    } else {
-      console.warn('[MCP] No MCP servers were loaded successfully');
+  return {
+    name: 'pulse-coder-engine/built-in-mcp',
+    version: '1.1.0',
+
+    async initialize(context: EnginePluginContext) {
+      const config = options.configPaths
+        ? loadMCPConfigFromPaths(options.configPaths)
+        : await loadMCPConfig(options.cwd ?? process.cwd());
+
+      const manager: MCPClientManager = { closeAll };
+      context.registerService('mcp:__manager__', manager);
+
+      const serverCount = Object.keys(config.servers).length;
+      if (serverCount === 0) {
+        console.log('[MCP] No MCP servers configured');
+        return;
+      }
+
+      let loadedCount = 0;
+
+      for (const [serverName, rawServerConfig] of Object.entries(config.servers)) {
+        try {
+          const normalizedConfig = normalizeServerConfig(serverName, rawServerConfig);
+          if (!normalizedConfig) {
+            continue;
+          }
+
+          const transport = createTransport(normalizedConfig);
+          const client = await createMCPClient({ transport });
+          clients.push(client as { close?: () => Promise<void> | void });
+
+          const tools = await client.tools();
+          const shouldDeferTools = normalizedConfig.deferTools === true;
+
+          // 注册工具到引擎，使用命名空间前缀
+          const namespacedTools = Object.fromEntries(
+            Object.entries(tools).map(([toolName, tool]) => [
+              `mcp_${serverName}_${toolName}`,
+              shouldDeferTools ? { ...(tool as any), defer_loading: true } : (tool as any)
+            ])
+          );
+
+          context.registerTools(namespacedTools);
+
+          loadedCount++;
+          console.log(`[MCP] Server "${serverName}" loaded (${Object.keys(tools).length} tools)`);
+
+          // 注册服务供其他插件使用
+          context.registerService(`mcp:${serverName}`, client);
+
+        } catch (error) {
+          console.warn(`[MCP] Failed to load server "${serverName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      if (loadedCount > 0) {
+        console.log(`[MCP] Successfully loaded ${loadedCount}/${serverCount} MCP servers`);
+      } else {
+        console.warn('[MCP] No MCP servers were loaded successfully');
+      }
+    },
+
+    async destroy() {
+      await closeAll();
     }
-  }
-};
+  };
+}
+
+/**
+ * 内置 MCP 插件（默认实例，使用 cwd + homedir 默认配置路径）。
+ */
+export const builtInMCPPlugin: EnginePlugin = createMcpPlugin();
 
 export default builtInMCPPlugin;

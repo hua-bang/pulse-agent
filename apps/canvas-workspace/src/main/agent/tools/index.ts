@@ -12,6 +12,7 @@ import { createImageTools } from './images';
 import { createVisualTools } from './visual';
 import { createArtifactTools } from './artifacts';
 import { createWebpageTools } from './webpage';
+import { createSkillTools } from './skills';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -31,6 +32,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createVisualTools(workspaceId),
     ...createArtifactTools(workspaceId),
     ...createWebpageTools(workspaceId),
+    ...createSkillTools(workspaceId),
   };
 
   // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's

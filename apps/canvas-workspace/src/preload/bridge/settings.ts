@@ -1,6 +1,8 @@
 import type { IpcRenderer } from "electron";
 import type {
+  CanvasMcpApi,
   CanvasModelApi,
+  CanvasSkillsApi,
   DialogApi,
   ExperimentalApi,
   PromptProfileApi,
@@ -15,6 +17,26 @@ export const createSkillsApi = (ipcRenderer: IpcRenderer): SkillsApi => ({
   install: () => ipcRenderer.invoke("skills:install"),
   status: () => ipcRenderer.invoke("skills:status"),
   cleanupLegacy: () => ipcRenderer.invoke("skills:cleanup-legacy")
+});
+
+export const createCanvasSkillsApi = (ipcRenderer: IpcRenderer): CanvasSkillsApi => ({
+  list: (scope) => ipcRenderer.invoke("canvas-skills:list", { scope }),
+
+  upsert: (scope, skill) =>
+    ipcRenderer.invoke("canvas-skills:upsert", { scope, skill }),
+
+  remove: (scope, name) =>
+    ipcRenderer.invoke("canvas-skills:remove", { scope, name })
+});
+
+export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
+  list: (scope) => ipcRenderer.invoke("canvas-mcp:list", { scope }),
+
+  upsert: (scope, server, originalName) =>
+    ipcRenderer.invoke("canvas-mcp:upsert", { scope, server, originalName }),
+
+  remove: (scope, name) =>
+    ipcRenderer.invoke("canvas-mcp:remove", { scope, name })
 });
 
 export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi => ({

@@ -7,9 +7,10 @@
  */
 
 import { Engine } from 'pulse-coder-engine';
-import { builtInSkillsPlugin } from 'pulse-coder-engine/built-in';
+import { createSkillsPlugin, createMcpPlugin } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model/config';
+import { scopeSkillsDir, scopeMcpConfigPath } from './config-scope';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
@@ -548,15 +549,43 @@ export class CanvasAgent {
   constructor(config: CanvasAgentConfig) {
     this.config = config;
     this.sessionStore = new SessionStore(config.workspaceId);
+    this.engine = this.buildEngine();
+  }
 
-    const canvasTools = createCanvasTools(config.workspaceId);
+  /**
+   * Construct the Engine with the skills + MCP plugins scoped to this
+   * workspace. Both plugins read two scopes — global (`~/.pulse-coder/canvas`)
+   * and this workspace — with the workspace winning on name/server collisions.
+   * Called from the constructor and again on `reloadEngine()` so MCP config
+   * edits take effect.
+   */
+  private buildEngine(): any {
+    const { workspaceId } = this.config;
+    const globalScope = { level: 'global' as const };
+    const wsScope = { level: 'workspace' as const, workspaceId };
 
-    this.engine = new Engine({
+    // Skills: workspace scanned first so it overrides global on same name.
+    const skillsScanPaths = [
+      { base: scopeSkillsDir(wsScope), pattern: '**/SKILL.md' },
+      { base: scopeSkillsDir(globalScope), pattern: '**/SKILL.md' },
+    ];
+    // MCP: global first, workspace later so it overrides on same server name.
+    const mcpConfigPaths = [
+      scopeMcpConfigPath(globalScope),
+      scopeMcpConfigPath(wsScope),
+    ];
+
+    const canvasTools = createCanvasTools(workspaceId);
+
+    return new Engine({
       disableBuiltInPlugins: true,
       enginePlugins: {
-        plugins: [builtInSkillsPlugin],
+        plugins: [
+          createSkillsPlugin({ scanPaths: skillsScanPaths }),
+          createMcpPlugin({ configPaths: mcpConfigPaths }),
+        ],
       },
-      model: config.model,
+      model: this.config.model,
       tools: canvasTools,
     });
   }
@@ -570,6 +599,43 @@ export class CanvasAgent {
     await this.sessionStore.startSession();
 
     console.info('[canvas-agent] Initialized');
+  }
+
+  /**
+   * Re-scan skill files for this workspace (global + workspace scope).
+   * Cheap and instant: the `skill` tool is regenerated per run from the
+   * registry, so the next chat turn sees the refreshed list without an
+   * Engine rebuild.
+   */
+  async rescanSkills(): Promise<void> {
+    const registry = this.engine?.getService?.('skillRegistry') as
+      | { rescan: () => Promise<void> }
+      | undefined;
+    if (registry?.rescan) {
+      await registry.rescan();
+    }
+  }
+
+  /**
+   * Rebuild the Engine so MCP config changes take effect. MCP tools are
+   * registered statically at init (no per-run injection), so we close the
+   * old clients and re-initialize a fresh Engine. The conversation
+   * (`this.messages`) and session store are preserved.
+   */
+  async reloadEngine(): Promise<void> {
+    const manager = this.engine?.getService?.('mcp:__manager__') as
+      | { closeAll: () => Promise<void> }
+      | undefined;
+    if (manager?.closeAll) {
+      try {
+        await manager.closeAll();
+      } catch (err) {
+        console.warn('[canvas-agent] Failed to close MCP clients on reload:', err);
+      }
+    }
+    this.engine = this.buildEngine();
+    await this.engine.initialize();
+    console.info(`[canvas-agent] Engine reloaded for workspace: ${this.config.workspaceId}`);
   }
 
   /**
@@ -947,6 +1013,16 @@ export class CanvasAgent {
    */
   async destroy(): Promise<void> {
     console.info(`[canvas-agent] Destroying for workspace: ${this.config.workspaceId}`);
+    const manager = this.engine?.getService?.('mcp:__manager__') as
+      | { closeAll: () => Promise<void> }
+      | undefined;
+    if (manager?.closeAll) {
+      try {
+        await manager.closeAll();
+      } catch (err) {
+        console.warn('[canvas-agent] Failed to close MCP clients on destroy:', err);
+      }
+    }
     await this.sessionStore.archiveSession();
     this.messages = [];
   }

@@ -15,6 +15,9 @@ import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
 import { setupSkillInstallerIpc } from "../files/skill-installer";
 import { setupCanvasAgentIpc, teardownCanvasAgent } from "../agent/ipc";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
+import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
+import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
+import { ensureDefaultSkillsSeeded } from "../agent/default-skills";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
 import { setupExperimentalIpc } from "../settings/experimental-ipc";
 import { setupWebviewRegistryIpc } from "../webview/registry";
@@ -84,6 +87,13 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupSkillInstallerIpc();
     setupCanvasAgentIpc();
     setupCanvasModelIpc();
+    setupCanvasSkillsIpc();
+    setupCanvasMcpIpc();
+    // Seed the meta-skills (save-as-skill, promote-skill) into the global
+    // scope on first start. Idempotent — user edits are preserved.
+    void ensureDefaultSkillsSeeded().catch((err) => {
+      void writeLog("main", "ensureDefaultSkillsSeeded failed", String(err));
+    });
     setupCanvasPromptIpc();
     setupExperimentalIpc();
     setupWebviewRegistryIpc();
