@@ -82,11 +82,11 @@ export const SkillsManager = ({ scope }: Props) => {
       <div className="cfg-toolbar">
         <button
           type="button"
-          className="cfg-primary-btn"
+          className="cfg-secondary-btn"
           onClick={() => setDraft({ ...EMPTY_DRAFT })}
           disabled={draft !== null}
         >
-          {t('skillsConfig.add')}
+          + {t('skillsConfig.add')}
         </button>
       </div>
 
@@ -161,7 +161,11 @@ export const SkillsManager = ({ scope }: Props) => {
         </ul>
       )}
 
-      {dir && <div className="cfg-dir-hint">{t('skillsConfig.dirHint', { dir })}</div>}
+      {dir && (
+        <div className="cfg-dir-hint" title={dir}>
+          {dir}
+        </div>
+      )}
     </div>
   );
 };

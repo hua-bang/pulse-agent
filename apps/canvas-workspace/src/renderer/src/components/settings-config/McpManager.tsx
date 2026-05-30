@@ -155,15 +155,15 @@ export const McpManager = ({ scope }: Props) => {
   return (
     <div className="cfg-manager">
       <div className="cfg-toolbar">
+        <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
         <button
           type="button"
-          className="cfg-primary-btn"
+          className="cfg-secondary-btn"
           onClick={() => setDraft({ ...EMPTY_DRAFT })}
           disabled={draft !== null}
         >
-          {t('mcpConfig.add')}
+          + {t('mcpConfig.add')}
         </button>
-        <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
       </div>
 
       {draft && (
@@ -299,7 +299,11 @@ export const McpManager = ({ scope }: Props) => {
         </ul>
       )}
 
-      {path && <div className="cfg-dir-hint">{t('mcpConfig.dirHint', { path })}</div>}
+      {path && (
+        <div className="cfg-dir-hint" title={path}>
+          {path}
+        </div>
+      )}
     </div>
   );
 };
