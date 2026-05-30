@@ -494,6 +494,10 @@ const en = {
   'skillsConfig.nameRequired': 'Name and description are required.',
   'skillsConfig.dirHint': 'Stored at {dir}',
   'skillsConfig.loadFailed': 'Failed to load skills.',
+  'skillsConfig.importZip': 'Import .zip',
+  'skillsConfig.importing': 'Importing...',
+  'skillsConfig.importDone': 'Imported {imported}, replaced {replaced}, skipped {skipped}.',
+  'skillsConfig.importFailed': 'Import failed',
 
   'mcpConfig.empty': 'No MCP servers yet.',
   'mcpConfig.add': 'Add server',
@@ -519,6 +523,13 @@ const en = {
   'mcpConfig.reloadHint': 'Changes apply on the next message.',
   'mcpConfig.dirHint': 'Stored at {path}',
   'mcpConfig.loadFailed': 'Failed to load MCP servers.',
+  'mcpConfig.importJson': 'Paste JSON',
+  'mcpConfig.importJsonHint': 'Accepts both "servers" and "mcpServers" shapes. Servers with matching names are overwritten.',
+  'mcpConfig.importJsonPlaceholder': '{\n  "mcpServers": {\n    "github": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-github"]\n    }\n  }\n}',
+  'mcpConfig.parseAndImport': 'Parse & Import',
+  'mcpConfig.importing': 'Importing...',
+  'mcpConfig.importDone': 'Added {added}, replaced {replaced}, skipped {skipped}.',
+  'mcpConfig.importFailed': 'Import failed',
 } as const;
 
 const zh: Record<keyof typeof en, string> = {
@@ -1004,6 +1015,10 @@ const zh: Record<keyof typeof en, string> = {
   'skillsConfig.nameRequired': '名称和描述为必填项。',
   'skillsConfig.dirHint': '保存于 {dir}',
   'skillsConfig.loadFailed': '加载技能失败。',
+  'skillsConfig.importZip': '导入 .zip',
+  'skillsConfig.importing': '导入中……',
+  'skillsConfig.importDone': '新增 {imported} 个,覆盖 {replaced} 个,跳过 {skipped} 个。',
+  'skillsConfig.importFailed': '导入失败',
 
   'mcpConfig.empty': '还没有 MCP 服务。',
   'mcpConfig.add': '添加服务',
@@ -1029,6 +1044,13 @@ const zh: Record<keyof typeof en, string> = {
   'mcpConfig.reloadHint': '更改将在下一条消息时生效。',
   'mcpConfig.dirHint': '保存于 {path}',
   'mcpConfig.loadFailed': '加载 MCP 服务失败。',
+  'mcpConfig.importJson': '粘贴 JSON',
+  'mcpConfig.importJsonHint': '同时支持 "servers" 与 "mcpServers" 两种格式。同名服务会被覆盖。',
+  'mcpConfig.importJsonPlaceholder': '{\n  "mcpServers": {\n    "github": {\n      "command": "npx",\n      "args": ["-y", "@modelcontextprotocol/server-github"]\n    }\n  }\n}',
+  'mcpConfig.parseAndImport': '解析并导入',
+  'mcpConfig.importing': '导入中……',
+  'mcpConfig.importDone': '新增 {added} 个,覆盖 {replaced} 个,跳过 {skipped} 个。',
+  'mcpConfig.importFailed': '导入失败',
 };
 
 export const messages = {

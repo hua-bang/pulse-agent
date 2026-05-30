@@ -784,6 +784,12 @@ export interface CanvasSkillInput {
   originalName?: string;
 }
 
+export interface CanvasSkillImportEntry {
+  name: string;
+  status: 'imported' | 'replaced' | 'skipped';
+  reason?: string;
+}
+
 export interface CanvasSkillsApi {
   list: (scope: CanvasConfigScope) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
   upsert: (
@@ -794,6 +800,15 @@ export interface CanvasSkillsApi {
     scope: CanvasConfigScope,
     name: string,
   ) => Promise<{ ok: boolean; status?: CanvasSkillsStatus; error?: string }>;
+  importZip: (
+    scope: CanvasConfigScope,
+    bytes: ArrayBuffer,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasSkillsStatus;
+    entries?: CanvasSkillImportEntry[];
+    error?: string;
+  }>;
 }
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
@@ -816,6 +831,12 @@ export interface CanvasMcpStatus {
   servers: CanvasMcpServer[];
 }
 
+export interface CanvasMcpImportEntry {
+  name: string;
+  status: 'added' | 'replaced' | 'skipped';
+  reason?: string;
+}
+
 export interface CanvasMcpApi {
   list: (scope: CanvasConfigScope) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
   upsert: (
@@ -827,6 +848,15 @@ export interface CanvasMcpApi {
     scope: CanvasConfigScope,
     name: string,
   ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  importJson: (
+    scope: CanvasConfigScope,
+    json: string,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasMcpStatus;
+    entries?: CanvasMcpImportEntry[];
+    error?: string;
+  }>;
 }
 
 export interface AgentApi {

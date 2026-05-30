@@ -26,7 +26,10 @@ export const createCanvasSkillsApi = (ipcRenderer: IpcRenderer): CanvasSkillsApi
     ipcRenderer.invoke("canvas-skills:upsert", { scope, skill }),
 
   remove: (scope, name) =>
-    ipcRenderer.invoke("canvas-skills:remove", { scope, name })
+    ipcRenderer.invoke("canvas-skills:remove", { scope, name }),
+
+  importZip: (scope, bytes) =>
+    ipcRenderer.invoke("canvas-skills:import-zip", { scope, bytes })
 });
 
 export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
@@ -36,7 +39,10 @@ export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
     ipcRenderer.invoke("canvas-mcp:upsert", { scope, server, originalName }),
 
   remove: (scope, name) =>
-    ipcRenderer.invoke("canvas-mcp:remove", { scope, name })
+    ipcRenderer.invoke("canvas-mcp:remove", { scope, name }),
+
+  importJson: (scope, json) =>
+    ipcRenderer.invoke("canvas-mcp:import-json", { scope, json })
 });
 
 export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi => ({

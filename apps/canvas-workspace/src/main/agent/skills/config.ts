@@ -9,7 +9,8 @@
  */
 
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
+import { unzipSync, strFromU8 } from 'fflate';
 import { scopeSkillsDir, type CanvasConfigScope } from '../config-scope';
 
 export interface CanvasSkill {
@@ -158,4 +159,151 @@ export async function removeCanvasSkill(
   const slug = skillSlug(normalizeStr(name));
   await fs.rm(join(scopeSkillsDir(scope), slug), { recursive: true, force: true });
   return getCanvasSkillsStatus(scope);
+}
+
+// ─── Zip import ───────────────────────────────────────────────────────
+//
+// Supports two packaging conventions, both common in the wild:
+//   - Single-skill zip: `SKILL.md` at the root, optionally with adjacent
+//     resource files.
+//   - Multi-skill zip: `<name>/SKILL.md` per skill, with each skill's
+//     adjacent files staying inside its directory.
+//
+// We walk every entry, group by the directory containing each SKILL.md, and
+// copy that group into `<scopeSkillsDir>/<slug>/`. The slug comes from the
+// SKILL.md front-matter `name` (not the zip directory name) so users can
+// rename folders without breaking the registry.
+
+export interface CanvasSkillImportEntryResult {
+  name: string;
+  status: 'imported' | 'replaced' | 'skipped';
+  reason?: string;
+}
+
+export interface CanvasSkillImportResult {
+  status: CanvasSkillsStatus;
+  entries: CanvasSkillImportEntryResult[];
+}
+
+/** Parse just the front matter; used for zip entries before we touch disk. */
+function parseFrontMatterOnly(bytes: Uint8Array): { name?: string; description?: string } {
+  const text = strFromU8(bytes);
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  if (!match) return {};
+  const out: { name?: string; description?: string } = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const kv = /^(\w+)\s*:\s*(.*)$/.exec(line);
+    if (!kv) continue;
+    let value = kv[2].trim();
+    if (value.startsWith('"')) {
+      try {
+        value = JSON.parse(value) as string;
+      } catch {
+        value = value.replace(/^"|"$/g, '');
+      }
+    }
+    if (kv[1] === 'name') out.name = value;
+    else if (kv[1] === 'description') out.description = value;
+  }
+  return out;
+}
+
+export async function importCanvasSkillsZip(
+  scope: CanvasConfigScope,
+  bytes: Uint8Array,
+): Promise<CanvasSkillImportResult> {
+  let unzipped: Record<string, Uint8Array>;
+  try {
+    unzipped = unzipSync(bytes);
+  } catch (err) {
+    throw new Error(`Failed to read zip: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  // Group entries by the directory containing each SKILL.md (the prefix path,
+  // empty string for a root-level SKILL.md).
+  const groups = new Map<string, { skillFile: Uint8Array; siblings: Map<string, Uint8Array> }>();
+  for (const [rawPath, content] of Object.entries(unzipped)) {
+    // fflate yields trailing-slash entries for directories; skip them.
+    if (rawPath.endsWith('/')) continue;
+    // Normalize separators and strip leading "./".
+    const path = rawPath.replace(/\\/g, '/').replace(/^\.\//, '');
+    const base = path.split('/').pop() ?? '';
+    if (base.toUpperCase() !== 'SKILL.MD') continue;
+    const dir = dirname(path);
+    const dirKey = dir === '.' ? '' : dir;
+    if (!groups.has(dirKey)) {
+      groups.set(dirKey, { skillFile: content, siblings: new Map() });
+    }
+  }
+  // Second pass: attach sibling files (anything under the group dir, excluding
+  // the SKILL.md itself). Files outside any group's dir are ignored.
+  for (const [rawPath, content] of Object.entries(unzipped)) {
+    if (rawPath.endsWith('/')) continue;
+    const path = rawPath.replace(/\\/g, '/').replace(/^\.\//, '');
+    const base = path.split('/').pop() ?? '';
+    if (base.toUpperCase() === 'SKILL.MD') continue;
+    // Find the longest group key that prefixes this path.
+    let bestKey: string | null = null;
+    for (const key of groups.keys()) {
+      const prefix = key === '' ? '' : `${key}/`;
+      if ((key === '' || path.startsWith(prefix)) && (bestKey === null || key.length > bestKey.length)) {
+        bestKey = key;
+      }
+    }
+    if (bestKey === null) continue;
+    const relative = bestKey === '' ? path : path.slice(bestKey.length + 1);
+    groups.get(bestKey)!.siblings.set(relative, content);
+  }
+
+  if (groups.size === 0) {
+    throw new Error('Zip contains no SKILL.md');
+  }
+
+  const skillsDir = scopeSkillsDir(scope);
+  const entries: CanvasSkillImportEntryResult[] = [];
+
+  for (const [dirKey, group] of groups) {
+    const fm = parseFrontMatterOnly(group.skillFile);
+    if (!fm.name || !fm.description) {
+      entries.push({
+        name: dirKey || '(root)',
+        status: 'skipped',
+        reason: 'SKILL.md missing name or description',
+      });
+      continue;
+    }
+    let slug: string;
+    try {
+      slug = skillSlug(fm.name);
+    } catch (err) {
+      entries.push({
+        name: fm.name,
+        status: 'skipped',
+        reason: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
+
+    const targetDir = join(skillsDir, slug);
+    // Detect replace BEFORE touching disk so the summary reflects the user's
+    // mental model ("did this overwrite something?").
+    let existed = false;
+    try {
+      await fs.access(join(targetDir, 'SKILL.md'));
+      existed = true;
+    } catch {
+      /* fresh */
+    }
+
+    await fs.mkdir(targetDir, { recursive: true });
+    await fs.writeFile(join(targetDir, 'SKILL.md'), Buffer.from(group.skillFile));
+    for (const [rel, content] of group.siblings) {
+      const dest = join(targetDir, rel);
+      await fs.mkdir(dirname(dest), { recursive: true });
+      await fs.writeFile(dest, Buffer.from(content));
+    }
+    entries.push({ name: fm.name, status: existed ? 'replaced' : 'imported' });
+  }
+
+  return { status: await getCanvasSkillsStatus(scope), entries };
 }

@@ -3,7 +3,7 @@
  * Reused by the global Settings panel and the per-workspace settings drawer.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CanvasConfigScope, CanvasSkillEntry } from '../../types';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
@@ -29,6 +29,8 @@ export const SkillsManager = ({ scope }: Props) => {
   const [dir, setDir] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
 
   const load = useCallback(async () => {
@@ -77,14 +79,62 @@ export const SkillsManager = ({ scope }: Props) => {
     [scope, notify, t],
   );
 
+  const onPickFile = useCallback(
+    async (file: File) => {
+      setImporting(true);
+      try {
+        const bytes = await file.arrayBuffer();
+        const res = await window.canvasWorkspace.canvasSkills.importZip(scope, bytes);
+        if (res.ok && res.status) {
+          setSkills(res.status.skills);
+          const entries = res.entries ?? [];
+          const counts = { imported: 0, replaced: 0, skipped: 0 };
+          for (const e of entries) counts[e.status] += 1;
+          notify({
+            tone: counts.skipped > 0 && counts.imported + counts.replaced === 0 ? 'error' : 'success',
+            title: t('skillsConfig.importDone', counts),
+            description: entries
+              .filter((e) => e.status === 'skipped')
+              .map((e) => `${e.name}: ${e.reason ?? ''}`)
+              .join('\n') || undefined,
+          });
+        } else {
+          notify({ tone: 'error', title: t('skillsConfig.importFailed'), description: res.error });
+        }
+      } finally {
+        setImporting(false);
+      }
+    },
+    [scope, notify, t],
+  );
+
   return (
     <div className="cfg-manager">
       <div className="cfg-toolbar">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".zip,application/zip"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (file) void onPickFile(file);
+          }}
+        />
+        <button
+          type="button"
+          className="cfg-secondary-btn"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={importing || draft !== null}
+        >
+          {importing ? t('skillsConfig.importing') : t('skillsConfig.importZip')}
+        </button>
         <button
           type="button"
           className="cfg-secondary-btn"
           onClick={() => setDraft({ ...EMPTY_DRAFT })}
-          disabled={draft !== null}
+          disabled={draft !== null || importing}
         >
           + {t('skillsConfig.add')}
         </button>

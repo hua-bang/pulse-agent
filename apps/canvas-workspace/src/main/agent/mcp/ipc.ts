@@ -17,6 +17,7 @@ import { parseScopePayload, type CanvasConfigScope } from '../config-scope';
 import { getCanvasAgentService } from '../ipc';
 import {
   getCanvasMcpStatus,
+  importCanvasMcpJson,
   removeCanvasMcpServer,
   upsertCanvasMcpServer,
   type CanvasMcpServer,
@@ -59,6 +60,20 @@ export function setupCanvasMcpIpc(): void {
         const status = await removeCanvasMcpServer(scope, payload.name);
         await reloadAgents(scope);
         return { ok: true, status };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-mcp:import-json',
+    async (_event, payload: { scope?: unknown; json: string }) => {
+      try {
+        const scope = parseScopePayload(payload?.scope);
+        const result = await importCanvasMcpJson(scope, payload.json);
+        await reloadAgents(scope);
+        return { ok: true, ...result };
       } catch (err) {
         return { ok: false, error: String(err) };
       }
