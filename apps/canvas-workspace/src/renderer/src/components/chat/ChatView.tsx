@@ -182,6 +182,10 @@ export const ChatView = ({
         onSelectAutoModel={onSelectAutoModel}
         onSelectModel={onSelectModel}
         onOpenModelSettings={onOpenModelSettings}
+        onMentionNavigate={(chip) => {
+          const nodeId = chip.dataset.nodeId;
+          if (nodeId) onNodeFocus?.(nodeId);
+        }}
         editableRef={editableRef}
         mentionPopup={mentionOpen && mentionItems.length > 0 ? (
           <ChatMentionPopup

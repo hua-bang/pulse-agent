@@ -116,13 +116,20 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   const isWorkspace = item.type === 'workspace';
   const isSkill = item.type === 'skill';
   const isFolder = item.type === 'folder';
+  const isNode = item.type === 'node';
   const nodeType = getMentionNodeType(item, nodes);
   const chip = document.createElement('span');
+
+  // Canvas-node mentions navigate to the node when clicked; tag them so the
+  // composer's click handler can resolve and focus the target (mirrors how
+  // node chips behave inside sent messages).
+  const isNavigable = isNode && !!item.nodeId;
 
   const classes = ['chat-mention-chip', 'chat-mention-chip--input'];
   if (isWorkspace) classes.push('chat-mention-chip--workspace');
   if (isSkill) classes.push('chat-mention-chip--skill');
   if (isFolder) classes.push('chat-mention-chip--folder');
+  if (isNavigable) classes.push('chat-mention-chip--clickable');
   chip.className = classes.join(' ');
   chip.contentEditable = 'false';
   chip.dataset.mention = isWorkspace
@@ -136,6 +143,10 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
 
   if (isWorkspace && item.workspaceId) {
     chip.dataset.workspaceId = item.workspaceId;
+  }
+
+  if (isNode && item.nodeId) {
+    chip.dataset.nodeId = item.nodeId;
   }
 
   if (!isSkill) {

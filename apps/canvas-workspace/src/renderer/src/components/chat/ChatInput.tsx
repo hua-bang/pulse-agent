@@ -30,6 +30,8 @@ interface ChatInputProps {
   onSend: () => Promise<boolean>;
   onAbort: () => Promise<void>;
   onToggleExecutionMode?: () => void;
+  /** Focus/navigate to a clicked mention chip's target (node or workspace). */
+  onMentionNavigate?: (chip: HTMLElement) => void;
 }
 
 export const ChatInput = ({
@@ -55,6 +57,7 @@ export const ChatInput = ({
   onSend,
   onAbort,
   onToggleExecutionMode,
+  onMentionNavigate,
 }: ChatInputProps) => {
   const { t } = useI18n();
   const contextNodes = (selectedNodes && selectedNodes.length > 0)
@@ -102,6 +105,12 @@ export const ChatInput = ({
           onInput={onInput}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
+          onClick={(event) => {
+            const chip = (event.target as HTMLElement).closest<HTMLElement>(
+              '.chat-mention-chip--clickable',
+            );
+            if (chip) onMentionNavigate?.(chip);
+          }}
         />
         <div className="chat-input-footer">
           <div className="chat-input-footer-left">

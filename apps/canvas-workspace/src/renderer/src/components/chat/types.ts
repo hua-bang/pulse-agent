@@ -36,6 +36,8 @@ export interface MentionItem {
   type: 'node' | 'file' | 'folder' | 'workspace' | 'skill';
   label: string;
   nodeType?: CanvasNode['type'];
+  /** For type === 'node': the canvas node id, used to focus it when clicked. */
+  nodeId?: string;
   path?: string;
   workspaceId?: string;
   /** For type === 'skill': the skill's description, shown in the popup row. */
