@@ -830,6 +830,19 @@ export interface CanvasSkillsApi {
     result?: 'imported' | 'replaced';
     error?: string;
   }>;
+  importUrl: (
+    scope: CanvasConfigScope,
+    url: string,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasSkillsStatus;
+    /** Tells the caller which underlying importer ran, so it can pick the right toast. */
+    kind?: 'md' | 'zip';
+    name?: string;
+    result?: 'imported' | 'replaced';
+    entries?: CanvasSkillImportEntry[];
+    error?: string;
+  }>;
 }
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';

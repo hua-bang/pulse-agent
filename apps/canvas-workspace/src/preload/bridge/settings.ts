@@ -32,7 +32,10 @@ export const createCanvasSkillsApi = (ipcRenderer: IpcRenderer): CanvasSkillsApi
     ipcRenderer.invoke("canvas-skills:import-zip", { scope, bytes }),
 
   importMd: (scope, text) =>
-    ipcRenderer.invoke("canvas-skills:import-md", { scope, text })
+    ipcRenderer.invoke("canvas-skills:import-md", { scope, text }),
+
+  importUrl: (scope, url) =>
+    ipcRenderer.invoke("canvas-skills:import-url", { scope, url })
 });
 
 export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({

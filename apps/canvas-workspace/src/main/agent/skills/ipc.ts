@@ -16,6 +16,7 @@ import { parseScopePayload, type CanvasConfigScope } from '../config-scope';
 import { getCanvasAgentService } from '../ipc';
 import {
   getCanvasSkillsStatus,
+  importCanvasSkillFromUrl,
   importCanvasSkillMd,
   importCanvasSkillsZip,
   removeCanvasSkill,
@@ -72,6 +73,20 @@ export function setupCanvasSkillsIpc(): void {
       try {
         const scope = parseScopePayload(payload?.scope);
         const result = await importCanvasSkillMd(scope, payload.text);
+        await refreshAgents(scope);
+        return { ok: true, ...result };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-skills:import-url',
+    async (_event, payload: { scope?: unknown; url: string }) => {
+      try {
+        const scope = parseScopePayload(payload?.scope);
+        const result = await importCanvasSkillFromUrl(scope, payload.url);
         await refreshAgents(scope);
         return { ok: true, ...result };
       } catch (err) {

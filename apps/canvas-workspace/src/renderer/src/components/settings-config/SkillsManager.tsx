@@ -108,47 +108,75 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
     [scope, notify, t],
   );
 
-  const runZipImport = useCallback(
-    async (bytes: ArrayBuffer) => {
-      const res = await window.canvasWorkspace.canvasSkills.importZip(scope, bytes);
-      if (res.ok && res.status) {
-        setSkills(res.status.skills);
-        const entries = res.entries ?? [];
-        const counts = { imported: 0, replaced: 0, skipped: 0 };
-        for (const e of entries) counts[e.status] += 1;
-        notify({
-          tone: counts.skipped > 0 && counts.imported + counts.replaced === 0 ? 'error' : 'success',
-          title: t('skillsConfig.importDone', counts),
-          description: entries
-            .filter((e) => e.status === 'skipped')
-            .map((e) => `${e.name}: ${e.reason ?? ''}`)
-            .join('\n') || undefined,
-        });
-      } else {
+  // Shared toast/state handlers. Both .zip and a URL that resolves to a zip
+  // come back as an entries[] summary; both .md and a URL that resolves to
+  // a SKILL.md come back as a single named result. Keeping the two display
+  // paths in helpers means the URL dispatcher below can just hand off based
+  // on which kind the backend ran.
+  type ImportResponse = Awaited<ReturnType<typeof window.canvasWorkspace.canvasSkills.importUrl>>;
+  const handleZipResult = useCallback(
+    (res: ImportResponse) => {
+      if (!res.ok || !res.status) {
         notify({ tone: 'error', title: t('skillsConfig.importFailed'), description: res.error });
+        return;
       }
+      setSkills(res.status.skills);
+      const entries = res.entries ?? [];
+      const counts = { imported: 0, replaced: 0, skipped: 0 };
+      for (const e of entries) counts[e.status] += 1;
+      notify({
+        tone: counts.skipped > 0 && counts.imported + counts.replaced === 0 ? 'error' : 'success',
+        title: t('skillsConfig.importDone', counts),
+        description: entries
+          .filter((e) => e.status === 'skipped')
+          .map((e) => `${e.name}: ${e.reason ?? ''}`)
+          .join('\n') || undefined,
+      });
     },
-    [scope, notify, t],
+    [notify, t],
+  );
+  const handleMdResult = useCallback(
+    (res: ImportResponse) => {
+      if (!res.ok || !res.status) {
+        notify({ tone: 'error', title: t('skillsConfig.importFailed'), description: res.error });
+        return;
+      }
+      setSkills(res.status.skills);
+      notify({
+        tone: 'success',
+        title: t(
+          res.result === 'replaced' ? 'skillsConfig.importMdReplaced' : 'skillsConfig.importMdDone',
+          { name: res.name ?? '' },
+        ),
+      });
+      setMdText(null);
+    },
+    [notify, t],
   );
 
-  const runMdImport = useCallback(
-    async (text: string) => {
-      const res = await window.canvasWorkspace.canvasSkills.importMd(scope, text);
-      if (res.ok && res.status) {
-        setSkills(res.status.skills);
-        notify({
-          tone: 'success',
-          title: t(
-            res.result === 'replaced' ? 'skillsConfig.importMdReplaced' : 'skillsConfig.importMdDone',
-            { name: res.name ?? '' },
-          ),
-        });
-        setMdText(null);
+  const runZipImport = useCallback(
+    async (bytes: ArrayBuffer) => {
+      handleZipResult(await window.canvasWorkspace.canvasSkills.importZip(scope, bytes));
+    },
+    [scope, handleZipResult],
+  );
+
+  const runPasteImport = useCallback(
+    async (input: string) => {
+      const trimmed = input.trim();
+      if (!trimmed) return;
+      // Single text field, two underlying paths: a `^https?://` prefix routes
+      // to the URL importer (which itself may resolve to .md or .zip),
+      // anything else is treated as raw SKILL.md content.
+      if (/^https?:\/\//i.test(trimmed)) {
+        const res = await window.canvasWorkspace.canvasSkills.importUrl(scope, trimmed);
+        if (res.ok && res.kind === 'zip') handleZipResult(res);
+        else handleMdResult(res);
       } else {
-        notify({ tone: 'error', title: t('skillsConfig.importFailed'), description: res.error });
+        handleMdResult(await window.canvasWorkspace.canvasSkills.importMd(scope, trimmed));
       }
     },
-    [scope, notify, t],
+    [scope, handleZipResult, handleMdResult],
   );
 
   const handleFile = useCallback(
@@ -159,7 +187,7 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
         if (lower.endsWith('.zip')) {
           await runZipImport(await file.arrayBuffer());
         } else if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
-          await runMdImport(await file.text());
+          await runPasteImport(await file.text());
         } else {
           notify({ tone: 'error', title: t('skillsConfig.dropUnsupported') });
         }
@@ -167,7 +195,7 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
         setImporting(false);
       }
     },
-    [runZipImport, runMdImport, notify, t],
+    [runZipImport, runPasteImport, notify, t],
   );
 
   const onDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -264,7 +292,7 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
       {mdText !== null && (
         <div className="cfg-form">
           <label className="cfg-field">
-            <span>{t('skillsConfig.importMd')}</span>
+            <span>{t('skillsConfig.importMdLabel')}</span>
             <textarea
               className="cfg-textarea"
               rows={10}
@@ -290,7 +318,7 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
             <button
               type="button"
               className="cfg-primary-btn"
-              onClick={() => void runMdImport(mdText)}
+              onClick={() => void runPasteImport(mdText)}
               disabled={importing || !mdText.trim()}
             >
               {importing ? t('skillsConfig.importing') : t('skillsConfig.save')}

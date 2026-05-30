@@ -20,9 +20,11 @@ vi.mock('os', async () => {
 
 import { importCanvasMcpJson, getCanvasMcpStatus } from '../mcp/config';
 import {
+  importCanvasSkillFromUrl,
   importCanvasSkillMd,
   importCanvasSkillsZip,
   listCanvasSkills,
+  toRawGitHubUrl,
 } from '../skills/config';
 
 const GLOBAL = { level: 'global' as const };
@@ -274,5 +276,121 @@ describe('importCanvasSkillMd', () => {
 
   it('rejects empty input', async () => {
     await expect(importCanvasSkillMd(GLOBAL, '   ')).rejects.toThrow(/empty/);
+  });
+});
+
+describe('toRawGitHubUrl', () => {
+  it('rewrites github.com blob URLs to raw.githubusercontent.com', () => {
+    const out = toRawGitHubUrl(
+      new URL('https://github.com/anthropic/cookbook/blob/main/skills/code-review/SKILL.md'),
+    );
+    expect(out.toString()).toBe(
+      'https://raw.githubusercontent.com/anthropic/cookbook/main/skills/code-review/SKILL.md',
+    );
+  });
+
+  it('preserves nested path segments after the branch', () => {
+    const out = toRawGitHubUrl(
+      new URL('https://github.com/owner/repo/blob/feature/x/dir/sub/SKILL.md'),
+    );
+    expect(out.pathname).toBe('/owner/repo/feature/x/dir/sub/SKILL.md');
+  });
+
+  it('leaves non-github URLs alone', () => {
+    const original = new URL('https://example.com/foo/bar');
+    expect(toRawGitHubUrl(original).toString()).toBe(original.toString());
+  });
+
+  it('leaves github.com tree URLs alone (we only support blob → raw)', () => {
+    const original = new URL('https://github.com/owner/repo/tree/main/skills');
+    expect(toRawGitHubUrl(original).toString()).toBe(original.toString());
+  });
+});
+
+describe('importCanvasSkillFromUrl', () => {
+  const md = [
+    '---',
+    'name: "from-url"',
+    'description: "When this happens, do that"',
+    '---',
+    '',
+    '1. Step one.',
+    '',
+  ].join('\n');
+
+  function mockResponse(body: BodyInit, init: ResponseInit = { status: 200, statusText: 'OK' }) {
+    return new Response(body, init);
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('fetches a SKILL.md text URL and routes to the md importer', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse(md));
+    const result = await importCanvasSkillFromUrl(
+      GLOBAL,
+      'https://raw.githubusercontent.com/x/y/main/SKILL.md',
+    );
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(result.kind).toBe('md');
+    if (result.kind === 'md') {
+      expect(result.name).toBe('from-url');
+      expect(result.result).toBe('imported');
+    }
+    expect((await listCanvasSkills(GLOBAL)).map((s) => s.name)).toContain('from-url');
+  });
+
+  it('fetches a zip URL (PK magic bytes) and routes to the zip importer', async () => {
+    const bytes = zipSync({
+      'demo/SKILL.md': strToU8(md.replace('from-url', 'from-zip-url').replace(/from-url/g, 'from-zip-url')),
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse(bytes as unknown as ArrayBuffer),
+    );
+    const result = await importCanvasSkillFromUrl(GLOBAL, 'https://example.com/skill.zip');
+    expect(result.kind).toBe('zip');
+    if (result.kind === 'zip') {
+      expect(result.entries.map((e) => e.name)).toContain('from-zip-url');
+    }
+  });
+
+  it('rewrites a github.com blob URL to raw before fetching', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse(md));
+    await importCanvasSkillFromUrl(
+      GLOBAL,
+      'https://github.com/anthropic/cookbook/blob/main/skills/from-url/SKILL.md',
+    );
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const [calledUrl] = fetchSpy.mock.calls[0];
+    expect(String(calledUrl)).toBe(
+      'https://raw.githubusercontent.com/anthropic/cookbook/main/skills/from-url/SKILL.md',
+    );
+  });
+
+  it('throws on an invalid URL', async () => {
+    await expect(importCanvasSkillFromUrl(GLOBAL, 'not a url')).rejects.toThrow(/Invalid URL/);
+  });
+
+  it('rejects unsupported schemes', async () => {
+    await expect(importCanvasSkillFromUrl(GLOBAL, 'file:///etc/passwd')).rejects.toThrow(
+      /Unsupported URL scheme/,
+    );
+  });
+
+  it('surfaces non-2xx HTTP responses', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mockResponse('not found', { status: 404, statusText: 'Not Found' }),
+    );
+    await expect(
+      importCanvasSkillFromUrl(GLOBAL, 'https://example.com/missing'),
+    ).rejects.toThrow(/HTTP 404/);
+  });
+
+  it('throws on an empty response body', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(mockResponse(new Uint8Array(0)));
+    await expect(
+      importCanvasSkillFromUrl(GLOBAL, 'https://example.com/empty'),
+    ).rejects.toThrow(/empty/);
   });
 });
