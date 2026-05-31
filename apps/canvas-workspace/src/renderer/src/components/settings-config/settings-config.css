@@ -12,6 +12,16 @@
   position: relative;
 }
 
+/* Padded wrapper for use inside `.settings-content` (the global Settings
+ * drawer). WorkspaceSettings already wraps each manager in a padded card
+ * so it does NOT use this — applying both would double-pad. */
+.cfg-pane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
 /* Drop-target affordance — activated when dragging .md/.zip over the surface.
  * The overlay sits above the form/list but its inner padding is generous
  * enough that clicks on the underlying controls still feel reachable when
