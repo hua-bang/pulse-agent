@@ -151,8 +151,16 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
             />
           )}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
-          {activeSection === 'skills' && <SkillsManager scope={GLOBAL_SCOPE} />}
-          {activeSection === 'mcp' && <McpManager scope={GLOBAL_SCOPE} />}
+          {activeSection === 'skills' && (
+            <div className="cfg-pane">
+              <SkillsManager scope={GLOBAL_SCOPE} />
+            </div>
+          )}
+          {activeSection === 'mcp' && (
+            <div className="cfg-pane">
+              <McpManager scope={GLOBAL_SCOPE} />
+            </div>
+          )}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
           {activeSection === 'language' && <LanguageSection />}
         </div>
