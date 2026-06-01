@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { AvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
+import { AvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon, SparklesIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions } from './utils/mentions';
 import { renderMermaidIn } from './utils/mermaid';
@@ -191,11 +191,9 @@ export const ChatMessage = ({
 
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
-    {message.role === 'assistant' && (
-      <div className="chat-message-avatar">
-        <AvatarIcon size={14} />
-      </div>
-    )}
+    <div className="chat-message-avatar">
+      {message.role === 'assistant' ? <SparklesIcon size={14} /> : <AvatarIcon size={14} />}
+    </div>
     <div className="chat-message-body">
       {message.attachments && message.attachments.length > 0 && (
         <div className="chat-message-images">
