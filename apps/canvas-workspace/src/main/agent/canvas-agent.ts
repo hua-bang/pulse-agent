@@ -643,6 +643,19 @@ export class CanvasAgent {
   }
 
   /**
+   * Snapshot of MCP per-server connection health from the *current* engine —
+   * captured by the engine's MCP plugin during its last initialize. Empty
+   * record if the engine hasn't yet loaded any MCP server (or the manager
+   * service isn't registered yet).
+   */
+  getMcpStatuses(): Record<string, { ok: true; toolCount: number } | { ok: false; error: string }> {
+    const manager = this.engine?.getService?.('mcp:__manager__') as
+      | { getStatuses?: () => Record<string, { ok: true; toolCount: number } | { ok: false; error: string }> }
+      | undefined;
+    return manager?.getStatuses?.() ?? {};
+  }
+
+  /**
    * Send a user message and get the agent's response.
    *
    * @param onText — optional callback receiving streaming text deltas

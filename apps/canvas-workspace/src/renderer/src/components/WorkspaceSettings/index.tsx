@@ -303,7 +303,7 @@ export const WorkspaceSettingsDrawer = ({
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('settings.mcp.title')}</div>
-          <McpManager scope={{ level: 'workspace', workspaceId: workspace.id }} />
+          <McpManager scope={{ level: 'workspace', workspaceId: workspace.id }} showInherited />
         </section>
       </div>
 

@@ -198,33 +198,62 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
     [runZipImport, runPasteImport, notify, t],
   );
 
+  // Drop targets: a file from the OS (.md / .zip) or a URL from the browser
+  // address bar / a link drag. `Files` and `text/uri-list` are the relevant
+  // dataTransfer types — checking both keeps the overlay from flickering
+  // when the user drags text selections we don't care about.
+  const isAcceptedDrag = (e: DragEvent<HTMLDivElement>): boolean => {
+    const types = Array.from(e.dataTransfer.types);
+    return types.includes('Files') || types.includes('text/uri-list');
+  };
+
   const onDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
-    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    if (!isAcceptedDrag(e)) return;
     e.preventDefault();
     dragDepth.current += 1;
     setDragOver(true);
   }, []);
 
   const onDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-    if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+    if (isAcceptedDrag(e)) e.preventDefault();
   }, []);
 
   const onDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
-    if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    if (!isAcceptedDrag(e)) return;
     dragDepth.current = Math.max(0, dragDepth.current - 1);
     if (dragDepth.current === 0) setDragOver(false);
   }, []);
 
   const onDrop = useCallback(
-    (e: DragEvent<HTMLDivElement>) => {
-      if (!Array.from(e.dataTransfer.types).includes('Files')) return;
+    async (e: DragEvent<HTMLDivElement>) => {
+      if (!isAcceptedDrag(e)) return;
       e.preventDefault();
       dragDepth.current = 0;
       setDragOver(false);
+      // Files take priority — if both a File and a URL are present (rare),
+      // the file is the more reliable artifact.
       const file = e.dataTransfer.files[0];
-      if (file) void handleFile(file);
+      if (file) {
+        await handleFile(file);
+        return;
+      }
+      // `text/uri-list` may contain multiple URLs separated by CRLF and
+      // comments prefixed with `#`. Take the first non-comment line.
+      const uriList = e.dataTransfer.getData('text/uri-list');
+      const url = uriList
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .find((line) => line && !line.startsWith('#'));
+      if (url) {
+        setImporting(true);
+        try {
+          await runPasteImport(url);
+        } finally {
+          setImporting(false);
+        }
+      }
     },
-    [handleFile],
+    [handleFile, runPasteImport],
   );
 
   // Case-insensitive substring filter over name + description.

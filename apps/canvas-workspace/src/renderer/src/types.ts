@@ -859,10 +859,19 @@ export interface CanvasMcpServer {
   deferTools?: boolean;
 }
 
+export type CanvasMcpServerHealth =
+  | { ok: true; toolCount: number }
+  | { ok: false; error: string };
+
 export interface CanvasMcpStatus {
   scope: 'global' | 'workspace';
   path: string;
   servers: CanvasMcpServer[];
+  /**
+   * Per-server connection health from the engine's MCP plugin. Servers
+   * absent from this map have never been loaded by an active agent yet.
+   */
+  statuses?: Record<string, CanvasMcpServerHealth>;
 }
 
 export interface CanvasMcpImportEntry {
