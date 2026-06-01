@@ -1,9 +1,34 @@
 import { ipcMain } from 'electron';
-import type { CanvasToolFactory, MainCanvasPlugin, MainCtx } from '../types';
+import type {
+  CanvasAgentServiceRef,
+  CanvasToolFactory,
+  MainCanvasPlugin,
+  MainCtx,
+} from '../types';
 import { agentBus } from './agent-bus';
 import { createPluginStore } from './plugin-store';
 
 const loaded = new Set<string>();
+
+/**
+ * Accessor for the host's Canvas Agent service, injected by the host
+ * ({@link setAgentServiceAccessor}) before plugins activate. Kept as a lazy
+ * injection — rather than a static import of the agent module — so the
+ * registry's own import graph stays light (the agent pulls in the engine)
+ * and unit-testable in isolation.
+ */
+let agentServiceAccessor: (() => CanvasAgentServiceRef) | null = null;
+
+export function setAgentServiceAccessor(accessor: () => CanvasAgentServiceRef): void {
+  agentServiceAccessor = accessor;
+}
+
+/**
+ * Plugins that activated successfully and expose a `deactivate` hook,
+ * kept so {@link teardownCanvasPlugins} can release their resources
+ * (sockets, timers, external connections) on app shutdown.
+ */
+const deactivators: Array<{ id: string; deactivate: () => void | Promise<void> }> = [];
 
 /**
  * Registered canvas-tool factories, keyed by plugin id so a plugin
@@ -25,10 +50,32 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<v
     try {
       await plugin.activate(createMainCtx(plugin.id));
       loaded.add(plugin.id);
+      if (plugin.deactivate) {
+        deactivators.push({ id: plugin.id, deactivate: plugin.deactivate.bind(plugin) });
+      }
     } catch (err) {
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
     }
   }
+}
+
+/**
+ * Tear down activated plugins that registered a `deactivate` hook. Called
+ * on app shutdown (window-all-closed). Each hook is isolated so one failing
+ * teardown does not block the others. Safe to call multiple times — the
+ * deactivator list is drained as it runs.
+ */
+export async function teardownCanvasPlugins(): Promise<void> {
+  const pending = deactivators.splice(0, deactivators.length);
+  await Promise.all(
+    pending.map(async ({ id, deactivate }) => {
+      try {
+        await deactivate();
+      } catch (err) {
+        console.error(`[canvas-plugins] deactivate failed for ${id}`, err);
+      }
+    }),
+  );
 }
 
 /**
@@ -54,6 +101,15 @@ function createMainCtx(pluginId: string): MainCtx {
       return () => {
         agentBus.off(event, handler);
       };
+    },
+    getAgentService(): CanvasAgentServiceRef {
+      if (!agentServiceAccessor) {
+        throw new Error(
+          '[canvas-plugins] agent service accessor not configured; ' +
+            'call setAgentServiceAccessor() before activating plugins',
+        );
+      }
+      return agentServiceAccessor();
     },
     registerCanvasTool(factory) {
       if (canvasToolFactories.has(pluginId)) {

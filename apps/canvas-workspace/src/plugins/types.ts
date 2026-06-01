@@ -25,6 +25,72 @@ export interface PluginStore {
   list(prefix?: string): Promise<string[]>;
 }
 
+// ── Canvas-agent service handle (structural) ────────────────────────────────
+//
+// A narrow, structural view of the host's `CanvasAgentService` exposed to
+// plugins via `MainCtx.getAgentService()`. Declared here (not imported from
+// main) so this shared types file stays free of host/electron imports — the
+// registry casts the real singleton to this shape at the boundary. Only the
+// methods a plugin legitimately needs to *drive* a conversation are surfaced.
+export interface AgentChatResult {
+  ok: boolean;
+  response?: string;
+  runId?: string;
+  error?: string;
+}
+
+export interface AgentClarificationRequest {
+  id: string;
+  question: string;
+  context?: string;
+}
+
+export interface AgentToolCallInfo {
+  name: string;
+  args: unknown;
+  toolCallId?: string;
+}
+
+export interface AgentToolResultInfo {
+  name: string;
+  result: string;
+  toolCallId?: string;
+}
+
+export interface AgentStatusInfo {
+  ok: boolean;
+  active: boolean;
+  messageCount: number;
+}
+
+export interface AgentSessionInfo {
+  sessionId: string;
+  date: string;
+  messageCount: number;
+  isCurrent: boolean;
+}
+
+export interface CanvasAgentServiceRef {
+  chat(
+    workspaceId: string,
+    message: string,
+    onText?: (delta: string) => void,
+    onToolCall?: (data: AgentToolCallInfo) => void,
+    onToolResult?: (data: AgentToolResultInfo) => void,
+    mentionedWorkspaceIds?: string[],
+    onClarificationRequest?: (req: AgentClarificationRequest) => void,
+  ): Promise<AgentChatResult>;
+  abort(workspaceId: string): void;
+  answerClarification(workspaceId: string, requestId: string, answer: string): boolean;
+  getStatus(workspaceId: string): AgentStatusInfo;
+  /** Current session id for the workspace, or null when none is active. */
+  getCurrentSessionId(workspaceId: string): string | null;
+  newSession(workspaceId: string): Promise<{ ok: boolean; error?: string }>;
+  /** Swap the workspace's current session to an existing one by id. */
+  loadSession(workspaceId: string, sessionId: string): Promise<{ ok: boolean; error?: string }>;
+  listSessions(workspaceId: string): Promise<AgentSessionInfo[]>;
+}
+
 // Subset of Electron's IpcMainInvokeEvent the plugin contract needs.
 // Defined inline so the shared types file does not import 'electron',
 // which is only valid in the main tsconfig.
@@ -46,6 +112,13 @@ export interface MainCtx {
   // existing host IPC.
   handle(channel: string, handler: PluginIpcHandler): void;
   onAgent(event: AgentEvent, handler: (turn: AgentTurn) => void): () => void;
+  /**
+   * Access the host's Canvas Agent service singleton. Lets a plugin *drive*
+   * conversations (e.g. relay a chat turn from an external channel) rather
+   * than only observe them via {@link onAgent}. Returns a narrow structural
+   * view — see {@link CanvasAgentServiceRef}.
+   */
+  getAgentService(): CanvasAgentServiceRef;
   /**
    * Register a factory that contributes canvas-agent tools. The factory
    * is invoked once per workspace at canvas-agent construction time —
@@ -134,6 +207,12 @@ export interface MainCanvasPlugin {
   id: string;
   enabledWhen?: () => boolean;
   activate(ctx: MainCtx): void | Promise<void>;
+  /**
+   * Optional teardown, called on app shutdown for plugins that hold
+   * long-lived resources (sockets, timers, external connections). Only
+   * invoked for plugins that activated successfully.
+   */
+  deactivate?(): void | Promise<void>;
 }
 
 export interface RendererCanvasPlugin {

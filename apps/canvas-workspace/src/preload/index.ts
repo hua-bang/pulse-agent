@@ -10,6 +10,7 @@ import { createPtyApi } from "./bridge/pty";
 import {
   createCanvasMcpApi,
   createCanvasSkillsApi,
+  createChannelConfigApi,
   createDialogApi,
   createExperimentalApi,
   createModelApi,
@@ -41,6 +42,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   canvasSkills: createCanvasSkillsApi(ipcRenderer),
   canvasMcp: createCanvasMcpApi(ipcRenderer),
   experimental: createExperimentalApi(ipcRenderer),
+  channelConfig: createChannelConfigApi(ipcRenderer),
   iframe: createIframeApi(ipcRenderer),
   shell: createShellApi(ipcRenderer),
   link: createLinkApi(ipcRenderer),

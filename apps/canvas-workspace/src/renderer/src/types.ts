@@ -1142,6 +1142,7 @@ export interface CanvasWorkspaceApi {
   canvasSkills: CanvasSkillsApi;
   canvasMcp: CanvasMcpApi;
   experimental: ExperimentalApi;
+  channelConfig: ChannelConfigApi;
   model: CanvasModelApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;
@@ -1177,6 +1178,37 @@ export interface ExperimentalApi {
     Promise<{ ok: boolean; values?: Record<string, boolean>; error?: string }>;
   reset: () => Promise<{ ok: boolean; values?: Record<string, boolean>; error?: string }>;
   reloadWindow: () => Promise<{ ok: boolean; error?: string }>;
+}
+
+export interface ChannelConfigStatus {
+  path: string;
+  feishu: {
+    appId?: string;
+    secretPresent: boolean;
+    defaultWorkspaceId?: string;
+    appIdFromEnv: boolean;
+    secretFromEnv: boolean;
+    defaultWorkspaceFromEnv: boolean;
+  };
+}
+
+export interface SetFeishuConfigInput {
+  appId?: string;
+  /** New secret to store. Empty/omitted leaves the existing secret untouched. */
+  appSecret?: string;
+  defaultWorkspaceId?: string;
+  /** When true, remove the stored secret. */
+  clearSecret?: boolean;
+}
+
+export interface ChannelConfigApi {
+  status: () => Promise<{ ok: boolean; status?: ChannelConfigStatus; error?: string }>;
+  setFeishu: (
+    input: SetFeishuConfigInput,
+  ) => Promise<{ ok: boolean; status?: ChannelConfigStatus; error?: string }>;
+  clearFeishu: () => Promise<{ ok: boolean; status?: ChannelConfigStatus; error?: string }>;
+  /** Relaunch the app so credential / flag changes take effect. */
+  relaunch: () => Promise<{ ok: boolean; error?: string }>;
 }
 
 export interface LinkApi {

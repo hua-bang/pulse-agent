@@ -3,6 +3,7 @@ import type {
   CanvasMcpApi,
   CanvasModelApi,
   CanvasSkillsApi,
+  ChannelConfigApi,
   DialogApi,
   ExperimentalApi,
   PromptProfileApi,
@@ -60,6 +61,16 @@ export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi
   reset: () => ipcRenderer.invoke("experimental:reset"),
 
   reloadWindow: () => ipcRenderer.invoke("experimental:reload-window")
+});
+
+export const createChannelConfigApi = (ipcRenderer: IpcRenderer): ChannelConfigApi => ({
+  status: () => ipcRenderer.invoke("channel-config:status"),
+
+  setFeishu: (input) => ipcRenderer.invoke("channel-config:set-feishu", input),
+
+  clearFeishu: () => ipcRenderer.invoke("channel-config:clear-feishu"),
+
+  relaunch: () => ipcRenderer.invoke("channel-config:relaunch")
 });
 
 export const createPromptProfileApi = (ipcRenderer: IpcRenderer): PromptProfileApi => ({
