@@ -7,9 +7,11 @@ import { BrowserWindow } from 'electron';
  * be open and showing the target workspace so the node's <webview> is mounted
  * and registered. When the agent is driven from a background channel (e.g.
  * Feishu) the window may be hidden, minimized, or on a different workspace.
- * This module focuses/creates the window and navigates it to a workspace via
- * the existing hash-route contract (`#/?workspaceId=<id>`), which the renderer
- * already reacts to.
+ * This module activates the workspace WITHOUT stealing focus or bringing the
+ * window to the front: it only ensures the window is on-screen (so Chromium
+ * doesn't suspend/throttle rendering and the webviews can load) and navigates
+ * it to the workspace via the existing hash-route contract
+ * (`#/?workspaceId=<id>`), which the renderer already reacts to.
  */
 
 type WindowFactory = () => BrowserWindow;
@@ -42,9 +44,12 @@ export interface ActivateResult {
 }
 
 /**
- * Bring the canvas window to the front and navigate it to `workspaceId`.
- * Creates the window if none is open. Resolves once the navigation has been
- * dispatched (not when nodes/webviews have finished mounting).
+ * Activate `workspaceId` in the canvas window and navigate to it, WITHOUT
+ * stealing focus or raising the window. Creates the window if none is open.
+ * The window is only shown (inactively) when it is hidden/minimized, so its
+ * renderer isn't suspended and the workspace's webviews can load. Resolves
+ * once navigation is dispatched (not when nodes/webviews have finished
+ * mounting).
  */
 export async function activateWorkspaceWindow(workspaceId: string): Promise<ActivateResult> {
   const win = getOrCreateWindow();
@@ -53,9 +58,12 @@ export async function activateWorkspaceWindow(workspaceId: string): Promise<Acti
   }
 
   try {
-    if (win.isMinimized()) win.restore();
-    win.show();
-    win.focus();
+    // Only bring it on-screen if it's hidden/minimized (a suspended renderer
+    // can't load webviews). showInactive() does this without focusing or
+    // raising it above the user's current window.
+    if (!win.isVisible() || win.isMinimized()) {
+      win.showInactive();
+    }
 
     await whenReady(win);
     // Drive the renderer via its existing hash-route contract. App.tsx reacts

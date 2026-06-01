@@ -78,6 +78,7 @@ it only responds when @-mentioned.
 | `/stop` | Abort the current run |
 | `/sessions` | List sessions (numbered) for the bound workspace |
 | `/session <number\|id>` | Switch this chat to a specific session (sticky) |
+| `/open` | Activate the bound workspace in the canvas (for webview ops; no focus steal) |
 
 Workspace names come from the Canvas workspace manifest, so `/list` shows
 human names (with ids) and `/bind` / `/default` accept either a name or an id.
@@ -137,12 +138,13 @@ webview/iframe page control requires the node's `<webview>` to be mounted in
 the renderer. When driving from a channel the window may be hidden or on a
 different workspace, so those tools fail with "No active webview…".
 
-`/open` brings the canvas app to the front (creating the window if needed)
-and navigates it to the bound workspace, so webview/iframe operations can run
-once the page finishes loading. It uses the renderer's existing
-`#/?workspaceId=<id>` hash route. Activation is currently **manual** (send
-`/open` before webview-dependent requests); automatic activation on tool
-failure is a possible follow-up.
+`/open` activates the bound workspace in the canvas and navigates to it
+**without stealing focus or raising the window**: it only shows the window
+(inactively) if it was hidden/minimized — so its renderer isn't suspended and
+the webviews can load — and creates the window if none is open. It uses the
+renderer's existing `#/?workspaceId=<id>` hash route. Activation is currently
+**manual** (send `/open` before webview-dependent requests); automatic
+activation on tool failure is a possible follow-up.
 
 ### Debugging
 

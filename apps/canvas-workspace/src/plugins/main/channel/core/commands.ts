@@ -163,9 +163,9 @@ export async function handleCommand(
       if (!activateCanvas) return 'Opening the canvas app is not available here.';
       const res = await activateCanvas(workspaceId);
       return res.ok
-        ? `🖥️ Opened ${await workspaceLabelById(workspaceId)} in the canvas app. ` +
+        ? `🖥️ Activated ${await workspaceLabelById(workspaceId)} in the canvas (without stealing focus). ` +
             'Webview/iframe operations should work once the page finishes loading.'
-        : `Failed to open the canvas: ${res.error ?? 'unknown error'}`;
+        : `Failed to activate the canvas: ${res.error ?? 'unknown error'}`;
     }
 
     default:

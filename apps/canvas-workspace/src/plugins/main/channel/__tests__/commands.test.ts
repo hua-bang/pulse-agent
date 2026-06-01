@@ -180,7 +180,7 @@ describe('handleCommand', () => {
     const activateCanvas = vi.fn(async () => ({ ok: true }));
     const out = await handleCommand(msg('/open'), { ...makeDeps(), activateCanvas });
     expect(activateCanvas).toHaveBeenCalledWith('ws-A');
-    expect(out).toMatch(/opened/i);
+    expect(out).toMatch(/activated/i);
   });
 
   it('/open reports when activation is unavailable', async () => {
