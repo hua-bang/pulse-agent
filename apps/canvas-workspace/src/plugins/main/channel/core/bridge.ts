@@ -79,7 +79,7 @@ export class ChannelBridge {
     if (!workspaceId) {
       await channel.sendText(
         target,
-        'No canvas workspace is bound to this chat. Use /list then /bind <workspaceId>.',
+        'No canvas workspace is bound to this chat. Use /list then /bind <name|id>.',
       );
       return;
     }

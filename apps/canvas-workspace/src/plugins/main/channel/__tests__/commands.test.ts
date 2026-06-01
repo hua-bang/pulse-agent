@@ -9,13 +9,27 @@ import type {
 import type { InboundMessage } from '../core/types';
 
 // Mock the disk-backed workspace helpers so command tests stay hermetic.
-vi.mock('../core/workspaces', () => ({
-  listWorkspaces: vi.fn(async () => [
-    { id: 'ws-A', modifiedAt: 2 },
-    { id: 'ws-B', modifiedAt: 1 },
-  ]),
-  workspaceExists: vi.fn(async (id: string) => id === 'ws-A' || id === 'ws-B'),
-}));
+vi.mock('../core/workspaces', () => {
+  const list = [
+    { id: 'ws-A', name: 'Alpha', modifiedAt: 2, isActive: false },
+    { id: 'ws-B', name: 'Beta', modifiedAt: 1, isActive: true },
+  ];
+  const label = (w: { id: string; name?: string }) => (w.name ? `${w.name} (${w.id})` : w.id);
+  return {
+    listWorkspaces: vi.fn(async () => list),
+    resolveWorkspace: vi.fn(async (ref: string) => {
+      const byId = list.find((w) => w.id === ref);
+      if (byId) return byId.id;
+      const byName = list.find((w) => w.name.toLowerCase() === ref.toLowerCase());
+      return byName?.id ?? null;
+    }),
+    workspaceLabel: label,
+    workspaceLabelById: vi.fn(async (id: string) => {
+      const found = list.find((w) => w.id === id);
+      return found ? label(found) : id;
+    }),
+  };
+});
 
 import { handleCommand } from '../core/commands';
 import { BindingStore } from '../core/binding';
@@ -76,9 +90,15 @@ describe('handleCommand', () => {
     expect(out).toBeNull();
   });
 
-  it('/bind binds the chat to an existing workspace', async () => {
+  it('/bind binds the chat to an existing workspace by id', async () => {
     const out = await handleCommand(msg('/bind ws-A'), { bindings, service: fakeService() });
     expect(out).toContain('ws-A');
+    expect(await bindings.getExplicit('feishu', 'chatA')).toBe('ws-A');
+  });
+
+  it('/bind resolves a workspace by friendly name', async () => {
+    const out = await handleCommand(msg('/bind Alpha'), { bindings, service: fakeService() });
+    expect(out).toContain('Alpha');
     expect(await bindings.getExplicit('feishu', 'chatA')).toBe('ws-A');
   });
 
@@ -109,11 +129,12 @@ describe('handleCommand', () => {
     expect(abort).toHaveBeenCalledWith('ws-A');
   });
 
-  it('/list marks the resolved workspace as current', async () => {
+  it('/list shows names and marks the bound workspace', async () => {
     await bindings.bind('feishu', 'chatA', 'ws-A');
     const out = await handleCommand(msg('/list'), { bindings, service: fakeService() });
-    expect(out).toContain('(current) ws-A');
-    expect(out).toContain('ws-B');
+    expect(out).toContain('Alpha (ws-A)');
+    expect(out).toContain('Beta (ws-B)');
+    expect(out).toContain('⭐'); // bound workspace marker
   });
 
   it('unknown command returns help text', async () => {

@@ -69,14 +69,17 @@ it only responds when @-mentioned.
 | Command | Effect |
 |---|---|
 | `/help` | Show command help |
-| `/list` | List available workspaces (marks the current one) |
+| `/list` | List workspaces by name (⭐ = bound to this chat, 🖥️ = open in the app) |
 | `/ws` | Show which workspace this chat is bound to |
-| `/bind <workspaceId>` | Bind this chat to a workspace |
+| `/bind <name\|id>` | Bind this chat to a workspace (by friendly name or id) |
 | `/unbind` | Clear this chat's binding (fall back to default) |
-| `/default <workspaceId>` | Set the global default workspace |
+| `/default <name\|id>` | Set the global default workspace |
 | `/new` | Start a fresh session |
 | `/stop` | Abort the current run |
 | `/sessions` | List sessions for the bound workspace |
+
+Workspace names come from the Canvas workspace manifest, so `/list` shows
+human names (with ids) and `/bind` / `/default` accept either a name or an id.
 
 Workspace binding precedence: explicit chat binding → stored default →
 `CANVAS_FEISHU_DEFAULT_WORKSPACE` → most-recently-modified workspace.
