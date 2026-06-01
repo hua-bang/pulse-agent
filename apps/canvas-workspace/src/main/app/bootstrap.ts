@@ -40,6 +40,8 @@ import {
   teardownCanvasPlugins,
   setAgentServiceAccessor,
 } from "../../plugins/main";
+import { applyChannelConfigToEnv } from "../../plugins/main/channel/config";
+import { setupChannelConfigIpc } from "../../plugins/main/channel/config-ipc";
 import {
   createMainLogger,
   setupFatalErrorLogging,
@@ -111,6 +113,11 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupShellIpc();
     setupWebpageReaderIpc();
     setupWorkspaceNodeIpc();
+    // Channel credentials: register the config IPC (independent of the
+    // plugin) and fold any stored config into process.env BEFORE plugins
+    // evaluate enabledWhen, so a UI-configured channel can activate.
+    setupChannelConfigIpc();
+    applyChannelConfigToEnv();
     // Let plugins reach the Canvas Agent service singleton (e.g. the channel
     // plugin drives conversations from external chat). Inject before
     // activation so getAgentService() is available in activate().

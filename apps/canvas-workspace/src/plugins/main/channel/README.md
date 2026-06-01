@@ -20,7 +20,8 @@ The plugin is **inert unless explicitly opted in**. `enabledWhen` requires
 
 1. the **`Chat channels (Feishu)`** experimental toggle is on
    (Settings → Experimental), and
-2. a channel is configured (e.g. `FEISHU_APP_ID` / `FEISHU_APP_SECRET` set).
+2. a channel is configured — either via the Settings panel (stored
+   encrypted) or `FEISHU_APP_ID` / `FEISHU_APP_SECRET` env vars.
 
 Toggling the experimental flag takes effect on the next window reload /
 relaunch (the flag is read at plugin registration time).
@@ -33,19 +34,28 @@ relaunch (the flag is read at plugin registration time).
    canvas app dials out, so it works behind NAT.
 3. Grant scopes: `im:message` (receive), `im:message:send_as_bot` (send),
    and `im:resource` (image upload, optional).
-4. Set environment variables before launching Canvas:
+4. Provide credentials, either way:
 
-   ```bash
-   export FEISHU_APP_ID=cli_xxx
-   export FEISHU_APP_SECRET=xxx
-   # optional: pin the default workspace (else most-recently-modified wins)
-   export CANVAS_FEISHU_DEFAULT_WORKSPACE=<workspaceId>
-   # optional: override the API host
-   export FEISHU_API_BASE_URL=https://open.feishu.cn
-   ```
+   - **From the UI (recommended):** Settings → Experimental → turn on
+     **Chat channels (Feishu)**, then fill in App ID / App Secret (and an
+     optional default workspace) in the panel that appears. The secret is
+     stored encrypted; on the next launch it is folded into the environment.
+   - **From env vars:**
 
-5. In Canvas, open **Settings → Experimental** and turn on
-   **Chat channels (Feishu)**, then reload/relaunch so the plugin activates.
+     ```bash
+     export FEISHU_APP_ID=cli_xxx
+     export FEISHU_APP_SECRET=xxx
+     # optional: pin the default workspace (else most-recently-modified wins)
+     export CANVAS_FEISHU_DEFAULT_WORKSPACE=<workspaceId>
+     # optional: override the API host
+     export FEISHU_API_BASE_URL=https://open.feishu.cn
+     ```
+
+   Env vars take precedence over UI-stored values.
+
+5. Turn on **Chat channels (Feishu)** in Settings → Experimental (if not
+   already), then **relaunch** Canvas so the plugin activates. The config
+   panel offers a "Relaunch now" button after saving.
 
 In a **direct chat** the bot replies to every message. In a **group chat**
 it only responds when @-mentioned.

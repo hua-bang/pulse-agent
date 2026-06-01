@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import type { ExperimentalFeatureDef } from '../../types';
+import { EXPERIMENTAL_FLAG_CHANNELS } from '../../../../shared/experimental-features';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
+import { ChannelConfigPanel } from './ChannelConfigPanel';
 import './ExperimentalSection.css';
 
 interface ExperimentalSectionProps {
@@ -156,8 +158,11 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
             {features.map((feature) => {
               const enabled = !!values[feature.id];
               const busy = !!pending[feature.id];
+              const showChannelConfig =
+                feature.id === EXPERIMENTAL_FLAG_CHANNELS && enabled;
               return (
-                <li key={feature.id} className="experimental-section-item">
+                <Fragment key={feature.id}>
+                <li className="experimental-section-item">
                   <div className="experimental-section-item-body">
                     <div className="experimental-section-item-label">{feature.label}</div>
                     <div className="experimental-section-item-desc">{feature.description}</div>
@@ -183,6 +188,12 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
                     </span>
                   </label>
                 </li>
+                {showChannelConfig && (
+                  <li className="experimental-section-config-row">
+                    <ChannelConfigPanel />
+                  </li>
+                )}
+                </Fragment>
               );
             })}
           </ul>
