@@ -28,7 +28,12 @@ function event(opts: EventOpts): unknown {
 
 // Narrow the opaque reply token for assertions.
 function reply(out: ReturnType<typeof parseInbound>) {
-  return out!.reply as { chatId: string; threadId?: string; triggerMessageId: string };
+  return out!.reply as {
+    chatId: string;
+    threadId?: string;
+    isGroup: boolean;
+    triggerMessageId: string;
+  };
 }
 
 describe('parseInbound', () => {
@@ -78,6 +83,12 @@ describe('parseInbound', () => {
     // Reply routing carries thread + the triggering message for reply_in_thread.
     expect(reply(t1).threadId).toBe('th1');
     expect(reply(t1).triggerMessageId).toBe('mA');
+    expect(reply(t1).isGroup).toBe(true);
+  });
+
+  it('direct chat reply routing is not a group (create path)', () => {
+    const out = parseInbound(event({ chatType: 'p2p', chatId: 'dmA' }));
+    expect(reply(out).isGroup).toBe(false);
   });
 
   it('a topic-group conversation differs from the same group’s non-topic id', () => {

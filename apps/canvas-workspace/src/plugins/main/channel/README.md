@@ -95,10 +95,22 @@ Each conversation is bound (and addressed) independently:
 So `/bind` in one topic only affects that topic; another topic (or the DM)
 can point at a different workspace.
 
+Reply routing: direct chats get a fresh message; **group** messages (incl.
+topic groups) are sent as a **reply to the triggering message**, with
+`reply_in_thread` when the conversation is threaded — so the bot's output
+stays attached to the user's message / inside the topic rather than landing
+on the group root.
+
 Caveat: a Canvas Agent **session is per-workspace** (one current session per
 workspace). If two conversations bind to the *same* workspace, they share
 that session and run one-at-a-time (the second sees "still working"). Bind
 each conversation to its own workspace to keep histories fully separate.
+
+### Debugging
+
+Set `CANVAS_CHANNEL_DEBUG=1` before launch to log each raw inbound event
+(JSON) plus a parsed summary (`chat_type`, `thread_id`, `root_id`,
+`conversationId`). Useful for confirming what Feishu sends in topic groups.
 
 ## Architecture
 

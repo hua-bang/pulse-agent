@@ -115,21 +115,27 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
 }
 
 /**
- * Where a reply goes. For a normal chat we create a message addressed to
- * `chatId`. For a **topic group** (`threadId` set) we instead reply to the
- * triggering message with `reply_in_thread`, so the message lands in the
- * right topic rather than the group root.
+ * Where a reply goes.
+ *
+ * - **Direct chat**: create a message addressed to `chatId`.
+ * - **Group** (incl. topic groups): reply to the triggering message so the
+ *   bot's output attaches to the user's message. `reply_in_thread` is set
+ *   when the conversation is threaded (topic group), keeping the reply inside
+ *   the right topic rather than landing on the group root. Using reply-to-
+ *   trigger for all group messages avoids depending on `thread_id` being
+ *   present on a topic's root message.
  */
 export interface FeishuSendTarget {
   chatId: string;
   threadId?: string;
-  /** The inbound message we reply to, to continue a topic-group thread. */
+  isGroup: boolean;
+  /** The inbound message we reply to (anchors group replies / topic threads). */
   triggerMessageId: string;
 }
 
 /**
- * Send a message to a target, choosing create-vs-reply based on whether the
- * conversation is threaded. Returns the new message_id.
+ * Send a message to a target, choosing create-vs-reply by chat kind. Returns
+ * the new message_id.
  */
 async function createOrReply(
   client: lark.Client,
@@ -137,10 +143,10 @@ async function createOrReply(
   msgType: 'text' | 'interactive' | 'image',
   content: string,
 ): Promise<string> {
-  if (target.threadId && target.triggerMessageId) {
+  if (target.isGroup && target.triggerMessageId) {
     const res = await client.im.message.reply({
       path: { message_id: target.triggerMessageId },
-      data: { content, msg_type: msgType, reply_in_thread: true },
+      data: { content, msg_type: msgType, reply_in_thread: Boolean(target.threadId) },
     });
     if (typeof res.code === 'number' && res.code !== 0) {
       throw new Error(`Feishu reply failed: ${res.code} ${res.msg ?? 'unknown error'}`);

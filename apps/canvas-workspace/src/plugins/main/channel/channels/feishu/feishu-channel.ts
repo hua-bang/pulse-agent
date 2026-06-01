@@ -50,6 +50,13 @@ export class FeishuChannel implements Channel {
 
     const eventDispatcher = new lark.EventDispatcher({}).register({
       'im.message.receive_v1': async (data: unknown) => {
+        if (process.env.CANVAS_CHANNEL_DEBUG) {
+          try {
+            console.log('[channel:feishu] raw event', JSON.stringify(data));
+          } catch {
+            /* ignore serialization issues */
+          }
+        }
         const msg = parseInbound(data);
         if (msg) onInbound(msg);
       },
@@ -90,11 +97,12 @@ function toSendTarget(target: OutboundTarget): FeishuSendTarget {
     return {
       chatId: reply.chatId,
       threadId: reply.threadId,
+      isGroup: Boolean(reply.isGroup),
       triggerMessageId: reply.triggerMessageId ?? '',
     };
   }
   // Fallback: treat the conversation id as a bare chat_id (no threading).
-  return { chatId: target.conversationId, triggerMessageId: '' };
+  return { chatId: target.conversationId, isGroup: false, triggerMessageId: '' };
 }
 
 /**
@@ -229,6 +237,9 @@ interface FeishuMessageEvent {
     mentions?: unknown[];
     /** Present in topic groups (话题群) — identifies the topic/thread. */
     thread_id?: string;
+    /** Root message of the thread/topic, when applicable. */
+    root_id?: string;
+    parent_id?: string;
   };
   sender?: {
     sender_id?: { open_id?: string; user_id?: string; union_id?: string };
@@ -270,7 +281,14 @@ export function parseInbound(data: unknown): InboundMessage | null {
   // and each topic get independent bindings / sessions.
   const conversationId = threadId ? `${chatId}:${threadId}` : chatId;
 
-  const reply: FeishuSendTarget = { chatId, threadId, triggerMessageId: messageId };
+  const reply: FeishuSendTarget = { chatId, threadId, isGroup, triggerMessageId: messageId };
+
+  if (process.env.CANVAS_CHANNEL_DEBUG) {
+    console.log(
+      `[channel:feishu] inbound chat_type=${message.chat_type} thread_id=${message.thread_id ?? '-'} ` +
+        `root_id=${message.root_id ?? '-'} conv=${conversationId}`,
+    );
+  }
 
   return {
     channelId: CHANNEL_ID,
