@@ -88,9 +88,11 @@ Each conversation is bound (and addressed) independently:
 
 - a **direct chat** keys on its `chat_id`,
 - each **group** keys on its `chat_id`, and
-- each **topic in a topic group (话题群)** keys on `chat_id:thread_id` — so
-  different topics in the same group are separate conversations, and replies
-  are sent back **into the right topic** (`reply_in_thread`).
+- each **topic in a topic group (话题群)** keys on `chat_id:<topic>` where
+  `<topic>` is `thread_id` (falling back to `root_id` so a topic's root and
+  its replies stay one conversation) — so different topics in the same group
+  are separate conversations **with separate sessions**, and replies are sent
+  back **into the right topic** (`reply_in_thread`).
 
 So `/bind` in one topic only affects that topic; another topic (or the DM)
 can point at a different workspace.

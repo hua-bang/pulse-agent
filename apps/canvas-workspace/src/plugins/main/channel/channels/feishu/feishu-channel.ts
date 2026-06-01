@@ -255,6 +255,7 @@ export function parseInbound(data: unknown): InboundMessage | null {
   const messageId = message.message_id ?? '';
   const chatId = message.chat_id ?? '';
   const threadId = message.thread_id?.trim() || undefined;
+  const rootId = message.root_id?.trim() || undefined;
   const userId = event.sender?.sender_id?.open_id ?? '';
   if (!chatId) return null;
 
@@ -276,12 +277,21 @@ export function parseInbound(data: unknown): InboundMessage | null {
 
   if (!text) return null;
 
-  // Each topic in a topic group is its own conversation (chat_id + thread_id);
-  // direct chats and plain groups key on chat_id alone. So a DM, each group,
-  // and each topic get independent bindings / sessions.
-  const conversationId = threadId ? `${chatId}:${threadId}` : chatId;
+  // Each topic in a topic group is its own conversation — and thus its own
+  // session. A threaded message carries thread_id (the topic) and/or root_id
+  // (the topic's first message); we key on thread_id, falling back to root_id
+  // so a topic's root and its replies stay one conversation even if Feishu
+  // omits thread_id on the root. Plain groups (neither) key on chat_id alone,
+  // so a DM, each group, and each topic are independent.
+  const topicKey = threadId ?? rootId;
+  const conversationId = topicKey ? `${chatId}:${topicKey}` : chatId;
 
-  const reply: FeishuSendTarget = { chatId, threadId, isGroup, triggerMessageId: messageId };
+  const reply: FeishuSendTarget = {
+    chatId,
+    threadId: topicKey,
+    isGroup,
+    triggerMessageId: messageId,
+  };
 
   if (process.env.CANVAS_CHANNEL_DEBUG) {
     console.log(

@@ -8,6 +8,7 @@ interface EventOpts {
   text?: string;
   mentions?: unknown[];
   threadId?: string;
+  rootId?: string;
   messageType?: string;
 }
 
@@ -21,6 +22,7 @@ function event(opts: EventOpts): unknown {
       content: JSON.stringify({ text: opts.text ?? 'hi' }),
       mentions: opts.mentions,
       thread_id: opts.threadId,
+      root_id: opts.rootId,
     },
     sender: { sender_id: { open_id: 'user1' } },
   };
@@ -89,6 +91,21 @@ describe('parseInbound', () => {
   it('direct chat reply routing is not a group (create path)', () => {
     const out = parseInbound(event({ chatType: 'p2p', chatId: 'dmA' }));
     expect(reply(out).isGroup).toBe(false);
+  });
+
+  it('falls back to root_id so a topic root and its replies stay one conversation', () => {
+    // Topic root: no thread_id yet, but it is the thread root (root_id = its id).
+    const root = parseInbound(
+      event({ chatType: 'group', chatId: 'gT', rootId: 'rA', messageId: 'rA', mentions: [{}] }),
+    );
+    // A later reply in the same topic: carries thread_id == root_id.
+    const followUp = parseInbound(
+      event({ chatType: 'group', chatId: 'gT', threadId: 'rA', messageId: 'mC', mentions: [{}] }),
+    );
+    expect(root!.conversationId).toBe('gT:rA');
+    expect(followUp!.conversationId).toBe('gT:rA');
+    // Root and follow-up resolve to the SAME conversation → same session.
+    expect(root!.conversationId).toBe(followUp!.conversationId);
   });
 
   it('a topic-group conversation differs from the same group’s non-topic id', () => {
