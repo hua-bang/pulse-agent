@@ -9,6 +9,7 @@ import {
 import { ChannelBridge } from './core/bridge';
 import type { Channel } from './core/types';
 import { FeishuChannel } from './channels/feishu/feishu-channel';
+import { activateWorkspaceWindow } from '../../../main/app/window-manager';
 
 // Registry of all channel implementations. To add a new channel (Discord,
 // Telegram, WeCom, …) implement the `Channel` interface and add it here —
@@ -66,7 +67,9 @@ export const ChannelMainPlugin: MainCanvasPlugin = {
 
   async activate(ctx: MainCtx): Promise<void> {
     const service = ctx.getAgentService();
-    bridge = new ChannelBridge(service, ctx.store);
+    bridge = new ChannelBridge(service, ctx.store, {
+      activateCanvas: activateWorkspaceWindow,
+    });
 
     for (const channel of allChannels()) {
       if (!channel.isConfigured()) continue;

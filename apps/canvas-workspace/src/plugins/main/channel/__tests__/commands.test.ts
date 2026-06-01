@@ -175,6 +175,20 @@ describe('handleCommand', () => {
     expect(out).toMatch(/not found/i);
   });
 
+  it('/open activates the canvas for the bound workspace', async () => {
+    await bindings.bind('feishu', 'chatA', 'ws-A');
+    const activateCanvas = vi.fn(async () => ({ ok: true }));
+    const out = await handleCommand(msg('/open'), { ...makeDeps(), activateCanvas });
+    expect(activateCanvas).toHaveBeenCalledWith('ws-A');
+    expect(out).toMatch(/opened/i);
+  });
+
+  it('/open reports when activation is unavailable', async () => {
+    await bindings.bind('feishu', 'chatA', 'ws-A');
+    const out = await handleCommand(msg('/open'), makeDeps());
+    expect(out).toMatch(/not available/i);
+  });
+
   it('unknown command returns help text', async () => {
     const out = await handleCommand(msg('/wat'), makeDeps());
     expect(out).toMatch(/Unknown command/i);

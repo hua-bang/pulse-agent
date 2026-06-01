@@ -53,6 +53,7 @@ import {
   registerPulseCanvasSchemesAsPrivileged,
 } from "./protocol";
 import { createWindow } from "./window";
+import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
 
 export interface BootstrapOptions {
@@ -138,15 +139,17 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // startMCPServer();
     // void ensureMCPRegistered();
 
-    const openWindow = () => {
+    const openWindow = () =>
       createWindow({
         preloadPath: paths.preloadPath,
         rendererIndexPath: paths.rendererIndexPath,
         iconPath: paths.iconPath,
         writeLog,
       });
-    };
 
+    // Let on-demand activation (e.g. the channel plugin's /open) recreate the
+    // window if it was closed.
+    setWindowFactory(openWindow);
     openWindow();
 
     app.on("activate", () => {

@@ -130,6 +130,20 @@ Trade-offs:
 - Conversations bound to the same workspace still run one-at-a-time (a second
   in-flight message sees "still working").
 
+### Canvas activation (for webview ops)
+
+Some agent tools need the canvas **UI** open on the workspace — e.g.
+webview/iframe page control requires the node's `<webview>` to be mounted in
+the renderer. When driving from a channel the window may be hidden or on a
+different workspace, so those tools fail with "No active webview…".
+
+`/open` brings the canvas app to the front (creating the window if needed)
+and navigates it to the bound workspace, so webview/iframe operations can run
+once the page finishes loading. It uses the renderer's existing
+`#/?workspaceId=<id>` hash route. Activation is currently **manual** (send
+`/open` before webview-dependent requests); automatic activation on tool
+failure is a possible follow-up.
+
 ### Debugging
 
 Set `CANVAS_CHANNEL_DEBUG=1` before launch to log each raw inbound event

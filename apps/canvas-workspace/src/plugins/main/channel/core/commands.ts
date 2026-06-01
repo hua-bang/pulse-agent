@@ -13,6 +13,12 @@ export interface CommandDeps {
   bindings: BindingStore;
   service: CanvasAgentServiceRef;
   sessionRouter: SessionRouter;
+  /**
+   * Bring the canvas app to the front and open a workspace, for operations
+   * that need the UI (e.g. webview/iframe page control). Optional — absent in
+   * headless contexts.
+   */
+  activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
 const HELP = [
@@ -26,6 +32,7 @@ const HELP = [
   '/stop — abort the current run',
   '/sessions — list sessions for the bound workspace',
   '/session <number|id> — switch this chat to a session',
+  '/open — open the bound workspace in the canvas app (for webview ops)',
 ].join('\n');
 
 /**
@@ -44,7 +51,7 @@ export async function handleCommand(
   const [rawCmd, ...rest] = text.slice(1).split(/\s+/);
   const cmd = rawCmd.toLowerCase();
   const arg = rest.join(' ').trim();
-  const { bindings, service, sessionRouter } = deps;
+  const { bindings, service, sessionRouter, activateCanvas } = deps;
 
   switch (cmd) {
     case 'help':
@@ -148,6 +155,17 @@ export async function handleCommand(
       // Pin the choice so the per-conversation router keeps it on later turns.
       await sessionRouter.setConversationSession(workspaceId, msg.conversationId, target.sessionId);
       return `✅ Switched to session ${target.date} (${target.messageCount} msgs).`;
+    }
+
+    case 'open': {
+      const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
+      if (!workspaceId) return 'No workspace bound. Use /bind <name|id> first.';
+      if (!activateCanvas) return 'Opening the canvas app is not available here.';
+      const res = await activateCanvas(workspaceId);
+      return res.ok
+        ? `🖥️ Opened ${await workspaceLabelById(workspaceId)} in the canvas app. ` +
+            'Webview/iframe operations should work once the page finishes loading.'
+        : `Failed to open the canvas: ${res.error ?? 'unknown error'}`;
     }
 
     default:

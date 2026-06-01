@@ -29,13 +29,18 @@ export class ChannelBridge {
   private readonly dedupe = new MessageDedupe();
   private readonly activeRuns = new Map<string, ActiveRun>();
   private readonly channels = new Map<string, Channel>();
+  private readonly activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 
   constructor(
     private readonly service: CanvasAgentServiceRef,
     store: PluginStore,
+    options: {
+      activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+    } = {},
   ) {
     this.bindings = new BindingStore(store);
     this.sessions = new SessionRouter(service, store);
+    this.activateCanvas = options.activateCanvas;
   }
 
   /** Register and start a channel, wiring its inbound traffic to this bridge. */
@@ -68,6 +73,7 @@ export class ChannelBridge {
       bindings: this.bindings,
       service: this.service,
       sessionRouter: this.sessions,
+      activateCanvas: this.activateCanvas,
     });
     if (commandReply !== null) {
       await channel.sendText(target, commandReply);
