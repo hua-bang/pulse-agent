@@ -1,3 +1,49 @@
+/* ─── Design tokens ───────────────────────────────────────────
+   The chat surface is built on one warm near-black "ink" plus a small
+   set of tints, surfaces, radii and spacing steps. Historically these
+   were hand-inlined (dozens of `rgba(55, 53, 47, x)`, repeated mono
+   font stacks, ad-hoc radii), which made consistent tuning hard. New
+   and migrated rules reference these tokens so spacing/colour can be
+   adjusted in one place. */
+:root {
+  /* Ink — solid + opacity tints, brightest → faintest */
+  --chat-ink: #37352f;
+  --chat-ink-strong: #2f2e2a;
+  --chat-ink-2: rgba(55, 53, 47, 0.55);
+  --chat-ink-3: rgba(55, 53, 47, 0.42);
+  --chat-ink-4: rgba(55, 53, 47, 0.3);
+
+  /* Fills & hairlines */
+  --chat-fill: rgba(55, 53, 47, 0.06);
+  --chat-fill-hover: rgba(55, 53, 47, 0.04);
+  --chat-line: rgba(55, 53, 47, 0.1);
+  --chat-line-strong: rgba(55, 53, 47, 0.16);
+  --chat-surface: #fff;
+  --chat-surface-sunken: rgba(55, 53, 47, 0.03);
+  --chat-bubble-bg: rgba(55, 53, 47, 0.06);
+
+  /* Accents */
+  --chat-accent: #2383e2;
+  --chat-accent-hover: #1f76cc;
+  --chat-success-bg: rgba(46, 160, 67, 0.12);
+  --chat-success-fg: #2f8a3d;
+  --chat-success-line: rgba(46, 160, 67, 0.2);
+
+  /* Radii */
+  --chat-radius-sm: 6px;
+  --chat-radius-md: 10px;
+  --chat-radius-lg: 12px;
+
+  /* Spacing steps */
+  --chat-space-1: 4px;
+  --chat-space-2: 8px;
+  --chat-space-3: 12px;
+  --chat-space-4: 18px;
+
+  /* Monospace stack for code / tool signatures */
+  --chat-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+}
+
 /* ─── Panel container ─────────────────────────────────────── */
 
 .chat-panel {
@@ -903,7 +949,7 @@
 }
 
 .chat-md code {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--chat-mono);
   font-size: 0.9em;
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 4px;
@@ -990,7 +1036,7 @@
   border-radius: 8px;
   background: #fafaf8;
   overflow: hidden;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--chat-mono);
 }
 
 .chat-code-block-header {
@@ -1267,7 +1313,7 @@
 }
 
 .chat-mermaid-error-detail {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--chat-mono);
   font-size: 11px;
   color: rgba(139, 47, 42, 0.85);
   white-space: pre-wrap;
@@ -1353,6 +1399,25 @@
   padding: 4px 4px 4px 0;
 }
 
+/* Expanded tool activity reads as a timeline: a faint vertical guide
+   line runs through the step markers (the check / spinner icons), so a
+   burst of tool calls scans as one connected sequence rather than a
+   loose stack of rows. The collapsed pill variant opts out. */
+.chat-tool-calls:not(.chat-tool-calls--collapsed) {
+  position: relative;
+}
+
+.chat-tool-calls:not(.chat-tool-calls--collapsed)::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 11px;
+  bottom: 11px;
+  width: 1px;
+  background: var(--chat-line);
+  pointer-events: none;
+}
+
 .chat-tool-calls--collapsed {
   max-height: none;
   overflow: visible;
@@ -1424,6 +1489,12 @@
   flex-shrink: 0;
   width: 14px;
   height: 14px;
+  /* Sit as a node on the timeline line: a panel-coloured backing masks
+     the guide line behind the marker so it reads as on the line, not
+     crossed out by it. */
+  position: relative;
+  background: #fdfcfb;
+  border-radius: 50%;
 }
 
 .chat-tool-call-spinner {
@@ -1435,7 +1506,7 @@
 }
 
 .chat-tool-call-sig {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 11.5px;
   color: rgba(55, 53, 47, 0.55);
   overflow: hidden;
@@ -1485,7 +1556,7 @@
 
 .chat-tool-call-result pre {
   margin: 0;
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 11px;
   line-height: 1.5;
   color: rgba(55, 53, 47, 0.6);
@@ -1500,7 +1571,7 @@
 }
 
 .chat-tool-call-section-label {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2278,7 +2349,7 @@
 }
 
 .chat-model-field .chat-model-protocol-sub {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 11px;
   color: rgba(55, 53, 47, 0.5);
   font-weight: 500;
