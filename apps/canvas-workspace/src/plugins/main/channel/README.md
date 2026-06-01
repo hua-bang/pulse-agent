@@ -45,7 +45,7 @@ relaunch (the flag is read at plugin registration time).
      ```bash
      export FEISHU_APP_ID=cli_xxx
      export FEISHU_APP_SECRET=xxx
-     # optional: pin the default workspace (else most-recently-modified wins)
+     # optional: a workspace suggested for `/bind` (not auto-applied)
      export CANVAS_FEISHU_DEFAULT_WORKSPACE=<workspaceId>
      # optional: override the API host
      export FEISHU_API_BASE_URL=https://open.feishu.cn
@@ -73,7 +73,7 @@ it only responds when @-mentioned.
 | `/ws` | Show which workspace this chat is bound to |
 | `/bind <name\|id>` | Bind this chat to a workspace (by friendly name or id) |
 | `/unbind` | Clear this chat's binding (fall back to default) |
-| `/default <name\|id>` | Set the global default workspace |
+| `/default <name\|id>` | Set the workspace suggested for `/bind` (not auto-applied) |
 | `/new` | Start a fresh session |
 | `/stop` | Abort the current run |
 | `/sessions` | List sessions for the bound workspace |
@@ -81,9 +81,14 @@ it only responds when @-mentioned.
 Workspace names come from the Canvas workspace manifest, so `/list` shows
 human names (with ids) and `/bind` / `/default` accept either a name or an id.
 
-Workspace binding precedence: explicit chat binding → stored default →
-`CANVAS_FEISHU_DEFAULT_WORKSPACE` → most-recently-modified workspace.
-Bindings persist via the plugin's own store (`PluginStore`).
+Binding is **explicit and sticky**. A conversation only talks to a workspace
+once you `/bind` it, and that choice never changes on its own — there is no
+implicit fallback, so a chat can't silently pick or switch workspaces
+mid-conversation. Until bound, the bot replies asking you to `/bind`.
+
+The stored/env default is only a **suggestion**: `/bind` with no argument
+binds it, but it is never auto-applied. Bindings persist via the plugin's own
+store (`PluginStore`).
 
 ## Conversations & topic groups
 

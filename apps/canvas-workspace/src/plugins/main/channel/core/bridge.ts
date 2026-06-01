@@ -75,11 +75,17 @@ export class ChannelBridge {
 
     if (!msg.text.trim()) return;
 
-    const workspaceId = await this.bindings.resolve(msg.channelId, msg.conversationId);
+    // Binding is explicit and sticky: refuse to run until the conversation is
+    // bound, so it never silently picks (or switches) a workspace mid-chat.
+    const workspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
     if (!workspaceId) {
+      const suggestion = await this.bindings.getSuggestedDefault();
+      const hint = suggestion
+        ? `\nTip: /bind  (no argument) binds the default workspace.`
+        : '';
       await channel.sendText(
         target,
-        'No canvas workspace is bound to this chat. Use /list then /bind <name|id>.',
+        `🔗 This chat isn't bound to a workspace yet. Send /list to see workspaces, then /bind <name|id>.${hint}`,
       );
       return;
     }

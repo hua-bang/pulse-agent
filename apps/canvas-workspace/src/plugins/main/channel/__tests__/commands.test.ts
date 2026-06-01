@@ -93,25 +93,32 @@ describe('handleCommand', () => {
   it('/bind binds the chat to an existing workspace by id', async () => {
     const out = await handleCommand(msg('/bind ws-A'), { bindings, service: fakeService() });
     expect(out).toContain('ws-A');
-    expect(await bindings.getExplicit('feishu', 'chatA')).toBe('ws-A');
+    expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-A');
   });
 
   it('/bind resolves a workspace by friendly name', async () => {
     const out = await handleCommand(msg('/bind Alpha'), { bindings, service: fakeService() });
     expect(out).toContain('Alpha');
-    expect(await bindings.getExplicit('feishu', 'chatA')).toBe('ws-A');
+    expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-A');
   });
 
   it('/bind rejects an unknown workspace', async () => {
     const out = await handleCommand(msg('/bind nope'), { bindings, service: fakeService() });
     expect(out).toMatch(/not found/i);
-    expect(await bindings.getExplicit('feishu', 'chatA')).toBeUndefined();
+    expect(await bindings.getBound('feishu', 'chatA')).toBeUndefined();
   });
 
-  it('/default sets the global default', async () => {
+  it('/default sets the suggested default', async () => {
     const out = await handleCommand(msg('/default ws-B'), { bindings, service: fakeService() });
     expect(out).toContain('ws-B');
-    expect(await bindings.getDefault()).toBe('ws-B');
+    expect(await bindings.getSuggestedDefault()).toBe('ws-B');
+  });
+
+  it('/bind with no argument binds the suggested default', async () => {
+    await bindings.setDefault('ws-B');
+    const out = await handleCommand(msg('/bind'), { bindings, service: fakeService() });
+    expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-B');
+    expect(out).toContain('Beta');
   });
 
   it('/new delegates to the service for the resolved workspace', async () => {

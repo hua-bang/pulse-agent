@@ -1,11 +1,10 @@
 import type { PluginStore } from '../../../types';
-import { listWorkspaces } from './workspaces';
 
 // Persisted shape, stored under a single plugin-store key.
 interface BindingState {
-  /** Global fallback workspace when a conversation has no explicit binding. */
+  /** Suggested workspace for /bind without an argument (not auto-applied). */
   defaultWorkspaceId?: string;
-  /** Per-conversation overrides, keyed by `${channelId}:${conversationId}`. */
+  /** Per-conversation bindings, keyed by `${channelId}:${conversationId}`. */
   perChat: Record<string, string>;
 }
 
@@ -16,12 +15,15 @@ function chatKey(channelId: string, conversationId: string): string {
 }
 
 /**
- * Resolves which canvas workspace a given conversation talks to, with a
- * "default + switchable" model:
- *   1. explicit per-conversation binding (set via /bind)
- *   2. stored global default (set via /default)
- *   3. CANVAS_FEISHU_DEFAULT_WORKSPACE env var
- *   4. most-recently-modified workspace on disk
+ * Tracks which canvas workspace each conversation is bound to.
+ *
+ * Binding is **explicit and sticky**: a conversation only talks to a
+ * workspace once the user has bound it (via /bind), and that choice never
+ * changes on its own. There is intentionally no implicit fallback (e.g.
+ * "most-recently-modified"), so a conversation can never silently switch
+ * workspaces mid-chat. A stored/env default is offered only as a suggestion
+ * for `/bind` with no argument — it is not auto-applied.
+ *
  * State is persisted via the plugin's own {@link PluginStore}.
  */
 export class BindingStore {
@@ -43,29 +45,20 @@ export class BindingStore {
     await this.store.set(STORE_KEY, this.state);
   }
 
-  /** Resolve the workspace for a conversation, or undefined if none can be determined. */
-  async resolve(channelId: string, conversationId: string): Promise<string | undefined> {
-    await this.ensureLoaded();
-    const explicit = this.state.perChat[chatKey(channelId, conversationId)];
-    if (explicit) return explicit;
-    if (this.state.defaultWorkspaceId) return this.state.defaultWorkspaceId;
-
-    const envDefault = process.env.CANVAS_FEISHU_DEFAULT_WORKSPACE?.trim();
-    if (envDefault) return envDefault;
-
-    const [mostRecent] = await listWorkspaces();
-    return mostRecent?.id;
-  }
-
-  /** The workspace explicitly bound to this conversation, if any. */
-  async getExplicit(channelId: string, conversationId: string): Promise<string | undefined> {
+  /** The workspace this conversation is bound to, or undefined if unbound. */
+  async getBound(channelId: string, conversationId: string): Promise<string | undefined> {
     await this.ensureLoaded();
     return this.state.perChat[chatKey(channelId, conversationId)];
   }
 
-  async getDefault(): Promise<string | undefined> {
+  /**
+   * The suggested default workspace (stored value, else the
+   * CANVAS_FEISHU_DEFAULT_WORKSPACE env var). Only used to assist `/bind`;
+   * never auto-applied to a conversation.
+   */
+  async getSuggestedDefault(): Promise<string | undefined> {
     await this.ensureLoaded();
-    return this.state.defaultWorkspaceId;
+    return this.state.defaultWorkspaceId ?? (process.env.CANVAS_FEISHU_DEFAULT_WORKSPACE?.trim() || undefined);
   }
 
   /** Bind a conversation to a specific workspace. */
@@ -75,14 +68,14 @@ export class BindingStore {
     await this.persist();
   }
 
-  /** Remove a conversation's explicit binding (falls back to the default). */
+  /** Remove a conversation's binding. */
   async unbind(channelId: string, conversationId: string): Promise<void> {
     await this.ensureLoaded();
     delete this.state.perChat[chatKey(channelId, conversationId)];
     await this.persist();
   }
 
-  /** Set the global default workspace. */
+  /** Set the suggested default workspace. */
   async setDefault(workspaceId: string): Promise<void> {
     await this.ensureLoaded();
     this.state.defaultWorkspaceId = workspaceId;

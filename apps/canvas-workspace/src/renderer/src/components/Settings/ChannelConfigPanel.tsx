@@ -132,7 +132,7 @@ export const ChannelConfigPanel = () => {
         <input
           type="text"
           value={defaultWorkspaceId}
-          placeholder="most-recently-modified workspace if blank"
+          placeholder="suggested for /bind — not auto-applied"
           onChange={onChange(setDefaultWorkspaceId)}
           spellCheck={false}
           autoComplete="off"
