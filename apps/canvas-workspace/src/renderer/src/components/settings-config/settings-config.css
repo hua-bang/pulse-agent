@@ -293,6 +293,36 @@ select.cfg-input {
   flex-shrink: 0;
 }
 
+/* MCP connection health badges. Three states: ok (green), error (amber),
+ * unknown (gray) — the engine hasn't tried this server yet. */
+.cfg-health {
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 1px 6px;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.cfg-health--ok {
+  color: rgba(27, 130, 90, 0.95);
+  background: rgba(70, 180, 130, 0.1);
+}
+
+.cfg-health--err {
+  color: rgba(180, 70, 50, 0.95);
+  background: rgba(220, 100, 80, 0.1);
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cfg-health--unknown {
+  color: rgba(55, 53, 47, 0.45);
+  background: rgba(55, 53, 47, 0.04);
+}
+
 .cfg-list-desc {
   font-size: 12px;
   color: rgba(55, 53, 47, 0.55);

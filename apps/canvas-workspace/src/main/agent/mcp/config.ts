@@ -27,10 +27,20 @@ export interface CanvasMcpServer {
   deferTools?: boolean;
 }
 
+export type CanvasMcpServerHealth =
+  | { ok: true; toolCount: number }
+  | { ok: false; error: string };
+
 export interface CanvasMcpStatus {
   scope: 'global' | 'workspace';
   path: string;
   servers: CanvasMcpServer[];
+  /**
+   * Per-server connection health from the engine's MCP plugin, captured
+   * during its last initialize. Missing for servers when no agent has yet
+   * loaded that server (e.g. workspace not activated yet).
+   */
+  statuses?: Record<string, CanvasMcpServerHealth>;
 }
 
 interface McpFileShape {

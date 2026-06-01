@@ -10,6 +10,10 @@
  * rebuild the Engine for affected active agents (global edits → all agents,
  * workspace edits → that workspace). The conversation is preserved across the
  * reload; inactive workspaces pick up the change on next activation.
+ *
+ * Each response carries `status.statuses` — the engine MCP plugin's per-server
+ * health snapshot from its last initialize — so the UI can show
+ * "✓ N tools" / "⚠ <error>" without re-probing.
  */
 
 import { ipcMain } from 'electron';
@@ -21,6 +25,7 @@ import {
   removeCanvasMcpServer,
   upsertCanvasMcpServer,
   type CanvasMcpServer,
+  type CanvasMcpStatus,
 } from './config';
 
 async function reloadAgents(scope: CanvasConfigScope): Promise<void> {
@@ -28,11 +33,18 @@ async function reloadAgents(scope: CanvasConfigScope): Promise<void> {
   await service.reloadMcp(scope.level === 'workspace' ? scope.workspaceId : undefined);
 }
 
+/** Attach per-server connection statuses from the active agent's engine. */
+function withStatuses(status: CanvasMcpStatus, scope: CanvasConfigScope): CanvasMcpStatus {
+  const workspaceId = scope.level === 'workspace' ? scope.workspaceId : undefined;
+  const statuses = getCanvasAgentService().getMcpStatuses(workspaceId);
+  return { ...status, statuses };
+}
+
 export function setupCanvasMcpIpc(): void {
   ipcMain.handle('canvas-mcp:list', async (_event, payload: { scope?: unknown }) => {
     try {
       const scope = parseScopePayload(payload?.scope);
-      return { ok: true, status: await getCanvasMcpStatus(scope) };
+      return { ok: true, status: withStatuses(await getCanvasMcpStatus(scope), scope) };
     } catch (err) {
       return { ok: false, error: String(err) };
     }
@@ -45,7 +57,7 @@ export function setupCanvasMcpIpc(): void {
         const scope = parseScopePayload(payload?.scope);
         const status = await upsertCanvasMcpServer(scope, payload.server, payload.originalName);
         await reloadAgents(scope);
-        return { ok: true, status };
+        return { ok: true, status: withStatuses(status, scope) };
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -59,7 +71,7 @@ export function setupCanvasMcpIpc(): void {
         const scope = parseScopePayload(payload?.scope);
         const status = await removeCanvasMcpServer(scope, payload.name);
         await reloadAgents(scope);
-        return { ok: true, status };
+        return { ok: true, status: withStatuses(status, scope) };
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -73,7 +85,7 @@ export function setupCanvasMcpIpc(): void {
         const scope = parseScopePayload(payload?.scope);
         const result = await importCanvasMcpJson(scope, payload.json);
         await reloadAgents(scope);
-        return { ok: true, ...result };
+        return { ok: true, ...result, status: withStatuses(result.status, scope) };
       } catch (err) {
         return { ok: false, error: String(err) };
       }

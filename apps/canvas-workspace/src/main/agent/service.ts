@@ -279,6 +279,20 @@ export class CanvasAgentService {
   }
 
   /**
+   * MCP per-server connection health for a given workspace's agent. Returns
+   * an empty record if no agent is active for that workspace — the UI can
+   * fall back to "saved, not tested" copy in that case. For global edits we
+   * grab whichever active agent exists since global servers are shared.
+   */
+  getMcpStatuses(workspaceId?: string): Record<string, { ok: true; toolCount: number } | { ok: false; error: string }> {
+    if (workspaceId) {
+      return this.agents.get(workspaceId)?.getMcpStatuses() ?? {};
+    }
+    const first = this.agents.values().next().value as CanvasAgent | undefined;
+    return first?.getMcpStatuses() ?? {};
+  }
+
+  /**
    * Deactivate and archive the Canvas Agent for a workspace.
    */
   async deactivate(workspaceId: string): Promise<void> {

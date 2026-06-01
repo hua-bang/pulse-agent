@@ -201,11 +201,20 @@ function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['tr
 }
 
 /**
+ * 单个 MCP server 的连接结果,供宿主在配置变更后展示给用户。
+ */
+export type MCPServerStatus =
+  | { ok: true; toolCount: number }
+  | { ok: false; error: string };
+
+/**
  * 管理本插件创建的所有 MCP client，便于宿主在重建 Engine 前统一关闭，
  * 避免 stdio 子进程 / 长连接泄漏。注册为服务 `mcp:__manager__`。
  */
 export interface MCPClientManager {
   closeAll(): Promise<void>;
+  /** Per-server health snapshot captured during the last `initialize`. */
+  getStatuses(): Record<string, MCPServerStatus>;
 }
 
 /**
@@ -227,6 +236,9 @@ export interface MCPPluginOptions {
  */
 export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
   const clients: Array<{ close?: () => Promise<void> | void }> = [];
+  // Captured per-server during initialize so the host can show
+  // "✓ N tools" or "⚠ <error>" without re-probing.
+  const statuses: Record<string, MCPServerStatus> = {};
 
   const closeAll = async () => {
     for (const client of clients.splice(0)) {
@@ -247,7 +259,13 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
         ? loadMCPConfigFromPaths(options.configPaths)
         : await loadMCPConfig(options.cwd ?? process.cwd());
 
-      const manager: MCPClientManager = { closeAll };
+      // Fresh init wipes any statuses left over from a previous run.
+      for (const key of Object.keys(statuses)) delete statuses[key];
+
+      const manager: MCPClientManager = {
+        closeAll,
+        getStatuses: () => ({ ...statuses })
+      };
       context.registerService('mcp:__manager__', manager);
 
       const serverCount = Object.keys(config.servers).length;
@@ -262,6 +280,7 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
         try {
           const normalizedConfig = normalizeServerConfig(serverName, rawServerConfig);
           if (!normalizedConfig) {
+            statuses[serverName] = { ok: false, error: 'invalid config (see warnings)' };
             continue;
           }
 
@@ -271,6 +290,7 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
 
           const tools = await client.tools();
           const shouldDeferTools = normalizedConfig.deferTools === true;
+          const toolCount = Object.keys(tools).length;
 
           // 注册工具到引擎，使用命名空间前缀
           const namespacedTools = Object.fromEntries(
@@ -283,13 +303,16 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
           context.registerTools(namespacedTools);
 
           loadedCount++;
-          console.log(`[MCP] Server "${serverName}" loaded (${Object.keys(tools).length} tools)`);
+          statuses[serverName] = { ok: true, toolCount };
+          console.log(`[MCP] Server "${serverName}" loaded (${toolCount} tools)`);
 
           // 注册服务供其他插件使用
           context.registerService(`mcp:${serverName}`, client);
 
         } catch (error) {
-          console.warn(`[MCP] Failed to load server "${serverName}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          statuses[serverName] = { ok: false, error: message };
+          console.warn(`[MCP] Failed to load server "${serverName}": ${message}`);
         }
       }
 
