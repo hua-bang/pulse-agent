@@ -44,7 +44,9 @@ function fakeService(overrides: Partial<CanvasAgentServiceRef> = {}): CanvasAgen
     abort: () => {},
     answerClarification: () => true,
     getStatus: (): AgentStatusInfo => ({ ok: true, active: false, messageCount: 0 }),
+    getCurrentSessionId: () => null,
     newSession: async () => ({ ok: true }),
+    loadSession: async () => ({ ok: true }),
     listSessions: async (): Promise<AgentSessionInfo[]> => [],
     ...overrides,
   };

@@ -4,6 +4,7 @@ import { BindingStore } from './binding';
 import { handleCommand } from './commands';
 import { MessageDedupe } from './dedupe';
 import { extractGeneratedImageResult } from './image-result';
+import { SessionRouter } from './sessions';
 import type { Channel, ChannelStream, InboundMessage } from './types';
 
 interface ActiveRun {
@@ -24,6 +25,7 @@ interface ActiveRun {
  */
 export class ChannelBridge {
   private readonly bindings: BindingStore;
+  private readonly sessions: SessionRouter;
   private readonly dedupe = new MessageDedupe();
   private readonly activeRuns = new Map<string, ActiveRun>();
   private readonly channels = new Map<string, Channel>();
@@ -33,6 +35,7 @@ export class ChannelBridge {
     store: PluginStore,
   ) {
     this.bindings = new BindingStore(store);
+    this.sessions = new SessionRouter(service, store);
   }
 
   /** Register and start a channel, wiring its inbound traffic to this bridge. */
@@ -118,6 +121,15 @@ export class ChannelBridge {
     const target = { conversationId: msg.conversationId, reply: msg.reply };
     const run: ActiveRun = { channelId: msg.channelId, conversationId: msg.conversationId };
     this.activeRuns.set(workspaceId, run);
+
+    // Give this conversation its own session so topics / chats sharing a
+    // workspace keep separate histories. Safe here: runs are serialized per
+    // workspace, so nothing else can swap the session mid-turn.
+    try {
+      await this.sessions.ensureSession(workspaceId, msg.conversationId);
+    } catch (err) {
+      console.error(`[channel:${channel.id}] failed to select session`, err);
+    }
 
     let stream: ChannelStream;
     try {

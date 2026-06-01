@@ -103,10 +103,23 @@ topic groups) are sent as a **reply to the triggering message**, with
 stays attached to the user's message / inside the topic rather than landing
 on the group root.
 
-Caveat: a Canvas Agent **session is per-workspace** (one current session per
-workspace). If two conversations bind to the *same* workspace, they share
-that session and run one-at-a-time (the second sees "still working"). Bind
-each conversation to its own workspace to keep histories fully separate.
+### Sessions
+
+Each conversation keeps **its own session/history**, even when several
+conversations (a DM, a group, different topics) share one workspace. Canvas
+stores a single *current* session per workspace, so the plugin maps
+`workspace::conversation → sessionId` and swaps the current session to the
+conversation's own before each turn (creating it on first contact). Runs are
+serialized per workspace, so the swap can't race another turn. The map
+persists, so histories survive restarts.
+
+Trade-offs:
+
+- The workspace's *current* session is shared with the Canvas UI, so the UI
+  for that workspace shows whichever conversation ran last (each session is
+  intact and selectable in the UI's session list).
+- Conversations bound to the same workspace still run one-at-a-time (a second
+  in-flight message sees "still working").
 
 ### Debugging
 

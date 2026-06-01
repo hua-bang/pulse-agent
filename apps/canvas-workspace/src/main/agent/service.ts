@@ -121,6 +121,16 @@ export class CanvasAgentService {
   }
 
   /**
+   * Current session id for a workspace's active agent, or null when the
+   * agent is inactive or has no session yet. Lets callers (e.g. the channel
+   * plugin) give each external conversation its own session by swapping the
+   * current session via {@link loadSession} / {@link newSession}.
+   */
+  getCurrentSessionId(workspaceId: string): string | null {
+    return this.agents.get(workspaceId)?.getCurrentSessionId() ?? null;
+  }
+
+  /**
    * List skills (name + description) available to the workspace's agent.
    * Auto-activates the agent so the engine — and the skills plugin — is
    * initialized before reading the registry.

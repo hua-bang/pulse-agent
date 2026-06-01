@@ -83,7 +83,11 @@ export interface CanvasAgentServiceRef {
   abort(workspaceId: string): void;
   answerClarification(workspaceId: string, requestId: string, answer: string): boolean;
   getStatus(workspaceId: string): AgentStatusInfo;
+  /** Current session id for the workspace, or null when none is active. */
+  getCurrentSessionId(workspaceId: string): string | null;
   newSession(workspaceId: string): Promise<{ ok: boolean; error?: string }>;
+  /** Swap the workspace's current session to an existing one by id. */
+  loadSession(workspaceId: string, sessionId: string): Promise<{ ok: boolean; error?: string }>;
   listSessions(workspaceId: string): Promise<AgentSessionInfo[]>;
 }
 
