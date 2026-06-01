@@ -13,7 +13,11 @@ import { setupFileManagerIpc } from "../files/manager";
 // import { ensureMCPRegistered } from "../runtime/mcp-registration";
 import { setupFileWatcherIpc, teardownFileWatcher } from "../files/watcher";
 import { setupSkillInstallerIpc } from "../files/skill-installer";
-import { setupCanvasAgentIpc, teardownCanvasAgent } from "../agent/ipc";
+import {
+  getCanvasAgentService,
+  setupCanvasAgentIpc,
+  teardownCanvasAgent,
+} from "../agent/ipc";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
@@ -30,7 +34,12 @@ import {
   startRuntimeControlServer,
   stopRuntimeControlServer,
 } from "../runtime/control-server";
-import { BUILT_IN_MAIN_PLUGINS, setupCanvasPlugins } from "../../plugins/main";
+import {
+  BUILT_IN_MAIN_PLUGINS,
+  setupCanvasPlugins,
+  teardownCanvasPlugins,
+  setAgentServiceAccessor,
+} from "../../plugins/main";
 import {
   createMainLogger,
   setupFatalErrorLogging,
@@ -102,6 +111,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupShellIpc();
     setupWebpageReaderIpc();
     setupWorkspaceNodeIpc();
+    // Let plugins reach the Canvas Agent service singleton (e.g. the channel
+    // plugin drives conversations from external chat). Inject before
+    // activation so getAgentService() is available in activate().
+    setAgentServiceAccessor(() => getCanvasAgentService());
     // Plugin activation can register canvas-agent tools; we need that done
     // BEFORE any canvas-agent is constructed (which happens when the
     // renderer first calls into canvas-agent IPC). Await so the registry
@@ -141,6 +154,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     teardownFileWatcher();
     teardownCanvasWatchers();
     teardownCanvasAgent();
+    void teardownCanvasPlugins();
     void stopRuntimeControlServer();
     if (process.platform !== "darwin") {
       app.quit();

@@ -87,6 +87,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.21",
+    "@larksuiteoapi/node-sdk": "^1.59.0",
     "@tiptap/extension-bubble-menu": "^3.20.4",
     "@tiptap/extension-code-block-lowlight": "^3.20.4",
     "@tiptap/extension-highlight": "^3.20.4",
