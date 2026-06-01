@@ -360,16 +360,23 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  /* The hover toolbar is absolutely positioned at top:100% below each
-     bubble (out of flow), so this gap IS the visible spacing between
-     messages. Toolbar overlays the gap on hover. */
-  gap: 10px;
+  /* Inter-message spacing. Each message reserves its own room for the
+     hover toolbar via `padding-bottom` (see `.chat-message`), so the gap
+     here is just the breathing room between one message's toolbar zone
+     and the next bubble. */
+  gap: 4px;
 }
 
 .chat-message {
   display: flex;
   gap: 8px;
   align-items: flex-start;
+  /* Reserve room for the hover toolbar, which is absolutely positioned at
+     `top:100%` of the body. Without this the toolbar (~24px tall) spilled
+     onto the NEXT message, so its copy / regenerate buttons looked like
+     they belonged to the following bubble. Keeping the space inside this
+     message's own box anchors the toolbar to the right message. */
+  padding-bottom: 24px;
 }
 
 .chat-message-user {
