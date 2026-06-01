@@ -59,4 +59,19 @@ export class SessionRouter {
       await this.store.set(STORE_KEY, this.map);
     }
   }
+
+  /**
+   * Point a conversation at a specific existing session id. Used when the
+   * user switches sessions explicitly (e.g. /session N) so the choice sticks
+   * across later turns instead of being overwritten by the mapping.
+   */
+  async setConversationSession(
+    workspaceId: string,
+    conversationId: string,
+    sessionId: string,
+  ): Promise<void> {
+    await this.ensureLoaded();
+    this.map[this.key(workspaceId, conversationId)] = sessionId;
+    await this.store.set(STORE_KEY, this.map);
+  }
 }

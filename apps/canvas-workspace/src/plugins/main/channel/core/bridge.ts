@@ -67,6 +67,7 @@ export class ChannelBridge {
     const commandReply = await handleCommand(msg, {
       bindings: this.bindings,
       service: this.service,
+      sessionRouter: this.sessions,
     });
     if (commandReply !== null) {
       await channel.sendText(target, commandReply);

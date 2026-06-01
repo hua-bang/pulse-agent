@@ -1,6 +1,7 @@
 import type { CanvasAgentServiceRef } from '../../../types';
 import type { InboundMessage } from './types';
 import type { BindingStore } from './binding';
+import type { SessionRouter } from './sessions';
 import {
   listWorkspaces,
   resolveWorkspace,
@@ -11,6 +12,7 @@ import {
 export interface CommandDeps {
   bindings: BindingStore;
   service: CanvasAgentServiceRef;
+  sessionRouter: SessionRouter;
 }
 
 const HELP = [
@@ -18,11 +20,12 @@ const HELP = [
   '/list — list available workspaces',
   '/ws — show the workspace this chat is bound to',
   '/bind <name|id> — bind this chat to a workspace',
-  '/unbind — clear this chat’s binding (fall back to default)',
-  '/default <name|id> — set the global default workspace',
+  '/unbind — clear this chat’s binding',
+  '/default <name|id> — set the workspace suggested for /bind',
   '/new — start a fresh session',
   '/stop — abort the current run',
   '/sessions — list sessions for the bound workspace',
+  '/session <number|id> — switch this chat to a session',
 ].join('\n');
 
 /**
@@ -41,7 +44,7 @@ export async function handleCommand(
   const [rawCmd, ...rest] = text.slice(1).split(/\s+/);
   const cmd = rawCmd.toLowerCase();
   const arg = rest.join(' ').trim();
-  const { bindings, service } = deps;
+  const { bindings, service, sessionRouter } = deps;
 
   switch (cmd) {
     case 'help':
@@ -112,12 +115,39 @@ export async function handleCommand(
     case 'sessions': {
       const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
       if (!workspaceId) return 'No workspace bound. Use /bind <name|id> first.';
-      const sessions = await service.listSessions(workspaceId);
-      if (sessions.length === 0) return 'No sessions yet.';
-      const lines = sessions
+      const list = await service.listSessions(workspaceId);
+      if (list.length === 0) return 'No sessions yet.';
+      const lines = list
         .slice(0, 15)
-        .map((s) => `${s.isCurrent ? '• (current) ' : '• '}${s.date} — ${s.messageCount} msgs`);
-      return `🗂️ Sessions for ${await workspaceLabelById(workspaceId)}:\n${lines.join('\n')}`;
+        .map((s, i) => `${i + 1}. ${s.isCurrent ? '(current) ' : ''}${s.date} — ${s.messageCount} msgs`);
+      return `🗂️ Sessions for ${await workspaceLabelById(workspaceId)}:\n${lines.join('\n')}\n\nSwitch with /session <number>.`;
+    }
+
+    case 'session': {
+      const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
+      if (!workspaceId) return 'No workspace bound. Use /bind <name|id> first.';
+      if (!arg) return 'Usage: /session <number|id>  (see /sessions)';
+      const list = await service.listSessions(workspaceId);
+      if (list.length === 0) return 'No sessions yet.';
+
+      const n = Number(arg);
+      const target =
+        Number.isInteger(n) && n >= 1 && n <= list.length
+          ? list[n - 1]
+          : list.find((s) => s.sessionId === arg);
+      if (!target) return `Session not found: ${arg}. Use /sessions to list.`;
+
+      if (target.isCurrent) {
+        // Already current, but make sure this conversation owns it going forward.
+        await sessionRouter.setConversationSession(workspaceId, msg.conversationId, target.sessionId);
+        return `🎯 Already on session ${target.date} (${target.messageCount} msgs).`;
+      }
+
+      const res = await service.loadSession(workspaceId, target.sessionId);
+      if (!res.ok) return `Failed to switch session: ${res.error ?? 'unknown error'}`;
+      // Pin the choice so the per-conversation router keeps it on later turns.
+      await sessionRouter.setConversationSession(workspaceId, msg.conversationId, target.sessionId);
+      return `✅ Switched to session ${target.date} (${target.messageCount} msgs).`;
     }
 
     default:

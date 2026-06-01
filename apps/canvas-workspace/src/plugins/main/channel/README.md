@@ -76,7 +76,8 @@ it only responds when @-mentioned.
 | `/default <name\|id>` | Set the workspace suggested for `/bind` (not auto-applied) |
 | `/new` | Start a fresh session |
 | `/stop` | Abort the current run |
-| `/sessions` | List sessions for the bound workspace |
+| `/sessions` | List sessions (numbered) for the bound workspace |
+| `/session <number\|id>` | Switch this chat to a specific session (sticky) |
 
 Workspace names come from the Canvas workspace manifest, so `/list` shows
 human names (with ids) and `/bind` / `/default` accept either a name or an id.
