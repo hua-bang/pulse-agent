@@ -396,6 +396,20 @@
   white-space: pre-wrap;
   word-break: break-word;
   max-width: 85%;
+  /* Make message text freely selectable / copyable (cursor + explicit
+     user-select so it never inherits a `none` from any ancestor). */
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Rendered markdown + tool-call output are read-mostly, but users still
+   need to select and copy them. */
+.chat-md,
+.chat-tool-call-result,
+.chat-tool-call-result pre {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .chat-message-body {
