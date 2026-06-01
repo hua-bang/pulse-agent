@@ -82,6 +82,24 @@ Workspace binding precedence: explicit chat binding → stored default →
 `CANVAS_FEISHU_DEFAULT_WORKSPACE` → most-recently-modified workspace.
 Bindings persist via the plugin's own store (`PluginStore`).
 
+## Conversations & topic groups
+
+Each conversation is bound (and addressed) independently:
+
+- a **direct chat** keys on its `chat_id`,
+- each **group** keys on its `chat_id`, and
+- each **topic in a topic group (话题群)** keys on `chat_id:thread_id` — so
+  different topics in the same group are separate conversations, and replies
+  are sent back **into the right topic** (`reply_in_thread`).
+
+So `/bind` in one topic only affects that topic; another topic (or the DM)
+can point at a different workspace.
+
+Caveat: a Canvas Agent **session is per-workspace** (one current session per
+workspace). If two conversations bind to the *same* workspace, they share
+that session and run one-at-a-time (the second sees "still working"). Bind
+each conversation to its own workspace to keep histories fully separate.
+
 ## Architecture
 
 ```

@@ -8,7 +8,12 @@
 export interface InboundMessage {
   /** Owning channel id, e.g. 'feishu'. */
   channelId: string;
-  /** Stable conversation identifier within the channel (Feishu chat_id). */
+  /**
+   * Stable *logical* conversation identifier — the unit a binding / session
+   * attaches to. A channel decides its granularity: a Feishu direct chat and
+   * each group are distinct chats, and each topic within a topic group is its
+   * own conversation (chat_id + thread_id).
+   */
   conversationId: string;
   /** Sender identity within the channel (Feishu open_id). */
   userId: string;
@@ -20,11 +25,20 @@ export interface InboundMessage {
   isMention: boolean;
   /** True for 1:1 / direct conversations. */
   isDirect: boolean;
+  /**
+   * Opaque, channel-defined routing info for replies (e.g. Feishu chat_id +
+   * thread_id + the triggering message id, so replies land in the right
+   * topic). The core shuttles this back via {@link OutboundTarget} without
+   * interpreting it.
+   */
+  reply: unknown;
 }
 
-/** Where to send output back. Mirrors the inbound conversation. */
+/** Where to send output back. Carries the inbound conversation's reply routing. */
 export interface OutboundTarget {
   conversationId: string;
+  /** Opaque channel-defined reply routing, copied from the inbound message. */
+  reply: unknown;
 }
 
 /**

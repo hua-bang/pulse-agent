@@ -114,71 +114,77 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
   return imageKey;
 }
 
-type ReceiveIdType = 'open_id' | 'chat_id' | 'user_id' | 'union_id' | 'email';
+/**
+ * Where a reply goes. For a normal chat we create a message addressed to
+ * `chatId`. For a **topic group** (`threadId` set) we instead reply to the
+ * triggering message with `reply_in_thread`, so the message lands in the
+ * right topic rather than the group root.
+ */
+export interface FeishuSendTarget {
+  chatId: string;
+  threadId?: string;
+  /** The inbound message we reply to, to continue a topic-group thread. */
+  triggerMessageId: string;
+}
 
-/** Upload a local image and send it as a Feishu image message. */
+/**
+ * Send a message to a target, choosing create-vs-reply based on whether the
+ * conversation is threaded. Returns the new message_id.
+ */
+async function createOrReply(
+  client: lark.Client,
+  target: FeishuSendTarget,
+  msgType: 'text' | 'interactive' | 'image',
+  content: string,
+): Promise<string> {
+  if (target.threadId && target.triggerMessageId) {
+    const res = await client.im.message.reply({
+      path: { message_id: target.triggerMessageId },
+      data: { content, msg_type: msgType, reply_in_thread: true },
+    });
+    if (typeof res.code === 'number' && res.code !== 0) {
+      throw new Error(`Feishu reply failed: ${res.code} ${res.msg ?? 'unknown error'}`);
+    }
+    return res.data?.message_id ?? '';
+  }
+
+  const res = await client.im.message.create({
+    params: { receive_id_type: 'chat_id' },
+    data: { receive_id: target.chatId, msg_type: msgType, content },
+  });
+  if (typeof res.code === 'number' && res.code !== 0) {
+    throw new Error(`Feishu send failed: ${res.code} ${res.msg ?? 'unknown error'}`);
+  }
+  return res.data?.message_id ?? '';
+}
+
+/** Upload a local image and send it to the target. Returns the message_id. */
 export async function sendImageMessage(
   client: lark.Client,
-  receiveId: string,
-  receiveIdType: ReceiveIdType,
+  target: FeishuSendTarget,
   imagePath: string,
   mimeType?: string,
 ): Promise<string> {
   const imageKey = await uploadImageToFeishu(imagePath, mimeType);
-  const res = await client.im.message.create({
-    params: { receive_id_type: receiveIdType },
-    data: {
-      receive_id: receiveId,
-      msg_type: 'image',
-      content: JSON.stringify({ image_key: imageKey }),
-    },
-  });
-  if (typeof res.code === 'number' && res.code !== 0) {
-    throw new Error(`Feishu send image failed: ${res.code} ${res.msg ?? 'unknown error'}`);
-  }
-  return res.data?.message_id ?? '';
+  return createOrReply(client, target, 'image', JSON.stringify({ image_key: imageKey }));
 }
 
-/** Send a plain text message. Returns the message_id. */
+/** Send a plain text message to the target. Returns the message_id. */
 export async function sendTextMessage(
   client: lark.Client,
-  receiveId: string,
-  receiveIdType: ReceiveIdType,
+  target: FeishuSendTarget,
   text: string,
 ): Promise<string> {
-  const res = await client.im.message.create({
-    params: { receive_id_type: receiveIdType },
-    data: {
-      receive_id: receiveId,
-      msg_type: 'text',
-      content: JSON.stringify({ text }),
-    },
-  });
-  if (typeof res.code === 'number' && res.code !== 0) {
-    throw new Error(`Feishu send text failed: ${res.code} ${res.msg ?? 'unknown error'}`);
-  }
-  return res.data?.message_id ?? '';
+  return createOrReply(client, target, 'text', JSON.stringify({ text }));
 }
 
-/** Send an interactive card message. Returns the message_id. */
+/** Send an interactive card message to the target. Returns the message_id. */
 export async function sendCardMessage(
   client: lark.Client,
-  receiveId: string,
-  receiveIdType: ReceiveIdType,
+  target: FeishuSendTarget,
   card: object,
 ): Promise<string> {
-  const res = await client.im.message.create({
-    params: { receive_id_type: receiveIdType },
-    data: {
-      receive_id: receiveId,
-      msg_type: 'interactive',
-      content: JSON.stringify(card),
-    },
-  });
-  if (typeof res.code === 'number' && res.code !== 0) {
-    throw new Error(`Feishu send card failed: ${res.code} ${res.msg ?? 'unknown error'}`);
-  }
-  return res.data?.message_id ?? '';
+  return createOrReply(client, target, 'interactive', JSON.stringify(card));
 }
 
 /** Update (patch) an existing card message with new content. */

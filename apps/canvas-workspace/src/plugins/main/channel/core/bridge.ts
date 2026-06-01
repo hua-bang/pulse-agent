@@ -58,7 +58,7 @@ export class ChannelBridge {
   private async handleInbound(channel: Channel, msg: InboundMessage): Promise<void> {
     if (!this.dedupe.accept(msg.messageId)) return;
 
-    const target = { conversationId: msg.conversationId };
+    const target = { conversationId: msg.conversationId, reply: msg.reply };
 
     // Slash commands run regardless of workspace binding / busy state.
     const commandReply = await handleCommand(msg, {
@@ -81,11 +81,17 @@ export class ChannelBridge {
       return;
     }
 
-    // Busy workspace: route the message as a clarification answer if one is
-    // pending, otherwise tell the user to wait.
+    // Busy workspace: if THIS conversation is the one awaiting a clarification
+    // answer, route the message as the answer. Otherwise (a different
+    // conversation bound to the same workspace, or no pending question) tell
+    // the user to wait — so a clarification can't be answered by an unrelated
+    // chat that happens to share the workspace.
     const existing = this.activeRuns.get(workspaceId);
     if (existing) {
-      if (existing.pendingClarificationId) {
+      if (
+        existing.pendingClarificationId &&
+        existing.conversationId === msg.conversationId
+      ) {
         const matched = this.service.answerClarification(
           workspaceId,
           existing.pendingClarificationId,
@@ -109,7 +115,7 @@ export class ChannelBridge {
     msg: InboundMessage,
     workspaceId: string,
   ): Promise<void> {
-    const target = { conversationId: msg.conversationId };
+    const target = { conversationId: msg.conversationId, reply: msg.reply };
     const run: ActiveRun = { channelId: msg.channelId, conversationId: msg.conversationId };
     this.activeRuns.set(workspaceId, run);
 

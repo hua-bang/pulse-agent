@@ -13,6 +13,7 @@ import {
   sendImageMessage,
   sendTextMessage,
   updateCardMessage,
+  type FeishuSendTarget,
 } from './feishu-client';
 import {
   buildDoneCard,
@@ -71,15 +72,29 @@ export class FeishuChannel implements Channel {
 
   async sendText(target: OutboundTarget, text: string): Promise<void> {
     if (!this.client) throw new Error('Feishu channel not started');
-    await sendTextMessage(this.client, target.conversationId, 'chat_id', text);
+    await sendTextMessage(this.client, toSendTarget(target), text);
   }
 
   async openStream(target: OutboundTarget): Promise<ChannelStream> {
     if (!this.client) throw new Error('Feishu channel not started');
-    const stream = new FeishuStream(this.client, target.conversationId);
+    const stream = new FeishuStream(this.client, toSendTarget(target));
     await stream.init();
     return stream;
   }
+}
+
+/** Recover the channel-specific reply routing from an OutboundTarget. */
+function toSendTarget(target: OutboundTarget): FeishuSendTarget {
+  const reply = target.reply as Partial<FeishuSendTarget> | undefined;
+  if (reply?.chatId) {
+    return {
+      chatId: reply.chatId,
+      threadId: reply.threadId,
+      triggerMessageId: reply.triggerMessageId ?? '',
+    };
+  }
+  // Fallback: treat the conversation id as a bare chat_id (no threading).
+  return { chatId: target.conversationId, triggerMessageId: '' };
 }
 
 /**
@@ -100,17 +115,12 @@ class FeishuStream implements ChannelStream {
 
   constructor(
     private readonly client: lark.Client,
-    private readonly chatId: string,
+    private readonly target: FeishuSendTarget,
   ) {}
 
   async init(): Promise<void> {
     try {
-      this.cardMessageId = await sendCardMessage(
-        this.client,
-        this.chatId,
-        'chat_id',
-        buildThinkingCard(),
-      );
+      this.cardMessageId = await sendCardMessage(this.client, this.target, buildThinkingCard());
     } catch (err) {
       // If the initial card cannot be sent, fall back to text messages.
       this.cardFailed = true;
@@ -130,7 +140,7 @@ class FeishuStream implements ChannelStream {
 
   async onImage(imagePath: string, mimeType?: string): Promise<void> {
     try {
-      await sendImageMessage(this.client, this.chatId, 'chat_id', imagePath, mimeType);
+      await sendImageMessage(this.client, this.target, imagePath, mimeType);
       this.toolHint = '🖼️ Image sent';
       this.scheduleFlush();
     } catch (err) {
@@ -142,7 +152,7 @@ class FeishuStream implements ChannelStream {
     // Surface the question as its own text message so it stands out from the
     // streamed card; the user's next message is routed back as the answer.
     try {
-      await sendTextMessage(this.client, this.chatId, 'chat_id', `❓ ${question}`);
+      await sendTextMessage(this.client, this.target, `❓ ${question}`);
     } catch (err) {
       console.error('[channel:feishu] failed to send clarification', err);
     }
@@ -199,7 +209,7 @@ class FeishuStream implements ChannelStream {
     // the user still sees the final answer.
     if (this.cardFailed) {
       try {
-        await sendTextMessage(this.client, this.chatId, 'chat_id', fallbackText);
+        await sendTextMessage(this.client, this.target, fallbackText);
       } catch (err) {
         console.error('[channel:feishu] fallback text send failed', err);
       }
@@ -217,6 +227,8 @@ interface FeishuMessageEvent {
     message_type?: string;
     content?: string;
     mentions?: unknown[];
+    /** Present in topic groups (话题群) — identifies the topic/thread. */
+    thread_id?: string;
   };
   sender?: {
     sender_id?: { open_id?: string; user_id?: string; union_id?: string };
@@ -224,15 +236,16 @@ interface FeishuMessageEvent {
 }
 
 /** Normalize a Feishu im.message.receive_v1 payload, or null to ignore it. */
-function parseInbound(data: unknown): InboundMessage | null {
+export function parseInbound(data: unknown): InboundMessage | null {
   const event = data as FeishuMessageEvent;
   const message = event?.message;
   if (!message || message.message_type !== 'text') return null;
 
   const messageId = message.message_id ?? '';
-  const conversationId = message.chat_id ?? '';
+  const chatId = message.chat_id ?? '';
+  const threadId = message.thread_id?.trim() || undefined;
   const userId = event.sender?.sender_id?.open_id ?? '';
-  if (!conversationId) return null;
+  if (!chatId) return null;
 
   let text = '';
   try {
@@ -245,12 +258,19 @@ function parseInbound(data: unknown): InboundMessage | null {
   const isGroup = message.chat_type === 'group';
   const mentions = (message.mentions as unknown[] | undefined) ?? [];
   if (isGroup) {
-    // In group chats, only respond when the bot is @-mentioned.
+    // In group chats (incl. topic groups), only respond when @-mentioned.
     if (mentions.length === 0) return null;
     text = text.replace(/@\S+/g, '').trim();
   }
 
   if (!text) return null;
+
+  // Each topic in a topic group is its own conversation (chat_id + thread_id);
+  // direct chats and plain groups key on chat_id alone. So a DM, each group,
+  // and each topic get independent bindings / sessions.
+  const conversationId = threadId ? `${chatId}:${threadId}` : chatId;
+
+  const reply: FeishuSendTarget = { chatId, threadId, triggerMessageId: messageId };
 
   return {
     channelId: CHANNEL_ID,
@@ -260,5 +280,6 @@ function parseInbound(data: unknown): InboundMessage | null {
     text,
     isMention: isGroup && mentions.length > 0,
     isDirect: !isGroup,
+    reply,
   };
 }

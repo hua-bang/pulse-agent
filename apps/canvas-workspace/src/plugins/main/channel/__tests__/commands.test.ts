@@ -59,6 +59,7 @@ function msg(text: string): InboundMessage {
     text,
     isMention: false,
     isDirect: true,
+    reply: null,
   };
 }
 
