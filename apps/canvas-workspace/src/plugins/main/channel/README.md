@@ -15,9 +15,15 @@ WeCom later is a matter of implementing one interface.
   that is progressively patched; images are sent as separate messages).
 - Supports clarification round-trips, abort, and session commands.
 
-The plugin is **inert unless a channel is configured** — `enabledWhen`
-checks for channel credentials, so with no `FEISHU_*` env vars set nothing
-starts.
+The plugin is **inert unless explicitly opted in**. `enabledWhen` requires
+**both**:
+
+1. the **`Chat channels (Feishu)`** experimental toggle is on
+   (Settings → Experimental), and
+2. a channel is configured (e.g. `FEISHU_APP_ID` / `FEISHU_APP_SECRET` set).
+
+Toggling the experimental flag takes effect on the next window reload /
+relaunch (the flag is read at plugin registration time).
 
 ## Feishu setup
 
@@ -37,6 +43,9 @@ starts.
    # optional: override the API host
    export FEISHU_API_BASE_URL=https://open.feishu.cn
    ```
+
+5. In Canvas, open **Settings → Experimental** and turn on
+   **Chat channels (Feishu)**, then reload/relaunch so the plugin activates.
 
 In a **direct chat** the bot replies to every message. In a **group chat**
 it only responds when @-mentioned.

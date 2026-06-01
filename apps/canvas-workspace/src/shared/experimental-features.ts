@@ -35,6 +35,7 @@ export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
 export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
 export const EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL = 'webview-page-control';
 export const EXPERIMENTAL_FLAG_DYNAMIC_APP = 'dynamic-app';
+export const EXPERIMENTAL_FLAG_CHANNELS = 'chat-channels';
 
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
@@ -70,6 +71,13 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     label: 'Dynamic apps (agent)',
     description:
       'Lets the Canvas Agent create live, server-backed iframe nodes — either polling apps (pull an external JSON endpoint on a schedule, optionally transform, render in LLM-authored HTML) or stateful apps (own their state, accept user mutations via POST actions, persist across restarts; todos / notes / counters / small forms). Each app gets its own loopback HTTP server in the Electron main process. LLM-authored transforms and action handlers run in a vm sandbox (no fetch / require / process; 1s sync timeout). State and spec files live under ~/.pulse-coder/canvas/<workspaceId>/dynamic-apps/. Off by default because this surfaces three new agent tools and a long-running HTTP server.',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_CHANNELS,
+    label: 'Chat channels (Feishu)',
+    description:
+      'Drive a workspace’s Canvas Agent from an external chat channel. Feishu (Lark) is supported today via the SDK long-connection (works behind NAT, no public URL). Also requires FEISHU_APP_ID / FEISHU_APP_SECRET env vars set before launch; without them the channel stays inactive even when this flag is on. Inbound messages are bound to a workspace (default + switchable via /bind), the agent runs, and output streams back as an interactive card. Off by default because it opens an outbound connection to Feishu and lets a remote chat drive the agent.',
     defaultEnabled: false,
   },
 ];
