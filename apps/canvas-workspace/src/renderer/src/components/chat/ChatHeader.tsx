@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
+import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 
@@ -7,6 +7,8 @@ interface ChatHeaderProps {
   title: string;
   sessionMenuOpen: boolean;
   sessionMenuRef: React.RefObject<HTMLDivElement>;
+  /** True while the session list is being (re)fetched. */
+  sessionsLoading?: boolean;
   sessions: Array<{
     sessionId: string;
     date: string;
@@ -44,6 +46,7 @@ export const ChatHeader = ({
   title,
   sessionMenuOpen,
   sessionMenuRef,
+  sessionsLoading = false,
   sessions,
   otherSessions,
   onToggleSessionMenu,
@@ -62,9 +65,13 @@ export const ChatHeader = ({
         <button className="chat-panel-title-btn" onClick={() => void onToggleSessionMenu()}>
           <PulseCanvasMark />
           <span className="chat-panel-title-text">{title}</span>
-          <svg className="chat-panel-title-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          {sessionsLoading ? (
+            <SpinnerIcon size={12} className="chat-panel-title-chevron chat-spin" />
+          ) : (
+            <svg className="chat-panel-title-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
         </button>
         {sessionMenuOpen && (
           <div className="chat-session-menu">
@@ -72,6 +79,12 @@ export const ChatHeader = ({
               <PlusIcon size={14} strokeWidth={1.3} />
               <span>{t('chat.newAiChat')}</span>
             </button>
+            {sessionsLoading && sessions.length === 0 && otherSessions.length === 0 && (
+              <div className="chat-session-menu-loading">
+                <SpinnerIcon size={14} className="chat-spin" />
+                <span>{t('chat.loadingSessions')}</span>
+              </div>
+            )}
             {sessions.length > 0 && (
               <>
                 <div className="chat-session-menu-divider" />

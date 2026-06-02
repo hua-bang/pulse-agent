@@ -26,6 +26,7 @@ export function useChatSessions({
   const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const [sessions, setSessions] = useState<AgentSessionInfo[]>([]);
   const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,36 +53,41 @@ export function useChatSessions({
   }, [sessionMenuOpen]);
 
   const loadSessions = useCallback(async () => {
-    const result = await window.canvasWorkspace.agent.listSessions(workspaceId);
-    if (result.ok && result.sessions) {
-      setSessions(result.sessions);
-    }
-
-    if (allWorkspaces && allWorkspaces.length > 1) {
-      const workspaceNameMap: Record<string, string> = {};
-      for (const workspace of allWorkspaces) {
-        workspaceNameMap[workspace.id] = workspace.name;
+    setSessionsLoading(true);
+    try {
+      const result = await window.canvasWorkspace.agent.listSessions(workspaceId);
+      if (result.ok && result.sessions) {
+        setSessions(result.sessions);
       }
 
-      const allResult = await window.canvasWorkspace.agent.listAllSessions(workspaceNameMap);
-      if (allResult.ok && allResult.groups) {
-        const flattened: OtherWorkspaceSession[] = [];
-        for (const group of allResult.groups) {
-          if (group.workspaceId === workspaceId) continue;
-          for (const session of group.sessions) {
-            flattened.push({
-              ...session,
-              sourceWorkspaceId: group.workspaceId,
-              workspaceName: group.workspaceName,
-            });
-          }
+      if (allWorkspaces && allWorkspaces.length > 1) {
+        const workspaceNameMap: Record<string, string> = {};
+        for (const workspace of allWorkspaces) {
+          workspaceNameMap[workspace.id] = workspace.name;
         }
 
-        flattened.sort((left, right) => right.date.localeCompare(left.date));
-        setOtherSessions(flattened);
+        const allResult = await window.canvasWorkspace.agent.listAllSessions(workspaceNameMap);
+        if (allResult.ok && allResult.groups) {
+          const flattened: OtherWorkspaceSession[] = [];
+          for (const group of allResult.groups) {
+            if (group.workspaceId === workspaceId) continue;
+            for (const session of group.sessions) {
+              flattened.push({
+                ...session,
+                sourceWorkspaceId: group.workspaceId,
+                workspaceName: group.workspaceName,
+              });
+            }
+          }
+
+          flattened.sort((left, right) => right.date.localeCompare(left.date));
+          setOtherSessions(flattened);
+        }
+      } else {
+        setOtherSessions([]);
       }
-    } else {
-      setOtherSessions([]);
+    } finally {
+      setSessionsLoading(false);
     }
   }, [allWorkspaces, workspaceId]);
 
@@ -131,5 +137,6 @@ export function useChatSessions({
     sessionMenuOpen,
     sessionMenuRef,
     sessions,
+    sessionsLoading,
   };
 }

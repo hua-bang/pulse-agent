@@ -47,6 +47,19 @@ export const RefreshIcon = ({ size = 14, className, strokeWidth = 1.35 }: IconPr
   </svg>
 );
 
+/** Spinner arc — pair with a CSS spin animation for loading states. */
+export const SpinnerIcon = ({ size = 14, className, strokeWidth = 1.5 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth={strokeWidth} opacity="0.25" />
+    <path
+      d="M14 8a6 6 0 00-6-6"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 /** Sparkles icon — used for reply-style / prompt customization entry. */
 export const SparklesIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>

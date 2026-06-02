@@ -149,6 +149,19 @@
   overflow-y: auto;
 }
 
+.chat-session-menu-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: #9b9a97;
+}
+
+.chat-spin {
+  animation: tool-call-spin 0.7s linear infinite;
+}
+
 .chat-session-menu-item {
   display: flex;
   align-items: center;
