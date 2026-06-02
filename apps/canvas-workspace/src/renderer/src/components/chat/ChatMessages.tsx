@@ -139,33 +139,8 @@ export const ChatMessages = ({
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  // Whether the viewport is pinned to the bottom. Once the user scrolls up
-  // (to read or select earlier text) we stop yanking them back down on every
-  // streamed chunk — otherwise copying text mid-response is impossible.
-  const stickToBottomRef = useRef(true);
-
-  const handleScroll = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    stickToBottomRef.current = distanceFromBottom < 80;
-  }, []);
 
   useEffect(() => {
-    // Never fight an active text selection inside the chat: a smooth scroll
-    // would collapse it, so selecting + copying while the agent streams would
-    // be impossible.
-    const selection = window.getSelection();
-    if (
-      selection
-      && !selection.isCollapsed
-      && selection.anchorNode
-      && containerRef.current?.contains(selection.anchorNode)
-    ) {
-      return;
-    }
-    if (!stickToBottomRef.current) return;
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, pendingClarify, streamingTools]);
 
@@ -206,7 +181,7 @@ export const ChatMessages = ({
     && messages[messages.length - 1].role === 'assistant';
 
   return (
-    <div className="chat-messages" ref={containerRef} onScroll={handleScroll} onClick={handleMessageClick}>
+    <div className="chat-messages" onClick={handleMessageClick}>
       {messages.map((message, index) => {
         const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
         const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
