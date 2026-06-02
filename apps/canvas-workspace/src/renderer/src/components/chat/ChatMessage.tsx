@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { AvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
+import { AvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon, SparklesIcon } from '../icons';
 import type { ToolCallStatus } from './types';
-import { renderMdWithMentions, renderUserContent } from './utils/mentions';
+import { renderMdWithMentions } from './utils/mentions';
 import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
@@ -111,10 +111,15 @@ export const ChatMessage = ({
       : ''),
     [message.role, message.content, nodes],
   );
-  const userBody = useMemo(
+  // User messages used to render as raw text (mentions only), so any
+  // pasted code / SQL / markdown showed up as an unstyled, mid-word-wrapped
+  // wall. Render them through the same markdown pipeline as assistant
+  // replies so fenced code blocks, lists, etc. render properly. Mention
+  // chips still work via event delegation in ChatMessages.
+  const userHtml = useMemo(
     () => (message.role === 'user'
-      ? renderUserContent(message.content, nodes)
-      : null),
+      ? renderMdWithMentions(message.content, nodes)
+      : ''),
     [message.role, message.content, nodes],
   );
   const showCopyToolbar = message.role === 'assistant'
@@ -186,11 +191,9 @@ export const ChatMessage = ({
 
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
-    {message.role === 'assistant' && (
-      <div className="chat-message-avatar">
-        <AvatarIcon size={14} />
-      </div>
-    )}
+    <div className="chat-message-avatar">
+      {message.role === 'assistant' ? <SparklesIcon size={14} /> : <AvatarIcon size={14} />}
+    </div>
     <div className="chat-message-body">
       {message.attachments && message.attachments.length > 0 && (
         <div className="chat-message-images">
@@ -348,7 +351,10 @@ export const ChatMessage = ({
           </div>
         </div>
       ) : (
-        <div className="chat-message-content">{userBody}</div>
+        <div
+          className="chat-message-content chat-md"
+          dangerouslySetInnerHTML={{ __html: userHtml }}
+        />
       )}
       <PluginChatCardForMessage message={message} />
       {!isEditing && (showCopyToolbar || canEdit || canRegenerate || relativeTime) && (

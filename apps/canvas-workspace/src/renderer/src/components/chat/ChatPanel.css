@@ -1,3 +1,49 @@
+/* ─── Design tokens ───────────────────────────────────────────
+   The chat surface is built on one warm near-black "ink" plus a small
+   set of tints, surfaces, radii and spacing steps. Historically these
+   were hand-inlined (dozens of `rgba(55, 53, 47, x)`, repeated mono
+   font stacks, ad-hoc radii), which made consistent tuning hard. New
+   and migrated rules reference these tokens so spacing/colour can be
+   adjusted in one place. */
+:root {
+  /* Ink — solid + opacity tints, brightest → faintest */
+  --chat-ink: #37352f;
+  --chat-ink-strong: #2f2e2a;
+  --chat-ink-2: rgba(55, 53, 47, 0.55);
+  --chat-ink-3: rgba(55, 53, 47, 0.42);
+  --chat-ink-4: rgba(55, 53, 47, 0.3);
+
+  /* Fills & hairlines */
+  --chat-fill: rgba(55, 53, 47, 0.06);
+  --chat-fill-hover: rgba(55, 53, 47, 0.04);
+  --chat-line: rgba(55, 53, 47, 0.1);
+  --chat-line-strong: rgba(55, 53, 47, 0.16);
+  --chat-surface: #fff;
+  --chat-surface-sunken: rgba(55, 53, 47, 0.03);
+  --chat-bubble-bg: rgba(55, 53, 47, 0.06);
+
+  /* Accents */
+  --chat-accent: #2383e2;
+  --chat-accent-hover: #1f76cc;
+  --chat-success-bg: rgba(46, 160, 67, 0.12);
+  --chat-success-fg: #2f8a3d;
+  --chat-success-line: rgba(46, 160, 67, 0.2);
+
+  /* Radii */
+  --chat-radius-sm: 6px;
+  --chat-radius-md: 10px;
+  --chat-radius-lg: 12px;
+
+  /* Spacing steps */
+  --chat-space-1: 4px;
+  --chat-space-2: 8px;
+  --chat-space-3: 12px;
+  --chat-space-4: 18px;
+
+  /* Monospace stack for code / tool signatures */
+  --chat-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+}
+
 /* ─── Panel container ─────────────────────────────────────── */
 
 .chat-panel {
@@ -320,24 +366,33 @@
   max-width: 310px;
 }
 
+/* Starter prompts read as tappable chips at rest (a hairline + surface),
+   not bare rows that only reveal themselves on hover — so the empty
+   state invites a first action. */
 .chat-quick-action {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 6px;
-  border: none;
-  background: transparent;
-  border-radius: 7px;
+  padding: 9px 12px;
+  border: 1px solid var(--chat-line);
+  background: var(--chat-surface);
+  border-radius: var(--chat-radius-md);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--chat-ink);
   text-align: left;
-  transition: background 0.1s;
+  transition: background 0.12s, border-color 0.12s, transform 0.12s;
 }
 
 .chat-quick-action:hover {
-  background: rgba(55, 53, 47, 0.04);
+  background: var(--chat-fill-hover);
+  border-color: var(--chat-line-strong);
+  transform: translateY(-1px);
+}
+
+.chat-quick-action:active {
+  transform: translateY(0);
 }
 
 .chat-quick-action-icon {
@@ -346,7 +401,7 @@
   justify-content: center;
   width: 22px;
   height: 22px;
-  color: #73726e;
+  color: var(--chat-accent);
   flex-shrink: 0;
 }
 
@@ -360,27 +415,34 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  /* The hover toolbar is absolutely positioned at top:100% below each
-     bubble (out of flow), so this gap IS the visible spacing between
-     messages. Toolbar overlays the gap on hover. */
-  gap: 10px;
+  /* Inter-message spacing. Each message reserves its own room for the
+     hover toolbar via `padding-bottom` (see `.chat-message`), so the gap
+     here is just the breathing room between one message's toolbar zone
+     and the next bubble. */
+  gap: 4px;
 }
 
 .chat-message {
   display: flex;
   gap: 8px;
   align-items: flex-start;
+  /* Reserve room for the hover toolbar, which is absolutely positioned at
+     `top:100%` of the body. Without this the toolbar (~24px tall) spilled
+     onto the NEXT message, so its copy / regenerate buttons looked like
+     they belonged to the following bubble. Keeping the space inside this
+     message's own box anchors the toolbar to the right message. */
+  padding-bottom: 24px;
 }
 
-.chat-message-user {
-  flex-direction: row-reverse;
-}
-
+/* Document-style turns: both roles flow left-aligned at full content
+   width with an avatar gutter, rather than the old right-aligned user
+   bubble. This gives code blocks and tables the panel's full width and
+   makes long turns read like a transcript. */
 .chat-message-avatar {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: rgba(55, 53, 47, 0.06);
+  background: var(--chat-fill);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -389,13 +451,34 @@
   margin-top: 1px;
 }
 
+/* Tint the user's gutter marker so the two speakers stay distinguishable
+   now that both turns share the same left-aligned column. */
+.chat-message-user .chat-message-avatar {
+  color: var(--chat-accent);
+  background: rgba(35, 131, 226, 0.1);
+}
+
 .chat-message-content {
   font-size: 14px;
   line-height: 1.6;
-  color: #37352f;
+  color: var(--chat-ink);
   white-space: pre-wrap;
   word-break: break-word;
-  max-width: 85%;
+  max-width: 100%;
+  /* Make message text freely selectable / copyable (cursor + explicit
+     user-select so it never inherits a `none` from any ancestor). */
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Rendered markdown + tool-call output are read-mostly, but users still
+   need to select and copy them. */
+.chat-md,
+.chat-tool-call-result,
+.chat-tool-call-result pre {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .chat-message-body {
@@ -405,19 +488,19 @@
 .chat-message-user .chat-message-body {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  max-width: min(92%, 560px);
+  align-items: flex-start;
+  max-width: min(94%, 640px);
 }
 
 .chat-message-assistant .chat-message-body {
-  max-width: min(92%, 620px);
+  max-width: min(94%, 640px);
 }
 
 .chat-message-user .chat-message-content {
-  background: rgba(55, 53, 47, 0.06);
+  background: var(--chat-bubble-bg);
   padding: 8px 12px;
-  border-radius: 12px;
-  border-bottom-right-radius: 4px;
+  border-radius: var(--chat-radius-lg);
+  border-top-left-radius: 4px;
   max-width: 100%;
 }
 
@@ -474,15 +557,16 @@
 }
 
 .chat-input-box {
-  border: 1px solid rgba(55, 53, 47, 0.16);
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid var(--chat-line-strong);
+  border-radius: var(--chat-radius-md);
+  background: var(--chat-surface);
   overflow: hidden;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .chat-input-box:focus-within {
-  border-color: rgba(55, 53, 47, 0.4);
+  border-color: var(--chat-accent);
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
 }
 
 .chat-input {
@@ -882,7 +966,7 @@
 }
 
 .chat-md code {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--chat-mono);
   font-size: 0.9em;
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 4px;
@@ -969,7 +1053,7 @@
   border-radius: 8px;
   background: #fafaf8;
   overflow: hidden;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--chat-mono);
 }
 
 .chat-code-block-header {
@@ -1079,10 +1163,10 @@
   pointer-events: none;
 }
 
-/* Anchor the toolbar to the same side as its bubble: user messages are
-   right-aligned, assistant messages are left-aligned. */
+/* Both speakers are left-aligned now, so anchor every toolbar to the
+   left edge of the content column. */
 .chat-message-user .chat-message-toolbar {
-  right: 0;
+  left: 0;
 }
 
 .chat-message-assistant .chat-message-toolbar {
@@ -1167,11 +1251,11 @@
 
 .chat-message-edit {
   width: 100%;
-  max-width: min(92%, 560px);
-  background: #fff;
+  max-width: min(94%, 640px);
+  background: var(--chat-surface);
   border: 1px solid rgba(35, 131, 226, 0.4);
-  border-radius: 12px;
-  border-bottom-right-radius: 4px;
+  border-radius: var(--chat-radius-lg);
+  border-top-left-radius: 4px;
   padding: 8px 10px 6px;
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
   display: flex;
@@ -1246,7 +1330,7 @@
 }
 
 .chat-mermaid-error-detail {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--chat-mono);
   font-size: 11px;
   color: rgba(139, 47, 42, 0.85);
   white-space: pre-wrap;
@@ -1332,6 +1416,25 @@
   padding: 4px 4px 4px 0;
 }
 
+/* Expanded tool activity reads as a timeline: a faint vertical guide
+   line runs through the step markers (the check / spinner icons), so a
+   burst of tool calls scans as one connected sequence rather than a
+   loose stack of rows. The collapsed pill variant opts out. */
+.chat-tool-calls:not(.chat-tool-calls--collapsed) {
+  position: relative;
+}
+
+.chat-tool-calls:not(.chat-tool-calls--collapsed)::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 11px;
+  bottom: 11px;
+  width: 1px;
+  background: var(--chat-line);
+  pointer-events: none;
+}
+
 .chat-tool-calls--collapsed {
   max-height: none;
   overflow: visible;
@@ -1403,6 +1506,12 @@
   flex-shrink: 0;
   width: 14px;
   height: 14px;
+  /* Sit as a node on the timeline line: a panel-coloured backing masks
+     the guide line behind the marker so it reads as on the line, not
+     crossed out by it. */
+  position: relative;
+  background: #fdfcfb;
+  border-radius: 50%;
 }
 
 .chat-tool-call-spinner {
@@ -1414,7 +1523,7 @@
 }
 
 .chat-tool-call-sig {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 11.5px;
   color: rgba(55, 53, 47, 0.55);
   overflow: hidden;
@@ -1464,7 +1573,7 @@
 
 .chat-tool-call-result pre {
   margin: 0;
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 11px;
   line-height: 1.5;
   color: rgba(55, 53, 47, 0.6);
@@ -1479,7 +1588,7 @@
 }
 
 .chat-tool-call-section-label {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1812,7 +1921,7 @@
 .chat-message-user .chat-message-images {
   order: 2;
   width: 100%;
-  justify-items: end;
+  justify-items: start;
 }
 
 .chat-message-user .chat-message-content {
@@ -2257,7 +2366,7 @@
 }
 
 .chat-model-field .chat-model-protocol-sub {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--chat-mono);
   font-size: 11px;
   color: rgba(55, 53, 47, 0.5);
   font-weight: 500;
