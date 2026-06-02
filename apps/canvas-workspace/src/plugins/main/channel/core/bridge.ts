@@ -1,10 +1,11 @@
 import type { CanvasAgentServiceRef } from '../../../types';
 import type { PluginStore } from '../../../types';
 import { BindingStore } from './binding';
-import { handleCommand } from './commands';
+import { buildBindPrompt, handleCommand } from './commands';
 import { MessageDedupe } from './dedupe';
 import { extractGeneratedImageResult } from './image-result';
 import { SessionRouter } from './sessions';
+import { listWorkspaces, workspaceLabel } from './workspaces';
 import type { Channel, ChannelStream, InboundMessage } from './types';
 
 interface ActiveRun {
@@ -29,13 +30,18 @@ export class ChannelBridge {
   private readonly dedupe = new MessageDedupe();
   private readonly activeRuns = new Map<string, ActiveRun>();
   private readonly channels = new Map<string, Channel>();
+  private readonly activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
 
   constructor(
     private readonly service: CanvasAgentServiceRef,
     store: PluginStore,
+    options: {
+      activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+    } = {},
   ) {
     this.bindings = new BindingStore(store);
     this.sessions = new SessionRouter(service, store);
+    this.activateCanvas = options.activateCanvas;
   }
 
   /** Register and start a channel, wiring its inbound traffic to this bridge. */
@@ -67,6 +73,8 @@ export class ChannelBridge {
     const commandReply = await handleCommand(msg, {
       bindings: this.bindings,
       service: this.service,
+      sessionRouter: this.sessions,
+      activateCanvas: this.activateCanvas,
     });
     if (commandReply !== null) {
       await channel.sendText(target, commandReply);
@@ -75,19 +83,16 @@ export class ChannelBridge {
 
     if (!msg.text.trim()) return;
 
-    // Binding is explicit and sticky: refuse to run until the conversation is
-    // bound, so it never silently picks (or switches) a workspace mid-chat.
-    const workspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
+    // Binding is required and sticky, so a chat never silently picks or switches
+    // workspaces. To keep that one-time step light, an unbound chat gets a
+    // numbered picker (reply with a digit to bind), and binds automatically when
+    // there's only one workspace. resolveUnbound returns the workspace to run,
+    // or null when it has already replied (picker / bind confirmation).
+    let workspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
     if (!workspaceId) {
-      const suggestion = await this.bindings.getSuggestedDefault();
-      const hint = suggestion
-        ? `\nTip: /bind  (no argument) binds the default workspace.`
-        : '';
-      await channel.sendText(
-        target,
-        `🔗 This chat isn't bound to a workspace yet. Send /list to see workspaces, then /bind <name|id>.${hint}`,
-      );
-      return;
+      const resolved = await this.resolveUnbound(channel, msg, target);
+      if (!resolved) return;
+      workspaceId = resolved;
     }
 
     // Busy workspace: if THIS conversation is the one awaiting a clarification
@@ -117,6 +122,47 @@ export class ChannelBridge {
     }
 
     await this.runTurn(channel, msg, workspaceId);
+  }
+
+  /**
+   * Bind an unbound conversation with as little friction as possible, then
+   * return the workspace its current message should run in — or null when the
+   * turn was consumed by binding (a picker was shown, or the message was just
+   * a number selecting one).
+   *
+   * - A bare number replies to the picker: bind that workspace and stop (the
+   *   number isn't a request to run).
+   * - Exactly one workspace: bind it and run this message — no picker needed.
+   * - Otherwise: show the numbered picker and stop.
+   */
+  private async resolveUnbound(
+    channel: Channel,
+    msg: InboundMessage,
+    target: { conversationId: string; reply: InboundMessage['reply'] },
+  ): Promise<string | null> {
+    const workspaces = await listWorkspaces();
+
+    const pick = msg.text.trim().match(/^#?(\d{1,3})$/);
+    if (pick) {
+      const choice = workspaces[Number(pick[1]) - 1];
+      if (!choice) {
+        await channel.sendText(target, `No workspace #${pick[1]}.\n${await buildBindPrompt()}`);
+        return null;
+      }
+      await this.bindings.bind(msg.channelId, msg.conversationId, choice.id);
+      await channel.sendText(target, `✅ Bound to ${workspaceLabel(choice)}. Send your request.`);
+      return null;
+    }
+
+    if (workspaces.length === 1) {
+      const only = workspaces[0];
+      await this.bindings.bind(msg.channelId, msg.conversationId, only.id);
+      await channel.sendText(target, `📌 Bound this chat to ${workspaceLabel(only)}.`);
+      return only.id;
+    }
+
+    await channel.sendText(target, await buildBindPrompt());
+    return null;
   }
 
   private async runTurn(

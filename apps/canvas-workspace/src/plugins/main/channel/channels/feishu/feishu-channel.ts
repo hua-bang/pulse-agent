@@ -20,7 +20,7 @@ import {
   buildErrorCard,
   buildProgressCard,
   buildThinkingCard,
-  formatToolHint,
+  formatToolLabel,
 } from './card';
 
 const CHANNEL_ID = 'feishu';
@@ -110,11 +110,19 @@ function toSendTarget(target: OutboundTarget): FeishuSendTarget {
  * accumulated and flushed to the card on a trailing throttle so we don't
  * exceed Feishu's update-rate limits; images are sent as separate messages.
  */
+interface ToolRun {
+  label: string;
+  startedAt: number;
+  done: boolean;
+  elapsedSec?: number;
+}
+
 class FeishuStream implements ChannelStream {
   private cardMessageId: string | null = null;
   private cardFailed = false;
   private accumulated = '';
-  private toolHint: string | undefined;
+  /** Every tool call this run, accumulated as a live list for the card. */
+  private readonly tools: ToolRun[] = [];
   private readonly startedAt = Date.now();
 
   private updateChain: Promise<void> = Promise.resolve();
@@ -142,18 +150,45 @@ class FeishuStream implements ChannelStream {
   }
 
   onToolCall(name: string, args: unknown): void {
-    this.toolHint = formatToolHint(name, args);
+    this.tools.push({ label: formatToolLabel(name, args), startedAt: Date.now(), done: false });
+    this.scheduleFlush();
+  }
+
+  onToolResult(result: { name: string; result: string }): void {
+    this.markToolDone(result.name);
     this.scheduleFlush();
   }
 
   async onImage(imagePath: string, mimeType?: string): Promise<void> {
     try {
       await sendImageMessage(this.client, this.target, imagePath, mimeType);
-      this.toolHint = '🖼️ Image sent';
+      // The image tool's result is consumed by the image relay (no onToolResult
+      // for it), so close out its pending entry here.
+      this.markToolDone();
       this.scheduleFlush();
     } catch (err) {
       console.error('[channel:feishu] failed to send image', err);
     }
+  }
+
+  /**
+   * Mark the most recent still-running tool as done (preferring one whose
+   * label matches `name`) and record how long it took.
+   */
+  private markToolDone(name?: string): void {
+    let idx = -1;
+    for (let i = this.tools.length - 1; i >= 0; i--) {
+      if (this.tools[i].done) continue;
+      if (idx === -1) idx = i; // fallback: latest running regardless of name
+      if (name && this.tools[i].label.startsWith(name)) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1) return;
+    const t = this.tools[idx];
+    t.done = true;
+    t.elapsedSec = Math.round((Date.now() - t.startedAt) / 1000);
   }
 
   async onClarification(question: string): Promise<void> {
@@ -168,7 +203,15 @@ class FeishuStream implements ChannelStream {
 
   async onDone(text: string): Promise<void> {
     this.cancelFlush();
-    await this.finalize(() => buildDoneCard(text), text);
+    // Any tool without an observed result (e.g. the run ended right after)
+    // shouldn't linger as ⏳ in the folded list.
+    const now = Date.now();
+    for (const t of this.tools) {
+      if (t.done) continue;
+      t.done = true;
+      t.elapsedSec = Math.round((now - t.startedAt) / 1000);
+    }
+    await this.finalize(() => buildDoneCard(text, this.tools), text);
   }
 
   async onError(message: string): Promise<void> {
@@ -186,7 +229,7 @@ class FeishuStream implements ChannelStream {
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
       this.lastFlush = Date.now();
-      this.enqueue(() => buildProgressCard(this.accumulated, this.toolHint, this.elapsedSec()));
+      this.enqueue(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
     }, wait);
   }
 
