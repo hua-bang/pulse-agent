@@ -8,8 +8,8 @@ WeCom later is a matter of implementing one interface.
 ## What it does
 
 - Connects to a channel and receives inbound messages.
-- Resolves which canvas workspace a conversation talks to (**default +
-  switchable** binding).
+- Resolves which canvas workspace a conversation talks to (**explicit, sticky**
+  binding — established with a light first-contact picker).
 - Drives `CanvasAgentService.chat()` for that workspace and streams the
   agent's output back into the channel (Feishu: a single interactive card
   that is progressively patched; images are sent as separate messages).
@@ -71,8 +71,8 @@ it only responds when @-mentioned.
 | `/help` | Show command help |
 | `/list` | List workspaces by name (⭐ = bound to this chat, 🖥️ = open in the app) |
 | `/ws` | Show which workspace this chat is bound to |
-| `/bind <name\|id>` | Bind this chat to a workspace (by friendly name or id) |
-| `/unbind` | Clear this chat's binding (fall back to default) |
+| `/bind <number\|name\|id>` | Bind this chat to a workspace (by picker number, friendly name, or id) |
+| `/unbind` | Clear this chat's binding (chat must be re-bound to talk again) |
 | `/default <name\|id>` | Set the workspace suggested for `/bind` (not auto-applied) |
 | `/new` | Start a fresh session |
 | `/stop` | Abort the current run |
@@ -83,18 +83,22 @@ it only responds when @-mentioned.
 Workspace names come from the Canvas workspace manifest, so `/list` shows
 human names (with ids) and `/bind` / `/default` accept either a name or an id.
 
-You can chat **without binding** — an unbound conversation runs in the canvas
-**default workspace** (`default`, mirroring the app's always-present default),
-so it just works out of the box. Bind a specific workspace later with `/bind`
-when you need it.
+### Binding
 
-Binding is **explicit and sticky**: once you `/bind`, that conversation stays
-on that workspace and never switches on its own. The unbound fallback is a
-fixed id, so it can't surprise-switch mid-chat either. Use `/unbind` to return
-a conversation to the default workspace.
+A conversation must be **bound** to a workspace before it talks to the agent —
+binding is **explicit and sticky**, so a chat never silently picks or switches
+workspaces. The one-time step is made as light as possible:
 
-The stored/env default is only a **suggestion** for `/bind` with no argument;
-it is not the unbound fallback. Bindings persist via the plugin's own store
+- The **first message** in an unbound chat replies with a **numbered picker**;
+  just reply with the workspace's **number** to bind (no `/bind` needed). You
+  can also `/bind <number|name|id>`.
+- If there's **only one** workspace, the first message **auto-binds** it and
+  runs immediately — no picker.
+- Once bound, the chat stays on that workspace until you `/unbind` (which
+  returns it to the unbound state) or `/bind` somewhere else.
+
+The stored/env default is only a **suggestion** for `/bind` with *no* argument;
+it is never auto-applied. Bindings persist via the plugin's own store
 (`PluginStore`).
 
 ## Conversations & topic groups

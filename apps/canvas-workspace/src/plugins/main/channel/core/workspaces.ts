@@ -7,15 +7,6 @@ import { join } from 'path';
 // manifest (names live in the renderer), so channels bind by workspace id.
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
-/**
- * The canvas app's always-present default workspace id (see the renderer's
- * useWorkspaces — it auto-creates `{ id: 'default', name: 'Workspace' }`).
- * Used as the effective workspace for conversations that haven't bound one,
- * so chatting works without an explicit /bind. It's a fixed id, so this never
- * causes a surprise mid-chat switch.
- */
-export const DEFAULT_WORKSPACE_ID = 'default';
-
 export interface WorkspaceInfo {
   id: string;
   /** Friendly name from the workspace manifest, when available. */
@@ -102,6 +93,26 @@ export async function resolveWorkspace(ref: string): Promise<string | null> {
   const lower = needle.toLowerCase();
   const byName = list.find((w) => w.name && w.name.toLowerCase() === lower);
   return byName?.id ?? null;
+}
+
+/**
+ * Like {@link resolveWorkspace} but also accepts a 1-based list index, matching
+ * the numbering shown by /list and the bind picker — so a user can bind by
+ * simply replying with a number. Falls back to id/name resolution otherwise.
+ */
+export async function resolveWorkspaceRef(ref: string): Promise<string | null> {
+  const needle = ref.trim();
+  if (!needle) return null;
+  const list = await listWorkspaces();
+  if (/^#?\d{1,3}$/.test(needle)) {
+    const n = Number(needle.replace('#', ''));
+    if (n >= 1 && n <= list.length) return list[n - 1].id;
+    // No such index: fall through in case an id/name is literally numeric.
+  }
+  const byId = list.find((w) => w.id === needle);
+  if (byId) return byId.id;
+  const lower = needle.toLowerCase();
+  return list.find((w) => w.name && w.name.toLowerCase() === lower)?.id ?? null;
 }
 
 /** Friendly label for a workspace id (name when known). */

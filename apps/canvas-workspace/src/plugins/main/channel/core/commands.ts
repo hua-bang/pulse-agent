@@ -3,9 +3,9 @@ import type { InboundMessage } from './types';
 import type { BindingStore } from './binding';
 import type { SessionRouter } from './sessions';
 import {
-  DEFAULT_WORKSPACE_ID,
   listWorkspaces,
   resolveWorkspace,
+  resolveWorkspaceRef,
   workspaceLabel,
   workspaceLabelById,
 } from './workspaces';
@@ -26,7 +26,7 @@ const HELP = [
   '🛠️ Canvas channel commands:',
   '/list — list available workspaces',
   '/ws — show the workspace this chat is bound to',
-  '/bind <name|id> — bind this chat to a workspace',
+  '/bind <number|name|id> — bind this chat to a workspace',
   '/unbind — clear this chat’s binding',
   '/default <name|id> — set the workspace suggested for /bind',
   '/new — start a fresh session',
@@ -35,6 +35,27 @@ const HELP = [
   '/session <number|id> — switch this chat to a session',
   '/open — open the bound workspace in the canvas app (for webview ops)',
 ].join('\n');
+
+const NEED_BIND = 'No workspace bound. Send a message to pick one, or /bind <number|name|id>.';
+
+/**
+ * Numbered workspace picker shown when a conversation needs to bind. The
+ * numbers match {@link listWorkspaces} order (and /list), so the user can bind
+ * by replying with a single digit. Shared by the bridge's first-contact prompt.
+ */
+export async function buildBindPrompt(): Promise<string> {
+  const workspaces = await listWorkspaces();
+  if (workspaces.length === 0) {
+    return (
+      '🔗 This chat isn’t bound to a workspace, and no canvas workspaces exist yet. ' +
+      'Create one in the canvas app, then send your message again.'
+    );
+  }
+  const lines = workspaces
+    .slice(0, 30)
+    .map((w, i) => `${i + 1}. ${workspaceLabel(w)}${w.isActive ? ' 🖥️' : ''}`);
+  return `🔗 Pick a workspace for this chat — reply with its number (or /bind <name>):\n${lines.join('\n')}`;
+}
 
 /**
  * Handle a slash command. Returns the text to reply with when `msg` is a
@@ -54,10 +75,9 @@ export async function handleCommand(
   const arg = rest.join(' ').trim();
   const { bindings, service, sessionRouter, activateCanvas } = deps;
 
-  // The workspace a conversation operates on: its explicit binding, else the
-  // canvas default workspace (so commands work even without /bind).
-  const effectiveWorkspace = async () =>
-    (await bindings.getBound(msg.channelId, msg.conversationId)) ?? DEFAULT_WORKSPACE_ID;
+  // Binding is required: commands that act on a workspace use the explicit
+  // binding, and tell the user to bind when there isn't one.
+  const requireBound = () => bindings.getBound(msg.channelId, msg.conversationId);
 
   switch (cmd) {
     case 'help':
@@ -67,31 +87,28 @@ export async function handleCommand(
       const workspaces = await listWorkspaces();
       if (workspaces.length === 0) return 'No canvas workspaces found yet.';
       const bound = await bindings.getBound(msg.channelId, msg.conversationId);
-      const lines = workspaces.slice(0, 30).map((w) => {
+      const lines = workspaces.slice(0, 30).map((w, i) => {
         const marks = [
           w.id === bound ? '⭐' : null,
           w.isActive ? '🖥️' : null,
         ].filter(Boolean).join('');
-        return `• ${workspaceLabel(w)}${marks ? ` ${marks}` : ''}`;
+        return `${i + 1}. ${workspaceLabel(w)}${marks ? ` ${marks}` : ''}`;
       });
-      return `📋 Workspaces (⭐ bound here · 🖥️ open in app):\n${lines.join('\n')}\n\nBind with /bind <name|id>.`;
+      return `📋 Workspaces (⭐ bound here · 🖥️ open in app):\n${lines.join('\n')}\n\nBind with /bind <number|name>.`;
     }
 
     case 'ws':
     case 'whoami': {
       const bound = await bindings.getBound(msg.channelId, msg.conversationId);
       if (bound) return `🎯 This chat is bound to ${await workspaceLabelById(bound)}.`;
-      return (
-        `🗒️ Not bound — chatting in the default workspace ` +
-        `(${await workspaceLabelById(DEFAULT_WORKSPACE_ID)}). Use /list then /bind <name|id> to switch.`
-      );
+      return `🔗 This chat isn’t bound yet.\n${await buildBindPrompt()}`;
     }
 
     case 'bind': {
       // No argument → bind the suggested default, if one is configured.
       const ref = arg || (await bindings.getSuggestedDefault());
-      if (!ref) return 'Usage: /bind <name|id>  (see /list). No default is set.';
-      const id = await resolveWorkspace(ref);
+      if (!ref) return 'Usage: /bind <number|name|id>  (see /list). No default is set.';
+      const id = await resolveWorkspaceRef(ref);
       if (!id) return `Workspace not found: ${ref}. Use /list to see available workspaces.`;
       await bindings.bind(msg.channelId, msg.conversationId, id);
       return `✅ This chat is now bound to ${await workspaceLabelById(id)}.`;
@@ -111,19 +128,22 @@ export async function handleCommand(
     }
 
     case 'new': {
-      const workspaceId = await effectiveWorkspace();
+      const workspaceId = await requireBound();
+      if (!workspaceId) return NEED_BIND;
       const res = await service.newSession(workspaceId);
       return res.ok ? '🆕 Started a new session.' : `Failed to start a new session: ${res.error}`;
     }
 
     case 'stop': {
-      const workspaceId = await effectiveWorkspace();
+      const workspaceId = await requireBound();
+      if (!workspaceId) return NEED_BIND;
       service.abort(workspaceId);
       return '🛑 Stop requested.';
     }
 
     case 'sessions': {
-      const workspaceId = await effectiveWorkspace();
+      const workspaceId = await requireBound();
+      if (!workspaceId) return NEED_BIND;
       const list = await service.listSessions(workspaceId);
       if (list.length === 0) return 'No sessions yet.';
       const lines = list
@@ -133,7 +153,8 @@ export async function handleCommand(
     }
 
     case 'session': {
-      const workspaceId = await effectiveWorkspace();
+      const workspaceId = await requireBound();
+      if (!workspaceId) return NEED_BIND;
       if (!arg) return 'Usage: /session <number|id>  (see /sessions)';
       const list = await service.listSessions(workspaceId);
       if (list.length === 0) return 'No sessions yet.';
@@ -159,7 +180,8 @@ export async function handleCommand(
     }
 
     case 'open': {
-      const workspaceId = await effectiveWorkspace();
+      const workspaceId = await requireBound();
+      if (!workspaceId) return NEED_BIND;
       if (!activateCanvas) return 'Opening the canvas app is not available here.';
       const res = await activateCanvas(workspaceId);
       return res.ok

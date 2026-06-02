@@ -15,14 +15,21 @@ vi.mock('../core/workspaces', () => {
     { id: 'ws-B', name: 'Beta', modifiedAt: 1, isActive: true },
   ];
   const label = (w: { id: string; name?: string }) => (w.name ? `${w.name} (${w.id})` : w.id);
+  const resolve = (ref: string) => {
+    const byId = list.find((w) => w.id === ref);
+    if (byId) return byId.id;
+    const byName = list.find((w) => w.name.toLowerCase() === ref.toLowerCase());
+    return byName?.id ?? null;
+  };
   return {
-    DEFAULT_WORKSPACE_ID: 'default',
     listWorkspaces: vi.fn(async () => list),
-    resolveWorkspace: vi.fn(async (ref: string) => {
-      const byId = list.find((w) => w.id === ref);
-      if (byId) return byId.id;
-      const byName = list.find((w) => w.name.toLowerCase() === ref.toLowerCase());
-      return byName?.id ?? null;
+    resolveWorkspace: vi.fn(async (ref: string) => resolve(ref)),
+    resolveWorkspaceRef: vi.fn(async (ref: string) => {
+      if (/^#?\d{1,3}$/.test(ref.trim())) {
+        const n = Number(ref.trim().replace('#', ''));
+        if (n >= 1 && n <= list.length) return list[n - 1].id;
+      }
+      return resolve(ref);
     }),
     workspaceLabel: label,
     workspaceLabelById: vi.fn(async (id: string) => {
@@ -190,16 +197,23 @@ describe('handleCommand', () => {
     expect(out).toMatch(/not available/i);
   });
 
-  it('/ws on an unbound chat reports the default workspace', async () => {
-    const out = await handleCommand(msg('/ws'), makeDeps());
-    expect(out).toMatch(/not bound/i);
-    expect(out).toContain('default');
+  it('/bind accepts a list number', async () => {
+    const out = await handleCommand(msg('/bind 1'), makeDeps());
+    expect(out).toContain('ws-A');
+    expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-A');
   });
 
-  it('/new on an unbound chat targets the default workspace', async () => {
+  it('/ws on an unbound chat shows the workspace picker', async () => {
+    const out = await handleCommand(msg('/ws'), makeDeps());
+    expect(out).toMatch(/isn.t bound/i);
+    expect(out).toContain('1. Alpha (ws-A)');
+  });
+
+  it('/new on an unbound chat asks the user to bind first', async () => {
     const newSession = vi.fn(async () => ({ ok: true }));
-    await handleCommand(msg('/new'), makeDeps(fakeService({ newSession })));
-    expect(newSession).toHaveBeenCalledWith('default');
+    const out = await handleCommand(msg('/new'), makeDeps(fakeService({ newSession })));
+    expect(newSession).not.toHaveBeenCalled();
+    expect(out).toMatch(/No workspace bound/i);
   });
 
   it('unknown command returns help text', async () => {
