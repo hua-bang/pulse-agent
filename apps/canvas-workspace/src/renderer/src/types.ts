@@ -1036,7 +1036,15 @@ export interface CanvasWorkspaceApi {
   store: {
     save: (
       id: string,
-      data: unknown
+      data: unknown,
+      /**
+       * Set by a fully-loaded renderer to mark this snapshot as a COMPLETE
+       * picture of the canvas. The main-process merge then honors deletions
+       * (including delete-all / bulk delete) instead of treating a short or
+       * empty node list as a partial snapshot and resurrecting the removed
+       * nodes. Omitted (falsy) for non-authoritative writers.
+       */
+      authoritative?: boolean
     ) => Promise<{ ok: boolean; error?: string }>;
     load: (
       id: string

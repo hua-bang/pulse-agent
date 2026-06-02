@@ -6,8 +6,8 @@ type ExternalUpdate = Parameters<Parameters<CanvasWorkspaceApi["store"]["onExter
 type MigrationProgress = Parameters<Parameters<CanvasWorkspaceApi["store"]["onMigrationProgress"]>[0]>[0];
 
 export const createStoreApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["store"] => ({
-  save: (id, data) =>
-    ipcRenderer.invoke("canvas:save", { id, data }),
+  save: (id, data, authoritative) =>
+    ipcRenderer.invoke("canvas:save", { id, data, authoritative }),
 
   load: (id) =>
     ipcRenderer.invoke("canvas:load", { id }),

@@ -82,7 +82,13 @@ export const useNodes = (
     console.debug(
       `[canvas] saving ${canvasId}: ${payload.nodes.length} nodes, ${edgeSnapshot.length} edges`,
     );
-    void api.save(canvasId, payload).then((res) => {
+    // `doSave` only runs once `loadedRef.current` is true (guarded above),
+    // so `snapshot` is always a COMPLETE picture of the canvas. Mark the
+    // save authoritative so the main-process merge honors deletions —
+    // including "delete every node" — instead of refusing the empty write
+    // and broadcasting the on-disk nodes back, which would resurrect what
+    // the user just deleted and make Ctrl+Z (undo) appear broken.
+    void api.save(canvasId, payload, true).then((res) => {
       if (!res.ok) {
         console.warn('[canvas] save failed:', res.error);
         return;

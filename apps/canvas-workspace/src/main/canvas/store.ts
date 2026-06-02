@@ -18,6 +18,7 @@ import {
   type MigrationProgress,
   type ReadJsonResult,
 } from "./storage";
+import { decideNodeMerge } from "./node-merge";
 
 /**
  * Extra fields the canvas-store side attaches to migration-progress events
@@ -545,6 +546,7 @@ const ensureMigrated = async (workspaceId: string): Promise<void> => {
 const mergeExternalNodes = async (
   id: string,
   inMemoryData: CanvasSaveData,
+  options: { authoritative?: boolean } = {},
 ): Promise<MergeResult> => {
   const known = knownNodeIds.get(id) ?? new Set<string>();
   const memoryNodes = Array.isArray(inMemoryData.nodes) ? inMemoryData.nodes : [];
@@ -561,7 +563,9 @@ const mergeExternalNodes = async (
     // after retries). If memory is empty, we can't verify the disk is
     // also empty — skip the write rather than risk clobbering real data.
     // Memory-has-data case falls back to the memory snapshot; the save
-    // handler's second-pass merge narrows the race further.
+    // handler's second-pass merge narrows the race further. This stays
+    // conservative even for authoritative saves: we genuinely could not
+    // read disk, so a real "delete all" simply retries on the next save.
     if (memoryNodes.length === 0) {
       const reason =
         disk.kind === 'unparseable'
@@ -575,111 +579,43 @@ const mergeExternalNodes = async (
     return inMemoryData;
   }
 
-  const diskNodes = disk.nodes;
-
-  // Hard safety: never let a save with an empty node list clobber a
-  // non-empty on-disk canvas. This shields against early-lifecycle
-  // flushSave calls that fire before the renderer has finished loading
-  // (e.g. on window close / StrictMode double-invoke / HMR reload),
-  // which would otherwise wipe the canvas because every disk id is
-  // already in the `known` set.
-  if (memoryNodes.length === 0 && diskNodes.length > 0) {
-    console.warn(
-      `[canvas-store] refusing to overwrite ${diskNodes.length} on-disk nodes with empty memory for ${id}`,
-    );
-    return { ...inMemoryData, nodes: diskNodes };
-  }
-
-  const diskById = new Map<string, CanvasNode>();
-  for (const n of diskNodes) {
-    if (n.id) diskById.set(n.id, n);
-  }
-
-  // Rule 1: reconcile nodes that are in memory.
-  //   - Both disk and memory have it → pick the newer `updatedAt`.
-  //     A memory node without updatedAt is treated as "older than any
-  //     timestamped disk version" — the common case where the CLI
-  //     just wrote the disk copy with a timestamp.
-  //   - Only memory has it:
-  //       * id is in `known` → CLI deleted it between the renderer's
-  //         last load and this save. Drop it so the save doesn't
-  //         resurrect the deletion.
-  //       * id is not in `known` → user just created it in memory
-  //         and this is the first save that will persist it. Keep.
-  const mergedExisting: CanvasNode[] = [];
-  for (const memNode of memoryNodes) {
-    if (!memNode.id) {
-      mergedExisting.push(memNode);
-      continue;
-    }
-    const diskNode = diskById.get(memNode.id);
-    if (!diskNode) {
-      if (known.has(memNode.id)) {
-        // CLI-deleted; drop.
-        continue;
-      }
-      mergedExisting.push(memNode);
-      continue;
-    }
-    const memTs = typeof memNode.updatedAt === 'number' ? memNode.updatedAt : 0;
-    const diskTs = typeof diskNode.updatedAt === 'number' ? diskNode.updatedAt : 0;
-    mergedExisting.push(diskTs > memTs ? diskNode : memNode);
-  }
-
-  // Rule 2: nodes only on disk and never-seen → CLI creates, add them.
-  const memoryIds = new Set(memoryNodes.map((n) => n.id).filter(Boolean) as string[]);
-  const externalNewNodes = diskNodes.filter(
-    (n) => n.id && !memoryIds.has(n.id) && !known.has(n.id),
-  );
-
-  // Rule 3 (partial-memory safety net): if the renderer's memory snapshot
-  // is suspiciously smaller than what we've already persisted, refuse to
-  // drop the missing-from-memory disk nodes. This catches the wipe path
-  // where Rule 1 treats every disk-known-but-memory-absent id as a
-  // "user delete" — legitimate when memory is a complete snapshot, but
-  // catastrophic when memory is a partial/half-loaded snapshot (React
-  // StrictMode double-mount, HMR, beforeunload fired mid-load, an
-  // unmount during a state update, etc).
+  // Pure reconciliation lives in `node-merge.ts` (Rule 1 newer-wins, Rule 2
+  // CLI-create adoption, Rule 3 partial-snapshot guard, plus the empty-
+  // overwrite guard). `authoritative` relaxes the empty/shrink guards so a
+  // loaded renderer's genuine bulk delete actually persists instead of
+  // being treated as a half-loaded snapshot and resurrected.
   //
-  // Heuristic: only trigger when a lot of known nodes went missing AND
-  // memory is much smaller than disk. This stays conservative so ordinary
-  // "user deleted a couple of nodes" saves still propagate the deletion.
-  const missingKnownDiskNodes = diskNodes.filter(
-    (n) => !!n.id && known.has(n.id) && !memoryIds.has(n.id),
-  );
-  const knownDiskCount = diskNodes.reduce(
-    (count, n) => (n.id && known.has(n.id) ? count + 1 : count),
-    0,
-  );
-  const suspiciousShrink =
-    missingKnownDiskNodes.length >= 5 &&
-    knownDiskCount > 0 &&
-    missingKnownDiskNodes.length / knownDiskCount >= 0.5 &&
-    memoryNodes.length < missingKnownDiskNodes.length;
-
-  let preservedMissing: CanvasNode[] = [];
-  if (suspiciousShrink) {
-    console.warn(
-      `[canvas-store] suspicious shrink for ${id}: memory has ${memoryNodes.length} nodes ` +
-      `but ${missingKnownDiskNodes.length}/${knownDiskCount} previously-persisted disk nodes are absent. ` +
-      `Preserving them in case this is a partial snapshot (load race / HMR / double-mount).`,
-    );
-    preservedMissing = missingKnownDiskNodes;
-  }
-
   // NOTE: we intentionally do NOT mutate `knownNodeIds` here. The save
   // handler calls `mergeExternalNodes` twice back-to-back (to narrow a
-  // race with concurrent canvas-cli writes). If this function added
-  // freshly-merged ids to `known` on the first call, the second call
-  // would then see the in-memory new node's id as "known" but still
-  // absent from disk — and Rule 1's "CLI deleted; drop" branch would
-  // silently strip the node the user just created. The save handler
-  // is responsible for updating `knownNodeIds` once, after writeFile.
+  // race with concurrent canvas-cli writes). If this added freshly-merged
+  // ids to `known` on the first call, the second call would then see the
+  // in-memory new node's id as "known" but still absent from disk — and
+  // Rule 1's "CLI deleted; drop" branch would silently strip the node the
+  // user just created. The save handler updates `knownNodeIds` once, after
+  // writeFile.
+  const decision = decideNodeMerge(memoryNodes, disk.nodes, known, options);
 
-  return {
-    ...inMemoryData,
-    nodes: [...mergedExisting, ...externalNewNodes, ...preservedMissing],
-  };
+  if (decision.kind === 'preserve-disk') {
+    // Empty memory + non-empty disk + not authoritative → shield against
+    // early-lifecycle flushSave calls (window close / StrictMode double-
+    // invoke / HMR reload) that would otherwise wipe the canvas because
+    // every disk id is already in `known`.
+    console.warn(
+      `[canvas-store] refusing to overwrite ${disk.nodes.length} on-disk nodes with empty memory for ${id}`,
+    );
+    return { ...inMemoryData, nodes: disk.nodes };
+  }
+
+  if (decision.shrinkPreserved) {
+    const { memory, missing, knownDisk } = decision.shrinkPreserved;
+    console.warn(
+      `[canvas-store] suspicious shrink for ${id}: memory has ${memory} nodes ` +
+      `but ${missing}/${knownDisk} previously-persisted disk nodes are absent. ` +
+      `Preserving them in case this is a partial snapshot (load race / HMR / double-mount).`,
+    );
+  }
+
+  return { ...inMemoryData, nodes: decision.nodes };
 };
 
 /**
@@ -1135,8 +1071,13 @@ export const teardownCanvasWatchers = (): void => {
 export const setupCanvasStoreIpc = () => {
   ipcMain.handle(
     'canvas:save',
-    async (_event, payload: { id: string; data: unknown }) => {
+    async (_event, payload: { id: string; data: unknown; authoritative?: boolean }) => {
       try {
+        // `authoritative` saves come from a fully-loaded renderer whose
+        // node list is a complete snapshot, so deletions (including
+        // delete-all / bulk delete) are honored instead of being second-
+        // guessed by the empty-overwrite / shrink guards in the merge.
+        const authoritative = payload.authoritative === true;
         await fs.mkdir(STORE_DIR, { recursive: true });
         if (payload.id === MANIFEST_ID) {
           await atomicWriteCanvasJson(
@@ -1164,6 +1105,7 @@ export const setupCanvasStoreIpc = () => {
             const firstPass = await mergeExternalNodes(
               payload.id,
               payload.data as CanvasSaveData,
+              { authoritative },
             );
             if (firstPass === SKIP_WRITE) return;
             // Second merge, immediately before the write. Narrows the
@@ -1172,7 +1114,9 @@ export const setupCanvasStoreIpc = () => {
             // clobbered. Using `firstPass` as input ensures any CLI
             // changes seen in the first read are preserved even if the
             // second read somehow fails to include them.
-            const merged = await mergeExternalNodes(payload.id, firstPass);
+            const merged = await mergeExternalNodes(payload.id, firstPass, {
+              authoritative,
+            });
             if (merged === SKIP_WRITE) return;
             // Mark every node id we're about to write so the nodes/
             // watcher's batch handler can recognize the upcoming events
