@@ -5,6 +5,7 @@ import { handleCommand } from './commands';
 import { MessageDedupe } from './dedupe';
 import { extractGeneratedImageResult } from './image-result';
 import { SessionRouter } from './sessions';
+import { DEFAULT_WORKSPACE_ID } from './workspaces';
 import type { Channel, ChannelStream, InboundMessage } from './types';
 
 interface ActiveRun {
@@ -82,20 +83,12 @@ export class ChannelBridge {
 
     if (!msg.text.trim()) return;
 
-    // Binding is explicit and sticky: refuse to run until the conversation is
-    // bound, so it never silently picks (or switches) a workspace mid-chat.
-    const workspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
-    if (!workspaceId) {
-      const suggestion = await this.bindings.getSuggestedDefault();
-      const hint = suggestion
-        ? `\nTip: /bind  (no argument) binds the default workspace.`
-        : '';
-      await channel.sendText(
-        target,
-        `🔗 This chat isn't bound to a workspace yet. Send /list to see workspaces, then /bind <name|id>.${hint}`,
-      );
-      return;
-    }
+    // Chatting works without an explicit /bind: an unbound conversation runs
+    // in the canvas default workspace. Binding is sticky, and the default is a
+    // fixed id, so the workspace never switches on its own mid-chat. Use
+    // /bind to move a conversation to a specific workspace.
+    const workspaceId =
+      (await this.bindings.getBound(msg.channelId, msg.conversationId)) ?? DEFAULT_WORKSPACE_ID;
 
     // Busy workspace: if THIS conversation is the one awaiting a clarification
     // answer, route the message as the answer. Otherwise (a different

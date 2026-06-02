@@ -16,6 +16,7 @@ vi.mock('../core/workspaces', () => {
   ];
   const label = (w: { id: string; name?: string }) => (w.name ? `${w.name} (${w.id})` : w.id);
   return {
+    DEFAULT_WORKSPACE_ID: 'default',
     listWorkspaces: vi.fn(async () => list),
     resolveWorkspace: vi.fn(async (ref: string) => {
       const byId = list.find((w) => w.id === ref);
@@ -187,6 +188,18 @@ describe('handleCommand', () => {
     await bindings.bind('feishu', 'chatA', 'ws-A');
     const out = await handleCommand(msg('/open'), makeDeps());
     expect(out).toMatch(/not available/i);
+  });
+
+  it('/ws on an unbound chat reports the default workspace', async () => {
+    const out = await handleCommand(msg('/ws'), makeDeps());
+    expect(out).toMatch(/not bound/i);
+    expect(out).toContain('default');
+  });
+
+  it('/new on an unbound chat targets the default workspace', async () => {
+    const newSession = vi.fn(async () => ({ ok: true }));
+    await handleCommand(msg('/new'), makeDeps(fakeService({ newSession })));
+    expect(newSession).toHaveBeenCalledWith('default');
   });
 
   it('unknown command returns help text', async () => {

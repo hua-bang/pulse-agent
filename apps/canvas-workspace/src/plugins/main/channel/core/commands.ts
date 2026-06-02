@@ -3,6 +3,7 @@ import type { InboundMessage } from './types';
 import type { BindingStore } from './binding';
 import type { SessionRouter } from './sessions';
 import {
+  DEFAULT_WORKSPACE_ID,
   listWorkspaces,
   resolveWorkspace,
   workspaceLabel,
@@ -53,6 +54,11 @@ export async function handleCommand(
   const arg = rest.join(' ').trim();
   const { bindings, service, sessionRouter, activateCanvas } = deps;
 
+  // The workspace a conversation operates on: its explicit binding, else the
+  // canvas default workspace (so commands work even without /bind).
+  const effectiveWorkspace = async () =>
+    (await bindings.getBound(msg.channelId, msg.conversationId)) ?? DEFAULT_WORKSPACE_ID;
+
   switch (cmd) {
     case 'help':
       return HELP;
@@ -75,11 +81,10 @@ export async function handleCommand(
     case 'whoami': {
       const bound = await bindings.getBound(msg.channelId, msg.conversationId);
       if (bound) return `🎯 This chat is bound to ${await workspaceLabelById(bound)}.`;
-      const suggestion = await bindings.getSuggestedDefault();
-      const tip = suggestion
-        ? ` Default is ${await workspaceLabelById(suggestion)} — /bind to use it.`
-        : '';
-      return `🔗 This chat isn't bound to a workspace yet. Use /list then /bind <name|id>.${tip}`;
+      return (
+        `🗒️ Not bound — chatting in the default workspace ` +
+        `(${await workspaceLabelById(DEFAULT_WORKSPACE_ID)}). Use /list then /bind <name|id> to switch.`
+      );
     }
 
     case 'bind': {
@@ -106,22 +111,19 @@ export async function handleCommand(
     }
 
     case 'new': {
-      const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
-      if (!workspaceId) return 'No workspace bound. Use /bind <name|id> first.';
+      const workspaceId = await effectiveWorkspace();
       const res = await service.newSession(workspaceId);
       return res.ok ? '🆕 Started a new session.' : `Failed to start a new session: ${res.error}`;
     }
 
     case 'stop': {
-      const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
-      if (!workspaceId) return 'No workspace bound.';
+      const workspaceId = await effectiveWorkspace();
       service.abort(workspaceId);
       return '🛑 Stop requested.';
     }
 
     case 'sessions': {
-      const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
-      if (!workspaceId) return 'No workspace bound. Use /bind <name|id> first.';
+      const workspaceId = await effectiveWorkspace();
       const list = await service.listSessions(workspaceId);
       if (list.length === 0) return 'No sessions yet.';
       const lines = list
@@ -131,8 +133,7 @@ export async function handleCommand(
     }
 
     case 'session': {
-      const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
-      if (!workspaceId) return 'No workspace bound. Use /bind <name|id> first.';
+      const workspaceId = await effectiveWorkspace();
       if (!arg) return 'Usage: /session <number|id>  (see /sessions)';
       const list = await service.listSessions(workspaceId);
       if (list.length === 0) return 'No sessions yet.';
@@ -158,8 +159,7 @@ export async function handleCommand(
     }
 
     case 'open': {
-      const workspaceId = await bindings.getBound(msg.channelId, msg.conversationId);
-      if (!workspaceId) return 'No workspace bound. Use /bind <name|id> first.';
+      const workspaceId = await effectiveWorkspace();
       if (!activateCanvas) return 'Opening the canvas app is not available here.';
       const res = await activateCanvas(workspaceId);
       return res.ok

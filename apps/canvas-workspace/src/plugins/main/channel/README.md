@@ -83,14 +83,19 @@ it only responds when @-mentioned.
 Workspace names come from the Canvas workspace manifest, so `/list` shows
 human names (with ids) and `/bind` / `/default` accept either a name or an id.
 
-Binding is **explicit and sticky**. A conversation only talks to a workspace
-once you `/bind` it, and that choice never changes on its own — there is no
-implicit fallback, so a chat can't silently pick or switch workspaces
-mid-conversation. Until bound, the bot replies asking you to `/bind`.
+You can chat **without binding** — an unbound conversation runs in the canvas
+**default workspace** (`default`, mirroring the app's always-present default),
+so it just works out of the box. Bind a specific workspace later with `/bind`
+when you need it.
 
-The stored/env default is only a **suggestion**: `/bind` with no argument
-binds it, but it is never auto-applied. Bindings persist via the plugin's own
-store (`PluginStore`).
+Binding is **explicit and sticky**: once you `/bind`, that conversation stays
+on that workspace and never switches on its own. The unbound fallback is a
+fixed id, so it can't surprise-switch mid-chat either. Use `/unbind` to return
+a conversation to the default workspace.
+
+The stored/env default is only a **suggestion** for `/bind` with no argument;
+it is not the unbound fallback. Bindings persist via the plugin's own store
+(`PluginStore`).
 
 ## Conversations & topic groups
 

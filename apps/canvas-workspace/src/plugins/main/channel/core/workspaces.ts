@@ -7,6 +7,15 @@ import { join } from 'path';
 // manifest (names live in the renderer), so channels bind by workspace id.
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
+/**
+ * The canvas app's always-present default workspace id (see the renderer's
+ * useWorkspaces — it auto-creates `{ id: 'default', name: 'Workspace' }`).
+ * Used as the effective workspace for conversations that haven't bound one,
+ * so chatting works without an explicit /bind. It's a fixed id, so this never
+ * causes a surprise mid-chat switch.
+ */
+export const DEFAULT_WORKSPACE_ID = 'default';
+
 export interface WorkspaceInfo {
   id: string;
   /** Friendly name from the workspace manifest, when available. */
