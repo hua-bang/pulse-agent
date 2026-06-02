@@ -12,7 +12,9 @@ WeCom later is a matter of implementing one interface.
   binding — established with a light first-contact picker).
 - Drives `CanvasAgentService.chat()` for that workspace and streams the
   agent's output back into the channel (Feishu: a single interactive card
-  that is progressively patched; images are sent as separate messages).
+  that is progressively patched — tool calls accumulate as a live ⏳/✅ list
+  that folds into a collapsible panel once the run finishes; images are sent
+  as separate messages).
 - Supports clarification round-trips, abort, and session commands.
 
 The plugin is **inert unless explicitly opted in**. `enabledWhen` requires
