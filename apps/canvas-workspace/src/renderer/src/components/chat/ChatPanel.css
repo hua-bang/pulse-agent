@@ -396,6 +396,16 @@
   white-space: pre-wrap;
   word-break: break-word;
   max-width: 85%;
+  /* Chat is read-and-copy surface: keep the rendered text freely
+     selectable even inside the Electron canvas, which sets user-select
+     to none on some interaction layers. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.chat-message-content::selection,
+.chat-message-content ::selection {
+  background: rgba(35, 131, 226, 0.22);
 }
 
 .chat-message-body {
@@ -419,6 +429,18 @@
   border-radius: 12px;
   border-bottom-right-radius: 4px;
   max-width: 100%;
+  text-align: left;
+}
+
+/* Trim the leading/trailing block margins so a markdown-rendered user
+   bubble (e.g. a pasted code block) hugs the bubble padding instead of
+   leaving an uneven gap at the top or bottom. */
+.chat-message-user .chat-message-content > :first-child {
+  margin-top: 0;
+}
+
+.chat-message-user .chat-message-content > :last-child {
+  margin-bottom: 0;
 }
 
 .chat-message-assistant .chat-message-content {
@@ -1093,6 +1115,17 @@
 .chat-message:hover .chat-message-toolbar,
 .chat-message-toolbar:focus-within {
   opacity: 1;
+}
+
+/* The toolbar floats over the gap just beneath each bubble. Keeping the
+   container itself non-interactive (pointer-events inherits down to its
+   children) means dragging a text selection to the bottom edge of a
+   bubble never gets hijacked by the invisible toolbar. Only the actual
+   controls opt back in — and only once the toolbar is revealed. */
+.chat-message:hover .chat-message-toolbar-btn,
+.chat-message:hover .chat-message-timestamp,
+.chat-message-toolbar:focus-within .chat-message-toolbar-btn,
+.chat-message-toolbar:focus-within .chat-message-timestamp {
   pointer-events: auto;
 }
 
