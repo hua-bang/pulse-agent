@@ -41,11 +41,28 @@ const markdown = new MarkdownIt({
 markdown.use(taskLists, { enabled: false, label: true, labelAfter: false });
 
 /**
- * Wrap fenced code blocks in a header that exposes the language label
- * and a copy button. The button itself is wired up via event delegation
- * inside ChatMessages — here we only emit the markup + a stable data
- * attribute so the delegate can locate the source code.
+ * Emit a fenced-code-block shell: a header with the language label and a
+ * copy button, plus the highlighted body. The button is wired up via
+ * event delegation in ChatMessages — here we only emit the markup + a
+ * stable data attribute so the delegate can locate the source code.
  */
+function renderCodeBlockHtml(rawCode: string, requestedLang: string): string {
+  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang);
+  const displayLang = requestedLang || lang || 'text';
+  const codeHtml = highlighted
+    ? highlighted
+    : escapeAttr(rawCode);
+  return (
+    `<div class="chat-code-block" data-lang="${escapeAttr(displayLang)}">`
+    + '<div class="chat-code-block-header">'
+    + `<span class="chat-code-block-lang">${escapeAttr(displayLang)}</span>`
+    + '<button type="button" class="chat-code-block-copy" data-action="copy-code" aria-label="Copy code">Copy</button>'
+    + '</div>'
+    + `<pre class="chat-code-block-pre"><code class="hljs language-${escapeAttr(displayLang)}">${codeHtml}\n</code></pre>`
+    + '</div>'
+  );
+}
+
 markdown.renderer.rules.fence = (tokens, idx) => {
   const token = tokens[idx];
   const rawCode = token.content;
@@ -63,21 +80,14 @@ markdown.renderer.rules.fence = (tokens, idx) => {
     );
   }
 
-  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang);
-  const displayLang = requestedLang || lang || 'text';
-  const codeHtml = highlighted
-    ? highlighted
-    : escapeAttr(rawCode);
-  return (
-    `<div class="chat-code-block" data-lang="${escapeAttr(displayLang)}">`
-    + '<div class="chat-code-block-header">'
-    + `<span class="chat-code-block-lang">${escapeAttr(displayLang)}</span>`
-    + '<button type="button" class="chat-code-block-copy" data-action="copy-code" aria-label="Copy code">Copy</button>'
-    + '</div>'
-    + `<pre class="chat-code-block-pre"><code class="hljs language-${escapeAttr(displayLang)}">${codeHtml}\n</code></pre>`
-    + '</div>'
-  );
+  return renderCodeBlockHtml(rawCode, requestedLang);
 };
+
+// Indented (4-space) code blocks — common when a user pastes code without
+// fences — get the same polished shell + auto-detected highlighting as a
+// fenced block, instead of a bare monospace `<pre>`.
+markdown.renderer.rules.code_block = (tokens, idx) =>
+  renderCodeBlockHtml(tokens[idx].content.replace(/\n+$/, ''), '');
 
 /** Open external links in a new window and never leak referrer. */
 const defaultLinkOpen = markdown.renderer.rules.link_open

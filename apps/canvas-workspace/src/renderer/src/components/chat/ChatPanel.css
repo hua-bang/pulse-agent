@@ -360,16 +360,20 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  /* The hover toolbar is absolutely positioned at top:100% below each
-     bubble (out of flow), so this gap IS the visible spacing between
-     messages. Toolbar overlays the gap on hover. */
-  gap: 10px;
+  /* Each message reserves its own toolbar space via padding-bottom, so
+     this gap is only the breathing room between that reserved strip and
+     the next bubble. */
+  gap: 2px;
 }
 
 .chat-message {
   display: flex;
   gap: 8px;
   align-items: flex-start;
+  /* Reserve room for the hover toolbar that floats at top:100% of the
+     body, so it sits in this message's own footprint instead of bleeding
+     over the next bubble. */
+  padding-bottom: 24px;
 }
 
 .chat-message-user {
@@ -377,14 +381,16 @@
 }
 
 .chat-message-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(55, 53, 47, 0.06);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  box-shadow: 0 1px 2px rgba(55, 53, 47, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9b9a97;
+  color: #1d1d1f;
   flex-shrink: 0;
   margin-top: 1px;
 }

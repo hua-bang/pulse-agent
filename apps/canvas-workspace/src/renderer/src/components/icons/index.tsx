@@ -243,6 +243,22 @@ export const AvatarIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProp
   </svg>
 );
 
+/**
+ * Assistant avatar — the Pulse waveform mark (same glyph as the panel
+ * brand). Reads as the product's identity rather than a generic person.
+ */
+export const BotAvatarIcon = ({ size = 16, className, strokeWidth = 1.7 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+    <path
+      d="M2.5 13H7l2.4-6 2.4 11 2.3-8 1.5 3H21.5"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 /** Three horizontal lines representing a list entry. */
 export const ListLinesIcon = ({ size = 14, className }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 14 14" fill="none" className={className}>
