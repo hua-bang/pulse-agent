@@ -96,8 +96,12 @@ export function useChatSessions({
       return;
     }
 
-    await loadSessions();
+    // Open immediately so the trigger feels responsive, then refresh the
+    // session list in the background. Awaiting the IPC round-trip(s)
+    // before opening made the title dropdown feel laggy — the menu only
+    // appeared once `listSessions` (and `listAllSessions`) returned.
     setSessionMenuOpen(true);
+    await loadSessions();
   }, [loadSessions, sessionMenuOpen]);
 
   const handleNewSession = useCallback(async () => {
