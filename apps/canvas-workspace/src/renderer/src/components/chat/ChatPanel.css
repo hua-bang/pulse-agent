@@ -486,7 +486,10 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 0;
+  /* Match the avatar's box height (26px + 1px top nudge) so the dots sit
+     vertically centred against it instead of riding high. */
+  min-height: 26px;
+  margin-top: 1px;
 }
 
 .chat-loading-dot {
