@@ -1,4 +1,5 @@
 import { getRegisteredCanvasToolFactories } from '../../../plugins/main';
+import { z } from 'zod';
 import type { CanvasTool } from './types';
 import { createNodeTools } from './nodes';
 import { createSearchTools } from './search';
@@ -17,6 +18,44 @@ import { createSkillTools } from './skills';
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
 // ─── Tool definitions ──────────────────────────────────────────────
+
+const requireWorkspaceId = (tool: CanvasTool): CanvasTool => {
+  const schema = tool.inputSchema instanceof z.ZodObject
+    ? tool.inputSchema.extend({
+        workspaceId: z.string().min(1).describe('Target workspace ID. Required in global chat because there is no current workspace.'),
+      })
+    : tool.inputSchema;
+
+  return {
+    ...tool,
+    description:
+      `${tool.description}\n\nGlobal chat note: workspaceId is required; there is no current/default workspace in global chat.`,
+    inputSchema: schema,
+    execute: async (input, ctx) => {
+      if (!input?.workspaceId || typeof input.workspaceId !== 'string') {
+        return 'Error: workspaceId is required in global chat. Ask the user which workspace to inspect, or use a workspace mention to identify it.';
+      }
+      return tool.execute(input, ctx);
+    },
+  };
+};
+
+export function createGlobalReadOnlyCanvasTools(): Record<string, CanvasTool> {
+  const nodeTools = createNodeTools('');
+  const searchTools = createSearchTools('');
+  const edgeTools = createEdgeTools('');
+  const workspaceNodeTools = createWorkspaceNodeTools('');
+
+  return {
+    canvas_ask_user: nodeTools.canvas_ask_user,
+    canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
+    canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
+    canvas_search_nodes: requireWorkspaceId(searchTools.canvas_search_nodes),
+    canvas_list_edges: requireWorkspaceId(edgeTools.canvas_list_edges),
+    workspace_node_list: requireWorkspaceId(workspaceNodeTools.workspace_node_list),
+    workspace_node_get: requireWorkspaceId(workspaceNodeTools.workspace_node_get),
+  };
+}
 
 export function createCanvasTools(workspaceId: string): Record<string, CanvasTool> {
   const base: Record<string, CanvasTool> = {

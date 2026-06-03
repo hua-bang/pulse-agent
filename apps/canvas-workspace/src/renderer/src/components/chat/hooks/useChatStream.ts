@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
-import type { PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
+import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 
 interface UseChatStreamOptions {
-  workspaceId: string;
+  agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
 }
 
-export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptions) {
+const agentScopeKey = (scope: AgentScope): string =>
+  scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
+
+export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOptions) {
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [streamingTools, setStreamingTools] = useState<ToolCallStatus[]>([]);
@@ -29,13 +32,16 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
     activeUnsubsRef.current = [];
   }, []);
 
+  const scopeKey = agentScopeKey(agentScope);
+  const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+
   useEffect(() => {
     setActiveSessionId(null);
     setPendingClarify(null);
     setClarifyInput('');
 
     return cleanupSubscriptions;
-  }, [cleanupSubscriptions, workspaceId]);
+  }, [cleanupSubscriptions, scopeKey]);
 
   const replaceMessages = useCallback((nextMessages: AgentChatMessage[]) => {
     setMessages(nextMessages);
@@ -68,9 +74,11 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
     setLoading(true);
 
     try {
-      const mentionedWorkspaceIds = extractMentionedWorkspaceIds(text, allWorkspaces, workspaceId);
+      const mentionedWorkspaceIds = workspaceId
+        ? extractMentionedWorkspaceIds(text, allWorkspaces, workspaceId)
+        : extractMentionedWorkspaceIds(text, allWorkspaces, '');
       const result = await window.canvasWorkspace.agent.chat(
-        workspaceId,
+        { scope: agentScope },
         text,
         mentionedWorkspaceIds.length > 0 ? mentionedWorkspaceIds : undefined,
         requestContext,
@@ -175,7 +183,7 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
       // chunk from a parallel workspace agent doesn't leak in.
       let visualStreamFrames = 0;
       const unsubscribeVisualStream = window.canvasWorkspace.agent.onVisualStream(data => {
-        if (data.workspaceId !== workspaceId) return;
+        if (!workspaceId || data.workspaceId !== workspaceId) return;
         const tool = findTool(data.toolCallId);
         if (!tool) {
           if (visualStreamFrames < 3) {
@@ -359,10 +367,11 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
       setClarifyInput('');
       return false;
     }
-  }, [allWorkspaces, loading, workspaceId]);
+  }, [agentScope, allWorkspaces, loading, workspaceId]);
 
 
   const addImageToCanvas = useCallback(async (imagePath: string, title?: string) => {
+    if (!workspaceId) return;
     const result = await window.canvasWorkspace.agent.addImageToCanvas(workspaceId, imagePath, title);
     if (!result.ok) {
       setMessages(prev => [
@@ -432,13 +441,13 @@ export function useChatStream({ workspaceId, allWorkspaces }: UseChatStreamOptio
       return next;
     });
     try {
-      const result = await window.canvasWorkspace.agent.rewindMessages(workspaceId, fromIndex);
+      const result = await window.canvasWorkspace.agent.rewindMessages({ scope: agentScope }, fromIndex);
       return !!result?.ok;
     } catch (error) {
       console.error('[chat-panel] rewind failed:', error);
       return false;
     }
-  }, [loading, workspaceId]);
+  }, [agentScope, loading]);
 
   /**
    * Replace the user message at `userIndex` with `newContent` and

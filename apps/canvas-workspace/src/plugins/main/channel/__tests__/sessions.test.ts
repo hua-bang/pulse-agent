@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type {
+  AgentScope,
   AgentChatResult,
   AgentSessionInfo,
   AgentStatusInfo,
@@ -35,17 +36,30 @@ function fakeService() {
   const current = new Map<string, string>();
   let counter = 0;
   const known = new Set<string>();
+  const key = (scope: AgentScope) =>
+    scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
 
   const service: CanvasAgentServiceRef = {
     chat: async (): Promise<AgentChatResult> => ({ ok: true }),
+    chatWithScope: async (): Promise<AgentChatResult> => ({ ok: true }),
     abort: () => {},
+    abortScope: () => {},
     answerClarification: () => true,
+    answerClarificationForScope: () => true,
     getStatus: (): AgentStatusInfo => ({ ok: true, active: true, messageCount: 0 }),
+    getStatusForScope: (): AgentStatusInfo => ({ ok: true, active: true, messageCount: 0 }),
     getCurrentSessionId: (ws) => current.get(ws) ?? null,
+    getCurrentSessionIdForScope: (scope) => current.get(key(scope)) ?? null,
     newSession: async (ws) => {
       const id = `s${++counter}`;
       known.add(id);
       current.set(ws, id);
+      return { ok: true };
+    },
+    newSessionForScope: async (scope) => {
+      const id = `s${++counter}`;
+      known.add(id);
+      current.set(key(scope), id);
       return { ok: true };
     },
     loadSession: async (ws, sessionId) => {
@@ -53,7 +67,14 @@ function fakeService() {
       current.set(ws, sessionId);
       return { ok: true };
     },
+    loadSessionForScope: async (scope, sessionId) => {
+      if (!known.has(sessionId)) return { ok: true }; // no-op when missing
+      current.set(key(scope), sessionId);
+      return { ok: true };
+    },
     listSessions: async (): Promise<AgentSessionInfo[]> => [],
+    listSessionsForScope: async (): Promise<AgentSessionInfo[]> => [],
+    copySessionToScope: async () => ({ ok: true }),
   };
 
   return { service, current };
@@ -63,37 +84,38 @@ describe('SessionRouter', () => {
   it('creates a session per conversation and swaps between them', async () => {
     const { service, current } = fakeService();
     const router = new SessionRouter(service, memoryStore());
-    const W = 'ws1';
+    const scope: AgentScope = { kind: 'workspace', workspaceId: 'ws1' };
+    const K = 'workspace:ws1';
 
-    await router.ensureSession(W, 'convA');
-    const sa = current.get(W);
+    await router.ensureSession(scope, 'convA');
+    const sa = current.get(K);
     expect(sa).toBeTruthy();
 
     // A different conversation gets its own fresh session.
-    await router.ensureSession(W, 'convB');
-    const sb = current.get(W);
+    await router.ensureSession(scope, 'convB');
+    const sb = current.get(K);
     expect(sb).toBeTruthy();
     expect(sb).not.toBe(sa);
 
     // Returning to A swaps the current session back to A's, not a new one.
-    await router.ensureSession(W, 'convA');
-    expect(current.get(W)).toBe(sa);
+    await router.ensureSession(scope, 'convA');
+    expect(current.get(K)).toBe(sa);
 
     // And back to B.
-    await router.ensureSession(W, 'convB');
-    expect(current.get(W)).toBe(sb);
+    await router.ensureSession(scope, 'convB');
+    expect(current.get(K)).toBe(sb);
   });
 
   it('is a no-op when the conversation already owns the current session', async () => {
     const { service } = fakeService();
-    const newSpy = vi.spyOn(service, 'newSession');
-    const loadSpy = vi.spyOn(service, 'loadSession');
+    const newSpy = vi.spyOn(service, 'newSessionForScope');
+    const loadSpy = vi.spyOn(service, 'loadSessionForScope');
     const router = new SessionRouter(service, memoryStore());
 
-    await router.ensureSession('ws1', 'convA'); // creates s1
+    await router.ensureSession({ kind: 'workspace', workspaceId: 'ws1' }, 'convA'); // creates s1
     expect(newSpy).toHaveBeenCalledTimes(1);
 
-    await router.ensureSession('ws1', 'convA'); // already current → no work
+    await router.ensureSession({ kind: 'workspace', workspaceId: 'ws1' }, 'convA'); // already current → no work
     expect(newSpy).toHaveBeenCalledTimes(1);
     expect(loadSpy).not.toHaveBeenCalled();
   });
@@ -102,10 +124,10 @@ describe('SessionRouter', () => {
     const { service, current } = fakeService();
     const router = new SessionRouter(service, memoryStore());
 
-    await router.ensureSession('wsX', 'conv');
-    const sx = current.get('wsX');
-    await router.ensureSession('wsY', 'conv');
-    const sy = current.get('wsY');
+    await router.ensureSession({ kind: 'workspace', workspaceId: 'wsX' }, 'conv');
+    const sx = current.get('workspace:wsX');
+    await router.ensureSession({ kind: 'workspace', workspaceId: 'wsY' }, 'conv');
+    const sy = current.get('workspace:wsY');
 
     expect(sx).toBeTruthy();
     expect(sy).toBeTruthy();
@@ -115,13 +137,40 @@ describe('SessionRouter', () => {
   it('starts a fresh session when the mapped one no longer exists', async () => {
     const store = memoryStore();
     // Pre-seed a mapping pointing at a session id the service does not know.
-    await store.set('sessions', { 'ws1::convA': 'ghost' });
+    await store.set('sessions', { 'workspace:ws1::convA': 'ghost' });
     const { service, current } = fakeService();
     const router = new SessionRouter(service, store);
 
-    await router.ensureSession('ws1', 'convA');
+    await router.ensureSession({ kind: 'workspace', workspaceId: 'ws1' }, 'convA');
     // loadSession('ghost') is a no-op, so the router creates a real session.
-    expect(current.get('ws1')).toBeTruthy();
-    expect(current.get('ws1')).not.toBe('ghost');
+    expect(current.get('workspace:ws1')).toBeTruthy();
+    expect(current.get('workspace:ws1')).not.toBe('ghost');
+  });
+
+  it('keeps global conversations in separate sessions', async () => {
+    const { service, current } = fakeService();
+    const router = new SessionRouter(service, memoryStore());
+    const scope: AgentScope = { kind: 'global' };
+
+    await router.ensureSession(scope, 'convA');
+    const sa = current.get('global');
+    await router.ensureSession(scope, 'convB');
+    const sb = current.get('global');
+    await router.ensureSession(scope, 'convA');
+
+    expect(sa).toBeTruthy();
+    expect(sb).toBeTruthy();
+    expect(sb).not.toBe(sa);
+    expect(current.get('global')).toBe(sa);
+  });
+
+  it('returns a mapped conversation session without activating the service', async () => {
+    const { service } = fakeService();
+    const router = new SessionRouter(service, memoryStore());
+    const scope: AgentScope = { kind: 'global' };
+    await router.setConversationSession(scope, 'convA', 's-existing');
+
+    expect(await router.getConversationSessionId(scope, 'convA')).toBe('s-existing');
+    expect(await router.getConversationSessionId(scope, 'convB')).toBeUndefined();
   });
 });

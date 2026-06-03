@@ -1,4 +1,4 @@
-import type { CanvasAgentServiceRef } from '../../../types';
+import type { AgentScope, CanvasAgentServiceRef } from '../../../types';
 import type { InboundMessage } from './types';
 import type { BindingStore } from './binding';
 import type { SessionRouter } from './sessions';
@@ -25,18 +25,18 @@ export interface CommandDeps {
 const HELP = [
   '🛠️ Canvas channel commands:',
   '/list — list available workspaces',
-  '/ws — show the workspace this chat is bound to',
+  '/ws — show whether this chat is global or bound to a workspace',
   '/bind <number|name|id> — bind this chat to a workspace',
-  '/unbind — clear this chat’s binding',
+  '/unbind — clear this chat’s binding and return to global chat',
   '/default <name|id> — set the workspace suggested for /bind',
   '/new — start a fresh session',
   '/stop — abort the current run',
-  '/sessions — list sessions for the bound workspace',
+  '/sessions — list sessions for this chat’s current scope',
   '/session <number|id> — switch this chat to a session',
-  '/open — open the bound workspace in the canvas app (for webview ops)',
+  '/open [number|name|id] — open a workspace in the canvas app (for webview ops)',
 ].join('\n');
 
-const NEED_BIND = 'No workspace bound. Send a message to pick one, or /bind <number|name|id>.';
+const NEED_OPEN_TARGET = 'Usage: /open <number|name|id>  (or bind this chat and use /open).';
 
 /**
  * Numbered workspace picker shown when a conversation needs to bind. The
@@ -54,7 +54,37 @@ export async function buildBindPrompt(): Promise<string> {
   const lines = workspaces
     .slice(0, 30)
     .map((w, i) => `${i + 1}. ${workspaceLabel(w)}${w.isActive ? ' 🖥️' : ''}`);
-  return `🔗 Pick a workspace for this chat — reply with its number (or /bind <name>):\n${lines.join('\n')}`;
+  return `🔗 Pick a workspace for this chat with /bind <number|name>:\n${lines.join('\n')}`;
+}
+
+function workspaceScope(workspaceId: string): AgentScope {
+  return { kind: 'workspace', workspaceId };
+}
+
+function sameScope(a: AgentScope, b: AgentScope): boolean {
+  if (a.kind !== b.kind) return false;
+  return a.kind === 'global' || a.workspaceId === (b as { kind: 'workspace'; workspaceId: string }).workspaceId;
+}
+
+async function scopeLabel(scope: AgentScope): Promise<string> {
+  return scope.kind === 'global' ? 'Global chat' : workspaceLabelById(scope.workspaceId);
+}
+
+async function migrateConversationSession(
+  sourceScope: AgentScope,
+  targetScope: AgentScope,
+  conversationId: string,
+  deps: CommandDeps,
+): Promise<{ ok: boolean; messageCount?: number; error?: string }> {
+  const sourceSessionId = await deps.sessionRouter.getConversationSessionId(sourceScope, conversationId);
+  if (!sourceSessionId) return { ok: true, messageCount: 0 };
+
+  const copied = await deps.service.copySessionToScope(sourceScope, sourceSessionId, targetScope);
+  if (!copied.ok) return { ok: false, error: copied.error };
+  if (copied.sessionId) {
+    await deps.sessionRouter.setConversationSession(targetScope, conversationId, copied.sessionId);
+  }
+  return { ok: true, messageCount: copied.messageCount ?? 0 };
 }
 
 /**
@@ -75,9 +105,11 @@ export async function handleCommand(
   const arg = rest.join(' ').trim();
   const { bindings, service, sessionRouter, activateCanvas } = deps;
 
-  // Binding is required: commands that act on a workspace use the explicit
-  // binding, and tell the user to bind when there isn't one.
   const requireBound = () => bindings.getBound(msg.channelId, msg.conversationId);
+  const currentScope = async (): Promise<AgentScope> => {
+    const workspaceId = await requireBound();
+    return workspaceId ? workspaceScope(workspaceId) : { kind: 'global' };
+  };
 
   switch (cmd) {
     case 'help':
@@ -101,7 +133,7 @@ export async function handleCommand(
     case 'whoami': {
       const bound = await bindings.getBound(msg.channelId, msg.conversationId);
       if (bound) return `🎯 This chat is bound to ${await workspaceLabelById(bound)}.`;
-      return `🔗 This chat isn’t bound yet.\n${await buildBindPrompt()}`;
+      return '🌐 This chat is using Global chat. Use /bind <number|name|id> to pin it to a canvas workspace.';
     }
 
     case 'bind': {
@@ -110,13 +142,25 @@ export async function handleCommand(
       if (!ref) return 'Usage: /bind <number|name|id>  (see /list). No default is set.';
       const id = await resolveWorkspaceRef(ref);
       if (!id) return `Workspace not found: ${ref}. Use /list to see available workspaces.`;
+      const previousScope = await currentScope();
+      const targetScope = workspaceScope(id);
       await bindings.bind(msg.channelId, msg.conversationId, id);
-      return `✅ This chat is now bound to ${await workspaceLabelById(id)}.`;
+      const migrated = sameScope(previousScope, targetScope)
+        ? { ok: true, messageCount: 0 }
+        : await migrateConversationSession(previousScope, targetScope, msg.conversationId, deps);
+      const label = await workspaceLabelById(id);
+      if (!migrated.ok) {
+        return `✅ This chat is now bound to ${label}.\n⚠️ Previous chat context could not be migrated: ${migrated.error ?? 'unknown error'}`;
+      }
+      const suffix = migrated.messageCount && migrated.messageCount > 0
+        ? ` Migrated ${migrated.messageCount} previous messages.`
+        : '';
+      return `✅ This chat is now bound to ${label}.${suffix}`;
     }
 
     case 'unbind': {
       await bindings.unbind(msg.channelId, msg.conversationId);
-      return '✅ Binding cleared. This chat is now unbound — /bind to use it again.';
+      return '✅ Binding cleared. This chat now uses Global chat.';
     }
 
     case 'default': {
@@ -128,35 +172,36 @@ export async function handleCommand(
     }
 
     case 'new': {
-      const workspaceId = await requireBound();
-      if (!workspaceId) return NEED_BIND;
-      const res = await service.newSession(workspaceId);
-      return res.ok ? '🆕 Started a new session.' : `Failed to start a new session: ${res.error}`;
+      const scope = await currentScope();
+      const res = await service.newSessionForScope(scope);
+      const sessionId = res.ok ? service.getCurrentSessionIdForScope(scope) : null;
+      if (sessionId) {
+        await sessionRouter.setConversationSession(scope, msg.conversationId, sessionId);
+      }
+      return res.ok
+        ? `🆕 Started a new session in ${await scopeLabel(scope)}.`
+        : `Failed to start a new session: ${res.error}`;
     }
 
     case 'stop': {
-      const workspaceId = await requireBound();
-      if (!workspaceId) return NEED_BIND;
-      service.abort(workspaceId);
+      service.abortScope(await currentScope());
       return '🛑 Stop requested.';
     }
 
     case 'sessions': {
-      const workspaceId = await requireBound();
-      if (!workspaceId) return NEED_BIND;
-      const list = await service.listSessions(workspaceId);
+      const scope = await currentScope();
+      const list = await service.listSessionsForScope(scope);
       if (list.length === 0) return 'No sessions yet.';
       const lines = list
         .slice(0, 15)
         .map((s, i) => `${i + 1}. ${s.isCurrent ? '(current) ' : ''}${s.date} — ${s.messageCount} msgs`);
-      return `🗂️ Sessions for ${await workspaceLabelById(workspaceId)}:\n${lines.join('\n')}\n\nSwitch with /session <number>.`;
+      return `🗂️ Sessions for ${await scopeLabel(scope)}:\n${lines.join('\n')}\n\nSwitch with /session <number>.`;
     }
 
     case 'session': {
-      const workspaceId = await requireBound();
-      if (!workspaceId) return NEED_BIND;
+      const scope = await currentScope();
       if (!arg) return 'Usage: /session <number|id>  (see /sessions)';
-      const list = await service.listSessions(workspaceId);
+      const list = await service.listSessionsForScope(scope);
       if (list.length === 0) return 'No sessions yet.';
 
       const n = Number(arg);
@@ -168,20 +213,24 @@ export async function handleCommand(
 
       if (target.isCurrent) {
         // Already current, but make sure this conversation owns it going forward.
-        await sessionRouter.setConversationSession(workspaceId, msg.conversationId, target.sessionId);
+        await sessionRouter.setConversationSession(scope, msg.conversationId, target.sessionId);
         return `🎯 Already on session ${target.date} (${target.messageCount} msgs).`;
       }
 
-      const res = await service.loadSession(workspaceId, target.sessionId);
+      const res = await service.loadSessionForScope(scope, target.sessionId);
       if (!res.ok) return `Failed to switch session: ${res.error ?? 'unknown error'}`;
       // Pin the choice so the per-conversation router keeps it on later turns.
-      await sessionRouter.setConversationSession(workspaceId, msg.conversationId, target.sessionId);
+      await sessionRouter.setConversationSession(scope, msg.conversationId, target.sessionId);
       return `✅ Switched to session ${target.date} (${target.messageCount} msgs).`;
     }
 
     case 'open': {
-      const workspaceId = await requireBound();
-      if (!workspaceId) return NEED_BIND;
+      const workspaceId = arg ? await resolveWorkspaceRef(arg) : await requireBound();
+      if (!workspaceId) {
+        return arg
+          ? `Workspace not found: ${arg}. Use /list to see available workspaces.`
+          : NEED_OPEN_TARGET;
+      }
       if (!activateCanvas) return 'Opening the canvas app is not available here.';
       const res = await activateCanvas(workspaceId);
       return res.ok

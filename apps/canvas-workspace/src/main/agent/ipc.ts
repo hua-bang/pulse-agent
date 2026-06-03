@@ -30,18 +30,28 @@ import { basename, join } from 'path';
 import { homedir } from 'os';
 import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
+import type { AgentScope, AgentScopeRef } from './types';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 let service: CanvasAgentService | null = null;
 
 /**
- * Track which workspace each in-flight sessionId belongs to, so that
- * clarification answers from the renderer can be routed back to the right
- * agent instance. Entries are cleared when the corresponding chat turn
- * completes or is aborted.
+ * Track which agent scope each in-flight sessionId belongs to, so that
+ * aborts and clarification answers from the renderer can be routed back to
+ * the right agent instance. Entries are cleared when the corresponding chat
+ * turn completes or is aborted.
  */
-const sessionWorkspaceMap = new Map<string, string>();
+const sessionScopeMap = new Map<string, AgentScope>();
+
+function resolveAgentScope(payload: AgentScopeRef): AgentScope {
+  if (payload.scope?.kind === 'global') return { kind: 'global' };
+  if (payload.scope?.kind === 'workspace' && payload.scope.workspaceId) {
+    return { kind: 'workspace', workspaceId: payload.scope.workspaceId };
+  }
+  if (payload.workspaceId) return { kind: 'workspace', workspaceId: payload.workspaceId };
+  return { kind: 'global' };
+}
 
 export function getCanvasAgentService(): CanvasAgentService {
   if (!service) {
@@ -62,7 +72,8 @@ export function setupCanvasAgentIpc(): void {
     async (
       event,
       payload: {
-        workspaceId: string;
+        scope?: AgentScope;
+        workspaceId?: string;
         message: string;
         mentionedWorkspaceIds?: string[];
         requestContext?: {
@@ -76,13 +87,14 @@ export function setupCanvasAgentIpc(): void {
     ) => {
       const sessionId = randomUUID();
       const sender = event.sender;
-      sessionWorkspaceMap.set(sessionId, payload.workspaceId);
+      const scope = resolveAgentScope(payload);
+      sessionScopeMap.set(sessionId, scope);
 
       // Fire-and-forget: run the agent asynchronously, streaming text deltas
       void (async () => {
         try {
-          const result = await svc.chat(
-            payload.workspaceId,
+          const result = await svc.chatWithScope(
+            scope,
             payload.message,
             (delta) => {
               if (!sender.isDestroyed()) {
@@ -134,7 +146,7 @@ export function setupCanvasAgentIpc(): void {
             });
           }
         } finally {
-          sessionWorkspaceMap.delete(sessionId);
+          sessionScopeMap.delete(sessionId);
         }
       })();
 
@@ -146,9 +158,13 @@ export function setupCanvasAgentIpc(): void {
   ipcMain.handle(
     'canvas-agent:abort',
     (_event, payload: { sessionId?: string; workspaceId?: string }) => {
-      const workspaceId =
-        payload.workspaceId ??
-        (payload.sessionId ? sessionWorkspaceMap.get(payload.sessionId) : undefined);
+      const scope =
+        payload.sessionId ? sessionScopeMap.get(payload.sessionId) : undefined;
+      if (scope) {
+        svc.abortScope(scope);
+        return { ok: true };
+      }
+      const workspaceId = payload.workspaceId;
       if (!workspaceId) return { ok: false, error: 'No active run for sessionId' };
       svc.abort(workspaceId);
       return { ok: true };
@@ -161,9 +177,9 @@ export function setupCanvasAgentIpc(): void {
       _event,
       payload: { sessionId: string; requestId: string; answer: string },
     ) => {
-      const workspaceId = sessionWorkspaceMap.get(payload.sessionId);
-      if (!workspaceId) return { ok: false, error: 'No active run for sessionId' };
-      const matched = svc.answerClarification(workspaceId, payload.requestId, payload.answer);
+      const scope = sessionScopeMap.get(payload.sessionId);
+      if (!scope) return { ok: false, error: 'No active run for sessionId' };
+      const matched = svc.answerClarificationForScope(scope, payload.requestId, payload.answer);
       return { ok: matched, error: matched ? undefined : 'No pending clarification matched' };
     },
   );
@@ -222,16 +238,16 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:status',
-    (_event, payload: { workspaceId: string }) => {
-      return svc.getStatus(payload.workspaceId);
+    (_event, payload: AgentScopeRef) => {
+      return svc.getStatusForScope(resolveAgentScope(payload));
     },
   );
 
   ipcMain.handle(
     'canvas-agent:list-skills',
-    async (_event, payload: { workspaceId: string }) => {
+    async (_event, payload: AgentScopeRef) => {
       try {
-        const skills = await svc.listSkills(payload.workspaceId);
+        const skills = await svc.listSkillsForScope(resolveAgentScope(payload));
         return { ok: true, skills };
       } catch (err) {
         return { ok: false, error: String(err) };
@@ -241,16 +257,16 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:history',
-    (_event, payload: { workspaceId: string }) => {
-      return { ok: true, messages: svc.getHistory(payload.workspaceId) };
+    (_event, payload: AgentScopeRef) => {
+      return { ok: true, messages: svc.getHistoryForScope(resolveAgentScope(payload)) };
     },
   );
 
   ipcMain.handle(
     'canvas-agent:sessions',
-    async (_event, payload: { workspaceId: string }) => {
+    async (_event, payload: AgentScopeRef) => {
       try {
-        const sessions = await svc.listSessions(payload.workspaceId);
+        const sessions = await svc.listSessionsForScope(resolveAgentScope(payload));
         return { ok: true, sessions };
       } catch (err) {
         return { ok: false, error: String(err) };
@@ -260,9 +276,9 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:new-session',
-    async (_event, payload: { workspaceId: string }) => {
+    async (_event, payload: AgentScopeRef) => {
       try {
-        return await svc.newSession(payload.workspaceId);
+        return await svc.newSessionForScope(resolveAgentScope(payload));
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -271,9 +287,9 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:rewind-messages',
-    async (_event, payload: { workspaceId: string; fromIndex: number }) => {
+    async (_event, payload: AgentScopeRef & { fromIndex: number }) => {
       try {
-        return await svc.rewindMessages(payload.workspaceId, payload.fromIndex);
+        return await svc.rewindMessagesForScope(resolveAgentScope(payload), payload.fromIndex);
       } catch (err) {
         return { ok: false, error: String(err) };
       }
@@ -282,9 +298,9 @@ export function setupCanvasAgentIpc(): void {
 
   ipcMain.handle(
     'canvas-agent:load-session',
-    async (_event, payload: { workspaceId: string; sessionId: string }) => {
+    async (_event, payload: AgentScopeRef & { sessionId: string }) => {
       try {
-        return await svc.loadSession(payload.workspaceId, payload.sessionId);
+        return await svc.loadSessionForScope(resolveAgentScope(payload), payload.sessionId);
       } catch (err) {
         return { ok: false, error: String(err) };
       }

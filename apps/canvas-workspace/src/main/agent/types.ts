@@ -9,10 +9,22 @@
 // ─── Configuration ──────────────────────────────────────────────────
 
 export interface CanvasAgentConfig {
-  workspaceId: string;
-  workspaceDir: string;
+  scope: AgentScope;
+  sessionStoreId: string;
+  workspaceId?: string;
+  workspaceDir?: string;
   /** Optional model override (e.g. 'gpt-4o', 'claude-sonnet-4-20250514'). */
   model?: string;
+}
+
+export type AgentScope =
+  | { kind: 'workspace'; workspaceId: string }
+  | { kind: 'global' };
+
+export interface AgentScopeRef {
+  scope?: AgentScope;
+  /** Back-compat for workspace-scoped calls. Ignored when `scope` is present. */
+  workspaceId?: string;
 }
 
 // ─── Messages ───────────────────────────────────────────────────────
@@ -136,6 +148,7 @@ export interface CanvasAgentMessage {
 export interface CanvasAgentSession {
   sessionId: string;
   workspaceId: string;
+  scope?: AgentScope;
   startedAt: string;
   messages: CanvasAgentMessage[];
 }
@@ -238,7 +251,7 @@ export interface CanvasAgentEvent {
 // ─── IPC payloads ──────────────────────────────────────────────────
 
 export interface ChatRequest {
-  workspaceId: string;
+  scope: AgentScope;
   message: string;
 }
 

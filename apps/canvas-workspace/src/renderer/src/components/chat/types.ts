@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentChatToolCall, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
 
@@ -7,6 +7,8 @@ export interface WorkspaceOption {
   id: string;
   name: string;
 }
+
+export type { AgentScope };
 
 export interface ChatPanelProps {
   workspaceId: string;

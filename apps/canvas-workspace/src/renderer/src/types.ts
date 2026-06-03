@@ -498,6 +498,14 @@ export interface ChatImageAttachment {
   mimeType?: string;
 }
 
+export type AgentScope =
+  | { kind: 'workspace'; workspaceId: string }
+  | { kind: 'global' };
+
+export interface AgentScopeRef {
+  scope: AgentScope;
+}
+
 export interface AgentChatToolCall {
   id: number;
   name: string;
@@ -904,7 +912,7 @@ export interface CanvasMcpApi {
 
 export interface AgentApi {
   chat: (
-    workspaceId: string,
+    scopeRef: AgentScopeRef,
     message: string,
     mentionedWorkspaceIds?: string[],
     requestContext?: AgentRequestContext,
@@ -966,26 +974,26 @@ export interface AgentApi {
   ) => Promise<{ ok: boolean; error?: string }>;
   abort: (sessionId: string) => Promise<{ ok: boolean; error?: string }>;
   getStatus: (
-    workspaceId: string
+    scopeRef: AgentScopeRef
   ) => Promise<{ ok: boolean; active: boolean; messageCount: number }>;
   listSkills: (
-    workspaceId: string
+    scopeRef: AgentScopeRef
   ) => Promise<{ ok: boolean; skills?: Array<{ name: string; description: string }>; error?: string }>;
   getHistory: (
-    workspaceId: string
+    scopeRef: AgentScopeRef
   ) => Promise<{ ok: boolean; messages?: AgentChatMessage[] }>;
   listSessions: (
-    workspaceId: string
+    scopeRef: AgentScopeRef
   ) => Promise<{ ok: boolean; sessions?: AgentSessionInfo[]; error?: string }>;
   newSession: (
-    workspaceId: string
+    scopeRef: AgentScopeRef
   ) => Promise<{ ok: boolean; error?: string }>;
   rewindMessages: (
-    workspaceId: string,
+    scopeRef: AgentScopeRef,
     fromIndex: number,
   ) => Promise<{ ok: boolean; error?: string }>;
   loadSession: (
-    workspaceId: string,
+    scopeRef: AgentScopeRef,
     sessionId: string
   ) => Promise<{ ok: boolean; messages?: AgentChatMessage[]; error?: string }>;
   listAllSessions: (
