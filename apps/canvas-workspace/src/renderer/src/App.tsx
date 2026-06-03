@@ -4,7 +4,7 @@ import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
-import { ChatPage } from './components/chat';
+import { ChatDockHost, ChatDockProvider, useChatDock } from './components/chat';
 import { LinkDrawer } from './components/LinkDrawer';
 import { MigrationSpinner } from './components/MigrationSpinner';
 import { Settings, type SettingsSection } from './components/Settings';
@@ -76,6 +76,8 @@ const AppContent = () => {
   const routeQuery = routeParams.toString();
 
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
+  const { dockOpen, toggleDock, openDock, closeDock } = useChatDock();
+  const isChatRoute = routePath === ROUTE_CHAT;
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
@@ -111,7 +113,6 @@ const AppContent = () => {
   const {
     activeNodes,
     ensureWorkspaceNodesLoaded,
-    getWorkspaceNodes,
     requestNodeFocus,
     requestActiveNodeFocus,
     requestActiveNodeDelete,
@@ -148,9 +149,28 @@ const AppContent = () => {
     }
   }, [routePath, detailNodeMatch, setLocation]);
 
+  // Sidebar "AI Chat": toggle the global dock on the current view. If the
+  // focus page is open, the button collapses it back to the dock.
   const enterChatView = useCallback(() => {
+    if (isChatRoute) {
+      openDock();
+      setLocation(ROUTE_CANVAS);
+      return;
+    }
+    toggleDock();
+  }, [isChatRoute, openDock, toggleDock, setLocation]);
+
+  // Dock → full-screen focus page.
+  const expandChatToPage = useCallback(() => {
+    openDock();
     setLocation(ROUTE_CHAT);
-  }, [setLocation]);
+  }, [openDock, setLocation]);
+
+  // Focus page → back to the dock on the canvas.
+  const collapseChatToDock = useCallback(() => {
+    openDock();
+    setLocation(ROUTE_CANVAS);
+  }, [openDock, setLocation]);
 
   const enterNodesView = useCallback(() => {
     if (!NODES_ENABLED) return;
@@ -161,10 +181,6 @@ const AppContent = () => {
   const enterGraphView = useCallback(() => {
     if (!GRAPH_ENABLED) return;
     setLocation(ROUTE_GRAPH);
-  }, [setLocation]);
-
-  const exitChatView = useCallback(() => {
-    setLocation(ROUTE_CANVAS);
   }, [setLocation]);
 
   // Plugin nav items declare their own paths; just hand off the URL to
@@ -381,29 +397,29 @@ const AppContent = () => {
 
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') {
         e.preventDefault();
-        if (activeView === 'chat') {
-          setLocation(ROUTE_CANVAS);
+        if (isChatRoute) {
+          collapseChatToDock();
         } else {
-          setLocation(ROUTE_CHAT);
+          toggleDock();
         }
         return;
       }
 
-      if (e.key === 'Escape' && activeView === 'chat' && !isEditable) {
-        setLocation(ROUTE_CANVAS);
+      if (e.key === 'Escape' && !isEditable) {
+        if (isChatRoute) {
+          collapseChatToDock();
+        } else if (dockOpen) {
+          closeDock();
+        }
       }
     };
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeView, isOverlayOpen, openShortcuts, setLocation]);
+  }, [isChatRoute, dockOpen, isOverlayOpen, openShortcuts, toggleDock, closeDock, collapseChatToDock]);
 
 
-  const getWorkspaceRootFolder = useCallback((workspaceId: string) => {
-    return workspaces.find((ws) => ws.id === workspaceId)?.rootFolder;
-  }, [workspaces]);
-
-  const handleNodeFocusFromChatPage = useCallback((workspaceId: string, nodeId: string) => {
+  const handleNodeFocusFromChat = useCallback((workspaceId: string, nodeId: string) => {
     if (activeId !== workspaceId) {
       selectWorkspace(workspaceId);
     }
@@ -452,7 +468,7 @@ const AppContent = () => {
           graphEnabled={GRAPH_ENABLED}
           pluginNavItems={pluginNavItems}
           onNavigate={navigateToPath}
-          onExitChat={exitChatView}
+          chatDockOpen={dockOpen}
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
           <PulseRouterView name='canvas' keepAlive>
@@ -461,18 +477,7 @@ const AppContent = () => {
               workspaces={workspaces}
               controller={workbench}
               onSelectWorkspace={handleSelectWorkspace}
-              onOpenAppSettings={openAppSettings}
-            />
-          </PulseRouterView>
-          <PulseRouterView name="chat">
-            <ChatPage
-              allWorkspaces={workspaces}
-              getWorkspaceNodes={getWorkspaceNodes}
-              getWorkspaceRootFolder={getWorkspaceRootFolder}
-              onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
-              onExit={exitChatView}
-              onNodeFocus={handleNodeFocusFromChatPage}
-              onOpenAppSettings={openAppSettings}
+              active={activeView === 'canvas'}
             />
           </PulseRouterView>
           {NODES_ENABLED && (
@@ -513,6 +518,15 @@ const AppContent = () => {
             );
           })}
         </PulseRouter>
+        <ChatDockHost
+          isChatRoute={isChatRoute}
+          allWorkspaces={workspaces}
+          onOpenAppSettings={openAppSettings}
+          onCollapseToDock={collapseChatToDock}
+          onExpandToPage={expandChatToPage}
+          onNodeFocus={handleNodeFocusFromChat}
+          onWorkspaceContextRequest={ensureWorkspaceNodesLoaded}
+        />
       </div>
       <LinkDrawer activeWorkspaceId={activeId} />
       <MigrationSpinner />
@@ -539,8 +553,10 @@ const App = () => (
   <I18nProvider>
     <AppShellProvider>
       <ArtifactDrawerProvider>
-        <AppContent />
-        <ArtifactDrawer />
+        <ChatDockProvider>
+          <AppContent />
+          <ArtifactDrawer />
+        </ChatDockProvider>
       </ArtifactDrawerProvider>
     </AppShellProvider>
   </I18nProvider>

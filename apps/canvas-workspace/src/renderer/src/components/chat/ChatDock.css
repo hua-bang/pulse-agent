@@ -1,0 +1,38 @@
+/* ─── Global chat surface host ─────────────────────────────────
+ * Wraps the single always-mounted <ChatSurface>. It sits as a flex sibling of
+ * the routed view area inside .app-body, so:
+ *   - dock mode  → a fixed-width column on the right of any view,
+ *   - page mode  → fills the remaining width (the routed views collapse to 0
+ *     while the /chat focus page is active),
+ *   - hidden     → collapses to zero width but stays mounted, so a streaming
+ *     turn keeps running while the dock is closed.
+ */
+
+.chat-dock-host {
+  flex-shrink: 0;
+  height: 100%;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.chat-dock-host--dock {
+  transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.chat-dock-host--page {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Closed dock: zero width, but the surface inside stays mounted. */
+.chat-dock-host--hidden {
+  width: 0 !important;
+  flex: 0 0 0 !important;
+}
+
+/* The dock body fills the host width; the page body lays out internally. */
+.chat-dock-host--dock .chat-panel {
+  width: 100%;
+}

@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { KnowledgeTagDefinition } from '../../types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { CanvasNode, KnowledgeTagDefinition } from '../../types';
+import { useChatDock, useRegisterChatContext, type ChatActiveContext } from '../chat';
 import { NodeDetailPanel } from './NodeDetailPanel';
+import { getNodeTitle } from './utils';
 import { useKnowledgeTags, useWorkspaceNode } from './useWorkspaceNodes';
 import { useI18n } from '../../i18n';
 
@@ -8,6 +10,8 @@ interface NodeDetailDrawerProps {
   workspaceId: string;
   nodeId: string | null;
   tagDefinitions?: KnowledgeTagDefinition[];
+  /** Context source label so the chat knows which view opened it. */
+  source?: 'nodes' | 'graph';
   onClose: () => void;
   onOpenPage: (workspaceId: string, nodeId: string) => void;
   onNodeChanged?: () => void;
@@ -29,6 +33,7 @@ export const NodeDetailDrawer = ({
   workspaceId,
   nodeId,
   tagDefinitions = [],
+  source = 'nodes',
   onClose,
   onOpenPage,
   onNodeChanged,
@@ -36,6 +41,28 @@ export const NodeDetailDrawer = ({
   const { t } = useI18n();
   const { node, loading, error, setNode } = useWorkspaceNode(workspaceId, nodeId);
   const { tags, reload: reloadTags } = useKnowledgeTags();
+  const { openDock } = useChatDock();
+
+  // Surface the open node to the chat dock so a conversation bound to this
+  // workspace can act on it (and "Discuss in AI Chat" lands here).
+  const chatContext = useMemo<ChatActiveContext | null>(() => {
+    if (!nodeId || !node) return null;
+    return {
+      source,
+      workspaceId,
+      selectedNodeRefs: [{
+        id: node.id,
+        title: getNodeTitle(node, t('workspaceNodes.untitled')),
+        type: node.type as CanvasNode['type'],
+      }],
+      onNodeFocus: (id) => onOpenPage(workspaceId, id),
+    };
+  }, [nodeId, node, source, workspaceId, onOpenPage, t]);
+  useRegisterChatContext(chatContext);
+
+  const handleDiscuss = useCallback(() => {
+    openDock({ scope: { kind: 'workspace', workspaceId }, focusInput: true });
+  }, [openDock, workspaceId]);
   const [width, setWidth] = useState<number>(() => readStoredWidth());
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -95,6 +122,7 @@ export const NodeDetailDrawer = ({
         mode="drawer"
         onClose={onClose}
         onOpenPage={(nodeId) => onOpenPage(workspaceId, nodeId)}
+        onDiscuss={handleDiscuss}
         tagDefinitions={[...tagDefinitions, ...tags]}
         onNodePatched={(next) => {
           setNode(next);

@@ -1,14 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
-import { ChatPanel } from '../chat';
+import { useChatDock, useRegisterChatContext, type ChatActiveContext } from '../chat';
 import {
   createReferenceNodeDataSnapshot,
   ReferenceDrawer,
   type NodeReferenceEntryForCanvas,
   type ReferenceEntry,
 } from '../ReferenceDrawer';
-import type { SettingsSection } from '../Settings';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkbenchController } from './useWorkbenchState';
 import type { CanvasNode, ReferenceNodeData } from '../../types';
@@ -21,18 +20,14 @@ import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 
-const DEFAULT_CHAT_WIDTH = 420;
-const MIN_CHAT_WIDTH = 240;
-const MAX_CHAT_WIDTH = 900;
-
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
 interface WorkbenchProps {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   controller: WorkbenchController;
   onSelectWorkspace: (workspaceId: string) => void;
-  /** Opens the global Settings drawer focused on the given section. */
-  onOpenAppSettings: (section: SettingsSection) => void;
+  /** True when the canvas is the active view (it stays mounted via keepAlive). */
+  active: boolean;
 }
 
 export const Workbench: React.FC<WorkbenchProps> = ({
@@ -40,7 +35,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   workspaces,
   controller,
   onSelectWorkspace,
-  onOpenAppSettings,
+  active,
 }) => {
   const {
     allNodes,
@@ -60,15 +55,31 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     clearRenameRequest,
   } = controller;
 
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  const { dockOpen, toggleDock, addNodeToChat } = useChatDock();
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
   const [activeReferenceIdByWorkspace, setActiveReferenceIdByWorkspace] = useState<Record<string, string | undefined>>({});
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
-  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const patchRequestIdRef = useRef(0);
   const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId);
+
+  // Register the active canvas as the chat's context so the dock — on any view
+  // — can mention this workspace's nodes and act on the current selection.
+  const activeRootFolder = workspaces.find((ws) => ws.id === activeWorkspaceId)?.rootFolder;
+  const activeSelectedNodes = useMemo(() => {
+    const ids = new Set(selectedNodeIdsByWorkspace[activeWorkspaceId] ?? []);
+    if (ids.size === 0) return undefined;
+    return activeNodes.filter((node) => ids.has(node.id));
+  }, [activeNodes, selectedNodeIdsByWorkspace, activeWorkspaceId]);
+  const chatContext = useMemo<ChatActiveContext>(() => ({
+    source: 'canvas',
+    workspaceId: activeWorkspaceId,
+    nodes: activeNodes,
+    rootFolder: activeRootFolder,
+    selectedNodes: activeSelectedNodes,
+  }), [activeWorkspaceId, activeNodes, activeRootFolder, activeSelectedNodes]);
+  useRegisterChatContext(chatContext, active);
 
   useEffect(() => {
     for (const node of activeNodes) {
@@ -184,32 +195,13 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId]);
 
-  const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode) => void>>(new Map());
-
-  const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode) => void) => {
-    insertMentionByWorkspaceRef.current.set(workspaceId, fn);
-    return () => {
-      insertMentionByWorkspaceRef.current.delete(workspaceId);
-    };
-  }, []);
-
   const handleAddNodeToChat = useCallback((workspaceId: string, nodeId: string) => {
     const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
     if (!node) return;
-    setChatPanelOpen(true);
-    const tryInsert = () => {
-      const fn = insertMentionByWorkspaceRef.current.get(workspaceId);
-      if (fn) {
-        fn(node);
-        return true;
-      }
-      return false;
-    };
-    if (!tryInsert()) {
-      // ChatPanel may not have registered yet (just opened). Retry on next tick.
-      requestAnimationFrame(() => { tryInsert(); });
-    }
-  }, [allNodes]);
+    // Routes through the global dock: opens it (bound to this workspace) and
+    // drops an @-mention into the composer.
+    addNodeToChat(node, workspaceId);
+  }, [allNodes, addNodeToChat]);
 
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
@@ -395,34 +387,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     patchWorkspaceNodeSnapshot(ref.workspaceId, ref.nodeId, patch);
   }, [allNodes, mountedWorkspaceIds, patchWorkspaceNodeSnapshot]);
 
-  const resizing = useRef(false);
-
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    resizing.current = true;
-    const startX = e.clientX;
-    const startWidth = chatWidth;
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const delta = startX - ev.clientX;
-      const newWidth = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, startWidth + delta));
-      setChatWidth(newWidth);
-    };
-
-    const onMouseUp = () => {
-      resizing.current = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [chatWidth]);
-
   return (
     <>
       <FileNodeEditorRegistryProvider>
@@ -468,8 +432,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onDeleteComplete={clearDeleteRequest}
                   renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
                   onRenameComplete={clearRenameRequest}
-                  chatPanelOpen={chatPanelOpen}
-                  onChatToggle={() => setChatPanelOpen((prev) => !prev)}
+                  chatPanelOpen={dockOpen}
+                  onChatToggle={() => toggleDock({ scope: { kind: 'workspace', workspaceId: ws.id } })}
                   referenceDrawerOpen={referenceDrawerOpen}
                   onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
                   onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
@@ -492,26 +456,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             );
           })}
         </div>
-        {workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id)).map((ws) => (
-          <div
-            key={ws.id}
-            className={`chat-panel-wrapper${chatPanelOpen && ws.id === activeWorkspaceId ? ' chat-panel-wrapper--open' : ''}`}
-            style={ws.id !== activeWorkspaceId ? { display: 'none' } : chatPanelOpen ? { width: chatWidth } : undefined}
-          >
-            <ChatPanel
-              workspaceId={ws.id}
-              allWorkspaces={workspaces}
-              nodes={allNodes[ws.id] || []}
-              selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
-              rootFolder={ws.rootFolder}
-              onClose={() => setChatPanelOpen(false)}
-              onResizeStart={handleResizeStart}
-              onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
-              onOpenAppSettings={onOpenAppSettings}
-              onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
-            />
-          </div>
-        ))}
       </FileNodeEditorRegistryProvider>
     </>
   );

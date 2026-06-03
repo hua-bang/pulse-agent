@@ -48,6 +48,8 @@ interface Props {
   onNodeRename?: (nodeId: string, title: string) => void;
   activeView: string;
   onEnterChat: () => void;
+  /** True when the global chat dock is open, used to highlight the AI Chat nav. */
+  chatDockOpen: boolean;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
   /** When false, the Nodes nav button is hidden (experimental flag off). */
@@ -56,7 +58,6 @@ interface Props {
   graphEnabled: boolean;
   pluginNavItems: ReadonlyArray<NavItem>;
   onNavigate: (path: string) => void;
-  onExitChat: () => void;
 }
 
 const WS_DRAG = 'application/x-workspace-id';
@@ -66,7 +67,7 @@ export const Sidebar = ({
   collapsed, onToggle, workspaces, folders, activeId, onSelect, onCreate, onRename, onDelete,
   onExport, onOpenSettings, onOpenAppSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
   onReorderWorkspace, onReorderFolder,
-  activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
+  activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, chatDockOpen, pluginNavItems, onNavigate,
   onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
 }: Props) => {
   const { notify } = useAppShell();
@@ -303,7 +304,7 @@ export const Sidebar = ({
       {!collapsed && (
         <>
           <SidebarHeader
-            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat}
+            onToggle={onToggle} activeView={activeView} onEnterChat={onEnterChat} chatDockOpen={chatDockOpen}
             onEnterNodes={onEnterNodes} onEnterGraph={onEnterGraph}
             nodesEnabled={nodesEnabled} graphEnabled={graphEnabled}
             pluginNavItems={pluginNavItems} onNavigate={onNavigate}

@@ -13,6 +13,8 @@ interface NodeDetailPanelProps {
   mode?: 'drawer' | 'page';
   onClose?: () => void;
   onOpenPage?: (nodeId: string) => void;
+  /** When provided, shows a "Discuss in AI Chat" action in the header. */
+  onDiscuss?: () => void;
   tagDefinitions?: KnowledgeTagDefinition[];
   readOnly?: boolean;
   onNodePatched?: (next: WorkspaceNodeRecord) => void;
@@ -46,6 +48,7 @@ export const NodeDetailPanel = ({
   mode = 'drawer',
   onClose,
   onOpenPage,
+  onDiscuss,
   tagDefinitions = [],
   readOnly = false,
   onNodePatched,
@@ -89,6 +92,9 @@ export const NodeDetailPanel = ({
           <h2 title={getNodeTitle(node, t('workspaceNodes.untitled'))}>{getNodeTitle(node, t('workspaceNodes.untitled'))}</h2>
         </div>
         <div className="node-detail-panel__header-actions">
+          {onDiscuss && (
+            <button className="workspace-node-button" onClick={onDiscuss}>{t('chat.discuss')}</button>
+          )}
           {mode === 'drawer' && onOpenPage && (
             <button className="workspace-node-button" onClick={() => onOpenPage(node.id)}>{t('workspaceNodes.full')}</button>
           )}

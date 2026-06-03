@@ -646,6 +646,7 @@ export const GraphPage = ({
         workspaceId={selectedNode?.workspaceId ?? ''}
         nodeId={selectedNode?.nodeId ?? null}
         tagDefinitions={tags}
+        source="graph"
         onClose={() => onSelectNode?.(null)}
         onOpenPage={onOpenNode}
         onNodeChanged={() => { void reload(); }}

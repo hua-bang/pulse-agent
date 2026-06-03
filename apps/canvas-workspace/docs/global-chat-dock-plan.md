@@ -2,6 +2,11 @@
 
 > 目标：让 AI Chat 不再是 Canvas 的附属面板，而是一个挂在 App shell 层的**全局可停靠侧栏**，
 > 在 Canvas / Nodes / Graph / 插件页等任意视图都能拉出同一个 Chat，共享同一份会话与上下文。
+>
+> **状态：已实现（阶段 1–3 一次落地）。** 核心实现见 `components/chat/ChatDockContext.tsx`
+> （全局状态 + 上下文注册表）、`ChatSurface.tsx`（一处挂载、dock/page 双布局）、`ChatDockHost.tsx`
+> （shell 层宿主）。Canvas 内嵌 `ChatPanel` 已移除，整页 `ChatPage` 已并入 `ChatSurface` 的 page 模式。
+> Nodes/Graph 通过 `NodeDetailDrawer` 注入选中节点上下文并提供「在 AI Chat 中讨论」入口。
 
 ## 1. 背景与问题
 

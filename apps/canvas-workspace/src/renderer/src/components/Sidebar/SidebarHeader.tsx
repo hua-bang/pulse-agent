@@ -22,6 +22,8 @@ interface SidebarHeaderProps {
   onToggle: () => void;
   activeView: string;
   onEnterChat: () => void;
+  /** Highlights the AI Chat nav while the global dock is open. */
+  chatDockOpen: boolean;
   onEnterNodes: () => void;
   onEnterGraph: () => void;
   nodesEnabled: boolean;
@@ -40,6 +42,7 @@ export const SidebarHeader = ({
   onToggle,
   activeView,
   onEnterChat,
+  chatDockOpen,
   onEnterNodes,
   onEnterGraph,
   nodesEnabled,
@@ -78,7 +81,7 @@ export const SidebarHeader = ({
 
       <div className="sidebar-nav">
         <button
-          className={`sidebar-nav-item${activeView === 'chat' ? ' sidebar-nav-item--active' : ''}`}
+          className={`sidebar-nav-item${activeView === 'chat' || chatDockOpen ? ' sidebar-nav-item--active' : ''}`}
           onClick={onEnterChat}
           title={t('sidebar.aiChatTitle')}
         >

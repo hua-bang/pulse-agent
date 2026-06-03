@@ -1,2 +1,3 @@
-export { ChatPage } from './ChatPage';
-export { ChatPanel } from './ChatPanel';
+export { ChatDockProvider, useChatDock, useRegisterChatContext } from './ChatDockContext';
+export type { ChatActiveContext, OpenChatOptions } from './ChatDockContext';
+export { ChatDockHost } from './ChatDockHost';
