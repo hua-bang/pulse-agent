@@ -1059,7 +1059,12 @@
   padding: 10px 12px;
   background: transparent;
   border-radius: 0;
-  overflow-x: auto;
+  /* Wrap long lines instead of scrolling them off-screen — in a narrow
+     chat panel a horizontal scrollbar is easy to miss, so code just
+     looked truncated. Indentation is still preserved via pre-wrap. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .chat-md .chat-code-block-pre code {
@@ -1067,6 +1072,7 @@
   padding: 0;
   font-size: 12px;
   line-height: 1.55;
+  white-space: inherit;
 }
 
 /* Minimal highlight.js theme, tuned for the Notion-ish neutral palette. */
