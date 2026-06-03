@@ -70,6 +70,10 @@ export interface AgentSessionInfo {
   isCurrent: boolean;
 }
 
+export type AgentScope =
+  | { kind: 'global' }
+  | { kind: 'workspace'; workspaceId: string };
+
 export interface CanvasAgentServiceRef {
   chat(
     workspaceId: string,
@@ -80,15 +84,38 @@ export interface CanvasAgentServiceRef {
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: AgentClarificationRequest) => void,
   ): Promise<AgentChatResult>;
+  chatWithScope(
+    scope: AgentScope,
+    message: string,
+    onText?: (delta: string) => void,
+    onToolCall?: (data: AgentToolCallInfo) => void,
+    onToolResult?: (data: AgentToolResultInfo) => void,
+    mentionedWorkspaceIds?: string[],
+    onClarificationRequest?: (req: AgentClarificationRequest) => void,
+  ): Promise<AgentChatResult>;
   abort(workspaceId: string): void;
+  abortScope(scope: AgentScope): void;
   answerClarification(workspaceId: string, requestId: string, answer: string): boolean;
+  answerClarificationForScope(scope: AgentScope, requestId: string, answer: string): boolean;
   getStatus(workspaceId: string): AgentStatusInfo;
+  getStatusForScope(scope: AgentScope): AgentStatusInfo;
   /** Current session id for the workspace, or null when none is active. */
   getCurrentSessionId(workspaceId: string): string | null;
+  /** Current session id for an agent scope, or null when none is active. */
+  getCurrentSessionIdForScope(scope: AgentScope): string | null;
   newSession(workspaceId: string): Promise<{ ok: boolean; error?: string }>;
+  newSessionForScope(scope: AgentScope): Promise<{ ok: boolean; error?: string }>;
   /** Swap the workspace's current session to an existing one by id. */
   loadSession(workspaceId: string, sessionId: string): Promise<{ ok: boolean; error?: string }>;
+  /** Swap the scope's current session to an existing one by id. */
+  loadSessionForScope(scope: AgentScope, sessionId: string): Promise<{ ok: boolean; error?: string }>;
   listSessions(workspaceId: string): Promise<AgentSessionInfo[]>;
+  listSessionsForScope(scope: AgentScope): Promise<AgentSessionInfo[]>;
+  copySessionToScope(
+    sourceScope: AgentScope,
+    sourceSessionId: string,
+    targetScope: AgentScope,
+  ): Promise<{ ok: boolean; sessionId?: string; messageCount?: number; error?: string }>;
 }
 
 // Subset of Electron's IpcMainInvokeEvent the plugin contract needs.

@@ -3,17 +3,9 @@ import type { CanvasNode } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
-import type { WorkspaceOption } from './types';
+import type { AgentScope, WorkspaceOption } from './types';
 
 interface ChatPageProps {
-  /**
-   * Initial workspace to use as the chat's backend binding. The chat page
-   * tracks its own current-workspace state internally after that — it does
-   * NOT stay in sync with the app-level activeId. Switching workspaces from
-   * the chat page only happens when the user clicks a session belonging to
-   * another workspace.
-   */
-  initialWorkspaceId: string;
   allWorkspaces: WorkspaceOption[];
   getWorkspaceNodes?: (workspaceId: string) => CanvasNode[];
   getWorkspaceRootFolder?: (workspaceId: string) => string | undefined;
@@ -26,8 +18,8 @@ interface ChatPageProps {
 
 /**
  * Full-screen AI Chat page. Decoupled from the app-level activeId — the
- * page treats sessions as the primary unit and has no visible "selected
- * workspace" concept. Workspace is purely metadata on each session.
+ * default page is global / unbound. Workspace is only entered when the user
+ * selects a workspace-owned historical session.
  *
  * Structure:
  *   - Outer ChatPage: owns currentWorkspaceId + pendingSessionId state.
@@ -40,7 +32,6 @@ interface ChatPageProps {
  * Mutual exclusion with ChatPanel is enforced at the App level.
  */
 export const ChatPage = ({
-  initialWorkspaceId,
   allWorkspaces,
   getWorkspaceNodes,
   getWorkspaceRootFolder,
@@ -49,22 +40,34 @@ export const ChatPage = ({
   onNodeFocus,
   onOpenAppSettings,
 }: ChatPageProps) => {
-  const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId);
+  const [agentScope, setAgentScope] = useState<AgentScope>({ kind: 'global' });
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [newSessionRequest, setNewSessionRequest] = useState(0);
   const [railCollapsed, setRailCollapsed] = useState(true);
+  const scopeKey = agentScope.kind === 'global' ? 'global' : `workspace:${agentScope.workspaceId}`;
 
   // Same-workspace session click → just bump pendingSessionId without
   // remounting the body. Cross-workspace click → change workspaceId which
   // triggers the body remount, and the new body mount effect will pick up
   // initialPendingSessionId.
   const handleSelectSession = useCallback((session: UnifiedSession) => {
-    if (session.workspaceId === workspaceId) {
+    const nextScope: AgentScope = session.workspaceId === '__global_chat__'
+      ? { kind: 'global' }
+      : { kind: 'workspace', workspaceId: session.workspaceId };
+    const nextScopeKey = nextScope.kind === 'global' ? 'global' : `workspace:${nextScope.workspaceId}`;
+    if (nextScopeKey === scopeKey) {
       setPendingSessionId(session.sessionId);
       return;
     }
-    setWorkspaceId(session.workspaceId);
+    setAgentScope(nextScope);
     setPendingSessionId(session.sessionId);
-  }, [workspaceId]);
+  }, [scopeKey]);
+
+  const handleNewGlobalSession = useCallback(() => {
+    setAgentScope({ kind: 'global' });
+    setPendingSessionId(null);
+    setNewSessionRequest((value) => value + 1);
+  }, []);
 
   const handleSessionConsumed = useCallback(() => {
     setPendingSessionId(null);
@@ -74,17 +77,20 @@ export const ChatPage = ({
     setRailCollapsed((v) => !v);
   }, []);
 
-  const nodes = getWorkspaceNodes?.(workspaceId);
-  const rootFolder = getWorkspaceRootFolder?.(workspaceId);
+  const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const nodes = workspaceId ? getWorkspaceNodes?.(workspaceId) : undefined;
+  const rootFolder = workspaceId ? getWorkspaceRootFolder?.(workspaceId) : undefined;
 
   return (
     <ChatPageBody
-      key={workspaceId}
-      workspaceId={workspaceId}
+      key={scopeKey}
+      agentScope={agentScope}
       initialPendingSessionId={pendingSessionId}
       pendingSessionId={pendingSessionId}
       onSessionConsumed={handleSessionConsumed}
       onSelectSession={handleSelectSession}
+      onNewGlobalSession={handleNewGlobalSession}
+      newSessionRequest={newSessionRequest}
       onWorkspaceContextRequest={onWorkspaceContextRequest}
       allWorkspaces={allWorkspaces}
       nodes={nodes}

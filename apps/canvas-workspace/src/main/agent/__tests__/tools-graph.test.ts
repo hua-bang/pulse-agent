@@ -60,7 +60,7 @@ vi.mock('../../../plugins/main', () => ({
   getRegisteredCanvasToolFactories: () => new Map(),
 }));
 
-import { createCanvasTools } from '../tools';
+import { createCanvasTools, createGlobalReadOnlyCanvasTools } from '../tools';
 import {
   readCanvasFull,
   writeCanvasFull,
@@ -160,6 +160,35 @@ describe('canvas_search_nodes', () => {
     const result = JSON.parse(await tools.canvas_search_nodes.execute({ limit: 2 }));
     expect(result.matches.length).toBe(2);
     expect(result.truncated).toBe(true);
+  });
+});
+
+describe('createGlobalReadOnlyCanvasTools', () => {
+  it('exposes only read/search canvas tools plus clarification', async () => {
+    const tools = createGlobalReadOnlyCanvasTools();
+    expect(Object.keys(tools).sort()).toEqual([
+      'canvas_ask_user',
+      'canvas_list_edges',
+      'canvas_read_context',
+      'canvas_read_node',
+      'canvas_search_nodes',
+      'workspace_node_get',
+      'workspace_node_list',
+    ]);
+    expect(tools.canvas_create_node).toBeUndefined();
+    expect(tools.workspace_node_upsert).toBeUndefined();
+  });
+
+  it('requires workspaceId for global read/search tools', async () => {
+    const tools = createGlobalReadOnlyCanvasTools();
+    await setupCanvas();
+
+    const missing = await tools.canvas_search_nodes.execute({ query: 'pipeline' });
+    expect(missing).toContain('workspaceId is required in global chat');
+
+    const found = JSON.parse(await tools.canvas_search_nodes.execute({ workspaceId: wsId, query: 'pipeline' }));
+    expect(found.ok).toBe(true);
+    expect(found.matches.map((m: { id: string }) => m.id)).toEqual(['n-text']);
   });
 });
 

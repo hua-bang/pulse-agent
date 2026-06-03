@@ -10,8 +10,9 @@
 import { join } from 'path';
 import { homedir } from 'os';
 import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
-import { SessionStore } from './session-store';
+import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
 import type {
+  AgentScope,
   CanvasAgentImageAttachment,
   ChatResponse,
   AgentStatusResponse,
@@ -24,23 +25,43 @@ import type {
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
+const workspaceScope = (workspaceId: string): AgentScope => ({ kind: 'workspace', workspaceId });
+
+const scopeKey = (scope: AgentScope): string =>
+  scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
+
+const scopeSessionStoreId = (scope: AgentScope): string =>
+  scope.kind === 'global' ? GLOBAL_CHAT_SESSION_STORE_ID : scope.workspaceId;
+
 export class CanvasAgentService {
   private agents = new Map<string, CanvasAgent>();
+
+  private async activateScope(scope: AgentScope): Promise<void> {
+    const key = scopeKey(scope);
+    if (this.agents.has(key)) return;
+
+    const workspaceId = scope.kind === 'workspace' ? scope.workspaceId : undefined;
+    const agent = new CanvasAgent({
+      scope,
+      sessionStoreId: scopeSessionStoreId(scope),
+      workspaceId,
+      workspaceDir: workspaceId ? join(STORE_DIR, workspaceId) : undefined,
+    });
+
+    await agent.initialize();
+    this.agents.set(key, agent);
+  }
+
+  private getAgent(scope: AgentScope): CanvasAgent | undefined {
+    return this.agents.get(scopeKey(scope));
+  }
 
   /**
    * Activate the Canvas Agent for a workspace. Idempotent — if already
    * active, returns immediately.
    */
   async activate(workspaceId: string): Promise<void> {
-    if (this.agents.has(workspaceId)) return;
-
-    const agent = new CanvasAgent({
-      workspaceId,
-      workspaceDir: join(STORE_DIR, workspaceId),
-    });
-
-    await agent.initialize();
-    this.agents.set(workspaceId, agent);
+    await this.activateScope(workspaceScope(workspaceId));
   }
 
   /**
@@ -70,9 +91,44 @@ export class CanvasAgentService {
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
   ): Promise<ChatResponse> {
+    return this.chatWithScope(
+      workspaceScope(workspaceId),
+      message,
+      onText,
+      onToolCall,
+      onToolResult,
+      mentionedWorkspaceIds,
+      onClarificationRequest,
+      requestContext,
+      attachments,
+      onToolInputStart,
+      onToolInputDelta,
+      onToolInputEnd,
+    );
+  }
+
+  async chatWithScope(
+    scope: AgentScope,
+    message: string,
+    onText?: (delta: string) => void,
+    onToolCall?: (data: { name: string; args: any; toolCallId?: string }) => void,
+    onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
+    mentionedWorkspaceIds?: string[],
+    onClarificationRequest?: (req: CanvasClarificationRequest) => void,
+    requestContext?: {
+      executionMode?: 'auto' | 'ask';
+      scope?: 'current_canvas' | 'selected_nodes';
+      selectedNodes?: Array<{ id: string; title: string; type: string }>;
+      quickAction?: string;
+    },
+    attachments?: CanvasAgentImageAttachment[],
+    onToolInputStart?: (data: { id: string; toolName: string }) => void,
+    onToolInputDelta?: (data: { id: string; delta: string }) => void,
+    onToolInputEnd?: (data: { id: string }) => void,
+  ): Promise<ChatResponse> {
     try {
-      await this.activate(workspaceId);
-      const agent = this.agents.get(workspaceId)!;
+      await this.activateScope(scope);
+      const agent = this.getAgent(scope)!;
       const result = await agent.chat(
         message,
         onText,
@@ -88,7 +144,7 @@ export class CanvasAgentService {
       );
       return { ok: true, response: result.response, runId: result.runId };
     } catch (err) {
-      console.error(`[canvas-agent-service] chat error for ${workspaceId}:`, err);
+      console.error(`[canvas-agent-service] chat error for ${scopeKey(scope)}:`, err);
       return { ok: false, error: String(err) };
     }
   }
@@ -98,7 +154,11 @@ export class CanvasAgentService {
    * the agent is idle or not activated.
    */
   abort(workspaceId: string): void {
-    this.agents.get(workspaceId)?.abort();
+    this.abortScope(workspaceScope(workspaceId));
+  }
+
+  abortScope(scope: AgentScope): void {
+    this.getAgent(scope)?.abort();
   }
 
   /**
@@ -106,7 +166,11 @@ export class CanvasAgentService {
    * Returns true if a matching pending request was resolved.
    */
   answerClarification(workspaceId: string, requestId: string, answer: string): boolean {
-    const agent = this.agents.get(workspaceId);
+    return this.answerClarificationForScope(workspaceScope(workspaceId), requestId, answer);
+  }
+
+  answerClarificationForScope(scope: AgentScope, requestId: string, answer: string): boolean {
+    const agent = this.getAgent(scope);
     if (!agent) return false;
     return agent.answerClarification(requestId, answer);
   }
@@ -115,7 +179,11 @@ export class CanvasAgentService {
    * Get the agent's status for a workspace.
    */
   getStatus(workspaceId: string): AgentStatusResponse {
-    const agent = this.agents.get(workspaceId);
+    return this.getStatusForScope(workspaceScope(workspaceId));
+  }
+
+  getStatusForScope(scope: AgentScope): AgentStatusResponse {
+    const agent = this.getAgent(scope);
     if (!agent) return { ok: true, active: false, messageCount: 0 };
     return { ok: true, active: true, messageCount: agent.getMessageCount() };
   }
@@ -127,7 +195,11 @@ export class CanvasAgentService {
    * current session via {@link loadSession} / {@link newSession}.
    */
   getCurrentSessionId(workspaceId: string): string | null {
-    return this.agents.get(workspaceId)?.getCurrentSessionId() ?? null;
+    return this.getAgent(workspaceScope(workspaceId))?.getCurrentSessionId() ?? null;
+  }
+
+  getCurrentSessionIdForScope(scope: AgentScope): string | null {
+    return this.getAgent(scope)?.getCurrentSessionId() ?? null;
   }
 
   /**
@@ -136,8 +208,12 @@ export class CanvasAgentService {
    * initialized before reading the registry.
    */
   async listSkills(workspaceId: string): Promise<Array<{ name: string; description: string }>> {
-    await this.activate(workspaceId);
-    const agent = this.agents.get(workspaceId)!;
+    return this.listSkillsForScope(workspaceScope(workspaceId));
+  }
+
+  async listSkillsForScope(scope: AgentScope): Promise<Array<{ name: string; description: string }>> {
+    await this.activateScope(scope);
+    const agent = this.getAgent(scope)!;
     return agent.listSkills();
   }
 
@@ -145,7 +221,11 @@ export class CanvasAgentService {
    * Get conversation history for the current session.
    */
   getHistory(workspaceId: string): CanvasAgentMessage[] {
-    const agent = this.agents.get(workspaceId);
+    return this.getHistoryForScope(workspaceScope(workspaceId));
+  }
+
+  getHistoryForScope(scope: AgentScope): CanvasAgentMessage[] {
+    const agent = this.getAgent(scope);
     return agent?.getHistory() ?? [];
   }
 
@@ -153,8 +233,12 @@ export class CanvasAgentService {
    * List all sessions (current + archived) for a workspace.
    */
   async listSessions(workspaceId: string): Promise<Array<{ sessionId: string; date: string; messageCount: number; isCurrent: boolean }>> {
-    await this.activate(workspaceId);
-    const agent = this.agents.get(workspaceId)!;
+    return this.listSessionsForScope(workspaceScope(workspaceId));
+  }
+
+  async listSessionsForScope(scope: AgentScope): Promise<Array<{ sessionId: string; date: string; messageCount: number; isCurrent: boolean }>> {
+    await this.activateScope(scope);
+    const agent = this.getAgent(scope)!;
     return agent.listSessions();
   }
 
@@ -164,9 +248,13 @@ export class CanvasAgentService {
    * clean slate without leaking the abandoned messages into context.
    */
   async rewindMessages(workspaceId: string, fromIndex: number): Promise<{ ok: boolean; error?: string }> {
+    return this.rewindMessagesForScope(workspaceScope(workspaceId), fromIndex);
+  }
+
+  async rewindMessagesForScope(scope: AgentScope, fromIndex: number): Promise<{ ok: boolean; error?: string }> {
     try {
-      await this.activate(workspaceId);
-      const agent = this.agents.get(workspaceId)!;
+      await this.activateScope(scope);
+      const agent = this.getAgent(scope)!;
       agent.rewindTo(fromIndex);
       return { ok: true };
     } catch (err) {
@@ -178,9 +266,13 @@ export class CanvasAgentService {
    * Start a new session for a workspace.
    */
   async newSession(workspaceId: string): Promise<{ ok: boolean; error?: string }> {
+    return this.newSessionForScope(workspaceScope(workspaceId));
+  }
+
+  async newSessionForScope(scope: AgentScope): Promise<{ ok: boolean; error?: string }> {
     try {
-      await this.activate(workspaceId);
-      const agent = this.agents.get(workspaceId)!;
+      await this.activateScope(scope);
+      const agent = this.getAgent(scope)!;
       await agent.newSession();
       return { ok: true };
     } catch (err) {
@@ -192,9 +284,13 @@ export class CanvasAgentService {
    * Load a specific session by sessionId.
    */
   async loadSession(workspaceId: string, sessionId: string): Promise<{ ok: boolean; messages?: CanvasAgentMessage[]; error?: string }> {
+    return this.loadSessionForScope(workspaceScope(workspaceId), sessionId);
+  }
+
+  async loadSessionForScope(scope: AgentScope, sessionId: string): Promise<{ ok: boolean; messages?: CanvasAgentMessage[]; error?: string }> {
     try {
-      await this.activate(workspaceId);
-      const agent = this.agents.get(workspaceId)!;
+      await this.activateScope(scope);
+      const agent = this.getAgent(scope)!;
       const messages = await agent.loadSession(sessionId);
       return { ok: true, messages };
     } catch (err) {
@@ -214,14 +310,19 @@ export class CanvasAgentService {
 
     for (const g of diskGroups) {
       // If this workspace has an active in-memory agent, use its live session list
-      const agent = this.agents.get(g.workspaceId);
+      const scope: AgentScope = g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
+        ? { kind: 'global' }
+        : workspaceScope(g.workspaceId);
+      const agent = this.getAgent(scope);
       const sessions = agent
         ? await agent.listSessions()
         : g.sessions;
 
       groups.push({
         workspaceId: g.workspaceId,
-        workspaceName: workspaceNames[g.workspaceId] || g.workspaceId,
+        workspaceName: g.workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
+          ? GLOBAL_CHAT_WORKSPACE_NAME
+          : workspaceNames[g.workspaceId] || g.workspaceId,
         sessions,
       });
     }
@@ -251,12 +352,41 @@ export class CanvasAgentService {
 
       // Activate target workspace agent
       await this.activate(targetWorkspaceId);
-      const agent = this.agents.get(targetWorkspaceId)!;
+      const agent = this.getAgent(workspaceScope(targetWorkspaceId))!;
 
       // Archive current session, then set loaded messages as current view
       await agent.loadCrossWorkspaceSession(session.messages);
 
       return { ok: true, messages: session.messages };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  async copySessionToScope(
+    sourceScope: AgentScope,
+    sourceSessionId: string,
+    targetScope: AgentScope,
+  ): Promise<{ ok: boolean; sessionId?: string; messageCount?: number; error?: string }> {
+    try {
+      const session = await SessionStore.readSessionFromWorkspace(
+        scopeSessionStoreId(sourceScope),
+        sourceSessionId,
+      );
+      if (!session) return { ok: false, error: 'Source session not found' };
+      if (session.messages.length === 0) {
+        return { ok: true, messageCount: 0 };
+      }
+
+      await this.activateScope(targetScope);
+      const agent = this.getAgent(targetScope)!;
+      await agent.loadCrossWorkspaceSession(session.messages);
+
+      return {
+        ok: true,
+        sessionId: agent.getCurrentSessionId() ?? undefined,
+        messageCount: session.messages.length,
+      };
     } catch (err) {
       return { ok: false, error: String(err) };
     }
@@ -270,7 +400,7 @@ export class CanvasAgentService {
    */
   async reloadSkills(workspaceId?: string): Promise<void> {
     const agents = workspaceId
-      ? [this.agents.get(workspaceId)].filter((a): a is CanvasAgent => Boolean(a))
+      ? [this.getAgent(workspaceScope(workspaceId))].filter((a): a is CanvasAgent => Boolean(a))
       : Array.from(this.agents.values());
     await Promise.all(agents.map((agent) => agent.rescanSkills()));
   }
@@ -283,7 +413,7 @@ export class CanvasAgentService {
    */
   async reloadMcp(workspaceId?: string): Promise<void> {
     const agents = workspaceId
-      ? [this.agents.get(workspaceId)].filter((a): a is CanvasAgent => Boolean(a))
+      ? [this.getAgent(workspaceScope(workspaceId))].filter((a): a is CanvasAgent => Boolean(a))
       : Array.from(this.agents.values());
     await Promise.all(agents.map((agent) => agent.reloadEngine()));
   }
@@ -296,7 +426,7 @@ export class CanvasAgentService {
    */
   getMcpStatuses(workspaceId?: string): Record<string, { ok: true; toolCount: number } | { ok: false; error: string }> {
     if (workspaceId) {
-      return this.agents.get(workspaceId)?.getMcpStatuses() ?? {};
+      return this.getAgent(workspaceScope(workspaceId))?.getMcpStatuses() ?? {};
     }
     const first = this.agents.values().next().value as CanvasAgent | undefined;
     return first?.getMcpStatuses() ?? {};
@@ -306,17 +436,30 @@ export class CanvasAgentService {
    * Deactivate and archive the Canvas Agent for a workspace.
    */
   async deactivate(workspaceId: string): Promise<void> {
-    const agent = this.agents.get(workspaceId);
+    const scope = workspaceScope(workspaceId);
+    const key = scopeKey(scope);
+    const agent = this.agents.get(key);
     if (!agent) return;
     await agent.destroy();
-    this.agents.delete(workspaceId);
+    this.agents.delete(key);
+  }
+
+  async deactivateScope(scope: AgentScope): Promise<void> {
+    const key = scopeKey(scope);
+    const agent = this.agents.get(key);
+    if (!agent) return;
+    await agent.destroy();
+    this.agents.delete(key);
   }
 
   /**
    * Deactivate all agents (called on app shutdown).
    */
   async deactivateAll(): Promise<void> {
-    const ids = Array.from(this.agents.keys());
-    await Promise.all(ids.map(id => this.deactivate(id)));
+    const entries = Array.from(this.agents.entries());
+    await Promise.all(entries.map(async ([key, agent]) => {
+      await agent.destroy();
+      this.agents.delete(key);
+    }));
   }
 }

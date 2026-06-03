@@ -13,6 +13,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type {
+  AgentScope,
   CanvasAgentDebugRunDetail,
   CanvasAgentDebugRunSummary,
   CanvasAgentMessage,
@@ -20,6 +21,8 @@ import type {
 } from './types';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
+export const GLOBAL_CHAT_SESSION_STORE_ID = '__global_chat__';
+export const GLOBAL_CHAT_WORKSPACE_NAME = 'Global Chat';
 
 interface WorkspaceManifest {
   workspaces: Array<{ id: string; name: string }>;
@@ -52,11 +55,13 @@ export class SessionStore {
   private sessionsDir: string;
   private currentPath: string;
   private archiveDir: string;
+  private scope: AgentScope;
 
   private session: CanvasAgentSession | null = null;
 
-  constructor(workspaceId: string) {
+  constructor(workspaceId: string, scope: AgentScope = { kind: 'workspace', workspaceId }) {
     this.workspaceId = workspaceId;
+    this.scope = scope;
     this.sessionsDir = join(STORE_DIR, workspaceId, 'agent-sessions');
     this.currentPath = join(this.sessionsDir, 'current.json');
     this.archiveDir = join(this.sessionsDir, 'archive');
@@ -76,6 +81,7 @@ export class SessionStore {
     this.session = {
       sessionId,
       workspaceId: this.workspaceId,
+      scope: this.scope,
       startedAt: new Date().toISOString(),
       messages: [],
     };
@@ -272,8 +278,8 @@ export class SessionStore {
     }
 
     for (const dir of dirs) {
-      // Skip manifest and non-directory entries
-      if (dir.startsWith('__') || dir.startsWith('.')) continue;
+      // Skip manifest/internal entries except the global chat session store.
+      if ((dir.startsWith('__') && dir !== GLOBAL_CHAT_SESSION_STORE_ID) || dir.startsWith('.')) continue;
 
       const sessionsDir = join(STORE_DIR, dir, 'agent-sessions');
       const archiveDir = join(sessionsDir, 'archive');
@@ -411,8 +417,10 @@ export class SessionStore {
     }
 
     for (const workspaceId of dirs) {
-      if (workspaceId.startsWith('__') || workspaceId.startsWith('.')) continue;
-      const workspaceName = workspaceNames.get(workspaceId) ?? workspaceId;
+      if ((workspaceId.startsWith('__') && workspaceId !== GLOBAL_CHAT_SESSION_STORE_ID) || workspaceId.startsWith('.')) continue;
+      const workspaceName = workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
+        ? GLOBAL_CHAT_WORKSPACE_NAME
+        : workspaceNames.get(workspaceId) ?? workspaceId;
       const sessionsDir = join(STORE_DIR, workspaceId, 'agent-sessions');
       const currentPath = join(sessionsDir, 'current.json');
       const archiveDir = join(sessionsDir, 'archive');
@@ -526,4 +534,3 @@ function findPreviousUserMessage(messages: CanvasAgentMessage[], assistantIndex:
   }
   return undefined;
 }
-

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
-import type { OtherWorkspaceSession, WorkspaceOption } from '../types';
+import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
 
 interface UseChatSessionsOptions {
-  workspaceId: string;
+  agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
   onMessagesLoaded: (messages: AgentChatMessage[]) => void;
   /** When true, load the session list on mount and whenever workspaceId changes. */
@@ -17,7 +17,7 @@ interface UseChatSessionsOptions {
 }
 
 export function useChatSessions({
-  workspaceId,
+  agentScope,
   allWorkspaces,
   onMessagesLoaded,
   eagerLoad = false,
@@ -28,16 +28,18 @@ export function useChatSessions({
   const [otherSessions, setOtherSessions] = useState<OtherWorkspaceSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const sessionMenuRef = useRef<HTMLDivElement>(null);
+  const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const scopeKey = agentScope.kind === 'global' ? 'global' : `workspace:${agentScope.workspaceId}`;
 
   useEffect(() => {
     if (skipInitialHistory) return;
     void (async () => {
-      const result = await window.canvasWorkspace.agent.getHistory(workspaceId);
+      const result = await window.canvasWorkspace.agent.getHistory({ scope: agentScope });
       if (result.ok && result.messages) {
         onMessagesLoaded(result.messages);
       }
     })();
-  }, [workspaceId, onMessagesLoaded, skipInitialHistory]);
+  }, [agentScope, onMessagesLoaded, skipInitialHistory, scopeKey]);
 
   useEffect(() => {
     if (!sessionMenuOpen) return;
@@ -53,14 +55,14 @@ export function useChatSessions({
   }, [sessionMenuOpen]);
 
   const loadSessions = useCallback(async () => {
-    setSessionsLoading(true);
-    try {
-      const result = await window.canvasWorkspace.agent.listSessions(workspaceId);
+      setSessionsLoading(true);
+      try {
+      const result = await window.canvasWorkspace.agent.listSessions({ scope: agentScope });
       if (result.ok && result.sessions) {
         setSessions(result.sessions);
       }
 
-      if (allWorkspaces && allWorkspaces.length > 1) {
+      if (allWorkspaces && (agentScope.kind === 'global' || allWorkspaces.length > 1)) {
         const workspaceNameMap: Record<string, string> = {};
         for (const workspace of allWorkspaces) {
           workspaceNameMap[workspace.id] = workspace.name;
@@ -70,7 +72,8 @@ export function useChatSessions({
         if (allResult.ok && allResult.groups) {
           const flattened: OtherWorkspaceSession[] = [];
           for (const group of allResult.groups) {
-            if (group.workspaceId === workspaceId) continue;
+            if (workspaceId && group.workspaceId === workspaceId) continue;
+            if (agentScope.kind === 'global' && group.workspaceId === '__global_chat__') continue;
             for (const session of group.sessions) {
               flattened.push({
                 ...session,
@@ -89,7 +92,7 @@ export function useChatSessions({
     } finally {
       setSessionsLoading(false);
     }
-  }, [allWorkspaces, workspaceId]);
+  }, [agentScope, allWorkspaces, workspaceId]);
 
   useEffect(() => {
     if (!eagerLoad) return;
@@ -112,21 +115,21 @@ export function useChatSessions({
 
   const handleNewSession = useCallback(async () => {
     setSessionMenuOpen(false);
-    await window.canvasWorkspace.agent.newSession(workspaceId);
+    await window.canvasWorkspace.agent.newSession({ scope: agentScope });
     onMessagesLoaded([]);
-  }, [onMessagesLoaded, workspaceId]);
+  }, [agentScope, onMessagesLoaded]);
 
   const handleLoadSession = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
     setSessionMenuOpen(false);
 
-    const result = sourceWorkspaceId && sourceWorkspaceId !== workspaceId
+    const result = sourceWorkspaceId && workspaceId && sourceWorkspaceId !== workspaceId
       ? await window.canvasWorkspace.agent.loadCrossWorkspaceSession(workspaceId, sourceWorkspaceId, sessionId)
-      : await window.canvasWorkspace.agent.loadSession(workspaceId, sessionId);
+      : await window.canvasWorkspace.agent.loadSession({ scope: agentScope }, sessionId);
 
     if (result.ok && result.messages) {
       onMessagesLoaded(result.messages);
     }
-  }, [onMessagesLoaded, workspaceId]);
+  }, [agentScope, onMessagesLoaded, workspaceId]);
 
   return {
     otherSessions,

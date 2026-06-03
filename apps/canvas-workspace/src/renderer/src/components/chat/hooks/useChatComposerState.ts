@@ -1,12 +1,12 @@
 import type { AgentRequestContext, CanvasNode } from '../../../types';
 import { useCanvasModels } from '../ModelSettings';
-import type { WorkspaceOption } from '../types';
+import type { AgentScope, WorkspaceOption } from '../types';
 import { useChatSessions } from './useChatSessions';
 import { useChatStream } from './useChatStream';
 import { useMentions } from './useMentions';
 
 interface UseChatComposerStateOptions {
-  workspaceId: string;
+  agentScope: AgentScope;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
   rootFolder?: string;
@@ -29,7 +29,7 @@ interface UseChatComposerStateOptions {
  * `onOpenAppSettings(section)` callback threaded down from App.
  */
 export function useChatComposerState({
-  workspaceId,
+  agentScope,
   allWorkspaces,
   nodes,
   rootFolder,
@@ -39,10 +39,10 @@ export function useChatComposerState({
 }: UseChatComposerStateOptions) {
   const canvasModels = useCanvasModels();
 
-  const chatStream = useChatStream({ workspaceId, allWorkspaces });
+  const chatStream = useChatStream({ agentScope, allWorkspaces });
 
   const chatSessions = useChatSessions({
-    workspaceId,
+    agentScope,
     allWorkspaces,
     onMessagesLoaded: chatStream.replaceMessages,
     eagerLoad,
@@ -51,7 +51,7 @@ export function useChatComposerState({
 
   const mentions = useMentions({
     allWorkspaces,
-    workspaceId,
+    agentScope,
     nodes,
     rootFolder,
     onSubmit: chatStream.sendMessage,

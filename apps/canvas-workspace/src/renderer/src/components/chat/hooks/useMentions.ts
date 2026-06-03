@@ -6,6 +6,7 @@ import {
   getMentionGroupKey,
 } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
+import type { AgentScope } from '../types';
 import {
   createMentionChipElement,
   serializeEditable,
@@ -14,7 +15,7 @@ import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
-  workspaceId: string;
+  agentScope: AgentScope;
   nodes?: CanvasNode[];
   rootFolder?: string;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
@@ -43,7 +44,7 @@ function flattenEntries(entries: DirEntry[], rootFolder: string, prefix = ''): M
 
 export function useMentions({
   allWorkspaces,
-  workspaceId,
+  agentScope,
   nodes,
   rootFolder,
   onSubmit,
@@ -57,6 +58,7 @@ export function useMentions({
   const editableRef = useRef<HTMLDivElement>(null);
   const filesCacheRef = useRef<MentionItem[] | null>(null);
   const skillsCacheRef = useRef<MentionItem[] | null>(null);
+  const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   /**
    * Which trigger char opened the popup — '@' lists workspaces/nodes/files,
    * '/' lists skills. Captured at popup-open time so selectMention knows
@@ -117,7 +119,7 @@ export function useMentions({
   const loadSkillItems = useCallback(async (): Promise<MentionItem[]> => {
     if (skillsCacheRef.current) return skillsCacheRef.current;
     try {
-      const result = await window.canvasWorkspace.agent.listSkills(workspaceId);
+      const result = await window.canvasWorkspace.agent.listSkills({ scope: agentScope });
       skillsCacheRef.current = result.ok && result.skills
         ? result.skills.map(s => ({ type: 'skill', label: s.name, description: s.description }))
         : [];
@@ -125,7 +127,7 @@ export function useMentions({
       skillsCacheRef.current = [];
     }
     return skillsCacheRef.current;
-  }, [workspaceId]);
+  }, [agentScope]);
 
   const buildMentionItems = useCallback(async (query: string, trigger: '@' | '/') => {
     if (trigger === '/') {
@@ -149,7 +151,7 @@ export function useMentions({
       }
     }
 
-    if (nodes) {
+    if (workspaceId && nodes) {
       for (const node of nodes) {
         items.push({
           type: 'node',
@@ -161,7 +163,7 @@ export function useMentions({
       }
     }
 
-    if (rootFolder) {
+    if (workspaceId && rootFolder) {
       if (!filesCacheRef.current) {
         try {
           const result = await window.canvasWorkspace.file.listDir(rootFolder, 2);
@@ -329,7 +331,7 @@ export function useMentions({
     const base64 = dataUrl.split(',')[1];
     if (!base64) return;
     const ext = file.type.replace('image/', '').split(';')[0] || 'png';
-    const saved = await window.canvasWorkspace.file.saveImage(workspaceId, base64, ext);
+    const saved = await window.canvasWorkspace.file.saveImage(workspaceId ?? '__global_chat__', base64, ext);
     if (!saved.ok || !saved.filePath) return;
     setAttachments(prev => [
       ...prev,

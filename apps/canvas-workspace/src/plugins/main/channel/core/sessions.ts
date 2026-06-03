@@ -1,20 +1,20 @@
-import type { CanvasAgentServiceRef, PluginStore } from '../../../types';
+import type { AgentScope, CanvasAgentServiceRef, PluginStore } from '../../../types';
 
 const STORE_KEY = 'sessions';
 
 /**
  * Gives each external conversation its own Canvas Agent session, even when
- * several conversations share one workspace.
+ * several conversations share one agent scope.
  *
- * Canvas keeps a single *current* session per workspace; this router maps
- * `workspaceId::conversationId → sessionId` and, before each turn, swaps the
- * workspace's current session to the one owned by the conversation (creating
- * it on first contact). Because runs are serialized per workspace, the swap
- * can't race another turn. The map is persisted so conversations keep their
- * history across restarts.
+ * Canvas keeps a single *current* session per scope; this router maps
+ * `scope::conversationId → sessionId` and, before each turn, swaps the scope's
+ * current session to the one owned by the conversation (creating it on first
+ * contact). Because runs are serialized per scope key, the swap can't race
+ * another turn. The map is persisted so conversations keep their history
+ * across restarts.
  *
- * Trade-off: the workspace's *current* session is shared with the Canvas UI,
- * so the UI for that workspace reflects whichever conversation ran last.
+ * Trade-off: the scope's *current* session is shared with the Canvas UI, so
+ * the UI for that scope reflects whichever conversation ran last.
  */
 export class SessionRouter {
   private map: Record<string, string> = {};
@@ -31,29 +31,30 @@ export class SessionRouter {
     this.loaded = true;
   }
 
-  private key(workspaceId: string, conversationId: string): string {
-    return `${workspaceId}::${conversationId}`;
+  private key(scope: AgentScope, conversationId: string): string {
+    const scopeKey = scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
+    return `${scopeKey}::${conversationId}`;
   }
 
   /**
-   * Ensure the workspace's current session is the one owned by
-   * `conversationId`. Call inside the per-workspace run guard, before chat.
+   * Ensure the scope's current session is the one owned by `conversationId`.
+   * Call inside the per-scope run guard, before chat.
    */
-  async ensureSession(workspaceId: string, conversationId: string): Promise<void> {
+  async ensureSession(scope: AgentScope, conversationId: string): Promise<void> {
     await this.ensureLoaded();
-    const key = this.key(workspaceId, conversationId);
+    const key = this.key(scope, conversationId);
     const desired = this.map[key];
 
     if (desired) {
-      if (this.service.getCurrentSessionId(workspaceId) === desired) return;
-      await this.service.loadSession(workspaceId, desired);
+      if (this.service.getCurrentSessionIdForScope(scope) === desired) return;
+      await this.service.loadSessionForScope(scope, desired);
       // loadSession is a no-op when the session no longer exists; confirm it
       // actually became current, otherwise fall through to a fresh one.
-      if (this.service.getCurrentSessionId(workspaceId) === desired) return;
+      if (this.service.getCurrentSessionIdForScope(scope) === desired) return;
     }
 
-    await this.service.newSession(workspaceId);
-    const fresh = this.service.getCurrentSessionId(workspaceId);
+    await this.service.newSessionForScope(scope);
+    const fresh = this.service.getCurrentSessionIdForScope(scope);
     if (fresh) {
       this.map[key] = fresh;
       await this.store.set(STORE_KEY, this.map);
@@ -66,12 +67,26 @@ export class SessionRouter {
    * across later turns instead of being overwritten by the mapping.
    */
   async setConversationSession(
-    workspaceId: string,
+    scope: AgentScope,
     conversationId: string,
     sessionId: string,
   ): Promise<void> {
     await this.ensureLoaded();
-    this.map[this.key(workspaceId, conversationId)] = sessionId;
+    this.map[this.key(scope, conversationId)] = sessionId;
     await this.store.set(STORE_KEY, this.map);
+  }
+
+  /**
+   * Return the persisted session id for a conversation/scope pair without
+   * activating or swapping the agent. Used when a channel binds midway through
+   * a global chat and wants to copy that prior conversation into the new
+   * workspace scope.
+   */
+  async getConversationSessionId(
+    scope: AgentScope,
+    conversationId: string,
+  ): Promise<string | undefined> {
+    await this.ensureLoaded();
+    return this.map[this.key(scope, conversationId)];
   }
 }

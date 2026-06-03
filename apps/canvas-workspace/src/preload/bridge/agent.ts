@@ -3,9 +3,9 @@ import type { AgentApi } from "../../renderer/src/types";
 import { subscribe } from "./ipc";
 
 export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
-  chat: (workspaceId, message, mentionedWorkspaceIds, requestContext, attachments) =>
+  chat: (scopeRef, message, mentionedWorkspaceIds, requestContext, attachments) =>
     ipcRenderer.invoke("canvas-agent:chat", {
-      workspaceId,
+      ...scopeRef,
       message,
       mentionedWorkspaceIds,
       requestContext,
@@ -45,26 +45,26 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   abort: (sessionId) =>
     ipcRenderer.invoke("canvas-agent:abort", { sessionId }),
 
-  getStatus: (workspaceId) =>
-    ipcRenderer.invoke("canvas-agent:status", { workspaceId }),
+  getStatus: (scopeRef) =>
+    ipcRenderer.invoke("canvas-agent:status", scopeRef),
 
-  listSkills: (workspaceId) =>
-    ipcRenderer.invoke("canvas-agent:list-skills", { workspaceId }),
+  listSkills: (scopeRef) =>
+    ipcRenderer.invoke("canvas-agent:list-skills", scopeRef),
 
-  getHistory: (workspaceId) =>
-    ipcRenderer.invoke("canvas-agent:history", { workspaceId }),
+  getHistory: (scopeRef) =>
+    ipcRenderer.invoke("canvas-agent:history", scopeRef),
 
-  listSessions: (workspaceId) =>
-    ipcRenderer.invoke("canvas-agent:sessions", { workspaceId }),
+  listSessions: (scopeRef) =>
+    ipcRenderer.invoke("canvas-agent:sessions", scopeRef),
 
-  newSession: (workspaceId) =>
-    ipcRenderer.invoke("canvas-agent:new-session", { workspaceId }),
+  newSession: (scopeRef) =>
+    ipcRenderer.invoke("canvas-agent:new-session", scopeRef),
 
-  rewindMessages: (workspaceId, fromIndex) =>
-    ipcRenderer.invoke("canvas-agent:rewind-messages", { workspaceId, fromIndex }),
+  rewindMessages: (scopeRef, fromIndex) =>
+    ipcRenderer.invoke("canvas-agent:rewind-messages", { ...scopeRef, fromIndex }),
 
-  loadSession: (workspaceId, sessionId) =>
-    ipcRenderer.invoke("canvas-agent:load-session", { workspaceId, sessionId }),
+  loadSession: (scopeRef, sessionId) =>
+    ipcRenderer.invoke("canvas-agent:load-session", { ...scopeRef, sessionId }),
 
   listAllSessions: (workspaceNames) =>
     ipcRenderer.invoke("canvas-agent:all-sessions", { workspaceNames }),

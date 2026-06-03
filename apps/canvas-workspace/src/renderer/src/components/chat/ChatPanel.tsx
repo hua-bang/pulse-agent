@@ -71,7 +71,7 @@ export const ChatPanel = ({
     toggleSection,
     toggleToolExpand,
   } = useChatComposerState({
-    workspaceId,
+    agentScope: { kind: 'workspace', workspaceId },
     allWorkspaces,
     nodes,
     rootFolder,

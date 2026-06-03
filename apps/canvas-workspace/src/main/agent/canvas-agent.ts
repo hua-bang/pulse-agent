@@ -17,7 +17,7 @@ import {
   formatSummaryForPrompt,
   resolveWorkspaceNames,
 } from './context-builder';
-import { createCanvasTools } from './tools';
+import { createCanvasTools, createGlobalReadOnlyCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
@@ -31,6 +31,7 @@ import {
   recordTraceToolResult,
 } from './debug-trace';
 import type {
+  AgentScope,
   CanvasAgentConfig,
   CanvasAgentDebugTrace,
   CanvasAgentImageAttachment,
@@ -47,6 +48,25 @@ interface CanvasAgentRequestContext {
 }
 
 const CANVAS_AGENT_MAX_STEPS = 200;
+
+const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
+
+This is a global chat, not bound to any specific canvas workspace.
+
+## Your Role
+You can answer questions, reason with the user, help draft and edit text, explain code, and use general-purpose tools when useful.
+
+## Scope Rules
+- Do not assume there is a current canvas or selected workspace.
+- Read-only canvas tools are available for inspecting workspaces, but you MUST pass a concrete workspaceId on every canvas tool call.
+- If the user wants to inspect canvas nodes but has not specified a workspace, ask which workspace to inspect.
+- Creating, updating, deleting, moving, or otherwise mutating canvas content is not available in global chat. Ask the user to switch to the relevant workspace chat for write actions.
+- When the user asks for coding help, use filesystem tools only when their request clearly points to local files or paths.
+
+## Guidelines
+- Be concise and direct.
+- Ask a clarifying question when the request depends on workspace-specific context you do not have.
+`;
 
 // AI SDK v6 wraps tool execute return values into a tagged `ToolResultOutput`
 // — `{ type: 'text'|'json'|'error-text'|'error-json'|..., value }` — on the
@@ -423,6 +443,41 @@ function formatWorkspaceContextSection(rootFolder: string | undefined, workspace
   return parts.join('\n');
 }
 
+function formatMentionedCanvasesSection(
+  mentionedCanvases: Array<{ id: string; name: string }> = [],
+): string {
+  if (mentionedCanvases.length === 0) return '';
+
+  const lines: string[] = [
+    '',
+    '## Other Canvases Referenced by the User',
+    'The user has `@`-mentioned the canvases listed below. This is a ' +
+      '**reference table only** — it tells you which workspaceIds the user ' +
+      'might be talking about. It is **not** an instruction to read them.',
+    '',
+    '**Strict rule — do NOT auto-read:** Do not call `canvas_read_context` ' +
+      'or `canvas_read_node` for any canvas in this list unless the user\'s ' +
+      'current message **explicitly asks** you to read, open, look at, ' +
+      'summarize, compare, or otherwise use content from that specific ' +
+      'canvas. A bare mention like "`@[canvas:Foo]` 怎么样？" where "怎么样" ' +
+      'stands alone is **not** an explicit read request — ask the user what ' +
+      'they want to know about it instead. Fetching without an explicit ' +
+      'request wastes the user\'s tokens and is considered incorrect behavior.',
+    '',
+    'When the user **does** explicitly ask, use the matching `workspaceId` ' +
+      'from the list with `canvas_read_context` (detail="summary" for the ' +
+      'node list, detail="full" for file contents and terminal scrollback), ' +
+      'or with `canvas_read_node` for a single node.',
+    '',
+    'Mentioned canvases:',
+  ];
+  for (const c of mentionedCanvases) {
+    lines.push(`- **${c.name}** — workspaceId: \`${c.id}\``);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
 function buildSystemPrompt(
   summary: WorkspaceSummary | null,
   mentionedCanvases: Array<{ id: string; name: string }> = [],
@@ -494,36 +549,7 @@ function buildSystemPrompt(
     base += lines.join('\n') + '\n';
   }
 
-  if (mentionedCanvases.length === 0) return base + workspaceDocSection + promptProfileSection;
-
-  const lines: string[] = [
-    '',
-    '## Other Canvases Referenced by the User',
-    'The user has `@`-mentioned the canvases listed below. This is a ' +
-      '**reference table only** — it tells you which workspaceIds the user ' +
-      'might be talking about. It is **not** an instruction to read them.',
-    '',
-    '**Strict rule — do NOT auto-read:** Do not call `canvas_read_context` ' +
-      'or `canvas_read_node` for any canvas in this list unless the user\'s ' +
-      'current message **explicitly asks** you to read, open, look at, ' +
-      'summarize, compare, or otherwise use content from that specific ' +
-      'canvas. A bare mention like "`@[canvas:Foo]` 怎么样？" where "怎么样" ' +
-      'stands alone is **not** an explicit read request — ask the user what ' +
-      'they want to know about it instead. Fetching without an explicit ' +
-      'request wastes the user\'s tokens and is considered incorrect behavior.',
-    '',
-    'When the user **does** explicitly ask, use the matching `workspaceId` ' +
-      'from the list with `canvas_read_context` (detail="summary" for the ' +
-      'node list, detail="full" for file contents and terminal scrollback), ' +
-      'or with `canvas_read_node` for a single node.',
-    '',
-    'Mentioned canvases:',
-  ];
-  for (const c of mentionedCanvases) {
-    lines.push(`- **${c.name}** — workspaceId: \`${c.id}\``);
-  }
-  lines.push('');
-  return base + lines.join('\n') + workspaceDocSection + promptProfileSection;
+  return base + formatMentionedCanvasesSection(mentionedCanvases) + workspaceDocSection + promptProfileSection;
 }
 
 // ─── Canvas Agent ──────────────────────────────────────────────────
@@ -548,8 +574,14 @@ export class CanvasAgent {
 
   constructor(config: CanvasAgentConfig) {
     this.config = config;
-    this.sessionStore = new SessionStore(config.workspaceId);
+    this.sessionStore = new SessionStore(config.sessionStoreId, config.scope);
     this.engine = this.buildEngine();
+  }
+
+  private get label(): string {
+    return this.config.scope.kind === 'workspace'
+      ? `workspace: ${this.config.scope.workspaceId}`
+      : 'global chat';
   }
 
   /**
@@ -560,9 +592,11 @@ export class CanvasAgent {
    * edits take effect.
    */
   private buildEngine(): any {
-    const { workspaceId } = this.config;
+    const workspaceId = this.config.scope.kind === 'workspace'
+      ? this.config.scope.workspaceId
+      : undefined;
     const globalScope = { level: 'global' as const };
-    const wsScope = { level: 'workspace' as const, workspaceId };
+    const wsScope = workspaceId ? { level: 'workspace' as const, workspaceId } : undefined;
 
     // Skills: workspace dirs scanned first, then every standard global skill
     // dir (canvas-managed, plus whatever the user has under ~/.pulse-coder,
@@ -570,16 +604,16 @@ export class CanvasAgent {
     // workspace's own skills override globals, and canvas-managed globals
     // override skills from other tools.
     const skillsScanPaths = [
-      ...skillSourceDirs(wsScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })),
+      ...(wsScope ? skillSourceDirs(wsScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })) : []),
       ...skillSourceDirs(globalScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })),
     ];
     // MCP: global first, workspace later so it overrides on same server name.
     const mcpConfigPaths = [
       scopeMcpConfigPath(globalScope),
-      scopeMcpConfigPath(wsScope),
+      ...(wsScope ? [scopeMcpConfigPath(wsScope)] : []),
     ];
 
-    const canvasTools = createCanvasTools(workspaceId);
+    const canvasTools = workspaceId ? createCanvasTools(workspaceId) : createGlobalReadOnlyCanvasTools();
 
     return new Engine({
       disableBuiltInPlugins: true,
@@ -595,7 +629,7 @@ export class CanvasAgent {
   }
 
   async initialize(): Promise<void> {
-    console.info(`[canvas-agent] Initializing for workspace: ${this.config.workspaceId}`);
+    console.info(`[canvas-agent] Initializing for ${this.label}`);
 
     await this.engine.initialize();
 
@@ -639,7 +673,7 @@ export class CanvasAgent {
     }
     this.engine = this.buildEngine();
     await this.engine.initialize();
-    console.info(`[canvas-agent] Engine reloaded for workspace: ${this.config.workspaceId}`);
+    console.info(`[canvas-agent] Engine reloaded for ${this.label}`);
   }
 
   /**
@@ -680,8 +714,10 @@ export class CanvasAgent {
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
     onToolInputEnd?: (data: { id: string }) => void,
   ): Promise<{ response: string; runId?: string }> {
-    // Refresh workspace summary for system prompt
-    const summary = await buildWorkspaceSummary(this.config.workspaceId);
+    const workspaceId = this.config.scope.kind === 'workspace'
+      ? this.config.scope.workspaceId
+      : undefined;
+    const summary = workspaceId ? await buildWorkspaceSummary(workspaceId) : null;
 
     // For any other canvases the user @-mentioned, we only inject the
     // `{ id, name }` pair into the system prompt — the agent is expected to
@@ -690,7 +726,7 @@ export class CanvasAgent {
     let mentionedCanvases: Array<{ id: string; name: string }> = [];
     if (mentionedWorkspaceIds && mentionedWorkspaceIds.length > 0) {
       const unique = Array.from(new Set(mentionedWorkspaceIds)).filter(
-        id => id && id !== this.config.workspaceId,
+        id => id && id !== workspaceId,
       );
       mentionedCanvases = await resolveWorkspaceNames(unique);
     }
@@ -704,16 +740,20 @@ export class CanvasAgent {
     }
 
     let workspaceDocSection = '';
-    try {
-      const meta = await readWorkspaceMeta(this.config.workspaceId);
-      const workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
-      workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, workspaceDoc);
-    } catch (err) {
-      console.warn(`[canvas-agent] Failed to load workspace environment / ${WORKSPACE_DOC_FILENAME}:`, err);
+    if (workspaceId) {
+      try {
+        const meta = await readWorkspaceMeta(workspaceId);
+        const workspaceDoc = await readWorkspaceDoc(meta.rootFolder);
+        workspaceDocSection = formatWorkspaceContextSection(meta.rootFolder, workspaceDoc);
+      } catch (err) {
+        console.warn(`[canvas-agent] Failed to load workspace environment / ${WORKSPACE_DOC_FILENAME}:`, err);
+      }
     }
 
-    const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : '(empty workspace — no nodes yet)';
-    const systemPrompt = buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection);
+    const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
+    const systemPrompt = workspaceId
+      ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
+      : GLOBAL_AGENT_SYSTEM_PROMPT + formatMentionedCanvasesSection(mentionedCanvases) + promptProfileSection;
     const debugTrace = isCanvasAgentDebugTraceEnabled()
       ? createCanvasAgentDebugTrace({
           sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
@@ -737,7 +777,9 @@ export class CanvasAgent {
             const mime = attachment.mimeType ? `, mime=${attachment.mimeType}` : '';
             return `${index + 1}. ${attachment.path}${name}${mime}`;
           }),
-          'Use canvas_analyze_image with imagePaths when you need to inspect these images.',
+          workspaceId
+            ? 'Use canvas_analyze_image with imagePaths when you need to inspect these images.'
+            : 'Use the available filesystem/image-capable tools when you need to inspect these local image paths.',
         ].join('\n')
       : message;
 
@@ -880,8 +922,8 @@ export class CanvasAgent {
           data: {
             trace: finalizedTrace,
             assistantPreview: responseText.slice(0, 180),
-            workspaceId: this.config.workspaceId,
-            workspaceName: summary?.workspaceName ?? this.config.workspaceId,
+            workspaceId: workspaceId ?? 'global',
+            workspaceName: summary?.workspaceName ?? 'Global Chat',
           },
         });
       }
@@ -1029,7 +1071,7 @@ export class CanvasAgent {
    * Destroy the agent (called when workspace is closed).
    */
   async destroy(): Promise<void> {
-    console.info(`[canvas-agent] Destroying for workspace: ${this.config.workspaceId}`);
+    console.info(`[canvas-agent] Destroying for ${this.label}`);
     const manager = this.engine?.getService?.('mcp:__manager__') as
       | { closeAll: () => Promise<void> }
       | undefined;

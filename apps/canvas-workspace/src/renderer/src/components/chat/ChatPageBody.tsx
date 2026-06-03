@@ -8,7 +8,7 @@ import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { useChatComposerState } from './hooks/useChatComposerState';
-import type { WorkspaceOption } from './types';
+import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 
@@ -20,13 +20,15 @@ const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
 );
 
 export interface ChatPageBodyProps {
-  workspaceId: string;
+  agentScope: AgentScope;
   /** Initial session to load on mount (only read at mount time, via ref). */
   initialPendingSessionId: string | null;
   /** Reactive pendingSessionId for same-workspace clicks after mount. */
   pendingSessionId: string | null;
   onSessionConsumed: () => void;
   onSelectSession: (session: UnifiedSession) => void;
+  onNewGlobalSession: () => void;
+  newSessionRequest: number;
   onWorkspaceContextRequest?: (workspaceId: string) => void;
   allWorkspaces: WorkspaceOption[];
   nodes?: CanvasNode[];
@@ -40,11 +42,13 @@ export interface ChatPageBodyProps {
 }
 
 export const ChatPageBody = ({
-  workspaceId,
+  agentScope,
   initialPendingSessionId,
   pendingSessionId,
   onSessionConsumed,
   onSelectSession,
+  onNewGlobalSession,
+  newSessionRequest,
   onWorkspaceContextRequest,
   allWorkspaces,
   nodes,
@@ -56,6 +60,8 @@ export const ChatPageBody = ({
   onOpenAppSettings,
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
+  const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  const anchorScopeId = workspaceId ?? 'global';
   // Snapshot at mount: the caller might change pendingSessionId later (e.g.
   // for a same-workspace click), but on mount we only care about the value
   // we saw when this body was constructed (after a workspace switch).
@@ -101,7 +107,7 @@ export const ChatPageBody = ({
     toggleSection,
     toggleToolExpand,
   } = useChatComposerState({
-    workspaceId,
+    agentScope,
     allWorkspaces,
     nodes,
     rootFolder,
@@ -113,8 +119,15 @@ export const ChatPageBody = ({
   });
 
   useEffect(() => {
+    if (!workspaceId) return;
     onWorkspaceContextRequest?.(workspaceId);
   }, [onWorkspaceContextRequest, workspaceId]);
+
+  useEffect(() => {
+    if (agentScope.kind !== 'global') return;
+    if (newSessionRequest <= 0) return;
+    void handleNewSession();
+  }, [agentScope.kind, handleNewSession, newSessionRequest]);
 
   // Load the pending session whenever it's set. This uniformly handles both
   // cases:
@@ -160,6 +173,7 @@ export const ChatPageBody = ({
 
   // Clicking a mention chip should jump back to the canvas and focus the node.
   const handleNodeFocus = useCallback((nodeId: string) => {
+    if (!workspaceId) return;
     onNodeFocus?.(workspaceId, nodeId);
     onExit();
   }, [onExit, onNodeFocus, workspaceId]);
@@ -167,7 +181,7 @@ export const ChatPageBody = ({
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 
   const handleJumpAnchor = useCallback((messageIndex: number) => {
-    const id = buildAnchorElementId(workspaceId, messageIndex);
+    const id = buildAnchorElementId(anchorScopeId, messageIndex);
     const el = document.getElementById(id);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -175,7 +189,7 @@ export const ChatPageBody = ({
     window.setTimeout(() => {
       el.classList.remove('chat-message--anchor-flash');
     }, 1200);
-  }, [workspaceId]);
+  }, [anchorScopeId]);
 
   const handleEditUserMessage = useCallback(
     (messageIndex: number, newContent: string) => editUserMessage(messageIndex, newContent),
@@ -191,12 +205,15 @@ export const ChatPageBody = ({
   // workspace into a single list, sorted by date (newest first).
   const allSessions: UnifiedSession[] = useMemo(() => {
     const currentWorkspaceName =
-      allWorkspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId;
+      workspaceId
+        ? allWorkspaces.find((w) => w.id === workspaceId)?.name ?? workspaceId
+        : 'Global Chat';
+    const currentSessionWorkspaceId = workspaceId ?? '__global_chat__';
 
     const unified: UnifiedSession[] = [
       ...sessions.map((s) => ({
         sessionId: s.sessionId,
-        workspaceId,
+        workspaceId: currentSessionWorkspaceId,
         workspaceName: currentWorkspaceName,
         date: s.date,
         messageCount: s.messageCount,
@@ -218,13 +235,21 @@ export const ChatPageBody = ({
     return unified;
   }, [sessions, otherSessions, workspaceId, allWorkspaces]);
 
+  const handleRailNewSession = useCallback(async () => {
+    if (agentScope.kind !== 'global') {
+      onNewGlobalSession();
+      return;
+    }
+    await handleNewSession();
+  }, [agentScope.kind, handleNewSession, onNewGlobalSession]);
+
   return (
     <>
     <div className="chat-page">
       <div className={`chat-page-rail-wrapper${railCollapsed ? ' chat-page-rail-wrapper--collapsed' : ''}`}>
         <ChatSessionsRail
           allSessions={allSessions}
-          onNewSession={handleNewSession}
+          onNewSession={handleRailNewSession}
           onSelectSession={onSelectSession}
         />
       </div>
@@ -259,7 +284,7 @@ export const ChatPageBody = ({
           </button>
           <button
             className="chat-panel-action-btn"
-            onClick={() => void handleNewSession()}
+            onClick={() => void handleRailNewSession()}
             title={t('chat.newAiChat')}
             aria-label={t('chat.newAiChat')}
           >
@@ -279,7 +304,7 @@ export const ChatPageBody = ({
           className="chat-page-body"
           messages={messages}
           loading={loading}
-          workspaceId={workspaceId}
+          workspaceId={anchorScopeId}
           streamingTools={streamingTools}
           messageTools={messageTools}
           collapsedSections={collapsedSections}

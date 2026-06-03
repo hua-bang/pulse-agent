@@ -1,11 +1,10 @@
-import type { CanvasAgentServiceRef } from '../../../types';
+import type { AgentScope, CanvasAgentServiceRef } from '../../../types';
 import type { PluginStore } from '../../../types';
 import { BindingStore } from './binding';
-import { buildBindPrompt, handleCommand } from './commands';
+import { handleCommand } from './commands';
 import { MessageDedupe } from './dedupe';
 import { extractGeneratedImageResult } from './image-result';
 import { SessionRouter } from './sessions';
-import { listWorkspaces, workspaceLabel } from './workspaces';
 import type { Channel, ChannelStream, InboundMessage } from './types';
 
 interface ActiveRun {
@@ -17,12 +16,12 @@ interface ActiveRun {
 
 /**
  * Channel-agnostic orchestration. Receives normalized inbound messages from
- * any number of channels, resolves the target workspace, and drives the
+ * any number of channels, resolves the target agent scope, and drives the
  * Canvas Agent — streaming its output back through the originating channel.
  *
- * Concurrency: at most one in-flight run per workspace. A follow-up message
- * for a busy workspace either answers a pending clarification or is rejected
- * with a "still working" notice.
+ * Concurrency: at most one in-flight run per scope key. A follow-up message
+ * for a busy scope either answers a pending clarification or is rejected with
+ * a "still working" notice.
  */
 export class ChannelBridge {
   private readonly bindings: BindingStore;
@@ -83,31 +82,25 @@ export class ChannelBridge {
 
     if (!msg.text.trim()) return;
 
-    // Binding is required and sticky, so a chat never silently picks or switches
-    // workspaces. To keep that one-time step light, an unbound chat gets a
-    // numbered picker (reply with a digit to bind), and binds automatically when
-    // there's only one workspace. resolveUnbound returns the workspace to run,
-    // or null when it has already replied (picker / bind confirmation).
-    let workspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
-    if (!workspaceId) {
-      const resolved = await this.resolveUnbound(channel, msg, target);
-      if (!resolved) return;
-      workspaceId = resolved;
-    }
+    const boundWorkspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
+    const scope: AgentScope = boundWorkspaceId
+      ? { kind: 'workspace', workspaceId: boundWorkspaceId }
+      : { kind: 'global' };
+    const runKey = agentScopeKey(scope);
 
-    // Busy workspace: if THIS conversation is the one awaiting a clarification
+    // Busy scope: if THIS conversation is the one awaiting a clarification
     // answer, route the message as the answer. Otherwise (a different
-    // conversation bound to the same workspace, or no pending question) tell
+    // conversation bound to the same scope, or no pending question) tell
     // the user to wait — so a clarification can't be answered by an unrelated
-    // chat that happens to share the workspace.
-    const existing = this.activeRuns.get(workspaceId);
+    // chat that happens to share the scope.
+    const existing = this.activeRuns.get(runKey);
     if (existing) {
       if (
         existing.pendingClarificationId &&
         existing.conversationId === msg.conversationId
       ) {
-        const matched = this.service.answerClarification(
-          workspaceId,
+        const matched = this.service.answerClarificationForScope(
+          scope,
           existing.pendingClarificationId,
           msg.text,
         );
@@ -121,64 +114,24 @@ export class ChannelBridge {
       return;
     }
 
-    await this.runTurn(channel, msg, workspaceId);
-  }
-
-  /**
-   * Bind an unbound conversation with as little friction as possible, then
-   * return the workspace its current message should run in — or null when the
-   * turn was consumed by binding (a picker was shown, or the message was just
-   * a number selecting one).
-   *
-   * - A bare number replies to the picker: bind that workspace and stop (the
-   *   number isn't a request to run).
-   * - Exactly one workspace: bind it and run this message — no picker needed.
-   * - Otherwise: show the numbered picker and stop.
-   */
-  private async resolveUnbound(
-    channel: Channel,
-    msg: InboundMessage,
-    target: { conversationId: string; reply: InboundMessage['reply'] },
-  ): Promise<string | null> {
-    const workspaces = await listWorkspaces();
-
-    const pick = msg.text.trim().match(/^#?(\d{1,3})$/);
-    if (pick) {
-      const choice = workspaces[Number(pick[1]) - 1];
-      if (!choice) {
-        await channel.sendText(target, `No workspace #${pick[1]}.\n${await buildBindPrompt()}`);
-        return null;
-      }
-      await this.bindings.bind(msg.channelId, msg.conversationId, choice.id);
-      await channel.sendText(target, `✅ Bound to ${workspaceLabel(choice)}. Send your request.`);
-      return null;
-    }
-
-    if (workspaces.length === 1) {
-      const only = workspaces[0];
-      await this.bindings.bind(msg.channelId, msg.conversationId, only.id);
-      await channel.sendText(target, `📌 Bound this chat to ${workspaceLabel(only)}.`);
-      return only.id;
-    }
-
-    await channel.sendText(target, await buildBindPrompt());
-    return null;
+    await this.runTurn(channel, msg, scope);
   }
 
   private async runTurn(
     channel: Channel,
     msg: InboundMessage,
-    workspaceId: string,
+    scope: AgentScope,
   ): Promise<void> {
     const target = { conversationId: msg.conversationId, reply: msg.reply };
     const run: ActiveRun = { channelId: msg.channelId, conversationId: msg.conversationId };
-    this.activeRuns.set(workspaceId, run);
+    const runKey = agentScopeKey(scope);
+    this.activeRuns.set(runKey, run);
 
     // Give this conversation its own session so topics / chats sharing a
-    // workspace keep separate histories. Safe here: runs are serialized per
-    // workspace, so nothing else can swap the session mid-turn.
+    // scope keep separate histories. Safe here: runs are serialized per
+    // scope, so nothing else can swap the session mid-turn.
     try {
-      await this.sessions.ensureSession(workspaceId, msg.conversationId);
+      await this.sessions.ensureSession(scope, msg.conversationId);
     } catch (err) {
       console.error(`[channel:${channel.id}] failed to select session`, err);
     }
@@ -187,14 +140,14 @@ export class ChannelBridge {
     try {
       stream = await channel.openStream(target);
     } catch (err) {
-      this.activeRuns.delete(workspaceId);
+      this.activeRuns.delete(runKey);
       console.error(`[channel:${channel.id}] failed to open stream`, err);
       return;
     }
 
     try {
-      const result = await this.service.chat(
-        workspaceId,
+      const result = await this.service.chatWithScope(
+        scope,
         msg.text,
         (delta) => void Promise.resolve(stream.onText(delta)).catch(noop),
         (toolCall) => void Promise.resolve(stream.onToolCall(toolCall.name, toolCall.args)).catch(noop),
@@ -225,9 +178,13 @@ export class ChannelBridge {
     } catch (err) {
       await stream.onError(err instanceof Error ? err.message : String(err));
     } finally {
-      this.activeRuns.delete(workspaceId);
+      this.activeRuns.delete(runKey);
     }
   }
+}
+
+function agentScopeKey(scope: AgentScope): string {
+  return scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
 }
 
 function noop(): void {
