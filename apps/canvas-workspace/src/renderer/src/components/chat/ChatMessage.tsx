@@ -1,9 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { AvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
+import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
-import { renderMdWithMentions, renderUserContent } from './utils/mentions';
+import { renderMdWithMentions } from './utils/mentions';
 import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
@@ -111,15 +111,14 @@ export const ChatMessage = ({
       : ''),
     [message.role, message.content, nodes],
   );
-  const userBody = useMemo(
+  const userHtml = useMemo(
     () => (message.role === 'user'
-      ? renderUserContent(message.content, nodes)
-      : null),
+      ? renderMdWithMentions(message.content, nodes)
+      : ''),
     [message.role, message.content, nodes],
   );
-  const showCopyToolbar = message.role === 'assistant'
-    && !isStreaming
-    && !!message.content;
+  // Copy is offered for any settled message (user or assistant) with a body.
+  const showCopyToolbar = !isStreaming && !!message.content;
   const relativeTime = formatRelativeTime(message.timestamp);
   const absoluteTime = formatAbsoluteTime(message.timestamp);
 
@@ -174,21 +173,22 @@ export const ChatMessage = ({
     card?.classList.add('chat-message-image-card--broken');
   }, []);
 
-  // After every (re-)render of the assistant body, render any pending
-  // mermaid placeholders. We skip while streaming because partial
-  // diagrams will always fail to parse — they get picked up once the
-  // stream completes.
-  const assistantBodyRef = useRef<HTMLDivElement>(null);
+  // After every (re-)render of a message body, render any pending mermaid
+  // placeholders. Applies to both assistant output and pasted user content
+  // (a user can paste a ```mermaid block too). We skip while streaming
+  // because partial diagrams always fail to parse — they get picked up
+  // once the stream completes.
+  const bodyRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (message.role !== 'assistant' || isStreaming) return;
-    renderMermaidIn(assistantBodyRef.current);
-  }, [assistantHtml, isStreaming, message.role]);
+    if (isStreaming) return;
+    renderMermaidIn(bodyRef.current);
+  }, [assistantHtml, userHtml, isStreaming]);
 
   return (
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
     {message.role === 'assistant' && (
       <div className="chat-message-avatar">
-        <AvatarIcon size={14} />
+        <BotAvatarIcon size={16} />
       </div>
     )}
     <div className="chat-message-body">
@@ -304,7 +304,7 @@ export const ChatMessage = ({
         isStreaming ? (
           message.content ? (
             <div
-              ref={assistantBodyRef}
+              ref={bodyRef}
               className="chat-message-content chat-md chat-md--streaming"
               dangerouslySetInnerHTML={{ __html: assistantHtml }}
             />
@@ -313,7 +313,7 @@ export const ChatMessage = ({
           ) : null
         ) : (
           <div
-            ref={assistantBodyRef}
+            ref={bodyRef}
             className="chat-message-content chat-md"
             dangerouslySetInnerHTML={{ __html: assistantHtml }}
           />
@@ -348,7 +348,11 @@ export const ChatMessage = ({
           </div>
         </div>
       ) : (
-        <div className="chat-message-content">{userBody}</div>
+        <div
+          ref={bodyRef}
+          className="chat-message-content chat-md"
+          dangerouslySetInnerHTML={{ __html: userHtml }}
+        />
       )}
       <PluginChatCardForMessage message={message} />
       {!isEditing && (showCopyToolbar || canEdit || canRegenerate || relativeTime) && (

@@ -63,6 +63,7 @@ export const ChatPanel = ({
     sessionMenuOpen,
     sessionMenuRef,
     sessions,
+    sessionsLoading,
     setClarifyInput,
     setMentionIndex,
     streamingTools,
@@ -178,6 +179,7 @@ export const ChatPanel = ({
           sessionMenuOpen={sessionMenuOpen}
           sessionMenuRef={sessionMenuRef}
           sessions={sessions}
+          sessionsLoading={sessionsLoading}
           otherSessions={otherSessions}
           title={sessionTitle}
           onToggleSessionMenu={openSessionMenu}
