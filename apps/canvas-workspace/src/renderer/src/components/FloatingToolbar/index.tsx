@@ -1,5 +1,6 @@
 import './index.css';
 import { ShapeToolButton } from './ShapeToolButton';
+import { PulseGlyphIcon } from '../icons';
 import { useI18n, type I18nKey } from '../../i18n';
 
 interface Props {
@@ -85,15 +86,7 @@ export const FloatingToolbar = ({
               onClick={onChatToggle}
               title={t('canvas.toolbar.toggleChat')}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
-                <path
-                  d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5"
-                  stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"
-                />
-                <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
-                <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
-              </svg>
+              <PulseGlyphIcon size={18} />
             </button>
           </div>
           <div className="toolbar-divider" />

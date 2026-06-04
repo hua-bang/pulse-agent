@@ -1,3 +1,5 @@
+import { PulseGlyphIcon } from '../icons';
+
 interface Props {
   /** Reference-drawer state used to flag the button as active. The
    *  chip only renders when a node is fullscreen, so these props are
@@ -47,12 +49,7 @@ export const CanvasFullscreenChip = ({
         title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
         aria-label="Toggle AI Chat"
       >
-        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-          <circle cx="9" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M4.5 16c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-          <circle cx="7.5" cy="6" r="0.7" fill="currentColor" />
-          <circle cx="10.5" cy="6" r="0.7" fill="currentColor" />
-        </svg>
+        <PulseGlyphIcon size={16} />
       </button>
     )}
     <div className="canvas-fullscreen-chip__divider" />

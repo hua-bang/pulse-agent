@@ -78,6 +78,24 @@ export const SparklesIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconPr
   </svg>
 );
 
+/**
+ * Pulse brand mark (the waveform), monochrome via currentColor — the canonical
+ * "Pulse assistant" glyph. Shares its path with the sidebar logo so the chat
+ * entry points read as one identity. strokeWidth is in the 512-unit viewBox
+ * (≈1.3px at the 16–18px sizes used in toolbars).
+ */
+export const PulseGlyphIcon = ({ size = 18, className, strokeWidth = 36 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 512 512" fill="none" className={className}>
+    <path
+      d="M 80,268 H 188 L 228,178 L 260,370 L 292,148 L 328,268 H 432"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 export const TrashIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <path d="M3 4.5h10" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
