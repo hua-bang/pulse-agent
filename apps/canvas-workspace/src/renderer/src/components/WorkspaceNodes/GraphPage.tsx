@@ -26,8 +26,7 @@ interface GraphPageProps {
   selectedNode?: { workspaceId: string; nodeId: string } | null;
   onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
-  /** Gates the docked knowledge assistant (experimental). */
-  chatEnabled?: boolean;
+  /** When provided, docks the knowledge assistant into the page. */
   onOpenAppSettings?: (section: SettingsSection) => void;
 }
 
@@ -194,7 +193,6 @@ export const GraphPage = ({
   selectedNode,
   onSelectNode,
   onOpenNode,
-  chatEnabled,
   onOpenAppSettings,
 }: GraphPageProps) => {
   const { t } = useI18n();
@@ -203,7 +201,7 @@ export const GraphPage = ({
   const lastClickRef = useRef<{ nodeId: string; ts: number } | null>(null);
   const { nodes, tags, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
   const dock = useNodesChatDock();
-  const showDock = Boolean(chatEnabled && onOpenAppSettings);
+  const showDock = Boolean(onOpenAppSettings);
   const chatContext = useMemo(() => selectionToContext(selectedNode ?? null, nodes), [selectedNode, nodes]);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [showTags, setShowTags] = useState(true);

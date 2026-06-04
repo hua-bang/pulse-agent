@@ -25,8 +25,7 @@ interface NodesPageProps {
   selectedNode?: { workspaceId: string; nodeId: string } | null;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
   onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
-  /** Gates the docked knowledge assistant (experimental). */
-  chatEnabled?: boolean;
+  /** When provided, docks the knowledge assistant into the page. */
   onOpenAppSettings?: (section: SettingsSection) => void;
 }
 
@@ -43,14 +42,13 @@ export const NodesPage = ({
   selectedNode,
   onOpenNode,
   onSelectNode,
-  chatEnabled,
   onOpenAppSettings,
 }: NodesPageProps) => {
   const { language, t } = useI18n();
   const dateLocale = language === 'zh' ? 'zh-CN' : 'en-US';
   const { nodes, tags: tagDefinitions, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
   const dock = useNodesChatDock();
-  const showDock = Boolean(chatEnabled && onOpenAppSettings);
+  const showDock = Boolean(onOpenAppSettings);
   const chatContext = useMemo(() => selectionToContext(selectedNode ?? null, nodes), [selectedNode, nodes]);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');

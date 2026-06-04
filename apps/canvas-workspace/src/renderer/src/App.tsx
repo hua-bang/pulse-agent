@@ -22,7 +22,6 @@ import { PulseRouter, PulseRouterView } from './components/router';
 import {
   EXPERIMENTAL_FLAG_WORKSPACE_GRAPH,
   EXPERIMENTAL_FLAG_WORKSPACE_NODES,
-  EXPERIMENTAL_FLAG_WORKSPACE_NODES_CHAT,
 } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 type SelectedWorkspaceNode = { workspaceId: string; nodeId: string };
@@ -39,7 +38,6 @@ const PLUGIN_FLAGS =
     .canvasWorkspace?.pluginFlags ?? {};
 const NODES_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES] === true;
 const GRAPH_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_GRAPH] === true;
-const NODES_CHAT_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_WORKSPACE_NODES_CHAT] === true;
 
 // Plugin routes contribute their own URL paths; activeView widens to
 // 'canvas' | 'chat' | <plugin route path>.
@@ -484,7 +482,6 @@ const AppContent = () => {
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onOpenNode={openNodePage}
-                chatEnabled={NODES_CHAT_ENABLED}
                 onOpenAppSettings={openAppSettings}
               />
             </PulseRouterView>
@@ -506,7 +503,6 @@ const AppContent = () => {
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onOpenNode={openNodePage}
-                chatEnabled={NODES_CHAT_ENABLED}
                 onOpenAppSettings={openAppSettings}
               />
             </PulseRouterView>

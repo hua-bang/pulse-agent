@@ -981,32 +981,30 @@
 
 .nodes-chat-dock__launcher {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
+  right: 20px;
+  bottom: 20px;
   z-index: 6;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 38px;
-  padding: 0 15px;
-  border: 1px solid var(--nodes-border-strong);
-  border-radius: 19px;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--nodes-border);
+  border-radius: 50%;
   background: var(--nodes-surface);
-  color: var(--nodes-text);
-  font-family: var(--font);
-  font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
   box-shadow: var(--nodes-shadow);
-  transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+  transition: box-shadow 140ms ease, transform 140ms ease;
 }
 
 .nodes-chat-dock__launcher:hover {
-  background: var(--nodes-surface-hover);
-  box-shadow: 0 2px 6px rgba(15, 15, 15, 0.08), 0 10px 26px rgba(15, 15, 15, 0.08);
+  box-shadow: 0 3px 8px rgba(15, 15, 15, 0.1), 0 12px 28px rgba(15, 15, 15, 0.12);
   transform: translateY(-1px);
 }
 
 .nodes-chat-dock__launcher svg {
-  color: var(--accent);
+  width: 30px;
+  height: 30px;
+  display: block;
 }
