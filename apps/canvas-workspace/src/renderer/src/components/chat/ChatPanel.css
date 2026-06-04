@@ -1775,6 +1775,17 @@
   background: rgba(88, 166, 255, 0.16);
   border-color: rgba(88, 166, 255, 0.28);
 }
+.chat-mention-chip--tag,
+.chat-mention-chip[data-node-type="tag"] {
+  background: rgba(35, 131, 226, 0.1);
+  border-color: rgba(35, 131, 226, 0.22);
+  color: #2d6cc0;
+}
+.chat-mention-chip-hash {
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+}
 
 .chat-mention-chip[data-node-type="skill"],
 .chat-mention-chip--skill {

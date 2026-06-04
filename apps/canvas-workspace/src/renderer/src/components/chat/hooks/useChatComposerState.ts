@@ -10,6 +10,11 @@ interface UseChatComposerStateOptions {
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
   rootFolder?: string;
+  /** Forwarded to useMentions — cross-workspace knowledge candidates for `@`. */
+  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
+  knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
+  /** Forwarded to useMentions — collect structured context from inline chips at send. */
+  collectStructuredContext?: boolean;
   /** Forwarded to useChatSessions — load the session list on mount + workspace change. */
   eagerLoad?: boolean;
   /** Forwarded to useChatSessions — skip the initial getHistory call. */
@@ -33,6 +38,9 @@ export function useChatComposerState({
   allWorkspaces,
   nodes,
   rootFolder,
+  knowledgeNodes,
+  knowledgeTags,
+  collectStructuredContext,
   eagerLoad,
   skipInitialHistory,
   getRequestContext,
@@ -54,6 +62,9 @@ export function useChatComposerState({
     agentScope,
     nodes,
     rootFolder,
+    knowledgeNodes,
+    knowledgeTags,
+    collectStructuredContext,
     onSubmit: chatStream.sendMessage,
     getRequestContext,
   });

@@ -15,6 +15,8 @@ export const ChatPanel = ({
   agentScope: agentScopeProp,
   allWorkspaces,
   nodes,
+  knowledgeNodes,
+  knowledgeTags,
   selectedNodeIds,
   contextNodes,
   contextTags,
@@ -95,6 +97,9 @@ export const ChatPanel = ({
     allWorkspaces,
     nodes,
     rootFolder,
+    knowledgeNodes,
+    knowledgeTags,
+    collectStructuredContext: agentScope.kind === 'global',
     getRequestContext: () => requestContextRef.current,
   });
 

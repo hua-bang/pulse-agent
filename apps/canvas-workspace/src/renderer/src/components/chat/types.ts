@@ -38,6 +38,10 @@ export interface ChatPanelProps {
   agentScope?: AgentScope;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
+  /** Cross-workspace knowledge nodes offered in the `@` popup (global host). */
+  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
+  /** Knowledge tags offered in the `@` popup (global host). */
+  knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
   selectedNodeIds?: string[];
   /**
    * Explicit selection context (with owning `workspaceId`). When provided it
@@ -72,13 +76,15 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag';
   label: string;
   nodeType?: CanvasNode['type'];
   /** For type === 'node': the canvas node id, used to focus it when clicked. */
   nodeId?: string;
   path?: string;
   workspaceId?: string;
+  /** For type === 'tag': workspaces the tag occurs in (global assistant). */
+  workspaceIds?: string[];
   /** For type === 'skill': the skill's description, shown in the popup row. */
   description?: string;
 }

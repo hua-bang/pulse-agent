@@ -284,8 +284,6 @@ export const NodesPage = ({
           workspaces={workspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
           nodes={nodes}
           tags={tagDefinitions}
-          selectedNode={selectedNode ?? null}
-          onClearSelection={() => onSelectNode?.(null)}
           onOpenAppSettings={onOpenAppSettings}
         />
       )}

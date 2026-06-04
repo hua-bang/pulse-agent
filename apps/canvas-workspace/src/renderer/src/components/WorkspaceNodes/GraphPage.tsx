@@ -672,8 +672,6 @@ export const GraphPage = ({
           workspaces={workspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
           nodes={nodes}
           tags={tags}
-          selectedNode={selectedNode ?? null}
-          onClearSelection={() => onSelectNode?.(null)}
           onOpenAppSettings={onOpenAppSettings}
         />
       )}
