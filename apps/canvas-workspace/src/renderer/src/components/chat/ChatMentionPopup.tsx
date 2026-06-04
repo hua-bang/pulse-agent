@@ -49,7 +49,9 @@ export const ChatMentionPopup = ({
             >
               {item.type !== 'skill' && (
                 <span className="chat-mention-item-icon">
-                  <MentionNodeIcon size={14} nodeType={nodeType} />
+                  {item.type === 'tag'
+                    ? <span className="chat-mention-chip-hash">#</span>
+                    : <MentionNodeIcon size={14} nodeType={nodeType} />}
                 </span>
               )}
               <span className="chat-mention-item-label">{item.label}</span>

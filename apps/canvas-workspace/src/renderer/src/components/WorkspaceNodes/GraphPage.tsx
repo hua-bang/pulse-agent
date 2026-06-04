@@ -14,7 +14,9 @@ import ForceGraph2D, {
 } from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkspaceNodeListItem } from '../../types';
+import type { SettingsSection } from '../Settings';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
+import { NodesChatDock, useNodesChatDock } from './NodesChatDock';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
 import { useI18n } from '../../i18n';
@@ -24,6 +26,8 @@ interface GraphPageProps {
   selectedNode?: { workspaceId: string; nodeId: string } | null;
   onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
+  /** When provided, docks the knowledge assistant into the page. */
+  onOpenAppSettings?: (section: SettingsSection) => void;
 }
 
 type GraphNodeKind = 'node' | 'tag' | 'missing' | 'workspace';
@@ -189,12 +193,15 @@ export const GraphPage = ({
   selectedNode,
   onSelectNode,
   onOpenNode,
+  onOpenAppSettings,
 }: GraphPageProps) => {
   const { t } = useI18n();
   const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastClickRef = useRef<{ nodeId: string; ts: number } | null>(null);
   const { nodes, tags, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
+  const dock = useNodesChatDock();
+  const showDock = Boolean(onOpenAppSettings);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [showTags, setShowTags] = useState(true);
   const [showLinks, setShowLinks] = useState(true);
@@ -475,7 +482,11 @@ export const GraphPage = ({
   }, [activeNodeId, highlighted.nodeIds, hoverNodeId, showLabels]);
 
   return (
-    <main className="workspace-graph-page" ref={containerRef}>
+    <main
+      className={`workspace-graph-page${showDock && dock.open ? ' has-chat-dock' : ''}`}
+      ref={containerRef}
+      style={showDock ? dock.rootStyle : undefined}
+    >
       <div className="workspace-graph-toolbar">
         <div className="workspace-graph-toolbar__group">
           <button className={`workspace-node-chip${showLabels ? ' is-active' : ''}`} onClick={() => setShowLabels((value) => !value)}>
@@ -650,6 +661,20 @@ export const GraphPage = ({
         onOpenPage={onOpenNode}
         onNodeChanged={() => { void reload(); }}
       />
+
+      {showDock && onOpenAppSettings && (
+        <NodesChatDock
+          open={dock.open}
+          width={dock.width}
+          onOpen={dock.openDock}
+          onClose={dock.closeDock}
+          onBeginResize={dock.beginResize}
+          workspaces={workspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
+          nodes={nodes}
+          tags={tags}
+          onOpenAppSettings={onOpenAppSettings}
+        />
+      )}
     </main>
   );
 };

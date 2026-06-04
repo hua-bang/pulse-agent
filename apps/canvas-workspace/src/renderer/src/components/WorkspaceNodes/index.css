@@ -941,3 +941,70 @@
 .workspace-graph-legend-link {
   background: var(--nodes-link-dot);
 }
+
+/* ----------------------------------------------------------------------- */
+/* Knowledge assistant dock (Nodes / Graph global chat)                    */
+/* ----------------------------------------------------------------------- */
+
+.nodes-chat-dock {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--nodes-surface);
+  box-shadow: -8px 0 24px rgba(15, 15, 15, 0.05);
+}
+
+/* Nodes page is a flex row, so the dock is a pushing column sitting to the
+   right of the (optional) detail drawer. */
+.workspace-nodes-page .nodes-chat-dock {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 4;
+}
+
+/* Graph page is a positioned canvas stage, so the dock overlays the right
+   edge; the graph keeps its full width underneath. */
+.workspace-graph-page .nodes-chat-dock {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+}
+
+/* With the dock open in the graph, slide the absolutely-positioned detail
+   drawer left so it sits beside the dock instead of behind it. */
+.workspace-graph-page.has-chat-dock .node-detail-drawer {
+  right: var(--chat-dock-w, 0);
+}
+
+.nodes-chat-dock__launcher {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 1px solid var(--nodes-border);
+  border-radius: 50%;
+  background: var(--nodes-surface);
+  cursor: pointer;
+  box-shadow: var(--nodes-shadow);
+  transition: box-shadow 140ms ease, transform 140ms ease;
+}
+
+.nodes-chat-dock__launcher:hover {
+  box-shadow: 0 3px 8px rgba(15, 15, 15, 0.1), 0 12px 28px rgba(15, 15, 15, 0.12);
+  transform: translateY(-1px);
+}
+
+.nodes-chat-dock__launcher svg {
+  width: 30px;
+  height: 30px;
+  display: block;
+}

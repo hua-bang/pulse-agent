@@ -8,6 +8,7 @@ import {
 import type { MentionItem, WorkspaceOption } from '../types';
 import type { AgentScope } from '../types';
 import {
+  collectContextRefsFromEditable,
   createMentionChipElement,
   serializeEditable,
 } from '../utils/mentions';
@@ -18,6 +19,16 @@ interface UseMentionsOptions {
   agentScope: AgentScope;
   nodes?: CanvasNode[];
   rootFolder?: string;
+  /** Cross-workspace knowledge nodes offered in the `@` popup (global host). */
+  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
+  /** Knowledge tags offered in the `@` popup (global host). */
+  knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
+  /**
+   * When true, structured context (with workspaceId) is collected from the
+   * inline mention chips at send time and merged into the request context.
+   * Enabled by the global Nodes/Graph assistant; off for the canvas panel.
+   */
+  collectStructuredContext?: boolean;
   onSubmit: (text: string, requestContext?: AgentRequestContext, attachments?: ChatImageAttachment[]) => Promise<boolean>;
   getRequestContext?: () => AgentRequestContext | undefined;
 }
@@ -47,6 +58,9 @@ export function useMentions({
   agentScope,
   nodes,
   rootFolder,
+  knowledgeNodes,
+  knowledgeTags,
+  collectStructuredContext,
   onSubmit,
   getRequestContext,
 }: UseMentionsOptions) {
@@ -163,6 +177,20 @@ export function useMentions({
       }
     }
 
+    // Cross-workspace knowledge candidates (global Nodes/Graph assistant). Each
+    // node carries its workspaceId; each tag the workspaces it occurs in, so the
+    // structured context collected at send time resolves precisely.
+    if (knowledgeNodes) {
+      for (const node of knowledgeNodes) {
+        items.push({ type: 'node', nodeId: node.id, label: node.title, nodeType: node.type, workspaceId: node.workspaceId });
+      }
+    }
+    if (knowledgeTags) {
+      for (const tag of knowledgeTags) {
+        items.push({ type: 'tag', label: tag.name, workspaceIds: tag.workspaceIds });
+      }
+    }
+
     if (workspaceId && rootFolder) {
       if (!filesCacheRef.current) {
         try {
@@ -192,7 +220,7 @@ export function useMentions({
     });
 
     return filtered.slice(0, MENTION_MAX_ITEMS);
-  }, [allWorkspaces, loadSkillItems, nodes, rootFolder, workspaceId]);
+  }, [allWorkspaces, knowledgeNodes, knowledgeTags, loadSkillItems, nodes, rootFolder, workspaceId]);
 
   const handleInput = useCallback(() => {
     const element = editableRef.current;
@@ -281,12 +309,26 @@ export function useMentions({
   }, [nodes]);
 
   const submitCurrentInput = useCallback(async (requestContext?: AgentRequestContext) => {
-    const ok = await onSubmit(input, requestContext ?? getRequestContext?.(), attachments);
+    let ctx = requestContext ?? getRequestContext?.();
+    // Pull workspace-aware refs out of the inline @-mention chips (global host).
+    if (collectStructuredContext && editableRef.current) {
+      const collected = collectContextRefsFromEditable(editableRef.current);
+      if (collected.nodes.length || collected.tags.length || collected.canvases.length) {
+        ctx = {
+          ...(ctx ?? {}),
+          selectedNodes: [...(ctx?.selectedNodes ?? []), ...collected.nodes],
+          tags: [...(ctx?.tags ?? []), ...collected.tags],
+          canvases: [...(ctx?.canvases ?? []), ...collected.canvases],
+          scope: 'selected_nodes',
+        };
+      }
+    }
+    const ok = await onSubmit(input, ctx, attachments);
     if (ok) {
       clearInput();
     }
     return ok;
-  }, [attachments, clearInput, getRequestContext, input, onSubmit]);
+  }, [attachments, clearInput, collectStructuredContext, getRequestContext, input, onSubmit]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (mentionOpen && mentionItems.length > 0) {

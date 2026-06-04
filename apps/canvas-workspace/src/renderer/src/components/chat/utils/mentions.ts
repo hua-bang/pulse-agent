@@ -1,6 +1,6 @@
 import { createElement, type ReactNode } from 'react';
-import type { CanvasNode } from '../../../types';
-import { CANVAS_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SKILL_MENTION_PREFIX } from '../constants';
+import type { AgentContextCanvasRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
+import { CANVAS_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown } from './markdown';
 
@@ -117,6 +117,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   const isSkill = item.type === 'skill';
   const isFolder = item.type === 'folder';
   const isNode = item.type === 'node';
+  const isTag = item.type === 'tag';
   const nodeType = getMentionNodeType(item, nodes);
   const chip = document.createElement('span');
 
@@ -129,6 +130,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   if (isWorkspace) classes.push('chat-mention-chip--workspace');
   if (isSkill) classes.push('chat-mention-chip--skill');
   if (isFolder) classes.push('chat-mention-chip--folder');
+  if (isTag) classes.push('chat-mention-chip--tag');
   if (isNavigable) classes.push('chat-mention-chip--clickable');
   chip.className = classes.join(' ');
   chip.contentEditable = 'false';
@@ -138,21 +140,34 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
       ? `${SKILL_MENTION_PREFIX}${item.label}`
       : isFolder
         ? `${FOLDER_MENTION_PREFIX}${item.label.replace(/\/$/, '')}`
-        : item.label;
+        : isTag
+          ? `${TAG_MENTION_PREFIX}${item.label}`
+          : item.label;
   chip.dataset.nodeType = nodeType;
 
-  if (isWorkspace && item.workspaceId) {
-    chip.dataset.workspaceId = item.workspaceId;
-  }
-
-  if (isNode && item.nodeId) {
-    chip.dataset.nodeId = item.nodeId;
+  // data-mention-kind + ids let the composer collect structured, workspace-aware
+  // context from the inline chips at send time (used by the global assistant).
+  if (isWorkspace) {
+    chip.dataset.mentionKind = 'canvas';
+    if (item.workspaceId) chip.dataset.workspaceId = item.workspaceId;
+  } else if (isTag) {
+    chip.dataset.mentionKind = 'tag';
+    chip.dataset.tag = item.label;
+    if (item.workspaceIds && item.workspaceIds.length > 0) {
+      chip.dataset.workspaceIds = item.workspaceIds.join(',');
+    }
+  } else if (isNode) {
+    chip.dataset.mentionKind = 'node';
+    if (item.nodeId) chip.dataset.nodeId = item.nodeId;
+    if (item.workspaceId) chip.dataset.workspaceId = item.workspaceId;
   }
 
   if (!isSkill) {
     const iconSpan = document.createElement('span');
     iconSpan.className = 'chat-mention-chip-icon';
-    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg>`;
+    iconSpan.innerHTML = isTag
+      ? '<span class="chat-mention-chip-hash">#</span>'
+      : `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg(nodeType)}</svg>`;
     chip.appendChild(iconSpan);
   }
 
@@ -162,6 +177,43 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   chip.appendChild(labelSpan);
 
   return chip;
+}
+
+/**
+ * Collect structured, workspace-aware context refs from the inline mention
+ * chips a user inserted into the composer. Used by the global (Nodes/Graph)
+ * assistant so cross-workspace `@`-mentions resolve precisely — node refs carry
+ * their workspaceId, tags the workspaces they occur in, canvases their id.
+ */
+export function collectContextRefsFromEditable(editable: HTMLElement): {
+  nodes: AgentContextNodeRef[];
+  tags: AgentContextTagRef[];
+  canvases: AgentContextCanvasRef[];
+} {
+  const nodes: AgentContextNodeRef[] = [];
+  const tags: AgentContextTagRef[] = [];
+  const canvases: AgentContextCanvasRef[] = [];
+  const chips = editable.querySelectorAll<HTMLElement>('[data-mention-kind]');
+
+  chips.forEach((chip) => {
+    const kind = chip.dataset.mentionKind;
+    const label = chip.querySelector('.chat-mention-chip-label')?.textContent ?? '';
+    if (kind === 'node' && chip.dataset.nodeId) {
+      nodes.push({
+        id: chip.dataset.nodeId,
+        title: label,
+        type: (chip.dataset.nodeType ?? 'file') as CanvasNode['type'],
+        workspaceId: chip.dataset.workspaceId || undefined,
+      });
+    } else if (kind === 'tag' && chip.dataset.tag) {
+      const ids = chip.dataset.workspaceIds ? chip.dataset.workspaceIds.split(',').filter(Boolean) : [];
+      tags.push({ name: chip.dataset.tag, workspaceIds: ids.length ? ids : undefined });
+    } else if (kind === 'canvas' && chip.dataset.workspaceId) {
+      canvases.push({ id: chip.dataset.workspaceId, name: label });
+    }
+  });
+
+  return { nodes, tags, canvases };
 }
 
 export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactNode {
@@ -237,6 +289,28 @@ export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactN
       continue;
     }
 
+    if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
+      const tagLabel = rawLabel.slice(TAG_MENTION_PREFIX.length);
+      parts.push(
+        createElement(
+          'span',
+          {
+            key: match.index,
+            className: 'chat-mention-chip chat-mention-chip--tag',
+            'data-node-type': 'tag',
+          } as any,
+          createElement(
+            'span',
+            { className: 'chat-mention-chip-icon' },
+            createElement('span', { className: 'chat-mention-chip-hash' }, '#'),
+          ),
+          createElement('span', { className: 'chat-mention-chip-label' }, tagLabel),
+        ),
+      );
+      lastIndex = re.lastIndex;
+      continue;
+    }
+
     const node = nodes?.find(item => item.title === rawLabel);
     parts.push(
       createElement(
@@ -282,6 +356,11 @@ export function renderMdWithMentions(content: string, nodes?: CanvasNode[]): str
     if (rawLabel.startsWith(FOLDER_MENTION_PREFIX)) {
       const folderLabel = rawLabel.slice(FOLDER_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--folder" data-node-type="folder"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('folder')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(folderLabel)}/</span></span>`;
+    }
+
+    if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
+      const tagLabel = rawLabel.slice(TAG_MENTION_PREFIX.length);
+      return `<span class="chat-mention-chip chat-mention-chip--tag" data-node-type="tag"><span class="chat-mention-chip-icon"><span class="chat-mention-chip-hash">#</span></span><span class="chat-mention-chip-label">${escapeHtml(tagLabel)}</span></span>`;
     }
 
     const node = nodes?.find(item => item.title === rawLabel);

@@ -482,6 +482,7 @@ const AppContent = () => {
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onOpenNode={openNodePage}
+                onOpenAppSettings={openAppSettings}
               />
             </PulseRouterView>
           )}
@@ -502,6 +503,7 @@ const AppContent = () => {
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onOpenNode={openNodePage}
+                onOpenAppSettings={openAppSettings}
               />
             </PulseRouterView>
           )}

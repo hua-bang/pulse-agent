@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentChatToolCall, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextNodeRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
 
@@ -10,11 +10,52 @@ export interface WorkspaceOption {
 
 export type { AgentScope };
 
+/**
+ * Pre-resolved descriptor for a "current context" chip in the composer.
+ * Decouples the chip strip from `CanvasNode` so a cross-workspace host (the
+ * Nodes / Graph knowledge assistant) can supply already-resolved labels —
+ * for nodes, whole canvases, or tags — without owning full canvas node objects.
+ */
+export interface SelectedContextChip {
+  key: string;
+  kind: 'node' | 'tag' | 'canvas';
+  /** For kind === 'node': the canvas node type, drives the chip icon. */
+  nodeType?: CanvasNode['type'];
+  label: string;
+}
+
 export interface ChatPanelProps {
-  workspaceId: string;
+  /**
+   * Workspace the panel is bound to. Optional because a global-scope host
+   * (Nodes / Graph) renders the same panel without a current canvas — pass
+   * `agentScope: { kind: 'global' }` instead.
+   */
+  workspaceId?: string;
+  /**
+   * Chat scope. Defaults to `{ kind: 'workspace', workspaceId }` so existing
+   * canvas callers keep their behavior without passing anything.
+   */
+  agentScope?: AgentScope;
   allWorkspaces?: WorkspaceOption[];
   nodes?: CanvasNode[];
+  /** Cross-workspace knowledge nodes offered in the `@` popup (global host). */
+  knowledgeNodes?: Array<{ id: string; title: string; type: CanvasNode['type']; workspaceId?: string }>;
+  /** Knowledge tags offered in the `@` popup (global host). */
+  knowledgeTags?: Array<{ id: string; name: string; workspaceIds?: string[] }>;
   selectedNodeIds?: string[];
+  /**
+   * Explicit selection context (with owning `workspaceId`). When provided it
+   * drives the request context and the composer chips directly, taking
+   * precedence over the `selectedNodeIds` + `nodes` derivation. Used by the
+   * cross-workspace global host where selection spans workspaces.
+   */
+  contextNodes?: AgentContextNodeRef[];
+  /** Tags the global host scoped the turn to (rendered as removable chips). */
+  contextTags?: AgentContextTagRef[];
+  /** Whole canvases the global host scoped the turn to. */
+  contextCanvases?: AgentContextCanvasRef[];
+  /** Remove a context chip by key. When omitted, chips aren't removable. */
+  onRemoveContext?: (key: string) => void;
   rootFolder?: string;
   onClose: () => void;
   onResizeStart?: (e: MouseEvent) => void;
@@ -35,13 +76,15 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag';
   label: string;
   nodeType?: CanvasNode['type'];
   /** For type === 'node': the canvas node id, used to focus it when clicked. */
   nodeId?: string;
   path?: string;
   workspaceId?: string;
+  /** For type === 'tag': workspaces the tag occurs in (global assistant). */
+  workspaceIds?: string[];
   /** For type === 'skill': the skill's description, shown in the popup row. */
   description?: string;
 }

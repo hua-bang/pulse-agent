@@ -5,16 +5,23 @@ import './ChatPanel.css';
 import { ChatView } from './ChatView';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
-import type { AgentRequestContext } from '../../types';
-import type { AgentScope, ChatPanelProps } from './types';
+import type { AgentContextNodeRef, AgentRequestContext } from '../../types';
+import type { AgentScope, ChatPanelProps, SelectedContextChip } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 
 export const ChatPanel = ({
   workspaceId,
+  agentScope: agentScopeProp,
   allWorkspaces,
   nodes,
+  knowledgeNodes,
+  knowledgeTags,
   selectedNodeIds,
+  contextNodes,
+  contextTags,
+  contextCanvases,
+  onRemoveContext,
   rootFolder,
   onClose,
   onResizeStart,
@@ -26,15 +33,20 @@ export const ChatPanel = ({
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
   const requestContextRef = useRef<AgentRequestContext>();
 
-  // Keep a stable identity for the workspace scope. Passing a fresh
-  // `{ kind: 'workspace', workspaceId }` literal on every render would make
-  // the scope-keyed effects in useChatSessions/useChatStream re-run on each
-  // streaming setState, reloading history mid-stream and wiping the in-flight
-  // assistant message (intermediate tool/text output vanishing + flicker).
+  // Keep a stable identity for the scope. Passing a fresh literal on every
+  // render would make the scope-keyed effects in useChatSessions/useChatStream
+  // re-run on each streaming setState, reloading history mid-stream and wiping
+  // the in-flight assistant message (intermediate tool/text output vanishing +
+  // flicker). Callers that pass an explicit `agentScope` (the global Nodes /
+  // Graph host) must memoize it for the same reason.
   const agentScope = useMemo<AgentScope>(
-    () => ({ kind: 'workspace', workspaceId }),
-    [workspaceId],
+    () => agentScopeProp ?? { kind: 'workspace', workspaceId: workspaceId ?? '' },
+    [agentScopeProp, workspaceId],
   );
+  const scopeWorkspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
+  // Anchor element ids are namespaced per scope; global chat has no workspace
+  // so it falls back to a stable 'global' namespace.
+  const anchorScopeId = scopeWorkspaceId ?? 'global';
 
   const {
     abort,
@@ -85,6 +97,9 @@ export const ChatPanel = ({
     allWorkspaces,
     nodes,
     rootFolder,
+    knowledgeNodes,
+    knowledgeTags,
+    collectStructuredContext: agentScope.kind === 'global',
     getRequestContext: () => requestContextRef.current,
   });
 
@@ -93,20 +108,51 @@ export const ChatPanel = ({
     return onRegisterInsertMention(insertNodeMention);
   }, [insertNodeMention, onRegisterInsertMention]);
 
-  const selectedNodes = useMemo(() => {
+  // Explicit context refs (the cross-workspace global host) win; otherwise
+  // derive from the single-workspace selection (the canvas panel).
+  const derivedSelectedNodes = useMemo(() => {
     const ids = new Set(selectedNodeIds ?? []);
     return (nodes ?? []).filter(node => ids.has(node.id));
   }, [nodes, selectedNodeIds]);
 
-  const requestContext = useMemo<AgentRequestContext>(() => ({
-    executionMode,
-    scope: selectedNodes.length > 0 ? 'selected_nodes' : 'current_canvas',
-    selectedNodes: selectedNodes.map(node => ({
+  const contextRefs = useMemo<AgentContextNodeRef[]>(() => {
+    if (contextNodes) return contextNodes;
+    return derivedSelectedNodes.map(node => ({
       id: node.id,
       title: getNodeDisplayLabel(node),
       type: node.type,
+    }));
+  }, [contextNodes, derivedSelectedNodes]);
+
+  const selectedContext = useMemo<SelectedContextChip[]>(() => [
+    ...contextRefs.map(ref => ({
+      key: `node:${ref.workspaceId ?? ''}:${ref.id}`,
+      kind: 'node' as const,
+      nodeType: ref.type,
+      label: ref.title,
     })),
-  }), [executionMode, selectedNodes]);
+    ...(contextCanvases ?? []).map(canvas => ({
+      key: `canvas:${canvas.id}`,
+      kind: 'canvas' as const,
+      label: canvas.name,
+    })),
+    ...(contextTags ?? []).map(tag => ({
+      key: `tag:${tag.name}`,
+      kind: 'tag' as const,
+      label: tag.name,
+    })),
+  ], [contextRefs, contextCanvases, contextTags]);
+
+  const hasContext =
+    contextRefs.length > 0 || (contextTags?.length ?? 0) > 0 || (contextCanvases?.length ?? 0) > 0;
+
+  const requestContext = useMemo<AgentRequestContext>(() => ({
+    executionMode,
+    scope: hasContext ? 'selected_nodes' : 'current_canvas',
+    selectedNodes: contextRefs,
+    tags: contextTags,
+    canvases: contextCanvases,
+  }), [executionMode, contextRefs, contextTags, contextCanvases, hasContext]);
 
   requestContextRef.current = requestContext;
 
@@ -170,7 +216,7 @@ export const ChatPanel = ({
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 
   const handleJumpAnchor = useCallback((index: number) => {
-    const id = buildAnchorElementId(workspaceId, index);
+    const id = buildAnchorElementId(anchorScopeId, index);
     const el = document.getElementById(id);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -178,7 +224,7 @@ export const ChatPanel = ({
     window.setTimeout(() => {
       el.classList.remove('chat-message--anchor-flash');
     }, 1200);
-  }, [workspaceId]);
+  }, [anchorScopeId]);
 
   return (
     <ChatView
@@ -203,7 +249,7 @@ export const ChatPanel = ({
       }
       messages={messages}
       loading={loading}
-      workspaceId={workspaceId}
+      workspaceId={anchorScopeId}
       streamingTools={streamingTools}
       messageTools={messageTools}
       collapsedSections={collapsedSections}
@@ -216,7 +262,8 @@ export const ChatPanel = ({
       onToggleToolExpand={toggleToolExpand}
       onAddImageToCanvas={addImageToCanvas}
       nodes={nodes}
-      selectedNodes={selectedNodes}
+      selectedContext={selectedContext}
+      onRemoveContext={onRemoveContext}
       onNodeFocus={onNodeFocus}
       onQuickAction={handleQuickAction}
       input={input}
@@ -241,8 +288,8 @@ export const ChatPanel = ({
       onSelectModel={canvasModels.selectModel}
       onOpenModelSettings={() => onOpenAppSettings('models')}
       contextComposer
-      executionMode={executionMode}
-      onToggleExecutionMode={handleToggleExecutionMode}
+      executionMode={scopeWorkspaceId ? executionMode : undefined}
+      onToggleExecutionMode={scopeWorkspaceId ? handleToggleExecutionMode : undefined}
       onEditUserMessage={handleEditUserMessage}
       onRegenerate={handleRegenerate}
     />

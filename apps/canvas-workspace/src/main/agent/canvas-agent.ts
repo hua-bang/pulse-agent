@@ -43,7 +43,9 @@ import type {
 interface CanvasAgentRequestContext {
   executionMode?: 'auto' | 'ask';
   scope?: 'current_canvas' | 'selected_nodes';
-  selectedNodes?: Array<{ id: string; title: string; type: string }>;
+  selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
+  tags?: Array<{ name: string; workspaceIds?: string[] }>;
+  canvases?: Array<{ id: string; name: string }>;
   quickAction?: string;
 }
 
@@ -478,6 +480,75 @@ function formatMentionedCanvasesSection(
   return lines.join('\n');
 }
 
+/**
+ * Render the "Current Focus" block for the user's selected nodes.
+ *
+ * Shared by the workspace-scoped prompt (`buildSystemPrompt`) and the global
+ * chat prompt. The two differ only in how the agent must address a node:
+ *   - workspace scope: the agent is bound to one canvas, so `canvas_read_node`
+ *     resolves nodeIds implicitly — no workspaceId needed.
+ *   - global scope: there is no current canvas, so each node carries its
+ *     `workspaceId` and the agent MUST pass it on every read.
+ */
+function formatSelectionFocusBlock(
+  selectedNodes: Array<{ id: string; title: string; type: string; workspaceId?: string }>,
+  options: { requireWorkspaceId: boolean },
+): string {
+  if (selectedNodes.length === 0) return '';
+  const count = selectedNodes.length;
+  const noun = count === 1 ? 'node' : 'nodes';
+  const lines: string[] = [
+    '',
+    `## Current Focus — ${count} Selected ${noun}`,
+    `The user has selected ${count} canvas ${noun} and these are the PRIMARY context for the current message. Treat any of the following references as pointing to this selection unless the user names a different node explicitly:`,
+    '- English: "this", "it", "that", "these", "those", "the selected", "the selection", "the highlighted node(s)", "the current node"',
+    '- 中文：「这个」「它」「这些」「那些」「这条」「选中的」「选中节点」「当前节点」「上面的」「上面这个」「目前这个」',
+    '',
+    'Selected nodes:',
+  ];
+  for (const node of selectedNodes) {
+    const workspacePart = node.workspaceId ? `, workspaceId: \`${node.workspaceId}\`` : '';
+    lines.push(`- **${node.title}** — nodeId: \`${node.id}\`, type: \`${node.type}\`${workspacePart}`);
+  }
+  lines.push('');
+  lines.push(
+    options.requireWorkspaceId
+      ? `When the user\'s message is about content you need to inspect, call \`canvas_read_node\` with the matching \`workspaceId\` + \`nodeId\` shown above FIRST — do not guess from the title alone. This is a global chat, so you MUST pass the listed workspaceId on every read of these nodes.`
+      : `When the user\'s message is about content you need to inspect, call \`canvas_read_node\` on the nodeId(s) above FIRST — do not guess from the title alone, and do not read unrelated nodes from the full canvas summary below unless the user asks you to.`,
+  );
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Render the "Scoped Context" block for tags / whole canvases the user pinned
+ * via the global assistant's @-picker. Members are fetched on demand by the
+ * agent rather than dumped into the prompt (a tag can cover hundreds of nodes).
+ */
+function formatScopeContextBlock(
+  tags: Array<{ name: string; workspaceIds?: string[] }> = [],
+  canvases: Array<{ id: string; name: string }> = [],
+): string {
+  if (tags.length === 0 && canvases.length === 0) return '';
+  const lines: string[] = ['', '## Scoped Context'];
+  if (canvases.length > 0) {
+    lines.push('', 'The user scoped this turn to these canvases — treat them as the primary workspaces to inspect:');
+    for (const canvas of canvases) {
+      lines.push(`- **${canvas.name}** — workspaceId: \`${canvas.id}\``);
+    }
+    lines.push('Use `canvas_search_nodes` / `canvas_read_node` with the matching workspaceId.');
+  }
+  if (tags.length > 0) {
+    lines.push('', 'The user scoped this turn to these tags. To get their members, call `canvas_search_nodes({ tag: "<name>", workspaceId })` once per listed workspace — it filters by tag (names are resolved automatically) and returns a compact id/title/snippet list. Then `canvas_read_node` only the matches you actually need; do NOT dump every node with `workspace_node_list` and filter by hand:');
+    for (const tag of tags) {
+      const ws = tag.workspaceIds && tag.workspaceIds.length > 0
+        ? ` — workspaceId(s): ${tag.workspaceIds.map((id) => `\`${id}\``).join(', ')}`
+        : '';
+      lines.push(`- tag \`${tag.name}\`${ws}`);
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
 function buildSystemPrompt(
   summary: WorkspaceSummary | null,
   mentionedCanvases: Array<{ id: string; name: string }> = [],
@@ -489,28 +560,7 @@ function buildSystemPrompt(
 
   // When the user has nodes selected, surface them BEFORE the full workspace
   // summary so the focused subset is the first thing the model anchors on.
-  let selectionBlock = '';
-  if (selectedNodes.length > 0) {
-    const count = selectedNodes.length;
-    const noun = count === 1 ? 'node' : 'nodes';
-    const lines: string[] = [
-      '',
-      `## Current Focus — ${count} Selected ${noun}`,
-      `The user has selected ${count} canvas ${noun} and these are the PRIMARY context for the current message. Treat any of the following references as pointing to this selection unless the user names a different node explicitly:`,
-      '- English: "this", "it", "that", "these", "those", "the selected", "the selection", "the highlighted node(s)", "the current node"',
-      '- 中文：「这个」「它」「这些」「那些」「这条」「选中的」「选中节点」「当前节点」「上面的」「上面这个」「目前这个」',
-      '',
-      'Selected nodes:',
-    ];
-    for (const node of selectedNodes) {
-      lines.push(`- **${node.title}** — nodeId: \`${node.id}\`, type: \`${node.type}\``);
-    }
-    lines.push('');
-    lines.push(
-      `When the user\'s message is about content you need to inspect, call \`canvas_read_node\` on the nodeId(s) above FIRST — do not guess from the title alone, and do not read unrelated nodes from the full canvas summary below unless the user asks you to.`,
-    );
-    selectionBlock = lines.join('\n') + '\n';
-  }
+  const selectionBlock = formatSelectionFocusBlock(selectedNodes, { requireWorkspaceId: false });
 
   let base = summary
     ? BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
@@ -753,7 +803,11 @@ export class CanvasAgent {
     const currentCanvasSummary = summary ? formatSummaryForPrompt(summary) : undefined;
     const systemPrompt = workspaceId
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
-      : GLOBAL_AGENT_SYSTEM_PROMPT + formatMentionedCanvasesSection(mentionedCanvases) + promptProfileSection;
+      : GLOBAL_AGENT_SYSTEM_PROMPT
+        + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
+        + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
+        + formatMentionedCanvasesSection(mentionedCanvases)
+        + promptProfileSection;
     const debugTrace = isCanvasAgentDebugTraceEnabled()
       ? createCanvasAgentDebugTrace({
           sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? 'unknown-session',
