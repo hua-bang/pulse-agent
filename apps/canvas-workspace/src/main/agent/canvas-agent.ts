@@ -44,6 +44,8 @@ interface CanvasAgentRequestContext {
   executionMode?: 'auto' | 'ask';
   scope?: 'current_canvas' | 'selected_nodes';
   selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
+  tags?: Array<{ name: string; workspaceIds?: string[] }>;
+  canvases?: Array<{ id: string; name: string }>;
   quickAction?: string;
 }
 
@@ -517,6 +519,36 @@ function formatSelectionFocusBlock(
   return lines.join('\n') + '\n';
 }
 
+/**
+ * Render the "Scoped Context" block for tags / whole canvases the user pinned
+ * via the global assistant's @-picker. Members are fetched on demand by the
+ * agent rather than dumped into the prompt (a tag can cover hundreds of nodes).
+ */
+function formatScopeContextBlock(
+  tags: Array<{ name: string; workspaceIds?: string[] }> = [],
+  canvases: Array<{ id: string; name: string }> = [],
+): string {
+  if (tags.length === 0 && canvases.length === 0) return '';
+  const lines: string[] = ['', '## Scoped Context'];
+  if (canvases.length > 0) {
+    lines.push('', 'The user scoped this turn to these canvases — treat them as the primary workspaces to inspect:');
+    for (const canvas of canvases) {
+      lines.push(`- **${canvas.name}** — workspaceId: \`${canvas.id}\``);
+    }
+    lines.push('Use `canvas_search_nodes` / `canvas_read_node` with the matching workspaceId.');
+  }
+  if (tags.length > 0) {
+    lines.push('', 'The user scoped this turn to these tags. To get their members, call `workspace_node_list({ workspaceId })` for the listed workspace(s) and keep the nodes whose tags include this tag (use the returned `knownTags` to match name → id) — do not guess membership:');
+    for (const tag of tags) {
+      const ws = tag.workspaceIds && tag.workspaceIds.length > 0
+        ? ` — workspaceId(s): ${tag.workspaceIds.map((id) => `\`${id}\``).join(', ')}`
+        : '';
+      lines.push(`- tag \`${tag.name}\`${ws}`);
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
 function buildSystemPrompt(
   summary: WorkspaceSummary | null,
   mentionedCanvases: Array<{ id: string; name: string }> = [],
@@ -773,6 +805,7 @@ export class CanvasAgent {
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
       : GLOBAL_AGENT_SYSTEM_PROMPT
         + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
+        + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
         + promptProfileSection;
     const debugTrace = isCanvasAgentDebugTraceEnabled()

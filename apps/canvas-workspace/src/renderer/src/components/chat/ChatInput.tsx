@@ -11,6 +11,7 @@ interface ChatInputProps {
   loading: boolean;
   input: string;
   selectedContext?: SelectedContextChip[];
+  onRemoveContext?: (key: string) => void;
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
   executionMode?: 'auto' | 'ask';
@@ -38,6 +39,7 @@ export const ChatInput = ({
   loading,
   input,
   selectedContext,
+  onRemoveContext,
   attachments = [],
   contextComposer = false,
   executionMode = 'auto',
@@ -60,7 +62,7 @@ export const ChatInput = ({
   onMentionNavigate,
 }: ChatInputProps) => {
   const { t } = useI18n();
-  const contextNodes = (selectedContext && selectedContext.length > 0)
+  const contextChips = (selectedContext && selectedContext.length > 0)
     ? selectedContext
     : [];
 
@@ -71,14 +73,32 @@ export const ChatInput = ({
         <div className="chat-generating-status" aria-live="polite">{t('chat.generatingCanContinue')}</div>
       )}
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
-        {contextComposer && contextNodes.length > 0 && (
+        {contextComposer && contextChips.length > 0 && (
           <div className="chat-context-chips" aria-label={t('chat.currentContext')}>
-            {contextNodes.map(chip => (
-              <span key={chip.id} className="chat-context-chip" data-node-type={chip.type}>
+            {contextChips.map(chip => (
+              <span
+                key={chip.key}
+                className="chat-context-chip"
+                data-context-kind={chip.kind}
+                data-node-type={chip.nodeType}
+              >
                 <span className="chat-context-chip-icon">
-                  <MentionNodeIcon nodeType={chip.type} size={13} />
+                  {chip.kind === 'tag'
+                    ? <span className="chat-context-chip-hash">#</span>
+                    : <MentionNodeIcon nodeType={chip.kind === 'canvas' ? 'workspace' : (chip.nodeType ?? 'file')} size={13} />}
                 </span>
                 <span className="chat-context-chip-label">{chip.label}</span>
+                {onRemoveContext && (
+                  <button
+                    type="button"
+                    className="chat-context-chip-remove"
+                    onClick={() => onRemoveContext(chip.key)}
+                    aria-label={t('chat.removeContext')}
+                    title={t('chat.removeContext')}
+                  >
+                    ×
+                  </button>
+                )}
               </span>
             ))}
           </div>
@@ -100,7 +120,7 @@ export const ChatInput = ({
           contentEditable={true}
           role="textbox"
           data-placeholder={contextComposer
-            ? (contextNodes.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
+            ? (contextChips.length > 0 ? t('chat.askSelectedNodes') : t('chat.askCanvas'))
             : (loading ? t('chat.generatingPlaceholder') : t('chat.askAnything'))}
           onInput={onInput}
           onKeyDown={onKeyDown}

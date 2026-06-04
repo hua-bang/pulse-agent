@@ -733,6 +733,39 @@
   white-space: nowrap;
   max-width: 240px;
 }
+.chat-context-chip-hash {
+  font-weight: 700;
+  font-size: 12px;
+  color: #8a8780;
+}
+.chat-context-chip[data-context-kind='tag'] {
+  background: rgba(35, 131, 226, 0.08);
+  border-color: rgba(35, 131, 226, 0.2);
+}
+.chat-context-chip[data-context-kind='canvas'] {
+  background: rgba(140, 110, 230, 0.08);
+  border-color: rgba(140, 110, 230, 0.22);
+}
+.chat-context-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 1px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #8a8780;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.chat-context-chip-remove:hover {
+  background: rgba(55, 53, 47, 0.1);
+  color: #37352f;
+}
 
 .chat-context-chip--count {
   flex-shrink: 0;

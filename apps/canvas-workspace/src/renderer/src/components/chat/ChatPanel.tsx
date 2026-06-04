@@ -17,6 +17,9 @@ export const ChatPanel = ({
   nodes,
   selectedNodeIds,
   contextNodes,
+  contextTags,
+  contextCanvases,
+  onRemoveContext,
   rootFolder,
   onClose,
   onResizeStart,
@@ -116,16 +119,35 @@ export const ChatPanel = ({
     }));
   }, [contextNodes, derivedSelectedNodes]);
 
-  const selectedContext = useMemo<SelectedContextChip[]>(
-    () => contextRefs.map(ref => ({ id: ref.id, type: ref.type, label: ref.title })),
-    [contextRefs],
-  );
+  const selectedContext = useMemo<SelectedContextChip[]>(() => [
+    ...contextRefs.map(ref => ({
+      key: `node:${ref.workspaceId ?? ''}:${ref.id}`,
+      kind: 'node' as const,
+      nodeType: ref.type,
+      label: ref.title,
+    })),
+    ...(contextCanvases ?? []).map(canvas => ({
+      key: `canvas:${canvas.id}`,
+      kind: 'canvas' as const,
+      label: canvas.name,
+    })),
+    ...(contextTags ?? []).map(tag => ({
+      key: `tag:${tag.name}`,
+      kind: 'tag' as const,
+      label: tag.name,
+    })),
+  ], [contextRefs, contextCanvases, contextTags]);
+
+  const hasContext =
+    contextRefs.length > 0 || (contextTags?.length ?? 0) > 0 || (contextCanvases?.length ?? 0) > 0;
 
   const requestContext = useMemo<AgentRequestContext>(() => ({
     executionMode,
-    scope: contextRefs.length > 0 ? 'selected_nodes' : 'current_canvas',
+    scope: hasContext ? 'selected_nodes' : 'current_canvas',
     selectedNodes: contextRefs,
-  }), [executionMode, contextRefs]);
+    tags: contextTags,
+    canvases: contextCanvases,
+  }), [executionMode, contextRefs, contextTags, contextCanvases, hasContext]);
 
   requestContextRef.current = requestContext;
 
@@ -236,6 +258,7 @@ export const ChatPanel = ({
       onAddImageToCanvas={addImageToCanvas}
       nodes={nodes}
       selectedContext={selectedContext}
+      onRemoveContext={onRemoveContext}
       onNodeFocus={onNodeFocus}
       onQuickAction={handleQuickAction}
       input={input}

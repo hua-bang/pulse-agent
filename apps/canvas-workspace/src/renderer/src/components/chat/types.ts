@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentChatToolCall, AgentContextNodeRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextNodeRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
 
@@ -13,12 +13,14 @@ export type { AgentScope };
 /**
  * Pre-resolved descriptor for a "current context" chip in the composer.
  * Decouples the chip strip from `CanvasNode` so a cross-workspace host (the
- * Nodes / Graph knowledge assistant) can supply already-resolved labels
- * without owning full canvas node objects.
+ * Nodes / Graph knowledge assistant) can supply already-resolved labels —
+ * for nodes, whole canvases, or tags — without owning full canvas node objects.
  */
 export interface SelectedContextChip {
-  id: string;
-  type: CanvasNode['type'];
+  key: string;
+  kind: 'node' | 'tag' | 'canvas';
+  /** For kind === 'node': the canvas node type, drives the chip icon. */
+  nodeType?: CanvasNode['type'];
   label: string;
 }
 
@@ -44,6 +46,12 @@ export interface ChatPanelProps {
    * cross-workspace global host where selection spans workspaces.
    */
   contextNodes?: AgentContextNodeRef[];
+  /** Tags the global host scoped the turn to (rendered as removable chips). */
+  contextTags?: AgentContextTagRef[];
+  /** Whole canvases the global host scoped the turn to. */
+  contextCanvases?: AgentContextCanvasRef[];
+  /** Remove a context chip by key. When omitted, chips aren't removable. */
+  onRemoveContext?: (key: string) => void;
   rootFolder?: string;
   onClose: () => void;
   onResizeStart?: (e: MouseEvent) => void;

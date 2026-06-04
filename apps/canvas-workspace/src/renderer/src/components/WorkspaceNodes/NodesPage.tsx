@@ -3,7 +3,7 @@ import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkspaceNodeListItem } from '../../types';
 import type { SettingsSection } from '../Settings';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
-import { NodesChatDock, selectionToContext, useNodesChatDock } from './NodesChatDock';
+import { NodesChatDock, useNodesChatDock } from './NodesChatDock';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import {
   NODE_TYPE_FILTERS,
@@ -49,7 +49,6 @@ export const NodesPage = ({
   const { nodes, tags: tagDefinitions, loading, error, reload } = useAllWorkspaceNodeList(workspaces);
   const dock = useNodesChatDock();
   const showDock = Boolean(onOpenAppSettings);
-  const chatContext = useMemo(() => selectionToContext(selectedNode ?? null, nodes), [selectedNode, nodes]);
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<NodeTypeFilter>('all');
   const [tagFilter, setTagFilter] = useState<string | null>(null);
@@ -282,8 +281,11 @@ export const NodesPage = ({
           onOpen={dock.openDock}
           onClose={dock.closeDock}
           onBeginResize={dock.beginResize}
-          allWorkspaces={workspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
-          contextNodes={chatContext}
+          workspaces={workspaces.map((ws) => ({ id: ws.id, name: ws.name }))}
+          nodes={nodes}
+          tags={tagDefinitions}
+          selectedNode={selectedNode ?? null}
+          onClearSelection={() => onSelectNode?.(null)}
           onOpenAppSettings={onOpenAppSettings}
         />
       )}

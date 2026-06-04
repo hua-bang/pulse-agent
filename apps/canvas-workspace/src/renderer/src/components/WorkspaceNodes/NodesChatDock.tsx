@@ -1,11 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
-import type { AgentContextNodeRef, CanvasNode, WorkspaceNodeListItem } from '../../types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type {
+  AgentContextCanvasRef,
+  AgentContextNodeRef,
+  AgentContextTagRef,
+  CanvasNode,
+  KnowledgeTagDefinition,
+  WorkspaceNodeListItem,
+} from '../../types';
 import { ChatPanel } from '../chat';
 import type { AgentScope, WorkspaceOption } from '../chat/types';
+import { MentionNodeIcon } from '../chat/utils/mentions';
 import type { SettingsSection } from '../Settings';
 import { useI18n } from '../../i18n';
-import { getNodeTitle, getNodeWorkspaceId } from './utils';
+import { getNodeTags, getNodeTitle, getNodeWorkspaceId } from './utils';
 
 /**
  * The Pulse brand mark (matches the sidebar logo). Rendered inline rather than
@@ -30,11 +38,14 @@ const MIN_DOCK_WIDTH = 300;
 const MAX_DOCK_WIDTH = 760;
 const OPEN_STORAGE_KEY = 'pulse-canvas.nodes-chat.open';
 const WIDTH_STORAGE_KEY = 'pulse-canvas.nodes-chat.width';
+const PICKER_MAX_PER_GROUP = 8;
 
 const GLOBAL_SCOPE: AgentScope = { kind: 'global' };
 
 const clampWidth = (value: number) =>
   Math.min(MAX_DOCK_WIDTH, Math.max(MIN_DOCK_WIDTH, value));
+
+const nodeRefKey = (ref: AgentContextNodeRef) => `node:${ref.workspaceId ?? ''}:${ref.id}`;
 
 /**
  * Resolve a Nodes/Graph page selection into the agent context refs the global
@@ -134,17 +145,29 @@ interface NodesChatDockProps {
   onOpen: () => void;
   onClose: () => void;
   onBeginResize: (event: ReactMouseEvent) => void;
-  allWorkspaces: WorkspaceOption[];
-  contextNodes: AgentContextNodeRef[];
+  workspaces: WorkspaceOption[];
+  /** Aggregated knowledge nodes (cross-workspace) — the @-picker's node source. */
+  nodes: WorkspaceNodeListItem[];
+  /** Knowledge tags — the @-picker's tag source. */
+  tags: KnowledgeTagDefinition[];
+  /** The page's current selection, auto-added as context. */
+  selectedNode: { workspaceId: string; nodeId: string } | null;
+  /** Clear the page selection (used when its context chip is removed). */
+  onClearSelection?: () => void;
   onOpenAppSettings: (section: SettingsSection) => void;
 }
 
 /**
- * Right-side dock that hosts the global ("knowledge base") chat inside the
- * Nodes / Graph pages. Reuses the canvas `ChatPanel` with an explicit global
- * scope; the page's current selection flows in as `contextNodes`.
+ * Right-side dock hosting the global ("knowledge base") chat inside the Nodes /
+ * Graph pages. Reuses the canvas `ChatPanel` with an explicit global scope.
  *
- * When collapsed it renders only a floating launcher button. Layout (pushing
+ * Context comes from two sources, both surfaced as removable chips and sent via
+ * `requestContext`: the page's current selection, and an `@`-triggered picker
+ * that scopes the turn to specific nodes, tags, or whole canvases. The `@` key
+ * is intercepted here so the picker (cross-workspace, workspace-aware) replaces
+ * the canvas-only inline mention popup — the shared mention code is untouched.
+ *
+ * When collapsed it renders only a floating Pulse launcher. Layout (pushing
  * column in Nodes, overlay in Graph) is driven by page-scoped CSS.
  */
 export function NodesChatDock({
@@ -153,11 +176,127 @@ export function NodesChatDock({
   onOpen,
   onClose,
   onBeginResize,
-  allWorkspaces,
-  contextNodes,
+  workspaces,
+  nodes,
+  tags,
+  selectedNode,
+  onClearSelection,
   onOpenAppSettings,
 }: NodesChatDockProps) {
   const { t } = useI18n();
+  const [pickedNodes, setPickedNodes] = useState<AgentContextNodeRef[]>([]);
+  const [pickedTags, setPickedTags] = useState<AgentContextTagRef[]>([]);
+  const [pickedCanvases, setPickedCanvases] = useState<AgentContextCanvasRef[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  const pageContext = useMemo(() => selectionToContext(selectedNode, nodes), [selectedNode, nodes]);
+
+  // Page selection + @-picked nodes, de-duplicated by workspace+id.
+  const contextNodes = useMemo<AgentContextNodeRef[]>(() => {
+    const seen = new Set<string>();
+    const merged: AgentContextNodeRef[] = [];
+    for (const ref of [...pageContext, ...pickedNodes]) {
+      const key = nodeRefKey(ref);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(ref);
+    }
+    return merged;
+  }, [pageContext, pickedNodes]);
+
+  useEffect(() => {
+    if (pickerOpen) searchRef.current?.focus();
+  }, [pickerOpen]);
+
+  const closePicker = useCallback(() => {
+    setPickerOpen(false);
+    setPickerQuery('');
+  }, []);
+
+  // Intercept `@` (capture phase) so it opens the cross-workspace picker
+  // instead of inserting the char / triggering the shared mention popup.
+  const handleKeyCapture = useCallback((event: ReactKeyboardEvent) => {
+    if (event.key === '@') {
+      event.preventDefault();
+      event.stopPropagation();
+      setPickerQuery('');
+      setPickerOpen(true);
+    } else if (event.key === 'Escape' && pickerOpen) {
+      event.stopPropagation();
+      closePicker();
+    }
+  }, [pickerOpen, closePicker]);
+
+  const addNode = useCallback((node: WorkspaceNodeListItem) => {
+    const ref: AgentContextNodeRef = {
+      id: node.id,
+      title: getNodeTitle(node),
+      type: node.type as CanvasNode['type'],
+      workspaceId: getNodeWorkspaceId(node) || undefined,
+    };
+    setPickedNodes((prev) => (prev.some((p) => nodeRefKey(p) === nodeRefKey(ref)) ? prev : [...prev, ref]));
+    closePicker();
+  }, [closePicker]);
+
+  const addTag = useCallback((tag: KnowledgeTagDefinition) => {
+    const workspaceIds = Array.from(new Set(
+      nodes.filter((n) => getNodeTags(n).includes(tag.id)).map((n) => getNodeWorkspaceId(n)).filter(Boolean),
+    ));
+    const ref: AgentContextTagRef = { name: tag.name, workspaceIds: workspaceIds.length ? workspaceIds : undefined };
+    setPickedTags((prev) => (prev.some((p) => p.name === ref.name) ? prev : [...prev, ref]));
+    closePicker();
+  }, [nodes, closePicker]);
+
+  const addCanvas = useCallback((canvas: WorkspaceOption) => {
+    setPickedCanvases((prev) => (prev.some((p) => p.id === canvas.id) ? prev : [...prev, { id: canvas.id, name: canvas.name }]));
+    closePicker();
+  }, [closePicker]);
+
+  const handleRemoveContext = useCallback((key: string) => {
+    if (key.startsWith('tag:')) {
+      const name = key.slice(4);
+      setPickedTags((prev) => prev.filter((p) => p.name !== name));
+      return;
+    }
+    if (key.startsWith('canvas:')) {
+      const id = key.slice(7);
+      setPickedCanvases((prev) => prev.filter((p) => p.id !== id));
+      return;
+    }
+    // node:<workspaceId>:<id>
+    const inPicked = pickedNodes.some((p) => nodeRefKey(p) === key);
+    if (inPicked) {
+      setPickedNodes((prev) => prev.filter((p) => nodeRefKey(p) !== key));
+      return;
+    }
+    // Otherwise it's the page-selected node — clear the selection upstream.
+    if (pageContext.some((p) => nodeRefKey(p) === key)) {
+      onClearSelection?.();
+    }
+  }, [pickedNodes, pageContext, onClearSelection]);
+
+  // Picker candidates, filtered by the search query.
+  const query = pickerQuery.trim().toLowerCase();
+  const canvasMatches = useMemo(
+    () => workspaces.filter((w) => !query || w.name.toLowerCase().includes(query)).slice(0, PICKER_MAX_PER_GROUP),
+    [workspaces, query],
+  );
+  const tagMatches = useMemo(
+    () => tags.filter((tag) => !query || tag.name.toLowerCase().includes(query)).slice(0, PICKER_MAX_PER_GROUP),
+    [tags, query],
+  );
+  const nodeMatches = useMemo(
+    () => nodes
+      .filter((n) => {
+        if (!query) return true;
+        return getNodeTitle(n).toLowerCase().includes(query);
+      })
+      .slice(0, PICKER_MAX_PER_GROUP),
+    [nodes, query],
+  );
+  const pickerEmpty = canvasMatches.length === 0 && tagMatches.length === 0 && nodeMatches.length === 0;
 
   if (!open) {
     return (
@@ -174,15 +313,85 @@ export function NodesChatDock({
   }
 
   return (
-    <div className="nodes-chat-dock" style={{ width }}>
+    <div className="nodes-chat-dock" style={{ width }} onKeyDownCapture={handleKeyCapture}>
       <ChatPanel
         agentScope={GLOBAL_SCOPE}
-        allWorkspaces={allWorkspaces}
+        allWorkspaces={workspaces}
         contextNodes={contextNodes}
+        contextTags={pickedTags}
+        contextCanvases={pickedCanvases}
+        onRemoveContext={handleRemoveContext}
         onClose={onClose}
         onResizeStart={onBeginResize}
         onOpenAppSettings={onOpenAppSettings}
       />
+
+      {pickerOpen && (
+        <>
+          <div className="nodes-chat-picker__backdrop" onMouseDown={closePicker} />
+          <div className="nodes-chat-picker" role="dialog" aria-label={t('workspaceNodes.chat.pickerTitle')}>
+            <input
+              ref={searchRef}
+              className="nodes-chat-picker__search"
+              value={pickerQuery}
+              onChange={(e) => setPickerQuery(e.target.value)}
+              placeholder={t('workspaceNodes.chat.pickerPlaceholder')}
+            />
+            <div className="nodes-chat-picker__list">
+              {pickerEmpty && <div className="nodes-chat-picker__empty">{t('workspaceNodes.chat.pickerEmpty')}</div>}
+
+              {nodeMatches.length > 0 && (
+                <div className="chat-mention-group-header">{t('workspaceNodes.chat.groupNodes')}</div>
+              )}
+              {nodeMatches.map((node) => (
+                <button
+                  key={`n-${getNodeWorkspaceId(node)}-${node.id}`}
+                  className="chat-mention-item"
+                  onMouseDown={(e) => { e.preventDefault(); addNode(node); }}
+                >
+                  <span className="chat-mention-item-icon">
+                    <MentionNodeIcon size={14} nodeType={node.type} />
+                  </span>
+                  <span className="chat-mention-item-label">{getNodeTitle(node)}</span>
+                  {node.workspaceName && (
+                    <span className="nodes-chat-picker__hint">{node.workspaceName}</span>
+                  )}
+                </button>
+              ))}
+
+              {tagMatches.length > 0 && (
+                <div className="chat-mention-group-header">{t('workspaceNodes.chat.groupTags')}</div>
+              )}
+              {tagMatches.map((tag) => (
+                <button
+                  key={`t-${tag.id}`}
+                  className="chat-mention-item"
+                  onMouseDown={(e) => { e.preventDefault(); addTag(tag); }}
+                >
+                  <span className="chat-mention-item-icon"><span className="chat-context-chip-hash">#</span></span>
+                  <span className="chat-mention-item-label">{tag.name}</span>
+                </button>
+              ))}
+
+              {canvasMatches.length > 0 && (
+                <div className="chat-mention-group-header">{t('workspaceNodes.chat.groupCanvases')}</div>
+              )}
+              {canvasMatches.map((canvas) => (
+                <button
+                  key={`c-${canvas.id}`}
+                  className="chat-mention-item"
+                  onMouseDown={(e) => { e.preventDefault(); addCanvas(canvas); }}
+                >
+                  <span className="chat-mention-item-icon">
+                    <MentionNodeIcon size={14} nodeType="workspace" />
+                  </span>
+                  <span className="chat-mention-item-label">{canvas.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

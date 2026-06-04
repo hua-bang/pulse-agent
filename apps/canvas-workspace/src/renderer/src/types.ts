@@ -649,10 +649,28 @@ export interface AgentContextNodeRef {
   workspaceId?: string;
 }
 
+export interface AgentContextTagRef {
+  name: string;
+  /**
+   * Workspaces where this tag occurs. In global-scope chat the agent needs an
+   * explicit workspaceId to query a tag's members (`workspace_node_list`).
+   */
+  workspaceIds?: string[];
+}
+
+export interface AgentContextCanvasRef {
+  id: string;
+  name: string;
+}
+
 export interface AgentRequestContext {
   executionMode?: 'auto' | 'ask';
   scope?: 'current_canvas' | 'selected_nodes';
   selectedNodes?: AgentContextNodeRef[];
+  /** Tags the user scoped the turn to (global Nodes/Graph assistant). */
+  tags?: AgentContextTagRef[];
+  /** Whole canvases the user scoped the turn to (global assistant). */
+  canvases?: AgentContextCanvasRef[];
   quickAction?: string;
 }
 

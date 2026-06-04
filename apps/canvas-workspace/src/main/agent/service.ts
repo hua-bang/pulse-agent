@@ -84,6 +84,8 @@ export class CanvasAgentService {
       executionMode?: 'auto' | 'ask';
       scope?: 'current_canvas' | 'selected_nodes';
       selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
+      tags?: Array<{ name: string; workspaceIds?: string[] }>;
+      canvases?: Array<{ id: string; name: string }>;
       quickAction?: string;
     },
     attachments?: CanvasAgentImageAttachment[],
@@ -119,6 +121,8 @@ export class CanvasAgentService {
       executionMode?: 'auto' | 'ask';
       scope?: 'current_canvas' | 'selected_nodes';
       selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
+      tags?: Array<{ name: string; workspaceIds?: string[] }>;
+      canvases?: Array<{ id: string; name: string }>;
       quickAction?: string;
     },
     attachments?: CanvasAgentImageAttachment[],
