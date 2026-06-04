@@ -5,6 +5,7 @@ import type {
   InboundHandler,
   InboundMessage,
   OutboundTarget,
+  WorkspacePicker,
 } from '../../core/types';
 import {
   createLarkClient,
@@ -20,11 +21,15 @@ import {
   buildErrorCard,
   buildProgressCard,
   buildThinkingCard,
+  buildWorkspacePickerCard,
   formatToolLabel,
+  WORKSPACE_PICKER_SELECT_NAME,
 } from './card';
 
 const CHANNEL_ID = 'feishu';
 const PROGRESS_THROTTLE_MS = 800;
+const PROGRESS_HEARTBEAT_MS = 15_000;
+const CARD_UPDATE_TIMEOUT_MS = 10_000;
 
 /**
  * Feishu channel using the SDK's long-connection (WSClient) event stream —
@@ -60,6 +65,18 @@ export class FeishuChannel implements Channel {
         const msg = parseInbound(data);
         if (msg) onInbound(msg);
       },
+      'card.action.trigger': async (data: unknown) => {
+        logRawCardAction(data);
+        const msg = parseCardAction(data);
+        if (msg) onInbound(msg);
+        return {};
+      },
+      'interactive_card.action.trigger': async (data: unknown) => {
+        logRawCardAction(data);
+        const msg = parseCardAction(data);
+        if (msg) onInbound(msg);
+        return {};
+      },
     });
 
     this.wsClient.start({ eventDispatcher });
@@ -82,11 +99,30 @@ export class FeishuChannel implements Channel {
     await sendTextMessage(this.client, toSendTarget(target), text);
   }
 
+  async sendWorkspacePicker(target: OutboundTarget, picker: WorkspacePicker): Promise<void> {
+    if (!this.client) throw new Error('Feishu channel not started');
+    try {
+      await sendCardMessage(this.client, toSendTarget(target), buildWorkspacePickerCard(picker, target));
+    } catch (err) {
+      console.error('[channel:feishu] failed to send workspace picker card', err);
+      await sendTextMessage(this.client, toSendTarget(target), picker.fallbackText);
+    }
+  }
+
   async openStream(target: OutboundTarget): Promise<ChannelStream> {
     if (!this.client) throw new Error('Feishu channel not started');
     const stream = new FeishuStream(this.client, toSendTarget(target));
     await stream.init();
     return stream;
+  }
+}
+
+function logRawCardAction(data: unknown): void {
+  if (!process.env.CANVAS_CHANNEL_DEBUG) return;
+  try {
+    console.log('[channel:feishu] raw card action', JSON.stringify(data));
+  } catch {
+    /* ignore serialization issues */
   }
 }
 
@@ -117,7 +153,7 @@ interface ToolRun {
   elapsedSec?: number;
 }
 
-class FeishuStream implements ChannelStream {
+export class FeishuStream implements ChannelStream {
   private cardMessageId: string | null = null;
   private cardFailed = false;
   private accumulated = '';
@@ -127,6 +163,7 @@ class FeishuStream implements ChannelStream {
 
   private updateChain: Promise<void> = Promise.resolve();
   private flushTimer: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private lastFlush = 0;
 
   constructor(
@@ -141,7 +178,9 @@ class FeishuStream implements ChannelStream {
       // If the initial card cannot be sent, fall back to text messages.
       this.cardFailed = true;
       console.error('[channel:feishu] failed to send thinking card', err);
+      return;
     }
+    this.startHeartbeat();
   }
 
   onText(delta: string): void {
@@ -202,7 +241,7 @@ class FeishuStream implements ChannelStream {
   }
 
   async onDone(text: string): Promise<void> {
-    this.cancelFlush();
+    this.cancelTimers();
     // Any tool without an observed result (e.g. the run ended right after)
     // shouldn't linger as ⏳ in the folded list.
     const now = Date.now();
@@ -215,7 +254,7 @@ class FeishuStream implements ChannelStream {
   }
 
   async onError(message: string): Promise<void> {
-    this.cancelFlush();
+    this.cancelTimers();
     await this.finalize(() => buildErrorCard(message), `❌ Error: ${message}`);
   }
 
@@ -233,32 +272,57 @@ class FeishuStream implements ChannelStream {
     }, wait);
   }
 
-  private cancelFlush(): void {
+  private startHeartbeat(): void {
+    if (this.cardFailed || this.heartbeatTimer) return;
+    this.heartbeatTimer = setInterval(() => {
+      if (this.cardFailed) return;
+      this.lastFlush = Date.now();
+      void this.enqueue(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
+    }, PROGRESS_HEARTBEAT_MS);
+  }
+
+  private cancelTimers(): void {
     if (this.flushTimer) {
       clearTimeout(this.flushTimer);
       this.flushTimer = null;
     }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   /** Serialize card patches so concurrent updates cannot race. */
-  private enqueue(factory: () => object): Promise<void> {
-    this.updateChain = this.updateChain.then(async () => {
-      if (this.cardFailed || !this.cardMessageId) return;
+  private enqueue(factory: () => object): Promise<boolean> {
+    const result = this.updateChain.then(async (): Promise<boolean> => {
+      if (this.cardFailed || !this.cardMessageId) return false;
       try {
-        await updateCardMessage(this.client, this.cardMessageId, factory());
+        await withTimeout(
+          updateCardMessage(this.client, this.cardMessageId, factory()),
+          CARD_UPDATE_TIMEOUT_MS,
+          'Feishu card update',
+        );
+        return true;
       } catch (err) {
-        this.cardFailed = true;
+        // Treat patch failures as transient. Feishu can reject an individual
+        // update because of rate limits or a stale card state; stopping all
+        // later patches makes the bot appear frozen mid-run.
         console.error('[channel:feishu] card update failed', err);
+        return false;
       }
     });
-    return this.updateChain;
+    this.updateChain = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
   }
 
   private async finalize(factory: () => object, fallbackText: string): Promise<void> {
-    await this.enqueue(factory);
+    const finalUpdated = await this.enqueue(factory);
     // If the card pathway failed at any point, deliver the result as text so
     // the user still sees the final answer.
-    if (this.cardFailed) {
+    if (!finalUpdated) {
       try {
         await sendTextMessage(this.client, this.target, fallbackText);
       } catch (err) {
@@ -266,6 +330,16 @@ class FeishuStream implements ChannelStream {
       }
     }
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  const timeout = new Promise<T>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(label + ' timed out after ' + ms + 'ms')), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 // ── Event parsing ───────────────────────────────────────────────────────────
@@ -289,11 +363,116 @@ interface FeishuMessageEvent {
   };
 }
 
+function asMentionList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function mentionString(mention: unknown, key: 'key' | 'name'): string | null {
+  if (!mention || typeof mention !== 'object') return null;
+  const value = (mention as Record<string, unknown>)[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function hasMentionMarker(text: string): boolean {
+  // Feishu text events normally include `mentions`, but topic groups can omit
+  // it while still leaving a visible/textual at-marker in content.
+  return /<at\b/i.test(text) || /(^|\s)@\S+/.test(text);
+}
+
+function stripMentionText(text: string, mentions: unknown[]): string {
+  let out = text;
+  for (const mention of mentions) {
+    for (const key of ['key', 'name'] as const) {
+      const value = mentionString(mention, key);
+      if (value) out = out.replace(new RegExp(escapeRegExp(value), 'g'), '');
+    }
+  }
+  return out
+    .replace(/<at\b[^>]*>.*?<\/at>/gi, '')
+    .replace(/(^|\s)@\S+/g, ' ')
+    .replace(/(^|\s)@(?=\s|$)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function collectPostText(node: unknown, out: string[]): void {
+  if (!node) return;
+  if (typeof node === 'string') {
+    if (node.trim()) out.push(node.trim());
+    return;
+  }
+  if (Array.isArray(node)) {
+    for (const item of node) collectPostText(item, out);
+    return;
+  }
+  if (typeof node !== 'object') return;
+
+  const record = node as Record<string, unknown>;
+  const tag = typeof record.tag === 'string' ? record.tag : '';
+  if (tag === 'at') {
+    const userName = typeof record.user_name === 'string' ? record.user_name.trim() : '';
+    out.push(userName ? `@${userName}` : '@');
+    return;
+  }
+  if (typeof record.text === 'string' && record.text.trim()) {
+    out.push(record.text.trim());
+  }
+  for (const key of ['content', 'elements', 'children']) {
+    collectPostText(record[key], out);
+  }
+}
+
+function extractMessageText(rawContent: string | undefined, messageType: string | undefined): string | null {
+  try {
+    const content = JSON.parse(rawContent ?? '{}') as Record<string, unknown>;
+    if (messageType === 'text') {
+      return typeof content.text === 'string' ? content.text.trim() : '';
+    }
+    if (messageType === 'post') {
+      const parts: string[] = [];
+      collectPostText(content, parts);
+      return parts.join(' ').replace(/\s+/g, ' ').trim();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+interface FeishuCardActionEvent {
+  open_id?: string;
+  user_id?: string;
+  open_message_id?: string;
+  message_id?: string;
+  operator?: {
+    open_id?: string;
+    user_id?: string;
+    operator_id?: {
+      open_id?: string;
+      user_id?: string;
+    };
+  };
+  context?: {
+    open_message_id?: string;
+    message_id?: string;
+  };
+  event?: FeishuCardActionEvent;
+  action?: {
+    value?: Record<string, unknown>;
+    form_value?: Record<string, unknown>;
+    behaviors?: Array<{ value?: Record<string, unknown> }>;
+  };
+}
+
 /** Normalize a Feishu im.message.receive_v1 payload, or null to ignore it. */
 export function parseInbound(data: unknown): InboundMessage | null {
   const event = data as FeishuMessageEvent;
   const message = event?.message;
-  if (!message || message.message_type !== 'text') return null;
+  if (!message || !['text', 'post'].includes(message.message_type ?? '')) return null;
 
   const messageId = message.message_id ?? '';
   const chatId = message.chat_id ?? '';
@@ -302,23 +481,19 @@ export function parseInbound(data: unknown): InboundMessage | null {
   const userId = event.sender?.sender_id?.open_id ?? '';
   if (!chatId) return null;
 
-  let text = '';
-  try {
-    const content = JSON.parse(message.content ?? '{}') as { text?: string };
-    text = content.text?.trim() ?? '';
-  } catch {
-    return null;
-  }
+  const text = extractMessageText(message.content, message.message_type);
+  if (text === null) return null;
 
-  const isGroup = message.chat_type === 'group';
-  const mentions = (message.mentions as unknown[] | undefined) ?? [];
+  const isGroup = message.chat_type === 'group' || message.chat_type === 'topic_group';
+  const mentions = asMentionList(message.mentions);
+  let cleanText = text;
   if (isGroup) {
     // In group chats (incl. topic groups), only respond when @-mentioned.
-    if (mentions.length === 0) return null;
-    text = text.replace(/@\S+/g, '').trim();
+    if (mentions.length === 0 && !hasMentionMarker(cleanText)) return null;
+    cleanText = stripMentionText(cleanText, mentions);
   }
 
-  if (!text) return null;
+  if (!cleanText) return null;
 
   // Each topic in a topic group is its own conversation — and thus its own
   // session. A threaded message carries thread_id (the topic) and/or root_id
@@ -348,9 +523,88 @@ export function parseInbound(data: unknown): InboundMessage | null {
     conversationId,
     userId,
     messageId,
-    text,
+    text: cleanText,
     isMention: isGroup && mentions.length > 0,
     isDirect: !isGroup,
     reply,
   };
+}
+
+function isFeishuSendTarget(value: unknown): value is FeishuSendTarget {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as Partial<FeishuSendTarget>;
+  return typeof record.chatId === 'string' && typeof record.isGroup === 'boolean';
+}
+
+/** Normalize a Feishu interactive-card action into an internal slash command. */
+export function parseCardAction(data: unknown): InboundMessage | null {
+  const event = unwrapCardActionEvent(data);
+  const value = cardActionValue(event);
+  if (!value || value.action !== 'workspace.use') {
+    debugCardActionIgnored('missing workspace.use action', data);
+    return null;
+  }
+
+  const formValue = event.action?.form_value;
+  const selectedWorkspaceId =
+    typeof formValue?.[WORKSPACE_PICKER_SELECT_NAME] === 'string'
+      ? formValue[WORKSPACE_PICKER_SELECT_NAME].trim()
+      : '';
+  const workspaceId = typeof value.workspaceId === 'string'
+    ? value.workspaceId.trim()
+    : selectedWorkspaceId;
+  const conversationId = typeof value.conversationId === 'string' ? value.conversationId : '';
+  const reply = isFeishuSendTarget(value.reply) ? value.reply : null;
+  if (!workspaceId || !conversationId || !reply) {
+    debugCardActionIgnored('missing workspace id, conversation id, or reply target', data);
+    return null;
+  }
+
+  const carry = value.carry === true;
+  const cardMessageId =
+    event.open_message_id ??
+    event.message_id ??
+    event.context?.open_message_id ??
+    event.context?.message_id ??
+    'unknown';
+  const userId =
+    event.open_id ??
+    event.user_id ??
+    event.operator?.open_id ??
+    event.operator?.user_id ??
+    event.operator?.operator_id?.open_id ??
+    event.operator?.operator_id?.user_id ??
+    '';
+  const messageId = `card:${cardMessageId}:${userId}:${conversationId}:${workspaceId}:${carry ? 'carry' : 'use'}`;
+  return {
+    channelId: CHANNEL_ID,
+    conversationId,
+    userId,
+    messageId,
+    text: `/use ${workspaceId}${carry ? ' --carry' : ''}`,
+    isMention: reply.isGroup,
+    isDirect: !reply.isGroup,
+    reply,
+  };
+}
+
+function debugCardActionIgnored(reason: string, data: unknown): void {
+  if (!process.env.CANVAS_CHANNEL_DEBUG) return;
+  try {
+    console.warn('[channel:feishu] ignored card action:', reason, JSON.stringify(data));
+  } catch {
+    console.warn('[channel:feishu] ignored card action:', reason);
+  }
+}
+
+function unwrapCardActionEvent(data: unknown): FeishuCardActionEvent {
+  const event = data as FeishuCardActionEvent;
+  return event.event ?? event;
+}
+
+function cardActionValue(event: FeishuCardActionEvent): Record<string, unknown> | null {
+  const direct = event.action?.value;
+  if (direct && typeof direct === 'object') return direct;
+  const behaviorValue = event.action?.behaviors?.find((behavior) => behavior.value)?.value;
+  return behaviorValue && typeof behaviorValue === 'object' ? behaviorValue : null;
 }

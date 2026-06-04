@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildDoneCard,
   buildProgressCard,
+  buildWorkspacePickerCard,
   formatToolLabel,
   type ToolEntry,
 } from '../card';
@@ -61,5 +62,76 @@ describe('feishu card tool list', () => {
     };
     expect(card.body.elements).toHaveLength(1);
     expect(card.body.elements[0].tag).toBe('markdown');
+  });
+
+  it('workspace picker card uses a workspace dropdown and two submit buttons', () => {
+    const card = buildWorkspacePickerCard(
+      {
+        title: 'Choose a workspace',
+        summary: 'Current chat: not connected.',
+        defaultCarry: false,
+        fallbackText: 'fallback',
+        options: [
+          { id: 'ws-A', label: 'Alpha (ws-A)', isActive: true, isBound: false },
+          { id: 'ws-B', label: 'Beta (ws-B)', isActive: false, isBound: true },
+        ],
+      },
+      {
+        conversationId: 'convA',
+        reply: { chatId: 'chatA', isGroup: false, triggerMessageId: 'm1' },
+      },
+    ) as {
+      header: { title: { content: string } };
+      body: { elements: Array<Record<string, unknown>> };
+    };
+
+    const body = texts(card).join('\n');
+    expect(card.header.title.content).toBe('Choose a workspace');
+    expect(body).toContain('Current chat: not connected.');
+
+    const form = card.body.elements.find((e) => e.tag === 'form') as {
+      elements: Array<Record<string, unknown>>;
+    };
+    expect(form).toBeDefined();
+    const select = form.elements.find((e) => e.tag === 'select_static') as {
+      name: string;
+      initial_option: string;
+      options: Array<{ text: { content: string }; value: string }>;
+    };
+    expect(select.name).toBe('workspace_picker_workspace');
+    expect(select.initial_option).toBe('ws-B');
+    expect(select.options).toEqual([
+      { text: { tag: 'plain_text', content: 'Alpha (ws-A) 🖥️' }, value: 'ws-A' },
+      { text: { tag: 'plain_text', content: 'Beta (ws-B) ⭐' }, value: 'ws-B' },
+    ]);
+
+    const buttons: Array<Record<string, unknown>> = [];
+    const collectButtons = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      if (record.tag === 'button') buttons.push(record);
+      for (const value of Object.values(record)) {
+        if (Array.isArray(value)) value.forEach(collectButtons);
+        else collectButtons(value);
+      }
+    };
+    collectButtons(form);
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0].name).toBe('workspace_use');
+    expect(buttons[0].value).toEqual({
+      action: 'workspace.use',
+      carry: false,
+      conversationId: 'convA',
+      reply: { chatId: 'chatA', isGroup: false, triggerMessageId: 'm1' },
+    });
+    expect(buttons[0].behaviors).toEqual([{ type: 'callback', value: buttons[0].value }]);
+    expect(buttons[1].name).toBe('workspace_use_carry');
+    expect(buttons[1].value).toEqual({
+      action: 'workspace.use',
+      carry: true,
+      conversationId: 'convA',
+      reply: { chatId: 'chatA', isGroup: false, triggerMessageId: 'm1' },
+    });
+    expect(buttons[1].behaviors).toEqual([{ type: 'callback', value: buttons[1].value }]);
   });
 });

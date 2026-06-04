@@ -1,11 +1,12 @@
-import type { AgentScope, CanvasAgentServiceRef } from '../../../types';
+import type { AgentChatResult, AgentScope, CanvasAgentServiceRef } from '../../../types';
 import type { PluginStore } from '../../../types';
 import { BindingStore } from './binding';
-import { handleCommand } from './commands';
+import { buildWorkspacePickerReply, handleCommand } from './commands';
 import { MessageDedupe } from './dedupe';
 import { extractGeneratedImageResult } from './image-result';
 import { SessionRouter } from './sessions';
-import type { Channel, ChannelStream, InboundMessage } from './types';
+import type { Channel, ChannelStream, CommandReply, InboundMessage, OutboundTarget } from './types';
+import { listWorkspaces, workspaceLabelById } from './workspaces';
 
 interface ActiveRun {
   channelId: string;
@@ -13,6 +14,9 @@ interface ActiveRun {
   /** Set while the agent is awaiting an answer to a clarification request. */
   pendingClarificationId?: string;
 }
+
+const DEFAULT_RUN_IDLE_TIMEOUT_MS = 2 * 60_000;
+const RUN_IDLE_TIMEOUT_ENV = 'CANVAS_CHANNEL_RUN_IDLE_TIMEOUT_MS';
 
 /**
  * Channel-agnostic orchestration. Receives normalized inbound messages from
@@ -30,17 +34,23 @@ export class ChannelBridge {
   private readonly activeRuns = new Map<string, ActiveRun>();
   private readonly channels = new Map<string, Channel>();
   private readonly activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+  private readonly runIdleTimeoutMs: number;
 
   constructor(
     private readonly service: CanvasAgentServiceRef,
     store: PluginStore,
     options: {
       activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
+      runIdleTimeoutMs?: number;
     } = {},
   ) {
     this.bindings = new BindingStore(store);
     this.sessions = new SessionRouter(service, store);
     this.activateCanvas = options.activateCanvas;
+    this.runIdleTimeoutMs =
+      options.runIdleTimeoutMs ??
+      readPositiveIntegerEnv(RUN_IDLE_TIMEOUT_ENV) ??
+      DEFAULT_RUN_IDLE_TIMEOUT_MS;
   }
 
   /** Register and start a channel, wiring its inbound traffic to this bridge. */
@@ -76,13 +86,37 @@ export class ChannelBridge {
       activateCanvas: this.activateCanvas,
     });
     if (commandReply !== null) {
-      await channel.sendText(target, commandReply);
+      await this.sendReply(channel, target, commandReply);
       return;
     }
 
     if (!msg.text.trim()) return;
 
     const boundWorkspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
+    if (!boundWorkspaceId && !msg.isDirect) {
+      const currentWorkspaceId = await this.bindCurrentWorkspaceForGroupFirstContact(msg);
+      const pickerReply = await buildWorkspacePickerReply(msg, {
+        bindings: this.bindings,
+        service: this.service,
+        sessionRouter: this.sessions,
+        activateCanvas: this.activateCanvas,
+      }, {
+        defaultCarry: true,
+        summary: currentWorkspaceId
+          ? `Current chat: using ${await workspaceLabelById(currentWorkspaceId)}.`
+          : undefined,
+      });
+
+      if (!currentWorkspaceId) {
+        await this.sendReply(channel, target, pickerReply);
+        return;
+      }
+
+      await this.runTurn(channel, msg, { kind: 'workspace', workspaceId: currentWorkspaceId });
+      await this.sendReply(channel, target, pickerReply);
+      return;
+    }
+
     const scope: AgentScope = boundWorkspaceId
       ? { kind: 'workspace', workspaceId: boundWorkspaceId }
       : { kind: 'global' };
@@ -117,6 +151,29 @@ export class ChannelBridge {
     await this.runTurn(channel, msg, scope);
   }
 
+  private async bindCurrentWorkspaceForGroupFirstContact(
+    msg: InboundMessage,
+  ): Promise<string | null> {
+    const workspaces = await listWorkspaces();
+    const current = workspaces.find((w) => w.isActive) ?? (workspaces.length === 1 ? workspaces[0] : null);
+    if (!current) return null;
+
+    await this.bindings.bind(msg.channelId, msg.conversationId, current.id);
+    return current.id;
+  }
+
+  private async sendReply(
+    channel: Channel,
+    target: OutboundTarget,
+    reply: CommandReply,
+  ): Promise<void> {
+    if (reply.kind === 'workspace_picker' && channel.sendWorkspacePicker) {
+      await channel.sendWorkspacePicker(target, reply.picker);
+      return;
+    }
+    await channel.sendText(target, reply.kind === 'workspace_picker' ? reply.picker.fallbackText : reply.text);
+  }
+
   private async runTurn(
     channel: Channel,
     msg: InboundMessage,
@@ -126,6 +183,39 @@ export class ChannelBridge {
     const run: ActiveRun = { channelId: msg.channelId, conversationId: msg.conversationId };
     const runKey = agentScopeKey(scope);
     this.activeRuns.set(runKey, run);
+    let finished = false;
+    let idleTimer: NodeJS.Timeout | null = null;
+    let lastAgentActivityAt = Date.now();
+
+    const markAgentActivity = (): void => {
+      lastAgentActivityAt = Date.now();
+    };
+
+    const idleTimeout = new Promise<AgentChatResult>((resolve) => {
+      const check = (): void => {
+        if (finished) return;
+        if (run.pendingClarificationId) {
+          lastAgentActivityAt = Date.now();
+          idleTimer = setTimeout(check, this.runIdleTimeoutMs);
+          return;
+        }
+
+        const idleMs = Date.now() - lastAgentActivityAt;
+        if (idleMs >= this.runIdleTimeoutMs) {
+          const message =
+            `No agent activity for ${Math.round(this.runIdleTimeoutMs / 1000)}s. ` +
+            'Stopped this run so the chat can continue.';
+          console.warn(`[channel:${channel.id}] ${message}`);
+          this.service.abortScope(scope);
+          resolve({ ok: false, error: message });
+          return;
+        }
+
+        idleTimer = setTimeout(check, this.runIdleTimeoutMs - idleMs);
+      };
+
+      idleTimer = setTimeout(check, this.runIdleTimeoutMs);
+    });
 
     // Give this conversation its own session so topics / chats sharing a
     // scope keep separate histories. Safe here: runs are serialized per
@@ -146,12 +236,22 @@ export class ChannelBridge {
     }
 
     try {
-      const result = await this.service.chatWithScope(
+      const chat = this.service.chatWithScope(
         scope,
         msg.text,
-        (delta) => void Promise.resolve(stream.onText(delta)).catch(noop),
-        (toolCall) => void Promise.resolve(stream.onToolCall(toolCall.name, toolCall.args)).catch(noop),
+        (delta) => {
+          if (finished) return;
+          markAgentActivity();
+          void Promise.resolve(stream.onText(delta)).catch(noop);
+        },
+        (toolCall) => {
+          if (finished) return;
+          markAgentActivity();
+          void Promise.resolve(stream.onToolCall(toolCall.name, toolCall.args)).catch(noop);
+        },
         (toolResult) => {
+          if (finished) return;
+          markAgentActivity();
           const image = extractGeneratedImageResult(toolResult);
           if (image && stream.onImage) {
             void Promise.resolve(stream.onImage(image.outputPath, image.mimeType)).catch(noop);
@@ -165,10 +265,18 @@ export class ChannelBridge {
         },
         undefined,
         (req) => {
+          if (finished) return;
+          markAgentActivity();
           run.pendingClarificationId = req.id;
           void Promise.resolve(stream.onClarification(req.question)).catch(noop);
         },
       );
+      chat.catch((err) => {
+        if (finished) {
+          console.error(`[channel:${channel.id}] late agent failure after channel timeout`, err);
+        }
+      });
+      const result = await Promise.race([chat, idleTimeout]);
 
       if (result.ok) {
         await stream.onDone(result.response?.trim() || '✅ Done');
@@ -178,6 +286,8 @@ export class ChannelBridge {
     } catch (err) {
       await stream.onError(err instanceof Error ? err.message : String(err));
     } finally {
+      finished = true;
+      if (idleTimer) clearTimeout(idleTimer);
       this.activeRuns.delete(runKey);
     }
   }
@@ -185,6 +295,13 @@ export class ChannelBridge {
 
 function agentScopeKey(scope: AgentScope): string {
   return scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
+}
+
+function readPositiveIntegerEnv(name: string): number | undefined {
+  const raw = process.env[name]?.trim();
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : undefined;
 }
 
 function noop(): void {
