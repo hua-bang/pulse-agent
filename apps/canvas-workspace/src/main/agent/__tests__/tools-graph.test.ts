@@ -71,6 +71,7 @@ import {
   writeWorkspaceNode,
   WORKSPACE_NODE_SCHEMA_VERSION,
 } from '../../canvas/nodes/store';
+import { upsertKnowledgeTag } from '../../canvas/nodes/tags';
 
 const wsId = 'ws-tools-test';
 
@@ -151,6 +152,32 @@ describe('canvas_search_nodes', () => {
 
     const oneTag = JSON.parse(await tools.canvas_search_nodes.execute({ tag: 'AI' }));
     expect(new Set(oneTag.matches.map((m: { id: string }) => m.id))).toEqual(new Set(['n-file', 'n-text']));
+  });
+
+  it('resolves tag NAME → id when filtering (renderer stores ids, mentions pass names)', async () => {
+    await setupCanvas();
+    // The renderer's tag editor stores the tag id (slug) on the node, while a
+    // tag @-mention passes the human-readable name. Searching by name (any case)
+    // or by the raw id must both match.
+    const tag = await upsertKnowledgeTag({ name: 'ByteDance' });
+    expect(tag.id).toBe('bytedance');
+    await writeWorkspaceNode(wsId, {
+      schemaVersion: WORKSPACE_NODE_SCHEMA_VERSION,
+      id: 'n-file',
+      type: 'note',
+      data: {},
+      properties: { tags: ['bytedance'] },
+    });
+    const tools = createCanvasTools(wsId);
+
+    const byName = JSON.parse(await tools.canvas_search_nodes.execute({ tag: 'ByteDance' }));
+    expect(byName.matches.map((m: { id: string }) => m.id)).toEqual(['n-file']);
+
+    const byNameCi = JSON.parse(await tools.canvas_search_nodes.execute({ tag: 'BYTEDANCE' }));
+    expect(byNameCi.matches.map((m: { id: string }) => m.id)).toEqual(['n-file']);
+
+    const byId = JSON.parse(await tools.canvas_search_nodes.execute({ tag: 'bytedance' }));
+    expect(byId.matches.map((m: { id: string }) => m.id)).toEqual(['n-file']);
   });
 
   it('respects limit and reports truncation', async () => {

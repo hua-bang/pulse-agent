@@ -3,6 +3,7 @@ import {
   listWorkspaceNodes,
   type WorkspaceNodeRecord,
 } from '../../canvas/nodes/store';
+import { readKnowledgeTags } from '../../canvas/nodes/tags';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas } from './_shared/canvas-io';
 
@@ -23,7 +24,8 @@ export function createSearchTools(workspaceId: string): Record<string, CanvasToo
           z.array(z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap'])),
         ]).optional().describe('Restrict to one or more node types.'),
         tag: z.union([z.string(), z.array(z.string())]).optional().describe(
-          'Filter by workspace-node tag(s). A node matches when its workspace-node record has ALL provided tags in `properties.tags`. ' +
+          'Filter by workspace-node tag(s), given as tag NAME or id. A node matches when its workspace-node record has ALL provided tags in `properties.tags` ' +
+          '(stored as tag ids/slugs; names are resolved automatically, case-insensitively). ' +
           'Tags live in the knowledge layer (`workspace-node-store`), not on the canvas node itself.',
         ),
         limit: z.number().int().positive().max(200).optional().describe('Max results to return. Default 30.'),
@@ -52,9 +54,26 @@ export function createSearchTools(workspaceId: string): Record<string, CanvasToo
         const limit = (input.limit as number | undefined) ?? 30;
 
         const wsNodeById = new Map<string, WorkspaceNodeRecord>();
+        // For each requested tag token, the set of stored values that count as a
+        // match. Stored tags are ids (slugs); a token may be a name, so resolve
+        // names → ids via the global tag store (case-insensitive).
+        let tagAcceptSets: Set<string>[] | null = null;
         if (tagFilter) {
           const records = await listWorkspaceNodes(targetWorkspaceId);
           for (const record of records) wsNodeById.set(record.id, record);
+
+          const idsByName = new Map<string, string[]>();
+          for (const tg of await readKnowledgeTags()) {
+            const key = tg.name.trim().toLowerCase();
+            const arr = idsByName.get(key) ?? [];
+            arr.push(tg.id);
+            idsByName.set(key, arr);
+          }
+          tagAcceptSets = tagFilter.map((token) => {
+            const accept = new Set<string>([token]);
+            for (const id of idsByName.get(token.toLowerCase()) ?? []) accept.add(id);
+            return accept;
+          });
         }
 
         const matchHaystacks = (node: CanvasNode): string[] => {
@@ -93,7 +112,7 @@ export function createSearchTools(workspaceId: string): Record<string, CanvasToo
         for (const node of canvas.nodes) {
           if (typeFilter && !typeFilter.has(node.type)) continue;
 
-          if (tagFilter) {
+          if (tagAcceptSets) {
             const record = wsNodeById.get(node.id);
             const rawTags: unknown[] = Array.isArray(record?.properties?.tags)
               ? (record!.properties!.tags as unknown[])
@@ -101,7 +120,10 @@ export function createSearchTools(workspaceId: string): Record<string, CanvasToo
             const tagSet = new Set(
               rawTags.filter((t: unknown): t is string => typeof t === 'string'),
             );
-            const hasAll = tagFilter.every((t: string) => tagSet.has(t));
+            const hasAll = tagAcceptSets.every((accept) => {
+              for (const id of accept) if (tagSet.has(id)) return true;
+              return false;
+            });
             if (!hasAll) continue;
           }
 

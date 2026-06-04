@@ -538,7 +538,7 @@ function formatScopeContextBlock(
     lines.push('Use `canvas_search_nodes` / `canvas_read_node` with the matching workspaceId.');
   }
   if (tags.length > 0) {
-    lines.push('', 'The user scoped this turn to these tags. To get their members, call `workspace_node_list({ workspaceId })` for the listed workspace(s) and keep the nodes whose tags include this tag (use the returned `knownTags` to match name → id) — do not guess membership:');
+    lines.push('', 'The user scoped this turn to these tags. To get their members, call `canvas_search_nodes({ tag: "<name>", workspaceId })` once per listed workspace — it filters by tag (names are resolved automatically) and returns a compact id/title/snippet list. Then `canvas_read_node` only the matches you actually need; do NOT dump every node with `workspace_node_list` and filter by hand:');
     for (const tag of tags) {
       const ws = tag.workspaceIds && tag.workspaceIds.length > 0
         ? ` — workspaceId(s): ${tag.workspaceIds.map((id) => `\`${id}\``).join(', ')}`
