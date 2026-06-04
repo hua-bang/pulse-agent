@@ -6,7 +6,9 @@
 > **状态：已实现（阶段 1–3 一次落地）。** 核心实现见 `components/chat/ChatDockContext.tsx`
 > （全局状态 + 上下文注册表）、`ChatSurface.tsx`（一处挂载、dock/page 双布局）、`ChatDockHost.tsx`
 > （shell 层宿主）。Canvas 内嵌 `ChatPanel` 已移除，整页 `ChatPage` 已并入 `ChatSurface` 的 page 模式。
-> Nodes/Graph 通过 `NodeDetailDrawer` 注入选中节点上下文并提供「在 AI Chat 中讨论」入口。
+> Nodes/Graph 提供「在 AI Chat 中讨论」入口并注入上下文：Nodes 注入**当前筛选结果集**
+> （单一工作区时）或选中节点，Graph 注入**选中节点 + 同工作区邻居子图**。上下文注册由各页面
+> 独占（`useRegisterChatContext`），keep-alive 的画布通过 `enabled` 让位给当前可见视图。
 
 ## 1. 背景与问题
 

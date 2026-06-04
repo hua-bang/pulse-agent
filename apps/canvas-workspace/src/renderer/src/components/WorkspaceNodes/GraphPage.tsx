@@ -13,7 +13,8 @@ import ForceGraph2D, {
   type NodeObject,
 } from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import type { WorkspaceNodeListItem } from '../../types';
+import type { AgentContextNodeRef, CanvasNode, WorkspaceNodeListItem } from '../../types';
+import { useChatDock, useRegisterChatContext, type ChatActiveContext } from '../chat';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
@@ -281,6 +282,50 @@ export const GraphPage = ({
     }
     return map;
   }, [graphData.links, graphData.nodes]);
+
+  // ── Chat context: the selected node plus its same-workspace neighbours ──
+  const { openDock } = useChatDock();
+  const nodeByGraphId = useMemo(() => {
+    const map = new Map<string, WorkspaceNodeListItem>();
+    for (const node of nodes) map.set(nodeGraphId(getNodeWorkspaceId(node), node.id), node);
+    return map;
+  }, [nodes]);
+
+  const chatContext = useMemo<ChatActiveContext | null>(() => {
+    if (!selectedNode) return { source: 'graph' };
+    const wsId = selectedNode.workspaceId;
+    const selId = nodeGraphId(wsId, selectedNode.nodeId);
+    const toRef = (n: WorkspaceNodeListItem): AgentContextNodeRef => ({
+      id: n.id,
+      title: getNodeTitle(n, t('workspaceNodes.untitled')),
+      type: n.type as CanvasNode['type'],
+    });
+    const refs: AgentContextNodeRef[] = [];
+    const selItem = nodeByGraphId.get(selId);
+    if (selItem) refs.push(toRef(selItem));
+    for (const neighbourId of neighbors.get(selId) ?? []) {
+      const item = nodeByGraphId.get(neighbourId);
+      // Skip tag/workspace/missing pseudo-nodes and cross-workspace neighbours
+      // (the agent can only read content within the bound workspace scope).
+      if (!item || getNodeWorkspaceId(item) !== wsId) continue;
+      refs.push(toRef(item));
+      if (refs.length >= 40) break;
+    }
+    return {
+      source: 'graph',
+      workspaceId: wsId,
+      selectedNodeRefs: refs,
+      onNodeFocus: (id) => onSelectNode?.({ workspaceId: wsId, nodeId: id }),
+    };
+  }, [selectedNode, neighbors, nodeByGraphId, onSelectNode, t]);
+  useRegisterChatContext(chatContext);
+
+  const handleDiscuss = useCallback(() => {
+    openDock({
+      scope: selectedNode ? { kind: 'workspace', workspaceId: selectedNode.workspaceId } : undefined,
+      focusInput: true,
+    });
+  }, [openDock, selectedNode]);
 
   const highlighted = useMemo(() => {
     const anchorId = hoverNodeId || activeNodeId;
@@ -646,9 +691,9 @@ export const GraphPage = ({
         workspaceId={selectedNode?.workspaceId ?? ''}
         nodeId={selectedNode?.nodeId ?? null}
         tagDefinitions={tags}
-        source="graph"
         onClose={() => onSelectNode?.(null)}
         onOpenPage={onOpenNode}
+        onDiscuss={handleDiscuss}
         onNodeChanged={() => { void reload(); }}
       />
     </main>

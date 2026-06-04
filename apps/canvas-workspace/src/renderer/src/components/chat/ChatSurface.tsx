@@ -251,13 +251,20 @@ const ChatSurfaceInner = ({
     [regenerateAssistantMessage],
   );
 
-  // Clicking a mention chip focuses the node on the canvas; from the page we
-  // also collapse back so the canvas is visible.
+  // Clicking a node reference: prefer the active view's own handler (Nodes /
+  // Graph focus in place); otherwise focus it on the canvas. From the page we
+  // also collapse back so the target view is visible.
   const handleNodeFocus = useCallback((nodeId: string) => {
-    if (!scopeWorkspaceId) return;
-    onNodeFocus(scopeWorkspaceId, nodeId);
+    const ctxFocus = ctxMatches ? activeContext?.onNodeFocus : undefined;
+    if (ctxFocus) {
+      ctxFocus(nodeId, scopeWorkspaceId);
+    } else if (scopeWorkspaceId) {
+      onNodeFocus(scopeWorkspaceId, nodeId);
+    } else {
+      return;
+    }
     if (mode === 'page') onCollapseToDock();
-  }, [mode, onCollapseToDock, onNodeFocus, scopeWorkspaceId]);
+  }, [ctxMatches, activeContext, mode, onCollapseToDock, onNodeFocus, scopeWorkspaceId]);
 
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 

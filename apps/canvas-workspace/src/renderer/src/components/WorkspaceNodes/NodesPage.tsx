@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import type { WorkspaceNodeListItem } from '../../types';
+import type { AgentContextNodeRef, CanvasNode, WorkspaceNodeListItem } from '../../types';
+import { useChatDock, useRegisterChatContext, type ChatActiveContext } from '../chat';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import {
@@ -90,6 +91,67 @@ export const NodesPage = ({
     });
   }, [nodes, query, typeFilter, tagFilter, activeWorkspaceIds]);
 
+  // ── Chat context: feed the current selection / filter results to the dock ──
+  const { openDock } = useChatDock();
+  const CHAT_REF_CAP = 50;
+
+  const selectedNodeItem = useMemo(() => {
+    if (!selectedNode) return null;
+    return nodes.find(
+      (n) => getNodeWorkspaceId(n) === selectedNode.workspaceId && n.id === selectedNode.nodeId,
+    ) ?? null;
+  }, [nodes, selectedNode]);
+
+  // The single workspace the filtered results belong to (undefined if they
+  // span multiple — the chat scope can only bind to one at a time).
+  const filteredWorkspaceId = useMemo(() => {
+    let only: string | undefined;
+    for (const n of filteredNodes) {
+      const ws = getNodeWorkspaceId(n);
+      if (only === undefined) only = ws;
+      else if (only !== ws) return undefined;
+    }
+    return only;
+  }, [filteredNodes]);
+
+  const toRef = useCallback(
+    (n: WorkspaceNodeListItem): AgentContextNodeRef => ({
+      id: n.id,
+      title: getNodeTitle(n, t('workspaceNodes.untitled')),
+      type: n.type as CanvasNode['type'],
+    }),
+    [t],
+  );
+
+  const chatContext = useMemo<ChatActiveContext | null>(() => {
+    // A picked node wins over the filter-set summary.
+    if (selectedNode) {
+      return {
+        source: 'nodes',
+        workspaceId: selectedNode.workspaceId,
+        selectedNodeRefs: selectedNodeItem ? [toRef(selectedNodeItem)] : [],
+        onNodeFocus: (id) => onOpenNode(selectedNode.workspaceId, id),
+      };
+    }
+    if (!filteredWorkspaceId || filteredNodes.length === 0) {
+      // Results span multiple workspaces (or none): no scoped refs, but the
+      // dock still opens on demand.
+      return { source: 'nodes' };
+    }
+    return {
+      source: 'nodes',
+      workspaceId: filteredWorkspaceId,
+      selectedNodeRefs: filteredNodes.slice(0, CHAT_REF_CAP).map(toRef),
+      onNodeFocus: (id) => onOpenNode(filteredWorkspaceId, id),
+    };
+  }, [selectedNode, selectedNodeItem, filteredWorkspaceId, filteredNodes, onOpenNode, toRef]);
+  useRegisterChatContext(chatContext);
+
+  const handleDiscuss = useCallback(() => {
+    const wsId = selectedNode?.workspaceId ?? filteredWorkspaceId;
+    openDock({ scope: wsId ? { kind: 'workspace', workspaceId: wsId } : undefined, focusInput: true });
+  }, [openDock, selectedNode, filteredWorkspaceId]);
+
   const [visibleCount, setVisibleCount] = useState(NODES_PAGE_SIZE);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -134,6 +196,7 @@ export const NodesPage = ({
               <p>{t('workspaceNodes.nodes.subtitle', { count: nodes.length })}</p>
             </div>
             <div className="workspace-nodes-page__header-actions">
+              <button className="workspace-node-button" onClick={handleDiscuss}>{t('chat.discuss')}</button>
               <button className="workspace-node-button" onClick={() => void reload()}>{t('workspaceNodes.refresh')}</button>
             </div>
           </header>
@@ -261,6 +324,7 @@ export const NodesPage = ({
         tagDefinitions={tagDefinitions}
         onClose={() => onSelectNode?.(null)}
         onOpenPage={onOpenNode}
+        onDiscuss={handleDiscuss}
         onNodeChanged={() => { void reload(); }}
       />
     </main>
