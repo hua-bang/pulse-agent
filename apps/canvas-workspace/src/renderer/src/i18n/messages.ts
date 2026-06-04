@@ -466,6 +466,8 @@ const en = {
   'workspaceGraph.loading': 'Loading graph...',
   'workspaceGraph.emptyTitle': 'No graph data yet',
   'workspaceGraph.emptyDescription': 'Add tags or links to nodes and they will appear here.',
+  'workspaceGraph.summarizeTag': '✨ Summarize with AI',
+  'workspaceGraph.tagNodeCount': '{count} nodes',
 
   'settings.skills.label': 'Skills',
   'settings.skills.description': 'Custom skills the agent can load',
@@ -1009,6 +1011,8 @@ const zh: Record<keyof typeof en, string> = {
   'workspaceGraph.loading': '正在加载图谱...',
   'workspaceGraph.emptyTitle': '还没有图谱数据',
   'workspaceGraph.emptyDescription': '给节点添加标签或链接后，它们会显示在这里。',
+  'workspaceGraph.summarizeTag': '✨ 用 AI 总结',
+  'workspaceGraph.tagNodeCount': '{count} 个节点',
 
   'settings.skills.label': '技能',
   'settings.skills.description': '自定义可供 Agent 加载的技能',

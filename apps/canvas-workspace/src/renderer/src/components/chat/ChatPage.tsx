@@ -3,7 +3,7 @@ import type { CanvasNode } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
-import type { AgentScope, WorkspaceOption } from './types';
+import type { AgentScope, ChatSeed, WorkspaceOption } from './types';
 
 interface ChatPageProps {
   allWorkspaces: WorkspaceOption[];
@@ -14,6 +14,10 @@ interface ChatPageProps {
   onNodeFocus?: (workspaceId: string, nodeId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  /** A pre-built first turn to auto-send on mount (e.g. tag summary). */
+  seed?: ChatSeed | null;
+  /** Called once the seed has been sent (or skipped), so the host can clear it. */
+  onSeedConsumed?: () => void;
 }
 
 /**
@@ -39,8 +43,13 @@ export const ChatPage = ({
   onExit,
   onNodeFocus,
   onOpenAppSettings,
+  seed,
+  onSeedConsumed,
 }: ChatPageProps) => {
-  const [agentScope, setAgentScope] = useState<AgentScope>({ kind: 'global' });
+  // A seed (only read at mount — ChatPage remounts on each navigation to the
+  // non-keep-alive chat route) decides the initial scope, e.g. global for a
+  // cross-workspace tag summary.
+  const [agentScope, setAgentScope] = useState<AgentScope>(seed?.scope ?? { kind: 'global' });
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
   const [newSessionRequest, setNewSessionRequest] = useState(0);
   const [railCollapsed, setRailCollapsed] = useState(true);
@@ -100,6 +109,8 @@ export const ChatPage = ({
       railCollapsed={railCollapsed}
       onToggleRail={handleToggleRail}
       onOpenAppSettings={onOpenAppSettings}
+      initialSeed={seed}
+      onSeedConsumed={onSeedConsumed}
     />
   );
 };

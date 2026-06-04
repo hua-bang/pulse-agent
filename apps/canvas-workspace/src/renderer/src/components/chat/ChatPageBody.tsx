@@ -8,7 +8,7 @@ import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { useChatComposerState } from './hooks/useChatComposerState';
-import type { AgentScope, WorkspaceOption } from './types';
+import type { AgentScope, ChatSeed, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 
@@ -39,6 +39,10 @@ export interface ChatPageBodyProps {
   onToggleRail: () => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  /** A pre-built first turn to auto-send once on mount (e.g. tag summary). */
+  initialSeed?: ChatSeed | null;
+  /** Called after the seed has been sent (or skipped). */
+  onSeedConsumed?: () => void;
 }
 
 export const ChatPageBody = ({
@@ -58,6 +62,8 @@ export const ChatPageBody = ({
   railCollapsed,
   onToggleRail,
   onOpenAppSettings,
+  initialSeed,
+  onSeedConsumed,
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
@@ -66,6 +72,9 @@ export const ChatPageBody = ({
   // for a same-workspace click), but on mount we only care about the value
   // we saw when this body was constructed (after a workspace switch).
   const initialPendingRef = useRef(initialPendingSessionId);
+  // Snapshot the seed at mount so its presence can gate the initial history
+  // fetch (we don't want a getHistory race when we're about to auto-send).
+  const initialSeedRef = useRef(initialSeed);
 
   const {
     abort,
@@ -115,7 +124,7 @@ export const ChatPageBody = ({
     // If we're about to load a specific session on mount, don't also fetch
     // the current active-session history — it would race with the pending
     // load and potentially overwrite it.
-    skipInitialHistory: initialPendingRef.current !== null,
+    skipInitialHistory: initialPendingRef.current !== null || initialSeedRef.current != null,
   });
 
   useEffect(() => {
@@ -146,6 +155,26 @@ export const ChatPageBody = ({
   // See ChatPanel for the rationale; treat loading state as configured to
   // avoid bouncing the user to Settings before status loads.
   const notConfigured = canvasModels.status !== undefined && !canvasModels.status.apiKeyPresent;
+
+  // Auto-send the seed turn (e.g. "summarize this tag" opened from the graph)
+  // exactly once, after the model status resolves. Starts a fresh session so
+  // the gathered context isn't appended onto unrelated global-chat history.
+  const seedFiredRef = useRef(false);
+  useEffect(() => {
+    const seed = initialSeedRef.current;
+    if (!seed || seedFiredRef.current) return;
+    if (canvasModels.status === undefined) return; // wait until config is known
+    seedFiredRef.current = true;
+    void (async () => {
+      if (notConfigured) {
+        onOpenAppSettings('models');
+      } else {
+        await handleNewSession();
+        await sendMessage(seed.prompt, seed.requestContext);
+      }
+      onSeedConsumed?.();
+    })();
+  }, [canvasModels.status, notConfigured, handleNewSession, sendMessage, onOpenAppSettings, onSeedConsumed]);
 
   const handleQuickAction = useCallback(async (prompt: string) => {
     if (notConfigured) {

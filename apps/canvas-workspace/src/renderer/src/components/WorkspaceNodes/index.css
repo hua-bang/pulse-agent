@@ -832,6 +832,65 @@
   max-width: 480px;
 }
 
+.workspace-graph-tag-action {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid var(--nodes-border);
+  border-radius: 8px;
+  padding: 6px 8px 6px 12px;
+  box-shadow: var(--nodes-shadow);
+  max-width: 480px;
+}
+
+.workspace-graph-tag-action__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workspace-graph-tag-action__name {
+  font-weight: 600;
+  color: var(--nodes-text);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-graph-tag-action__count {
+  font-size: 12px;
+  color: var(--nodes-muted);
+  white-space: nowrap;
+}
+
+.workspace-graph-tag-action__btn {
+  white-space: nowrap;
+}
+
+.workspace-graph-tag-action__close {
+  border: none;
+  background: transparent;
+  color: var(--nodes-faint);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.workspace-graph-tag-action__close:hover {
+  background: var(--nodes-surface-hover);
+  color: var(--nodes-text);
+}
+
 .workspace-graph-search__row {
   display: flex;
   align-items: center;

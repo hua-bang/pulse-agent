@@ -14,9 +14,10 @@ import ForceGraph2D, {
 } from 'react-force-graph-2d';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { WorkspaceNodeListItem } from '../../types';
+import type { TagSummaryRequest } from '../chat/types';
 import { NodeDetailDrawer } from './NodeDetailDrawer';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
-import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
+import { getNodeSummary, getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
 import { useI18n } from '../../i18n';
 
 interface GraphPageProps {
@@ -24,6 +25,8 @@ interface GraphPageProps {
   selectedNode?: { workspaceId: string; nodeId: string } | null;
   onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
   onOpenNode: (workspaceId: string, nodeId: string) => void;
+  /** Open an AI chat seeded to summarize a tag's nodes. Omit to hide the action. */
+  onSummarizeTag?: (request: TagSummaryRequest) => void;
 }
 
 type GraphNodeKind = 'node' | 'tag' | 'missing' | 'workspace';
@@ -63,6 +66,11 @@ const GRAPH_COLORS = {
 
 function workspaceGraphId(workspaceId: string): string {
   return `ws:${workspaceId}`;
+}
+
+/** Recover the underlying tag id from a `tag:<id>` graph-node id. */
+function tagIdFromGraphId(graphId: string): string {
+  return graphId.startsWith('tag:') ? graphId.slice(4) : graphId;
 }
 
 function getGraphId(value: string | number | NodeObject<GraphNode> | null | undefined): string {
@@ -189,6 +197,7 @@ export const GraphPage = ({
   selectedNode,
   onSelectNode,
   onOpenNode,
+  onSummarizeTag,
 }: GraphPageProps) => {
   const { t } = useI18n();
   const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
@@ -207,6 +216,7 @@ export const GraphPage = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [showWorkspaceHubs, setShowWorkspaceHubs] = useState(true);
+  const [activeTag, setActiveTag] = useState<{ id: string; label: string } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -377,6 +387,7 @@ export const GraphPage = ({
     lastClickRef.current = { nodeId, ts: now };
 
     setActiveNodeId(nodeId);
+    setActiveTag(node.kind === 'tag' ? { id: tagIdFromGraphId(nodeId), label: node.label } : null);
 
     if (isDoubleClick) {
       // Double click: zoom to the node. Drawer state is left alone so it
@@ -473,6 +484,27 @@ export const GraphPage = ({
 
     ctx.restore();
   }, [activeNodeId, highlighted.nodeIds, hoverNodeId, showLabels]);
+
+  const activeTagNodes = useMemo(
+    () => (activeTag ? visibleNodes.filter((node) => getNodeTags(node).includes(activeTag.id)) : []),
+    [activeTag, visibleNodes],
+  );
+
+  const handleSummarizeActiveTag = useCallback(() => {
+    if (!activeTag || !onSummarizeTag || activeTagNodes.length === 0) return;
+    const untitled = t('workspaceNodes.untitled');
+    onSummarizeTag({
+      tagId: activeTag.id,
+      tagLabel: activeTag.label,
+      nodes: activeTagNodes.map((node) => ({
+        workspaceName: node.workspaceName ?? getNodeWorkspaceId(node),
+        title: getNodeTitle(node, untitled),
+        type: node.type,
+        content: getNodeSummary(node),
+      })),
+    });
+    setActiveTag(null);
+  }, [activeTag, activeTagNodes, onSummarizeTag, t]);
 
   return (
     <main className="workspace-graph-page" ref={containerRef}>
@@ -592,6 +624,34 @@ export const GraphPage = ({
         </div>
       )}
 
+      {activeTag && onSummarizeTag && (
+        <div className="workspace-graph-tag-action">
+          <div className="workspace-graph-tag-action__meta">
+            <span className="workspace-graph-tag-action__name">#{activeTag.label}</span>
+            <span className="workspace-graph-tag-action__count">
+              {t('workspaceGraph.tagNodeCount', { count: activeTagNodes.length })}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="workspace-node-chip workspace-graph-tag-action__btn"
+            onClick={handleSummarizeActiveTag}
+            disabled={activeTagNodes.length === 0}
+          >
+            {t('workspaceGraph.summarizeTag')}
+          </button>
+          <button
+            type="button"
+            className="workspace-graph-tag-action__close"
+            onClick={() => setActiveTag(null)}
+            title={t('workspaceGraph.close')}
+            aria-label={t('workspaceGraph.close')}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {error && <div className="workspace-graph-state workspace-graph-state--error">{error}</div>}
       {loading && <div className="workspace-graph-state">{t('workspaceGraph.loading')}</div>}
       {!loading && visibleNodes.length === 0 && (
@@ -619,6 +679,7 @@ export const GraphPage = ({
           }}
           onBackgroundClick={() => {
             setActiveNodeId(null);
+            setActiveTag(null);
             onSelectNode?.(null);
           }}
           linkWidth={(link) => highlighted.linkIds.size === 0 || highlighted.linkIds.has(linkKey(link)) ? 1.15 : 0.35}

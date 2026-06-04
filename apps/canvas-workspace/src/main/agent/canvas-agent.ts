@@ -45,6 +45,8 @@ interface CanvasAgentRequestContext {
   scope?: 'current_canvas' | 'selected_nodes';
   selectedNodes?: Array<{ id: string; title: string; type: string }>;
   quickAction?: string;
+  /** Pre-gathered material inlined as authoritative context (see AgentRequestContext). */
+  injectedContext?: string;
 }
 
 const CANVAS_AGENT_MAX_STEPS = 200;
@@ -512,9 +514,26 @@ function buildSystemPrompt(
     selectionBlock = lines.join('\n') + '\n';
   }
 
+  // Material gathered outside the canvas (e.g. every node under a tag when the
+  // user opened "summarize this tag" from the knowledge graph). Inlined as
+  // authoritative context so the model can answer the first message without
+  // cross-workspace tool reads.
+  let injectedBlock = '';
+  const injectedContext = requestContext?.injectedContext?.trim();
+  if (injectedContext) {
+    injectedBlock = [
+      '',
+      '## Provided Context',
+      'The user opened this conversation with material already gathered for them (for example, from the knowledge graph). Treat the following as the PRIMARY, authoritative source for the first message — you do not need to call tools to fetch it:',
+      '',
+      injectedContext,
+      '',
+    ].join('\n') + '\n';
+  }
+
   let base = summary
-    ? BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
-    : BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
+    ? BASE_SYSTEM_PROMPT + selectionBlock + injectedBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
+    : BASE_SYSTEM_PROMPT + selectionBlock + injectedBlock + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
 
   if (requestContext) {
     const mode = requestContext.executionMode ?? 'auto';

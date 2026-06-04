@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentChatToolCall, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentRequestContext, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
 
@@ -59,4 +59,33 @@ export interface QuickAction {
   prompt: string;
   promptKey?: I18nKey;
   requiresSelection?: boolean;
+}
+
+/**
+ * A pre-built first turn handed to the AI Chat page. When present, the page
+ * opens on {@link scope}, starts a fresh session, and auto-sends {@link prompt}
+ * with {@link requestContext} (e.g. injected tag content) — turning a graph
+ * action into an interactive, follow-up-able conversation.
+ */
+export interface ChatSeed {
+  scope: AgentScope;
+  /** Visible first user message. */
+  prompt: string;
+  /** Threaded to the agent alongside the message (carries injectedContext). */
+  requestContext?: AgentRequestContext;
+}
+
+/** One node's material gathered for a tag-summary seed. */
+export interface TagSummaryNode {
+  workspaceName: string;
+  title: string;
+  type: string;
+  content: string;
+}
+
+/** Emitted by the graph when the user asks AI to summarize a tag vertex. */
+export interface TagSummaryRequest {
+  tagId: string;
+  tagLabel: string;
+  nodes: TagSummaryNode[];
 }

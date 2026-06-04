@@ -5,6 +5,8 @@ import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
+import { buildTagSummarySeed } from './components/chat/seed';
+import type { ChatSeed, TagSummaryRequest } from './components/chat/types';
 import { LinkDrawer } from './components/LinkDrawer';
 import { MigrationSpinner } from './components/MigrationSpinner';
 import { Settings, type SettingsSection } from './components/Settings';
@@ -80,6 +82,9 @@ const AppContent = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<SelectedWorkspaceNode | null>(null);
+  // A pre-built first chat turn (e.g. "summarize this tag" from the graph).
+  // Consumed once by ChatPage on mount, then cleared.
+  const [chatSeed, setChatSeed] = useState<ChatSeed | null>(null);
   // null = global Settings drawer closed. Setting to a section name opens
   // the drawer focused on that section.
   const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
@@ -161,6 +166,13 @@ const AppContent = () => {
   const enterGraphView = useCallback(() => {
     if (!GRAPH_ENABLED) return;
     setLocation(ROUTE_GRAPH);
+  }, [setLocation]);
+
+  // Graph → "summarize this tag": stage the seed turn and jump to AI Chat,
+  // which opens global scope, starts a fresh session, and auto-sends it.
+  const handleSummarizeTag = useCallback((request: TagSummaryRequest) => {
+    setChatSeed(buildTagSummarySeed(request));
+    setLocation(ROUTE_CHAT);
   }, [setLocation]);
 
   const exitChatView = useCallback(() => {
@@ -473,6 +485,8 @@ const AppContent = () => {
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
               onOpenAppSettings={openAppSettings}
+              seed={chatSeed}
+              onSeedConsumed={() => setChatSeed(null)}
             />
           </PulseRouterView>
           {NODES_ENABLED && (
@@ -502,6 +516,7 @@ const AppContent = () => {
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onOpenNode={openNodePage}
+                onSummarizeTag={handleSummarizeTag}
               />
             </PulseRouterView>
           )}

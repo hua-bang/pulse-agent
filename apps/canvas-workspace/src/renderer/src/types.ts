@@ -647,6 +647,14 @@ export interface AgentRequestContext {
   scope?: 'current_canvas' | 'selected_nodes';
   selectedNodes?: AgentContextNodeRef[];
   quickAction?: string;
+  /**
+   * Pre-gathered material inlined into the system prompt as authoritative
+   * context for the first message (e.g. the contents of every node under a
+   * tag when "summarize this tag" is opened from the knowledge graph). Lets
+   * cross-workspace flows hand the agent its source up-front instead of
+   * relying on workspace-scoped read tools.
+   */
+  injectedContext?: string;
 }
 
 export interface AgentSessionInfo {
