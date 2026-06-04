@@ -31,15 +31,26 @@ export function useChatSessions({
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const scopeKey = agentScope.kind === 'global' ? 'global' : `workspace:${agentScope.workspaceId}`;
 
+  // Always read the latest scope inside the effect without making the effect
+  // depend on the object's identity (see below).
+  const agentScopeRef = useRef(agentScope);
+  agentScopeRef.current = agentScope;
+
+  // Reload history only when the scope actually changes. We key on `scopeKey`
+  // (a stable string) rather than the `agentScope` object: a caller that
+  // recreates the scope object on every render would otherwise re-fire this
+  // effect on each streaming setState, and `onMessagesLoaded` (replaceMessages)
+  // would clobber the in-flight assistant message — making intermediate tool
+  // calls / streamed text disappear and the view flicker mid-turn.
   useEffect(() => {
     if (skipInitialHistory) return;
     void (async () => {
-      const result = await window.canvasWorkspace.agent.getHistory({ scope: agentScope });
+      const result = await window.canvasWorkspace.agent.getHistory({ scope: agentScopeRef.current });
       if (result.ok && result.messages) {
         onMessagesLoaded(result.messages);
       }
     })();
-  }, [agentScope, onMessagesLoaded, skipInitialHistory, scopeKey]);
+  }, [onMessagesLoaded, skipInitialHistory, scopeKey]);
 
   useEffect(() => {
     if (!sessionMenuOpen) return;
