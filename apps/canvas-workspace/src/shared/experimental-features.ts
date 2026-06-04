@@ -33,6 +33,7 @@ export interface ExperimentalFeatureDef {
 export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';
 export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
 export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
+export const EXPERIMENTAL_FLAG_WORKSPACE_NODES_CHAT = 'workspace-nodes-chat';
 export const EXPERIMENTAL_FLAG_WEBVIEW_PAGE_CONTROL = 'webview-page-control';
 export const EXPERIMENTAL_FLAG_DYNAMIC_APP = 'dynamic-app';
 export const EXPERIMENTAL_FLAG_CHANNELS = 'chat-channels';
@@ -57,6 +58,13 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
     label: 'Workspace Graph page',
     description:
       'A force-directed graph view of all nodes in the workspace with grouped toolbar and suggest-search. Surfaces a "Graph" entry in the sidebar.',
+    defaultEnabled: false,
+  },
+  {
+    id: EXPERIMENTAL_FLAG_WORKSPACE_NODES_CHAT,
+    label: 'Knowledge assistant in Nodes / Graph',
+    description:
+      'Docks a global AI chat panel inside the Nodes and Graph pages. The conversation persists as you browse; selecting a node feeds it (and its workspace) to the assistant as context, so you can ask about it across workspaces without leaving the view. Requires the Nodes and/or Graph pages to be enabled.',
     defaultEnabled: false,
   },
   {

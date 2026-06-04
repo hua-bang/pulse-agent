@@ -640,6 +640,13 @@ export interface AgentContextNodeRef {
   id: string;
   title: string;
   type: CanvasNode['type'];
+  /**
+   * Owning workspace of the node. Required for global-scope chat (Nodes /
+   * Graph knowledge assistant), where there is no bound canvas and the agent
+   * must pass an explicit workspaceId to read the node. Omitted for the
+   * workspace-scoped canvas ChatPanel, where the scope already pins it.
+   */
+  workspaceId?: string;
 }
 
 export interface AgentRequestContext {

@@ -1,16 +1,16 @@
 import type { ClipboardEventHandler, KeyboardEventHandler, ReactNode, RefObject } from 'react';
-import type { CanvasModelStatus, CanvasNode, ChatImageAttachment } from '../../types';
+import type { CanvasModelStatus, ChatImageAttachment } from '../../types';
 import { ImageIcon, PlusIcon } from '../icons';
-import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { toFileUrl } from '../../utils/fileUrl';
 import { MentionNodeIcon } from './utils/mentions';
 import { ModelSwitcher } from './ModelSettings';
+import type { SelectedContextChip } from './types';
 import { useI18n } from '../../i18n';
 
 interface ChatInputProps {
   loading: boolean;
   input: string;
-  selectedNodes?: CanvasNode[];
+  selectedContext?: SelectedContextChip[];
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
   executionMode?: 'auto' | 'ask';
@@ -37,7 +37,7 @@ interface ChatInputProps {
 export const ChatInput = ({
   loading,
   input,
-  selectedNodes,
+  selectedContext,
   attachments = [],
   contextComposer = false,
   executionMode = 'auto',
@@ -60,8 +60,8 @@ export const ChatInput = ({
   onMentionNavigate,
 }: ChatInputProps) => {
   const { t } = useI18n();
-  const contextNodes = (selectedNodes && selectedNodes.length > 0)
-    ? selectedNodes
+  const contextNodes = (selectedContext && selectedContext.length > 0)
+    ? selectedContext
     : [];
 
   return (
@@ -73,12 +73,12 @@ export const ChatInput = ({
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
         {contextComposer && contextNodes.length > 0 && (
           <div className="chat-context-chips" aria-label={t('chat.currentContext')}>
-            {contextNodes.map(node => (
-              <span key={node.id} className="chat-context-chip" data-node-type={node.type}>
+            {contextNodes.map(chip => (
+              <span key={chip.id} className="chat-context-chip" data-node-type={chip.type}>
                 <span className="chat-context-chip-icon">
-                  <MentionNodeIcon nodeType={node.type} size={13} />
+                  <MentionNodeIcon nodeType={chip.type} size={13} />
                 </span>
-                <span className="chat-context-chip-label">{getNodeDisplayLabel(node)}</span>
+                <span className="chat-context-chip-label">{chip.label}</span>
               </span>
             ))}
           </div>

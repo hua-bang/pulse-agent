@@ -10,7 +10,7 @@ import { ChatEmptyState } from './ChatEmptyState';
 import { ChatInput } from './ChatInput';
 import { ChatMentionPopup } from './ChatMentionPopup';
 import { ChatMessages } from './ChatMessages';
-import type { MentionItem, PendingClarification, ToolCallStatus } from './types';
+import type { MentionItem, PendingClarification, SelectedContextChip, ToolCallStatus } from './types';
 
 interface ChatViewProps {
   className?: string;
@@ -35,7 +35,7 @@ interface ChatViewProps {
 
   // Canvas context
   nodes?: CanvasNode[];
-  selectedNodes?: CanvasNode[];
+  selectedContext?: SelectedContextChip[];
   onNodeFocus?: (nodeId: string) => void;
 
   // Quick actions (empty state)
@@ -100,7 +100,7 @@ export const ChatView = ({
   onToggleToolExpand,
   onAddImageToCanvas,
   nodes,
-  selectedNodes,
+  selectedContext,
   onNodeFocus,
   onQuickAction,
   input,
@@ -163,7 +163,7 @@ export const ChatView = ({
         />
       ) : (
         <ChatEmptyState
-          selectedCount={selectedNodes?.length ?? 0}
+          selectedCount={selectedContext?.length ?? 0}
           onQuickAction={onQuickAction}
           modelStatus={modelStatus}
           onConfigureModel={onOpenModelSettings}
@@ -173,7 +173,7 @@ export const ChatView = ({
         loading={loading}
         input={input}
         attachments={attachments}
-        selectedNodes={selectedNodes}
+        selectedContext={selectedContext}
         contextComposer={contextComposer}
         executionMode={executionMode}
         modelStatus={modelStatus}

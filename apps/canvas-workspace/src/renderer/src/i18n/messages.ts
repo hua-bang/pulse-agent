@@ -403,6 +403,8 @@ const en = {
 
   'workspaceNodes.nodes.title': 'Nodes',
   'workspaceNodes.nodes.subtitle': 'Knowledge library · {count} items',
+  'workspaceNodes.chat.open': 'Ask AI',
+  'workspaceNodes.chat.openHint': 'Open knowledge assistant',
   'workspaceNodes.refresh': 'Refresh',
   'workspaceNodes.searchPlaceholder': 'Search title, content, tags...',
   'workspaceNodes.allWorkspaces': 'All workspaces',
@@ -946,6 +948,8 @@ const zh: Record<keyof typeof en, string> = {
 
   'workspaceNodes.nodes.title': '节点',
   'workspaceNodes.nodes.subtitle': '知识库 · {count} 项',
+  'workspaceNodes.chat.open': '问问 AI',
+  'workspaceNodes.chat.openHint': '打开知识库助手',
   'workspaceNodes.refresh': '刷新',
   'workspaceNodes.searchPlaceholder': '搜索标题、内容、标签...',
   'workspaceNodes.allWorkspaces': '全部工作区',
