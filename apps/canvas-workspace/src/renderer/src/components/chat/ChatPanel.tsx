@@ -6,7 +6,7 @@ import { ChatView } from './ChatView';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentRequestContext } from '../../types';
-import type { ChatPanelProps } from './types';
+import type { AgentScope, ChatPanelProps } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 
@@ -25,6 +25,16 @@ export const ChatPanel = ({
   const { t } = useI18n();
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
   const requestContextRef = useRef<AgentRequestContext>();
+
+  // Keep a stable identity for the workspace scope. Passing a fresh
+  // `{ kind: 'workspace', workspaceId }` literal on every render would make
+  // the scope-keyed effects in useChatSessions/useChatStream re-run on each
+  // streaming setState, reloading history mid-stream and wiping the in-flight
+  // assistant message (intermediate tool/text output vanishing + flicker).
+  const agentScope = useMemo<AgentScope>(
+    () => ({ kind: 'workspace', workspaceId }),
+    [workspaceId],
+  );
 
   const {
     abort,
@@ -71,7 +81,7 @@ export const ChatPanel = ({
     toggleSection,
     toggleToolExpand,
   } = useChatComposerState({
-    agentScope: { kind: 'workspace', workspaceId },
+    agentScope,
     allWorkspaces,
     nodes,
     rootFolder,
