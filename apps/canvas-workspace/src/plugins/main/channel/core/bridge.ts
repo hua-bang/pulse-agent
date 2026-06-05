@@ -18,6 +18,15 @@ interface ActiveRun {
 const DEFAULT_RUN_IDLE_TIMEOUT_MS = 2 * 60_000;
 const RUN_IDLE_TIMEOUT_ENV = 'CANVAS_CHANNEL_RUN_IDLE_TIMEOUT_MS';
 
+// A single tool call (a slow vision read, a page navigation/wait, a long bash
+// command) can legitimately block its `execute()` for much longer than the
+// idle budget *without* emitting any streaming callback. Killing the whole run
+// mid-tool is the wrong move, so an in-flight tool gets this larger budget
+// instead of the idle one. It still has a ceiling so a genuinely hung tool
+// eventually recovers the scope.
+const DEFAULT_TOOL_EXEC_TIMEOUT_MS = 5 * 60_000;
+const TOOL_EXEC_TIMEOUT_ENV = 'CANVAS_CHANNEL_TOOL_EXEC_TIMEOUT_MS';
+
 /**
  * Channel-agnostic orchestration. Receives normalized inbound messages from
  * any number of channels, resolves the target agent scope, and drives the
@@ -35,6 +44,7 @@ export class ChannelBridge {
   private readonly channels = new Map<string, Channel>();
   private readonly activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   private readonly runIdleTimeoutMs: number;
+  private readonly toolExecTimeoutMs: number;
 
   constructor(
     private readonly service: CanvasAgentServiceRef,
@@ -42,6 +52,7 @@ export class ChannelBridge {
     options: {
       activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
       runIdleTimeoutMs?: number;
+      toolExecTimeoutMs?: number;
     } = {},
   ) {
     this.bindings = new BindingStore(store);
@@ -51,6 +62,12 @@ export class ChannelBridge {
       options.runIdleTimeoutMs ??
       readPositiveIntegerEnv(RUN_IDLE_TIMEOUT_ENV) ??
       DEFAULT_RUN_IDLE_TIMEOUT_MS;
+    this.toolExecTimeoutMs = Math.max(
+      this.runIdleTimeoutMs,
+      options.toolExecTimeoutMs ??
+        readPositiveIntegerEnv(TOOL_EXEC_TIMEOUT_ENV) ??
+        DEFAULT_TOOL_EXEC_TIMEOUT_MS,
+    );
   }
 
   /** Register and start a channel, wiring its inbound traffic to this bridge. */
@@ -186,12 +203,34 @@ export class ChannelBridge {
     let finished = false;
     let idleTimer: NodeJS.Timeout | null = null;
     let lastAgentActivityAt = Date.now();
+    // A tool's `execute()` blocks without emitting any streaming callback, so
+    // we track how many are running (and since when) to grant them the larger
+    // tool-exec budget instead of tripping the idle watchdog mid-tool.
+    let toolsInFlight = 0;
+    let toolWorkStartedAt = 0;
 
     const markAgentActivity = (): void => {
       lastAgentActivityAt = Date.now();
     };
 
+    const markToolStart = (): void => {
+      if (toolsInFlight === 0) toolWorkStartedAt = Date.now();
+      toolsInFlight += 1;
+      markAgentActivity();
+    };
+
+    const markToolEnd = (): void => {
+      if (toolsInFlight > 0) toolsInFlight -= 1;
+      markAgentActivity();
+    };
+
     const idleTimeout = new Promise<AgentChatResult>((resolve) => {
+      const stop = (message: string): void => {
+        console.warn(`[channel:${channel.id}] ${message}`);
+        this.service.abortScope(scope);
+        resolve({ ok: false, error: message });
+      };
+
       const check = (): void => {
         if (finished) return;
         if (run.pendingClarificationId) {
@@ -200,14 +239,27 @@ export class ChannelBridge {
           return;
         }
 
+        // A tool is mid-execution: it's working even though nothing streams.
+        // Hold off the idle kill until the (larger) tool-exec budget elapses.
+        if (toolsInFlight > 0) {
+          const toolMs = Date.now() - toolWorkStartedAt;
+          if (toolMs < this.toolExecTimeoutMs) {
+            idleTimer = setTimeout(check, this.toolExecTimeoutMs - toolMs);
+            return;
+          }
+          stop(
+            `A tool ran for ${Math.round(this.toolExecTimeoutMs / 1000)}s with no result. ` +
+              'Stopped this run so the chat can continue.',
+          );
+          return;
+        }
+
         const idleMs = Date.now() - lastAgentActivityAt;
         if (idleMs >= this.runIdleTimeoutMs) {
-          const message =
+          stop(
             `No agent activity for ${Math.round(this.runIdleTimeoutMs / 1000)}s. ` +
-            'Stopped this run so the chat can continue.';
-          console.warn(`[channel:${channel.id}] ${message}`);
-          this.service.abortScope(scope);
-          resolve({ ok: false, error: message });
+              'Stopped this run so the chat can continue.',
+          );
           return;
         }
 
@@ -246,14 +298,16 @@ export class ChannelBridge {
         },
         (toolCall) => {
           if (finished) return;
-          markAgentActivity();
+          // Args are complete and `execute()` is about to block — mark the
+          // tool in-flight so the idle watchdog doesn't kill it mid-run.
+          markToolStart();
           void Promise.resolve(
             stream.onToolCall(toolCall.name, toolCall.args, toolCall.toolCallId),
           ).catch(noop);
         },
         (toolResult) => {
           if (finished) return;
-          markAgentActivity();
+          markToolEnd();
           const image = extractGeneratedImageResult(toolResult);
           if (image && stream.onImage) {
             void Promise.resolve(stream.onImage(image.outputPath, image.mimeType)).catch(noop);

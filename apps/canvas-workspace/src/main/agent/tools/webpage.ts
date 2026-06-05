@@ -3,6 +3,21 @@ import { getWebContentsForNode } from '../../webview/registry';
 import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
 import type { CanvasTool } from './types';
 
+/**
+ * Standing reminder attached to every successful DOM/a11y read. A "success"
+ * here only means we extracted *some* rendered text — it does not mean the
+ * data the user asked for is present. SPAs frequently render their chrome
+ * (nav, headers, an empty table skeleton) before the async data lands, so a
+ * read can look fine while the rows/numbers are still missing. The hint nudges
+ * the agent to verify the expected content and wait + re-read instead of
+ * silently summarising an empty page.
+ */
+const READINESS_HINT =
+  'This is a point-in-time read of the live DOM — a "success" does not guarantee the data ' +
+  'finished loading. If the specific content you need (table rows, numbers, list items) looks ' +
+  'empty or missing, the page is likely still loading: call page_wait_for with a selector/' +
+  'predicate for that content, then read again before answering.';
+
 export function createWebpageTools(workspaceId: string): Record<string, CanvasTool> {
   return {
     canvas_read_webpage: {
@@ -10,7 +25,9 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       defer_loading: true,
       description:
         'Read a webpage that is currently open in a canvas iframe node using the richest available strategy.\n' +
-        'Requires the iframe node to be mounted and loaded in the canvas.\n\n' +
+        'Requires the iframe node to be mounted and loaded in the canvas.\n' +
+        'This is a point-in-time snapshot: if the data you need (e.g. table rows) looks empty, the page may ' +
+        'still be loading — use page_wait_for for that content, then read again rather than reporting an empty result.\n\n' +
         'Strategy options (default: auto):\n' +
         '- auto: tries dom first; if content is too sparse, upgrades to a11y; final fallback is screenshot.\n' +
         '- dom: innerText extraction — fast, safe, works for any text-heavy page.\n' +
@@ -59,11 +76,13 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
           const r = await readDOM(wc, maxChars);
           if (strategy === 'dom') {
             return JSON.stringify(r.ok
-              ? { ok: true, strategy: 'dom', title: r.title, url: r.url, text: r.text }
+              ? { ok: true, strategy: 'dom', title: r.title, url: r.url, text: r.text,
+                  textLength: r.text.trim().length, hint: READINESS_HINT }
               : { ok: false, strategy: 'dom', error: r.error });
           }
           if (r.ok && r.text.trim().length >= sparseThreshold) {
-            return JSON.stringify({ ok: true, strategy: 'dom', title: r.title, url: r.url, text: r.text });
+            return JSON.stringify({ ok: true, strategy: 'dom', title: r.title, url: r.url, text: r.text,
+              textLength: r.text.trim().length, hint: READINESS_HINT });
           }
         }
 
@@ -72,19 +91,29 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
           const r = await readA11y(wc);
           if (strategy === 'a11y') {
             return JSON.stringify(r.ok
-              ? { ok: true, strategy: 'a11y', text: r.text }
+              ? { ok: true, strategy: 'a11y', text: r.text,
+                  textLength: r.text.trim().length, hint: READINESS_HINT }
               : { ok: false, strategy: 'a11y', error: r.error });
           }
           if (r.ok && r.text.trim().length >= sparseThreshold) {
-            return JSON.stringify({ ok: true, strategy: 'a11y', text: r.text });
+            return JSON.stringify({ ok: true, strategy: 'a11y', text: r.text,
+              textLength: r.text.trim().length, hint: READINESS_HINT });
           }
         }
 
         // ── Screenshot ───────────────────────────────────────────────────
+        // Reached in auto mode only when both DOM and a11y came back sparse —
+        // a strong signal the page may still be loading, so flag it.
         const r = await captureScreenshot(wc);
         return JSON.stringify(r.ok
           ? { ok: true, strategy: 'screenshot', imagePath: r.imagePath,
-              hint: 'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.' }
+              ...(strategy === 'auto'
+                ? { sparseTextFallback: true, hint:
+                    'DOM and a11y text were sparse, so this fell back to a screenshot. ' +
+                    'The page may still be loading. ' +
+                    'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description; ' +
+                    'if the expected content is missing, page_wait_for it and read again.' }
+                : { hint: 'Call canvas_analyze_image({ imagePaths: [imagePath] }) to get a vision description.' }) }
           : { ok: false, strategy: 'screenshot', error: r.error });
       },
     },

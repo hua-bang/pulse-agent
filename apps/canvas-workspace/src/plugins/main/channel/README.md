@@ -157,6 +157,23 @@ renderer's existing `#/?workspaceId=<id>` hash route. Activation is currently
 **manual** (send `/open` before webview-dependent requests); automatic
 activation on tool failure is a possible follow-up.
 
+### Run watchdog (idle vs. in-flight tools)
+
+A run is killed if it makes no progress, so a stuck agent can't wedge the
+chat. Two budgets apply:
+
+- **Idle budget** (`CANVAS_CHANNEL_RUN_IDLE_TIMEOUT_MS`, default 120 000):
+  max time with *no* streaming activity at all (no text, tool, or
+  clarification events) — i.e. the LLM loop itself is stuck.
+- **Tool-exec budget** (`CANVAS_CHANNEL_TOOL_EXEC_TIMEOUT_MS`, default
+  300 000): a single tool's `execute()` blocks without emitting any
+  callback (a slow vision read, a page navigation/wait, a long bash
+  command). While a tool is in flight the run is **not** killed on the idle
+  budget — only this larger one — so legitimately slow tools aren't aborted
+  mid-call. Floored at the idle budget.
+
+While the run is awaiting a clarification answer, neither budget applies.
+
 ### Debugging
 
 Set `CANVAS_CHANNEL_DEBUG=1` before launch to log each raw inbound event

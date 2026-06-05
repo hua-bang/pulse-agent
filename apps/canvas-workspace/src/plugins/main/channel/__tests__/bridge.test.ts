@@ -378,4 +378,47 @@ describe('ChannelBridge', () => {
       warnSpy.mockRestore();
     }
   });
+
+  it('does not kill a run while a tool is executing past the idle budget', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // A tool whose execute() blocks: onToolCall fires (args complete) but no
+    // onToolResult — exactly the "single slow tool" case the idle watchdog used
+    // to kill mid-run.
+    const chatWithScope = vi.fn(
+      async (_scope, _message, _onText, onToolCall): Promise<AgentChatResult> => {
+        onToolCall?.({ name: 'page_wait_for', args: { nodeId: 'n1' }, toolCallId: 'tool-1' });
+        return new Promise<AgentChatResult>(() => undefined);
+      },
+    );
+    const abortScope = vi.fn();
+    const service = fakeService({
+      chatWithScope,
+      abortScope,
+      newSessionForScope: vi.fn(async () => ({ ok: true })),
+      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+    });
+    const bridge = new ChannelBridge(service, memoryStore(), {
+      runIdleTimeoutMs: 50,
+      toolExecTimeoutMs: 200,
+    });
+    await bridge.addChannel(channel);
+
+    try {
+      channel.handler!(msg('first'));
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+
+      // Well past the idle budget, but the tool is still in flight — survive.
+      await vi.advanceTimersByTimeAsync(199);
+      expect(abortScope).not.toHaveBeenCalled();
+
+      // Once the tool-exec ceiling elapses, recover the scope.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
+      expect(channel.streams[0].errors[0]).toContain('tool ran for');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
 });
