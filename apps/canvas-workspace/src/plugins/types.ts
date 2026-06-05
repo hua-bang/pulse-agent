@@ -57,6 +57,20 @@ export interface AgentToolResultInfo {
   toolCallId?: string;
 }
 
+export interface AgentToolInputStartInfo {
+  id: string;
+  toolName: string;
+}
+
+export interface AgentToolInputDeltaInfo {
+  id: string;
+  delta: string;
+}
+
+export interface AgentToolInputEndInfo {
+  id: string;
+}
+
 export interface AgentStatusInfo {
   ok: boolean;
   active: boolean;
@@ -83,6 +97,11 @@ export interface CanvasAgentServiceRef {
     onToolResult?: (data: AgentToolResultInfo) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: AgentClarificationRequest) => void,
+    requestContext?: unknown,
+    attachments?: unknown[],
+    onToolInputStart?: (data: AgentToolInputStartInfo) => void,
+    onToolInputDelta?: (data: AgentToolInputDeltaInfo) => void,
+    onToolInputEnd?: (data: AgentToolInputEndInfo) => void,
   ): Promise<AgentChatResult>;
   chatWithScope(
     scope: AgentScope,
@@ -92,6 +111,11 @@ export interface CanvasAgentServiceRef {
     onToolResult?: (data: AgentToolResultInfo) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: AgentClarificationRequest) => void,
+    requestContext?: unknown,
+    attachments?: unknown[],
+    onToolInputStart?: (data: AgentToolInputStartInfo) => void,
+    onToolInputDelta?: (data: AgentToolInputDeltaInfo) => void,
+    onToolInputEnd?: (data: AgentToolInputEndInfo) => void,
   ): Promise<AgentChatResult>;
   abort(workspaceId: string): void;
   abortScope(scope: AgentScope): void;
