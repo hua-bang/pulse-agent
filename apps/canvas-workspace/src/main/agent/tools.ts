@@ -1,2 +1,2 @@
-export { createCanvasTools, createGlobalReadOnlyCanvasTools } from './tools/index';
+export { createCanvasTools, createGlobalCanvasTools } from './tools/index';
 export type { CanvasTool, CanvasToolExecutionContext } from './tools/index';

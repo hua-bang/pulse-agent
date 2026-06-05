@@ -1,0 +1,168 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+
+// Pin os.homedir() to a sandbox before the default-rooted helpers load it.
+const { sandboxHome } = vi.hoisted(() => {
+  const base = process.env.TMPDIR || process.env.TEMP || '/tmp';
+  const trailing = base.endsWith('/') ? '' : '/';
+  return {
+    sandboxHome: `${base}${trailing}tagging-tools-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  };
+});
+
+vi.mock('os', async () => {
+  const actual = await vi.importActual<typeof import('os')>('os');
+  return { ...actual, homedir: () => sandboxHome };
+});
+
+import { createTaggingTools, __testing } from '../tools/tagging';
+import { writeCanvasFull, type CanvasSaveData } from '../../canvas/storage';
+import { readWorkspaceNode, writeWorkspaceNode, WORKSPACE_NODE_SCHEMA_VERSION } from '../../canvas/nodes/store';
+import { readKnowledgeTags, upsertKnowledgeTag } from '../../canvas/nodes/tags';
+
+const CANVAS_DIR = join(sandboxHome, '.pulse-coder', 'canvas');
+
+function canvas(nodes: CanvasSaveData['nodes']): CanvasSaveData {
+  return { nodes, edges: [], transform: { x: 0, y: 0, scale: 1 }, savedAt: new Date().toISOString() };
+}
+
+async function tagsOf(workspaceId: string, nodeId: string): Promise<string[]> {
+  const record = await readWorkspaceNode(workspaceId, nodeId);
+  const raw = record?.properties?.tags;
+  return Array.isArray(raw) ? (raw as string[]) : [];
+}
+
+async function seed(): Promise<void> {
+  await writeCanvasFull('ws-a', canvas([
+    { id: 'a1', type: 'file', title: 'AI notes', x: 0, y: 0, width: 200, height: 100, data: { content: 'about agents' } },
+    { id: 'a2', type: 'text', title: 'todo', x: 220, y: 0, width: 200, height: 100, data: { content: 'later' } },
+  ]));
+  await writeCanvasFull('ws-b', canvas([
+    { id: 'b1', type: 'file', title: 'LLM', x: 0, y: 0, width: 200, height: 100, data: { content: 'spec' } },
+  ]));
+  await upsertKnowledgeTag({ name: 'RAG' }); // id 'rag'
+  // a1 already carries the RAG tag (stored by id, like the renderer does).
+  await writeWorkspaceNode('ws-a', {
+    schemaVersion: WORKSPACE_NODE_SCHEMA_VERSION,
+    id: 'a1', type: 'note', data: {}, properties: { tags: ['rag'] },
+  });
+}
+
+beforeEach(async () => {
+  await fs.mkdir(CANVAS_DIR, { recursive: true });
+});
+
+afterEach(async () => {
+  await fs.rm(join(sandboxHome, '.pulse-coder'), { recursive: true, force: true });
+});
+
+describe('canvas_tag_node', () => {
+  it('batch-adds a tag across workspaces, storing ids and creating records for untagged nodes', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    const out = JSON.parse(await tools.canvas_tag_node.execute({
+      nodes: [
+        { nodeId: 'a1', workspaceId: 'ws-a' },
+        { nodeId: 'a2', workspaceId: 'ws-a' },
+        { nodeId: 'b1', workspaceId: 'ws-b' },
+      ],
+      addTags: ['AI'], // a NAME — auto-registered as id 'ai'
+    }));
+
+    expect(out.ok).toBe(true);
+    expect(out.updated).toBe(3);
+    // existing rag kept + new ai id appended (stored as ids, not names)
+    expect(await tagsOf('ws-a', 'a1')).toEqual(['rag', 'ai']);
+    expect(await tagsOf('ws-a', 'a2')).toEqual(['ai']); // record created
+    expect(await tagsOf('ws-b', 'b1')).toEqual(['ai']); // record created
+    // tag was registered in the global store
+    expect((await readKnowledgeTags()).map((t) => t.id)).toEqual(expect.arrayContaining(['rag', 'ai']));
+    const a2Created = out.results.find((r: { nodeId: string }) => r.nodeId === 'a2');
+    expect(a2Created.created).toBe(true);
+  });
+
+  it('applies a top-level default workspaceId and merges without duplicating (name vs id)', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    const out = JSON.parse(await tools.canvas_tag_node.execute({
+      nodes: [{ nodeId: 'a1' }],
+      workspaceId: 'ws-a',
+      addTags: ['RAG'], // already present as id 'rag' — must not duplicate
+    }));
+    expect(out.ok).toBe(true);
+    expect(await tagsOf('ws-a', 'a1')).toEqual(['rag']);
+  });
+
+  it('removes tags by name or id, and replaces / clears via setTags', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    await tools.canvas_tag_node.execute({ nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }], removeTags: ['RAG'] });
+    expect(await tagsOf('ws-a', 'a1')).toEqual([]);
+
+    await tools.canvas_tag_node.execute({ nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }], setTags: ['AI', 'RAG'] });
+    expect(await tagsOf('ws-a', 'a1')).toEqual(['ai', 'rag']);
+
+    await tools.canvas_tag_node.execute({ nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }], setTags: [] });
+    expect(await tagsOf('ws-a', 'a1')).toEqual([]);
+  });
+
+  it('lets a node override the top-level operation', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    await tools.canvas_tag_node.execute({
+      nodes: [
+        { nodeId: 'a1', workspaceId: 'ws-a', setTags: ['RAG'] }, // override → just rag
+        { nodeId: 'a2', workspaceId: 'ws-a' }, // inherits top-level add
+      ],
+      addTags: ['AI'],
+    });
+    expect(await tagsOf('ws-a', 'a1')).toEqual(['rag']);
+    expect(await tagsOf('ws-a', 'a2')).toEqual(['ai']);
+  });
+
+  it('reports per-node errors without aborting the batch', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    const out = JSON.parse(await tools.canvas_tag_node.execute({
+      nodes: [
+        { nodeId: 'a2', workspaceId: 'ws-a' }, // ok
+        { nodeId: 'ghost', workspaceId: 'ws-a' }, // not found
+        { nodeId: 'a1' }, // missing workspaceId
+      ],
+      addTags: ['AI'],
+    }));
+    expect(out.ok).toBe(false);
+    expect(out.updated).toBe(1);
+    const byId = new Map<string, { ok?: boolean; error?: string }>(
+      (out.results as Array<{ nodeId: string; ok?: boolean; error?: string }>).map((r) => [r.nodeId, r]),
+    );
+    expect(byId.get('a2')?.ok).toBe(true);
+    expect(byId.get('ghost')?.error).toMatch(/not found/i);
+    expect(byId.get('a1')?.error).toMatch(/workspaceId/i);
+  });
+});
+
+describe('computeNextTags', () => {
+  const index = __testing.buildTagIndex([{ id: 'rag', name: 'RAG' }, { id: 'ai', name: 'AI' }]);
+
+  it('merges add ids onto existing tokens, normalising known names to ids', () => {
+    expect(__testing.computeNextTags(['RAG'], { addIds: ['ai'], removeKeys: new Set(), setIds: null }, index))
+      .toEqual(['rag', 'ai']); // existing name 'RAG' normalised to id 'rag'
+  });
+
+  it('drops removed tokens and dedupes', () => {
+    expect(__testing.computeNextTags(['rag', 'ai'], { addIds: [], removeKeys: new Set(['rag']), setIds: null }, index))
+      .toEqual(['ai']);
+  });
+
+  it('setIds replaces everything', () => {
+    expect(__testing.computeNextTags(['rag'], { addIds: ['ai'], removeKeys: new Set(), setIds: ['ai'] }, index))
+      .toEqual(['ai']);
+  });
+});
