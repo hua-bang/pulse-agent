@@ -10,6 +10,7 @@
 
 - **检索（recall）**：在不同粒度上召回历史沉淀 —— **分会话（session）**、**workspace**、**全局（global）**。
 - **沉淀（sediment）**：把每轮对话自动蒸馏成结构化记忆条目（偏好 / 规则 / 决策 / 修复 / 事实），跨会话长期可用。
+- **会话检索（session 粒度）**：让 agent 翻出某条历史会话的**逐字原文**（"之前具体聊了啥"），只读不写，作为蒸馏记忆之外的补充检索面（见 §6.1）。
 
 **结论先行**：直接复用 `pulse-coder-memory-plugin`，**不改动该包本身**，只在 canvas 主进程侧新增一层很薄的"粒度编排"。`apps/remote-server` 已是该插件的生产级用例，可作参照。
 
@@ -179,7 +180,34 @@ export function getCanvasMemoryService() {
 | 用途 | UI 渲染、会话恢复、归档浏览 | 语义召回、跨会话长期记忆 |
 | 粒度 | 单会话（current）+ 归档 | session / workspace / global |
 
-二者**并存互补**：SessionStore 负责"我那次到底说了什么"（逐字），memory-plugin 负责"我学到/约定了什么"（蒸馏）。本期不改 SessionStore；"逐字历史的全文检索"（如 `canvas_search_history` 扫 archive）列为后续可选项。
+二者**并存互补**：SessionStore 负责"我那次到底说了什么"（逐字），memory-plugin 负责"我学到/约定了什么"（蒸馏）。本期不改 SessionStore 的写入，但在其之上加一层**只读的会话检索工具**（见 §6.1）。
+
+### 6.1 会话检索（session 粒度，逐字、只读）
+
+> **决策**：拆分版 `canvas_session_list` + `canvas_session_read`；**只读 SessionStore、只返回不写 memory**。
+
+**定位**：让 agent 翻出"之前那次会话具体聊了啥"。与 `canvas_memory_recall` 互补 —— 后者搜**蒸馏记忆**，这里读**逐字原文**，且**完全不走 memory 插件**。
+
+| | `canvas_memory_recall(session)` | 会话检索（本节） |
+|---|---|---|
+| 对象 | 蒸馏后的记忆条目 | 逐字对话原文 |
+| 数据源 | memory 插件 | SessionStore（`agent-sessions/`） |
+| 回答 | "这会话沉淀了哪些事实/决策" | "我们当时具体怎么说的" |
+| 写库 | 否（读） | 否（只读只返回） |
+
+**两个工具**：
+
+- `canvas_session_list({ limit?, query? })` → 列本 scope 的历史会话（`sessionId` / 日期 / 消息数 / 首条用户消息预览）；`query` 可选，按预览关键词过滤。数据：`getCurrentSession()` + `listArchivedSessions()`（`session-store.ts:133`）。
+- `canvas_session_read({ sessionId, maxMessages?, includeToolCalls? })` → 读该会话逐字消息并裁成摘录（参照 remote-server `session-summary.ts` 的 `summarizeContent`/`trimText`）。数据：静态只读 `SessionStore.readSessionFromWorkspace(workspaceId, sessionId)`（`session-store.ts:365`），**不污染当前会话态**（不要用会改状态的 `loadSession`）。
+
+**读哪些 session**：主要是**过去/已归档**会话；当前会话近几轮已在上下文里（除非被 compaction 掉）。
+
+**组合用法**：`canvas_memory_recall` 命中的每条都带 `sessionId` → agent 拿去 `canvas_session_read` 翻当次全文，即"**语义记忆当索引、SessionStore 当全文库**"。
+
+**边界**：
+- 工具闭包捕获 `workspaceId`（来自 `scope`）；全局聊天 agent（`kind:'global'`）的会话在 `__global_chat__` 存储区，list/read 用该 id。
+- 仅读本 agent scope（workspace 或 global）的会话；跨 workspace 读取（静态 `listAllWorkspaceSessions`）留后续。
+- `sessionId` 只接受工具输出/用户输入的可信值，不允许模型编造（参照 `session-summary.ts:17` 的 schema 注释）。
 
 ---
 
@@ -196,12 +224,19 @@ apps/canvas-workspace/src/main/agent/memory/
 └── index.ts                   # 汇总导出
 ```
 
+会话检索工具（不依赖 memory 插件，纯读 SessionStore）：
+
+```
+apps/canvas-workspace/src/main/agent/tools/
+└── session-retrieval.ts       # createSessionRetrievalTools({ scope }) → canvas_session_list / canvas_session_read
+```
+
 ### 改动文件
 
 | 文件 | 改动 |
 |---|---|
 | `apps/canvas-workspace/package.json` | 加依赖 `"pulse-coder-memory-plugin": "workspace:*"` |
-| `src/main/agent/canvas-agent.ts` | `buildEngine()`(:651) 合并 memory 工具；`chat()`(:811) 前轻量注入；`chat()`(:970 后) 调 `sedimentTurn` |
+| `src/main/agent/canvas-agent.ts` | `buildEngine()`(:651) 合并 memory + 会话检索工具；`chat()`(:811) systemPrompt 追加工具使用策略文案；`chat()`(:970 后) 调 `sedimentTurn` |
 | `src/main/agent/service.ts` | 确保启动时 `initCanvasMemory()`（或在主进程 bootstrap 调用） |
 | 主进程入口 | 启动时 `await initCanvasMemory()` |
 | `src/main/agent/types.ts` | 如需，扩展 config（可选，工具走闭包则无需） |
@@ -215,6 +250,16 @@ canvas_memory_recall: {
 }
 canvas_memory_record:  { input: { content: string; kind?: 'preference'|'rule'|'fix'|'profile' } } // → workspace 桶
 canvas_memory_promote: { input: { content: string; kind?: 'rule'|'profile'|'soul' } }             // → global 桶
+```
+
+会话检索（只读 SessionStore，不写 memory）：
+
+```ts
+canvas_session_list: { input: { limit?: number; query?: string } }
+// 返回 [{ sessionId, date, messageCount, preview }]；query 按预览关键词过滤
+
+canvas_session_read: { input: { sessionId: string; maxMessages?: number; includeToolCalls?: boolean } }
+// 返回该会话裁剪后的逐字摘录；sessionId 只接受可信来源
 ```
 
 ---
@@ -248,8 +293,9 @@ canvas_memory_promote: { input: { content: string; kind?: 'rule'|'profile'|'soul
 - **Phase 1（MVP，检索侧闭环）**
   - 加依赖 + 单例 service + `keys.ts` + `canvas-memory.ts`。
   - 每轮自动沉淀到 workspace 桶。
-  - `canvas_memory_recall`（支持 session/workspace/global/all）+ 轻量注入。
-  - `canvas_memory_promote`（全局显式提升）。
+  - memory 工具：`canvas_memory_recall`（session/workspace/global/all）+ `canvas_memory_record` + `canvas_memory_promote`（全局显式提升）。
+  - 会话检索：`canvas_session_list` + `canvas_session_read`（只读 SessionStore，不写 memory）。
+  - systemPrompt 追加工具使用策略文案（**不**注入记忆内容）。
   - 单测 + 一个 tmp-dir 集成测试。
 - **Phase 2（体验）**
   - UI：记忆面板、"提升为全局"按钮、pin/forget、会话记忆开关（IPC + preload + renderer）。
@@ -264,6 +310,7 @@ canvas_memory_promote: { input: { content: string; kind?: 'rule'|'profile'|'soul
 ## 11. 测试方案（vitest）
 
 - **单元**：`memoryKeysForScope` 映射；跨桶合并去重 + 重排；session 过滤正确性。
+- **会话检索**：临时 SessionStore（current + archive）下，`canvas_session_list` 返回正确候选与预览；`canvas_session_read` 按 `sessionId` 取回逐字摘录，且**不修改当前会话态**。
 - **集成**（tmp `baseDir`）：
   1. 起一个 workspace `CanvasAgent`，跑 2 轮对话 → 断言 workspace 桶可召回上轮事实；session 过滤只返回本会话条目。
   2. `global` 桶在 `promote` 前为空，`promote` 后可召回。
@@ -276,8 +323,9 @@ canvas_memory_promote: { input: { content: string; kind?: 'rule'|'profile'|'soul
 
 1. **注入策略** → **纯工具按需**：不自动注入记忆内容，仅追加固定的工具使用策略文案。
 2. **`canvas_memory_record` 归属** → agent 主动记**只写 workspace 桶**；进全局必须走 `canvas_memory_promote`。
-3. **UI 入口** → Phase 1 **仅 agent 工具**（recall / record / promote）；记忆面板、提升按钮、pin/forget 等 UI 放 Phase 2。
+3. **UI 入口** → Phase 1 **仅 agent 工具**（memory: recall / record / promote；会话检索: session_list / session_read）；记忆面板、提升按钮、pin/forget 等 UI 放 Phase 2。
 4. **embedding 默认** → **离线 hash**（零依赖 / 零成本 / 不外发）；设 `MEMORY_EMBEDDING_API_KEY` 等环境变量则自动切 OpenAI。
+5. **会话检索（session 粒度）** → 拆分版 `canvas_session_list` + `canvas_session_read`，**只读 SessionStore、只返回不写 memory**；与 `canvas_memory_recall`（蒸馏记忆）互补。
 
 ---
 
