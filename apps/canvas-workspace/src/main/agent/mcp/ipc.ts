@@ -23,6 +23,7 @@ import {
   getCanvasMcpStatus,
   importCanvasMcpJson,
   removeCanvasMcpServer,
+  setCanvasMcpToolEnabled,
   upsertCanvasMcpServer,
   type CanvasMcpServer,
   type CanvasMcpStatus,
@@ -86,6 +87,20 @@ export function setupCanvasMcpIpc(): void {
         const result = await importCanvasMcpJson(scope, payload.json);
         await reloadAgents(scope);
         return { ok: true, ...result, status: withStatuses(result.status, scope) };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-mcp:set-tool-enabled',
+    async (_event, payload: { scope?: unknown; name: string; tool: string; enabled: boolean }) => {
+      try {
+        const scope = parseScopePayload(payload?.scope);
+        const status = await setCanvasMcpToolEnabled(scope, payload.name, payload.tool, payload.enabled);
+        await reloadAgents(scope);
+        return { ok: true, status: withStatuses(status, scope) };
       } catch (err) {
         return { ok: false, error: String(err) };
       }

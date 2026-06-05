@@ -25,10 +25,19 @@ export interface CanvasMcpServer {
   env?: Record<string, string>;
   cwd?: string;
   deferTools?: boolean;
+  /** Bare tool names the user has turned off; the engine skips registering these. */
+  disabledTools?: string[];
+}
+
+/** One tool exposed by a connected MCP server, with its enabled state. */
+export interface CanvasMcpToolInfo {
+  name: string;
+  description?: string;
+  enabled: boolean;
 }
 
 export type CanvasMcpServerHealth =
-  | { ok: true; toolCount: number }
+  | { ok: true; toolCount: number; tools?: CanvasMcpToolInfo[] }
   | { ok: false; error: string };
 
 export interface CanvasMcpStatus {
@@ -80,6 +89,8 @@ function normalizeServer(server: CanvasMcpServer): { name: string; config: Recor
 
   const config: Record<string, unknown> = { transport };
   if (server.deferTools === true) config.deferTools = true;
+  const disabledTools = normalizeStringArray(server.disabledTools);
+  if (disabledTools) config.disabledTools = disabledTools;
 
   if (transport === 'http' || transport === 'sse') {
     const url = normalizeStr(server.url);
@@ -107,6 +118,8 @@ function readServer(name: string, raw: Record<string, unknown>): CanvasMcpServer
   const transport = (normalizeStr(raw.transport).toLowerCase() || 'http') as CanvasMcpTransport;
   const server: CanvasMcpServer = { name, transport };
   if (raw.deferTools === true) server.deferTools = true;
+  const disabledTools = normalizeStringArray(raw.disabledTools);
+  if (disabledTools) server.disabledTools = disabledTools;
   if (transport === 'stdio') {
     server.command = normalizeStr(raw.command);
     const args = normalizeStringArray(raw.args);
@@ -177,6 +190,44 @@ export async function removeCanvasMcpServer(
   return getCanvasMcpStatus(scope);
 }
 
+/**
+ * Toggle a single tool on a server by maintaining its `disabledTools` list.
+ * Enabling drops the tool from the list (clearing it entirely when empty);
+ * disabling adds it. The engine re-reads this on its next reload and skips
+ * registering disabled tools, so the agent stops seeing them.
+ */
+export async function setCanvasMcpToolEnabled(
+  scope: CanvasConfigScope,
+  serverName: string,
+  toolName: string,
+  enabled: boolean,
+): Promise<CanvasMcpStatus> {
+  const key = normalizeStr(serverName);
+  const tool = normalizeStr(toolName);
+  if (!key) throw new Error('MCP server name is required');
+  if (!tool) throw new Error('Tool name is required');
+
+  const file = await readFile(scope);
+  const servers = { ...(file.servers ?? {}) };
+  const raw = servers[key];
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error(`MCP server "${key}" not found`);
+  }
+
+  const current = normalizeStringArray((raw as Record<string, unknown>).disabledTools) ?? [];
+  const next = new Set(current);
+  if (enabled) next.delete(tool);
+  else next.add(tool);
+
+  const updated: Record<string, unknown> = { ...(raw as Record<string, unknown>) };
+  if (next.size > 0) updated.disabledTools = Array.from(next).sort();
+  else delete updated.disabledTools;
+  servers[key] = updated;
+
+  await writeFile(scope, { servers });
+  return getCanvasMcpStatus(scope);
+}
+
 // ─── JSON import ──────────────────────────────────────────────────────
 //
 // Accepts two shapes:
@@ -229,6 +280,8 @@ function rawToServer(name: string, raw: Record<string, unknown>): CanvasMcpServe
   const transport = inferTransport(raw);
   const server: CanvasMcpServer = { name, transport };
   if (raw.deferTools === true) server.deferTools = true;
+  const disabledTools = normalizeStringArray(raw.disabledTools);
+  if (disabledTools) server.disabledTools = disabledTools;
   if (transport === 'stdio') {
     if (typeof raw.command === 'string') server.command = raw.command;
     if (Array.isArray(raw.args)) {

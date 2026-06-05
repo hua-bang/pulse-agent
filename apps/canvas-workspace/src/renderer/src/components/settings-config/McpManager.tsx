@@ -120,16 +120,61 @@ const HealthBadge = ({ health, t }: HealthBadgeProps) => {
     return <span className="cfg-health cfg-health--unknown">{t('mcpConfig.healthUnknown')}</span>;
   }
   if (health.ok) {
-    return (
-      <span className="cfg-health cfg-health--ok">
-        ✓ {t('mcpConfig.healthOk', { count: health.toolCount })}
-      </span>
-    );
+    // When some tools are disabled, surface "enabled/total" so the count
+    // doesn't look like the server simply exposes fewer tools.
+    const total = health.tools?.length ?? health.toolCount;
+    const label =
+      health.tools && total !== health.toolCount
+        ? t('mcpConfig.healthOkPartial', { enabled: health.toolCount, total })
+        : t('mcpConfig.healthOk', { count: health.toolCount });
+    return <span className="cfg-health cfg-health--ok">✓ {label}</span>;
   }
   return (
     <span className="cfg-health cfg-health--err" title={health.error}>
       ⚠ {health.error.length > 40 ? `${health.error.slice(0, 40)}…` : health.error}
     </span>
+  );
+};
+
+interface ToolsListProps {
+  health: CanvasMcpServerHealth | undefined;
+  /** Read-only (inherited/global) rows show tools but cannot toggle them here. */
+  readOnly?: boolean;
+  /** Returns true while the given tool is mid-toggle (awaiting engine reload). */
+  isBusy?: (toolName: string) => boolean;
+  onToggle?: (toolName: string, enabled: boolean) => void;
+  t: (key: any, params?: any) => string;
+}
+
+const ToolsList = ({ health, readOnly, isBusy, onToggle, t }: ToolsListProps) => {
+  if (!health || !health.ok || !health.tools) {
+    // No snapshot yet (server not loaded) or it failed to connect — nothing to list.
+    return <div className="cfg-tools-empty">{t('mcpConfig.toolsUnavailable')}</div>;
+  }
+  if (health.tools.length === 0) {
+    return <div className="cfg-tools-empty">{t('mcpConfig.toolsNone')}</div>;
+  }
+  return (
+    <ul className="cfg-tools-list">
+      {health.tools.map((tool) => (
+        <li key={tool.name} className={`cfg-tool${tool.enabled ? '' : ' cfg-tool--off'}`}>
+          <label className="cfg-tool-toggle">
+            <input
+              type="checkbox"
+              checked={tool.enabled}
+              disabled={readOnly || isBusy?.(tool.name)}
+              onChange={(e) => onToggle?.(tool.name, e.target.checked)}
+            />
+            <span className="cfg-tool-name">{tool.name}</span>
+          </label>
+          {tool.description && (
+            <span className="cfg-tool-desc" title={tool.description}>
+              {tool.description}
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 };
 
@@ -145,6 +190,10 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
   const [saving, setSaving] = useState(false);
   const [jsonText, setJsonText] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  // Server names whose tool list is expanded, and the `${server}::${tool}` key
+  // currently mid-toggle (so we can disable just that one checkbox).
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [busyTool, setBusyTool] = useState<string | null>(null);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
   const inheritedEnabled = showInherited && scope.level === 'workspace';
 
@@ -218,6 +267,21 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
       else notify({ tone: 'error', title: res.error ?? t('mcpConfig.loadFailed') });
     },
     [scope, notify, t, applyStatus],
+  );
+
+  const toggleTool = useCallback(
+    async (serverName: string, toolName: string, enabled: boolean) => {
+      const key = `${serverName}::${toolName}`;
+      setBusyTool(key);
+      try {
+        const res = await window.canvasWorkspace.canvasMcp.setToolEnabled(scope, serverName, toolName, enabled);
+        if (res.ok && res.status) applyStatus(res.status);
+        else notify({ tone: 'error', title: res.error ?? t('mcpConfig.toolUpdateFailed') });
+      } finally {
+        setBusyTool(null);
+      }
+    },
+    [scope, applyStatus, notify, t],
   );
 
   const importJson = useCallback(async () => {
@@ -437,25 +501,49 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         <div className="cfg-empty">{t('mcpConfig.empty')}</div>
       ) : (
         <ul className="cfg-list">
-          {servers.map((server) => (
-            <li key={server.name} className="cfg-list-item">
-              <div className="cfg-list-main">
-                <div className="cfg-list-title">
-                  {server.name} <span className="cfg-tag">{server.transport}</span>
-                  <HealthBadge health={statuses[server.name]} t={t} />
+          {servers.map((server) => {
+            const isOpen = !!expanded[server.name];
+            return (
+              <li key={server.name} className="cfg-list-entry">
+                <div className="cfg-list-item">
+                  <button
+                    type="button"
+                    className="cfg-expander"
+                    aria-expanded={isOpen}
+                    title={t(isOpen ? 'mcpConfig.collapseTools' : 'mcpConfig.expandTools')}
+                    onClick={() => setExpanded((prev) => ({ ...prev, [server.name]: !prev[server.name] }))}
+                  >
+                    {isOpen ? '▾' : '▸'}
+                  </button>
+                  <div className="cfg-list-main">
+                    <div className="cfg-list-title">
+                      {server.name} <span className="cfg-tag">{server.transport}</span>
+                      <HealthBadge health={statuses[server.name]} t={t} />
+                    </div>
+                    <div className="cfg-list-desc">{server.transport === 'stdio' ? server.command : server.url}</div>
+                  </div>
+                  <div className="cfg-list-actions">
+                    <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(serverToDraft(server))}>
+                      {t('mcpConfig.edit')}
+                    </button>
+                    <button type="button" className="cfg-danger-btn" onClick={() => void remove(server.name)}>
+                      {t('mcpConfig.delete')}
+                    </button>
+                  </div>
                 </div>
-                <div className="cfg-list-desc">{server.transport === 'stdio' ? server.command : server.url}</div>
-              </div>
-              <div className="cfg-list-actions">
-                <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(serverToDraft(server))}>
-                  {t('mcpConfig.edit')}
-                </button>
-                <button type="button" className="cfg-danger-btn" onClick={() => void remove(server.name)}>
-                  {t('mcpConfig.delete')}
-                </button>
-              </div>
-            </li>
-          ))}
+                {isOpen && (
+                  <div className="cfg-tools">
+                    <ToolsList
+                      health={statuses[server.name]}
+                      isBusy={(tool) => busyTool === `${server.name}::${tool}`}
+                      onToggle={(tool, enabled) => void toggleTool(server.name, tool, enabled)}
+                      t={t}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -470,25 +558,42 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
           <ul className="cfg-list cfg-list--scrollable">
             {inherited.map((server) => {
               const overridden = servers.some((s) => s.name === server.name);
+              const expandKey = `global::${server.name}`;
+              const isOpen = !!expanded[expandKey];
               return (
-                <li
-                  key={server.name}
-                  className={`cfg-list-item cfg-list-item--readonly${overridden ? ' cfg-list-item--shadowed' : ''}`}
-                >
-                  <div className="cfg-list-main">
-                    <div className="cfg-list-title">
-                      {server.name} <span className="cfg-tag">{server.transport}</span>
-                      <span className="cfg-tag">global</span>
-                      <HealthBadge health={inheritedStatuses[server.name]} t={t} />
+                <li key={server.name} className="cfg-list-entry">
+                  <div
+                    className={`cfg-list-item cfg-list-item--readonly${overridden ? ' cfg-list-item--shadowed' : ''}`}
+                  >
+                    <button
+                      type="button"
+                      className="cfg-expander"
+                      aria-expanded={isOpen}
+                      title={t(isOpen ? 'mcpConfig.collapseTools' : 'mcpConfig.expandTools')}
+                      onClick={() => setExpanded((prev) => ({ ...prev, [expandKey]: !prev[expandKey] }))}
+                    >
+                      {isOpen ? '▾' : '▸'}
+                    </button>
+                    <div className="cfg-list-main">
+                      <div className="cfg-list-title">
+                        {server.name} <span className="cfg-tag">{server.transport}</span>
+                        <span className="cfg-tag">global</span>
+                        <HealthBadge health={inheritedStatuses[server.name]} t={t} />
+                      </div>
+                      <div className="cfg-list-desc">
+                        {server.transport === 'stdio' ? server.command : server.url}
+                      </div>
                     </div>
-                    <div className="cfg-list-desc">
-                      {server.transport === 'stdio' ? server.command : server.url}
-                    </div>
+                    {overridden && (
+                      <span className="cfg-shadow-warn" title={t('mcpConfig.inheritedOverridden')}>
+                        ⚠ {t('mcpConfig.inheritedOverridden')}
+                      </span>
+                    )}
                   </div>
-                  {overridden && (
-                    <span className="cfg-shadow-warn" title={t('mcpConfig.inheritedOverridden')}>
-                      ⚠ {t('mcpConfig.inheritedOverridden')}
-                    </span>
+                  {isOpen && (
+                    <div className="cfg-tools">
+                      <ToolsList health={inheritedStatuses[server.name]} readOnly t={t} />
+                    </div>
                   )}
                 </li>
               );

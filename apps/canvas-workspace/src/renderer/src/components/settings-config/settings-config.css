@@ -354,6 +354,111 @@ select.cfg-input {
   font-weight: 600;
 }
 
+/* ─── Expandable per-server tool list ─────────────────────────── */
+
+/* Each server row becomes a column: the existing `.cfg-list-item` row plus
+ * an optional `.cfg-tools` panel below it. */
+.cfg-list-entry {
+  display: flex;
+  flex-direction: column;
+}
+
+.cfg-expander {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-left: -2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: rgba(55, 53, 47, 0.4);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.cfg-expander:hover {
+  background: rgba(55, 53, 47, 0.07);
+  color: #37352f;
+}
+
+.cfg-tools {
+  padding: 0 12px 8px 34px;
+}
+
+.cfg-tools-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cfg-tool {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.cfg-tool:hover {
+  background: rgba(55, 53, 47, 0.03);
+}
+
+.cfg-tool-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.cfg-tool-toggle input {
+  accent-color: #2383e2;
+  cursor: pointer;
+}
+
+.cfg-tool-toggle input:disabled {
+  cursor: default;
+}
+
+.cfg-tool-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #37352f;
+}
+
+.cfg-tool--off .cfg-tool-name {
+  color: rgba(55, 53, 47, 0.4);
+  text-decoration: line-through;
+}
+
+.cfg-tool-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: rgba(55, 53, 47, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.cfg-tools-empty {
+  font-size: 11.5px;
+  color: rgba(55, 53, 47, 0.45);
+  padding: 2px 6px 6px;
+}
+
 /* ─── Inherited (global) skills surfaced inside a workspace panel ─ */
 
 .cfg-inherited {

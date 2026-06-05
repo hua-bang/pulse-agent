@@ -49,7 +49,10 @@ export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
     ipcRenderer.invoke("canvas-mcp:remove", { scope, name }),
 
   importJson: (scope, json) =>
-    ipcRenderer.invoke("canvas-mcp:import-json", { scope, json })
+    ipcRenderer.invoke("canvas-mcp:import-json", { scope, json }),
+
+  setToolEnabled: (scope, name, tool, enabled) =>
+    ipcRenderer.invoke("canvas-mcp:set-tool-enabled", { scope, name, tool, enabled })
 });
 
 export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi => ({

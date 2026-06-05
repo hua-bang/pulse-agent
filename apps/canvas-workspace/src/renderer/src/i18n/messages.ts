@@ -548,6 +548,7 @@ const en = {
   'mcpConfig.dirHint': 'Stored at {path}',
   'mcpConfig.loadFailed': 'Failed to load MCP servers.',
   'mcpConfig.healthOk': '{count} tools',
+  'mcpConfig.healthOkPartial': '{enabled}/{total} tools',
   'mcpConfig.healthUnknown': 'not loaded',
   'mcpConfig.savedOk': '"{name}" connected — {count} tools available.',
   'mcpConfig.savedErr': '"{name}" saved but failed to connect.',
@@ -561,6 +562,11 @@ const en = {
   'mcpConfig.importing': 'Importing...',
   'mcpConfig.importDone': 'Added {added}, replaced {replaced}, skipped {skipped}.',
   'mcpConfig.importFailed': 'Import failed',
+  'mcpConfig.expandTools': 'Show tools',
+  'mcpConfig.collapseTools': 'Hide tools',
+  'mcpConfig.toolsUnavailable': 'Connect the server to list its tools.',
+  'mcpConfig.toolsNone': 'This server exposes no tools.',
+  'mcpConfig.toolUpdateFailed': 'Failed to update tool.',
 } as const;
 
 const zh: Record<keyof typeof en, string> = {
@@ -1100,6 +1106,7 @@ const zh: Record<keyof typeof en, string> = {
   'mcpConfig.dirHint': '保存于 {path}',
   'mcpConfig.loadFailed': '加载 MCP 服务失败。',
   'mcpConfig.healthOk': '{count} 个工具',
+  'mcpConfig.healthOkPartial': '{enabled}/{total} 个工具',
   'mcpConfig.healthUnknown': '未加载',
   'mcpConfig.savedOk': '“{name}”已连接 — 提供 {count} 个工具。',
   'mcpConfig.savedErr': '“{name}”已保存但连接失败。',
@@ -1113,6 +1120,11 @@ const zh: Record<keyof typeof en, string> = {
   'mcpConfig.importing': '导入中……',
   'mcpConfig.importDone': '新增 {added} 个,覆盖 {replaced} 个,跳过 {skipped} 个。',
   'mcpConfig.importFailed': '导入失败',
+  'mcpConfig.expandTools': '显示工具',
+  'mcpConfig.collapseTools': '隐藏工具',
+  'mcpConfig.toolsUnavailable': '连接服务后可查看其工具。',
+  'mcpConfig.toolsNone': '该服务未提供任何工具。',
+  'mcpConfig.toolUpdateFailed': '更新工具失败。',
 };
 
 export const messages = {
