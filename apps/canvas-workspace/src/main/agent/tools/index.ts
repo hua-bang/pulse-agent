@@ -5,6 +5,7 @@ import { createNodeTools } from './nodes';
 import { createSearchTools } from './search';
 import { createGroupTools } from './groups';
 import { createWorkspaceNodeTools } from './workspace-nodes';
+import { createKnowledgeTools } from './knowledge';
 import { createAgentTools } from './agents';
 import { createTerminalTools } from './terminals';
 import { createShapeTools } from './shapes';
@@ -54,6 +55,11 @@ export function createGlobalReadOnlyCanvasTools(): Record<string, CanvasTool> {
     canvas_list_edges: requireWorkspaceId(edgeTools.canvas_list_edges),
     workspace_node_list: requireWorkspaceId(workspaceNodeTools.workspace_node_list),
     workspace_node_get: requireWorkspaceId(workspaceNodeTools.workspace_node_get),
+    // Cross-workspace knowledge index. These inherently span every workspace
+    // (workspaceId is optional), so they are NOT wrapped with requireWorkspaceId
+    // and stay eager — global chat must see them up front to read local
+    // workspaces / tags / nodes instead of reaching for an external MCP server.
+    ...createKnowledgeTools(),
   };
 }
 
@@ -63,6 +69,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createSearchTools(workspaceId),
     ...createGroupTools(workspaceId),
     ...createWorkspaceNodeTools(workspaceId),
+    ...createKnowledgeTools(),
     ...createAgentTools(workspaceId),
     ...createTerminalTools(workspaceId),
     ...createShapeTools(workspaceId),
