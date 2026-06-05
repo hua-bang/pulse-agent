@@ -38,12 +38,12 @@ describe('ensureDefaultSkillsSeeded', () => {
     const skills = await listCanvasSkills({ level: 'global' });
     const byName = Object.fromEntries(skills.map((s) => [s.name, s]));
 
-    expect(Object.keys(byName).sort()).toEqual(['promote-skill', 'save-as-skill', 'tag-nodes']);
+    expect(Object.keys(byName).sort()).toEqual(['promote-skill', 'save-as-skill', 'suggest-tags']);
     expect(byName['save-as-skill'].description).toMatch(/save.*conversation|reusable skill/i);
     expect(byName['save-as-skill'].body).toMatch(/canvas_save_skill/);
     expect(byName['promote-skill'].body).toMatch(/canvas_promote_skill/);
-    expect(byName['tag-nodes'].body).toMatch(/canvas_tag_node/);
-    expect(byName['tag-nodes'].body).toMatch(/canvas_list_nodes/);
+    expect(byName['suggest-tags'].body).toMatch(/canvas_tag_node/);
+    expect(byName['suggest-tags'].body).toMatch(/canvas_list_nodes/);
     expect(byName['save-as-skill'].scope).toBe('global');
   });
 

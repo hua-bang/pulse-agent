@@ -2,7 +2,7 @@
  * Seeds the bundled default skills.
  *
  * `save-as-skill` / `promote-skill` are meta-skills for in-chat skill
- * management; `tag-nodes` drives the "find which nodes should carry a tag,
+ * management; `suggest-tags` drives the "find which nodes should carry a tag,
  * then batch-apply it" workflow. All three are plain SKILL.md files in the
  * global scope — the agent's behavior is defined by these (user-editable)
  * markdown files, not by hard-coded prompts. Each one leans on a companion
@@ -79,12 +79,12 @@ Use this when the user wants a workspace-only skill to be available across every
 `,
 };
 
-const TAG_NODES: DefaultSkill = {
-  slug: 'tag-nodes',
-  name: 'tag-nodes',
+const SUGGEST_TAGS: DefaultSkill = {
+  slug: 'suggest-tags',
+  name: 'suggest-tags',
   description:
     'When the user wants to find which nodes should carry a tag (e.g. 「帮我看看哪些节点可以打上 [AI]」 / "which notes should be tagged RAG?"), audit nodes that are missing tags, or batch-apply a tag across the canvas — use this to scan the local workspaces, propose candidates, confirm with the user, then apply with canvas_tag_node.',
-  body: `# tag-nodes
+  body: `# suggest-tags
 
 Use this when the user wants to **find which nodes should carry a tag**, **audit nodes that have no tags**, or **apply a tag across the canvas** — e.g. 「帮我看看哪些节点可以打上 [AI]」, "which notes should be tagged RAG?", 「哪些节点还没打标签?」.
 
@@ -124,7 +124,7 @@ Works in global chat (the whole system) and inside a single workspace. It only t
 `,
 };
 
-const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, TAG_NODES];
+const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, SUGGEST_TAGS];
 
 function serialize(skill: DefaultSkill): string {
   return [
