@@ -51,12 +51,32 @@ async function loadCanvasNodes(workspaceId: string): Promise<Map<string, CanvasN
   }
 }
 
-/** First non-empty line, lightly de-marked and capped — for nodes that keep prose in `data`. */
+/**
+ * Strip HTML tags + decode a minimal set of entities and collapse whitespace.
+ * Text/iframe nodes keep tiptap/HTML in `data`, so a raw preview would show
+ * "<p>…" / "<strong>…" / "&gt;" — this turns it into readable prose.
+ */
+function stripHtml(value: string): string {
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Short, de-marked, HTML-stripped preview — for nodes that keep prose in `data`. */
 function firstLinePreview(content: unknown, max = 48): string {
   if (typeof content !== 'string') return '';
-  const line = content.split(/\r?\n/).map((s) => s.trim()).find((s) => s.length > 0);
-  if (!line) return '';
-  const stripped = line
+  const text = stripHtml(content);
+  if (!text) return '';
+  const stripped = text
     .replace(/^#{1,6}\s+/, '')
     .replace(/^[-*+]\s+/, '')
     .replace(/^>\s+/, '')
@@ -126,10 +146,9 @@ function toListItem(record: WorkspaceNodeRecord, canvasNodes: Map<string, Canvas
   // The record's own data is often empty (e.g. tag-only records), so fall back
   // to the canvas node's content for a useful summary.
   const canvasContent = stringFromUnknown(canvasNode?.data?.content);
-  const summary =
-    summaryFromRecord(record) ||
-    (canvasContent ? canvasContent.replace(/\s+/g, ' ').trim().slice(0, 160) : '') ||
-    stringFromUnknown(canvasNode?.data?.url);
+  const rawSummary =
+    summaryFromRecord(record) || canvasContent || stringFromUnknown(canvasNode?.data?.url);
+  const summary = stripHtml(rawSummary).slice(0, 160);
   return {
     id: record.id,
     type: record.type,
