@@ -72,14 +72,13 @@ describe('parseInbound', () => {
     expect(out!.isDirect).toBe(false);
   });
 
-  it('group text with an @ marker is accepted even when mentions are omitted', () => {
+  it('group text with only a bare @word (no at-tag, no mentions) is ignored', () => {
+    // A user typing "@someone" literally is not a structured bot mention, so
+    // the bot must stay silent rather than treating any @-text as a ping.
     const out = parseInbound(
       event({ chatType: 'group', chatId: 'gA', mentions: undefined, text: '@bot 晚上好' }),
     );
-    expect(out).not.toBeNull();
-    expect(out!.text).toBe('晚上好');
-    expect(out!.isMention).toBe(false);
-    expect(out!.isDirect).toBe(false);
+    expect(out).toBeNull();
   });
 
   it('topic group text with an at tag is accepted even when mentions are omitted', () => {

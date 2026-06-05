@@ -60,7 +60,9 @@ relaunch (the flag is read at plugin registration time).
    panel offers a "Relaunch now" button after saving.
 
 In a **direct chat** the bot replies to every message. In a **group chat**
-it only responds when @-mentioned.
+it only responds when @-mentioned — a *structured* Feishu mention (the
+`mentions` array or an `<at …>` marker), not bare "@word" text a user typed,
+so mentioning another person never wakes the bot.
 
 > Availability: the bridge runs inside the desktop app, so it responds while
 > the machine is awake (screen off / locked / app in background are all
@@ -160,7 +162,7 @@ activation on tool failure is a possible follow-up.
 ### Run watchdog (idle vs. in-flight tools)
 
 A run is killed if it makes no progress, so a stuck agent can't wedge the
-chat. Two budgets apply:
+chat. Three budgets apply:
 
 - **Idle budget** (`CANVAS_CHANNEL_RUN_IDLE_TIMEOUT_MS`, default 120 000):
   max time with *no* streaming activity at all (no text, tool, or
@@ -171,8 +173,12 @@ chat. Two budgets apply:
   command). While a tool is in flight the run is **not** killed on the idle
   budget — only this larger one — so legitimately slow tools aren't aborted
   mid-call. Floored at the idle budget.
-
-While the run is awaiting a clarification answer, neither budget applies.
+- **Clarification budget** (`CANVAS_CHANNEL_CLARIFICATION_TIMEOUT_MS`,
+  default 600 000): while the run is parked waiting for the user to answer a
+  clarification question, the idle/tool budgets are suspended but this one
+  applies, so an unanswered question can't pin the scope forever. If the
+  question itself fails to send, the run fails immediately instead of waiting
+  this out — a question the user never received can't be answered.
 
 ### Debugging
 

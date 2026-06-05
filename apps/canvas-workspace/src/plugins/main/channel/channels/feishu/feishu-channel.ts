@@ -330,6 +330,9 @@ export class FeishuStream implements ChannelStream {
       );
     } catch (err) {
       console.error('[channel:feishu] failed to send clarification', err);
+      // Re-throw so the bridge can fail the run: a question the user never
+      // received can never be answered, and parking it would pin the scope.
+      throw err;
     }
   }
 
@@ -526,8 +529,10 @@ function mentionString(mention: unknown, key: 'key' | 'name'): string | null {
 
 function hasMentionMarker(text: string): boolean {
   // Feishu text events normally include `mentions`, but topic groups can omit
-  // it while still leaving a visible/textual at-marker in content.
-  return /<at\b/i.test(text) || /(^|\s)@\S+/.test(text);
+  // it while still leaving the structured `<at …>` marker in content. We match
+  // ONLY that marker — a bare "@word" is just literal text a user typed (e.g.
+  // "@someone-else") and must not make the bot respond in a group.
+  return /<at\b/i.test(text);
 }
 
 function stripMentionText(text: string, mentions: unknown[]): string {

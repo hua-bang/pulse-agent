@@ -27,6 +27,13 @@ const RUN_IDLE_TIMEOUT_ENV = 'CANVAS_CHANNEL_RUN_IDLE_TIMEOUT_MS';
 const DEFAULT_TOOL_EXEC_TIMEOUT_MS = 5 * 60_000;
 const TOOL_EXEC_TIMEOUT_ENV = 'CANVAS_CHANNEL_TOOL_EXEC_TIMEOUT_MS';
 
+// How long to keep a run alive waiting for the user to answer a clarification
+// question. Unlike the idle budget this is bounded — otherwise a question that
+// was never delivered (or simply ignored) would pin the scope forever, so no
+// other message to it could ever run.
+const DEFAULT_CLARIFICATION_TIMEOUT_MS = 10 * 60_000;
+const CLARIFICATION_TIMEOUT_ENV = 'CANVAS_CHANNEL_CLARIFICATION_TIMEOUT_MS';
+
 /**
  * Channel-agnostic orchestration. Receives normalized inbound messages from
  * any number of channels, resolves the target agent scope, and drives the
@@ -39,12 +46,13 @@ const TOOL_EXEC_TIMEOUT_ENV = 'CANVAS_CHANNEL_TOOL_EXEC_TIMEOUT_MS';
 export class ChannelBridge {
   private readonly bindings: BindingStore;
   private readonly sessions: SessionRouter;
-  private readonly dedupe = new MessageDedupe();
+  private readonly dedupe: MessageDedupe;
   private readonly activeRuns = new Map<string, ActiveRun>();
   private readonly channels = new Map<string, Channel>();
   private readonly activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
   private readonly runIdleTimeoutMs: number;
   private readonly toolExecTimeoutMs: number;
+  private readonly clarificationTimeoutMs: number;
 
   constructor(
     private readonly service: CanvasAgentServiceRef,
@@ -53,10 +61,14 @@ export class ChannelBridge {
       activateCanvas?: (workspaceId: string) => Promise<{ ok: boolean; error?: string }>;
       runIdleTimeoutMs?: number;
       toolExecTimeoutMs?: number;
+      clarificationTimeoutMs?: number;
     } = {},
   ) {
     this.bindings = new BindingStore(store);
     this.sessions = new SessionRouter(service, store);
+    // Persist dedupe so a redelivered event that straddles a restart isn't
+    // processed twice.
+    this.dedupe = new MessageDedupe(500, { store, storeKey: 'dedupe' });
     this.activateCanvas = options.activateCanvas;
     this.runIdleTimeoutMs =
       options.runIdleTimeoutMs ??
@@ -68,6 +80,10 @@ export class ChannelBridge {
         readPositiveIntegerEnv(TOOL_EXEC_TIMEOUT_ENV) ??
         DEFAULT_TOOL_EXEC_TIMEOUT_MS,
     );
+    this.clarificationTimeoutMs =
+      options.clarificationTimeoutMs ??
+      readPositiveIntegerEnv(CLARIFICATION_TIMEOUT_ENV) ??
+      DEFAULT_CLARIFICATION_TIMEOUT_MS;
   }
 
   /** Register and start a channel, wiring its inbound traffic to this bridge. */
@@ -91,6 +107,7 @@ export class ChannelBridge {
   }
 
   private async handleInbound(channel: Channel, msg: InboundMessage): Promise<void> {
+    await this.dedupe.ensureLoaded();
     if (!this.dedupe.accept(msg.messageId)) return;
 
     const target = { conversationId: msg.conversationId, reply: msg.reply };
@@ -208,6 +225,9 @@ export class ChannelBridge {
     // tool-exec budget instead of tripping the idle watchdog mid-tool.
     let toolsInFlight = 0;
     let toolWorkStartedAt = 0;
+    // When set, the run is parked waiting for the user to answer a question.
+    let clarificationStartedAt = 0;
+    let settleWatchdog: ((result: AgentChatResult) => void) | null = null;
 
     const markAgentActivity = (): void => {
       lastAgentActivityAt = Date.now();
@@ -224,18 +244,38 @@ export class ChannelBridge {
       markAgentActivity();
     };
 
+    // End the run early with an error, aborting the underlying agent. Used by
+    // the watchdog and by the clarification-delivery-failure path.
+    const failRun = (message: string): void => {
+      if (finished) return;
+      console.warn(`[channel:${channel.id}] ${message}`);
+      this.service.abortScope(scope);
+      settleWatchdog?.({ ok: false, error: message });
+    };
+
     const idleTimeout = new Promise<AgentChatResult>((resolve) => {
-      const stop = (message: string): void => {
-        console.warn(`[channel:${channel.id}] ${message}`);
-        this.service.abortScope(scope);
-        resolve({ ok: false, error: message });
-      };
+      settleWatchdog = resolve;
 
       const check = (): void => {
         if (finished) return;
+
+        // Parked on a clarification: keep idle fresh (so the run doesn't get
+        // idle-killed the instant the answer arrives) but bound the wait so an
+        // undelivered/ignored question can't pin the scope forever.
         if (run.pendingClarificationId) {
           lastAgentActivityAt = Date.now();
-          idleTimer = setTimeout(check, this.runIdleTimeoutMs);
+          const waited = Date.now() - clarificationStartedAt;
+          if (waited >= this.clarificationTimeoutMs) {
+            failRun(
+              `No answer to the question for ${Math.round(this.clarificationTimeoutMs / 1000)}s. ` +
+                'Stopped this run so the chat can continue.',
+            );
+            return;
+          }
+          idleTimer = setTimeout(
+            check,
+            Math.min(this.runIdleTimeoutMs, this.clarificationTimeoutMs - waited),
+          );
           return;
         }
 
@@ -247,7 +287,7 @@ export class ChannelBridge {
             idleTimer = setTimeout(check, this.toolExecTimeoutMs - toolMs);
             return;
           }
-          stop(
+          failRun(
             `A tool ran for ${Math.round(this.toolExecTimeoutMs / 1000)}s with no result. ` +
               'Stopped this run so the chat can continue.',
           );
@@ -256,7 +296,7 @@ export class ChannelBridge {
 
         const idleMs = Date.now() - lastAgentActivityAt;
         if (idleMs >= this.runIdleTimeoutMs) {
-          stop(
+          failRun(
             `No agent activity for ${Math.round(this.runIdleTimeoutMs / 1000)}s. ` +
               'Stopped this run so the chat can continue.',
           );
@@ -328,7 +368,17 @@ export class ChannelBridge {
           if (finished) return;
           markAgentActivity();
           run.pendingClarificationId = req.id;
-          void Promise.resolve(stream.onClarification(req.question)).catch(noop);
+          clarificationStartedAt = Date.now();
+          // A question that can't be delivered can never be answered, so fail
+          // the run instead of parking it until the clarification timeout.
+          void Promise.resolve(stream.onClarification(req.question)).catch((err) => {
+            console.error(`[channel:${channel.id}] failed to deliver clarification`, err);
+            if (run.pendingClarificationId === req.id) run.pendingClarificationId = undefined;
+            failRun(
+              "Couldn't deliver the agent's question to the chat, so it can't be answered. " +
+                'Stopped this run.',
+            );
+          });
         },
         undefined,
         undefined,
