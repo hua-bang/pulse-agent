@@ -24,6 +24,8 @@
 
 import { z } from 'zod';
 import { getWebContentsForNode } from '../../../main/webview/registry';
+import { ensureOperable } from '../../../main/webview/ensure-operable';
+import { activateWorkspaceWindow } from '../../../main/app/window-manager';
 import {
   evalInPage,
   scrollPage,
@@ -44,17 +46,24 @@ interface ResolvedTarget {
   url: string;
 }
 
-function resolveTarget(
+async function resolveTarget(
   workspaceId: string,
   nodeId: string,
-): { ok: true; target: ResolvedTarget } | { ok: false; error: string } {
-  const wc = getWebContentsForNode(workspaceId, nodeId);
+): Promise<{ ok: true; target: ResolvedTarget } | { ok: false; error: string }> {
+  // These tools click/fill/screenshot, which need a *painted* surface — so
+  // make the workspace active (un-hide its display:none container + show the
+  // window inactively, without stealing focus) before resolving the node.
+  const wc = await ensureOperable({
+    lookup: () => getWebContentsForNode(workspaceId, nodeId),
+    activate: () => activateWorkspaceWindow(workspaceId),
+    mode: 'operate',
+  });
   if (!wc) {
     return {
       ok: false,
       error:
-        `No active webview for node ${nodeId} in workspace ${workspaceId}. ` +
-        `Open the iframe node in URL mode and make sure it has finished loading.`,
+        `No active webview for node ${nodeId} in workspace ${workspaceId} ` +
+        `(auto-activation attempted). Open the iframe node in URL mode and make sure it has finished loading.`,
     };
   }
   const url = wc.getURL();
@@ -144,7 +153,7 @@ export function createWebviewPageControlTools(
           .describe('Max time to wait for the script to settle. Default 5000.'),
       }),
       execute: async (input) => {
-        const r = resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_eval', error: r.error });
         const result = await evalInPage(r.target.wc, input.code as string, input.timeoutMs as number | undefined);
         return serialise('page_eval', input.nodeId as string, r.target.url, result);
@@ -174,7 +183,7 @@ export function createWebviewPageControlTools(
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
-        const r = resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_click', error: r.error });
         const result = await cdpClickSelector(r.target.wc, input.selector as string, {
           button: input.button as 'left' | 'middle' | 'right' | undefined,
@@ -207,7 +216,7 @@ export function createWebviewPageControlTools(
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
-        const r = resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_click_at', error: r.error });
         const result = await cdpClickAt(
           r.target.wc,
@@ -245,7 +254,7 @@ export function createWebviewPageControlTools(
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
-        const r = resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_fill', error: r.error });
         const result = await cdpFillSelector(
           r.target.wc,
@@ -286,7 +295,7 @@ export function createWebviewPageControlTools(
         timeoutMs: z.number().int().positive().optional(),
       }),
       execute: async (input) => {
-        const r = resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_press', error: r.error });
         const result = await cdpPressKey(r.target.wc, input.key as string, {
           selector: input.selector as string | undefined,
@@ -341,7 +350,7 @@ export function createWebviewPageControlTools(
           { message: 'Provide one of: top, bottom, selector, or by{x,y}.' },
         ),
       execute: async (input) => {
-        const r = resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_scroll', error: r.error });
         const result = await scrollPage(
           r.target.wc,
@@ -393,7 +402,7 @@ export function createWebviewPageControlTools(
           message: 'Provide either selector or predicate.',
         }),
       execute: async (input) => {
-        const r = resolveTarget(workspaceId, input.nodeId as string);
+        const r = await resolveTarget(workspaceId, input.nodeId as string);
         if (!r.ok) return JSON.stringify({ ok: false, action: 'page_wait_for', error: r.error });
         const result = await waitForCondition(r.target.wc, {
           selector: input.selector as string | undefined,

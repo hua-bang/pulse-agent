@@ -112,6 +112,8 @@ class FakeChannel implements Channel {
   sentText: Array<{ target: OutboundTarget; text: string }> = [];
   pickers: Array<{ target: OutboundTarget; picker: WorkspacePicker }> = [];
   streams: FakeStream[] = [];
+  /** When set, a stream's onClarification rejects (simulates an undeliverable question). */
+  failClarification = false;
 
   isConfigured(): boolean {
     return true;
@@ -126,7 +128,7 @@ class FakeChannel implements Channel {
   }
 
   async openStream(): Promise<ChannelStream> {
-    const stream = new FakeStream(this.events);
+    const stream = new FakeStream(this.events, this.failClarification);
     this.streams.push(stream);
     return stream;
   }
@@ -149,7 +151,10 @@ class FakeStream implements ChannelStream {
   toolCalls: Array<{ name: string; args: unknown; toolCallId?: string }> = [];
   toolResults: Array<{ name: string; result: string; toolCallId?: string }> = [];
 
-  constructor(private readonly events: string[]) {}
+  constructor(
+    private readonly events: string[],
+    private readonly failClarification = false,
+  ) {}
 
   onText(delta: string): void {
     this.text += delta;
@@ -175,7 +180,9 @@ class FakeStream implements ChannelStream {
     this.toolInputs.push(`end:${data.id}`);
   }
 
-  onClarification(): void {}
+  async onClarification(): Promise<void> {
+    if (this.failClarification) throw new Error('clarification send failed');
+  }
 
   onDone(text: string): void {
     this.events.push('done');
@@ -374,6 +381,127 @@ describe('ChannelBridge', () => {
 
       await vi.advanceTimersByTimeAsync(1);
       expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('does not kill a run while a tool is executing past the idle budget', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // A tool whose execute() blocks: onToolCall fires (args complete) but no
+    // onToolResult — exactly the "single slow tool" case the idle watchdog used
+    // to kill mid-run.
+    const chatWithScope = vi.fn(
+      async (_scope, _message, _onText, onToolCall): Promise<AgentChatResult> => {
+        onToolCall?.({ name: 'page_wait_for', args: { nodeId: 'n1' }, toolCallId: 'tool-1' });
+        return new Promise<AgentChatResult>(() => undefined);
+      },
+    );
+    const abortScope = vi.fn();
+    const service = fakeService({
+      chatWithScope,
+      abortScope,
+      newSessionForScope: vi.fn(async () => ({ ok: true })),
+      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+    });
+    const bridge = new ChannelBridge(service, memoryStore(), {
+      runIdleTimeoutMs: 50,
+      toolExecTimeoutMs: 200,
+    });
+    await bridge.addChannel(channel);
+
+    try {
+      channel.handler!(msg('first'));
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+
+      // Well past the idle budget, but the tool is still in flight — survive.
+      await vi.advanceTimersByTimeAsync(199);
+      expect(abortScope).not.toHaveBeenCalled();
+
+      // Once the tool-exec ceiling elapses, recover the scope.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
+      expect(channel.streams[0].errors[0]).toContain('tool ran for');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('fails the run when a clarification question cannot be delivered', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    channel.failClarification = true;
+    const chatWithScope = vi.fn(
+      async (_scope, _message, _onText, _onToolCall, _onToolResult, _mentioned, onClarification): Promise<AgentChatResult> => {
+        onClarification?.({ id: 'q1', question: 'which one?' });
+        return new Promise<AgentChatResult>(() => undefined);
+      },
+    );
+    const abortScope = vi.fn();
+    const service = fakeService({
+      chatWithScope,
+      abortScope,
+      newSessionForScope: vi.fn(async () => ({ ok: true })),
+      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+    });
+    const bridge = new ChannelBridge(service, memoryStore(), {
+      runIdleTimeoutMs: 50,
+      clarificationTimeoutMs: 10_000,
+    });
+    await bridge.addChannel(channel);
+
+    try {
+      channel.handler!(msg('first'));
+      // Undeliverable question fails fast — no need to wait out any budget.
+      await vi.advanceTimersByTimeAsync(1);
+      await Promise.resolve();
+
+      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
+      expect(channel.streams[0].errors[0]).toContain("can't be answered");
+    } finally {
+      warnSpy.mockRestore();
+      errSpy.mockRestore();
+    }
+  });
+
+  it('stops a run when a clarification goes unanswered past the budget', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const chatWithScope = vi.fn(
+      async (_scope, _message, _onText, _onToolCall, _onToolResult, _mentioned, onClarification): Promise<AgentChatResult> => {
+        onClarification?.({ id: 'q1', question: 'which one?' });
+        return new Promise<AgentChatResult>(() => undefined);
+      },
+    );
+    const abortScope = vi.fn();
+    const service = fakeService({
+      chatWithScope,
+      abortScope,
+      newSessionForScope: vi.fn(async () => ({ ok: true })),
+      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+    });
+    const bridge = new ChannelBridge(service, memoryStore(), {
+      runIdleTimeoutMs: 50,
+      clarificationTimeoutMs: 200,
+    });
+    await bridge.addChannel(channel);
+
+    try {
+      channel.handler!(msg('first'));
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+
+      // Parked awaiting an answer — must survive well past the idle budget.
+      await vi.advanceTimersByTimeAsync(199);
+      expect(abortScope).not.toHaveBeenCalled();
+
+      // Once the clarification budget elapses, recover the scope.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
+      expect(channel.streams[0].errors[0]).toContain('No answer to the question');
     } finally {
       warnSpy.mockRestore();
     }

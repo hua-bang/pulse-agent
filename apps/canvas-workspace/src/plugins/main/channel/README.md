@@ -60,7 +60,9 @@ relaunch (the flag is read at plugin registration time).
    panel offers a "Relaunch now" button after saving.
 
 In a **direct chat** the bot replies to every message. In a **group chat**
-it only responds when @-mentioned.
+it only responds when @-mentioned — a *structured* Feishu mention (the
+`mentions` array or an `<at …>` marker), not bare "@word" text a user typed,
+so mentioning another person never wakes the bot.
 
 > Availability: the bridge runs inside the desktop app, so it responds while
 > the machine is awake (screen off / locked / app in background are all
@@ -147,15 +149,49 @@ Trade-offs:
 Some agent tools need the canvas **UI** open on the workspace — e.g.
 webview/iframe page control requires the node's `<webview>` to be mounted in
 the renderer. When driving from a channel the window may be hidden or on a
-different workspace, so those tools fail with "No active webview…".
+different workspace (mounted but `display: none`), so the node has no paint
+surface — screenshots come back blank and clicks can't hit-test.
 
-`/open` activates the bound workspace in the canvas and navigates to it
-**without stealing focus or raising the window**: it only shows the window
-(inactively) if it was hidden/minimized — so its renderer isn't suspended and
-the webviews can load — and creates the window if none is open. It uses the
-renderer's existing `#/?workspaceId=<id>` hash route. Activation is currently
-**manual** (send `/open` before webview-dependent requests); automatic
-activation on tool failure is a possible follow-up.
+**Auto-activation.** Webview tools now activate the workspace themselves
+before acting (`ensureOperable` in `main/webview/ensure-operable.ts`), so you
+don't have to send `/open` first:
+
+- **Read tools** (`canvas_read_webpage` dom/a11y) work even on a `display:none`
+  node — they read the live guest DOM directly — so they only activate when
+  nothing is registered yet, and never steal the active-workspace slot just to
+  read text.
+- **Operate tools** (page click / fill / press / scroll, screenshots) need a
+  *painted* surface, so they always make the workspace active (un-hide its
+  container + `showInactive()` the window — **no focus steal**), wait for the
+  node to register, and settle a frame before acting.
+
+Caveats: the canvas has a **single active workspace**, so activating one
+switches the canvas away from whatever you were viewing; and the machine must
+be awake. Activation still uses the renderer's `#/?workspaceId=<id>` hash route
+and creates the window if none is open. `/open` remains available for manual
+control. Set `CANVAS_WEBVIEW_AUTO_ACTIVATE=0` to disable auto-activation and
+fall back to the old manual behavior.
+
+### Run watchdog (idle vs. in-flight tools)
+
+A run is killed if it makes no progress, so a stuck agent can't wedge the
+chat. Three budgets apply:
+
+- **Idle budget** (`CANVAS_CHANNEL_RUN_IDLE_TIMEOUT_MS`, default 120 000):
+  max time with *no* streaming activity at all (no text, tool, or
+  clarification events) — i.e. the LLM loop itself is stuck.
+- **Tool-exec budget** (`CANVAS_CHANNEL_TOOL_EXEC_TIMEOUT_MS`, default
+  300 000): a single tool's `execute()` blocks without emitting any
+  callback (a slow vision read, a page navigation/wait, a long bash
+  command). While a tool is in flight the run is **not** killed on the idle
+  budget — only this larger one — so legitimately slow tools aren't aborted
+  mid-call. Floored at the idle budget.
+- **Clarification budget** (`CANVAS_CHANNEL_CLARIFICATION_TIMEOUT_MS`,
+  default 600 000): while the run is parked waiting for the user to answer a
+  clarification question, the idle/tool budgets are suspended but this one
+  applies, so an unanswered question can't pin the scope forever. If the
+  question itself fails to send, the run fails immediately instead of waiting
+  this out — a question the user never received can't be answered.
 
 ### Debugging
 
