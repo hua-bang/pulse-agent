@@ -97,6 +97,8 @@ export interface WorkspaceNodeListItem {
   id: string;
   type: string;
   title?: string;
+  /** Friendlier label derived from the canvas node (text preview, mindmap root, ...). */
+  displayTitle?: string;
   summary?: string;
   tags: string[];
   links?: WorkspaceNodeLink[];
