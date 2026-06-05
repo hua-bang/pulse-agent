@@ -29,6 +29,7 @@ import {
 const CHANNEL_ID = 'feishu';
 const PROGRESS_THROTTLE_MS = 800;
 const PROGRESS_HEARTBEAT_MS = 15_000;
+const CARD_SEND_TIMEOUT_MS = 10_000;
 const CARD_UPDATE_TIMEOUT_MS = 10_000;
 
 /**
@@ -147,10 +148,15 @@ function toSendTarget(target: OutboundTarget): FeishuSendTarget {
  * exceed Feishu's update-rate limits; images are sent as separate messages.
  */
 interface ToolRun {
+  id?: string;
+  name: string;
   label: string;
   startedAt: number;
   done: boolean;
   elapsedSec?: number;
+  inputBytes?: number;
+  inputStreaming?: boolean;
+  argsReceived?: boolean;
 }
 
 export class FeishuStream implements ChannelStream {
@@ -161,10 +167,13 @@ export class FeishuStream implements ChannelStream {
   private readonly tools: ToolRun[] = [];
   private readonly startedAt = Date.now();
 
-  private updateChain: Promise<void> = Promise.resolve();
+  private updateInFlight: Promise<boolean> | null = null;
+  private pendingProgressFactory: (() => object) | null = null;
   private flushTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private lastFlush = 0;
+  private finalizing = false;
+  private cardUpdateTimedOut = false;
 
   constructor(
     private readonly client: lark.Client,
@@ -173,7 +182,11 @@ export class FeishuStream implements ChannelStream {
 
   async init(): Promise<void> {
     try {
-      this.cardMessageId = await sendCardMessage(this.client, this.target, buildThinkingCard());
+      this.cardMessageId = await withTimeout(
+        sendCardMessage(this.client, this.target, buildThinkingCard()),
+        CARD_SEND_TIMEOUT_MS,
+        'Feishu thinking card send',
+      );
     } catch (err) {
       // If the initial card cannot be sent, fall back to text messages.
       this.cardFailed = true;
@@ -188,13 +201,70 @@ export class FeishuStream implements ChannelStream {
     this.scheduleFlush();
   }
 
-  onToolCall(name: string, args: unknown): void {
-    this.tools.push({ label: formatToolLabel(name, args), startedAt: Date.now(), done: false });
+  onToolCall(name: string, args: unknown, toolCallId?: string): void {
+    const existing = toolCallId ? this.findTool(toolCallId) : undefined;
+    if (existing) {
+      existing.id = toolCallId ?? existing.id;
+      existing.name = name;
+      existing.label = formatToolLabel(name, args);
+      existing.inputStreaming = false;
+      existing.argsReceived = true;
+    } else {
+      this.tools.push({
+        id: toolCallId,
+        name,
+        label: formatToolLabel(name, args),
+        startedAt: Date.now(),
+        done: false,
+        argsReceived: true,
+      });
+    }
     this.scheduleFlush();
   }
 
-  onToolResult(result: { name: string; result: string }): void {
-    this.markToolDone(result.name);
+  onToolResult(result: { name: string; result: string; toolCallId?: string }): void {
+    this.markToolDone(result.toolCallId, result.name);
+    this.scheduleFlush();
+  }
+
+  onToolInputStart(data: { id: string; toolName: string }): void {
+    const existing = this.findTool(data.id);
+    if (existing) {
+      existing.id = data.id;
+      existing.name = data.toolName;
+      existing.inputStreaming = true;
+      if (!existing.argsReceived) existing.label = `${data.toolName} — preparing input`;
+    } else {
+      this.tools.push({
+        id: data.id,
+        name: data.toolName,
+        label: `${data.toolName} — preparing input`,
+        startedAt: Date.now(),
+        done: false,
+        inputBytes: 0,
+        inputStreaming: true,
+      });
+    }
+    this.scheduleFlush();
+  }
+
+  onToolInputDelta(data: { id: string; delta: string }): void {
+    const tool = this.findTool(data.id);
+    if (!tool) return;
+    tool.inputBytes = (tool.inputBytes ?? 0) + data.delta.length;
+    if (!tool.argsReceived) {
+      tool.label = `${tool.name} — preparing input ${formatByteCount(tool.inputBytes)}`;
+    }
+    this.scheduleFlush();
+  }
+
+  onToolInputEnd(data: { id: string }): void {
+    const tool = this.findTool(data.id);
+    if (!tool) return;
+    tool.inputStreaming = false;
+    if (!tool.argsReceived) {
+      tool.label = `${tool.name} — prepared input`;
+    }
     this.scheduleFlush();
   }
 
@@ -214,12 +284,31 @@ export class FeishuStream implements ChannelStream {
    * Mark the most recent still-running tool as done (preferring one whose
    * label matches `name`) and record how long it took.
    */
-  private markToolDone(name?: string): void {
+  private findTool(toolCallId?: string, name?: string): ToolRun | undefined {
+    if (toolCallId) {
+      const byId = this.tools.find((tool) => tool.id === toolCallId);
+      if (byId) return byId;
+      return undefined;
+    }
+    if (name) {
+      for (let i = this.tools.length - 1; i >= 0; i--) {
+        const tool = this.tools[i];
+        if (!tool.done && tool.name === name) return tool;
+      }
+    }
+    return undefined;
+  }
+
+  private markToolDone(toolCallId?: string, name?: string): void {
     let idx = -1;
+    if (toolCallId) {
+      idx = this.tools.findIndex((tool) => tool.id === toolCallId && !tool.done);
+    }
     for (let i = this.tools.length - 1; i >= 0; i--) {
+      if (idx !== -1) break;
       if (this.tools[i].done) continue;
       if (idx === -1) idx = i; // fallback: latest running regardless of name
-      if (name && this.tools[i].label.startsWith(name)) {
+      if (name && (this.tools[i].name === name || this.tools[i].label.startsWith(name))) {
         idx = i;
         break;
       }
@@ -234,7 +323,11 @@ export class FeishuStream implements ChannelStream {
     // Surface the question as its own text message so it stands out from the
     // streamed card; the user's next message is routed back as the answer.
     try {
-      await sendTextMessage(this.client, this.target, `❓ ${question}`);
+      await withTimeout(
+        sendTextMessage(this.client, this.target, `❓ ${question}`),
+        CARD_SEND_TIMEOUT_MS,
+        'Feishu clarification send',
+      );
     } catch (err) {
       console.error('[channel:feishu] failed to send clarification', err);
     }
@@ -263,21 +356,21 @@ export class FeishuStream implements ChannelStream {
   }
 
   private scheduleFlush(): void {
-    if (this.cardFailed || this.flushTimer) return;
+    if (this.cardFailed || this.finalizing || this.flushTimer) return;
     const wait = Math.max(0, PROGRESS_THROTTLE_MS - (Date.now() - this.lastFlush));
     this.flushTimer = setTimeout(() => {
       this.flushTimer = null;
       this.lastFlush = Date.now();
-      this.enqueue(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
+      this.enqueueProgress(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
     }, wait);
   }
 
   private startHeartbeat(): void {
     if (this.cardFailed || this.heartbeatTimer) return;
     this.heartbeatTimer = setInterval(() => {
-      if (this.cardFailed) return;
+      if (this.cardFailed || this.finalizing) return;
       this.lastFlush = Date.now();
-      void this.enqueue(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
+      this.enqueueProgress(() => buildProgressCard(this.accumulated, this.tools, this.elapsedSec()));
     }, PROGRESS_HEARTBEAT_MS);
   }
 
@@ -292,54 +385,108 @@ export class FeishuStream implements ChannelStream {
     }
   }
 
-  /** Serialize card patches so concurrent updates cannot race. */
-  private enqueue(factory: () => object): Promise<boolean> {
-    const result = this.updateChain.then(async (): Promise<boolean> => {
-      if (this.cardFailed || !this.cardMessageId) return false;
-      try {
-        await withTimeout(
-          updateCardMessage(this.client, this.cardMessageId, factory()),
-          CARD_UPDATE_TIMEOUT_MS,
-          'Feishu card update',
-        );
-        return true;
-      } catch (err) {
-        // Treat patch failures as transient. Feishu can reject an individual
-        // update because of rate limits or a stale card state; stopping all
-        // later patches makes the bot appear frozen mid-run.
-        console.error('[channel:feishu] card update failed', err);
-        return false;
+  /**
+   * Keep only the newest progress snapshot while a card patch is in flight.
+   * Feishu patch calls can be slow; queuing every 800ms snapshot can leave the
+   * final answer stuck behind stale updates for minutes.
+   */
+  private enqueueProgress(factory: () => object): void {
+    if (this.cardFailed || this.finalizing) return;
+    this.pendingProgressFactory = factory;
+    this.drainProgressUpdates();
+  }
+
+  private drainProgressUpdates(): void {
+    if (this.updateInFlight || this.cardFailed || this.finalizing) return;
+    const factory = this.pendingProgressFactory;
+    if (!factory) return;
+
+    this.pendingProgressFactory = null;
+    const update = this.patchCard(factory, 'Feishu card update');
+    this.updateInFlight = update;
+    void update.finally(() => {
+      if (this.updateInFlight === update) {
+        this.updateInFlight = null;
       }
+      this.drainProgressUpdates();
     });
-    this.updateChain = result.then(
-      () => undefined,
-      () => undefined,
-    );
-    return result;
+  }
+
+  private async patchCard(factory: () => object, label: string): Promise<boolean> {
+    if (this.cardFailed || !this.cardMessageId) return false;
+    try {
+      await withTimeout(
+        updateCardMessage(this.client, this.cardMessageId, factory()),
+        CARD_UPDATE_TIMEOUT_MS,
+        label,
+      );
+      return true;
+    } catch (err) {
+      if (isTimeoutError(err)) this.cardUpdateTimedOut = true;
+      // Treat non-timeout patch failures as transient. Feishu can reject an
+      // individual update because of rate limits or a stale card state; stopping
+      // all later patches makes the bot appear frozen mid-run.
+      console.error('[channel:feishu] card update failed', err);
+      return false;
+    }
   }
 
   private async finalize(factory: () => object, fallbackText: string): Promise<void> {
-    const finalUpdated = await this.enqueue(factory);
-    // If the card pathway failed at any point, deliver the result as text so
-    // the user still sees the final answer.
-    if (!finalUpdated) {
-      try {
-        await sendTextMessage(this.client, this.target, fallbackText);
-      } catch (err) {
-        console.error('[channel:feishu] fallback text send failed', err);
-      }
+    this.finalizing = true;
+    this.pendingProgressFactory = null;
+    if (this.updateInFlight) {
+      await this.updateInFlight;
     }
+
+    // A timed-out card patch may still complete later and overwrite newer card
+    // content. Once that happens, stop trusting this card and send the final
+    // answer as a separate text message instead of racing another patch.
+    const finalUpdated = this.cardUpdateTimedOut
+      ? false
+      : await this.patchCard(factory, 'Feishu final card update');
+    if (!finalUpdated) {
+      await this.sendFallbackText(fallbackText);
+    }
+  }
+
+  private async sendFallbackText(text: string): Promise<void> {
+    try {
+      await withTimeout(
+        sendTextMessage(this.client, this.target, text),
+        CARD_SEND_TIMEOUT_MS,
+        'Feishu fallback text send',
+      );
+    } catch (err) {
+      console.error('[channel:feishu] fallback text send failed', err);
+    }
+  }
+}
+
+class TimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TimeoutError';
   }
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: NodeJS.Timeout | null = null;
   const timeout = new Promise<T>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(label + ' timed out after ' + ms + 'ms')), ms);
+    timer = setTimeout(() => reject(new TimeoutError(label + ' timed out after ' + ms + 'ms')), ms);
   });
   return Promise.race([promise, timeout]).finally(() => {
     if (timer) clearTimeout(timer);
   });
+}
+
+function isTimeoutError(err: unknown): boolean {
+  return err instanceof TimeoutError || (err instanceof Error && err.name === 'TimeoutError');
+}
+
+function formatByteCount(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
 // ── Event parsing ───────────────────────────────────────────────────────────

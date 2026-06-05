@@ -68,8 +68,11 @@ export type CommandReply =
  */
 export interface ChannelStream {
   onText(delta: string): void | Promise<void>;
-  onToolCall(name: string, args: unknown): void | Promise<void>;
-  onToolResult?(result: { name: string; result: string }): void | Promise<void>;
+  onToolCall(name: string, args: unknown, toolCallId?: string): void | Promise<void>;
+  onToolResult?(result: { name: string; result: string; toolCallId?: string }): void | Promise<void>;
+  onToolInputStart?(data: { id: string; toolName: string }): void | Promise<void>;
+  onToolInputDelta?(data: { id: string; delta: string }): void | Promise<void>;
+  onToolInputEnd?(data: { id: string }): void | Promise<void>;
   onImage?(imagePath: string, mimeType?: string): void | Promise<void>;
   onClarification(question: string): void | Promise<void>;
   onDone(text: string): void | Promise<void>;

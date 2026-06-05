@@ -65,6 +65,61 @@ describe('FeishuStream', () => {
     expect(mockedSendText).not.toHaveBeenCalled();
   });
 
+  it('coalesces progress updates while a card patch is in flight', async () => {
+    mockedUpdateCard
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValue(undefined);
+    const stream = new FeishuStream({} as never, {
+      chatId: 'group1',
+      isGroup: true,
+      triggerMessageId: 'm1',
+    });
+
+    await stream.init();
+    stream.onText('first');
+    await vi.advanceTimersByTimeAsync(800);
+    await flushAsync();
+
+    stream.onText(' second');
+    stream.onText(' third');
+    await vi.advanceTimersByTimeAsync(800);
+    await flushAsync();
+
+    expect(mockedUpdateCard).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await flushAsync();
+
+    expect(mockedUpdateCard).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(mockedUpdateCard.mock.calls[1][2])).toContain('first second third');
+  });
+
+  it('shows tool input progress before the final tool call arrives', async () => {
+    const stream = new FeishuStream({} as never, {
+      chatId: 'group1',
+      isGroup: true,
+      triggerMessageId: 'm1',
+    });
+
+    await stream.init();
+    stream.onToolInputStart({ id: 'tool-1', toolName: 'visual_render' });
+    stream.onToolInputDelta({ id: 'tool-1', delta: 'abcdef' });
+    await vi.advanceTimersByTimeAsync(800);
+    await flushAsync();
+
+    expect(JSON.stringify(mockedUpdateCard.mock.calls[0][2])).toContain('visual_render');
+    expect(JSON.stringify(mockedUpdateCard.mock.calls[0][2])).toContain('preparing input 6B');
+
+    stream.onToolCall('visual_render', { title: 'Demo' }, 'tool-1');
+    stream.onToolResult({ name: 'visual_render', result: 'ok', toolCallId: 'tool-1' });
+    await vi.advanceTimersByTimeAsync(800);
+    await flushAsync();
+
+    const latestCard = JSON.stringify(mockedUpdateCard.mock.calls.at(-1)?.[2]);
+    expect(latestCard).toContain('visual_render');
+    expect(latestCard).toContain('Demo');
+  });
+
   it('falls back when a card patch hangs', async () => {
     mockedUpdateCard.mockImplementationOnce(() => new Promise(() => undefined));
     const stream = new FeishuStream({} as never, {

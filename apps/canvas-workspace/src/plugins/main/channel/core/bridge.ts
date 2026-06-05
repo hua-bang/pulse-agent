@@ -247,7 +247,9 @@ export class ChannelBridge {
         (toolCall) => {
           if (finished) return;
           markAgentActivity();
-          void Promise.resolve(stream.onToolCall(toolCall.name, toolCall.args)).catch(noop);
+          void Promise.resolve(
+            stream.onToolCall(toolCall.name, toolCall.args, toolCall.toolCallId),
+          ).catch(noop);
         },
         (toolResult) => {
           if (finished) return;
@@ -259,7 +261,11 @@ export class ChannelBridge {
           }
           if (stream.onToolResult) {
             void Promise.resolve(
-              stream.onToolResult({ name: toolResult.name, result: toolResult.result }),
+              stream.onToolResult({
+                name: toolResult.name,
+                result: toolResult.result,
+                toolCallId: toolResult.toolCallId,
+              }),
             ).catch(noop);
           }
         },
@@ -269,6 +275,29 @@ export class ChannelBridge {
           markAgentActivity();
           run.pendingClarificationId = req.id;
           void Promise.resolve(stream.onClarification(req.question)).catch(noop);
+        },
+        undefined,
+        undefined,
+        (toolInput) => {
+          if (finished) return;
+          markAgentActivity();
+          if (stream.onToolInputStart) {
+            void Promise.resolve(stream.onToolInputStart(toolInput)).catch(noop);
+          }
+        },
+        (toolInput) => {
+          if (finished) return;
+          markAgentActivity();
+          if (stream.onToolInputDelta) {
+            void Promise.resolve(stream.onToolInputDelta(toolInput)).catch(noop);
+          }
+        },
+        (toolInput) => {
+          if (finished) return;
+          markAgentActivity();
+          if (stream.onToolInputEnd) {
+            void Promise.resolve(stream.onToolInputEnd(toolInput)).catch(noop);
+          }
         },
       );
       chat.catch((err) => {

@@ -145,6 +145,9 @@ class FakeStream implements ChannelStream {
   done: string | null = null;
   errors: string[] = [];
   text = '';
+  toolInputs: string[] = [];
+  toolCalls: Array<{ name: string; args: unknown; toolCallId?: string }> = [];
+  toolResults: Array<{ name: string; result: string; toolCallId?: string }> = [];
 
   constructor(private readonly events: string[]) {}
 
@@ -152,7 +155,25 @@ class FakeStream implements ChannelStream {
     this.text += delta;
   }
 
-  onToolCall(): void {}
+  onToolCall(name: string, args: unknown, toolCallId?: string): void {
+    this.toolCalls.push({ name, args, toolCallId });
+  }
+
+  onToolResult(result: { name: string; result: string; toolCallId?: string }): void {
+    this.toolResults.push(result);
+  }
+
+  onToolInputStart(data: { id: string; toolName: string }): void {
+    this.toolInputs.push(`start:${data.id}:${data.toolName}`);
+  }
+
+  onToolInputDelta(data: { id: string; delta: string }): void {
+    this.toolInputs.push(`delta:${data.id}:${data.delta}`);
+  }
+
+  onToolInputEnd(data: { id: string }): void {
+    this.toolInputs.push(`end:${data.id}`);
+  }
 
   onClarification(): void {}
 
@@ -204,6 +225,11 @@ describe('ChannelBridge', () => {
       expect.any(Function),
       undefined,
       expect.any(Function),
+      undefined,
+      undefined,
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
     );
     expect(channel.pickers).toHaveLength(1);
     expect(channel.pickers[0].target.conversationId).toBe('groupA:threadA');
@@ -233,6 +259,11 @@ describe('ChannelBridge', () => {
       expect.any(Function),
       expect.any(Function),
       undefined,
+      expect.any(Function),
+      undefined,
+      undefined,
+      expect.any(Function),
+      expect.any(Function),
       expect.any(Function),
     );
     expect(channel.pickers).toHaveLength(0);
@@ -272,6 +303,77 @@ describe('ChannelBridge', () => {
 
       expect(chatWithScope).toHaveBeenCalledTimes(2);
       expect(channel.streams[1].done).toBe('second reply');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('forwards tool input events and treats them as agent activity', async () => {
+    vi.useFakeTimers();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let onToolInputDelta: ((data: { id: string; delta: string }) => void) | undefined;
+    const chatWithScope = vi.fn(
+      async (
+        _scope,
+        _message,
+        _onText,
+        onToolCall,
+        onToolResult,
+        _mentioned,
+        _onClarification,
+        _requestContext,
+        _attachments,
+        onToolInputStart,
+        onToolInputDeltaArg,
+        onToolInputEnd,
+      ): Promise<AgentChatResult> => {
+        onToolInputDelta = onToolInputDeltaArg;
+        onToolInputStart?.({ id: 'tool-1', toolName: 'visual_render' });
+        onToolInputDeltaArg?.({ id: 'tool-1', delta: 'abc' });
+        onToolInputEnd?.({ id: 'tool-1' });
+        onToolCall?.({ name: 'visual_render', args: { title: 'Demo' }, toolCallId: 'tool-1' });
+        onToolResult?.({ name: 'visual_render', result: 'ok', toolCallId: 'tool-1' });
+        return new Promise<AgentChatResult>(() => undefined);
+      },
+    );
+    const abortScope = vi.fn();
+    const service = fakeService({
+      chatWithScope,
+      abortScope,
+      newSessionForScope: vi.fn(async () => ({ ok: true })),
+      getCurrentSessionIdForScope: vi.fn(() => 'global-session'),
+    });
+    const bridge = new ChannelBridge(service, memoryStore(), { runIdleTimeoutMs: 50 });
+    await bridge.addChannel(channel);
+
+    try {
+      channel.handler!(msg('first'));
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+
+      expect(channel.streams[0].toolInputs).toEqual([
+        'start:tool-1:visual_render',
+        'delta:tool-1:abc',
+        'end:tool-1',
+      ]);
+      expect(channel.streams[0].toolCalls[0]).toEqual({
+        name: 'visual_render',
+        args: { title: 'Demo' },
+        toolCallId: 'tool-1',
+      });
+      expect(channel.streams[0].toolResults[0]).toEqual({
+        name: 'visual_render',
+        result: 'ok',
+        toolCallId: 'tool-1',
+      });
+
+      await vi.advanceTimersByTimeAsync(40);
+      onToolInputDelta?.({ id: 'tool-1', delta: 'still-running' });
+      await vi.advanceTimersByTimeAsync(49);
+      expect(abortScope).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(abortScope).toHaveBeenCalledWith({ kind: 'global' });
     } finally {
       warnSpy.mockRestore();
     }
