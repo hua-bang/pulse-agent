@@ -104,6 +104,8 @@ export interface WorkspaceNodeListItem {
   createdAt?: number;
   hasData: boolean;
   linkCount: number;
+  /** Whether a canvas node with this id currently exists in the workspace. Undefined when not computed. */
+  onCanvas?: boolean;
 }
 
 export interface KnowledgeTagDefinition {

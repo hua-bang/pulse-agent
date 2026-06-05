@@ -214,6 +214,9 @@ export const GraphPage = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [showWorkspaceHubs, setShowWorkspaceHubs] = useState(true);
+  // Off-canvas nodes (knowledge records with no matching canvas node — e.g.
+  // stale/orphan records) are hidden by default; toggle to reveal them.
+  const [showOffCanvas, setShowOffCanvas] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -245,7 +248,10 @@ export const GraphPage = ({
     setActiveNodeId(selectedGraphId(selectedNode));
   }, [selectedNode]);
 
-  const visibleNodes = nodes;
+  const visibleNodes = useMemo(
+    () => (showOffCanvas ? nodes : nodes.filter((node) => node.onCanvas !== false)),
+    [nodes, showOffCanvas],
+  );
 
   const searchSuggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -497,6 +503,9 @@ export const GraphPage = ({
               {showWorkspaceHubs ? t('workspaceGraph.hideWorkspaces') : t('workspaceGraph.groupByWorkspace')}
             </button>
           )}
+          <button className={`workspace-node-chip${showOffCanvas ? ' is-active' : ''}`} onClick={() => setShowOffCanvas((value) => !value)}>
+            {showOffCanvas ? t('workspaceGraph.hideOffCanvas') : t('workspaceGraph.showOffCanvas')}
+          </button>
           <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>{t('workspaceGraph.fit')}</button>
           <div className="workspace-graph-toolbar__more" ref={overflowRef}>
             <button

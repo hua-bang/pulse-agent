@@ -6,6 +6,7 @@ import {
   type WorkspaceNodeRecord,
 } from './store';
 import { readKnowledgeTags, upsertKnowledgeTag, type KnowledgeTagDefinition } from './tags';
+import { readCanvasFull } from '../storage';
 
 export interface WorkspaceNodeListItem {
   id: string;
@@ -18,6 +19,28 @@ export interface WorkspaceNodeListItem {
   createdAt?: number;
   hasData: boolean;
   linkCount: number;
+  /** Whether a canvas node with this id currently exists in the workspace. */
+  onCanvas?: boolean;
+}
+
+/**
+ * Ids of nodes currently present on the workspace's canvas. Returns null when
+ * canvas.json is missing/unreadable so callers can treat membership as
+ * "unknown" (and avoid hiding everything) rather than "off-canvas".
+ */
+async function loadCanvasNodeIds(workspaceId: string): Promise<Set<string> | null> {
+  try {
+    const { data } = await readCanvasFull(workspaceId);
+    if (!data || !Array.isArray(data.nodes)) return null;
+    const ids = new Set<string>();
+    for (const node of data.nodes) {
+      const id = (node as { id?: unknown }).id;
+      if (typeof id === 'string' && id) ids.add(id);
+    }
+    return ids;
+  } catch {
+    return null;
+  }
 }
 
 function stringFromUnknown(value: unknown): string {
@@ -49,7 +72,7 @@ function summaryFromRecord(record: WorkspaceNodeRecord): string {
   return '';
 }
 
-function toListItem(record: WorkspaceNodeRecord): WorkspaceNodeListItem {
+function toListItem(record: WorkspaceNodeRecord, canvasIds: Set<string> | null): WorkspaceNodeListItem {
   return {
     id: record.id,
     type: record.type,
@@ -61,6 +84,9 @@ function toListItem(record: WorkspaceNodeRecord): WorkspaceNodeListItem {
     createdAt: record.createdAt,
     hasData: Object.keys(record.data ?? {}).length > 0,
     linkCount: Array.isArray(record.links) ? record.links.length : 0,
+    // Unknown (canvas unreadable) → treat as on-canvas so we never hide
+    // everything; only a real, loaded canvas can mark a record off-canvas.
+    onCanvas: canvasIds ? canvasIds.has(record.id) : true,
   };
 }
 
@@ -87,9 +113,10 @@ export function setupWorkspaceNodeIpc(): void {
       if (!payload.workspaceId) return { ok: false, error: 'Missing workspace id.' };
       const records = await listWorkspaceNodes(payload.workspaceId);
       const tags = await readKnowledgeTags();
+      const canvasIds = await loadCanvasNodeIds(payload.workspaceId);
       return {
         ok: true,
-        nodes: records.map(toListItem),
+        nodes: records.map((record) => toListItem(record, canvasIds)),
         tags: mergeTagDefinitions(tags, records),
       };
     } catch (error) {
