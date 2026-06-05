@@ -1,15 +1,17 @@
 /**
- * Seeds the two meta-skills that drive in-chat skill management.
+ * Seeds the bundled default skills.
  *
- * `save-as-skill` and `promote-skill` are themselves SKILL.md files in the
- * global scope — the agent's behavior when a user says "save this as a
- * skill" or "promote it to global" is entirely defined by these
- * (user-editable) markdown files, not by hard-coded prompts.
+ * `save-as-skill` / `promote-skill` are meta-skills for in-chat skill
+ * management; `tag-nodes` drives the "find which nodes should carry a tag,
+ * then batch-apply it" workflow. All three are plain SKILL.md files in the
+ * global scope — the agent's behavior is defined by these (user-editable)
+ * markdown files, not by hard-coded prompts. Each one leans on a companion
+ * tool for the actual write (`canvas_save_skill` / `canvas_promote_skill` in
+ * `tools/skills.ts`, `canvas_tag_node` in `tools/tagging.ts`); the SKILL.md
+ * tells the agent *when* and *how* to call it.
  *
- * On every app start we write them only if absent, so a user who edited
- * either one to taste keeps their version. The companion `canvas_save_skill`
- * / `canvas_promote_skill` tools (see `tools/skills.ts`) provide the actual
- * write capability; the SKILL.md tells the agent *when* to call them.
+ * On every app start we write them only if absent, so a user who edited one
+ * to taste keeps their version.
  */
 
 import { promises as fs } from 'fs';
@@ -77,7 +79,52 @@ Use this when the user wants a workspace-only skill to be available across every
 `,
 };
 
-const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL];
+const TAG_NODES: DefaultSkill = {
+  slug: 'tag-nodes',
+  name: 'tag-nodes',
+  description:
+    'When the user wants to find which nodes should carry a tag (e.g. 「帮我看看哪些节点可以打上 [AI]」 / "which notes should be tagged RAG?"), audit nodes that are missing tags, or batch-apply a tag across the canvas — use this to scan the local workspaces, propose candidates, confirm with the user, then apply with canvas_tag_node.',
+  body: `# tag-nodes
+
+Use this when the user wants to **find which nodes should carry a tag**, **audit nodes that have no tags**, or **apply a tag across the canvas** — e.g. 「帮我看看哪些节点可以打上 [AI]」, "which notes should be tagged RAG?", 「哪些节点还没打标签?」.
+
+Works in global chat (the whole system) and inside a single workspace. It only touches knowledge-layer tags — never the canvas layout.
+
+## Steps
+
+1. **Pin down the tag and the scope.**
+   - *Which tag?* If the user named one (e.g. \`[AI]\`), use it. Call \`canvas_list_tags\` to see what already exists and the exact name/id; if the tag is new, note that it will be created on first apply.
+   - *Which scope?* Default to **all workspaces**. If the user pointed at one canvas, pass its \`workspaceId\` — use \`canvas_list_workspaces\` to resolve a name → id when needed.
+
+2. **Gather candidates with \`canvas_list_nodes\`.**
+   - "Which nodes fit tag X" → start from \`canvas_list_nodes({ untaggedOnly: true })\` (add \`query\` if the user gave a keyword). Re-tagging already-tagged nodes only when the user asks.
+   - "Which nodes are missing tags" → \`canvas_list_nodes({ untaggedOnly: true })\`, optionally scoped to one \`workspaceId\`.
+   - Each row gives a node's \`title\`, current \`tags\`, and a short \`summary\`. For anything you can't judge from the title/summary, read it with \`canvas_read_node({ workspaceId, nodeId })\` first — but only the unsure ones, don't pull every node's full content.
+
+3. **Decide conservatively.** Propose a node only when it clearly matches the tag's meaning. When unsure, leave it out and list it as a "maybe" rather than tagging it.
+
+4. **Show the proposal and get confirmation.** Present a scannable list grouped by workspace — each line = node title + a one-line reason. End with a question like 「这些打上 [AI] 吗?要去掉哪几个?」. **Do not tag yet.**
+
+5. **Apply in ONE batch.** After the user confirms (and any edits), call \`canvas_tag_node\` once with the confirmed nodes:
+   \`\`\`json
+   {
+     "nodes": [{ "nodeId": "<id>", "workspaceId": "<wsId>" }],
+     "addTags": ["AI"]
+   }
+   \`\`\`
+   Use the exact \`nodeId\` / \`workspaceId\` from the list tools — never guess them. Then report how many were tagged, and surface any per-node errors the tool returned.
+
+## Rules
+
+- **Never call \`canvas_tag_node\` without explicit confirmation** in the conversation. 「打吧」/「ok」 counts; silence does not.
+- **Propose first, apply on the next turn** — don't scan-and-tag in the same breath the user asked.
+- Prefer **one** \`canvas_tag_node\` call with the whole batch over many single calls.
+- \`addTags\` merges (keeps a node's existing tags). Only reach for \`setTags\` / \`removeTags\` when the user explicitly wants to replace or strip tags.
+- If nothing clearly fits, say so instead of forcing low-confidence tags.
+`,
+};
+
+const DEFAULT_SKILLS: DefaultSkill[] = [SAVE_AS_SKILL, PROMOTE_SKILL, TAG_NODES];
 
 function serialize(skill: DefaultSkill): string {
   return [
