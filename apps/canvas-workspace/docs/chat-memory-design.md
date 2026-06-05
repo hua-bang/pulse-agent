@@ -119,18 +119,18 @@ try {
 
 > 说明：因 `recall` 不回传原始分值，此处是位次级启发式；后续若需精确跨桶排序，可在 plugin 增加"返回分值"的能力（非本期）。
 
-### 4.3 agent 如何拿到记忆：工具 + 轻量注入（混合）
+### 4.3 agent 如何拿到记忆：纯工具按需（已定）
 
-canvas 的 `buildEngine()` 已是 `disableBuiltInPlugins: true` + 自定义插件列表（`canvas-agent.ts:675-685`），我们完全掌控注入方式。**不直接用插件内置的单-context 工具**（它们只能看一个桶），改为：
+> **决策**：采用「**纯工具按需**」—— 不把记忆内容自动注入 system prompt，agent 需要时自行调用 `canvas_memory_recall`。最省 token、最精准；代价是依赖模型主动判断何时检索。
 
-- **自定义工具**（挂到 canvas tools 数组）：
-  - `canvas_memory_recall({ query, granularity?: 'session'|'workspace'|'global'|'all', limit? })` → 按 §4.2 fan-out 合并。
-  - `canvas_memory_record({ content, kind })` → 写 **workspace 桶**（agent 主动记，默认不进全局）。
-  - `canvas_memory_promote({ content, kind })` → 写 **global 桶**（显式提升）。
-  - 工具闭包捕获 `scope` 与 `getSessionId = () => this.sessionStore.getCurrentSession()?.sessionId`，**无需 AsyncLocalStorage / withRunContext**。
-- **轻量自动注入**（可选，默认开）：`chat()` 调 `engine.run()` 前，用本轮 `message` 对 workspace 桶做一次小召回（top 3）+ 取若干 `pinned` 的全局条目，拼进 `systemPrompt`（在 `canvas-agent.ts:811` 构造 systemPrompt 处追加）。控制 token：总注入 ≤ ~500 字符。
+canvas 的 `buildEngine()` 已是 `disableBuiltInPlugins: true` + 自定义插件列表（`canvas-agent.ts:675-685`），我们完全掌控注入方式。**不直接用插件内置的单-context 工具**（它们只能看一个桶），改为自定义工具（挂到 canvas tools 数组）：
 
-> 取舍：纯工具按需召回省 token、贴合插件"on-demand"理念；轻量注入保证"无需 agent 主动调用也能带上最相关上下文"。两者叠加，默认都开，可分别用配置关。
+- `canvas_memory_recall({ query, granularity?: 'session'|'workspace'|'global'|'all', limit? })` → 按 §4.2 fan-out 合并。
+- `canvas_memory_record({ content, kind })` → 写 **workspace 桶**（agent 主动记，默认不进全局）。
+- `canvas_memory_promote({ content, kind })` → 写 **global 桶**（显式提升）。
+- 工具闭包捕获 `scope` 与 `getSessionId = () => this.sessionStore.getCurrentSession()?.sessionId`，**无需 AsyncLocalStorage / withRunContext**。
+
+**不做**记忆内容的自动注入。仅在 system prompt 追加一小段「**工具使用策略**」（约 3–5 行，类似 plugin 的 `MEMORY_TOOL_POLICY_APPEND`，见 `integration.ts:36-44`），告诉 agent「有这几个记忆工具、何时该调」。这是**告知工具存在**、并非注入记忆内容，长度恒定、不随对话量增长 —— 纯工具模式下少了它，弱模型容易忘记检索。
 
 ---
 
@@ -226,7 +226,7 @@ canvas_memory_promote: { input: { content: string; kind?: 'rule'|'profile'|'soul
 | `baseDir` | `~/.pulse-coder/canvas/memory` | 记忆存储根 |
 | `MEMORY_EMBEDDING_API_KEY` 等 | 未设 → hash 离线 | OpenAI embedding（可选） |
 | `granularityWeight` | `{session:1.0, workspace:0.8, global:0.6}` | 跨桶合并权重 |
-| 轻量注入开关 | on | 关闭后仅靠工具按需召回 |
+| 记忆获取方式 | **纯工具按需**（已定） | 不自动注入记忆内容；仅追加固定的工具使用策略文案 |
 | 每轮自动沉淀开关 | on | 关闭后仅显式 `canvas_memory_record` |
 
 ---
@@ -272,13 +272,13 @@ canvas_memory_promote: { input: { content: string; kind?: 'rule'|'profile'|'soul
 
 ---
 
-## 12. 待评审的开放问题
+## 12. 评审决策（已锁定）
 
-1. **注入策略**：是否接受"轻量自动注入 + 按需工具"的混合默认？（备选：纯工具 / 纯注入）
-2. **`canvas_memory_record` 的归属**：agent 主动记默认进 workspace 桶、全局仅 `promote` —— 确认？（本稿按此）
-3. **是否本期就要 UI 提升入口**，还是 Phase 1 仅给 agent 工具？
-4. **embedding 默认**：离线 hash 是否满足检索质量预期，还是默认接 OpenAI？
+1. **注入策略** → **纯工具按需**：不自动注入记忆内容，仅追加固定的工具使用策略文案。
+2. **`canvas_memory_record` 归属** → agent 主动记**只写 workspace 桶**；进全局必须走 `canvas_memory_promote`。
+3. **UI 入口** → Phase 1 **仅 agent 工具**（recall / record / promote）；记忆面板、提升按钮、pin/forget 等 UI 放 Phase 2。
+4. **embedding 默认** → **离线 hash**（零依赖 / 零成本 / 不外发）；设 `MEMORY_EMBEDDING_API_KEY` 等环境变量则自动切 OpenAI。
 
 ---
 
-*评审通过后，我将按 §10 Phase 1 与 §7 改动清单实现，并提交到 `claude/epic-ride-JXTQu`。*
+*设计已锁定，将按 §10 Phase 1 与 §7 改动清单实现，并提交到 `claude/epic-ride-JXTQu`。*
