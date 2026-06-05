@@ -36,10 +36,22 @@ describe('feishu card tool list', () => {
     expect(formatToolLabel('think', {})).toBe('think');
   });
 
+  it('formatToolLabel surfaces a readable detail for paths and urls', () => {
+    // File paths collapse to their basename so the row stays compact.
+    expect(formatToolLabel('read', { path: '/docs/space/AGENTS.MD' })).toBe('read — AGENTS.MD');
+    // URLs collapse to host/…/slug instead of a long link.
+    expect(formatToolLabel('read', { url: 'https://x.feishu.cn/docx/AbCdToken123' })).toBe(
+      'read — x.feishu.cn/…/AbCdToken123',
+    );
+    // A doc token is better than nothing when no nicer field exists.
+    expect(formatToolLabel('read', { docToken: 'doccnXyz' })).toBe('read — doccnXyz');
+  });
+
   it('progress card lists every tool with running/done status', () => {
     const body = texts(buildProgressCard('working', tools, 20)).join('\n');
-    expect(body).toContain('✅ canvas_read_node — node-1 · 18s');
-    expect(body).toContain('⏳ canvas_write_node — node-2');
+    // Tool name is bolded; detail and timing follow as secondary segments.
+    expect(body).toContain('✅ **canvas_read_node** · node-1 · 18s');
+    expect(body).toContain('⏳ **canvas_write_node** · node-2');
     expect(body).toContain('⏱️ 20s');
   });
 
@@ -53,7 +65,7 @@ describe('feishu card tool list', () => {
     const body = texts(card).join('\n');
     expect(body).toContain('the answer');
     expect(body).toContain('🛠️ 2 tool calls');
-    expect(body).toContain('canvas_read_node — node-1');
+    expect(body).toContain('**canvas_read_node** · node-1');
   });
 
   it('done card with no tools is just the answer (no panel)', () => {
