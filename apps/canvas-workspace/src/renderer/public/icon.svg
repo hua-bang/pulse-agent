@@ -1,9 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- White squircle with subtle border -->
-  <rect x="32" y="32" width="448" height="448" rx="96" ry="96"
-        fill="#FFFFFF" stroke="#E5E5E5" stroke-width="1"/>
+  <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="#FFFFFF"/>
 
-  <!-- One quiet pulse — enlarged -->
   <path
     d="M 80,268
        H 188
@@ -14,7 +11,7 @@
        H 432"
     fill="none"
     stroke="#1D1D1F"
-    stroke-width="3"
+    stroke-width="22"
     stroke-linecap="round"
     stroke-linejoin="round"
   />
