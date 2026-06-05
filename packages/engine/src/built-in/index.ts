@@ -37,7 +37,8 @@ export type {
   MCPPluginOptions,
   MCPClientManager,
   MCPPluginConfig,
-  MCPServerStatus
+  MCPServerStatus,
+  McpToolInfo
 } from './mcp-plugin';
 export { builtInSkillsPlugin, createSkillsPlugin, BuiltInSkillRegistry } from './skills-plugin';
 export type { SkillInfo, SkillScanPath, SkillsPluginOptions, SkillRegistryOptions } from './skills-plugin';

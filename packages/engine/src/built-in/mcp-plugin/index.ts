@@ -17,6 +17,7 @@ interface HTTPOrSSEServerConfig {
   url: string;
   headers?: Record<string, string>;
   deferTools?: boolean;
+  disabledTools?: string[];
 }
 
 interface StdioServerConfig {
@@ -26,10 +27,13 @@ interface StdioServerConfig {
   env?: Record<string, string>;
   cwd?: string;
   deferTools?: boolean;
+  disabledTools?: string[];
 }
 
 interface NormalizedServerConfigBase {
   deferTools?: boolean;
+  /** Bare tool names (without the `mcp_<server>_` prefix) the host has turned off. */
+  disabledTools?: string[];
 }
 
 type NormalizedMCPServerConfig = (HTTPOrSSEServerConfig | StdioServerConfig) & NormalizedServerConfigBase;
@@ -106,6 +110,19 @@ function readDeferTools(raw: RawMCPServerConfig, serverName: string): boolean | 
   return undefined;
 }
 
+function readDisabledTools(raw: RawMCPServerConfig, serverName: string): string[] | undefined {
+  const value = raw.disabledTools;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(value) || !value.every(item => typeof item === 'string')) {
+    console.warn(`[MCP] Server "${serverName}" has invalid disabledTools; expected string array, ignoring`);
+    return undefined;
+  }
+  const cleaned = value.map(item => item.trim()).filter(Boolean);
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
 
 function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): NormalizedMCPServerConfig | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
@@ -115,6 +132,7 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
 
   const transport = typeof raw.transport === 'string' ? raw.transport.toLowerCase() : 'http';
   const deferTools = readDeferTools(raw, serverName);
+  const disabledTools = readDisabledTools(raw, serverName);
 
   if (transport === 'http' || transport === 'sse') {
     if (typeof raw.url !== 'string' || !raw.url.trim()) {
@@ -125,7 +143,8 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
     const normalized: HTTPOrSSEServerConfig = {
       transport,
       url: raw.url,
-      deferTools
+      deferTools,
+      disabledTools
     };
 
     if (raw.headers !== undefined) {
@@ -148,7 +167,8 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
     const normalized: StdioServerConfig = {
       transport: 'stdio',
       command: raw.command,
-      deferTools
+      deferTools,
+      disabledTools
     };
 
     if (raw.args !== undefined) {
@@ -201,10 +221,22 @@ function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['tr
 }
 
 /**
+ * 单个 MCP 工具的元信息，供宿主展示与启用/禁用切换。
+ * `name` 为去除 `mcp_<server>_` 前缀后的原始工具名。
+ */
+export interface McpToolInfo {
+  name: string;
+  description?: string;
+  /** false 表示该工具被禁用，未注册进引擎工具表。 */
+  enabled: boolean;
+}
+
+/**
  * 单个 MCP server 的连接结果,供宿主在配置变更后展示给用户。
+ * `toolCount` 为实际注册（启用）的工具数；`tools` 列出全部工具及其启用状态。
  */
 export type MCPServerStatus =
-  | { ok: true; toolCount: number }
+  | { ok: true; toolCount: number; tools: McpToolInfo[] }
   | { ok: false; error: string };
 
 /**
@@ -290,21 +322,31 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
 
           const tools = await client.tools();
           const shouldDeferTools = normalizedConfig.deferTools === true;
-          const toolCount = Object.keys(tools).length;
+          const disabledTools = new Set(normalizedConfig.disabledTools ?? []);
 
-          // 注册工具到引擎，使用命名空间前缀
-          const namespacedTools = Object.fromEntries(
-            Object.entries(tools).map(([toolName, tool]) => [
-              `mcp_${serverName}_${toolName}`,
-              shouldDeferTools ? { ...(tool as any), defer_loading: true } : (tool as any)
-            ])
-          );
+          // 逐个工具决定是否注册：被禁用的工具不进引擎工具表（agent 不可见），
+          // 但仍记入 status.tools（enabled:false），供宿主展示与切换。
+          const toolInfos: McpToolInfo[] = [];
+          const namespacedTools: Record<string, any> = {};
+          for (const [toolName, tool] of Object.entries(tools)) {
+            const enabled = !disabledTools.has(toolName);
+            const description = typeof (tool as any)?.description === 'string'
+              ? ((tool as any).description as string)
+              : undefined;
+            toolInfos.push({ name: toolName, description, enabled });
+            if (!enabled) continue;
+            // 注册工具到引擎，使用命名空间前缀
+            namespacedTools[`mcp_${serverName}_${toolName}`] = shouldDeferTools
+              ? { ...(tool as any), defer_loading: true }
+              : (tool as any);
+          }
 
           context.registerTools(namespacedTools);
 
+          const toolCount = Object.keys(namespacedTools).length;
           loadedCount++;
-          statuses[serverName] = { ok: true, toolCount };
-          console.log(`[MCP] Server "${serverName}" loaded (${toolCount} tools)`);
+          statuses[serverName] = { ok: true, toolCount, tools: toolInfos };
+          console.log(`[MCP] Server "${serverName}" loaded (${toolCount}/${toolInfos.length} tools)`);
 
           // 注册服务供其他插件使用
           context.registerService(`mcp:${serverName}`, client);

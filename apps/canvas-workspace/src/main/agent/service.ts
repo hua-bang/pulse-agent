@@ -10,6 +10,7 @@
 import { join } from 'path';
 import { homedir } from 'os';
 import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
+import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
 import type {
   AgentScope,
@@ -428,7 +429,7 @@ export class CanvasAgentService {
    * fall back to "saved, not tested" copy in that case. For global edits we
    * grab whichever active agent exists since global servers are shared.
    */
-  getMcpStatuses(workspaceId?: string): Record<string, { ok: true; toolCount: number } | { ok: false; error: string }> {
+  getMcpStatuses(workspaceId?: string): Record<string, MCPServerStatus> {
     if (workspaceId) {
       return this.getAgent(workspaceScope(workspaceId))?.getMcpStatuses() ?? {};
     }

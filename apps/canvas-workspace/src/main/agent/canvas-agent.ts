@@ -8,6 +8,7 @@
 
 import { Engine } from 'pulse-coder-engine';
 import { createSkillsPlugin, createMcpPlugin } from 'pulse-coder-engine/built-in';
+import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model/config';
 import { scopeMcpConfigPath, skillSourceDirs } from './config-scope';
@@ -732,9 +733,9 @@ export class CanvasAgent {
    * record if the engine hasn't yet loaded any MCP server (or the manager
    * service isn't registered yet).
    */
-  getMcpStatuses(): Record<string, { ok: true; toolCount: number } | { ok: false; error: string }> {
+  getMcpStatuses(): Record<string, MCPServerStatus> {
     const manager = this.engine?.getService?.('mcp:__manager__') as
-      | { getStatuses?: () => Record<string, { ok: true; toolCount: number } | { ok: false; error: string }> }
+      | { getStatuses?: () => Record<string, MCPServerStatus> }
       | undefined;
     return manager?.getStatuses?.() ?? {};
   }

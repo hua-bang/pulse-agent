@@ -890,10 +890,19 @@ export interface CanvasMcpServer {
   env?: Record<string, string>;
   cwd?: string;
   deferTools?: boolean;
+  /** Bare tool names the user has turned off; the engine skips registering these. */
+  disabledTools?: string[];
+}
+
+/** One tool exposed by a connected MCP server, with its enabled state. */
+export interface CanvasMcpToolInfo {
+  name: string;
+  description?: string;
+  enabled: boolean;
 }
 
 export type CanvasMcpServerHealth =
-  | { ok: true; toolCount: number }
+  | { ok: true; toolCount: number; tools?: CanvasMcpToolInfo[] }
   | { ok: false; error: string };
 
 export interface CanvasMcpStatus {
@@ -933,6 +942,12 @@ export interface CanvasMcpApi {
     entries?: CanvasMcpImportEntry[];
     error?: string;
   }>;
+  setToolEnabled: (
+    scope: CanvasConfigScope,
+    name: string,
+    tool: string,
+    enabled: boolean,
+  ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
 }
 
 export interface AgentApi {
