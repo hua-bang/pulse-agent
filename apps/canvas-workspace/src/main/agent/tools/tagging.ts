@@ -85,20 +85,22 @@ const tagNodeSchema = z.object({
   nodes: z
     .array(
       z.object({
-        nodeId: z.string().describe('The canvas/workspace node id to tag.'),
+        nodeId: z.string().describe('The canvas node id to tag — use the EXACT id from canvas_list_nodes, never a guess/title.'),
         workspaceId: z.string().optional().describe('Workspace of this node. Falls back to the top-level workspaceId.'),
-        addTags: tagListSchema.describe('Tags to add for THIS node (overrides the top-level addTags).'),
-        removeTags: tagListSchema.describe('Tags to remove for THIS node (overrides the top-level removeTags).'),
-        setTags: tagListSchema.describe('Replace THIS node\'s entire tag set (overrides add/remove for this node).'),
+        addTags: tagListSchema.describe('Tags to add for THIS node. A NON-EMPTY array overrides top-level addTags; an empty array [] is IGNORED.'),
+        removeTags: tagListSchema.describe('Tags to remove for THIS node. Non-empty overrides top-level; [] is IGNORED.'),
+        setTags: tagListSchema.describe('Replace THIS node\'s entire tag set. Non-empty overrides top-level and ignores add/remove for this node; [] is IGNORED (use clearTags to clear).'),
+        clearTags: z.boolean().optional().describe('Set true to remove ALL tags from THIS node.'),
       }),
     )
     .min(1)
     .max(200)
     .describe('The nodes to tag (batch). Each needs a nodeId; workspaceId can be given here or once at the top level.'),
   workspaceId: z.string().optional().describe('Default workspace id applied to every node that does not set its own.'),
-  addTags: tagListSchema.describe('Tags to add (merge, keeping existing tags) on every node unless the node overrides.'),
-  removeTags: tagListSchema.describe('Tags to remove on every node unless the node overrides.'),
-  setTags: tagListSchema.describe('Replace the entire tag set on every node (ignores add/remove) unless the node overrides.'),
+  addTags: tagListSchema.describe('Tags to add (merge, keeping existing tags) on every node. Empty array [] = no-op.'),
+  removeTags: tagListSchema.describe('Tags to remove on every node. Empty array [] = no-op.'),
+  setTags: tagListSchema.describe('Replace the entire tag set on every node (ignores add/remove). Empty array [] = no-op (use clearTags to clear).'),
+  clearTags: z.boolean().optional().describe('Set true to clear ALL tags on every node unless the node overrides.'),
 });
 
 type TagNodeInput = z.infer<typeof tagNodeSchema>;
@@ -110,9 +112,11 @@ export function createTaggingTools(): Record<string, CanvasTool> {
       description:
         'Add, remove, or replace knowledge tags on one or more nodes — in a single batched call. ' +
         'This is the ONLY canvas write available in global chat: it edits knowledge-layer tags (`properties.tags`) only, never the canvas layout. ' +
-        'Pass `nodes: [{ nodeId, workspaceId }]` (workspaceId may be set once at the top level for all of them). Apply the SAME tags to the whole batch via top-level `addTags` / `removeTags` / `setTags`, or override per node. ' +
-        '`addTags` merges (keeps existing tags), `removeTags` drops them, `setTags` replaces a node\'s entire tag set (use `setTags: []` to clear). Tags may be given by name or id; unknown names are auto-registered. ' +
-        'Run `canvas_list_nodes` / `canvas_list_tags` first to find candidates and exact tag names.',
+        'Pass `nodes: [{ nodeId, workspaceId }]` (workspaceId may be set once at the top level for all). The COMMON case: put the tag once in top-level `addTags` and leave the per-node tag fields empty/omitted; only set per-node tag fields when a node genuinely needs DIFFERENT tags. ' +
+        '`addTags` merges, `removeTags` drops, `setTags` replaces, `clearTags:true` clears. ' +
+        'IMPORTANT semantics: empty arrays ([]) are IGNORED (treated as "not provided") — they do NOT override the top-level and do NOT clear; to clear use `clearTags:true`. A non-empty node-level field overrides the top-level for that node. ' +
+        'The result reports per-node `changed` (and a top-level `changed` count) — a node can be `ok` but `changed:false` (e.g. the tag was already there or the op resolved to nothing), so do NOT treat `ok` alone as "applied". ' +
+        'Use the EXACT nodeId/workspaceId from `canvas_list_nodes`; run `canvas_list_tags` first for exact tag names.',
       inputSchema: tagNodeSchema,
       execute: async (input: TagNodeInput) => {
         const top = input ?? ({} as TagNodeInput);
@@ -121,15 +125,38 @@ export function createTaggingTools(): Record<string, CanvasTool> {
           return JSON.stringify({ ok: false, error: 'No nodes provided.' });
         }
 
-        // Effective op tokens per item (item overrides top-level field-by-field).
+        // Effective op tokens per item. An empty array carries no instruction,
+        // so it is IGNORED (not an override, not a clear) and we fall back to the
+        // top-level. A non-empty node-level field overrides the top-level one.
+        // To clear, callers must pass clearTags:true.
+        const nonEmpty = (arr?: string[]): string[] | undefined =>
+          Array.isArray(arr) && arr.length > 0 ? arr : undefined;
+        const isEmptyArray = (arr?: string[]): boolean => Array.isArray(arr) && arr.length === 0;
+        let sawIgnoredEmpty = false;
+        let overrodeCount = 0;
+
         const effective = items.map((item) => {
-          const setTags = item.setTags ?? top.setTags;
+          if (isEmptyArray(item.addTags) || isEmptyArray(item.removeTags) || isEmptyArray(item.setTags)) {
+            sawIgnoredEmpty = true;
+          }
+          const addTags = nonEmpty(item.addTags) ?? nonEmpty(top.addTags);
+          const removeTags = nonEmpty(item.removeTags) ?? nonEmpty(top.removeTags);
+          const setTags = nonEmpty(item.setTags) ?? nonEmpty(top.setTags);
+          const clearTags = item.clearTags ?? top.clearTags ?? false;
+          const overrodeTop = Boolean(
+            (nonEmpty(item.addTags) && nonEmpty(top.addTags)) ||
+            (nonEmpty(item.removeTags) && nonEmpty(top.removeTags)) ||
+            (nonEmpty(item.setTags) && nonEmpty(top.setTags)),
+          );
+          if (overrodeTop) overrodeCount += 1;
           return {
             nodeId: item.nodeId,
             workspaceId: item.workspaceId ?? top.workspaceId,
+            addTags,
+            removeTags,
             setTags,
-            addTags: setTags ? undefined : item.addTags ?? top.addTags,
-            removeTags: setTags ? undefined : item.removeTags ?? top.removeTags,
+            clearTags,
+            overrodeTop,
           };
         });
 
@@ -179,18 +206,34 @@ export function createTaggingTools(): Record<string, CanvasTool> {
           return map;
         };
 
+        const sameTags = (a: string[], b: string[]): boolean => {
+          if (a.length !== b.length) return false;
+          const sa = new Set(a.map((t) => t.toLowerCase()));
+          return b.every((t) => sa.has(t.toLowerCase()));
+        };
+
         const results: Array<Record<string, unknown>> = [];
         const touched = new Set<string>();
-        let updated = 0;
+        let changed = 0;
+        let unchanged = 0;
+        let failed = 0;
+
         for (const e of effective) {
           const workspaceId = e.workspaceId;
           if (!workspaceId) {
+            failed += 1;
             results.push({ nodeId: e.nodeId, ok: false, error: 'Missing workspaceId (set it on the node or at the top level).' });
             continue;
           }
-          const hasOp = e.setTags !== undefined || (e.addTags?.length ?? 0) > 0 || (e.removeTags?.length ?? 0) > 0;
+          const hasOp = Boolean(e.setTags) || e.clearTags || Boolean(e.addTags) || Boolean(e.removeTags);
           if (!hasOp) {
-            results.push({ workspaceId, nodeId: e.nodeId, ok: false, error: 'No tag operation given (addTags / removeTags / setTags).' });
+            failed += 1;
+            results.push({
+              workspaceId,
+              nodeId: e.nodeId,
+              ok: false,
+              error: 'No tag operation. Pass a non-empty addTags / removeTags / setTags, or clearTags:true. (Empty arrays are ignored.)',
+            });
             continue;
           }
 
@@ -198,20 +241,35 @@ export function createTaggingTools(): Record<string, CanvasTool> {
           const canvasNode = canvasNodes.get(e.nodeId);
           const record = await readWorkspaceNode(workspaceId, e.nodeId);
           if (!canvasNode && !record) {
+            failed += 1;
             results.push({ workspaceId, nodeId: e.nodeId, ok: false, error: 'Node not found in this workspace.' });
             continue;
           }
 
+          // setTags (non-empty) replaces; clearTags clears (= set to []);
+          // otherwise add/remove merge.
+          const setIds = e.setTags ? toIds(e.setTags) : e.clearTags ? [] : null;
           const ops: TagOps = {
-            addIds: toIds(e.addTags),
-            removeKeys: toRemoveKeys(e.removeTags),
-            setIds: e.setTags !== undefined ? toIds(e.setTags) : null,
+            addIds: setIds === null ? toIds(e.addTags) : [],
+            removeKeys: setIds === null ? toRemoveKeys(e.removeTags) : new Set<string>(),
+            setIds,
           };
-          const nextTags = computeNextTags(recordTags(record), ops, index);
+          const before = recordTags(record);
+          const nextTags = computeNextTags(before, ops, index);
 
-          // Don't materialise an empty record just to write zero tags.
-          if (!record && nextTags.length === 0) {
-            results.push({ workspaceId, nodeId: e.nodeId, ok: true, created: false, tags: [] });
+          // No actual change → report ok-but-unchanged instead of a fake success,
+          // and skip the write (don't materialise an empty record either).
+          if (sameTags(before, nextTags)) {
+            unchanged += 1;
+            results.push({
+              workspaceId,
+              nodeId: e.nodeId,
+              ok: true,
+              changed: false,
+              tags: nextTags,
+              note: nextTags.length === 0 ? 'no tags applied (op resolved to empty)' : 'unchanged (tags already as requested)',
+              ...(e.overrodeTop ? { overrodeTopLevel: true } : {}),
+            });
             continue;
           }
 
@@ -234,18 +292,40 @@ export function createTaggingTools(): Record<string, CanvasTool> {
               };
           await writeWorkspaceNode(workspaceId, next);
           touched.add(workspaceId);
-          updated += 1;
-          results.push({ workspaceId, nodeId: e.nodeId, ok: true, created: !record, tags: nextTags });
+          changed += 1;
+          results.push({
+            workspaceId,
+            nodeId: e.nodeId,
+            ok: true,
+            changed: true,
+            created: !record,
+            tags: nextTags,
+            ...(e.overrodeTop ? { overrodeTopLevel: true } : {}),
+          });
         }
 
         // Tell open Graph / Nodes views to reload so chat-applied tags show up
         // live (the renderer is otherwise pull-only and would stay stale).
         broadcastWorkspaceNodesChanged([...touched]);
 
+        const notes: string[] = [];
+        if (sawIgnoredEmpty) {
+          notes.push('Empty-array tag fields were ignored (treated as not provided). To clear tags use clearTags:true.');
+        }
+        if (overrodeCount > 0) {
+          notes.push(`Node-level tags overrode the top-level for ${overrodeCount} node(s).`);
+        }
+        if (unchanged > 0) {
+          notes.push(`${unchanged} node(s) are ok but unchanged — check each node's "changed" flag, not just "ok".`);
+        }
+
         return JSON.stringify({
-          ok: results.every((r) => r.ok),
+          ok: failed === 0,
           total: results.length,
-          updated,
+          changed,
+          unchanged,
+          failed,
+          ...(notes.length ? { notes } : {}),
           results,
         });
       },

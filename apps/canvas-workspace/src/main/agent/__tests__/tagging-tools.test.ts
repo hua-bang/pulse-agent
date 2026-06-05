@@ -92,7 +92,7 @@ describe('canvas_tag_node', () => {
     }));
 
     expect(out.ok).toBe(true);
-    expect(out.updated).toBe(3);
+    expect(out.changed).toBe(3);
     // existing rag kept + new ai id appended (stored as ids, not names)
     expect(await tagsOf('ws-a', 'a1')).toEqual(['rag', 'ai']);
     expect(await tagsOf('ws-a', 'a2')).toEqual(['ai']); // record created
@@ -116,7 +116,7 @@ describe('canvas_tag_node', () => {
     expect(await tagsOf('ws-a', 'a1')).toEqual(['rag']);
   });
 
-  it('removes tags by name or id, and replaces / clears via setTags', async () => {
+  it('removes tags by name or id, replaces via setTags, and clears via clearTags', async () => {
     await seed();
     const tools = createTaggingTools();
 
@@ -126,8 +126,45 @@ describe('canvas_tag_node', () => {
     await tools.canvas_tag_node.execute({ nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }], setTags: ['AI', 'RAG'] });
     expect(await tagsOf('ws-a', 'a1')).toEqual(['ai', 'rag']);
 
-    await tools.canvas_tag_node.execute({ nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }], setTags: [] });
+    await tools.canvas_tag_node.execute({ nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }], clearTags: true });
     expect(await tagsOf('ws-a', 'a1')).toEqual([]);
+  });
+
+  it('ignores empty-array tag fields instead of treating them as override/clear', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    // Problem 1: node-level addTags:[] must NOT shadow the top-level addTags.
+    const out1 = JSON.parse(await tools.canvas_tag_node.execute({
+      nodes: [{ nodeId: 'a2', workspaceId: 'ws-a', addTags: [] }],
+      addTags: ['AI'],
+    }));
+    expect(out1.changed).toBe(1);
+    expect(await tagsOf('ws-a', 'a2')).toEqual(['ai']);
+    expect(out1.notes?.some((n: string) => /empty-array/i.test(n))).toBe(true);
+
+    // Problem 2: node-level setTags:[] must NOT clear / cancel the add.
+    const out2 = JSON.parse(await tools.canvas_tag_node.execute({
+      nodes: [{ nodeId: 'b1', workspaceId: 'ws-b', addTags: ['AI'], setTags: [] }],
+    }));
+    expect(out2.changed).toBe(1);
+    expect(await tagsOf('ws-b', 'b1')).toEqual(['ai']);
+  });
+
+  it('reports changed:false (not fake success) when tags do not actually change', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    // a1 already has rag; adding RAG again is a no-op.
+    const out = JSON.parse(await tools.canvas_tag_node.execute({
+      nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }],
+      addTags: ['RAG'],
+    }));
+    expect(out.ok).toBe(true);
+    expect(out.changed).toBe(0);
+    expect(out.unchanged).toBe(1);
+    expect(out.results[0].changed).toBe(false);
+    expect(await tagsOf('ws-a', 'a1')).toEqual(['rag']);
   });
 
   it('broadcasts a workspace-node change so open Graph / Nodes views refresh', async () => {
@@ -172,7 +209,8 @@ describe('canvas_tag_node', () => {
       addTags: ['AI'],
     }));
     expect(out.ok).toBe(false);
-    expect(out.updated).toBe(1);
+    expect(out.changed).toBe(1);
+    expect(out.failed).toBe(2);
     const byId = new Map<string, { ok?: boolean; error?: string }>(
       (out.results as Array<{ nodeId: string; ok?: boolean; error?: string }>).map((r) => [r.nodeId, r]),
     );

@@ -105,14 +105,16 @@ Works in global chat (the whole system) and inside a single workspace. It only t
 
 4. **Show the proposal and get confirmation.** Present a scannable list grouped by workspace — each line = node title + a one-line reason. End with a question like 「这些打上 [AI] 吗?要去掉哪几个?」. **Do not tag yet.**
 
-5. **Apply in ONE batch.** After the user confirms (and any edits), call \`canvas_tag_node\` once with the confirmed nodes:
+5. **Apply in ONE batch.** After the user confirms (and any edits), call \`canvas_tag_node\` once. Put the tag **once at the top level** in \`addTags\` and leave the per-node objects to just \`{ nodeId, workspaceId }\`:
    \`\`\`json
    {
      "nodes": [{ "nodeId": "<id>", "workspaceId": "<wsId>" }],
      "addTags": ["AI"]
    }
    \`\`\`
-   Use the exact \`nodeId\` / \`workspaceId\` from the list tools — never guess them. Then report how many were tagged, and surface any per-node errors the tool returned.
+   - Use the EXACT \`nodeId\` / \`workspaceId\` from \`canvas_list_nodes\` — never guess from titles.
+   - Do NOT put \`addTags\` / \`setTags\` on each node, and never pass empty arrays (\`[]\`) — empty arrays are ignored and just add noise. Only set a per-node tag field when that node genuinely needs a different tag.
+   - After the call, read the result's \`changed\` count and each node's \`changed\` flag — \`ok:true\` alone does NOT mean a tag was applied (a node can be unchanged). Report the real \`changed\` number and surface any per-node errors / notes.
 
 ## Rules
 
