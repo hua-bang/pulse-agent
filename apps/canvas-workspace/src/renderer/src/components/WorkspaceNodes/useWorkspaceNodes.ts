@@ -39,6 +39,18 @@ export function useWorkspaceNodeList(workspaceId: string) {
     void reload();
   }, [reload]);
 
+  // Live-refresh when the main process reports a change touching this
+  // workspace (e.g. the agent's canvas_tag_node).
+  useEffect(() => {
+    const api = window.canvasWorkspace?.workspaceNodes;
+    if (!api?.onChange) return undefined;
+    return api.onChange((event) => {
+      if (!event.workspaceIds?.length || event.workspaceIds.includes(workspaceId)) {
+        void reload();
+      }
+    });
+  }, [reload, workspaceId]);
+
   return { nodes, tags, loading, error, reload };
 }
 
@@ -91,6 +103,17 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  // Live-refresh when the main process reports a workspace-node change (e.g.
+  // the agent's canvas_tag_node) so chat-applied tags appear in the graph
+  // without a manual refresh.
+  useEffect(() => {
+    const api = window.canvasWorkspace?.workspaceNodes;
+    if (!api?.onChange) return undefined;
+    return api.onChange(() => {
+      void reload();
+    });
   }, [reload]);
 
   return { nodes, tags, loading, error, reload };

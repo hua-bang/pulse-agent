@@ -1168,6 +1168,10 @@ export interface CanvasWorkspaceApi {
       node?: WorkspaceNodeRecord | null;
       error?: string;
     }>;
+    /** Fires when workspace-node metadata (tags / properties) changes in the main process. */
+    onChange: (
+      callback: (event: { workspaceIds: string[]; source: 'canvas-agent' | 'renderer' }) => void,
+    ) => () => void;
   };
   file: FileApi;
   dialog: DialogApi;

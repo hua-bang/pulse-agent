@@ -1,5 +1,6 @@
 import type { IpcRenderer } from "electron";
 import type { CanvasWorkspaceApi } from "../../renderer/src/types";
+import { subscribe } from "./ipc";
 
 export const createWorkspaceNodesApi = (
   ipcRenderer: IpcRenderer
@@ -20,5 +21,8 @@ export const createWorkspaceNodesApi = (
     ipcRenderer.invoke("workspace-node:update-tags", { workspaceId, nodeId, tags }),
 
   update: (workspaceId, nodeId, patch) =>
-    ipcRenderer.invoke("workspace-node:update", { workspaceId, nodeId, patch })
+    ipcRenderer.invoke("workspace-node:update", { workspaceId, nodeId, patch }),
+
+  onChange: (callback) =>
+    subscribe(ipcRenderer, "workspace-node:change", callback)
 });

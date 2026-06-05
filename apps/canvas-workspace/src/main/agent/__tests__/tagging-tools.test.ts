@@ -3,11 +3,14 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 
 // Pin os.homedir() to a sandbox before the default-rooted helpers load it.
-const { sandboxHome } = vi.hoisted(() => {
+// `sentEvents` captures the renderer broadcasts the tool fires (canvas_tag_node
+// -> broadcastWorkspaceNodesChanged -> webContents.send).
+const { sandboxHome, sentEvents } = vi.hoisted(() => {
   const base = process.env.TMPDIR || process.env.TEMP || '/tmp';
   const trailing = base.endsWith('/') ? '' : '/';
   return {
     sandboxHome: `${base}${trailing}tagging-tools-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    sentEvents: [] as Array<{ channel: string; payload: { workspaceIds?: string[] } }>,
   };
 });
 
@@ -15,6 +18,22 @@ vi.mock('os', async () => {
   const actual = await vi.importActual<typeof import('os')>('os');
   return { ...actual, homedir: () => sandboxHome };
 });
+
+// The broadcaster imports electron's BrowserWindow; stub it to capture sends.
+vi.mock('electron', () => ({
+  BrowserWindow: {
+    getAllWindows: () => [
+      {
+        isDestroyed: () => false,
+        webContents: {
+          send: (channel: string, payload: unknown) => {
+            sentEvents.push({ channel, payload: payload as { workspaceIds?: string[] } });
+          },
+        },
+      },
+    ],
+  },
+}));
 
 import { createTaggingTools, __testing } from '../tools/tagging';
 import { writeCanvasFull, type CanvasSaveData } from '../../canvas/storage';
@@ -50,6 +69,7 @@ async function seed(): Promise<void> {
 }
 
 beforeEach(async () => {
+  sentEvents.length = 0;
   await fs.mkdir(CANVAS_DIR, { recursive: true });
 });
 
@@ -108,6 +128,20 @@ describe('canvas_tag_node', () => {
 
     await tools.canvas_tag_node.execute({ nodes: [{ nodeId: 'a1', workspaceId: 'ws-a' }], setTags: [] });
     expect(await tagsOf('ws-a', 'a1')).toEqual([]);
+  });
+
+  it('broadcasts a workspace-node change so open Graph / Nodes views refresh', async () => {
+    await seed();
+    const tools = createTaggingTools();
+
+    await tools.canvas_tag_node.execute({
+      nodes: [{ nodeId: 'a2', workspaceId: 'ws-a' }, { nodeId: 'b1', workspaceId: 'ws-b' }],
+      addTags: ['AI'],
+    });
+
+    const change = sentEvents.find((e) => e.channel === 'workspace-node:change');
+    expect(change).toBeTruthy();
+    expect(new Set(change?.payload.workspaceIds)).toEqual(new Set(['ws-a', 'ws-b']));
   });
 
   it('lets a node override the top-level operation', async () => {

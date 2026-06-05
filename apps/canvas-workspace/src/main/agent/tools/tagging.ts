@@ -23,6 +23,7 @@ import {
   type WorkspaceNodeRecord,
 } from '../../canvas/nodes/store';
 import { readKnowledgeTags, upsertKnowledgeTag } from '../../canvas/nodes/tags';
+import { broadcastWorkspaceNodesChanged } from '../../canvas/nodes/broadcast';
 import { loadCanvas } from './_shared/canvas-io';
 import type { CanvasNode, CanvasTool } from './types';
 
@@ -179,6 +180,7 @@ export function createTaggingTools(): Record<string, CanvasTool> {
         };
 
         const results: Array<Record<string, unknown>> = [];
+        const touched = new Set<string>();
         let updated = 0;
         for (const e of effective) {
           const workspaceId = e.workspaceId;
@@ -231,9 +233,14 @@ export function createTaggingTools(): Record<string, CanvasTool> {
                 updatedAt: now,
               };
           await writeWorkspaceNode(workspaceId, next);
+          touched.add(workspaceId);
           updated += 1;
           results.push({ workspaceId, nodeId: e.nodeId, ok: true, created: !record, tags: nextTags });
         }
+
+        // Tell open Graph / Nodes views to reload so chat-applied tags show up
+        // live (the renderer is otherwise pull-only and would stay stale).
+        broadcastWorkspaceNodesChanged([...touched]);
 
         return JSON.stringify({
           ok: results.every((r) => r.ok),
