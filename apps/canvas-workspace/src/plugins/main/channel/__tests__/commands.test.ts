@@ -7,7 +7,7 @@ import type {
   CanvasAgentServiceRef,
   PluginStore,
 } from '../../../types';
-import type { InboundMessage } from '../core/types';
+import type { CommandReply, InboundMessage } from '../core/types';
 
 // Mock the disk-backed workspace helpers so command tests stay hermetic.
 vi.mock('../core/workspaces', () => {
@@ -85,7 +85,7 @@ function fakeService(overrides: Partial<CanvasAgentServiceRef> = {}): CanvasAgen
   };
 }
 
-function msg(text: string): InboundMessage {
+function msg(text: string, overrides: Partial<InboundMessage> = {}): InboundMessage {
   return {
     channelId: 'feishu',
     conversationId: 'chatA',
@@ -95,7 +95,18 @@ function msg(text: string): InboundMessage {
     isMention: false,
     isDirect: true,
     reply: null,
+    ...overrides,
   };
+}
+
+function text(out: CommandReply | null): string {
+  expect(out?.kind).toBe('text');
+  return out && out.kind === 'text' ? out.text : '';
+}
+
+function picker(out: CommandReply | null) {
+  expect(out?.kind).toBe('workspace_picker');
+  return out && out.kind === 'workspace_picker' ? out.picker : null;
 }
 
 describe('handleCommand', () => {
@@ -117,13 +128,13 @@ describe('handleCommand', () => {
 
   it('/bind binds the chat to an existing workspace by id', async () => {
     const out = await handleCommand(msg('/bind ws-A'), makeDeps());
-    expect(out).toContain('ws-A');
+    expect(text(out)).toContain('ws-A');
     expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-A');
   });
 
   it('/bind resolves a workspace by friendly name', async () => {
     const out = await handleCommand(msg('/bind Alpha'), makeDeps());
-    expect(out).toContain('Alpha');
+    expect(text(out)).toContain('Alpha');
     expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-A');
   });
 
@@ -151,18 +162,18 @@ describe('handleCommand', () => {
         'chatA',
       ),
     ).toBe('workspace-session');
-    expect(out).toContain('Migrated 4 previous messages');
+    expect(text(out)).toContain('Migrated 4 previous messages');
   });
 
   it('/bind rejects an unknown workspace', async () => {
     const out = await handleCommand(msg('/bind nope'), makeDeps());
-    expect(out).toMatch(/not found/i);
+    expect(text(out)).toMatch(/not found/i);
     expect(await bindings.getBound('feishu', 'chatA')).toBeUndefined();
   });
 
   it('/default sets the suggested default', async () => {
     const out = await handleCommand(msg('/default ws-B'), makeDeps());
-    expect(out).toContain('ws-B');
+    expect(text(out)).toContain('ws-B');
     expect(await bindings.getSuggestedDefault()).toBe('ws-B');
   });
 
@@ -170,7 +181,7 @@ describe('handleCommand', () => {
     await bindings.setDefault('ws-B');
     const out = await handleCommand(msg('/bind'), makeDeps());
     expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-B');
-    expect(out).toContain('Beta');
+    expect(text(out)).toContain('Beta');
   });
 
   it('/new delegates to the service for the resolved workspace', async () => {
@@ -178,7 +189,7 @@ describe('handleCommand', () => {
     const newSessionForScope = vi.fn(async () => ({ ok: true }));
     const out = await handleCommand(msg('/new'), makeDeps(fakeService({ newSessionForScope })));
     expect(newSessionForScope).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'ws-A' });
-    expect(out).toMatch(/new session/i);
+    expect(text(out)).toMatch(/new session/i);
   });
 
   it('/new on an unbound chat starts a global session', async () => {
@@ -188,7 +199,7 @@ describe('handleCommand', () => {
     const out = await handleCommand(msg('/new'), deps);
     expect(newSessionForScope).toHaveBeenCalledWith({ kind: 'global' });
     expect(await deps.sessionRouter.getConversationSessionId({ kind: 'global' }, 'chatA')).toBe('fresh-global');
-    expect(out).toMatch(/Global chat/i);
+    expect(text(out)).toMatch(/Global chat/i);
   });
 
   it('/stop aborts the resolved workspace', async () => {
@@ -207,9 +218,16 @@ describe('handleCommand', () => {
   it('/list shows names and marks the bound workspace', async () => {
     await bindings.bind('feishu', 'chatA', 'ws-A');
     const out = await handleCommand(msg('/list'), makeDeps());
-    expect(out).toContain('Alpha (ws-A)');
-    expect(out).toContain('Beta (ws-B)');
-    expect(out).toContain('⭐'); // bound workspace marker
+    const p = picker(out);
+    expect(p?.fallbackText).toContain('Alpha (ws-A)');
+    expect(p?.fallbackText).toContain('Beta (ws-B)');
+    expect(p?.fallbackText).toContain('⭐'); // bound workspace marker
+  });
+
+  it('/use with no argument shows the same workspace picker as /list', async () => {
+    const list = await handleCommand(msg('/list'), makeDeps());
+    const use = await handleCommand(msg('/use'), makeDeps());
+    expect(picker(use)).toEqual(picker(list));
   });
 
   it('/session switches to the chosen session by number', async () => {
@@ -224,7 +242,7 @@ describe('handleCommand', () => {
       makeDeps(fakeService({ loadSessionForScope, listSessionsForScope })),
     );
     expect(loadSessionForScope).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'ws-A' }, 's-old');
-    expect(out).toMatch(/Switched to session/i);
+    expect(text(out)).toMatch(/Switched to session/i);
   });
 
   it('/session rejects an out-of-range selector', async () => {
@@ -233,7 +251,7 @@ describe('handleCommand', () => {
       { sessionId: 's1', date: '2026-06-01', messageCount: 1, isCurrent: true },
     ];
     const out = await handleCommand(msg('/session 9'), makeDeps(fakeService({ listSessionsForScope })));
-    expect(out).toMatch(/not found/i);
+    expect(text(out)).toMatch(/not found/i);
   });
 
   it('/open activates the canvas for the bound workspace', async () => {
@@ -241,13 +259,13 @@ describe('handleCommand', () => {
     const activateCanvas = vi.fn(async () => ({ ok: true }));
     const out = await handleCommand(msg('/open'), { ...makeDeps(), activateCanvas });
     expect(activateCanvas).toHaveBeenCalledWith('ws-A');
-    expect(out).toMatch(/activated/i);
+    expect(text(out)).toMatch(/activated/i);
   });
 
   it('/open reports when activation is unavailable', async () => {
     await bindings.bind('feishu', 'chatA', 'ws-A');
     const out = await handleCommand(msg('/open'), makeDeps());
-    expect(out).toMatch(/not available/i);
+    expect(text(out)).toMatch(/not available/i);
   });
 
   it('/open can activate a workspace by name without binding the chat', async () => {
@@ -255,7 +273,7 @@ describe('handleCommand', () => {
     const out = await handleCommand(msg('/open Alpha'), { ...makeDeps(), activateCanvas });
     expect(activateCanvas).toHaveBeenCalledWith('ws-A');
     expect(await bindings.getBound('feishu', 'chatA')).toBeUndefined();
-    expect(out).toMatch(/activated/i);
+    expect(text(out)).toMatch(/activated/i);
   });
 
   it('/open can activate a workspace by list number without binding the chat', async () => {
@@ -263,26 +281,141 @@ describe('handleCommand', () => {
     const out = await handleCommand(msg('/open 2'), { ...makeDeps(), activateCanvas });
     expect(activateCanvas).toHaveBeenCalledWith('ws-B');
     expect(await bindings.getBound('feishu', 'chatA')).toBeUndefined();
-    expect(out).toMatch(/activated/i);
+    expect(text(out)).toMatch(/activated/i);
   });
 
   it('/open without a target asks for a workspace when unbound', async () => {
     const activateCanvas = vi.fn(async () => ({ ok: true }));
     const out = await handleCommand(msg('/open'), { ...makeDeps(), activateCanvas });
     expect(activateCanvas).not.toHaveBeenCalled();
-    expect(out).toMatch(/Usage: \/open/i);
+    expect(text(out)).toMatch(/Usage: \/open/i);
+  });
+
+  it('/use binds and opens a workspace by name', async () => {
+    const activateCanvas = vi.fn(async () => ({ ok: true }));
+    const out = await handleCommand(msg('/use Alpha'), { ...makeDeps(), activateCanvas });
+    expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-A');
+    expect(activateCanvas).toHaveBeenCalledWith('ws-A');
+    expect(text(out)).toMatch(/Using Alpha \(ws-A\)/);
+    expect(text(out)).toMatch(/Opened in Canvas/i);
+  });
+
+  it('/use accepts a list number', async () => {
+    const activateCanvas = vi.fn(async () => ({ ok: true }));
+    const out = await handleCommand(msg('/use 2'), { ...makeDeps(), activateCanvas });
+    expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-B');
+    expect(activateCanvas).toHaveBeenCalledWith('ws-B');
+    expect(text(out)).toMatch(/Beta \(ws-B\)/);
+  });
+
+  it('/use in a direct chat does not carry previous global context by default', async () => {
+    const service = fakeService({
+      copySessionToScope: vi.fn(async () => ({
+        ok: true,
+        sessionId: 'workspace-session',
+        messageCount: 7,
+      })),
+    });
+    const deps = makeDeps(service);
+    const activateCanvas = vi.fn(async () => ({ ok: true }));
+    await deps.sessionRouter.setConversationSession({ kind: 'global' }, 'chatA', 'global-session');
+
+    const out = await handleCommand(msg('/use Alpha'), { ...deps, activateCanvas });
+
+    expect(service.copySessionToScope).not.toHaveBeenCalled();
+    expect(text(out)).not.toContain('Brought over');
+    expect(activateCanvas).toHaveBeenCalledWith('ws-A');
+  });
+
+  it('/use in a new group carries previous global context by default', async () => {
+    const service = fakeService({
+      copySessionToScope: vi.fn(async () => ({
+        ok: true,
+        sessionId: 'workspace-session',
+        messageCount: 7,
+      })),
+    });
+    const deps = makeDeps(service);
+    const activateCanvas = vi.fn(async () => ({ ok: true }));
+    await deps.sessionRouter.setConversationSession({ kind: 'global' }, 'chatA', 'global-session');
+
+    const out = await handleCommand(
+      msg('/use Alpha', { isDirect: false, isMention: true }),
+      { ...deps, activateCanvas },
+    );
+
+    expect(service.copySessionToScope).toHaveBeenCalledWith(
+      { kind: 'global' },
+      'global-session',
+      { kind: 'workspace', workspaceId: 'ws-A' },
+    );
+    expect(
+      await deps.sessionRouter.getConversationSessionId(
+        { kind: 'workspace', workspaceId: 'ws-A' },
+        'chatA',
+      ),
+    ).toBe('workspace-session');
+    expect(text(out)).toContain('Brought over 7 previous messages');
+  });
+
+  it('/use --carry carries previous direct chat context explicitly', async () => {
+    const service = fakeService({
+      copySessionToScope: vi.fn(async () => ({
+        ok: true,
+        sessionId: 'workspace-session',
+        messageCount: 7,
+      })),
+    });
+    const deps = makeDeps(service);
+    const activateCanvas = vi.fn(async () => ({ ok: true }));
+    await deps.sessionRouter.setConversationSession({ kind: 'global' }, 'chatA', 'global-session');
+
+    const out = await handleCommand(msg('/use Alpha --carry'), { ...deps, activateCanvas });
+
+    expect(service.copySessionToScope).toHaveBeenCalled();
+    expect(text(out)).toContain('Brought over 7 previous messages');
+  });
+
+  it('/use --fresh starts a fresh session instead of carrying context', async () => {
+    const service = fakeService({
+      copySessionToScope: vi.fn(async () => ({
+        ok: true,
+        sessionId: 'workspace-session',
+        messageCount: 7,
+      })),
+      newSessionForScope: vi.fn(async () => ({ ok: true })),
+      getCurrentSessionIdForScope: vi.fn(() => 'fresh-session'),
+    });
+    const deps = makeDeps(service);
+    const activateCanvas = vi.fn(async () => ({ ok: true }));
+    await deps.sessionRouter.setConversationSession({ kind: 'global' }, 'chatA', 'global-session');
+
+    const out = await handleCommand(
+      msg('/use Alpha --fresh', { isDirect: false, isMention: true }),
+      { ...deps, activateCanvas },
+    );
+
+    expect(service.copySessionToScope).not.toHaveBeenCalled();
+    expect(service.newSessionForScope).toHaveBeenCalledWith({ kind: 'workspace', workspaceId: 'ws-A' });
+    expect(
+      await deps.sessionRouter.getConversationSessionId(
+        { kind: 'workspace', workspaceId: 'ws-A' },
+        'chatA',
+      ),
+    ).toBe('fresh-session');
+    expect(text(out)).toContain('Started a fresh session');
   });
 
   it('/bind accepts a list number', async () => {
     const out = await handleCommand(msg('/bind 1'), makeDeps());
-    expect(out).toContain('ws-A');
+    expect(text(out)).toContain('ws-A');
     expect(await bindings.getBound('feishu', 'chatA')).toBe('ws-A');
   });
 
   it('/ws on an unbound chat shows the workspace picker', async () => {
     const out = await handleCommand(msg('/ws'), makeDeps());
-    expect(out).toMatch(/Global chat/i);
-    expect(out).toMatch(/\/bind/i);
+    expect(text(out)).toMatch(/not connected/i);
+    expect(text(out)).toMatch(/\/use/i);
   });
 
   it('/sessions on an unbound chat lists global sessions', async () => {
@@ -291,12 +424,12 @@ describe('handleCommand', () => {
     ]);
     const out = await handleCommand(msg('/sessions'), makeDeps(fakeService({ listSessionsForScope })));
     expect(listSessionsForScope).toHaveBeenCalledWith({ kind: 'global' });
-    expect(out).toMatch(/Global chat/i);
-    expect(out).toContain('2026-06-01');
+    expect(text(out)).toMatch(/Global chat/i);
+    expect(text(out)).toContain('2026-06-01');
   });
 
   it('unknown command returns help text', async () => {
     const out = await handleCommand(msg('/wat'), makeDeps());
-    expect(out).toMatch(/Unknown command/i);
+    expect(text(out)).toMatch(/Unknown command/i);
   });
 });

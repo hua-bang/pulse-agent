@@ -41,6 +41,25 @@ export interface OutboundTarget {
   reply: unknown;
 }
 
+export interface WorkspacePickerOption {
+  id: string;
+  label: string;
+  isActive: boolean;
+  isBound: boolean;
+}
+
+export interface WorkspacePicker {
+  title: string;
+  summary: string;
+  options: WorkspacePickerOption[];
+  defaultCarry: boolean;
+  fallbackText: string;
+}
+
+export type CommandReply =
+  | { kind: 'text'; text: string }
+  | { kind: 'workspace_picker'; picker: WorkspacePicker };
+
 /**
  * A live output sink for a single agent run. The channel decides how each
  * event renders (Feishu progressively patches one interactive card). All
@@ -77,4 +96,6 @@ export interface Channel {
   openStream(target: OutboundTarget): Promise<ChannelStream>;
   /** Send a one-off plain-text reply (command output, pre-run notices). */
   sendText(target: OutboundTarget, text: string): Promise<void>;
+  /** Send a workspace picker. Channels without rich UI can omit this. */
+  sendWorkspacePicker?(target: OutboundTarget, picker: WorkspacePicker): Promise<void>;
 }

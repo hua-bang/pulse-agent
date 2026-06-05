@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { parseInbound } from '../channels/feishu/feishu-channel';
+import { parseCardAction, parseInbound } from '../channels/feishu/feishu-channel';
 
 interface EventOpts {
   messageId?: string;
   chatId?: string;
-  chatType?: 'p2p' | 'group';
+  chatType?: 'p2p' | 'group' | 'topic_group';
   text?: string;
+  content?: unknown;
   mentions?: unknown[];
   threadId?: string;
   rootId?: string;
@@ -19,7 +20,7 @@ function event(opts: EventOpts): unknown {
       chat_id: opts.chatId ?? 'chat1',
       chat_type: opts.chatType ?? 'p2p',
       message_type: opts.messageType ?? 'text',
-      content: JSON.stringify({ text: opts.text ?? 'hi' }),
+      content: JSON.stringify(opts.content ?? { text: opts.text ?? 'hi' }),
       mentions: opts.mentions,
       thread_id: opts.threadId,
       root_id: opts.rootId,
@@ -68,6 +69,56 @@ describe('parseInbound', () => {
     expect(out).not.toBeNull();
     expect(out!.text).toBe('do it');
     expect(out!.isMention).toBe(true);
+    expect(out!.isDirect).toBe(false);
+  });
+
+  it('group text with an @ marker is accepted even when mentions are omitted', () => {
+    const out = parseInbound(
+      event({ chatType: 'group', chatId: 'gA', mentions: undefined, text: '@bot 晚上好' }),
+    );
+    expect(out).not.toBeNull();
+    expect(out!.text).toBe('晚上好');
+    expect(out!.isMention).toBe(false);
+    expect(out!.isDirect).toBe(false);
+  });
+
+  it('topic group text with an at tag is accepted even when mentions are omitted', () => {
+    const out = parseInbound(
+      event({
+        chatType: 'topic_group',
+        chatId: 'gT',
+        threadId: 'th1',
+        mentions: undefined,
+        text: '<at user_id="bot">Pulse</at> 晚上好',
+      }),
+    );
+    expect(out).not.toBeNull();
+    expect(out!.conversationId).toBe('gT:th1');
+    expect(out!.text).toBe('晚上好');
+  });
+
+  it('topic group post messages are accepted and flattened', () => {
+    const out = parseInbound(
+      event({
+        chatType: 'topic_group',
+        chatId: 'gT',
+        threadId: 'th1',
+        messageType: 'post',
+        mentions: [{ name: 'Pulse' }],
+        content: {
+          title: '晚上好',
+          content: [
+            [
+              { tag: 'at', user_name: 'Pulse', user_id: 'bot' },
+              { tag: 'text', text: ' 晚上好' },
+            ],
+          ],
+        },
+      }),
+    );
+    expect(out).not.toBeNull();
+    expect(out!.conversationId).toBe('gT:th1');
+    expect(out!.text).toBe('晚上好');
     expect(out!.isDirect).toBe(false);
   });
 
@@ -120,5 +171,133 @@ describe('parseInbound', () => {
   it('non-text messages are ignored', () => {
     const out = parseInbound(event({ messageType: 'image' }));
     expect(out).toBeNull();
+  });
+});
+
+describe('parseCardAction', () => {
+  it('turns a workspace picker button into an internal /use command', () => {
+    const out = parseCardAction({
+      open_id: 'user-card',
+      open_message_id: 'card-msg',
+      action: {
+        value: {
+          action: 'workspace.use',
+          workspaceId: 'ws-A',
+          carry: true,
+          conversationId: 'chat1',
+          reply: {
+            chatId: 'chat1',
+            isGroup: false,
+            triggerMessageId: 'm1',
+          },
+        },
+      },
+    });
+
+    expect(out).not.toBeNull();
+    expect(out!.conversationId).toBe('chat1');
+    expect(out!.userId).toBe('user-card');
+    expect(out!.messageId).toBe('card:card-msg:user-card:chat1:ws-A:carry');
+    expect(out!.text).toBe('/use ws-A --carry');
+    expect(out!.isDirect).toBe(true);
+  });
+
+  it('keeps group routing when a group picker button is clicked', () => {
+    const out = parseCardAction({
+      action: {
+        value: {
+          action: 'workspace.use',
+          workspaceId: 'ws-A',
+          conversationId: 'group1:thread1',
+          reply: {
+            chatId: 'group1',
+            threadId: 'thread1',
+            isGroup: true,
+            triggerMessageId: 'm1',
+          },
+        },
+      },
+    });
+
+    expect(out).not.toBeNull();
+    expect(out!.text).toBe('/use ws-A');
+    expect(out!.isDirect).toBe(false);
+    expect(out!.isMention).toBe(true);
+    expect(out!.reply).toEqual({
+      chatId: 'group1',
+      threadId: 'thread1',
+      isGroup: true,
+      triggerMessageId: 'm1',
+    });
+  });
+
+  it('reads the selected workspace from form_value for dropdown picker cards', () => {
+    const out = parseCardAction({
+      open_id: 'user-card',
+      open_message_id: 'card-msg',
+      action: {
+        value: {
+          action: 'workspace.use',
+          carry: true,
+          conversationId: 'chat1',
+          reply: {
+            chatId: 'chat1',
+            isGroup: false,
+            triggerMessageId: 'm1',
+          },
+        },
+        form_value: {
+          workspace_picker_workspace: 'ws-B',
+        },
+      },
+    });
+
+    expect(out).not.toBeNull();
+    expect(out!.messageId).toBe('card:card-msg:user-card:chat1:ws-B:carry');
+    expect(out!.text).toBe('/use ws-B --carry');
+  });
+
+  it('handles nested Feishu card action events with behavior callback values', () => {
+    const out = parseCardAction({
+      event: {
+        operator: {
+          open_id: 'operator-open',
+        },
+        context: {
+          open_message_id: 'card-msg',
+        },
+        action: {
+          behaviors: [
+            {
+              value: {
+                action: 'workspace.use',
+                carry: false,
+                conversationId: 'group1:thread1',
+                reply: {
+                  chatId: 'group1',
+                  threadId: 'thread1',
+                  isGroup: true,
+                  triggerMessageId: 'm1',
+                },
+              },
+            },
+          ],
+          form_value: {
+            workspace_picker_workspace: 'ws-B',
+          },
+        },
+      },
+    });
+
+    expect(out).not.toBeNull();
+    expect(out!.userId).toBe('operator-open');
+    expect(out!.messageId).toBe('card:card-msg:operator-open:group1:thread1:ws-B:use');
+    expect(out!.text).toBe('/use ws-B');
+    expect(out!.isDirect).toBe(false);
+  });
+
+  it('ignores malformed or unrelated card actions', () => {
+    expect(parseCardAction({ action: { value: { action: 'other' } } })).toBeNull();
+    expect(parseCardAction({ action: { value: { action: 'workspace.use' } } })).toBeNull();
   });
 });
