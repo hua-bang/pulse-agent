@@ -97,6 +97,8 @@ export interface WorkspaceNodeListItem {
   id: string;
   type: string;
   title?: string;
+  /** Friendlier label derived from the canvas node (text preview, mindmap root, ...). */
+  displayTitle?: string;
   summary?: string;
   tags: string[];
   links?: WorkspaceNodeLink[];
@@ -104,6 +106,8 @@ export interface WorkspaceNodeListItem {
   createdAt?: number;
   hasData: boolean;
   linkCount: number;
+  /** Whether a canvas node with this id currently exists in the workspace. Undefined when not computed. */
+  onCanvas?: boolean;
 }
 
 export interface KnowledgeTagDefinition {
@@ -1183,6 +1187,10 @@ export interface CanvasWorkspaceApi {
       node?: WorkspaceNodeRecord | null;
       error?: string;
     }>;
+    /** Fires when workspace-node metadata (tags / properties) changes in the main process. */
+    onChange: (
+      callback: (event: { workspaceIds: string[]; source: 'canvas-agent' | 'renderer' }) => void,
+    ) => () => void;
   };
   file: FileApi;
   dialog: DialogApi;

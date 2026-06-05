@@ -50,6 +50,11 @@ interface GraphLink {
   relation?: string;
 }
 
+/** A graph search hit — either a knowledge node or a tag node currently in the graph. */
+type GraphSearchResult =
+  | { kind: 'node'; node: WorkspaceNodeListItem }
+  | { kind: 'tag'; graphId: string; label: string };
+
 const GRAPH_COLORS = {
   node: '#2383e2',
   nodeText: '#1d4f87',
@@ -214,6 +219,9 @@ export const GraphPage = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [showWorkspaceHubs, setShowWorkspaceHubs] = useState(true);
+  // Off-canvas nodes (knowledge records with no matching canvas node — e.g.
+  // stale/orphan records) are hidden by default; toggle to reveal them.
+  const [showOffCanvas, setShowOffCanvas] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -245,19 +253,46 @@ export const GraphPage = ({
     setActiveNodeId(selectedGraphId(selectedNode));
   }, [selectedNode]);
 
-  const visibleNodes = nodes;
+  const visibleNodes = useMemo(
+    () => (showOffCanvas ? nodes : nodes.filter((node) => node.onCanvas !== false)),
+    [nodes, showOffCanvas],
+  );
 
-  const searchSuggestions = useMemo(() => {
+  const searchSuggestions = useMemo<GraphSearchResult[]>(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return [] as WorkspaceNodeListItem[];
-    return nodes.filter((node) => [
-      node.id,
-      node.workspaceName ?? '',
-      node.title ?? '',
-      node.summary ?? '',
-      ...node.tags.map((tagId) => tagName(tagId, tags)),
-    ].some((value) => value.toLowerCase().includes(q))).slice(0, 12);
-  }, [nodes, query, tags]);
+    if (!q) return [];
+
+    // Tags present in the current graph (only when tag nodes are shown). The
+    // tag graph node id is `tag:<token>`, matching buildGraphData.
+    const tagResults: Array<Extract<GraphSearchResult, { kind: 'tag' }>> = [];
+    if (showTags) {
+      const seen = new Set<string>();
+      for (const node of visibleNodes) {
+        for (const token of node.tags) {
+          if (seen.has(token)) continue;
+          seen.add(token);
+          const label = tagName(token, tags);
+          if (label.toLowerCase().includes(q) || token.toLowerCase().includes(q)) {
+            tagResults.push({ kind: 'tag', graphId: `tag:${token}`, label });
+          }
+        }
+      }
+      tagResults.sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    const nodeResults: GraphSearchResult[] = visibleNodes
+      .filter((node) => [
+        node.id,
+        node.workspaceName ?? '',
+        getNodeTitle(node, ''),
+        node.summary ?? '',
+        ...node.tags.map((tagId) => tagName(tagId, tags)),
+      ].some((value) => value.toLowerCase().includes(q)))
+      .map((node) => ({ kind: 'node', node } as GraphSearchResult));
+
+    // Tags first (a few), then nodes, capped.
+    return [...tagResults.slice(0, 6), ...nodeResults].slice(0, 12);
+  }, [visibleNodes, query, tags, showTags]);
 
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   useEffect(() => { setSuggestionIndex(0); }, [query]);
@@ -362,15 +397,22 @@ export const GraphPage = ({
   // here would yank the viewport on every click — the opposite of the
   // "click = open drawer, double-click = zoom" interaction.
 
-  const pickSuggestion = useCallback((item: WorkspaceNodeListItem) => {
+  const pickSuggestion = useCallback((result: GraphSearchResult) => {
+    setSearchOpen(false);
+    setQuery('');
+    // Defer focus so the node has positions computed after the search
+    // overlay closes.
+    if (result.kind === 'tag') {
+      setActiveNodeId(result.graphId);
+      onSelectNode?.(null); // a tag isn't a workspace node — clear node selection
+      window.setTimeout(() => focusNode(result.graphId), 80);
+      return;
+    }
+    const item = result.node;
     const workspaceId = getNodeWorkspaceId(item);
     const graphId = nodeGraphId(workspaceId, item.id);
     setActiveNodeId(graphId);
-    setSearchOpen(false);
-    setQuery('');
     onSelectNode?.({ workspaceId, nodeId: item.id });
-    // Defer focus so the node has positions computed after the search
-    // overlay closes.
     window.setTimeout(() => focusNode(graphId), 80);
   }, [focusNode, onSelectNode]);
 
@@ -497,6 +539,9 @@ export const GraphPage = ({
               {showWorkspaceHubs ? t('workspaceGraph.hideWorkspaces') : t('workspaceGraph.groupByWorkspace')}
             </button>
           )}
+          <button className={`workspace-node-chip${showOffCanvas ? ' is-active' : ''}`} onClick={() => setShowOffCanvas((value) => !value)}>
+            {showOffCanvas ? t('workspaceGraph.hideOffCanvas') : t('workspaceGraph.showOffCanvas')}
+          </button>
           <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>{t('workspaceGraph.fit')}</button>
           <div className="workspace-graph-toolbar__more" ref={overflowRef}>
             <button
@@ -583,20 +628,32 @@ export const GraphPage = ({
               {searchSuggestions.length === 0 ? (
                 <div className="workspace-graph-search__empty">{t('workspaceGraph.noMatches')}</div>
               ) : (
-                searchSuggestions.map((item, index) => (
-                  <button
-                    key={`${getNodeWorkspaceId(item)}:${item.id}`}
-                    type="button"
-                    role="option"
-                    aria-selected={index === suggestionIndex}
-                    className={`workspace-graph-search__item${index === suggestionIndex ? ' is-active' : ''}`}
-                    onMouseEnter={() => setSuggestionIndex(index)}
-                    onClick={() => pickSuggestion(item)}
-                  >
-                    <span className="workspace-graph-search__title">{getNodeTitle(item, t('workspaceNodes.untitled'))}</span>
-                    <span className="workspace-graph-search__meta">{item.workspaceName ?? ''}</span>
-                  </button>
-                ))
+                searchSuggestions.map((result, index) => {
+                  const isTag = result.kind === 'tag';
+                  const key = result.kind === 'tag'
+                    ? result.graphId
+                    : `${getNodeWorkspaceId(result.node)}:${result.node.id}`;
+                  const title = result.kind === 'tag'
+                    ? result.label
+                    : getNodeTitle(result.node, t('workspaceNodes.untitled'));
+                  const meta = result.kind === 'tag'
+                    ? t('workspaceGraph.tagResult')
+                    : (result.node.workspaceName ?? '');
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="option"
+                      aria-selected={index === suggestionIndex}
+                      className={`workspace-graph-search__item${index === suggestionIndex ? ' is-active' : ''}${isTag ? ' workspace-graph-search__item--tag' : ''}`}
+                      onMouseEnter={() => setSuggestionIndex(index)}
+                      onClick={() => pickSuggestion(result)}
+                    >
+                      <span className="workspace-graph-search__title">{isTag ? `# ${title}` : title}</span>
+                      <span className="workspace-graph-search__meta">{meta}</span>
+                    </button>
+                  );
+                })
               )}
             </div>
           )}

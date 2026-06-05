@@ -60,7 +60,7 @@ vi.mock('../../../plugins/main', () => ({
   getRegisteredCanvasToolFactories: () => new Map(),
 }));
 
-import { createCanvasTools, createGlobalReadOnlyCanvasTools } from '../tools';
+import { createCanvasTools, createGlobalCanvasTools } from '../tools';
 import {
   readCanvasFull,
   writeCanvasFull,
@@ -190,24 +190,30 @@ describe('canvas_search_nodes', () => {
   });
 });
 
-describe('createGlobalReadOnlyCanvasTools', () => {
-  it('exposes only read/search canvas tools plus clarification', async () => {
-    const tools = createGlobalReadOnlyCanvasTools();
+describe('createGlobalCanvasTools', () => {
+  it('exposes read/search tools, the knowledge index, and the tag-write tool — no layout mutations', async () => {
+    const tools = createGlobalCanvasTools();
     expect(Object.keys(tools).sort()).toEqual([
       'canvas_ask_user',
       'canvas_list_edges',
+      'canvas_list_nodes',
+      'canvas_list_tags',
+      'canvas_list_workspaces',
       'canvas_read_context',
       'canvas_read_node',
       'canvas_search_nodes',
+      'canvas_tag_node',
       'workspace_node_get',
       'workspace_node_list',
     ]);
+    // canvas_tag_node is the ONLY write; layout/content mutations stay absent.
     expect(tools.canvas_create_node).toBeUndefined();
+    expect(tools.canvas_update_node).toBeUndefined();
     expect(tools.workspace_node_upsert).toBeUndefined();
   });
 
   it('requires workspaceId for global read/search tools', async () => {
-    const tools = createGlobalReadOnlyCanvasTools();
+    const tools = createGlobalCanvasTools();
     await setupCanvas();
 
     const missing = await tools.canvas_search_nodes.execute({ query: 'pipeline' });
@@ -382,11 +388,15 @@ describe('deferred tool partition', () => {
       'canvas_ask_user',
       'canvas_create_agent_node',
       'canvas_create_node',
+      'canvas_list_nodes',
+      'canvas_list_tags',
+      'canvas_list_workspaces',
       'canvas_promote_skill',
       'canvas_read_context',
       'canvas_read_node',
       'canvas_save_skill',
       'canvas_search_nodes',
+      'canvas_tag_node',
       'canvas_update_node',
       'visual_render',
     ]);

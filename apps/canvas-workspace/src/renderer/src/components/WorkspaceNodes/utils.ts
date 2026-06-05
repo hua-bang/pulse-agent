@@ -26,6 +26,12 @@ export function getNodeTitle(
   fallback = 'Untitled',
 ): string {
   if (!node) return fallback;
+  // List items carry a derived `displayTitle` (e.g. a text-content preview) that
+  // reads better than the bare type word ("Text") or empty title.
+  if ('displayTitle' in node) {
+    const display = node.displayTitle?.trim();
+    if (display) return display;
+  }
   return node.title?.trim() || node.id || fallback;
 }
 

@@ -5,6 +5,8 @@ import { createNodeTools } from './nodes';
 import { createSearchTools } from './search';
 import { createGroupTools } from './groups';
 import { createWorkspaceNodeTools } from './workspace-nodes';
+import { createKnowledgeTools } from './knowledge';
+import { createTaggingTools } from './tagging';
 import { createAgentTools } from './agents';
 import { createTerminalTools } from './terminals';
 import { createShapeTools } from './shapes';
@@ -40,7 +42,14 @@ const requireWorkspaceId = (tool: CanvasTool): CanvasTool => {
   };
 };
 
-export function createGlobalReadOnlyCanvasTools(): Record<string, CanvasTool> {
+/**
+ * Tool set for global chat (no current workspace). Read/search canvas tools
+ * are wrapped to require an explicit workspaceId; the cross-workspace knowledge
+ * index is eager. The one sanctioned write is `canvas_tag_node` — it edits
+ * knowledge-layer tags only (never canvas layout), so a tagging skill can apply
+ * tags across workspaces without leaving global chat.
+ */
+export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const nodeTools = createNodeTools('');
   const searchTools = createSearchTools('');
   const edgeTools = createEdgeTools('');
@@ -54,6 +63,13 @@ export function createGlobalReadOnlyCanvasTools(): Record<string, CanvasTool> {
     canvas_list_edges: requireWorkspaceId(edgeTools.canvas_list_edges),
     workspace_node_list: requireWorkspaceId(workspaceNodeTools.workspace_node_list),
     workspace_node_get: requireWorkspaceId(workspaceNodeTools.workspace_node_get),
+    // Cross-workspace knowledge index. These inherently span every workspace
+    // (workspaceId is optional), so they are NOT wrapped with requireWorkspaceId
+    // and stay eager — global chat must see them up front to read local
+    // workspaces / tags / nodes instead of reaching for an external MCP server.
+    ...createKnowledgeTools(),
+    // The only allowed write in global chat: knowledge-layer tagging.
+    ...createTaggingTools(),
   };
 }
 
@@ -63,6 +79,8 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createSearchTools(workspaceId),
     ...createGroupTools(workspaceId),
     ...createWorkspaceNodeTools(workspaceId),
+    ...createKnowledgeTools(),
+    ...createTaggingTools(),
     ...createAgentTools(workspaceId),
     ...createTerminalTools(workspaceId),
     ...createShapeTools(workspaceId),

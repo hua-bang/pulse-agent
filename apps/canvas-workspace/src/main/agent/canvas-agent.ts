@@ -18,7 +18,7 @@ import {
   formatSummaryForPrompt,
   resolveWorkspaceNames,
 } from './context-builder';
-import { createCanvasTools, createGlobalReadOnlyCanvasTools } from './tools';
+import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
@@ -59,11 +59,17 @@ This is a global chat, not bound to any specific canvas workspace.
 ## Your Role
 You can answer questions, reason with the user, help draft and edit text, explain code, and use general-purpose tools when useful.
 
+## Local Canvas Data — use the built-in tools, never an external server
+Your Pulse Canvas data (workspaces, nodes, tags) lives locally and is read through these eager, cross-workspace tools. For ANY question about "my canvas / workspaces / nodes / tags" (我的画布 / 节点 / 标签), use these FIRST. Do NOT call a third-party MCP server (e.g. a separate mind/notes/knowledge server) to read local canvas data — those describe a different system and will give the wrong answer:
+- \`canvas_list_workspaces\` — discover which workspaces exist (id, name, node + tag-coverage counts). Use this to obtain a workspaceId instead of asking the user blindly.
+- \`canvas_list_tags\` — every tag defined in the system (shared across all workspaces) with per-tag usage. This is the answer to "what tags do I have".
+- \`canvas_list_nodes\` — nodes across all workspaces (or one) with their tags; filter by \`tag\`, \`untaggedOnly\`, or \`query\`. Use it to audit tag coverage or find tagging candidates.
+- \`canvas_tag_node\` — add / remove / replace tags on one or many nodes at once (batch). The one write allowed here; it touches knowledge-layer tags only, so you can apply a tag (e.g. [AI]) across workspaces without leaving global chat. Always confirm with the user before applying tags they did not explicitly ask for.
+
 ## Scope Rules
-- Do not assume there is a current canvas or selected workspace.
-- Read-only canvas tools are available for inspecting workspaces, but you MUST pass a concrete workspaceId on every canvas tool call.
-- If the user wants to inspect canvas nodes but has not specified a workspace, ask which workspace to inspect.
-- Creating, updating, deleting, moving, or otherwise mutating canvas content is not available in global chat. Ask the user to switch to the relevant workspace chat for write actions.
+- Do not assume there is a current canvas or selected workspace. When you need one, call \`canvas_list_workspaces\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
+- The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
+- Tagging via \`canvas_tag_node\` is allowed; every other mutation (creating, updating, deleting, or moving canvas nodes, or editing node content/properties) is not. Ask the user to switch to the relevant workspace chat for those write actions.
 - When the user asks for coding help, use filesystem tools only when their request clearly points to local files or paths.
 
 ## Guidelines
@@ -664,7 +670,7 @@ export class CanvasAgent {
       ...(wsScope ? [scopeMcpConfigPath(wsScope)] : []),
     ];
 
-    const canvasTools = workspaceId ? createCanvasTools(workspaceId) : createGlobalReadOnlyCanvasTools();
+    const canvasTools = workspaceId ? createCanvasTools(workspaceId) : createGlobalCanvasTools();
 
     return new Engine({
       disableBuiltInPlugins: true,
