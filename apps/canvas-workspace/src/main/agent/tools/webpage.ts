@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
+import { ensureOperable } from '../../webview/ensure-operable';
+import { activateWorkspaceWindow } from '../../app/window-manager';
 import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
 import type { CanvasTool } from './types';
 
@@ -63,11 +65,20 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
         const maxChars = (input.maxChars as number) ?? 12_000;
         const sparseThreshold = (input.sparseThreshold as number) ?? 200;
 
-        const wc = getWebContentsForNode(workspaceId, nodeId);
+        // A 'screenshot' read needs a painted surface, so treat it as an
+        // operate (force-activate) request; dom/a11y reads work even on a
+        // display:none node, so only activate them when nothing is registered.
+        const wc = await ensureOperable({
+          lookup: () => getWebContentsForNode(workspaceId, nodeId),
+          activate: () => activateWorkspaceWindow(workspaceId),
+          mode: strategy === 'screenshot' ? 'operate' : 'read',
+        });
         if (!wc) {
           return JSON.stringify({
             ok: false,
-            error: `No active webview for node ${nodeId} in workspace ${workspaceId}. Make sure the iframe node is open and loaded.`,
+            error:
+              `No active webview for node ${nodeId} in workspace ${workspaceId} ` +
+              `(auto-activation attempted). Make sure the iframe node exists and is in URL mode.`,
           });
         }
 

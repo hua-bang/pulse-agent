@@ -149,15 +149,28 @@ Trade-offs:
 Some agent tools need the canvas **UI** open on the workspace — e.g.
 webview/iframe page control requires the node's `<webview>` to be mounted in
 the renderer. When driving from a channel the window may be hidden or on a
-different workspace, so those tools fail with "No active webview…".
+different workspace (mounted but `display: none`), so the node has no paint
+surface — screenshots come back blank and clicks can't hit-test.
 
-`/open` activates the bound workspace in the canvas and navigates to it
-**without stealing focus or raising the window**: it only shows the window
-(inactively) if it was hidden/minimized — so its renderer isn't suspended and
-the webviews can load — and creates the window if none is open. It uses the
-renderer's existing `#/?workspaceId=<id>` hash route. Activation is currently
-**manual** (send `/open` before webview-dependent requests); automatic
-activation on tool failure is a possible follow-up.
+**Auto-activation.** Webview tools now activate the workspace themselves
+before acting (`ensureOperable` in `main/webview/ensure-operable.ts`), so you
+don't have to send `/open` first:
+
+- **Read tools** (`canvas_read_webpage` dom/a11y) work even on a `display:none`
+  node — they read the live guest DOM directly — so they only activate when
+  nothing is registered yet, and never steal the active-workspace slot just to
+  read text.
+- **Operate tools** (page click / fill / press / scroll, screenshots) need a
+  *painted* surface, so they always make the workspace active (un-hide its
+  container + `showInactive()` the window — **no focus steal**), wait for the
+  node to register, and settle a frame before acting.
+
+Caveats: the canvas has a **single active workspace**, so activating one
+switches the canvas away from whatever you were viewing; and the machine must
+be awake. Activation still uses the renderer's `#/?workspaceId=<id>` hash route
+and creates the window if none is open. `/open` remains available for manual
+control. Set `CANVAS_WEBVIEW_AUTO_ACTIVATE=0` to disable auto-activation and
+fall back to the old manual behavior.
 
 ### Run watchdog (idle vs. in-flight tools)
 
