@@ -73,10 +73,22 @@ function toolLines(tools: ToolEntry[]): string {
   return tools
     .map((t) => {
       const icon = t.done ? '✅' : '⏳';
-      const timing = t.done && typeof t.elapsedSec === 'number' ? ` · ${t.elapsedSec}s` : '';
-      return `${icon} ${t.label}${timing}`;
+      const { name, detail } = splitToolLabel(t.label);
+      // Bold the tool name so each row reads as "what" then "on what",
+      // keeping the detail (and timing) visually secondary.
+      const segs = [`${icon} **${name || 'tool'}**`];
+      if (detail) segs.push(detail);
+      if (t.done && typeof t.elapsedSec === 'number') segs.push(`${t.elapsedSec}s`);
+      return segs.join(' · ');
     })
     .join('\n');
+}
+
+/** Recover the "name" / "detail" parts of a `formatToolLabel` string. */
+function splitToolLabel(label: string): { name: string; detail: string } {
+  const i = label.indexOf(' — ');
+  if (i >= 0) return { name: label.slice(0, i), detail: label.slice(i + 3) };
+  return { name: label, detail: '' };
 }
 
 /** A collapsed panel holding the finished tool list (shown on the done card). */
@@ -202,13 +214,40 @@ export function formatToolLabel(name: string, args: unknown): string {
 function summarizeArgs(args: unknown): string {
   if (!args || typeof args !== 'object') return '';
   const record = args as Record<string, unknown>;
-  // Prefer a few common, meaningful fields for a compact hint.
-  for (const key of ['title', 'path', 'query', 'command', 'name', 'nodeId']) {
+  // Prefer a few common, meaningful fields for a compact hint. Ordered most-
+  // to least descriptive so e.g. a title wins over a bare id.
+  for (const key of [
+    'title', 'name', 'query', 'q', 'prompt', 'question',
+    'path', 'file', 'filePath', 'fileName', 'fileToken',
+    'url', 'link', 'href', 'docToken', 'documentId', 'document', 'doc', 'token',
+    'selector', 'key', 'pattern', 'command', 'cmd', 'text', 'nodeId', 'id',
+  ]) {
     const value = record[key];
     if (typeof value === 'string' && value.trim()) {
-      const v = value.trim();
-      return v.length > 60 ? `${v.slice(0, 60)}…` : v;
+      return shorten(prettyValue(key, value.trim()));
     }
   }
   return '';
+}
+
+/** Make a raw arg value compact and readable for the card (basename, host/…/slug). */
+function prettyValue(key: string, value: string): string {
+  if (key === 'url' || key === 'link' || key === 'href') {
+    try {
+      const u = new URL(value);
+      const slug = u.pathname.split('/').filter(Boolean).pop();
+      return slug ? `${u.hostname}/…/${slug}` : u.hostname;
+    } catch {
+      /* not a URL — fall through to the raw value */
+    }
+  }
+  if (key === 'path' || key === 'file' || key === 'filePath') {
+    const base = value.split(/[\\/]/).filter(Boolean).pop();
+    if (base) return base;
+  }
+  return value;
+}
+
+function shorten(value: string): string {
+  return value.length > 48 ? `${value.slice(0, 48)}…` : value;
 }
