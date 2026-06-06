@@ -332,3 +332,25 @@ canvas_session_read: { input: { sessionId: string; maxMessages?: number; include
 ---
 
 *设计已锁定，将按 §10 Phase 1 与 §7 改动清单实现，并提交到 `claude/epic-ride-JXTQu`。*
+
+---
+
+## 13. 架构更新：插件化（最终实现）
+
+评审后，这套能力**重构为 canvas 插件**（`src/plugins/main/memory/`），不再直接改 canvas-agent core —— 更符合 canvas 既有的插件架构（channel / dynamic-app / devtools / webview 都是插件），可开关、UI 有处可挂。
+
+**映射到插件系统**：
+- **工具**：插件 `activate()` 里 `ctx.registerCanvasTool((workspaceId) => ({ ...memory, ...session }))`；`workspaceId === ''` 表示全局。当前 sessionId 用 `ctx.getAgentService().getCurrentSessionIdForScope(scope)`（契约自带）。
+- **沉淀**：canvas-agent 每轮**无条件** `agentBus.emitTurn('turnComplete', { sessionId, data:{ scope, userText, assistantText } })`；插件 `ctx.onAgent('turnComplete')` 订阅后沉淀。
+- **全局覆盖**：`createGlobalCanvasTools()` 现在也跑插件工厂（`factory('')`），全局聊天也有 memory/session 工具。
+
+**3 个 core enabler**（都很小、可复用）：
+1. `plugins/types.ts`：`AgentEvent` 增加 `'turnComplete'`（无条件、带完整正文；区别于只在 debug trace 时才发的 `turnEnd`）。
+2. `canvas-agent.ts`：每轮 emit `turnComplete`；移除 core 里的工具注册 / 沉淀 / system-prompt 文案。
+3. `tools/index.ts`：`createGlobalCanvasTools()` 也运行插件工厂。
+
+**文件位置（实现版，取代 §5/§7 中 `src/main/agent/memory/` 的旧路径）**：
+- `src/plugins/main/memory/`：`index.ts`（插件入口）、`keys.ts`、`ranking.ts`、`canvas-memory.ts`、`canvas-memory-service.ts`、`memory-tools.ts`、`session-retrieval.ts` + `__tests__/`
+- 注册于 `src/plugins/main/built-in.ts` 的 `BUILT_IN_MAIN_PLUGINS`
+
+**取舍**：纯工具按需模式下，§4.3 提到的"工具使用策略文案"不再注入 system prompt（插件无此 hook），改由各工具自身的 `description` 引导。其余逻辑（桶模型、沉淀、跨粒度召回、会话检索）与 §3–§6 完全一致，只是承载方式从 core 改为插件。

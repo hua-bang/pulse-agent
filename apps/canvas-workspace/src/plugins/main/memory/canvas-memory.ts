@@ -10,7 +10,7 @@
  */
 
 import type { FileMemoryPluginService, MemoryItem } from 'pulse-coder-memory-plugin';
-import type { AgentScope } from '../types';
+import type { AgentScope } from '../../../main/agent/types';
 import { CANVAS_BUCKET_SESSION_ID, memoryKeysForScope } from './keys';
 import { getCanvasMemoryService } from './canvas-memory-service';
 import {

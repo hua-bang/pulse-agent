@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CanvasAgentMessage } from '../../types';
+import type { CanvasAgentMessage } from '../../../../main/agent/types';
 import { formatSessionExcerpt } from '../session-retrieval';
 
 function msg(over: Partial<CanvasAgentMessage> & { role: 'user' | 'assistant'; content: string }): CanvasAgentMessage {

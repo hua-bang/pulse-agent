@@ -10,9 +10,9 @@
  */
 
 import { z } from 'zod';
-import type { CanvasTool } from './types';
-import type { AgentScope, CanvasAgentMessage } from '../types';
-import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from '../session-store';
+import type { CanvasTool } from '../../../main/agent/tools/types';
+import type { AgentScope, CanvasAgentMessage } from '../../../main/agent/types';
+import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from '../../../main/agent/session-store';
 
 export interface SessionRetrievalDeps {
   scope: AgentScope;

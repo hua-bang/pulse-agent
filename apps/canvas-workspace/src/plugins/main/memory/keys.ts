@@ -9,7 +9,7 @@
  * For the global chat agent the workspace bucket *is* the global bucket.
  */
 
-import type { AgentScope } from '../types';
+import type { AgentScope } from '../../../main/agent/types';
 
 /** Shared bucket for cross-workspace ("global") memory. */
 export const CANVAS_GLOBAL_MEMORY_KEY = 'canvas:global';

@@ -19,8 +19,6 @@ import {
   resolveWorkspaceNames,
 } from './context-builder';
 import { createCanvasTools, createGlobalCanvasTools } from './tools';
-import { createSessionRetrievalTools } from './tools/session-retrieval';
-import { createCanvasMemoryTools, sedimentTurn } from './memory';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
@@ -53,21 +51,6 @@ interface CanvasAgentRequestContext {
 }
 
 const CANVAS_AGENT_MAX_STEPS = 200;
-
-/**
- * Appended to every system prompt so the agent knows the on-demand memory /
- * session-retrieval tools exist (pure-tool mode injects no memory content).
- * Fixed length — does not grow with conversation size.
- */
-const CANVAS_MEMORY_TOOL_POLICY = [
-  '## Memory & session retrieval (on-demand tools)',
-  'Memory is tool-based — nothing is auto-injected. Call these only when relevant, not every turn.',
-  '- canvas_memory_recall: recall distilled memory. Set granularity to session | workspace | global | all.',
-  '- canvas_memory_record: persist a durable preference/rule/fix/profile for this workspace.',
-  '- canvas_memory_promote: promote a fact/rule to GLOBAL memory (shared across workspaces). Only when the user clearly wants it remembered everywhere.',
-  '- canvas_session_list / canvas_session_read: find and read the verbatim content of an earlier conversation (read-only).',
-  'If recalled memory conflicts with the latest user instruction, follow the user.',
-].join('\n');
 
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 
@@ -688,11 +671,6 @@ export class CanvasAgent {
     ];
 
     const canvasTools = workspaceId ? createCanvasTools(workspaceId) : createGlobalCanvasTools();
-    const memoryTools = createCanvasMemoryTools({
-      scope: this.config.scope,
-      getSessionId: () => this.sessionStore.getCurrentSession()?.sessionId,
-    });
-    const sessionTools = createSessionRetrievalTools({ scope: this.config.scope });
 
     return new Engine({
       disableBuiltInPlugins: true,
@@ -703,7 +681,7 @@ export class CanvasAgent {
         ],
       },
       model: this.config.model,
-      tools: { ...canvasTools, ...memoryTools, ...sessionTools },
+      tools: canvasTools,
     });
   }
 
@@ -914,7 +892,7 @@ export class CanvasAgent {
         provider: modelConfig.provider,
         model: this.config.model ?? modelConfig.model,
         modelType: modelConfig.modelType,
-        systemPrompt: `${systemPrompt}\n\n${CANVAS_MEMORY_TOOL_POLICY}`,
+        systemPrompt,
         maxSteps: CANVAS_AGENT_MAX_STEPS,
         abortSignal: abortController.signal,
         onClarificationRequest: engineClarificationHandler,
@@ -991,17 +969,18 @@ export class CanvasAgent {
         runId: finalizedTrace?.runId,
       });
 
-      // Sediment this turn into workspace-bucket memory (serves session +
-      // workspace recall). Fire-and-forget — memory must never break chat.
-      const sedimentSessionId = this.sessionStore.getCurrentSession()?.sessionId;
-      if (sedimentSessionId) {
-        void sedimentTurn({
+      // Unconditional per-turn event so plugins (e.g. memory) can react to
+      // every completed turn with the full turn text. Fire-and-forget; the
+      // sync emit never blocks the chat response.
+      agentBus.emitTurn('turnComplete', {
+        runId: finalizedTrace?.runId ?? '',
+        sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? '',
+        data: {
           scope: this.config.scope,
-          sessionId: sedimentSessionId,
           userText: message,
           assistantText: responseText,
-        }).catch((err) => console.warn('[canvas-agent] memory sediment failed:', err));
-      }
+        },
+      });
 
       // Notify subscribed plugins (devtools persists the trace to its own
       // store; other plugins may inspect the finalized turn). Emitted

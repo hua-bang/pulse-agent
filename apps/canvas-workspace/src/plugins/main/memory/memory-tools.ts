@@ -10,8 +10,8 @@
  */
 
 import { z } from 'zod';
-import type { CanvasTool } from '../tools/types';
-import type { AgentScope } from '../types';
+import type { CanvasTool } from '../../../main/agent/tools/types';
+import type { AgentScope } from '../../../main/agent/types';
 import { promoteToGlobalMemory, recallMemory, recordWorkspaceMemory } from './canvas-memory';
 import type { MemoryGranularity } from './ranking';
 

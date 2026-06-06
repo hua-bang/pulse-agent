@@ -55,7 +55,7 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const edgeTools = createEdgeTools('');
   const workspaceNodeTools = createWorkspaceNodeTools('');
 
-  return {
+  const base: Record<string, CanvasTool> = {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
@@ -71,6 +71,24 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // The only allowed write in global chat: knowledge-layer tagging.
     ...createTaggingTools(),
   };
+
+  // Plugin-contributed tools run for global chat too — an empty workspaceId
+  // signals "global"; each plugin's factory handles that case (e.g. memory
+  // maps '' to the global scope). Factories that throw are skipped so one bad
+  // plugin can't break global chat. (Workspace chat merges these in
+  // createCanvasTools below.)
+  for (const [pluginId, factory] of getRegisteredCanvasToolFactories()) {
+    try {
+      Object.assign(base, factory('') as Record<string, CanvasTool>);
+    } catch (err) {
+      console.error(
+        `[canvas-tools] plugin ${pluginId} global tool factory threw; skipping its tools`,
+        err,
+      );
+    }
+  }
+
+  return base;
 }
 
 export function createCanvasTools(workspaceId: string): Record<string, CanvasTool> {

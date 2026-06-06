@@ -9,9 +9,13 @@ import { join } from 'path';
  * / not yet bundled), so it adds coverage wherever native deps are available
  * without breaking the suite where they are not.
  */
+// Non-literal specifier + @vite-ignore so the bundler does NOT resolve the
+// package at transform time — it may be unbuilt (no dist) in some
+// environments, in which case the runtime import throws and we skip cleanly.
+const MEMORY_PKG = 'pulse-coder-memory-plugin';
 let pluginModule: typeof import('pulse-coder-memory-plugin') | undefined;
 try {
-  pluginModule = await import('pulse-coder-memory-plugin');
+  pluginModule = await import(/* @vite-ignore */ MEMORY_PKG);
 } catch {
   pluginModule = undefined;
 }
