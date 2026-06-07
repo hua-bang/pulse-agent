@@ -354,3 +354,14 @@ canvas_session_read: { input: { sessionId: string; maxMessages?: number; include
 - 注册于 `src/plugins/main/built-in.ts` 的 `BUILT_IN_MAIN_PLUGINS`
 
 **取舍**：纯工具按需模式下，§4.3 提到的"工具使用策略文案"不再注入 system prompt（插件无此 hook），改由各工具自身的 `description` 引导。其余逻辑（桶模型、沉淀、跨粒度召回、会话检索）与 §3–§6 完全一致，只是承载方式从 core 改为插件。
+
+---
+
+## 14. Phase 2：记忆面板 UI（已实现）
+
+给用户一个能**看 / 搜 / 管理**记忆的入口（此前只有 agent 能碰记忆）。也是插件化的直接收益。
+
+- **主进程（admin IPC）** `src/plugins/main/memory/admin-ipc.ts`：`ctx.handle` 注册 `list-scopes` / `list` / `pin` / `forget`（channel 自动前缀 `plugin:memory:`）。`list` 用 `service.list({ platformKey })` 取某个桶（global 或某 workspace）的记忆；`pin`/`forget` 直接调 `service.pin/forget`。
+- **渲染进程（renderer 半）** `src/plugins/renderer/memory/`：`index.tsx` 用 `registerNavItem` + `registerRoute('/memory')` 挂"记忆"导航页；`MemoryPage.tsx` 列出条目（类型徽标 / 摘要 / 关键词 / 时间 / 命中次数），支持**范围切换**（全局 + 各 workspace，默认当前 workspace）、**搜索**、**置顶**、**删除（带确认）**。注册于 `src/plugins/renderer/built-in.ts`。
+
+**已知限制**：`service.pin` 是单向的（只置顶、无取消置顶）；如需"取消置顶 / 编辑"得给 memory 插件加一个方法（改包，单独评估）。会话级（session-scope 显式条目）暂不在面板展示（`list` 不传 sessionId）。

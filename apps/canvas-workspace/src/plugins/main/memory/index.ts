@@ -13,6 +13,7 @@
 
 import type { AgentScope } from '../../../main/agent/types';
 import type { MainCanvasPlugin } from '../../types';
+import { registerMemoryAdminIpc } from './admin-ipc';
 import { sedimentTurn } from './canvas-memory';
 import { createCanvasMemoryTools } from './memory-tools';
 import { createSessionRetrievalTools } from './session-retrieval';
@@ -57,5 +58,8 @@ export const MemoryMainPlugin: MainCanvasPlugin = {
         assistantText: payload.assistantText,
       }).catch((err) => console.warn('[memory] sediment failed:', err));
     });
+
+    // Renderer-facing admin IPC backing the memory panel UI (Phase 2).
+    registerMemoryAdminIpc(ctx);
   },
 };
