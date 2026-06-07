@@ -1,17 +1,6 @@
-import { promises as fs } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
 import { Command } from 'commander';
 import { output, errorOutput, type OutputFormat } from '../output';
-
-const RUNTIME_FILE = join(homedir(), '.pulse-coder', 'canvas-runtime', 'canvas-workspace.json');
-
-interface RuntimeInfo {
-  pid: number;
-  baseUrl: string;
-  secret: string;
-  createdAt: string;
-}
+import { postRuntime, readRuntime, runtimeAuthHint, type RuntimeInfo } from '../core/runtime-control';
 
 function getOpts(cmd: Command): { format: OutputFormat; workspace: string } {
   const root = cmd.parent?.parent ?? cmd.parent;
@@ -21,31 +10,6 @@ function getOpts(cmd: Command): { format: OutputFormat; workspace: string } {
     errorOutput('Workspace ID required. Use --workspace <id> or set $PULSE_CANVAS_WORKSPACE_ID');
   }
   return { format: opts.format ?? 'text', workspace };
-}
-
-async function readRuntime(): Promise<RuntimeInfo> {
-  let raw: string;
-  try {
-    raw = await fs.readFile(RUNTIME_FILE, 'utf-8');
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === 'ENOENT') {
-      errorOutput(
-        'No active canvas-workspace runtime found.\n' +
-        'Open this workspace in Pulse Canvas before sending input to an agent node.',
-      );
-    }
-    errorOutput(`Cannot read runtime file (${RUNTIME_FILE}): ${String(err)}`);
-  }
-  try {
-    const info = JSON.parse(raw!) as RuntimeInfo;
-    if (!info.baseUrl || !info.secret) {
-      errorOutput('Runtime file is missing baseUrl or secret. Restart Pulse Canvas.');
-    }
-    return info;
-  } catch {
-    errorOutput('Runtime file is corrupt. Restart Pulse Canvas.');
-  }
 }
 
 interface SendResponse {
@@ -62,29 +26,7 @@ async function postAgentSend(
   nodeId: string,
   input: string,
 ): Promise<{ status: number; body: SendResponse }> {
-  let res: Response;
-  try {
-    res = await fetch(`${runtime.baseUrl}/agent/send`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${runtime.secret}`,
-      },
-      body: JSON.stringify({ workspaceId, nodeId, input }),
-    });
-  } catch (err) {
-    errorOutput(
-      `Cannot reach canvas-workspace runtime at ${runtime.baseUrl}: ${(err as Error).message}\n` +
-      'The Electron app may not be running, or the runtime file is stale.',
-    );
-  }
-  let body: SendResponse;
-  try {
-    body = (await res!.json()) as SendResponse;
-  } catch {
-    body = { ok: false, error: `non-JSON response (HTTP ${res!.status})` };
-  }
-  return { status: res!.status, body };
+  return postRuntime(runtime, '/agent/send', { workspaceId, nodeId, input }) as Promise<{ status: number; body: SendResponse }>;
 }
 
 export function registerAgentCommands(program: Command): void {
@@ -102,10 +44,7 @@ export function registerAgentCommands(program: Command): void {
       const { status, body } = await postAgentSend(runtime, workspace, nodeId, cmdOpts.input);
 
       if (status === 401) {
-        errorOutput(
-          'Runtime authentication failed (401). The secret in the runtime file does not match ' +
-          'the running canvas-workspace. Restart Pulse Canvas to refresh it.',
-        );
+        errorOutput(runtimeAuthHint());
       }
       if (!body.ok) {
         const hint = hintForCode(body.code);

@@ -15,6 +15,56 @@ import {
 const mintSessionId = (nodeId: string): string =>
   `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+interface MirrorTerminalCacheEntry {
+  term: Terminal;
+  fitAddon: FitAddon;
+  disposeSubscriptions: () => void;
+  lastUsed: number;
+}
+
+const MAX_MIRROR_TERMINALS = 12;
+const MIRROR_TERMINAL_STASH_ID = 'agent-mirror-terminal-stash';
+const mirrorTerminalCache = new Map<string, MirrorTerminalCacheEntry>();
+
+const mirrorTerminalCacheKey = (workspaceId: string | undefined, nodeId: string, sessionId: string) =>
+  `${workspaceId ?? 'local'}:${nodeId}:${sessionId}`;
+
+const getMirrorTerminalStash = (): HTMLElement | null => {
+  if (typeof document === 'undefined') return null;
+  let stash = document.getElementById(MIRROR_TERMINAL_STASH_ID);
+  if (stash) return stash;
+  stash = document.createElement('div');
+  stash.id = MIRROR_TERMINAL_STASH_ID;
+  stash.style.display = 'none';
+  document.body.appendChild(stash);
+  return stash;
+};
+
+const detachMirrorTerminal = (entry: MirrorTerminalCacheEntry) => {
+  const element = entry.term.element;
+  const stash = getMirrorTerminalStash();
+  if (element && stash && element.parentElement !== stash) {
+    stash.appendChild(element);
+  }
+};
+
+const disposeMirrorTerminal = (entry: MirrorTerminalCacheEntry) => {
+  entry.disposeSubscriptions();
+  entry.term.dispose();
+  entry.term.element?.remove();
+};
+
+const pruneMirrorTerminalCache = (activeKey: string) => {
+  if (mirrorTerminalCache.size <= MAX_MIRROR_TERMINALS) return;
+  const entries = [...mirrorTerminalCache.entries()]
+    .filter(([key]) => key !== activeKey)
+    .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+  for (const [key, entry] of entries.slice(0, mirrorTerminalCache.size - MAX_MIRROR_TERMINALS)) {
+    disposeMirrorTerminal(entry);
+    mirrorTerminalCache.delete(key);
+  }
+};
+
 export const detectAgentView = (data: AgentNodeData): ViewMode => {
   if (data.viewMode === 'setup') return 'setup';
   if (data.viewMode === 'running') return 'running';
@@ -31,6 +81,7 @@ export const detectAgentView = (data: AgentNodeData): ViewMode => {
 const shouldAutoResume = (data: AgentNodeData): boolean => {
   if (data.status !== 'running') return false;
   if (data.viewMode !== 'running') return false;
+  if (data.inlinePrompt?.trim() || data.promptFile?.trim()) return false;
   const hasPriorSession =
     !!(data.sessionId && data.sessionId.length > 0)
     || !!(data.scrollback && data.scrollback.length > 0);
@@ -47,16 +98,22 @@ export const useAgentNodeController = ({
   workspaceId,
   onUpdate,
   readOnly = false,
+  terminalMode = 'owner',
 }: AgentNodeBodyProps) => {
   const data = node.data as AgentNodeData;
+  const isMirrorTerminal = terminalMode === 'mirror';
+  const isTeamManagedAgent = !!data.agentTeamId;
+  const defaultCwd = data.cwd || (isTeamManagedAgent ? rootFolder || '' : '');
+  const shouldResumeOnMount = !isMirrorTerminal && shouldAutoResume(data);
   const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
-  const [cwdInput, setCwdInput] = useState(data.cwd || '');
+  const [cwdInput, setCwdInput] = useState(defaultCwd);
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
-  const [dangerousMode, setDangerousMode] = useState(data.dangerousMode ?? false);
+  const [dangerousMode, setDangerousMode] = useState(data.dangerousMode ?? isTeamManagedAgent);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [recentCwds, setRecentCwds] = useState<string[]>(loadRecentCwds);
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    if (shouldAutoResume(data)) return 'running';
+    if (isMirrorTerminal) return 'running';
+    if (shouldResumeOnMount) return 'running';
     const hasPriorSession =
       !!(data.sessionId && data.sessionId.length > 0)
       || !!(data.scrollback && data.scrollback.length > 0);
@@ -69,8 +126,8 @@ export const useAgentNodeController = ({
   const pendingAgentRef = useRef(data.agentType || 'claude-code');
   const pendingCwdRef = useRef(data.cwd || '');
   const pendingPromptRef = useRef(data.inlinePrompt || '');
-  const pendingResumeRef = useRef(shouldAutoResume(data));
-  const needsAutoMintRef = useRef(shouldAutoResume(data));
+  const pendingResumeRef = useRef(shouldResumeOnMount);
+  const needsAutoMintRef = useRef(shouldResumeOnMount);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -86,6 +143,36 @@ export const useAgentNodeController = ({
   const getAllNodesRef = useRef(getAllNodes);
   getAllNodesRef.current = getAllNodes;
 
+  useEffect(() => {
+    if (readOnly || isMirrorTerminal || !isTeamManagedAgent) return;
+    const nextCwd = data.cwd || rootFolder || '';
+    const needsCwd = !!nextCwd && data.cwd !== nextCwd;
+    const needsDangerousMode = data.dangerousMode !== true;
+    if (!needsCwd && !needsDangerousMode) return;
+    onUpdateRef.current(nodeIdRef.current, {
+      data: {
+        ...dataRef.current,
+        cwd: needsCwd ? nextCwd : dataRef.current.cwd,
+        dangerousMode: true,
+      },
+    });
+  }, [data.cwd, data.dangerousMode, isMirrorTerminal, isTeamManagedAgent, readOnly, rootFolder]);
+
+  useEffect(() => {
+    if (!isTeamManagedAgent) return;
+    const nextCwd = data.cwd || rootFolder || '';
+    if (nextCwd && cwdInput !== nextCwd) setCwdInput(nextCwd);
+    if (!dangerousMode) setDangerousMode(true);
+  }, [cwdInput, dangerousMode, data.cwd, isTeamManagedAgent, rootFolder]);
+
+  const reportAgentTeamOutput = useCallback((delta: string) => {
+    const current = dataRef.current;
+    if (!current.agentTeamId || readOnly || isMirrorTerminal || !workspaceId) return;
+    const api = window.canvasWorkspace?.agentTeams;
+    if (!api) return;
+    void api.reportAgentOutput(workspaceId, nodeIdRef.current, delta);
+  }, [isMirrorTerminal, readOnly, workspaceId]);
+
   const spawnAgent = useCallback(
     async (
       agentType: string,
@@ -96,11 +183,117 @@ export const useAgentNodeController = ({
     ) => {
       if (!containerRef.current || termRef.current || spawnedRef.current) return;
 
+      if (isMirrorTerminal) {
+        spawnedRef.current = true;
+        const activeSessionId = sessionId || dataRef.current.sessionId || nodeIdRef.current;
+        const cacheKey = mirrorTerminalCacheKey(workspaceId, nodeIdRef.current, activeSessionId);
+        let cached = mirrorTerminalCache.get(cacheKey);
+
+        if (cached) {
+          const cachedEntry = cached;
+          cached.lastUsed = Date.now();
+          containerRef.current.replaceChildren();
+          const element = cachedEntry.term.element;
+          if (element) containerRef.current.appendChild(element);
+          termRef.current = cachedEntry.term;
+          fitRef.current = cachedEntry.fitAddon;
+          try { cachedEntry.fitAddon.fit(); } catch { /* ignore */ }
+          try { cachedEntry.term.refresh(0, cachedEntry.term.rows - 1); } catch { /* ignore */ }
+          requestAnimationFrame(() => {
+            try { cachedEntry.fitAddon.fit(); } catch { /* ignore */ }
+            try { cachedEntry.term.refresh(0, cachedEntry.term.rows - 1); } catch { /* ignore */ }
+          });
+          cleanupRef.current = () => detachMirrorTerminal(cachedEntry);
+          return;
+        }
+
+        const term = new Terminal(TERMINAL_OPTIONS);
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        containerRef.current.replaceChildren();
+        term.open(containerRef.current);
+        termRef.current = term;
+        fitRef.current = fitAddon;
+
+        cached = {
+          term,
+          fitAddon,
+          disposeSubscriptions: () => undefined,
+          lastUsed: Date.now(),
+        };
+        mirrorTerminalCache.set(cacheKey, cached);
+        pruneMirrorTerminalCache(cacheKey);
+
+        term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
+          if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+            setPickerOpen(true);
+            return false;
+          }
+          return true;
+        });
+
+        try { fitAddon.fit(); } catch { /* ignore */ }
+        requestAnimationFrame(() => {
+          try { fitAddon.fit(); } catch { /* ignore */ }
+        });
+
+        const api = window.canvasWorkspace?.pty;
+        if (!api) {
+          term.writeln('\x1b[31mError: pty API not available (preload missing)\x1b[0m');
+          cleanupRef.current = () => cached && detachMirrorTerminal(cached);
+          return;
+        }
+
+        const cwdResult = await api.getCwd(activeSessionId);
+        if (!cwdResult.ok) {
+          const saved = dataRef.current.scrollback;
+          if (!saved) {
+            term.writeln('\x1b[2mNo live teammate terminal yet.\x1b[0m');
+            term.writeln('\x1b[2mIt will appear here after the team runtime starts this agent.\x1b[0m');
+          } else {
+            term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
+            term.write(saved.split('\n').join('\r\n'));
+            term.writeln('');
+            term.writeln('\x1b[2m--- live session is not connected ---\x1b[0m');
+          }
+          cleanupRef.current = () => cached && detachMirrorTerminal(cached);
+          return;
+        }
+
+        const removeData = api.onData(activeSessionId, (d: string) => {
+          term.write(d);
+        });
+        const removeExit = api.onExit(activeSessionId, (code: number) => {
+          term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
+        });
+        const inputDisposable = readOnly
+          ? { dispose: () => undefined }
+          : term.onData((d: string) => {
+            api.write(activeSessionId, d);
+          });
+        const resizeDisposable = term.onResize(({ cols, rows }) => {
+          api.resize(activeSessionId, cols, rows);
+        });
+
+        let subscriptionsDisposed = false;
+        cached.disposeSubscriptions = () => {
+          if (subscriptionsDisposed) return;
+          subscriptionsDisposed = true;
+          removeData();
+          removeExit();
+          inputDisposable.dispose();
+          resizeDisposable.dispose();
+        };
+        cleanupRef.current = () => cached && detachMirrorTerminal(cached);
+        return;
+      }
+
       if (readOnly) {
         spawnedRef.current = true;
         const term = new Terminal(TERMINAL_OPTIONS);
         const fitAddon = new FitAddon();
         term.loadAddon(fitAddon);
+        containerRef.current.replaceChildren();
         term.open(containerRef.current);
         termRef.current = term;
         fitRef.current = fitAddon;
@@ -123,6 +316,7 @@ export const useAgentNodeController = ({
       const term = new Terminal(TERMINAL_OPTIONS);
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
+      containerRef.current.replaceChildren();
       term.open(containerRef.current);
       termRef.current = term;
       fitRef.current = fitAddon;
@@ -169,20 +363,18 @@ export const useAgentNodeController = ({
               : ''
           : '';
 
-        if (agentType === 'codex' && resumeMode) {
+        if (agentType === 'codex' && resumeMode && !effectivePrompt && !promptFile) {
           api.write(sessionId, `${command}${dangerousFlag} resume --last\n`);
         } else {
           const flags =
             (agentType === 'claude-code'
               ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
-              : '') + dangerousFlag;
+              : '') + dangerousFlag + (agentArgs ? ` ${agentArgs}` : '');
           if (effectivePrompt) {
             const escaped = effectivePrompt.replace(/'/g, "'\\''");
             api.write(sessionId, `${command}${flags} '${escaped}'\n`);
           } else if (promptFile) {
             api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
-          } else if (agentArgs) {
-            api.write(sessionId, `${command}${flags} ${agentArgs}\n`);
           } else {
             api.write(sessionId, `${command}${flags}\n`);
           }
@@ -230,6 +422,7 @@ export const useAgentNodeController = ({
       const attachPermanentListener = () => {
         removeDataRef.current = api.onData(sessionId, (d: string) => {
           term.write(d);
+          reportAgentTeamOutput(d);
           if (loadingDismissed) return;
           if (writeCommandTimeRef.current === 0) return;
           const since = Date.now() - writeCommandTimeRef.current;
@@ -254,13 +447,24 @@ export const useAgentNodeController = ({
       const removeExit = api.onExit(sessionId, (code: number) => {
         term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
         dismissLoading();
+        const current = dataRef.current;
+        if (current.agentTeamId && workspaceId) {
+          void window.canvasWorkspace?.agentTeams?.reportAgentExit(workspaceId, nodeIdRef.current, code);
+        }
         onUpdateRef.current(nodeIdRef.current, {
           data: { ...dataRef.current, status: 'done' },
         });
       });
 
       const spawnCwd = cwd || rootFolder || undefined;
-      const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId);
+      const currentData = dataRef.current;
+      const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId, {
+        PULSE_CANVAS_WORKSPACE_ID: workspaceId,
+        PULSE_CANVAS_NODE_ID: nodeIdRef.current,
+        PULSE_CANVAS_TEAM_ID: currentData.agentTeamId,
+        PULSE_CANVAS_TEAM_AGENT_ID: currentData.agentTeamAgentId,
+        PULSE_CANVAS_TEAM_ROLE: currentData.agentTeamRole,
+      });
       if (!result.ok) {
         if (!prompted) promptRemove();
         removeDataRef.current?.();
@@ -309,13 +513,44 @@ export const useAgentNodeController = ({
         api.kill(sessionId);
       };
     },
-    [rootFolder, workspaceId, readOnly],
+    [isMirrorTerminal, rootFolder, workspaceId, readOnly, reportAgentTeamOutput],
   );
 
   useEffect(() => {
+    if (readOnly || isMirrorTerminal) return;
+    if (viewMode === 'running') return;
+    if (data.viewMode !== 'running' && data.status !== 'running') return;
+
+    pendingAgentRef.current = data.agentType || 'claude-code';
+    pendingCwdRef.current = data.cwd || rootFolder || '';
+    pendingPromptRef.current = data.inlinePrompt || '';
+    pendingResumeRef.current =
+      !data.inlinePrompt?.trim()
+      && !data.promptFile?.trim()
+      && (
+        (data.agentType === 'claude-code' && !!data.cliSessionId)
+        || data.agentType === 'codex'
+      );
+    setViewMode('running');
+  }, [
+    data.agentType,
+    data.cliSessionId,
+    data.cwd,
+    data.inlinePrompt,
+    data.promptFile,
+    data.status,
+    data.viewMode,
+    isMirrorTerminal,
+    readOnly,
+    rootFolder,
+    viewMode,
+  ]);
+
+  const mirrorSessionId = isMirrorTerminal ? data.sessionId : undefined;
+  useEffect(() => {
     if (viewMode === 'running' && !spawnedRef.current) {
       let runSessionId = dataRef.current.sessionId || nodeIdRef.current;
-      if (needsAutoMintRef.current) {
+      if (!isMirrorTerminal && needsAutoMintRef.current) {
         needsAutoMintRef.current = false;
         const apiPty = window.canvasWorkspace?.pty;
         if (apiPty && runSessionId) apiPty.kill(runSessionId);
@@ -333,6 +568,15 @@ export const useAgentNodeController = ({
       );
     }
     return () => {
+      if (isMirrorTerminal) {
+        cleanupRef.current?.();
+        termRef.current = null;
+        fitRef.current = null;
+        spawnedRef.current = false;
+        cleanupRef.current = null;
+        setLoading(false);
+        return;
+      }
       const api = window.canvasWorkspace?.pty;
       if (termRef.current && api && viewMode === 'running') {
         const scrollback = serializeBuffer(termRef.current);
@@ -347,6 +591,7 @@ export const useAgentNodeController = ({
       if (saveTimerRef.current) clearInterval(saveTimerRef.current);
       cleanupRef.current?.();
       termRef.current?.dispose();
+      containerRef.current?.replaceChildren();
       termRef.current = null;
       fitRef.current = null;
       spawnedRef.current = false;
@@ -354,7 +599,7 @@ export const useAgentNodeController = ({
       setLoading(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode]);
+  }, [viewMode, mirrorSessionId, isMirrorTerminal]);
 
   useEffect(() => {
     if (!fitRef.current) return;
@@ -366,17 +611,18 @@ export const useAgentNodeController = ({
   }, [viewMode]);
 
   useEffect(() => {
-    if (readOnly) return;
+    if (readOnly || isMirrorTerminal) return;
     if (dataRef.current.viewMode === viewMode) return;
     onUpdateRef.current(nodeIdRef.current, {
       data: { ...dataRef.current, viewMode },
     });
-  }, [viewMode, readOnly]);
+  }, [viewMode, isMirrorTerminal, readOnly]);
 
   const handleLaunch = useCallback(() => {
-    if (readOnly) return;
-    const effectiveCwd = cwdInput || rootFolder || '';
+    if (readOnly || isMirrorTerminal) return;
+    const effectiveCwd = cwdInput || dataRef.current.cwd || rootFolder || '';
     const prompt = promptInput.trim();
+    const effectiveDangerousMode = dataRef.current.agentTeamId ? true : dangerousMode;
     pendingAgentRef.current = selectedAgent;
     pendingCwdRef.current = effectiveCwd;
     pendingPromptRef.current = prompt;
@@ -394,7 +640,7 @@ export const useAgentNodeController = ({
         cwd: effectiveCwd,
         inlinePrompt: prompt,
         lastInitPrompt: prompt || dataRef.current.lastInitPrompt || '',
-        dangerousMode,
+        dangerousMode: effectiveDangerousMode,
         status: 'running',
         sessionId: freshSessionId,
         scrollback: '',
@@ -403,7 +649,7 @@ export const useAgentNodeController = ({
     });
     setFromRestart(false);
     setViewMode('running');
-  }, [selectedAgent, cwdInput, promptInput, dangerousMode, rootFolder, readOnly]);
+  }, [selectedAgent, cwdInput, promptInput, dangerousMode, rootFolder, isMirrorTerminal, readOnly]);
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
     if (readOnly) return;
@@ -427,7 +673,7 @@ export const useAgentNodeController = ({
   }, []);
 
   const handleRestartSession = useCallback(() => {
-    if (readOnly) return;
+    if (readOnly || isMirrorTerminal) return;
     const savedAgent = data.agentType || selectedAgent;
     const savedCwd = data.cwd || rootFolder || '';
     const savedPrompt = data.lastInitPrompt || '';
@@ -435,8 +681,11 @@ export const useAgentNodeController = ({
     pendingCwdRef.current = savedCwd;
     pendingPromptRef.current = savedPrompt;
     pendingResumeRef.current =
-      (savedAgent === 'claude-code' && !!dataRef.current.cliSessionId)
-      || savedAgent === 'codex';
+      !savedPrompt.trim()
+      && (
+        (savedAgent === 'claude-code' && !!dataRef.current.cliSessionId)
+        || savedAgent === 'codex'
+      );
     const api = window.canvasWorkspace?.pty;
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
@@ -454,17 +703,17 @@ export const useAgentNodeController = ({
     });
     setFromRestart(false);
     setViewMode('running');
-  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, rootFolder, readOnly]);
+  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, rootFolder, isMirrorTerminal, readOnly]);
 
   const handleEditInit = useCallback(() => {
-    if (readOnly) return;
+    if (readOnly || isMirrorTerminal) return;
     setSelectedAgent(data.agentType || selectedAgent);
     setCwdInput(data.cwd || '');
     setPromptInput(data.lastInitPrompt || '');
     setDangerousMode(data.dangerousMode ?? false);
     setFromRestart(true);
     setViewMode('setup');
-  }, [data.agentType, data.cwd, data.lastInitPrompt, data.dangerousMode, selectedAgent, readOnly]);
+  }, [data.agentType, data.cwd, data.lastInitPrompt, data.dangerousMode, selectedAgent, isMirrorTerminal, readOnly]);
 
   const handleBackToRestart = useCallback(() => {
     setFromRestart(false);
@@ -472,14 +721,14 @@ export const useAgentNodeController = ({
   }, []);
 
   const handlePickFolder = useCallback(async () => {
-    if (readOnly) return;
+    if (readOnly || isMirrorTerminal) return;
     const api = window.canvasWorkspace?.dialog;
     if (!api) return;
     const result = await api.openFolder();
     if (result.ok && !result.canceled && result.folderPath) {
       setCwdInput(result.folderPath);
     }
-  }, [readOnly]);
+  }, [isMirrorTerminal, readOnly]);
 
   return {
     containerRef,

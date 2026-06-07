@@ -29,6 +29,7 @@ interface CanvasOverlaysProps {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
+  onCreateAgentTeam?: () => void;
   onCloseContextMenu: () => void;
   onOpenShortcuts: () => void;
   onToolChange: (tool: string) => void;
@@ -86,6 +87,7 @@ export const CanvasOverlays = ({
   referenceDrawerOpen,
   onReferenceToggle,
   onCreateNode,
+  onCreateAgentTeam,
   onCloseContextMenu,
   onOpenShortcuts,
   onToolChange,
@@ -170,6 +172,7 @@ export const CanvasOverlays = ({
       activeTool={activeTool}
       onToolChange={onToolChange}
       onAddNode={onAddNode}
+      onCreateAgentTeam={onCreateAgentTeam}
       chatPanelOpen={chatPanelOpen}
       onChatToggle={onChatToggle}
       referenceDrawerOpen={referenceDrawerOpen}

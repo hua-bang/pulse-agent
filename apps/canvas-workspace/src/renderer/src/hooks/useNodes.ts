@@ -473,6 +473,26 @@ export const useNodes = (
     [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
   );
 
+  const syncDeletedNodes = useCallback(
+    (ids: string[]) => {
+      if (ids.length === 0) return;
+      const idSet = new Set(ids);
+      ids.forEach((id) => persistedIdsRef.current.delete(id));
+
+      const nextNodes = nodesRef.current.filter((node) => !idSet.has(node.id));
+      const nextEdges = edgesRef.current.filter((edge) =>
+        !(edge.source.kind === 'node' && idSet.has(edge.source.nodeId))
+        && !(edge.target.kind === 'node' && idSet.has(edge.target.nodeId))
+      );
+
+      nodesRef.current = resizeGroupsToChildren(nextNodes);
+      edgesRef.current = nextEdges;
+      setNodes(nodesRef.current);
+      setEdges(nextEdges);
+    },
+    [edgesRef, nodesRef, resizeGroupsToChildren, setEdges, setNodes],
+  );
+
   const ungroupNodes = useCallback(
     (ids: string[]): string[] => {
       if (ids.length === 0) return [];
@@ -856,6 +876,7 @@ export const useNodes = (
     updateNode,
     removeNode,
     removeNodes,
+    syncDeletedNodes,
     moveNode,
     moveNodes,
     resizeNode,

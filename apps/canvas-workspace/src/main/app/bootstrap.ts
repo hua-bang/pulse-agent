@@ -18,6 +18,7 @@ import {
   setupCanvasAgentIpc,
   teardownCanvasAgent,
 } from "../agent/ipc";
+import { setupCanvasAgentTeamsIpc } from "../agent-teams/ipc";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
@@ -98,6 +99,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupFileWatcherIpc();
     setupSkillInstallerIpc();
     setupCanvasAgentIpc();
+    setupCanvasAgentTeamsIpc();
     setupCanvasModelIpc();
     setupCanvasSkillsIpc();
     setupCanvasMcpIpc();

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { CanvasWorkspaceApi } from "../renderer/src/types";
 import { createAgentApi } from "./bridge/agent";
+import { createAgentTeamsApi } from "./bridge/agent-teams";
 import { createArtifactsApi } from "./bridge/artifacts";
 import { createFileApi } from "./bridge/file";
 import { readPluginFlags } from "./bridge/flags";
@@ -50,6 +51,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   promptProfile: createPromptProfileApi(ipcRenderer),
   model: createModelApi(ipcRenderer),
   agent: createAgentApi(ipcRenderer),
+  agentTeams: createAgentTeamsApi(ipcRenderer),
   artifacts: createArtifactsApi(ipcRenderer),
   plugin: createPluginBridge(ipcRenderer),
   web: createWebApi(ipcRenderer)
