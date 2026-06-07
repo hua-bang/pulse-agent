@@ -551,6 +551,10 @@ export const AgentTeamFrame = ({
     });
   }, [artifacts, graphTaskByKey, graphTasks, phase, plan, teammates]);
   const selectedGraphAgent = graphAgents.find((agent) => agent.key === selectedAgentKey);
+  const agentTypeByOwnerKey = useMemo(
+    () => new Map(graphAgents.map((agent) => [agent.key, agent.agentType])),
+    [graphAgents],
+  );
 
   const teamTitle = runtime?.team.name ?? data.agentTeamName ?? node.title;
   const teamGoal = shortText(runtime?.team.goal ?? data.agentTeamGoal ?? data.label, '');
@@ -849,6 +853,20 @@ export const AgentTeamFrame = ({
   const ownerChipClass = (ownerKey?: string) =>
     `agent-team-owner-chip${ownerKey && selectedAgentKey === ownerKey ? ' agent-team-owner-chip--active' : ''}`;
 
+  const renderOwnerChip = (ownerKey: string | undefined, ownerName: string) => {
+    const agentType = ownerKey ? agentTypeByOwnerKey.get(ownerKey) : undefined;
+    return (
+      <span className={ownerChipClass(ownerKey)}>
+        {agentType && (
+          <span className="agent-team-owner-chip__logo">
+            <AgentIcon id={agentType} size={12} />
+          </span>
+        )}
+        {ownerName}
+      </span>
+    );
+  };
+
   const renderDagCanvas = (variant: 'inline' | 'fullscreen' = 'inline') => {
     if (graphColumns.length === 0) {
       return (
@@ -936,7 +954,7 @@ export const AgentTeamFrame = ({
                 <strong>{task.title}</strong>
                 <span className="agent-team-dag-node__meta">
                   <span>{statusLabel(task.status)}</span>
-                  <span className={ownerChipClass(task.ownerKey)}>{task.ownerName}</span>
+                  {renderOwnerChip(task.ownerKey, task.ownerName)}
                 </span>
               </span>
             </button>
@@ -1261,7 +1279,7 @@ export const AgentTeamFrame = ({
         <div className="agent-team-detail__facts">
           <div>
             <span className="agent-team-detail__section-title">Owner</span>
-            <span className={ownerChipClass(selectedGraphTask.ownerKey)}>{selectedGraphTask.ownerName}</span>
+            {renderOwnerChip(selectedGraphTask.ownerKey, selectedGraphTask.ownerName)}
           </div>
           <div>
             <span className="agent-team-detail__section-title">Updated</span>

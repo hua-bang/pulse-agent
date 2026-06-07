@@ -1003,6 +1003,7 @@
 .agent-team-owner-chip {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   max-width: 100%;
   overflow: hidden;
   border: 1px solid #d8e4f2;
@@ -1015,6 +1016,13 @@
   padding: 2px 6px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.agent-team-owner-chip__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
 }
 
 .agent-team-graph-task__copy .agent-team-owner-chip,
