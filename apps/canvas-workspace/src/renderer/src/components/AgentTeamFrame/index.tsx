@@ -168,6 +168,9 @@ const isTeamAgentNode = (node: CanvasNode, teamId: string): node is CanvasNode &
 const agentTypeLabel = (agentType?: string): string =>
   AGENT_REGISTRY.find((def) => def.id === agentType)?.label ?? agentType ?? 'Coding Agent';
 
+// Agent Teams currently supports only Claude Code and Codex for teammates.
+const TEAM_AGENT_OPTIONS = AGENT_REGISTRY.filter((def) => def.id === 'claude-code' || def.id === 'codex');
+
 const metadataNumber = (
   metadata: Record<string, unknown> | undefined,
   keys: string[],
@@ -1360,24 +1363,28 @@ export const AgentTeamFrame = ({
                 {statusLabel(agent.status)}
               </span>
               {editable ? (
-                <span className="agent-team-summary-agent__agent-switch" role="group" aria-label="Coding agent">
-                  {AGENT_REGISTRY.map((def) => (
-                    <button
-                      key={def.id}
-                      type="button"
-                      title={`Use ${def.label}`}
-                      aria-pressed={agent.agentType === def.id}
-                      className={`agent-team-summary-agent__agent-option${agent.agentType === def.id ? ' is-active' : ''}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void handleUpdatePlanTeammate(agent.name, def.id);
-                      }}
-                    >
-                      <AgentIcon id={def.id} size={13} />
-                      <span>{def.label}</span>
-                    </button>
-                  ))}
-                </span>
+                <label
+                  className="agent-team-summary-agent__agent-select"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <span className="agent-team-summary-agent__agent-select-label">Coding agent</span>
+                  <select
+                    value={TEAM_AGENT_OPTIONS.some((def) => def.id === agent.agentType)
+                      ? agent.agentType
+                      : TEAM_AGENT_OPTIONS[0].id}
+                    aria-label={`Coding agent for ${agent.name}`}
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      void handleUpdatePlanTeammate(agent.name, event.target.value);
+                    }}
+                  >
+                    {TEAM_AGENT_OPTIONS.map((def) => (
+                      <option key={def.id} value={def.id}>{def.label}</option>
+                    ))}
+                  </select>
+                </label>
               ) : (
                 <span className="agent-team-summary-agent__task">
                   {agent.currentTaskTitle ?? `${agent.taskCount} task${agent.taskCount === 1 ? '' : 's'}`}
