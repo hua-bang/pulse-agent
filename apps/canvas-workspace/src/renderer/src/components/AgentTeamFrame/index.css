@@ -1210,6 +1210,9 @@
   justify-items: center;
   gap: 6px;
   min-width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  padding: 24px;
   color: var(--text-secondary);
   text-align: center;
 }
