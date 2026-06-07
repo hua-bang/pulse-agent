@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { AgentNodeBody } from '../AgentNodeBody';
+import { AgentIcon } from '../AgentNodeBody/AgentIcon';
+import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import type {
   AgentNodeData,
   AgentTeamAgentRecord,
@@ -162,6 +164,9 @@ const isTeamAgentNode = (node: CanvasNode, teamId: string): node is CanvasNode &
   node.type === 'agent'
   && (node.data as AgentNodeData).agentTeamId === teamId
   && !!(node.data as AgentNodeData).agentTeamAgentId;
+
+const agentTypeLabel = (agentType?: string): string =>
+  AGENT_REGISTRY.find((def) => def.id === agentType)?.label ?? agentType ?? 'Coding Agent';
 
 const metadataNumber = (
   metadata: Record<string, unknown> | undefined,
@@ -523,7 +528,8 @@ export const AgentTeamFrame = ({
         key: `agent:${agent.id}`,
         name: agent.name,
         role: agent.role,
-        agentType: agent.sessionRef?.provider ?? agent.sessionRef?.displayName,
+        agentType: agentNodeByAgentId.get(agent.id)?.data?.agentType
+          ?? agent.sessionRef?.provider ?? agent.sessionRef?.displayName,
         status: agent.status,
         taskCount: ownedTasks.length,
         doneCount: ownedTasks.filter((task) => task.status === 'done').length,
@@ -713,6 +719,17 @@ export const AgentTeamFrame = ({
       setError(null);
     } else {
       setError(result.error ?? 'Unable to confirm plan.');
+    }
+  }, [api, workspaceId, teamId]);
+
+  const handleUpdatePlanTeammate = useCallback(async (teammateName: string, agentType: string) => {
+    if (!api || !workspaceId || !teamId) return;
+    const result = await api.updatePlanTeammate(workspaceId, teamId, teammateName, agentType);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to update teammate agent.');
     }
   }, [api, workspaceId, teamId]);
 
@@ -1159,7 +1176,10 @@ export const AgentTeamFrame = ({
         </div>
 
         <div className="agent-team-agent-detail__meta">
-          <span>{selectedGraphAgent.agentType ?? 'Coding Agent'}</span>
+          <span className="agent-team-detail__agent-type">
+            <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
+            {agentTypeLabel(selectedGraphAgent.agentType)}
+          </span>
           {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
           <span>{agentData?.cwd || rootFolder || 'No workspace'}</span>
         </div>
@@ -1310,30 +1330,67 @@ export const AgentTeamFrame = ({
           <div className="agent-team-agent-strip__empty">
             Agents appear here after the Team Lead proposes a plan.
           </div>
-        ) : graphAgents.map((agent) => (
-          <button
-            key={agent.key}
-            type="button"
-            className={`agent-team-summary-agent agent-team-summary-agent--${agent.status}${selectedAgentKey === agent.key ? ' agent-team-summary-agent--selected' : ''}${selectedGraphTask?.ownerKey === agent.key ? ' agent-team-summary-agent--task-owner' : ''}`}
-            onClick={() => {
-              setSelectedAgentKey(agent.key);
-              setDetailPanelMode('agent');
-            }}
-          >
-            <span className="agent-team-summary-agent__name">{agent.name}</span>
-            <span className={`agent-team-detail__status agent-team-detail__status--${agent.status}`}>
-              {statusLabel(agent.status)}
-            </span>
-            <span className="agent-team-summary-agent__task">
-              {agent.currentTaskTitle ?? `${agent.taskCount} task${agent.taskCount === 1 ? '' : 's'}`}
-            </span>
-            <span className="agent-team-summary-agent__stats">
-              <span>Tasks {agent.doneCount}/{agent.taskCount}</span>
-              <span>Tools {agent.toolCount ?? '—'}</span>
-              <span>Artifacts {agent.artifactCount}</span>
-            </span>
-          </button>
-        ))}
+        ) : graphAgents.map((agent) => {
+          const selectAgent = () => {
+            setSelectedAgentKey(agent.key);
+            setDetailPanelMode('agent');
+          };
+          const editable = phase === 'plan_review' && agent.role === 'teammate' && !readOnly;
+          return (
+            <div
+              key={agent.key}
+              role="button"
+              tabIndex={0}
+              className={`agent-team-summary-agent agent-team-summary-agent--${agent.status}${selectedAgentKey === agent.key ? ' agent-team-summary-agent--selected' : ''}${selectedGraphTask?.ownerKey === agent.key ? ' agent-team-summary-agent--task-owner' : ''}`}
+              onClick={selectAgent}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  selectAgent();
+                }
+              }}
+            >
+              <span className="agent-team-summary-agent__name">
+                <span className="agent-team-summary-agent__logo">
+                  <AgentIcon id={agent.agentType ?? 'pulse-coder'} size={14} />
+                </span>
+                {agent.name}
+              </span>
+              <span className={`agent-team-detail__status agent-team-detail__status--${agent.status}`}>
+                {statusLabel(agent.status)}
+              </span>
+              {editable ? (
+                <span className="agent-team-summary-agent__agent-switch" role="group" aria-label="Coding agent">
+                  {AGENT_REGISTRY.map((def) => (
+                    <button
+                      key={def.id}
+                      type="button"
+                      title={`Use ${def.label}`}
+                      aria-pressed={agent.agentType === def.id}
+                      className={`agent-team-summary-agent__agent-option${agent.agentType === def.id ? ' is-active' : ''}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleUpdatePlanTeammate(agent.name, def.id);
+                      }}
+                    >
+                      <AgentIcon id={def.id} size={13} />
+                      <span>{def.label}</span>
+                    </button>
+                  ))}
+                </span>
+              ) : (
+                <span className="agent-team-summary-agent__task">
+                  {agent.currentTaskTitle ?? `${agent.taskCount} task${agent.taskCount === 1 ? '' : 's'}`}
+                </span>
+              )}
+              <span className="agent-team-summary-agent__stats">
+                <span>Tasks {agent.doneCount}/{agent.taskCount}</span>
+                <span>Tools {agent.toolCount ?? '—'}</span>
+                <span>Artifacts {agent.artifactCount}</span>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1412,7 +1469,10 @@ export const AgentTeamFrame = ({
           <div className="agent-team-agent-inspector__body">
             <div className="agent-team-agent-inspector__summary">
               <div className="agent-team-agent-inspector__meta">
-                <span>{selectedGraphAgent.agentType ?? 'Coding Agent'}</span>
+                <span className="agent-team-detail__agent-type">
+            <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
+            {agentTypeLabel(selectedGraphAgent.agentType)}
+          </span>
                 <span>{statusLabel(selectedGraphAgent.status)}</span>
                 {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
               </div>

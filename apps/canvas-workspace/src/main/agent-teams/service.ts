@@ -641,6 +641,36 @@ export class CanvasAgentTeamsService {
     return this.snapshot(workspaceId, teamId);
   }
 
+  async updatePlanTeammate(
+    workspaceId: string,
+    teamId: string,
+    input: { teammateName: string; agentType: string },
+  ): Promise<CanvasAgentTeamSnapshot> {
+    const { store } = this.getBundle(workspaceId);
+    const metadata = await this.requireMetadata(store, teamId);
+    if (metadata.phase !== 'plan_review' || !metadata.pendingPlan) {
+      throw new Error('Teammates can only be re-assigned while the plan is under review');
+    }
+    const agentType = cleanString(input.agentType);
+    if (!agentType) throw new Error('Agent type is required');
+
+    const key = cleanString(input.teammateName).toLowerCase();
+    const teammate = metadata.pendingPlan.teammates.find(
+      (candidate) => candidate.name.trim().toLowerCase() === key,
+    );
+    if (!teammate) throw new Error(`Teammate not found in plan: ${input.teammateName}`);
+    if (teammate.agentType === agentType) return this.snapshot(workspaceId, teamId);
+
+    const now = Date.now();
+    teammate.agentType = agentType;
+    metadata.pendingPlan.updatedAt = now;
+    metadata.updatedAt = now;
+    await store.saveTeamMetadata(teamId, metadata);
+    this.broadcastTeamUpdate(workspaceId, metadata);
+
+    return this.snapshot(workspaceId, teamId);
+  }
+
   async addAgent(input: CanvasAgentTeamAddAgentInput): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(input.workspaceId);
     const metadata = await this.requireMetadata(store, input.teamId);

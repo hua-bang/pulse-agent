@@ -1282,6 +1282,12 @@ export interface AgentTeamsApi {
     workspaceId: string,
     teamId: string,
   ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  updatePlanTeammate: (
+    workspaceId: string,
+    teamId: string,
+    teammateName: string,
+    agentType: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
   createTask: (input: {
     workspaceId: string;
     teamId: string;
