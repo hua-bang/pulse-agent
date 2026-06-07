@@ -714,8 +714,8 @@
 }
 
 .agent-team-frame .agent-team-dag-node--owner-highlight:not(.agent-team-dag-node--selected) {
-  border-color: #93c9a9;
-  background: #f4fbf7;
+  border-color: #b3bdec;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.26), 0 8px 20px rgba(31, 54, 88, 0.05);
 }
 
 .agent-team-frame .agent-team-dag-node--warning {
