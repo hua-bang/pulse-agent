@@ -1168,11 +1168,13 @@ export const AgentTeamFrame = ({
     };
   };
 
-  const renderAgentSideDetail = () => {
-    if (!selectedGraphAgent) return null;
+  const renderAgentDetailContent = () => {
+    if (!selectedGraphAgent) {
+      return <div className="agent-team-detail__muted agent-team-detail__empty">Select an agent to see its detail.</div>;
+    }
     const { ownedTasks, agentArtifacts, agentNode, agentData, activityLines } = getAgentDetailContext(selectedGraphAgent);
     return (
-      <aside className="agent-team-graph-detail agent-team-graph-detail--agent" aria-label="Selected agent detail">
+      <>
         <div className="agent-team-graph-detail__head">
           <div>
             <span className="agent-team-panel-heading__label">Selected agent</span>
@@ -1260,14 +1262,16 @@ export const AgentTeamFrame = ({
             <span key={`${index}-${line}`} className="agent-team-agent-detail__output">{line}</span>
           ))}
         </div>
-      </aside>
+      </>
     );
   };
 
-  const renderTaskSideDetail = () => {
-    if (!selectedGraphTask) return null;
+  const renderTaskDetailContent = () => {
+    if (!selectedGraphTask) {
+      return <div className="agent-team-detail__muted agent-team-detail__empty">Select a task to see its detail.</div>;
+    }
     return (
-      <aside className="agent-team-graph-detail" aria-label="Selected task detail">
+      <>
         <div className="agent-team-graph-detail__head">
           <div>
             <span className="agent-team-panel-heading__label">Selected task</span>
@@ -1337,6 +1341,38 @@ export const AgentTeamFrame = ({
         {selectedHumanTaskGate && selectedGraphTask.sourceTask && (
           renderHumanGate(selectedHumanTaskGate, { compact: true })
         )}
+      </>
+    );
+  };
+
+  const renderDetailPanel = () => {
+    const agentActive = detailPanelMode === 'agent';
+    return (
+      <aside
+        className={`agent-team-graph-detail agent-team-graph-detail--tabbed${agentActive ? ' agent-team-graph-detail--agent' : ''}`}
+        aria-label="Selected detail"
+      >
+        <div className="agent-team-detail-tabs" role="tablist" aria-label="Detail view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={!agentActive}
+            className={`agent-team-detail-tab${!agentActive ? ' is-active' : ''}`}
+            onClick={() => setDetailPanelMode('task')}
+          >
+            Task
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={agentActive}
+            className={`agent-team-detail-tab${agentActive ? ' is-active' : ''}`}
+            onClick={() => setDetailPanelMode('agent')}
+          >
+            Agent
+          </button>
+        </div>
+        {agentActive ? renderAgentDetailContent() : renderTaskDetailContent()}
       </aside>
     );
   };
@@ -1453,7 +1489,7 @@ export const AgentTeamFrame = ({
 
       <div
         className={`agent-team-graph-panel__main${
-          selectedGraphTask || (detailPanelMode === 'agent' && selectedGraphAgent)
+          selectedGraphTask || selectedGraphAgent
             ? ''
             : ' agent-team-graph-panel__main--graph-only'
         }`}
@@ -1466,7 +1502,7 @@ export const AgentTeamFrame = ({
           {renderDagCanvas(variant)}
         </div>
 
-        {detailPanelMode === 'agent' && selectedGraphAgent ? renderAgentSideDetail() : renderTaskSideDetail()}
+        {(selectedGraphTask || selectedGraphAgent) && renderDetailPanel()}
       </div>
 
       {renderAgentsStrip()}

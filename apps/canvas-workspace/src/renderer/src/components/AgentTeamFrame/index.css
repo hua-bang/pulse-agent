@@ -1080,6 +1080,41 @@
   padding: 10px;
 }
 
+.agent-team-detail-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(92, 128, 183, 0.18);
+  border-radius: 8px;
+  background: rgba(238, 243, 250, 0.7);
+}
+
+.agent-team-frame .agent-team-detail-tab {
+  height: 24px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.agent-team-frame .agent-team-detail-tab:hover:not(.is-active) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.agent-team-frame .agent-team-detail-tab.is-active {
+  background: #ffffff;
+  color: #1f4f86;
+  box-shadow: 0 1px 3px rgba(31, 54, 88, 0.12);
+}
+
+.agent-team-detail__empty {
+  padding: 12px 4px;
+}
+
 .agent-team-graph-detail__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
