@@ -430,7 +430,8 @@ export const AgentTeamFrame = ({
     const nodes: DagNodeItem[] = [];
     const stages: DagStageItem[] = graphColumns.map((_column, columnIndex) => ({
       key: `stage-${columnIndex}`,
-      x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP,
+      // Center the stage header over its node column (offset compensated via translateX in CSS).
+      x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP + DAG_NODE_WIDTH / 2,
       y: 24 + verticalShift,
       label: columnIndex === 0 ? 'Start' : `Stage ${columnIndex + 1}`,
       index: columnIndex + 1,

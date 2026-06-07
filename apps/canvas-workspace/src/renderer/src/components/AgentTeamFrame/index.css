@@ -663,6 +663,7 @@
   position: absolute;
   display: inline-flex;
   align-items: center;
+  transform: translateX(-50%);
   gap: 7px;
   height: 30px;
   border: 1px solid rgba(122, 167, 232, 0.24);
@@ -1293,36 +1294,36 @@
 
 .agent-team-frame .agent-team-summary-agent--running,
 .agent-team-frame .agent-team-summary-agent--in_progress {
-  border-color: #9dc8fb;
-  background: linear-gradient(90deg, #f0f7ff 0%, rgba(255, 255, 255, 0.96) 62%);
-  box-shadow: inset 4px 0 0 #438de1;
+  border-color: #d2e0f1;
+  background: #f7fafe;
+  box-shadow: inset 3px 0 0 #8fb0d6;
 }
 
 .agent-team-frame .agent-team-summary-agent--needs_input,
 .agent-team-frame .agent-team-summary-agent--blocked {
-  border-color: #e6bd58;
-  background: linear-gradient(90deg, #fff7df 0%, rgba(255, 255, 255, 0.96) 62%);
-  box-shadow: inset 4px 0 0 #d99a16;
+  border-color: #ecdcb0;
+  background: #fdfaf2;
+  box-shadow: inset 3px 0 0 #d2b066;
 }
 
 .agent-team-frame .agent-team-summary-agent--needs_review,
 .agent-team-frame .agent-team-summary-agent--todo {
-  border-color: #d9c075;
-  background: linear-gradient(90deg, #fffaf0 0%, rgba(255, 255, 255, 0.96) 62%);
-  box-shadow: inset 4px 0 0 #c4932c;
+  border-color: #e6dcbe;
+  background: #fbf9f3;
+  box-shadow: inset 3px 0 0 #cab47f;
 }
 
 .agent-team-frame .agent-team-summary-agent--done {
-  border-color: #9fcfb3;
-  background: linear-gradient(90deg, #effaf3 0%, rgba(255, 255, 255, 0.96) 62%);
-  box-shadow: inset 4px 0 0 #2fb06d;
+  border-color: #cce3d5;
+  background: #f4faf6;
+  box-shadow: inset 3px 0 0 #84bd9e;
 }
 
 .agent-team-frame .agent-team-summary-agent--failed,
 .agent-team-frame .agent-team-summary-agent--error {
-  border-color: #e6aaa3;
-  background: linear-gradient(90deg, #fff1ef 0%, rgba(255, 255, 255, 0.96) 62%);
-  box-shadow: inset 4px 0 0 #d4503f;
+  border-color: #ebcbc5;
+  background: #fdf4f2;
+  box-shadow: inset 3px 0 0 #d49a92;
 }
 
 .agent-team-summary-agent .agent-team-detail__status {
