@@ -37,6 +37,7 @@ interface DefaultCanvasNodeProps {
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
+  onRemoveNodes?: (ids: string[]) => void;
   onUngroupSelectedGroups?: () => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   readOnly: boolean;
@@ -74,6 +75,7 @@ export const DefaultCanvasNode = ({
   onReference,
   onAddToChat,
   onSelect,
+  onRemoveNodes,
   onUngroupSelectedGroups,
   onUpdate,
   readOnly,
@@ -115,7 +117,16 @@ export const DefaultCanvasNode = ({
       ) : node.type === 'terminal' ? (
         <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
       ) : node.type === 'frame' || node.type === 'group' ? (
-        <FrameNodeBody node={node} onUpdate={onUpdate} />
+        <FrameNodeBody
+          node={node}
+          getAllNodes={getAllNodes}
+          onUpdate={onUpdate}
+          onRemoveNodes={onRemoveNodes}
+          rootFolder={rootFolder}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          readOnly={readOnly}
+        />
       ) : node.type === 'text' ? (
         <TextNodeBody
           node={node}

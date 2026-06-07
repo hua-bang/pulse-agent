@@ -39,10 +39,13 @@ Rules:
 - Each teammate should have a distinct, focused role.
 - Tasks should be concrete and actionable, not vague.
 - Use dependencies to enforce ordering ONLY when strictly necessary (e.g. task B literally cannot start without task A's output).
-- MAXIMIZE PARALLELISM: most tasks should have NO dependencies (empty depNames). Each teammate should be able to start working immediately on their own tasks. Avoid a single "setup" or "research" task that blocks everything.
+- BALANCE PARALLELISM AND GRANULARITY: expose independent workstreams, but keep each task as a meaningful deliverable rather than a tiny file/command/component edit.
+- Target 2-4 ready-to-start workstreams. Avoid a single "setup" or "research" task that blocks everything, but also avoid flooding the plan with microtasks.
 - Do NOT create a shared first task that all other tasks depend on. Instead, let each teammate do their own scoping/research as part of their task.
 - Assign tasks to teammates whose role fits the task.
-- Aim for 3-6 teammates and 5-15 tasks unless the scope requires more.
+- Aim for 3-6 teammates and 4-10 tasks for normal app/repo work unless the scope truly requires more.
+- Each teammate should usually own 1-2 substantial tasks.
+- Split by durable ownership or artifact boundary; use dependencies only for real handoffs where one task needs another task's concrete output or contract.
 - Each teammate should have at least one task with no dependencies so they can start immediately.
 
 Respond ONLY with a JSON object matching this schema:

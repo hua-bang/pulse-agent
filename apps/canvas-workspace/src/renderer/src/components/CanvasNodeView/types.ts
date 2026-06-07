@@ -27,6 +27,7 @@ export interface CanvasNodeViewProps {
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   onAutoResize: (id: string, width: number, height: number) => void;
   onRemove: (id: string) => void;
+  onRemoveNodes?: (ids: string[]) => void;
   onExportMindmapImage: (id: string) => void;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onFocus: (node: CanvasNode) => void;

@@ -6,12 +6,14 @@ import { tmpdir } from 'os';
 // Mock pty-manager since node-pty / electron are not available in test env.
 const sessionWrites: Array<{ id: string; data: string }> = [];
 const liveSessions = new Set<string>();
+let dropSessionAfterEnter = false;
 
 vi.mock('../terminal/pty-manager', () => ({
   hasSession: (id: string) => liveSessions.has(id),
   writeToSession: (id: string, data: string) => {
     if (!liveSessions.has(id)) return false;
     sessionWrites.push({ id, data });
+    if (dropSessionAfterEnter && data === '\r') liveSessions.delete(id);
     return true;
   },
 }));
@@ -29,6 +31,7 @@ let tmp: string;
 beforeEach(() => {
   sessionWrites.length = 0;
   liveSessions.clear();
+  dropSessionAfterEnter = false;
   mockCanvas = null;
   tmp = join(tmpdir(), `agent-send-${Date.now()}`);
 });
@@ -112,5 +115,25 @@ describe('sendInputToAgentNode', () => {
     const r = await sendInputToAgentNode({ workspaceId: 'ws', nodeId: 'n1', input: '' });
     expect(r.ok).toBe(true);
     expect(sessionWrites).toEqual([{ id: 'sess-1', data: '\r' }]);
+  });
+
+  it('fails when the PTY disappears immediately after submit so callers can queue a retry', async () => {
+    mockCanvas = {
+      nodes: [{ id: 'n1', type: 'agent', title: 'foo', data: { status: 'running', sessionId: 'sess-1' } }],
+    };
+    liveSessions.add('sess-1');
+    dropSessionAfterEnter = true;
+
+    const r = await sendInputToAgentNode({ workspaceId: 'ws', nodeId: 'n1', input: 'retry me' });
+
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.code).toBe('write_failed');
+      expect(r.error).toContain('session disappeared after submit');
+    }
+    expect(sessionWrites).toEqual([
+      { id: 'sess-1', data: 'retry me' },
+      { id: 'sess-1', data: '\r' },
+    ]);
   });
 });

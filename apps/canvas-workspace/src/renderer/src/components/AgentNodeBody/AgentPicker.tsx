@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { AGENT_REGISTRY, type AgentDef } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
@@ -9,6 +10,8 @@ interface AgentPickerProps {
   dangerousMode: boolean;
   rootFolder?: string;
   recentCwds: string[];
+  variant?: 'default' | 'team-lead';
+  teamLeadBriefSlot?: ReactNode;
   /** Optional Back button used when entering Setup from the Restart view. */
   onBack?: () => void;
   onAgentChange: (id: string) => void;
@@ -53,6 +56,8 @@ export const AgentPicker = ({
   dangerousMode,
   rootFolder,
   recentCwds,
+  variant = 'default',
+  teamLeadBriefSlot,
   onBack,
   onAgentChange,
   onCwdChange,
@@ -65,6 +70,7 @@ export const AgentPicker = ({
   const effectiveCwd = cwdInput || rootFolder || '';
   const previewCmd = agentDef?.command ?? 'agent';
   const visibleRecents = recentCwds.filter((p) => p !== cwdInput).slice(0, 3);
+  const isTeamLead = variant === 'team-lead';
   const dangerousFlag =
     selectedAgent === 'claude-code'
       ? '--dangerously-skip-permissions'
@@ -72,7 +78,8 @@ export const AgentPicker = ({
         ? '--dangerously-bypass-approvals-and-sandbox'
         : '';
   const supportsDangerous = dangerousFlag !== '';
-  const startTitle = `Start ${agentDef?.label ?? 'agent'}  —  ${previewCmd}${dangerousMode && supportsDangerous ? ` ${dangerousFlag}` : ''
+  const effectiveDangerousMode = isTeamLead ? true : dangerousMode;
+  const startTitle = `Start ${agentDef?.label ?? 'agent'}  —  ${previewCmd}${effectiveDangerousMode && supportsDangerous ? ` ${dangerousFlag}` : ''
     }${effectiveCwd ? ` in ${effectiveCwd}` : ''}`;
 
   return (
@@ -110,97 +117,121 @@ export const AgentPicker = ({
             ))}
           </div>
 
-          <div className="agent-field">
-            <div className="agent-field-label">
-              <FolderGlyph />
-              <span>Working Directory</span>
-            </div>
-            <div className="agent-dir-field">
-              <input
-                type="text"
-                className="agent-dir-input"
-                value={cwdInput}
-                onChange={(e) => onCwdChange(e.target.value)}
-                placeholder={rootFolder ? truncatePath(rootFolder, 36) : '~'}
-                title={
-                  rootFolder
-                    ? `Defaults to workspace root: ${rootFolder}`
-                    : 'Defaults to your home directory'
-                }
-                spellCheck={false}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    onLaunch();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="agent-dir-icon"
-                onClick={onPickFolder}
-                title="Browse…"
-                aria-label="Browse for folder"
-              >
-                <FolderGlyph />
-              </button>
-            </div>
-            {visibleRecents.length > 0 && (
-              <div className="agent-recent">
-                <span className="agent-recent-label">Recent</span>
-                {visibleRecents.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className="agent-recent-chip"
-                    onClick={() => onCwdChange(p)}
-                    title={p}
-                  >
-                    {truncatePath(p, 22)}
-                  </button>
-                ))}
+          {isTeamLead ? (
+            <>
+              <div className="agent-team-lead-setup-summary">
+                <div>
+                  <span>Workspace</span>
+                  <strong title={effectiveCwd || '~'}>{effectiveCwd ? truncatePath(effectiveCwd, 46) : '~'}</strong>
+                </div>
+                <div>
+                  <span>Approvals</span>
+                  <strong>Bypassed</strong>
+                </div>
+                <div>
+                  <span>Prompt</span>
+                  <strong>Brief Team Lead</strong>
+                </div>
               </div>
-            )}
-          </div>
 
-          <div className="agent-field">
-            <div className="agent-field-label">
-              <ChatGlyph />
-              <span>Initial Prompt</span>
-            </div>
-            <textarea
-              className="agent-prompt-input"
-              value={promptInput}
-              onChange={(e) => onPromptChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                  e.preventDefault();
-                  onLaunch();
-                }
-              }}
-              placeholder="请输入初始提示..."
-              spellCheck={false}
-              rows={3}
-            />
-          </div>
+              {teamLeadBriefSlot}
+            </>
+          ) : (
+            <>
+              <div className="agent-field">
+                <div className="agent-field-label">
+                  <FolderGlyph />
+                  <span>Working Directory</span>
+                </div>
+                <div className="agent-dir-field">
+                  <input
+                    type="text"
+                    className="agent-dir-input"
+                    value={cwdInput}
+                    onChange={(e) => onCwdChange(e.target.value)}
+                    placeholder={rootFolder ? truncatePath(rootFolder, 36) : '~'}
+                    title={
+                      rootFolder
+                        ? `Defaults to workspace root: ${rootFolder}`
+                        : 'Defaults to your home directory'
+                    }
+                    spellCheck={false}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        onLaunch();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="agent-dir-icon"
+                    onClick={onPickFolder}
+                    title="Browse…"
+                    aria-label="Browse for folder"
+                  >
+                    <FolderGlyph />
+                  </button>
+                </div>
+                {visibleRecents.length > 0 && (
+                  <div className="agent-recent">
+                    <span className="agent-recent-label">Recent</span>
+                    {visibleRecents.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        className="agent-recent-chip"
+                        onClick={() => onCwdChange(p)}
+                        title={p}
+                      >
+                        {truncatePath(p, 22)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-          {supportsDangerous && (
-            <div className="agent-field">
-              <label className="agent-dangerous-toggle" title={`Adds \`${dangerousFlag}\` to the launch command`}>
-                <input
-                  type="checkbox"
-                  checked={dangerousMode}
-                  onChange={(e) => onDangerousModeChange(e.target.checked)}
+              <div className="agent-field">
+                <div className="agent-field-label">
+                  <ChatGlyph />
+                  <span>Initial Prompt</span>
+                </div>
+                <textarea
+                  className="agent-prompt-input"
+                  value={promptInput}
+                  onChange={(e) => onPromptChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      onLaunch();
+                    }
+                  }}
+                  placeholder="请输入初始提示..."
+                  spellCheck={false}
+                  rows={3}
                 />
-                <span className="agent-dangerous-toggle-text">
-                  跳过权限确认 <code>{dangerousFlag}</code>
-                </span>
-              </label>
-            </div>
+              </div>
+
+              {supportsDangerous && (
+                <div className="agent-field">
+                  <label className="agent-dangerous-toggle" title={`Adds \`${dangerousFlag}\` to the launch command`}>
+                    <input
+                      type="checkbox"
+                      checked={dangerousMode}
+                      onChange={(e) => onDangerousModeChange(e.target.checked)}
+                    />
+                    <span className="agent-dangerous-toggle-text">
+                      跳过权限确认 <code>{dangerousFlag}</code>
+                    </span>
+                  </label>
+                </div>
+              )}
+            </>
           )}
         </div>
 
-        <div className="agent-card-footer" style={{ border: 'none' }}>
+        {(!isTeamLead || !teamLeadBriefSlot) && (
+          <div className="agent-card-footer" style={{ border: 'none' }}>
           <button
             type="button"
             className="agent-primary-btn"
@@ -209,9 +240,10 @@ export const AgentPicker = ({
             title={startTitle}
           >
             <PlayGlyph />
-            初始化
+            {isTeamLead ? 'Start lead' : '初始化'}
           </button>
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

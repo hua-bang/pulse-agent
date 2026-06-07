@@ -188,7 +188,7 @@ export const ChatMessage = ({
     <div className={`chat-message chat-message-${message.role}`} id={anchorId}>
     {message.role === 'assistant' && (
       <div className="chat-message-avatar">
-        <BotAvatarIcon size={16} />
+        <BotAvatarIcon size={20} />
       </div>
     )}
     <div className="chat-message-body">

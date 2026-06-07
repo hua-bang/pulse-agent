@@ -1,13 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import "./index.css";
 import type { CanvasNode, FrameNodeData } from "../../types";
+import { AgentTeamFrame } from "../AgentTeamFrame";
 
 interface Props {
   node: CanvasNode;
+  getAllNodes?: () => CanvasNode[];
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onRemoveNodes?: (ids: string[]) => void;
+  rootFolder?: string;
+  workspaceId?: string;
+  workspaceName?: string;
+  readOnly?: boolean;
 }
 
-export const FrameNodeBody = ({ node: _node, onUpdate: _onUpdate }: Props) => {
+export const FrameNodeBody = ({
+  node,
+  getAllNodes,
+  onUpdate,
+  onRemoveNodes,
+  rootFolder,
+  workspaceId,
+  workspaceName,
+  readOnly,
+}: Props) => {
+  const data = node.data as FrameNodeData;
+  if (data.agentTeamId) {
+    return (
+      <AgentTeamFrame
+        node={node}
+        getAllNodes={getAllNodes}
+        onUpdate={onUpdate}
+        onRemoveNodes={onRemoveNodes}
+        rootFolder={rootFolder}
+        workspaceId={workspaceId}
+        workspaceName={workspaceName}
+        readOnly={readOnly}
+      />
+    );
+  }
   return <div className="frame-body" />;
 };
 

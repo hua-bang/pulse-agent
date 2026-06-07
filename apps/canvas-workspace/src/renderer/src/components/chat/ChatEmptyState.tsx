@@ -1,6 +1,7 @@
 import type { CanvasModelStatus } from '../../types';
 import { QUICK_ACTIONS } from './constants';
 import type { QuickAction } from './types';
+import { AppLogoIcon } from '../icons';
 import { useI18n } from '../../i18n';
 
 function QuickActionIcon({ action }: { action: QuickAction }) {
@@ -80,16 +81,7 @@ export const ChatEmptyState = ({
         </button>
       )}
       <div className="chat-empty-icon">
-        <svg width="34" height="34" viewBox="0 0 512 512" fill="none">
-          <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="currentColor" opacity="0.06" />
-          <path
-            d="M80 268H188L228 178L260 370L292 148L328 268H432"
-            stroke="currentColor"
-            strokeWidth="22"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <AppLogoIcon size={36} />
       </div>
       <div className="chat-empty-greeting">{t('chat.emptyGreeting')}</div>
       <div className="chat-quick-actions">

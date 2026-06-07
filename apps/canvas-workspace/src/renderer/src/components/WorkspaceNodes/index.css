@@ -1003,7 +1003,8 @@
   transform: translateY(-1px);
 }
 
-.nodes-chat-dock__launcher svg {
+.nodes-chat-dock__launcher svg,
+.nodes-chat-dock__launcher img {
   width: 30px;
   height: 30px;
   display: block;

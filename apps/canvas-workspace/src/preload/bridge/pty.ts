@@ -3,8 +3,8 @@ import type { CanvasWorkspaceApi } from "../../renderer/src/types";
 import { subscribe } from "./ipc";
 
 export const createPtyApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["pty"] => ({
-  spawn: (id, cols, rows, cwd, workspaceId) =>
-    ipcRenderer.invoke("pty:spawn", { id, cols, rows, cwd, workspaceId }),
+  spawn: (id, cols, rows, cwd, workspaceId, env) =>
+    ipcRenderer.invoke("pty:spawn", { id, cols, rows, cwd, workspaceId, env }),
 
   write: (id, data) =>
     ipcRenderer.send("pty:write", { id, data }),

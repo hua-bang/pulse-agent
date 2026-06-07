@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
-import { AvatarIcon } from '../icons';
+import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
 import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
@@ -30,7 +30,7 @@ interface ChatMessagesProps {
 const LoadingPlaceholder = () => (
   <div className="chat-message chat-message-assistant">
     <div className="chat-message-avatar">
-      <AvatarIcon size={14} />
+      <BotAvatarIcon size={18} />
     </div>
     <div className="chat-message-body">
       <div className="chat-loading">
@@ -55,7 +55,7 @@ const ClarificationCard = ({
 }) => (
   <div className="chat-message chat-message-assistant">
     <div className="chat-message-avatar">
-      <AvatarIcon size={14} />
+      <BotAvatarIcon size={18} />
     </div>
     <div className="chat-message-body">
       <div className="chat-clarify-card">

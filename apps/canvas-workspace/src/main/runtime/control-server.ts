@@ -4,7 +4,8 @@
  *
  * The agent PTY sessions live in this main process's memory; external
  * processes can't reach them through `canvas.json`. This server exposes
- * a single narrow endpoint — `POST /agent/send` — bound to 127.0.0.1
+ * narrow endpoints — currently `POST /agent/send` and team-control routes —
+ * bound to 127.0.0.1
  * and guarded by a per-run bearer secret written to a runtime file in
  * `~/.pulse-coder/canvas-runtime/`.
  *
@@ -22,6 +23,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import { randomBytes } from 'crypto';
 import { sendInputToAgentNode } from '../agent/session-send';
+import { getCanvasAgentTeamsService } from '../agent-teams/service';
 
 const RUNTIME_DIR = join(homedir(), '.pulse-coder', 'canvas-runtime');
 const RUNTIME_FILE = join(RUNTIME_DIR, 'canvas-workspace.json');
@@ -165,9 +167,6 @@ async function handleRequest(
   if (req.method !== 'POST') {
     return reply(res, 405, { ok: false, error: 'method not allowed' });
   }
-  if (req.url !== '/agent/send') {
-    return reply(res, 404, { ok: false, error: 'not found' });
-  }
   const auth = req.headers['authorization'];
   if (typeof auth !== 'string' || auth !== `Bearer ${secret}`) {
     return reply(res, 401, { ok: false, error: 'unauthorized' });
@@ -190,7 +189,59 @@ async function handleRequest(
   if (!parsed || typeof parsed !== 'object') {
     return reply(res, 400, { ok: false, error: 'body must be a JSON object' });
   }
-  const obj = parsed as Record<string, unknown>;
+
+  if (req.url === '/agent/send') {
+    return handleAgentSend(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/propose-plan') {
+    return handleAgentTeamProposePlan(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/create-task') {
+    return handleAgentTeamCreateTask(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/complete-task') {
+    return handleAgentTeamCompleteTask(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/block-task') {
+    return handleAgentTeamBlockTask(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/request-human-input') {
+    return handleAgentTeamRequestHumanInput(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/publish-artifact') {
+    return handleAgentTeamPublishArtifact(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/complete-team') {
+    return handleAgentTeamCompleteTeam(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/dispatch') {
+    return handleAgentTeamDispatch(res, parsed as Record<string, unknown>);
+  }
+  if (req.url === '/agent-team/send') {
+    return handleAgentTeamSend(res, parsed as Record<string, unknown>);
+  }
+
+  return reply(res, 404, { ok: false, error: 'not found' });
+}
+
+function readTeamTaskAction(obj: Record<string, unknown>): {
+  workspaceId: string;
+  teamId: string;
+  taskId?: string;
+  sourceAgentId?: string;
+} {
+  return {
+    workspaceId: typeof obj.workspaceId === 'string' ? obj.workspaceId : '',
+    teamId: typeof obj.teamId === 'string' ? obj.teamId : '',
+    taskId: typeof obj.taskId === 'string' ? obj.taskId : undefined,
+    sourceAgentId: typeof obj.sourceAgentId === 'string' ? obj.sourceAgentId : undefined,
+  };
+}
+
+async function handleAgentSend(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
   const workspaceId = typeof obj.workspaceId === 'string' ? obj.workspaceId : '';
   const nodeId = typeof obj.nodeId === 'string' ? obj.nodeId : '';
   const input = typeof obj.input === 'string' ? obj.input : '';
@@ -209,6 +260,221 @@ async function handleRequest(
   // differentiate "wrong request" from "agent not ready".
   const status = errorStatus(result.code);
   return reply(res, status, result);
+}
+
+async function handleAgentTeamProposePlan(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const workspaceId = typeof obj.workspaceId === 'string' ? obj.workspaceId : '';
+  const teamId = typeof obj.teamId === 'string' ? obj.teamId : '';
+  const sourceAgentId = typeof obj.sourceAgentId === 'string' ? obj.sourceAgentId : undefined;
+  const plan = obj.plan;
+  if (!workspaceId || !teamId) {
+    return reply(res, 400, {
+      ok: false,
+      error: 'workspaceId and teamId are required',
+    });
+  }
+  if (plan == null) {
+    return reply(res, 400, {
+      ok: false,
+      error: 'plan is required',
+    });
+  }
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().proposePlan(workspaceId, teamId, {
+      sourceAgentId,
+      plan,
+    });
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamCreateTask(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const workspaceId = typeof obj.workspaceId === 'string' ? obj.workspaceId : '';
+  const teamId = typeof obj.teamId === 'string' ? obj.teamId : '';
+  const title = typeof obj.title === 'string' ? obj.title.trim() : '';
+  const description = typeof obj.description === 'string' ? obj.description.trim() : '';
+  const ownerAgentId = typeof obj.ownerAgentId === 'string' ? obj.ownerAgentId : undefined;
+  const ownerName = typeof obj.ownerName === 'string' ? obj.ownerName : undefined;
+  const deps = Array.isArray(obj.deps) ? obj.deps.filter((dep): dep is string => typeof dep === 'string') : undefined;
+  const depRefs = Array.isArray(obj.depRefs) ? obj.depRefs.filter((dep): dep is string => typeof dep === 'string') : undefined;
+  const shouldDispatch = obj.dispatch === true;
+
+  if (!workspaceId || !teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+  if (!title || !description) {
+    return reply(res, 400, { ok: false, error: 'title and description are required' });
+  }
+
+  try {
+    const service = getCanvasAgentTeamsService();
+    await service.createTask({
+      workspaceId,
+      teamId,
+      title,
+      description,
+      ownerAgentId,
+      ownerName,
+      deps,
+      depRefs,
+      dispatch: shouldDispatch,
+    });
+    const snapshot = await service.snapshot(workspaceId, teamId);
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamCompleteTask(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const base = readTeamTaskAction(obj);
+  const summary = typeof obj.summary === 'string' ? obj.summary.trim() : '';
+  if (!base.workspaceId || !base.teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+  if (!summary) return reply(res, 400, { ok: false, error: 'summary is required' });
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().completeAgentTask({ ...base, summary });
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamBlockTask(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const base = readTeamTaskAction(obj);
+  const reason = typeof obj.reason === 'string' ? obj.reason.trim() : '';
+  if (!base.workspaceId || !base.teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+  if (!reason) return reply(res, 400, { ok: false, error: 'reason is required' });
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().blockAgentTask({ ...base, reason });
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamRequestHumanInput(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const base = readTeamTaskAction(obj);
+  const prompt = typeof obj.prompt === 'string' ? obj.prompt.trim() : '';
+  const reason = typeof obj.reason === 'string' ? obj.reason : undefined;
+  if (!base.workspaceId || !base.teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+  if (!prompt) return reply(res, 400, { ok: false, error: 'prompt is required' });
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().requestHumanInput({ ...base, reason, prompt });
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamPublishArtifact(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const base = readTeamTaskAction(obj);
+  const title = typeof obj.title === 'string' ? obj.title.trim() : '';
+  const kind = typeof obj.kind === 'string' ? obj.kind : undefined;
+  const uri = typeof obj.uri === 'string' ? obj.uri : undefined;
+  const summary = typeof obj.summary === 'string' ? obj.summary : undefined;
+  if (!base.workspaceId || !base.teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+  if (!title) return reply(res, 400, { ok: false, error: 'title is required' });
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().publishArtifact({ ...base, kind, title, uri, summary });
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamCompleteTeam(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const workspaceId = typeof obj.workspaceId === 'string' ? obj.workspaceId : '';
+  const teamId = typeof obj.teamId === 'string' ? obj.teamId : '';
+  const sourceAgentId = typeof obj.sourceAgentId === 'string' ? obj.sourceAgentId : undefined;
+  const summary = typeof obj.summary === 'string' ? obj.summary.trim() : '';
+  if (!workspaceId || !teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+  if (!summary) return reply(res, 400, { ok: false, error: 'summary is required' });
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().completeTeam(workspaceId, teamId, { sourceAgentId, summary });
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamDispatch(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const workspaceId = typeof obj.workspaceId === 'string' ? obj.workspaceId : '';
+  const teamId = typeof obj.teamId === 'string' ? obj.teamId : '';
+  if (!workspaceId || !teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().dispatch(workspaceId, teamId);
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamSend(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const workspaceId = typeof obj.workspaceId === 'string' ? obj.workspaceId : '';
+  const teamId = typeof obj.teamId === 'string' ? obj.teamId : '';
+  const to = typeof obj.to === 'string' ? obj.to : '';
+  const content = typeof obj.content === 'string' ? obj.content : '';
+  if (!workspaceId || !teamId || !to) {
+    return reply(res, 400, { ok: false, error: 'workspaceId, teamId, and to are required' });
+  }
+  if (!content.trim()) {
+    return reply(res, 400, { ok: false, error: 'content is required' });
+  }
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().sendInput(workspaceId, teamId, to, content);
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
 }
 
 function errorStatus(code: string): number {
