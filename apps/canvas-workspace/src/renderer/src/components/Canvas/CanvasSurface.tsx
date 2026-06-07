@@ -75,6 +75,7 @@ interface CanvasSurfaceProps {
    *  history stack with a paired text + resize entry. */
   onAutoResize: (id: string, width: number, height: number) => void;
   onRemove: (id: string) => void;
+  onRemoveNodes?: (ids: string[]) => void;
   onExportMindmapImage: (id: string) => void;
   /** Selection callback that forwards optional shift/meta modifiers so
    *  the parent can honor multi-select intent. */
@@ -138,6 +139,7 @@ export const CanvasSurface = ({
   onUpdate,
   onAutoResize,
   onRemove,
+  onRemoveNodes,
   onExportMindmapImage,
   onSelect,
   onFocus,
@@ -157,7 +159,7 @@ export const CanvasSurface = ({
   getAllNodes,
 }: CanvasSurfaceProps) => (
   <div
-    className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}`}
+    className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${transform.scale < 0.6 ? ' canvas-transform--small' : ''}`}
     style={{
       transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
       '--canvas-scale': transform.scale,
@@ -213,6 +215,7 @@ export const CanvasSurface = ({
           onUpdate={onUpdate}
           onAutoResize={onAutoResize}
           onRemove={onRemove}
+          onRemoveNodes={onRemoveNodes}
           onExportMindmapImage={onExportMindmapImage}
           onSelect={onSelect}
           onFocus={onFocus}
@@ -264,6 +267,7 @@ export const CanvasSurface = ({
           onUpdate={onUpdate}
           onAutoResize={onAutoResize}
           onRemove={onRemove}
+          onRemoveNodes={onRemoveNodes}
           onExportMindmapImage={onExportMindmapImage}
           onSelect={onSelect}
           onFocus={onFocus}

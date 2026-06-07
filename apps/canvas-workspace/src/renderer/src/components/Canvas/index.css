@@ -186,6 +186,10 @@
   transition: background 0.1s, color 0.1s;
 }
 
+.canvas-fullscreen-chip__btn img {
+  display: block;
+}
+
 .canvas-fullscreen-chip__btn:hover {
   background: rgba(0, 0, 0, 0.05);
   color: var(--text);

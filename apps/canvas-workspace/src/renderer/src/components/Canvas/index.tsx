@@ -26,8 +26,20 @@ import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
-import type { CanvasNode } from '../../types';
+import type { AgentNodeData, CanvasNode } from '../../types';
 import type { CanvasProps } from './types';
+import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../shared/experimental-features';
+
+const PLUGIN_FLAGS =
+  (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
+    .canvasWorkspace?.pluginFlags ?? {};
+const AGENT_TEAMS_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_AGENT_TEAMS] === true;
+
+const isAgentTeamTeammateNode = (node: CanvasNode): boolean => {
+  if (node.type !== 'agent') return false;
+  const data = node.data as AgentNodeData;
+  return !!data.agentTeamId && data.agentTeamRole === 'teammate';
+};
 
 export const Canvas = ({
   canvasId,
@@ -60,7 +72,7 @@ export const Canvas = ({
   nodePatchRequest,
   onNodePatchComplete,
 }: CanvasProps) => {
-  const { confirm, notify, openShortcuts, isOverlayOpen } = useAppShell();
+  const { confirm, notify, updateToast, openShortcuts, isOverlayOpen } = useAppShell();
   const [activeTool, setActiveTool] = useState('select');
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -86,6 +98,7 @@ export const Canvas = ({
    *  bulk creates the user can clearly see. */
   const handleAgentCreated = useCallback(
     (node: CanvasNode) => {
+      if (isAgentTeamTeammateNode(node)) return;
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();
@@ -120,6 +133,7 @@ export const Canvas = ({
   const {
     nodes, edges, loaded, externallyEditedIds,
     addNode, updateNode, removeNode, removeNodes,
+    syncDeletedNodes,
     moveNode, moveNodes, resizeNode,
     addEdge, updateEdge, removeEdge,
     setTransformForSave, flushSave, commitHistory,
@@ -148,6 +162,13 @@ export const Canvas = ({
     getAllNodes,
   } = useCanvasSelection({ nodesRef });
 
+  const handleRemoveNodesLocally = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    const removed = new Set(ids);
+    syncDeletedNodes(ids);
+    setSelectedNodeIds((current) => current.filter((id) => !removed.has(id)));
+  }, [setSelectedNodeIds, syncDeletedNodes]);
+
   // Indexed lookup for O(1) access by id. Declared before the focus
   // memos so they can use it without falling back to O(n)
   // `Array.find`, and reused later for the find-bar's match resolver.
@@ -165,6 +186,72 @@ export const Canvas = ({
     containerRef, screenToCanvas, addNode, nodesRef, setSelectedNodeIds,
     setHighlightedId, notify,
   });
+
+  const handleCreateAgentTeam = useCallback(() => {
+    const api = window.canvasWorkspace?.agentTeams;
+    const container = containerRef.current;
+    if (!api || !container) return;
+    const rect = container.getBoundingClientRect();
+    const center = screenToCanvas(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+      container,
+    );
+    const x = center.x - 560;
+    const y = center.y - 310;
+    const toastId = notify({
+      tone: 'loading',
+      title: 'Creating agent team...',
+      description: canvasName ?? canvasId,
+    });
+    void api.create({
+      workspaceId: canvasId,
+      name: 'Agent Team',
+      goal: 'Clarify the goal with the user, then propose a team plan.',
+      cwd: rootFolder,
+      leadName: 'Team Lead',
+      x,
+      y,
+    }).then((result) => {
+      if (!result.ok || !result.snapshot) {
+        updateToast(toastId, {
+          tone: 'error',
+          title: 'Agent team creation failed',
+          description: result.error ?? 'Unable to create team.',
+          autoCloseMs: 4200,
+        });
+        return;
+      }
+      const frameNodeId = result.snapshot.frameNodeId;
+      if (frameNodeId) {
+        setSelectedNodeIds([frameNodeId]);
+        setHighlightedId(frameNodeId);
+      }
+      updateToast(toastId, {
+        tone: 'success',
+        title: 'Agent team created',
+        description: 'Team frame and agent nodes were added to the canvas.',
+        autoCloseMs: 2800,
+      });
+    }).catch((err) => {
+      updateToast(toastId, {
+        tone: 'error',
+        title: 'Agent team creation failed',
+        description: err instanceof Error ? err.message : String(err),
+        autoCloseMs: 4200,
+      });
+    });
+  }, [
+    canvasId,
+    canvasName,
+    containerRef,
+    notify,
+    rootFolder,
+    screenToCanvas,
+    setHighlightedId,
+    setSelectedNodeIds,
+    updateToast,
+  ]);
 
   const actions = useCanvasNodeActions({
     nodesRef, edges,
@@ -385,6 +472,7 @@ export const Canvas = ({
       getAllNodes={getAllNodes}
       getPreviewEndpoints={getPreviewEndpoints}
       handleNodeViewportFocus={handleNodeViewportFocus}
+      handleCreateAgentTeam={AGENT_TEAMS_ENABLED ? handleCreateAgentTeam : undefined}
       handleSearchMatchActivate={handleSearchMatchActivate}
       handleSelectNode={handleSelectNode}
       handleShapeOverlayMouseDown={handleShapeOverlayMouseDown}
@@ -402,6 +490,7 @@ export const Canvas = ({
       onAddToChat={onAddToChat}
       onReferenceToggle={onReferenceToggle}
       onUpdateReferenceSource={onUpdateReferenceSource}
+      onRemoveNodesLocally={handleRemoveNodesLocally}
       openShortcuts={openShortcuts}
       paletteCommands={paletteCommands}
       referenceDrawerOpen={referenceDrawerOpen}

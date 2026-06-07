@@ -147,6 +147,10 @@ export interface TerminalNodeData {
 export interface FrameNodeData {
   color: string;
   label?: string;
+  agentTeamId?: string;
+  agentTeamName?: string;
+  agentTeamGoal?: string;
+  agentTeamPanelHeight?: number;
 }
 
 export interface GroupNodeData {
@@ -190,14 +194,29 @@ export interface AgentNodeData {
    */
   viewMode?: 'setup' | 'running' | 'restart';
   /**
-   * Caller-supplied session id for the underlying coding-agent CLI.
-   * Currently only consumed by Claude Code (via `--session-id <uuid>` on
-   * first spawn and `--resume <uuid>` on restart) so the conversation
-   * survives across PTY teardowns without us having to parse the CLI's
-   * output or scan its on-disk session store. Generated via
-   * `crypto.randomUUID()`; absent on legacy nodes and non-Claude agents.
+   * Caller-supplied session id for Claude Code. Claude accepts this on first
+   * spawn via `--session-id <uuid>` and later via `--resume <uuid>`.
    */
   cliSessionId?: string;
+  /**
+   * Codex session id captured after first launch from Codex's local session
+   * index. Codex does not accept caller-supplied ids on first spawn, but it
+   * does support `codex resume <id>` once the created id is known.
+   */
+  codexSessionId?: string;
+  /**
+   * Short host marker appended to the initial Codex prompt so the renderer can
+   * bind the created Codex thread id from local metadata after launch.
+   */
+  codexSessionMarker?: string;
+  agentTeamAutoResume?: {
+    sessionKey?: string;
+    attempts?: number;
+    lastAttemptAt?: number;
+  };
+  agentTeamId?: string;
+  agentTeamAgentId?: string;
+  agentTeamRole?: 'lead' | 'teammate';
 }
 
 /**
@@ -1067,6 +1086,292 @@ export interface AgentApi {
   ) => () => void;
 }
 
+export type AgentTeamStatus =
+  | 'planning'
+  | 'waiting_approval'
+  | 'running'
+  | 'reviewing'
+  | 'paused'
+  | 'completed'
+  | 'failed';
+
+export type AgentTeamAgentStatus =
+  | 'idle'
+  | 'running'
+  | 'needs_input'
+  | 'blocked'
+  | 'done'
+  | 'error'
+  | 'stopped';
+
+export type AgentTeamTaskStatus =
+  | 'todo'
+  | 'in_progress'
+  | 'needs_input'
+  | 'needs_review'
+  | 'blocked'
+  | 'done'
+  | 'failed';
+
+export interface AgentTeamRecord {
+  id: string;
+  name: string;
+  goal: string;
+  status: AgentTeamStatus;
+  leadAgentId?: string;
+  createdAt: number;
+  updatedAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentTeamAgentRecord {
+  id: string;
+  teamId: string;
+  role: 'lead' | 'teammate';
+  name: string;
+  status: AgentTeamAgentStatus;
+  cwd?: string;
+  currentTaskId?: string;
+  sessionRef?: {
+    sessionId: string;
+    provider: string;
+    displayName?: string;
+    metadata?: Record<string, unknown>;
+  };
+  createdAt: number;
+  updatedAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentTeamTaskRecord {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string;
+  status: AgentTeamTaskStatus;
+  ownerAgentId?: string;
+  deps: string[];
+  result?: string;
+  blockedReason?: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentTeamHumanGateRecord {
+  id: string;
+  teamId: string;
+  taskId?: string;
+  agentId?: string;
+  reason: string;
+  prompt: string;
+  status: 'open' | 'answered' | 'cancelled';
+  answer?: string;
+  createdAt: number;
+  updatedAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentTeamArtifactRecord {
+  id: string;
+  teamId: string;
+  taskId?: string;
+  agentId?: string;
+  kind: string;
+  title: string;
+  uri?: string;
+  summary?: string;
+  createdAt: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentTeamEventRecord {
+  id: string;
+  teamId: string;
+  type: string;
+  timestamp: number;
+  actor: string;
+  payload: Record<string, unknown>;
+}
+
+export interface AgentTeamMessageRecord {
+  id: string;
+  teamId: string;
+  from: string;
+  to: string;
+  type: string;
+  content: string;
+  taskId?: string;
+  createdAt: number;
+  readAt?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface AgentTeamRuntimeSnapshot {
+  team: AgentTeamRecord;
+  agents: AgentTeamAgentRecord[];
+  tasks: AgentTeamTaskRecord[];
+  artifacts: AgentTeamArtifactRecord[];
+  humanGates: AgentTeamHumanGateRecord[];
+  events: AgentTeamEventRecord[];
+  messages: AgentTeamMessageRecord[];
+}
+
+export type AgentTeamPhase = 'briefing' | 'plan_review' | 'executing';
+
+export interface AgentTeamPlanTeammate {
+  name: string;
+  agentType?: string;
+}
+
+export interface AgentTeamPlanTask {
+  title: string;
+  description: string;
+  ownerName?: string;
+  deps: string[];
+}
+
+export interface AgentTeamPlanDraft {
+  summary: string;
+  teammates: AgentTeamPlanTeammate[];
+  tasks: AgentTeamPlanTask[];
+  sourceAgentId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface AgentTeamSnapshot {
+  workspaceId: string;
+  frameNodeId?: string;
+  phase: AgentTeamPhase;
+  pendingPlan?: AgentTeamPlanDraft;
+  approvedPlan?: AgentTeamPlanDraft;
+  runtime: AgentTeamRuntimeSnapshot;
+}
+
+export interface AgentTeamsApi {
+  create: (input: {
+    workspaceId: string;
+    name: string;
+    goal: string;
+    cwd?: string;
+    leadName?: string;
+    leadAgentType?: string;
+    teammateNames?: string[];
+    teammateAgentType?: string;
+    x?: number;
+    y?: number;
+  }) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  list: (workspaceId: string) => Promise<{ ok: boolean; teams?: AgentTeamSnapshot[]; error?: string }>;
+  snapshot: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  addAgent: (input: {
+    workspaceId: string;
+    teamId: string;
+    name: string;
+    role: 'lead' | 'teammate';
+    agentType?: string;
+    cwd?: string;
+  }) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  briefLead: (
+    workspaceId: string,
+    teamId: string,
+    content: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  confirmPlan: (
+    workspaceId: string,
+    teamId: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  createTask: (input: {
+    workspaceId: string;
+    teamId: string;
+    title: string;
+    description: string;
+    ownerAgentId?: string;
+    ownerName?: string;
+    deps?: string[];
+    depRefs?: string[];
+    dispatch?: boolean;
+  }) => Promise<{ ok: boolean; runtime?: AgentTeamRuntimeSnapshot; error?: string }>;
+  dispatch: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  pause: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  resume: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  prepareAgentAutoResume: (
+    workspaceId: string,
+    teamId: string,
+    agentId: string,
+  ) => Promise<{ ok: boolean; canResume?: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  delete: (
+    workspaceId: string,
+    teamId: string,
+  ) => Promise<{ ok: boolean; deletedNodeIds?: string[]; error?: string }>;
+  completeTask: (
+    workspaceId: string,
+    teamId: string,
+    taskId: string,
+    result?: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  openGate: (input: {
+    workspaceId: string;
+    teamId: string;
+    agentId?: string;
+    taskId?: string;
+    reason: string;
+    prompt: string;
+  }) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  answerGate: (workspaceId: string, gateId: string, answer: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  interruptAgent: (input: {
+    workspaceId: string;
+    teamId: string;
+    agentId: string;
+    mode: 'soft' | 'ctrl-c' | 'abort';
+    reason?: string;
+  }) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  sendInput: (
+    workspaceId: string,
+    teamId: string,
+    agentId: string,
+    content: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  reportAgentOutput: (
+    workspaceId: string,
+    nodeId: string,
+    delta: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot | null; error?: string }>;
+  reportAgentExit: (
+    workspaceId: string,
+    nodeId: string,
+    code?: number,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot | null; error?: string }>;
+}
+
+export interface CodexSessionIndexEntry {
+  id: string;
+  threadName?: string;
+  updatedAt: string;
+}
+
+export interface CodexThreadMatch {
+  id: string;
+  cwd?: string;
+  title?: string;
+  updatedAtMs?: number;
+}
+
+export interface CodexSessionsApi {
+  list: (
+    payload?: { updatedAfter?: string },
+  ) => Promise<{ ok: boolean; sessions?: CodexSessionIndexEntry[]; error?: string }>;
+  findByMarker: (
+    payload: { marker: string; updatedAfterMs?: number; cwd?: string },
+  ) => Promise<{
+    ok: boolean;
+    session?: CodexThreadMatch;
+    ambiguous?: boolean;
+    error?: string;
+  }>;
+}
+
 export interface CanvasWorkspaceApi {
   version: string;
   pluginFlags: Record<string, boolean>;
@@ -1076,7 +1381,8 @@ export interface CanvasWorkspaceApi {
       cols?: number,
       rows?: number,
       cwd?: string,
-      workspaceId?: string
+      workspaceId?: string,
+      env?: Record<string, string | undefined>
     ) => Promise<{ ok: boolean; pid?: number; error?: string; reused?: boolean }>;
     write: (id: string, data: string) => void;
     resize: (id: string, cols: number, rows: number) => void;
@@ -1202,6 +1508,8 @@ export interface CanvasWorkspaceApi {
   model: CanvasModelApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;
+  codexSessions: CodexSessionsApi;
+  agentTeams: AgentTeamsApi;
   iframe: IframeApi;
   llm: LlmApi;
   artifacts: ArtifactsApi;

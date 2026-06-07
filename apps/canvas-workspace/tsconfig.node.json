@@ -5,6 +5,11 @@
     "moduleResolution": "Bundler",
     "skipLibCheck": true,
     "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "pulse-coder-agent-teams": ["../../packages/agent-teams/src/index.ts"],
+      "pulse-coder-agent-teams/*": ["../../packages/agent-teams/src/*"]
+    },
     "noEmit": true
   },
   "include": [

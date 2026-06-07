@@ -36,6 +36,7 @@ type CanvasRootViewProps = Pick<
   getAllNodes: () => CanvasNode[];
   getPreviewEndpoints: () => any;
   handleNodeViewportFocus: (node: CanvasNode) => void;
+  handleCreateAgentTeam?: () => void;
   handleSearchMatchActivate: (node: CanvasNode) => void;
   handleSelectNode: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   handleShapeOverlayMouseDown: (event: React.MouseEvent) => void;
@@ -72,6 +73,7 @@ type CanvasRootViewProps = Pick<
   transform: any;
   updateEdge: (id: string, patch: any) => void;
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
+  onRemoveNodesLocally: (ids: string[]) => void;
 };
 
 export const CanvasRootView = ({
@@ -95,6 +97,7 @@ export const CanvasRootView = ({
   getAllNodes,
   getPreviewEndpoints,
   handleNodeViewportFocus,
+  handleCreateAgentTeam,
   handleSearchMatchActivate,
   handleSelectNode,
   handleShapeOverlayMouseDown,
@@ -112,6 +115,7 @@ export const CanvasRootView = ({
   onAddToChat,
   onReferenceToggle,
   onUpdateReferenceSource,
+  onRemoveNodesLocally,
   openShortcuts,
   paletteCommands,
   referenceDrawerOpen,
@@ -151,7 +155,10 @@ export const CanvasRootView = ({
     <div
       ref={containerRef}
       className={`canvas-container${mouse.cursorClass}${mouse.iframeShieldClass}`}
-      onWheel={handleWheel}
+      onWheel={(e) => {
+        if (focus.fullscreenNodeId) return;
+        handleWheel(e);
+      }}
       onMouseDown={mouse.handleRootMouseDown}
       onMouseMove={mouse.handleMouseMove}
       onMouseUp={mouse.handleMouseUp}
@@ -197,6 +204,7 @@ export const CanvasRootView = ({
         onUpdate={updateNode}
         onAutoResize={resizeNode}
         onRemove={actions.handleRemoveNode}
+        onRemoveNodes={onRemoveNodesLocally}
         onSelect={handleSelectNode}
         onExportMindmapImage={actions.handleExportMindmapImage}
         onFocus={handleNodeViewportFocus}
@@ -243,6 +251,7 @@ export const CanvasRootView = ({
         referenceDrawerOpen={referenceDrawerOpen}
         onReferenceToggle={onReferenceToggle}
         onCreateNode={ctxMenu.handleCreateNode}
+        onCreateAgentTeam={handleCreateAgentTeam}
         onCloseContextMenu={ctxMenu.closeContextMenu}
         onOpenShortcuts={openShortcuts}
         onToolChange={setActiveTool}

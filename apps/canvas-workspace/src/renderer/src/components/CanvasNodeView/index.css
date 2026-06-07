@@ -543,6 +543,75 @@
   color: #e03e3e;
 }
 
+/* Header action group — default: inline, no special styling.
+   When the canvas is zoomed out (.canvas-transform--small added at scale < 0.6),
+   the actions detach from the header and float as a popover at the node's
+   top-right, only visible on hover. They are reverse-scaled to keep a
+   constant visual size regardless of zoom. */
+.node-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.node-agent-team-role {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.node-agent-team-role--lead {
+  color: #285b95;
+  background: #e9f2ff;
+  border: 1px solid #b8d4f3;
+}
+
+.node-agent-team-role--teammate {
+  color: #6a4b00;
+  background: #fff3ca;
+  border: 1px solid #ead18b;
+}
+
+.canvas-transform--small .canvas-node .node-header__actions {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  transform-origin: top right;
+  transform: scale(calc(clamp(0.55, var(--canvas-scale, 1), 1) / var(--canvas-scale, 1)));
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 12px rgba(22, 18, 36, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+  z-index: 5;
+}
+
+.canvas-transform--small .canvas-node:hover .node-header__actions,
+.canvas-transform--small .canvas-node.canvas-node--selected .node-header__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* In the floating popover the buttons need to be visible immediately,
+   overriding the default `opacity: 0` set on individual buttons. */
+.canvas-transform--small .canvas-node .node-header__actions .node-reference,
+.canvas-transform--small .canvas-node .node-header__actions .node-add-to-chat,
+.canvas-transform--small .canvas-node .node-header__actions .node-focus,
+.canvas-transform--small .canvas-node .node-header__actions .node-fullscreen,
+.canvas-transform--small .canvas-node .node-header__actions .node-close {
+  opacity: 1;
+}
+
 .node-body {
   flex: 1;
   overflow: hidden;

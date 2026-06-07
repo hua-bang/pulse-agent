@@ -1,3 +1,4 @@
+import { APP_NAME, configureAppIdentity } from "./identity";
 import { app, BrowserWindow } from "electron";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -18,6 +19,8 @@ import {
   setupCanvasAgentIpc,
   teardownCanvasAgent,
 } from "../agent/ipc";
+import { setupCodexSessionsIpc } from "../agent/codex-sessions";
+import { setupCanvasAgentTeamsIpc } from "../agent-teams/ipc";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
@@ -67,12 +70,9 @@ interface AppPaths {
 }
 
 export function bootstrap({ mainDir }: BootstrapOptions): void {
-  // Without this, dev runs inherit the Electron binary's identity — dock label,
-  // About panel, userData path, and `ps`/Activity Monitor all read "Electron".
-  // Packaged builds get this from electron-builder's productName, but dev does
-  // not, so set it explicitly before any other Electron API touches app.name.
-  app.setName("Pulse Canvas");
-  process.title = "Pulse Canvas";
+  // Keep identity configured even when tests import bootstrap directly instead
+  // of going through the main entry module.
+  configureAppIdentity();
 
   const paths = resolveAppPaths(mainDir);
   const { writeLog } = createMainLogger();
@@ -98,6 +98,8 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupFileWatcherIpc();
     setupSkillInstallerIpc();
     setupCanvasAgentIpc();
+    setupCodexSessionsIpc();
+    setupCanvasAgentTeamsIpc();
     setupCanvasModelIpc();
     setupCanvasSkillsIpc();
     setupCanvasMcpIpc();
@@ -227,7 +229,7 @@ function configureAppChrome(
   // About panel: shown by the native menu. iconPath is honored on Linux and
   // Windows; macOS reads the icon from the app bundle.
   app.setAboutPanelOptions({
-    applicationName: "Pulse Canvas",
+    applicationName: APP_NAME,
     applicationVersion: app.getVersion(),
     copyright: "Copyright © 2025",
     ...(iconPath ? { iconPath } : {})

@@ -50,7 +50,14 @@ export const setupPtyIpc = () => {
     "pty:spawn",
     (
       _event,
-      payload: { id: string; cols?: number; rows?: number; cwd?: string; workspaceId?: string }
+      payload: {
+        id: string;
+        cols?: number;
+        rows?: number;
+        cwd?: string;
+        workspaceId?: string;
+        env?: Record<string, string | undefined>;
+      }
     ) => {
       const { id, cols = 80, rows = 24, cwd, workspaceId } = payload;
 
@@ -63,6 +70,12 @@ export const setupPtyIpc = () => {
         const spawnEnv: Record<string, string> = {
           ...(process.env as Record<string, string>),
         };
+        for (const [key, value] of Object.entries(payload.env ?? {})) {
+          if (!/^PULSE_CANVAS_[A-Z0-9_]+$/.test(key)) continue;
+          if (typeof value === "string" && value.length > 0) {
+            spawnEnv[key] = value;
+          }
+        }
         if (workspaceId) {
           spawnEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
         }
@@ -243,6 +256,18 @@ export function writeToSession(sessionId: string, data: string): boolean {
   const proc = sessions.get(sessionId);
   if (!proc) return false;
   proc.write(data);
+  return true;
+}
+
+/** Kill a PTY session by id. Returns false if the session does not exist. */
+export function killSession(sessionId: string): boolean {
+  const proc = sessions.get(sessionId);
+  if (!proc) return false;
+  try {
+    proc.kill();
+  } finally {
+    sessions.delete(sessionId);
+  }
   return true;
 }
 

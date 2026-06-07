@@ -3,6 +3,7 @@ import type { NavItem } from '../../../../plugins/types';
 import {
   PlusIcon,
   AvatarIcon,
+  AppLogoIcon,
   WorkspaceIcon,
   FolderIcon,
   ImportIcon,
@@ -59,16 +60,7 @@ export const SidebarHeader = ({
     <>
       <div className="sidebar-brand-header">
         <span className="sidebar-brand-mark" aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 512 512" fill="none">
-            <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="#FFFFFF" />
-            <path
-              d="M 80,268 H 188 L 228,178 L 260,370 L 292,148 L 328,268 H 432"
-              stroke="#1D1D1F"
-              strokeWidth="22"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <AppLogoIcon size={22} />
         </span>
         <span className="sidebar-brand">Pulse Canvas</span>
         <button className="sidebar-section-btn" onClick={onToggle} title={t('sidebar.collapse')}>

@@ -65,7 +65,8 @@
   color: #1d1d1f;
 }
 
-.chat-panel-brand-mark svg {
+.chat-panel-brand-mark svg,
+.chat-panel-brand-mark img {
   display: block;
   filter: drop-shadow(0 1px 1px rgba(55, 53, 47, 0.08));
 }
@@ -406,6 +407,10 @@
   color: #1d1d1f;
   flex-shrink: 0;
   margin-top: 1px;
+}
+
+.chat-message-avatar img {
+  display: block;
 }
 
 .chat-message-content {
@@ -2660,4 +2665,3 @@
     box-shadow: 0 0 0 0 rgba(35, 131, 226, 0);
   }
 }
-

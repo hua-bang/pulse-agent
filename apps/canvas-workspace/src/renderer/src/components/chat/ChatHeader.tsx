@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
+import { AppLogoIcon, CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
 
@@ -29,16 +29,7 @@ interface ChatHeaderProps {
 
 const PulseCanvasMark = () => (
   <span className="chat-panel-brand-mark" aria-hidden="true">
-    <svg width="20" height="20" viewBox="0 0 512 512" fill="none">
-      <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="#fff" />
-      <path
-        d="M80 268H188L228 178L260 370L292 148L328 268H432"
-        stroke="currentColor"
-        strokeWidth="22"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <AppLogoIcon size={20} />
   </span>
 );
 

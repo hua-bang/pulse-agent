@@ -27,6 +27,7 @@ const CanvasNodeViewComponent = ({
   onUpdate,
   onAutoResize,
   onRemove,
+  onRemoveNodes,
   onExportMindmapImage,
   onSelect,
   onFocus,
@@ -198,6 +199,7 @@ const CanvasNodeViewComponent = ({
       onReference={onReference}
       onAddToChat={onAddToChat}
       onSelect={onSelect}
+      onRemoveNodes={onRemoveNodes}
       onUngroupSelectedGroups={onUngroupSelectedGroups}
       onUpdate={onUpdate}
       readOnly={readOnly}
@@ -228,6 +230,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.resolveReferenceNode === next.resolveReferenceNode &&
   prev.onOpenReferenceSource === next.onOpenReferenceSource &&
   prev.onUpdateReferenceSource === next.onUpdateReferenceSource &&
+  prev.onRemoveNodes === next.onRemoveNodes &&
   prev.readOnly === next.readOnly &&
   prev.embedded === next.embedded
 ));

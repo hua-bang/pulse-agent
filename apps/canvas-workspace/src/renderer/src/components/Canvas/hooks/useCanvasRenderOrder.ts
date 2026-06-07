@@ -2,6 +2,13 @@ import { useMemo } from 'react';
 import type { CanvasNode } from '../../../types';
 import { computeContainerDepths, isContainerNode } from '../../../utils/frameHierarchy';
 
+const isAgentTeamManagedAgentNode = (node: CanvasNode): boolean =>
+  (() => {
+    if (node.type !== 'agent') return false;
+    const data = node.data as { agentTeamId?: unknown; agentTeamAgentId?: unknown };
+    return typeof data.agentTeamId === 'string' && typeof data.agentTeamAgentId === 'string';
+  })();
+
 /**
  * Computes the canvas render order — containers underneath, regular
  * nodes on top, deeper containers above shallower ones. The returned
@@ -13,8 +20,9 @@ import { computeContainerDepths, isContainerNode } from '../../../utils/frameHie
  */
 export const useCanvasRenderOrder = (nodes: CanvasNode[]) => {
   const sortedNodes = useMemo(() => {
-    const depths = computeContainerDepths(nodes);
-    return [...nodes].sort((a, b) => {
+    const visibleNodes = nodes.filter((node) => !isAgentTeamManagedAgentNode(node));
+    const depths = computeContainerDepths(visibleNodes);
+    return [...visibleNodes].sort((a, b) => {
       const aIsContainer = isContainerNode(a);
       const bIsContainer = isContainerNode(b);
       if (aIsContainer && !bIsContainer) return -1;
