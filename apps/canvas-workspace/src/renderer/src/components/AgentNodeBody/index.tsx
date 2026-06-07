@@ -178,6 +178,8 @@ export const AgentNodeBody = ({
           agentType={controller.data.agentType || 'claude-code'}
           cwd={controller.data.cwd}
           prompt={controller.data.lastInitPrompt}
+          cliSessionId={controller.data.cliSessionId}
+          codexSessionId={controller.data.codexSessionId}
           onRestart={controller.handleRestartSession}
           onEdit={controller.handleEditInit}
         />

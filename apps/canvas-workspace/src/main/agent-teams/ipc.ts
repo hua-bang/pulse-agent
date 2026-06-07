@@ -93,6 +93,27 @@ export function setupCanvasAgentTeamsIpc(): void {
     }
   });
 
+  ipcMain.handle('agent-teams:resume', async (_event, payload: { workspaceId: string; teamId: string }) => {
+    try {
+      const snapshot = await service.resumeTeam(payload.workspaceId, payload.teamId);
+      return ok({ snapshot });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcMain.handle(
+    'agent-teams:prepare-agent-auto-resume',
+    async (_event, payload: { workspaceId: string; teamId: string; agentId: string }) => {
+      try {
+        const result = await service.prepareAgentAutoResume(payload.workspaceId, payload.teamId, payload.agentId);
+        return ok(result);
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
   ipcMain.handle('agent-teams:delete', async (_event, payload: { workspaceId: string; teamId: string }) => {
     try {
       const result = await service.deleteTeam(payload.workspaceId, payload.teamId);

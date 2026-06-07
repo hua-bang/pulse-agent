@@ -1,6 +1,6 @@
 import './index.css';
 import { ShapeToolButton } from './ShapeToolButton';
-import { PulseGlyphIcon } from '../icons';
+import { CodingAgentIcon, PulseGlyphIcon } from '../icons';
 import { useI18n, type I18nKey } from '../../i18n';
 
 interface Props {
@@ -207,15 +207,7 @@ export const FloatingToolbar = ({
           onClick={() => onAddNode("agent")}
           title={t('canvas.toolbar.addCodingAgent')}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <path
-              d="M6.5 5L3 9l3.5 4M11.5 5L15 9l-3.5 4M9.8 4.5l-1.6 9"
-              stroke="currentColor"
-              strokeWidth="1.35"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <CodingAgentIcon size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
         </button>
         {onCreateAgentTeam && (

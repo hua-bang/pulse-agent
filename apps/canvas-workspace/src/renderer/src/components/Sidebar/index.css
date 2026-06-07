@@ -139,7 +139,8 @@
   flex-shrink: 0;
 }
 
-.sidebar-brand-mark svg {
+.sidebar-brand-mark svg,
+.sidebar-brand-mark img {
   display: block;
 }
 

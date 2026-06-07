@@ -3,6 +3,7 @@ import type {
   AddAgentInput,
   AgentId,
   AgentSessionAdapter,
+  AgentStatus,
   CreateArtifactInput,
   CreateTaskInput,
   CreateTeamInput,
@@ -12,6 +13,7 @@ import type {
   OpenHumanGateInput,
   RuntimeSnapshot,
   TaskId,
+  TaskStatus,
   TeamAgentRecord,
   TeamArtifactRecord,
   TeamEvent,
@@ -35,6 +37,8 @@ type EventHandler = (event: TeamEvent) => void;
 const MAX_DEPENDENCY_CONTEXT_CHARS = 6_000;
 const MAX_TASK_RESULT_CHARS = 1_600;
 const MAX_ARTIFACT_SUMMARY_CHARS = 600;
+const TEAM_PAUSE_METADATA_KEY = 'teamPause';
+const LEAD_PENDING_DIGEST_RESEND_MS = 30_000;
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
@@ -61,6 +65,49 @@ const isLeadAudienceGate = (metadata: Record<string, unknown> | undefined): bool
 const quoteCliValue = (value: string): string =>
   value.replace(/(["\\$`])/g, '\\$1');
 
+interface TeamPauseMetadata {
+  pausedAt: number;
+  reason: string;
+  previousStatus: AgentStatus | TaskStatus;
+  previousCurrentTaskId?: TaskId;
+  previousBlockedReason?: string;
+}
+
+const readTeamPauseMetadata = (metadata: Record<string, unknown> | undefined): TeamPauseMetadata | undefined => {
+  const value = metadata?.[TEAM_PAUSE_METADATA_KEY];
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.previousStatus !== 'string') return undefined;
+  return {
+    pausedAt: typeof candidate.pausedAt === 'number' ? candidate.pausedAt : 0,
+    reason: typeof candidate.reason === 'string' ? candidate.reason : '',
+    previousStatus: candidate.previousStatus as AgentStatus | TaskStatus,
+    previousCurrentTaskId: typeof candidate.previousCurrentTaskId === 'string'
+      ? candidate.previousCurrentTaskId
+      : undefined,
+    previousBlockedReason: typeof candidate.previousBlockedReason === 'string'
+      ? candidate.previousBlockedReason
+      : undefined,
+  };
+};
+
+const writeTeamPauseMetadata = (
+  metadata: Record<string, unknown> | undefined,
+  pause: TeamPauseMetadata,
+): Record<string, unknown> => ({
+  ...(metadata ?? {}),
+  [TEAM_PAUSE_METADATA_KEY]: pause,
+});
+
+const clearTeamPauseMetadata = (
+  metadata: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined => {
+  if (!metadata || !(TEAM_PAUSE_METADATA_KEY in metadata)) return metadata;
+  const next = { ...metadata };
+  delete next[TEAM_PAUSE_METADATA_KEY];
+  return Object.keys(next).length > 0 ? next : undefined;
+};
+
 export class TeamRuntime {
   private readonly store: TeamRuntimeStore;
   private readonly agentSessions?: AgentSessionAdapter;
@@ -68,7 +115,7 @@ export class TeamRuntime {
   private readonly idFactory: () => string;
   private readonly handlers = new Set<EventHandler>();
   private readonly sessionAgents = new Map<string, AgentId>();
-  private readonly leadPendingDigestCache = new Map<TeamId, string>();
+  private readonly leadPendingDigestCache = new Map<TeamId, { digest: string; sentAt: number }>();
   private dispatchPaused = new Set<TeamId>();
   private unsubscribeSessionEvents?: () => void;
 
@@ -121,6 +168,7 @@ export class TeamRuntime {
       role: input.role,
       name: input.name,
       status: 'idle',
+      cwd: input.cwd,
       sessionRef: input.sessionRef,
       createdAt: now,
       updatedAt: now,
@@ -156,6 +204,7 @@ export class TeamRuntime {
       agentId: agent.id,
       name: agent.name,
       role: agent.role,
+      cwd: agent.cwd,
       prompt,
       metadata: agent.metadata,
     });
@@ -237,6 +286,12 @@ export class TeamRuntime {
         taskId: agent.currentTaskId,
         metadata: { mode: 'abort', scope: 'team' },
       });
+      agent.metadata = writeTeamPauseMetadata(agent.metadata, {
+        pausedAt: now,
+        reason,
+        previousStatus: agent.status,
+        previousCurrentTaskId: agent.currentTaskId,
+      });
       agent.status = 'stopped';
       agent.currentTaskId = undefined;
       agent.updatedAt = now;
@@ -245,6 +300,12 @@ export class TeamRuntime {
 
     for (const task of tasks) {
       if (task.status !== 'in_progress' && task.status !== 'needs_input' && task.status !== 'needs_review') continue;
+      task.metadata = writeTeamPauseMetadata(task.metadata, {
+        pausedAt: now,
+        reason,
+        previousStatus: task.status,
+        previousBlockedReason: task.blockedReason,
+      });
       task.status = 'blocked';
       task.blockedReason = reason;
       task.updatedAt = now;
@@ -260,6 +321,52 @@ export class TeamRuntime {
 
     await this.setTeamStatus(teamId, 'paused', 'human');
     await this.emit(teamId, 'dispatch_paused', 'human', { reason, scope: 'team' });
+  }
+
+  async resumeTeam(teamId: TeamId, reason = 'Resumed by user.'): Promise<void> {
+    await this.requireTeam(teamId);
+    this.dispatchPaused.delete(teamId);
+    const now = this.now();
+    const [agents, tasks] = await Promise.all([
+      this.store.listAgents(teamId),
+      this.store.listTasks(teamId),
+    ]);
+    let restoredAgents = 0;
+    let restoredTasks = 0;
+
+    for (const agent of agents) {
+      const pause = readTeamPauseMetadata(agent.metadata);
+      if (!pause) continue;
+      agent.metadata = clearTeamPauseMetadata(agent.metadata);
+      if (agent.status === 'stopped') {
+        agent.status = 'idle';
+        agent.currentTaskId = undefined;
+      }
+      agent.updatedAt = now;
+      restoredAgents += 1;
+      await this.store.saveAgent(agent);
+    }
+
+    for (const task of tasks) {
+      const pause = readTeamPauseMetadata(task.metadata);
+      if (!pause) continue;
+      task.metadata = clearTeamPauseMetadata(task.metadata);
+      if (task.status === 'blocked' && task.blockedReason === pause.reason) {
+        task.status = pause.previousStatus === 'needs_review' ? 'needs_review' : 'todo';
+        task.blockedReason = pause.previousBlockedReason;
+      }
+      task.updatedAt = now;
+      restoredTasks += 1;
+      await this.store.saveTask(task);
+    }
+
+    await this.setTeamStatus(teamId, 'running', 'human');
+    await this.emit(teamId, 'dispatch_resumed', 'human', {
+      reason,
+      scope: 'team',
+      restoredAgents,
+      restoredTasks,
+    });
   }
 
   async resumeDispatch(teamId: TeamId): Promise<void> {
@@ -328,7 +435,7 @@ export class TeamRuntime {
       });
 
       if (this.agentSessions && owner.sessionRef) {
-        await this.agentSessions.sendInput(owner.sessionRef.sessionId, await this.formatTaskPrompt(task, tasks));
+        await this.agentSessions.sendInput(owner.sessionRef.sessionId, await this.formatTaskPrompt(task, tasks, owner));
       }
 
       assigned.push({ ...task });
@@ -706,7 +813,13 @@ export class TeamRuntime {
       this.leadPendingDigestCache.delete(teamId);
       return;
     }
-    if (this.leadPendingDigestCache.get(teamId) === pendingGateDigest) return;
+    const cached = this.leadPendingDigestCache.get(teamId);
+    if (
+      cached?.digest === pendingGateDigest
+      && this.now() - cached.sentAt < LEAD_PENDING_DIGEST_RESEND_MS
+    ) {
+      return;
+    }
     await this.notifyLead(teamId, [
       'Pulse Canvas found teammate questions still waiting for Team Lead attention.',
       '',
@@ -806,7 +919,7 @@ export class TeamRuntime {
     return task.deps.every(depId => tasks.find(candidate => candidate.id === depId)?.status === 'done');
   }
 
-  private async formatTaskPrompt(task: TeamTaskRecord, tasks: TeamTaskRecord[]): Promise<string> {
+  private async formatTaskPrompt(task: TeamTaskRecord, tasks: TeamTaskRecord[], owner?: TeamAgentRecord): Promise<string> {
     const dependencyContext = await this.formatDependencyContext(task, tasks);
     const downstreamTasks = tasks
       .filter(candidate => candidate.id !== task.id && candidate.deps.includes(task.id))
@@ -815,6 +928,13 @@ export class TeamRuntime {
       `You are assigned a team task: ${task.title}`,
       '',
       task.description,
+      ...(owner?.cwd
+        ? [
+          '',
+          `Working directory: ${owner.cwd}`,
+          'Run terminal commands from this directory unless the task explicitly requires a different path.',
+        ]
+        : []),
       '',
       'Scope boundary:',
       'Only complete the assigned task above. Do not implement downstream, sibling, QA, documentation, integration, or final-summary tasks unless this task description explicitly asks for that work.',
@@ -1020,7 +1140,7 @@ export class TeamRuntime {
     ].join('\n'));
 
     if (pendingGateDigest) {
-      this.leadPendingDigestCache.set(teamId, pendingGateDigest);
+      this.leadPendingDigestCache.set(teamId, { digest: pendingGateDigest, sentAt: this.now() });
     } else {
       this.leadPendingDigestCache.delete(teamId);
     }

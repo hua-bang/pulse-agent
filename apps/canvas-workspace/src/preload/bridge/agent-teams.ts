@@ -13,6 +13,9 @@ export const createAgentTeamsApi = (ipcRenderer: IpcRenderer): AgentTeamsApi => 
   createTask: (input) => ipcRenderer.invoke('agent-teams:create-task', input),
   dispatch: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:dispatch', { workspaceId, teamId }),
   pause: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:pause', { workspaceId, teamId }),
+  resume: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:resume', { workspaceId, teamId }),
+  prepareAgentAutoResume: (workspaceId, teamId, agentId) =>
+    ipcRenderer.invoke('agent-teams:prepare-agent-auto-resume', { workspaceId, teamId, agentId }),
   delete: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:delete', { workspaceId, teamId }),
   completeTask: (workspaceId, teamId, taskId, result) =>
     ipcRenderer.invoke('agent-teams:complete-task', { workspaceId, teamId, taskId, result }),

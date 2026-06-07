@@ -7,6 +7,7 @@ const mockState = vi.hoisted(() => ({
   root: '',
   createdTeams: [] as any[],
   createdAgents: [] as any[],
+  cwdUpdates: [] as Array<{ workspaceId: string; teamId: string; cwd: string }>,
   queuedInputs: [] as Array<{ workspaceId: string; nodeId: string; input: string }>,
   interrupts: [] as Array<{ workspaceId: string; nodeId: string; mode: string }>,
 }));
@@ -55,6 +56,10 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
   ensureAgentTeamCanvasLayout: vi.fn(async () => {}),
   removeAgentTeamCanvasNodes: vi.fn(async () => []),
   stopAgentTeamCanvasNodes: vi.fn(async () => []),
+  updateAgentTeamCanvasCwd: vi.fn(async (workspaceId: string, teamId: string, cwd: string) => {
+    mockState.cwdUpdates.push({ workspaceId, teamId, cwd });
+    return [`node-${teamId}`];
+  }),
 }));
 
 import { CanvasAgentTeamsService } from '../agent-teams/service';
@@ -115,6 +120,7 @@ describe('CanvasAgentTeamsService', () => {
     mockState.root = join(tmpdir(), `canvas-agent-teams-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mockState.createdTeams.length = 0;
     mockState.createdAgents.length = 0;
+    mockState.cwdUpdates.length = 0;
     mockState.queuedInputs.length = 0;
     mockState.interrupts.length = 0;
   });
@@ -157,6 +163,9 @@ describe('CanvasAgentTeamsService', () => {
     expect(mockState.queuedInputs[0].input).toContain('Do not implement the task yourself');
     expect(mockState.queuedInputs[0].input).toContain('Every task object MUST include "deps"');
     expect(mockState.queuedInputs[0].input).toContain('Use deps to encode the real execution order');
+    expect(mockState.queuedInputs[0].input).toContain('4-10 tasks for normal app/repo work');
+    expect(mockState.queuedInputs[0].input).toContain('Target 2-4 ready-to-start workstreams');
+    expect(mockState.queuedInputs[0].input).toContain('do not create one microtask per file');
     expect(mockState.queuedInputs[0].input).toContain('Make each task narrow and non-overlapping');
     expect(mockState.queuedInputs[0].input).toContain('"QA integration and fixes"');
 
@@ -184,6 +193,34 @@ describe('CanvasAgentTeamsService', () => {
     ]);
     expect(mockState.createdAgents.map((input) => input.name).sort()).toEqual(['Codex Exec', 'Reviewer'].sort());
     expect(mockState.queuedInputs.some((entry) => entry.input.includes('Implement checkout refactor'))).toBe(true);
+  });
+
+  it('adopts an explicit existing cwd from the leader brief for downstream teammates', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    const targetCwd = join(mockState.root, 'target-repo');
+    await fs.mkdir(targetCwd, { recursive: true });
+
+    await service.briefLead(
+      'ws-1',
+      teamId,
+      `Please build this in ${targetCwd} and split the implementation work.`,
+    );
+
+    expect(mockState.cwdUpdates).toEqual([{ workspaceId: 'ws-1', teamId, cwd: targetCwd }]);
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(`Team working directory: ${targetCwd}`);
+
+    await emitPlan(service, created);
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+
+    expect(confirmed.runtime.agents.map((agent) => [agent.name, agent.cwd]).sort()).toEqual([
+      ['Claude Plan', targetCwd],
+      ['Codex Exec', targetCwd],
+      ['Reviewer', targetCwd],
+    ].sort());
+    expect(mockState.createdAgents.map((input) => input.cwd)).toEqual([targetCwd, targetCwd]);
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(`Working directory: ${targetCwd}`);
   });
 
   it('accepts a structured plan from the CLI propose-plan path', async () => {
@@ -352,6 +389,78 @@ describe('CanvasAgentTeamsService', () => {
     });
   });
 
+  it('resumes a paused team and redispatches paused teammate work', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const owner = created.runtime.agents.find((candidate) => candidate.id === task.ownerAgentId)!;
+    const queuedBeforePause = mockState.queuedInputs.length;
+
+    const paused = await service.pauseTeam('ws-1', teamId);
+
+    expect(paused.runtime.team.status).toBe('paused');
+    expect(paused.runtime.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+      status: 'blocked',
+      blockedReason: 'Paused from the Agent Team frame.',
+    });
+    await expect(service.prepareAgentAutoResume('ws-1', teamId, owner.id))
+      .resolves.toMatchObject({ canResume: false });
+
+    const resumed = await service.resumeTeam('ws-1', teamId);
+    const resumedTask = resumed.runtime.tasks.find((candidate) => candidate.id === task.id)!;
+    const resumedOwner = resumed.runtime.agents.find((candidate) => candidate.id === owner.id)!;
+
+    expect(resumed.runtime.team.status).toBe('running');
+    expect(resumedTask.status).toBe('in_progress');
+    expect(resumedTask.blockedReason).toBeUndefined();
+    expect(resumedTask.metadata?.teamPause).toBeUndefined();
+    expect(resumedOwner).toMatchObject({
+      status: 'running',
+      currentTaskId: task.id,
+    });
+    expect(mockState.queuedInputs).toHaveLength(queuedBeforePause + 1);
+    expect(mockState.queuedInputs.at(-1)).toMatchObject({
+      workspaceId: 'ws-1',
+      nodeId: owner.sessionRef!.sessionId,
+    });
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(task.title);
+  });
+
+  it('treats direct teammate input as an answer to that teammate open gate', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const agent = created.runtime.agents.find((candidate) => candidate.id === task.ownerAgentId)!;
+
+    const gated = await service.openHumanGate('ws-1', teamId, {
+      taskId: task.id,
+      agentId: agent.id,
+      reason: 'Need lead decision',
+      prompt: 'Should I keep the current public API?',
+    });
+    expect(gated.runtime.tasks[0].status).toBe('needs_input');
+
+    const answered = await service.sendInput('ws-1', teamId, agent.name, 'Keep the current public API.');
+    const answeredTask = answered.runtime.tasks.find((candidate) => candidate.id === task.id)!;
+    const answeredAgent = answered.runtime.agents.find((candidate) => candidate.id === agent.id)!;
+    const answeredGate = answered.runtime.humanGates.find((gate) => gate.taskId === task.id)!;
+
+    expect(answeredGate).toMatchObject({
+      status: 'answered',
+      answer: 'Keep the current public API.',
+    });
+    expect(answeredTask.status).toBe('in_progress');
+    expect(answeredTask.blockedReason).toBeUndefined();
+    expect(answeredAgent.status).toBe('running');
+    expect(mockState.queuedInputs.at(-1)).toEqual({
+      workspaceId: 'ws-1',
+      nodeId: agent.sessionRef!.sessionId,
+      input: 'Keep the current public API.',
+    });
+  });
+
   it('wraps execution notes to the lead with team action guidance', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);
@@ -473,6 +582,54 @@ describe('CanvasAgentTeamsService', () => {
     });
     expect(mockState.queuedInputs.at(-1)?.input).toContain('Task needs review');
     expect(mockState.queuedInputs.at(-1)?.input).toContain('pulse-canvas team complete-task');
+  });
+
+  it('prepares automatic resume for a teammate task interrupted by session exit', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    await service.reportAgentExit('ws-1', owner.sessionRef!.sessionId, 1);
+    const queuedBeforePrepare = mockState.queuedInputs.length;
+    const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
+    const preparedTask = prepared.snapshot.runtime.tasks.find((candidate) => candidate.id === task.id)!;
+    const preparedOwner = prepared.snapshot.runtime.agents.find((agent) => agent.id === owner.id)!;
+
+    expect(prepared.canResume).toBe(true);
+    expect(prepared.snapshot.runtime.team.status).toBe('running');
+    expect(preparedTask.status).toBe('in_progress');
+    expect(preparedTask.blockedReason).toBeUndefined();
+    expect(preparedOwner).toMatchObject({
+      status: 'running',
+      currentTaskId: task.id,
+    });
+    expect(mockState.queuedInputs).toHaveLength(queuedBeforePrepare);
+  });
+
+  it('prepares automatic resume for a plan-review team lead without approving the plan', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const proposed = await emitPlan(service, created);
+    const lead = proposed.runtime.agents.find((agent) => agent.role === 'lead')!;
+    const queuedBeforePrepare = mockState.queuedInputs.length;
+
+    expect(proposed.phase).toBe('plan_review');
+    expect(proposed.runtime.team.status).toBe('waiting_approval');
+    expect(lead.status).toBe('needs_input');
+
+    const prepared = await service.prepareAgentAutoResume('ws-1', proposed.runtime.team.id, lead.id);
+    const preparedLead = prepared.snapshot.runtime.agents.find((agent) => agent.id === lead.id)!;
+
+    expect(prepared.canResume).toBe(true);
+    expect(prepared.snapshot.phase).toBe('plan_review');
+    expect(prepared.snapshot.pendingPlan).toBeDefined();
+    expect(prepared.snapshot.runtime.team.status).toBe('waiting_approval');
+    expect(preparedLead.status).toBe('running');
+    expect(preparedLead.currentTaskId).toBeUndefined();
+    expect(prepared.snapshot.runtime.tasks).toHaveLength(0);
+    expect(mockState.queuedInputs).toHaveLength(queuedBeforePrepare);
   });
 
   it('ignores task completion markers in agent output', async () => {
@@ -683,6 +840,39 @@ describe('CanvasAgentTeamsService', () => {
 
     const repaired = await new CanvasAgentTeamsService().snapshot('ws-1', created.runtime.team.id);
 
+    expect(repaired.runtime.tasks[0].status).toBe('in_progress');
+    expect(repaired.runtime.tasks[0].blockedReason).toBeUndefined();
+    expect(repaired.runtime.agents.find((agent) => agent.id === owner.id)?.status).toBe('running');
+  });
+
+  it('repairs answered human gates that left tasks stuck in needs_input after refresh', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    const gated = await service.openHumanGate('ws-1', teamId, {
+      taskId: task.id,
+      agentId: owner.id,
+      reason: 'Need lead decision',
+      prompt: 'Should the API stay stable?',
+    });
+    const gate = gated.runtime.humanGates[0];
+    const statePath = join(mockState.root, 'ws-1', 'agent-teams', 'state.json');
+    const state = JSON.parse(await fs.readFile(statePath, 'utf-8'));
+    const storedGate = state.humanGates.find((candidate: any) => candidate.id === gate.id);
+    storedGate.status = 'answered';
+    storedGate.answer = 'Keep the API stable.';
+    storedGate.updatedAt = Date.now();
+    await fs.writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
+
+    const repaired = await new CanvasAgentTeamsService().snapshot('ws-1', teamId);
+
+    expect(repaired.runtime.humanGates[0]).toMatchObject({
+      status: 'answered',
+      answer: 'Keep the API stable.',
+    });
     expect(repaired.runtime.tasks[0].status).toBe('in_progress');
     expect(repaired.runtime.tasks[0].blockedReason).toBeUndefined();
     expect(repaired.runtime.agents.find((agent) => agent.id === owner.id)?.status).toBe('running');

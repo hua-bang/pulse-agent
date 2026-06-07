@@ -27,6 +27,7 @@ export interface CanvasAgentTeamMetadata {
   workspaceId: string;
   frameNodeId?: string;
   agentNodeIds: Record<string, string>;
+  cwd?: string;
   phase?: CanvasAgentTeamPhase;
   pendingPlan?: CanvasAgentTeamPlanDraft;
   approvedPlan?: CanvasAgentTeamPlanDraft;

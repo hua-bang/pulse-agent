@@ -32,6 +32,10 @@ export type SendErrorCode =
   | 'write_failed';
 
 const SUBMIT_DELAY_MS = 120;
+const POST_SUBMIT_CONFIRM_MS = 350;
+
+const wait = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function sendInputToAgentNode(
   input: SendInputToAgentNodeInput,
@@ -95,12 +99,20 @@ export async function sendInputToAgentNode(
         code: 'write_failed',
       };
     }
-    await new Promise<void>((resolve) => setTimeout(resolve, SUBMIT_DELAY_MS));
+    await wait(SUBMIT_DELAY_MS);
   }
   if (!writeToSession(sessionId, '\r')) {
     return {
       ok: false,
       error: `failed to write Enter to PTY session ${sessionId} (session disappeared)`,
+      code: 'write_failed',
+    };
+  }
+  await wait(POST_SUBMIT_CONFIRM_MS);
+  if (!hasSession(sessionId)) {
+    return {
+      ok: false,
+      error: `failed to confirm delivery to PTY session ${sessionId} (session disappeared after submit)`,
       code: 'write_failed',
     };
   }

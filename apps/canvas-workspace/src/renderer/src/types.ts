@@ -194,14 +194,26 @@ export interface AgentNodeData {
    */
   viewMode?: 'setup' | 'running' | 'restart';
   /**
-   * Caller-supplied session id for the underlying coding-agent CLI.
-   * Currently only consumed by Claude Code (via `--session-id <uuid>` on
-   * first spawn and `--resume <uuid>` on restart) so the conversation
-   * survives across PTY teardowns without us having to parse the CLI's
-   * output or scan its on-disk session store. Generated via
-   * `crypto.randomUUID()`; absent on legacy nodes and non-Claude agents.
+   * Caller-supplied session id for Claude Code. Claude accepts this on first
+   * spawn via `--session-id <uuid>` and later via `--resume <uuid>`.
    */
   cliSessionId?: string;
+  /**
+   * Codex session id captured after first launch from Codex's local session
+   * index. Codex does not accept caller-supplied ids on first spawn, but it
+   * does support `codex resume <id>` once the created id is known.
+   */
+  codexSessionId?: string;
+  /**
+   * Short host marker appended to the initial Codex prompt so the renderer can
+   * bind the created Codex thread id from local metadata after launch.
+   */
+  codexSessionMarker?: string;
+  agentTeamAutoResume?: {
+    sessionKey?: string;
+    attempts?: number;
+    lastAttemptAt?: number;
+  };
   agentTeamId?: string;
   agentTeamAgentId?: string;
   agentTeamRole?: 'lead' | 'teammate';
@@ -1118,6 +1130,7 @@ export interface AgentTeamAgentRecord {
   role: 'lead' | 'teammate';
   name: string;
   status: AgentTeamAgentStatus;
+  cwd?: string;
   currentTaskId?: string;
   sessionRef?: {
     sessionId: string;
@@ -1282,6 +1295,12 @@ export interface AgentTeamsApi {
   }) => Promise<{ ok: boolean; runtime?: AgentTeamRuntimeSnapshot; error?: string }>;
   dispatch: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
   pause: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  resume: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  prepareAgentAutoResume: (
+    workspaceId: string,
+    teamId: string,
+    agentId: string,
+  ) => Promise<{ ok: boolean; canResume?: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
   delete: (
     workspaceId: string,
     teamId: string,
@@ -1324,6 +1343,33 @@ export interface AgentTeamsApi {
     nodeId: string,
     code?: number,
   ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot | null; error?: string }>;
+}
+
+export interface CodexSessionIndexEntry {
+  id: string;
+  threadName?: string;
+  updatedAt: string;
+}
+
+export interface CodexThreadMatch {
+  id: string;
+  cwd?: string;
+  title?: string;
+  updatedAtMs?: number;
+}
+
+export interface CodexSessionsApi {
+  list: (
+    payload?: { updatedAfter?: string },
+  ) => Promise<{ ok: boolean; sessions?: CodexSessionIndexEntry[]; error?: string }>;
+  findByMarker: (
+    payload: { marker: string; updatedAfterMs?: number; cwd?: string },
+  ) => Promise<{
+    ok: boolean;
+    session?: CodexThreadMatch;
+    ambiguous?: boolean;
+    error?: string;
+  }>;
 }
 
 export interface CanvasWorkspaceApi {
@@ -1462,6 +1508,7 @@ export interface CanvasWorkspaceApi {
   model: CanvasModelApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;
+  codexSessions: CodexSessionsApi;
   agentTeams: AgentTeamsApi;
   iframe: IframeApi;
   llm: LlmApi;

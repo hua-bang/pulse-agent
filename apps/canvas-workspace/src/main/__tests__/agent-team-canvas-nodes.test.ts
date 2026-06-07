@@ -73,6 +73,7 @@ describe('agent team canvas node layout', () => {
     const frontend = mockState.canvas!.nodes.find((node) => node.id === result.agentNodeIds['mate-2'])!;
 
     expect(frame.data.agentTeamPanelHeight).toBe(388);
+    expect(frame.height).toBe(840);
     expect(lead.y).toBe(frame.y + 412);
     expect(lead.data.agentArgs).toBe('--disallowedTools Task');
     expect(lead.data.dangerousMode).toBe(true);
@@ -158,6 +159,7 @@ describe('agent team canvas node layout', () => {
     const backend = mockState.canvas!.nodes.find((node) => node.id === backendNodeId)!;
     const frontend = mockState.canvas!.nodes.find((node) => node.id === frontendNodeId)!;
 
+    expect(frame.height).toBe(840);
     expect(backend.y).toBe(lead.y);
     expect(frontend.y).toBe(lead.y);
     expect(backend.x).toBeGreaterThan(lead.x);
@@ -238,7 +240,9 @@ describe('agent team canvas node layout', () => {
 
     await ensureAgentTeamCanvasLayout('ws-1', 'team-1');
 
+    const frame = mockState.canvas!.nodes[0];
     const agent = mockState.canvas!.nodes[1];
+    expect(frame.height).toBe(780);
     expect(agent.width).toBe(480);
     expect(agent.height).toBe(260);
     expect(agent.data.agentArgs).toBe('--disallowedTools Task');

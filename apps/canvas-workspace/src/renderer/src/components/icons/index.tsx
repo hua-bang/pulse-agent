@@ -15,6 +15,39 @@ interface IconProps {
   strokeWidth?: number;
 }
 
+const APP_ICON_SRC = new URL('../../../public/icon.png', import.meta.url).href;
+
+export const AppLogoIcon = ({ size = 18, className }: IconProps) => (
+  <img
+    src={APP_ICON_SRC}
+    width={size}
+    height={size}
+    alt=""
+    aria-hidden="true"
+    draggable={false}
+    className={className}
+    style={{
+      display: 'block',
+      width: size,
+      height: size,
+      objectFit: 'contain',
+      borderRadius: Math.max(4, Math.round(size * 0.22)),
+    }}
+  />
+);
+
+export const CodingAgentIcon = ({ size = 18, className, strokeWidth = 1.35 }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 18 18" fill="none" className={className}>
+    <path
+      d="M6.5 5L3 9l3.5 4M11.5 5L15 9l-3.5 4M9.8 4.5l-1.6 9"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 export const SettingsIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <path
@@ -78,23 +111,8 @@ export const SparklesIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconPr
   </svg>
 );
 
-/**
- * Pulse brand mark (the waveform), monochrome via currentColor — the canonical
- * "Pulse assistant" glyph. Shares its path with the sidebar logo so the chat
- * entry points read as one identity. strokeWidth is in the 512-unit viewBox
- * (≈1.3px at the 16–18px sizes used in toolbars).
- */
-export const PulseGlyphIcon = ({ size = 18, className, strokeWidth = 36 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 512 512" fill="none" className={className}>
-    <path
-      d="M 80,268 H 188 L 228,178 L 260,370 L 292,148 L 328,268 H 432"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+/** Back-compatible name for older call sites that mean "Pulse Canvas logo". */
+export const PulseGlyphIcon = (props: IconProps) => <AppLogoIcon {...props} />;
 
 export const TrashIcon = ({ size = 14, className, strokeWidth = 1.3 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
@@ -274,21 +292,8 @@ export const AvatarIcon = ({ size = 16, className, strokeWidth = 1.3 }: IconProp
   </svg>
 );
 
-/**
- * Assistant avatar — the Pulse waveform mark (same glyph as the panel
- * brand). Reads as the product's identity rather than a generic person.
- */
-export const BotAvatarIcon = ({ size = 16, className, strokeWidth = 1.7 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-    <path
-      d="M2.5 13H7l2.4-6 2.4 11 2.3-8 1.5 3H21.5"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
+/** Assistant avatar — uses the product app icon rather than a generic person. */
+export const BotAvatarIcon = (props: IconProps) => <AppLogoIcon {...props} />;
 
 /** Three horizontal lines representing a list entry. */
 export const ListLinesIcon = ({ size = 14, className }: IconProps) => (
@@ -426,18 +431,7 @@ export const NodeTypeIcon = ({ type, size = 14, className }: NodeTypeIconProps) 
         </svg>
       );
     case 'agent':
-      // Pulse waveform matching the Pulse Canvas brand mark
-      return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
-          <path
-            d="M2 8H6L7 5L8 12L9 4L10 8H14"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
+      return <CodingAgentIcon size={size} className={className} strokeWidth={1.25} />;
     case 'text':
       // Serif-style "A" drawn as a capital letter glyph to read as "text"
       return (

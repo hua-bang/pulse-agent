@@ -6,6 +6,8 @@ interface AgentRestartProps {
   agentType: string;
   cwd?: string;
   prompt?: string;
+  cliSessionId?: string;
+  codexSessionId?: string;
   onRestart: () => void;
   onEdit: () => void;
 }
@@ -78,6 +80,8 @@ export const AgentRestart = ({
   agentType,
   cwd,
   prompt,
+  cliSessionId,
+  codexSessionId,
   onRestart,
   onEdit,
 }: AgentRestartProps) => {
@@ -85,17 +89,20 @@ export const AgentRestart = ({
   const cwdDisplay = cwd ? truncatePath(cwd, 36) : 'Working Directory';
   const hasPrompt = !!(prompt && prompt.trim().length > 0);
   const promptPreview = hasPrompt ? '已保存' : '未提供';
-  // Agents whose restart actually picks up the previous conversation:
-  // Claude Code does it via `--resume <uuid>` and Codex CLI via
-  // `codex resume --last`. For these the saved config is what gets
-  // resumed verbatim, so the "编辑初始化参数" escape hatch would be
-  // misleading. Pulse-Coder restart is still a fresh launch — keep
-  // the edit affordance there.
-  const canResume = agentType === 'claude-code' || agentType === 'codex';
+  // Only offer "resume" when the node has a stable CLI conversation id.
+  // Falling back to Codex `--last` can attach this node to another agent.
+  const canResume = agentType === 'claude-code'
+    ? !!cliSessionId
+    : agentType === 'codex'
+      ? !!codexSessionId
+      : false;
   const restartLabel = canResume ? '继续上次会话' : '重新启动会话';
   const restartTitle = canResume
     ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`
     : 'Restart with saved configuration';
+  const warningText = canResume
+    ? '终端进程已结束，可继续上次会话。'
+    : '应用重启后，CLI 运行状态已丢失。';
 
   return (
     <div className="agent-body-wrap agent-body-wrap--restart">
@@ -135,7 +142,7 @@ export const AgentRestart = ({
 
           <div className="agent-warning">
             <span className="agent-warning-icon"><WarningGlyph /></span>
-            <span className="agent-warning-text">应用重启后，CLI 运行状态已丢失。</span>
+            <span className="agent-warning-text">{warningText}</span>
           </div>
         </div>
 

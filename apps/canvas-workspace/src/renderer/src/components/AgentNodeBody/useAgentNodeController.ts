@@ -15,6 +15,16 @@ import {
 const mintSessionId = (nodeId: string): string =>
   `${nodeId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const shellQuote = (value: string): string =>
+  `'${value.replace(/'/g, "'\\''")}'`;
+
+const CODEX_BINDING_MARKER_PREFIX = 'pulse-canvas-codex-binding';
+
+const makeCodexBindingMarker = (nodeId: string): string =>
+  `${CODEX_BINDING_MARKER_PREFIX}:${nodeId}:${crypto.randomUUID()}`;
+
+const codexBindingComment = (marker: string): string => `<!-- ${marker} -->`;
+
 interface MirrorTerminalCacheEntry {
   term: Terminal;
   fitAddon: FitAddon;
@@ -22,7 +32,9 @@ interface MirrorTerminalCacheEntry {
   lastUsed: number;
 }
 
+const RETRY_MIRROR_CONNECTION_MS = 1_000;
 const MAX_MIRROR_TERMINALS = 12;
+const TEAM_AUTO_RESUME_MAX_ATTEMPTS = 2;
 const MIRROR_TERMINAL_STASH_ID = 'agent-mirror-terminal-stash';
 const mirrorTerminalCache = new Map<string, MirrorTerminalCacheEntry>();
 
@@ -65,6 +77,21 @@ const pruneMirrorTerminalCache = (activeKey: string) => {
   }
 };
 
+const fitAndRefreshTerminal = (fitAddon: FitAddon, term: Terminal) => {
+  try { fitAddon.fit(); } catch { /* ignore */ }
+  try { term.refresh(0, Math.max(0, term.rows - 1)); } catch { /* ignore */ }
+};
+
+const scheduleTerminalFit = (fitAddon: FitAddon, term: Terminal) => {
+  fitAndRefreshTerminal(fitAddon, term);
+  requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term));
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term));
+  });
+  setTimeout(() => fitAndRefreshTerminal(fitAddon, term), 80);
+  setTimeout(() => fitAndRefreshTerminal(fitAddon, term), 240);
+};
+
 export const detectAgentView = (data: AgentNodeData): ViewMode => {
   if (data.viewMode === 'setup') return 'setup';
   if (data.viewMode === 'running') return 'running';
@@ -78,17 +105,55 @@ export const detectAgentView = (data: AgentNodeData): ViewMode => {
   return 'setup';
 };
 
+const hasQueuedLaunchPrompt = (data: AgentNodeData): boolean =>
+  !!(data.inlinePrompt?.trim() || data.promptFile?.trim());
+
+const canResumeCliConversation = (data: AgentNodeData): boolean => {
+  if (data.agentType === 'claude-code') return !!data.cliSessionId;
+  if (data.agentType === 'codex') return !!data.codexSessionId;
+  return false;
+};
+
+const cliConversationKey = (data: AgentNodeData): string | undefined => {
+  if (data.agentType === 'claude-code') return data.cliSessionId;
+  if (data.agentType === 'codex') return data.codexSessionId;
+  return undefined;
+};
+
 const shouldAutoResume = (data: AgentNodeData): boolean => {
   if (data.status !== 'running') return false;
   if (data.viewMode !== 'running') return false;
-  if (data.inlinePrompt?.trim() || data.promptFile?.trim()) return false;
+  if (hasQueuedLaunchPrompt(data)) return false;
   const hasPriorSession =
     !!(data.sessionId && data.sessionId.length > 0)
     || !!(data.scrollback && data.scrollback.length > 0);
   if (!hasPriorSession) return false;
-  if (data.agentType === 'claude-code') return !!data.cliSessionId;
-  if (data.agentType === 'codex') return true;
-  return false;
+  return canResumeCliConversation(data);
+};
+
+const shouldConsiderTeamAutoResume = (data: AgentNodeData): boolean => {
+  if (!canResumeCliConversation(data)) return false;
+  if (hasQueuedLaunchPrompt(data)) return false;
+  return data.viewMode !== 'setup';
+};
+
+const canAttemptTeamAutoResume = (data: AgentNodeData): boolean => {
+  const key = cliConversationKey(data);
+  if (!key) return false;
+  const previous = data.agentTeamAutoResume;
+  if (previous?.sessionKey !== key) return true;
+  return (previous.attempts ?? 0) < TEAM_AUTO_RESUME_MAX_ATTEMPTS;
+};
+
+const nextTeamAutoResumeState = (data: AgentNodeData): NonNullable<AgentNodeData['agentTeamAutoResume']> => {
+  const key = cliConversationKey(data);
+  const previous = data.agentTeamAutoResume;
+  const attempts = previous?.sessionKey === key ? previous?.attempts ?? 0 : 0;
+  return {
+    sessionKey: key,
+    attempts: attempts + 1,
+    lastAttemptAt: Date.now(),
+  };
 };
 
 export const useAgentNodeController = ({
@@ -104,7 +169,7 @@ export const useAgentNodeController = ({
   const isMirrorTerminal = terminalMode === 'mirror';
   const isTeamManagedAgent = !!data.agentTeamId;
   const defaultCwd = data.cwd || (isTeamManagedAgent ? rootFolder || '' : '');
-  const shouldResumeOnMount = !isMirrorTerminal && shouldAutoResume(data);
+  const shouldResumeOnMount = !isMirrorTerminal && !isTeamManagedAgent && shouldAutoResume(data);
   const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
   const [cwdInput, setCwdInput] = useState(defaultCwd);
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
@@ -114,6 +179,7 @@ export const useAgentNodeController = ({
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (isMirrorTerminal) return 'running';
     if (shouldResumeOnMount) return 'running';
+    if (isTeamManagedAgent && (data.viewMode === 'running' || data.status === 'running')) return 'restart';
     const hasPriorSession =
       !!(data.sessionId && data.sessionId.length > 0)
       || !!(data.scrollback && data.scrollback.length > 0);
@@ -132,6 +198,7 @@ export const useAgentNodeController = ({
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const codexCaptureCancelRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const nodeIdRef = useRef(node.id);
@@ -165,6 +232,40 @@ export const useAgentNodeController = ({
     if (!dangerousMode) setDangerousMode(true);
   }, [cwdInput, dangerousMode, data.cwd, isTeamManagedAgent, rootFolder]);
 
+  useEffect(() => {
+    if (readOnly || isMirrorTerminal) return;
+    if (data.agentType !== 'codex' || data.codexSessionId || !data.codexSessionMarker) return;
+    const codexApi = window.canvasWorkspace?.codexSessions;
+    if (!codexApi) return;
+
+    let cancelled = false;
+    void codexApi.findByMarker({
+      marker: data.codexSessionMarker,
+      cwd: data.cwd || rootFolder || undefined,
+    }).then((result) => {
+      if (cancelled || !result.ok || !result.session?.id) return;
+      onUpdateRef.current(nodeIdRef.current, {
+        data: {
+          ...dataRef.current,
+          codexSessionId: result.session.id,
+          codexSessionMarker: undefined,
+        },
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    data.agentType,
+    data.codexSessionId,
+    data.codexSessionMarker,
+    data.cwd,
+    isMirrorTerminal,
+    readOnly,
+    rootFolder,
+  ]);
+
   const reportAgentTeamOutput = useCallback((delta: string) => {
     const current = dataRef.current;
     if (!current.agentTeamId || readOnly || isMirrorTerminal || !workspaceId) return;
@@ -197,12 +298,7 @@ export const useAgentNodeController = ({
           if (element) containerRef.current.appendChild(element);
           termRef.current = cachedEntry.term;
           fitRef.current = cachedEntry.fitAddon;
-          try { cachedEntry.fitAddon.fit(); } catch { /* ignore */ }
-          try { cachedEntry.term.refresh(0, cachedEntry.term.rows - 1); } catch { /* ignore */ }
-          requestAnimationFrame(() => {
-            try { cachedEntry.fitAddon.fit(); } catch { /* ignore */ }
-            try { cachedEntry.term.refresh(0, cachedEntry.term.rows - 1); } catch { /* ignore */ }
-          });
+          scheduleTerminalFit(cachedEntry.fitAddon, cachedEntry.term);
           cleanupRef.current = () => detachMirrorTerminal(cachedEntry);
           return;
         }
@@ -215,15 +311,6 @@ export const useAgentNodeController = ({
         termRef.current = term;
         fitRef.current = fitAddon;
 
-        cached = {
-          term,
-          fitAddon,
-          disposeSubscriptions: () => undefined,
-          lastUsed: Date.now(),
-        };
-        mirrorTerminalCache.set(cacheKey, cached);
-        pruneMirrorTerminalCache(cacheKey);
-
         term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
           if (e.type === 'keydown' && e.key === '2' && (e.ctrlKey || e.metaKey) && !e.altKey) {
             setPickerOpen(true);
@@ -232,10 +319,7 @@ export const useAgentNodeController = ({
           return true;
         });
 
-        try { fitAddon.fit(); } catch { /* ignore */ }
-        requestAnimationFrame(() => {
-          try { fitAddon.fit(); } catch { /* ignore */ }
-        });
+        scheduleTerminalFit(fitAddon, term);
 
         const api = window.canvasWorkspace?.pty;
         if (!api) {
@@ -244,47 +328,110 @@ export const useAgentNodeController = ({
           return;
         }
 
+        let liveEntry: MirrorTerminalCacheEntry | null = null;
+        let retryTimer: ReturnType<typeof setInterval> | null = null;
+        let disposed = false;
+        let restoredSavedOutput = false;
+
+        const stopRetry = () => {
+          if (!retryTimer) return;
+          clearInterval(retryTimer);
+          retryTimer = null;
+        };
+
+        const attachLiveMirror = () => {
+          if (disposed || liveEntry) return;
+          stopRetry();
+
+          liveEntry = {
+            term,
+            fitAddon,
+            disposeSubscriptions: () => undefined,
+            lastUsed: Date.now(),
+          };
+          mirrorTerminalCache.set(cacheKey, liveEntry);
+          pruneMirrorTerminalCache(cacheKey);
+
+          if (!restoredSavedOutput) term.clear();
+          let wroteLivePlaceholder = true;
+          term.writeln('\x1b[2mConnected to live teammate terminal. New output will stream here.\x1b[0m');
+          scheduleTerminalFit(fitAddon, term);
+
+          const removeData = api.onData(activeSessionId, (d: string) => {
+            if (wroteLivePlaceholder && !restoredSavedOutput) {
+              term.clear();
+            }
+            wroteLivePlaceholder = false;
+            term.write(d);
+          });
+          const removeExit = api.onExit(activeSessionId, (code: number) => {
+            term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
+          });
+          const inputDisposable = readOnly
+            ? { dispose: () => undefined }
+            : term.onData((d: string) => {
+              api.write(activeSessionId, d);
+            });
+          const resizeDisposable = term.onResize(({ cols, rows }) => {
+            api.resize(activeSessionId, cols, rows);
+          });
+
+          let subscriptionsDisposed = false;
+          liveEntry.disposeSubscriptions = () => {
+            if (subscriptionsDisposed) return;
+            subscriptionsDisposed = true;
+            removeData();
+            removeExit();
+            inputDisposable.dispose();
+            resizeDisposable.dispose();
+          };
+          cleanupRef.current = () => liveEntry && detachMirrorTerminal(liveEntry);
+        };
+
+        const restoreSavedOutput = () => {
+          if (restoredSavedOutput) return;
+          const saved = dataRef.current.scrollback;
+          if (!saved) return;
+          restoredSavedOutput = true;
+          term.clear();
+          term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
+          term.write(saved.split('\n').join('\r\n'));
+          term.writeln('');
+          term.writeln('\x1b[2m--- waiting for live session to reconnect ---\x1b[0m');
+          scheduleTerminalFit(fitAddon, term);
+        };
+
+        const retryLiveMirror = async () => {
+          if (disposed || liveEntry) return;
+          const retryResult = await api.getCwd(activeSessionId);
+          if (disposed || liveEntry) return;
+          if (retryResult.ok) {
+            attachLiveMirror();
+            return;
+          }
+          restoreSavedOutput();
+        };
+
         const cwdResult = await api.getCwd(activeSessionId);
         if (!cwdResult.ok) {
-          const saved = dataRef.current.scrollback;
-          if (!saved) {
+          restoreSavedOutput();
+          if (!restoredSavedOutput) {
             term.writeln('\x1b[2mNo live teammate terminal yet.\x1b[0m');
-            term.writeln('\x1b[2mIt will appear here after the team runtime starts this agent.\x1b[0m');
-          } else {
-            term.writeln('\x1b[2m--- restored agent output ---\x1b[0m');
-            term.write(saved.split('\n').join('\r\n'));
-            term.writeln('');
-            term.writeln('\x1b[2m--- live session is not connected ---\x1b[0m');
+            term.writeln('\x1b[2mWaiting for the team runtime to connect this agent.\x1b[0m');
           }
-          cleanupRef.current = () => cached && detachMirrorTerminal(cached);
+          retryTimer = setInterval(() => {
+            void retryLiveMirror();
+          }, RETRY_MIRROR_CONNECTION_MS);
+          cleanupRef.current = () => {
+            disposed = true;
+            stopRetry();
+            term.dispose();
+            term.element?.remove();
+          };
           return;
         }
 
-        const removeData = api.onData(activeSessionId, (d: string) => {
-          term.write(d);
-        });
-        const removeExit = api.onExit(activeSessionId, (code: number) => {
-          term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
-        });
-        const inputDisposable = readOnly
-          ? { dispose: () => undefined }
-          : term.onData((d: string) => {
-            api.write(activeSessionId, d);
-          });
-        const resizeDisposable = term.onResize(({ cols, rows }) => {
-          api.resize(activeSessionId, cols, rows);
-        });
-
-        let subscriptionsDisposed = false;
-        cached.disposeSubscriptions = () => {
-          if (subscriptionsDisposed) return;
-          subscriptionsDisposed = true;
-          removeData();
-          removeExit();
-          inputDisposable.dispose();
-          resizeDisposable.dispose();
-        };
-        cleanupRef.current = () => cached && detachMirrorTerminal(cached);
+        attachLiveMirror();
         return;
       }
 
@@ -305,9 +452,7 @@ export const useAgentNodeController = ({
         } else {
           term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
         }
-        requestAnimationFrame(() => {
-          try { fitAddon.fit(); } catch { /* ignore */ }
-        });
+        scheduleTerminalFit(fitAddon, term);
         return;
       }
       spawnedRef.current = true;
@@ -329,10 +474,7 @@ export const useAgentNodeController = ({
         return true;
       });
 
-      try { fitAddon.fit(); } catch { /* ignore */ }
-      requestAnimationFrame(() => {
-        try { fitAddon.fit(); } catch { /* ignore */ }
-      });
+      scheduleTerminalFit(fitAddon, term);
 
       const api = window.canvasWorkspace?.pty;
       if (!api) {
@@ -340,21 +482,133 @@ export const useAgentNodeController = ({
         return;
       }
 
+      const spawnCwd = cwd || rootFolder || undefined;
       const command = getAgentCommand(agentType);
-      const existingCliSessionId = dataRef.current.cliSessionId;
+      const existingCliSessionId = agentType === 'claude-code'
+        ? dataRef.current.cliSessionId
+        : undefined;
       const cliSessionId = existingCliSessionId || crypto.randomUUID();
       const canResumeClaude = !!existingCliSessionId;
       const writeCommandTimeRef = { current: 0 };
-      const writeCommand = () => {
+
+      const readCodexSessionBaseline = async (): Promise<Set<string> | null> => {
+        const codexApi = window.canvasWorkspace?.codexSessions;
+        if (!codexApi) return null;
+        const result = await codexApi.list().catch(() => null);
+        if (!result?.ok || !result.sessions) return null;
+        return new Set(result.sessions.map((entry) => entry.id));
+      };
+
+      const startCodexSessionCapture = (input: {
+        baselineIds: Set<string> | null;
+        launchStartedAt: number;
+        marker?: string;
+        cwd?: string;
+      }) => {
+        const codexApi = window.canvasWorkspace?.codexSessions;
+        if (!codexApi) return;
+
+        let cancelled = false;
+        let attempts = 0;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const updatedAfterMs = input.launchStartedAt - 2_000;
+        const updatedAfter = new Date(updatedAfterMs).toISOString();
+
+        const applyCapturedSession = (codexSessionId: string) => {
+          if (
+            dataRef.current.agentType === 'codex'
+            && dataRef.current.sessionId === sessionId
+          ) {
+            onUpdateRef.current(nodeIdRef.current, {
+              data: {
+                ...dataRef.current,
+                codexSessionId,
+                codexSessionMarker: undefined,
+              },
+            });
+          }
+        };
+
+        codexCaptureCancelRef.current?.();
+        codexCaptureCancelRef.current = () => {
+          cancelled = true;
+          if (timer) clearTimeout(timer);
+        };
+
+        const poll = async () => {
+          if (cancelled) return;
+          attempts += 1;
+
+          if (input.marker) {
+            const markerResult = await codexApi.findByMarker({
+              marker: input.marker,
+              updatedAfterMs,
+              cwd: input.cwd,
+            }).catch(() => null);
+            if (cancelled) return;
+            if (markerResult?.ok && markerResult.session?.id) {
+              applyCapturedSession(markerResult.session.id);
+              codexCaptureCancelRef.current = null;
+              return;
+            }
+          }
+
+          if (!input.baselineIds) {
+            if (attempts < 30) {
+              timer = setTimeout(poll, 1_000);
+            } else {
+              codexCaptureCancelRef.current = null;
+            }
+            return;
+          }
+
+          const result = await codexApi.list({ updatedAfter }).catch(() => null);
+          if (cancelled) return;
+
+          if (result?.ok && result.sessions) {
+            const newSessions = result.sessions.filter((entry) => !input.baselineIds!.has(entry.id));
+            if (newSessions.length === 1) {
+              const [captured] = newSessions;
+              applyCapturedSession(captured.id);
+              codexCaptureCancelRef.current = null;
+              return;
+            }
+            if (newSessions.length > 1) {
+              codexCaptureCancelRef.current = null;
+              return;
+            }
+          }
+
+          if (attempts < 30) {
+            timer = setTimeout(poll, 1_000);
+          } else {
+            codexCaptureCancelRef.current = null;
+          }
+        };
+
+        timer = setTimeout(poll, 1_000);
+      };
+
+      const writeCommand = async () => {
         if (!command) {
           term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
           setLoading(false);
           return;
         }
+        const shouldCaptureNewCodexSession = agentType === 'codex' && !resumeMode;
+        const codexBaselineIds = shouldCaptureNewCodexSession
+          ? await readCodexSessionBaseline()
+          : null;
         writeCommandTimeRef.current = Date.now();
 
         const { inlinePrompt, promptFile, agentArgs, dangerousMode } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
+        const codexBindingMarker = shouldCaptureNewCodexSession && (effectivePrompt || promptFile)
+          ? dataRef.current.codexSessionMarker || makeCodexBindingMarker(nodeIdRef.current)
+          : undefined;
+        const promptForCommand = codexBindingMarker && effectivePrompt
+          ? `${effectivePrompt}\n\n${codexBindingComment(codexBindingMarker)}`
+          : effectivePrompt;
         const dangerousFlag = dangerousMode
           ? agentType === 'claude-code'
             ? ' --dangerously-skip-permissions'
@@ -362,31 +616,54 @@ export const useAgentNodeController = ({
               ? ' --dangerously-bypass-approvals-and-sandbox'
               : ''
           : '';
+        const commonFlags = dangerousFlag + (agentArgs ? ` ${agentArgs}` : '');
 
         if (agentType === 'codex' && resumeMode && !effectivePrompt && !promptFile) {
-          api.write(sessionId, `${command}${dangerousFlag} resume --last\n`);
+          const codexSessionId = dataRef.current.codexSessionId;
+          if (!codexSessionId) {
+            term.writeln('\x1b[33mCannot resume Codex: saved session id is missing.\x1b[0m');
+            setLoading(false);
+            return;
+          }
+          api.write(sessionId, `${command}${commonFlags} resume ${shellQuote(codexSessionId)}\n`);
         } else {
           const flags =
             (agentType === 'claude-code'
               ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
-              : '') + dangerousFlag + (agentArgs ? ` ${agentArgs}` : '');
-          if (effectivePrompt) {
-            const escaped = effectivePrompt.replace(/'/g, "'\\''");
-            api.write(sessionId, `${command}${flags} '${escaped}'\n`);
+              : '') + commonFlags;
+          if (promptForCommand) {
+            api.write(sessionId, `${command}${flags} ${shellQuote(promptForCommand)}\n`);
           } else if (promptFile) {
-            api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
+            if (codexBindingMarker) {
+              api.write(
+                sessionId,
+                `__prompt=$(printf '%s\\n\\n%s' "$(cat ${shellQuote(promptFile)})" ${shellQuote(codexBindingComment(codexBindingMarker))}) && ${command}${flags} "$__prompt"\n`,
+              );
+            } else {
+              api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
+            }
           } else {
             api.write(sessionId, `${command}${flags}\n`);
           }
         }
 
-        if (effectivePrompt || promptFile) {
+        if (shouldCaptureNewCodexSession) {
+          startCodexSessionCapture({
+            baselineIds: codexBaselineIds,
+            launchStartedAt: writeCommandTimeRef.current,
+            marker: codexBindingMarker,
+            cwd: spawnCwd,
+          });
+        }
+
+        if (effectivePrompt || promptFile || codexBindingMarker) {
           onUpdateRef.current(nodeIdRef.current, {
             data: {
               ...dataRef.current,
               inlinePrompt: '',
               promptFile: '',
               lastInitPrompt: effectivePrompt || dataRef.current.lastInitPrompt || '',
+              codexSessionMarker: codexBindingMarker ?? dataRef.current.codexSessionMarker,
             },
           });
         }
@@ -440,7 +717,7 @@ export const useAgentNodeController = ({
           prompted = true;
           promptRemove();
           attachPermanentListener();
-          setTimeout(writeCommand, 100);
+          setTimeout(() => { void writeCommand(); }, 100);
         }
       });
 
@@ -456,7 +733,6 @@ export const useAgentNodeController = ({
         });
       });
 
-      const spawnCwd = cwd || rootFolder || undefined;
       const currentData = dataRef.current;
       const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId, {
         PULSE_CANVAS_WORKSPACE_ID: workspaceId,
@@ -469,6 +745,8 @@ export const useAgentNodeController = ({
         if (!prompted) promptRemove();
         removeDataRef.current?.();
         removeExit();
+        codexCaptureCancelRef.current?.();
+        codexCaptureCancelRef.current = null;
         clearTimeout(loadingTimeout);
         dismissLoading();
         term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
@@ -491,7 +769,10 @@ export const useAgentNodeController = ({
           cwd: spawnCwd ?? '',
           status: 'running',
           sessionId,
-          cliSessionId,
+          cliSessionId: agentType === 'claude-code' ? cliSessionId : undefined,
+          codexSessionId: agentType === 'codex' && resumeMode
+            ? dataRef.current.codexSessionId
+            : undefined,
         },
       });
 
@@ -508,6 +789,8 @@ export const useAgentNodeController = ({
         if (!prompted) promptRemove();
         removeDataRef.current?.();
         removeExit();
+        codexCaptureCancelRef.current?.();
+        codexCaptureCancelRef.current = null;
         clearTimeout(loadingTimeout);
         dismissLoading();
         api.kill(sessionId);
@@ -521,29 +804,89 @@ export const useAgentNodeController = ({
     if (viewMode === 'running') return;
     if (data.viewMode !== 'running' && data.status !== 'running') return;
 
+    const hasLaunchPrompt = hasQueuedLaunchPrompt(data);
+    const shouldResumeSavedConversation = !isTeamManagedAgent && !hasLaunchPrompt && canResumeCliConversation(data);
+    if (!hasLaunchPrompt && !shouldResumeSavedConversation) return;
+
     pendingAgentRef.current = data.agentType || 'claude-code';
     pendingCwdRef.current = data.cwd || rootFolder || '';
     pendingPromptRef.current = data.inlinePrompt || '';
-    pendingResumeRef.current =
-      !data.inlinePrompt?.trim()
-      && !data.promptFile?.trim()
-      && (
-        (data.agentType === 'claude-code' && !!data.cliSessionId)
-        || data.agentType === 'codex'
-      );
+    pendingResumeRef.current = shouldResumeSavedConversation;
     setViewMode('running');
   }, [
     data.agentType,
     data.cliSessionId,
+    data.codexSessionId,
     data.cwd,
     data.inlinePrompt,
     data.promptFile,
     data.status,
     data.viewMode,
     isMirrorTerminal,
+    isTeamManagedAgent,
     readOnly,
     rootFolder,
     viewMode,
+  ]);
+
+  useEffect(() => {
+    if (readOnly || isMirrorTerminal || !isTeamManagedAgent) return;
+    if (viewMode === 'running') return;
+    if (!workspaceId || !data.agentTeamId || !data.agentTeamAgentId) return;
+    if (!shouldConsiderTeamAutoResume(data)) return;
+    if (!canAttemptTeamAutoResume(data)) return;
+
+    let cancelled = false;
+    void (async () => {
+      const result = await window.canvasWorkspace?.agentTeams?.prepareAgentAutoResume(
+        workspaceId,
+        data.agentTeamId!,
+        data.agentTeamAgentId!,
+      );
+      if (cancelled || !result?.ok || !result.canResume) return;
+
+      pendingAgentRef.current = data.agentType || 'claude-code';
+      pendingCwdRef.current = data.cwd || rootFolder || '';
+      pendingPromptRef.current = '';
+      pendingResumeRef.current = true;
+      needsAutoMintRef.current = true;
+      const nextData = {
+        ...dataRef.current,
+        status: 'running' as const,
+        inlinePrompt: '',
+        promptFile: '',
+        agentTeamAutoResume: nextTeamAutoResumeState(dataRef.current),
+      };
+      dataRef.current = nextData;
+      onUpdateRef.current(nodeIdRef.current, {
+        data: nextData,
+      });
+      setViewMode('running');
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    data.agentTeamAgentId,
+    data.agentTeamId,
+    data.agentType,
+    data.cliSessionId,
+    data.codexSessionId,
+    data.cwd,
+    data.agentTeamAutoResume,
+    data.inlinePrompt,
+    data.promptFile,
+    data.scrollback,
+    data.sessionId,
+    data.status,
+    data.viewMode,
+    isMirrorTerminal,
+    isTeamManagedAgent,
+    readOnly,
+    rootFolder,
+    viewMode,
+    workspaceId,
   ]);
 
   const mirrorSessionId = isMirrorTerminal ? data.sessionId : undefined;
@@ -570,6 +913,8 @@ export const useAgentNodeController = ({
     return () => {
       if (isMirrorTerminal) {
         cleanupRef.current?.();
+        codexCaptureCancelRef.current?.();
+        codexCaptureCancelRef.current = null;
         termRef.current = null;
         fitRef.current = null;
         spawnedRef.current = false;
@@ -590,6 +935,8 @@ export const useAgentNodeController = ({
       }
       if (saveTimerRef.current) clearInterval(saveTimerRef.current);
       cleanupRef.current?.();
+      codexCaptureCancelRef.current?.();
+      codexCaptureCancelRef.current = null;
       termRef.current?.dispose();
       containerRef.current?.replaceChildren();
       termRef.current = null;
@@ -632,7 +979,7 @@ export const useAgentNodeController = ({
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
     const freshSessionId = mintSessionId(nodeIdRef.current);
-    const freshCliSessionId = crypto.randomUUID();
+    const freshCliSessionId = selectedAgent === 'claude-code' ? crypto.randomUUID() : undefined;
     onUpdateRef.current(nodeIdRef.current, {
       data: {
         ...dataRef.current,
@@ -645,6 +992,8 @@ export const useAgentNodeController = ({
         sessionId: freshSessionId,
         scrollback: '',
         cliSessionId: freshCliSessionId,
+        codexSessionId: undefined,
+        codexSessionMarker: undefined,
       },
     });
     setFromRestart(false);
@@ -677,15 +1026,12 @@ export const useAgentNodeController = ({
     const savedAgent = data.agentType || selectedAgent;
     const savedCwd = data.cwd || rootFolder || '';
     const savedPrompt = data.lastInitPrompt || '';
+    const shouldResumeSavedSession =
+      savedAgent === dataRef.current.agentType && canResumeCliConversation(dataRef.current);
     pendingAgentRef.current = savedAgent;
     pendingCwdRef.current = savedCwd;
-    pendingPromptRef.current = savedPrompt;
-    pendingResumeRef.current =
-      !savedPrompt.trim()
-      && (
-        (savedAgent === 'claude-code' && !!dataRef.current.cliSessionId)
-        || savedAgent === 'codex'
-      );
+    pendingPromptRef.current = shouldResumeSavedSession ? '' : savedPrompt;
+    pendingResumeRef.current = shouldResumeSavedSession;
     const api = window.canvasWorkspace?.pty;
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
@@ -695,10 +1041,14 @@ export const useAgentNodeController = ({
         ...dataRef.current,
         agentType: savedAgent,
         cwd: savedCwd,
-        inlinePrompt: savedPrompt,
+        inlinePrompt: shouldResumeSavedSession ? '' : savedPrompt,
         status: 'running',
         sessionId: freshSessionId,
         scrollback: '',
+        codexSessionId: savedAgent === 'codex' && shouldResumeSavedSession
+          ? dataRef.current.codexSessionId
+          : undefined,
+        codexSessionMarker: undefined,
       },
     });
     setFromRestart(false);

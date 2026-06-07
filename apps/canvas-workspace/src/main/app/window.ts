@@ -1,4 +1,5 @@
 import { BrowserWindow, shell } from "electron";
+import { APP_NAME } from "./identity";
 import { isSafeExternalUrl } from "./shell-ipc";
 import type { WriteLog } from "./logging";
 
@@ -19,6 +20,7 @@ export function createWindow({
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: APP_NAME,
     minWidth: 900,
     minHeight: 600,
     backgroundColor: "#f6f6f4",

@@ -15,8 +15,8 @@ const AGENT_WIDTH = 520;
 const AGENT_HEIGHT = 440;
 const LEAD_AGENT_HEIGHT = 400;
 const FRAME_WIDTH = FRAME_PADDING * 2 + GRID_COLUMNS * AGENT_WIDTH + (GRID_COLUMNS - 1) * AGENT_GAP;
-const FRAME_HEIGHT = 680;
-const BRIEFING_FRAME_HEIGHT = 620;
+const FRAME_HEIGHT = 840;
+const BRIEFING_FRAME_HEIGHT = 780;
 const CLAUDE_TEAM_LEAD_ARGS = '--disallowedTools Task';
 const TEAM_PANEL_HEIGHT = 388;
 const FRAME_HEADER_GAP = TEAM_PANEL_HEIGHT + 24;
@@ -84,6 +84,15 @@ const loadCanvasOrEmpty = async (workspaceId: string): Promise<CanvasSaveData> =
 const resolveCwd = async (workspaceId: string, cwd?: string): Promise<string> => {
   if (cwd) return cwd;
   return (await readWorkspaceMeta(workspaceId)).rootFolder || '';
+};
+
+const desiredFrameHeight = (nodes: CanvasNode[], teamId: string): number => {
+  const hasTeammates = nodes.some((node) =>
+    node.type === 'agent'
+    && node.data?.agentTeamId === teamId
+    && node.data?.agentTeamRole === 'teammate'
+  );
+  return hasTeammates ? FRAME_HEIGHT : BRIEFING_FRAME_HEIGHT;
 };
 
 const withClaudeTeamLeadArgs = (agentType: string, role: 'lead' | 'teammate', args?: string): string | undefined => {
@@ -203,11 +212,7 @@ export async function createAgentTeamCanvasNodes(input: CreateTeamNodesInput): P
     agentNodes.push(agentNode);
   }
 
-  const requiredHeight = Math.max(
-    0,
-    ...agentNodes.map((node) => node.y + node.height - frame.y + FRAME_PADDING),
-  );
-  frame.height = Math.max(input.teammates.length === 0 ? BRIEFING_FRAME_HEIGHT : FRAME_HEIGHT, requiredHeight);
+  frame.height = input.teammates.length === 0 ? BRIEFING_FRAME_HEIGHT : FRAME_HEIGHT;
 
   canvas.nodes = [...nodes, frame, ...agentNodes];
   await writeCanvasFull(input.workspaceId, canvas);
@@ -250,10 +255,10 @@ export async function createTeamAgentNode(input: CreateTeamAgentNodeInput): Prom
   });
 
   if (frame) {
-    const requiredBottom = agentNode.y + agentNode.height + FRAME_PADDING;
     const requiredRight = agentNode.x + agentNode.width + FRAME_PADDING;
-    if (requiredBottom > frame.y + (frame.height ?? FRAME_HEIGHT)) {
-      frame.height = requiredBottom - frame.y;
+    const targetHeight = Math.max(frame.height ?? FRAME_HEIGHT, FRAME_HEIGHT);
+    if (frame.height !== targetHeight) {
+      frame.height = targetHeight;
       frame.updatedAt = Date.now();
     }
     if (requiredRight > frame.x + (frame.width ?? FRAME_WIDTH)) {
@@ -278,7 +283,15 @@ export async function ensureAgentTeamCanvasLayout(workspaceId: string, teamId: s
     ? frame.data.agentTeamPanelHeight
     : undefined;
   if (currentPanelHeight === TEAM_PANEL_HEIGHT) {
-    if (ensureTeamAgentLaunchDefaults(nodes, teamId)) {
+    let changed = ensureTeamAgentLaunchDefaults(nodes, teamId);
+    const minHeight = desiredFrameHeight(nodes, teamId);
+    if ((frame.height ?? 0) < minHeight) {
+      frame.height = minHeight;
+      frame.updatedAt = Date.now();
+      changed = true;
+    }
+
+    if (changed) {
       await writeCanvasFull(workspaceId, canvas);
       broadcastCanvasUpdate(
         workspaceId,
@@ -313,6 +326,11 @@ export async function ensureAgentTeamCanvasLayout(workspaceId: string, teamId: s
     compactLeaderOnlyLayout(nodes, frame, teamId);
   }
   ensureTeamAgentLaunchDefaults(nodes, teamId);
+  const minHeight = desiredFrameHeight(nodes, teamId);
+  if ((frame.height ?? 0) < minHeight) {
+    frame.height = minHeight;
+    frame.updatedAt = Date.now();
+  }
 
   await writeCanvasFull(workspaceId, canvas);
   broadcastCanvasUpdate(
@@ -337,6 +355,29 @@ export async function stopAgentTeamCanvasNodes(workspaceId: string, teamId: stri
       viewMode: 'restart',
       inlinePrompt: '',
       promptFile: '',
+    };
+    node.updatedAt = now;
+    changedIds.push(node.id);
+  }
+
+  if (changedIds.length === 0) return [];
+  await writeCanvasFull(workspaceId, canvas);
+  broadcastCanvasUpdate(workspaceId, changedIds, 'update', 'agent-teams');
+  return changedIds;
+}
+
+export async function updateAgentTeamCanvasCwd(workspaceId: string, teamId: string, cwd: string): Promise<string[]> {
+  const canvas = await loadCanvasOrEmpty(workspaceId);
+  const nodes = asNodes(canvas);
+  const changedIds: string[] = [];
+  const now = Date.now();
+
+  for (const node of nodes) {
+    if (node.type !== 'agent' || node.data?.agentTeamId !== teamId) continue;
+    if (node.data.cwd === cwd) continue;
+    node.data = {
+      ...node.data,
+      cwd,
     };
     node.updatedAt = now;
     changedIds.push(node.id);

@@ -3,6 +3,7 @@ import type { CanvasWorkspaceApi } from "../renderer/src/types";
 import { createAgentApi } from "./bridge/agent";
 import { createAgentTeamsApi } from "./bridge/agent-teams";
 import { createArtifactsApi } from "./bridge/artifacts";
+import { createCodexSessionsApi } from "./bridge/codex-sessions";
 import { createFileApi } from "./bridge/file";
 import { readPluginFlags } from "./bridge/flags";
 import { createLogSender, installRendererErrorLogging } from "./bridge/logging";
@@ -51,6 +52,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   promptProfile: createPromptProfileApi(ipcRenderer),
   model: createModelApi(ipcRenderer),
   agent: createAgentApi(ipcRenderer),
+  codexSessions: createCodexSessionsApi(ipcRenderer),
   agentTeams: createAgentTeamsApi(ipcRenderer),
   artifacts: createArtifactsApi(ipcRenderer),
   plugin: createPluginBridge(ipcRenderer),

@@ -100,8 +100,9 @@ describe('TeamRuntime', () => {
       teamId: team.id,
       role: 'teammate',
       name: 'Codex Exec',
+      cwd: '/repo/app',
     });
-    await runtime.createAgentSession(agent.id);
+    const withSession = await runtime.createAgentSession(agent.id);
     const task = await runtime.createTask({
       teamId: team.id,
       title: 'Implement tests',
@@ -119,6 +120,8 @@ describe('TeamRuntime', () => {
     expect(snapshot.agents[0].currentTaskId).toBe(task.id);
     expect(adapter.inputs).toHaveLength(1);
     expect(adapter.inputs[0].input).toContain('Implement tests');
+    expect(adapter.inputs[0].input).toContain('Working directory: /repo/app');
+    expect(adapter.sessions.get(withSession.sessionRef!.sessionId)?.cwd).toBe('/repo/app');
     expect(snapshot.messages[0].type).toBe('task_assigned');
   });
 
@@ -463,6 +466,10 @@ describe('TeamRuntime', () => {
 
     await runtime.notifyLeadPendingGates(team.id);
     expect(adapter.inputs.filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId)).toHaveLength(2);
+    now += 31_000;
+    await runtime.notifyLeadPendingGates(team.id);
+    expect(adapter.inputs.filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId)).toHaveLength(3);
+    expect(adapter.inputs.at(-1)?.input).toContain('still waiting for Team Lead attention');
 
     const restartedRuntime = new TeamRuntime({
       store,
@@ -474,7 +481,7 @@ describe('TeamRuntime', () => {
     await restartedRuntime.notifyLeadPendingGates(team.id);
 
     const leadInputsAfterRestart = adapter.inputs.filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId);
-    expect(leadInputsAfterRestart).toHaveLength(3);
+    expect(leadInputsAfterRestart).toHaveLength(4);
     expect(leadInputsAfterRestart.at(-1)?.input).toContain('still waiting for Team Lead attention');
     expect(leadInputsAfterRestart.at(-1)?.input).toContain('Current teammate questions waiting for Team Lead (2):');
     const messages = await store.listMessages(team.id);
@@ -628,6 +635,56 @@ describe('TeamRuntime', () => {
       { sessionId: leadSession.sessionRef!.sessionId, mode: 'abort' },
       { sessionId: coderSession.sessionRef!.sessionId, mode: 'abort' },
     ]);
+  });
+
+  it('resumes paused team work and redispatches interrupted tasks', async () => {
+    const { runtime, adapter } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    await runtime.createAgentSession(lead.id);
+    const coderSession = await runtime.createAgentSession(coder.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Implement resumable change',
+      description: 'Make the resumable change.',
+      ownerAgentId: coder.id,
+    });
+
+    await runtime.dispatchReadyTasks(team.id);
+    await runtime.pauseTeam(team.id, 'Paused by test.');
+    let snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.team.status).toBe('paused');
+    expect(snapshot.tasks[0]).toMatchObject({
+      status: 'blocked',
+      blockedReason: 'Paused by test.',
+    });
+    expect(snapshot.tasks[0].metadata?.teamPause).toMatchObject({
+      previousStatus: 'in_progress',
+      reason: 'Paused by test.',
+    });
+
+    await runtime.resumeTeam(team.id, 'Resumed by test.');
+    const result = await runtime.dispatchReadyTasks(team.id);
+
+    expect(result.assigned.map(assigned => assigned.id)).toEqual([task.id]);
+    snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.team.status).toBe('running');
+    expect(snapshot.tasks[0].status).toBe('in_progress');
+    expect(snapshot.tasks[0].blockedReason).toBeUndefined();
+    expect(snapshot.tasks[0].metadata?.teamPause).toBeUndefined();
+    expect(snapshot.agents.find(agent => agent.id === lead.id)?.status).toBe('idle');
+    expect(snapshot.agents.find(agent => agent.id === coder.id)).toMatchObject({
+      status: 'running',
+      currentTaskId: task.id,
+    });
+    expect(snapshot.agents.every(agent => !agent.metadata?.teamPause)).toBe(true);
+    expect(adapter.inputs).toHaveLength(2);
+    expect(adapter.inputs.at(-1)).toMatchObject({
+      sessionId: coderSession.sessionRef!.sessionId,
+    });
+    expect(adapter.inputs.at(-1)?.input).toContain('Implement resumable change');
+    expect(snapshot.events.map(event => event.type)).toContain('dispatch_resumed');
   });
 
   it('deletes a team and aborts its sessions', async () => {

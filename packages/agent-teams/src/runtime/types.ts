@@ -62,6 +62,7 @@ export interface TeamAgentRecord<Meta extends Record<string, unknown> = Record<s
   role: AgentRole;
   name: string;
   status: AgentStatus;
+  cwd?: string;
   currentTaskId?: TaskId;
   sessionRef?: AgentSessionRef;
   createdAt: number;
@@ -239,6 +240,7 @@ export interface AddAgentInput {
   teamId: TeamId;
   role: AgentRole;
   name: string;
+  cwd?: string;
   sessionRef?: AgentSessionRef;
   metadata?: Record<string, unknown>;
 }

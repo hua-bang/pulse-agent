@@ -4,26 +4,9 @@ import type { CanvasNode, KnowledgeTagDefinition, WorkspaceNodeListItem } from '
 import { ChatPanel } from '../chat';
 import type { AgentScope, WorkspaceOption } from '../chat/types';
 import type { SettingsSection } from '../Settings';
+import { AppLogoIcon } from '../icons';
 import { useI18n } from '../../i18n';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId } from './utils';
-
-/**
- * The Pulse brand mark (matches the sidebar logo). Rendered inline rather than
- * referencing the public asset so it themes consistently and survives the
- * packaged app's path/base resolution.
- */
-const PulseMark = ({ size = 28 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 512 512" fill="none" aria-hidden="true">
-    <rect x="32" y="32" width="448" height="448" rx="96" ry="96" fill="#FFFFFF" />
-    <path
-      d="M 80,268 H 188 L 228,178 L 260,370 L 292,148 L 328,268 H 432"
-      stroke="#1D1D1F"
-      strokeWidth="26"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 const DEFAULT_DOCK_WIDTH = 400;
 const MIN_DOCK_WIDTH = 300;
@@ -184,7 +167,7 @@ export function NodesChatDock({
         title={t('workspaceNodes.chat.openHint')}
         aria-label={t('workspaceNodes.chat.openHint')}
       >
-        <PulseMark size={28} />
+        <AppLogoIcon size={28} />
       </button>
     );
   }

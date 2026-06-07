@@ -68,6 +68,30 @@ const taskStatusRank = (task: AgentTeamTaskRecord) =>
 const shortText = (value: string | undefined, fallback: string) =>
   value?.trim() || fallback;
 
+const compactPath = (value: string | undefined, maxLength = 54): string => {
+  const path = value?.trim();
+  if (!path) return '';
+  if (path.length <= maxLength) return path;
+  const parts = path.split('/').filter(Boolean);
+  if (parts.length >= 2) {
+    const compact = `.../${parts.slice(-2).join('/')}`;
+    if (compact.length <= maxLength) return compact;
+  }
+  return `...${path.slice(Math.max(0, path.length - maxLength + 3))}`;
+};
+
+const metadataString = (
+  metadata: Record<string, unknown> | undefined,
+  keys: string[],
+): string | undefined => {
+  if (!metadata) return undefined;
+  for (const key of keys) {
+    const value = metadata[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
+};
+
 const artifactLabel = (artifact: AgentTeamArtifactRecord) =>
   artifact.title || artifact.uri || artifact.kind;
 
@@ -185,6 +209,41 @@ interface GraphAgentItem {
   sourceAgent?: AgentTeamAgentRecord;
 }
 
+const DAG_NODE_WIDTH = 236;
+const DAG_NODE_HEIGHT = 58;
+const DAG_COLUMN_GAP = 315;
+const DAG_ROW_GAP = 76;
+const DAG_LEFT = 38;
+const DAG_TOP = 92;
+const DAG_BOTTOM = 72;
+const DAG_MIN_WIDTH = 720;
+const DAG_MIN_HEIGHT = 340;
+
+interface DagNodeItem {
+  task: GraphTaskItem;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  columnIndex: number;
+  rowIndex: number;
+}
+
+interface DagEdgeItem {
+  key: string;
+  path: string;
+  sourceKey: string;
+  targetKey: string;
+}
+
+interface DagStageItem {
+  key: string;
+  x: number;
+  y: number;
+  label: string;
+  index: number;
+}
+
 export const AgentTeamFrame = ({
   node,
   getAllNodes,
@@ -199,20 +258,20 @@ export const AgentTeamFrame = ({
   const teamId = data.agentTeamId;
   const [snapshot, setSnapshot] = useState<AgentTeamSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
-  const [teamAction, setTeamAction] = useState<'pause' | 'delete' | null>(null);
+  const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [briefDraft, setBriefDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState('');
-  const [taskFormOpen, setTaskFormOpen] = useState(false);
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskDescription, setTaskDescription] = useState('');
-  const [taskOwner, setTaskOwner] = useState('');
   const [gateAnswers, setGateAnswers] = useState<Record<string, string>>({});
   const [selectedArtifactId, setSelectedArtifactId] = useState('');
   const [selectedAgentKey, setSelectedAgentKey] = useState('');
-  const [agentInspectorMode, setAgentInspectorMode] = useState<'activity' | 'terminal'>('activity');
+  const [agentInspectorMode, setAgentInspectorMode] = useState<'activity' | 'terminal'>('terminal');
+  const [detailPanelMode, setDetailPanelMode] = useState<'task' | 'agent'>('task');
+  const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
   const [selectedPlanTaskKey, setSelectedPlanTaskKey] = useState('');
+  const [graphFullscreenOpen, setGraphFullscreenOpen] = useState(false);
+  const [graphViewportHeights, setGraphViewportHeights] = useState({ inline: 0, fullscreen: 0 });
   const [artifactPreview, setArtifactPreview] = useState<{
     artifactId: string;
     content?: string;
@@ -220,6 +279,8 @@ export const AgentTeamFrame = ({
     loading: boolean;
   } | null>(null);
   const commandRef = useRef<HTMLTextAreaElement>(null);
+  const inlineGraphViewportRef = useRef<HTMLDivElement>(null);
+  const fullscreenGraphViewportRef = useRef<HTMLDivElement>(null);
 
   const api = window.canvasWorkspace?.agentTeams;
   const runtime = snapshot?.runtime;
@@ -351,6 +412,78 @@ export const AgentTeamFrame = ({
     }
     return columns.filter(Boolean);
   }, [graphTaskByKey, graphTasks]);
+  const buildDagLayout = useCallback((viewportHeight = 0) => {
+    const columnCount = graphColumns.length;
+    const maxRows = Math.max(1, ...graphColumns.map((column) => column.length));
+    const contentRowsHeight = (maxRows - 1) * DAG_ROW_GAP + DAG_NODE_HEIGHT;
+    const naturalHeight = DAG_TOP + contentRowsHeight + DAG_BOTTOM;
+    const height = Math.max(DAG_MIN_HEIGHT, naturalHeight, viewportHeight);
+    const verticalShift = Math.max(0, height - naturalHeight) / 2;
+    const nodes: DagNodeItem[] = [];
+    const stages: DagStageItem[] = graphColumns.map((_column, columnIndex) => ({
+      key: `stage-${columnIndex}`,
+      x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP,
+      y: 24 + verticalShift,
+      label: columnIndex === 0 ? 'Start' : `Stage ${columnIndex + 1}`,
+      index: columnIndex + 1,
+    }));
+
+    for (let columnIndex = 0; columnIndex < graphColumns.length; columnIndex += 1) {
+      const column = graphColumns[columnIndex];
+      const columnOffset = ((maxRows - column.length) * DAG_ROW_GAP) / 2;
+      for (let rowIndex = 0; rowIndex < column.length; rowIndex += 1) {
+        const task = column[rowIndex];
+        nodes.push({
+          task,
+          x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP,
+          y: DAG_TOP + verticalShift + columnOffset + rowIndex * DAG_ROW_GAP,
+          width: DAG_NODE_WIDTH,
+          height: DAG_NODE_HEIGHT,
+          columnIndex,
+          rowIndex,
+        });
+      }
+    }
+
+    const nodeByKey = new Map(nodes.map((item) => [item.task.key, item]));
+    const edges: DagEdgeItem[] = [];
+    for (const node of nodes) {
+      for (const depKey of node.task.depKeys) {
+        const source = nodeByKey.get(depKey);
+        if (!source) continue;
+        const startX = source.x + source.width - 2;
+        const startY = source.y + source.height / 2;
+        const endX = node.x + 2;
+        const endY = node.y + node.height / 2;
+        const dx = Math.max(56, (endX - startX) / 2);
+        edges.push({
+          key: `${source.task.key}->${node.task.key}`,
+          sourceKey: source.task.key,
+          targetKey: node.task.key,
+          path: `M ${startX} ${startY} C ${startX + dx} ${startY}, ${endX - dx} ${endY}, ${endX} ${endY}`,
+        });
+      }
+    }
+
+    return {
+      nodes,
+      edges,
+      stages,
+      width: Math.max(
+        DAG_MIN_WIDTH,
+        DAG_LEFT * 2 + Math.max(0, columnCount - 1) * DAG_COLUMN_GAP + DAG_NODE_WIDTH,
+      ),
+      height,
+    };
+  }, [graphColumns]);
+  const inlineDagLayout = useMemo(
+    () => buildDagLayout(graphViewportHeights.inline),
+    [buildDagLayout, graphViewportHeights.inline],
+  );
+  const fullscreenDagLayout = useMemo(
+    () => buildDagLayout(graphViewportHeights.fullscreen),
+    [buildDagLayout, graphViewportHeights.fullscreen],
+  );
   const selectedGraphTask = useMemo(() => {
     if (phase === 'plan_review') {
       return graphTaskByKey.get(selectedPlanTaskKey) ?? graphTasks[0];
@@ -411,6 +544,14 @@ export const AgentTeamFrame = ({
   const selectedGraphAgent = graphAgents.find((agent) => agent.key === selectedAgentKey);
 
   const teamTitle = runtime?.team.name ?? data.agentTeamName ?? node.title;
+  const teamGoal = shortText(runtime?.team.goal ?? data.agentTeamGoal ?? data.label, '');
+  const teamCwd = lead?.cwd
+    ?? metadataString(lead?.metadata, ['cwd'])
+    ?? metadataString(lead?.sessionRef?.metadata, ['cwd'])
+    ?? teammates.find((agent) => agent.cwd)?.cwd
+    ?? metadataString(runtime?.team.metadata, ['cwd'])
+    ?? rootFolder
+    ?? '';
   const phaseTitle = phase === 'briefing'
     ? 'Briefing'
     : runtime?.team.status === 'completed'
@@ -418,6 +559,12 @@ export const AgentTeamFrame = ({
       : phase === 'plan_review'
         ? 'Plan Review'
         : 'Executing';
+  const doneTaskCount = tasks.filter((task) => task.status === 'done').length;
+  const activeTaskCount = tasks.filter((task) =>
+    task.status === 'in_progress'
+    || task.status === 'needs_input'
+    || task.status === 'needs_review'
+  ).length;
 
   useEffect(() => {
     if (!selectedArtifactId || artifacts.some((artifact) => artifact.id === selectedArtifactId)) return;
@@ -438,11 +585,57 @@ export const AgentTeamFrame = ({
   useEffect(() => {
     if (!selectedAgentKey || graphAgents.some((agent) => agent.key === selectedAgentKey)) return;
     setSelectedAgentKey('');
+    setDetailPanelMode('task');
+    setAgentInspectorOpen(false);
   }, [graphAgents, selectedAgentKey]);
 
   useEffect(() => {
-    setAgentInspectorMode('activity');
+    setAgentInspectorMode('terminal');
   }, [selectedAgentKey]);
+
+  useEffect(() => {
+    if (!graphFullscreenOpen) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setGraphFullscreenOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [graphFullscreenOpen]);
+
+  useEffect(() => {
+    const updateHeight = (key: 'inline' | 'fullscreen', element: HTMLDivElement | null) => {
+      if (!element) return;
+      const height = Math.round(element.getBoundingClientRect().height);
+      setGraphViewportHeights((current) =>
+        current[key] === height ? current : { ...current, [key]: height },
+      );
+    };
+
+    updateHeight('inline', inlineGraphViewportRef.current);
+    updateHeight('fullscreen', fullscreenGraphViewportRef.current);
+
+    if (typeof ResizeObserver === 'undefined') return undefined;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === inlineGraphViewportRef.current) {
+          const height = Math.round(entry.contentRect.height);
+          setGraphViewportHeights((current) =>
+            current.inline === height ? current : { ...current, inline: height },
+          );
+        } else if (entry.target === fullscreenGraphViewportRef.current) {
+          const height = Math.round(entry.contentRect.height);
+          setGraphViewportHeights((current) =>
+            current.fullscreen === height ? current : { ...current, fullscreen: height },
+          );
+        }
+      }
+    });
+
+    if (inlineGraphViewportRef.current) observer.observe(inlineGraphViewportRef.current);
+    if (fullscreenGraphViewportRef.current) observer.observe(fullscreenGraphViewportRef.current);
+    return () => observer.disconnect();
+  }, [graphFullscreenOpen]);
 
   useEffect(() => {
     if (!selectedArtifact) return;
@@ -517,7 +710,6 @@ export const AgentTeamFrame = ({
     const result = await api.confirmPlan(workspaceId, teamId);
     if (result.ok && result.snapshot) {
       setSnapshot(result.snapshot);
-      setTaskFormOpen(false);
       setError(null);
     } else {
       setError(result.error ?? 'Unable to confirm plan.');
@@ -545,32 +737,6 @@ export const AgentTeamFrame = ({
     }
   }, [api, handleBriefLead, lead, messageDraft, phase, selectedTask, teamId, workspaceId]);
 
-  const handleCreateTask = useCallback(async () => {
-    if (!api || !workspaceId || !teamId || !taskTitle.trim() || !taskDescription.trim()) return;
-    const result = await api.createTask({
-      workspaceId,
-      teamId,
-      title: taskTitle.trim(),
-      description: taskDescription.trim(),
-      ownerAgentId: taskOwner || undefined,
-    });
-    if (!result.ok) {
-      setError(result.error ?? 'Task creation failed.');
-      return;
-    }
-    setTaskTitle('');
-    setTaskDescription('');
-    setTaskOwner('');
-    setTaskFormOpen(false);
-    const dispatchResult = await api.dispatch(workspaceId, teamId);
-    if (dispatchResult.ok && dispatchResult.snapshot) {
-      setSnapshot(dispatchResult.snapshot);
-      setError(null);
-    } else {
-      await refresh();
-    }
-  }, [api, workspaceId, teamId, taskTitle, taskDescription, taskOwner, refresh]);
-
   const handlePauseTeam = useCallback(async () => {
     if (!api || !workspaceId || !teamId) return;
     setTeamAction('pause');
@@ -581,6 +747,19 @@ export const AgentTeamFrame = ({
       setError(null);
     } else {
       setError(result.error ?? 'Unable to pause the Agent Team.');
+    }
+  }, [api, workspaceId, teamId]);
+
+  const handleResumeTeam = useCallback(async () => {
+    if (!api || !workspaceId || !teamId) return;
+    setTeamAction('resume');
+    const result = await api.resume(workspaceId, teamId);
+    setTeamAction(null);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to resume the Agent Team.');
     }
   }, [api, workspaceId, teamId]);
 
@@ -635,6 +814,7 @@ export const AgentTeamFrame = ({
     : phase === 'executing'
       ? 'Live task graph'
       : 'Task graph';
+  const edgeMarkerId = `agent-team-dag-arrow-${(teamId ?? node.id).replace(/[^\w-]/g, '-')}`;
   const graphSubtitle = phase === 'briefing'
     ? 'Brief Team Lead to generate a plan.'
     : `${graphTasks.length} task${graphTasks.length === 1 ? '' : 's'} · ${graphAgents.length} teammate${graphAgents.length === 1 ? '' : 's'}`;
@@ -643,10 +823,127 @@ export const AgentTeamFrame = ({
     if (task.sourceTask) setSelectedTaskId(task.sourceTask.id);
     else setSelectedPlanTaskKey(task.key);
     setSelectedAgentKey(task.ownerKey ?? '');
+    setDetailPanelMode('task');
   };
 
   const ownerChipClass = (ownerKey?: string) =>
     `agent-team-owner-chip${ownerKey && selectedAgentKey === ownerKey ? ' agent-team-owner-chip--active' : ''}`;
+
+  const renderDagCanvas = (variant: 'inline' | 'fullscreen' = 'inline') => {
+    if (graphColumns.length === 0) {
+      return (
+        <div className="agent-team-graph-empty">
+          <span className="agent-team-empty-panel__eyebrow">No graph yet</span>
+          <strong>Waiting for Team Lead to propose tasks.</strong>
+          <span>The graph appears after the lead submits a plan.</span>
+        </div>
+      );
+    }
+
+    const markerId = variant === 'fullscreen' ? `${edgeMarkerId}-fullscreen` : edgeMarkerId;
+    const dagLayout = variant === 'fullscreen' ? fullscreenDagLayout : inlineDagLayout;
+    return (
+      <div
+        className={`agent-team-dag-canvas${variant === 'fullscreen' ? ' agent-team-dag-canvas--fullscreen' : ''}`}
+        style={{ width: dagLayout.width, height: dagLayout.height }}
+      >
+        <svg
+          className="agent-team-dag-edges"
+          width={dagLayout.width}
+          height={dagLayout.height}
+          viewBox={`0 0 ${dagLayout.width} ${dagLayout.height}`}
+          aria-hidden="true"
+        >
+          <defs>
+            <marker
+              id={markerId}
+              markerWidth="8"
+              markerHeight="8"
+              refX="7"
+              refY="4"
+              orient="auto"
+              markerUnits="strokeWidth"
+            >
+              <path d="M 0 0 L 8 4 L 0 8 z" />
+            </marker>
+          </defs>
+          {dagLayout.edges.map((edge) => {
+            const highlighted = selectedGraphTask
+              ? edge.sourceKey === selectedGraphTask.key || edge.targetKey === selectedGraphTask.key
+              : false;
+            return (
+              <path
+                key={edge.key}
+                className={`agent-team-dag-edge${highlighted ? ' agent-team-dag-edge--highlighted' : ''}`}
+                d={edge.path}
+                markerEnd={`url(#${markerId})`}
+              />
+            );
+          })}
+        </svg>
+
+        {dagLayout.stages.map((stage) => (
+          <span
+            key={stage.key}
+            className="agent-team-dag-stage"
+            style={{ left: stage.x, top: stage.y }}
+          >
+            <span className="agent-team-dag-stage__index">{stage.index}</span>
+            {stage.label}
+          </span>
+        ))}
+
+        {dagLayout.nodes.map((item) => {
+          const task = item.task;
+          const selected = selectedGraphTask?.key === task.key;
+          const ownerHighlighted = !!selectedAgentKey && task.ownerKey === selectedAgentKey;
+          return (
+            <button
+              key={task.key}
+              type="button"
+              className={`agent-team-dag-node agent-team-dag-node--${task.status}${selected ? ' agent-team-dag-node--selected' : ''}${ownerHighlighted ? ' agent-team-dag-node--owner-highlight' : ''}${task.dependencyWarning ? ' agent-team-dag-node--warning' : ''}`}
+              style={{
+                left: item.x,
+                top: item.y,
+                width: item.width,
+                height: item.height,
+              }}
+              onClick={() => selectGraphTask(task)}
+              title={task.title}
+            >
+              <span className={`agent-team-task-row__dot agent-team-task-row__dot--${task.status}`} />
+              <span className="agent-team-dag-node__copy">
+                <strong>{task.title}</strong>
+                <span className="agent-team-dag-node__meta">
+                  <span>{statusLabel(task.status)}</span>
+                  <span className={ownerChipClass(task.ownerKey)}>{task.ownerName}</span>
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderGraphFullscreen = () => {
+    if (!graphFullscreenOpen) return null;
+    return (
+      <div
+        className="agent-team-dag-fullscreen agent-team-dag-fullscreen--workspace"
+        role="dialog"
+        aria-label="Task workspace full screen"
+        onMouseDown={() => setGraphFullscreenOpen(false)}
+      >
+        <div
+          className="agent-team-dag-fullscreen__panel agent-team-dag-fullscreen__panel--workspace"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          {renderTaskGraph('fullscreen')}
+        </div>
+      </div>
+    );
+  };
 
   const renderHumanGate = (
     gate: AgentTeamHumanGateRecord,
@@ -714,6 +1011,7 @@ export const AgentTeamFrame = ({
     && teamStatus !== 'paused'
     && teamStatus !== 'completed'
     && teamStatus !== 'failed';
+  const canResumeTeam = phase === 'executing' && teamStatus === 'paused';
   const showGlobalGate = !!globalGate
     && !selectedHumanTaskGate
     && phase === 'executing'
@@ -723,7 +1021,7 @@ export const AgentTeamFrame = ({
     <div className={`agent-team-command agent-team-command--${placement}`} aria-label="Team command">
       <div className="agent-team-command__copy">
         <span className="agent-team-command__label">
-          {phase === 'briefing' ? 'Brief Team Lead' : 'Team command'}
+          {phase === 'briefing' ? 'Brief Team Lead' : 'Message Team Lead'}
         </span>
         {phase === 'executing' && selectedTask && (
           <span className={`agent-team-command__task-chip agent-team-command__task-chip--${selectedTask.status}`}>
@@ -793,7 +1091,7 @@ export const AgentTeamFrame = ({
                 {phase === 'plan_review'
                   ? 'Review the graph, ask for changes, then approve when the team split looks right.'
                   : phase === 'executing'
-                    ? 'Use the command bar for normal changes. Ask the lead to route work to the right teammate.'
+                    ? 'Send normal changes to the lead and let the lead route work to the right teammate.'
                     : 'Tell the lead what outcome, repo path, constraints, and teammate split you expect.'}
               </span>
             </div>
@@ -804,180 +1102,223 @@ export const AgentTeamFrame = ({
               {leadNodeId && <code>{leadNodeId}</code>}
             </div>
 
-            <button
-              type="button"
-              className="agent-team-lead-dock__command"
-              onClick={() => commandRef.current?.focus()}
-              disabled={readOnly}
-            >
-              Message Team Lead
-            </button>
+            {phase === 'briefing' && renderTeamCommand('lead')}
           </>
         )}
       </div>
     </section>
   );
 
-  const renderTaskGraph = () => (
-    <section className="agent-team-graph-panel" aria-label="Task Graph">
-      <div className="agent-team-graph-panel__head">
-        <div>
-          <span className="agent-team-panel-heading__label">{graphTitle}</span>
-          <strong>{graphSubtitle}</strong>
-        </div>
-        <div className="agent-team-graph-panel__actions">
-          {phase === 'plan_review' && plan && (
-            <button type="button" className="agent-team-frame__primary-action" onClick={handleConfirmPlan} disabled={readOnly}>
-              Approve & Run
-            </button>
-          )}
-          {phase === 'executing' && (
-            <button type="button" onClick={() => setTaskFormOpen((open) => !open)} disabled={readOnly}>
-              {taskFormOpen ? 'Close task form' : 'Add task'}
-            </button>
-          )}
-        </div>
-      </div>
+  const getAgentDetailContext = (agent: GraphAgentItem) => {
+    const ownedTasks = graphTasks.filter((task) => task.ownerKey === agent.key);
+    const agentArtifacts = agent.sourceAgent
+      ? artifacts.filter((artifact) => artifact.agentId === agent.sourceAgent?.id)
+      : [];
+    const agentNode = agent.sourceAgent
+      ? agentNodeByAgentId.get(agent.sourceAgent.id)
+      : agent.nodeId
+        ? teamAgentNodes.find((candidate) => candidate.id === agent.nodeId)
+        : undefined;
+    const agentData = agentNode?.data as AgentNodeData | undefined;
+    return {
+      ownedTasks,
+      agentArtifacts,
+      agentNode,
+      agentData,
+      activityLines: recentTerminalLines(agentData?.scrollback),
+    };
+  };
 
-      <div className={`agent-team-graph-panel__main${selectedGraphTask ? '' : ' agent-team-graph-panel__main--graph-only'}`}>
-        <div className="agent-team-task-graph" aria-label="Task dependency graph">
-          {graphColumns.length === 0 ? (
-            <div className="agent-team-graph-empty">
-              <span className="agent-team-empty-panel__eyebrow">No graph yet</span>
-              <strong>Waiting for Team Lead to propose tasks.</strong>
-              <span>The graph appears after the lead submits a plan.</span>
-            </div>
-          ) : graphColumns.map((column, columnIndex) => (
-            <div key={columnIndex} className="agent-team-task-graph__column">
-              <span className="agent-team-task-graph__stage">
-                <span className="agent-team-task-graph__stage-index">{columnIndex + 1}</span>
-                {columnIndex === 0 ? 'Start' : `Stage ${columnIndex + 1}`}
-              </span>
-              {column.map((task) => {
-                const selected = selectedGraphTask?.key === task.key;
-                const ownerHighlighted = !!selectedAgentKey && task.ownerKey === selectedAgentKey;
-                const visibleDeps = task.depLabels.slice(0, 2);
-                const hiddenDepCount = Math.max(0, task.depLabels.length - visibleDeps.length);
-                return (
-                  <button
-                    key={task.key}
-                    type="button"
-                    className={`agent-team-graph-task agent-team-graph-task--${task.status}${selected ? ' agent-team-graph-task--selected' : ''}${ownerHighlighted ? ' agent-team-graph-task--owner-highlight' : ''}${task.dependencyWarning ? ' agent-team-graph-task--warning' : ''}`}
-                    onClick={() => selectGraphTask(task)}
-                  >
-                    <span className={`agent-team-task-row__dot agent-team-task-row__dot--${task.status}`} />
-                    <span className="agent-team-graph-task__copy">
-                      <strong>{task.title}</strong>
-                      <span className="agent-team-graph-task__meta">
-                        <span>{statusLabel(task.status)}</span>
-                        <span className={ownerChipClass(task.ownerKey)}>{task.ownerName}</span>
-                      </span>
-                    </span>
-                    <span className="agent-team-graph-task__deps">
-                      {visibleDeps.length > 0 ? visibleDeps.map((dep) => (
-                        <span key={dep}>after {dep}</span>
-                      )) : (
-                        <span>entry task</span>
-                      )}
-                      {hiddenDepCount > 0 && (
-                        <span>+{hiddenDepCount} deps</span>
-                      )}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+  const renderAgentSideDetail = () => {
+    if (!selectedGraphAgent) return null;
+    const { ownedTasks, agentArtifacts, agentNode, agentData, activityLines } = getAgentDetailContext(selectedGraphAgent);
+    return (
+      <aside className="agent-team-graph-detail agent-team-graph-detail--agent" aria-label="Selected agent detail">
+        <div className="agent-team-graph-detail__head">
+          <div>
+            <span className="agent-team-panel-heading__label">Selected agent</span>
+            <strong>{selectedGraphAgent.name}</strong>
+          </div>
+          <span className={`agent-team-detail__status agent-team-detail__status--${selectedGraphAgent.status}`}>
+            {statusLabel(selectedGraphAgent.status)}
+          </span>
+        </div>
+
+        <div className="agent-team-agent-detail__actions">
+          <button
+            type="button"
+            className="agent-team-agent-detail__terminal-button"
+            onClick={() => {
+              setAgentInspectorMode('terminal');
+              setAgentInspectorOpen(true);
+            }}
+            disabled={!agentNode}
+          >
+            Open terminal
+          </button>
+        </div>
+
+        <div className="agent-team-agent-detail__meta">
+          <span>{selectedGraphAgent.agentType ?? 'Coding Agent'}</span>
+          {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
+          <span>{agentData?.cwd || rootFolder || 'No workspace'}</span>
+        </div>
+
+        <div className="agent-team-agent-detail__stats">
+          <span><strong>{selectedGraphAgent.taskCount}</strong> tasks</span>
+          <span><strong>{selectedGraphAgent.runningCount}</strong> running</span>
+          <span><strong>{selectedGraphAgent.blockedCount}</strong> blocked</span>
+          <span><strong>{selectedGraphAgent.artifactCount}</strong> artifacts</span>
+        </div>
+
+        <div className="agent-team-agent-detail__section">
+          <span className="agent-team-detail__section-title">Current task</span>
+          <strong>{selectedGraphAgent.currentTaskTitle ?? 'No active task'}</strong>
+        </div>
+
+        <div className="agent-team-agent-detail__section">
+          <span className="agent-team-detail__section-title">Assigned tasks</span>
+          {ownedTasks.length === 0 ? (
+            <span className="agent-team-detail__muted">No assigned tasks.</span>
+          ) : ownedTasks.map((task) => (
+            <button
+              key={task.key}
+              type="button"
+              className={`agent-team-agent-detail__task agent-team-agent-detail__task--${task.status}`}
+              onClick={() => selectGraphTask(task)}
+            >
+              <strong>{task.title}</strong>
+              <span>{statusLabel(task.status)}</span>
+            </button>
           ))}
         </div>
 
-        {selectedGraphTask && (
-          <aside className="agent-team-graph-detail" aria-label="Selected task detail">
-            <>
-              <div className="agent-team-graph-detail__head">
-                <div>
-                  <span className="agent-team-panel-heading__label">Selected task</span>
-                  <strong>{selectedGraphTask.title}</strong>
-                </div>
-                <span className={`agent-team-detail__status agent-team-detail__status--${selectedGraphTask.status}`}>
-                  {statusLabel(selectedGraphTask.status)}
-                </span>
-              </div>
-              <div className="agent-team-detail__facts">
-                <div>
-                  <span className="agent-team-detail__section-title">Owner</span>
-                  <span className={ownerChipClass(selectedGraphTask.ownerKey)}>{selectedGraphTask.ownerName}</span>
-                </div>
-                <div>
-                  <span className="agent-team-detail__section-title">Updated</span>
-                  <strong>
-                    {selectedGraphTask.updatedAt
-                      ? new Date(selectedGraphTask.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      : 'Not yet'}
-                  </strong>
-                </div>
-              </div>
-              <div className="agent-team-detail__description">
-                {shortText(selectedGraphTask.description, 'No task instructions yet.')}
-              </div>
-              <div className="agent-team-detail__grid">
-                <div className="agent-team-detail__section">
-                  <span className="agent-team-detail__section-title">Dependencies</span>
-                  {selectedGraphTask.depLabels.length === 0 ? (
-                    <span className="agent-team-detail__muted">None</span>
-                  ) : selectedGraphTask.depLabels.map((dep) => (
-                    <span key={dep} className="agent-team-detail__pill">{dep}</span>
-                  ))}
-                </div>
-                <div className="agent-team-detail__section">
-                  <span className="agent-team-detail__section-title">Artifacts</span>
-                  {selectedGraphTask.sourceTask && selectedTaskArtifacts.length > 0 ? selectedTaskArtifacts.map((artifact) => (
-                    <button
-                      key={artifact.id}
-                      type="button"
-                      className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
-                      title={artifact.summary ?? artifact.uri ?? ''}
-                      onClick={() => setSelectedArtifactId(artifact.id)}
-                    >
-                      {artifactLabel(artifact)}
-                    </button>
-                  )) : (
-                    <span className="agent-team-detail__muted">
-                      {selectedGraphTask.artifactCount > 0 ? `${selectedGraphTask.artifactCount} published` : 'None yet'}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {selectedGraphTask.result && (
-                <div className="agent-team-detail__result">
-                  <span className="agent-team-detail__section-title">Result</span>
-                  <span>{selectedGraphTask.result}</span>
-                </div>
-              )}
-              {selectedGraphTask.blockedReason && (
-                <div className="agent-team-detail__result agent-team-detail__result--blocked">
-                  <span className="agent-team-detail__section-title">Blocker</span>
-                  <span>{selectedGraphTask.blockedReason}</span>
-                </div>
-              )}
-              {selectedHumanTaskGate && selectedGraphTask.sourceTask && (
-                renderHumanGate(selectedHumanTaskGate, { compact: true })
-              )}
-            </>
-          </aside>
-        )}
-      </div>
+        <div className="agent-team-agent-detail__section">
+          <span className="agent-team-detail__section-title">Artifacts</span>
+          {agentArtifacts.length === 0 ? (
+            <span className="agent-team-detail__muted">None yet</span>
+          ) : agentArtifacts.map((artifact) => (
+            <button
+              key={artifact.id}
+              type="button"
+              className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
+              title={artifact.summary ?? artifact.uri ?? ''}
+              onClick={() => setSelectedArtifactId(artifact.id)}
+            >
+              {artifactLabel(artifact)}
+            </button>
+          ))}
+        </div>
 
-      <div className="agent-team-agent-strip" aria-label="Teammates">
+        <div className="agent-team-agent-detail__section">
+          <span className="agent-team-detail__section-title">Recent output</span>
+          {activityLines.length === 0 ? (
+            <span className="agent-team-detail__muted">No readable output yet.</span>
+          ) : activityLines.map((line, index) => (
+            <span key={`${index}-${line}`} className="agent-team-agent-detail__output">{line}</span>
+          ))}
+        </div>
+      </aside>
+    );
+  };
+
+  const renderTaskSideDetail = () => {
+    if (!selectedGraphTask) return null;
+    return (
+      <aside className="agent-team-graph-detail" aria-label="Selected task detail">
+        <div className="agent-team-graph-detail__head">
+          <div>
+            <span className="agent-team-panel-heading__label">Selected task</span>
+            <strong>{selectedGraphTask.title}</strong>
+          </div>
+          <span className={`agent-team-detail__status agent-team-detail__status--${selectedGraphTask.status}`}>
+            {statusLabel(selectedGraphTask.status)}
+          </span>
+        </div>
+        <div className="agent-team-detail__facts">
+          <div>
+            <span className="agent-team-detail__section-title">Owner</span>
+            <span className={ownerChipClass(selectedGraphTask.ownerKey)}>{selectedGraphTask.ownerName}</span>
+          </div>
+          <div>
+            <span className="agent-team-detail__section-title">Updated</span>
+            <strong>
+              {selectedGraphTask.updatedAt
+                ? new Date(selectedGraphTask.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : 'Not yet'}
+            </strong>
+          </div>
+        </div>
+        <div className="agent-team-detail__description">
+          {shortText(selectedGraphTask.description, 'No task instructions yet.')}
+        </div>
+        <div className="agent-team-detail__grid">
+          <div className="agent-team-detail__section">
+            <span className="agent-team-detail__section-title">Dependencies</span>
+            {selectedGraphTask.depLabels.length === 0 ? (
+              <span className="agent-team-detail__muted">None</span>
+            ) : selectedGraphTask.depLabels.map((dep) => (
+              <span key={dep} className="agent-team-detail__pill">{dep}</span>
+            ))}
+          </div>
+          <div className="agent-team-detail__section">
+            <span className="agent-team-detail__section-title">Artifacts</span>
+            {selectedGraphTask.sourceTask && selectedTaskArtifacts.length > 0 ? selectedTaskArtifacts.map((artifact) => (
+              <button
+                key={artifact.id}
+                type="button"
+                className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
+                title={artifact.summary ?? artifact.uri ?? ''}
+                onClick={() => setSelectedArtifactId(artifact.id)}
+              >
+                {artifactLabel(artifact)}
+              </button>
+            )) : (
+              <span className="agent-team-detail__muted">
+                {selectedGraphTask.artifactCount > 0 ? `${selectedGraphTask.artifactCount} published` : 'None yet'}
+              </span>
+            )}
+          </div>
+        </div>
+        {selectedGraphTask.result && (
+          <div className="agent-team-detail__result">
+            <span className="agent-team-detail__section-title">Result</span>
+            <span>{selectedGraphTask.result}</span>
+          </div>
+        )}
+        {selectedGraphTask.blockedReason && (
+          <div className="agent-team-detail__result agent-team-detail__result--blocked">
+            <span className="agent-team-detail__section-title">Blocker</span>
+            <span>{selectedGraphTask.blockedReason}</span>
+          </div>
+        )}
+        {selectedHumanTaskGate && selectedGraphTask.sourceTask && (
+          renderHumanGate(selectedHumanTaskGate, { compact: true })
+        )}
+      </aside>
+    );
+  };
+
+  const renderAgentsStrip = () => (
+    <div className="agent-team-agent-area" aria-label="Agents">
+      <div className="agent-team-agent-area__head">
+        <span className="agent-team-panel-heading__label">Agents</span>
+        <strong>{graphAgents.length} agent{graphAgents.length === 1 ? '' : 's'}</strong>
+      </div>
+      <div className="agent-team-agent-strip">
         {graphAgents.length === 0 ? (
           <div className="agent-team-agent-strip__empty">
-            Teammates appear here after the Team Lead proposes a plan.
+            Agents appear here after the Team Lead proposes a plan.
           </div>
         ) : graphAgents.map((agent) => (
           <button
             key={agent.key}
             type="button"
             className={`agent-team-summary-agent agent-team-summary-agent--${agent.status}${selectedAgentKey === agent.key ? ' agent-team-summary-agent--selected' : ''}${selectedGraphTask?.ownerKey === agent.key ? ' agent-team-summary-agent--task-owner' : ''}`}
-            onClick={() => setSelectedAgentKey(agent.key)}
+            onClick={() => {
+              setSelectedAgentKey(agent.key);
+              setDetailPanelMode('agent');
+            }}
           >
             <span className="agent-team-summary-agent__name">{agent.name}</span>
             <span className={`agent-team-detail__status agent-team-detail__status--${agent.status}`}>
@@ -994,22 +1335,70 @@ export const AgentTeamFrame = ({
           </button>
         ))}
       </div>
+    </div>
+  );
+
+  const renderTaskGraph = (variant: 'inline' | 'fullscreen' = 'inline') => (
+    <section className={`agent-team-graph-panel agent-team-graph-panel--${variant}`} aria-label="Task Graph">
+      <div className="agent-team-graph-panel__head">
+        <div>
+          <span className="agent-team-panel-heading__label">{graphTitle}</span>
+          <strong>{graphSubtitle}</strong>
+        </div>
+        <div className="agent-team-graph-panel__actions">
+          {variant === 'inline' && graphColumns.length > 0 && (
+            <button
+              type="button"
+              className="agent-team-graph-panel__fullscreen"
+              onClick={() => setGraphFullscreenOpen(true)}
+            >
+              Full screen
+            </button>
+          )}
+          {phase === 'plan_review' && plan && (
+            <button type="button" className="agent-team-frame__primary-action" onClick={handleConfirmPlan} disabled={readOnly}>
+              Approve & Run
+            </button>
+          )}
+          {variant === 'fullscreen' && (
+            <button type="button" onClick={() => setGraphFullscreenOpen(false)}>
+              Close
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div
+        className={`agent-team-graph-panel__main${
+          selectedGraphTask || (detailPanelMode === 'agent' && selectedGraphAgent)
+            ? ''
+            : ' agent-team-graph-panel__main--graph-only'
+        }`}
+      >
+        <div
+          ref={variant === 'fullscreen' ? fullscreenGraphViewportRef : inlineGraphViewportRef}
+          className="agent-team-task-graph"
+          aria-label="Task dependency graph"
+        >
+          {renderDagCanvas(variant)}
+        </div>
+
+        {detailPanelMode === 'agent' && selectedGraphAgent ? renderAgentSideDetail() : renderTaskSideDetail()}
+      </div>
+
+      {renderAgentsStrip()}
     </section>
   );
 
   const renderAgentInspector = () => {
-    if (!selectedGraphAgent) return null;
-    const ownedTasks = graphTasks.filter((task) => task.ownerKey === selectedGraphAgent.key);
-    const agentArtifacts = selectedGraphAgent.sourceAgent
-      ? artifacts.filter((artifact) => artifact.agentId === selectedGraphAgent.sourceAgent?.id)
-      : [];
-    const selectedAgentNode = selectedGraphAgent.sourceAgent
-      ? agentNodeByAgentId.get(selectedGraphAgent.sourceAgent.id)
-      : selectedGraphAgent.nodeId
-        ? teamAgentNodes.find((agentNode) => agentNode.id === selectedGraphAgent.nodeId)
-        : undefined;
-    const selectedAgentData = selectedAgentNode?.data as AgentNodeData | undefined;
-    const activityLines = recentTerminalLines(selectedAgentData?.scrollback);
+    if (!agentInspectorOpen || !selectedGraphAgent) return null;
+    const {
+      ownedTasks,
+      agentArtifacts,
+      agentNode: selectedAgentNode,
+      agentData: selectedAgentData,
+      activityLines,
+    } = getAgentDetailContext(selectedGraphAgent);
     return (
       <div className="agent-team-agent-inspector" role="dialog" aria-label="Agent detail">
         <div className="agent-team-agent-inspector__panel">
@@ -1018,7 +1407,7 @@ export const AgentTeamFrame = ({
               <span className="agent-team-panel-heading__label">Agent detail</span>
               <strong>{selectedGraphAgent.name}</strong>
             </div>
-            <button type="button" onClick={() => setSelectedAgentKey('')}>Close</button>
+            <button type="button" onClick={() => setAgentInspectorOpen(false)}>Close</button>
           </div>
           <div className="agent-team-agent-inspector__body">
             <div className="agent-team-agent-inspector__summary">
@@ -1154,6 +1543,16 @@ export const AgentTeamFrame = ({
             {teamTitle}
             <span className="agent-team-frame__phase-label"> · {phaseTitle}</span>
           </div>
+          <div className="agent-team-frame__mission">
+            <span className="agent-team-frame__mission-brief" title={teamGoal || undefined}>
+              Task · {teamGoal || 'No task brief yet'}
+            </span>
+            {teamCwd && (
+              <code title={teamCwd}>{compactPath(teamCwd)}</code>
+            )}
+            <span>{doneTaskCount}/{tasks.length} tasks</span>
+            {activeTaskCount > 0 && <span>{activeTaskCount} active</span>}
+          </div>
         </div>
 
         <div className="agent-team-frame__actions">
@@ -1163,6 +1562,16 @@ export const AgentTeamFrame = ({
           >
             {phase === 'briefing' ? 'briefing' : statusLabel(teamStatus)}
           </div>
+          {canResumeTeam && (
+            <button
+              type="button"
+              className="agent-team-frame__primary-action"
+              onClick={() => void handleResumeTeam()}
+              disabled={readOnly || teamAction !== null}
+            >
+              {teamAction === 'resume' ? 'Resuming' : 'Resume'}
+            </button>
+          )}
           {canPauseTeam && (
             <button
               type="button"
@@ -1185,8 +1594,6 @@ export const AgentTeamFrame = ({
       </div>
 
       {error && <div className="agent-team-frame__error">{error}</div>}
-
-      {phase !== 'briefing' && renderTeamCommand('top')}
 
       <div className={`agent-team-workspace agent-team-workspace--${phase}`}>
         {renderLeadDock()}
@@ -1215,36 +1622,7 @@ export const AgentTeamFrame = ({
         renderHumanGate(globalGate)
       )}
 
-      {taskFormOpen && phase === 'executing' && (
-        <div className="agent-team-task-form">
-          <input
-            value={taskTitle}
-            onChange={(event) => setTaskTitle(event.target.value)}
-            placeholder="Task title"
-            disabled={readOnly}
-          />
-          <input
-            value={taskDescription}
-            onChange={(event) => setTaskDescription(event.target.value)}
-            placeholder="Task instructions"
-            disabled={readOnly}
-          />
-          <select value={taskOwner} onChange={(event) => setTaskOwner(event.target.value)} disabled={readOnly}>
-            <option value="">Any teammate</option>
-            {teammates.map((agent) => (
-              <option key={agent.id} value={agent.id}>{agent.name}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleCreateTask}
-            disabled={readOnly || !taskTitle.trim() || !taskDescription.trim()}
-          >
-            Create
-          </button>
-        </div>
-      )}
-
+      {renderGraphFullscreen()}
       {renderAgentInspector()}
 
       {selectedArtifact && (

@@ -26,7 +26,7 @@ import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
-import type { CanvasNode } from '../../types';
+import type { AgentNodeData, CanvasNode } from '../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../shared/experimental-features';
 
@@ -34,6 +34,12 @@ const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
     .canvasWorkspace?.pluginFlags ?? {};
 const AGENT_TEAMS_ENABLED = PLUGIN_FLAGS[EXPERIMENTAL_FLAG_AGENT_TEAMS] === true;
+
+const isAgentTeamTeammateNode = (node: CanvasNode): boolean => {
+  if (node.type !== 'agent') return false;
+  const data = node.data as AgentNodeData;
+  return !!data.agentTeamId && data.agentTeamRole === 'teammate';
+};
 
 export const Canvas = ({
   canvasId,
@@ -92,6 +98,7 @@ export const Canvas = ({
    *  bulk creates the user can clearly see. */
   const handleAgentCreated = useCallback(
     (node: CanvasNode) => {
+      if (isAgentTeamTeammateNode(node)) return;
       const container = containerRef.current;
       if (!container) return;
       const rect = container.getBoundingClientRect();

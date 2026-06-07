@@ -1,5 +1,6 @@
 import { EMPTY_CANVAS_ACTIONS } from '../../constants/interaction';
 import type { CanvasNode } from '../../types';
+import { AppLogoIcon } from '../icons';
 import { useI18n } from '../../i18n';
 import './index.css';
 
@@ -15,15 +16,7 @@ export const CanvasEmptyHint = ({ onCreateNode, onOpenShortcuts }: CanvasEmptyHi
     <div className="canvas-empty-hint">
       <div className="canvas-empty-card">
         <div className="hint-icon">
-          <svg width="32" height="32" viewBox="0 0 512 512" fill="none" aria-hidden="true">
-            <path
-              d="M 80,268 H 188 L 228,178 L 260,370 L 292,148 L 328,268 H 432"
-              stroke="currentColor"
-              strokeWidth="22"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <AppLogoIcon size={34} />
         </div>
         <div className="hint-text">{t('canvas.empty.title')}</div>
         <div className="hint-sub">{t('canvas.empty.description')}</div>

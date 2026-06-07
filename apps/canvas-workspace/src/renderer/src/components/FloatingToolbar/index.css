@@ -49,10 +49,9 @@
   transition: background 0.1s, color 0.1s;
 }
 
-/* Make the SVG a block so its baseline gap doesn't misalign against the
-   text label; without this, inline SVGs sit on the text baseline and the
-   glyph reads a pixel or two low next to the label. */
-.toolbar-btn svg {
+/* Make icon media a block so baseline gaps don't misalign against labels. */
+.toolbar-btn svg,
+.toolbar-btn img {
   display: block;
   flex-shrink: 0;
 }
