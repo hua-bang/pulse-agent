@@ -1427,7 +1427,6 @@
   color: var(--text);
   cursor: pointer;
   text-align: left;
-  overflow: hidden;
   box-shadow: inset 4px 0 0 #d9dee8;
 }
 
@@ -1601,10 +1600,12 @@
   transform: rotate(180deg);
 }
 
+/* Opens upward: agent cards sit at the bottom of the frame, and the frame
+   root clips overflow, so the DAG area above is where the menu has room. */
 .agent-type-select__menu {
   position: absolute;
-  z-index: 30;
-  top: calc(100% + 4px);
+  z-index: 50;
+  bottom: calc(100% + 4px);
   left: 0;
   right: 0;
   display: flex;
@@ -1614,7 +1615,7 @@
   border: 1px solid rgba(92, 128, 183, 0.2);
   border-radius: 9px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(31, 54, 88, 0.16);
+  box-shadow: 0 -10px 28px rgba(31, 54, 88, 0.16);
 }
 
 .agent-team-frame .agent-type-select__option {
