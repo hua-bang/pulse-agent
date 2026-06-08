@@ -137,10 +137,6 @@
   font-size: 10px;
 }
 
-.agent-team-frame__mission-brief {
-  flex-shrink: 1;
-}
-
 .agent-team-frame__status-line,
 .agent-team-frame__actions {
   display: flex;
@@ -461,10 +457,6 @@
   padding: 13px 15px;
   border-bottom: 1px solid rgba(35, 131, 226, 0.1);
   background: linear-gradient(180deg, rgba(35, 131, 226, 0.05), transparent);
-}
-
-.agent-team-lead-dock__head .agent-team-panel-heading__label {
-  grid-column: 1 / -1;
 }
 
 .agent-team-lead-dock__head strong {

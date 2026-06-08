@@ -649,7 +649,6 @@ export const AgentTeamFrame = ({
   );
 
   const teamTitle = runtime?.team.name ?? data.agentTeamName ?? node.title;
-  const teamGoal = shortText(runtime?.team.goal ?? data.agentTeamGoal ?? data.label, '');
   const teamCwd = lead?.cwd
     ?? metadataString(lead?.metadata, ['cwd'])
     ?? metadataString(lead?.sessionRef?.metadata, ['cwd'])
@@ -1226,7 +1225,6 @@ export const AgentTeamFrame = ({
   const renderLeadDock = () => (
     <section className="agent-team-lead-dock" aria-label="Team Lead">
       <div className="agent-team-lead-dock__head">
-        <span className="agent-team-panel-heading__label">Team Lead</span>
         <strong>{lead?.name ?? 'Team Lead'}</strong>
         <span className={`agent-team-detail__status agent-team-detail__status--${lead?.status ?? 'idle'}`}>
           {statusLabel(lead?.status ?? 'idle')}
@@ -1831,9 +1829,6 @@ export const AgentTeamFrame = ({
             <span className="agent-team-frame__phase-label"> · {phaseTitle}</span>
           </div>
           <div className="agent-team-frame__mission">
-            <span className="agent-team-frame__mission-brief" title={teamGoal || undefined}>
-              Task · {teamGoal || 'No task brief yet'}
-            </span>
             {teamCwd && (
               <code title={teamCwd}>{compactPath(teamCwd)}</code>
             )}
