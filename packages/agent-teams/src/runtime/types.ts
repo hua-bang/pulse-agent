@@ -198,6 +198,13 @@ export interface AgentSessionAdapter {
   sendInput(sessionId: string, input: string): Promise<void>;
   interrupt(sessionId: string, mode: 'soft' | 'ctrl-c' | 'abort'): Promise<void>;
   getStatus(sessionId: string): Promise<AgentStatus>;
+  /**
+   * Optionally persist the prompt a restart/relaunch should replay for this
+   * session. Called when a task is dispatched to the agent so a later restart
+   * replays the agent's CURRENT task instead of a previously finished one.
+   * Adapters whose sessions resume by other means can omit this.
+   */
+  persistLaunchPrompt?(sessionId: string, prompt: string): Promise<void>;
   onEvent?(handler: (event: AgentSessionEvent) => void): () => void;
 }
 

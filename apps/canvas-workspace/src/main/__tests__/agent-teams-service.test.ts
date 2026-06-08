@@ -50,6 +50,7 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
   sendOrQueueAgentInput: vi.fn(async (workspaceId: string, nodeId: string, input: string) => {
     mockState.queuedInputs.push({ workspaceId, nodeId, input });
   }),
+  persistAgentNodeLaunchPrompt: vi.fn(async () => {}),
   interruptCanvasAgentNode: vi.fn(async (workspaceId: string, nodeId: string, mode: string) => {
     mockState.interrupts.push({ workspaceId, nodeId, mode });
   }),

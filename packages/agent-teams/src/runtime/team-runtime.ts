@@ -467,7 +467,11 @@ export class TeamRuntime {
       });
 
       if (this.agentSessions && owner.sessionRef) {
-        await this.agentSessions.sendInput(owner.sessionRef.sessionId, await this.formatTaskPrompt(task, tasks, owner));
+        const taskPrompt = await this.formatTaskPrompt(task, tasks, owner);
+        await this.agentSessions.sendInput(owner.sessionRef.sessionId, taskPrompt);
+        // Record this as the agent's current launch prompt so a later restart
+        // replays THIS task rather than a previously finished one.
+        await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
       }
 
       assigned.push({ ...task });
