@@ -20,21 +20,15 @@ const leaderTitle = (status?: string): string => {
   return 'Waiting for a brief';
 };
 
-const leaderBody = (status?: string): string => {
-  if (status === 'running') {
-    return 'Use the team command bar for normal changes. Open the terminal only when you want to inspect or debug the leader directly.';
-  }
-  if (status === 'done') {
-    return 'The last leader run has finished. New instructions should still go through the team command bar.';
-  }
-  if (status === 'error') {
-    return 'The leader terminal reported an error. Open the advanced terminal to inspect or restart it.';
-  }
-  return 'Use the team frame to ask for a plan. This agent will start automatically and turn the brief into teammates and tasks.';
+const statusLabel = (status?: string): string => {
+  if (status === 'running') return 'Running';
+  if (status === 'done') return 'Done';
+  if (status === 'error') return 'Error';
+  return 'Idle';
 };
 
 const summarizePrompt = (prompt?: string): string =>
-  prompt?.trim().replace(/\s+/g, ' ').slice(0, 120) || 'Waiting for the next team command.';
+  prompt?.trim().replace(/\s+/g, ' ').slice(0, 160) || 'Waiting for the next team command.';
 
 export const AgentTeamManaged = ({
   agentType,
@@ -46,10 +40,12 @@ export const AgentTeamManaged = ({
   onOpenTerminal,
 }: AgentTeamManagedProps) => {
   const agentDef = AGENT_REGISTRY.find((agent) => agent.id === agentType);
-  const displayCwd = cwd ? truncatePath(cwd, 36) : 'workspace root';
-  const actionItems = recentActions && recentActions.length > 0
+  const displayCwd = cwd ? truncatePath(cwd, 40) : 'workspace root';
+  const actionItems = (recentActions && recentActions.length > 0
     ? recentActions
-    : ['Waiting for team updates.'];
+    : ['Waiting for team updates.']
+  ).slice(0, 3);
+  const latestAction = actionItems[0];
 
   const statusClass = status ? `agent-team-managed--${status}` : 'agent-team-managed--idle';
 
@@ -59,34 +55,25 @@ export const AgentTeamManaged = ({
         <div className={`agent-team-managed ${statusClass}`}>
           <div className="agent-team-managed__header">
             <div className="agent-team-managed__icon">
-              <AgentIcon id={agentType} size={22} />
+              <AgentIcon id={agentType} size={20} />
             </div>
-            <div className="agent-team-managed__headtext">
-              <div className="agent-team-managed__eyebrow">Team Leader</div>
-              <div className="agent-team-managed__title">{leaderTitle(status)}</div>
+            <div className="agent-team-managed__title">{leaderTitle(status)}</div>
+            <span className="agent-team-managed__status">{statusLabel(status)}</span>
+          </div>
+
+          <div className="agent-team-managed__facts">
+            <div className="agent-team-managed__fact agent-team-managed__fact--decision">
+              <span>Decision</span>
+              <strong title={lastPrompt?.trim() || undefined}>{summarizePrompt(lastPrompt)}</strong>
             </div>
-          </div>
-
-          <div className="agent-team-managed__body">
-            {leaderBody(status)}
-          </div>
-
-          <div className="agent-team-managed__decision">
-            <span>Current decision</span>
-            <strong>{summarizePrompt(lastPrompt)}</strong>
-          </div>
-
-          <div className="agent-team-managed__actions">
-            <span>Recent actions</span>
-            <ul>
-              {actionItems.map((action) => (
-                <li key={action}>{action}</li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="agent-team-managed__meta">
-            {agentDef?.label ?? agentType} · {displayCwd}
+            <div className="agent-team-managed__fact">
+              <span>Activity</span>
+              <strong title={latestAction}>{latestAction}</strong>
+            </div>
+            <div className="agent-team-managed__fact">
+              <span>Agent</span>
+              <strong title={cwd}>{agentDef?.label ?? agentType} · {displayCwd}</strong>
+            </div>
           </div>
 
           {commandSlot && (
