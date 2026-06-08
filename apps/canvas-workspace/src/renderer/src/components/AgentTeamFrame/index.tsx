@@ -301,6 +301,9 @@ export const AgentTeamFrame = ({
   const lead = useMemo(() => agents.find((agent) => agent.role === 'lead'), [agents]);
   const teammates = useMemo(() => agents.filter((agent) => agent.role !== 'lead'), [agents]);
   const phase = inferPhase(snapshot?.phase, teammates, tasks, runtime?.team.status);
+  const teamStatus = runtime?.team.status ?? 'planning';
+  const isCompletedTeam = teamStatus === 'completed';
+  const shouldShowLeadCommandSlot = phase === 'briefing' || isCompletedTeam;
   const plan = snapshot?.pendingPlan;
   const teamAgentNodes = teamId
     ? (getAllNodes?.() ?? []).filter((candidate) => isTeamAgentNode(candidate, teamId))
@@ -751,7 +754,7 @@ export const AgentTeamFrame = ({
 
     const content = messageDraft.trim();
     if (!api || !workspaceId || !teamId || !lead || !content) return;
-    const taskContext = selectedTask
+    const taskContext = teamStatus !== 'completed' && selectedTask
       ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\n`
       : '';
     const result = await api.sendInput(workspaceId, teamId, lead.id, `${taskContext}${content}`);
@@ -762,7 +765,7 @@ export const AgentTeamFrame = ({
     } else {
       setError(result.error ?? 'Unable to send command.');
     }
-  }, [api, handleBriefLead, lead, messageDraft, phase, selectedTask, teamId, workspaceId]);
+  }, [api, handleBriefLead, lead, messageDraft, phase, selectedTask, teamId, teamStatus, workspaceId]);
 
   const handlePauseTeam = useCallback(async () => {
     if (!api || !workspaceId || !teamId) return;
@@ -1040,14 +1043,30 @@ export const AgentTeamFrame = ({
     );
   };
 
-  const commandDraft = phase === 'briefing' ? briefDraft : messageDraft;
-  const commandPlaceholder = phase === 'briefing'
+  const commandMode = phase === 'briefing'
+    ? 'brief'
+    : isCompletedTeam
+      ? 'next'
+      : 'message';
+  const commandDraft = commandMode === 'brief' ? briefDraft : messageDraft;
+  const commandPlaceholder = commandMode === 'brief'
     ? 'Describe the outcome, repo path, constraints, and what this team should handle...'
-    : 'Tell Team Lead what to change...';
-  const canSendCommand = phase === 'briefing'
+    : commandMode === 'next'
+      ? 'Describe the next task or follow-up this team should handle...'
+      : 'Tell Team Lead what to change...';
+  const commandLabel = commandMode === 'brief'
+    ? 'Brief Team Lead'
+    : commandMode === 'next'
+      ? 'Next Team Task'
+      : 'Message Team Lead';
+  const commandButtonLabel = commandMode === 'brief'
+    ? 'Brief'
+    : commandMode === 'next'
+      ? 'Start next task'
+      : 'Send';
+  const canSendCommand = commandMode === 'brief'
     ? !!briefDraft.trim()
     : !!messageDraft.trim() && !!lead;
-  const teamStatus = runtime?.team.status ?? 'planning';
   const canPauseTeam = phase === 'executing'
     && teamStatus !== 'paused'
     && teamStatus !== 'completed'
@@ -1062,9 +1081,9 @@ export const AgentTeamFrame = ({
     <div className={`agent-team-command agent-team-command--${placement}`} aria-label="Team command">
       <div className="agent-team-command__copy">
         <span className="agent-team-command__label">
-          {phase === 'briefing' ? 'Brief Team Lead' : 'Message Team Lead'}
+          {commandLabel}
         </span>
-        {phase === 'executing' && selectedTask && (
+        {commandMode === 'message' && selectedTask && (
           <span className={`agent-team-command__task-chip agent-team-command__task-chip--${selectedTask.status}`}>
             Task · {selectedTask.title}
           </span>
@@ -1086,11 +1105,11 @@ export const AgentTeamFrame = ({
           }}
           placeholder={commandPlaceholder}
           disabled={readOnly}
-          rows={phase === 'briefing' ? 8 : 1}
+          rows={commandMode === 'brief' ? 8 : commandMode === 'next' ? 3 : 1}
         />
       </div>
       <button type="button" onClick={() => void handleTeamCommand()} disabled={readOnly || !canSendCommand}>
-        {phase === 'briefing' ? 'Brief' : 'Send'}
+        {commandButtonLabel}
       </button>
     </div>
   );
@@ -1114,7 +1133,8 @@ export const AgentTeamFrame = ({
               rootFolder={rootFolder}
               workspaceId={workspaceId}
               workspaceName={workspaceName}
-              teamLeadBriefSlot={phase === 'briefing' ? renderTeamCommand('lead') : undefined}
+              teamLeadBriefSlot={shouldShowLeadCommandSlot ? renderTeamCommand('lead') : undefined}
+              agentTeamStatus={teamStatus}
               onUpdate={onUpdate}
               readOnly={readOnly}
             />
@@ -1143,7 +1163,7 @@ export const AgentTeamFrame = ({
               {leadNodeId && <code>{leadNodeId}</code>}
             </div>
 
-            {phase === 'briefing' && renderTeamCommand('lead')}
+            {shouldShowLeadCommandSlot && renderTeamCommand('lead')}
           </>
         )}
       </div>

@@ -132,7 +132,7 @@ export const Canvas = ({
 
   const {
     nodes, edges, loaded, externallyEditedIds,
-    addNode, updateNode, removeNode, removeNodes,
+    addNode, updateNode, removeNodes,
     syncDeletedNodes,
     moveNode, moveNodes, resizeNode,
     addEdge, updateEdge, removeEdge,
@@ -258,7 +258,9 @@ export const Canvas = ({
     selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId,
     editingEdgeLabelId, setEditingEdgeLabelId,
-    removeNode, removeNodes, removeEdge,
+    canvasId,
+    removeNodes, removeEdge,
+    syncDeletedNodes,
     groupNodes, ungroupNodes, wrapNodesInFrame,
     notify, confirm,
   });

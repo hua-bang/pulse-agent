@@ -6,6 +6,8 @@ const mockState = vi.hoisted(() => ({
   broadcasts: [] as Array<{ workspaceId: string; nodeIds: string[]; kind: string; source: string }>,
 }));
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 vi.mock('../canvas/storage', () => ({
   readCanvasFull: vi.fn(async () => ({ data: mockState.canvas })),
   writeCanvasFull: vi.fn(async (_workspaceId: string, data: CanvasSaveData) => {
@@ -77,12 +79,14 @@ describe('agent team canvas node layout', () => {
     expect(lead.y).toBe(frame.y + 412);
     expect(lead.data.agentArgs).toBe('--disallowedTools Task');
     expect(lead.data.dangerousMode).toBe(true);
+    expect(lead.data.cliSessionId).toMatch(UUID_RE);
     expect(backend.y).toBe(lead.y);
     expect(frontend.y).toBe(lead.y);
     expect(backend.x).toBeGreaterThan(lead.x);
     expect(frontend.x).toBeGreaterThan(backend.x);
     expect(backend.data.agentArgs).toBeUndefined();
     expect(backend.data.dangerousMode).toBe(true);
+    expect(backend.data.cliSessionId).toBeUndefined();
     expect(lead.y).toBeGreaterThan(frame.y + (frame.data.agentTeamPanelHeight as number));
   });
 
@@ -359,6 +363,65 @@ describe('agent team canvas node layout', () => {
     expect(mockState.broadcasts.at(-1)).toMatchObject({
       workspaceId: 'ws-1',
       nodeIds: ['frame-1', 'agent-1'],
+      kind: 'delete',
+      source: 'agent-teams',
+    });
+  });
+
+  it('removes saved team node ids even when legacy agent data is missing the team id', async () => {
+    mockState.canvas!.nodes = [
+      {
+        id: 'frame-1',
+        type: 'frame',
+        title: 'Agent Team',
+        x: 100,
+        y: 200,
+        width: 1120,
+        height: 500,
+        data: { agentTeamId: 'team-1', agentTeamPanelHeight: 388 },
+      },
+      {
+        id: 'agent-legacy',
+        type: 'agent',
+        title: 'Legacy Codex',
+        x: 124,
+        y: 370,
+        width: 480,
+        height: 260,
+        data: { agentTeamRole: 'teammate' },
+      },
+      {
+        id: 'other-agent',
+        type: 'agent',
+        title: 'Keep me',
+        x: 700,
+        y: 370,
+        width: 480,
+        height: 260,
+        data: { agentTeamId: 'team-2' },
+      },
+    ];
+    mockState.canvas!.edges = [
+      {
+        id: 'edge-1',
+        source: { kind: 'node', nodeId: 'agent-legacy' },
+        target: { kind: 'node', nodeId: 'other-agent' },
+      },
+      {
+        id: 'edge-2',
+        source: { kind: 'node', nodeId: 'other-agent' },
+        target: { kind: 'point', x: 1, y: 2 },
+      },
+    ];
+
+    const removedIds = await removeAgentTeamCanvasNodes('ws-1', 'team-1', ['frame-1', 'agent-legacy']);
+
+    expect(removedIds).toEqual(['frame-1', 'agent-legacy']);
+    expect(mockState.canvas!.nodes.map((node) => node.id)).toEqual(['other-agent']);
+    expect(mockState.canvas!.edges?.map((edge) => edge.id)).toEqual(['edge-2']);
+    expect(mockState.broadcasts.at(-1)).toMatchObject({
+      workspaceId: 'ws-1',
+      nodeIds: ['frame-1', 'agent-legacy'],
       kind: 'delete',
       source: 'agent-teams',
     });

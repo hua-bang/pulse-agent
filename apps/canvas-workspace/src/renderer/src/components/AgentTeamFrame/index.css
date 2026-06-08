@@ -392,6 +392,7 @@
 
 .agent-team-command--lead button {
   align-self: flex-end;
+  min-width: 118px;
 }
 
 .agent-team-workspace {

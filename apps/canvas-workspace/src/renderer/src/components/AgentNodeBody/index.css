@@ -344,6 +344,13 @@
   white-space: nowrap;
 }
 
+.agent-team-managed__command {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  margin-top: 8px;
+}
+
 .agent-team-managed__terminal-button {
   justify-self: start;
   height: 30px;

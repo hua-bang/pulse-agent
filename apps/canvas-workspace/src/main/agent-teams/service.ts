@@ -344,6 +344,11 @@ const inferPhase = (
   return snapshot.team.status === 'waiting_approval' ? 'plan_review' : 'briefing';
 };
 
+const metadataCanvasNodeIds = (metadata: CanvasAgentTeamMetadata | undefined): string[] => [
+  metadata?.frameNodeId,
+  ...Object.values(metadata?.agentNodeIds ?? {}),
+].filter((nodeId): nodeId is string => typeof nodeId === 'string' && nodeId.length > 0);
+
 const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: string, cwd?: string): string => [
   `You are the Team Leader for "${teamName}" in Pulse Canvas.`,
   '',
@@ -759,9 +764,19 @@ export class CanvasAgentTeamsService {
   }
 
   async deleteTeam(workspaceId: string, teamId: string): Promise<{ deletedNodeIds: string[] }> {
-    const { runtime } = this.getBundle(workspaceId);
-    await runtime.deleteTeam(teamId);
-    const deletedNodeIds = await removeAgentTeamCanvasNodes(workspaceId, teamId);
+    const { runtime, store } = this.getBundle(workspaceId);
+    const metadata = await store.getTeamMetadata(teamId);
+    const knownNodeIds = metadataCanvasNodeIds(metadata);
+
+    try {
+      await runtime.deleteTeam(teamId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message !== `Team not found: ${teamId}`) throw err;
+      await store.deleteTeam(teamId);
+    }
+
+    const deletedNodeIds = await removeAgentTeamCanvasNodes(workspaceId, teamId, knownNodeIds);
     for (const nodeId of deletedNodeIds) {
       this.outputBuffers.delete(`${workspaceId}:${nodeId}`);
     }
@@ -884,7 +899,7 @@ export class CanvasAgentTeamsService {
     agentRef: string,
     content: string,
   ): Promise<CanvasAgentTeamSnapshot> {
-    const { runtime } = this.getBundle(workspaceId);
+    const { runtime, store } = this.getBundle(workspaceId);
     const snapshot = await runtime.snapshot(teamId);
     const agent = this.resolveAgentReference(snapshot.agents, agentRef);
     const input = agent.role === 'lead'
@@ -898,6 +913,17 @@ export class CanvasAgentTeamsService {
       await runtime.answerHumanGate(openGate.id, input);
       await runtime.dispatchReadyTasks(teamId);
       return this.snapshot(workspaceId, teamId);
+    }
+
+    if (agent.role === 'lead' && snapshot.team.status === 'completed') {
+      const latestAgent = await store.getAgent(agent.id);
+      if (latestAgent) {
+        latestAgent.status = 'running';
+        latestAgent.currentTaskId = undefined;
+        latestAgent.updatedAt = Date.now();
+        await store.saveAgent(latestAgent);
+      }
+      await runtime.setTeamStatus(teamId, 'running', 'human');
     }
 
     await runtime.sendToAgent(agent.id, input);
