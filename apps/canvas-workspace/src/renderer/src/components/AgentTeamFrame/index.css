@@ -1168,6 +1168,17 @@
   border-bottom-color: #438de1;
 }
 
+.agent-team-agent-detail__activity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-team-agent-detail__viewer--terminal {
+  flex: 1 1 auto;
+  min-height: 280px;
+}
+
 .agent-team-agent-detail__inline-terminal {
   height: 240px;
   min-height: 0;
@@ -1175,6 +1186,12 @@
   border: 1px solid rgba(92, 128, 183, 0.16);
   border-radius: 8px;
   background: #0f1115;
+}
+
+.agent-team-agent-detail__viewer--terminal .agent-team-agent-detail__inline-terminal {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 240px;
 }
 
 .agent-team-agent-detail__inline-terminal > * {

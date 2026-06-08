@@ -1187,28 +1187,7 @@ export const AgentTeamFrame = ({
           </span>
         </div>
 
-        <div className="agent-team-agent-detail__meta">
-          <span className="agent-team-detail__agent-type">
-            <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
-            {agentTypeLabel(selectedGraphAgent.agentType)}
-          </span>
-          {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
-          <span>{agentData?.cwd || rootFolder || 'No workspace'}</span>
-        </div>
-
-        <div className="agent-team-agent-detail__stats">
-          <span><strong>{selectedGraphAgent.taskCount}</strong> tasks</span>
-          <span><strong>{selectedGraphAgent.runningCount}</strong> running</span>
-          <span><strong>{selectedGraphAgent.blockedCount}</strong> blocked</span>
-          <span><strong>{selectedGraphAgent.artifactCount}</strong> artifacts</span>
-        </div>
-
-        <div className="agent-team-agent-detail__section">
-          <span className="agent-team-detail__section-title">Current task</span>
-          <strong>{selectedGraphAgent.currentTaskTitle ?? 'No active task'}</strong>
-        </div>
-
-        <div className="agent-team-agent-detail__viewer">
+        <div className={`agent-team-agent-detail__viewer${agentViewMode === 'terminal' ? ' agent-team-agent-detail__viewer--terminal' : ''}`}>
           <div className="agent-team-subtabs" role="tablist" aria-label="Agent view">
             <button
               type="button"
@@ -1242,13 +1221,70 @@ export const AgentTeamFrame = ({
             </button>
           </div>
           {agentViewMode === 'activity' ? (
-            <div className="agent-team-agent-detail__section">
-              <span className="agent-team-detail__section-title">Recent output</span>
-              {activityLines.length === 0 ? (
-                <span className="agent-team-detail__muted">No readable output yet.</span>
-              ) : activityLines.map((line, index) => (
-                <span key={`${index}-${line}`} className="agent-team-agent-detail__output">{line}</span>
-              ))}
+            <div className="agent-team-agent-detail__activity">
+              <div className="agent-team-agent-detail__meta">
+                <span className="agent-team-detail__agent-type">
+                  <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
+                  {agentTypeLabel(selectedGraphAgent.agentType)}
+                </span>
+                {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
+                <span>{agentData?.cwd || rootFolder || 'No workspace'}</span>
+              </div>
+
+              <div className="agent-team-agent-detail__stats">
+                <span><strong>{selectedGraphAgent.taskCount}</strong> tasks</span>
+                <span><strong>{selectedGraphAgent.runningCount}</strong> running</span>
+                <span><strong>{selectedGraphAgent.blockedCount}</strong> blocked</span>
+                <span><strong>{selectedGraphAgent.artifactCount}</strong> artifacts</span>
+              </div>
+
+              <div className="agent-team-agent-detail__section">
+                <span className="agent-team-detail__section-title">Current task</span>
+                <strong>{selectedGraphAgent.currentTaskTitle ?? 'No active task'}</strong>
+              </div>
+
+              <div className="agent-team-agent-detail__section">
+                <span className="agent-team-detail__section-title">Assigned tasks</span>
+                {ownedTasks.length === 0 ? (
+                  <span className="agent-team-detail__muted">No assigned tasks.</span>
+                ) : ownedTasks.map((task) => (
+                  <button
+                    key={task.key}
+                    type="button"
+                    className={`agent-team-agent-detail__task agent-team-agent-detail__task--${task.status}`}
+                    onClick={() => selectGraphTask(task)}
+                  >
+                    <strong>{task.title}</strong>
+                    <span>{statusLabel(task.status)}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="agent-team-agent-detail__section">
+                <span className="agent-team-detail__section-title">Artifacts</span>
+                {agentArtifacts.length === 0 ? (
+                  <span className="agent-team-detail__muted">None yet</span>
+                ) : agentArtifacts.map((artifact) => (
+                  <button
+                    key={artifact.id}
+                    type="button"
+                    className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
+                    title={artifact.summary ?? artifact.uri ?? ''}
+                    onClick={() => setSelectedArtifactId(artifact.id)}
+                  >
+                    {artifactLabel(artifact)}
+                  </button>
+                ))}
+              </div>
+
+              <div className="agent-team-agent-detail__section">
+                <span className="agent-team-detail__section-title">Recent output</span>
+                {activityLines.length === 0 ? (
+                  <span className="agent-team-detail__muted">No readable output yet.</span>
+                ) : activityLines.map((line, index) => (
+                  <span key={`${index}-${line}`} className="agent-team-agent-detail__output">{line}</span>
+                ))}
+              </div>
             </div>
           ) : agentNode ? (
             <div className="agent-team-agent-detail__inline-terminal">
@@ -1269,41 +1305,6 @@ export const AgentTeamFrame = ({
             </div>
           )}
         </div>
-
-        <div className="agent-team-agent-detail__section">
-          <span className="agent-team-detail__section-title">Assigned tasks</span>
-          {ownedTasks.length === 0 ? (
-            <span className="agent-team-detail__muted">No assigned tasks.</span>
-          ) : ownedTasks.map((task) => (
-            <button
-              key={task.key}
-              type="button"
-              className={`agent-team-agent-detail__task agent-team-agent-detail__task--${task.status}`}
-              onClick={() => selectGraphTask(task)}
-            >
-              <strong>{task.title}</strong>
-              <span>{statusLabel(task.status)}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="agent-team-agent-detail__section">
-          <span className="agent-team-detail__section-title">Artifacts</span>
-          {agentArtifacts.length === 0 ? (
-            <span className="agent-team-detail__muted">None yet</span>
-          ) : agentArtifacts.map((artifact) => (
-            <button
-              key={artifact.id}
-              type="button"
-              className="agent-team-detail__pill agent-team-detail__pill--artifact agent-team-detail__artifact-button"
-              title={artifact.summary ?? artifact.uri ?? ''}
-              onClick={() => setSelectedArtifactId(artifact.id)}
-            >
-              {artifactLabel(artifact)}
-            </button>
-          ))}
-        </div>
-
       </>
     );
   };
