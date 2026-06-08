@@ -23,7 +23,7 @@ const LEGACY_SKILL_DIRS = SKILL_PARENT_DIRS.flatMap((dir) =>
   LEGACY_SKILL_NAMES.map((name) => join(dir, name)),
 );
 
-const MANUAL_COMMAND = `pnpm --filter ${CLI_PACKAGE} build && pnpm link --global --filter ${CLI_PACKAGE}`;
+const MANUAL_COMMAND = `pnpm --filter ${CLI_PACKAGE} build && pnpm -C packages/canvas-cli link --global`;
 
 // Fallback skill body used when the canonical source under
 // packages/canvas-cli/skills cannot be located (e.g. a packaged build with
@@ -167,10 +167,14 @@ async function installCanvasCli(): Promise<CliInstallResult> {
         'Could not locate the monorepo root (pnpm-workspace.yaml not found). CLI auto-install only works from a source checkout.',
     };
   }
-  const opts = { cwd: root, env: process.env, maxBuffer: 16 * 1024 * 1024 } as const;
+  const pkgDir = join(root, 'packages', 'canvas-cli');
+  const baseOpts = { env: process.env, maxBuffer: 16 * 1024 * 1024 } as const;
   try {
-    await execFileAsync('pnpm', ['--filter', CLI_PACKAGE, 'build'], opts);
-    await execFileAsync('pnpm', ['link', '--global', '--filter', CLI_PACKAGE], opts);
+    // `--filter` works for running the build script across the workspace, but
+    // `pnpm link` rejects filter/recursive flags — link must run *inside* the
+    // package directory instead.
+    await execFileAsync('pnpm', ['--filter', CLI_PACKAGE, 'build'], { ...baseOpts, cwd: root });
+    await execFileAsync('pnpm', ['link', '--global'], { ...baseOpts, cwd: pkgDir });
     return { ok: true };
   } catch (err: any) {
     const stderr = typeof err?.stderr === 'string' ? err.stderr : err?.stderr?.toString?.();
