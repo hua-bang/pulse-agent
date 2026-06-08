@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { AgentNodeBody } from '../AgentNodeBody';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
+import { AgentTypeSelect } from './AgentTypeSelect';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import type {
   AgentNodeData,
@@ -1481,28 +1482,21 @@ export const AgentTeamFrame = ({
                 {statusLabel(agent.status)}
               </span>
               {editable ? (
-                <label
+                <div
                   className="agent-team-summary-agent__agent-select"
                   onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
                 >
                   <span className="agent-team-summary-agent__agent-select-label">Coding agent</span>
-                  <select
+                  <AgentTypeSelect
                     value={TEAM_AGENT_OPTIONS.some((def) => def.id === agent.agentType)
-                      ? agent.agentType
+                      ? (agent.agentType as string)
                       : TEAM_AGENT_OPTIONS[0].id}
-                    aria-label={`Coding agent for ${agent.name}`}
-                    onClick={(event) => event.stopPropagation()}
-                    onKeyDown={(event) => event.stopPropagation()}
-                    onChange={(event) => {
-                      event.stopPropagation();
-                      void handleUpdatePlanTeammate(agent.name, event.target.value);
-                    }}
-                  >
-                    {TEAM_AGENT_OPTIONS.map((def) => (
-                      <option key={def.id} value={def.id}>{def.label}</option>
-                    ))}
-                  </select>
-                </label>
+                    options={TEAM_AGENT_OPTIONS}
+                    ariaLabel={`Coding agent for ${agent.name}`}
+                    onChange={(id) => void handleUpdatePlanTeammate(agent.name, id)}
+                  />
+                </div>
               ) : (
                 <span className="agent-team-summary-agent__task">
                   {agent.currentTaskTitle ?? `${agent.taskCount} task${agent.taskCount === 1 ? '' : 's'}`}
