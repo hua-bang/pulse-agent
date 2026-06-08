@@ -612,6 +612,25 @@
   opacity: 1;
 }
 
+/* Frames opt out of the floating-popover treatment above. A frame's header is
+   already an absolutely-positioned, reverse-scaled tab that stays readable at
+   every zoom, so it doesn't need the detached popover. Worse: because that tab
+   is itself position:absolute, the generic rule anchors .node-header__actions
+   to the narrow tab (and inherits its scale transform) instead of the card,
+   leaving the buttons floating detached off the frame's top-left corner. Keep
+   them inline in the tab — exactly how they render at normal zoom. */
+.canvas-transform--small .canvas-node--frame .node-header__actions {
+  position: static;
+  transform: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
 .node-body {
   flex: 1;
   overflow: hidden;
