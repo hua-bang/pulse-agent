@@ -3,6 +3,7 @@ import './index.css';
 import { AgentNodeBody } from '../AgentNodeBody';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { AgentTypeSelect } from './AgentTypeSelect';
+import { useAppShell } from '../AppShellProvider';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import type {
   AgentNodeData,
@@ -311,6 +312,7 @@ export const AgentTeamFrame = ({
   const commandRef = useRef<HTMLTextAreaElement>(null);
   const inlineGraphViewportRef = useRef<HTMLDivElement>(null);
   const fullscreenGraphViewportRef = useRef<HTMLDivElement>(null);
+  const { confirm } = useAppShell();
 
   const api = window.canvasWorkspace?.agentTeams;
   const runtime = snapshot?.runtime;
@@ -881,11 +883,13 @@ export const AgentTeamFrame = ({
 
   const handleDeleteTeam = useCallback(async () => {
     if (!api || !workspaceId || !teamId) return;
-    const accepted = window.confirm([
-      `Delete Agent Team "${teamTitle}"?`,
-      'This removes the Agent Team frame, Team Lead, teammates, and their Coding Agent nodes from the canvas.',
-      'This action cannot be undone.',
-    ].join('\n\n'));
+    const accepted = await confirm({
+      intent: 'danger',
+      title: `Delete Agent Team "${teamTitle}"?`,
+      description:
+        'This removes the Agent Team frame, Team Lead, teammates, and their Coding Agent nodes from the canvas. This action cannot be undone.',
+      confirmLabel: 'Delete team',
+    });
     if (!accepted) return;
 
     setTeamAction('delete');
@@ -900,7 +904,7 @@ export const AgentTeamFrame = ({
     } else {
       setError(result.error ?? 'Unable to delete the Agent Team.');
     }
-  }, [api, onRemoveNodes, teamId, teamTitle, workspaceId]);
+  }, [api, confirm, onRemoveNodes, teamId, teamTitle, workspaceId]);
 
   const handleAnswerGate = useCallback(async (gateId: string) => {
     if (!api || !workspaceId) return;
