@@ -1115,6 +1115,7 @@ export const AgentTeamFrame = ({
               workspaceId={workspaceId}
               workspaceName={workspaceName}
               teamLeadBriefSlot={phase === 'briefing' ? renderTeamCommand('lead') : undefined}
+              agentTeamStatus={teamStatus}
               onUpdate={onUpdate}
               readOnly={readOnly}
             />

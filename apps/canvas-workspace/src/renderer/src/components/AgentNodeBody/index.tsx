@@ -76,6 +76,7 @@ export const AgentNodeBody = ({
   rootFolder,
   workspaceId,
   teamLeadBriefSlot,
+  agentTeamStatus,
   onUpdate,
   readOnly = false,
   terminalMode = 'owner',
@@ -92,6 +93,15 @@ export const AgentNodeBody = ({
   const [leadSnapshot, setLeadSnapshot] = useState<AgentTeamSnapshot | null>(null);
   const isTeamLead = controller.data.agentTeamRole === 'lead';
   const leadRecentActions = useMemo(() => summarizeTeamLeadActions(leadSnapshot), [leadSnapshot]);
+  const leadTeamStatus = agentTeamStatus ?? leadSnapshot?.runtime.team.status;
+  const suppressFinishedTeamLeadRestart = isTeamLead
+    && controller.viewMode === 'restart'
+    && (leadTeamStatus === 'completed' || leadTeamStatus === 'failed');
+  const managedLeadStatus = leadTeamStatus === 'completed'
+    ? 'done'
+    : leadTeamStatus === 'failed'
+      ? 'error'
+      : controller.status;
 
   useEffect(() => {
     const teamId = controller.data.agentTeamId;
@@ -153,6 +163,18 @@ export const AgentNodeBody = ({
     return terminalView;
   }
 
+  if (suppressFinishedTeamLeadRestart) {
+    return (
+      <AgentTeamManaged
+        agentType={controller.data.agentType || controller.selectedAgent || 'claude-code'}
+        cwd={controller.data.cwd || rootFolder}
+        status={managedLeadStatus}
+        lastPrompt={controller.data.lastInitPrompt}
+        recentActions={leadRecentActions}
+      />
+    );
+  }
+
   if (controller.viewMode === 'setup') {
     return (
       <AgentPicker
@@ -196,7 +218,7 @@ export const AgentNodeBody = ({
       <AgentTeamManaged
         agentType={controller.data.agentType || controller.selectedAgent || 'claude-code'}
         cwd={controller.data.cwd || rootFolder}
-        status={controller.status}
+        status={managedLeadStatus}
         lastPrompt={controller.data.lastInitPrompt}
         recentActions={leadRecentActions}
       />

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { CanvasNode } from '../../types';
+import type { AgentTeamStatus, CanvasNode } from '../../types';
 
 export interface AgentNodeBodyProps {
   node: CanvasNode;
@@ -8,6 +8,7 @@ export interface AgentNodeBodyProps {
   workspaceId?: string;
   workspaceName?: string;
   teamLeadBriefSlot?: ReactNode;
+  agentTeamStatus?: AgentTeamStatus;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   readOnly?: boolean;
   terminalMode?: 'owner' | 'mirror';
