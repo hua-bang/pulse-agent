@@ -251,6 +251,7 @@
 .canvas-node--embedded .node-focus,
 .canvas-node--embedded .node-close,
 .canvas-node--embedded .node-reference,
+.canvas-node--embedded .node-add-to-chat,
 .canvas-node--embedded .node-fullscreen,
 .canvas-node--embedded .resize-handle,
 .canvas-node--embedded .node-time-label {
@@ -612,14 +613,17 @@
   opacity: 1;
 }
 
-/* Frames opt out of the floating-popover treatment above. A frame's header is
-   already an absolutely-positioned, reverse-scaled tab that stays readable at
-   every zoom, so it doesn't need the detached popover. Worse: because that tab
-   is itself position:absolute, the generic rule anchors .node-header__actions
-   to the narrow tab (and inherits its scale transform) instead of the card,
-   leaving the buttons floating detached off the frame's top-left corner. Keep
+/* Frames and groups opt out of the floating-popover treatment above. Both
+   render their header as an absolutely-positioned, reverse-scaled tab that
+   already stays readable at every zoom, so they don't need the detached
+   popover. Worse: because that tab is itself position:absolute, the generic
+   rule anchors .node-header__actions to the narrow tab and — since the tab
+   carries its own counter-scale — the popover inherits that scale AND applies
+   its own on top, double-scaling the buttons into an oversized pill that grows
+   the further you zoom out (and floats detached off the tab's corner). Keep
    them inline in the tab — exactly how they render at normal zoom. */
-.canvas-transform--small .canvas-node--frame .node-header__actions {
+.canvas-transform--small .canvas-node--frame .node-header__actions,
+.canvas-transform--small .canvas-node--group .node-header__actions {
   position: static;
   transform: none;
   padding: 0;
@@ -886,6 +890,7 @@
 }
 
 .canvas-node--group .node-header .node-reference,
+.canvas-node--group .node-header .node-add-to-chat,
 .canvas-node--group .node-header .node-focus,
 .canvas-node--group .node-header .node-close,
 .canvas-node--group .node-header .node-time-label {
