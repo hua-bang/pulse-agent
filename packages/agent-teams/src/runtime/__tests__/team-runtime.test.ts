@@ -93,6 +93,41 @@ describe('TeamRuntime', () => {
     ]);
   });
 
+  it('groups follow-up tasks into a new round once the previous batch is finished', async () => {
+    const { runtime } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+
+    // Initial plan: tasks created back-to-back share round 1.
+    const first = await runtime.createTask({ teamId: team.id, title: 'First', description: 'Do first' });
+    const second = await runtime.createTask({ teamId: team.id, title: 'Second', description: 'Do second' });
+    expect(first.metadata?.round).toBe(1);
+    expect(second.metadata?.round).toBe(1);
+
+    // A task added while round 1 is still active stays in round 1.
+    await runtime.completeTask(first.id, 'done');
+    const third = await runtime.createTask({ teamId: team.id, title: 'Third', description: 'Still round 1' });
+    expect(third.metadata?.round).toBe(1);
+
+    // Once every existing task is terminal, the next task starts round 2.
+    await runtime.completeTask(second.id, 'done');
+    await runtime.completeTask(third.id, 'done');
+    const followUp = await runtime.createTask({ teamId: team.id, title: 'Follow-up', description: 'New work' });
+    expect(followUp.metadata?.round).toBe(2);
+
+    // Subsequent tasks in the same follow-up wave join the current round.
+    const followUpTwo = await runtime.createTask({ teamId: team.id, title: 'Follow-up 2', description: 'More work' });
+    expect(followUpTwo.metadata?.round).toBe(2);
+
+    // An explicit round in metadata is honored.
+    const pinned = await runtime.createTask({
+      teamId: team.id,
+      title: 'Pinned',
+      description: 'Explicit round',
+      metadata: { round: 5 },
+    });
+    expect(pinned.metadata?.round).toBe(5);
+  });
+
   it('dispatches ready tasks to idle teammate sessions', async () => {
     const { runtime, adapter } = createRuntime();
     const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });

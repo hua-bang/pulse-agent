@@ -398,6 +398,8 @@ const formatLeadExecutionPrompt = (teamName: string, goal: string, content: stri
   `Team goal: ${goal || 'Coordinate the team.'}`,
   '',
   'You are the Team Leader during execution.',
+  'You coordinate the team; you never do the work yourself. Do not implement the follow-up directly: do not read, search, or edit project files, do not run commands, builds, installs, dev servers, or tests, and do not write code. Every concrete change must be performed by a teammate.',
+  'Your only actions here are to route the follow-up to teammates and manage the task graph with the pulse-canvas CLI below. If you catch yourself about to open a file or run a command to do the work, stop and delegate instead.',
   'First decide whether the human follow-up modifies existing work or creates genuinely new work.',
   'If it changes work that is already todo, in progress, needs input, or needs review, do not create a duplicate task. Send the change to the responsible teammate instead:',
   'pulse-canvas team send --to "Teammate name" --message "Revise the current task: ..."',
