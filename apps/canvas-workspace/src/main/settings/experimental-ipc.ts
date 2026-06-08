@@ -16,8 +16,10 @@ import { homedir } from 'os';
 import { dirname, join } from 'path';
 import {
   EXPERIMENTAL_FEATURES,
+  EXPERIMENTAL_FLAG_AGENT_TEAMS,
   resolveFeatureValues,
 } from '../../shared/experimental-features';
+import { runInstall } from '../files/skill-installer';
 
 function getPath(): string {
   const envPath = process.env.PULSE_CANVAS_EXPERIMENTAL_FEATURES?.trim();
@@ -100,7 +102,7 @@ export function setupExperimentalIpc(): void {
 
   ipcMain.handle(
     'experimental:set',
-    async (_event, payload: { id: string; enabled: boolean }) => {
+    async (event, payload: { id: string; enabled: boolean }) => {
       try {
         if (!payload || typeof payload.id !== 'string') {
           return { ok: false, error: 'Missing flag id' };
@@ -109,8 +111,64 @@ export function setupExperimentalIpc(): void {
           return { ok: false, error: `Unknown experimental feature: ${payload.id}` };
         }
         const overrides = await readOverrides();
+        const wasEnabled = resolveFeatureValues(overrides)[payload.id] === true;
         overrides[payload.id] = !!payload.enabled;
         await writeOverrides(overrides);
+
+        // When Agent Teams is turned on (off→on), install the latest canvas
+        // skill + CLI in the background. Experimental/dev-only: skill files
+        // land in the global skill dirs and the CLI is built + `pnpm link`-ed.
+        // Fire-and-forget so the toggle stays responsive; the manual
+        // Settings → Agent button re-runs the same routine with full feedback.
+        if (
+          payload.id === EXPERIMENTAL_FLAG_AGENT_TEAMS &&
+          payload.enabled &&
+          !wasEnabled
+        ) {
+          const sender = event.sender;
+          const pushStatus = (status: {
+            ok: boolean;
+            skillsInstalled: boolean;
+            cliInstalled: boolean;
+            cliError?: string | null;
+            manualCommand?: string | null;
+          }) => {
+            if (!sender.isDestroyed()) {
+              sender.send('experimental:tooling-status', { feature: payload.id, ...status });
+            }
+          };
+          void runInstall()
+            .then((result) => {
+              if (!result.skillsInstalled) {
+                console.warn('[experimental] agent-teams skill install incomplete', result.results);
+              }
+              if (!result.cliInstalled) {
+                console.warn(
+                  `[experimental] agent-teams CLI install skipped/failed: ${result.cliError ?? 'unknown'}. Run manually: ${result.manualCommand}`,
+                );
+              } else {
+                console.log('[experimental] agent-teams skill + CLI installed');
+              }
+              pushStatus({
+                ok: result.ok,
+                skillsInstalled: result.skillsInstalled,
+                cliInstalled: result.cliInstalled,
+                cliError: result.cliError,
+                manualCommand: result.manualCommand,
+              });
+            })
+            .catch((err) => {
+              console.error('[experimental] agent-teams tooling install errored', err);
+              pushStatus({
+                ok: false,
+                skillsInstalled: false,
+                cliInstalled: false,
+                cliError: err instanceof Error ? err.message : String(err),
+                manualCommand: null,
+              });
+            });
+        }
+
         return { ok: true, values: resolveFeatureValues(overrides) };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };

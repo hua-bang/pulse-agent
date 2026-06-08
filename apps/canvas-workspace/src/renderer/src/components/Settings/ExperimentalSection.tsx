@@ -1,6 +1,9 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { ExperimentalFeatureDef } from '../../types';
-import { EXPERIMENTAL_FLAG_CHANNELS } from '../../../../shared/experimental-features';
+import {
+  EXPERIMENTAL_FLAG_AGENT_TEAMS,
+  EXPERIMENTAL_FLAG_CHANNELS,
+} from '../../../../shared/experimental-features';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
 import { ChannelConfigPanel } from './ChannelConfigPanel';
@@ -11,8 +14,11 @@ interface ExperimentalSectionProps {
 }
 
 export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
-  const { notify } = useAppShell();
+  const { notify, updateToast } = useAppShell();
   const { t } = useI18n();
+  // Id of the in-progress "installing tooling" toast, so the async
+  // tooling-status push from main can update it in place.
+  const toolingToastRef = useRef<string | null>(null);
   const [features, setFeatures] = useState<ExperimentalFeatureDef[]>([]);
   const [values, setValues] = useState<Record<string, boolean>>({});
   const [path, setPath] = useState<string>('');
@@ -45,6 +51,38 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
     void load();
   }, [load]);
 
+  // Subscribe to background tooling-install results pushed from main and
+  // resolve the in-progress toast (or surface a standalone toast as fallback).
+  useEffect(() => {
+    const off = window.canvasWorkspace.experimental.onToolingStatus((status) => {
+      if (status.feature !== EXPERIMENTAL_FLAG_AGENT_TEAMS) return;
+      const patch = status.ok
+        ? {
+            tone: 'success' as const,
+            title: t('experimental.toolingReady'),
+            description: t('experimental.toolingReadyDesc'),
+            autoCloseMs: 6000,
+          }
+        : {
+            tone: 'error' as const,
+            title: t('experimental.toolingCliFailed'),
+            description: t('experimental.toolingCliFailedDesc', {
+              error: status.cliError ?? t('experimental.unknownError'),
+              command: status.manualCommand ?? '',
+            }),
+            autoCloseMs: 0,
+          };
+      const id = toolingToastRef.current;
+      if (id) {
+        updateToast(id, patch);
+        toolingToastRef.current = null;
+      } else {
+        notify(patch);
+      }
+    });
+    return off;
+  }, [notify, updateToast, t]);
+
   const toggle = useCallback(
     async (id: string, enabled: boolean) => {
       setPending((p) => ({ ...p, [id]: true }));
@@ -63,6 +101,16 @@ export const ExperimentalSection = ({ onClose }: ExperimentalSectionProps) => {
         }
         if (res.values) setValues(res.values);
         setNeedsReload(true);
+        // Turning Agent Teams on kicks off a background skill + CLI install in
+        // main. Show a persistent "installing" toast now; the tooling-status
+        // subscription updates it with the result when the install settles.
+        if (id === EXPERIMENTAL_FLAG_AGENT_TEAMS && enabled && !previous) {
+          toolingToastRef.current = notify({
+            tone: 'loading',
+            title: t('experimental.toolingInstalling'),
+            description: t('experimental.toolingInstallingDesc'),
+          });
+        }
       } catch (err) {
         setValues((v) => ({ ...v, [id]: previous ?? false }));
         notify({

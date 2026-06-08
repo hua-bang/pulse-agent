@@ -373,6 +373,14 @@ const en = {
   'experimental.toggleFeature': 'Toggle {label}',
   'experimental.resetAll': 'Reset all to defaults',
   'experimental.close': 'Close',
+  'experimental.toolingInstalling': 'Installing Agent Teams tooling…',
+  'experimental.toolingInstallingDesc':
+    'Writing the canvas skill and linking the pulse-canvas CLI in the background.',
+  'experimental.toolingReady': 'Agent Teams tooling ready',
+  'experimental.toolingReadyDesc': 'Canvas skill installed and pulse-canvas CLI linked.',
+  'experimental.toolingCliFailed': 'CLI not linked',
+  'experimental.toolingCliFailedDesc':
+    'Skill installed, but the CLI step failed: {error} Run manually: {command}',
 
   'workspaceSettings.kicker': 'Workspace Settings',
   'workspaceSettings.ariaLabel': 'Workspace settings',
@@ -936,6 +944,12 @@ const zh: Record<keyof typeof en, string> = {
   'experimental.toggleFeature': '切换 {label}',
   'experimental.resetAll': '全部恢复默认',
   'experimental.close': '关闭',
+  'experimental.toolingInstalling': '正在安装 Agent Teams 工具…',
+  'experimental.toolingInstallingDesc': '正在后台写入 canvas skill 并链接 pulse-canvas CLI。',
+  'experimental.toolingReady': 'Agent Teams 工具已就绪',
+  'experimental.toolingReadyDesc': 'canvas skill 已安装，pulse-canvas CLI 已链接。',
+  'experimental.toolingCliFailed': 'CLI 未链接',
+  'experimental.toolingCliFailedDesc': 'skill 已安装，但 CLI 步骤失败：{error} 可手动运行：{command}',
 
   'workspaceSettings.kicker': '工作区设置',
   'workspaceSettings.ariaLabel': '工作区设置',
