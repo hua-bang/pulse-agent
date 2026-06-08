@@ -63,6 +63,7 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
 }));
 
 import { CanvasAgentTeamsService } from '../agent-teams/service';
+import { removeAgentTeamCanvasNodes } from '../agent-teams/canvas-nodes';
 import type { CanvasAgentTeamSnapshot } from '../agent-teams/types';
 
 const plan = {
@@ -117,6 +118,7 @@ const createExecutingTeam = async (service: CanvasAgentTeamsService): Promise<Ca
 
 describe('CanvasAgentTeamsService', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mockState.root = join(tmpdir(), `canvas-agent-teams-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mockState.createdTeams.length = 0;
     mockState.createdAgents.length = 0;
@@ -463,6 +465,27 @@ describe('CanvasAgentTeamsService', () => {
       nodeId: owner.sessionRef!.sessionId,
     });
     expect(mockState.queuedInputs.at(-1)?.input).toContain(task.title);
+  });
+
+  it('passes saved canvas node ids into cleanup when deleting a team', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const expectedIds = [
+      created.frameNodeId,
+      ...created.runtime.agents.map((agent) => agent.sessionRef?.sessionId),
+    ].filter((nodeId): nodeId is string => !!nodeId);
+    vi.mocked(removeAgentTeamCanvasNodes).mockResolvedValueOnce(expectedIds);
+
+    const result = await service.deleteTeam('ws-1', teamId);
+
+    expect(result.deletedNodeIds).toEqual(expectedIds);
+    expect(removeAgentTeamCanvasNodes).toHaveBeenLastCalledWith(
+      'ws-1',
+      teamId,
+      expect.arrayContaining(expectedIds),
+    );
+    await expect(service.listTeams('ws-1')).resolves.toEqual([]);
   });
 
   it('treats direct teammate input as an answer to that teammate open gate', async () => {

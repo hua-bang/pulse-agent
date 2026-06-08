@@ -1,5 +1,5 @@
 import { useCallback, type MutableRefObject } from 'react';
-import type { CanvasEdge, CanvasNode } from '../../../types';
+import type { AgentNodeData, CanvasEdge, CanvasNode, FrameNodeData } from '../../../types';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { exportMindmapNodeToPng } from '../../../utils/mindmapExport';
 
@@ -25,8 +25,9 @@ interface Options {
   setSelectedEdgeId: React.Dispatch<React.SetStateAction<string | null>>;
   editingEdgeLabelId: string | null;
   setEditingEdgeLabelId: (id: string | null) => void;
-  removeNode: (id: string) => void;
+  canvasId: string;
   removeNodes: (ids: string[]) => void;
+  syncDeletedNodes: (ids: string[]) => void;
   removeEdge: (id: string) => void;
   groupNodes: (ids: string[]) => CanvasNode | null;
   ungroupNodes: (ids: string[]) => string[];
@@ -34,6 +35,18 @@ interface Options {
   notify: (args: NotifyArgs) => void;
   confirm: (args: ConfirmArgs) => Promise<boolean>;
 }
+
+const getAgentTeamId = (node: CanvasNode): string | undefined => {
+  if (node.type === 'frame') {
+    const data = node.data as Partial<FrameNodeData>;
+    return typeof data.agentTeamId === 'string' && data.agentTeamId ? data.agentTeamId : undefined;
+  }
+  if (node.type === 'agent') {
+    const data = node.data as Partial<AgentNodeData>;
+    return typeof data.agentTeamId === 'string' && data.agentTeamId ? data.agentTeamId : undefined;
+  }
+  return undefined;
+};
 
 /**
  * Bundles the canvas's higher-level mutation callbacks — group / ungroup
@@ -50,8 +63,9 @@ export const useCanvasNodeActions = ({
   setSelectedEdgeId,
   editingEdgeLabelId,
   setEditingEdgeLabelId,
-  removeNode,
+  canvasId,
   removeNodes,
+  syncDeletedNodes,
   removeEdge,
   groupNodes,
   ungroupNodes,
@@ -62,16 +76,64 @@ export const useCanvasNodeActions = ({
   void _selectedEdgeId;
 
   const requestRemoveNodes = useCallback(
-    (ids: string[]) => {
+    async (ids: string[]) => {
       const idSet = new Set(ids);
       const victims = nodesRef.current.filter((node) => idSet.has(node.id));
       if (victims.length === 0) return;
 
-      removeNodes(victims.map((node) => node.id));
-      const removedIds = new Set(victims.map((node) => node.id));
+      const teamIds = Array.from(new Set(
+        victims
+          .map(getAgentTeamId)
+          .filter((teamId): teamId is string => !!teamId),
+      ));
+      const teamVictimIds = new Set(
+        victims
+          .filter((node) => !!getAgentTeamId(node))
+          .map((node) => node.id),
+      );
+      const normalVictimIds = victims
+        .filter((node) => !teamVictimIds.has(node.id))
+        .map((node) => node.id);
+      const removedIds = new Set<string>();
+
+      if (teamIds.length > 0) {
+        const api = window.canvasWorkspace?.agentTeams;
+        if (!api) {
+          notify({
+            tone: 'error',
+            title: 'Agent Team delete failed',
+            description: 'Agent Team API unavailable.',
+          });
+          return;
+        }
+
+        const deletedTeamNodeIds = new Set<string>();
+        for (const teamId of teamIds) {
+          const result = await api.delete(canvasId, teamId);
+          if (!result.ok) {
+            notify({
+              tone: 'error',
+              title: 'Agent Team delete failed',
+              description: result.error ?? 'Unable to delete the Agent Team.',
+            });
+            return;
+          }
+          for (const nodeId of result.deletedNodeIds ?? []) deletedTeamNodeIds.add(nodeId);
+        }
+
+        const deletedIds = Array.from(deletedTeamNodeIds);
+        syncDeletedNodes(deletedIds);
+        for (const nodeId of deletedIds) removedIds.add(nodeId);
+      }
+
+      if (normalVictimIds.length > 0) {
+        removeNodes(normalVictimIds);
+        for (const nodeId of normalVictimIds) removedIds.add(nodeId);
+      }
+
       setSelectedNodeIds((current) => current.filter((id) => !removedIds.has(id)));
     },
-    [removeNodes, nodesRef, setSelectedNodeIds],
+    [canvasId, nodesRef, notify, removeNodes, setSelectedNodeIds, syncDeletedNodes],
   );
 
   const requestRemoveEdge = useCallback(
@@ -194,11 +256,10 @@ export const useCanvasNodeActions = ({
   const handleExternalDelete = useCallback(
     (deleteNodeId: string) => {
       if (nodesRef.current.some((n) => n.id === deleteNodeId)) {
-        removeNode(deleteNodeId);
-        setSelectedNodeIds((ids) => ids.filter((id) => id !== deleteNodeId));
+        void requestRemoveNodes([deleteNodeId]);
       }
     },
-    [removeNode, nodesRef, setSelectedNodeIds],
+    [nodesRef, requestRemoveNodes],
   );
 
   return {

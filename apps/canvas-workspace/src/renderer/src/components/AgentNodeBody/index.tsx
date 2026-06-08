@@ -134,12 +134,12 @@ export const AgentNodeBody = ({
         status={controller.status}
         agentType={controller.data.agentType || 'claude-code'}
         cwd={controller.data.cwd}
-        loading={controller.loading}
+        loading={controller.loading || controller.teamAutoResumePending}
       />
     </>
   );
 
-  if (isTeamLead && controller.viewMode === 'running') {
+  if (isTeamLead && (controller.viewMode === 'running' || controller.teamAutoResumePending)) {
     return (
       <div className="agent-team-lead-console agent-team-lead-console--bare">
         <div className="agent-team-lead-console__terminal">
@@ -147,6 +147,10 @@ export const AgentNodeBody = ({
         </div>
       </div>
     );
+  }
+
+  if (controller.teamAutoResumePending) {
+    return terminalView;
   }
 
   if (controller.viewMode === 'setup') {

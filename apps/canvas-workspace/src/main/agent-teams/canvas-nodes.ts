@@ -1,4 +1,5 @@
 import { promises as fs } from 'fs';
+import { randomUUID } from 'crypto';
 import { join } from 'path';
 import { readCanvasFull, writeCanvasFull } from '../canvas/storage';
 import { broadcastCanvasUpdate } from '../canvas/broadcast';
@@ -102,6 +103,11 @@ const withClaudeTeamLeadArgs = (agentType: string, role: 'lead' | 'teammate', ar
   return /(^|\s)--disallowed(?:Tools|-tools)(\s|=|$)/.test(trimmed) ? trimmed : `${trimmed} ${CLAUDE_TEAM_LEAD_ARGS}`;
 };
 
+const withClaudeCliSessionId = (agentType: unknown, existing: unknown): string | undefined => {
+  if (agentType !== 'claude-code') return typeof existing === 'string' ? existing : undefined;
+  return typeof existing === 'string' && existing ? existing : randomUUID();
+};
+
 const queueLaunchPrompt = async (
   node: CanvasNode,
   prompt: string,
@@ -121,6 +127,7 @@ const queueLaunchPrompt = async (
     ...data,
     status: 'running',
     viewMode: 'running',
+    cliSessionId: withClaudeCliSessionId(data.agentType, data.cliSessionId),
     inlinePrompt,
     promptFile,
     lastInitPrompt: prompt,
@@ -147,6 +154,7 @@ const makeAgentNode = async (
       agentType: input.agentType,
       agentArgs: withClaudeTeamLeadArgs(input.agentType, input.role),
       dangerousMode: true,
+      cliSessionId: withClaudeCliSessionId(input.agentType, undefined),
       status: 'idle',
       viewMode: 'setup',
       agentTeamId: input.teamId,
@@ -389,11 +397,16 @@ export async function updateAgentTeamCanvasCwd(workspaceId: string, teamId: stri
   return changedIds;
 }
 
-export async function removeAgentTeamCanvasNodes(workspaceId: string, teamId: string): Promise<string[]> {
+export async function removeAgentTeamCanvasNodes(
+  workspaceId: string,
+  teamId: string,
+  knownNodeIds: string[] = [],
+): Promise<string[]> {
   const canvas = await loadCanvasOrEmpty(workspaceId);
   const nodes = asNodes(canvas);
+  const knownNodeIdSet = new Set(knownNodeIds);
   const removedIds = nodes
-    .filter((node) => node.data?.agentTeamId === teamId)
+    .filter((node) => node.data?.agentTeamId === teamId || knownNodeIdSet.has(node.id))
     .map((node) => node.id);
   if (removedIds.length === 0) return [];
 

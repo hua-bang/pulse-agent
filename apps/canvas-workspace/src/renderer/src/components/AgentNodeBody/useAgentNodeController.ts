@@ -19,6 +19,39 @@ const shellQuote = (value: string): string =>
   `'${value.replace(/'/g, "'\\''")}'`;
 
 const CODEX_BINDING_MARKER_PREFIX = 'pulse-canvas-codex-binding';
+const CLAUDE_RESUME_FALLBACK_RE =
+  /\[Pulse Canvas\] Claude resume target was missing; starting a fresh session \((?<sessionId>[0-9a-f-]{36})\)\./;
+const CLAUDE_RESUME_FALLBACK_PROMPT_LIMIT = 14_000;
+const CLAUDE_RESUME_FALLBACK_OUTPUT_LIMIT = 4_000;
+
+const truncateTail = (value: string, limit: number): string => {
+  if (value.length <= limit) return value;
+  return `[truncated ${value.length - limit} chars]\n${value.slice(-limit)}`;
+};
+
+const buildClaudeResumeFallbackPrompt = (
+  data: AgentNodeData,
+  missingSessionId: string,
+): string => {
+  const savedPrompt = (data.lastInitPrompt || data.inlinePrompt || '').trim();
+  const recentOutput = (data.scrollback || '').trim();
+  const sections = [
+    `Pulse Canvas tried to resume Claude Code session ${missingSessionId}, but Claude reported that conversation was missing from local history.`,
+    'Start a fresh Claude Code conversation and continue the same Agent Team work from the saved context below.',
+    'Do not assume any hidden state from the missing conversation is available.',
+    '',
+    savedPrompt
+      ? `Saved task prompt:\n${truncateTail(savedPrompt, CLAUDE_RESUME_FALLBACK_PROMPT_LIMIT)}`
+      : 'Saved task prompt: unavailable.',
+  ];
+  if (recentOutput) {
+    sections.push(
+      '',
+      `Recent terminal output before recovery:\n${truncateTail(recentOutput, CLAUDE_RESUME_FALLBACK_OUTPUT_LIMIT)}`,
+    );
+  }
+  return sections.join('\n');
+};
 
 const makeCodexBindingMarker = (nodeId: string): string =>
   `${CODEX_BINDING_MARKER_PREFIX}:${nodeId}:${crypto.randomUUID()}`;
@@ -35,6 +68,7 @@ interface MirrorTerminalCacheEntry {
 const RETRY_MIRROR_CONNECTION_MS = 1_000;
 const MAX_MIRROR_TERMINALS = 12;
 const TEAM_AUTO_RESUME_MAX_ATTEMPTS = 2;
+const TEAM_AUTO_RESUME_RETRY_AFTER_MS = 45_000;
 const MIRROR_TERMINAL_STASH_ID = 'agent-mirror-terminal-stash';
 const mirrorTerminalCache = new Map<string, MirrorTerminalCacheEntry>();
 
@@ -137,22 +171,37 @@ const shouldConsiderTeamAutoResume = (data: AgentNodeData): boolean => {
   return data.viewMode !== 'setup';
 };
 
-const canAttemptTeamAutoResume = (data: AgentNodeData): boolean => {
+const teamAutoResumeRetryDelay = (data: AgentNodeData, now = Date.now()): number | null => {
+  const key = cliConversationKey(data);
+  if (!key) return null;
+  const previous = data.agentTeamAutoResume;
+  if (previous?.sessionKey !== key) return null;
+  if ((previous.attempts ?? 0) < TEAM_AUTO_RESUME_MAX_ATTEMPTS) return null;
+  if (!previous.lastAttemptAt) return 0;
+  return Math.max(0, TEAM_AUTO_RESUME_RETRY_AFTER_MS - (now - previous.lastAttemptAt));
+};
+
+const canAttemptTeamAutoResume = (data: AgentNodeData, now = Date.now()): boolean => {
   const key = cliConversationKey(data);
   if (!key) return false;
   const previous = data.agentTeamAutoResume;
   if (previous?.sessionKey !== key) return true;
-  return (previous.attempts ?? 0) < TEAM_AUTO_RESUME_MAX_ATTEMPTS;
+  if ((previous.attempts ?? 0) < TEAM_AUTO_RESUME_MAX_ATTEMPTS) return true;
+  return teamAutoResumeRetryDelay(data, now) === 0;
 };
 
 const nextTeamAutoResumeState = (data: AgentNodeData): NonNullable<AgentNodeData['agentTeamAutoResume']> => {
   const key = cliConversationKey(data);
   const previous = data.agentTeamAutoResume;
-  const attempts = previous?.sessionKey === key ? previous?.attempts ?? 0 : 0;
+  const now = Date.now();
+  const previousExpired = previous?.lastAttemptAt
+    ? now - previous.lastAttemptAt >= TEAM_AUTO_RESUME_RETRY_AFTER_MS
+    : false;
+  const attempts = previous?.sessionKey === key && !previousExpired ? previous?.attempts ?? 0 : 0;
   return {
     sessionKey: key,
     attempts: attempts + 1,
-    lastAttemptAt: Date.now(),
+    lastAttemptAt: now,
   };
 };
 
@@ -188,6 +237,8 @@ export const useAgentNodeController = ({
   });
   const [fromRestart, setFromRestart] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [teamAutoResumePending, setTeamAutoResumePending] = useState(false);
+  const [teamAutoResumeRetryTick, setTeamAutoResumeRetryTick] = useState(0);
 
   const pendingAgentRef = useRef(data.agentType || 'claude-code');
   const pendingCwdRef = useRef(data.cwd || '');
@@ -489,6 +540,14 @@ export const useAgentNodeController = ({
         : undefined;
       const cliSessionId = existingCliSessionId || crypto.randomUUID();
       const canResumeClaude = !!existingCliSessionId;
+      if (agentType === 'claude-code' && dataRef.current.cliSessionId !== cliSessionId) {
+        const nextData = {
+          ...dataRef.current,
+          cliSessionId,
+        };
+        dataRef.current = nextData;
+        onUpdateRef.current(nodeIdRef.current, { data: nextData });
+      }
       const writeCommandTimeRef = { current: 0 };
 
       const readCodexSessionBaseline = async (): Promise<Set<string> | null> => {
@@ -589,6 +648,25 @@ export const useAgentNodeController = ({
         timer = setTimeout(poll, 1_000);
       };
 
+      let claudeResumeFallbackMarkerBuffer = '';
+      let appliedClaudeResumeFallbackSessionId: string | null = null;
+      const handleClaudeResumeFallbackOutput = (chunk: string) => {
+        if (agentType !== 'claude-code' || !resumeMode) return;
+        claudeResumeFallbackMarkerBuffer = `${claudeResumeFallbackMarkerBuffer}${chunk}`.slice(-1_000);
+        const match = CLAUDE_RESUME_FALLBACK_RE.exec(claudeResumeFallbackMarkerBuffer);
+        const fallbackSessionId = match?.groups?.sessionId;
+        if (!fallbackSessionId || appliedClaudeResumeFallbackSessionId === fallbackSessionId) return;
+        appliedClaudeResumeFallbackSessionId = fallbackSessionId;
+        const nextData = {
+          ...dataRef.current,
+          cliSessionId: fallbackSessionId,
+        };
+        dataRef.current = nextData;
+        onUpdateRef.current(nodeIdRef.current, {
+          data: nextData,
+        });
+      };
+
       const writeCommand = async () => {
         if (!command) {
           term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
@@ -618,7 +696,23 @@ export const useAgentNodeController = ({
           : '';
         const commonFlags = dangerousFlag + (agentArgs ? ` ${agentArgs}` : '');
 
-        if (agentType === 'codex' && resumeMode && !effectivePrompt && !promptFile) {
+        if (agentType === 'claude-code' && resumeMode && canResumeClaude && !effectivePrompt && !promptFile) {
+          const fallbackSessionId = crypto.randomUUID();
+          const fallbackNotice = `[Pulse Canvas] Claude resume target was missing; starting a fresh session (${fallbackSessionId}).`;
+          const fallbackPrompt = buildClaudeResumeFallbackPrompt(dataRef.current, cliSessionId);
+          const resumeFlags = ` --resume ${cliSessionId}${commonFlags}`;
+          const fallbackFlags = ` --session-id ${fallbackSessionId}${commonFlags}`;
+          api.write(
+            sessionId,
+            [
+              `${command}${resumeFlags}`,
+              ' || (',
+              `printf '%s\\n' ${shellQuote(fallbackNotice)}`,
+              `; ${command}${fallbackFlags} ${shellQuote(fallbackPrompt)}`,
+              ')\n',
+            ].join(''),
+          );
+        } else if (agentType === 'codex' && resumeMode && !effectivePrompt && !promptFile) {
           const codexSessionId = dataRef.current.codexSessionId;
           if (!codexSessionId) {
             term.writeln('\x1b[33mCannot resume Codex: saved session id is missing.\x1b[0m');
@@ -698,6 +792,7 @@ export const useAgentNodeController = ({
 
       const attachPermanentListener = () => {
         removeDataRef.current = api.onData(sessionId, (d: string) => {
+          handleClaudeResumeFallbackOutput(d);
           term.write(d);
           reportAgentTeamOutput(d);
           if (loadingDismissed) return;
@@ -834,16 +929,31 @@ export const useAgentNodeController = ({
     if (viewMode === 'running') return;
     if (!workspaceId || !data.agentTeamId || !data.agentTeamAgentId) return;
     if (!shouldConsiderTeamAutoResume(data)) return;
-    if (!canAttemptTeamAutoResume(data)) return;
+
+    const retryDelay = teamAutoResumeRetryDelay(data);
+    if (!canAttemptTeamAutoResume(data)) {
+      if (retryDelay != null) {
+        const timer = setTimeout(() => {
+          setTeamAutoResumeRetryTick((tick) => tick + 1);
+        }, retryDelay);
+        return () => clearTimeout(timer);
+      }
+      return;
+    }
 
     let cancelled = false;
+    setTeamAutoResumePending(true);
     void (async () => {
       const result = await window.canvasWorkspace?.agentTeams?.prepareAgentAutoResume(
         workspaceId,
         data.agentTeamId!,
         data.agentTeamAgentId!,
-      );
-      if (cancelled || !result?.ok || !result.canResume) return;
+      ).catch(() => null);
+      if (cancelled) return;
+      if (!result?.ok || !result.canResume) {
+        setTeamAutoResumePending(false);
+        return;
+      }
 
       pendingAgentRef.current = data.agentType || 'claude-code';
       pendingCwdRef.current = data.cwd || rootFolder || '';
@@ -861,11 +971,13 @@ export const useAgentNodeController = ({
       onUpdateRef.current(nodeIdRef.current, {
         data: nextData,
       });
+      setTeamAutoResumePending(false);
       setViewMode('running');
     })();
 
     return () => {
       cancelled = true;
+      setTeamAutoResumePending(false);
     };
   }, [
     data.agentTeamAgentId,
@@ -885,6 +997,7 @@ export const useAgentNodeController = ({
     isTeamManagedAgent,
     readOnly,
     rootFolder,
+    teamAutoResumeRetryTick,
     viewMode,
     workspaceId,
   ]);
@@ -980,21 +1093,23 @@ export const useAgentNodeController = ({
     if (api && oldSessionId) api.kill(oldSessionId);
     const freshSessionId = mintSessionId(nodeIdRef.current);
     const freshCliSessionId = selectedAgent === 'claude-code' ? crypto.randomUUID() : undefined;
+    const nextData = {
+      ...dataRef.current,
+      agentType: selectedAgent,
+      cwd: effectiveCwd,
+      inlinePrompt: prompt,
+      lastInitPrompt: prompt || dataRef.current.lastInitPrompt || '',
+      dangerousMode: effectiveDangerousMode,
+      status: 'running' as const,
+      sessionId: freshSessionId,
+      scrollback: '',
+      cliSessionId: freshCliSessionId,
+      codexSessionId: undefined,
+      codexSessionMarker: undefined,
+    };
+    dataRef.current = nextData;
     onUpdateRef.current(nodeIdRef.current, {
-      data: {
-        ...dataRef.current,
-        agentType: selectedAgent,
-        cwd: effectiveCwd,
-        inlinePrompt: prompt,
-        lastInitPrompt: prompt || dataRef.current.lastInitPrompt || '',
-        dangerousMode: effectiveDangerousMode,
-        status: 'running',
-        sessionId: freshSessionId,
-        scrollback: '',
-        cliSessionId: freshCliSessionId,
-        codexSessionId: undefined,
-        codexSessionMarker: undefined,
-      },
+      data: nextData,
     });
     setFromRestart(false);
     setViewMode('running');
@@ -1036,20 +1151,22 @@ export const useAgentNodeController = ({
     const oldSessionId = dataRef.current.sessionId;
     if (api && oldSessionId) api.kill(oldSessionId);
     const freshSessionId = mintSessionId(nodeIdRef.current);
+    const nextData = {
+      ...dataRef.current,
+      agentType: savedAgent,
+      cwd: savedCwd,
+      inlinePrompt: shouldResumeSavedSession ? '' : savedPrompt,
+      status: 'running' as const,
+      sessionId: freshSessionId,
+      scrollback: '',
+      codexSessionId: savedAgent === 'codex' && shouldResumeSavedSession
+        ? dataRef.current.codexSessionId
+        : undefined,
+      codexSessionMarker: undefined,
+    };
+    dataRef.current = nextData;
     onUpdateRef.current(nodeIdRef.current, {
-      data: {
-        ...dataRef.current,
-        agentType: savedAgent,
-        cwd: savedCwd,
-        inlinePrompt: shouldResumeSavedSession ? '' : savedPrompt,
-        status: 'running',
-        sessionId: freshSessionId,
-        scrollback: '',
-        codexSessionId: savedAgent === 'codex' && shouldResumeSavedSession
-          ? dataRef.current.codexSessionId
-          : undefined,
-        codexSessionMarker: undefined,
-      },
+      data: nextData,
     });
     setFromRestart(false);
     setViewMode('running');
@@ -1103,6 +1220,7 @@ export const useAgentNodeController = ({
     dangerousMode,
     setDangerousMode,
     status: data.status ?? 'idle',
+    teamAutoResumePending,
     viewMode,
     visibleNodes: getAllNodesRef.current?.() ?? [],
   };
