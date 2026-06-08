@@ -3,6 +3,7 @@ import './index.css';
 import { AgentNodeBody } from '../AgentNodeBody';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { AgentTypeSelect } from './AgentTypeSelect';
+import { useAppShell } from '../AppShellProvider';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import type {
   AgentNodeData,
@@ -311,6 +312,7 @@ export const AgentTeamFrame = ({
   const commandRef = useRef<HTMLTextAreaElement>(null);
   const inlineGraphViewportRef = useRef<HTMLDivElement>(null);
   const fullscreenGraphViewportRef = useRef<HTMLDivElement>(null);
+  const { confirm } = useAppShell();
 
   const api = window.canvasWorkspace?.agentTeams;
   const runtime = snapshot?.runtime;
@@ -649,7 +651,6 @@ export const AgentTeamFrame = ({
   );
 
   const teamTitle = runtime?.team.name ?? data.agentTeamName ?? node.title;
-  const teamGoal = shortText(runtime?.team.goal ?? data.agentTeamGoal ?? data.label, '');
   const teamCwd = lead?.cwd
     ?? metadataString(lead?.metadata, ['cwd'])
     ?? metadataString(lead?.sessionRef?.metadata, ['cwd'])
@@ -882,11 +883,13 @@ export const AgentTeamFrame = ({
 
   const handleDeleteTeam = useCallback(async () => {
     if (!api || !workspaceId || !teamId) return;
-    const accepted = window.confirm([
-      `Delete Agent Team "${teamTitle}"?`,
-      'This removes the Agent Team frame, Team Lead, teammates, and their Coding Agent nodes from the canvas.',
-      'This action cannot be undone.',
-    ].join('\n\n'));
+    const accepted = await confirm({
+      intent: 'danger',
+      title: `Delete Agent Team "${teamTitle}"?`,
+      description:
+        'This removes the Agent Team frame, Team Lead, teammates, and their Coding Agent nodes from the canvas. This action cannot be undone.',
+      confirmLabel: 'Delete team',
+    });
     if (!accepted) return;
 
     setTeamAction('delete');
@@ -901,7 +904,7 @@ export const AgentTeamFrame = ({
     } else {
       setError(result.error ?? 'Unable to delete the Agent Team.');
     }
-  }, [api, onRemoveNodes, teamId, teamTitle, workspaceId]);
+  }, [api, confirm, onRemoveNodes, teamId, teamTitle, workspaceId]);
 
   const handleAnswerGate = useCallback(async (gateId: string) => {
     if (!api || !workspaceId) return;
@@ -1226,7 +1229,6 @@ export const AgentTeamFrame = ({
   const renderLeadDock = () => (
     <section className="agent-team-lead-dock" aria-label="Team Lead">
       <div className="agent-team-lead-dock__head">
-        <span className="agent-team-panel-heading__label">Team Lead</span>
         <strong>{lead?.name ?? 'Team Lead'}</strong>
         <span className={`agent-team-detail__status agent-team-detail__status--${lead?.status ?? 'idle'}`}>
           {statusLabel(lead?.status ?? 'idle')}
@@ -1831,9 +1833,6 @@ export const AgentTeamFrame = ({
             <span className="agent-team-frame__phase-label"> · {phaseTitle}</span>
           </div>
           <div className="agent-team-frame__mission">
-            <span className="agent-team-frame__mission-brief" title={teamGoal || undefined}>
-              Task · {teamGoal || 'No task brief yet'}
-            </span>
             {teamCwd && (
               <code title={teamCwd}>{compactPath(teamCwd)}</code>
             )}
