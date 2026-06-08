@@ -250,6 +250,44 @@ describe('CanvasAgentTeamsService', () => {
     ]);
   });
 
+  it('re-assigns a teammate coding agent while the plan is under review', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    await emitPlan(service, created);
+    const teamId = created.runtime.team.id;
+
+    const updated = await service.updatePlanTeammate('ws-1', teamId, {
+      teammateName: 'Reviewer',
+      agentType: 'claude-code',
+    });
+    expect(updated.phase).toBe('plan_review');
+    expect(updated.pendingPlan?.teammates.find((teammate) => teammate.name === 'Reviewer')?.agentType)
+      .toBe('claude-code');
+    expect(updated.pendingPlan?.teammates.find((teammate) => teammate.name === 'Codex Exec')?.agentType)
+      .toBe('codex');
+
+    // The reassigned agent type flows through to the teammate node on approval.
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    expect(confirmed.phase).toBe('executing');
+    expect(mockState.createdAgents.find((input) => input.name === 'Reviewer')?.agentType).toBe('claude-code');
+    expect(mockState.createdAgents.find((input) => input.name === 'Codex Exec')?.agentType).toBe('codex');
+
+    // Editing is only allowed during plan review.
+    await expect(service.updatePlanTeammate('ws-1', teamId, { teammateName: 'Reviewer', agentType: 'codex' }))
+      .rejects.toThrow('under review');
+  });
+
+  it('rejects re-assigning an unknown teammate in the pending plan', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    await emitPlan(service, created);
+
+    await expect(service.updatePlanTeammate('ws-1', created.runtime.team.id, {
+      teammateName: 'Nope',
+      agentType: 'codex',
+    })).rejects.toThrow('Teammate not found in plan');
+  });
+
   it('resolves plan task dependencies as a full graph before dispatch', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createTeam(service);

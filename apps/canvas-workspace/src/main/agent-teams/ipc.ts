@@ -66,6 +66,21 @@ export function setupCanvasAgentTeamsIpc(): void {
     }
   });
 
+  ipcMain.handle(
+    'agent-teams:update-plan-teammate',
+    async (_event, payload: { workspaceId: string; teamId: string; teammateName: string; agentType: string }) => {
+      try {
+        const snapshot = await service.updatePlanTeammate(payload.workspaceId, payload.teamId, {
+          teammateName: payload.teammateName,
+          agentType: payload.agentType,
+        });
+        return ok({ snapshot });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
   ipcMain.handle('agent-teams:create-task', async (_event, payload: CanvasAgentTeamCreateTaskInput) => {
     try {
       const runtime = await service.createTask(payload);

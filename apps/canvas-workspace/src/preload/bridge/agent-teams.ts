@@ -10,6 +10,8 @@ export const createAgentTeamsApi = (ipcRenderer: IpcRenderer): AgentTeamsApi => 
     ipcRenderer.invoke('agent-teams:brief-lead', { workspaceId, teamId, content }),
   confirmPlan: (workspaceId, teamId) =>
     ipcRenderer.invoke('agent-teams:confirm-plan', { workspaceId, teamId }),
+  updatePlanTeammate: (workspaceId, teamId, teammateName, agentType) =>
+    ipcRenderer.invoke('agent-teams:update-plan-teammate', { workspaceId, teamId, teammateName, agentType }),
   createTask: (input) => ipcRenderer.invoke('agent-teams:create-task', input),
   dispatch: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:dispatch', { workspaceId, teamId }),
   pause: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:pause', { workspaceId, teamId }),

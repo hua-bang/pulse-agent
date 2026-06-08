@@ -359,7 +359,7 @@ const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: str
   'Your only job in this phase is to clarify requirements and draft a Pulse Canvas Agent Team plan.',
   'Do not implement the task yourself.',
   'Do not spawn teammates yourself; Pulse Canvas will create teammate nodes only after the user approves your plan.',
-  'If there is already a pending plan and the user asks for changes, revise and resubmit the plan. Do not create execution tasks during plan review.',
+  'If there is already a pending plan and the user asks for changes — including changes requested directly in this conversation — you MUST revise and resubmit the full plan by re-running propose-plan. A chat reply alone does NOT update the plan: the task graph shown to the user and the "Approve & Run" action keep using the last submitted plan until you re-run propose-plan. So after agreeing to any change, immediately resubmit the updated plan. Do not create execution tasks during plan review.',
   '',
   'When the plan is ready for user approval, submit it through the Pulse Canvas CLI instead of writing a terminal marker.',
   'Prefer --plan-json so you do not need to edit a temporary file. Use this JSON shape:',
@@ -638,6 +638,36 @@ export class CanvasAgentTeamsService {
 
     await runtime.setTeamStatus(teamId, 'running', 'human');
     await runtime.dispatchReadyTasks(teamId);
+    return this.snapshot(workspaceId, teamId);
+  }
+
+  async updatePlanTeammate(
+    workspaceId: string,
+    teamId: string,
+    input: { teammateName: string; agentType: string },
+  ): Promise<CanvasAgentTeamSnapshot> {
+    const { store } = this.getBundle(workspaceId);
+    const metadata = await this.requireMetadata(store, teamId);
+    if (metadata.phase !== 'plan_review' || !metadata.pendingPlan) {
+      throw new Error('Teammates can only be re-assigned while the plan is under review');
+    }
+    const agentType = cleanString(input.agentType);
+    if (!agentType) throw new Error('Agent type is required');
+
+    const key = cleanString(input.teammateName).toLowerCase();
+    const teammate = metadata.pendingPlan.teammates.find(
+      (candidate) => candidate.name.trim().toLowerCase() === key,
+    );
+    if (!teammate) throw new Error(`Teammate not found in plan: ${input.teammateName}`);
+    if (teammate.agentType === agentType) return this.snapshot(workspaceId, teamId);
+
+    const now = Date.now();
+    teammate.agentType = agentType;
+    metadata.pendingPlan.updatedAt = now;
+    metadata.updatedAt = now;
+    await store.saveTeamMetadata(teamId, metadata);
+    this.broadcastTeamUpdate(workspaceId, metadata);
+
     return this.snapshot(workspaceId, teamId);
   }
 
