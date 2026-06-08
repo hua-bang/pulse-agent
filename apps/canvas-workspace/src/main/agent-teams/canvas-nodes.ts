@@ -509,6 +509,31 @@ export async function sendOrQueueAgentInput(workspaceId: string, nodeId: string,
   broadcastCanvasUpdate(workspaceId, [nodeId], 'update', 'agent-teams');
 }
 
+/**
+ * Persist the prompt that a restart/relaunch of this agent node should replay.
+ *
+ * When a teammate finishes a task and the next one is delivered into its live
+ * PTY session, the inline-send path does not touch `lastInitPrompt`, so it keeps
+ * pointing at the previous (now finished) task. A later restart that cannot
+ * resume the CLI conversation would then replay that stale prompt and redo the
+ * completed task. Updating `lastInitPrompt` on each dispatch keeps a restart
+ * aligned with the agent's current task.
+ */
+export async function persistAgentNodeLaunchPrompt(
+  workspaceId: string,
+  nodeId: string,
+  prompt: string,
+): Promise<void> {
+  const canvas = await loadCanvasOrEmpty(workspaceId);
+  const node = canvas.nodes?.find((item) => item.id === nodeId);
+  if (!node || node.type !== 'agent') return;
+  if (node.data?.lastInitPrompt === prompt) return;
+  node.data = { ...node.data, lastInitPrompt: prompt };
+  node.updatedAt = Date.now();
+  await writeCanvasFull(workspaceId, canvas);
+  broadcastCanvasUpdate(workspaceId, [nodeId], 'update', 'agent-teams');
+}
+
 export async function interruptCanvasAgentNode(
   workspaceId: string,
   nodeId: string,

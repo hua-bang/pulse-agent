@@ -719,6 +719,32 @@
   line-height: 1;
 }
 
+.agent-team-dag-round-divider {
+  position: absolute;
+  left: 0;
+  height: 0;
+  border-top: 1px dashed rgba(122, 167, 232, 0.42);
+  pointer-events: none;
+}
+
+.agent-team-dag-round-label {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 11px;
+  border: 1px solid rgba(122, 167, 232, 0.28);
+  border-radius: 999px;
+  background: rgba(238, 245, 255, 0.96);
+  color: #285b95;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  box-shadow: 0 4px 12px rgba(31, 54, 88, 0.05);
+  pointer-events: none;
+}
+
 .agent-team-frame .agent-team-dag-node {
   position: absolute;
   display: grid;

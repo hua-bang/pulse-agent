@@ -7,6 +7,7 @@ import type {
 import {
   getCanvasAgentNode,
   interruptCanvasAgentNode,
+  persistAgentNodeLaunchPrompt,
   sendOrQueueAgentInput,
 } from './canvas-nodes';
 import { CanvasAgentTeamStore } from './store';
@@ -40,6 +41,10 @@ export class CanvasAgentSessionAdapter implements AgentSessionAdapter {
 
   async sendInput(sessionId: string, input: string): Promise<void> {
     await sendOrQueueAgentInput(this.workspaceId, sessionId, input);
+  }
+
+  async persistLaunchPrompt(sessionId: string, prompt: string): Promise<void> {
+    await persistAgentNodeLaunchPrompt(this.workspaceId, sessionId, prompt);
   }
 
   async interrupt(sessionId: string, mode: 'soft' | 'ctrl-c' | 'abort'): Promise<void> {

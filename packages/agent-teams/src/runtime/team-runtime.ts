@@ -65,6 +65,37 @@ const isLeadAudienceGate = (metadata: Record<string, unknown> | undefined): bool
 const quoteCliValue = (value: string): string =>
   value.replace(/(["\\$`])/g, '\\$1');
 
+const TASK_ROUND_METADATA_KEY = 'round';
+
+/** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
+const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
+  const value = metadata?.[TASK_ROUND_METADATA_KEY];
+  return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+};
+
+/**
+ * Decide which "round" a new task belongs to.
+ *
+ * A round groups tasks created in the same wave of work. When every existing task
+ * is already finished (done/failed) — e.g. a human adds follow-up work after a
+ * completed run — the new task starts the next round so it renders separately from
+ * the original plan instead of being merged into it. While any earlier task is still
+ * active, new tasks join the current (highest) round. An explicit metadata.round wins.
+ */
+const resolveTaskRound = (
+  existingTasks: TeamTaskRecord[],
+  metadata: Record<string, unknown> | undefined,
+): number => {
+  const provided = metadata?.[TASK_ROUND_METADATA_KEY];
+  if (typeof provided === 'number' && Number.isFinite(provided) && provided >= 1) {
+    return Math.floor(provided);
+  }
+  if (existingTasks.length === 0) return 1;
+  const maxRound = existingTasks.reduce((max, task) => Math.max(max, readTaskRound(task.metadata)), 1);
+  const hasUnfinished = existingTasks.some((task) => task.status !== 'done' && task.status !== 'failed');
+  return hasUnfinished ? maxRound : maxRound + 1;
+};
+
 interface TeamPauseMetadata {
   pausedAt: number;
   reason: string;
@@ -220,6 +251,7 @@ export class TeamRuntime {
     await this.requireTeam(input.teamId);
     const now = this.now();
     const existingTasks = await this.store.listTasks(input.teamId);
+    const round = resolveTaskRound(existingTasks, input.metadata);
     const task: TeamTaskRecord = {
       id: input.id ?? this.idFactory(),
       teamId: input.teamId,
@@ -231,7 +263,7 @@ export class TeamRuntime {
       createdBy: input.createdBy ?? 'runtime',
       createdAt: now,
       updatedAt: now,
-      metadata: input.metadata,
+      metadata: { ...(input.metadata ?? {}), [TASK_ROUND_METADATA_KEY]: round },
     };
     assertTaskGraphAcyclic([...existingTasks, task]);
 
@@ -435,7 +467,11 @@ export class TeamRuntime {
       });
 
       if (this.agentSessions && owner.sessionRef) {
-        await this.agentSessions.sendInput(owner.sessionRef.sessionId, await this.formatTaskPrompt(task, tasks, owner));
+        const taskPrompt = await this.formatTaskPrompt(task, tasks, owner);
+        await this.agentSessions.sendInput(owner.sessionRef.sessionId, taskPrompt);
+        // Record this as the agent's current launch prompt so a later restart
+        // replays THIS task rather than a previously finished one.
+        await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
       }
 
       assigned.push({ ...task });

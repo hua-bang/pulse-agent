@@ -227,6 +227,10 @@ const DAG_TOP = 92;
 const DAG_BOTTOM = 72;
 const DAG_MIN_WIDTH = 720;
 const DAG_MIN_HEIGHT = 340;
+// Vertical gap between successive round bands, and the label strip reserved above
+// each band when more than one round is present.
+const DAG_ROUND_GAP = 52;
+const DAG_ROUND_LABEL_HEIGHT = 28;
 
 interface DagNodeItem {
   task: GraphTaskItem;
@@ -251,6 +255,22 @@ interface DagStageItem {
   y: number;
   label: string;
   index: number;
+}
+
+interface DagRoundItem {
+  key: string;
+  round: number;
+  label: string;
+  /** Top of the node area for this round band. */
+  top: number;
+  /** Height of the node area for this round band. */
+  height: number;
+  /** Y of the divider drawn above this band (only when showDivider). */
+  dividerTop: number;
+  /** Top of the "Round N" label strip (above the nodes). */
+  labelTop: number;
+  showDivider: boolean;
+  showLabel: boolean;
 }
 
 export const AgentTeamFrame = ({
@@ -401,39 +421,112 @@ export const AgentTeamFrame = ({
     () => new Map(graphTasks.map((task) => [task.key, task])),
     [graphTasks],
   );
-  const graphColumns = useMemo(() => {
-    const depthCache = new Map<string, number>();
-    const getDepth = (task: GraphTaskItem, seen = new Set<string>()): number => {
-      const cached = depthCache.get(task.key);
-      if (cached !== undefined) return cached;
-      if (seen.has(task.key)) return 0;
-      const nextSeen = new Set(seen).add(task.key);
-      const depths = task.depKeys
-        .map((depKey) => graphTaskByKey.get(depKey))
-        .filter((dep): dep is GraphTaskItem => !!dep)
-        .map((dep) => getDepth(dep, nextSeen) + 1);
-      const depth = depths.length > 0 ? Math.max(...depths) : 0;
-      depthCache.set(task.key, depth);
-      return depth;
+  const graphRounds = useMemo(() => {
+    const roundOf = (task: GraphTaskItem): number => {
+      const value = task.sourceTask?.metadata?.round;
+      return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
     };
 
-    const columns: GraphTaskItem[][] = [];
+    // Group tasks by round, preserving the incoming (status/createdAt) order within each.
+    const byRound = new Map<number, GraphTaskItem[]>();
     for (const task of graphTasks) {
-      const depth = getDepth(task);
-      if (!columns[depth]) columns[depth] = [];
-      columns[depth].push(task);
+      const round = roundOf(task);
+      const bucket = byRound.get(round);
+      if (bucket) bucket.push(task);
+      else byRound.set(round, [task]);
     }
-    return columns.filter(Boolean);
+
+    return [...byRound.keys()]
+      .sort((a, b) => a - b)
+      .map((round) => {
+        const roundTasks = byRound.get(round) ?? [];
+        const roundKeys = new Set(roundTasks.map((task) => task.key));
+        const depthCache = new Map<string, number>();
+        // Only same-round dependencies push a task into a later stage; a follow-up task
+        // that depends on an earlier round still starts at this round's "Start" column.
+        const getDepth = (task: GraphTaskItem, seen = new Set<string>()): number => {
+          const cached = depthCache.get(task.key);
+          if (cached !== undefined) return cached;
+          if (seen.has(task.key)) return 0;
+          const nextSeen = new Set(seen).add(task.key);
+          const depths = task.depKeys
+            .filter((depKey) => roundKeys.has(depKey))
+            .map((depKey) => graphTaskByKey.get(depKey))
+            .filter((dep): dep is GraphTaskItem => !!dep)
+            .map((dep) => getDepth(dep, nextSeen) + 1);
+          const depth = depths.length > 0 ? Math.max(...depths) : 0;
+          depthCache.set(task.key, depth);
+          return depth;
+        };
+
+        const columns: GraphTaskItem[][] = [];
+        for (const task of roundTasks) {
+          const depth = getDepth(task);
+          if (!columns[depth]) columns[depth] = [];
+          columns[depth].push(task);
+        }
+        return { round, columns: columns.filter(Boolean) };
+      });
   }, [graphTaskByKey, graphTasks]);
   const buildDagLayout = useCallback((viewportHeight = 0) => {
-    const columnCount = graphColumns.length;
-    const maxRows = Math.max(1, ...graphColumns.map((column) => column.length));
-    const contentRowsHeight = (maxRows - 1) * DAG_ROW_GAP + DAG_NODE_HEIGHT;
-    const naturalHeight = DAG_TOP + contentRowsHeight + DAG_BOTTOM;
+    const showRoundLabels = graphRounds.length > 1;
+    const labelStrip = showRoundLabels ? DAG_ROUND_LABEL_HEIGHT : 0;
+    const columnCount = Math.max(1, ...graphRounds.map((group) => group.columns.length));
+
+    const bandMaxRows = graphRounds.map((group) =>
+      Math.max(1, ...group.columns.map((column) => column.length)),
+    );
+    const bandHeights = bandMaxRows.map((rows) => (rows - 1) * DAG_ROW_GAP + DAG_NODE_HEIGHT);
+    const contentHeight = bandHeights.reduce((sum, bandHeight) => sum + bandHeight + labelStrip, 0)
+      + Math.max(0, graphRounds.length - 1) * DAG_ROUND_GAP;
+    const naturalHeight = DAG_TOP + contentHeight + DAG_BOTTOM;
     const height = Math.max(DAG_MIN_HEIGHT, naturalHeight, viewportHeight);
     const verticalShift = Math.max(0, height - naturalHeight) / 2;
+
     const nodes: DagNodeItem[] = [];
-    const stages: DagStageItem[] = graphColumns.map((_column, columnIndex) => ({
+    const rounds: DagRoundItem[] = [];
+    let cursorY = DAG_TOP + verticalShift;
+
+    graphRounds.forEach((group, roundIndex) => {
+      const labelTop = cursorY;
+      const bandTop = cursorY + labelStrip;
+      const bandHeight = bandHeights[roundIndex];
+      const maxRows = bandMaxRows[roundIndex];
+
+      rounds.push({
+        key: `round-${group.round}`,
+        round: group.round,
+        label: `Round ${group.round}`,
+        top: bandTop,
+        height: bandHeight,
+        dividerTop: cursorY - DAG_ROUND_GAP / 2,
+        labelTop,
+        showDivider: roundIndex > 0,
+        showLabel: showRoundLabels,
+      });
+
+      for (let columnIndex = 0; columnIndex < group.columns.length; columnIndex += 1) {
+        const column = group.columns[columnIndex];
+        const columnOffset = ((maxRows - column.length) * DAG_ROW_GAP) / 2;
+        for (let rowIndex = 0; rowIndex < column.length; rowIndex += 1) {
+          const task = column[rowIndex];
+          nodes.push({
+            task,
+            x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP,
+            y: bandTop + columnOffset + rowIndex * DAG_ROW_GAP,
+            width: DAG_NODE_WIDTH,
+            height: DAG_NODE_HEIGHT,
+            columnIndex,
+            rowIndex,
+          });
+        }
+      }
+
+      cursorY = bandTop + bandHeight + DAG_ROUND_GAP;
+    });
+
+    // Stage headers span the widest round and stay pinned at the top.
+    const stages: DagStageItem[] = Array.from({ length: columnCount }, (_unused, columnIndex) => ({
       key: `stage-${columnIndex}`,
       // Center the stage header over its node column (offset compensated via translateX in CSS).
       x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP + DAG_NODE_WIDTH / 2,
@@ -442,29 +535,21 @@ export const AgentTeamFrame = ({
       index: columnIndex + 1,
     }));
 
-    for (let columnIndex = 0; columnIndex < graphColumns.length; columnIndex += 1) {
-      const column = graphColumns[columnIndex];
-      const columnOffset = ((maxRows - column.length) * DAG_ROW_GAP) / 2;
-      for (let rowIndex = 0; rowIndex < column.length; rowIndex += 1) {
-        const task = column[rowIndex];
-        nodes.push({
-          task,
-          x: DAG_LEFT + columnIndex * DAG_COLUMN_GAP,
-          y: DAG_TOP + verticalShift + columnOffset + rowIndex * DAG_ROW_GAP,
-          width: DAG_NODE_WIDTH,
-          height: DAG_NODE_HEIGHT,
-          columnIndex,
-          rowIndex,
-        });
-      }
-    }
-
     const nodeByKey = new Map(nodes.map((item) => [item.task.key, item]));
+    const roundByKey = new Map<string, number>();
+    graphRounds.forEach((group) => {
+      for (const column of group.columns) {
+        for (const task of column) roundByKey.set(task.key, group.round);
+      }
+    });
+
     const edges: DagEdgeItem[] = [];
     for (const node of nodes) {
       for (const depKey of node.task.depKeys) {
         const source = nodeByKey.get(depKey);
         if (!source) continue;
+        // Keep rounds visually separate: only draw dependency edges within the same round.
+        if (roundByKey.get(source.task.key) !== roundByKey.get(node.task.key)) continue;
         const startX = source.x + source.width - 2;
         const startY = source.y + source.height / 2;
         const endX = node.x + 2;
@@ -483,13 +568,14 @@ export const AgentTeamFrame = ({
       nodes,
       edges,
       stages,
+      rounds,
       width: Math.max(
         DAG_MIN_WIDTH,
         DAG_LEFT * 2 + Math.max(0, columnCount - 1) * DAG_COLUMN_GAP + DAG_NODE_WIDTH,
       ),
       height,
     };
-  }, [graphColumns]);
+  }, [graphRounds]);
   const inlineDagLayout = useMemo(
     () => buildDagLayout(graphViewportHeights.inline),
     [buildDagLayout, graphViewportHeights.inline],
@@ -875,7 +961,7 @@ export const AgentTeamFrame = ({
   };
 
   const renderDagCanvas = (variant: 'inline' | 'fullscreen' = 'inline') => {
-    if (graphColumns.length === 0) {
+    if (graphRounds.length === 0) {
       return (
         <div className="agent-team-graph-empty">
           <span className="agent-team-empty-panel__eyebrow">No graph yet</span>
@@ -926,6 +1012,28 @@ export const AgentTeamFrame = ({
             );
           })}
         </svg>
+
+        {dagLayout.rounds.map((round) =>
+          round.showDivider ? (
+            <div
+              key={`${round.key}-divider`}
+              className="agent-team-dag-round-divider"
+              style={{ top: round.dividerTop, width: dagLayout.width }}
+            />
+          ) : null,
+        )}
+
+        {dagLayout.rounds.map((round) =>
+          round.showLabel ? (
+            <span
+              key={`${round.key}-label`}
+              className="agent-team-dag-round-label"
+              style={{ left: DAG_LEFT, top: round.labelTop }}
+            >
+              {round.label}
+            </span>
+          ) : null,
+        )}
 
         {dagLayout.stages.map((stage) => (
           <span
@@ -1522,7 +1630,7 @@ export const AgentTeamFrame = ({
           <strong>{graphSubtitle}</strong>
         </div>
         <div className="agent-team-graph-panel__actions">
-          {variant === 'inline' && graphColumns.length > 0 && (
+          {variant === 'inline' && graphRounds.length > 0 && (
             <button
               type="button"
               className="agent-team-graph-panel__fullscreen"

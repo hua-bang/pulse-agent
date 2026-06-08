@@ -11,6 +11,7 @@ import type {
 class FakeAgentSessionAdapter implements AgentSessionAdapter {
   sessions = new Map<string, CreateAgentSessionInput>();
   inputs: Array<{ sessionId: string; input: string }> = [];
+  launchPrompts: Array<{ sessionId: string; prompt: string }> = [];
   interrupts: Array<{ sessionId: string; mode: 'soft' | 'ctrl-c' | 'abort' }> = [];
   private next = 1;
   private handlers = new Set<(event: AgentSessionEvent) => void>();
@@ -23,6 +24,10 @@ class FakeAgentSessionAdapter implements AgentSessionAdapter {
 
   async sendInput(sessionId: string, input: string): Promise<void> {
     this.inputs.push({ sessionId, input });
+  }
+
+  async persistLaunchPrompt(sessionId: string, prompt: string): Promise<void> {
+    this.launchPrompts.push({ sessionId, prompt });
   }
 
   async interrupt(sessionId: string, mode: 'soft' | 'ctrl-c' | 'abort'): Promise<void> {
@@ -93,6 +98,41 @@ describe('TeamRuntime', () => {
     ]);
   });
 
+  it('groups follow-up tasks into a new round once the previous batch is finished', async () => {
+    const { runtime } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+
+    // Initial plan: tasks created back-to-back share round 1.
+    const first = await runtime.createTask({ teamId: team.id, title: 'First', description: 'Do first' });
+    const second = await runtime.createTask({ teamId: team.id, title: 'Second', description: 'Do second' });
+    expect(first.metadata?.round).toBe(1);
+    expect(second.metadata?.round).toBe(1);
+
+    // A task added while round 1 is still active stays in round 1.
+    await runtime.completeTask(first.id, 'done');
+    const third = await runtime.createTask({ teamId: team.id, title: 'Third', description: 'Still round 1' });
+    expect(third.metadata?.round).toBe(1);
+
+    // Once every existing task is terminal, the next task starts round 2.
+    await runtime.completeTask(second.id, 'done');
+    await runtime.completeTask(third.id, 'done');
+    const followUp = await runtime.createTask({ teamId: team.id, title: 'Follow-up', description: 'New work' });
+    expect(followUp.metadata?.round).toBe(2);
+
+    // Subsequent tasks in the same follow-up wave join the current round.
+    const followUpTwo = await runtime.createTask({ teamId: team.id, title: 'Follow-up 2', description: 'More work' });
+    expect(followUpTwo.metadata?.round).toBe(2);
+
+    // An explicit round in metadata is honored.
+    const pinned = await runtime.createTask({
+      teamId: team.id,
+      title: 'Pinned',
+      description: 'Explicit round',
+      metadata: { round: 5 },
+    });
+    expect(pinned.metadata?.round).toBe(5);
+  });
+
   it('dispatches ready tasks to idle teammate sessions', async () => {
     const { runtime, adapter } = createRuntime();
     const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
@@ -123,6 +163,30 @@ describe('TeamRuntime', () => {
     expect(adapter.inputs[0].input).toContain('Working directory: /repo/app');
     expect(adapter.sessions.get(withSession.sessionRef!.sessionId)?.cwd).toBe('/repo/app');
     expect(snapshot.messages[0].type).toBe('task_assigned');
+  });
+
+  it('tracks the current task as the launch prompt across multiple tasks for one teammate', async () => {
+    const { runtime, adapter } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const agent = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Codex Exec' });
+    const withSession = await runtime.createAgentSession(agent.id);
+    const sessionId = withSession.sessionRef!.sessionId;
+
+    const taskA = await runtime.createTask({ teamId: team.id, title: 'Task A', description: 'Do A', ownerAgentId: agent.id });
+    await runtime.createTask({ teamId: team.id, title: 'Task B', description: 'Do B', ownerAgentId: agent.id });
+
+    // First dispatch assigns A; the persisted launch prompt is A's prompt.
+    await runtime.dispatchReadyTasks(team.id);
+    expect(adapter.launchPrompts.at(-1)?.sessionId).toBe(sessionId);
+    expect(adapter.launchPrompts.at(-1)?.prompt).toContain('You are assigned a team task: Task A');
+
+    // Once A is done, the next dispatch assigns B and the launch prompt follows
+    // the CURRENT task — a later restart must not replay the finished Task A.
+    await runtime.completeTask(taskA.id, 'done', agent.id);
+    await runtime.dispatchReadyTasks(team.id);
+    const latest = adapter.launchPrompts.at(-1);
+    expect(latest?.prompt).toContain('You are assigned a team task: Task B');
+    expect(latest?.prompt).not.toContain('You are assigned a team task: Task A');
   });
 
   it('waits for dependencies before dispatching a task', async () => {
