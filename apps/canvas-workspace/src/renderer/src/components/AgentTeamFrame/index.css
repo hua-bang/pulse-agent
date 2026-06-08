@@ -1123,9 +1123,28 @@
 }
 
 .agent-team-subtabs {
-  display: inline-flex;
+  display: flex;
+  align-items: flex-end;
   gap: 14px;
   border-bottom: 1px solid rgba(92, 128, 183, 0.16);
+}
+
+.agent-team-frame .agent-team-subtab-expand {
+  height: 24px;
+  width: 26px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.agent-team-frame .agent-team-subtab-expand:hover {
+  color: var(--text);
+  background: rgba(92, 128, 183, 0.12);
 }
 
 .agent-team-frame .agent-team-subtab {
