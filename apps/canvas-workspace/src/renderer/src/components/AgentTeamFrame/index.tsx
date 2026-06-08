@@ -275,6 +275,7 @@ export const AgentTeamFrame = ({
   const [selectedArtifactId, setSelectedArtifactId] = useState('');
   const [selectedAgentKey, setSelectedAgentKey] = useState('');
   const [agentInspectorMode, setAgentInspectorMode] = useState<'activity' | 'terminal'>('terminal');
+  const [agentViewMode, setAgentViewMode] = useState<'activity' | 'terminal'>('activity');
   const [detailPanelMode, setDetailPanelMode] = useState<'task' | 'agent'>('task');
   const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
   const [selectedPlanTaskKey, setSelectedPlanTaskKey] = useState('');
@@ -605,6 +606,7 @@ export const AgentTeamFrame = ({
 
   useEffect(() => {
     setAgentInspectorMode('terminal');
+    setAgentViewMode('activity');
   }, [selectedAgentKey]);
 
   useEffect(() => {
@@ -1254,13 +1256,54 @@ export const AgentTeamFrame = ({
           ))}
         </div>
 
-        <div className="agent-team-agent-detail__section">
-          <span className="agent-team-detail__section-title">Recent output</span>
-          {activityLines.length === 0 ? (
-            <span className="agent-team-detail__muted">No readable output yet.</span>
-          ) : activityLines.map((line, index) => (
-            <span key={`${index}-${line}`} className="agent-team-agent-detail__output">{line}</span>
-          ))}
+        <div className="agent-team-agent-detail__viewer">
+          <div className="agent-team-subtabs" role="tablist" aria-label="Agent view">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={agentViewMode === 'activity'}
+              className={`agent-team-subtab${agentViewMode === 'activity' ? ' is-active' : ''}`}
+              onClick={() => setAgentViewMode('activity')}
+            >
+              Activity
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={agentViewMode === 'terminal'}
+              className={`agent-team-subtab${agentViewMode === 'terminal' ? ' is-active' : ''}`}
+              onClick={() => setAgentViewMode('terminal')}
+            >
+              Terminal
+            </button>
+          </div>
+          {agentViewMode === 'activity' ? (
+            <div className="agent-team-agent-detail__section">
+              <span className="agent-team-detail__section-title">Recent output</span>
+              {activityLines.length === 0 ? (
+                <span className="agent-team-detail__muted">No readable output yet.</span>
+              ) : activityLines.map((line, index) => (
+                <span key={`${index}-${line}`} className="agent-team-agent-detail__output">{line}</span>
+              ))}
+            </div>
+          ) : agentNode ? (
+            <div className="agent-team-agent-detail__inline-terminal">
+              <AgentNodeBody
+                node={agentNode}
+                getAllNodes={getAllNodes}
+                rootFolder={rootFolder}
+                workspaceId={workspaceId}
+                workspaceName={workspaceName}
+                onUpdate={onUpdate}
+                readOnly={readOnly}
+                terminalMode="mirror"
+              />
+            </div>
+          ) : (
+            <div className="agent-team-detail__muted agent-team-detail__empty">
+              No runtime node yet. Approve &amp; run the plan to stream the terminal.
+            </div>
+          )}
         </div>
       </>
     );
