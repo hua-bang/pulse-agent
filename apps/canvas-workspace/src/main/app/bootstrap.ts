@@ -34,7 +34,7 @@ import { setupShellIpc } from "./shell-ipc";
 import { setupWebpageReaderIpc } from "../webview/reader";
 import { setupWorkspaceNodeIpc } from "../canvas/nodes/ipc";
 import {
-  startRuntimeControlServer,
+  ensureRuntimeControlServer,
   stopRuntimeControlServer,
 } from "../runtime/control-server";
 import {
@@ -130,12 +130,16 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // renderer first calls into canvas-agent IPC). Await so the registry
     // is fully populated by the time the window comes up.
     await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
-    void startRuntimeControlServer().catch((err) => {
-      void writeLog(
-        "main",
-        "runtime-control-server failed to start",
-        String(err)
-      );
+    void ensureRuntimeControlServer((message, detail) => {
+      void writeLog("main", message, detail);
+    }).then((ok) => {
+      if (!ok) {
+        void writeLog(
+          "main",
+          "runtime-control-server unavailable",
+          "live agent/team commands will fail until Pulse Canvas is restarted"
+        );
+      }
     });
     // MCP server disabled: canvas-cli is the preferred agent interface now.
     // startMCPServer();
@@ -155,6 +159,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     openWindow();
 
     app.on("activate", () => {
+      // Reopening the window after a close must restore the live channel too —
+      // on macOS the process stays alive but the server was previously torn
+      // down here, leaving "app open but no runtime" (ENOENT for CLI live cmds).
+      void ensureRuntimeControlServer((message, detail) => {
+        void writeLog("main", message, detail);
+      });
       if (BrowserWindow.getAllWindows().length === 0) {
         openWindow();
       }
@@ -167,8 +177,12 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     teardownCanvasWatchers();
     teardownCanvasAgent();
     void teardownCanvasPlugins();
-    void stopRuntimeControlServer();
     if (process.platform !== "darwin") {
+      // Only on platforms where closing all windows quits the app do we tear
+      // down the runtime server. On macOS the process keeps running in the
+      // dock, so the server must stay up so live commands keep working after
+      // the window is reopened. (will-quit handles the real shutdown.)
+      void stopRuntimeControlServer();
       app.quit();
     }
   });

@@ -37,11 +37,86 @@ interface RuntimeInfo {
 }
 
 let serverInstance: Server | null = null;
-let runtimeFilePath: string | null = null;
+// Describes the server currently running in THIS process. Kept at module
+// scope so we can re-write the runtime file if it disappears underneath a
+// still-listening server (self-heal) and verify ownership before deleting.
+let currentRuntime: RuntimeInfo | null = null;
+let healTimer: ReturnType<typeof setInterval> | null = null;
+let willQuitHooked = false;
+
+const HEAL_INTERVAL_MS = 15_000;
 
 export interface RuntimeControlHandle {
   baseUrl: string;
   stop: () => Promise<void>;
+}
+
+async function writeRuntimeFile(runtime: RuntimeInfo): Promise<void> {
+  await fs.mkdir(RUNTIME_DIR, { recursive: true });
+  // 0o600 — readable only by the current user. Matches the trust model.
+  await fs.writeFile(RUNTIME_FILE, JSON.stringify(runtime, null, 2), { mode: 0o600 });
+}
+
+/**
+ * While our server is alive the runtime file must exist. It can vanish if
+ * another instance's teardown removed it, or an external cleanup ran. Re-write
+ * it from the live server's info so CLI live commands keep resolving.
+ */
+async function ensureRuntimeFilePresent(): Promise<void> {
+  if (!serverInstance || !currentRuntime) return;
+  try {
+    await fs.access(RUNTIME_FILE);
+  } catch {
+    await writeRuntimeFile(currentRuntime).catch(() => {});
+  }
+}
+
+function startHealTimer(): void {
+  if (healTimer) return;
+  healTimer = setInterval(() => {
+    void ensureRuntimeFilePresent();
+  }, HEAL_INTERVAL_MS);
+  // Do not keep the process alive just for this watchdog.
+  if (typeof healTimer.unref === 'function') healTimer.unref();
+}
+
+function stopHealTimer(): void {
+  if (healTimer) {
+    clearInterval(healTimer);
+    healTimer = null;
+  }
+}
+
+/**
+ * Start the runtime-control server with a few retries. Transient failures
+ * (e.g. a brief port-bind or fs hiccup at boot) used to leave the channel
+ * permanently dead because the single boot call swallowed the error and never
+ * retried. Returns true once a server is running, false if all attempts fail.
+ */
+export async function ensureRuntimeControlServer(
+  log?: (message: string, detail: string) => void,
+  attempts = 3,
+): Promise<boolean> {
+  if (serverInstance) {
+    // Already running — just make sure the file advertising it is present.
+    await ensureRuntimeFilePresent();
+    return true;
+  }
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await startRuntimeControlServer();
+      return true;
+    } catch (err) {
+      log?.(
+        'runtime-control-server failed to start',
+        `attempt ${attempt}/${attempts}: ${String(err)}`,
+      );
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -56,6 +131,9 @@ export async function startRuntimeControlServer(): Promise<RuntimeControlHandle>
   if (serverInstance) {
     const addr = serverInstance.address();
     if (addr && typeof addr === 'object') {
+      // Self-heal: the file may have been removed while our server kept
+      // listening (another instance's teardown, external cleanup).
+      await ensureRuntimeFilePresent();
       return {
         baseUrl: `http://127.0.0.1:${addr.port}`,
         stop: stopRuntimeControlServer,
@@ -93,35 +171,58 @@ export async function startRuntimeControlServer(): Promise<RuntimeControlHandle>
     createdAt: new Date().toISOString(),
   };
 
-  await fs.mkdir(RUNTIME_DIR, { recursive: true });
-  // 0o600 — readable only by the current user. Matches the trust model.
-  await fs.writeFile(RUNTIME_FILE, JSON.stringify(runtime, null, 2), { mode: 0o600 });
+  await writeRuntimeFile(runtime);
 
   serverInstance = server;
-  runtimeFilePath = RUNTIME_FILE;
+  currentRuntime = runtime;
+  startHealTimer();
 
   // Best-effort cleanup on app quit so the next launch sees a clean slate.
-  app.once('will-quit', () => {
-    void stopRuntimeControlServer();
-  });
+  // Registered once per process — the server now survives window close/reopen
+  // cycles, so this must not accumulate handlers across restarts.
+  if (!willQuitHooked) {
+    willQuitHooked = true;
+    app.once('will-quit', () => {
+      void stopRuntimeControlServer();
+    });
+  }
 
   return { baseUrl, stop: stopRuntimeControlServer };
 }
 
 export async function stopRuntimeControlServer(): Promise<void> {
   const server = serverInstance;
+  const runtime = currentRuntime;
   serverInstance = null;
+  currentRuntime = null;
+  stopHealTimer();
   if (server) {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
-  const file = runtimeFilePath;
-  runtimeFilePath = null;
-  if (file) {
-    try {
-      await fs.unlink(file);
-    } catch {
-      // ignore — file may already be gone
+  // Only remove the runtime file if it still describes THIS process. A second
+  // instance may have overwritten it with its own live server; deleting that
+  // would strand the other instance (the bug this guards against).
+  if (runtime) {
+    await removeRuntimeFileIfOwned(runtime.pid);
+  }
+}
+
+async function removeRuntimeFileIfOwned(pid: number): Promise<void> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(RUNTIME_FILE, 'utf-8');
+  } catch {
+    return; // already gone
+  }
+  try {
+    const info = JSON.parse(raw) as RuntimeInfo;
+    if (info.pid === pid) {
+      await fs.unlink(RUNTIME_FILE).catch(() => {});
     }
+    // A different pid means a live sibling owns it now — leave it alone.
+  } catch {
+    // Corrupt file — safe to remove.
+    await fs.unlink(RUNTIME_FILE).catch(() => {});
   }
 }
 
