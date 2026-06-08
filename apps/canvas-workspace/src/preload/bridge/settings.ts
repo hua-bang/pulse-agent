@@ -1,4 +1,4 @@
-import type { IpcRenderer } from "electron";
+import type { IpcRenderer, IpcRendererEvent } from "electron";
 import type {
   CanvasMcpApi,
   CanvasModelApi,
@@ -7,7 +7,8 @@ import type {
   DialogApi,
   ExperimentalApi,
   PromptProfileApi,
-  SkillsApi
+  SkillsApi,
+  ToolingInstallStatus
 } from "../../renderer/src/types";
 
 export const createDialogApi = (ipcRenderer: IpcRenderer): DialogApi => ({
@@ -63,7 +64,16 @@ export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi
 
   reset: () => ipcRenderer.invoke("experimental:reset"),
 
-  reloadWindow: () => ipcRenderer.invoke("experimental:reload-window")
+  reloadWindow: () => ipcRenderer.invoke("experimental:reload-window"),
+
+  onToolingStatus: (cb: (status: ToolingInstallStatus) => void) => {
+    const channel = "experimental:tooling-status";
+    const listener = (_event: IpcRendererEvent, status: ToolingInstallStatus) => cb(status);
+    ipcRenderer.on(channel, listener);
+    return () => {
+      ipcRenderer.removeListener(channel, listener);
+    };
+  }
 });
 
 export const createChannelConfigApi = (ipcRenderer: IpcRenderer): ChannelConfigApi => ({

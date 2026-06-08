@@ -1536,6 +1536,21 @@ export interface ExperimentalFeatureDef {
   defaultEnabled: boolean;
 }
 
+/**
+ * Pushed from main when a flag toggle kicks off a background tooling install
+ * (e.g. the Agent Teams skill + CLI). Delivered over the
+ * `experimental:tooling-status` channel once the install settles.
+ */
+export interface ToolingInstallStatus {
+  /** The experimental flag id that triggered the install. */
+  feature: string;
+  ok: boolean;
+  skillsInstalled: boolean;
+  cliInstalled: boolean;
+  cliError?: string | null;
+  manualCommand?: string | null;
+}
+
 export interface ExperimentalApi {
   list: () => Promise<{
     ok: boolean;
@@ -1548,6 +1563,8 @@ export interface ExperimentalApi {
     Promise<{ ok: boolean; values?: Record<string, boolean>; error?: string }>;
   reset: () => Promise<{ ok: boolean; values?: Record<string, boolean>; error?: string }>;
   reloadWindow: () => Promise<{ ok: boolean; error?: string }>;
+  /** Subscribe to background tooling-install results. Returns an unsubscribe fn. */
+  onToolingStatus: (cb: (status: ToolingInstallStatus) => void) => () => void;
 }
 
 export interface ChannelConfigStatus {

@@ -102,7 +102,7 @@ export function setupExperimentalIpc(): void {
 
   ipcMain.handle(
     'experimental:set',
-    async (_event, payload: { id: string; enabled: boolean }) => {
+    async (event, payload: { id: string; enabled: boolean }) => {
       try {
         if (!payload || typeof payload.id !== 'string') {
           return { ok: false, error: 'Missing flag id' };
@@ -125,6 +125,18 @@ export function setupExperimentalIpc(): void {
           payload.enabled &&
           !wasEnabled
         ) {
+          const sender = event.sender;
+          const pushStatus = (status: {
+            ok: boolean;
+            skillsInstalled: boolean;
+            cliInstalled: boolean;
+            cliError?: string | null;
+            manualCommand?: string | null;
+          }) => {
+            if (!sender.isDestroyed()) {
+              sender.send('experimental:tooling-status', { feature: payload.id, ...status });
+            }
+          };
           void runInstall()
             .then((result) => {
               if (!result.skillsInstalled) {
@@ -137,9 +149,23 @@ export function setupExperimentalIpc(): void {
               } else {
                 console.log('[experimental] agent-teams skill + CLI installed');
               }
+              pushStatus({
+                ok: result.ok,
+                skillsInstalled: result.skillsInstalled,
+                cliInstalled: result.cliInstalled,
+                cliError: result.cliError,
+                manualCommand: result.manualCommand,
+              });
             })
             .catch((err) => {
               console.error('[experimental] agent-teams tooling install errored', err);
+              pushStatus({
+                ok: false,
+                skillsInstalled: false,
+                cliInstalled: false,
+                cliError: err instanceof Error ? err.message : String(err),
+                manualCommand: null,
+              });
             });
         }
 
