@@ -348,9 +348,21 @@
 }
 
 .agent-team-command--lead textarea {
-  min-height: 34px;
+  min-height: 38px;
   max-height: 72px;
   resize: none;
+  border-radius: 10px;
+  border-color: rgba(122, 167, 232, 0.4);
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.agent-team-command--lead textarea:focus {
+  outline: none;
+  border-color: var(--agent-accent, #2383e2);
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.14);
 }
 
 .agent-team-frame--briefing .agent-team-command textarea {
@@ -381,18 +393,30 @@
 .agent-team-command button {
   height: 34px;
   min-width: 72px;
-  border-color: #7aa7e8;
-  background: #5f94e6;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #5f94e6, #4f84d8);
   color: #fff;
+  font-weight: 700;
+  box-shadow: 0 6px 14px rgba(47, 102, 184, 0.24);
+  transition: filter 0.15s ease, box-shadow 0.15s ease;
 }
 
 .agent-team-command button:hover:not(:disabled) {
-  background: #4f84d8;
+  filter: brightness(1.05);
+  box-shadow: 0 8px 18px rgba(47, 102, 184, 0.3);
+}
+
+.agent-team-command button:disabled {
+  background: #c4d4ec;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 .agent-team-command--lead button {
   align-self: flex-end;
-  min-width: 118px;
+  min-width: 124px;
+  height: 36px;
 }
 
 .agent-team-workspace {
@@ -421,18 +445,22 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-radius: 12px;
+  border-color: rgba(92, 128, 183, 0.18);
   background:
-    linear-gradient(180deg, rgba(241, 247, 255, 0.92), rgba(255, 255, 255, 0.9)),
-    rgba(255, 255, 255, 0.86);
+    linear-gradient(180deg, rgba(244, 249, 255, 0.95), rgba(255, 255, 255, 0.92)),
+    rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 30px rgba(31, 54, 88, 0.06);
 }
 
 .agent-team-lead-dock__head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 10px;
+  gap: 3px 10px;
   align-items: center;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(35, 131, 226, 0.12);
+  padding: 13px 15px;
+  border-bottom: 1px solid rgba(35, 131, 226, 0.1);
+  background: linear-gradient(180deg, rgba(35, 131, 226, 0.05), transparent);
 }
 
 .agent-team-lead-dock__head .agent-team-panel-heading__label {
@@ -467,8 +495,9 @@
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(35, 131, 226, 0.12);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 6px 16px rgba(31, 54, 88, 0.045);
 }
 
 .agent-team-frame--briefing .agent-team-lead-dock__agent-surface {

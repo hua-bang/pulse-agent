@@ -51,45 +51,55 @@ export const AgentTeamManaged = ({
     ? recentActions
     : ['Waiting for team updates.'];
 
+  const statusClass = status ? `agent-team-managed--${status}` : 'agent-team-managed--idle';
+
   return (
     <div className="agent-body-wrap agent-body-wrap--team-managed">
       <div className="agent-card agent-card--team-managed">
-        <div className="agent-team-managed">
-          <div className="agent-team-managed__icon">
-            <AgentIcon id={agentType} size={22} />
+        <div className={`agent-team-managed ${statusClass}`}>
+          <div className="agent-team-managed__header">
+            <div className="agent-team-managed__icon">
+              <AgentIcon id={agentType} size={22} />
+            </div>
+            <div className="agent-team-managed__headtext">
+              <div className="agent-team-managed__eyebrow">Team Leader</div>
+              <div className="agent-team-managed__title">{leaderTitle(status)}</div>
+            </div>
           </div>
-          <div className="agent-team-managed__copy">
-            <div className="agent-team-managed__eyebrow">Team Leader</div>
-            <div className="agent-team-managed__title">{leaderTitle(status)}</div>
-            <div className="agent-team-managed__body">
-              {leaderBody(status)}
-            </div>
-            <div className="agent-team-managed__decision">
-              <span>Current decision</span>
-              <strong>{summarizePrompt(lastPrompt)}</strong>
-            </div>
-            <div className="agent-team-managed__actions">
-              <span>Recent actions</span>
-              <ul>
-                {actionItems.map((action) => (
-                  <li key={action}>{action}</li>
-                ))}
-              </ul>
-            </div>
-            <div className="agent-team-managed__meta">
-              {agentDef?.label ?? agentType} · {displayCwd}
-            </div>
-            {commandSlot && (
-              <div className="agent-team-managed__command">
-                {commandSlot}
-              </div>
-            )}
-            {onOpenTerminal && (
-              <button type="button" className="agent-team-managed__terminal-button" onClick={onOpenTerminal}>
-                Advanced terminal
-              </button>
-            )}
+
+          <div className="agent-team-managed__body">
+            {leaderBody(status)}
           </div>
+
+          <div className="agent-team-managed__decision">
+            <span>Current decision</span>
+            <strong>{summarizePrompt(lastPrompt)}</strong>
+          </div>
+
+          <div className="agent-team-managed__actions">
+            <span>Recent actions</span>
+            <ul>
+              {actionItems.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="agent-team-managed__meta">
+            {agentDef?.label ?? agentType} · {displayCwd}
+          </div>
+
+          {commandSlot && (
+            <div className="agent-team-managed__command">
+              {commandSlot}
+            </div>
+          )}
+
+          {onOpenTerminal && (
+            <button type="button" className="agent-team-managed__terminal-button" onClick={onOpenTerminal}>
+              Advanced terminal
+            </button>
+          )}
         </div>
       </div>
     </div>
