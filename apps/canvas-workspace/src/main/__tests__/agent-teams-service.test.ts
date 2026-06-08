@@ -542,6 +542,45 @@ describe('CanvasAgentTeamsService', () => {
     expect(mockState.queuedInputs.at(-1)?.input).toContain('Have frontend adjust the checkout copy.');
   });
 
+  it('reopens a completed team when sending the lead a next task', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
+    const implemented = await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      taskId: implement.id,
+      summary: 'Implementation is done.',
+    });
+    const review = implemented.runtime.tasks.find((task) => task.title === 'Review checkout refactor')!;
+    await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      taskId: review.id,
+      summary: 'Review passed.',
+    });
+    const completed = await service.completeTeam('ws-1', teamId, {
+      sourceAgentId: lead.id,
+      summary: 'Checkout refactor completed and reviewed.',
+    });
+    expect(completed.runtime.team.status).toBe('completed');
+
+    const reopened = await service.sendInput('ws-1', teamId, lead.id, 'Start the next milestone.');
+    const reopenedLead = reopened.runtime.agents.find((agent) => agent.id === lead.id)!;
+
+    expect(reopened.runtime.team.status).toBe('running');
+    expect(reopenedLead.status).toBe('running');
+    expect(mockState.queuedInputs.at(-1)).toMatchObject({
+      workspaceId: 'ws-1',
+      nodeId: lead.sessionRef!.sessionId,
+    });
+    expect(mockState.queuedInputs.at(-1)?.input).toContain('Start the next milestone.');
+    await expect(service.prepareAgentAutoResume('ws-1', teamId, lead.id))
+      .resolves.toMatchObject({ canResume: true });
+  });
+
   it('creates follow-up tasks by owner name and dependency title', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);

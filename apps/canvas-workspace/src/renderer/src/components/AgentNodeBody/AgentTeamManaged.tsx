@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
@@ -8,6 +9,7 @@ interface AgentTeamManagedProps {
   status?: string;
   lastPrompt?: string;
   recentActions?: string[];
+  commandSlot?: ReactNode;
   onOpenTerminal?: () => void;
 }
 
@@ -40,6 +42,7 @@ export const AgentTeamManaged = ({
   status,
   lastPrompt,
   recentActions,
+  commandSlot,
   onOpenTerminal,
 }: AgentTeamManagedProps) => {
   const agentDef = AGENT_REGISTRY.find((agent) => agent.id === agentType);
@@ -76,6 +79,11 @@ export const AgentTeamManaged = ({
             <div className="agent-team-managed__meta">
               {agentDef?.label ?? agentType} · {displayCwd}
             </div>
+            {commandSlot && (
+              <div className="agent-team-managed__command">
+                {commandSlot}
+              </div>
+            )}
             {onOpenTerminal && (
               <button type="button" className="agent-team-managed__terminal-button" onClick={onOpenTerminal}>
                 Advanced terminal

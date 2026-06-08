@@ -899,7 +899,7 @@ export class CanvasAgentTeamsService {
     agentRef: string,
     content: string,
   ): Promise<CanvasAgentTeamSnapshot> {
-    const { runtime } = this.getBundle(workspaceId);
+    const { runtime, store } = this.getBundle(workspaceId);
     const snapshot = await runtime.snapshot(teamId);
     const agent = this.resolveAgentReference(snapshot.agents, agentRef);
     const input = agent.role === 'lead'
@@ -913,6 +913,17 @@ export class CanvasAgentTeamsService {
       await runtime.answerHumanGate(openGate.id, input);
       await runtime.dispatchReadyTasks(teamId);
       return this.snapshot(workspaceId, teamId);
+    }
+
+    if (agent.role === 'lead' && snapshot.team.status === 'completed') {
+      const latestAgent = await store.getAgent(agent.id);
+      if (latestAgent) {
+        latestAgent.status = 'running';
+        latestAgent.currentTaskId = undefined;
+        latestAgent.updatedAt = Date.now();
+        await store.saveAgent(latestAgent);
+      }
+      await runtime.setTeamStatus(teamId, 'running', 'human');
     }
 
     await runtime.sendToAgent(agent.id, input);

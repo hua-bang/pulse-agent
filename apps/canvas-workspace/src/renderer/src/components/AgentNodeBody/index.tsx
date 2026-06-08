@@ -171,6 +171,7 @@ export const AgentNodeBody = ({
         status={managedLeadStatus}
         lastPrompt={controller.data.lastInitPrompt}
         recentActions={leadRecentActions}
+        commandSlot={teamLeadBriefSlot}
       />
     );
   }
@@ -221,6 +222,7 @@ export const AgentNodeBody = ({
         status={managedLeadStatus}
         lastPrompt={controller.data.lastInitPrompt}
         recentActions={leadRecentActions}
+        commandSlot={teamLeadBriefSlot}
       />
     );
   }
