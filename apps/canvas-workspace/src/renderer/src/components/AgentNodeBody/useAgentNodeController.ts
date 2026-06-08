@@ -68,7 +68,7 @@ interface MirrorTerminalCacheEntry {
 const RETRY_MIRROR_CONNECTION_MS = 1_000;
 const MAX_MIRROR_TERMINALS = 12;
 const TEAM_AUTO_RESUME_MAX_ATTEMPTS = 2;
-const TEAM_AUTO_RESUME_RETRY_AFTER_MS = 45_000;
+const TEAM_AUTO_RESUME_RETRY_AFTER_MS = 8_000;
 const MIRROR_TERMINAL_STASH_ID = 'agent-mirror-terminal-stash';
 const mirrorTerminalCache = new Map<string, MirrorTerminalCacheEntry>();
 
@@ -933,6 +933,7 @@ export const useAgentNodeController = ({
     const retryDelay = teamAutoResumeRetryDelay(data);
     if (!canAttemptTeamAutoResume(data)) {
       if (retryDelay != null) {
+        setTeamAutoResumePending(true);
         const timer = setTimeout(() => {
           setTeamAutoResumeRetryTick((tick) => tick + 1);
         }, retryDelay);
