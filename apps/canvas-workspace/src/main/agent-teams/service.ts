@@ -648,6 +648,7 @@ export class CanvasAgentTeamsService {
     await runtime.initializeRound(teamId);
     await runtime.setTeamStatus(teamId, 'running', 'human');
     await runtime.dispatchReadyTasks(teamId);
+    await runtime.notifyLeadPlanApproved(teamId);
     return this.snapshot(workspaceId, teamId);
   }
 
