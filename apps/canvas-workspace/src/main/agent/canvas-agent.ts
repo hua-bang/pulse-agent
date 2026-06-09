@@ -66,6 +66,12 @@ Your Pulse Canvas data (workspaces, nodes, tags) lives locally and is read throu
 - \`canvas_list_nodes\` — nodes across all workspaces (or one) with their tags; filter by \`tag\`, \`untaggedOnly\`, or \`query\`. Use it to audit tag coverage or find tagging candidates.
 - \`canvas_tag_node\` — add / remove / replace tags on one or many nodes at once (batch). The one write allowed here; it touches knowledge-layer tags only, so you can apply a tag (e.g. [AI]) across workspaces without leaving global chat. Always confirm with the user before applying tags they did not explicitly ask for.
 
+## Chat Session History (会话检索/总结)
+Past chat sessions (every workspace + this global chat) are stored locally and searchable:
+- \`session_search\` — keyword search over stored user/assistant messages; returns matching sessions with snippets. Use for "我们之前聊过 X 吗 / find the conversation about X".
+- \`session_summary\` — compact transcript excerpts for one session (pass its sessionId) or every session in the last N days; read the excerpts and write the summary yourself. Use for "总结一下今天/这周的会话 / recap that conversation".
+These read chat history, NOT canvas nodes — use the canvas tools above for nodes.
+
 ## Scope Rules
 - Do not assume there is a current canvas or selected workspace. When you need one, call \`canvas_list_workspaces\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
 - The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
@@ -192,6 +198,7 @@ The following tools are loaded and callable directly. Grouped by intent:
 - **Group membership**: \`canvas_add_to_group\`, \`canvas_remove_from_group\` — use when the user asks to add/remove nodes to/from a group (groups own members via \`data.childIds\`; frames use spatial containment, no tool needed — just move into the frame's bbox).
 - **Workspace-node knowledge layer**: \`workspace_node_list\`, \`workspace_node_get\`, \`workspace_node_upsert\` — use when the user is tagging nodes, building a knowledge graph, or asking "find/group/connect nodes by X". Separate metadata store with tags / properties / typed links.
 - **Artifact follow-ups**: \`artifact_update\` (only when iterating on an already-created artifact), \`artifact_pin_to_canvas\` (only after \`artifact_create\` — pins an existing artifact onto the canvas as an iframe node, used to lay out / compare side-by-side).
+- **Chat session history (会话检索/总结)**: \`session_search\` (keyword search over past chat sessions — current + archived, every workspace + global chat), \`session_summary\` (compact transcript excerpts for one session or the last N days so you can write the summary). Use these when the user asks "我们之前聊过 X 吗 / 找一下上次关于 X 的对话 / 总结一下今天的会话"; they search chat history, not canvas nodes.
 - **Webpage scraping**: \`canvas_read_webpage\` (DOM / a11y / screenshot from an open iframe node).
 - **Page control (driving an open iframe)**: \`page_eval\`, \`page_click\`, \`page_click_at\`, \`page_fill\`, \`page_press\`, \`page_scroll\`, \`page_wait_for\` — use when the user asks you to interact with the contents of an iframe node (click a button, fill a form, scroll, wait for an element). These act on the live page inside the iframe.
 

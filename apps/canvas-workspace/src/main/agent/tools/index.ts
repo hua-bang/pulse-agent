@@ -16,6 +16,7 @@ import { createVisualTools } from './visual';
 import { createArtifactTools } from './artifacts';
 import { createWebpageTools } from './webpage';
 import { createSkillTools } from './skills';
+import { createSessionTools } from './sessions';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -70,6 +71,9 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     ...createKnowledgeTools(),
     // The only allowed write in global chat: knowledge-layer tagging.
     ...createTaggingTools(),
+    // Chat-session history (检索/总结). Inherently cross-workspace (workspaceId
+    // is optional), so not wrapped with requireWorkspaceId.
+    ...createSessionTools(),
   };
 }
 
@@ -90,6 +94,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createArtifactTools(workspaceId),
     ...createWebpageTools(workspaceId),
     ...createSkillTools(workspaceId),
+    ...createSessionTools(workspaceId),
   };
 
   // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's
