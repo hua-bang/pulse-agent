@@ -330,7 +330,6 @@ export const AgentTeamFrame = ({
   const isCompletedTeam = teamStatus === 'completed';
   const isCheckpoint = teamStatus === 'round_checkpoint';
   const checkpointRound = runtime?.checkpointRound;
-  const totalRounds = runtime?.totalRounds;
   const shouldShowLeadCommandSlot = phase === 'briefing' || phase === 'plan_review' || isCompletedTeam;
   const plan = snapshot?.pendingPlan;
   const teamAgentNodes = teamId
@@ -870,6 +869,17 @@ export const AgentTeamFrame = ({
       setError(null);
     } else {
       setError(result.error ?? 'Unable to advance to next round.');
+    }
+  }, [api, workspaceId, teamId]);
+
+  const handleFinalizeCheckpoint = useCallback(async () => {
+    if (!api || !workspaceId || !teamId) return;
+    const result = await api.finalizeFromCheckpoint(workspaceId, teamId);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to finalize team.');
     }
   }, [api, workspaceId, teamId]);
 
@@ -1717,9 +1727,14 @@ export const AgentTeamFrame = ({
             </button>
           )}
           {isCheckpoint && (
-            <button type="button" className="agent-team-frame__primary-action" onClick={() => void handleAdvanceRound()} disabled={readOnly}>
-              Continue to Round {(checkpointRound ?? 0) + 1}
-            </button>
+            <>
+              <button type="button" className="agent-team-frame__secondary-action" onClick={() => void handleFinalizeCheckpoint()} disabled={readOnly}>
+                Finish
+              </button>
+              <button type="button" className="agent-team-frame__primary-action" onClick={() => void handleAdvanceRound()} disabled={readOnly}>
+                Continue to Round {(checkpointRound ?? 0) + 1}
+              </button>
+            </>
           )}
           {variant === 'fullscreen' && (
             <button type="button" onClick={() => setGraphFullscreenOpen(false)}>
@@ -1961,12 +1976,18 @@ export const AgentTeamFrame = ({
           <div className="agent-team-checkpoint-banner__copy">
             <strong>Round {checkpointRound} complete</strong>
             <span>
-              Review results before starting Round {(checkpointRound ?? 0) + 1}
-              {totalRounds ? ` of ${totalRounds}` : ''}.
-              You can edit upcoming tasks or send the Team Lead adjustments.
+              Review results, then continue to plan the next round or finish up.
             </span>
           </div>
           <div className="agent-team-checkpoint-banner__actions">
+            <button
+              type="button"
+              className="agent-team-frame__secondary-action"
+              onClick={() => void handleFinalizeCheckpoint()}
+              disabled={readOnly}
+            >
+              Finish
+            </button>
             <button
               type="button"
               className="agent-team-frame__primary-action"

@@ -24,7 +24,7 @@ import type {
   TeamTaskRecord,
 } from './types.js';
 import { InMemoryTeamRuntimeStore } from './memory-store.js';
-import { assertTaskGraphAcyclic, computeTopologicalRounds } from './task-graph.js';
+import { assertTaskGraphAcyclic } from './task-graph.js';
 
 export interface TeamRuntimeOptions {
   store?: TeamRuntimeStore;
@@ -68,7 +68,6 @@ const quoteCliValue = (value: string): string =>
 
 const TASK_ROUND_METADATA_KEY = 'round';
 const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
-const TEAM_TOTAL_ROUNDS_METADATA_KEY = 'totalRounds';
 
 /** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
 const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
@@ -81,10 +80,9 @@ const readCurrentRound = (metadata: Record<string, unknown> | undefined): number
   return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 };
 
-const readTotalRounds = (metadata: Record<string, unknown> | undefined): number => {
-  const value = metadata?.[TEAM_TOTAL_ROUNDS_METADATA_KEY];
-  return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
-};
+/** Whether the team has been explicitly opted into the round-checkpoint model. */
+const hasRoundMetadata = (metadata: Record<string, unknown> | undefined): boolean =>
+  metadata?.[TEAM_CURRENT_ROUND_METADATA_KEY] !== undefined;
 
 /**
  * Decide which "round" a new task belongs to.
@@ -446,30 +444,23 @@ export class TeamRuntime {
     });
   }
 
-  async setTeamRoundMetadata(teamId: TeamId, currentRound: number, totalRounds: number): Promise<void> {
+  async finalizeFromCheckpoint(teamId: TeamId, actor: AgentId | 'human' | 'runtime' = 'human'): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (team.status !== 'round_checkpoint') {
+      throw new Error(`Cannot finalize: team status is '${team.status}', expected 'round_checkpoint'`);
+    }
+    await this.setTeamStatus(teamId, 'reviewing', actor);
+    await this.sendFinalReviewPrompt(teamId);
+  }
+
+  async initializeRound(teamId: TeamId): Promise<void> {
     const team = await this.requireTeam(teamId);
     team.metadata = {
       ...(team.metadata ?? {}),
-      [TEAM_CURRENT_ROUND_METADATA_KEY]: currentRound,
-      [TEAM_TOTAL_ROUNDS_METADATA_KEY]: totalRounds,
+      [TEAM_CURRENT_ROUND_METADATA_KEY]: 1,
     };
     team.updatedAt = this.now();
     await this.store.saveTeam(team);
-  }
-
-  async assignTopologicalRounds(teamId: TeamId): Promise<number> {
-    const tasks = await this.store.listTasks(teamId);
-    if (tasks.length === 0) return 1;
-    const roundMap = computeTopologicalRounds(tasks.map((t) => ({ id: t.id, deps: t.deps })));
-    const totalRounds = Math.max(...roundMap.values(), 1);
-    for (const task of tasks) {
-      const round = roundMap.get(task.id) ?? 1;
-      task.metadata = { ...(task.metadata ?? {}), [TASK_ROUND_METADATA_KEY]: round };
-      task.updatedAt = this.now();
-      await this.store.saveTask(task);
-    }
-    await this.setTeamRoundMetadata(teamId, 1, totalRounds);
-    return totalRounds;
   }
 
   async updateTaskDescription(taskId: TaskId, patch: { title?: string; description?: string }): Promise<TeamTaskRecord> {
@@ -512,13 +503,12 @@ export class TeamRuntime {
     const tasks = await this.store.listTasks(teamId);
     const agents = await this.store.listAgents(teamId);
     const idleAgents = agents.filter(agent => agent.status === 'idle' && !agent.currentTaskId);
+    const roundEnabled = hasRoundMetadata(team.metadata);
     const currentRound = readCurrentRound(team.metadata);
-    const totalRounds = readTotalRounds(team.metadata);
-    const hasMultipleRounds = totalRounds > 1;
     const readyTasks = tasks.filter(task =>
       task.status === 'todo'
       && this.isTaskReady(task, tasks)
-      && (!hasMultipleRounds || readTaskRound(task.metadata) === currentRound)
+      && (!roundEnabled || readTaskRound(task.metadata) === currentRound)
     );
     const assigned: TeamTaskRecord[] = [];
     const availableAgents = [...idleAgents];
@@ -1006,7 +996,6 @@ export class TeamRuntime {
     return {
       team, agents, tasks, artifacts, humanGates, events, messages,
       checkpointRound: team.status === 'round_checkpoint' ? readCurrentRound(team.metadata) : undefined,
-      totalRounds: readTotalRounds(team.metadata),
     };
   }
 
@@ -1188,16 +1177,16 @@ export class TeamRuntime {
 
   private async checkRoundCompletion(teamId: TeamId): Promise<void> {
     const team = await this.requireTeam(teamId);
-    const tasks = await this.store.listTasks(teamId);
-    if (tasks.length === 0) return;
 
-    const totalRounds = readTotalRounds(team.metadata);
-    if (totalRounds <= 1) {
+    if (!hasRoundMetadata(team.metadata)) {
       await this.markTeamReadyForReviewIfDone(teamId);
       return;
     }
 
     if (team.status !== 'running') return;
+
+    const tasks = await this.store.listTasks(teamId);
+    if (tasks.length === 0) return;
 
     const currentRound = readCurrentRound(team.metadata);
     const currentRoundTasks = tasks.filter((t) => readTaskRound(t.metadata) === currentRound);
@@ -1206,16 +1195,9 @@ export class TeamRuntime {
       return;
     }
 
-    if (currentRound >= totalRounds) {
-      await this.markTeamReadyForReviewIfDone(teamId);
-      return;
-    }
-
     await this.setTeamStatus(teamId, 'round_checkpoint');
     await this.emit(teamId, 'round_checkpoint_entered', 'runtime', {
       completedRound: currentRound,
-      nextRound: currentRound + 1,
-      totalRounds,
     });
   }
 

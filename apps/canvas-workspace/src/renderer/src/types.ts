@@ -1218,7 +1218,6 @@ export interface AgentTeamRuntimeSnapshot {
   events: AgentTeamEventRecord[];
   messages: AgentTeamMessageRecord[];
   checkpointRound?: number;
-  totalRounds?: number;
 }
 
 export type AgentTeamPhase = 'briefing' | 'plan_review' | 'executing';
@@ -1303,6 +1302,10 @@ export interface AgentTeamsApi {
     dispatch?: boolean;
   }) => Promise<{ ok: boolean; runtime?: AgentTeamRuntimeSnapshot; error?: string }>;
   advanceRound: (
+    workspaceId: string,
+    teamId: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  finalizeFromCheckpoint: (
     workspaceId: string,
     teamId: string,
   ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;

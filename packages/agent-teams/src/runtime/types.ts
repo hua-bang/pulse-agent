@@ -297,7 +297,6 @@ export interface RuntimeSnapshot {
   events: TeamEvent[];
   messages: MailboxMessage[];
   checkpointRound?: number;
-  totalRounds?: number;
 }
 
 export interface DispatchResult {
