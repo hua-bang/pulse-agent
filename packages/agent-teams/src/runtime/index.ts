@@ -1,7 +1,7 @@
 export { TeamRuntime } from './team-runtime.js';
 export type { TeamRuntimeOptions } from './team-runtime.js';
 export { InMemoryTeamRuntimeStore } from './memory-store.js';
-export { assertTaskGraphAcyclic, findTaskGraphCycle } from './task-graph.js';
+export { assertTaskGraphAcyclic, computeTopologicalRounds, findTaskGraphCycle } from './task-graph.js';
 export type { TaskGraphNode } from './task-graph.js';
 export type {
   AddAgentInput,

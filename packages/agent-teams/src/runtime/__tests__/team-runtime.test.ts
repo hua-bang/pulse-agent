@@ -990,4 +990,169 @@ describe('TeamRuntime', () => {
     expect(snapshot.humanGates[0].status).toBe('open');
     expect(adapter.inputs.filter((entry) => entry.sessionId === sessionId)).toHaveLength(afterOpen);
   });
+
+  describe('Round Checkpoint', () => {
+    it('assigns topological rounds based on task dependencies', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const agent = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'No deps', ownerAgentId: agent.id });
+      const d = await runtime.createTask({ teamId: team.id, title: 'D', description: 'No deps', ownerAgentId: agent.id });
+      const b = await runtime.createTask({ teamId: team.id, title: 'B', description: 'Dep on A', ownerAgentId: agent.id, deps: [a.id] });
+      const c = await runtime.createTask({ teamId: team.id, title: 'C', description: 'Dep on B', ownerAgentId: agent.id, deps: [b.id] });
+
+      const totalRounds = await runtime.assignTopologicalRounds(team.id);
+
+      expect(totalRounds).toBe(3);
+      const snapshot = await runtime.snapshot(team.id);
+      const roundOf = (id: string) => (snapshot.tasks.find((t) => t.id === id)?.metadata as Record<string, unknown>)?.round;
+      expect(roundOf(a.id)).toBe(1);
+      expect(roundOf(d.id)).toBe(1);
+      expect(roundOf(b.id)).toBe(2);
+      expect(roundOf(c.id)).toBe(3);
+      expect(snapshot.totalRounds).toBe(3);
+    });
+
+    it('dispatches only current round tasks', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'Round 1', ownerAgentId: coder.id });
+      const b = await runtime.createTask({ teamId: team.id, title: 'B', description: 'Round 2', ownerAgentId: coder.id, deps: [a.id] });
+
+      await runtime.assignTopologicalRounds(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      const result = await runtime.dispatchReadyTasks(team.id);
+
+      expect(result.assigned.map((t) => t.title)).toEqual(['A']);
+    });
+
+    it('enters round_checkpoint when current round completes and more rounds remain', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'R1', ownerAgentId: coder.id });
+      await runtime.createTask({ teamId: team.id, title: 'B', description: 'R2', ownerAgentId: coder.id, deps: [a.id] });
+
+      await runtime.assignTopologicalRounds(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('round_checkpoint');
+      expect(snapshot.checkpointRound).toBe(1);
+      expect(snapshot.totalRounds).toBe(2);
+    });
+
+    it('advanceRound transitions to running and dispatches next round', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'R1', ownerAgentId: coder.id });
+      const b = await runtime.createTask({ teamId: team.id, title: 'B', description: 'R2', ownerAgentId: coder.id, deps: [a.id] });
+
+      await runtime.assignTopologicalRounds(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+
+      expect((await runtime.snapshot(team.id)).team.status).toBe('round_checkpoint');
+
+      await runtime.advanceRound(team.id, 'human');
+      const result = await runtime.dispatchReadyTasks(team.id);
+
+      expect(result.assigned.map((t) => t.title)).toEqual(['B']);
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('running');
+    });
+
+    it('goes to reviewing (not checkpoint) when last round completes', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'R1', ownerAgentId: coder.id });
+      const b = await runtime.createTask({ teamId: team.id, title: 'B', description: 'R2', ownerAgentId: coder.id, deps: [a.id] });
+
+      await runtime.assignTopologicalRounds(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+      await runtime.advanceRound(team.id, 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(b.id, 'Done', coder.id);
+
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('reviewing');
+    });
+
+    it('single-round plan skips checkpoint', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'R1', ownerAgentId: coder.id });
+      const b = await runtime.createTask({ teamId: team.id, title: 'B', description: 'R1 too', ownerAgentId: coder.id });
+
+      await runtime.assignTopologicalRounds(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+      await runtime.completeTask(b.id, 'Done', coder.id);
+
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('reviewing');
+    });
+
+    it('throws when advanceRound is called on a non-checkpoint team', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      await expect(runtime.advanceRound(team.id, 'human')).rejects.toThrow('expected \'round_checkpoint\'');
+    });
+
+    it('allows editing todo task descriptions', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const task = await runtime.createTask({ teamId: team.id, title: 'Old Title', description: 'Old desc', ownerAgentId: coder.id });
+
+      const updated = await runtime.updateTaskDescription(task.id, { title: 'New Title', description: 'New desc' });
+      expect(updated.title).toBe('New Title');
+      expect(updated.description).toBe('New desc');
+    });
+
+    it('rejects editing in-progress task', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(coder.id);
+      const task = await runtime.createTask({ teamId: team.id, title: 'T', description: 'D', ownerAgentId: coder.id });
+
+      await runtime.assignTopologicalRounds(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+
+      await expect(runtime.updateTaskDescription(task.id, { title: 'Nope' })).rejects.toThrow('Cannot edit task');
+    });
+  });
 });

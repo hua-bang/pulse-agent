@@ -24,7 +24,7 @@ import type {
   TeamTaskRecord,
 } from './types.js';
 import { InMemoryTeamRuntimeStore } from './memory-store.js';
-import { assertTaskGraphAcyclic } from './task-graph.js';
+import { assertTaskGraphAcyclic, computeTopologicalRounds } from './task-graph.js';
 
 export interface TeamRuntimeOptions {
   store?: TeamRuntimeStore;
@@ -67,10 +67,22 @@ const quoteCliValue = (value: string): string =>
   value.replace(/(["\\$`])/g, '\\$1');
 
 const TASK_ROUND_METADATA_KEY = 'round';
+const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
+const TEAM_TOTAL_ROUNDS_METADATA_KEY = 'totalRounds';
 
 /** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
 const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
   const value = metadata?.[TASK_ROUND_METADATA_KEY];
+  return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+};
+
+const readCurrentRound = (metadata: Record<string, unknown> | undefined): number => {
+  const value = metadata?.[TEAM_CURRENT_ROUND_METADATA_KEY];
+  return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+};
+
+const readTotalRounds = (metadata: Record<string, unknown> | undefined): number => {
+  const value = metadata?.[TEAM_TOTAL_ROUNDS_METADATA_KEY];
   return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 };
 
@@ -358,7 +370,11 @@ export class TeamRuntime {
   }
 
   async resumeTeam(teamId: TeamId, reason = 'Resumed by user.'): Promise<void> {
-    await this.requireTeam(teamId);
+    const teamForResume = await this.requireTeam(teamId);
+    if (teamForResume.status === 'round_checkpoint') {
+      await this.advanceRound(teamId, 'human');
+      return;
+    }
     this.dispatchPaused.delete(teamId);
     const now = this.now();
     const [agents, tasks] = await Promise.all([
@@ -409,6 +425,65 @@ export class TeamRuntime {
     await this.emit(teamId, 'dispatch_resumed', 'runtime', {});
   }
 
+  async advanceRound(teamId: TeamId, actor: AgentId | 'human' | 'runtime' = 'human'): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (team.status !== 'round_checkpoint') {
+      throw new Error(`Cannot advance round: team status is '${team.status}', expected 'round_checkpoint'`);
+    }
+    const currentRound = readCurrentRound(team.metadata);
+    const nextRound = currentRound + 1;
+    team.metadata = {
+      ...(team.metadata ?? {}),
+      [TEAM_CURRENT_ROUND_METADATA_KEY]: nextRound,
+    };
+    team.updatedAt = this.now();
+    await this.store.saveTeam(team);
+
+    await this.setTeamStatus(teamId, 'running', actor);
+    await this.emit(teamId, 'round_advanced', actor, {
+      previousRound: currentRound,
+      currentRound: nextRound,
+    });
+  }
+
+  async setTeamRoundMetadata(teamId: TeamId, currentRound: number, totalRounds: number): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    team.metadata = {
+      ...(team.metadata ?? {}),
+      [TEAM_CURRENT_ROUND_METADATA_KEY]: currentRound,
+      [TEAM_TOTAL_ROUNDS_METADATA_KEY]: totalRounds,
+    };
+    team.updatedAt = this.now();
+    await this.store.saveTeam(team);
+  }
+
+  async assignTopologicalRounds(teamId: TeamId): Promise<number> {
+    const tasks = await this.store.listTasks(teamId);
+    if (tasks.length === 0) return 1;
+    const roundMap = computeTopologicalRounds(tasks.map((t) => ({ id: t.id, deps: t.deps })));
+    const totalRounds = Math.max(...roundMap.values(), 1);
+    for (const task of tasks) {
+      const round = roundMap.get(task.id) ?? 1;
+      task.metadata = { ...(task.metadata ?? {}), [TASK_ROUND_METADATA_KEY]: round };
+      task.updatedAt = this.now();
+      await this.store.saveTask(task);
+    }
+    await this.setTeamRoundMetadata(teamId, 1, totalRounds);
+    return totalRounds;
+  }
+
+  async updateTaskDescription(taskId: TaskId, patch: { title?: string; description?: string }): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    if (task.status !== 'todo') {
+      throw new Error(`Cannot edit task in status '${task.status}'`);
+    }
+    if (patch.title) task.title = patch.title;
+    if (patch.description) task.description = patch.description;
+    task.updatedAt = this.now();
+    await this.store.saveTask(task);
+    return task;
+  }
+
   async deleteTeam(teamId: TeamId): Promise<void> {
     const snapshot = await this.snapshot(teamId);
     for (const agent of snapshot.agents) {
@@ -425,16 +500,25 @@ export class TeamRuntime {
 
   async dispatchReadyTasks(teamId: TeamId): Promise<DispatchResult> {
     const team = await this.requireTeam(teamId);
-    if (this.dispatchPaused.has(teamId) || team.status === 'paused' || team.status === 'waiting_approval') {
+    if (
+      this.dispatchPaused.has(teamId)
+      || team.status === 'paused'
+      || team.status === 'waiting_approval'
+      || team.status === 'round_checkpoint'
+    ) {
       return { assigned: [], idleAgents: [] };
     }
 
     const tasks = await this.store.listTasks(teamId);
     const agents = await this.store.listAgents(teamId);
     const idleAgents = agents.filter(agent => agent.status === 'idle' && !agent.currentTaskId);
+    const currentRound = readCurrentRound(team.metadata);
+    const totalRounds = readTotalRounds(team.metadata);
+    const hasMultipleRounds = totalRounds > 1;
     const readyTasks = tasks.filter(task =>
       task.status === 'todo'
       && this.isTaskReady(task, tasks)
+      && (!hasMultipleRounds || readTaskRound(task.metadata) === currentRound)
     );
     const assigned: TeamTaskRecord[] = [];
     const availableAgents = [...idleAgents];
@@ -516,7 +600,7 @@ export class TeamRuntime {
       taskId: task.id,
     });
 
-    await this.markTeamReadyForReviewIfDone(task.teamId);
+    await this.checkRoundCompletion(task.teamId);
     return task;
   }
 
@@ -585,10 +669,7 @@ export class TeamRuntime {
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
     ].join('\n'), task.id);
-    // A failure can be the last task to settle. Without this, an all-terminal
-    // batch whose final task failed would sit in `running` forever (no ready
-    // tasks left, no review handoff). Mirror completeTask's review trigger.
-    await this.markTeamReadyForReviewIfDone(task.teamId);
+    await this.checkRoundCompletion(task.teamId);
     return task;
   }
 
@@ -922,7 +1003,11 @@ export class TeamRuntime {
       this.store.listMessages(teamId),
     ]);
 
-    return { team, agents, tasks, artifacts, humanGates, events, messages };
+    return {
+      team, agents, tasks, artifacts, humanGates, events, messages,
+      checkpointRound: team.status === 'round_checkpoint' ? readCurrentRound(team.metadata) : undefined,
+      totalRounds: readTotalRounds(team.metadata),
+    };
   }
 
   private async handleAgentSessionEvent(event: { sessionId: string; type: string; text?: string; taskId?: string; error?: string }): Promise<void> {
@@ -1099,6 +1184,39 @@ export class TeamRuntime {
       collected.push(dep);
     }
     return collected;
+  }
+
+  private async checkRoundCompletion(teamId: TeamId): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    const tasks = await this.store.listTasks(teamId);
+    if (tasks.length === 0) return;
+
+    const totalRounds = readTotalRounds(team.metadata);
+    if (totalRounds <= 1) {
+      await this.markTeamReadyForReviewIfDone(teamId);
+      return;
+    }
+
+    if (team.status !== 'running') return;
+
+    const currentRound = readCurrentRound(team.metadata);
+    const currentRoundTasks = tasks.filter((t) => readTaskRound(t.metadata) === currentRound);
+
+    if (currentRoundTasks.length === 0 || !currentRoundTasks.every((t) => t.status === 'done' || t.status === 'failed')) {
+      return;
+    }
+
+    if (currentRound >= totalRounds) {
+      await this.markTeamReadyForReviewIfDone(teamId);
+      return;
+    }
+
+    await this.setTeamStatus(teamId, 'round_checkpoint');
+    await this.emit(teamId, 'round_checkpoint_entered', 'runtime', {
+      completedRound: currentRound,
+      nextRound: currentRound + 1,
+      totalRounds,
+    });
   }
 
   private async markTeamReadyForReviewIfDone(teamId: TeamId): Promise<void> {

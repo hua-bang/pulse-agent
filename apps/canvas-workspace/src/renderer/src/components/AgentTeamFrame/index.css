@@ -2358,6 +2358,45 @@
   text-overflow: ellipsis;
 }
 
+.agent-team-checkpoint-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e3c577;
+  border-radius: 8px;
+  background: #fef9ec;
+  color: #6b5318;
+}
+
+.agent-team-checkpoint-banner__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-team-checkpoint-banner__copy strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5a440f;
+}
+
+.agent-team-checkpoint-banner__copy span {
+  font-size: 11.5px;
+  color: #7c6423;
+  line-height: 1.4;
+}
+
+.agent-team-checkpoint-banner__actions {
+  flex-shrink: 0;
+}
+
+.agent-team-checkpoint-banner__actions button {
+  white-space: nowrap;
+}
+
 .agent-team-agent-inspector {
   position: absolute;
   inset: 0;

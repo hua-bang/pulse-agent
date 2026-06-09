@@ -38,6 +38,7 @@ const TASK_STATUS_LABELS: Record<string, string> = {
   blocked: 'Blocked',
   done: 'Done',
   failed: 'Failed',
+  round_checkpoint: 'Checkpoint',
 };
 
 const TASK_STATUS_RANK: Record<string, number> = {
@@ -327,6 +328,9 @@ export const AgentTeamFrame = ({
   const phase = inferPhase(snapshot?.phase, teammates, tasks, runtime?.team.status);
   const teamStatus = runtime?.team.status ?? 'planning';
   const isCompletedTeam = teamStatus === 'completed';
+  const isCheckpoint = teamStatus === 'round_checkpoint';
+  const checkpointRound = runtime?.checkpointRound;
+  const totalRounds = runtime?.totalRounds;
   const shouldShowLeadCommandSlot = phase === 'briefing' || isCompletedTeam;
   const plan = snapshot?.pendingPlan;
   const teamAgentNodes = teamId
@@ -695,9 +699,11 @@ export const AgentTeamFrame = ({
     ? 'Briefing'
     : runtime?.team.status === 'completed'
       ? 'Completed'
-      : phase === 'plan_review'
-        ? 'Plan Review'
-        : 'Executing';
+      : isCheckpoint
+        ? `Round ${checkpointRound ?? ''} Checkpoint`
+        : phase === 'plan_review'
+          ? 'Plan Review'
+          : 'Executing';
   const doneTaskCount = tasks.filter((task) => task.status === 'done').length;
   const activeTaskCount = tasks.filter((task) =>
     task.status === 'in_progress'
@@ -853,6 +859,17 @@ export const AgentTeamFrame = ({
       setError(null);
     } else {
       setError(result.error ?? 'Unable to confirm plan.');
+    }
+  }, [api, workspaceId, teamId]);
+
+  const handleAdvanceRound = useCallback(async () => {
+    if (!api || !workspaceId || !teamId) return;
+    const result = await api.advanceRound(workspaceId, teamId);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to advance to next round.');
     }
   }, [api, workspaceId, teamId]);
 
@@ -1688,6 +1705,11 @@ export const AgentTeamFrame = ({
               Approve & Run
             </button>
           )}
+          {isCheckpoint && (
+            <button type="button" className="agent-team-frame__primary-action" onClick={() => void handleAdvanceRound()} disabled={readOnly}>
+              Continue to Round {(checkpointRound ?? 0) + 1}
+            </button>
+          )}
           {variant === 'fullscreen' && (
             <button type="button" onClick={() => setGraphFullscreenOpen(false)}>
               Close
@@ -1922,6 +1944,29 @@ export const AgentTeamFrame = ({
       </div>
 
       {error && <div className="agent-team-frame__error">{error}</div>}
+
+      {isCheckpoint && (
+        <div className="agent-team-checkpoint-banner">
+          <div className="agent-team-checkpoint-banner__copy">
+            <strong>Round {checkpointRound} complete</strong>
+            <span>
+              Review results before starting Round {(checkpointRound ?? 0) + 1}
+              {totalRounds ? ` of ${totalRounds}` : ''}.
+              You can edit upcoming tasks or send the Team Lead adjustments.
+            </span>
+          </div>
+          <div className="agent-team-checkpoint-banner__actions">
+            <button
+              type="button"
+              className="agent-team-frame__primary-action"
+              onClick={() => void handleAdvanceRound()}
+              disabled={readOnly}
+            >
+              Continue to Round {(checkpointRound ?? 0) + 1}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={`agent-team-workspace agent-team-workspace--${phase}`}>
         {renderLeadDock()}

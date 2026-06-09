@@ -638,6 +638,8 @@ export class CanvasAgentTeamsService {
       });
     }
 
+    await runtime.assignTopologicalRounds(teamId);
+
     const now = Date.now();
     metadata.pendingPlan = undefined;
     metadata.approvedPlan = { ...plan, updatedAt: now };
@@ -764,6 +766,24 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(workspaceId);
     await runtime.resumeTeam(teamId, 'Resumed from the Agent Team frame.');
     await runtime.dispatchReadyTasks(teamId);
+    return this.snapshot(workspaceId, teamId);
+  }
+
+  async advanceRound(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime } = this.getBundle(workspaceId);
+    await runtime.advanceRound(teamId, 'human');
+    await runtime.dispatchReadyTasks(teamId);
+    return this.snapshot(workspaceId, teamId);
+  }
+
+  async updateTask(
+    workspaceId: string,
+    teamId: string,
+    taskId: string,
+    patch: { title?: string; description?: string },
+  ): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime } = this.getBundle(workspaceId);
+    await runtime.updateTaskDescription(taskId, patch);
     return this.snapshot(workspaceId, teamId);
   }
 
