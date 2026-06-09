@@ -398,13 +398,14 @@ export function registerTeamCommands(program: Command): void {
   team.command('send')
     .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID})`, process.env[ENV_TEAM_ID])
     .requiredOption('--to <agent>', 'Target agent name or ID')
+    .option('--task <taskId>', 'Task ID or title to answer a specific open question from that agent')
     .option('--message <message>', 'Message content')
     .argument('[message...]', 'Message content')
     .description('Send a team message to an agent')
     .action(async function (
       this: Command,
       messageParts: string[] | undefined,
-      cmdOpts: { team?: string; to: string; message?: string },
+      cmdOpts: { team?: string; to: string; task?: string; message?: string },
     ) {
       const { format, workspace } = getOpts(this);
       const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
@@ -417,6 +418,7 @@ export function registerTeamCommands(program: Command): void {
         workspaceId: workspace,
         teamId,
         to: cmdOpts.to,
+        taskId: cmdOpts.task,
         content,
       });
 

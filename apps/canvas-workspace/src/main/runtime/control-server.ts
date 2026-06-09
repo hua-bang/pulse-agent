@@ -563,6 +563,7 @@ async function handleAgentTeamSend(
   const teamId = typeof obj.teamId === 'string' ? obj.teamId : '';
   const to = typeof obj.to === 'string' ? obj.to : '';
   const content = typeof obj.content === 'string' ? obj.content : '';
+  const taskId = typeof obj.taskId === 'string' && obj.taskId.trim() ? obj.taskId.trim() : undefined;
   if (!workspaceId || !teamId || !to) {
     return reply(res, 400, { ok: false, error: 'workspaceId, teamId, and to are required' });
   }
@@ -571,7 +572,7 @@ async function handleAgentTeamSend(
   }
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().sendInput(workspaceId, teamId, to, content);
+    const snapshot = await getCanvasAgentTeamsService().sendInput(workspaceId, teamId, to, content, taskId);
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
