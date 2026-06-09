@@ -350,6 +350,90 @@ describe('TeamRuntime', () => {
     expect((await runtime.snapshot(team.id)).team.status).toBe('running');
   });
 
+  it('re-nudges a stalled reviewing team until the lead finalizes it', async () => {
+    let id = 1;
+    let now = 1000;
+    const store = new InMemoryTeamRuntimeStore();
+    const adapter = new FakeAgentSessionAdapter();
+    const runtime = new TeamRuntime({
+      store,
+      agentSessions: adapter,
+      idFactory: () => `id-${id++}`,
+      now: () => now++,
+    });
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    const leadWithSession = await runtime.createAgentSession(lead.id);
+    await runtime.createAgentSession(coder.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Implement change',
+      description: 'Make the change.',
+      ownerAgentId: coder.id,
+    });
+    await runtime.dispatchReadyTasks(team.id);
+    await runtime.completeTask(task.id, 'Done', coder.id);
+    expect((await runtime.snapshot(team.id)).team.status).toBe('reviewing');
+
+    const sessionId = leadWithSession.sessionRef!.sessionId;
+    const leadInputs = () => adapter.inputs.filter((entry) => entry.sessionId === sessionId);
+    const afterInitial = leadInputs().length;
+    expect(leadInputs().at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
+
+    // Within the resend window the heartbeat must not re-spam the lead.
+    await runtime.notifyLeadReviewIfStalled(team.id);
+    expect(leadInputs()).toHaveLength(afterInitial);
+
+    // After the window a still-reviewing team re-nudges the lead, which also
+    // flips it back to running so a lead whose session exited can auto-resume.
+    now += 61_000;
+    await runtime.notifyLeadReviewIfStalled(team.id);
+    expect(leadInputs()).toHaveLength(afterInitial + 1);
+    expect(leadInputs().at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
+    expect((await store.getAgent(lead.id))?.status).toBe('running');
+
+    // Once the lead finalizes the team, the nudge stops for good.
+    await runtime.completeTeam(team.id, 'Shipped the work.', lead.id);
+    now += 61_000;
+    await runtime.notifyLeadReviewIfStalled(team.id);
+    expect(leadInputs()).toHaveLength(afterInitial + 1);
+  });
+
+  it('hands a team off for review when its final task fails', async () => {
+    const { runtime, adapter } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    const leadWithSession = await runtime.createAgentSession(lead.id);
+    await runtime.createAgentSession(coder.id);
+    const finished = await runtime.createTask({
+      teamId: team.id,
+      title: 'First',
+      description: 'Do first.',
+      ownerAgentId: coder.id,
+    });
+    const failing = await runtime.createTask({
+      teamId: team.id,
+      title: 'Second',
+      description: 'Do second.',
+      ownerAgentId: coder.id,
+    });
+
+    await runtime.completeTask(finished.id, 'Done', coder.id);
+    // Not every task is terminal yet, so no final-review handoff fires.
+    expect((await runtime.snapshot(team.id)).team.status).not.toBe('reviewing');
+
+    await runtime.failTask(failing.id, 'Build broke', coder.id);
+
+    const snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.team.status).toBe('failed');
+    const leadInputs = adapter.inputs.filter(
+      (entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId,
+    );
+    expect(leadInputs.at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
+  });
+
   it('asks the lead to review a task when a session exits without task completion', async () => {
     const { runtime, adapter } = createRuntime();
     const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
