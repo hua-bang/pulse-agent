@@ -29,7 +29,7 @@ interface WorkspaceManifest {
   activeId?: string;
 }
 
-interface SessionWithMeta {
+export interface SessionWithMeta {
   session: CanvasAgentSession;
   workspaceName: string;
   isCurrent: boolean;
@@ -404,7 +404,13 @@ export class SessionStore {
     return matched;
   }
 
-  private static async readAllSessionsWithMeta(): Promise<SessionWithMeta[]> {
+  /**
+   * Read every stored session (current + archive) across all workspaces and
+   * global chat, with workspace names resolved from the manifest. Sorted by
+   * recency (current sessions first). Read-only; used by the session-history
+   * tools (`session_search` / `session_summary`).
+   */
+  static async readAllSessionsWithMeta(): Promise<SessionWithMeta[]> {
     const manifest = await loadManifest();
     const workspaceNames = new Map(manifest.workspaces.map(workspace => [workspace.id, workspace.name] as const));
     const results: SessionWithMeta[] = [];

@@ -203,6 +203,8 @@ describe('createGlobalCanvasTools', () => {
       'canvas_read_node',
       'canvas_search_nodes',
       'canvas_tag_node',
+      'session_search',
+      'session_summary',
       'workspace_node_get',
       'workspace_node_list',
     ]);
@@ -418,6 +420,8 @@ describe('deferred tool partition', () => {
       'canvas_remove_from_group',
       'canvas_send_to_agent',
       'canvas_update_edge',
+      'session_search',
+      'session_summary',
       'workspace_node_get',
       'workspace_node_list',
       'workspace_node_upsert',
