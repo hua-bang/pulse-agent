@@ -1088,6 +1088,7 @@ export class CanvasAgentTeamsService {
     await this.repairLegacyOutputMarkerBlocks(store, teamId);
     await this.repairAnsweredHumanGateBlocks(store, teamId);
     await runtime.notifyLeadPendingGates(teamId);
+    await runtime.notifyLeadReviewIfStalled(teamId);
     const metadata = await store.getTeamMetadata(teamId);
     const runtimeSnapshot = await runtime.snapshot(teamId);
     return {
@@ -1110,6 +1111,7 @@ export class CanvasAgentTeamsService {
         await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
         await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
         await runtime.notifyLeadPendingGates(entry.teamId);
+        await runtime.notifyLeadReviewIfStalled(entry.teamId);
         const runtimeSnapshot = await runtime.snapshot(entry.teamId);
         snapshots.push({
           workspaceId,

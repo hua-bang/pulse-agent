@@ -39,6 +39,7 @@ const MAX_TASK_RESULT_CHARS = 1_600;
 const MAX_ARTIFACT_SUMMARY_CHARS = 600;
 const TEAM_PAUSE_METADATA_KEY = 'teamPause';
 const LEAD_PENDING_DIGEST_RESEND_MS = 30_000;
+const LEAD_REVIEW_RESEND_MS = 60_000;
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
@@ -147,6 +148,7 @@ export class TeamRuntime {
   private readonly handlers = new Set<EventHandler>();
   private readonly sessionAgents = new Map<string, AgentId>();
   private readonly leadPendingDigestCache = new Map<TeamId, { digest: string; sentAt: number }>();
+  private readonly leadReviewNudgeCache = new Map<TeamId, number>();
   private dispatchPaused = new Set<TeamId>();
   private unsubscribeSessionEvents?: () => void;
 
@@ -583,6 +585,10 @@ export class TeamRuntime {
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
     ].join('\n'), task.id);
+    // A failure can be the last task to settle. Without this, an all-terminal
+    // batch whose final task failed would sit in `running` forever (no ready
+    // tasks left, no review handoff). Mirror completeTask's review trigger.
+    await this.markTeamReadyForReviewIfDone(task.teamId);
     return task;
   }
 
@@ -874,6 +880,37 @@ export class TeamRuntime {
     ].join('\n'));
   }
 
+  /**
+   * Re-drive a Team Lead that is sitting on a finished team.
+   *
+   * When every task settles, `markTeamReadyForReviewIfDone` flips the team to
+   * `reviewing` and sends the lead one "run complete-team" prompt. That prompt is
+   * fire-and-forget: if the lead's session had already exited, it is only queued,
+   * and nothing else nudges the lead to finalize — so the team can sit in
+   * `reviewing` indefinitely while the UI still shows it executing.
+   *
+   * Pulse Canvas calls this on its snapshot heartbeat, alongside the pending-gate
+   * resend. We re-send the final-review prompt, throttled, until the lead actually
+   * completes the team. Re-sending also flips the lead back to `running` and
+   * re-queues its launch prompt, which lets the canvas auto-resume relaunch a lead
+   * whose session had exited.
+   */
+  async notifyLeadReviewIfStalled(teamId: TeamId): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (team.status !== 'reviewing') {
+      this.leadReviewNudgeCache.delete(teamId);
+      return;
+    }
+    // If teammate questions are still waiting on the lead, the pending-gate digest
+    // path is already re-engaging it; don't stack a second prompt on this tick.
+    if (await this.formatLeadPendingGateDigest(teamId)) return;
+    const lastNudgedAt = this.leadReviewNudgeCache.get(teamId);
+    if (lastNudgedAt !== undefined && this.now() - lastNudgedAt < LEAD_REVIEW_RESEND_MS) {
+      return;
+    }
+    await this.sendFinalReviewPrompt(teamId);
+  }
+
   async snapshot(teamId: TeamId): Promise<RuntimeSnapshot> {
     const team = await this.requireTeam(teamId);
     const [agents, tasks, artifacts, humanGates, events, messages] = await Promise.all([
@@ -1069,8 +1106,19 @@ export class TeamRuntime {
     if (tasks.length === 0) return;
     if (tasks.every(task => task.status === 'done' || task.status === 'failed')) {
       await this.setTeamStatus(teamId, tasks.some(task => task.status === 'failed') ? 'failed' : 'reviewing');
-      await this.notifyLead(teamId, await this.formatFinalReviewPrompt(teamId));
+      await this.sendFinalReviewPrompt(teamId);
     }
+  }
+
+  /**
+   * Notify the Team Lead that all dispatched work is finished, and record when
+   * the nudge was sent. The recorded time throttles the heartbeat re-nudge
+   * (`notifyLeadReviewIfStalled`) so a lead that already saw this prompt is not
+   * spammed, while a lead that never acted still gets driven again later.
+   */
+  private async sendFinalReviewPrompt(teamId: TeamId): Promise<void> {
+    await this.notifyLead(teamId, await this.formatFinalReviewPrompt(teamId));
+    this.leadReviewNudgeCache.set(teamId, this.now());
   }
 
   private async formatTaskReviewPrompt(task: TeamTaskRecord, reason: string): Promise<string> {
