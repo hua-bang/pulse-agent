@@ -604,6 +604,40 @@
   flex-shrink: 0;
 }
 
+.agent-team-round-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.agent-team-frame .agent-team-round-switch__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #5b6573;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.agent-team-frame .agent-team-round-switch__tab:hover:not(.is-active) {
+  color: #1f2733;
+}
+
+.agent-team-frame .agent-team-round-switch__tab.is-active {
+  background: #ffffff;
+  color: #1f2733;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
 .agent-team-frame .agent-team-graph-panel__fullscreen {
   border-color: #b8d4f3;
   background: #f3f8ff;
