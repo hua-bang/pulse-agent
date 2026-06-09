@@ -456,6 +456,7 @@ export class TeamRuntime {
 
   async initializeRound(teamId: TeamId): Promise<void> {
     const team = await this.requireTeam(teamId);
+    if (hasRoundMetadata(team.metadata)) return;
     team.metadata = {
       ...(team.metadata ?? {}),
       [TEAM_CURRENT_ROUND_METADATA_KEY]: 1,
