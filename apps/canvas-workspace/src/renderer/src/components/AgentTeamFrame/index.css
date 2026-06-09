@@ -99,11 +99,6 @@
   white-space: nowrap;
 }
 
-.agent-team-frame__phase-label {
-  color: var(--text-secondary);
-  font-weight: 800;
-}
-
 .agent-team-frame__mission {
   display: flex;
   align-items: center;
