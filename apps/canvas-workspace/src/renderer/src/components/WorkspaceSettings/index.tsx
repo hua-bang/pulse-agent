@@ -19,6 +19,7 @@ import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { SettingsDrawer } from '../SettingsDrawer';
 import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
+import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
 import './index.css';
 
@@ -49,6 +50,7 @@ export const WorkspaceSettingsDrawer = ({
   onSetRootFolder,
 }: Props) => {
   const { t } = useI18n();
+  const { confirm } = useAppShell();
   const open = workspace !== null;
 
   const [nameDraft, setNameDraft] = useState('');
@@ -148,9 +150,11 @@ export const WorkspaceSettingsDrawer = ({
         notes: t('workspaceSettings.notesPlaceholder'),
       }).trim();
     if (hasUserContent) {
-      const ok = window.confirm(
-        t('workspaceSettings.replaceConfirm'),
-      );
+      const [replaceTitle, replaceBody] = t('workspaceSettings.replaceConfirm').split('\n');
+      const ok = await confirm({
+        title: replaceTitle,
+        description: replaceBody,
+      });
       if (!ok) return;
     }
 
@@ -191,7 +195,7 @@ export const WorkspaceSettingsDrawer = ({
         setAgentsDoc(result.content);
       }
     });
-  }, [agentsDoc, intent, workspace, t]);
+  }, [agentsDoc, intent, workspace, confirm, t]);
 
   if (!workspace) return null;
 
