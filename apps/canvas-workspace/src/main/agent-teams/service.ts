@@ -374,6 +374,7 @@ const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: str
   'Use deps to encode the real execution order. Do not rely on wording like "after" or "then" in descriptions.',
   'Plan the smallest DAG that still exposes useful parallel work: usually 3-6 teammates and 4-10 tasks for normal app/repo work. Go above 10 tasks only when there are truly independent deliverables.',
   'Target 2-4 ready-to-start workstreams. Do not serialize the whole graph behind one setup/research task, and do not create one microtask per file, component, command, or tiny edit.',
+  'Aim for at least 2-3 tasks runnable in parallel at every stage of the DAG. If a task only blocks one downstream task, consider whether they can run concurrently with a shared contract instead of a hard dependency.',
   'Each teammate should usually own 1-2 meaningful tasks. Split by durable ownership or artifact boundary, not by mechanical steps.',
   'Use deps only for real handoffs: a task depends on another task only when it needs that task\'s concrete output or contract.',
   'Downstream tasks such as frontend integration, QA, testing, review, documentation, release, validation, and final summary MUST depend on the implementation or contract tasks they need.',

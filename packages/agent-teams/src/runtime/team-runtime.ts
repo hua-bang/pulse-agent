@@ -1286,7 +1286,8 @@ export class TeamRuntime {
             '',
           ]
         : []),
-      `Plan the next round of work. Review what was accomplished and create new tasks for Round ${nextRound}:`,
+      `Plan the next round of work. Review what was accomplished and create new tasks for Round ${nextRound}.`,
+      'Design the DAG so at least 2-3 tasks can run in parallel — do not chain everything sequentially.',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
       '',
       'When you have created all tasks for this round, they will be dispatched automatically.',
