@@ -584,9 +584,21 @@ export class CanvasAgentTeamsService {
       before.agents.map((agent) => [agent.name.trim().toLowerCase(), agent]),
     );
 
+    const idleTeammates = before.agents
+      .filter((a) => a.role === 'teammate' && a.status === 'idle')
+      .map((a) => a);
+    const reusedAgentIds = new Set<string>();
+
     for (const teammate of plan.teammates) {
       const key = teammate.name.trim().toLowerCase();
       if (!key || agentsByName.has(key)) continue;
+
+      const reusable = idleTeammates.find((a) => !reusedAgentIds.has(a.id));
+      if (reusable) {
+        reusedAgentIds.add(reusable.id);
+        agentsByName.set(key, reusable);
+        continue;
+      }
 
       const agentId = randomUUID();
       const nodeId = await createTeamAgentNode({

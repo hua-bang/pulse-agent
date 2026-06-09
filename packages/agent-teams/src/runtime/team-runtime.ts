@@ -1247,6 +1247,10 @@ export class TeamRuntime {
     const artifactLines = snapshot.artifacts.map((a) =>
       `- ${a.title} (${a.kind})${a.summary ? ` — ${truncate(a.summary, 180)}` : ''}`,
     );
+    const existingTeammates = snapshot.agents
+      .filter((a) => a.role === 'teammate')
+      .map((a) => `- ${a.name} (${a.status})`);
+
     await this.notifyLead(teamId, [
       `Round ${completedRound} is complete. The user wants to continue with Round ${nextRound}.`,
       '',
@@ -1254,6 +1258,14 @@ export class TeamRuntime {
       ...completedTasks,
       ...(artifactLines.length > 0 ? ['', 'Artifacts:', ...artifactLines] : []),
       '',
+      ...(existingTeammates.length > 0
+        ? [
+            'IMPORTANT: Reuse existing teammates by their exact names when assigning tasks.',
+            'Do NOT create new teammate names — use the ones below:',
+            ...existingTeammates,
+            '',
+          ]
+        : []),
       `Plan the next round of work. Review what was accomplished and create new tasks for Round ${nextRound}:`,
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
       '',
