@@ -289,7 +289,7 @@ export const AgentTeamFrame = ({
   const teamId = data.agentTeamId;
   const [snapshot, setSnapshot] = useState<AgentTeamSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
-  const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | null>(null);
+  const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | 'dispatch' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [briefDraft, setBriefDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
@@ -944,6 +944,19 @@ export const AgentTeamFrame = ({
     }
   }, [api, workspaceId, teamId]);
 
+  const handleDispatch = useCallback(async () => {
+    if (!api || !workspaceId || !teamId) return;
+    setTeamAction('dispatch');
+    const result = await api.dispatch(workspaceId, teamId);
+    setTeamAction(null);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to dispatch tasks.');
+    }
+  }, [api, workspaceId, teamId]);
+
   const handleDeleteTeam = useCallback(async () => {
     if (!api || !workspaceId || !teamId) return;
     const accepted = await confirm({
@@ -1255,6 +1268,10 @@ export const AgentTeamFrame = ({
     && teamStatus !== 'completed'
     && teamStatus !== 'failed';
   const canResumeTeam = phase === 'executing' && teamStatus === 'paused';
+  const canDispatch = phase === 'executing'
+    && teamStatus === 'running'
+    && tasks.some((t) => t.status === 'todo')
+    && agents.some((a) => a.role === 'teammate' && a.status === 'idle');
   const showGlobalGate = !!globalGate
     && !selectedHumanTaskGate
     && phase === 'executing'
@@ -1946,6 +1963,16 @@ export const AgentTeamFrame = ({
               disabled={readOnly || teamAction !== null}
             >
               {teamAction === 'resume' ? 'Resuming' : 'Resume'}
+            </button>
+          )}
+          {canDispatch && (
+            <button
+              type="button"
+              className="agent-team-frame__primary-action"
+              onClick={() => void handleDispatch()}
+              disabled={readOnly || teamAction !== null}
+            >
+              {teamAction === 'dispatch' ? 'Dispatching' : 'Dispatch'}
             </button>
           )}
           {canPauseTeam && (
