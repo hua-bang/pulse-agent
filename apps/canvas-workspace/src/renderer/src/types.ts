@@ -1092,6 +1092,7 @@ export type AgentTeamStatus =
   | 'running'
   | 'reviewing'
   | 'paused'
+  | 'round_checkpoint'
   | 'completed'
   | 'failed';
 
@@ -1216,6 +1217,7 @@ export interface AgentTeamRuntimeSnapshot {
   humanGates: AgentTeamHumanGateRecord[];
   events: AgentTeamEventRecord[];
   messages: AgentTeamMessageRecord[];
+  checkpointRound?: number;
 }
 
 export type AgentTeamPhase = 'briefing' | 'plan_review' | 'executing';
@@ -1299,6 +1301,21 @@ export interface AgentTeamsApi {
     depRefs?: string[];
     dispatch?: boolean;
   }) => Promise<{ ok: boolean; runtime?: AgentTeamRuntimeSnapshot; error?: string }>;
+  advanceRound: (
+    workspaceId: string,
+    teamId: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  finalizeFromCheckpoint: (
+    workspaceId: string,
+    teamId: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
+  updateTask: (
+    workspaceId: string,
+    teamId: string,
+    taskId: string,
+    title?: string,
+    description?: string,
+  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
   dispatch: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
   pause: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
   resume: (workspaceId: string, teamId: string) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;

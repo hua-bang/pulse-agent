@@ -13,6 +13,12 @@ export const createAgentTeamsApi = (ipcRenderer: IpcRenderer): AgentTeamsApi => 
   updatePlanTeammate: (workspaceId, teamId, teammateName, agentType) =>
     ipcRenderer.invoke('agent-teams:update-plan-teammate', { workspaceId, teamId, teammateName, agentType }),
   createTask: (input) => ipcRenderer.invoke('agent-teams:create-task', input),
+  advanceRound: (workspaceId, teamId) =>
+    ipcRenderer.invoke('agent-teams:advance-round', { workspaceId, teamId }),
+  finalizeFromCheckpoint: (workspaceId, teamId) =>
+    ipcRenderer.invoke('agent-teams:finalize-checkpoint', { workspaceId, teamId }),
+  updateTask: (workspaceId, teamId, taskId, title, description) =>
+    ipcRenderer.invoke('agent-teams:update-task', { workspaceId, teamId, taskId, title, description }),
   dispatch: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:dispatch', { workspaceId, teamId }),
   pause: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:pause', { workspaceId, teamId }),
   resume: (workspaceId, teamId) => ipcRenderer.invoke('agent-teams:resume', { workspaceId, teamId }),

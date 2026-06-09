@@ -38,6 +38,7 @@ const TASK_STATUS_LABELS: Record<string, string> = {
   blocked: 'Blocked',
   done: 'Done',
   failed: 'Failed',
+  round_checkpoint: 'Checkpoint',
 };
 
 const TASK_STATUS_RANK: Record<string, number> = {
@@ -288,7 +289,7 @@ export const AgentTeamFrame = ({
   const teamId = data.agentTeamId;
   const [snapshot, setSnapshot] = useState<AgentTeamSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
-  const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | null>(null);
+  const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | 'dispatch' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [briefDraft, setBriefDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
@@ -327,7 +328,9 @@ export const AgentTeamFrame = ({
   const phase = inferPhase(snapshot?.phase, teammates, tasks, runtime?.team.status);
   const teamStatus = runtime?.team.status ?? 'planning';
   const isCompletedTeam = teamStatus === 'completed';
-  const shouldShowLeadCommandSlot = phase === 'briefing' || isCompletedTeam;
+  const isCheckpoint = teamStatus === 'round_checkpoint';
+  const checkpointRound = runtime?.checkpointRound;
+  const shouldShowLeadCommandSlot = phase === 'briefing' || phase === 'plan_review' || isCompletedTeam;
   const plan = snapshot?.pendingPlan;
   const teamAgentNodes = teamId
     ? (getAllNodes?.() ?? []).filter((candidate) => isTeamAgentNode(candidate, teamId))
@@ -695,9 +698,11 @@ export const AgentTeamFrame = ({
     ? 'Briefing'
     : runtime?.team.status === 'completed'
       ? 'Completed'
-      : phase === 'plan_review'
-        ? 'Plan Review'
-        : 'Executing';
+      : isCheckpoint
+        ? `Round ${checkpointRound ?? ''} Checkpoint`
+        : phase === 'plan_review'
+          ? 'Plan Review'
+          : 'Executing';
   const doneTaskCount = tasks.filter((task) => task.status === 'done').length;
   const activeTaskCount = tasks.filter((task) =>
     task.status === 'in_progress'
@@ -856,6 +861,28 @@ export const AgentTeamFrame = ({
     }
   }, [api, workspaceId, teamId]);
 
+  const handleAdvanceRound = useCallback(async () => {
+    if (!api || !workspaceId || !teamId) return;
+    const result = await api.advanceRound(workspaceId, teamId);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to advance to next round.');
+    }
+  }, [api, workspaceId, teamId]);
+
+  const handleFinalizeCheckpoint = useCallback(async () => {
+    if (!api || !workspaceId || !teamId) return;
+    const result = await api.finalizeFromCheckpoint(workspaceId, teamId);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to finalize team.');
+    }
+  }, [api, workspaceId, teamId]);
+
   const handleUpdatePlanTeammate = useCallback(async (teammateName: string, agentType: string) => {
     if (!api || !workspaceId || !teamId) return;
     const result = await api.updatePlanTeammate(workspaceId, teamId, teammateName, agentType);
@@ -875,10 +902,13 @@ export const AgentTeamFrame = ({
 
     const content = messageDraft.trim();
     if (!api || !workspaceId || !teamId || !lead || !content) return;
-    const taskContext = teamStatus !== 'completed' && selectedTask
+    const revisePrefix = phase === 'plan_review'
+      ? 'The user wants to revise the current plan before approving it. Regenerate the plan incorporating this feedback:\n\n'
+      : '';
+    const taskContext = !revisePrefix && teamStatus !== 'completed' && selectedTask
       ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\n`
       : '';
-    const result = await api.sendInput(workspaceId, teamId, lead.id, `${taskContext}${content}`);
+    const result = await api.sendInput(workspaceId, teamId, lead.id, `${revisePrefix}${taskContext}${content}`);
     if (result.ok && result.snapshot) {
       setSnapshot(result.snapshot);
       setMessageDraft('');
@@ -911,6 +941,19 @@ export const AgentTeamFrame = ({
       setError(null);
     } else {
       setError(result.error ?? 'Unable to resume the Agent Team.');
+    }
+  }, [api, workspaceId, teamId]);
+
+  const handleDispatch = useCallback(async () => {
+    if (!api || !workspaceId || !teamId) return;
+    setTeamAction('dispatch');
+    const result = await api.dispatch(workspaceId, teamId);
+    setTeamAction(null);
+    if (result.ok && result.snapshot) {
+      setSnapshot(result.snapshot);
+      setError(null);
+    } else {
+      setError(result.error ?? 'Unable to dispatch tasks.');
     }
   }, [api, workspaceId, teamId]);
 
@@ -1190,25 +1233,33 @@ export const AgentTeamFrame = ({
 
   const commandMode = phase === 'briefing'
     ? 'brief'
-    : isCompletedTeam
-      ? 'next'
-      : 'message';
+    : phase === 'plan_review'
+      ? 'revise'
+      : isCompletedTeam
+        ? 'next'
+        : 'message';
   const commandDraft = commandMode === 'brief' ? briefDraft : messageDraft;
   const commandPlaceholder = commandMode === 'brief'
     ? 'Describe the outcome, repo path, constraints, and what this team should handle...'
-    : commandMode === 'next'
-      ? 'Describe the next task or follow-up this team should handle...'
-      : 'Tell Team Lead what to change...';
+    : commandMode === 'revise'
+      ? 'Ask the Lead to adjust the plan — e.g. split a task, add constraints, change scope...'
+      : commandMode === 'next'
+        ? 'Describe the next task or follow-up this team should handle...'
+        : 'Tell Team Lead what to change...';
   const commandLabel = commandMode === 'brief'
     ? 'Brief Team Lead'
-    : commandMode === 'next'
-      ? 'Next Team Task'
-      : 'Message Team Lead';
+    : commandMode === 'revise'
+      ? 'Revise Plan'
+      : commandMode === 'next'
+        ? 'Next Team Task'
+        : 'Message Team Lead';
   const commandButtonLabel = commandMode === 'brief'
     ? 'Brief'
-    : commandMode === 'next'
-      ? 'Start next task'
-      : 'Send';
+    : commandMode === 'revise'
+      ? 'Revise'
+      : commandMode === 'next'
+        ? 'Start next task'
+        : 'Send';
   const canSendCommand = commandMode === 'brief'
     ? !!briefDraft.trim()
     : !!messageDraft.trim() && !!lead;
@@ -1217,6 +1268,10 @@ export const AgentTeamFrame = ({
     && teamStatus !== 'completed'
     && teamStatus !== 'failed';
   const canResumeTeam = phase === 'executing' && teamStatus === 'paused';
+  const canDispatch = phase === 'executing'
+    && teamStatus === 'running'
+    && tasks.some((t) => t.status === 'todo')
+    && agents.some((a) => a.role === 'teammate' && a.status === 'idle');
   const showGlobalGate = !!globalGate
     && !selectedHumanTaskGate
     && phase === 'executing'
@@ -1250,7 +1305,7 @@ export const AgentTeamFrame = ({
           }}
           placeholder={commandPlaceholder}
           disabled={readOnly}
-          rows={commandMode === 'brief' ? 8 : commandMode === 'next' ? 3 : 1}
+          rows={commandMode === 'brief' ? 8 : commandMode === 'revise' ? 3 : commandMode === 'next' ? 3 : 1}
         />
       </div>
       <button type="button" onClick={() => void handleTeamCommand()} disabled={readOnly || !canSendCommand}>
@@ -1294,7 +1349,7 @@ export const AgentTeamFrame = ({
               </strong>
               <span>
                 {phase === 'plan_review'
-                  ? 'Review the graph, ask for changes, then approve when the team split looks right.'
+                  ? 'Review the graph and send feedback to revise. Approve when the plan looks right.'
                   : phase === 'executing'
                     ? 'Send normal changes to the lead and let the lead route work to the right teammate.'
                     : 'Tell the lead what outcome, repo path, constraints, and teammate split you expect.'}
@@ -1688,6 +1743,16 @@ export const AgentTeamFrame = ({
               Approve & Run
             </button>
           )}
+          {isCheckpoint && (
+            <>
+              <button type="button" className="agent-team-frame__secondary-action" onClick={() => void handleFinalizeCheckpoint()} disabled={readOnly}>
+                Finish
+              </button>
+              <button type="button" className="agent-team-frame__primary-action" onClick={() => void handleAdvanceRound()} disabled={readOnly}>
+                Continue to Round {(checkpointRound ?? 0) + 1}
+              </button>
+            </>
+          )}
           {variant === 'fullscreen' && (
             <button type="button" onClick={() => setGraphFullscreenOpen(false)}>
               Close
@@ -1900,6 +1965,16 @@ export const AgentTeamFrame = ({
               {teamAction === 'resume' ? 'Resuming' : 'Resume'}
             </button>
           )}
+          {canDispatch && (
+            <button
+              type="button"
+              className="agent-team-frame__primary-action"
+              onClick={() => void handleDispatch()}
+              disabled={readOnly || teamAction !== null}
+            >
+              {teamAction === 'dispatch' ? 'Dispatching' : 'Dispatch'}
+            </button>
+          )}
           {canPauseTeam && (
             <button
               type="button"
@@ -1922,6 +1997,35 @@ export const AgentTeamFrame = ({
       </div>
 
       {error && <div className="agent-team-frame__error">{error}</div>}
+
+      {isCheckpoint && (
+        <div className="agent-team-checkpoint-banner">
+          <div className="agent-team-checkpoint-banner__copy">
+            <strong>Round {checkpointRound} complete</strong>
+            <span>
+              Review results, then continue to plan the next round or finish up.
+            </span>
+          </div>
+          <div className="agent-team-checkpoint-banner__actions">
+            <button
+              type="button"
+              className="agent-team-frame__secondary-action"
+              onClick={() => void handleFinalizeCheckpoint()}
+              disabled={readOnly}
+            >
+              Finish
+            </button>
+            <button
+              type="button"
+              className="agent-team-frame__primary-action"
+              onClick={() => void handleAdvanceRound()}
+              disabled={readOnly}
+            >
+              Continue to Round {(checkpointRound ?? 0) + 1}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={`agent-team-workspace agent-team-workspace--${phase}`}>
         {renderLeadDock()}

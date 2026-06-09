@@ -584,9 +584,21 @@ export class CanvasAgentTeamsService {
       before.agents.map((agent) => [agent.name.trim().toLowerCase(), agent]),
     );
 
+    const idleTeammates = before.agents
+      .filter((a) => a.role === 'teammate' && a.status === 'idle')
+      .map((a) => a);
+    const reusedAgentIds = new Set<string>();
+
     for (const teammate of plan.teammates) {
       const key = teammate.name.trim().toLowerCase();
       if (!key || agentsByName.has(key)) continue;
+
+      const reusable = idleTeammates.find((a) => !reusedAgentIds.has(a.id));
+      if (reusable) {
+        reusedAgentIds.add(reusable.id);
+        agentsByName.set(key, reusable);
+        continue;
+      }
 
       const agentId = randomUUID();
       const nodeId = await createTeamAgentNode({
@@ -645,8 +657,10 @@ export class CanvasAgentTeamsService {
     metadata.updatedAt = now;
     await store.saveTeamMetadata(teamId, metadata);
 
+    await runtime.initializeRound(teamId);
     await runtime.setTeamStatus(teamId, 'running', 'human');
     await runtime.dispatchReadyTasks(teamId);
+    await runtime.notifyLeadPlanApproved(teamId);
     return this.snapshot(workspaceId, teamId);
   }
 
@@ -749,6 +763,7 @@ export class CanvasAgentTeamsService {
 
   async dispatch(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime } = this.getBundle(workspaceId);
+    await runtime.repairCurrentRound(teamId);
     await runtime.dispatchReadyTasks(teamId);
     return this.snapshot(workspaceId, teamId);
   }
@@ -764,6 +779,30 @@ export class CanvasAgentTeamsService {
     const { runtime } = this.getBundle(workspaceId);
     await runtime.resumeTeam(teamId, 'Resumed from the Agent Team frame.');
     await runtime.dispatchReadyTasks(teamId);
+    return this.snapshot(workspaceId, teamId);
+  }
+
+  async advanceRound(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime } = this.getBundle(workspaceId);
+    await runtime.advanceRound(teamId, 'human');
+    await runtime.dispatchReadyTasks(teamId);
+    return this.snapshot(workspaceId, teamId);
+  }
+
+  async finalizeFromCheckpoint(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime } = this.getBundle(workspaceId);
+    await runtime.finalizeFromCheckpoint(teamId, 'human');
+    return this.snapshot(workspaceId, teamId);
+  }
+
+  async updateTask(
+    workspaceId: string,
+    teamId: string,
+    taskId: string,
+    patch: { title?: string; description?: string },
+  ): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime } = this.getBundle(workspaceId);
+    await runtime.updateTaskDescription(taskId, patch);
     return this.snapshot(workspaceId, teamId);
   }
 
@@ -926,15 +965,14 @@ export class CanvasAgentTeamsService {
       return this.snapshot(workspaceId, teamId);
     }
 
-    if (agent.role === 'lead' && snapshot.team.status === 'completed') {
+    if (agent.role === 'lead' && (snapshot.team.status === 'completed' || snapshot.team.status === 'waiting_approval')) {
       const latestAgent = await store.getAgent(agent.id);
-      if (latestAgent) {
+      if (latestAgent && (latestAgent.status === 'needs_input' || latestAgent.status === 'idle' || latestAgent.status === 'stopped')) {
         latestAgent.status = 'running';
         latestAgent.currentTaskId = undefined;
         latestAgent.updatedAt = Date.now();
         await store.saveAgent(latestAgent);
       }
-      await runtime.setTeamStatus(teamId, 'running', 'human');
     }
 
     // Forward the explicit task so the runtime resolver scopes to it too: an
@@ -1055,6 +1093,11 @@ export class CanvasAgentTeamsService {
         const currentTask = tasks.find((task) => task.id === agent.currentTaskId);
         canResume = currentTask?.status === 'in_progress';
       }
+    } else if (agent.role === 'lead' && agent.status === 'idle' && teamAllowsWork) {
+      agent.status = 'running';
+      agent.updatedAt = now;
+      await store.saveAgent(agent);
+      canResume = true;
     } else if (isPlanReviewLead && agent.status === 'needs_input') {
       agent.status = 'running';
       agent.updatedAt = now;

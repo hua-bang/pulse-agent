@@ -990,4 +990,212 @@ describe('TeamRuntime', () => {
     expect(snapshot.humanGates[0].status).toBe('open');
     expect(adapter.inputs.filter((entry) => entry.sessionId === sessionId)).toHaveLength(afterOpen);
   });
+
+  describe('Round Checkpoint', () => {
+    it('enters round_checkpoint when all round-1 tasks complete', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      await runtime.createTask({ teamId: team.id, title: 'A', description: 'Task A', ownerAgentId: coder.id });
+      const b = await runtime.createTask({ teamId: team.id, title: 'B', description: 'Task B', ownerAgentId: coder.id });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+
+      // Complete both tasks (coder only has one at a time; complete first, re-dispatch)
+      const snap1 = await runtime.snapshot(team.id);
+      const inProgress = snap1.tasks.find((t) => t.status === 'in_progress')!;
+      await runtime.completeTask(inProgress.id, 'Done', coder.id);
+      await runtime.dispatchReadyTasks(team.id);
+      const remaining = (await runtime.snapshot(team.id)).tasks.find((t) => t.status === 'in_progress')!;
+      await runtime.completeTask(remaining.id, 'Done', coder.id);
+
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('round_checkpoint');
+      expect(snapshot.checkpointRound).toBe(1);
+    });
+
+    it('dispatches only current-round tasks when round is initialized', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const c1 = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder1' });
+      const c2 = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder2' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(c1.id);
+      await runtime.createAgentSession(c2.id);
+
+      // Round 1 task
+      await runtime.createTask({ teamId: team.id, title: 'R1-A', description: 'Round 1', ownerAgentId: c1.id, metadata: { round: 1 } });
+      // Round 2 task (pre-planned)
+      await runtime.createTask({ teamId: team.id, title: 'R2-A', description: 'Round 2', ownerAgentId: c2.id, metadata: { round: 2 } });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      const result = await runtime.dispatchReadyTasks(team.id);
+
+      expect(result.assigned.map((t) => t.title)).toEqual(['R1-A']);
+    });
+
+    it('advanceRound transitions from checkpoint to running', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'R1', ownerAgentId: coder.id });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+
+      expect((await runtime.snapshot(team.id)).team.status).toBe('round_checkpoint');
+
+      await runtime.advanceRound(team.id, 'human');
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('running');
+    });
+
+    it('dispatches round-2 tasks after advanceRound', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'R1', ownerAgentId: coder.id });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+      await runtime.advanceRound(team.id, 'human');
+
+      // New tasks created after all prior tasks are done → auto-assigned round 2
+      await runtime.createTask({ teamId: team.id, title: 'B', description: 'R2', ownerAgentId: coder.id });
+      const result = await runtime.dispatchReadyTasks(team.id);
+
+      expect(result.assigned.map((t) => t.title)).toEqual(['B']);
+    });
+
+    it('finalizeFromCheckpoint transitions to reviewing', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'R1', ownerAgentId: coder.id });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+
+      expect((await runtime.snapshot(team.id)).team.status).toBe('round_checkpoint');
+
+      await runtime.finalizeFromCheckpoint(team.id, 'human');
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('reviewing');
+    });
+
+    it('teams without round metadata use legacy reviewing flow', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+
+      const a = await runtime.createTask({ teamId: team.id, title: 'A', description: 'D', ownerAgentId: coder.id });
+
+      // No initializeRound call — legacy team
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.completeTask(a.id, 'Done', coder.id);
+
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.team.status).toBe('reviewing');
+    });
+
+    it('throws when advanceRound is called on a non-checkpoint team', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      await expect(runtime.advanceRound(team.id, 'human')).rejects.toThrow('expected \'round_checkpoint\'');
+    });
+
+    it('allows editing todo task descriptions', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const task = await runtime.createTask({ teamId: team.id, title: 'Old Title', description: 'Old desc', ownerAgentId: coder.id });
+
+      const updated = await runtime.updateTaskDescription(task.id, { title: 'New Title', description: 'New desc' });
+      expect(updated.title).toBe('New Title');
+      expect(updated.description).toBe('New desc');
+    });
+
+    it('repairCurrentRound corrects stale currentRound', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Goal' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+
+      // Create a task that ends up in round 2 (simulating the bug where
+      // currentRound was reset to 1 but tasks were assigned to round 2).
+      const task = await runtime.createTask({
+        teamId: team.id, title: 'R2 Task', description: 'D',
+        ownerAgentId: coder.id, metadata: { round: 2 },
+      });
+
+      // currentRound is 1, task is round 2 → dispatch would skip it
+      const before = await runtime.dispatchReadyTasks(team.id);
+      expect(before.assigned).toHaveLength(0);
+
+      // Repair detects the mismatch and fixes it
+      const repaired = await runtime.repairCurrentRound(team.id);
+      expect(repaired).toBe(true);
+
+      // Now dispatch finds the task
+      const after = await runtime.dispatchReadyTasks(team.id);
+      expect(after.assigned).toHaveLength(1);
+      expect(after.assigned[0].id).toBe(task.id);
+    });
+
+    it('repairCurrentRound is a no-op when rounds are consistent', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Goal' });
+      await runtime.initializeRound(team.id);
+      await runtime.createTask({ teamId: team.id, title: 'T', description: 'D' });
+
+      const repaired = await runtime.repairCurrentRound(team.id);
+      expect(repaired).toBe(false);
+    });
+
+    it('rejects editing in-progress task', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(coder.id);
+      const task = await runtime.createTask({ teamId: team.id, title: 'T', description: 'D', ownerAgentId: coder.id });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      await runtime.dispatchReadyTasks(team.id);
+
+      await expect(runtime.updateTaskDescription(task.id, { title: 'Nope' })).rejects.toThrow('Cannot edit task');
+    });
+  });
 });

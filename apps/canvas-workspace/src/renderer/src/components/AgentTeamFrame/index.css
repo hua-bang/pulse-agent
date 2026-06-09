@@ -284,6 +284,13 @@
   align-self: flex-start;
 }
 
+.agent-team-frame--briefing .agent-team-command--lead .agent-team-command__label {
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: rgba(80, 110, 156, 0.7);
+  padding-bottom: 2px;
+}
+
 .agent-team-command__task-chip {
   justify-self: start;
   min-width: 0;
@@ -369,6 +376,34 @@
   flex: 1;
   min-height: 220px;
   max-height: none;
+  border-radius: 12px;
+  border: 1.5px solid rgba(122, 167, 232, 0.28);
+  padding: 16px 18px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
+  color: #1a2a42;
+  background:
+    linear-gradient(180deg, rgba(248, 251, 255, 0.9) 0%, rgba(255, 255, 255, 0.98) 100%);
+  box-shadow:
+    inset 0 1px 3px rgba(31, 54, 88, 0.04),
+    0 4px 12px rgba(31, 54, 88, 0.03);
+}
+
+.agent-team-frame--briefing .agent-team-command--lead textarea::placeholder {
+  color: rgba(80, 110, 156, 0.46);
+  font-weight: 400;
+  line-height: 1.65;
+}
+
+.agent-team-frame--briefing .agent-team-command--lead textarea:focus {
+  border-color: rgba(35, 131, 226, 0.5);
+  background:
+    linear-gradient(180deg, rgba(252, 253, 255, 0.95) 0%, #fff 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(31, 54, 88, 0.03),
+    0 0 0 3px rgba(35, 131, 226, 0.1),
+    0 6px 16px rgba(31, 54, 88, 0.04);
 }
 
 .agent-team-frame--briefing .agent-team-command--lead {
@@ -384,6 +419,18 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+}
+
+.agent-team-frame--plan_review .agent-team-command--lead {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.agent-team-frame--plan_review .agent-team-command--lead textarea {
+  min-height: 48px;
+  max-height: 120px;
 }
 
 .agent-team-command button {
@@ -412,6 +459,16 @@
 .agent-team-command--lead button {
   align-self: flex-end;
   min-width: 124px;
+  cursor: pointer;
+}
+
+.agent-team-frame--briefing .agent-team-command--lead button {
+  height: 38px;
+  min-width: 140px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   height: 36px;
 }
 
@@ -477,8 +534,8 @@
 }
 
 .agent-team-frame--briefing .agent-team-lead-dock__body {
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  padding: 10px 12px 12px;
 }
 
 .agent-team-lead-dock__agent-surface {
@@ -2356,6 +2413,45 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.agent-team-checkpoint-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e3c577;
+  border-radius: 8px;
+  background: #fef9ec;
+  color: #6b5318;
+}
+
+.agent-team-checkpoint-banner__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-team-checkpoint-banner__copy strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5a440f;
+}
+
+.agent-team-checkpoint-banner__copy span {
+  font-size: 11.5px;
+  color: #7c6423;
+  line-height: 1.4;
+}
+
+.agent-team-checkpoint-banner__actions {
+  flex-shrink: 0;
+}
+
+.agent-team-checkpoint-banner__actions button {
+  white-space: nowrap;
 }
 
 .agent-team-agent-inspector {

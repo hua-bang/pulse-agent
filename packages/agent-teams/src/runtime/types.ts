@@ -11,6 +11,7 @@ export type TeamStatus =
   | 'running'
   | 'reviewing'
   | 'paused'
+  | 'round_checkpoint'
   | 'completed'
   | 'failed';
 
@@ -138,6 +139,8 @@ export type TeamEventType =
   | 'artifact_created'
   | 'dispatch_paused'
   | 'dispatch_resumed'
+  | 'round_checkpoint_entered'
+  | 'round_advanced'
   | 'runtime_error';
 
 export interface TeamEvent<Payload extends Record<string, unknown> = Record<string, unknown>> {
@@ -293,6 +296,7 @@ export interface RuntimeSnapshot {
   humanGates: HumanGateRecord[];
   events: TeamEvent[];
   messages: MailboxMessage[];
+  checkpointRound?: number;
 }
 
 export interface DispatchResult {

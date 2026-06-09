@@ -90,6 +90,41 @@ export function setupCanvasAgentTeamsIpc(): void {
     }
   });
 
+  ipcMain.handle('agent-teams:advance-round', async (_event, payload: { workspaceId: string; teamId: string }) => {
+    try {
+      const snapshot = await service.advanceRound(payload.workspaceId, payload.teamId);
+      return ok({ snapshot });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcMain.handle('agent-teams:finalize-checkpoint', async (_event, payload: { workspaceId: string; teamId: string }) => {
+    try {
+      const snapshot = await service.finalizeFromCheckpoint(payload.workspaceId, payload.teamId);
+      return ok({ snapshot });
+    } catch (err) {
+      return fail(err);
+    }
+  });
+
+  ipcMain.handle(
+    'agent-teams:update-task',
+    async (_event, payload: { workspaceId: string; teamId: string; taskId: string; title?: string; description?: string }) => {
+      try {
+        const snapshot = await service.updateTask(
+          payload.workspaceId,
+          payload.teamId,
+          payload.taskId,
+          { title: payload.title, description: payload.description },
+        );
+        return ok({ snapshot });
+      } catch (err) {
+        return fail(err);
+      }
+    },
+  );
+
   ipcMain.handle('agent-teams:dispatch', async (_event, payload: { workspaceId: string; teamId: string }) => {
     try {
       const snapshot = await service.dispatch(payload.workspaceId, payload.teamId);

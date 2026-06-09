@@ -67,12 +67,22 @@ const quoteCliValue = (value: string): string =>
   value.replace(/(["\\$`])/g, '\\$1');
 
 const TASK_ROUND_METADATA_KEY = 'round';
+const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
 
 /** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
 const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
   const value = metadata?.[TASK_ROUND_METADATA_KEY];
   return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 };
+
+const readCurrentRound = (metadata: Record<string, unknown> | undefined): number => {
+  const value = metadata?.[TEAM_CURRENT_ROUND_METADATA_KEY];
+  return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
+};
+
+/** Whether the team has been explicitly opted into the round-checkpoint model. */
+const hasRoundMetadata = (metadata: Record<string, unknown> | undefined): boolean =>
+  metadata?.[TEAM_CURRENT_ROUND_METADATA_KEY] !== undefined;
 
 /**
  * Decide which "round" a new task belongs to.
@@ -358,7 +368,11 @@ export class TeamRuntime {
   }
 
   async resumeTeam(teamId: TeamId, reason = 'Resumed by user.'): Promise<void> {
-    await this.requireTeam(teamId);
+    const teamForResume = await this.requireTeam(teamId);
+    if (teamForResume.status === 'round_checkpoint') {
+      await this.advanceRound(teamId, 'human');
+      return;
+    }
     this.dispatchPaused.delete(teamId);
     const now = this.now();
     const [agents, tasks] = await Promise.all([
@@ -409,6 +423,80 @@ export class TeamRuntime {
     await this.emit(teamId, 'dispatch_resumed', 'runtime', {});
   }
 
+  async advanceRound(teamId: TeamId, actor: AgentId | 'human' | 'runtime' = 'human'): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (team.status !== 'round_checkpoint') {
+      throw new Error(`Cannot advance round: team status is '${team.status}', expected 'round_checkpoint'`);
+    }
+    const currentRound = readCurrentRound(team.metadata);
+    const nextRound = currentRound + 1;
+    team.metadata = {
+      ...(team.metadata ?? {}),
+      [TEAM_CURRENT_ROUND_METADATA_KEY]: nextRound,
+    };
+    team.updatedAt = this.now();
+    await this.store.saveTeam(team);
+
+    await this.setTeamStatus(teamId, 'running', actor);
+    await this.emit(teamId, 'round_advanced', actor, {
+      previousRound: currentRound,
+      currentRound: nextRound,
+    });
+    await this.notifyLeadRoundAdvanced(teamId, currentRound, nextRound);
+  }
+
+  async finalizeFromCheckpoint(teamId: TeamId, actor: AgentId | 'human' | 'runtime' = 'human'): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (team.status !== 'round_checkpoint') {
+      throw new Error(`Cannot finalize: team status is '${team.status}', expected 'round_checkpoint'`);
+    }
+    await this.setTeamStatus(teamId, 'reviewing', actor);
+    await this.sendFinalReviewPrompt(teamId);
+  }
+
+  async initializeRound(teamId: TeamId): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (hasRoundMetadata(team.metadata)) return;
+    team.metadata = {
+      ...(team.metadata ?? {}),
+      [TEAM_CURRENT_ROUND_METADATA_KEY]: 1,
+    };
+    team.updatedAt = this.now();
+    await this.store.saveTeam(team);
+  }
+
+  async repairCurrentRound(teamId: TeamId): Promise<boolean> {
+    const team = await this.requireTeam(teamId);
+    if (!hasRoundMetadata(team.metadata)) return false;
+    const currentRound = readCurrentRound(team.metadata);
+    const tasks = await this.store.listTasks(teamId);
+    const todoRounds = tasks
+      .filter((t) => t.status === 'todo')
+      .map((t) => readTaskRound(t.metadata));
+    if (todoRounds.length === 0) return false;
+    const maxTodoRound = Math.max(...todoRounds);
+    if (maxTodoRound <= currentRound) return false;
+    team.metadata = {
+      ...(team.metadata ?? {}),
+      [TEAM_CURRENT_ROUND_METADATA_KEY]: maxTodoRound,
+    };
+    team.updatedAt = this.now();
+    await this.store.saveTeam(team);
+    return true;
+  }
+
+  async updateTaskDescription(taskId: TaskId, patch: { title?: string; description?: string }): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    if (task.status !== 'todo') {
+      throw new Error(`Cannot edit task in status '${task.status}'`);
+    }
+    if (patch.title) task.title = patch.title;
+    if (patch.description) task.description = patch.description;
+    task.updatedAt = this.now();
+    await this.store.saveTask(task);
+    return task;
+  }
+
   async deleteTeam(teamId: TeamId): Promise<void> {
     const snapshot = await this.snapshot(teamId);
     for (const agent of snapshot.agents) {
@@ -425,16 +513,24 @@ export class TeamRuntime {
 
   async dispatchReadyTasks(teamId: TeamId): Promise<DispatchResult> {
     const team = await this.requireTeam(teamId);
-    if (this.dispatchPaused.has(teamId) || team.status === 'paused' || team.status === 'waiting_approval') {
+    if (
+      this.dispatchPaused.has(teamId)
+      || team.status === 'paused'
+      || team.status === 'waiting_approval'
+      || team.status === 'round_checkpoint'
+    ) {
       return { assigned: [], idleAgents: [] };
     }
 
     const tasks = await this.store.listTasks(teamId);
     const agents = await this.store.listAgents(teamId);
     const idleAgents = agents.filter(agent => agent.status === 'idle' && !agent.currentTaskId);
+    const roundEnabled = hasRoundMetadata(team.metadata);
+    const currentRound = readCurrentRound(team.metadata);
     const readyTasks = tasks.filter(task =>
       task.status === 'todo'
       && this.isTaskReady(task, tasks)
+      && (!roundEnabled || readTaskRound(task.metadata) === currentRound)
     );
     const assigned: TeamTaskRecord[] = [];
     const availableAgents = [...idleAgents];
@@ -516,7 +612,7 @@ export class TeamRuntime {
       taskId: task.id,
     });
 
-    await this.markTeamReadyForReviewIfDone(task.teamId);
+    await this.checkRoundCompletion(task.teamId);
     return task;
   }
 
@@ -585,10 +681,7 @@ export class TeamRuntime {
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
     ].join('\n'), task.id);
-    // A failure can be the last task to settle. Without this, an all-terminal
-    // batch whose final task failed would sit in `running` forever (no ready
-    // tasks left, no review handoff). Mirror completeTask's review trigger.
-    await this.markTeamReadyForReviewIfDone(task.teamId);
+    await this.checkRoundCompletion(task.teamId);
     return task;
   }
 
@@ -880,6 +973,27 @@ export class TeamRuntime {
     ].join('\n'));
   }
 
+  async notifyLeadPlanApproved(teamId: TeamId): Promise<void> {
+    const snapshot = await this.snapshot(teamId);
+    const taskLines = snapshot.tasks.map((task) => {
+      const owner = task.ownerAgentId
+        ? snapshot.agents.find((a) => a.id === task.ownerAgentId)?.name ?? 'unassigned'
+        : 'unassigned';
+      return `- ${task.title} → ${owner} [${task.status}]`;
+    });
+    await this.notifyLead(teamId, [
+      'The user has approved your plan. Tasks are being dispatched to teammates.',
+      '',
+      'Your role now: monitor progress, answer teammate questions, handle blocked tasks,',
+      'and create follow-up tasks if needed.',
+      '',
+      'Tasks:',
+      ...taskLines,
+      '',
+      'When a teammate finishes or gets stuck, you will be notified automatically.',
+    ].join('\n'));
+  }
+
   /**
    * Re-drive a Team Lead that is sitting on a finished team.
    *
@@ -922,7 +1036,10 @@ export class TeamRuntime {
       this.store.listMessages(teamId),
     ]);
 
-    return { team, agents, tasks, artifacts, humanGates, events, messages };
+    return {
+      team, agents, tasks, artifacts, humanGates, events, messages,
+      checkpointRound: team.status === 'round_checkpoint' ? readCurrentRound(team.metadata) : undefined,
+    };
   }
 
   private async handleAgentSessionEvent(event: { sessionId: string; type: string; text?: string; taskId?: string; error?: string }): Promise<void> {
@@ -1101,6 +1218,32 @@ export class TeamRuntime {
     return collected;
   }
 
+  private async checkRoundCompletion(teamId: TeamId): Promise<void> {
+    const team = await this.requireTeam(teamId);
+
+    if (!hasRoundMetadata(team.metadata)) {
+      await this.markTeamReadyForReviewIfDone(teamId);
+      return;
+    }
+
+    if (team.status !== 'running') return;
+
+    const tasks = await this.store.listTasks(teamId);
+    if (tasks.length === 0) return;
+
+    const currentRound = readCurrentRound(team.metadata);
+    const currentRoundTasks = tasks.filter((t) => readTaskRound(t.metadata) === currentRound);
+
+    if (currentRoundTasks.length === 0 || !currentRoundTasks.every((t) => t.status === 'done' || t.status === 'failed')) {
+      return;
+    }
+
+    await this.setTeamStatus(teamId, 'round_checkpoint');
+    await this.emit(teamId, 'round_checkpoint_entered', 'runtime', {
+      completedRound: currentRound,
+    });
+  }
+
   private async markTeamReadyForReviewIfDone(teamId: TeamId): Promise<void> {
     const tasks = await this.store.listTasks(teamId);
     if (tasks.length === 0) return;
@@ -1116,6 +1259,42 @@ export class TeamRuntime {
    * (`notifyLeadReviewIfStalled`) so a lead that already saw this prompt is not
    * spammed, while a lead that never acted still gets driven again later.
    */
+  private async notifyLeadRoundAdvanced(teamId: TeamId, completedRound: number, nextRound: number): Promise<void> {
+    const snapshot = await this.snapshot(teamId);
+    const completedTasks = snapshot.tasks
+      .filter((t) => readTaskRound(t.metadata) === completedRound)
+      .map((t) => `- ${t.title}: ${t.status}${t.result ? ` — ${truncate(t.result, 220)}` : ''}`);
+    const artifactLines = snapshot.artifacts.map((a) =>
+      `- ${a.title} (${a.kind})${a.summary ? ` — ${truncate(a.summary, 180)}` : ''}`,
+    );
+    const existingTeammates = snapshot.agents
+      .filter((a) => a.role === 'teammate')
+      .map((a) => `- ${a.name} (${a.status})`);
+
+    await this.notifyLead(teamId, [
+      `Round ${completedRound} is complete. The user wants to continue with Round ${nextRound}.`,
+      '',
+      `Round ${completedRound} results:`,
+      ...completedTasks,
+      ...(artifactLines.length > 0 ? ['', 'Artifacts:', ...artifactLines] : []),
+      '',
+      ...(existingTeammates.length > 0
+        ? [
+            'IMPORTANT: Reuse existing teammates by their exact names when assigning tasks.',
+            'Do NOT create new teammate names — use the ones below:',
+            ...existingTeammates,
+            '',
+          ]
+        : []),
+      `Plan the next round of work. Review what was accomplished and create new tasks for Round ${nextRound}:`,
+      'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
+      '',
+      'When you have created all tasks for this round, they will be dispatched automatically.',
+      'If no more work is needed, run:',
+      'pulse-canvas team complete-team --summary "<final summary>"',
+    ].join('\n'));
+  }
+
   private async sendFinalReviewPrompt(teamId: TeamId): Promise<void> {
     await this.notifyLead(teamId, await this.formatFinalReviewPrompt(teamId));
     this.leadReviewNudgeCache.set(teamId, this.now());
