@@ -658,13 +658,6 @@ export const AgentTeamFrame = ({
     ?? metadataString(runtime?.team.metadata, ['cwd'])
     ?? rootFolder
     ?? '';
-  const phaseTitle = phase === 'briefing'
-    ? 'Briefing'
-    : runtime?.team.status === 'completed'
-      ? 'Completed'
-      : phase === 'plan_review'
-        ? 'Plan Review'
-        : 'Executing';
   const doneTaskCount = tasks.filter((task) => task.status === 'done').length;
   const activeTaskCount = tasks.filter((task) =>
     task.status === 'in_progress'
@@ -1828,10 +1821,7 @@ export const AgentTeamFrame = ({
     >
       <div className="agent-team-frame__top">
         <div className="agent-team-frame__identity">
-          <div className="agent-team-frame__title">
-            {teamTitle}
-            <span className="agent-team-frame__phase-label"> · {phaseTitle}</span>
-          </div>
+          <div className="agent-team-frame__title">{teamTitle}</div>
           <div className="agent-team-frame__mission">
             {teamCwd && (
               <code title={teamCwd}>{compactPath(teamCwd)}</code>

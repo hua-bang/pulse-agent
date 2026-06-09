@@ -38,7 +38,7 @@ const EMPTY_DRAFT: Draft = { name: '', description: '', body: '' };
 
 export const SkillsManager = ({ scope, showInherited = false }: Props) => {
   const { t } = useI18n();
-  const { notify } = useAppShell();
+  const { notify, confirm } = useAppShell();
   const [skills, setSkills] = useState<CanvasSkillEntry[]>([]);
   const [inherited, setInherited] = useState<CanvasSkillEntry[]>([]);
   const [dir, setDir] = useState('');
@@ -100,12 +100,17 @@ export const SkillsManager = ({ scope, showInherited = false }: Props) => {
 
   const remove = useCallback(
     async (name: string) => {
-      if (!window.confirm(t('skillsConfig.deleteConfirm', { name }))) return;
+      const accepted = await confirm({
+        intent: 'danger',
+        title: t('skillsConfig.deleteConfirm', { name }),
+        confirmLabel: t('skillsConfig.delete'),
+      });
+      if (!accepted) return;
       const res = await window.canvasWorkspace.canvasSkills.remove(scope, name);
       if (res.ok && res.status) setSkills(res.status.skills);
       else notify({ tone: 'error', title: res.error ?? t('skillsConfig.loadFailed') });
     },
-    [scope, notify, t],
+    [scope, notify, confirm, t],
   );
 
   // Shared toast/state handlers. Both .zip and a URL that resolves to a zip

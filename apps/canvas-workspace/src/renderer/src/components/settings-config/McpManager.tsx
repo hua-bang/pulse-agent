@@ -180,7 +180,7 @@ const ToolsList = ({ health, readOnly, isBusy, onToggle, t }: ToolsListProps) =>
 
 export const McpManager = ({ scope, showInherited = false }: Props) => {
   const { t } = useI18n();
-  const { notify } = useAppShell();
+  const { notify, confirm } = useAppShell();
   const [servers, setServers] = useState<CanvasMcpServer[]>([]);
   const [statuses, setStatuses] = useState<Record<string, CanvasMcpServerHealth>>({});
   const [inherited, setInherited] = useState<CanvasMcpServer[]>([]);
@@ -261,12 +261,17 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
 
   const remove = useCallback(
     async (name: string) => {
-      if (!window.confirm(t('mcpConfig.deleteConfirm', { name }))) return;
+      const accepted = await confirm({
+        intent: 'danger',
+        title: t('mcpConfig.deleteConfirm', { name }),
+        confirmLabel: t('mcpConfig.delete'),
+      });
+      if (!accepted) return;
       const res = await window.canvasWorkspace.canvasMcp.remove(scope, name);
       if (res.ok && res.status) applyStatus(res.status);
       else notify({ tone: 'error', title: res.error ?? t('mcpConfig.loadFailed') });
     },
-    [scope, notify, t, applyStatus],
+    [scope, notify, confirm, t, applyStatus],
   );
 
   const toggleTool = useCallback(
