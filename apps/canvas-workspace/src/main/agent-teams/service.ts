@@ -1093,6 +1093,11 @@ export class CanvasAgentTeamsService {
         const currentTask = tasks.find((task) => task.id === agent.currentTaskId);
         canResume = currentTask?.status === 'in_progress';
       }
+    } else if (agent.role === 'lead' && agent.status === 'idle' && teamAllowsWork) {
+      agent.status = 'running';
+      agent.updatedAt = now;
+      await store.saveAgent(agent);
+      canResume = true;
     } else if (isPlanReviewLead && agent.status === 'needs_input') {
       agent.status = 'running';
       agent.updatedAt = now;
