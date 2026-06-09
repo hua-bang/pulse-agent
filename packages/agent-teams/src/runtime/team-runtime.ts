@@ -490,6 +490,7 @@ export class TeamRuntime {
     task.result = result;
     task.updatedAt = this.now();
     await this.store.saveTask(task);
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
 
     if (task.ownerAgentId) {
       const agent = await this.store.getAgent(task.ownerAgentId);
@@ -558,6 +559,7 @@ export class TeamRuntime {
     task.result = error;
     task.updatedAt = this.now();
     await this.store.saveTask(task);
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
 
     if (task.ownerAgentId) {
       const agent = await this.store.getAgent(task.ownerAgentId);
@@ -625,6 +627,8 @@ export class TeamRuntime {
   async openHumanGate(input: OpenHumanGateInput): Promise<HumanGateId> {
     await this.requireTeam(input.teamId);
     const now = this.now();
+    const task = input.taskId ? await this.store.getTask(input.taskId) : undefined;
+    const taskFinished = task?.status === 'done' || task?.status === 'failed';
     const gate = {
       id: input.id ?? this.idFactory(),
       teamId: input.teamId,
@@ -632,7 +636,7 @@ export class TeamRuntime {
       agentId: input.agentId,
       reason: input.reason,
       prompt: input.prompt,
-      status: 'open' as const,
+      status: (taskFinished ? 'cancelled' : 'open') as 'cancelled' | 'open',
       createdAt: now,
       updatedAt: now,
       metadata: input.metadata,
@@ -640,14 +644,21 @@ export class TeamRuntime {
 
     await this.store.saveHumanGate(gate);
 
-    if (input.taskId) {
-      const task = await this.store.getTask(input.taskId);
-      if (task && task.status !== 'done' && task.status !== 'failed') {
-        task.status = 'needs_input';
-        task.blockedReason = input.reason;
-        task.updatedAt = now;
-        await this.store.saveTask(task);
-      }
+    // A task that already finished must never reopen the Team Lead backlog. The
+    // gate is recorded as cancelled for auditability, but we skip the task/agent
+    // transitions, the mailbox question, and the lead notification that an open
+    // gate would otherwise trigger — those would re-wake the lead about settled
+    // work (a stray late marker, a question that arrived after the lead closed
+    // the task, etc.).
+    if (taskFinished) {
+      return gate.id;
+    }
+
+    if (task && task.status !== 'done' && task.status !== 'failed') {
+      task.status = 'needs_input';
+      task.blockedReason = input.reason;
+      task.updatedAt = now;
+      await this.store.saveTask(task);
     }
 
     let requestingAgent: TeamAgentRecord | undefined;
@@ -684,7 +695,7 @@ export class TeamRuntime {
         input.taskId ? `Task ID: ${input.taskId}` : '',
         '',
         'If you can answer, send guidance to the teammate:',
-        `pulse-canvas team send --to "${requestingAgent?.name ?? 'Teammate name'}" --message "<answer or decision>"`,
+        `pulse-canvas team send --to "${requestingAgent?.name ?? 'Teammate name'}"${input.taskId ? ` --task "${input.taskId}"` : ''} --message "<answer or decision>"`,
         '',
         'Ask the human only if this requires owner input:',
         `pulse-canvas team request-human-input${input.taskId ? ` --task "${input.taskId}"` : ''} --prompt "<specific question>"`,
@@ -1127,13 +1138,19 @@ export class TeamRuntime {
       this.store.listAgents(teamId),
       this.store.listTasks(teamId),
     ]);
+    const tasksById = new Map(tasks.map((task) => [task.id, task]));
     const pending = gates
-      .filter((gate) => gate.status === 'open' && isLeadAudienceGate(gate.metadata))
+      .filter((gate) => {
+        if (gate.status !== 'open' || !isLeadAudienceGate(gate.metadata)) return false;
+        // Exclude gates whose task already finished. Their questions are settled,
+        // so they must not keep re-waking the Team Lead about completed work.
+        const task = gate.taskId ? tasksById.get(gate.taskId) : undefined;
+        return !task || (task.status !== 'done' && task.status !== 'failed');
+      })
       .sort((a, b) => a.createdAt - b.createdAt);
     if (pending.length === 0) return '';
 
     const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
-    const tasksById = new Map(tasks.map((task) => [task.id, task]));
     const lines = pending.flatMap((gate, index) => {
       const agent = gate.agentId ? agentsById.get(gate.agentId) : undefined;
       const task = gate.taskId ? tasksById.get(gate.taskId) : undefined;
@@ -1142,7 +1159,7 @@ export class TeamRuntime {
       return [
         `${index + 1}. ${agentName}${taskPart}`,
         `   Question: ${truncate(gate.prompt, 500)}`,
-        `   Answer if you can: pulse-canvas team send --to "${quoteCliValue(agentName)}" --message "<answer or decision>"`,
+        `   Answer if you can: pulse-canvas team send --to "${quoteCliValue(agentName)}"${gate.taskId ? ` --task "${quoteCliValue(gate.taskId)}"` : ''} --message "<answer or decision>"`,
         `   Ask the human only if needed: pulse-canvas team request-human-input${gate.taskId ? ` --task "${quoteCliValue(gate.taskId)}"` : ''} --prompt "<specific question>"`,
       ];
     });
@@ -1183,6 +1200,23 @@ export class TeamRuntime {
     lead.status = 'running';
     lead.updatedAt = this.now();
     await this.store.saveAgent(lead);
+  }
+
+  /**
+   * Cancel any still-open human gates tied to a task. Once a task is done or
+   * failed its open questions are moot; leaving the gates open would keep
+   * feeding the Team Lead's pending backlog and re-waking the lead about
+   * already-settled work.
+   */
+  private async cancelOpenGatesForTask(teamId: TeamId, taskId: TaskId): Promise<void> {
+    const gates = await this.store.listHumanGates(teamId);
+    const now = this.now();
+    for (const gate of gates) {
+      if (gate.status !== 'open' || gate.taskId !== taskId) continue;
+      gate.status = 'cancelled';
+      gate.updatedAt = now;
+      await this.store.saveHumanGate(gate);
+    }
   }
 
   private async findOpenGateForAgent(agent: TeamAgentRecord, taskId?: TaskId) {

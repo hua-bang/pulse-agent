@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import { STORE_DIR } from '../canvas/storage';
 import type {
   AgentTeamRecord,
@@ -40,7 +41,15 @@ const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 export class CanvasAgentTeamStore implements TeamRuntimeStore {
   private loaded = false;
+  // Shared in-flight load so concurrent first-touch operations don't each reset
+  // `this.state` to an empty object (which would drop the others' mutations).
+  private loadPromise: Promise<void> | null = null;
   private state: PersistedAgentTeamRuntimeState = emptyState();
+  // Serializes all disk writes for this store. Many runtime operations persist
+  // the full state concurrently; without a queue their temp-file renames race
+  // and one rename can fire after another already moved the temp file, throwing
+  // `ENOENT ... rename state.json.tmp -> state.json`.
+  private persistQueue: Promise<void> = Promise.resolve();
 
   constructor(private readonly workspaceId: string) {}
 
@@ -195,8 +204,17 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
     await this.persist();
   }
 
-  private async ensureLoaded(): Promise<void> {
-    if (this.loaded) return;
+  private ensureLoaded(): Promise<void> {
+    if (this.loaded) return Promise.resolve();
+    if (!this.loadPromise) {
+      this.loadPromise = this.loadStateFile().then(() => {
+        this.loaded = true;
+      });
+    }
+    return this.loadPromise;
+  }
+
+  private async loadStateFile(): Promise<void> {
     try {
       const raw = await fs.readFile(this.statePath, 'utf-8');
       const parsed = JSON.parse(raw) as Partial<PersistedAgentTeamRuntimeState>;
@@ -211,14 +229,29 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
       }
       this.state = emptyState();
     }
-    this.loaded = true;
   }
 
-  private async persist(): Promise<void> {
+  private persist(): Promise<void> {
+    // Chain every write onto the previous one so renames never overlap. Each
+    // write flushes the latest in-memory state (a superset of earlier pending
+    // mutations), so serializing is safe and the last write wins consistently.
+    const run = this.persistQueue.then(() => this.writeStateFile());
+    // Keep the chain alive even if one write rejects, so later persists run.
+    this.persistQueue = run.catch(() => {});
+    return run;
+  }
+
+  private async writeStateFile(): Promise<void> {
     await fs.mkdir(this.dir, { recursive: true });
-    const tmp = `${this.statePath}.tmp`;
-    await fs.writeFile(tmp, JSON.stringify(this.state, null, 2), 'utf-8');
-    await fs.rename(tmp, this.statePath);
+    // Unique per-write temp name so two writers never collide on one temp file.
+    const tmp = `${this.statePath}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(tmp, JSON.stringify(this.state, null, 2), 'utf-8');
+      await fs.rename(tmp, this.statePath);
+    } catch (err) {
+      await fs.unlink(tmp).catch(() => {});
+      throw err;
+    }
   }
 
   private get dir(): string {

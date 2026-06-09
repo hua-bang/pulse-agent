@@ -978,4 +978,76 @@ describe('CanvasAgentTeamsService', () => {
     expect(repaired.runtime.tasks[0].blockedReason).toBeUndefined();
     expect(repaired.runtime.agents.find((agent) => agent.id === owner.id)?.status).toBe('running');
   });
+
+  it('answers the gate for the task named by --task when a teammate has several open questions', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
+    const coder = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
+
+    // Give the same teammate a second task so it can hold two open questions.
+    const withSecond = await service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'Harden checkout retries',
+      description: 'Add retry handling to checkout.',
+      ownerName: coder.name,
+    });
+    const second = withSecond.tasks.find((task) => task.title === 'Harden checkout retries')!;
+
+    await service.openHumanGate('ws-1', teamId, {
+      taskId: implement.id,
+      agentId: coder.id,
+      reason: 'Need a decision',
+      prompt: 'Which payment provider should I wire first?',
+    });
+    const gatedTwice = await service.openHumanGate('ws-1', teamId, {
+      taskId: second.id,
+      agentId: coder.id,
+      reason: 'Need a decision',
+      prompt: 'How many retries should checkout attempt?',
+    });
+    expect(gatedTwice.runtime.humanGates.filter((gate) => gate.status === 'open')).toHaveLength(2);
+
+    // Targeting the second task answers exactly that gate and leaves the other open.
+    const answered = await service.sendInput('ws-1', teamId, coder.name, 'Use three retries with backoff.', second.id);
+    const implementGate = answered.runtime.humanGates.find((gate) => gate.taskId === implement.id)!;
+    const secondGate = answered.runtime.humanGates.find((gate) => gate.taskId === second.id)!;
+
+    expect(secondGate).toMatchObject({ status: 'answered', answer: 'Use three retries with backoff.' });
+    expect(implementGate.status).toBe('open');
+    expect(mockState.queuedInputs.at(-1)).toEqual({
+      workspaceId: 'ws-1',
+      nodeId: coder.sessionRef!.sessionId,
+      input: 'Use three retries with backoff.',
+    });
+  });
+
+  it('ignores human-input markers for a task the lead already completed', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
+    const coder = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
+
+    await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      taskId: implement.id,
+      summary: 'Implementation is done.',
+    });
+
+    // A late human-input marker for the finished task must not reopen a gate.
+    const ignored = await service.reportAgentOutput(
+      'ws-1',
+      coder.sessionRef!.sessionId,
+      `[agent-team:human-input-needed taskId="${implement.id}"] Should I also refactor the helper?\n`,
+    );
+    expect(ignored).toBeNull();
+
+    const snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.humanGates).toHaveLength(0);
+    expect(snapshot.runtime.tasks.find((task) => task.id === implement.id)?.status).toBe('done');
+  });
 });

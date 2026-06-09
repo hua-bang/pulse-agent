@@ -902,6 +902,7 @@ export class CanvasAgentTeamsService {
     teamId: string,
     agentRef: string,
     content: string,
+    taskRef?: string,
   ): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     const snapshot = await runtime.snapshot(teamId);
@@ -910,9 +911,15 @@ export class CanvasAgentTeamsService {
       ? formatLeadExecutionPrompt(snapshot.team.name, snapshot.team.goal, content)
       : content;
 
+    // When the lead targets a specific task (e.g. answering one of several open
+    // teammate questions), resolve it so we can pick the exact gate instead of
+    // guessing from the agent's current/needs-input state.
+    const targetTaskId = taskRef
+      ? this.resolveTaskReferences(snapshot.tasks, [taskRef])[0]
+      : undefined;
     const openGate = agent.role === 'lead'
       ? undefined
-      : this.resolveOpenGateForAgent(snapshot, agent);
+      : this.resolveOpenGateForAgent(snapshot, agent, targetTaskId);
     if (openGate) {
       await runtime.answerHumanGate(openGate.id, input);
       await runtime.dispatchReadyTasks(teamId);
@@ -930,7 +937,10 @@ export class CanvasAgentTeamsService {
       await runtime.setTeamStatus(teamId, 'running', 'human');
     }
 
-    await runtime.sendToAgent(agent.id, input);
+    // Forward the explicit task so the runtime resolver scopes to it too: an
+    // unmatched --task must send a plain (task-tagged) message rather than fall
+    // back to answering the agent's current-task gate.
+    await runtime.sendToAgent(agent.id, input, targetTaskId);
     return this.snapshot(workspaceId, teamId);
   }
 
@@ -1162,12 +1172,19 @@ export class CanvasAgentTeamsService {
   private resolveOpenGateForAgent(
     snapshot: RuntimeSnapshot,
     agent: TeamAgentRecord,
+    taskId?: string,
   ): RuntimeSnapshot['humanGates'][number] | undefined {
     const openGates = snapshot.humanGates.filter((gate) =>
       gate.status === 'open'
       && gate.agentId === agent.id
     );
     if (openGates.length === 0) return undefined;
+
+    // An explicit task pins the answer to that task's gate, disambiguating when
+    // a teammate has several open questions across different tasks.
+    if (taskId) {
+      return openGates.find((gate) => gate.taskId === taskId);
+    }
 
     if (agent.currentTaskId) {
       const currentTaskGate = openGates.find((gate) => gate.taskId === agent.currentTaskId);
@@ -1273,6 +1290,13 @@ export class CanvasAgentTeamsService {
 
     if (marker.kind === 'human-input-needed') {
       const snapshot = await runtime.snapshot(agent.teamId);
+      // Ignore stray human-input markers for a task the Team Lead already closed.
+      // Late terminal output (the agent printing the marker after the task was
+      // completed/failed) must not resurrect a settled gate into the lead backlog.
+      const markerTask = taskId ? snapshot.tasks.find((task) => task.id === taskId) : undefined;
+      if (markerTask && (markerTask.status === 'done' || markerTask.status === 'failed')) {
+        return false;
+      }
       const duplicateGate = snapshot.humanGates.some((gate) =>
         gate.status === 'open'
         && gate.agentId === agent.id

@@ -785,4 +785,125 @@ describe('TeamRuntime', () => {
     expect(snapshot.artifacts).toEqual([artifact]);
     expect(snapshot.events.at(-1)!.type).toBe('artifact_created');
   });
+
+  it('cancels a task\'s open lead gate when the task completes', async () => {
+    const { runtime, adapter } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    const leadWithSession = await runtime.createAgentSession(lead.id);
+    await runtime.createAgentSession(coder.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Implement change',
+      description: 'Make the change.',
+      ownerAgentId: coder.id,
+    });
+    await runtime.dispatchReadyTasks(team.id);
+    await runtime.openHumanGate({
+      teamId: team.id,
+      agentId: coder.id,
+      taskId: task.id,
+      reason: 'Need a decision',
+      prompt: 'Which option should we use?',
+      metadata: { audience: 'lead' },
+    });
+    expect((await runtime.snapshot(team.id)).humanGates[0].status).toBe('open');
+
+    await runtime.completeTask(task.id, 'Done', coder.id);
+
+    const snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.humanGates[0].status).toBe('cancelled');
+    expect(snapshot.tasks[0].status).toBe('done');
+
+    // The settled gate must not keep re-waking the lead about completed work:
+    // the digest is empty, so notifyLeadPendingGates sends nothing further.
+    const sessionId = leadWithSession.sessionRef!.sessionId;
+    const before = adapter.inputs.filter((entry) => entry.sessionId === sessionId).length;
+    await runtime.notifyLeadPendingGates(team.id);
+    const after = adapter.inputs.filter((entry) => entry.sessionId === sessionId);
+    expect(after).toHaveLength(before);
+    expect(after.some((entry) => entry.input.includes('still waiting for Team Lead attention'))).toBe(false);
+  });
+
+  it('does not open a human gate for an already finished task', async () => {
+    const { runtime, adapter } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    await runtime.createAgentSession(lead.id);
+    await runtime.createAgentSession(coder.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Implement change',
+      description: 'Make the change.',
+      ownerAgentId: coder.id,
+    });
+    await runtime.dispatchReadyTasks(team.id);
+    await runtime.completeTask(task.id, 'Done', coder.id);
+
+    const inputsBefore = adapter.inputs.length;
+    const gateId = await runtime.openHumanGate({
+      teamId: team.id,
+      agentId: coder.id,
+      taskId: task.id,
+      reason: 'Late question',
+      prompt: 'Should I also refactor the helper?',
+      metadata: { audience: 'lead' },
+    });
+
+    const snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.humanGates.find((gate) => gate.id === gateId)?.status).toBe('cancelled');
+    expect(snapshot.tasks[0].status).toBe('done');
+    expect(snapshot.agents.find((agent) => agent.id === coder.id)?.status).not.toBe('needs_input');
+    // No mailbox question and no lead notification fire for a settled task.
+    expect(adapter.inputs).toHaveLength(inputsBefore);
+  });
+
+  it('drops pending-gate digest entries for tasks that already finished', async () => {
+    let id = 1;
+    let clock = 1000;
+    const store = new InMemoryTeamRuntimeStore();
+    const adapter = new FakeAgentSessionAdapter();
+    const runtime = new TeamRuntime({
+      store,
+      agentSessions: adapter,
+      idFactory: () => `id-${id++}`,
+      now: () => clock++,
+    });
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    const leadWithSession = await runtime.createAgentSession(lead.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Implement change',
+      description: 'Make the change.',
+      ownerAgentId: coder.id,
+    });
+    await runtime.openHumanGate({
+      teamId: team.id,
+      agentId: coder.id,
+      taskId: task.id,
+      reason: 'Need a decision',
+      prompt: 'Which option should we use?',
+      metadata: { audience: 'lead' },
+    });
+    const sessionId = leadWithSession.sessionRef!.sessionId;
+    const afterOpen = adapter.inputs.filter((entry) => entry.sessionId === sessionId).length;
+
+    // Simulate the task finishing through a path that left the gate open (e.g.
+    // legacy persisted state). The gate intentionally stays 'open'.
+    const stored = (await store.getTask(task.id))!;
+    stored.status = 'done';
+    stored.updatedAt = clock++;
+    await store.saveTask(stored);
+
+    clock += 31_000; // bypass the digest resend throttle
+    await runtime.notifyLeadPendingGates(team.id);
+
+    const snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.humanGates[0].status).toBe('open');
+    expect(adapter.inputs.filter((entry) => entry.sessionId === sessionId)).toHaveLength(afterOpen);
+  });
 });
