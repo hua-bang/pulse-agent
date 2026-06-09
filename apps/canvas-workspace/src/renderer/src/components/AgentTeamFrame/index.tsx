@@ -697,7 +697,7 @@ export const AgentTeamFrame = ({
 
   useEffect(() => {
     setAgentInspectorMode('terminal');
-    setAgentViewMode('activity');
+    setAgentViewMode('terminal');
   }, [selectedAgentKey]);
 
   useEffect(() => {
@@ -1632,15 +1632,6 @@ export const AgentTeamFrame = ({
           <strong>{graphSubtitle}</strong>
         </div>
         <div className="agent-team-graph-panel__actions">
-          {variant === 'inline' && graphRounds.length > 0 && (
-            <button
-              type="button"
-              className="agent-team-graph-panel__fullscreen"
-              onClick={() => setGraphFullscreenOpen(true)}
-            >
-              Full screen
-            </button>
-          )}
           {phase === 'plan_review' && plan && (
             <button type="button" className="agent-team-frame__primary-action" onClick={handleConfirmPlan} disabled={readOnly}>
               Approve & Run
