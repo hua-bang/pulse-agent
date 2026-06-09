@@ -9,6 +9,9 @@
  *
  * Both read the on-disk session store (`~/.pulse-coder/canvas/<id>/agent-sessions`)
  * via `SessionStore.readAllSessionsWithMeta()`; neither mutates anything.
+ *
+ * Both are `defer_loading` — they sit behind tool search when the engine has
+ * the tool-search plugin, and are documented in the system prompts either way.
  */
 
 import { z } from 'zod';
@@ -78,6 +81,7 @@ export function createSessionTools(currentWorkspaceId?: string): Record<string, 
   return {
     session_search: {
       name: 'session_search',
+      defer_loading: true,
       description:
         'Search past AI chat sessions (会话检索) — current and archived, across every workspace and global chat — by case-insensitive keyword over the stored user/assistant messages. ' +
         'Returns matching sessions (newest first) with workspace name, date, message count, and snippets around each hit. ' +
@@ -139,6 +143,7 @@ export function createSessionTools(currentWorkspaceId?: string): Record<string, 
 
     session_summary: {
       name: 'session_summary',
+      defer_loading: true,
       description:
         'Fetch compact transcript excerpts of past AI chat sessions (会话总结) so you can summarize them. ' +
         'Pass `sessionId` (e.g. from `session_search` or the user) to pull ONE session, or omit it to pull every session active in the last `days` days (default 3) across workspaces and global chat. ' +
