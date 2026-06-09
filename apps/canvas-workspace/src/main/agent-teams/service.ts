@@ -946,15 +946,14 @@ export class CanvasAgentTeamsService {
       return this.snapshot(workspaceId, teamId);
     }
 
-    if (agent.role === 'lead' && snapshot.team.status === 'completed') {
+    if (agent.role === 'lead' && (snapshot.team.status === 'completed' || snapshot.team.status === 'waiting_approval')) {
       const latestAgent = await store.getAgent(agent.id);
-      if (latestAgent) {
+      if (latestAgent && (latestAgent.status === 'needs_input' || latestAgent.status === 'idle' || latestAgent.status === 'stopped')) {
         latestAgent.status = 'running';
         latestAgent.currentTaskId = undefined;
         latestAgent.updatedAt = Date.now();
         await store.saveAgent(latestAgent);
       }
-      await runtime.setTeamStatus(teamId, 'running', 'human');
     }
 
     // Forward the explicit task so the runtime resolver scopes to it too: an

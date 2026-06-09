@@ -331,7 +331,7 @@ export const AgentTeamFrame = ({
   const isCheckpoint = teamStatus === 'round_checkpoint';
   const checkpointRound = runtime?.checkpointRound;
   const totalRounds = runtime?.totalRounds;
-  const shouldShowLeadCommandSlot = phase === 'briefing' || isCompletedTeam;
+  const shouldShowLeadCommandSlot = phase === 'briefing' || phase === 'plan_review' || isCompletedTeam;
   const plan = snapshot?.pendingPlan;
   const teamAgentNodes = teamId
     ? (getAllNodes?.() ?? []).filter((candidate) => isTeamAgentNode(candidate, teamId))
@@ -892,10 +892,13 @@ export const AgentTeamFrame = ({
 
     const content = messageDraft.trim();
     if (!api || !workspaceId || !teamId || !lead || !content) return;
-    const taskContext = teamStatus !== 'completed' && selectedTask
+    const revisePrefix = phase === 'plan_review'
+      ? 'The user wants to revise the current plan before approving it. Regenerate the plan incorporating this feedback:\n\n'
+      : '';
+    const taskContext = !revisePrefix && teamStatus !== 'completed' && selectedTask
       ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\n`
       : '';
-    const result = await api.sendInput(workspaceId, teamId, lead.id, `${taskContext}${content}`);
+    const result = await api.sendInput(workspaceId, teamId, lead.id, `${revisePrefix}${taskContext}${content}`);
     if (result.ok && result.snapshot) {
       setSnapshot(result.snapshot);
       setMessageDraft('');
@@ -1207,25 +1210,33 @@ export const AgentTeamFrame = ({
 
   const commandMode = phase === 'briefing'
     ? 'brief'
-    : isCompletedTeam
-      ? 'next'
-      : 'message';
+    : phase === 'plan_review'
+      ? 'revise'
+      : isCompletedTeam
+        ? 'next'
+        : 'message';
   const commandDraft = commandMode === 'brief' ? briefDraft : messageDraft;
   const commandPlaceholder = commandMode === 'brief'
     ? 'Describe the outcome, repo path, constraints, and what this team should handle...'
-    : commandMode === 'next'
-      ? 'Describe the next task or follow-up this team should handle...'
-      : 'Tell Team Lead what to change...';
+    : commandMode === 'revise'
+      ? 'Ask the Lead to adjust the plan — e.g. split a task, add constraints, change scope...'
+      : commandMode === 'next'
+        ? 'Describe the next task or follow-up this team should handle...'
+        : 'Tell Team Lead what to change...';
   const commandLabel = commandMode === 'brief'
     ? 'Brief Team Lead'
-    : commandMode === 'next'
-      ? 'Next Team Task'
-      : 'Message Team Lead';
+    : commandMode === 'revise'
+      ? 'Revise Plan'
+      : commandMode === 'next'
+        ? 'Next Team Task'
+        : 'Message Team Lead';
   const commandButtonLabel = commandMode === 'brief'
     ? 'Brief'
-    : commandMode === 'next'
-      ? 'Start next task'
-      : 'Send';
+    : commandMode === 'revise'
+      ? 'Revise'
+      : commandMode === 'next'
+        ? 'Start next task'
+        : 'Send';
   const canSendCommand = commandMode === 'brief'
     ? !!briefDraft.trim()
     : !!messageDraft.trim() && !!lead;
@@ -1267,7 +1278,7 @@ export const AgentTeamFrame = ({
           }}
           placeholder={commandPlaceholder}
           disabled={readOnly}
-          rows={commandMode === 'brief' ? 8 : commandMode === 'next' ? 3 : 1}
+          rows={commandMode === 'brief' ? 8 : commandMode === 'revise' ? 3 : commandMode === 'next' ? 3 : 1}
         />
       </div>
       <button type="button" onClick={() => void handleTeamCommand()} disabled={readOnly || !canSendCommand}>
@@ -1311,7 +1322,7 @@ export const AgentTeamFrame = ({
               </strong>
               <span>
                 {phase === 'plan_review'
-                  ? 'Review the graph, ask for changes, then approve when the team split looks right.'
+                  ? 'Review the graph and send feedback to revise. Approve when the plan looks right.'
                   : phase === 'executing'
                     ? 'Send normal changes to the lead and let the lead route work to the right teammate.'
                     : 'Tell the lead what outcome, repo path, constraints, and teammate split you expect.'}

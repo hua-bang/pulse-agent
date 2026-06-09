@@ -386,6 +386,18 @@
   min-height: 0;
 }
 
+.agent-team-frame--plan_review .agent-team-command--lead {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.agent-team-frame--plan_review .agent-team-command--lead textarea {
+  min-height: 48px;
+  max-height: 120px;
+}
+
 .agent-team-command button {
   height: 34px;
   min-width: 72px;
