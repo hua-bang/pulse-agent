@@ -302,6 +302,7 @@ export const AgentTeamFrame = ({
   const [agentInspectorOpen, setAgentInspectorOpen] = useState(false);
   const [selectedPlanTaskKey, setSelectedPlanTaskKey] = useState('');
   const [graphFullscreenOpen, setGraphFullscreenOpen] = useState(false);
+  const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [graphViewportHeights, setGraphViewportHeights] = useState({ inline: 0, fullscreen: 0 });
   const [artifactPreview, setArtifactPreview] = useState<{
     artifactId: string;
@@ -470,17 +471,49 @@ export const AgentTeamFrame = ({
         return { round, columns: columns.filter(Boolean) };
       });
   }, [graphTaskByKey, graphTasks]);
+  // Each round is its own DAG (a planned wave). The switcher lets the user view one
+  // round at a time; team-wide data (graphTasks/graphAgents) is intentionally untouched.
+  const roundOptions = useMemo(
+    () =>
+      graphRounds.map((group) => {
+        const roundTasks = group.columns.flat();
+        const doneCount = roundTasks.filter((task) => task.status === 'done').length;
+        const running = roundTasks.some(
+          (task) =>
+            task.status === 'in_progress'
+            || task.status === 'needs_input'
+            || task.status === 'needs_review',
+        );
+        const blocked = roundTasks.some((task) => task.status === 'blocked' || task.status === 'failed');
+        const allDone = roundTasks.length > 0 && doneCount === roundTasks.length;
+        const status = running ? 'running' : blocked ? 'blocked' : allDone ? 'done' : 'todo';
+        return { round: group.round, taskCount: roundTasks.length, doneCount, status };
+      }),
+    [graphRounds],
+  );
+  const activeRound = useMemo(() => {
+    if (roundOptions.length === 0) return null;
+    if (selectedRound != null && roundOptions.some((option) => option.round === selectedRound)) {
+      return selectedRound;
+    }
+    return roundOptions[roundOptions.length - 1].round;
+  }, [roundOptions, selectedRound]);
+  const visibleRounds = useMemo(() => {
+    if (graphRounds.length <= 1 || activeRound == null) return graphRounds;
+    const matched = graphRounds.filter((group) => group.round === activeRound);
+    return matched.length > 0 ? matched : graphRounds;
+  }, [graphRounds, activeRound]);
   const buildDagLayout = useCallback((viewportHeight = 0) => {
-    const showRoundLabels = graphRounds.length > 1;
+    const showRoundLabels = visibleRounds.length > 1;
     const labelStrip = showRoundLabels ? DAG_ROUND_LABEL_HEIGHT : 0;
-    const columnCount = Math.max(1, ...graphRounds.map((group) => group.columns.length));
+    const columnCount = Math.max(1, ...visibleRounds.map((group) => group.columns.length));
 
-    const bandMaxRows = graphRounds.map((group) =>
+    const bandMaxRows = visibleRounds.map((group) =>
       Math.max(1, ...group.columns.map((column) => column.length)),
     );
     const bandHeights = bandMaxRows.map((rows) => (rows - 1) * DAG_ROW_GAP + DAG_NODE_HEIGHT);
     const contentHeight = bandHeights.reduce((sum, bandHeight) => sum + bandHeight + labelStrip, 0)
-      + Math.max(0, graphRounds.length - 1) * DAG_ROUND_GAP;
+      + Math.max(0, visibleRounds.length - 1) * DAG_ROUND_GAP;
     const naturalHeight = DAG_TOP + contentHeight + DAG_BOTTOM;
     const height = Math.max(DAG_MIN_HEIGHT, naturalHeight, viewportHeight);
     const verticalShift = Math.max(0, height - naturalHeight) / 2;
@@ -489,7 +522,7 @@ export const AgentTeamFrame = ({
     const rounds: DagRoundItem[] = [];
     let cursorY = DAG_TOP + verticalShift;
 
-    graphRounds.forEach((group, roundIndex) => {
+    visibleRounds.forEach((group, roundIndex) => {
       const labelTop = cursorY;
       const bandTop = cursorY + labelStrip;
       const bandHeight = bandHeights[roundIndex];
@@ -539,7 +572,7 @@ export const AgentTeamFrame = ({
 
     const nodeByKey = new Map(nodes.map((item) => [item.task.key, item]));
     const roundByKey = new Map<string, number>();
-    graphRounds.forEach((group) => {
+    visibleRounds.forEach((group) => {
       for (const column of group.columns) {
         for (const task of column) roundByKey.set(task.key, group.round);
       }
@@ -577,7 +610,7 @@ export const AgentTeamFrame = ({
       ),
       height,
     };
-  }, [graphRounds]);
+  }, [visibleRounds]);
   const inlineDagLayout = useMemo(
     () => buildDagLayout(graphViewportHeights.inline),
     [buildDagLayout, graphViewportHeights.inline],
@@ -1632,6 +1665,24 @@ export const AgentTeamFrame = ({
           <strong>{graphSubtitle}</strong>
         </div>
         <div className="agent-team-graph-panel__actions">
+          {roundOptions.length > 1 && (
+            <div className="agent-team-round-switch" role="tablist" aria-label="Rounds">
+              {roundOptions.map((option) => (
+                <button
+                  key={option.round}
+                  type="button"
+                  role="tab"
+                  aria-selected={option.round === activeRound}
+                  className={`agent-team-round-switch__tab${option.round === activeRound ? ' is-active' : ''}`}
+                  onClick={() => setSelectedRound(option.round)}
+                  title={`Round ${option.round} · ${option.doneCount}/${option.taskCount} done`}
+                >
+                  <span className={`agent-team-task-row__dot agent-team-task-row__dot--${option.status}`} />
+                  Round {option.round}
+                </button>
+              ))}
+            </div>
+          )}
           {phase === 'plan_review' && plan && (
             <button type="button" className="agent-team-frame__primary-action" onClick={handleConfirmPlan} disabled={readOnly}>
               Approve & Run
