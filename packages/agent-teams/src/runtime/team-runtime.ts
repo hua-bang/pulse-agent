@@ -465,6 +465,26 @@ export class TeamRuntime {
     await this.store.saveTeam(team);
   }
 
+  async repairCurrentRound(teamId: TeamId): Promise<boolean> {
+    const team = await this.requireTeam(teamId);
+    if (!hasRoundMetadata(team.metadata)) return false;
+    const currentRound = readCurrentRound(team.metadata);
+    const tasks = await this.store.listTasks(teamId);
+    const todoRounds = tasks
+      .filter((t) => t.status === 'todo')
+      .map((t) => readTaskRound(t.metadata));
+    if (todoRounds.length === 0) return false;
+    const maxTodoRound = Math.max(...todoRounds);
+    if (maxTodoRound <= currentRound) return false;
+    team.metadata = {
+      ...(team.metadata ?? {}),
+      [TEAM_CURRENT_ROUND_METADATA_KEY]: maxTodoRound,
+    };
+    team.updatedAt = this.now();
+    await this.store.saveTeam(team);
+    return true;
+  }
+
   async updateTaskDescription(taskId: TaskId, patch: { title?: string; description?: string }): Promise<TeamTaskRecord> {
     const task = await this.requireTask(taskId);
     if (task.status !== 'todo') {

@@ -763,6 +763,7 @@ export class CanvasAgentTeamsService {
 
   async dispatch(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime } = this.getBundle(workspaceId);
+    await runtime.repairCurrentRound(teamId);
     await runtime.dispatchReadyTasks(teamId);
     return this.snapshot(workspaceId, teamId);
   }

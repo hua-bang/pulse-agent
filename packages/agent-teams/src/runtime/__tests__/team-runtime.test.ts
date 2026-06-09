@@ -1145,6 +1145,45 @@ describe('TeamRuntime', () => {
       expect(updated.description).toBe('New desc');
     });
 
+    it('repairCurrentRound corrects stale currentRound', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Goal' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+
+      // Create a task that ends up in round 2 (simulating the bug where
+      // currentRound was reset to 1 but tasks were assigned to round 2).
+      const task = await runtime.createTask({
+        teamId: team.id, title: 'R2 Task', description: 'D',
+        ownerAgentId: coder.id, metadata: { round: 2 },
+      });
+
+      // currentRound is 1, task is round 2 → dispatch would skip it
+      const before = await runtime.dispatchReadyTasks(team.id);
+      expect(before.assigned).toHaveLength(0);
+
+      // Repair detects the mismatch and fixes it
+      const repaired = await runtime.repairCurrentRound(team.id);
+      expect(repaired).toBe(true);
+
+      // Now dispatch finds the task
+      const after = await runtime.dispatchReadyTasks(team.id);
+      expect(after.assigned).toHaveLength(1);
+      expect(after.assigned[0].id).toBe(task.id);
+    });
+
+    it('repairCurrentRound is a no-op when rounds are consistent', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Goal' });
+      await runtime.initializeRound(team.id);
+      await runtime.createTask({ teamId: team.id, title: 'T', description: 'D' });
+
+      const repaired = await runtime.repairCurrentRound(team.id);
+      expect(repaired).toBe(false);
+    });
+
     it('rejects editing in-progress task', async () => {
       const { runtime } = createRuntime();
       const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
