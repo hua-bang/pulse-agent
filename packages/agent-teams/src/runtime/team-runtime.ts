@@ -68,6 +68,47 @@ const quoteCliValue = (value: string): string =>
 
 const TASK_ROUND_METADATA_KEY = 'round';
 const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
+const TASK_UPSTREAM_FAILURE_METADATA_KEY = 'upstreamFailedTaskIds';
+const TASK_REVIEW_KIND_METADATA_KEY = 'reviewKind';
+
+export const TASK_REVIEW_KIND_SESSION_EXIT = 'session-exit';
+
+/** Failed upstream task ids that cascade-blocked this task. */
+export const readUpstreamFailedTaskIds = (metadata: Record<string, unknown> | undefined): string[] => {
+  const value = metadata?.[TASK_UPSTREAM_FAILURE_METADATA_KEY];
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
+};
+
+export const readTaskReviewKind = (metadata: Record<string, unknown> | undefined): string | undefined => {
+  const value = metadata?.[TASK_REVIEW_KIND_METADATA_KEY];
+  return typeof value === 'string' && value ? value : undefined;
+};
+
+const writeTaskMetadataKey = (
+  metadata: Record<string, unknown> | undefined,
+  key: string,
+  value: unknown,
+): Record<string, unknown> | undefined => {
+  if (value === undefined) {
+    if (!metadata || !(key in metadata)) return metadata;
+    const next = { ...metadata };
+    delete next[key];
+    return Object.keys(next).length > 0 ? next : undefined;
+  }
+  return { ...(metadata ?? {}), [key]: value };
+};
+
+/**
+ * A task counts as settled for round/team completion when it can never run
+ * again without new human/lead intervention: finished, failed, or
+ * cascade-blocked because an upstream task failed. Without the last case a
+ * failed dependency left its downstream tasks in `todo` forever, so the round
+ * never completed and the team hung silently.
+ */
+const isSettledTask = (task: TeamTaskRecord): boolean =>
+  task.status === 'done'
+  || task.status === 'failed'
+  || (task.status === 'blocked' && readUpstreamFailedTaskIds(task.metadata).length > 0);
 
 /** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
 const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
@@ -586,9 +627,12 @@ export class TeamRuntime {
     const task = await this.requireTask(taskId);
     task.status = 'done';
     task.result = result;
+    task.metadata = writeTaskMetadataKey(task.metadata, TASK_REVIEW_KIND_METADATA_KEY, undefined);
+    task.metadata = writeTaskMetadataKey(task.metadata, TASK_UPSTREAM_FAILURE_METADATA_KEY, undefined);
     task.updatedAt = this.now();
     await this.store.saveTask(task);
     await this.cancelOpenGatesForTask(task.teamId, task.id);
+    await this.restoreTasksBlockedByUpstreamFailure(task.teamId, task.id);
 
     if (task.ownerAgentId) {
       const agent = await this.store.getAgent(task.ownerAgentId);
@@ -616,11 +660,17 @@ export class TeamRuntime {
     return task;
   }
 
-  async requestTaskReview(taskId: TaskId, reason: string, actor?: AgentId | 'runtime'): Promise<TeamTaskRecord> {
+  async requestTaskReview(
+    taskId: TaskId,
+    reason: string,
+    actor?: AgentId | 'runtime',
+    options?: { kind?: string },
+  ): Promise<TeamTaskRecord> {
     const task = await this.requireTask(taskId);
     if (task.status === 'done' || task.status === 'failed') return task;
     task.status = 'needs_review';
     task.blockedReason = reason;
+    task.metadata = writeTaskMetadataKey(task.metadata, TASK_REVIEW_KIND_METADATA_KEY, options?.kind);
     task.updatedAt = this.now();
     await this.store.saveTask(task);
 
@@ -655,6 +705,7 @@ export class TeamRuntime {
     const task = await this.requireTask(taskId);
     task.status = 'failed';
     task.result = error;
+    task.metadata = writeTaskMetadataKey(task.metadata, TASK_REVIEW_KIND_METADATA_KEY, undefined);
     task.updatedAt = this.now();
     await this.store.saveTask(task);
     await this.cancelOpenGatesForTask(task.teamId, task.id);
@@ -669,6 +720,8 @@ export class TeamRuntime {
       }
     }
 
+    const cascaded = await this.blockDownstreamOfFailedTask(task);
+
     await this.emit(task.teamId, 'task_failed', actor ?? task.ownerAgentId ?? 'runtime', {
       taskId: task.id,
       error,
@@ -677,12 +730,102 @@ export class TeamRuntime {
       `Task failed: ${task.title}`,
       '',
       error,
+      ...(cascaded.length > 0
+        ? [
+          '',
+          'These downstream tasks depend on it and are now blocked until you resolve the failure:',
+          ...cascaded.map((blocked) => `- ${blocked.title} (${blocked.id})`),
+          '',
+          'If the failed work is actually usable, mark it complete to unblock them:',
+          `pulse-canvas team complete-task --task "${task.id}" --summary "<why the result is usable>"`,
+        ]
+        : []),
       '',
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
     ].join('\n'), task.id);
     await this.checkRoundCompletion(task.teamId);
     return task;
+  }
+
+  /**
+   * Cascade a task failure to its transitive downstream tasks.
+   *
+   * A `todo` task whose dependency failed can never become ready
+   * (`isTaskReady` requires every dep to be `done`), so without this it sat in
+   * `todo` forever — invisible to dispatch, blocking round completion, and
+   * silently hanging the team. Marking it `blocked` with the failed root id in
+   * metadata makes the dead branch visible, lets round completion treat it as
+   * settled, and lets a later completion of the failed task restore it.
+   */
+  private async blockDownstreamOfFailedTask(failedTask: TeamTaskRecord): Promise<TeamTaskRecord[]> {
+    const tasks = await this.store.listTasks(failedTask.teamId);
+    const dependents = new Map<TaskId, TeamTaskRecord[]>();
+    for (const task of tasks) {
+      for (const depId of task.deps) {
+        dependents.set(depId, [...(dependents.get(depId) ?? []), task]);
+      }
+    }
+
+    const blocked: TeamTaskRecord[] = [];
+    const queue = [failedTask.id];
+    const seen = new Set<TaskId>(queue);
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      for (const downstream of dependents.get(currentId) ?? []) {
+        if (seen.has(downstream.id)) continue;
+        seen.add(downstream.id);
+        queue.push(downstream.id);
+        if (downstream.status !== 'todo' && downstream.status !== 'blocked') continue;
+
+        const upstreamIds = readUpstreamFailedTaskIds(downstream.metadata);
+        if (upstreamIds.includes(failedTask.id)) continue;
+        downstream.metadata = writeTaskMetadataKey(
+          downstream.metadata,
+          TASK_UPSTREAM_FAILURE_METADATA_KEY,
+          [...upstreamIds, failedTask.id],
+        );
+        if (downstream.status === 'todo') {
+          downstream.status = 'blocked';
+          downstream.blockedReason = `Upstream task failed: ${failedTask.title}`;
+        }
+        downstream.updatedAt = this.now();
+        await this.store.saveTask(downstream);
+        await this.emit(failedTask.teamId, 'task_blocked', 'runtime', {
+          taskId: downstream.id,
+          reason: downstream.blockedReason,
+          upstreamFailedTaskId: failedTask.id,
+        });
+        blocked.push(downstream);
+      }
+    }
+    return blocked;
+  }
+
+  /**
+   * Undo the failure cascade for tasks blocked by `resolvedTaskId` once that
+   * task is completed after all (e.g. the lead reviews the failure and decides
+   * the output is usable). A task returns to `todo` only when no other failed
+   * upstream still blocks it.
+   */
+  private async restoreTasksBlockedByUpstreamFailure(teamId: TeamId, resolvedTaskId: TaskId): Promise<void> {
+    const tasks = await this.store.listTasks(teamId);
+    for (const task of tasks) {
+      const upstreamIds = readUpstreamFailedTaskIds(task.metadata);
+      if (!upstreamIds.includes(resolvedTaskId)) continue;
+      const remaining = upstreamIds.filter((id) => id !== resolvedTaskId);
+      task.metadata = writeTaskMetadataKey(
+        task.metadata,
+        TASK_UPSTREAM_FAILURE_METADATA_KEY,
+        remaining.length > 0 ? remaining : undefined,
+      );
+      if (remaining.length === 0 && task.status === 'blocked') {
+        task.status = 'todo';
+        task.blockedReason = undefined;
+      }
+      task.updatedAt = this.now();
+      await this.store.saveTask(task);
+    }
   }
 
   async blockTask(taskId: TaskId, reason: string, actor?: AgentId | 'runtime'): Promise<TeamTaskRecord> {
@@ -1234,7 +1377,7 @@ export class TeamRuntime {
     const currentRound = readCurrentRound(team.metadata);
     const currentRoundTasks = tasks.filter((t) => readTaskRound(t.metadata) === currentRound);
 
-    if (currentRoundTasks.length === 0 || !currentRoundTasks.every((t) => t.status === 'done' || t.status === 'failed')) {
+    if (currentRoundTasks.length === 0 || !currentRoundTasks.every(isSettledTask)) {
       return;
     }
 
@@ -1247,7 +1390,7 @@ export class TeamRuntime {
   private async markTeamReadyForReviewIfDone(teamId: TeamId): Promise<void> {
     const tasks = await this.store.listTasks(teamId);
     if (tasks.length === 0) return;
-    if (tasks.every(task => task.status === 'done' || task.status === 'failed')) {
+    if (tasks.every(isSettledTask)) {
       await this.setTeamStatus(teamId, tasks.some(task => task.status === 'failed') ? 'failed' : 'reviewing');
       await this.sendFinalReviewPrompt(teamId);
     }

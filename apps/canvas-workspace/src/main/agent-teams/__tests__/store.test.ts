@@ -88,4 +88,56 @@ describe('CanvasAgentTeamStore', () => {
     expect(parsed.events).toHaveLength(20);
     expect(parsed.tasks).toHaveLength(20);
   });
+
+  it('caps per-team event and message logs at a rolling window', async () => {
+    const store = new CanvasAgentTeamStore('ws-3', { maxEventsPerTeam: 6, maxMessagesPerTeam: 4 });
+
+    for (let index = 0; index < 10; index += 1) {
+      await store.appendEvent({
+        id: `event-${index}`,
+        teamId: 'team-3',
+        type: 'task_created',
+        timestamp: index,
+        actor: 'runtime',
+        payload: {},
+      });
+    }
+    // Another team's log is untouched by team-3 overflow.
+    await store.appendEvent({
+      id: 'other-event',
+      teamId: 'team-other',
+      type: 'task_created',
+      timestamp: 0,
+      actor: 'runtime',
+      payload: {},
+    });
+
+    const events = await store.listEvents('team-3');
+    expect(events).toHaveLength(6);
+    // Oldest entries were dropped; the newest survive.
+    expect(events[0].id).toBe('event-4');
+    expect(events.at(-1)?.id).toBe('event-9');
+    expect(await store.listEvents('team-other')).toHaveLength(1);
+
+    for (let index = 0; index < 7; index += 1) {
+      await store.appendMessage({
+        id: `message-${index}`,
+        teamId: 'team-3',
+        from: 'runtime',
+        to: 'lead',
+        type: 'status_update',
+        content: `update ${index}`,
+        createdAt: index,
+      });
+    }
+    const messages = await store.listMessages('team-3');
+    expect(messages).toHaveLength(4);
+    expect(messages[0].id).toBe('message-3');
+    expect(messages.at(-1)?.id).toBe('message-6');
+
+    // The trimmed window is what lands on disk.
+    const reloaded = new CanvasAgentTeamStore('ws-3');
+    expect(await reloaded.listEvents('team-3')).toHaveLength(6);
+    expect(await reloaded.listMessages('team-3')).toHaveLength(4);
+  });
 });

@@ -20,6 +20,7 @@ vi.mock('../canvas/storage', () => ({
 
 vi.mock('../canvas/broadcast', () => ({
   broadcastCanvasUpdate: vi.fn(),
+  broadcastAgentTeamsEvent: vi.fn(),
 }));
 
 vi.mock('../agent-teams/canvas-nodes', () => ({
@@ -65,6 +66,7 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
 
 import { CanvasAgentTeamsService } from '../agent-teams/service';
 import { removeAgentTeamCanvasNodes } from '../agent-teams/canvas-nodes';
+import { broadcastAgentTeamsEvent } from '../canvas/broadcast';
 import type { CanvasAgentTeamSnapshot } from '../agent-teams/types';
 
 const plan = {
@@ -223,7 +225,9 @@ describe('CanvasAgentTeamsService', () => {
       ['Reviewer', targetCwd],
     ].sort());
     expect(mockState.createdAgents.map((input) => input.cwd)).toEqual([targetCwd, targetCwd]);
-    expect(mockState.queuedInputs.at(-1)?.input).toContain(`Working directory: ${targetCwd}`);
+    // Dispatched task prompts carry the adopted cwd. (The plan-approved notice
+    // to the lead is queued after them, so search instead of taking the last.)
+    expect(mockState.queuedInputs.some((queued) => queued.input.includes(`Working directory: ${targetCwd}`))).toBe(true);
   });
 
   it('accepts a structured plan from the CLI propose-plan path', async () => {
@@ -709,6 +713,84 @@ describe('CanvasAgentTeamsService', () => {
     expect(mockState.queuedInputs).toHaveLength(queuedBeforePrepare);
   });
 
+  it('stamps a structured review kind on session-exit reviews and clears it on auto-resume', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    const reviewed = await service.reportAgentExit('ws-1', owner.sessionRef!.sessionId, 1);
+    const reviewedTask = reviewed?.runtime.tasks.find((candidate) => candidate.id === task.id);
+    expect(reviewedTask?.status).toBe('needs_review');
+    expect(reviewedTask?.metadata?.reviewKind).toBe('session-exit');
+
+    const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
+    const preparedTask = prepared.snapshot.runtime.tasks.find((candidate) => candidate.id === task.id);
+    expect(prepared.canResume).toBe(true);
+    expect(preparedTask?.status).toBe('in_progress');
+    expect(preparedTask?.metadata?.reviewKind).toBeUndefined();
+  });
+
+  it('recovers a session-exit review through metadata even when the reason text differs', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    await service.reportAgentExit('ws-1', owner.sessionRef!.sessionId, 1);
+    const statePath = join(mockState.root, 'ws-1', 'agent-teams', 'state.json');
+    const state = JSON.parse(await fs.readFile(statePath, 'utf-8'));
+    const storedTask = state.tasks.find((candidate: any) => candidate.id === task.id);
+    // The human-readable reason is presentation, not state: recovery must not
+    // depend on its exact wording.
+    storedTask.blockedReason = 'Reworded copy that no longer matches the legacy regex.';
+    await fs.writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
+
+    const prepared = await new CanvasAgentTeamsService().prepareAgentAutoResume('ws-1', teamId, owner.id);
+    expect(prepared.canResume).toBe(true);
+    expect(prepared.snapshot.runtime.tasks.find((candidate) => candidate.id === task.id)?.status).toBe('in_progress');
+  });
+
+  it('dispatches ready-but-unassigned work from the maintenance heartbeat', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
+    // Completing the first task frees its owner while the review task keeps
+    // the team running.
+    await service.completeAgentTask({ workspaceId: 'ws-1', teamId, taskId: implement.id, summary: 'done' });
+
+    // New work created without the dispatch flag sits in todo with an idle owner.
+    await service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'Follow-up hardening',
+      description: 'Harden the refactor.',
+      ownerName: 'Codex Exec',
+    });
+    const before = await service.snapshot('ws-1', teamId);
+    expect(before.runtime.tasks.find((task) => task.title === 'Follow-up hardening')?.status).toBe('todo');
+
+    await service.maintainTeam('ws-1', teamId);
+
+    const after = await service.snapshot('ws-1', teamId);
+    expect(after.runtime.tasks.find((task) => task.title === 'Follow-up hardening')?.status).toBe('in_progress');
+  });
+
+  it('broadcasts push events for runtime changes so open frames can refresh', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+
+    const calls = vi.mocked(broadcastAgentTeamsEvent).mock.calls.map(([payload]) => payload);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.every((payload) => payload.workspaceId === 'ws-1')).toBe(true);
+    expect(calls.some((payload) => payload.teamId === created.runtime.team.id && payload.type === 'task_assigned')).toBe(true);
+    // Metadata-only changes (plan proposed via marker) push too.
+    expect(calls.some((payload) => payload.type === 'plan_proposed')).toBe(true);
+  });
+
   it('prepares automatic resume for a plan-review team lead without approving the plan', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createTeam(service);
@@ -796,7 +878,12 @@ describe('CanvasAgentTeamsService', () => {
       taskId: review.id,
       summary: 'Review passed.',
     });
-    expect(reviewed.runtime.team.status).toBe('reviewing');
+    // Every round-1 task is settled, so the team pauses at the checkpoint for
+    // the human to advance another round or finalize.
+    expect(reviewed.runtime.team.status).toBe('round_checkpoint');
+
+    const finalizing = await service.finalizeFromCheckpoint('ws-1', teamId);
+    expect(finalizing.runtime.team.status).toBe('reviewing');
     expect(mockState.queuedInputs.at(-1)?.nodeId).toBe(lead.sessionRef!.sessionId);
     expect(mockState.queuedInputs.at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
 
@@ -939,7 +1026,9 @@ describe('CanvasAgentTeamsService', () => {
     storedOwner.currentTaskId = task.id;
     await fs.writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
 
-    const repaired = await new CanvasAgentTeamsService().snapshot('ws-1', created.runtime.team.id);
+    const freshService = new CanvasAgentTeamsService();
+    await freshService.maintainTeam('ws-1', created.runtime.team.id);
+    const repaired = await freshService.snapshot('ws-1', created.runtime.team.id);
 
     expect(repaired.runtime.tasks[0].status).toBe('in_progress');
     expect(repaired.runtime.tasks[0].blockedReason).toBeUndefined();
@@ -968,7 +1057,9 @@ describe('CanvasAgentTeamsService', () => {
     storedGate.updatedAt = Date.now();
     await fs.writeFile(statePath, JSON.stringify(state, null, 2), 'utf-8');
 
-    const repaired = await new CanvasAgentTeamsService().snapshot('ws-1', teamId);
+    const freshService = new CanvasAgentTeamsService();
+    await freshService.maintainTeam('ws-1', teamId);
+    const repaired = await freshService.snapshot('ws-1', teamId);
 
     expect(repaired.runtime.humanGates[0]).toMatchObject({
       status: 'answered',

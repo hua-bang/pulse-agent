@@ -11,6 +11,9 @@ const fail = (err: unknown): { ok: false; error: string } => ({ ok: false, error
 
 export function setupCanvasAgentTeamsIpc(): void {
   const service = getCanvasAgentTeamsService();
+  // Repairs, lead nudges, and the dispatch safety net run on this main-process
+  // heartbeat; snapshot reads no longer carry those side effects.
+  service.startMaintenanceLoop();
 
   ipcMain.handle('agent-teams:create', async (_event, payload: CanvasAgentTeamCreateInput) => {
     try {

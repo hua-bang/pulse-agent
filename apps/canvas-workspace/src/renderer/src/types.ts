@@ -1366,6 +1366,14 @@ export interface AgentTeamsApi {
     nodeId: string,
     code?: number,
   ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot | null; error?: string }>;
+  onEvent: (callback: (event: AgentTeamsPushEvent) => void) => () => void;
+}
+
+export interface AgentTeamsPushEvent {
+  workspaceId: string;
+  teamId: string;
+  type: string;
+  timestamp: number;
 }
 
 export interface CodexSessionIndexEntry {

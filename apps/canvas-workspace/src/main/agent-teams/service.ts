@@ -2,7 +2,9 @@ import { randomUUID } from 'crypto';
 import { statSync } from 'fs';
 import { homedir } from 'os';
 import {
+  TASK_REVIEW_KIND_SESSION_EXIT,
   TeamRuntime,
+  readTaskReviewKind,
   type AgentRole,
   type ArtifactKind,
   type RuntimeSnapshot,
@@ -19,7 +21,7 @@ import {
   updateAgentTeamCanvasCwd,
 } from './canvas-nodes';
 import { CanvasAgentTeamStore } from './store';
-import { broadcastCanvasUpdate } from '../canvas/broadcast';
+import { broadcastAgentTeamsEvent, broadcastCanvasUpdate } from '../canvas/broadcast';
 import type {
   CanvasAgentTeamAddAgentInput,
   CanvasAgentTeamBlockTaskInput,
@@ -39,11 +41,26 @@ import type {
 interface RuntimeBundle {
   store: CanvasAgentTeamStore;
   runtime: TeamRuntime;
+  /**
+   * Last time an external operation (IPC, control-server, agent output) or a
+   * runtime event touched this workspace. The maintenance loop skips
+   * workspaces idle beyond MAINTENANCE_IDLE_MS so stale ones stop costing
+   * periodic canvas reads; any new operation reactivates them.
+   */
+  lastActivityAt: number;
 }
 
 const DEFAULT_LEAD_AGENT = 'codex';
 const DEFAULT_TEAMMATE_AGENT = 'codex';
 const MAX_AGENT_OUTPUT_BUFFER = 16_000;
+const MAINTENANCE_INTERVAL_MS = 5_000;
+const MAINTENANCE_IDLE_MS = 30 * 60_000;
+// Layout migration/repair reads canvas.json from disk, so run it on a slower
+// cadence than the in-memory state repairs and lead nudges.
+const MAINTENANCE_LAYOUT_EVERY_TICKS = 6;
+// Events/messages are unbounded audit logs the team UI never renders in full;
+// cap what each IPC/HTTP snapshot carries.
+const SNAPSHOT_LOG_LIMIT = 100;
 const MAX_PLAN_TEAMMATES = 6;
 const MAX_PLAN_TASKS = 20;
 const ARTIFACT_KINDS = new Set<ArtifactKind>([
@@ -121,8 +138,23 @@ const humanInputReasonForAgent = (
 const isRecoverableSessionExitReview = (task: TeamTaskRecord, agentId: string): boolean =>
   task.status === 'needs_review'
   && task.ownerAgentId === agentId
-  && typeof task.blockedReason === 'string'
-  && SESSION_EXIT_REVIEW_REASON_RE.test(task.blockedReason);
+  && (
+    readTaskReviewKind(task.metadata) === TASK_REVIEW_KIND_SESSION_EXIT
+    // Tasks persisted before the structured marker only carry the reason text.
+    || (typeof task.blockedReason === 'string' && SESSION_EXIT_REVIEW_REASON_RE.test(task.blockedReason))
+  );
+
+const clearTaskReviewKind = (task: TeamTaskRecord): void => {
+  if (!task.metadata || !('reviewKind' in task.metadata)) return;
+  const { reviewKind: _removed, ...rest } = task.metadata;
+  task.metadata = Object.keys(rest).length > 0 ? rest : undefined;
+};
+
+const trimRuntimeSnapshotForClient = (snapshot: RuntimeSnapshot): RuntimeSnapshot => ({
+  ...snapshot,
+  events: snapshot.events.slice(-SNAPSHOT_LOG_LIMIT),
+  messages: snapshot.messages.slice(-SNAPSHOT_LOG_LIMIT),
+});
 
 const asPlainObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === 'object' && !Array.isArray(value)
@@ -423,6 +455,74 @@ const formatLeadExecutionPrompt = (teamName: string, goal: string, content: stri
 export class CanvasAgentTeamsService {
   private readonly runtimes = new Map<string, RuntimeBundle>();
   private readonly outputBuffers = new Map<string, string>();
+  private maintenanceTimer: ReturnType<typeof setInterval> | null = null;
+  private maintenanceTick = 0;
+  private maintenanceRunning = false;
+
+  /**
+   * Start the main-process maintenance heartbeat.
+   *
+   * State repairs, lead nudges, layout migration, and the dispatch safety net
+   * used to piggyback on `snapshot()`/`listTeams()`, which made them run only
+   * while some renderer polled an open AgentTeamFrame — and made reads carry
+   * write side effects. The heartbeat owns that upkeep now; reads are pure.
+   */
+  startMaintenanceLoop(intervalMs = MAINTENANCE_INTERVAL_MS): void {
+    if (this.maintenanceTimer) return;
+    this.maintenanceTimer = setInterval(() => {
+      void this.runMaintenance();
+    }, intervalMs);
+    this.maintenanceTimer.unref?.();
+  }
+
+  stopMaintenanceLoop(): void {
+    if (!this.maintenanceTimer) return;
+    clearInterval(this.maintenanceTimer);
+    this.maintenanceTimer = null;
+  }
+
+  /** One heartbeat tick over every active (recently touched) workspace. */
+  async runMaintenance(now = Date.now()): Promise<void> {
+    if (this.maintenanceRunning) return;
+    this.maintenanceRunning = true;
+    this.maintenanceTick += 1;
+    const ensureLayout = this.maintenanceTick % MAINTENANCE_LAYOUT_EVERY_TICKS === 1;
+    try {
+      for (const [workspaceId, bundle] of this.runtimes) {
+        if (now - bundle.lastActivityAt > MAINTENANCE_IDLE_MS) continue;
+        const entries = await bundle.store.listTeamMetadata().catch(() => []);
+        for (const entry of entries) {
+          try {
+            await this.maintainTeam(workspaceId, entry.teamId, { ensureLayout });
+          } catch (err) {
+            console.warn(`[agent-teams] maintenance failed for team ${entry.teamId}:`, err);
+          }
+        }
+      }
+    } finally {
+      this.maintenanceRunning = false;
+    }
+  }
+
+  async maintainTeam(
+    workspaceId: string,
+    teamId: string,
+    opts: { ensureLayout?: boolean } = {},
+  ): Promise<void> {
+    const { runtime, store } = this.getBundle(workspaceId, { touch: false });
+    if (opts.ensureLayout !== false) {
+      await ensureAgentTeamCanvasLayout(workspaceId, teamId);
+    }
+    await this.repairLegacyOutputMarkerBlocks(store, teamId);
+    await this.repairAnsweredHumanGateBlocks(store, teamId);
+    // Dispatch safety net: catch ready work that no mutation-driven dispatch
+    // picked up (e.g. an agent that went idle through a session event). Runs
+    // before the lead nudges so they see post-dispatch team status.
+    await runtime.repairCurrentRound(teamId);
+    await runtime.dispatchReadyTasks(teamId);
+    await runtime.notifyLeadPendingGates(teamId);
+    await runtime.notifyLeadReviewIfStalled(teamId);
+  }
 
   async createTeam(input: CanvasAgentTeamCreateInput): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(input.workspaceId);
@@ -525,6 +625,7 @@ export class CanvasAgentTeamsService {
       await store.saveTeamMetadata(teamId, metadata);
     }
 
+    this.emitTeamsChanged(workspaceId, teamId, 'lead_briefed');
     return this.snapshot(workspaceId, teamId);
   }
 
@@ -559,6 +660,9 @@ export class CanvasAgentTeamsService {
     await store.saveAgent(sourceAgent);
     await runtime.setTeamStatus(teamId, 'waiting_approval', sourceAgent.id);
     this.broadcastTeamUpdate(workspaceId, metadata);
+    // setTeamStatus only emits on change, so a revised plan re-proposed while
+    // already waiting_approval needs an explicit push.
+    this.emitTeamsChanged(workspaceId, teamId, 'plan_proposed');
 
     return this.snapshot(workspaceId, teamId);
   }
@@ -691,6 +795,7 @@ export class CanvasAgentTeamsService {
     metadata.updatedAt = now;
     await store.saveTeamMetadata(teamId, metadata);
     this.broadcastTeamUpdate(workspaceId, metadata);
+    this.emitTeamsChanged(workspaceId, teamId, 'plan_teammate_updated');
 
     return this.snapshot(workspaceId, teamId);
   }
@@ -757,9 +862,12 @@ export class CanvasAgentTeamsService {
       createdBy: 'human',
     });
     if (input.dispatch) {
+      // Follow-up tasks on a reopened team start a new round; align the
+      // team's current round first or dispatch would skip them.
+      await runtime.repairCurrentRound(input.teamId);
       await runtime.dispatchReadyTasks(input.teamId);
     }
-    return runtime.snapshot(input.teamId);
+    return trimRuntimeSnapshotForClient(await runtime.snapshot(input.teamId));
   }
 
   async dispatch(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
@@ -974,6 +1082,12 @@ export class CanvasAgentTeamsService {
         latestAgent.updatedAt = Date.now();
         await store.saveAgent(latestAgent);
       }
+      // A human follow-up to the lead of a completed team reopens it: the lead
+      // is expected to resume and create the next round of work, and auto-resume
+      // only relaunches lead sessions for teams that allow work.
+      if (snapshot.team.status === 'completed') {
+        await runtime.setTeamStatus(teamId, 'running', 'human');
+      }
     }
 
     // Forward the explicit task so the runtime resolver scopes to it too: an
@@ -1016,11 +1130,11 @@ export class CanvasAgentTeamsService {
     for (const line of parts) {
       const marker = parseAgentOutputMarker(line);
       if (!marker) continue;
-      changed = (await this.applyAgentOutputMarker(runtime, store, match.agent, marker)) || changed;
+      changed = (await this.applyAgentOutputMarker(workspaceId, runtime, store, match.agent, marker)) || changed;
     }
     const pendingMarker = parseAgentOutputMarker(pending);
     if (pendingMarker && pendingMarker.text.trim()) {
-      changed = (await this.applyAgentOutputMarker(runtime, store, match.agent, pendingMarker)) || changed;
+      changed = (await this.applyAgentOutputMarker(workspaceId, runtime, store, match.agent, pendingMarker)) || changed;
       this.outputBuffers.set(bufferKey, '');
     }
 
@@ -1039,7 +1153,7 @@ export class CanvasAgentTeamsService {
     if (pending) {
       const marker = parseAgentOutputMarker(pending);
       if (marker) {
-        changed = await this.applyAgentOutputMarker(runtime, store, match.agent, marker);
+        changed = await this.applyAgentOutputMarker(workspaceId, runtime, store, match.agent, marker);
       }
       this.outputBuffers.delete(bufferKey);
     }
@@ -1051,7 +1165,9 @@ export class CanvasAgentTeamsService {
     const reason = code == null
       ? 'Agent session exited before reporting task completion.'
       : `Agent session exited with code ${code} before reporting task completion.`;
-    await runtime.requestTaskReview(latestAgent.currentTaskId, reason, latestAgent.id);
+    await runtime.requestTaskReview(latestAgent.currentTaskId, reason, latestAgent.id, {
+      kind: TASK_REVIEW_KIND_SESSION_EXIT,
+    });
     return this.snapshot(workspaceId, match.teamId);
   }
 
@@ -1111,6 +1227,7 @@ export class CanvasAgentTeamsService {
       if (recoverableTask) {
         recoverableTask.status = 'in_progress';
         recoverableTask.blockedReason = undefined;
+        clearTaskReviewKind(recoverableTask);
         recoverableTask.updatedAt = now;
         await store.saveTask(recoverableTask);
 
@@ -1126,13 +1243,12 @@ export class CanvasAgentTeamsService {
     return { canResume, snapshot: await this.snapshot(workspaceId, teamId) };
   }
 
+  /**
+   * Pure read of one team's state. Maintenance side effects (repairs, lead
+   * nudges, layout) run on the heartbeat (`maintainTeam`), not here.
+   */
   async snapshot(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
-    await ensureAgentTeamCanvasLayout(workspaceId, teamId);
-    await this.repairLegacyOutputMarkerBlocks(store, teamId);
-    await this.repairAnsweredHumanGateBlocks(store, teamId);
-    await runtime.notifyLeadPendingGates(teamId);
-    await runtime.notifyLeadReviewIfStalled(teamId);
     const metadata = await store.getTeamMetadata(teamId);
     const runtimeSnapshot = await runtime.snapshot(teamId);
     return {
@@ -1141,7 +1257,7 @@ export class CanvasAgentTeamsService {
       phase: inferPhase(metadata, runtimeSnapshot),
       pendingPlan: metadata?.pendingPlan,
       approvedPlan: metadata?.approvedPlan,
-      runtime: runtimeSnapshot,
+      runtime: trimRuntimeSnapshotForClient(runtimeSnapshot),
     };
   }
 
@@ -1151,11 +1267,6 @@ export class CanvasAgentTeamsService {
     const snapshots: CanvasAgentTeamSnapshot[] = [];
     for (const entry of entries) {
       try {
-        await ensureAgentTeamCanvasLayout(workspaceId, entry.teamId);
-        await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
-        await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
-        await runtime.notifyLeadPendingGates(entry.teamId);
-        await runtime.notifyLeadReviewIfStalled(entry.teamId);
         const runtimeSnapshot = await runtime.snapshot(entry.teamId);
         snapshots.push({
           workspaceId,
@@ -1163,7 +1274,7 @@ export class CanvasAgentTeamsService {
           phase: inferPhase(entry.metadata, runtimeSnapshot),
           pendingPlan: entry.metadata.pendingPlan,
           approvedPlan: entry.metadata.approvedPlan,
-          runtime: runtimeSnapshot,
+          runtime: trimRuntimeSnapshotForClient(runtimeSnapshot),
         });
       } catch (err) {
         console.warn(`[agent-teams] failed to snapshot team ${entry.teamId}:`, err);
@@ -1172,9 +1283,12 @@ export class CanvasAgentTeamsService {
     return snapshots;
   }
 
-  private getBundle(workspaceId: string): RuntimeBundle {
+  private getBundle(workspaceId: string, options: { touch?: boolean } = {}): RuntimeBundle {
     const existing = this.runtimes.get(workspaceId);
-    if (existing) return existing;
+    if (existing) {
+      if (options.touch !== false) existing.lastActivityAt = Date.now();
+      return existing;
+    }
 
     const store = new CanvasAgentTeamStore(workspaceId);
     const adapter = new CanvasAgentSessionAdapter(workspaceId, store);
@@ -1182,7 +1296,22 @@ export class CanvasAgentTeamsService {
       store,
       agentSessions: adapter,
     });
-    const bundle = { store, runtime };
+    const bundle: RuntimeBundle = { store, runtime, lastActivityAt: Date.now() };
+    // Push every runtime event to the renderer so open team frames refresh
+    // immediately instead of waiting for their fallback poll.
+    runtime.onEvent((event) => {
+      bundle.lastActivityAt = Date.now();
+      try {
+        broadcastAgentTeamsEvent({
+          workspaceId,
+          teamId: event.teamId,
+          type: event.type,
+          timestamp: event.timestamp,
+        });
+      } catch (err) {
+        console.warn('[agent-teams] failed to broadcast team event:', err);
+      }
+    });
     this.runtimes.set(workspaceId, bundle);
     return bundle;
   }
@@ -1191,6 +1320,18 @@ export class CanvasAgentTeamsService {
     const metadata = await store.getTeamMetadata(teamId);
     if (!metadata) throw new Error(`Team metadata not found: ${teamId}`);
     return metadata;
+  }
+
+  /**
+   * Push a team-changed signal for mutations that only touch canvas team
+   * metadata and therefore emit no TeamRuntime event.
+   */
+  private emitTeamsChanged(workspaceId: string, teamId: string, type: string): void {
+    try {
+      broadcastAgentTeamsEvent({ workspaceId, teamId, type, timestamp: Date.now() });
+    } catch (err) {
+      console.warn('[agent-teams] failed to broadcast team event:', err);
+    }
   }
 
   private broadcastTeamUpdate(workspaceId: string, metadata: CanvasAgentTeamMetadata): void {
@@ -1294,6 +1435,7 @@ export class CanvasAgentTeamsService {
   }
 
   private async applyAgentOutputMarker(
+    workspaceId: string,
     runtime: TeamRuntime,
     store: CanvasAgentTeamStore,
     agent: TeamAgentRecord,
@@ -1317,6 +1459,7 @@ export class CanvasAgentTeamsService {
       agent.updatedAt = now;
       await store.saveAgent(agent);
       await runtime.setTeamStatus(agent.teamId, 'waiting_approval', agent.id);
+      this.emitTeamsChanged(workspaceId, agent.teamId, 'plan_proposed');
       return true;
     }
 

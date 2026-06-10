@@ -1,5 +1,8 @@
 import type { IpcRenderer } from 'electron';
 import type { AgentTeamsApi } from '../../renderer/src/types';
+import { subscribe } from './ipc';
+
+type AgentTeamsPushEvent = Parameters<Parameters<AgentTeamsApi['onEvent']>[0]>[0];
 
 export const createAgentTeamsApi = (ipcRenderer: IpcRenderer): AgentTeamsApi => ({
   create: (input) => ipcRenderer.invoke('agent-teams:create', input),
@@ -37,4 +40,6 @@ export const createAgentTeamsApi = (ipcRenderer: IpcRenderer): AgentTeamsApi => 
     ipcRenderer.invoke('agent-teams:agent-output', { workspaceId, nodeId, delta }),
   reportAgentExit: (workspaceId, nodeId, code) =>
     ipcRenderer.invoke('agent-teams:agent-exit', { workspaceId, nodeId, code }),
+  onEvent: (callback) =>
+    subscribe<AgentTeamsPushEvent>(ipcRenderer, 'agent-teams:event', callback),
 });

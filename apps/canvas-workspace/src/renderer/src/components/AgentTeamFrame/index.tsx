@@ -829,13 +829,32 @@ export const AgentTeamFrame = ({
     setSnapshot(result.snapshot);
   }, [api, workspaceId, teamId]);
 
+  // Team changes arrive as pushed events; the slow poll is only a fallback
+  // for missed events (window reload races, dropped IPC).
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => {
       void refresh();
-    }, 5000);
+    }, 15000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  useEffect(() => {
+    if (!api?.onEvent || !workspaceId || !teamId) return;
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = api.onEvent((event) => {
+      if (event.workspaceId !== workspaceId || event.teamId !== teamId) return;
+      if (debounce) return;
+      debounce = setTimeout(() => {
+        debounce = null;
+        void refresh();
+      }, 250);
+    });
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      unsubscribe();
+    };
+  }, [api, refresh, teamId, workspaceId]);
 
   const handleBriefLead = useCallback(async () => {
     const content = briefDraft.trim();

@@ -39,6 +39,33 @@ const emptyState = (): PersistedAgentTeamRuntimeState => ({
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
+// Events and messages are append-only audit/coordination logs. Without a cap a
+// long-running team grows state.json without bound and every persisted
+// mutation rewrites all of it, so keep a rolling window per team. The window
+// is far larger than anything the UI or lead digests consume.
+const MAX_EVENTS_PER_TEAM = 500;
+const MAX_MESSAGES_PER_TEAM = 500;
+
+const trimTeamLog = <T extends { teamId: TeamId }>(items: T[], teamId: TeamId, max: number): T[] => {
+  const teamCount = items.reduce((count, item) => (item.teamId === teamId ? count + 1 : count), 0);
+  let overflow = teamCount - max;
+  if (overflow <= 0) return items;
+  // Entries are appended chronologically, so dropping the first `overflow`
+  // matches for this team removes the oldest ones.
+  return items.filter((item) => {
+    if (overflow > 0 && item.teamId === teamId) {
+      overflow -= 1;
+      return false;
+    }
+    return true;
+  });
+};
+
+export interface CanvasAgentTeamStoreOptions {
+  maxEventsPerTeam?: number;
+  maxMessagesPerTeam?: number;
+}
+
 export class CanvasAgentTeamStore implements TeamRuntimeStore {
   private loaded = false;
   // Shared in-flight load so concurrent first-touch operations don't each reset
@@ -50,8 +77,13 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
   // and one rename can fire after another already moved the temp file, throwing
   // `ENOENT ... rename state.json.tmp -> state.json`.
   private persistQueue: Promise<void> = Promise.resolve();
+  private readonly maxEventsPerTeam: number;
+  private readonly maxMessagesPerTeam: number;
 
-  constructor(private readonly workspaceId: string) {}
+  constructor(private readonly workspaceId: string, options: CanvasAgentTeamStoreOptions = {}) {
+    this.maxEventsPerTeam = options.maxEventsPerTeam ?? MAX_EVENTS_PER_TEAM;
+    this.maxMessagesPerTeam = options.maxMessagesPerTeam ?? MAX_MESSAGES_PER_TEAM;
+  }
 
   async saveTeamMetadata(teamId: TeamId, metadata: CanvasAgentTeamMetadata): Promise<void> {
     await this.ensureLoaded();
@@ -164,6 +196,7 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
   async appendEvent(event: TeamEvent): Promise<void> {
     await this.ensureLoaded();
     this.state.events.push(clone(event));
+    this.state.events = trimTeamLog(this.state.events, event.teamId, this.maxEventsPerTeam);
     await this.persist();
   }
 
@@ -178,6 +211,7 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
   async appendMessage(message: MailboxMessage): Promise<void> {
     await this.ensureLoaded();
     this.state.messages.push(clone(message));
+    this.state.messages = trimTeamLog(this.state.messages, message.teamId, this.maxMessagesPerTeam);
     await this.persist();
   }
 

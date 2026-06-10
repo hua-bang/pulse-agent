@@ -1,4 +1,9 @@
-export { TeamRuntime } from './team-runtime.js';
+export {
+  TeamRuntime,
+  TASK_REVIEW_KIND_SESSION_EXIT,
+  readTaskReviewKind,
+  readUpstreamFailedTaskIds,
+} from './team-runtime.js';
 export type { TeamRuntimeOptions } from './team-runtime.js';
 export { InMemoryTeamRuntimeStore } from './memory-store.js';
 export { assertTaskGraphAcyclic, findTaskGraphCycle } from './task-graph.js';

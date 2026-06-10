@@ -19,3 +19,22 @@ export function broadcastCanvasUpdate(
     win.webContents.send('canvas:external-update', payload);
   }
 }
+
+export interface AgentTeamsEventPayload {
+  workspaceId: string;
+  teamId: string;
+  type: string;
+  timestamp: number;
+}
+
+/**
+ * Notify every renderer window that an Agent Team changed, so open
+ * AgentTeamFrame panels can refresh immediately instead of waiting for
+ * their fallback poll.
+ */
+export function broadcastAgentTeamsEvent(payload: AgentTeamsEventPayload): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send('agent-teams:event', payload);
+  }
+}

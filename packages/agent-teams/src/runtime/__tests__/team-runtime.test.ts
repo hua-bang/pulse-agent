@@ -1198,4 +1198,133 @@ describe('TeamRuntime', () => {
       await expect(runtime.updateTaskDescription(task.id, { title: 'Nope' })).rejects.toThrow('Cannot edit task');
     });
   });
+
+  describe('failure cascade', () => {
+    it('blocks transitive downstream tasks when an upstream task fails', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const contract = await runtime.createTask({ teamId: team.id, title: 'Contract', description: 'Define API.', ownerAgentId: coder.id });
+      const impl = await runtime.createTask({
+        teamId: team.id, title: 'Implement', description: 'Build it.', deps: [contract.id],
+      });
+      const qa = await runtime.createTask({
+        teamId: team.id, title: 'QA', description: 'Verify it.', deps: [impl.id],
+      });
+
+      await runtime.failTask(contract.id, 'Spike showed the approach is unworkable', coder.id);
+
+      const snapshot = await runtime.snapshot(team.id);
+      const blockedImpl = snapshot.tasks.find((task) => task.id === impl.id)!;
+      const blockedQa = snapshot.tasks.find((task) => task.id === qa.id)!;
+      expect(blockedImpl.status).toBe('blocked');
+      expect(blockedImpl.blockedReason).toBe('Upstream task failed: Contract');
+      expect(blockedImpl.metadata?.upstreamFailedTaskIds).toEqual([contract.id]);
+      expect(blockedQa.status).toBe('blocked');
+      expect(blockedQa.metadata?.upstreamFailedTaskIds).toEqual([contract.id]);
+
+      // The dead branch counts as settled, so the team hands off for review
+      // instead of hanging with undispatchable todo tasks.
+      expect(snapshot.team.status).toBe('failed');
+      const leadInput = adapter.inputs
+        .filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId)
+        .map((entry) => entry.input)
+        .find((input) => input.includes('Task failed: Contract'));
+      expect(leadInput).toContain('These downstream tasks depend on it');
+      expect(leadInput).toContain('Implement');
+    });
+
+    it('restores cascade-blocked tasks once the failed upstream task is completed after review', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(coder.id);
+      const contract = await runtime.createTask({ teamId: team.id, title: 'Contract', description: 'Define API.', ownerAgentId: coder.id });
+      const impl = await runtime.createTask({
+        teamId: team.id, title: 'Implement', description: 'Build it.', ownerAgentId: coder.id, deps: [contract.id],
+      });
+
+      await runtime.failTask(contract.id, 'Build broke', coder.id);
+      expect((await runtime.snapshot(team.id)).tasks.find((task) => task.id === impl.id)?.status).toBe('blocked');
+
+      // The lead reviews the failure, decides the output is usable, and
+      // completes the failed task — downstream work becomes dispatchable again.
+      await runtime.completeTask(contract.id, 'Output was actually usable.', 'human');
+
+      const restored = (await runtime.snapshot(team.id)).tasks.find((task) => task.id === impl.id)!;
+      expect(restored.status).toBe('todo');
+      expect(restored.blockedReason).toBeUndefined();
+      expect(restored.metadata?.upstreamFailedTaskIds).toBeUndefined();
+
+      const dispatched = await runtime.dispatchReadyTasks(team.id);
+      expect(dispatched.assigned.map((task) => task.id)).toEqual([impl.id]);
+    });
+
+    it('keeps a task blocked until every failed upstream dependency is resolved', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const first = await runtime.createTask({ teamId: team.id, title: 'First', description: 'A.', ownerAgentId: coder.id });
+      const second = await runtime.createTask({ teamId: team.id, title: 'Second', description: 'B.', ownerAgentId: coder.id });
+      const merge = await runtime.createTask({
+        teamId: team.id, title: 'Merge', description: 'Join both.', deps: [first.id, second.id],
+      });
+
+      await runtime.failTask(first.id, 'broke', coder.id);
+      await runtime.failTask(second.id, 'also broke', coder.id);
+      const blocked = (await runtime.snapshot(team.id)).tasks.find((task) => task.id === merge.id)!;
+      expect(blocked.status).toBe('blocked');
+      expect(blocked.metadata?.upstreamFailedTaskIds).toEqual([first.id, second.id]);
+
+      await runtime.completeTask(first.id, 'fixed', 'human');
+      const stillBlocked = (await runtime.snapshot(team.id)).tasks.find((task) => task.id === merge.id)!;
+      expect(stillBlocked.status).toBe('blocked');
+      expect(stillBlocked.metadata?.upstreamFailedTaskIds).toEqual([second.id]);
+
+      await runtime.completeTask(second.id, 'fixed too', 'human');
+      const released = (await runtime.snapshot(team.id)).tasks.find((task) => task.id === merge.id)!;
+      expect(released.status).toBe('todo');
+      expect(released.metadata?.upstreamFailedTaskIds).toBeUndefined();
+    });
+
+    it('reaches the round checkpoint when a failure cascade settles the rest of the round', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.initializeRound(team.id);
+      await runtime.setTeamStatus(team.id, 'running', 'human');
+      const done = await runtime.createTask({ teamId: team.id, title: 'Done', description: 'A.', ownerAgentId: coder.id });
+      const failing = await runtime.createTask({ teamId: team.id, title: 'Failing', description: 'B.', ownerAgentId: coder.id });
+      await runtime.createTask({
+        teamId: team.id, title: 'Downstream', description: 'C.', deps: [failing.id],
+      });
+
+      await runtime.completeTask(done.id, 'ok', coder.id);
+      await runtime.failTask(failing.id, 'broke', coder.id);
+
+      expect((await runtime.snapshot(team.id)).team.status).toBe('round_checkpoint');
+    });
+  });
+
+  describe('task review kind', () => {
+    it('stamps and clears the structured review kind on task transitions', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      await runtime.createAgentSession(lead.id);
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const task = await runtime.createTask({ teamId: team.id, title: 'T', description: 'D', ownerAgentId: coder.id });
+
+      await runtime.requestTaskReview(task.id, 'Session exited early.', coder.id, { kind: 'session-exit' });
+      const reviewed = (await runtime.snapshot(team.id)).tasks.find((candidate) => candidate.id === task.id)!;
+      expect(reviewed.status).toBe('needs_review');
+      expect(reviewed.metadata?.reviewKind).toBe('session-exit');
+
+      await runtime.completeTask(task.id, 'Reviewed and accepted.', 'human');
+      const completed = (await runtime.snapshot(team.id)).tasks.find((candidate) => candidate.id === task.id)!;
+      expect(completed.metadata?.reviewKind).toBeUndefined();
+    });
+  });
 });
