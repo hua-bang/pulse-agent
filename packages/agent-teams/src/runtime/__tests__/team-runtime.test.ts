@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TeamRuntime } from '../team-runtime.js';
+import { TeamRuntime, type TeamRuntimeOptions } from '../team-runtime.js';
 import { InMemoryTeamRuntimeStore } from '../memory-store.js';
 import type {
   AgentSessionAdapter,
@@ -48,7 +48,7 @@ class FakeAgentSessionAdapter implements AgentSessionAdapter {
   }
 }
 
-const createRuntime = () => {
+const createRuntime = (extra: Partial<TeamRuntimeOptions> = {}) => {
   let id = 1;
   let now = 1000;
   const adapter = new FakeAgentSessionAdapter();
@@ -56,6 +56,7 @@ const createRuntime = () => {
     agentSessions: adapter,
     idFactory: () => `id-${id++}`,
     now: () => now++,
+    ...extra,
   });
   return { runtime, adapter };
 };
@@ -1379,6 +1380,64 @@ describe('TeamRuntime', () => {
       now += 61_000;
       await runtime.notifyLeadPendingTaskReviews(team.id);
       expect(leadInputs()).toHaveLength(afterSubmit + 1);
+    });
+  });
+
+  describe('Task handoffs', () => {
+    it('threads handoff paths through task, acceptance, revision, and dependency prompts', async () => {
+      const { runtime, adapter } = createRuntime({
+        taskHandoffPath: (task) => `/handoffs/${task.id}.md`,
+      });
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      const coderWithSession = await runtime.createAgentSession(coder.id);
+      const upstream = await runtime.createTask({
+        teamId: team.id,
+        title: 'Build API',
+        description: 'Build the API.',
+        ownerAgentId: coder.id,
+      });
+      const downstream = await runtime.createTask({
+        teamId: team.id,
+        title: 'Use API',
+        description: 'Consume the API.',
+        ownerAgentId: coder.id,
+        deps: [upstream.id],
+      });
+      const leadSessionId = leadWithSession.sessionRef!.sessionId;
+      const coderSessionId = coderWithSession.sessionRef!.sessionId;
+
+      // Dispatch: the task prompt tells the teammate to write the handoff.
+      await runtime.dispatchReadyTasks(team.id);
+      const taskPrompt = adapter.inputs.at(-1)?.input ?? '';
+      expect(taskPrompt).toContain(`/handoffs/${upstream.id}.md`);
+      expect(taskPrompt).toContain('write a handoff file');
+
+      // Submission: the lead is pointed at the handoff for verification.
+      await runtime.submitTaskCompletion(upstream.id, 'API built.', coder.id);
+      const acceptancePrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === leadSessionId)
+        .at(-1)?.input ?? '';
+      expect(acceptancePrompt).toContain(`read it to verify: /handoffs/${upstream.id}.md`);
+
+      // Revision: the teammate is told to update the handoff too.
+      await runtime.sendToAgent(coder.id, 'Revise: handle errors.', upstream.id);
+      const revisionPrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === coderSessionId)
+        .at(-1)?.input ?? '';
+      expect(revisionPrompt).toContain(`Update the handoff file as part of the revision: /handoffs/${upstream.id}.md`);
+
+      // Acceptance + downstream dispatch: dependency context points at the
+      // upstream handoff instead of relying only on the truncated summary.
+      await runtime.submitTaskCompletion(upstream.id, 'API built with error handling.', coder.id);
+      await runtime.completeTask(upstream.id, 'Accepted.', lead.id);
+      const result = await runtime.dispatchReadyTasks(team.id);
+      expect(result.assigned.map((task) => task.id)).toEqual([downstream.id]);
+      const downstreamPrompt = adapter.inputs.at(-1)?.input ?? '';
+      expect(downstreamPrompt).toContain(`Handoff: /handoffs/${upstream.id}.md`);
+      expect(downstreamPrompt).toContain('Read each handoff file');
     });
   });
 });

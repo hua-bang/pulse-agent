@@ -31,6 +31,15 @@ export interface TeamRuntimeOptions {
   agentSessions?: AgentSessionAdapter;
   now?: () => number;
   idFactory?: () => string;
+  /**
+   * Resolve the absolute path of a task's handoff file — the structured
+   * notes a teammate writes before reporting completion. When set, task
+   * prompts instruct agents to write the file, dependency context points
+   * downstream tasks at it, and acceptance prompts tell the Team Lead to
+   * read it. Enforcing that the file exists before accepting a completion
+   * is the host's responsibility (the runtime has no filesystem access).
+   */
+  taskHandoffPath?: (task: TeamTaskRecord) => string | undefined;
 }
 
 type EventHandler = (event: TeamEvent) => void;
@@ -159,6 +168,7 @@ export class TeamRuntime {
   private readonly agentSessions?: AgentSessionAdapter;
   private readonly now: () => number;
   private readonly idFactory: () => string;
+  private readonly taskHandoffPath?: (task: TeamTaskRecord) => string | undefined;
   private readonly handlers = new Set<EventHandler>();
   private readonly sessionAgents = new Map<string, AgentId>();
   private readonly leadPendingDigestCache = new Map<TeamId, { digest: string; sentAt: number }>();
@@ -172,6 +182,7 @@ export class TeamRuntime {
     this.agentSessions = options.agentSessions;
     this.now = options.now ?? (() => Date.now());
     this.idFactory = options.idFactory ?? (() => randomUUID());
+    this.taskHandoffPath = options.taskHandoffPath;
 
     if (this.agentSessions?.onEvent) {
       this.unsubscribeSessionEvents = this.agentSessions.onEvent((event) => {
@@ -987,6 +998,7 @@ export class TeamRuntime {
           agentId: agent.id,
           revision: true,
         });
+        const revisionHandoffPath = this.taskHandoffPath?.(task);
         deliverable = [
           `Task returned for revision: ${task.title}`,
           `Task ID: ${task.id}`,
@@ -994,6 +1006,7 @@ export class TeamRuntime {
           content,
           '',
           'Apply the requested changes to your earlier work on this task.',
+          ...(revisionHandoffPath ? [`Update the handoff file as part of the revision: ${revisionHandoffPath}`] : []),
           'When finished, run this command from the terminal again. Do not merely print it:',
           `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
         ].join('\n');
@@ -1296,6 +1309,7 @@ export class TeamRuntime {
 
   private async formatTaskPrompt(task: TeamTaskRecord, tasks: TeamTaskRecord[], owner?: TeamAgentRecord): Promise<string> {
     const dependencyContext = await this.formatDependencyContext(task, tasks);
+    const handoffPath = this.taskHandoffPath?.(task);
     const downstreamTasks = tasks
       .filter(candidate => candidate.id !== task.id && candidate.deps.includes(task.id))
       .slice(0, 8);
@@ -1331,6 +1345,15 @@ export class TeamRuntime {
           '',
         ]
         : []),
+      ...(handoffPath
+        ? [
+          'Before reporting completion, write a handoff file for downstream teammates and the Team Lead at:',
+          handoffPath,
+          'Create the directory if needed. Use markdown sections: Summary (what you did and produced), Files (paths you created or modified), Interfaces (contracts, APIs, commands, or data shapes downstream tasks must use), Caveats (known issues and assumptions).',
+          'complete-task is rejected while this file is missing.',
+          '',
+        ]
+        : []),
       `Task ID: ${task.id}`,
       'When finished, run this command from the terminal. Do not merely print it:',
       `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
@@ -1361,16 +1384,25 @@ export class TeamRuntime {
 
     const artifacts = await this.store.listArtifacts(task.teamId);
     const lines: string[] = [];
+    let hasHandoffs = false;
     for (const dep of dependencyTasks) {
       lines.push(`- ${dep.title} [${dep.status}]`);
       if (dep.result) {
         lines.push(`  Result: ${truncate(dep.result, MAX_TASK_RESULT_CHARS)}`);
+      }
+      const depHandoffPath = this.taskHandoffPath?.(dep);
+      if (depHandoffPath) {
+        hasHandoffs = true;
+        lines.push(`  Handoff: ${depHandoffPath}`);
       }
       const depArtifacts = artifacts.filter(artifact => artifact.taskId === dep.id);
       for (const artifact of depArtifacts) {
         const summary = truncate(artifact.summary || artifact.uri || '', MAX_ARTIFACT_SUMMARY_CHARS);
         lines.push(`  Artifact: ${artifact.title} (${artifact.kind})${summary ? ` - ${summary}` : ''}`);
       }
+    }
+    if (hasHandoffs) {
+      lines.push('Read each handoff file above for the full details behind these summarized results. A handoff may be absent for tasks closed directly by the human or Team Lead.');
     }
 
     return truncate(lines.join('\n'), MAX_DEPENDENCY_CONTEXT_CHARS);
@@ -1546,10 +1578,12 @@ export class TeamRuntime {
       const detail = artifact.uri || truncate(artifact.summary ?? '', MAX_ARTIFACT_SUMMARY_CHARS);
       return `- ${artifact.title} (${artifact.kind})${detail ? ` — ${detail}` : ''}`;
     });
+    const handoffPath = this.taskHandoffPath?.(task);
     return [
       `${submitter.name} reports task complete and needs your acceptance: ${task.title}`,
       '',
       `Reported result: ${truncate(summary, MAX_TASK_RESULT_CHARS)}`,
+      ...(handoffPath ? ['', `Handoff file from the teammate — read it to verify: ${handoffPath}`] : []),
       ...(artifactLines.length > 0 ? ['', 'Artifacts from this task:', ...artifactLines] : []),
       '',
       `Task ID: ${task.id}`,

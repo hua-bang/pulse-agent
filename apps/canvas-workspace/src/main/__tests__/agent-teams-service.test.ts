@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { tmpdir } from 'os';
 
 const mockState = vi.hoisted(() => ({
@@ -115,6 +115,15 @@ const createExecutingTeam = async (service: CanvasAgentTeamsService): Promise<Ca
   const created = await createTeam(service);
   await emitPlan(service, created);
   return service.confirmPlan('ws-1', created.runtime.team.id);
+};
+
+const handoffPathFor = (teamId: string, taskId: string): string =>
+  join(mockState.root, 'ws-1', 'agent-teams', 'handoffs', teamId, `${taskId}.md`);
+
+const writeHandoff = async (teamId: string, taskId: string): Promise<void> => {
+  const path = handoffPathFor(teamId, taskId);
+  await fs.mkdir(dirname(path), { recursive: true });
+  await fs.writeFile(path, '# Handoff\n\nDetails for downstream tasks.\n', 'utf-8');
 };
 
 describe('CanvasAgentTeamsService', () => {
@@ -639,6 +648,7 @@ describe('CanvasAgentTeamsService', () => {
     const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
     const owner = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
     const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    await writeHandoff(teamId, implement.id);
 
     const submitted = await service.completeAgentTask({
       workspaceId: 'ws-1',
@@ -654,6 +664,11 @@ describe('CanvasAgentTeamsService', () => {
     expect(submittedTask.result).toBeUndefined();
     expect(submittedTask.metadata?.proposedResult).toBe('Checkout API remains stable.');
 
+    // The handoff is registered as a task artifact exactly once.
+    expect(submitted.snapshot.runtime.artifacts.filter(
+      (artifact) => artifact.taskId === implement.id && artifact.uri === handoffPathFor(teamId, implement.id),
+    )).toHaveLength(1);
+
     // The dependent review task stays blocked and the lead gets the
     // acceptance prompt instead of the reviewer getting dispatched.
     const reviewBefore = submitted.snapshot.runtime.tasks.find((task) => task.title === 'Review checkout refactor')!;
@@ -663,6 +678,7 @@ describe('CanvasAgentTeamsService', () => {
       nodeId: lead.sessionRef!.sessionId,
     });
     expect(mockState.queuedInputs.at(-1)?.input).toContain('needs your acceptance: Implement checkout refactor');
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(`read it to verify: ${handoffPathFor(teamId, implement.id)}`);
     expect(mockState.queuedInputs.at(-1)?.input).toContain(`pulse-canvas team complete-task --task "${implement.id}"`);
 
     // The heartbeat does not immediately re-spam the lead about the same backlog.
@@ -694,6 +710,36 @@ describe('CanvasAgentTeamsService', () => {
     });
     expect(mockState.queuedInputs.at(-1)?.input).toContain('Dependency context from completed upstream tasks');
     expect(mockState.queuedInputs.at(-1)?.input).toContain('Checkout API remains stable.');
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(`Handoff: ${handoffPathFor(teamId, implement.id)}`);
+  });
+
+  it('rejects a teammate completion until the handoff file exists', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
+
+    await expect(service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: owner.id,
+      summary: 'Done.',
+    })).rejects.toThrow('Task handoff file missing');
+
+    // The rejection leaves the task untouched and running.
+    const snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.tasks.find((task) => task.id === implement.id)?.status).toBe('in_progress');
+
+    // Writing the handoff lets the same completion go through to acceptance.
+    await writeHandoff(teamId, implement.id);
+    const submitted = await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: owner.id,
+      summary: 'Done.',
+    });
+    expect(submitted.task.status).toBe('needs_review');
   });
 
   it('sends a needs_review task back to the teammate when the lead targets it with a message', async () => {
@@ -702,6 +748,7 @@ describe('CanvasAgentTeamsService', () => {
     const teamId = created.runtime.team.id;
     const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
     const owner = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
+    await writeHandoff(teamId, implement.id);
 
     await service.completeAgentTask({
       workspaceId: 'ws-1',

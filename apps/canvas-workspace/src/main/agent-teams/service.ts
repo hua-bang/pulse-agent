@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
-import { statSync } from 'fs';
+import { promises as fsPromises, statSync } from 'fs';
 import { homedir } from 'os';
+import { dirname } from 'path';
 import {
   TeamRuntime,
   type AgentRole,
@@ -146,6 +147,14 @@ const trimPathToken = (value: string): string =>
 const isExistingDirectory = (value: string): boolean => {
   try {
     return statSync(value).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+const isExistingFile = (value: string): boolean => {
+  try {
+    return statSync(value).isFile();
   } catch {
     return false;
   }
@@ -824,6 +833,7 @@ export class CanvasAgentTeamsService {
     for (const nodeId of deletedNodeIds) {
       this.outputBuffers.delete(`${workspaceId}:${nodeId}`);
     }
+    await fsPromises.rm(store.handoffDir(teamId), { recursive: true, force: true }).catch(() => {});
     return { deletedNodeIds };
   }
 
@@ -843,12 +853,41 @@ export class CanvasAgentTeamsService {
     snapshot: CanvasAgentTeamSnapshot;
     task: TeamTaskRecord;
   }> {
-    const { runtime } = this.getBundle(input.workspaceId);
+    const { runtime, store } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
       ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+
+    // Teammate completions must ship a handoff file: downstream tasks and the
+    // Team Lead's acceptance review read it instead of a truncated summary.
+    if (agent?.role === 'teammate' && task.status !== 'done' && task.status !== 'failed') {
+      const handoffPath = store.handoffPath(input.teamId, task.id);
+      if (!isExistingFile(handoffPath)) {
+        await fsPromises.mkdir(dirname(handoffPath), { recursive: true });
+        throw new Error([
+          `Task handoff file missing: ${handoffPath}`,
+          'Write the handoff before completing. Use markdown sections: Summary (what you did and produced), Files (paths you created or modified), Interfaces (contracts, APIs, commands, or data shapes downstream tasks must use), Caveats (known issues and assumptions).',
+          'Then re-run: pulse-canvas team complete-task',
+        ].join('\n'));
+      }
+      const alreadyRecorded = snapshot.artifacts.some(
+        (artifact) => artifact.taskId === task.id && artifact.uri === handoffPath,
+      );
+      if (!alreadyRecorded) {
+        await runtime.createArtifact({
+          teamId: input.teamId,
+          agentId: agent.id,
+          taskId: task.id,
+          kind: 'note',
+          title: `Handoff — ${task.title}`,
+          uri: handoffPath,
+          summary: 'Structured handoff notes for downstream tasks and Team Lead review.',
+        });
+      }
+    }
+
     // Teammate completions go through Team Lead acceptance (needs_review)
     // before counting as done; lead/human completions complete directly.
     const updated = await runtime.submitTaskCompletion(task.id, input.summary, agent?.id ?? 'human');
@@ -1191,6 +1230,7 @@ export class CanvasAgentTeamsService {
     const runtime = new TeamRuntime({
       store,
       agentSessions: adapter,
+      taskHandoffPath: (task) => store.handoffPath(task.teamId, task.id),
     });
     const bundle = { store, runtime };
     this.runtimes.set(workspaceId, bundle);

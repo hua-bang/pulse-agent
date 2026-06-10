@@ -254,6 +254,20 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
     }
   }
 
+  /** Directory holding the handoff files written by a team's agents. */
+  handoffDir(teamId: TeamId): string {
+    return join(this.dir, 'handoffs', teamId);
+  }
+
+  /**
+   * Absolute path of a task's handoff file. Lives in app storage rather than
+   * the team cwd so it never pollutes the user's repository, and stays in a
+   * shared location if per-agent workspace isolation is added later.
+   */
+  handoffPath(teamId: TeamId, taskId: string): string {
+    return join(this.handoffDir(teamId), `${taskId}.md`);
+  }
+
   private get dir(): string {
     return join(STORE_DIR, this.workspaceId, 'agent-teams');
   }
