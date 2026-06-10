@@ -55,6 +55,7 @@ const TASK_PROPOSED_RESULT_METADATA_KEY = 'proposedResult';
 const TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY = 'completionSubmittedBy';
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
+  'You are the Team Lead: coordinate, verify, and delegate. Do not create or edit project files yourself — route every change to a teammate. Reading files and quick read-only checks are fine.',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
   'If no immediate action is needed, briefly acknowledge and stop. Pulse Canvas will wake you again for the next required decision.',
 ].join('\n');
@@ -1276,7 +1277,7 @@ export class TeamRuntime {
       'Your role now: monitor progress, answer teammate questions, handle blocked tasks,',
       'review and accept reported completions, and create follow-up tasks if needed.',
       'When a teammate reports a task complete, you will be asked to verify the deliverable and accept it before downstream tasks unblock.',
-      'You coordinate and verify — do not implement tasks yourself. Never create or edit project files; reading files and running quick checks for verification is fine. Anything that changes files goes to a teammate via send or create-task.',
+      'You coordinate and verify — do not implement tasks yourself. Never create or edit project files: edits you make bypass the team\'s review, handoff, and scope tracking, so the team cannot see or verify them. No change is too small to delegate — one-line fixes also go to a teammate via send or create-task. Reading files and running quick read-only checks is fine.',
       '',
       'Tasks:',
       ...taskLines,
@@ -1674,7 +1675,7 @@ export class TeamRuntime {
       'Review the task results and artifacts. If the work is complete, run:',
       'pulse-canvas team complete-team --summary "<final summary>"',
       '',
-      'If more work is needed, create follow-up tasks instead:',
+      'If anything is missing or broken, do not patch it yourself — create follow-up tasks instead:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
       '',
       'Tasks:',
@@ -1707,7 +1708,7 @@ export class TeamRuntime {
       `Task description: ${truncate(task.description, 600)}`,
       '',
       'Verify the deliverable lightly before accepting: check that the promised files, changes, or findings exist and match the task description and scope. Do not run heavy builds or full test suites yourself.',
-      'Do not fix problems yourself — if the work falls short, send the task back for revision instead of editing files.',
+      'Do not fix problems yourself, no matter how small the fix — your edits would bypass review and handoff tracking. If the work falls short, send the task back for revision instead of editing files.',
       ...(scopeEntries.length > 0
         ? [
           '',
