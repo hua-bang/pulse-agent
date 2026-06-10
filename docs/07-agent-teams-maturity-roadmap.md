@@ -38,13 +38,13 @@
 - teammate 完成前必须自己跑通 verify（写进任务 prompt）；提交验收时，runtime 把 verify 命令与最近一次结果附进验收 prompt，Lead 复跑或抽查。
 - briefing prompt 要求 Lead 为每个产代码任务声明 verify；无法机械验证的任务显式标注 `verify: manual`。
 
-### 2.2 团队级 Git 工作流（轻量隔离，worktree 的前置台阶）
+### 2.2 团队级 Git 工作流（轻量隔离，worktree 的前置台阶）⏸ 延后（按三层降级设计实施：真仓库 → 影子仓库 → 文件清单）
 - 团队启动时在 cwd 切 `team/<name>` 分支；任务验收通过时产生一个任务粒度 commit（runtime 驱动，message 引用 taskId/handoff）。
 - 验收 prompt 给 Lead 的核验材料从"git status"升级为"本任务的 diff"。
 - `complete-team` 产出整体变更集摘要（diff stat + 任务→commit 对照），人终验收时看的是一个 PR 级对象。
 - 跑通后再评估是否仍需要 per-teammate worktree（很可能不需要：scope 互斥 + 任务粒度 commit 已覆盖大部分冲突场景）。
 
-### 2.3 集成验证收尾模板
+### 2.3 集成验证收尾模板 ✅ `1b99bad`
 - 进入 reviewing 前自动插入一个"集成验证"任务（跑全量 test/build），owner 是 teammate 而非 Lead，失败走标准打回循环。
 
 **Phase 2 验收**：基准任务的交付物以"team 分支 + 任务 commit 序列 + 全绿 verify"形态产出；人工审查不再发现"agent 自称完成但跑不过测试"类问题。
