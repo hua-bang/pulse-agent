@@ -267,6 +267,7 @@ const parsePlanDraft = (text: string, sourceAgentId: string, now: number): Canva
     summary,
     teammates: normalizePlanTeammates(obj.teammates),
     tasks: normalizePlanTasks(obj.tasks, summary),
+    integrationVerify: cleanString(obj.integrationVerify) || undefined,
     sourceAgentId,
     createdAt: now,
     updatedAt: now,
@@ -289,6 +290,7 @@ const planDraftFromUnknown = (value: unknown, sourceAgentId: string, now: number
     summary,
     teammates: normalizePlanTeammates(obj.teammates),
     tasks: normalizePlanTasks(obj.tasks, summary),
+    integrationVerify: cleanString(obj.integrationVerify) || undefined,
     sourceAgentId,
     createdAt: now,
     updatedAt: now,
@@ -412,6 +414,7 @@ const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: str
   'Give every task that creates or edits files a "scope": the file or directory paths (relative to the working directory) it may modify. Survey, analysis, and review tasks may omit scope.',
   'Tasks that can run in parallel MUST have non-overlapping scopes. Pulse Canvas will not dispatch two scope-overlapping tasks at the same time, so overlapping scopes silently serialize your DAG.',
   'Give every task that produces code a "verify": ONE cheap, deterministic command that proves the task works (a scoped test, typecheck, or lint — not a full build or long test suite). Pulse Canvas re-runs it when the teammate submits the task and shows you PASS/FAIL during acceptance. Use "verify": "manual" for survey/analysis/contract tasks.',
+  'Optionally add a top-level "integrationVerify": ONE command that proves the whole deliverable works together (e.g. the full test suite). When the user finishes the team, Pulse Canvas runs it as a final integration task before the review.',
   'Use deps to encode the real execution order. Do not rely on wording like "after" or "then" in descriptions.',
   'Plan the smallest DAG that still exposes useful parallel work: usually 3-6 teammates and 4-10 tasks for normal app/repo work. Go above 10 tasks only when there are truly independent deliverables.',
   'Target 2-4 ready-to-start workstreams. Do not serialize the whole graph behind one setup/research task, and do not create one microtask per file, component, command, or tiny edit.',
@@ -748,6 +751,7 @@ export class CanvasAgentTeamsService {
     metadata.pendingPlan = undefined;
     metadata.approvedPlan = { ...plan, updatedAt: now };
     metadata.phase = 'executing';
+    if (plan.integrationVerify) metadata.integrationVerify = plan.integrationVerify;
     metadata.updatedAt = now;
     await store.saveTeamMetadata(teamId, metadata);
 
@@ -925,7 +929,15 @@ export class CanvasAgentTeamsService {
   }
 
     private async advanceRoundLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
-    const { runtime } = this.getBundle(workspaceId);
+    const { runtime, store } = this.getBundle(workspaceId);
+    // Choosing to continue with another round withdraws a pending Finish:
+    // a stale flag would otherwise auto-finalize at the next checkpoint.
+    const metadata = await store.getTeamMetadata(teamId);
+    if (metadata?.pendingFinalization) {
+      metadata.pendingFinalization = undefined;
+      metadata.updatedAt = Date.now();
+      await store.saveTeamMetadata(teamId, metadata);
+    }
     await runtime.advanceRound(teamId, 'human');
     await runtime.dispatchReadyTasks(teamId);
     return this.snapshotInternal(workspaceId, teamId);
@@ -936,7 +948,49 @@ export class CanvasAgentTeamsService {
   }
 
     private async finalizeFromCheckpointLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
-    const { runtime } = this.getBundle(workspaceId);
+    const { runtime, store } = this.getBundle(workspaceId);
+    // When the plan declared a team-level integration check, Finish first
+    // runs it as a regular teammate task (its verify IS the integration
+    // command, so acceptance re-runs it mechanically). Once that round
+    // settles, the heartbeat auto-finalizes via pendingFinalization — the
+    // human only clicks Finish once.
+    const metadata = await store.getTeamMetadata(teamId);
+    const integration = metadata?.integrationVerify?.trim();
+    if (metadata && integration) {
+      const tasks = await store.listTasks(teamId);
+      const existing = tasks.find((task) => task.metadata?.kind === 'integration-verification');
+      if (!existing) {
+        const team = await store.getTeam(teamId);
+        const rawRound = team?.metadata?.currentRound;
+        const currentRound = typeof rawRound === 'number' && Number.isFinite(rawRound) && rawRound >= 1
+          ? Math.floor(rawRound)
+          : 1;
+        await runtime.createTask({
+          teamId,
+          title: 'Integration verification',
+          description: [
+            'Run the team-level integration verification and report the outcome.',
+            '',
+            'Command:',
+            integration,
+            '',
+            'Run it from the working directory. If it fails, report exactly what is broken in your handoff — name the failing areas and the likely owning task. Do not start large fixes without Team Lead guidance.',
+          ].join('\n'),
+          createdBy: 'runtime',
+          metadata: {
+            kind: 'integration-verification',
+            round: currentRound,
+            verify: integration,
+          },
+        });
+        metadata.pendingFinalization = true;
+        metadata.updatedAt = Date.now();
+        await store.saveTeamMetadata(teamId, metadata);
+        await runtime.setTeamStatus(teamId, 'running', 'human');
+        await runtime.dispatchReadyTasks(teamId);
+        return this.snapshotInternal(workspaceId, teamId);
+      }
+    }
     await runtime.finalizeFromCheckpoint(teamId, 'human');
     return this.snapshotInternal(workspaceId, teamId);
   }
@@ -1595,6 +1649,7 @@ export class CanvasAgentTeamsService {
             const team = await store.getTeam(entry.teamId);
             if (!team) return;
             if (team.status === 'completed' || team.status === 'failed' || team.status === 'paused') return;
+            await this.autoFinalizeIfPending(workspaceId, entry.teamId);
             await this.watchdogCheckAgents(workspaceId, entry.teamId);
             await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
             await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
@@ -1625,6 +1680,23 @@ export class CanvasAgentTeamsService {
       // Store directory may not exist yet.
     }
     return [...ids];
+  }
+
+  /**
+   * Complete a one-click Finish: the human requested finalization, the
+   * integration round has settled back into round_checkpoint, so hand the
+   * team to the lead for final review now.
+   */
+  private async autoFinalizeIfPending(workspaceId: string, teamId: string): Promise<void> {
+    const { runtime, store } = this.getBundle(workspaceId);
+    const metadata = await store.getTeamMetadata(teamId);
+    if (!metadata?.pendingFinalization) return;
+    const team = await store.getTeam(teamId);
+    if (team?.status !== 'round_checkpoint') return;
+    metadata.pendingFinalization = undefined;
+    metadata.updatedAt = Date.now();
+    await store.saveTeamMetadata(teamId, metadata);
+    await runtime.finalizeFromCheckpoint(teamId, 'runtime');
   }
 
   /**

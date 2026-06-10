@@ -965,6 +965,44 @@ describe('CanvasAgentTeamsService', () => {
     expect(leadPrompt).toContain('checks failed');
   });
 
+  it('runs a declared integration verification as a final task before review', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Work with an integration gate.',
+        teammates: [{ name: 'Codex Exec', agentType: 'codex' }],
+        tasks: [{ title: 'Implement thing', description: 'Do it.', ownerName: 'Codex Exec' }],
+        integrationVerify: 'node -e "process.exit(0)"',
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const implement = confirmed.runtime.tasks.find((task) => task.title === 'Implement thing')!;
+    await service.completeTask('ws-1', teamId, implement.id, 'Done.');
+    expect((await service.snapshot('ws-1', teamId)).runtime.team.status).toBe('round_checkpoint');
+
+    // Finish injects the integration task into the current round instead of
+    // going straight to review; its verify is the integration command.
+    const finalized = await service.finalizeFromCheckpoint('ws-1', teamId);
+    expect(finalized.runtime.team.status).toBe('running');
+    const integration = finalized.runtime.tasks.find((task) => task.title === 'Integration verification')!;
+    expect(integration.status).toBe('in_progress');
+    expect(integration.metadata?.verify).toBe('node -e "process.exit(0)"');
+
+    // Once the integration task settles, the heartbeat completes the Finish
+    // automatically — the human does not click twice.
+    await service.completeTask('ws-1', teamId, integration.id, 'Integration green.');
+    expect((await service.snapshot('ws-1', teamId)).runtime.team.status).toBe('round_checkpoint');
+    await service.heartbeatTick();
+    const after = await service.snapshot('ws-1', teamId);
+    expect(after.runtime.team.status).toBe('reviewing');
+    expect(mockState.queuedInputs.at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
+
+    // A second Finish (already-run integration) goes straight to review.
+    // (Covered implicitly: the existing task short-circuits re-injection.)
+  });
+
   it('rejects a teammate completion until the handoff file exists', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);
