@@ -40,6 +40,10 @@ const MAX_ARTIFACT_SUMMARY_CHARS = 600;
 const TEAM_PAUSE_METADATA_KEY = 'teamPause';
 const LEAD_PENDING_DIGEST_RESEND_MS = 30_000;
 const LEAD_REVIEW_RESEND_MS = 60_000;
+const LEAD_TASK_REVIEW_DIGEST_RESEND_MS = 60_000;
+const TASK_ACCEPTANCE_PENDING_REASON = 'Awaiting Team Lead acceptance of the reported completion.';
+const TASK_PROPOSED_RESULT_METADATA_KEY = 'proposedResult';
+const TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY = 'completionSubmittedBy';
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
@@ -159,6 +163,7 @@ export class TeamRuntime {
   private readonly sessionAgents = new Map<string, AgentId>();
   private readonly leadPendingDigestCache = new Map<TeamId, { digest: string; sentAt: number }>();
   private readonly leadReviewNudgeCache = new Map<TeamId, number>();
+  private readonly leadTaskReviewDigestCache = new Map<TeamId, { digest: string; sentAt: number }>();
   private dispatchPaused = new Set<TeamId>();
   private unsubscribeSessionEvents?: () => void;
 
@@ -582,10 +587,103 @@ export class TeamRuntime {
     return { assigned, idleAgents: availableAgents };
   }
 
+  /**
+   * Report a finished task. Teammate completions do not mark the task done
+   * directly: they park it in `needs_review` and ask the Team Lead to verify
+   * the deliverable and either accept it (via completeTask) or send it back
+   * for revision (via sendToAgent with the task). Lead, human, and runtime
+   * completions keep direct completeTask semantics — an acceptance IS a
+   * completion. Downstream tasks stay blocked until the completion is
+   * accepted, so unverified work cannot cascade into dependents.
+   */
+  async submitTaskCompletion(
+    taskId: TaskId,
+    summary: string,
+    actor: AgentId | 'human' | 'runtime' = 'runtime',
+  ): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    if (task.status === 'done' || task.status === 'failed') return task;
+
+    const submitter = actor === 'human' || actor === 'runtime'
+      ? undefined
+      : await this.store.getAgent(actor);
+    const team = await this.requireTeam(task.teamId);
+    const lead = team.leadAgentId ? await this.store.getAgent(team.leadAgentId) : undefined;
+    const requiresAcceptance = submitter?.role === 'teammate'
+      && !!lead?.sessionRef
+      && !!this.agentSessions;
+    if (!requiresAcceptance || !submitter) {
+      return this.completeTask(taskId, summary, actor);
+    }
+
+    // Agents sometimes re-run the completion command; an identical
+    // resubmission must not re-notify the lead.
+    if (
+      task.status === 'needs_review'
+      && task.metadata?.[TASK_PROPOSED_RESULT_METADATA_KEY] === summary
+    ) {
+      return task;
+    }
+
+    const now = this.now();
+    task.status = 'needs_review';
+    task.blockedReason = TASK_ACCEPTANCE_PENDING_REASON;
+    task.metadata = {
+      ...(task.metadata ?? {}),
+      [TASK_PROPOSED_RESULT_METADATA_KEY]: summary,
+      [TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY]: submitter.id,
+    };
+    task.updatedAt = now;
+    await this.store.saveTask(task);
+    // The submitter considers the work finished, so its open questions on
+    // this task are superseded by the acceptance request.
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
+
+    if (task.ownerAgentId) {
+      const ownerAgent = await this.store.getAgent(task.ownerAgentId);
+      if (ownerAgent?.currentTaskId === task.id) {
+        ownerAgent.currentTaskId = undefined;
+        ownerAgent.status = 'idle';
+        ownerAgent.updatedAt = this.now();
+        await this.store.saveAgent(ownerAgent);
+      }
+    }
+
+    await this.appendMessage({
+      teamId: task.teamId,
+      from: submitter.id,
+      to: 'lead',
+      type: 'status_update',
+      content: summary,
+      taskId: task.id,
+      metadata: { status: 'needs_review', kind: 'completion_submitted' },
+    });
+    await this.emit(task.teamId, 'task_needs_review', submitter.id, {
+      taskId: task.id,
+      reason: TASK_ACCEPTANCE_PENDING_REASON,
+    });
+    await this.notifyLead(task.teamId, await this.formatTaskAcceptancePrompt(task, submitter, summary), task.id);
+    await this.warmPendingTaskReviewDigest(task.teamId);
+    return task;
+  }
+
+  /**
+   * Pre-warm the pending-review digest cache after a review prompt was just
+   * delivered, so the snapshot heartbeat does not immediately re-send a
+   * digest covering the same backlog on the next tick.
+   */
+  private async warmPendingTaskReviewDigest(teamId: TeamId): Promise<void> {
+    this.leadTaskReviewDigestCache.set(teamId, {
+      digest: await this.formatPendingTaskReviewDigest(teamId),
+      sentAt: this.now(),
+    });
+  }
+
   async completeTask(taskId: TaskId, result: string, actor?: AgentId | 'human' | 'runtime'): Promise<TeamTaskRecord> {
     const task = await this.requireTask(taskId);
     task.status = 'done';
     task.result = result;
+    task.blockedReason = undefined;
     task.updatedAt = this.now();
     await this.store.saveTask(task);
     await this.cancelOpenGatesForTask(task.teamId, task.id);
@@ -648,6 +746,7 @@ export class TeamRuntime {
       reason,
     });
     await this.notifyLead(task.teamId, await this.formatTaskReviewPrompt(task, reason), task.id);
+    await this.warmPendingTaskReviewDigest(task.teamId);
     return task;
   }
 
@@ -863,6 +962,44 @@ export class TeamRuntime {
       return;
     }
 
+    // Directing a message at a teammate's needs_review task sends the task
+    // back for revision: the reported completion was reviewed and changes are
+    // requested, so the task returns to in_progress with the teammate
+    // re-attached and the message framed against the task.
+    let deliverable = content;
+    if (taskId && agent.role === 'teammate') {
+      const task = await this.store.getTask(taskId);
+      if (task && task.teamId === agent.teamId && task.status === 'needs_review') {
+        const now = this.now();
+        task.status = 'in_progress';
+        task.ownerAgentId = agent.id;
+        task.blockedReason = undefined;
+        task.updatedAt = now;
+        await this.store.saveTask(task);
+        if (!agent.currentTaskId) {
+          agent.currentTaskId = task.id;
+          agent.status = 'running';
+          agent.updatedAt = now;
+          await this.store.saveAgent(agent);
+        }
+        await this.emit(agent.teamId, 'task_assigned', 'runtime', {
+          taskId: task.id,
+          agentId: agent.id,
+          revision: true,
+        });
+        deliverable = [
+          `Task returned for revision: ${task.title}`,
+          `Task ID: ${task.id}`,
+          '',
+          content,
+          '',
+          'Apply the requested changes to your earlier work on this task.',
+          'When finished, run this command from the terminal again. Do not merely print it:',
+          `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
+        ].join('\n');
+      }
+    }
+
     await this.appendMessage({
       teamId: agent.teamId,
       from: 'human',
@@ -877,7 +1014,7 @@ export class TeamRuntime {
     });
 
     if (this.agentSessions && agent.sessionRef) {
-      await this.agentSessions.sendInput(agent.sessionRef.sessionId, content);
+      await this.agentSessions.sendInput(agent.sessionRef.sessionId, deliverable);
     }
   }
 
@@ -973,6 +1110,42 @@ export class TeamRuntime {
     ].join('\n'));
   }
 
+  /**
+   * Re-drive the Team Lead about tasks parked in needs_review — reported
+   * completions waiting for acceptance and session-exit reviews. The
+   * per-submission acceptance prompt is fire-and-forget; if the lead's
+   * session missed it, the task would sit in needs_review forever while
+   * downstream work stays blocked. Pulse Canvas calls this on its snapshot
+   * heartbeat, like the pending-gate digest. Throttled per digest so an
+   * unchanged backlog is not re-sent within the resend window.
+   */
+  async notifyLeadPendingTaskReviews(teamId: TeamId): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (team.status !== 'running') {
+      this.leadTaskReviewDigestCache.delete(teamId);
+      return;
+    }
+    // If teammate questions are pending, the gate digest path is already
+    // re-engaging the lead; don't stack a second prompt on the same tick.
+    if (await this.formatLeadPendingGateDigest(teamId)) return;
+
+    const digest = await this.formatPendingTaskReviewDigest(teamId);
+    if (!digest) {
+      this.leadTaskReviewDigestCache.delete(teamId);
+      return;
+    }
+    const cached = this.leadTaskReviewDigestCache.get(teamId);
+    if (cached?.digest === digest && this.now() - cached.sentAt < LEAD_TASK_REVIEW_DIGEST_RESEND_MS) {
+      return;
+    }
+    await this.notifyLead(teamId, [
+      'Pulse Canvas found tasks still waiting for Team Lead review.',
+      '',
+      digest,
+    ].join('\n'));
+    this.leadTaskReviewDigestCache.set(teamId, { digest, sentAt: this.now() });
+  }
+
   async notifyLeadPlanApproved(teamId: TeamId): Promise<void> {
     const snapshot = await this.snapshot(teamId);
     const taskLines = snapshot.tasks.map((task) => {
@@ -985,7 +1158,8 @@ export class TeamRuntime {
       'The user has approved your plan. Tasks are being dispatched to teammates.',
       '',
       'Your role now: monitor progress, answer teammate questions, handle blocked tasks,',
-      'and create follow-up tasks if needed.',
+      'review and accept reported completions, and create follow-up tasks if needed.',
+      'When a teammate reports a task complete, you will be asked to verify the deliverable and accept it before downstream tasks unblock.',
       '',
       'Tasks:',
       ...taskLines,
@@ -1160,6 +1334,7 @@ export class TeamRuntime {
       `Task ID: ${task.id}`,
       'When finished, run this command from the terminal. Do not merely print it:',
       `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
+      'The Team Lead reviews your reported completion before the task counts as done, and may send it back with revision feedback.',
       '',
       'If you need human input, prefer:',
       `pulse-canvas team request-human-input --task "${task.id}" --prompt "<question>"`,
@@ -1357,6 +1532,71 @@ export class TeamRuntime {
       'Tasks:',
       ...taskLines,
       ...(artifactLines.length > 0 ? ['', 'Artifacts:', ...artifactLines] : []),
+    ].join('\n');
+  }
+
+  private async formatTaskAcceptancePrompt(
+    task: TeamTaskRecord,
+    submitter: TeamAgentRecord,
+    summary: string,
+  ): Promise<string> {
+    const artifacts = (await this.store.listArtifacts(task.teamId))
+      .filter((artifact) => artifact.taskId === task.id);
+    const artifactLines = artifacts.map((artifact) => {
+      const detail = artifact.uri || truncate(artifact.summary ?? '', MAX_ARTIFACT_SUMMARY_CHARS);
+      return `- ${artifact.title} (${artifact.kind})${detail ? ` — ${detail}` : ''}`;
+    });
+    return [
+      `${submitter.name} reports task complete and needs your acceptance: ${task.title}`,
+      '',
+      `Reported result: ${truncate(summary, MAX_TASK_RESULT_CHARS)}`,
+      ...(artifactLines.length > 0 ? ['', 'Artifacts from this task:', ...artifactLines] : []),
+      '',
+      `Task ID: ${task.id}`,
+      `Task description: ${truncate(task.description, 600)}`,
+      '',
+      'Verify the deliverable lightly before accepting: check that the promised files, changes, or findings exist and match the task description and scope. Do not run heavy builds or full test suites yourself.',
+      '',
+      'If the work is acceptable, run:',
+      `pulse-canvas team complete-task --task "${task.id}" --summary "<accepted summary>"`,
+      'Accepting unblocks downstream tasks that depend on this one.',
+      '',
+      'If it needs changes, send it back for revision (this returns the task to the teammate):',
+      `pulse-canvas team send --to "${quoteCliValue(submitter.name)}" --task "${task.id}" --message "Revise: <what to fix>"`,
+      '',
+      'If it is fundamentally off-track, create a corrective follow-up task instead:',
+      'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
+    ].join('\n');
+  }
+
+  private async formatPendingTaskReviewDigest(teamId: TeamId): Promise<string> {
+    const [tasks, agents] = await Promise.all([
+      this.store.listTasks(teamId),
+      this.store.listAgents(teamId),
+    ]);
+    const pending = tasks.filter((task) => task.status === 'needs_review');
+    if (pending.length === 0) return '';
+
+    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+    const lines = pending.flatMap((task, index) => {
+      const owner = task.ownerAgentId ? agentsById.get(task.ownerAgentId) : undefined;
+      const proposed = task.metadata?.[TASK_PROPOSED_RESULT_METADATA_KEY];
+      const detail = typeof proposed === 'string' && proposed
+        ? `Reported result: ${truncate(proposed, 300)}`
+        : `Reason: ${truncate(task.blockedReason ?? 'Needs review.', 300)}`;
+      return [
+        `${index + 1}. ${task.title}${owner ? ` — ${owner.name}` : ''}`,
+        `   ${detail}`,
+        `   Accept: pulse-canvas team complete-task --task "${quoteCliValue(task.id)}" --summary "<accepted summary>"`,
+        ...(owner
+          ? [`   Send back: pulse-canvas team send --to "${quoteCliValue(owner.name)}" --task "${quoteCliValue(task.id)}" --message "Revise: <what to fix>"`]
+          : []),
+      ];
+    });
+
+    return [
+      `Tasks waiting for Team Lead review (${pending.length}):`,
+      ...lines,
     ].join('\n');
   }
 

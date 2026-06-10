@@ -448,8 +448,8 @@ async function handleAgentTeamCompleteTask(
   if (!summary) return reply(res, 400, { ok: false, error: 'summary is required' });
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().completeAgentTask({ ...base, summary });
-    return reply(res, 200, { ok: true, snapshot });
+    const { snapshot, task } = await getCanvasAgentTeamsService().completeAgentTask({ ...base, summary });
+    return reply(res, 200, { ok: true, snapshot, task });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
   }

@@ -839,16 +839,24 @@ export class CanvasAgentTeamsService {
     return this.snapshot(workspaceId, teamId);
   }
 
-  async completeAgentTask(input: CanvasAgentTeamCompleteTaskInput): Promise<CanvasAgentTeamSnapshot> {
+  async completeAgentTask(input: CanvasAgentTeamCompleteTaskInput): Promise<{
+    snapshot: CanvasAgentTeamSnapshot;
+    task: TeamTaskRecord;
+  }> {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
       ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
     const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
-    await runtime.completeTask(task.id, input.summary, agent?.id ?? 'human');
+    // Teammate completions go through Team Lead acceptance (needs_review)
+    // before counting as done; lead/human completions complete directly.
+    const updated = await runtime.submitTaskCompletion(task.id, input.summary, agent?.id ?? 'human');
     await runtime.dispatchReadyTasks(input.teamId);
-    return this.snapshot(input.workspaceId, input.teamId);
+    return {
+      snapshot: await this.snapshot(input.workspaceId, input.teamId),
+      task: updated,
+    };
   }
 
   async blockAgentTask(input: CanvasAgentTeamBlockTaskInput): Promise<CanvasAgentTeamSnapshot> {
@@ -1132,6 +1140,7 @@ export class CanvasAgentTeamsService {
     await this.repairLegacyOutputMarkerBlocks(store, teamId);
     await this.repairAnsweredHumanGateBlocks(store, teamId);
     await runtime.notifyLeadPendingGates(teamId);
+    await runtime.notifyLeadPendingTaskReviews(teamId);
     await runtime.notifyLeadReviewIfStalled(teamId);
     const metadata = await store.getTeamMetadata(teamId);
     const runtimeSnapshot = await runtime.snapshot(teamId);
@@ -1155,6 +1164,7 @@ export class CanvasAgentTeamsService {
         await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
         await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
         await runtime.notifyLeadPendingGates(entry.teamId);
+        await runtime.notifyLeadPendingTaskReviews(entry.teamId);
         await runtime.notifyLeadReviewIfStalled(entry.teamId);
         const runtimeSnapshot = await runtime.snapshot(entry.teamId);
         snapshots.push({

@@ -258,7 +258,14 @@ export function registerTeamCommands(program: Command): void {
       if (status === 401) errorOutput(runtimeAuthHint());
       if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
 
-      output(body, format, () => `Task completed for ${teamId}.`);
+      output(body, format, (data) => {
+        const response = data as { task?: { status?: string; title?: string } };
+        if (response.task?.status === 'needs_review') {
+          const title = response.task.title ? `"${response.task.title}"` : 'task';
+          return `Completion submitted for Team Lead review: ${title}. The task stays open until the Team Lead accepts it; you may receive revision feedback.`;
+        }
+        return `Task completed for ${teamId}.`;
+      });
     });
 
   team.command('block-task')
