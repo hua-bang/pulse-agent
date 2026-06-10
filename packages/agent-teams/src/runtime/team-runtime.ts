@@ -616,6 +616,23 @@ export class TeamRuntime {
     for (const task of readyTasks) {
       const scope = readTaskScope(task.metadata);
       if (scope.length > 0 && heldScopes.some((held) => scopesOverlap(scope, held))) {
+        // Surface WHY an idle owner is not picking this task up: it stays
+        // todo, but the task detail shows which unfinished work holds the
+        // overlapping scope. Assignment clears the note.
+        const holders = tasks
+          .filter((candidate) =>
+            candidate.id !== task.id
+            && candidate.status !== 'todo' && candidate.status !== 'done' && candidate.status !== 'failed'
+            && scopesOverlap(scope, readTaskScope(candidate.metadata)))
+          .map((candidate) => candidate.title);
+        const reason = holders.length > 0
+          ? `Waiting for overlapping file scope held by: ${holders.join(', ')}`
+          : 'Waiting for an overlapping file scope to be released.';
+        if (task.blockedReason !== reason) {
+          task.blockedReason = reason;
+          task.updatedAt = this.now();
+          await this.store.saveTask(task);
+        }
         continue;
       }
       // The lead coordinates and verifies; dispatched work always goes to a
@@ -633,6 +650,7 @@ export class TeamRuntime {
       availableAgents.splice(availableAgents.indexOf(owner), 1);
       task.status = 'in_progress';
       task.ownerAgentId = owner.id;
+      task.blockedReason = undefined;
       task.updatedAt = this.now();
       owner.status = 'running';
       owner.currentTaskId = task.id;

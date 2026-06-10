@@ -1422,7 +1422,10 @@ describe('TeamRuntime', () => {
       const first = await runtime.dispatchReadyTasks(team.id);
       expect(first.assigned.map((task) => task.id)).toEqual([apiTask.id, uiTask.id]);
       let snapshot = await runtime.snapshot(team.id);
-      expect(snapshot.tasks.find((task) => task.id === docsTask.id)?.status).toBe('todo');
+      const deferred = snapshot.tasks.find((task) => task.id === docsTask.id)!;
+      expect(deferred.status).toBe('todo');
+      // The wait is explained so an idle owner + todo task is not a mystery.
+      expect(deferred.blockedReason).toBe('Waiting for overlapping file scope held by: Edit API');
       expect(snapshot.agents.find((agent) => agent.id === docsDev.id)?.status).toBe('idle');
 
       // The teammate's task prompt states the scope constraint.
@@ -1442,10 +1445,16 @@ describe('TeamRuntime', () => {
       expect(acceptancePrompt).toContain('Declared file scope for this task:');
       expect(acceptancePrompt).toContain('send the task back for revision');
 
-      // Acceptance releases the scope and the overlapping task dispatches.
+      // Acceptance releases the scope and the overlapping task dispatches,
+      // clearing the informational wait reason.
       await runtime.completeTask(apiTask.id, 'Accepted.', lead.id);
       const released = await runtime.dispatchReadyTasks(team.id);
       expect(released.assigned.map((task) => task.id)).toEqual([docsTask.id]);
+      snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === docsTask.id)).toMatchObject({
+        status: 'in_progress',
+      });
+      expect(snapshot.tasks.find((task) => task.id === docsTask.id)?.blockedReason).toBeUndefined();
     });
   });
 
