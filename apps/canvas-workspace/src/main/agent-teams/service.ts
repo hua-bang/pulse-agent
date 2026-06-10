@@ -273,7 +273,7 @@ const planDraftFromUnknown = (value: unknown, sourceAgentId: string, now: number
   };
 };
 
-const planTaskKey = (title: string): string => title.trim().toLowerCase();
+const planTaskKey = (title: string): string => title.trim().toLowerCase().replace(/\s+/g, ' ');
 
 const resolvePlanTaskGraph = (tasks: CanvasAgentTeamPlanTask[]): ResolvedPlanTask[] => {
   const taskByTitle = new Map<string, { task: CanvasAgentTeamPlanTask; id: string }>();
@@ -442,6 +442,7 @@ const formatLeadExecutionPrompt = (teamName: string, goal: string, content: stri
 export class CanvasAgentTeamsService {
   private readonly runtimes = new Map<string, RuntimeBundle>();
   private readonly outputBuffers = new Map<string, string>();
+  private readonly eventBroadcastTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   // Agents that looked dead on the previous heartbeat tick. A session is only
   // declared dead after two consecutive suspicious ticks, so a node mid-spawn
@@ -1041,6 +1042,12 @@ export class CanvasAgentTeamsService {
         latestAgent.updatedAt = Date.now();
         await store.saveAgent(latestAgent);
       }
+      // Messaging the lead of a completed team reopens it for follow-up work:
+      // the heartbeat and lead nudges skip completed teams, so without this
+      // the reopened conversation would run with no runtime support.
+      if (snapshot.team.status === 'completed') {
+        await runtime.setTeamStatus(teamId, 'running', 'human');
+      }
     }
 
     // Forward the explicit task so the runtime resolver scopes to it too: an
@@ -1358,9 +1365,34 @@ export class CanvasAgentTeamsService {
       agentSessions: adapter,
       taskHandoffPath: (task) => store.handoffPath(task.teamId, task.id),
     });
+    // Push team activity to open windows so the UI refreshes immediately
+    // instead of waiting for its next poll. Debounced per team because runs
+    // emit events in bursts.
+    runtime.onEvent((event) => {
+      this.scheduleTeamEventBroadcast(workspaceId, event.teamId);
+    });
     const bundle = { store, runtime };
     this.runtimes.set(workspaceId, bundle);
     return bundle;
+  }
+
+  private scheduleTeamEventBroadcast(workspaceId: string, teamId: string): void {
+    const key = `${workspaceId}:${teamId}`;
+    if (this.eventBroadcastTimers.has(key)) return;
+    const timer = setTimeout(() => {
+      this.eventBroadcastTimers.delete(key);
+      void (async () => {
+        try {
+          const { store } = this.getBundle(workspaceId);
+          const metadata = await store.getTeamMetadata(teamId);
+          if (metadata) this.broadcastTeamUpdate(workspaceId, metadata);
+        } catch {
+          // Team may have been deleted between the event and the flush.
+        }
+      })();
+    }, 250);
+    timer.unref?.();
+    this.eventBroadcastTimers.set(key, timer);
   }
 
   private async requireMetadata(store: CanvasAgentTeamStore, teamId: string): Promise<CanvasAgentTeamMetadata> {

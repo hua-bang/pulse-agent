@@ -242,7 +242,9 @@ describe('CanvasAgentTeamsService', () => {
       ['Reviewer', targetCwd],
     ].sort());
     expect(mockState.createdAgents.map((input) => input.cwd)).toEqual([targetCwd, targetCwd]);
-    expect(mockState.queuedInputs.at(-1)?.input).toContain(`Working directory: ${targetCwd}`);
+    // Dispatched teammate task prompts carry the adopted working directory
+    // (the plan-approved lead notification is queued after them).
+    expect(mockState.queuedInputs.some((entry) => entry.input.includes(`Working directory: ${targetCwd}`))).toBe(true);
   });
 
   it('accepts a structured plan from the CLI propose-plan path', async () => {
@@ -974,7 +976,7 @@ describe('CanvasAgentTeamsService', () => {
     expect(reviewed?.runtime.tasks[0].result).toBeUndefined();
   });
 
-  it('finalizes a reviewed team only after the lead completes the team', async () => {
+  it('finalizes a checkpointed team only after the lead completes the team', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);
     const teamId = created.runtime.team.id;
@@ -994,7 +996,13 @@ describe('CanvasAgentTeamsService', () => {
       taskId: review.id,
       summary: 'Review passed.',
     })).snapshot;
-    expect(reviewed.runtime.team.status).toBe('reviewing');
+    // All round-1 tasks settled → the team pauses at the round checkpoint
+    // for the human to continue with more work or finish.
+    expect(reviewed.runtime.team.status).toBe('round_checkpoint');
+
+    // Finishing from the checkpoint hands the team to the lead for review.
+    const finalized = await service.finalizeFromCheckpoint('ws-1', teamId);
+    expect(finalized.runtime.team.status).toBe('reviewing');
     expect(mockState.queuedInputs.at(-1)?.nodeId).toBe(lead.sessionRef!.sessionId);
     expect(mockState.queuedInputs.at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
 

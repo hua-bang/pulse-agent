@@ -114,12 +114,33 @@ const queueLaunchPrompt = async (
 ): Promise<void> => {
   const data = node.data ?? {};
   const cwd = typeof data.cwd === 'string' ? data.cwd : '';
-  let inlinePrompt = prompt;
+  const existingInline = typeof data.inlinePrompt === 'string' ? data.inlinePrompt : '';
+  const existingFile = typeof data.promptFile === 'string' ? data.promptFile : '';
+
+  // Read whatever is already queued so consecutive sends ACCUMULATE: a queued
+  // task prompt must survive a lead notification that arrives before the
+  // agent launches (overwriting used to silently drop the earlier message).
+  let queued = existingInline;
+  if (existingFile && cwd) {
+    try {
+      queued = await fs.readFile(join(cwd, existingFile), 'utf-8');
+    } catch {
+      queued = existingInline;
+    }
+  }
+  // Re-sent nudges are often byte-identical — don't stack copies.
+  const combined = !queued.trim()
+    ? prompt
+    : queued.includes(prompt)
+      ? queued
+      : `${queued}\n\n${prompt}`;
+
+  let inlinePrompt = combined;
   let promptFile = '';
-  if (prompt.length > INLINE_PROMPT_THRESHOLD && cwd) {
-    promptFile = `.canvas-agent-team-${Date.now()}.md`;
+  if (combined.length > INLINE_PROMPT_THRESHOLD && cwd) {
+    promptFile = existingFile || `.canvas-agent-team-${Date.now()}.md`;
     await fs.mkdir(cwd, { recursive: true });
-    await fs.writeFile(join(cwd, promptFile), prompt, 'utf-8');
+    await fs.writeFile(join(cwd, promptFile), combined, 'utf-8');
     inlinePrompt = '';
   }
 
@@ -130,7 +151,7 @@ const queueLaunchPrompt = async (
     cliSessionId: withClaudeCliSessionId(data.agentType, data.cliSessionId),
     inlinePrompt,
     promptFile,
-    lastInitPrompt: prompt,
+    lastInitPrompt: combined,
   };
   node.updatedAt = Date.now();
 };
