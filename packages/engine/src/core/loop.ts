@@ -876,7 +876,15 @@ function findJsonEnd(text: string): number {
 
 function isRetryableError(error: any): boolean {
   const status = error?.status ?? error?.statusCode;
-  return status === 429 || status === 500 || status === 502 || status === 503;
+  if (status === 429 || status === 500 || status === 502 || status === 503) {
+    return true;
+  }
+  // "No output generated" means the upstream opened a stream but produced no
+  // tokens before failing — this is a transient condition worth retrying.
+  if (typeof error?.message === 'string' && error.message.toLowerCase().includes('no output generated')) {
+    return true;
+  }
+  return false;
 }
 
 function sleep(ms: number, abortSignal?: AbortSignal): Promise<void> {

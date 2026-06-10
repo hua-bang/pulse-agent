@@ -233,27 +233,64 @@ describe('loop', () => {
     );
   });
 
+  it('retries no-output-generated errors before giving up', async () => {
+    vi.useFakeTimers();
+    try {
+      const context: Context = {
+        messages: [{ role: 'user', content: 'test' }],
+      };
+      const noOutputError = Object.assign(new Error('No output generated.'), {
+        responseBody: '{"error":{"message":"Upstream request failed","type":"upstream_error"}}',
+      });
+      // Fail twice, then succeed on the third attempt
+      streamTextAIMock
+        .mockImplementationOnce(() => { throw noOutputError; })
+        .mockImplementationOnce(() => { throw noOutputError; })
+        .mockReturnValue({
+          text: Promise.resolve('all good'),
+          steps: Promise.resolve([{ response: { messages: [] } }]),
+          finishReason: Promise.resolve('stop'),
+        });
+
+      const resultPromise = loop(context);
+      await vi.runAllTimersAsync();
+      const result = await resultPromise;
+
+      expect(result).toBe('all good');
+      expect(streamTextAIMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('extracts error detail from mixed JSON+SSE responseBody on no-output errors', async () => {
-    const context: Context = {
-      messages: [{ role: 'user', content: 'test' }],
-    };
-    const sseResponseBody =
-      '{"error":{"message":"Upstream request failed","type":"upstream_error"}}' +
-      'event: response.failed\n' +
-      'data: {"type":"response.failed","response":{"id":"resp_abc","object":"response","model":"gpt-5.4","status":"failed","output":[],"error":{"code":"upstream_error","message":"Upstream request failed"}}}\n';
+    vi.useFakeTimers();
+    try {
+      const context: Context = {
+        messages: [{ role: 'user', content: 'test' }],
+      };
+      const sseResponseBody =
+        '{"error":{"message":"Upstream request failed","type":"upstream_error"}}' +
+        'event: response.failed\n' +
+        'data: {"type":"response.failed","response":{"id":"resp_abc","object":"response","model":"gpt-5.4","status":"failed","output":[],"error":{"code":"upstream_error","message":"Upstream request failed"}}}\n';
 
-    const upstreamError = Object.assign(new Error('No output generated.'), {
-      responseBody: sseResponseBody,
-    });
+      const upstreamError = Object.assign(new Error('No output generated.'), {
+        responseBody: sseResponseBody,
+      });
 
-    streamTextAIMock.mockImplementation(() => {
-      throw upstreamError;
-    });
+      streamTextAIMock.mockImplementation(() => {
+        throw upstreamError;
+      });
 
-    const result = await loop(context);
+      const resultPromise = loop(context);
+      await vi.runAllTimersAsync();
+      const result = await resultPromise;
 
-    expect(result).toContain('上游模型没有产出任何输出');
-    expect(result).toContain('Upstream request failed');
+      expect(result).toContain('上游模型没有产出任何输出');
+      expect(result).toContain('Upstream request failed');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('times out LLM calls that never produce a first chunk', async () => {
