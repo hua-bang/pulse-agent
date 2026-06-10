@@ -121,6 +121,7 @@ describe('session_search', () => {
     expect(research.isCurrent).toBe(true);
     expect(research.matchCount).toBe(2);
     expect(research.snippets[0].snippet).toContain('RAG');
+    expect(typeof research.snippets[0].messageIndex).toBe('number');
 
     const global = out.sessions.find((s: { sessionId: string }) => s.sessionId === 's-global-1');
     expect(global.workspaceName).toBe('Global Chat');

@@ -78,6 +78,8 @@ interface ChatMessageProps {
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   /** Re-run the user turn that produced this assistant message. */
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  /** Jump to a session/message from a session_search result chip. */
+  onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
 
 const LoadingDots = () => (
@@ -104,6 +106,7 @@ export const ChatMessage = ({
   anchorId,
   onEditUserMessage,
   onRegenerate,
+  onSessionJump,
 }: ChatMessageProps) => {
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
@@ -217,6 +220,7 @@ export const ChatMessage = ({
             showSectionHeader={!loading}
             onToggleSection={onToggleSection}
             onToggleToolExpand={onToggleToolExpand}
+            onSessionJump={onSessionJump}
           />
           <div className="chat-generated-images">
             {tools.map(tool => {

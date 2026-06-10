@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import type { ToolCallStatus } from './types';
 
 interface ChatToolCallsProps {
@@ -7,6 +8,7 @@ interface ChatToolCallsProps {
   showSectionHeader: boolean;
   onToggleSection: () => void;
   onToggleToolExpand: (toolId: number) => void;
+  onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
 
 function truncate(value: string, max: number): string {
@@ -73,6 +75,10 @@ function formatToolLabel(name: string, status: ToolCallStatus['status']): string
       return `${prefix}查看目录`;
     case 'bash':
       return `${prefix}运行命令`;
+    case 'session_search':
+      return `${prefix}检索会话`;
+    case 'session_summary':
+      return `${prefix}获取会话摘要`;
     default:
       return status === 'running' ? '正在执行' : '已执行';
   }
@@ -88,6 +94,72 @@ function formatArgs(args: unknown): string {
   }
 }
 
+// ─── Session references from session_search / session_summary ──────
+
+interface SessionRef {
+  sessionId: string;
+  workspaceId: string;
+  workspaceName: string;
+  date: string;
+  messageCount: number;
+  preview?: string;
+  /** First matched message index — used for scroll-to on jump. */
+  firstMatchIndex?: number;
+}
+
+const SESSION_TOOL_NAMES = new Set(['session_search', 'session_summary']);
+
+function parseSessionRefs(tool: ToolCallStatus): SessionRef[] | null {
+  if (!SESSION_TOOL_NAMES.has(tool.name) || !tool.result) return null;
+  try {
+    const parsed = JSON.parse(tool.result) as { ok?: boolean; sessions?: Array<Record<string, unknown>> };
+    if (!parsed?.ok || !Array.isArray(parsed.sessions) || parsed.sessions.length === 0) return null;
+    return parsed.sessions.map((s) => {
+      // For session_search, snippets[0].messageIndex gives the first hit.
+      const snippets = Array.isArray(s.snippets) ? s.snippets as Array<{ messageIndex?: number }> : [];
+      const firstMatchIndex = snippets[0]?.messageIndex;
+      return {
+        sessionId: String(s.sessionId ?? ''),
+        workspaceId: String(s.workspaceId ?? ''),
+        workspaceName: String(s.workspaceName ?? ''),
+        date: String(s.date ?? ''),
+        messageCount: typeof s.messageCount === 'number' ? s.messageCount : 0,
+        preview: typeof s.preview === 'string' ? s.preview : undefined,
+        firstMatchIndex: typeof firstMatchIndex === 'number' ? firstMatchIndex : undefined,
+      };
+    }).filter((r) => r.sessionId && r.workspaceId);
+  } catch {
+    return null;
+  }
+}
+
+const SessionRefChips = ({ refs }: { refs: SessionRef[] }) => (
+  <div className="chat-session-refs">
+    {refs.map((ref) => (
+      <button
+        key={`${ref.workspaceId}:${ref.sessionId}`}
+        type="button"
+        className="chat-session-ref-chip"
+        data-action="session-jump"
+        data-session-id={ref.sessionId}
+        data-workspace-id={ref.workspaceId}
+        data-message-index={ref.firstMatchIndex}
+        title={ref.preview || ref.sessionId}
+      >
+        <span className="chat-session-ref-icon">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M4 2.5h5M4 6h5M4 9.5h5M2 2.5h.01M2 6h.01M2 9.5h.01" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </span>
+        <span className="chat-session-ref-name">{ref.workspaceName}</span>
+        <span className="chat-session-ref-date">{ref.date}</span>
+        <span className="chat-session-ref-count">{ref.messageCount} msgs</span>
+        {ref.preview && <span className="chat-session-ref-preview">{ref.preview.length > 40 ? `${ref.preview.slice(0, 38)}…` : ref.preview}</span>}
+      </button>
+    ))}
+  </div>
+);
+
 export const ChatToolCalls = ({
   tools,
   collapsed,
@@ -95,7 +167,17 @@ export const ChatToolCalls = ({
   showSectionHeader,
   onToggleSection,
   onToggleToolExpand,
+  onSessionJump,
 }: ChatToolCallsProps) => {
+  const sessionRefsByToolId = useMemo(() => {
+    const map = new Map<number, SessionRef[]>();
+    for (const tool of tools) {
+      if (tool.status !== 'done') continue;
+      const refs = parseSessionRefs(tool);
+      if (refs) map.set(tool.id, refs);
+    }
+    return map;
+  }, [tools]);
   if (collapsed) {
     return (
       <div className="chat-tool-calls chat-tool-calls--collapsed" onClick={onToggleSection}>
@@ -156,6 +238,9 @@ export const ChatToolCalls = ({
               </span>
             )}
           </div>
+          {sessionRefsByToolId.has(tool.id) && (
+            <SessionRefChips refs={sessionRefsByToolId.get(tool.id)!} />
+          )}
           {expandedTools.has(tool.id) && (tool.result || tool.args !== undefined) && (
             <div className="chat-tool-call-result">
               {tool.args !== undefined && (
