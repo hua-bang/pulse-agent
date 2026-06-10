@@ -3,6 +3,7 @@ import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
+import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentContextNodeRef, AgentRequestContext } from '../../types';
@@ -213,7 +214,12 @@ export const ChatPanel = ({
     [regenerateAssistantMessage],
   );
 
-  const handleSessionJump = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
+  // Where chip-jumps came from, newest last. Cleared on manual session
+  // switches (menu pick / new chat) — back-navigation only makes sense for
+  // the jump trail itself.
+  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
+
+  const jumpToSession = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
     await handleLoadSession(sessionId, jumpWorkspaceId !== scopeWorkspaceId ? jumpWorkspaceId : undefined);
     if (messageIndex !== undefined && messageIndex >= 0) {
       // Allow the DOM to settle after session load, then scroll to target.
@@ -227,6 +233,46 @@ export const ChatPanel = ({
       }, 120);
     }
   }, [anchorScopeId, handleLoadSession, scopeWorkspaceId]);
+
+  const handleSessionJump = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
+    // Record where the jump started so the user can come back.
+    try {
+      const current = await window.canvasWorkspace.agent.getCurrentSession({ scope: agentScope });
+      if (current.ok && current.sessionId && current.sessionId !== sessionId) {
+        const entry: SessionBackEntry = {
+          sessionId: current.sessionId,
+          workspaceId: scopeWorkspaceId ?? '__global_chat__',
+          label: sessionTitle,
+        };
+        setSessionBackStack(prev => [...prev, entry]);
+      }
+    } catch {
+      // Back entry is best-effort; the jump itself still proceeds.
+    }
+    await jumpToSession(sessionId, jumpWorkspaceId, messageIndex);
+  }, [agentScope, jumpToSession, scopeWorkspaceId, sessionTitle]);
+
+  const handleSessionBack = useCallback(async () => {
+    const entry = sessionBackStack[sessionBackStack.length - 1];
+    if (!entry) return;
+    setSessionBackStack(prev => prev.slice(0, -1));
+    // Panel back entries are always recorded in this panel's own scope, so a
+    // plain same-scope load suffices (jumpToSession resolves it as such).
+    await jumpToSession(entry.sessionId, entry.workspaceId);
+  }, [jumpToSession, sessionBackStack]);
+
+  // Manual session switches reset the jump trail.
+  const handleNewSessionFromMenu = useCallback(async () => {
+    setSessionBackStack([]);
+    await handleNewSession();
+  }, [handleNewSession]);
+
+  const handleLoadSessionFromMenu = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
+    setSessionBackStack([]);
+    await handleLoadSession(sessionId, sourceWorkspaceId);
+  }, [handleLoadSession]);
+
+  const backEntry = sessionBackStack[sessionBackStack.length - 1];
 
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 
@@ -254,14 +300,17 @@ export const ChatPanel = ({
           otherSessions={otherSessions}
           title={sessionTitle}
           onToggleSessionMenu={openSessionMenu}
-          onNewSession={handleNewSession}
+          onNewSession={handleNewSessionFromMenu}
           onOpenModelSettings={() => onOpenAppSettings('models')}
           onOpenPromptSettings={() => onOpenAppSettings('reply-style')}
-          onLoadSession={handleLoadSession}
+          onLoadSession={handleLoadSessionFromMenu}
           onClose={onClose}
           anchors={<ChatAnchors anchors={anchors} onJump={handleJumpAnchor} />}
         />
       }
+      banner={backEntry ? (
+        <SessionBackBar entry={backEntry} disabled={loading} onBack={() => void handleSessionBack()} />
+      ) : undefined}
       messages={messages}
       loading={loading}
       workspaceId={anchorScopeId}

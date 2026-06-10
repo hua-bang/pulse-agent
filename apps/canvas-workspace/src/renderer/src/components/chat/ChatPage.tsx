@@ -3,6 +3,7 @@ import type { CanvasNode } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { UnifiedSession } from './ChatSessionsRail';
 import { ChatPageBody } from './ChatPageBody';
+import type { SessionBackEntry } from './SessionBackBar';
 import type { AgentScope, WorkspaceOption } from './types';
 
 interface ChatPageProps {
@@ -46,11 +47,15 @@ export const ChatPage = ({
   const [railCollapsed, setRailCollapsed] = useState(true);
   const scopeKey = agentScope.kind === 'global' ? 'global' : `workspace:${agentScope.workspaceId}`;
 
+  // Jump trail for session-ref chip navigation. Owned here (not in the body)
+  // so it survives the body remount a cross-workspace jump triggers.
+  const [sessionBackStack, setSessionBackStack] = useState<SessionBackEntry[]>([]);
+
   // Same-workspace session click → just bump pendingSessionId without
   // remounting the body. Cross-workspace click → change workspaceId which
   // triggers the body remount, and the new body mount effect will pick up
   // initialPendingSessionId.
-  const handleSelectSession = useCallback((session: UnifiedSession) => {
+  const navigateToSession = useCallback((session: { sessionId: string; workspaceId: string }) => {
     const nextScope: AgentScope = session.workspaceId === '__global_chat__'
       ? { kind: 'global' }
       : { kind: 'workspace', workspaceId: session.workspaceId };
@@ -63,7 +68,30 @@ export const ChatPage = ({
     setPendingSessionId(session.sessionId);
   }, [scopeKey]);
 
+  // Manual rail pick resets the jump trail; chip jumps (onJumpToSession)
+  // keep it so the back bar can walk home.
+  const handleSelectSession = useCallback((session: UnifiedSession) => {
+    setSessionBackStack([]);
+    navigateToSession(session);
+  }, [navigateToSession]);
+
+  const handlePushBackEntry = useCallback((entry: SessionBackEntry) => {
+    setSessionBackStack((prev) => [...prev, entry]);
+  }, []);
+
+  const handleBackToSession = useCallback(() => {
+    const entry = sessionBackStack[sessionBackStack.length - 1];
+    if (!entry) return;
+    setSessionBackStack((prev) => prev.slice(0, -1));
+    navigateToSession({ sessionId: entry.sessionId, workspaceId: entry.workspaceId });
+  }, [navigateToSession, sessionBackStack]);
+
+  const handleClearBackStack = useCallback(() => {
+    setSessionBackStack([]);
+  }, []);
+
   const handleNewGlobalSession = useCallback(() => {
+    setSessionBackStack([]);
     setAgentScope({ kind: 'global' });
     setPendingSessionId(null);
     setNewSessionRequest((value) => value + 1);
@@ -89,6 +117,11 @@ export const ChatPage = ({
       pendingSessionId={pendingSessionId}
       onSessionConsumed={handleSessionConsumed}
       onSelectSession={handleSelectSession}
+      onJumpToSession={navigateToSession}
+      backEntry={sessionBackStack[sessionBackStack.length - 1] ?? null}
+      onPushBackEntry={handlePushBackEntry}
+      onBackToSession={handleBackToSession}
+      onClearBackStack={handleClearBackStack}
       onNewGlobalSession={handleNewGlobalSession}
       newSessionRequest={newSessionRequest}
       onWorkspaceContextRequest={onWorkspaceContextRequest}

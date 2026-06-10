@@ -7,6 +7,7 @@ import './ChatPanel.css';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
+import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
@@ -27,6 +28,13 @@ export interface ChatPageBodyProps {
   pendingSessionId: string | null;
   onSessionConsumed: () => void;
   onSelectSession: (session: UnifiedSession) => void;
+  /** Like onSelectSession but for chip jumps — does NOT reset the back stack. */
+  onJumpToSession?: (session: { sessionId: string; workspaceId: string }) => void;
+  /** Top of the parent-owned session back stack (newest jump origin). */
+  backEntry?: SessionBackEntry | null;
+  onPushBackEntry?: (entry: SessionBackEntry) => void;
+  onBackToSession?: () => void;
+  onClearBackStack?: () => void;
   onNewGlobalSession: () => void;
   newSessionRequest: number;
   onWorkspaceContextRequest?: (workspaceId: string) => void;
@@ -47,6 +55,11 @@ export const ChatPageBody = ({
   pendingSessionId,
   onSessionConsumed,
   onSelectSession,
+  onJumpToSession,
+  backEntry,
+  onPushBackEntry,
+  onBackToSession,
+  onClearBackStack,
   onNewGlobalSession,
   newSessionRequest,
   onWorkspaceContextRequest,
@@ -178,13 +191,38 @@ export const ChatPageBody = ({
     onExit();
   }, [onExit, onNodeFocus, workspaceId]);
 
+  // Short label for the conversation currently on screen — recorded into the
+  // back stack when a chip jump navigates away from it.
+  const currentSessionLabel = useMemo(() => {
+    const firstUser = messages.find((m) => m.role === 'user')?.content.trim();
+    if (!firstUser) return '';
+    const cleaned = firstUser.replace(/@\[[^\]]+\]/g, '').replace(/\s+/g, ' ').trim();
+    return cleaned.length > 24 ? `${cleaned.slice(0, 23)}…` : cleaned;
+  }, [messages]);
+
   const handleSessionJump = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
-    // ChatPageBody uses onSelectSession for cross-workspace switches which
-    // remount the body with the correct workspace scope. For same-workspace
-    // sessions we can load in-place.
+    // Record where the jump started so the back bar can return here.
+    try {
+      const current = await window.canvasWorkspace.agent.getCurrentSession({ scope: agentScope });
+      if (current.ok && current.sessionId && current.sessionId !== sessionId) {
+        onPushBackEntry?.({
+          sessionId: current.sessionId,
+          workspaceId: workspaceId ?? '__global_chat__',
+          label: currentSessionLabel,
+        });
+      }
+    } catch {
+      // Back entry is best-effort; the jump itself still proceeds.
+    }
+
+    // Cross-workspace switches remount the body with the correct workspace
+    // scope (routed by the parent WITHOUT resetting the back stack). For
+    // same-workspace sessions we can load in-place.
     const isSameScope = jumpWorkspaceId === (workspaceId ?? '__global_chat__');
     if (isSameScope) {
       await handleLoadSession(sessionId);
+    } else if (onJumpToSession) {
+      onJumpToSession({ sessionId, workspaceId: jumpWorkspaceId });
     } else {
       onSelectSession({
         sessionId,
@@ -206,7 +244,7 @@ export const ChatPageBody = ({
         window.setTimeout(() => el.classList.remove('chat-message--anchor-flash'), 1200);
       }, 200);
     }
-  }, [allWorkspaces, anchorScopeId, handleLoadSession, onSelectSession, workspaceId]);
+  }, [agentScope, allWorkspaces, anchorScopeId, currentSessionLabel, handleLoadSession, onJumpToSession, onPushBackEntry, onSelectSession, workspaceId]);
 
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 
@@ -266,12 +304,13 @@ export const ChatPageBody = ({
   }, [sessions, otherSessions, workspaceId, allWorkspaces]);
 
   const handleRailNewSession = useCallback(async () => {
+    onClearBackStack?.();
     if (agentScope.kind !== 'global') {
       onNewGlobalSession();
       return;
     }
     await handleNewSession();
-  }, [agentScope.kind, handleNewSession, onNewGlobalSession]);
+  }, [agentScope.kind, handleNewSession, onClearBackStack, onNewGlobalSession]);
 
   return (
     <>
@@ -332,6 +371,9 @@ export const ChatPageBody = ({
 
         <ChatView
           className="chat-page-body"
+          banner={backEntry && onBackToSession ? (
+            <SessionBackBar entry={backEntry} disabled={loading} onBack={onBackToSession} />
+          ) : undefined}
           messages={messages}
           loading={loading}
           workspaceId={anchorScopeId}

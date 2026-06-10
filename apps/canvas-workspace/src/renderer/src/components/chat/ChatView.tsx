@@ -16,6 +16,8 @@ interface ChatViewProps {
   className?: string;
   header?: ReactNode;
   beforeHeader?: ReactNode;
+  /** Rendered between the header and the messages list (e.g. session back bar). */
+  banner?: ReactNode;
 
   // Streaming + messages
   messages: AgentChatMessage[];
@@ -89,6 +91,7 @@ export const ChatView = ({
   className,
   header,
   beforeHeader,
+  banner,
   messages,
   loading,
   workspaceId,
@@ -146,6 +149,7 @@ export const ChatView = ({
       )}
       {beforeHeader}
       {header}
+      {banner}
       {hasMessages ? (
         <ChatMessages
           messages={messages}

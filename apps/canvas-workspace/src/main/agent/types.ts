@@ -273,7 +273,11 @@ export interface SessionListResponse {
   sessions?: Array<{ sessionId: string; date: string; messageCount: number }>;
 }
 
-/** One hit from the renderer-facing session keyword search (@-mention popup). */
+/**
+ * One hit from the renderer-facing session title search (@-mention popup).
+ * Matches session titles (first user message + workspace name) only —
+ * full-content search is the agent-side `session_search` tool's job.
+ */
 export interface SessionSearchHit {
   sessionId: string;
   workspaceId: string;
@@ -281,10 +285,6 @@ export interface SessionSearchHit {
   date: string;
   isCurrent: boolean;
   messageCount: number;
-  /** Total messages whose content contains the query. */
-  matchCount: number;
-  /** Index of the first matching message (scroll target). */
-  firstMatchIndex: number;
   /** First user message, trimmed — same preview the session rail shows. */
   preview: string;
 }
