@@ -30,9 +30,11 @@ export const ChatMentionPopup = ({
             ? 'skill'
             : item.type === 'folder'
               ? 'folder'
-              : item.type === 'node'
-                ? item.nodeType ?? 'file'
-                : 'file';
+              : item.type === 'session'
+                ? 'session'
+                : item.type === 'node'
+                  ? item.nodeType ?? 'file'
+                  : 'file';
 
         return (
           <div key={`${item.type}-${item.nodeType ?? ''}-${item.workspaceId ?? ''}-${item.label}-${index}`}>
@@ -55,7 +57,7 @@ export const ChatMentionPopup = ({
                 </span>
               )}
               <span className="chat-mention-item-label">{item.label}</span>
-              {item.type === 'skill' && item.description && (
+              {(item.type === 'skill' || item.type === 'session') && item.description && (
                 <span className="chat-mention-item-description">{item.description}</span>
               )}
             </button>

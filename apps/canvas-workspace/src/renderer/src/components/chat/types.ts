@@ -76,7 +76,7 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag' | 'session';
   label: string;
   nodeType?: CanvasNode['type'];
   /** For type === 'node': the canvas node id, used to focus it when clicked. */
@@ -85,8 +85,12 @@ export interface MentionItem {
   workspaceId?: string;
   /** For type === 'tag': workspaces the tag occurs in (global assistant). */
   workspaceIds?: string[];
-  /** For type === 'skill': the skill's description, shown in the popup row. */
+  /** For type === 'skill' | 'session': extra context shown in the popup row. */
   description?: string;
+  /** For type === 'session': the referenced chat session id. */
+  sessionId?: string;
+  /** For type === 'session': index of the first message matching the query. */
+  messageIndex?: number;
 }
 
 export interface PendingClarification {

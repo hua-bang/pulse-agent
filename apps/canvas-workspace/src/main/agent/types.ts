@@ -273,6 +273,22 @@ export interface SessionListResponse {
   sessions?: Array<{ sessionId: string; date: string; messageCount: number }>;
 }
 
+/** One hit from the renderer-facing session keyword search (@-mention popup). */
+export interface SessionSearchHit {
+  sessionId: string;
+  workspaceId: string;
+  workspaceName: string;
+  date: string;
+  isCurrent: boolean;
+  messageCount: number;
+  /** Total messages whose content contains the query. */
+  matchCount: number;
+  /** Index of the first matching message (scroll target). */
+  firstMatchIndex: number;
+  /** First user message, trimmed — same preview the session rail shows. */
+  preview: string;
+}
+
 export interface CrossWorkspaceSessionGroup {
   workspaceId: string;
   workspaceName: string;

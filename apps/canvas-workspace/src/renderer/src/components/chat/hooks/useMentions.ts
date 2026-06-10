@@ -213,6 +213,30 @@ export function useMentions({
       ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery))
       : items;
 
+    // Past chat sessions: keyword search over stored message content. Only
+    // surfaced when the user typed a query — the default (empty) popup stays
+    // nodes/files/canvases only. Searched main-side, so it matches message
+    // text, not just the labels the renderer has.
+    if (normalizedQuery) {
+      try {
+        const result = await window.canvasWorkspace.agent.searchSessions(query, 5);
+        if (result.ok && result.hits) {
+          for (const hit of result.hits) {
+            filtered.push({
+              type: 'session',
+              label: `${hit.workspaceName} · ${hit.date}`,
+              sessionId: hit.sessionId,
+              workspaceId: hit.workspaceId,
+              messageIndex: hit.firstMatchIndex,
+              description: hit.preview,
+            });
+          }
+        }
+      } catch {
+        // Session search is additive — ignore failures.
+      }
+    }
+
     filtered.sort((left, right) => {
       const leftOrder = MENTION_GROUP_ORDER.indexOf(getMentionGroupKey(left));
       const rightOrder = MENTION_GROUP_ORDER.indexOf(getMentionGroupKey(right));

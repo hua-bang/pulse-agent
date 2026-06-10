@@ -322,6 +322,18 @@ export function setupCanvasAgentIpc(): void {
   );
 
   ipcMain.handle(
+    'canvas-agent:search-sessions',
+    async (_event, payload: { query: string; limit?: number }) => {
+      try {
+        const hits = await svc.searchSessions(payload.query ?? '', payload.limit);
+        return { ok: true, hits };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
     'canvas-agent:load-cross-workspace-session',
     async (_event, payload: { targetWorkspaceId: string; sourceWorkspaceId: string; sessionId: string }) => {
       try {
