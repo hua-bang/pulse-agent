@@ -186,6 +186,22 @@ export interface AgentSessionEvent {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Outcome of mechanically running a task's declared verification command.
+ * Produced by the host (the runtime has no process access) and threaded into
+ * submitTaskCompletion so the acceptance review sees executable evidence
+ * instead of the agent's self-report.
+ */
+export interface TaskVerificationResult {
+  command: string;
+  ok: boolean;
+  /** Process exit code; null when the command timed out or failed to spawn. */
+  exitCode: number | null;
+  durationMs: number;
+  outputTail: string;
+  at: number;
+}
+
 export interface CreateAgentSessionInput {
   teamId: TeamId;
   agentId: AgentId;

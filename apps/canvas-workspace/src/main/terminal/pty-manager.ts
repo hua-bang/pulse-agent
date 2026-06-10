@@ -6,6 +6,46 @@ import { existsSync } from "fs";
 
 const sessions = new Map<string, pty.IPty>();
 
+/**
+ * Main-process observers of PTY session lifecycle. Data and exit events are
+ * forwarded only to the renderer webContents that spawned a session, so
+ * anything the main process must see (agent-team output markers, exit
+ * detection) would be lost whenever the window is closed or the node is
+ * unmounted. Observers receive the same stream directly in main.
+ */
+export interface PtySessionInfo {
+  id: string;
+  workspaceId?: string;
+  /** The PULSE_CANVAS_* env entries the session was spawned with. */
+  env: Record<string, string>;
+}
+
+export interface PtyObserver {
+  onSpawn?(info: PtySessionInfo): void;
+  onData?(info: PtySessionInfo, data: string): void;
+  onExit?(info: PtySessionInfo, exitCode: number): void;
+}
+
+const observers = new Set<PtyObserver>();
+const sessionInfos = new Map<string, PtySessionInfo>();
+
+export const registerPtyObserver = (observer: PtyObserver): (() => void) => {
+  observers.add(observer);
+  return () => observers.delete(observer);
+};
+
+const notifyObservers = (
+  notify: (observer: PtyObserver) => void,
+): void => {
+  for (const observer of observers) {
+    try {
+      notify(observer);
+    } catch {
+      // Observers must never break the PTY pipeline.
+    }
+  }
+};
+
 const defaultShell = () => {
   if (platform() === "win32") return "powershell.exe";
   // process.env.SHELL may be unset when launched from macOS GUI / Finder
@@ -70,14 +110,17 @@ export const setupPtyIpc = () => {
         const spawnEnv: Record<string, string> = {
           ...(process.env as Record<string, string>),
         };
+        const canvasEnv: Record<string, string> = {};
         for (const [key, value] of Object.entries(payload.env ?? {})) {
           if (!/^PULSE_CANVAS_[A-Z0-9_]+$/.test(key)) continue;
           if (typeof value === "string" && value.length > 0) {
             spawnEnv[key] = value;
+            canvasEnv[key] = value;
           }
         }
         if (workspaceId) {
           spawnEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
+          canvasEnv.PULSE_CANVAS_WORKSPACE_ID = workspaceId;
         }
         const proc = pty.spawn(shell, [], {
           name: "xterm-256color",
@@ -88,20 +131,26 @@ export const setupPtyIpc = () => {
         });
 
         sessions.set(id, proc);
+        const info: PtySessionInfo = { id, workspaceId, env: canvasEnv };
+        sessionInfos.set(id, info);
+        notifyObservers((observer) => observer.onSpawn?.(info));
 
         proc.onData((data: string) => {
           const win = _event.sender;
           if (!win.isDestroyed()) {
             win.send(`pty:data:${id}`, data);
           }
+          notifyObservers((observer) => observer.onData?.(info, data));
         });
 
         proc.onExit(({ exitCode }) => {
           sessions.delete(id);
+          sessionInfos.delete(id);
           const win = _event.sender;
           if (!win.isDestroyed()) {
             win.send(`pty:exit:${id}`, exitCode);
           }
+          notifyObservers((observer) => observer.onExit?.(info, exitCode));
         });
 
         return { ok: true, pid: proc.pid };

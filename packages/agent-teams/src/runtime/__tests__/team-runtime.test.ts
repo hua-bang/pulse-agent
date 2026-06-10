@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TeamRuntime } from '../team-runtime.js';
+import { TeamRuntime, type TeamRuntimeOptions } from '../team-runtime.js';
 import { InMemoryTeamRuntimeStore } from '../memory-store.js';
 import type {
   AgentSessionAdapter,
@@ -48,7 +48,7 @@ class FakeAgentSessionAdapter implements AgentSessionAdapter {
   }
 }
 
-const createRuntime = () => {
+const createRuntime = (extra: Partial<TeamRuntimeOptions> = {}) => {
   let id = 1;
   let now = 1000;
   const adapter = new FakeAgentSessionAdapter();
@@ -56,6 +56,7 @@ const createRuntime = () => {
     agentSessions: adapter,
     idFactory: () => `id-${id++}`,
     now: () => now++,
+    ...extra,
   });
   return { runtime, adapter };
 };
@@ -1196,6 +1197,464 @@ describe('TeamRuntime', () => {
       await runtime.dispatchReadyTasks(team.id);
 
       await expect(runtime.updateTaskDescription(task.id, { title: 'Nope' })).rejects.toThrow('Cannot edit task');
+    });
+  });
+
+  describe('Task acceptance', () => {
+    const createAcceptanceFixture = async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      const coderWithSession = await runtime.createAgentSession(coder.id);
+      const task = await runtime.createTask({
+        teamId: team.id,
+        title: 'Implement change',
+        description: 'Make the change.',
+        ownerAgentId: coder.id,
+      });
+      const downstream = await runtime.createTask({
+        teamId: team.id,
+        title: 'QA change',
+        description: 'Verify the change.',
+        ownerAgentId: coder.id,
+        deps: [task.id],
+      });
+      await runtime.dispatchReadyTasks(team.id);
+      const leadSessionId = leadWithSession.sessionRef!.sessionId;
+      const coderSessionId = coderWithSession.sessionRef!.sessionId;
+      const leadInputs = () => adapter.inputs.filter((entry) => entry.sessionId === leadSessionId);
+      const coderInputs = () => adapter.inputs.filter((entry) => entry.sessionId === coderSessionId);
+      return { runtime, adapter, team, lead, coder, task, downstream, leadInputs, coderInputs };
+    };
+
+    it('parks a teammate completion in needs_review until the lead accepts it', async () => {
+      const { runtime, team, lead, coder, task, downstream, leadInputs } = await createAcceptanceFixture();
+
+      await runtime.submitTaskCompletion(task.id, 'Implemented the change.', coder.id);
+
+      let snapshot = await runtime.snapshot(team.id);
+      const submitted = snapshot.tasks.find((candidate) => candidate.id === task.id)!;
+      expect(submitted.status).toBe('needs_review');
+      expect(submitted.blockedReason).toContain('acceptance');
+      expect(submitted.metadata?.proposedResult).toBe('Implemented the change.');
+      expect(submitted.result).toBeUndefined();
+      const owner = snapshot.agents.find((candidate) => candidate.id === coder.id)!;
+      expect(owner.status).toBe('idle');
+      expect(owner.currentTaskId).toBeUndefined();
+
+      // Downstream work stays blocked while the completion awaits acceptance.
+      const dispatched = await runtime.dispatchReadyTasks(team.id);
+      expect(dispatched.assigned).toHaveLength(0);
+
+      // The lead receives a verification prompt with accept and send-back paths.
+      const prompt = leadInputs().at(-1)?.input ?? '';
+      expect(prompt).toContain('needs your acceptance: Implement change');
+      expect(prompt).toContain('Reported result: Implemented the change.');
+      expect(prompt).toContain(`pulse-canvas team complete-task --task "${task.id}"`);
+      expect(prompt).toContain(`pulse-canvas team send --to "Coder" --task "${task.id}"`);
+
+      // Lead acceptance completes the task and unblocks the dependent task.
+      await runtime.completeTask(task.id, 'Verified and accepted.', lead.id);
+      snapshot = await runtime.snapshot(team.id);
+      const accepted = snapshot.tasks.find((candidate) => candidate.id === task.id)!;
+      expect(accepted.status).toBe('done');
+      expect(accepted.result).toBe('Verified and accepted.');
+      expect(accepted.blockedReason).toBeUndefined();
+      const after = await runtime.dispatchReadyTasks(team.id);
+      expect(after.assigned.map((candidate) => candidate.id)).toEqual([downstream.id]);
+    });
+
+    it('completes directly when the human or lead reports the completion', async () => {
+      const { runtime, team, lead, task } = await createAcceptanceFixture();
+
+      await runtime.submitTaskCompletion(task.id, 'Done by human.', 'human');
+      let snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((candidate) => candidate.id === task.id)?.status).toBe('done');
+
+      const second = await runtime.createTask({
+        teamId: team.id,
+        title: 'Lead-closed task',
+        description: 'Closed by the lead directly.',
+      });
+      await runtime.submitTaskCompletion(second.id, 'Covered by earlier work.', lead.id);
+      snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((candidate) => candidate.id === second.id)).toMatchObject({
+        status: 'done',
+        result: 'Covered by earlier work.',
+      });
+    });
+
+    it('ignores an identical duplicate completion submission', async () => {
+      const { runtime, coder, task, leadInputs } = await createAcceptanceFixture();
+
+      await runtime.submitTaskCompletion(task.id, 'Implemented the change.', coder.id);
+      const afterFirst = leadInputs().length;
+      await runtime.submitTaskCompletion(task.id, 'Implemented the change.', coder.id);
+      expect(leadInputs()).toHaveLength(afterFirst);
+
+      // A changed summary is a real resubmission and re-notifies the lead.
+      await runtime.submitTaskCompletion(task.id, 'Implemented the change and docs.', coder.id);
+      expect(leadInputs()).toHaveLength(afterFirst + 1);
+    });
+
+    it('returns a needs_review task to the teammate for revision when a message targets it', async () => {
+      const { runtime, team, coder, task, coderInputs } = await createAcceptanceFixture();
+      await runtime.submitTaskCompletion(task.id, 'Implemented the change.', coder.id);
+
+      await runtime.sendToAgent(coder.id, 'Revise: also update the docs.', task.id);
+
+      const snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+        status: 'in_progress',
+        ownerAgentId: coder.id,
+      });
+      expect(snapshot.tasks.find((candidate) => candidate.id === task.id)?.blockedReason).toBeUndefined();
+      expect(snapshot.agents.find((candidate) => candidate.id === coder.id)).toMatchObject({
+        status: 'running',
+        currentTaskId: task.id,
+      });
+      const delivered = coderInputs().at(-1)?.input ?? '';
+      expect(delivered).toContain('Task returned for revision: Implement change');
+      expect(delivered).toContain('Revise: also update the docs.');
+      expect(delivered).toContain(`pulse-canvas team complete-task --task "${task.id}"`);
+
+      // The revised resubmission goes through acceptance again.
+      await runtime.submitTaskCompletion(task.id, 'Implemented with docs.', coder.id);
+      const resubmitted = (await runtime.snapshot(team.id)).tasks.find((candidate) => candidate.id === task.id)!;
+      expect(resubmitted.status).toBe('needs_review');
+      expect(resubmitted.metadata?.proposedResult).toBe('Implemented with docs.');
+    });
+
+    it('re-nudges the lead about pending completion reviews with throttling', async () => {
+      let id = 1;
+      let now = 1000;
+      const store = new InMemoryTeamRuntimeStore();
+      const adapter = new FakeAgentSessionAdapter();
+      const runtime = new TeamRuntime({
+        store,
+        agentSessions: adapter,
+        idFactory: () => `id-${id++}`,
+        now: () => now++,
+      });
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      const task = await runtime.createTask({
+        teamId: team.id,
+        title: 'Implement change',
+        description: 'Make the change.',
+        ownerAgentId: coder.id,
+      });
+      const blocker = await runtime.createTask({
+        teamId: team.id,
+        title: 'Keep team running',
+        description: 'Unfinished so the team stays running.',
+      });
+      void blocker;
+      await runtime.dispatchReadyTasks(team.id);
+      const sessionId = leadWithSession.sessionRef!.sessionId;
+      const leadInputs = () => adapter.inputs.filter((entry) => entry.sessionId === sessionId);
+
+      await runtime.submitTaskCompletion(task.id, 'Implemented the change.', coder.id);
+      const afterSubmit = leadInputs().length;
+
+      // Within the resend window the heartbeat must not re-send the digest.
+      await runtime.notifyLeadPendingTaskReviews(team.id);
+      expect(leadInputs()).toHaveLength(afterSubmit);
+
+      // After the window the unchanged backlog is re-sent as a digest.
+      now += 61_000;
+      await runtime.notifyLeadPendingTaskReviews(team.id);
+      expect(leadInputs()).toHaveLength(afterSubmit + 1);
+      const digest = leadInputs().at(-1)?.input ?? '';
+      expect(digest).toContain('Tasks waiting for Team Lead review (1):');
+      expect(digest).toContain('Implement change — Coder');
+      expect(digest).toContain('Reported result: Implemented the change.');
+
+      // Acceptance clears the backlog; the heartbeat goes quiet.
+      await runtime.completeTask(task.id, 'Accepted.', lead.id);
+      now += 61_000;
+      await runtime.notifyLeadPendingTaskReviews(team.id);
+      expect(leadInputs()).toHaveLength(afterSubmit + 1);
+    });
+  });
+
+  describe('Scope guard', () => {
+    it('defers dispatch of tasks whose file scope overlaps unfinished work', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const apiDev = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'API Dev' });
+      const docsDev = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Docs Dev' });
+      const uiDev = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'UI Dev' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      const apiWithSession = await runtime.createAgentSession(apiDev.id);
+      await runtime.createAgentSession(docsDev.id);
+      await runtime.createAgentSession(uiDev.id);
+      const apiTask = await runtime.createTask({
+        teamId: team.id,
+        title: 'Edit API',
+        description: 'Edit the API module.',
+        ownerAgentId: apiDev.id,
+        metadata: { scope: ['src/api/**'] },
+      });
+      const docsTask = await runtime.createTask({
+        teamId: team.id,
+        title: 'Edit API docs',
+        description: 'Document the API module.',
+        ownerAgentId: docsDev.id,
+        metadata: { scope: ['src/api/readme.md'] },
+      });
+      const uiTask = await runtime.createTask({
+        teamId: team.id,
+        title: 'Edit UI',
+        description: 'Edit the UI.',
+        ownerAgentId: uiDev.id,
+        metadata: { scope: ['src/ui'] },
+      });
+
+      // The docs task overlaps the API task's scope (src/api prefix) and is
+      // deferred even though its owner is idle; the disjoint UI task runs.
+      const first = await runtime.dispatchReadyTasks(team.id);
+      expect(first.assigned.map((task) => task.id)).toEqual([apiTask.id, uiTask.id]);
+      let snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === docsTask.id)?.status).toBe('todo');
+      expect(snapshot.agents.find((agent) => agent.id === docsDev.id)?.status).toBe('idle');
+
+      // The teammate's task prompt states the scope constraint.
+      const apiPrompt = adapter.inputs.find((entry) => entry.sessionId === apiWithSession.sessionRef!.sessionId)?.input ?? '';
+      expect(apiPrompt).toContain('File scope for this task — only create or modify files under:');
+      expect(apiPrompt).toContain('- src/api/**');
+
+      // A completion awaiting acceptance still holds its scope.
+      await runtime.submitTaskCompletion(apiTask.id, 'API edited.', apiDev.id);
+      const whilePending = await runtime.dispatchReadyTasks(team.id);
+      expect(whilePending.assigned).toHaveLength(0);
+
+      // The acceptance prompt asks the lead to check for out-of-scope changes.
+      const acceptancePrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId)
+        .at(-1)?.input ?? '';
+      expect(acceptancePrompt).toContain('Declared file scope for this task:');
+      expect(acceptancePrompt).toContain('send the task back for revision');
+
+      // Acceptance releases the scope and the overlapping task dispatches.
+      await runtime.completeTask(apiTask.id, 'Accepted.', lead.id);
+      const released = await runtime.dispatchReadyTasks(team.id);
+      expect(released.assigned.map((task) => task.id)).toEqual([docsTask.id]);
+    });
+  });
+
+  it('reroutes tasks owned by the lead to a teammate at dispatch', async () => {
+    const { runtime } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    await runtime.createAgentSession(lead.id);
+    await runtime.createAgentSession(coder.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Misassigned task',
+      description: 'Planned onto the lead by mistake.',
+      ownerAgentId: lead.id,
+    });
+
+    const result = await runtime.dispatchReadyTasks(team.id);
+
+    // The lead never executes dispatched work: the task lands on a teammate.
+    expect(result.assigned).toHaveLength(1);
+    expect(result.assigned[0].ownerAgentId).toBe(coder.id);
+    const snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.agents.find((agent) => agent.id === lead.id)?.currentTaskId).toBeUndefined();
+    expect(snapshot.agents.find((agent) => agent.id === coder.id)).toMatchObject({
+      status: 'running',
+      currentTaskId: task.id,
+    });
+  });
+
+  describe('Failed dependency policy', () => {
+    it('blocks dependents of a failed task and releases them when the failure is resolved', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const tester = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Tester' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      await runtime.createAgentSession(tester.id);
+      const build = await runtime.createTask({
+        teamId: team.id,
+        title: 'Build feature',
+        description: 'Build it.',
+        ownerAgentId: coder.id,
+      });
+      const verify = await runtime.createTask({
+        teamId: team.id,
+        title: 'Verify feature',
+        description: 'Test it.',
+        ownerAgentId: tester.id,
+        deps: [build.id],
+      });
+      const docs = await runtime.createTask({
+        teamId: team.id,
+        title: 'Write docs',
+        description: 'Document it.',
+        ownerAgentId: coder.id,
+      });
+      await runtime.dispatchReadyTasks(team.id);
+
+      await runtime.failTask(build.id, 'Build broke.', coder.id);
+
+      // The dependent is parked as blocked instead of sitting in todo forever;
+      // unrelated tasks are untouched.
+      let snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === verify.id)).toMatchObject({
+        status: 'blocked',
+        blockedReason: 'Blocked by failed dependency: Build feature',
+      });
+      expect(snapshot.tasks.find((task) => task.id === docs.id)?.status).toBe('todo');
+
+      // The lead is told which tasks are blocked and how to release them.
+      const leadPrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId)
+        .at(-1)?.input ?? '';
+      expect(leadPrompt).toContain('Task failed: Build feature');
+      expect(leadPrompt).toContain('Dependent tasks now blocked by this failure:');
+      expect(leadPrompt).toContain('- Verify feature');
+      expect(leadPrompt).toContain(`pulse-canvas team complete-task --task "${build.id}"`);
+
+      // Completing the failed task releases its blocked dependents back to
+      // the queue, where they become dispatchable again.
+      await runtime.completeTask(build.id, 'Fixed and built.', lead.id);
+      snapshot = await runtime.snapshot(team.id);
+      const released = snapshot.tasks.find((task) => task.id === verify.id)!;
+      expect(released.status).toBe('todo');
+      expect(released.blockedReason).toBeUndefined();
+      expect(released.metadata?.blockedByFailedDep).toBeUndefined();
+      const dispatched = await runtime.dispatchReadyTasks(team.id);
+      expect(dispatched.assigned.map((task) => task.id)).toContain(verify.id);
+    });
+  });
+
+  describe('Task verification', () => {
+    it('threads verification evidence through prompts and resubmission dedupe', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      const task = await runtime.createTask({
+        teamId: team.id,
+        title: 'Implement change',
+        description: 'Make the change.',
+        ownerAgentId: coder.id,
+        metadata: { verify: 'pnpm --filter x test' },
+      });
+      await runtime.dispatchReadyTasks(team.id);
+      const leadInputs = () => adapter.inputs.filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId);
+
+      // The task prompt instructs the teammate to run the verify command.
+      const taskPrompt = adapter.inputs.at(-1)?.input ?? '';
+      expect(taskPrompt).toContain('Verification command for this task:');
+      expect(taskPrompt).toContain('pnpm --filter x test');
+
+      // A failing verification is stored and shown to the lead as evidence.
+      await runtime.submitTaskCompletion(task.id, 'Implemented.', coder.id, {
+        verification: {
+          command: 'pnpm --filter x test',
+          ok: false,
+          exitCode: 1,
+          durationMs: 3200,
+          outputTail: '2 tests failed',
+          at: Date.now(),
+        },
+      });
+      let snapshot = await runtime.snapshot(team.id);
+      expect((snapshot.tasks[0].metadata?.lastVerify as { ok?: boolean })?.ok).toBe(false);
+      const failPrompt = leadInputs().at(-1)?.input ?? '';
+      expect(failPrompt).toContain('Verification (re-run by Pulse Canvas): FAIL — pnpm --filter x test (exit 1');
+      expect(failPrompt).toContain('2 tests failed');
+      expect(failPrompt).toContain('send it back unless the verify command itself is wrong');
+
+      // Same summary but a now-passing verification is real news, not a dupe.
+      const beforeResubmit = leadInputs().length;
+      await runtime.submitTaskCompletion(task.id, 'Implemented.', coder.id, {
+        verification: {
+          command: 'pnpm --filter x test',
+          ok: true,
+          exitCode: 0,
+          durationMs: 2100,
+          outputTail: 'all passed',
+          at: Date.now(),
+        },
+      });
+      expect(leadInputs()).toHaveLength(beforeResubmit + 1);
+      expect(leadInputs().at(-1)?.input).toContain('Verification (re-run by Pulse Canvas): PASS');
+      snapshot = await runtime.snapshot(team.id);
+      expect((snapshot.tasks[0].metadata?.lastVerify as { ok?: boolean })?.ok).toBe(true);
+    });
+  });
+
+  describe('Task handoffs', () => {
+    it('threads handoff paths through task, acceptance, revision, and dependency prompts', async () => {
+      const { runtime, adapter } = createRuntime({
+        taskHandoffPath: (task) => `/handoffs/${task.id}.md`,
+      });
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      const coderWithSession = await runtime.createAgentSession(coder.id);
+      const upstream = await runtime.createTask({
+        teamId: team.id,
+        title: 'Build API',
+        description: 'Build the API.',
+        ownerAgentId: coder.id,
+      });
+      const downstream = await runtime.createTask({
+        teamId: team.id,
+        title: 'Use API',
+        description: 'Consume the API.',
+        ownerAgentId: coder.id,
+        deps: [upstream.id],
+      });
+      const leadSessionId = leadWithSession.sessionRef!.sessionId;
+      const coderSessionId = coderWithSession.sessionRef!.sessionId;
+
+      // Dispatch: the task prompt tells the teammate to write the handoff.
+      await runtime.dispatchReadyTasks(team.id);
+      const taskPrompt = adapter.inputs.at(-1)?.input ?? '';
+      expect(taskPrompt).toContain(`/handoffs/${upstream.id}.md`);
+      expect(taskPrompt).toContain('write a handoff file');
+
+      // Submission: the lead is pointed at the handoff for verification.
+      await runtime.submitTaskCompletion(upstream.id, 'API built.', coder.id);
+      const acceptancePrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === leadSessionId)
+        .at(-1)?.input ?? '';
+      expect(acceptancePrompt).toContain(`read it to verify: /handoffs/${upstream.id}.md`);
+
+      // Revision: the teammate is told to update the handoff too.
+      await runtime.sendToAgent(coder.id, 'Revise: handle errors.', upstream.id);
+      const revisionPrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === coderSessionId)
+        .at(-1)?.input ?? '';
+      expect(revisionPrompt).toContain(`Update the handoff file as part of the revision: /handoffs/${upstream.id}.md`);
+
+      // Acceptance + downstream dispatch: dependency context points at the
+      // upstream handoff instead of relying only on the truncated summary.
+      await runtime.submitTaskCompletion(upstream.id, 'API built with error handling.', coder.id);
+      await runtime.completeTask(upstream.id, 'Accepted.', lead.id);
+      const result = await runtime.dispatchReadyTasks(team.id);
+      expect(result.assigned.map((task) => task.id)).toEqual([downstream.id]);
+      const downstreamPrompt = adapter.inputs.at(-1)?.input ?? '';
+      expect(downstreamPrompt).toContain(`Handoff: /handoffs/${upstream.id}.md`);
+      expect(downstreamPrompt).toContain('Read each handoff file');
     });
   });
 });

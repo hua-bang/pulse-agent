@@ -12,12 +12,18 @@ export interface CanvasAgentTeamPlanTask {
   description: string;
   ownerName?: string;
   deps: string[];
+  /** File or directory paths this task may create or modify. */
+  scope?: string[];
+  /** Mechanical verification command, or 'manual' for unverifiable tasks. */
+  verify?: string;
 }
 
 export interface CanvasAgentTeamPlanDraft {
   summary: string;
   teammates: CanvasAgentTeamPlanTeammate[];
   tasks: CanvasAgentTeamPlanTask[];
+  /** Team-level command proving the whole deliverable works together. */
+  integrationVerify?: string;
   sourceAgentId?: string;
   createdAt: number;
   updatedAt: number;
@@ -31,6 +37,10 @@ export interface CanvasAgentTeamMetadata {
   phase?: CanvasAgentTeamPhase;
   pendingPlan?: CanvasAgentTeamPlanDraft;
   approvedPlan?: CanvasAgentTeamPlanDraft;
+  /** Team-level integration verification command from the approved plan. */
+  integrationVerify?: string;
+  /** Finish was requested; auto-finalize once the integration round settles. */
+  pendingFinalization?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -66,7 +76,11 @@ export interface CanvasAgentTeamCreateTaskInput {
   ownerName?: string;
   deps?: string[];
   depRefs?: string[];
+  scope?: string[];
+  verify?: string;
   dispatch?: boolean;
+  /** Calling agent (from the CLI session env); task creation is lead-only. */
+  sourceAgentId?: string;
 }
 
 export interface CanvasAgentTeamTaskActionInput {

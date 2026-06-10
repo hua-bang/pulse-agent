@@ -14,6 +14,7 @@ import type {
   RuntimeSnapshot,
   TaskId,
   TaskStatus,
+  TaskVerificationResult,
   TeamAgentRecord,
   TeamArtifactRecord,
   TeamEvent,
@@ -31,6 +32,15 @@ export interface TeamRuntimeOptions {
   agentSessions?: AgentSessionAdapter;
   now?: () => number;
   idFactory?: () => string;
+  /**
+   * Resolve the absolute path of a task's handoff file — the structured
+   * notes a teammate writes before reporting completion. When set, task
+   * prompts instruct agents to write the file, dependency context points
+   * downstream tasks at it, and acceptance prompts tell the Team Lead to
+   * read it. Enforcing that the file exists before accepting a completion
+   * is the host's responsibility (the runtime has no filesystem access).
+   */
+  taskHandoffPath?: (task: TeamTaskRecord) => string | undefined;
 }
 
 type EventHandler = (event: TeamEvent) => void;
@@ -40,8 +50,13 @@ const MAX_ARTIFACT_SUMMARY_CHARS = 600;
 const TEAM_PAUSE_METADATA_KEY = 'teamPause';
 const LEAD_PENDING_DIGEST_RESEND_MS = 30_000;
 const LEAD_REVIEW_RESEND_MS = 60_000;
+const LEAD_TASK_REVIEW_DIGEST_RESEND_MS = 60_000;
+const TASK_ACCEPTANCE_PENDING_REASON = 'Awaiting Team Lead acceptance of the reported completion.';
+const TASK_PROPOSED_RESULT_METADATA_KEY = 'proposedResult';
+const TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY = 'completionSubmittedBy';
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
+  'You are the Team Lead: coordinate, verify, and delegate. Do not create or edit project files yourself — route every change to a teammate. Reading files and quick read-only checks are fine.',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
   'If no immediate action is needed, briefly acknowledge and stop. Pulse Canvas will wake you again for the next required decision.',
 ].join('\n');
@@ -68,6 +83,57 @@ const quoteCliValue = (value: string): string =>
 
 const TASK_ROUND_METADATA_KEY = 'round';
 const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
+const TASK_SCOPE_METADATA_KEY = 'scope';
+const TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY = 'blockedByFailedDep';
+const TASK_VERIFY_COMMAND_METADATA_KEY = 'verify';
+const TASK_LAST_VERIFY_METADATA_KEY = 'lastVerify';
+
+// Read a task's declared verification command. 'manual' means the task is
+// intentionally not mechanically verifiable.
+const readTaskVerifyCommand = (metadata: Record<string, unknown> | undefined): string | undefined => {
+  const value = metadata?.[TASK_VERIFY_COMMAND_METADATA_KEY];
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed && trimmed.toLowerCase() !== 'manual' ? trimmed : undefined;
+};
+
+const readTaskVerification = (metadata: Record<string, unknown> | undefined): TaskVerificationResult | undefined => {
+  const value = metadata?.[TASK_LAST_VERIFY_METADATA_KEY];
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as Partial<TaskVerificationResult>;
+  if (typeof candidate.command !== 'string' || typeof candidate.ok !== 'boolean') return undefined;
+  return candidate as TaskVerificationResult;
+};
+
+// Read a task's declared file scope: the path prefixes it may create or modify.
+const readTaskScope = (metadata: Record<string, unknown> | undefined): string[] => {
+  const value = metadata?.[TASK_SCOPE_METADATA_KEY];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+};
+
+// Reduce a scope entry to its static path prefix: "src/api" stays "src/api",
+// a glob like "src/api/*.ts" (or any entry containing *, ?, [ or {) is cut at
+// the first glob character so it is compared by its literal prefix.
+const normalizeScopeEntry = (entry: string): string => {
+  let value = entry.trim().replace(/\\/g, '/');
+  value = value.replace(/^\.\//, '');
+  const globIndex = value.search(/[*?[{]/);
+  if (globIndex >= 0) value = value.slice(0, globIndex);
+  return value.replace(/\/+$/, '');
+};
+
+const scopeEntriesOverlap = (a: string, b: string): boolean => {
+  // An empty prefix (an entry like "*" or "**") covers the whole tree.
+  if (!a || !b) return true;
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+};
+
+const scopesOverlap = (a: string[], b: string[]): boolean => {
+  const left = a.map(normalizeScopeEntry);
+  const right = b.map(normalizeScopeEntry);
+  return left.some((entryA) => right.some((entryB) => scopeEntriesOverlap(entryA, entryB)));
+};
 
 /** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
 const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
@@ -155,10 +221,12 @@ export class TeamRuntime {
   private readonly agentSessions?: AgentSessionAdapter;
   private readonly now: () => number;
   private readonly idFactory: () => string;
+  private readonly taskHandoffPath?: (task: TeamTaskRecord) => string | undefined;
   private readonly handlers = new Set<EventHandler>();
   private readonly sessionAgents = new Map<string, AgentId>();
   private readonly leadPendingDigestCache = new Map<TeamId, { digest: string; sentAt: number }>();
   private readonly leadReviewNudgeCache = new Map<TeamId, number>();
+  private readonly leadTaskReviewDigestCache = new Map<TeamId, { digest: string; sentAt: number }>();
   private dispatchPaused = new Set<TeamId>();
   private unsubscribeSessionEvents?: () => void;
 
@@ -167,6 +235,7 @@ export class TeamRuntime {
     this.agentSessions = options.agentSessions;
     this.now = options.now ?? (() => Date.now());
     this.idFactory = options.idFactory ?? (() => randomUUID());
+    this.taskHandoffPath = options.taskHandoffPath;
 
     if (this.agentSessions?.onEvent) {
       this.unsubscribeSessionEvents = this.agentSessions.onEvent((event) => {
@@ -534,9 +603,29 @@ export class TeamRuntime {
     );
     const assigned: TeamTaskRecord[] = [];
     const availableAgents = [...idleAgents];
+    // File scopes held by unfinished work (anything past todo that has not
+    // settled — including needs_review, so a completion awaiting acceptance
+    // keeps its scope until accepted or returned). A ready task whose scope
+    // overlaps a held scope is deferred so two agents never edit the same
+    // paths concurrently. Tasks without a declared scope are unconstrained.
+    const heldScopes = tasks
+      .filter((task) => task.status !== 'todo' && task.status !== 'done' && task.status !== 'failed')
+      .map((task) => readTaskScope(task.metadata))
+      .filter((scope) => scope.length > 0);
 
     for (const task of readyTasks) {
-      const owner = task.ownerAgentId
+      const scope = readTaskScope(task.metadata);
+      if (scope.length > 0 && heldScopes.some((held) => scopesOverlap(scope, held))) {
+        continue;
+      }
+      // The lead coordinates and verifies; dispatched work always goes to a
+      // teammate. A task whose owner is the lead (or no longer exists) is
+      // rerouted to any idle teammate instead of being executed by the lead
+      // or sitting in todo forever.
+      const ownerAgent = task.ownerAgentId
+        ? agents.find(agent => agent.id === task.ownerAgentId)
+        : undefined;
+      const owner = ownerAgent && ownerAgent.role === 'teammate'
         ? availableAgents.find(agent => agent.id === task.ownerAgentId)
         : availableAgents.find(agent => agent.role === 'teammate');
       if (!owner) continue;
@@ -572,6 +661,7 @@ export class TeamRuntime {
         await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
       }
 
+      if (scope.length > 0) heldScopes.push(scope);
       assigned.push({ ...task });
     }
 
@@ -582,13 +672,126 @@ export class TeamRuntime {
     return { assigned, idleAgents: availableAgents };
   }
 
+  /**
+   * Report a finished task. Teammate completions do not mark the task done
+   * directly: they park it in `needs_review` and ask the Team Lead to verify
+   * the deliverable and either accept it (via completeTask) or send it back
+   * for revision (via sendToAgent with the task). Lead, human, and runtime
+   * completions keep direct completeTask semantics — an acceptance IS a
+   * completion. Downstream tasks stay blocked until the completion is
+   * accepted, so unverified work cannot cascade into dependents.
+   */
+  async submitTaskCompletion(
+    taskId: TaskId,
+    summary: string,
+    actor: AgentId | 'human' | 'runtime' = 'runtime',
+    options?: { verification?: TaskVerificationResult },
+  ): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    if (task.status === 'done' || task.status === 'failed') return task;
+
+    const submitter = actor === 'human' || actor === 'runtime'
+      ? undefined
+      : await this.store.getAgent(actor);
+    const team = await this.requireTeam(task.teamId);
+    const lead = team.leadAgentId ? await this.store.getAgent(team.leadAgentId) : undefined;
+    const requiresAcceptance = submitter?.role === 'teammate'
+      && !!lead?.sessionRef
+      && !!this.agentSessions;
+    if (!requiresAcceptance || !submitter) {
+      return this.completeTask(taskId, summary, actor);
+    }
+
+    // Agents sometimes re-run the completion command; an identical
+    // resubmission must not re-notify the lead. A changed verification
+    // outcome is real news though (e.g. a previously failing verify now
+    // passes after a fix), so it goes through.
+    if (
+      task.status === 'needs_review'
+      && task.metadata?.[TASK_PROPOSED_RESULT_METADATA_KEY] === summary
+      && options?.verification?.ok === readTaskVerification(task.metadata)?.ok
+    ) {
+      return task;
+    }
+
+    const now = this.now();
+    task.status = 'needs_review';
+    task.blockedReason = TASK_ACCEPTANCE_PENDING_REASON;
+    task.metadata = {
+      ...(task.metadata ?? {}),
+      [TASK_PROPOSED_RESULT_METADATA_KEY]: summary,
+      [TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY]: submitter.id,
+      ...(options?.verification ? { [TASK_LAST_VERIFY_METADATA_KEY]: options.verification } : {}),
+    };
+    task.updatedAt = now;
+    await this.store.saveTask(task);
+    // The submitter considers the work finished, so its open questions on
+    // this task are superseded by the acceptance request.
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
+
+    if (task.ownerAgentId) {
+      const ownerAgent = await this.store.getAgent(task.ownerAgentId);
+      if (ownerAgent?.currentTaskId === task.id) {
+        ownerAgent.currentTaskId = undefined;
+        ownerAgent.status = 'idle';
+        ownerAgent.updatedAt = this.now();
+        await this.store.saveAgent(ownerAgent);
+      }
+    }
+
+    await this.appendMessage({
+      teamId: task.teamId,
+      from: submitter.id,
+      to: 'lead',
+      type: 'status_update',
+      content: summary,
+      taskId: task.id,
+      metadata: { status: 'needs_review', kind: 'completion_submitted' },
+    });
+    await this.emit(task.teamId, 'task_needs_review', submitter.id, {
+      taskId: task.id,
+      reason: TASK_ACCEPTANCE_PENDING_REASON,
+    });
+    await this.notifyLead(task.teamId, await this.formatTaskAcceptancePrompt(task, submitter, summary), task.id);
+    await this.warmPendingTaskReviewDigest(task.teamId);
+    return task;
+  }
+
+  /**
+   * Pre-warm the pending-review digest cache after a review prompt was just
+   * delivered, so the snapshot heartbeat does not immediately re-send a
+   * digest covering the same backlog on the next tick.
+   */
+  private async warmPendingTaskReviewDigest(teamId: TeamId): Promise<void> {
+    this.leadTaskReviewDigestCache.set(teamId, {
+      digest: await this.formatPendingTaskReviewDigest(teamId),
+      sentAt: this.now(),
+    });
+  }
+
   async completeTask(taskId: TaskId, result: string, actor?: AgentId | 'human' | 'runtime'): Promise<TeamTaskRecord> {
     const task = await this.requireTask(taskId);
     task.status = 'done';
     task.result = result;
+    task.blockedReason = undefined;
     task.updatedAt = this.now();
     await this.store.saveTask(task);
     await this.cancelOpenGatesForTask(task.teamId, task.id);
+
+    // Completing a previously failed task resolves the failure: dependents
+    // that failTask parked as blocked return to the queue.
+    const teamTasks = await this.store.listTasks(task.teamId);
+    for (const dependent of teamTasks) {
+      if (dependent.status !== 'blocked') continue;
+      if (dependent.metadata?.[TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY] !== task.id) continue;
+      dependent.status = 'todo';
+      dependent.blockedReason = undefined;
+      const nextMetadata = { ...(dependent.metadata ?? {}) };
+      delete nextMetadata[TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY];
+      dependent.metadata = Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined;
+      dependent.updatedAt = this.now();
+      await this.store.saveTask(dependent);
+    }
 
     if (task.ownerAgentId) {
       const agent = await this.store.getAgent(task.ownerAgentId);
@@ -648,6 +851,7 @@ export class TeamRuntime {
       reason,
     });
     await this.notifyLead(task.teamId, await this.formatTaskReviewPrompt(task, reason), task.id);
+    await this.warmPendingTaskReviewDigest(task.teamId);
     return task;
   }
 
@@ -669,6 +873,31 @@ export class TeamRuntime {
       }
     }
 
+    // A failed dependency would otherwise leave its dependents sitting in
+    // `todo` forever (they can never become ready). Park them as explicitly
+    // blocked so the stall is visible and the lead is forced to decide:
+    // fix-and-complete the failed task (which releases them) or replan.
+    const tasks = await this.store.listTasks(task.teamId);
+    const blockedDependents: TeamTaskRecord[] = [];
+    for (const dependent of tasks) {
+      if (dependent.id === task.id || dependent.status !== 'todo') continue;
+      if (!dependent.deps.includes(task.id)) continue;
+      dependent.status = 'blocked';
+      dependent.blockedReason = `Blocked by failed dependency: ${task.title}`;
+      dependent.metadata = {
+        ...(dependent.metadata ?? {}),
+        [TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY]: task.id,
+      };
+      dependent.updatedAt = this.now();
+      await this.store.saveTask(dependent);
+      await this.emit(task.teamId, 'task_blocked', 'runtime', {
+        taskId: dependent.id,
+        reason: dependent.blockedReason,
+        failedDependencyId: task.id,
+      });
+      blockedDependents.push(dependent);
+    }
+
     await this.emit(task.teamId, 'task_failed', actor ?? task.ownerAgentId ?? 'runtime', {
       taskId: task.id,
       error,
@@ -677,6 +906,16 @@ export class TeamRuntime {
       `Task failed: ${task.title}`,
       '',
       error,
+      ...(blockedDependents.length > 0
+        ? [
+          '',
+          'Dependent tasks now blocked by this failure:',
+          ...blockedDependents.map((dependent) => `- ${dependent.title}`),
+          'If the failed task can be fixed or its goal is already satisfied, complete it — that returns the blocked dependents to the queue:',
+          `pulse-canvas team complete-task --task "${task.id}" --summary "<how the failure was resolved>"`,
+          'Otherwise create a replacement task and close the blocked tasks it covers.',
+        ]
+        : []),
       '',
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
@@ -863,6 +1102,46 @@ export class TeamRuntime {
       return;
     }
 
+    // Directing a message at a teammate's needs_review task sends the task
+    // back for revision: the reported completion was reviewed and changes are
+    // requested, so the task returns to in_progress with the teammate
+    // re-attached and the message framed against the task.
+    let deliverable = content;
+    if (taskId && agent.role === 'teammate') {
+      const task = await this.store.getTask(taskId);
+      if (task && task.teamId === agent.teamId && task.status === 'needs_review') {
+        const now = this.now();
+        task.status = 'in_progress';
+        task.ownerAgentId = agent.id;
+        task.blockedReason = undefined;
+        task.updatedAt = now;
+        await this.store.saveTask(task);
+        if (!agent.currentTaskId) {
+          agent.currentTaskId = task.id;
+          agent.status = 'running';
+          agent.updatedAt = now;
+          await this.store.saveAgent(agent);
+        }
+        await this.emit(agent.teamId, 'task_assigned', 'runtime', {
+          taskId: task.id,
+          agentId: agent.id,
+          revision: true,
+        });
+        const revisionHandoffPath = this.taskHandoffPath?.(task);
+        deliverable = [
+          `Task returned for revision: ${task.title}`,
+          `Task ID: ${task.id}`,
+          '',
+          content,
+          '',
+          'Apply the requested changes to your earlier work on this task.',
+          ...(revisionHandoffPath ? [`Update the handoff file as part of the revision: ${revisionHandoffPath}`] : []),
+          'When finished, run this command from the terminal again. Do not merely print it:',
+          `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
+        ].join('\n');
+      }
+    }
+
     await this.appendMessage({
       teamId: agent.teamId,
       from: 'human',
@@ -877,7 +1156,7 @@ export class TeamRuntime {
     });
 
     if (this.agentSessions && agent.sessionRef) {
-      await this.agentSessions.sendInput(agent.sessionRef.sessionId, content);
+      await this.agentSessions.sendInput(agent.sessionRef.sessionId, deliverable);
     }
   }
 
@@ -973,6 +1252,52 @@ export class TeamRuntime {
     ].join('\n'));
   }
 
+  /**
+   * Re-drive the Team Lead about tasks parked in needs_review — reported
+   * completions waiting for acceptance and session-exit reviews. The
+   * per-submission acceptance prompt is fire-and-forget; if the lead's
+   * session missed it, the task would sit in needs_review forever while
+   * downstream work stays blocked. Pulse Canvas calls this on its snapshot
+   * heartbeat, like the pending-gate digest. Throttled per digest so an
+   * unchanged backlog is not re-sent within the resend window.
+   */
+  async notifyLeadPendingTaskReviews(teamId: TeamId): Promise<void> {
+    const team = await this.requireTeam(teamId);
+    if (team.status !== 'running') {
+      this.leadTaskReviewDigestCache.delete(teamId);
+      return;
+    }
+    // If teammate questions are pending, the gate digest path is already
+    // re-engaging the lead; don't stack a second prompt on the same tick.
+    if (await this.formatLeadPendingGateDigest(teamId)) return;
+
+    const digest = await this.formatPendingTaskReviewDigest(teamId);
+    if (!digest) {
+      this.leadTaskReviewDigestCache.delete(teamId);
+      return;
+    }
+    const cached = this.leadTaskReviewDigestCache.get(teamId);
+    if (cached?.digest === digest && this.now() - cached.sentAt < LEAD_TASK_REVIEW_DIGEST_RESEND_MS) {
+      return;
+    }
+    await this.notifyLead(teamId, [
+      'Pulse Canvas found tasks still waiting for Team Lead review.',
+      '',
+      digest,
+    ].join('\n'));
+    this.leadTaskReviewDigestCache.set(teamId, { digest, sentAt: this.now() });
+  }
+
+  /**
+   * Host-driven lead notification using the standard guard + pending-digest
+   * plumbing. For host integrations (e.g. the canvas heartbeat's soft-stall
+   * nudge) that need to put something in front of the lead without reaching
+   * into runtime internals.
+   */
+  async notifyLeadAttention(teamId: TeamId, content: string, taskId?: TaskId): Promise<void> {
+    await this.notifyLead(teamId, content, taskId);
+  }
+
   async notifyLeadPlanApproved(teamId: TeamId): Promise<void> {
     const snapshot = await this.snapshot(teamId);
     const taskLines = snapshot.tasks.map((task) => {
@@ -985,7 +1310,9 @@ export class TeamRuntime {
       'The user has approved your plan. Tasks are being dispatched to teammates.',
       '',
       'Your role now: monitor progress, answer teammate questions, handle blocked tasks,',
-      'and create follow-up tasks if needed.',
+      'review and accept reported completions, and create follow-up tasks if needed.',
+      'When a teammate reports a task complete, you will be asked to verify the deliverable and accept it before downstream tasks unblock.',
+      'You coordinate and verify — do not implement tasks yourself. Never create or edit project files: edits you make bypass the team\'s review, handoff, and scope tracking, so the team cannot see or verify them. No change is too small to delegate — one-line fixes also go to a teammate via send or create-task. Reading files and running quick read-only checks is fine.',
       '',
       'Tasks:',
       ...taskLines,
@@ -1122,6 +1449,9 @@ export class TeamRuntime {
 
   private async formatTaskPrompt(task: TeamTaskRecord, tasks: TeamTaskRecord[], owner?: TeamAgentRecord): Promise<string> {
     const dependencyContext = await this.formatDependencyContext(task, tasks);
+    const handoffPath = this.taskHandoffPath?.(task);
+    const scopeEntries = readTaskScope(task.metadata);
+    const verifyCommand = readTaskVerifyCommand(task.metadata);
     const downstreamTasks = tasks
       .filter(candidate => candidate.id !== task.id && candidate.deps.includes(task.id))
       .slice(0, 8);
@@ -1134,6 +1464,22 @@ export class TeamRuntime {
           '',
           `Working directory: ${owner.cwd}`,
           'Run terminal commands from this directory unless the task explicitly requires a different path.',
+        ]
+        : []),
+      ...(scopeEntries.length > 0
+        ? [
+          '',
+          'File scope for this task — only create or modify files under:',
+          ...scopeEntries.map((entry) => `- ${entry}`),
+          'If the task truly requires touching files outside this scope, ask the Team Lead first instead of editing them.',
+        ]
+        : []),
+      ...(verifyCommand
+        ? [
+          '',
+          'Verification command for this task:',
+          verifyCommand,
+          'Run it from the working directory before reporting completion — it must pass. Record the result in your handoff. Pulse Canvas re-runs it when you submit and shows the outcome to the Team Lead.',
         ]
         : []),
       '',
@@ -1157,9 +1503,19 @@ export class TeamRuntime {
           '',
         ]
         : []),
+      ...(handoffPath
+        ? [
+          'Before reporting completion, write a handoff file for downstream teammates and the Team Lead at:',
+          handoffPath,
+          'Create the directory if needed. Use markdown sections: Summary (what you did and produced), Files (paths you created or modified), Interfaces (contracts, APIs, commands, or data shapes downstream tasks must use), Caveats (known issues and assumptions).',
+          'complete-task is rejected while this file is missing.',
+          '',
+        ]
+        : []),
       `Task ID: ${task.id}`,
       'When finished, run this command from the terminal. Do not merely print it:',
       `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
+      'The Team Lead reviews your reported completion before the task counts as done, and may send it back with revision feedback.',
       '',
       'If you need human input, prefer:',
       `pulse-canvas team request-human-input --task "${task.id}" --prompt "<question>"`,
@@ -1186,16 +1542,25 @@ export class TeamRuntime {
 
     const artifacts = await this.store.listArtifacts(task.teamId);
     const lines: string[] = [];
+    let hasHandoffs = false;
     for (const dep of dependencyTasks) {
       lines.push(`- ${dep.title} [${dep.status}]`);
       if (dep.result) {
         lines.push(`  Result: ${truncate(dep.result, MAX_TASK_RESULT_CHARS)}`);
+      }
+      const depHandoffPath = this.taskHandoffPath?.(dep);
+      if (depHandoffPath) {
+        hasHandoffs = true;
+        lines.push(`  Handoff: ${depHandoffPath}`);
       }
       const depArtifacts = artifacts.filter(artifact => artifact.taskId === dep.id);
       for (const artifact of depArtifacts) {
         const summary = truncate(artifact.summary || artifact.uri || '', MAX_ARTIFACT_SUMMARY_CHARS);
         lines.push(`  Artifact: ${artifact.title} (${artifact.kind})${summary ? ` - ${summary}` : ''}`);
       }
+    }
+    if (hasHandoffs) {
+      lines.push('Read each handoff file above for the full details behind these summarized results. A handoff may be absent for tasks closed directly by the human or Team Lead.');
     }
 
     return truncate(lines.join('\n'), MAX_DEPENDENCY_CONTEXT_CHARS);
@@ -1288,6 +1653,7 @@ export class TeamRuntime {
         : []),
       `Plan the next round of work. Review what was accomplished and create new tasks for Round ${nextRound}.`,
       'Design the DAG so at least 2-3 tasks can run in parallel — do not chain everything sequentially.',
+      'Every implementation task must be owned by a teammate — do not do the round\'s work yourself.',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
       '',
       'When you have created all tasks for this round, they will be dispatched automatically.',
@@ -1333,6 +1699,8 @@ export class TeamRuntime {
       '',
       'If follow-up is needed, run:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
+      '',
+      'Do not finish or fix the work yourself — send it back to the teammate or create a follow-up task for one.',
     ].join('\n');
   }
 
@@ -1351,12 +1719,105 @@ export class TeamRuntime {
       'Review the task results and artifacts. If the work is complete, run:',
       'pulse-canvas team complete-team --summary "<final summary>"',
       '',
-      'If more work is needed, create follow-up tasks instead:',
+      'If anything is missing or broken, do not patch it yourself — create follow-up tasks instead:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
       '',
       'Tasks:',
       ...taskLines,
       ...(artifactLines.length > 0 ? ['', 'Artifacts:', ...artifactLines] : []),
+    ].join('\n');
+  }
+
+  private async formatTaskAcceptancePrompt(
+    task: TeamTaskRecord,
+    submitter: TeamAgentRecord,
+    summary: string,
+  ): Promise<string> {
+    const artifacts = (await this.store.listArtifacts(task.teamId))
+      .filter((artifact) => artifact.taskId === task.id);
+    const artifactLines = artifacts.map((artifact) => {
+      const detail = artifact.uri || truncate(artifact.summary ?? '', MAX_ARTIFACT_SUMMARY_CHARS);
+      return `- ${artifact.title} (${artifact.kind})${detail ? ` — ${detail}` : ''}`;
+    });
+    const handoffPath = this.taskHandoffPath?.(task);
+    const scopeEntries = readTaskScope(task.metadata);
+    const verification = readTaskVerification(task.metadata);
+    return [
+      `${submitter.name} reports task complete and needs your acceptance: ${task.title}`,
+      '',
+      `Reported result: ${truncate(summary, MAX_TASK_RESULT_CHARS)}`,
+      ...(verification
+        ? [
+          '',
+          `Verification (re-run by Pulse Canvas): ${verification.ok ? 'PASS' : 'FAIL'} — ${verification.command} (exit ${verification.exitCode ?? 'timeout'}, ${(verification.durationMs / 1000).toFixed(1)}s)`,
+          ...(verification.ok
+            ? []
+            : [
+              'Output tail:',
+              verification.outputTail || '(no output)',
+              'A failed verification usually means the task is not done — send it back unless the verify command itself is wrong.',
+            ]),
+        ]
+        : []),
+      ...(handoffPath ? ['', `Handoff file from the teammate — read it to verify: ${handoffPath}`] : []),
+      ...(artifactLines.length > 0 ? ['', 'Artifacts from this task:', ...artifactLines] : []),
+      '',
+      `Task ID: ${task.id}`,
+      `Task description: ${truncate(task.description, 600)}`,
+      '',
+      'Verify the deliverable lightly before accepting: check that the promised files, changes, or findings exist and match the task description and scope. Do not run heavy builds or full test suites yourself.',
+      'Do not fix problems yourself, no matter how small the fix — your edits would bypass review and handoff tracking. If the work falls short, send the task back for revision instead of editing files.',
+      ...(scopeEntries.length > 0
+        ? [
+          '',
+          'Declared file scope for this task:',
+          ...scopeEntries.map((entry) => `- ${entry}`),
+          'Check the changes stay inside this scope (e.g. git status or git diff --stat in the working directory). If files outside it were modified, send the task back for revision.',
+        ]
+        : []),
+      '',
+      'If the work is acceptable, run:',
+      `pulse-canvas team complete-task --task "${task.id}" --summary "<accepted summary>"`,
+      'Accepting unblocks downstream tasks that depend on this one.',
+      '',
+      'If it needs changes, send it back for revision (this returns the task to the teammate):',
+      `pulse-canvas team send --to "${quoteCliValue(submitter.name)}" --task "${task.id}" --message "Revise: <what to fix>"`,
+      '',
+      'If it is fundamentally off-track, create a corrective follow-up task instead:',
+      'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
+    ].join('\n');
+  }
+
+  private async formatPendingTaskReviewDigest(teamId: TeamId): Promise<string> {
+    const [tasks, agents] = await Promise.all([
+      this.store.listTasks(teamId),
+      this.store.listAgents(teamId),
+    ]);
+    const pending = tasks.filter((task) => task.status === 'needs_review');
+    if (pending.length === 0) return '';
+
+    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+    const lines = pending.flatMap((task, index) => {
+      const owner = task.ownerAgentId ? agentsById.get(task.ownerAgentId) : undefined;
+      const proposed = task.metadata?.[TASK_PROPOSED_RESULT_METADATA_KEY];
+      const verification = readTaskVerification(task.metadata);
+      const verifyTag = verification ? ` [verify ${verification.ok ? 'PASS' : 'FAIL'}]` : '';
+      const detail = typeof proposed === 'string' && proposed
+        ? `Reported result: ${truncate(proposed, 300)}`
+        : `Reason: ${truncate(task.blockedReason ?? 'Needs review.', 300)}`;
+      return [
+        `${index + 1}. ${task.title}${owner ? ` — ${owner.name}` : ''}${verifyTag}`,
+        `   ${detail}`,
+        `   Accept: pulse-canvas team complete-task --task "${quoteCliValue(task.id)}" --summary "<accepted summary>"`,
+        ...(owner
+          ? [`   Send back: pulse-canvas team send --to "${quoteCliValue(owner.name)}" --task "${quoteCliValue(task.id)}" --message "Revise: <what to fix>"`]
+          : []),
+      ];
+    });
+
+    return [
+      `Tasks waiting for Team Lead review (${pending.length}):`,
+      ...lines,
     ].join('\n');
   }
 

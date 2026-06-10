@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { promises as fs } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 import { tmpdir } from 'os';
 
 const mockState = vi.hoisted(() => ({
@@ -10,6 +10,8 @@ const mockState = vi.hoisted(() => ({
   cwdUpdates: [] as Array<{ workspaceId: string; teamId: string; cwd: string }>,
   queuedInputs: [] as Array<{ workspaceId: string; nodeId: string; input: string }>,
   interrupts: [] as Array<{ workspaceId: string; nodeId: string; mode: string }>,
+  ptyAlive: true,
+  queuedLaunch: false,
 }));
 
 vi.mock('../canvas/storage', () => ({
@@ -46,6 +48,12 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
     title: nodeId,
     status: 'running',
     ptySessionId: `pty-${nodeId}`,
+  })),
+  getCanvasAgentNodeRuntimeState: vi.fn(async () => ({
+    exists: true,
+    status: 'running',
+    ptyAlive: mockState.ptyAlive,
+    hasQueuedLaunch: mockState.queuedLaunch,
   })),
   sendOrQueueAgentInput: vi.fn(async (workspaceId: string, nodeId: string, input: string) => {
     mockState.queuedInputs.push({ workspaceId, nodeId, input });
@@ -117,6 +125,15 @@ const createExecutingTeam = async (service: CanvasAgentTeamsService): Promise<Ca
   return service.confirmPlan('ws-1', created.runtime.team.id);
 };
 
+const handoffPathFor = (teamId: string, taskId: string): string =>
+  join(mockState.root, 'ws-1', 'agent-teams', 'handoffs', teamId, `${taskId}.md`);
+
+const writeHandoff = async (teamId: string, taskId: string): Promise<void> => {
+  const path = handoffPathFor(teamId, taskId);
+  await fs.mkdir(dirname(path), { recursive: true });
+  await fs.writeFile(path, '# Handoff\n\nDetails for downstream tasks.\n', 'utf-8');
+};
+
 describe('CanvasAgentTeamsService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -126,6 +143,8 @@ describe('CanvasAgentTeamsService', () => {
     mockState.cwdUpdates.length = 0;
     mockState.queuedInputs.length = 0;
     mockState.interrupts.length = 0;
+    mockState.ptyAlive = true;
+    mockState.queuedLaunch = false;
   });
 
   afterEach(async () => {
@@ -223,7 +242,9 @@ describe('CanvasAgentTeamsService', () => {
       ['Reviewer', targetCwd],
     ].sort());
     expect(mockState.createdAgents.map((input) => input.cwd)).toEqual([targetCwd, targetCwd]);
-    expect(mockState.queuedInputs.at(-1)?.input).toContain(`Working directory: ${targetCwd}`);
+    // Dispatched teammate task prompts carry the adopted working directory
+    // (the plan-approved lead notification is queued after them).
+    expect(mockState.queuedInputs.some((entry) => entry.input.includes(`Working directory: ${targetCwd}`))).toBe(true);
   });
 
   it('accepts a structured plan from the CLI propose-plan path', async () => {
@@ -549,12 +570,12 @@ describe('CanvasAgentTeamsService', () => {
     const teamId = created.runtime.team.id;
     const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
     const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
-    const implemented = await service.completeAgentTask({
+    const implemented = (await service.completeAgentTask({
       workspaceId: 'ws-1',
       teamId,
       taskId: implement.id,
       summary: 'Implementation is done.',
-    });
+    })).snapshot;
     const review = implemented.runtime.tasks.find((task) => task.title === 'Review checkout refactor')!;
     await service.completeAgentTask({
       workspaceId: 'ws-1',
@@ -632,26 +653,67 @@ describe('CanvasAgentTeamsService', () => {
     expect(mockState.queuedInputs.at(-1)?.input).toContain('Check release notes');
   });
 
-  it('lets teammate CLI actions complete tasks and dispatch dependent work', async () => {
+  it('routes teammate CLI completions through lead acceptance before dispatching dependents', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);
     const teamId = created.runtime.team.id;
     const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
     const owner = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    await writeHandoff(teamId, implement.id);
 
-    const completed = await service.completeAgentTask({
+    const submitted = await service.completeAgentTask({
       workspaceId: 'ws-1',
       teamId,
       sourceAgentId: owner.id,
       summary: 'Checkout API remains stable.',
     });
-    const review = completed.runtime.tasks.find((task) => task.title === 'Review checkout refactor')!;
-    const reviewer = completed.runtime.agents.find((agent) => agent.id === review.ownerAgentId)!;
 
-    expect(completed.runtime.tasks.find((task) => task.id === implement.id)).toMatchObject({
+    // The teammate's completion parks in needs_review instead of done.
+    expect(submitted.task.status).toBe('needs_review');
+    const submittedTask = submitted.snapshot.runtime.tasks.find((task) => task.id === implement.id)!;
+    expect(submittedTask.status).toBe('needs_review');
+    expect(submittedTask.result).toBeUndefined();
+    expect(submittedTask.metadata?.proposedResult).toBe('Checkout API remains stable.');
+
+    // The handoff is registered as a task artifact exactly once.
+    expect(submitted.snapshot.runtime.artifacts.filter(
+      (artifact) => artifact.taskId === implement.id && artifact.uri === handoffPathFor(teamId, implement.id),
+    )).toHaveLength(1);
+
+    // The dependent review task stays blocked and the lead gets the
+    // acceptance prompt instead of the reviewer getting dispatched.
+    const reviewBefore = submitted.snapshot.runtime.tasks.find((task) => task.title === 'Review checkout refactor')!;
+    expect(reviewBefore.status).toBe('todo');
+    expect(mockState.queuedInputs.at(-1)).toMatchObject({
+      workspaceId: 'ws-1',
+      nodeId: lead.sessionRef!.sessionId,
+    });
+    expect(mockState.queuedInputs.at(-1)?.input).toContain('needs your acceptance: Implement checkout refactor');
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(`read it to verify: ${handoffPathFor(teamId, implement.id)}`);
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(`pulse-canvas team complete-task --task "${implement.id}"`);
+
+    // The heartbeat does not immediately re-spam the lead about the same backlog.
+    const queuedAfterSubmit = mockState.queuedInputs.length;
+    await service.snapshot('ws-1', teamId);
+    await service.snapshot('ws-1', teamId);
+    expect(mockState.queuedInputs).toHaveLength(queuedAfterSubmit);
+
+    // Lead acceptance completes the task and dispatches the dependent work.
+    const accepted = await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: lead.id,
+      taskId: implement.id,
+      summary: 'Checkout API remains stable.',
+    });
+    expect(accepted.task.status).toBe('done');
+    expect(accepted.snapshot.runtime.tasks.find((task) => task.id === implement.id)).toMatchObject({
       status: 'done',
       result: 'Checkout API remains stable.',
     });
+    const review = accepted.snapshot.runtime.tasks.find((task) => task.title === 'Review checkout refactor')!;
+    const reviewer = accepted.snapshot.runtime.agents.find((agent) => agent.id === review.ownerAgentId)!;
     expect(review.status).toBe('in_progress');
     expect(reviewer.status).toBe('running');
     expect(mockState.queuedInputs.at(-1)).toMatchObject({
@@ -660,6 +722,347 @@ describe('CanvasAgentTeamsService', () => {
     });
     expect(mockState.queuedInputs.at(-1)?.input).toContain('Dependency context from completed upstream tasks');
     expect(mockState.queuedInputs.at(-1)?.input).toContain('Checkout API remains stable.');
+    expect(mockState.queuedInputs.at(-1)?.input).toContain(`Handoff: ${handoffPathFor(teamId, implement.id)}`);
+  });
+
+  it('serializes plan tasks with overlapping file scopes at dispatch', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Scoped parallel work.',
+        teammates: [
+          { name: 'API Codex', agentType: 'codex' },
+          { name: 'Docs Codex', agentType: 'codex' },
+          { name: 'UI Codex', agentType: 'codex' },
+        ],
+        tasks: [
+          { title: 'Edit API', description: 'Edit the API module.', ownerName: 'API Codex', scope: ['src/api/**'] },
+          { title: 'Edit API docs', description: 'Document the API module.', ownerName: 'Docs Codex', scope: ['src/api/readme.md'] },
+          { title: 'Edit UI', description: 'Edit the UI.', ownerName: 'UI Codex', scope: ['src/ui'] },
+        ],
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const byTitle = (title: string) => confirmed.runtime.tasks.find((task) => task.title === title)!;
+
+    // Scopes flow from the plan into task metadata; the overlapping docs task
+    // is deferred while the disjoint API and UI tasks run in parallel.
+    expect(byTitle('Edit API').metadata?.scope).toEqual(['src/api/**']);
+    expect(byTitle('Edit API').status).toBe('in_progress');
+    expect(byTitle('Edit API docs').status).toBe('todo');
+    expect(byTitle('Edit UI').status).toBe('in_progress');
+    const apiOwner = confirmed.runtime.agents.find((agent) => agent.id === byTitle('Edit API').ownerAgentId)!;
+    const apiPrompt = mockState.queuedInputs.find((entry) => entry.nodeId === apiOwner.sessionRef!.sessionId)?.input ?? '';
+    expect(apiPrompt).toContain('File scope for this task — only create or modify files under:');
+    expect(apiPrompt).toContain('- src/api/**');
+
+    // Completing the API task releases its scope and the docs task dispatches.
+    await service.completeTask('ws-1', teamId, byTitle('Edit API').id, 'API edited.');
+    const after = await service.snapshot('ws-1', teamId);
+    expect(after.runtime.tasks.find((task) => task.title === 'Edit API docs')?.status).toBe('in_progress');
+  });
+
+  it('routes tasks of dead agent sessions to review via the heartbeat watchdog', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks.find((candidate) => candidate.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+    const taskStatus = async () => {
+      const snapshot = await service.snapshot('ws-1', teamId);
+      return snapshot.runtime.tasks.find((candidate) => candidate.id === task.id);
+    };
+
+    // A queued launch prompt (headless dispatch waiting for the renderer) is
+    // healthy: the watchdog leaves the task alone no matter how many ticks.
+    mockState.ptyAlive = false;
+    mockState.queuedLaunch = true;
+    await service.heartbeatTick();
+    await service.heartbeatTick();
+    expect((await taskStatus())?.status).toBe('in_progress');
+
+    // A dead session with nothing queued is only confirmed on the second
+    // consecutive suspicious tick (debounces nodes mid-spawn).
+    mockState.queuedLaunch = false;
+    await service.heartbeatTick();
+    expect((await taskStatus())?.status).toBe('in_progress');
+    await service.heartbeatTick();
+    expect(await taskStatus()).toMatchObject({
+      status: 'needs_review',
+      blockedReason: 'Agent session exited before reporting task completion.',
+    });
+
+    // The reason matches the auto-resume pattern, so the agent relaunches
+    // with its task when the canvas next mounts the node.
+    const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
+    expect(prepared.canResume).toBe(true);
+  });
+
+  it('rejects create-task requests from teammates but allows the lead', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    const teammate = created.runtime.agents.find((agent) => agent.role === 'teammate')!;
+
+    await expect(service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'Sneaky extra task',
+      description: 'Created by a teammate.',
+      sourceAgentId: teammate.id,
+    })).rejects.toThrow('Only the Team Lead can create tasks');
+
+    const fromLead = await service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'Lead follow-up',
+      description: 'Created by the lead.',
+      sourceAgentId: lead.id,
+    });
+    const createdTask = fromLead.tasks.find((task) => task.title === 'Lead follow-up')!;
+    expect(createdTask.createdBy).toBe(lead.id);
+    expect(fromLead.tasks.some((task) => task.title === 'Sneaky extra task')).toBe(false);
+  });
+
+  it('rejects oversized plans with an actionable error instead of truncating', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+
+    await expect(service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Too many tasks.',
+        teammates: [{ name: 'Codex Exec', agentType: 'codex' }],
+        tasks: Array.from({ length: 21 }, (_, index) => ({
+          title: `Task ${index + 1}`,
+          description: 'Do it.',
+          ownerName: 'Codex Exec',
+        })),
+      },
+    })).rejects.toThrow('maximum is 20');
+
+    await expect(service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Too many teammates.',
+        teammates: Array.from({ length: 7 }, (_, index) => ({ name: `Mate ${index + 1}`, agentType: 'codex' })),
+        tasks: [{ title: 'Only task', description: 'Do it.', ownerName: 'Mate 1' }],
+      },
+    })).rejects.toThrow('maximum is 6');
+  });
+
+  it('nudges the lead about a live but silent agent session', async () => {
+    const service = new CanvasAgentTeamsService();
+    service.softStallThresholdMs = 0;
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks.find((candidate) => candidate.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+
+    // Establish an output baseline, then let the heartbeat observe silence.
+    await service.reportAgentOutput('ws-1', owner.sessionRef!.sessionId, 'working...\n');
+    await service.heartbeatTick();
+
+    const nudge = [...mockState.queuedInputs].reverse().find((entry) => entry.input.includes('Possible stall'));
+    expect(nudge).toBeDefined();
+    expect(nudge?.nodeId).toBe(lead.sessionRef!.sessionId);
+    expect(nudge?.input).toContain(`pulse-canvas team send --to "${owner.name}"`);
+    // Notification only: the task keeps running.
+    const snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.tasks.find((candidate) => candidate.id === task.id)?.status).toBe('in_progress');
+  });
+
+  it('keeps state consistent under concurrent task completions', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+
+    const titles = Array.from({ length: 6 }, (_, index) => `Parallel ${index + 1}`);
+    for (const title of titles) {
+      await service.createTask({ workspaceId: 'ws-1', teamId, title, description: 'Do it.' });
+    }
+    const snapshot = await service.snapshot('ws-1', teamId);
+    const ids = snapshot.runtime.tasks
+      .filter((task) => titles.includes(task.title))
+      .map((task) => task.id);
+
+    // Human completions fired concurrently must all land without losing
+    // updates to each other or to the interleaved snapshots.
+    await Promise.all([
+      ...ids.map((id) => service.completeTask('ws-1', teamId, id, 'Done.')),
+      service.snapshot('ws-1', teamId),
+      service.dispatch('ws-1', teamId),
+    ]);
+
+    const after = await service.snapshot('ws-1', teamId);
+    for (const id of ids) {
+      expect(after.runtime.tasks.find((task) => task.id === id)).toMatchObject({
+        status: 'done',
+        result: 'Done.',
+      });
+    }
+  });
+
+  it('rejects complete-team requests from teammates', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const teammate = created.runtime.agents.find((agent) => agent.role === 'teammate')!;
+
+    await expect(service.completeTeam('ws-1', teamId, {
+      sourceAgentId: teammate.id,
+      summary: 'All done.',
+    })).rejects.toThrow('Only the Team Lead can complete the team');
+
+    const snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.team.status).not.toBe('completed');
+  });
+
+  it('re-runs the declared verify command at submission and shows the lead the result', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Verified work.',
+        teammates: [{ name: 'Codex Exec', agentType: 'codex' }],
+        tasks: [{
+          title: 'Implement thing',
+          description: 'Do it.',
+          ownerName: 'Codex Exec',
+          verify: 'node -e "console.log(\'checks failed\'); process.exit(1)"',
+        }],
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const task = confirmed.runtime.tasks.find((candidate) => candidate.title === 'Implement thing')!;
+    const owner = confirmed.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    // The dispatched task prompt carries the verify instruction.
+    expect(mockState.queuedInputs.some((entry) =>
+      entry.input.includes('Verification command for this task:'))).toBe(true);
+
+    await writeHandoff(teamId, task.id);
+    const submitted = await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: owner.id,
+      summary: 'Done.',
+    });
+
+    // The server-side re-run recorded the failure as acceptance evidence.
+    expect(submitted.task.status).toBe('needs_review');
+    const verification = submitted.task.metadata?.lastVerify as { ok?: boolean; exitCode?: number | null };
+    expect(verification?.ok).toBe(false);
+    expect(verification?.exitCode).toBe(1);
+    const leadPrompt = [...mockState.queuedInputs].reverse()
+      .find((entry) => entry.nodeId === lead.sessionRef!.sessionId)?.input ?? '';
+    expect(leadPrompt).toContain('Verification (re-run by Pulse Canvas): FAIL');
+    expect(leadPrompt).toContain('checks failed');
+  });
+
+  it('runs a declared integration verification as a final task before review', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Work with an integration gate.',
+        teammates: [{ name: 'Codex Exec', agentType: 'codex' }],
+        tasks: [{ title: 'Implement thing', description: 'Do it.', ownerName: 'Codex Exec' }],
+        integrationVerify: 'node -e "process.exit(0)"',
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const implement = confirmed.runtime.tasks.find((task) => task.title === 'Implement thing')!;
+    await service.completeTask('ws-1', teamId, implement.id, 'Done.');
+    expect((await service.snapshot('ws-1', teamId)).runtime.team.status).toBe('round_checkpoint');
+
+    // Finish injects the integration task into the current round instead of
+    // going straight to review; its verify is the integration command.
+    const finalized = await service.finalizeFromCheckpoint('ws-1', teamId);
+    expect(finalized.runtime.team.status).toBe('running');
+    const integration = finalized.runtime.tasks.find((task) => task.title === 'Integration verification')!;
+    expect(integration.status).toBe('in_progress');
+    expect(integration.metadata?.verify).toBe('node -e "process.exit(0)"');
+
+    // Once the integration task settles, the heartbeat completes the Finish
+    // automatically — the human does not click twice.
+    await service.completeTask('ws-1', teamId, integration.id, 'Integration green.');
+    expect((await service.snapshot('ws-1', teamId)).runtime.team.status).toBe('round_checkpoint');
+    await service.heartbeatTick();
+    const after = await service.snapshot('ws-1', teamId);
+    expect(after.runtime.team.status).toBe('reviewing');
+    expect(mockState.queuedInputs.at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
+
+    // A second Finish (already-run integration) goes straight to review.
+    // (Covered implicitly: the existing task short-circuits re-injection.)
+  });
+
+  it('rejects a teammate completion until the handoff file exists', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
+
+    await expect(service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: owner.id,
+      summary: 'Done.',
+    })).rejects.toThrow('Task handoff file missing');
+
+    // The rejection leaves the task untouched and running.
+    const snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.tasks.find((task) => task.id === implement.id)?.status).toBe('in_progress');
+
+    // Writing the handoff lets the same completion go through to acceptance.
+    await writeHandoff(teamId, implement.id);
+    const submitted = await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: owner.id,
+      summary: 'Done.',
+    });
+    expect(submitted.task.status).toBe('needs_review');
+  });
+
+  it('sends a needs_review task back to the teammate when the lead targets it with a message', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === implement.ownerAgentId)!;
+    await writeHandoff(teamId, implement.id);
+
+    await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: owner.id,
+      summary: 'Checkout API remains stable.',
+    });
+
+    const revised = await service.sendInput('ws-1', teamId, owner.name, 'Revise: cover the error path.', implement.id);
+
+    expect(revised.runtime.tasks.find((task) => task.id === implement.id)).toMatchObject({
+      status: 'in_progress',
+      ownerAgentId: owner.id,
+    });
+    expect(revised.runtime.agents.find((agent) => agent.id === owner.id)).toMatchObject({
+      status: 'running',
+      currentTaskId: implement.id,
+    });
+    expect(mockState.queuedInputs.at(-1)).toMatchObject({
+      workspaceId: 'ws-1',
+      nodeId: owner.sessionRef!.sessionId,
+    });
+    expect(mockState.queuedInputs.at(-1)?.input).toContain('Task returned for revision: Implement checkout refactor');
+    expect(mockState.queuedInputs.at(-1)?.input).toContain('Revise: cover the error path.');
   });
 
   it('marks an exited teammate task for lead review when no completion action was reported', async () => {
@@ -776,27 +1179,33 @@ describe('CanvasAgentTeamsService', () => {
     expect(reviewed?.runtime.tasks[0].result).toBeUndefined();
   });
 
-  it('finalizes a reviewed team only after the lead completes the team', async () => {
+  it('finalizes a checkpointed team only after the lead completes the team', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);
     const teamId = created.runtime.team.id;
     const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
     const implement = created.runtime.tasks.find((task) => task.title === 'Implement checkout refactor')!;
-    const implemented = await service.completeAgentTask({
+    const implemented = (await service.completeAgentTask({
       workspaceId: 'ws-1',
       teamId,
       taskId: implement.id,
       summary: 'Implementation is done.',
-    });
+    })).snapshot;
     const review = implemented.runtime.tasks.find((task) => task.title === 'Review checkout refactor')!;
 
-    const reviewed = await service.completeAgentTask({
+    const reviewed = (await service.completeAgentTask({
       workspaceId: 'ws-1',
       teamId,
       taskId: review.id,
       summary: 'Review passed.',
-    });
-    expect(reviewed.runtime.team.status).toBe('reviewing');
+    })).snapshot;
+    // All round-1 tasks settled → the team pauses at the round checkpoint
+    // for the human to continue with more work or finish.
+    expect(reviewed.runtime.team.status).toBe('round_checkpoint');
+
+    // Finishing from the checkpoint hands the team to the lead for review.
+    const finalized = await service.finalizeFromCheckpoint('ws-1', teamId);
+    expect(finalized.runtime.team.status).toBe('reviewing');
     expect(mockState.queuedInputs.at(-1)?.nodeId).toBe(lead.sessionRef!.sessionId);
     expect(mockState.queuedInputs.at(-1)?.input).toContain('pulse-canvas team complete-team --summary');
 

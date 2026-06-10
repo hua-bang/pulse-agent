@@ -837,6 +837,18 @@ export const AgentTeamFrame = ({
     return () => clearInterval(timer);
   }, [refresh]);
 
+  // Team activity is pushed from the main process (debounced runtime events
+  // broadcast as agent-teams canvas updates); refresh immediately instead of
+  // waiting for the next poll. The interval above stays as a fallback.
+  useEffect(() => {
+    const storeApi = window.canvasWorkspace?.store;
+    if (!storeApi?.onExternalUpdate || !workspaceId) return;
+    return storeApi.onExternalUpdate((event) => {
+      if (event.workspaceId !== workspaceId || event.source !== 'agent-teams') return;
+      void refresh();
+    });
+  }, [refresh, workspaceId]);
+
   const handleBriefLead = useCallback(async () => {
     const content = briefDraft.trim();
     if (!api || !workspaceId || !teamId || !content) return;

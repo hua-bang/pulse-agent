@@ -405,8 +405,11 @@ async function handleAgentTeamCreateTask(
   const description = typeof obj.description === 'string' ? obj.description.trim() : '';
   const ownerAgentId = typeof obj.ownerAgentId === 'string' ? obj.ownerAgentId : undefined;
   const ownerName = typeof obj.ownerName === 'string' ? obj.ownerName : undefined;
+  const sourceAgentId = typeof obj.sourceAgentId === 'string' ? obj.sourceAgentId : undefined;
   const deps = Array.isArray(obj.deps) ? obj.deps.filter((dep): dep is string => typeof dep === 'string') : undefined;
   const depRefs = Array.isArray(obj.depRefs) ? obj.depRefs.filter((dep): dep is string => typeof dep === 'string') : undefined;
+  const scope = Array.isArray(obj.scope) ? obj.scope.filter((entry): entry is string => typeof entry === 'string') : undefined;
+  const verify = typeof obj.verify === 'string' && obj.verify.trim() ? obj.verify.trim() : undefined;
   const shouldDispatch = obj.dispatch === true;
 
   if (!workspaceId || !teamId) {
@@ -427,7 +430,10 @@ async function handleAgentTeamCreateTask(
       ownerName,
       deps,
       depRefs,
+      scope,
+      verify,
       dispatch: shouldDispatch,
+      sourceAgentId,
     });
     const snapshot = await service.snapshot(workspaceId, teamId);
     return reply(res, 200, { ok: true, snapshot });
@@ -448,8 +454,8 @@ async function handleAgentTeamCompleteTask(
   if (!summary) return reply(res, 400, { ok: false, error: 'summary is required' });
 
   try {
-    const snapshot = await getCanvasAgentTeamsService().completeAgentTask({ ...base, summary });
-    return reply(res, 200, { ok: true, snapshot });
+    const { snapshot, task } = await getCanvasAgentTeamsService().completeAgentTask({ ...base, summary });
+    return reply(res, 200, { ok: true, snapshot, task });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
   }

@@ -18,6 +18,12 @@ const LEAD_AGENT_HEIGHT = 400;
 const FRAME_WIDTH = FRAME_PADDING * 2 + GRID_COLUMNS * AGENT_WIDTH + (GRID_COLUMNS - 1) * AGENT_GAP;
 const FRAME_HEIGHT = 840;
 const BRIEFING_FRAME_HEIGHT = 780;
+// Leads must not delegate to their own subagents (Pulse Canvas owns teammate
+// dispatch); file-editing tools stay available because legitimate lead flows
+// need them (e.g. writing the plan JSON for propose-plan --plan-file).
+// "The lead does not implement tasks" is enforced where pulse-canvas can see
+// it: the dispatcher never assigns tasks to the lead, team-protocol actions
+// are role-gated server-side, and the lead prompts state the boundary.
 const CLAUDE_TEAM_LEAD_ARGS = '--disallowedTools Task';
 const TEAM_PANEL_HEIGHT = 388;
 const FRAME_HEADER_GAP = TEAM_PANEL_HEIGHT + 24;
@@ -114,12 +120,33 @@ const queueLaunchPrompt = async (
 ): Promise<void> => {
   const data = node.data ?? {};
   const cwd = typeof data.cwd === 'string' ? data.cwd : '';
-  let inlinePrompt = prompt;
+  const existingInline = typeof data.inlinePrompt === 'string' ? data.inlinePrompt : '';
+  const existingFile = typeof data.promptFile === 'string' ? data.promptFile : '';
+
+  // Read whatever is already queued so consecutive sends ACCUMULATE: a queued
+  // task prompt must survive a lead notification that arrives before the
+  // agent launches (overwriting used to silently drop the earlier message).
+  let queued = existingInline;
+  if (existingFile && cwd) {
+    try {
+      queued = await fs.readFile(join(cwd, existingFile), 'utf-8');
+    } catch {
+      queued = existingInline;
+    }
+  }
+  // Re-sent nudges are often byte-identical — don't stack copies.
+  const combined = !queued.trim()
+    ? prompt
+    : queued.includes(prompt)
+      ? queued
+      : `${queued}\n\n${prompt}`;
+
+  let inlinePrompt = combined;
   let promptFile = '';
-  if (prompt.length > INLINE_PROMPT_THRESHOLD && cwd) {
-    promptFile = `.canvas-agent-team-${Date.now()}.md`;
+  if (combined.length > INLINE_PROMPT_THRESHOLD && cwd) {
+    promptFile = existingFile || `.canvas-agent-team-${Date.now()}.md`;
     await fs.mkdir(cwd, { recursive: true });
-    await fs.writeFile(join(cwd, promptFile), prompt, 'utf-8');
+    await fs.writeFile(join(cwd, promptFile), combined, 'utf-8');
     inlinePrompt = '';
   }
 
@@ -130,7 +157,7 @@ const queueLaunchPrompt = async (
     cliSessionId: withClaudeCliSessionId(data.agentType, data.cliSessionId),
     inlinePrompt,
     promptFile,
-    lastInitPrompt: prompt,
+    lastInitPrompt: combined,
   };
   node.updatedAt = Date.now();
 };
@@ -489,6 +516,35 @@ export async function getCanvasAgentNode(workspaceId: string, nodeId: string): P
     title: node.title ?? nodeId,
     status: typeof node.data?.status === 'string' ? node.data.status : 'idle',
     ptySessionId,
+  };
+}
+
+export interface CanvasAgentNodeRuntimeState {
+  exists: boolean;
+  status: string;
+  /** Whether the node's recorded PTY session is alive in this process. */
+  ptyAlive: boolean;
+  /** Whether a launch prompt is queued, waiting for the renderer to spawn. */
+  hasQueuedLaunch: boolean;
+}
+
+export async function getCanvasAgentNodeRuntimeState(
+  workspaceId: string,
+  nodeId: string,
+): Promise<CanvasAgentNodeRuntimeState> {
+  const { data: canvas } = await readCanvasFull(workspaceId);
+  const node = canvas?.nodes?.find((item) => item.id === nodeId);
+  if (!node || node.type !== 'agent') {
+    return { exists: false, status: 'missing', ptyAlive: false, hasQueuedLaunch: false };
+  }
+  const ptySessionId = typeof node.data?.sessionId === 'string' ? node.data.sessionId : '';
+  const inlinePrompt = typeof node.data?.inlinePrompt === 'string' ? node.data.inlinePrompt : '';
+  const promptFile = typeof node.data?.promptFile === 'string' ? node.data.promptFile : '';
+  return {
+    exists: true,
+    status: typeof node.data?.status === 'string' ? node.data.status : 'idle',
+    ptyAlive: !!ptySessionId && hasSession(ptySessionId),
+    hasQueuedLaunch: !!(inlinePrompt || promptFile),
   };
 }
 

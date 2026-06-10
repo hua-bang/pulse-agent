@@ -21,6 +21,8 @@ import {
 } from "../agent/ipc";
 import { setupCodexSessionsIpc } from "../agent/codex-sessions";
 import { setupCanvasAgentTeamsIpc } from "../agent-teams/ipc";
+import { setupAgentTeamPtyBridge } from "../agent-teams/pty-bridge";
+import { getCanvasAgentTeamsService } from "../agent-teams/service";
 import { setupCanvasModelIpc } from "../agent/model/ipc";
 import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
@@ -100,6 +102,13 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupCanvasAgentIpc();
     setupCodexSessionsIpc();
     setupCanvasAgentTeamsIpc();
+    // Team agent output/exit parsing and the team heartbeat (watchdog,
+    // repairs, lead nudges, dispatch) run in the main process so teams keep
+    // advancing while no window is observing them.
+    setupAgentTeamPtyBridge((message, detail) => {
+      void writeLog("agent-teams", message, detail);
+    });
+    getCanvasAgentTeamsService().startHeartbeat();
     setupCanvasModelIpc();
     setupCanvasSkillsIpc();
     setupCanvasMcpIpc();

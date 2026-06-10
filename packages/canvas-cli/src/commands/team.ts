@@ -164,20 +164,26 @@ export function registerTeamCommands(program: Command): void {
 
   team.command('create-task')
     .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID})`, process.env[ENV_TEAM_ID])
+    .option('--source-agent <agentId>', `Source agent ID (default: $${ENV_TEAM_AGENT_ID})`, process.env[ENV_TEAM_AGENT_ID])
     .requiredOption('--title <title>', 'Task title')
     .requiredOption('--description <description>', 'Task instructions')
     .option('--owner <agent>', 'Owner agent name or ID')
     .option('--dep <task>', 'Dependency task title or ID; repeat for multiple dependencies', collectOption, [])
+    .option('--scope <path>', 'File or directory path this task may modify; repeat for multiple paths', collectOption, [])
+    .option('--verify <command>', 'Cheap verification command re-run at submission (or "manual")')
     .option('--dispatch', 'Dispatch ready tasks after creating this task')
-    .description('Create a follow-up task in the current team')
+    .description('Create a follow-up task in the current team (Team Lead only)')
     .action(async function (
       this: Command,
       cmdOpts: {
         team?: string;
+        sourceAgent?: string;
         title: string;
         description: string;
         owner?: string;
         dep?: string[];
+        scope?: string[];
+        verify?: string;
         dispatch?: boolean;
       },
     ) {
@@ -186,15 +192,17 @@ export function registerTeamCommands(program: Command): void {
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
 
       const runtime = await readRuntime();
-      const { status, body } = await postTeamAction(runtime, '/agent-team/create-task', {
+      const { status, body } = await postTeamAction(runtime, '/agent-team/create-task', addSourceAgent({
         workspaceId: workspace,
         teamId,
         title: cmdOpts.title,
         description: cmdOpts.description,
         ownerName: cmdOpts.owner,
         depRefs: cmdOpts.dep ?? [],
+        ...(cmdOpts.scope && cmdOpts.scope.length > 0 ? { scope: cmdOpts.scope } : {}),
+        ...(cmdOpts.verify ? { verify: cmdOpts.verify } : {}),
         dispatch: cmdOpts.dispatch === true,
-      });
+      }, cmdOpts.sourceAgent));
 
       if (status === 401) errorOutput(runtimeAuthHint());
       if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
@@ -258,7 +266,14 @@ export function registerTeamCommands(program: Command): void {
       if (status === 401) errorOutput(runtimeAuthHint());
       if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
 
-      output(body, format, () => `Task completed for ${teamId}.`);
+      output(body, format, (data) => {
+        const response = data as { task?: { status?: string; title?: string } };
+        if (response.task?.status === 'needs_review') {
+          const title = response.task.title ? `"${response.task.title}"` : 'task';
+          return `Completion submitted for Team Lead review: ${title}. The task stays open until the Team Lead accepts it; you may receive revision feedback.`;
+        }
+        return `Task completed for ${teamId}.`;
+      });
     });
 
   team.command('block-task')
@@ -372,7 +387,7 @@ export function registerTeamCommands(program: Command): void {
     .option('--source-agent <agentId>', `Source agent ID (default: $${ENV_TEAM_AGENT_ID})`, process.env[ENV_TEAM_AGENT_ID])
     .option('--summary <summary>', 'Final team summary')
     .argument('[summary...]', 'Final team summary')
-    .description('Mark the whole team complete after leader review')
+    .description('Mark the whole team complete after review (Team Lead only)')
     .action(async function (
       this: Command,
       summaryParts: string[] | undefined,

@@ -88,4 +88,46 @@ describe('CanvasAgentTeamStore', () => {
     expect(parsed.events).toHaveLength(20);
     expect(parsed.tasks).toHaveLength(20);
   });
+
+  it('caps per-team event history and archives the trimmed entries', async () => {
+    const store = new CanvasAgentTeamStore('ws-3');
+
+    for (let index = 0; index < 450; index += 1) {
+      await store.appendEvent({
+        id: `event-${index}`,
+        teamId: 'team-3',
+        type: 'task_created',
+        timestamp: 1000 + index,
+        actor: 'runtime',
+        payload: {},
+      });
+    }
+    // Another team's history is untouched by team-3's trimming.
+    await store.appendEvent({
+      id: 'other-event',
+      teamId: 'team-other',
+      type: 'task_created',
+      timestamp: 1,
+      actor: 'runtime',
+      payload: {},
+    });
+
+    const events = await store.listEvents('team-3');
+    expect(events).toHaveLength(400);
+    // The oldest 50 were trimmed; the newest survive.
+    expect(events[0].id).toBe('event-50');
+    expect(events.at(-1)?.id).toBe('event-449');
+    expect(await store.listEvents('team-other')).toHaveLength(1);
+
+    // Trimmed entries are preserved in the JSONL archive for later reporting.
+    const archivePath = join(mockState.root, 'ws-3', 'agent-teams', 'archive', 'team-3.events.jsonl');
+    const lines = (await fs.readFile(archivePath, 'utf-8')).trim().split('\n');
+    expect(lines).toHaveLength(50);
+    expect(JSON.parse(lines[0]).id).toBe('event-0');
+    expect(JSON.parse(lines.at(-1)!).id).toBe('event-49');
+
+    // Deleting the team removes its archive too.
+    await store.deleteTeam('team-3');
+    await expect(fs.access(archivePath)).rejects.toThrow();
+  });
 });
