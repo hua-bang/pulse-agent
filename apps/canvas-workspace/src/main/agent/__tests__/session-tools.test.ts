@@ -122,6 +122,8 @@ describe('session_search', () => {
     expect(research.matchCount).toBe(2);
     expect(research.snippets[0].snippet).toContain('RAG');
     expect(typeof research.snippets[0].messageIndex).toBe('number');
+    // Inline citation marker: @[session:<wsId>:<sessionId>:<msgIdx>|<label>]
+    expect(research.ref).toMatch(/^@\[session:ws-research:s-research-now:\d*\|调研 \d{4}-\d{2}-\d{2}\]$/);
 
     const global = out.sessions.find((s: { sessionId: string }) => s.sessionId === 's-global-1');
     expect(global.workspaceName).toBe('Global Chat');

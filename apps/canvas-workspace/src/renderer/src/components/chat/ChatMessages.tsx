@@ -170,13 +170,17 @@ export const ChatMessages = ({
     }
 
     // Session-ref chip → load session and scroll to the matched message.
+    // Blocked while a turn is streaming: switching sessions mid-generation
+    // would clobber the in-flight assistant message.
     const sessionChip = target.closest<HTMLElement>('[data-action="session-jump"]');
-    if (sessionChip && onSessionJump) {
+    if (sessionChip) {
+      if (loading || !onSessionJump) return;
       const sid = sessionChip.dataset.sessionId;
       const wid = sessionChip.dataset.workspaceId;
       const mi = sessionChip.dataset.messageIndex;
+      const parsedIndex = mi !== undefined && mi !== '' ? Number(mi) : undefined;
       if (sid && wid) {
-        onSessionJump(sid, wid, mi !== undefined ? Number(mi) : undefined);
+        onSessionJump(sid, wid, Number.isInteger(parsedIndex) ? parsedIndex : undefined);
       }
       return;
     }
@@ -188,14 +192,14 @@ export const ChatMessages = ({
     if (nodeId) {
       onNodeFocus(nodeId);
     }
-  }, [onNodeFocus, onSessionJump, t]);
+  }, [loading, onNodeFocus, onSessionJump, t]);
 
   const hasStreamingAssistantMessage = loading
     && messages.length > 0
     && messages[messages.length - 1].role === 'assistant';
 
   return (
-    <div className="chat-messages" onClick={handleMessageClick}>
+    <div className={`chat-messages${loading ? ' chat-messages--loading' : ''}`} onClick={handleMessageClick}>
       {messages.map((message, index) => {
         const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
         const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);

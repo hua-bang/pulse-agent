@@ -1649,6 +1649,26 @@
   min-width: 0;
 }
 
+/* Inline session citation chip (assistant body, `@[session:...|label]`). */
+.chat-mention-chip--session {
+  background: rgba(120, 80, 200, 0.07);
+  border-color: rgba(120, 80, 200, 0.16);
+}
+.chat-mention-chip--session .chat-mention-chip-icon {
+  color: rgba(120, 80, 200, 0.7);
+}
+.chat-mention-chip--session.chat-mention-chip--clickable:hover {
+  background: rgba(120, 80, 200, 0.13);
+  border-color: rgba(120, 80, 200, 0.3);
+}
+
+/* While a turn is streaming, session jumps are blocked (clicks are ignored
+   by the handler); dim the chips so they don't read as actionable yet. */
+.chat-messages--loading [data-action="session-jump"] {
+  cursor: progress;
+  opacity: 0.55;
+}
+
 /* ─── @ Mention popup ────────────────────────────────────── */
 
 .chat-mention-popup {
