@@ -33,7 +33,7 @@
 
 **目标：验收从"主观读 handoff"升级为"机械证据 + 主观判断"，交付物从散落改动升级为可整体 review 的变更集。**
 
-### 2.1 任务验证命令（verify command）
+### 2.1 任务验证命令（verify command）✅ `50ac53f`
 - 计划 JSON 任务对象新增 `verify`：一条机械验证命令（如 `pnpm --filter x test`、`tsc --noEmit`、某个 lint target）。
 - teammate 完成前必须自己跑通 verify（写进任务 prompt）；提交验收时，runtime 把 verify 命令与最近一次结果附进验收 prompt，Lead 复跑或抽查。
 - briefing prompt 要求 Lead 为每个产代码任务声明 verify；无法机械验证的任务显式标注 `verify: manual`。
