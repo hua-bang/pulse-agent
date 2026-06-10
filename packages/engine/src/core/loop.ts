@@ -783,7 +783,26 @@ function collectErrorMessages(value: unknown, seen = new Set<object>()): string[
       return [];
     }
     const parsed = parseJsonObject(trimmed);
-    return parsed ? [trimmed, ...collectErrorMessages(parsed, seen)] : [trimmed];
+    if (parsed) {
+      return [trimmed, ...collectErrorMessages(parsed, seen)];
+    }
+    // Parse SSE data lines so error details inside streamed responses are surfaced.
+    if (trimmed.includes('\ndata:') || trimmed.startsWith('data:')) {
+      const sseMessages: string[] = [];
+      for (const line of trimmed.split('\n')) {
+        const payload = line.startsWith('data:') ? line.slice(5).trim() : null;
+        if (payload && payload !== '[DONE]') {
+          const dataParsed = parseJsonObject(payload);
+          if (dataParsed) {
+            sseMessages.push(...collectErrorMessages(dataParsed, seen));
+          }
+        }
+      }
+      if (sseMessages.length > 0) {
+        return [trimmed, ...sseMessages];
+      }
+    }
+    return [trimmed];
   }
 
   if (typeof value !== 'object') {
@@ -812,8 +831,47 @@ function parseJsonObject(text: string): unknown | null {
   try {
     return JSON.parse(text);
   } catch {
+    // The string may be mixed content (e.g. a JSON prefix followed by SSE events).
+    // Try to extract just the leading JSON value via a balanced-delimiter scan.
+    const end = findJsonEnd(text);
+    if (end > 0 && end < text.length) {
+      try {
+        return JSON.parse(text.slice(0, end));
+      } catch {
+        // fall through
+      }
+    }
     return null;
   }
+}
+
+function findJsonEnd(text: string): number {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (inString) {
+      if (c === '\\') escape = true;
+      else if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') {
+      inString = true;
+      continue;
+    }
+    if (c === '{' || c === '[') {
+      depth++;
+    } else if (c === '}' || c === ']') {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
 }
 
 function isRetryableError(error: any): boolean {

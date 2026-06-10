@@ -233,6 +233,29 @@ describe('loop', () => {
     );
   });
 
+  it('extracts error detail from mixed JSON+SSE responseBody on no-output errors', async () => {
+    const context: Context = {
+      messages: [{ role: 'user', content: 'test' }],
+    };
+    const sseResponseBody =
+      '{"error":{"message":"Upstream request failed","type":"upstream_error"}}' +
+      'event: response.failed\n' +
+      'data: {"type":"response.failed","response":{"id":"resp_abc","object":"response","model":"gpt-5.4","status":"failed","output":[],"error":{"code":"upstream_error","message":"Upstream request failed"}}}\n';
+
+    const upstreamError = Object.assign(new Error('No output generated.'), {
+      responseBody: sseResponseBody,
+    });
+
+    streamTextAIMock.mockImplementation(() => {
+      throw upstreamError;
+    });
+
+    const result = await loop(context);
+
+    expect(result).toContain('上游模型没有产出任何输出');
+    expect(result).toContain('Upstream request failed');
+  });
+
   it('times out LLM calls that never produce a first chunk', async () => {
     vi.useFakeTimers();
 
