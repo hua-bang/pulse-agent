@@ -82,6 +82,7 @@ const quoteCliValue = (value: string): string =>
 const TASK_ROUND_METADATA_KEY = 'round';
 const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
 const TASK_SCOPE_METADATA_KEY = 'scope';
+const TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY = 'blockedByFailedDep';
 
 // Read a task's declared file scope: the path prefixes it may create or modify.
 const readTaskScope = (metadata: Record<string, unknown> | undefined): string[] => {
@@ -744,6 +745,21 @@ export class TeamRuntime {
     await this.store.saveTask(task);
     await this.cancelOpenGatesForTask(task.teamId, task.id);
 
+    // Completing a previously failed task resolves the failure: dependents
+    // that failTask parked as blocked return to the queue.
+    const teamTasks = await this.store.listTasks(task.teamId);
+    for (const dependent of teamTasks) {
+      if (dependent.status !== 'blocked') continue;
+      if (dependent.metadata?.[TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY] !== task.id) continue;
+      dependent.status = 'todo';
+      dependent.blockedReason = undefined;
+      const nextMetadata = { ...(dependent.metadata ?? {}) };
+      delete nextMetadata[TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY];
+      dependent.metadata = Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined;
+      dependent.updatedAt = this.now();
+      await this.store.saveTask(dependent);
+    }
+
     if (task.ownerAgentId) {
       const agent = await this.store.getAgent(task.ownerAgentId);
       if (agent?.currentTaskId === task.id) {
@@ -824,6 +840,31 @@ export class TeamRuntime {
       }
     }
 
+    // A failed dependency would otherwise leave its dependents sitting in
+    // `todo` forever (they can never become ready). Park them as explicitly
+    // blocked so the stall is visible and the lead is forced to decide:
+    // fix-and-complete the failed task (which releases them) or replan.
+    const tasks = await this.store.listTasks(task.teamId);
+    const blockedDependents: TeamTaskRecord[] = [];
+    for (const dependent of tasks) {
+      if (dependent.id === task.id || dependent.status !== 'todo') continue;
+      if (!dependent.deps.includes(task.id)) continue;
+      dependent.status = 'blocked';
+      dependent.blockedReason = `Blocked by failed dependency: ${task.title}`;
+      dependent.metadata = {
+        ...(dependent.metadata ?? {}),
+        [TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY]: task.id,
+      };
+      dependent.updatedAt = this.now();
+      await this.store.saveTask(dependent);
+      await this.emit(task.teamId, 'task_blocked', 'runtime', {
+        taskId: dependent.id,
+        reason: dependent.blockedReason,
+        failedDependencyId: task.id,
+      });
+      blockedDependents.push(dependent);
+    }
+
     await this.emit(task.teamId, 'task_failed', actor ?? task.ownerAgentId ?? 'runtime', {
       taskId: task.id,
       error,
@@ -832,6 +873,16 @@ export class TeamRuntime {
       `Task failed: ${task.title}`,
       '',
       error,
+      ...(blockedDependents.length > 0
+        ? [
+          '',
+          'Dependent tasks now blocked by this failure:',
+          ...blockedDependents.map((dependent) => `- ${dependent.title}`),
+          'If the failed task can be fixed or its goal is already satisfied, complete it — that returns the blocked dependents to the queue:',
+          `pulse-canvas team complete-task --task "${task.id}" --summary "<how the failure was resolved>"`,
+          'Otherwise create a replacement task and close the blocked tasks it covers.',
+        ]
+        : []),
       '',
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',

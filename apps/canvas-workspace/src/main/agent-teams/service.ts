@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { promises as fsPromises, statSync } from 'fs';
 import { homedir } from 'os';
-import { dirname } from 'path';
+import { dirname, join } from 'path';
+import { STORE_DIR } from '../canvas/storage';
 import {
   TeamRuntime,
   type AgentRole,
@@ -15,6 +16,7 @@ import {
   createAgentTeamCanvasNodes,
   createTeamAgentNode,
   ensureAgentTeamCanvasLayout,
+  getCanvasAgentNodeRuntimeState,
   removeAgentTeamCanvasNodes,
   stopAgentTeamCanvasNodes,
   updateAgentTeamCanvasCwd,
@@ -45,6 +47,7 @@ interface RuntimeBundle {
 const DEFAULT_LEAD_AGENT = 'codex';
 const DEFAULT_TEAMMATE_AGENT = 'codex';
 const MAX_AGENT_OUTPUT_BUFFER = 16_000;
+const HEARTBEAT_INTERVAL_MS = 15_000;
 const MAX_PLAN_TEAMMATES = 6;
 const MAX_PLAN_TASKS = 20;
 const ARTIFACT_KINDS = new Set<ArtifactKind>([
@@ -439,6 +442,12 @@ const formatLeadExecutionPrompt = (teamName: string, goal: string, content: stri
 export class CanvasAgentTeamsService {
   private readonly runtimes = new Map<string, RuntimeBundle>();
   private readonly outputBuffers = new Map<string, string>();
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  // Agents that looked dead on the previous heartbeat tick. A session is only
+  // declared dead after two consecutive suspicious ticks, so a node mid-spawn
+  // (PTY created but sessionId not yet persisted to canvas.json) is not
+  // falsely reviewed.
+  private readonly watchdogSuspects = new Set<string>();
 
   async createTeam(input: CanvasAgentTeamCreateInput): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(input.workspaceId);
@@ -1230,6 +1239,112 @@ export class CanvasAgentTeamsService {
       }
     }
     return snapshots;
+  }
+
+  /**
+   * Main-process heartbeat: keeps team state advancing without depending on
+   * the renderer's snapshot polling. Each tick runs the watchdog, the state
+   * repairs, the lead re-nudges (all throttled internally), and a dispatch
+   * pass for every non-terminal team across every workspace that has
+   * persisted agent-team state — including workspaces no window has opened
+   * since app start.
+   */
+  startHeartbeat(intervalMs = HEARTBEAT_INTERVAL_MS): void {
+    if (this.heartbeatTimer) return;
+    const timer = setInterval(() => {
+      void this.heartbeatTick().catch(() => {});
+    }, intervalMs);
+    timer.unref?.();
+    this.heartbeatTimer = timer;
+  }
+
+  stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+  }
+
+  async heartbeatTick(): Promise<void> {
+    const workspaceIds = await this.discoverWorkspaceIds();
+    for (const workspaceId of workspaceIds) {
+      const { runtime, store } = this.getBundle(workspaceId);
+      let entries: Array<{ teamId: string }>;
+      try {
+        entries = await store.listTeamMetadata();
+      } catch {
+        continue;
+      }
+      for (const entry of entries) {
+        try {
+          const team = await store.getTeam(entry.teamId);
+          if (!team) continue;
+          if (team.status === 'completed' || team.status === 'failed' || team.status === 'paused') continue;
+          await this.watchdogCheckAgents(workspaceId, entry.teamId);
+          await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
+          await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
+          await runtime.repairCurrentRound(entry.teamId);
+          await runtime.notifyLeadPendingGates(entry.teamId);
+          await runtime.notifyLeadPendingTaskReviews(entry.teamId);
+          await runtime.notifyLeadReviewIfStalled(entry.teamId);
+          await runtime.dispatchReadyTasks(entry.teamId);
+        } catch (err) {
+          console.warn(`[agent-teams] heartbeat failed for team ${entry.teamId}:`, err);
+        }
+      }
+    }
+  }
+
+  private async discoverWorkspaceIds(): Promise<string[]> {
+    const ids = new Set(this.runtimes.keys());
+    try {
+      const dirents = await fsPromises.readdir(STORE_DIR, { withFileTypes: true });
+      for (const dirent of dirents) {
+        if (!dirent.isDirectory()) continue;
+        if (isExistingFile(join(STORE_DIR, dirent.name, 'agent-teams', 'state.json'))) {
+          ids.add(dirent.name);
+        }
+      }
+    } catch {
+      // Store directory may not exist yet.
+    }
+    return [...ids];
+  }
+
+  /**
+   * Detect agents whose recorded session no longer exists — an app restart or
+   * crash killed the PTY without an observed exit, or the canvas node was
+   * deleted — and route their in-flight task through the session-exit review
+   * path. The reason string matches the auto-resume pattern, so the canvas
+   * relaunches the agent when its node next mounts.
+   */
+  private async watchdogCheckAgents(workspaceId: string, teamId: string): Promise<void> {
+    const { runtime, store } = this.getBundle(workspaceId);
+    const agents = await store.listAgents(teamId);
+    for (const agent of agents) {
+      const suspectKey = `${workspaceId}:${agent.id}`;
+      if (agent.status !== 'running' || !agent.currentTaskId || !agent.sessionRef) {
+        this.watchdogSuspects.delete(suspectKey);
+        continue;
+      }
+      const state = await getCanvasAgentNodeRuntimeState(workspaceId, agent.sessionRef.sessionId);
+      // A queued launch prompt means the agent is waiting for the renderer to
+      // spawn it — healthy headless state, not a dead session.
+      if (state.ptyAlive || state.hasQueuedLaunch) {
+        this.watchdogSuspects.delete(suspectKey);
+        continue;
+      }
+      if (!this.watchdogSuspects.has(suspectKey)) {
+        this.watchdogSuspects.add(suspectKey);
+        continue;
+      }
+      this.watchdogSuspects.delete(suspectKey);
+      await runtime.requestTaskReview(
+        agent.currentTaskId,
+        'Agent session exited before reporting task completion.',
+        agent.id,
+      );
+    }
   }
 
   private getBundle(workspaceId: string): RuntimeBundle {

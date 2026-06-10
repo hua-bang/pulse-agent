@@ -317,14 +317,9 @@ export const useAgentNodeController = ({
     rootFolder,
   ]);
 
-  const reportAgentTeamOutput = useCallback((delta: string) => {
-    const current = dataRef.current;
-    if (!current.agentTeamId || readOnly || isMirrorTerminal || !workspaceId) return;
-    const api = window.canvasWorkspace?.agentTeams;
-    if (!api) return;
-    void api.reportAgentOutput(workspaceId, nodeIdRef.current, delta);
-  }, [isMirrorTerminal, readOnly, workspaceId]);
-
+  // Team agent output markers and exit events are parsed in the MAIN process
+  // (agent-teams/pty-bridge observes the PTY directly), so the renderer no
+  // longer reports them — parsing keeps working with the window closed.
   const spawnAgent = useCallback(
     async (
       agentType: string,
@@ -794,7 +789,6 @@ export const useAgentNodeController = ({
         removeDataRef.current = api.onData(sessionId, (d: string) => {
           handleClaudeResumeFallbackOutput(d);
           term.write(d);
-          reportAgentTeamOutput(d);
           if (loadingDismissed) return;
           if (writeCommandTimeRef.current === 0) return;
           const since = Date.now() - writeCommandTimeRef.current;
@@ -819,10 +813,6 @@ export const useAgentNodeController = ({
       const removeExit = api.onExit(sessionId, (code: number) => {
         term.writeln(`\r\n\x1b[2m[Agent exited with code ${code}]\x1b[0m`);
         dismissLoading();
-        const current = dataRef.current;
-        if (current.agentTeamId && workspaceId) {
-          void window.canvasWorkspace?.agentTeams?.reportAgentExit(workspaceId, nodeIdRef.current, code);
-        }
         onUpdateRef.current(nodeIdRef.current, {
           data: { ...dataRef.current, status: 'done' },
         });
@@ -891,7 +881,7 @@ export const useAgentNodeController = ({
         api.kill(sessionId);
       };
     },
-    [isMirrorTerminal, rootFolder, workspaceId, readOnly, reportAgentTeamOutput],
+    [isMirrorTerminal, rootFolder, workspaceId, readOnly],
   );
 
   useEffect(() => {

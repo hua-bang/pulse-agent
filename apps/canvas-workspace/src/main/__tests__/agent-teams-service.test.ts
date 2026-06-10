@@ -10,6 +10,8 @@ const mockState = vi.hoisted(() => ({
   cwdUpdates: [] as Array<{ workspaceId: string; teamId: string; cwd: string }>,
   queuedInputs: [] as Array<{ workspaceId: string; nodeId: string; input: string }>,
   interrupts: [] as Array<{ workspaceId: string; nodeId: string; mode: string }>,
+  ptyAlive: true,
+  queuedLaunch: false,
 }));
 
 vi.mock('../canvas/storage', () => ({
@@ -46,6 +48,12 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
     title: nodeId,
     status: 'running',
     ptySessionId: `pty-${nodeId}`,
+  })),
+  getCanvasAgentNodeRuntimeState: vi.fn(async () => ({
+    exists: true,
+    status: 'running',
+    ptyAlive: mockState.ptyAlive,
+    hasQueuedLaunch: mockState.queuedLaunch,
   })),
   sendOrQueueAgentInput: vi.fn(async (workspaceId: string, nodeId: string, input: string) => {
     mockState.queuedInputs.push({ workspaceId, nodeId, input });
@@ -135,6 +143,8 @@ describe('CanvasAgentTeamsService', () => {
     mockState.cwdUpdates.length = 0;
     mockState.queuedInputs.length = 0;
     mockState.interrupts.length = 0;
+    mockState.ptyAlive = true;
+    mockState.queuedLaunch = false;
   });
 
   afterEach(async () => {
@@ -750,6 +760,42 @@ describe('CanvasAgentTeamsService', () => {
     await service.completeTask('ws-1', teamId, byTitle('Edit API').id, 'API edited.');
     const after = await service.snapshot('ws-1', teamId);
     expect(after.runtime.tasks.find((task) => task.title === 'Edit API docs')?.status).toBe('in_progress');
+  });
+
+  it('routes tasks of dead agent sessions to review via the heartbeat watchdog', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks.find((candidate) => candidate.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+    const taskStatus = async () => {
+      const snapshot = await service.snapshot('ws-1', teamId);
+      return snapshot.runtime.tasks.find((candidate) => candidate.id === task.id);
+    };
+
+    // A queued launch prompt (headless dispatch waiting for the renderer) is
+    // healthy: the watchdog leaves the task alone no matter how many ticks.
+    mockState.ptyAlive = false;
+    mockState.queuedLaunch = true;
+    await service.heartbeatTick();
+    await service.heartbeatTick();
+    expect((await taskStatus())?.status).toBe('in_progress');
+
+    // A dead session with nothing queued is only confirmed on the second
+    // consecutive suspicious tick (debounces nodes mid-spawn).
+    mockState.queuedLaunch = false;
+    await service.heartbeatTick();
+    expect((await taskStatus())?.status).toBe('in_progress');
+    await service.heartbeatTick();
+    expect(await taskStatus()).toMatchObject({
+      status: 'needs_review',
+      blockedReason: 'Agent session exited before reporting task completion.',
+    });
+
+    // The reason matches the auto-resume pattern, so the agent relaunches
+    // with its task when the canvas next mounts the node.
+    const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
+    expect(prepared.canResume).toBe(true);
   });
 
   it('rejects a teammate completion until the handoff file exists', async () => {

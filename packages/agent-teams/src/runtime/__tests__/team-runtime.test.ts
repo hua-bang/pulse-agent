@@ -1449,6 +1449,70 @@ describe('TeamRuntime', () => {
     });
   });
 
+  describe('Failed dependency policy', () => {
+    it('blocks dependents of a failed task and releases them when the failure is resolved', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const tester = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Tester' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      await runtime.createAgentSession(tester.id);
+      const build = await runtime.createTask({
+        teamId: team.id,
+        title: 'Build feature',
+        description: 'Build it.',
+        ownerAgentId: coder.id,
+      });
+      const verify = await runtime.createTask({
+        teamId: team.id,
+        title: 'Verify feature',
+        description: 'Test it.',
+        ownerAgentId: tester.id,
+        deps: [build.id],
+      });
+      const docs = await runtime.createTask({
+        teamId: team.id,
+        title: 'Write docs',
+        description: 'Document it.',
+        ownerAgentId: coder.id,
+      });
+      await runtime.dispatchReadyTasks(team.id);
+
+      await runtime.failTask(build.id, 'Build broke.', coder.id);
+
+      // The dependent is parked as blocked instead of sitting in todo forever;
+      // unrelated tasks are untouched.
+      let snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === verify.id)).toMatchObject({
+        status: 'blocked',
+        blockedReason: 'Blocked by failed dependency: Build feature',
+      });
+      expect(snapshot.tasks.find((task) => task.id === docs.id)?.status).toBe('todo');
+
+      // The lead is told which tasks are blocked and how to release them.
+      const leadPrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId)
+        .at(-1)?.input ?? '';
+      expect(leadPrompt).toContain('Task failed: Build feature');
+      expect(leadPrompt).toContain('Dependent tasks now blocked by this failure:');
+      expect(leadPrompt).toContain('- Verify feature');
+      expect(leadPrompt).toContain(`pulse-canvas team complete-task --task "${build.id}"`);
+
+      // Completing the failed task releases its blocked dependents back to
+      // the queue, where they become dispatchable again.
+      await runtime.completeTask(build.id, 'Fixed and built.', lead.id);
+      snapshot = await runtime.snapshot(team.id);
+      const released = snapshot.tasks.find((task) => task.id === verify.id)!;
+      expect(released.status).toBe('todo');
+      expect(released.blockedReason).toBeUndefined();
+      expect(released.metadata?.blockedByFailedDep).toBeUndefined();
+      const dispatched = await runtime.dispatchReadyTasks(team.id);
+      expect(dispatched.assigned.map((task) => task.id)).toContain(verify.id);
+    });
+  });
+
   describe('Task handoffs', () => {
     it('threads handoff paths through task, acceptance, revision, and dependency prompts', async () => {
       const { runtime, adapter } = createRuntime({
