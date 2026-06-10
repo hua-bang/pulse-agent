@@ -827,6 +827,85 @@ describe('CanvasAgentTeamsService', () => {
     expect(fromLead.tasks.some((task) => task.title === 'Sneaky extra task')).toBe(false);
   });
 
+  it('rejects oversized plans with an actionable error instead of truncating', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+
+    await expect(service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Too many tasks.',
+        teammates: [{ name: 'Codex Exec', agentType: 'codex' }],
+        tasks: Array.from({ length: 21 }, (_, index) => ({
+          title: `Task ${index + 1}`,
+          description: 'Do it.',
+          ownerName: 'Codex Exec',
+        })),
+      },
+    })).rejects.toThrow('maximum is 20');
+
+    await expect(service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Too many teammates.',
+        teammates: Array.from({ length: 7 }, (_, index) => ({ name: `Mate ${index + 1}`, agentType: 'codex' })),
+        tasks: [{ title: 'Only task', description: 'Do it.', ownerName: 'Mate 1' }],
+      },
+    })).rejects.toThrow('maximum is 6');
+  });
+
+  it('nudges the lead about a live but silent agent session', async () => {
+    const service = new CanvasAgentTeamsService();
+    service.softStallThresholdMs = 0;
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks.find((candidate) => candidate.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+
+    // Establish an output baseline, then let the heartbeat observe silence.
+    await service.reportAgentOutput('ws-1', owner.sessionRef!.sessionId, 'working...\n');
+    await service.heartbeatTick();
+
+    const nudge = [...mockState.queuedInputs].reverse().find((entry) => entry.input.includes('Possible stall'));
+    expect(nudge).toBeDefined();
+    expect(nudge?.nodeId).toBe(lead.sessionRef!.sessionId);
+    expect(nudge?.input).toContain(`pulse-canvas team send --to "${owner.name}"`);
+    // Notification only: the task keeps running.
+    const snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.tasks.find((candidate) => candidate.id === task.id)?.status).toBe('in_progress');
+  });
+
+  it('keeps state consistent under concurrent task completions', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+
+    const titles = Array.from({ length: 6 }, (_, index) => `Parallel ${index + 1}`);
+    for (const title of titles) {
+      await service.createTask({ workspaceId: 'ws-1', teamId, title, description: 'Do it.' });
+    }
+    const snapshot = await service.snapshot('ws-1', teamId);
+    const ids = snapshot.runtime.tasks
+      .filter((task) => titles.includes(task.title))
+      .map((task) => task.id);
+
+    // Human completions fired concurrently must all land without losing
+    // updates to each other or to the interleaved snapshots.
+    await Promise.all([
+      ...ids.map((id) => service.completeTask('ws-1', teamId, id, 'Done.')),
+      service.snapshot('ws-1', teamId),
+      service.dispatch('ws-1', teamId),
+    ]);
+
+    const after = await service.snapshot('ws-1', teamId);
+    for (const id of ids) {
+      expect(after.runtime.tasks.find((task) => task.id === id)).toMatchObject({
+        status: 'done',
+        result: 'Done.',
+      });
+    }
+  });
+
   it('rejects complete-team requests from teammates', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);

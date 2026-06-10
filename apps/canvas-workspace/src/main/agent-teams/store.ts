@@ -26,6 +26,13 @@ interface PersistedAgentTeamRuntimeState {
   metadata: Record<TeamId, CanvasAgentTeamMetadata>;
 }
 
+// Every append rewrites the whole state file and every snapshot ships the
+// full lists, so unbounded event/message history makes long-running teams
+// progressively slower. History is capped per team; trimmed entries go to a
+// JSONL archive so later reporting/metrics can still read the full record.
+const MAX_TEAM_EVENTS = 400;
+const MAX_TEAM_MESSAGES = 400;
+
 const emptyState = (): PersistedAgentTeamRuntimeState => ({
   teams: [],
   agents: [],
@@ -85,6 +92,8 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
 
   async deleteTeam(teamId: TeamId): Promise<void> {
     await this.ensureLoaded();
+    await fs.rm(join(this.dir, 'archive', `${teamId}.events.jsonl`), { force: true }).catch(() => {});
+    await fs.rm(join(this.dir, 'archive', `${teamId}.messages.jsonl`), { force: true }).catch(() => {});
     this.state.teams = this.state.teams.filter((team) => team.id !== teamId);
     this.state.agents = this.state.agents.filter((agent) => agent.teamId !== teamId);
     this.state.tasks = this.state.tasks.filter((task) => task.teamId !== teamId);
@@ -164,6 +173,12 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
   async appendEvent(event: TeamEvent): Promise<void> {
     await this.ensureLoaded();
     this.state.events.push(clone(event));
+    const teamEvents = this.state.events.filter((item) => item.teamId === event.teamId);
+    if (teamEvents.length > MAX_TEAM_EVENTS) {
+      const dropped = new Set(teamEvents.slice(0, teamEvents.length - MAX_TEAM_EVENTS));
+      this.state.events = this.state.events.filter((item) => !dropped.has(item));
+      await this.archiveDropped('events', event.teamId, [...dropped]);
+    }
     await this.persist();
   }
 
@@ -178,6 +193,12 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
   async appendMessage(message: MailboxMessage): Promise<void> {
     await this.ensureLoaded();
     this.state.messages.push(clone(message));
+    const teamMessages = this.state.messages.filter((item) => item.teamId === message.teamId);
+    if (teamMessages.length > MAX_TEAM_MESSAGES) {
+      const dropped = new Set(teamMessages.slice(0, teamMessages.length - MAX_TEAM_MESSAGES));
+      this.state.messages = this.state.messages.filter((item) => !dropped.has(item));
+      await this.archiveDropped('messages', message.teamId, [...dropped]);
+    }
     await this.persist();
   }
 
@@ -251,6 +272,22 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
     } catch (err) {
       await fs.unlink(tmp).catch(() => {});
       throw err;
+    }
+  }
+
+  private async archiveDropped(
+    kind: 'events' | 'messages',
+    teamId: TeamId,
+    dropped: unknown[],
+  ): Promise<void> {
+    if (dropped.length === 0) return;
+    try {
+      const dir = join(this.dir, 'archive');
+      await fs.mkdir(dir, { recursive: true });
+      const lines = `${dropped.map((item) => JSON.stringify(item)).join('\n')}\n`;
+      await fs.appendFile(join(dir, `${teamId}.${kind}.jsonl`), lines, 'utf-8');
+    } catch {
+      // Archival is best effort; trimming must never fail the append.
     }
   }
 

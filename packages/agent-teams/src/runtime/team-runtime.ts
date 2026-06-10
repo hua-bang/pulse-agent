@@ -1263,6 +1263,16 @@ export class TeamRuntime {
     this.leadTaskReviewDigestCache.set(teamId, { digest, sentAt: this.now() });
   }
 
+  /**
+   * Host-driven lead notification using the standard guard + pending-digest
+   * plumbing. For host integrations (e.g. the canvas heartbeat's soft-stall
+   * nudge) that need to put something in front of the lead without reaching
+   * into runtime internals.
+   */
+  async notifyLeadAttention(teamId: TeamId, content: string, taskId?: TaskId): Promise<void> {
+    await this.notifyLead(teamId, content, taskId);
+  }
+
   async notifyLeadPlanApproved(teamId: TeamId): Promise<void> {
     const snapshot = await this.snapshot(teamId);
     const taskLines = snapshot.tasks.map((task) => {
