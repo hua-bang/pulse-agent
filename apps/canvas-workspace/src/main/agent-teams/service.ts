@@ -979,6 +979,16 @@ export class CanvasAgentTeamsService {
     const agent = input.sourceAgentId
       ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
       : undefined;
+    // Finalizing the whole team is a Lead (or human) decision. A teammate
+    // that believes everything is done reports its own task; the Lead
+    // reviews and finalizes.
+    if (agent && agent.role !== 'lead') {
+      throw new Error([
+        'Only the Team Lead can complete the team.',
+        'If you believe your work is finished, report your own task instead:',
+        'pulse-canvas team complete-task --task "<your task id>" --summary "<short summary>"',
+      ].join('\n'));
+    }
     await runtime.completeTeam(teamId, input.summary, agent?.id ?? 'human');
     return this.snapshot(workspaceId, teamId);
   }

@@ -800,6 +800,21 @@ describe('CanvasAgentTeamsService', () => {
     expect(prepared.canResume).toBe(true);
   });
 
+  it('rejects complete-team requests from teammates', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const teammate = created.runtime.agents.find((agent) => agent.role === 'teammate')!;
+
+    await expect(service.completeTeam('ws-1', teamId, {
+      sourceAgentId: teammate.id,
+      summary: 'All done.',
+    })).rejects.toThrow('Only the Team Lead can complete the team');
+
+    const snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.team.status).not.toBe('completed');
+  });
+
   it('rejects a teammate completion until the handoff file exists', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);

@@ -1449,6 +1449,33 @@ describe('TeamRuntime', () => {
     });
   });
 
+  it('reroutes tasks owned by the lead to a teammate at dispatch', async () => {
+    const { runtime } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    await runtime.createAgentSession(lead.id);
+    await runtime.createAgentSession(coder.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Misassigned task',
+      description: 'Planned onto the lead by mistake.',
+      ownerAgentId: lead.id,
+    });
+
+    const result = await runtime.dispatchReadyTasks(team.id);
+
+    // The lead never executes dispatched work: the task lands on a teammate.
+    expect(result.assigned).toHaveLength(1);
+    expect(result.assigned[0].ownerAgentId).toBe(coder.id);
+    const snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.agents.find((agent) => agent.id === lead.id)?.currentTaskId).toBeUndefined();
+    expect(snapshot.agents.find((agent) => agent.id === coder.id)).toMatchObject({
+      status: 'running',
+      currentTaskId: task.id,
+    });
+  });
+
   describe('Failed dependency policy', () => {
     it('blocks dependents of a failed task and releases them when the failure is resolved', async () => {
       const { runtime, adapter } = createRuntime();

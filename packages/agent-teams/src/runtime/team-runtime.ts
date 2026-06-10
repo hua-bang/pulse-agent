@@ -597,7 +597,14 @@ export class TeamRuntime {
       if (scope.length > 0 && heldScopes.some((held) => scopesOverlap(scope, held))) {
         continue;
       }
-      const owner = task.ownerAgentId
+      // The lead coordinates and verifies; dispatched work always goes to a
+      // teammate. A task whose owner is the lead (or no longer exists) is
+      // rerouted to any idle teammate instead of being executed by the lead
+      // or sitting in todo forever.
+      const ownerAgent = task.ownerAgentId
+        ? agents.find(agent => agent.id === task.ownerAgentId)
+        : undefined;
+      const owner = ownerAgent && ownerAgent.role === 'teammate'
         ? availableAgents.find(agent => agent.id === task.ownerAgentId)
         : availableAgents.find(agent => agent.role === 'teammate');
       if (!owner) continue;
@@ -1269,6 +1276,7 @@ export class TeamRuntime {
       'Your role now: monitor progress, answer teammate questions, handle blocked tasks,',
       'review and accept reported completions, and create follow-up tasks if needed.',
       'When a teammate reports a task complete, you will be asked to verify the deliverable and accept it before downstream tasks unblock.',
+      'You coordinate and verify — do not implement tasks yourself. Never create or edit project files; reading files and running quick checks for verification is fine. Anything that changes files goes to a teammate via send or create-task.',
       '',
       'Tasks:',
       ...taskLines,
@@ -1600,6 +1608,7 @@ export class TeamRuntime {
         : []),
       `Plan the next round of work. Review what was accomplished and create new tasks for Round ${nextRound}.`,
       'Design the DAG so at least 2-3 tasks can run in parallel — do not chain everything sequentially.',
+      'Every implementation task must be owned by a teammate — do not do the round\'s work yourself.',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
       '',
       'When you have created all tasks for this round, they will be dispatched automatically.',
@@ -1645,6 +1654,8 @@ export class TeamRuntime {
       '',
       'If follow-up is needed, run:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
+      '',
+      'Do not finish or fix the work yourself — send it back to the teammate or create a follow-up task for one.',
     ].join('\n');
   }
 
@@ -1696,6 +1707,7 @@ export class TeamRuntime {
       `Task description: ${truncate(task.description, 600)}`,
       '',
       'Verify the deliverable lightly before accepting: check that the promised files, changes, or findings exist and match the task description and scope. Do not run heavy builds or full test suites yourself.',
+      'Do not fix problems yourself — if the work falls short, send the task back for revision instead of editing files.',
       ...(scopeEntries.length > 0
         ? [
           '',

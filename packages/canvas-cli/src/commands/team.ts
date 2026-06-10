@@ -382,7 +382,7 @@ export function registerTeamCommands(program: Command): void {
     .option('--source-agent <agentId>', `Source agent ID (default: $${ENV_TEAM_AGENT_ID})`, process.env[ENV_TEAM_AGENT_ID])
     .option('--summary <summary>', 'Final team summary')
     .argument('[summary...]', 'Final team summary')
-    .description('Mark the whole team complete after leader review')
+    .description('Mark the whole team complete after review (Team Lead only)')
     .action(async function (
       this: Command,
       summaryParts: string[] | undefined,
