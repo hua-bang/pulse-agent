@@ -1,6 +1,6 @@
 import { createElement, type ReactNode } from 'react';
 import type { AgentContextCanvasRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
-import { CANVAS_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
+import { CANVAS_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown } from './markdown';
 
@@ -13,6 +13,43 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+export interface SessionMentionRef {
+  workspaceId: string;
+  sessionId: string;
+  messageIndex?: number;
+  label: string;
+}
+
+/**
+ * Parse an assistant-emitted session citation:
+ * `session:<workspaceId>:<sessionId>:<messageIndex?>|<label>`
+ * (the leading `@[` / trailing `]` are already stripped by MENTION_RE).
+ * Returns null when the marker is malformed.
+ */
+export function parseSessionMention(rawLabel: string): SessionMentionRef | null {
+  const body = rawLabel.slice(SESSION_MENTION_PREFIX.length);
+  const pipeIndex = body.indexOf('|');
+  const refPart = pipeIndex >= 0 ? body.slice(0, pipeIndex) : body;
+  const labelPart = pipeIndex >= 0 ? body.slice(pipeIndex + 1).trim() : '';
+
+  const segments = refPart.split(':');
+  if (segments.length < 2) return null;
+  const [workspaceId, sessionId, rawIndex] = segments;
+  if (!workspaceId || !sessionId) return null;
+
+  const parsedIndex = rawIndex !== undefined && rawIndex !== '' ? Number(rawIndex) : undefined;
+  const messageIndex = parsedIndex !== undefined && Number.isInteger(parsedIndex) && parsedIndex >= 0
+    ? parsedIndex
+    : undefined;
+
+  return {
+    workspaceId,
+    sessionId,
+    messageIndex,
+    label: labelPart || sessionId,
+  };
 }
 
 export function mentionIconSvg(nodeType: string): string {
@@ -37,6 +74,8 @@ export function mentionIconSvg(nodeType: string): string {
       return '<path d="M7 1.5l1.6 3.4 3.7.5-2.7 2.5.7 3.6L7 9.8l-3.3 1.7.7-3.6L1.7 5.4l3.7-.5L7 1.5z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>';
     case 'folder':
       return '<path d="M1.5 4.5a1 1 0 0 1 1-1H6l1.2 1.5h4.3a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V4.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
+    case 'session':
+      return '<path d="M2.5 3h9a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6.8L4 12.2V10H2.5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 5.8h5M4.5 7.8h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>';
     default:
       return '<rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5h5M4.5 7.5h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>';
   }
@@ -118,8 +157,31 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   const isFolder = item.type === 'folder';
   const isNode = item.type === 'node';
   const isTag = item.type === 'tag';
+  const isSession = item.type === 'session';
   const nodeType = getMentionNodeType(item, nodes);
   const chip = document.createElement('span');
+
+  // Session mentions serialize to the same `@[session:...]` marker the
+  // assistant emits when citing sessions, so the agent reads them uniformly
+  // and the sent message renders them as clickable jump chips.
+  if (isSession && item.sessionId && item.workspaceId) {
+    const idx = typeof item.messageIndex === 'number' && item.messageIndex >= 0 ? String(item.messageIndex) : '';
+    chip.className = 'chat-mention-chip chat-mention-chip--input chat-mention-chip--session';
+    chip.contentEditable = 'false';
+    chip.dataset.mention = `${SESSION_MENTION_PREFIX}${item.workspaceId}:${item.sessionId}:${idx}|${item.label}`;
+    chip.dataset.nodeType = 'session';
+
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'chat-mention-chip-icon';
+    iconSpan.innerHTML = `<svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('session')}</svg>`;
+    chip.appendChild(iconSpan);
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'chat-mention-chip-label';
+    labelSpan.textContent = item.label;
+    chip.appendChild(labelSpan);
+    return chip;
+  }
 
   // Canvas-node mentions navigate to the node when clicked; tag them so the
   // composer's click handler can resolve and focus the target (mirrors how
@@ -361,6 +423,18 @@ export function renderMdWithMentions(content: string, nodes?: CanvasNode[]): str
     if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
       const tagLabel = rawLabel.slice(TAG_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--tag" data-node-type="tag"><span class="chat-mention-chip-icon"><span class="chat-mention-chip-hash">#</span></span><span class="chat-mention-chip-label">${escapeHtml(tagLabel)}</span></span>`;
+    }
+
+    if (rawLabel.startsWith(SESSION_MENTION_PREFIX)) {
+      const sessionRef = parseSessionMention(rawLabel);
+      if (sessionRef) {
+        const indexAttr = sessionRef.messageIndex !== undefined
+          ? ` data-message-index="${sessionRef.messageIndex}"`
+          : '';
+        return `<span class="chat-mention-chip chat-mention-chip--session chat-mention-chip--clickable" data-action="session-jump" data-session-id="${escapeHtml(sessionRef.sessionId)}" data-workspace-id="${escapeHtml(sessionRef.workspaceId)}"${indexAttr}><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('session')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(sessionRef.label)}</span></span>`;
+      }
+      // Malformed marker — fall through to render as a plain (non-clickable) chip.
+      return `<span class="chat-mention-chip chat-mention-chip--session"><span class="chat-mention-chip-label">${escapeHtml(rawLabel.slice(SESSION_MENTION_PREFIX.length))}</span></span>`;
     }
 
     const node = nodes?.find(item => item.title === rawLabel);

@@ -65,6 +65,19 @@ function sessionHeader(entry: SessionWithMeta): Record<string, unknown> {
   };
 }
 
+/**
+ * Ready-made inline citation marker. The chat renderer turns
+ * `@[session:<workspaceId>:<sessionId>:<messageIndex?>|<label>]` into a
+ * clickable chip that opens the session and scrolls to the message.
+ * Emitted per session so the model can copy it verbatim into its reply.
+ */
+function sessionRefMarker(entry: SessionWithMeta, messageIndex?: number): string {
+  const { session } = entry;
+  const label = `${entry.workspaceName} ${session.startedAt?.slice(0, 10) ?? ''}`.trim();
+  const idx = typeof messageIndex === 'number' && messageIndex >= 0 ? String(messageIndex) : '';
+  return `@[session:${session.workspaceId}:${session.sessionId}:${idx}|${label}]`;
+}
+
 async function loadSessions(workspaceId?: string): Promise<SessionWithMeta[]> {
   const all = await SessionStore.readAllSessionsWithMeta();
   if (!workspaceId) return all;
@@ -87,7 +100,8 @@ export function createSessionTools(currentWorkspaceId?: string): Record<string, 
         'Returns matching sessions (newest first) with workspace name, date, message count, and snippets around each hit. ' +
         'Use this when the user asks "我们之前聊过 X 吗 / 找一下上次关于 X 的对话 / when did we discuss X". ' +
         'This searches chat history, NOT canvas nodes — use `canvas_search_nodes` for nodes. ' +
-        'Follow up with `session_summary` (pass the sessionId) to read a session in more detail.',
+        'Follow up with `session_summary` (pass the sessionId) to read a session in more detail. ' +
+        'CITING IN YOUR REPLY: each result carries a `ref` marker like `@[session:...|label]` — copy it VERBATIM into your answer wherever you mention that session; it renders as a clickable chip that jumps to the conversation. To point at a specific matched message, replace the marker\'s trailing `:<n>|` index with that snippet\'s `messageIndex`.',
       inputSchema: z.object({
         query: z.string().min(1).describe('Case-insensitive substring matched against message text.'),
         workspaceId: z.string().optional().describe(workspaceIdDescription),
@@ -125,6 +139,7 @@ export function createSessionTools(currentWorkspaceId?: string): Record<string, 
           if (matches.length >= limit) continue;
           matches.push({
             ...sessionHeader(entry),
+            ref: sessionRefMarker(entry, snippets[0]?.messageIndex),
             matchCount,
             preview: previewOf(entry.session.messages),
             snippets,
@@ -149,7 +164,8 @@ export function createSessionTools(currentWorkspaceId?: string): Record<string, 
         'Fetch compact transcript excerpts of past AI chat sessions (会话总结) so you can summarize them. ' +
         'Pass `sessionId` (e.g. from `session_search` or the user) to pull ONE session, or omit it to pull every session active in the last `days` days (default 3) across workspaces and global chat. ' +
         'Returns per-session "role: text" excerpt lines (each line trimmed); read them and write the summary yourself — the tool does not call an LLM. ' +
-        'Use this when the user asks "总结一下今天/这周的会话 / what did we discuss in that session / recap our last conversation".',
+        'Use this when the user asks "总结一下今天/这周的会话 / what did we discuss in that session / recap our last conversation". ' +
+        'CITING IN YOUR REPLY: each result carries a `ref` marker like `@[session:...|label]` — copy it VERBATIM into your answer wherever you mention that session; it renders as a clickable chip that jumps to the conversation.',
       inputSchema: z.object({
         sessionId: z.string().optional().describe('Summarize this one session. Only use an id from session_search output or the user; never invent one.'),
         workspaceId: z.string().optional().describe(workspaceIdDescription),
@@ -198,6 +214,7 @@ export function createSessionTools(currentWorkspaceId?: string): Record<string, 
           const excerpt = filtered.map((message) => `${message.role}: ${trimText(message.content)}`);
           const summary: Record<string, unknown> = {
             ...sessionHeader(entry),
+            ref: sessionRefMarker(entry),
             excerptMessageCount: filtered.length,
             excerpt,
           };

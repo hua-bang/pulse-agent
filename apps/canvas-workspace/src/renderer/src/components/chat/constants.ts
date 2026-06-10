@@ -5,9 +5,12 @@ export const CANVAS_MENTION_PREFIX = 'canvas:';
 export const SKILL_MENTION_PREFIX = 'skill:';
 export const FOLDER_MENTION_PREFIX = 'folder:';
 export const TAG_MENTION_PREFIX = 'tag:';
+/** Assistant-emitted session citation: `@[session:<wsId>:<sessionId>:<msgIdx?>|<label>]`. */
+export const SESSION_MENTION_PREFIX = 'session:';
 
 export const MENTION_GROUPS = [
   { key: 'skill', label: 'Skills', labelKey: 'chat.mention.skills' },
+  { key: 'session', label: 'Sessions', labelKey: 'chat.mention.session' },
   { key: 'tag', label: 'Tags', labelKey: 'chat.mention.tag' },
   { key: 'file', label: 'File', labelKey: 'chat.mention.file' },
   { key: 'text', label: 'Text', labelKey: 'chat.mention.text' },
@@ -70,6 +73,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 
 export function getMentionGroupKey(item: MentionItem): MentionGroupKey {
   if (item.type === 'skill') return 'skill';
+  if (item.type === 'session') return 'session';
   if (item.type === 'tag') return 'tag';
   if (item.type === 'workspace') return 'canvas';
   if (item.type === 'folder') return 'proj-folder';

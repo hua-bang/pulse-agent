@@ -711,6 +711,19 @@ export interface CrossWorkspaceSessionGroup {
   sessions: AgentSessionInfo[];
 }
 
+/** One hit from the session keyword search behind the @-mention popup. */
+export interface SessionSearchHit {
+  sessionId: string;
+  workspaceId: string;
+  workspaceName: string;
+  date: string;
+  isCurrent: boolean;
+  messageCount: number;
+  matchCount: number;
+  firstMatchIndex: number;
+  preview: string;
+}
+
 
 export type CanvasModelProviderType = 'openai' | 'claude';
 
@@ -1062,6 +1075,11 @@ export interface AgentApi {
   listAllSessions: (
     workspaceNames: Record<string, string>,
   ) => Promise<{ ok: boolean; groups?: CrossWorkspaceSessionGroup[]; error?: string }>;
+  /** Keyword search over stored session message content (for the @-mention popup). */
+  searchSessions: (
+    query: string,
+    limit?: number,
+  ) => Promise<{ ok: boolean; hits?: SessionSearchHit[]; error?: string }>;
   loadCrossWorkspaceSession: (
     targetWorkspaceId: string,
     sourceWorkspaceId: string,

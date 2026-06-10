@@ -69,6 +69,9 @@ export const createAgentApi = (ipcRenderer: IpcRenderer): AgentApi => ({
   listAllSessions: (workspaceNames) =>
     ipcRenderer.invoke("canvas-agent:all-sessions", { workspaceNames }),
 
+  searchSessions: (query, limit) =>
+    ipcRenderer.invoke("canvas-agent:search-sessions", { query, limit }),
+
   loadCrossWorkspaceSession: (targetWorkspaceId, sourceWorkspaceId, sessionId) =>
     ipcRenderer.invoke("canvas-agent:load-cross-workspace-session", {
       targetWorkspaceId,

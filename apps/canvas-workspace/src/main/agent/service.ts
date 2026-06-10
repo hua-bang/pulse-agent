@@ -22,6 +22,7 @@ import type {
   CanvasAgentDebugRunDetail,
   CanvasAgentDebugRunSummary,
   CrossWorkspaceSessionGroup,
+  SessionSearchHit,
 } from './types';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
@@ -340,6 +341,46 @@ export class CanvasAgentService {
     });
 
     return groups;
+  }
+
+  /**
+   * Keyword search across every stored session's message content (current +
+   * archived, all workspaces + global chat). Powers the chat composer's
+   * @-mention popup, which only surfaces sessions when the user has typed a
+   * query — so an empty/blank query returns nothing by design.
+   */
+  async searchSessions(query: string, limit = 8): Promise<SessionSearchHit[]> {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return [];
+
+    const hits: SessionSearchHit[] = [];
+    for (const entry of await SessionStore.readAllSessionsWithMeta()) {
+      const { session } = entry;
+      let matchCount = 0;
+      let firstMatchIndex = -1;
+      for (let i = 0; i < session.messages.length; i++) {
+        const content = session.messages[i]?.content;
+        if (typeof content !== 'string' || !content.toLowerCase().includes(normalized)) continue;
+        matchCount += 1;
+        if (firstMatchIndex < 0) firstMatchIndex = i;
+      }
+      if (matchCount === 0) continue;
+
+      const firstUserMsg = session.messages.find(m => m.role === 'user');
+      hits.push({
+        sessionId: session.sessionId,
+        workspaceId: session.workspaceId,
+        workspaceName: entry.workspaceName,
+        date: session.startedAt?.slice(0, 10) ?? '',
+        isCurrent: entry.isCurrent,
+        messageCount: session.messages.length,
+        matchCount,
+        firstMatchIndex,
+        preview: firstUserMsg ? firstUserMsg.content.replace(/\s+/g, ' ').trim().slice(0, 60) : '',
+      });
+      if (hits.length >= limit) break;
+    }
+    return hits;
   }
 
   /**
