@@ -800,6 +800,33 @@ describe('CanvasAgentTeamsService', () => {
     expect(prepared.canResume).toBe(true);
   });
 
+  it('rejects create-task requests from teammates but allows the lead', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    const teammate = created.runtime.agents.find((agent) => agent.role === 'teammate')!;
+
+    await expect(service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'Sneaky extra task',
+      description: 'Created by a teammate.',
+      sourceAgentId: teammate.id,
+    })).rejects.toThrow('Only the Team Lead can create tasks');
+
+    const fromLead = await service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'Lead follow-up',
+      description: 'Created by the lead.',
+      sourceAgentId: lead.id,
+    });
+    const createdTask = fromLead.tasks.find((task) => task.title === 'Lead follow-up')!;
+    expect(createdTask.createdBy).toBe(lead.id);
+    expect(fromLead.tasks.some((task) => task.title === 'Sneaky extra task')).toBe(false);
+  });
+
   it('rejects complete-team requests from teammates', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);

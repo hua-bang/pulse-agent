@@ -70,6 +70,8 @@ export interface CanvasAgentTeamCreateTaskInput {
   depRefs?: string[];
   scope?: string[];
   dispatch?: boolean;
+  /** Calling agent (from the CLI session env); task creation is lead-only. */
+  sourceAgentId?: string;
 }
 
 export interface CanvasAgentTeamTaskActionInput {

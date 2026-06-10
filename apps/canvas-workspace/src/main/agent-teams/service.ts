@@ -769,6 +769,18 @@ export class CanvasAgentTeamsService {
   async createTask(input: CanvasAgentTeamCreateTaskInput): Promise<RuntimeSnapshot> {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
+    // The plan belongs to the Lead (and the human). A teammate that found
+    // extra work reports it instead of silently expanding the task graph.
+    const source = input.sourceAgentId
+      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      : undefined;
+    if (source && source.role !== 'lead') {
+      throw new Error([
+        'Only the Team Lead can create tasks.',
+        'If you found extra work, mention it in your completion summary or ask the Team Lead:',
+        'pulse-canvas team request-human-input --prompt "<the extra work you found>"',
+      ].join('\n'));
+    }
     const owner = input.ownerAgentId || input.ownerName
       ? this.resolveAgentReference(snapshot.agents, input.ownerAgentId || input.ownerName || '')
       : undefined;
@@ -783,7 +795,7 @@ export class CanvasAgentTeamsService {
       description: input.description,
       ownerAgentId: owner?.id,
       deps,
-      createdBy: 'human',
+      createdBy: source?.id ?? 'human',
       metadata: input.scope && input.scope.length > 0 ? { scope: input.scope } : undefined,
     });
     if (input.dispatch) {

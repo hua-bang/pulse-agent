@@ -77,7 +77,7 @@ describe('agent team canvas node layout', () => {
     expect(frame.data.agentTeamPanelHeight).toBe(388);
     expect(frame.height).toBe(840);
     expect(lead.y).toBe(frame.y + 412);
-    expect(lead.data.agentArgs).toBe('--disallowedTools Task Edit Write NotebookEdit');
+    expect(lead.data.agentArgs).toBe('--disallowedTools Task');
     expect(lead.data.dangerousMode).toBe(true);
     expect(lead.data.cliSessionId).toMatch(UUID_RE);
     expect(backend.y).toBe(lead.y);
@@ -249,7 +249,7 @@ describe('agent team canvas node layout', () => {
     expect(frame.height).toBe(780);
     expect(agent.width).toBe(480);
     expect(agent.height).toBe(260);
-    expect(agent.data.agentArgs).toBe('--disallowedTools Task Edit Write NotebookEdit');
+    expect(agent.data.agentArgs).toBe('--disallowedTools Task');
     expect(agent.data.dangerousMode).toBe(true);
     expect(mockState.broadcasts.at(-1)).toMatchObject({
       workspaceId: 'ws-1',

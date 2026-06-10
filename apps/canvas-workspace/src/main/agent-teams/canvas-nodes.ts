@@ -18,11 +18,13 @@ const LEAD_AGENT_HEIGHT = 400;
 const FRAME_WIDTH = FRAME_PADDING * 2 + GRID_COLUMNS * AGENT_WIDTH + (GRID_COLUMNS - 1) * AGENT_GAP;
 const FRAME_HEIGHT = 840;
 const BRIEFING_FRAME_HEIGHT = 780;
-// The Team Lead coordinates and verifies; it must not implement tasks itself.
-// For claude-code leads we disallow the editing tools on top of Task
-// (subagents): verification reads and pulse-canvas CLI calls stay available.
-const CLAUDE_TEAM_LEAD_ARGS = '--disallowedTools Task Edit Write NotebookEdit';
-const LEGACY_CLAUDE_TEAM_LEAD_ARGS = '--disallowedTools Task';
+// Leads must not delegate to their own subagents (Pulse Canvas owns teammate
+// dispatch); file-editing tools stay available because legitimate lead flows
+// need them (e.g. writing the plan JSON for propose-plan --plan-file).
+// "The lead does not implement tasks" is enforced where pulse-canvas can see
+// it: the dispatcher never assigns tasks to the lead, team-protocol actions
+// are role-gated server-side, and the lead prompts state the boundary.
+const CLAUDE_TEAM_LEAD_ARGS = '--disallowedTools Task';
 const TEAM_PANEL_HEIGHT = 388;
 const FRAME_HEADER_GAP = TEAM_PANEL_HEIGHT + 24;
 const LEGACY_FRAME_HEADER_GAP = 58;
@@ -104,8 +106,6 @@ const withClaudeTeamLeadArgs = (agentType: string, role: 'lead' | 'teammate', ar
   if (role !== 'lead' || agentType !== 'claude-code') return args;
   const trimmed = args?.trim();
   if (!trimmed) return CLAUDE_TEAM_LEAD_ARGS;
-  // Upgrade the previous default in place; user-customized values are kept.
-  if (trimmed === LEGACY_CLAUDE_TEAM_LEAD_ARGS) return CLAUDE_TEAM_LEAD_ARGS;
   return /(^|\s)--disallowed(?:Tools|-tools)(\s|=|$)/.test(trimmed) ? trimmed : `${trimmed} ${CLAUDE_TEAM_LEAD_ARGS}`;
 };
 

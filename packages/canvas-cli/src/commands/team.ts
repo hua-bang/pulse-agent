@@ -164,17 +164,19 @@ export function registerTeamCommands(program: Command): void {
 
   team.command('create-task')
     .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID})`, process.env[ENV_TEAM_ID])
+    .option('--source-agent <agentId>', `Source agent ID (default: $${ENV_TEAM_AGENT_ID})`, process.env[ENV_TEAM_AGENT_ID])
     .requiredOption('--title <title>', 'Task title')
     .requiredOption('--description <description>', 'Task instructions')
     .option('--owner <agent>', 'Owner agent name or ID')
     .option('--dep <task>', 'Dependency task title or ID; repeat for multiple dependencies', collectOption, [])
     .option('--scope <path>', 'File or directory path this task may modify; repeat for multiple paths', collectOption, [])
     .option('--dispatch', 'Dispatch ready tasks after creating this task')
-    .description('Create a follow-up task in the current team')
+    .description('Create a follow-up task in the current team (Team Lead only)')
     .action(async function (
       this: Command,
       cmdOpts: {
         team?: string;
+        sourceAgent?: string;
         title: string;
         description: string;
         owner?: string;
@@ -188,7 +190,7 @@ export function registerTeamCommands(program: Command): void {
       if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
 
       const runtime = await readRuntime();
-      const { status, body } = await postTeamAction(runtime, '/agent-team/create-task', {
+      const { status, body } = await postTeamAction(runtime, '/agent-team/create-task', addSourceAgent({
         workspaceId: workspace,
         teamId,
         title: cmdOpts.title,
@@ -197,7 +199,7 @@ export function registerTeamCommands(program: Command): void {
         depRefs: cmdOpts.dep ?? [],
         ...(cmdOpts.scope && cmdOpts.scope.length > 0 ? { scope: cmdOpts.scope } : {}),
         dispatch: cmdOpts.dispatch === true,
-      });
+      }, cmdOpts.sourceAgent));
 
       if (status === 401) errorOutput(runtimeAuthHint());
       if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
