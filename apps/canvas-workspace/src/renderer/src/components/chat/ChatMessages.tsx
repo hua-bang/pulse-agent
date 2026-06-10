@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { BotAvatarIcon } from '../icons';
 import { ChatMessage } from './ChatMessage';
 import type { PendingClarification, ToolCallStatus } from './types';
 import { buildAnchorElementId } from './utils/anchors';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
+
+/** How close (px) to the bottom still counts as "reading the tail" — within
+ *  this band the view keeps following the stream; beyond it the user has
+ *  scrolled up to read and auto-scroll must not yank them back. */
+const PIN_THRESHOLD_PX = 80;
 
 interface ChatMessagesProps {
   messages: AgentChatMessage[];
@@ -98,7 +104,7 @@ const ClarificationContent = ({
           value={clarifyInput}
           onChange={(event) => onClarifyInputChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
+            if (event.key === 'Enter' && !event.shiftKey && !isImeComposing(event)) {
               event.preventDefault();
               void onAnswerClarification();
             }
@@ -141,10 +147,52 @@ export const ChatMessages = ({
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Whether the viewport is glued to the newest message. Ref drives the
+  // scroll-follow decision synchronously; state mirrors it for the
+  // "jump to latest" affordance.
+  const pinnedRef = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
+  const prevCountRef = useRef(0);
+  // While a smooth programmatic scroll glides down, intermediate scroll
+  // events report "not at bottom" — ignore them briefly so the jump button
+  // doesn't flash mid-animation.
+  const autoScrollUntilRef = useRef(0);
+
+  const handleScroll = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const pinned = distance < PIN_THRESHOLD_PX;
+    if (!pinned && performance.now() < autoScrollUntilRef.current) return;
+    pinnedRef.current = pinned;
+    setAtBottom(pinned);
+  }, []);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior) => {
+    autoScrollUntilRef.current = behavior === 'smooth' ? performance.now() + 600 : 0;
+    pinnedRef.current = true;
+    setAtBottom(true);
+    messagesEndRef.current?.scrollIntoView({ behavior });
+  }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, pendingClarify, streamingTools]);
+    const prevCount = prevCountRef.current;
+    prevCountRef.current = messages.length;
+    // A message the user just sent — or a fresh session load — always snaps
+    // the view to the bottom. Otherwise only follow the stream while the
+    // user is already reading the tail; never yank them back up-thread.
+    const lastIsUser = messages.length > 0 && messages[messages.length - 1].role === 'user';
+    const userJustSent = messages.length > prevCount && lastIsUser;
+    const sessionReset = messages.length < prevCount;
+    if (userJustSent || sessionReset) {
+      scrollToLatest(userJustSent ? 'smooth' : 'auto');
+      return;
+    }
+    if (pinnedRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [messages, pendingClarify, streamingTools, scrollToLatest]);
 
   const handleMessageClick = useCallback(async (event: React.MouseEvent) => {
     const target = event.target as HTMLElement | null;
@@ -199,42 +247,62 @@ export const ChatMessages = ({
     && messages[messages.length - 1].role === 'assistant';
 
   return (
-    <div className={`chat-messages${loading ? ' chat-messages--loading' : ''}`} onClick={handleMessageClick}>
-      {messages.map((message, index) => {
-        const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
-        const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
-        return (
-          <ChatMessage
-            key={index}
-            index={index}
-            message={message}
-            isStreaming={isStreaming}
-            loading={loading}
-            tools={tools}
-            collapsed={collapsedSections.has(index)}
-            expandedTools={expandedTools}
-            nodes={nodes}
-            workspaceId={workspaceId}
-            onToggleSection={() => onToggleSection(index)}
-            onToggleToolExpand={onToggleToolExpand}
-            onAddImageToCanvas={onAddImageToCanvas}
-            anchorId={buildAnchorElementId(workspaceId, index)}
-            onEditUserMessage={onEditUserMessage}
-            onRegenerate={onRegenerate}
-            onSessionJump={onSessionJump}
+    <div className="chat-messages-wrap">
+      <div
+        ref={containerRef}
+        className={`chat-messages${loading ? ' chat-messages--loading' : ''}`}
+        onClick={handleMessageClick}
+        onScroll={handleScroll}
+      >
+        {messages.map((message, index) => {
+          const isStreaming = loading && message.role === 'assistant' && index === messages.length - 1;
+          const tools = isStreaming ? streamingTools : (messageTools.get(index) ?? message.toolCalls);
+          return (
+            <ChatMessage
+              key={index}
+              index={index}
+              message={message}
+              isStreaming={isStreaming}
+              loading={loading}
+              tools={tools}
+              collapsed={collapsedSections.has(index)}
+              expandedTools={expandedTools}
+              nodes={nodes}
+              workspaceId={workspaceId}
+              onToggleSection={() => onToggleSection(index)}
+              onToggleToolExpand={onToggleToolExpand}
+              onAddImageToCanvas={onAddImageToCanvas}
+              anchorId={buildAnchorElementId(workspaceId, index)}
+              onEditUserMessage={onEditUserMessage}
+              onRegenerate={onRegenerate}
+              onSessionJump={onSessionJump}
+            />
+          );
+        })}
+        {loading && !hasStreamingAssistantMessage && <LoadingPlaceholder />}
+        {pendingClarify && (
+          <ClarificationCard
+            pendingClarify={pendingClarify}
+            clarifyInput={clarifyInput}
+            onClarifyInputChange={onClarifyInputChange}
+            onAnswerClarification={onAnswerClarification}
           />
-        );
-      })}
-      {loading && !hasStreamingAssistantMessage && <LoadingPlaceholder />}
-      {pendingClarify && (
-        <ClarificationCard
-          pendingClarify={pendingClarify}
-          clarifyInput={clarifyInput}
-          onClarifyInputChange={onClarifyInputChange}
-          onAnswerClarification={onAnswerClarification}
-        />
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+      {!atBottom && messages.length > 0 && (
+        <button
+          type="button"
+          className="chat-jump-latest"
+          onClick={() => scrollToLatest('smooth')}
+          aria-label={t('chat.jumpToLatest')}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+            <path d="M8 3v9.5M8 12.5L4.5 9M8 12.5L11.5 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {t('chat.jumpToLatest')}
+        </button>
       )}
-      <div ref={messagesEndRef} />
     </div>
   );
 };

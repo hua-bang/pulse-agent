@@ -9,6 +9,7 @@ import {
 import type { Artifact, IframeNodeData } from '../../types';
 import type { EditMode, IframeNodeBodyProps, LoadState, WebviewTag } from './types';
 import { BLANK_PAGE_URL, normalizeUrl, prettyTitle, sanitizePageTitle, shouldSyncIframeTitle } from './utils';
+import { isImeComposing } from '../../utils/ime';
 
 export const useIframeNodeState = ({
   node,
@@ -364,6 +365,7 @@ export const useIframeNodeState = ({
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
+      if (isImeComposing(e)) return;
       if (e.key === 'Enter') {
         e.preventDefault();
         commit();

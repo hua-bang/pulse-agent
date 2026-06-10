@@ -20,6 +20,7 @@ import { NodesChatDock, useNodesChatDock } from './NodesChatDock';
 import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -598,6 +599,7 @@ export const GraphPage = ({
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('workspaceGraph.searchPlaceholder')}
               onKeyDown={(event) => {
+                if (isImeComposing(event)) return;
                 if (event.key === 'Escape') {
                   setSearchOpen(false);
                   return;

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeRecord } from '../../types';
 import { tagName } from './utils';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 
 interface NodeTagEditorProps {
   node: WorkspaceNodeRecord;
@@ -158,6 +159,7 @@ export const NodeTagEditor = ({
             placeholder={t('workspaceNodes.searchOrCreateTag')}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
+              if (isImeComposing(event)) return;
               if (event.key === 'Escape') {
                 setOpen(false);
                 setInput('');

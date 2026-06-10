@@ -20,6 +20,7 @@ import { SettingsDrawer } from '../SettingsDrawer';
 import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 import './index.css';
 
 interface Props {
@@ -263,7 +264,7 @@ export const WorkspaceSettingsDrawer = ({
                   value={intent}
                   onChange={(e) => setIntent(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && intent.trim() && !generating) {
+                    if (e.key === 'Enter' && !e.shiftKey && !isImeComposing(e) && intent.trim() && !generating) {
                       e.preventDefault();
                       void handleGenerate();
                     }

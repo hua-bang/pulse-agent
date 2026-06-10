@@ -6,6 +6,7 @@ import {
   resolveEndpoint,
   resolveEndpointToward,
 } from '../../utils/edgeFactory';
+import { isImeComposing } from '../../utils/ime';
 
 /**
  * Inline label on an edge.
@@ -76,6 +77,7 @@ export const EdgeLabel = ({
   }, [edge, nodes, transform]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(e)) return;
     if (e.key === 'Enter') {
       e.preventDefault();
       onCommit(edge.id, draft);

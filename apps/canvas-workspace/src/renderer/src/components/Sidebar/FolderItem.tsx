@@ -2,6 +2,7 @@ import type React from 'react';
 import type { FolderEntry, WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { CloseIcon, ChevronRightIcon, FolderIcon, PencilIcon, PlusIcon } from '../icons';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 
 interface FolderItemProps {
   folder: FolderEntry;
@@ -72,6 +73,7 @@ export const FolderItem = ({
             onChange={(e) => onRenameChange(e.target.value)}
             onBlur={onRenameCommit}
             onKeyDown={(e) => {
+              if (isImeComposing(e)) return;
               if (e.key === 'Enter') onRenameCommit();
               if (e.key === 'Escape') onRenameCancel();
             }}

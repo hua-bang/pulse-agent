@@ -2,6 +2,7 @@ import type React from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { CloseIcon, ExportIcon, PencilIcon, SettingsIcon, WorkspaceIcon } from '../icons';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 
 export interface WorkspaceItemProps {
   ws: WorkspaceEntry;
@@ -71,6 +72,7 @@ export const WorkspaceItem = ({
             onChange={(e) => onRenameChange(e.target.value)}
             onBlur={onRenameCommit}
             onKeyDown={(e) => {
+              if (isImeComposing(e)) return;
               if (e.key === 'Enter') onRenameCommit();
               if (e.key === 'Escape') onRenameCancel();
             }}

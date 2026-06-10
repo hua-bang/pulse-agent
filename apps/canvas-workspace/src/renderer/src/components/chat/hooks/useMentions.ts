@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentRequestContext, CanvasNode, ChatImageAttachment, DirEntry } from '../../../types';
+import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_GROUP_ORDER,
   MENTION_MAX_ITEMS,
@@ -287,6 +288,22 @@ export function useMentions({
     });
   }, [buildMentionItems]);
 
+  // Dismiss the mention popup when the user clicks anywhere outside the
+  // composer or the popup itself — otherwise it lingers until Escape or a
+  // selection, which reads as stuck.
+  useEffect(() => {
+    if (!mentionOpen) return;
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (editableRef.current?.contains(target)) return;
+      if (target.closest('.chat-mention-popup')) return;
+      setMentionOpen(false);
+    };
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [mentionOpen]);
+
   const selectMention = useCallback((item: MentionItem) => {
     const element = editableRef.current;
     if (!element) return;
@@ -354,6 +371,11 @@ export function useMentions({
   }, [attachments, clearInput, collectStructuredContext, getRequestContext, input, onSubmit]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
+    // While an IME composition is active (Chinese/Japanese/Korean input),
+    // Enter confirms the candidate and arrows navigate the candidate list —
+    // never send the message or move the mention selection.
+    if (isImeComposing(event)) return;
+
     if (mentionOpen && mentionItems.length > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();

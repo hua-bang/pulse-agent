@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { MENTION_GROUP_LABEL_KEY, getMentionGroupKey } from './constants';
 import type { MentionItem } from './types';
 import { MentionNodeIcon } from './utils/mentions';
@@ -17,9 +18,17 @@ export const ChatMentionPopup = ({
   onMentionIndexChange,
 }: ChatMentionPopupProps) => {
   const { t } = useI18n();
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  // Keep the keyboard-highlighted row visible — the popup scrolls at
+  // max-height 240px, so arrowing past the fold must follow the selection.
+  useEffect(() => {
+    const active = popupRef.current?.querySelector('.chat-mention-item--active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [mentionIndex]);
 
   return (
-    <div className="chat-mention-popup">
+    <div className="chat-mention-popup" ref={popupRef}>
       {mentionItems.map((item, index) => {
         const groupKey = getMentionGroupKey(item);
         const previousGroupKey = index > 0 ? getMentionGroupKey(mentionItems[index - 1]) : null;

@@ -1,5 +1,6 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { LinkIcon } from './Icons';
+import { isImeComposing } from '../../utils/ime';
 
 interface ReferenceUrlEditorProps {
   handleAddUrl: () => void;
@@ -51,6 +52,7 @@ export const ReferenceUrlEditor = ({
             setUrlError(undefined);
           }}
           onKeyDown={(e) => {
+            if (isImeComposing(e)) return;
             if (e.key === 'Enter') {
               e.preventDefault();
               handleAddUrl();

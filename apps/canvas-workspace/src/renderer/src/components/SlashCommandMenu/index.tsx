@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import './index.css';
 import { createPortal } from 'react-dom';
+import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
 
 export interface SlashCommandDef {
   id: string;
@@ -26,7 +27,9 @@ export const SlashCommandMenu = ({
   onSelect,
   onClose,
 }: Props) => {
-  const menuRef = useRef<HTMLDivElement>(null);
+  // Keep the menu fully on-screen: typing `/` near the right or bottom
+  // window edge would otherwise push the list out of the viewport.
+  const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y + 6);
 
   // Scroll active item into view
   useEffect(() => {
@@ -47,11 +50,6 @@ export const SlashCommandMenu = ({
 
   if (items.length === 0) return null;
 
-  // Keep the menu inside the viewport horizontally
-  const viewportW = window.innerWidth;
-  const menuW = 220;
-  const left = Math.min(x, viewportW - menuW - 8);
-
   // Portal into document.body so position:fixed is relative to the viewport,
   // not to the canvas-transform ancestor (which has a CSS transform that
   // would otherwise shift fixed-positioned children away from the viewport).
@@ -59,7 +57,7 @@ export const SlashCommandMenu = ({
     <div
       ref={menuRef}
       className="slash-menu"
-      style={{ position: 'fixed', left, top: y + 6, zIndex: 9000 }}
+      style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 9000 }}
     >
       <div className="slash-menu-header">BLOCKS</div>
       {items.map((item, i) => (

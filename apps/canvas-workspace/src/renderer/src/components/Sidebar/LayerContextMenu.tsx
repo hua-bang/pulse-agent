@@ -1,3 +1,5 @@
+import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
+
 interface LayerContextMenuProps {
   x: number;
   y: number;
@@ -18,10 +20,14 @@ export const LayerContextMenu = ({
   onDelete,
   onCopyLink,
   onClose,
-}: LayerContextMenuProps) => (
+}: LayerContextMenuProps) => {
+  const { ref, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
+
+  return (
   <div
+    ref={ref}
     className="sidebar-layer-context-menu"
-    style={{ left: x, top: y }}
+    style={{ left: pos.left, top: pos.top }}
     onMouseDown={(e) => e.stopPropagation()}
     onContextMenu={(e) => e.preventDefault()}
   >
@@ -67,4 +73,5 @@ export const LayerContextMenu = ({
       <span>Delete</span>
     </button>
   </div>
-);
+  );
+};
