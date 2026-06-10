@@ -107,15 +107,16 @@ export function createSessionTools(currentWorkspaceId?: string): Record<string, 
         const matches: Array<Record<string, unknown>> = [];
         let total = 0;
         for (const entry of sessions) {
-          const snippets: Array<{ role: string; snippet: string }> = [];
+          const snippets: Array<{ role: string; messageIndex: number; snippet: string }> = [];
           let matchCount = 0;
-          for (const message of entry.session.messages) {
+          for (let mi = 0; mi < entry.session.messages.length; mi++) {
+            const message = entry.session.messages[mi];
             if (roleFilter && message.role !== roleFilter) continue;
             if (typeof message.content !== 'string') continue;
             if (!message.content.toLowerCase().includes(query)) continue;
             matchCount += 1;
             if (snippets.length < snippetsPerSession) {
-              snippets.push({ role: message.role, snippet: matchSnippet(message.content, query) });
+              snippets.push({ role: message.role, messageIndex: mi, snippet: matchSnippet(message.content, query) });
             }
           }
           if (matchCount === 0) continue;

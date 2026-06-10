@@ -1586,6 +1586,69 @@
   margin-bottom: 4px;
 }
 
+/* ─── Session-ref chips (session_search / session_summary) ─ */
+
+.chat-session-refs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 4px 0 4px 19px;
+}
+
+.chat-session-ref-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid rgba(55, 53, 47, 0.09);
+  border-radius: 6px;
+  background: rgba(55, 53, 47, 0.028);
+  font-family: inherit;
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.7);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1.35;
+}
+
+.chat-session-ref-chip:hover {
+  background: rgba(55, 53, 47, 0.06);
+  border-color: rgba(55, 53, 47, 0.16);
+}
+
+.chat-session-ref-icon {
+  flex-shrink: 0;
+  color: rgba(55, 53, 47, 0.4);
+}
+
+.chat-session-ref-name {
+  font-weight: 600;
+  color: rgba(55, 53, 47, 0.85);
+  white-space: nowrap;
+}
+
+.chat-session-ref-date {
+  color: rgba(55, 53, 47, 0.4);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chat-session-ref-count {
+  color: rgba(55, 53, 47, 0.35);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.chat-session-ref-preview {
+  color: rgba(55, 53, 47, 0.5);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 /* ─── @ Mention popup ────────────────────────────────────── */
 
 .chat-mention-popup {

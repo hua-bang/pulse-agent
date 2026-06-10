@@ -213,6 +213,21 @@ export const ChatPanel = ({
     [regenerateAssistantMessage],
   );
 
+  const handleSessionJump = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
+    await handleLoadSession(sessionId, jumpWorkspaceId !== scopeWorkspaceId ? jumpWorkspaceId : undefined);
+    if (messageIndex !== undefined && messageIndex >= 0) {
+      // Allow the DOM to settle after session load, then scroll to target.
+      window.setTimeout(() => {
+        const id = buildAnchorElementId(anchorScopeId, messageIndex);
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('chat-message--anchor-flash');
+        window.setTimeout(() => el.classList.remove('chat-message--anchor-flash'), 1200);
+      }, 120);
+    }
+  }, [anchorScopeId, handleLoadSession, scopeWorkspaceId]);
+
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 
   const handleJumpAnchor = useCallback((index: number) => {
@@ -292,6 +307,7 @@ export const ChatPanel = ({
       onToggleExecutionMode={scopeWorkspaceId ? handleToggleExecutionMode : undefined}
       onEditUserMessage={handleEditUserMessage}
       onRegenerate={handleRegenerate}
+      onSessionJump={handleSessionJump}
     />
   );
 };

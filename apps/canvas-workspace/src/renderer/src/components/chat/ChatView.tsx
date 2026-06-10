@@ -73,6 +73,9 @@ interface ChatViewProps {
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
 
+  // Session jump — load a session from a session_search result chip.
+  onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
+
   // Optional decoration
   onResizeStart?: (e: ReactMouseEvent) => void;
 }
@@ -131,6 +134,7 @@ export const ChatView = ({
   onToggleExecutionMode,
   onEditUserMessage,
   onRegenerate,
+  onSessionJump,
   onResizeStart,
 }: ChatViewProps) => {
   const hasMessages = messages.length > 0 || loading;
@@ -162,6 +166,7 @@ export const ChatView = ({
           onNodeFocus={onNodeFocus}
           onEditUserMessage={onEditUserMessage}
           onRegenerate={onRegenerate}
+          onSessionJump={onSessionJump}
         />
       ) : (
         <ChatEmptyState

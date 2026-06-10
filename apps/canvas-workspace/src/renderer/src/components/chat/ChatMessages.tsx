@@ -25,6 +25,7 @@ interface ChatMessagesProps {
   onNodeFocus?: (nodeId: string) => void;
   onEditUserMessage?: (index: number, newContent: string) => Promise<boolean> | void;
   onRegenerate?: (index: number) => Promise<boolean> | void;
+  onSessionJump?: (sessionId: string, workspaceId: string, messageIndex?: number) => void;
 }
 
 const LoadingPlaceholder = () => (
@@ -136,6 +137,7 @@ export const ChatMessages = ({
   onNodeFocus,
   onEditUserMessage,
   onRegenerate,
+  onSessionJump,
 }: ChatMessagesProps) => {
   const { t } = useI18n();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -167,6 +169,18 @@ export const ChatMessages = ({
       return;
     }
 
+    // Session-ref chip → load session and scroll to the matched message.
+    const sessionChip = target.closest<HTMLElement>('[data-action="session-jump"]');
+    if (sessionChip && onSessionJump) {
+      const sid = sessionChip.dataset.sessionId;
+      const wid = sessionChip.dataset.workspaceId;
+      const mi = sessionChip.dataset.messageIndex;
+      if (sid && wid) {
+        onSessionJump(sid, wid, mi !== undefined ? Number(mi) : undefined);
+      }
+      return;
+    }
+
     // Mention chip → focus the canvas node it references.
     const chip = target.closest('.chat-mention-chip--clickable') as HTMLElement | null;
     if (!chip || !onNodeFocus) return;
@@ -174,7 +188,7 @@ export const ChatMessages = ({
     if (nodeId) {
       onNodeFocus(nodeId);
     }
-  }, [onNodeFocus, t]);
+  }, [onNodeFocus, onSessionJump, t]);
 
   const hasStreamingAssistantMessage = loading
     && messages.length > 0
@@ -203,6 +217,7 @@ export const ChatMessages = ({
             anchorId={buildAnchorElementId(workspaceId, index)}
             onEditUserMessage={onEditUserMessage}
             onRegenerate={onRegenerate}
+            onSessionJump={onSessionJump}
           />
         );
       })}

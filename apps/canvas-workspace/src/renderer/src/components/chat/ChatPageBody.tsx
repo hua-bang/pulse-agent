@@ -178,6 +178,36 @@ export const ChatPageBody = ({
     onExit();
   }, [onExit, onNodeFocus, workspaceId]);
 
+  const handleSessionJump = useCallback(async (sessionId: string, jumpWorkspaceId: string, messageIndex?: number) => {
+    // ChatPageBody uses onSelectSession for cross-workspace switches which
+    // remount the body with the correct workspace scope. For same-workspace
+    // sessions we can load in-place.
+    const isSameScope = jumpWorkspaceId === (workspaceId ?? '__global_chat__');
+    if (isSameScope) {
+      await handleLoadSession(sessionId);
+    } else {
+      onSelectSession({
+        sessionId,
+        workspaceId: jumpWorkspaceId,
+        workspaceName: allWorkspaces.find(w => w.id === jumpWorkspaceId)?.name ?? jumpWorkspaceId,
+        date: '',
+        messageCount: 0,
+        preview: '',
+        isCurrent: false,
+      });
+    }
+    if (messageIndex !== undefined && messageIndex >= 0) {
+      window.setTimeout(() => {
+        const id = buildAnchorElementId(anchorScopeId, messageIndex);
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        el.classList.add('chat-message--anchor-flash');
+        window.setTimeout(() => el.classList.remove('chat-message--anchor-flash'), 1200);
+      }, 200);
+    }
+  }, [allWorkspaces, anchorScopeId, handleLoadSession, onSelectSession, workspaceId]);
+
   const anchors = useMemo(() => buildChatAnchors(messages), [messages]);
 
   const handleJumpAnchor = useCallback((messageIndex: number) => {
@@ -343,6 +373,7 @@ export const ChatPageBody = ({
           contextComposer
           onEditUserMessage={handleEditUserMessage}
           onRegenerate={handleRegenerate}
+          onSessionJump={handleSessionJump}
         />
       </div>
     </div>
