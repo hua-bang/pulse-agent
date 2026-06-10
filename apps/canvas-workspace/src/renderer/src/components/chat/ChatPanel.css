@@ -1649,6 +1649,51 @@
   min-width: 0;
 }
 
+/* Back bar shown after a session jump (return to where the jump started). */
+.chat-session-back {
+  flex-shrink: 0;
+  padding: 6px 14px 0;
+}
+
+.chat-session-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid rgba(120, 80, 200, 0.18);
+  border-radius: 999px;
+  background: rgba(120, 80, 200, 0.06);
+  font-family: inherit;
+  font-size: 12px;
+  color: rgba(55, 53, 47, 0.75);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.chat-session-back-btn:hover:not(:disabled) {
+  background: rgba(120, 80, 200, 0.12);
+  border-color: rgba(120, 80, 200, 0.32);
+}
+
+.chat-session-back-btn:disabled {
+  cursor: progress;
+  opacity: 0.55;
+}
+
+.chat-session-back-arrow {
+  color: rgba(120, 80, 200, 0.8);
+  font-weight: 600;
+}
+
+.chat-session-back-label {
+  color: rgba(55, 53, 47, 0.45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
 /* Inline session citation chip (assistant body, `@[session:...|label]`). */
 .chat-mention-chip--session {
   background: rgba(120, 80, 200, 0.07);

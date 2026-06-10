@@ -322,6 +322,18 @@ export function setupCanvasAgentIpc(): void {
   );
 
   ipcMain.handle(
+    'canvas-agent:current-session',
+    async (_event, payload: AgentScopeRef) => {
+      try {
+        const sessionId = await svc.resolveCurrentSessionId(resolveAgentScope(payload));
+        return { ok: true, sessionId };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
     'canvas-agent:search-sessions',
     async (_event, payload: { query: string; limit?: number }) => {
       try {

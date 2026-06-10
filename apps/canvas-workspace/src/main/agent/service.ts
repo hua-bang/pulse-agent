@@ -344,10 +344,27 @@ export class CanvasAgentService {
   }
 
   /**
-   * Keyword search across every stored session's message content (current +
-   * archived, all workspaces + global chat). Powers the chat composer's
-   * @-mention popup, which only surfaces sessions when the user has typed a
-   * query — so an empty/blank query returns nothing by design.
+   * Current session id for a scope. Prefers the live agent (see
+   * {@link getCurrentSessionIdForScope}); falls back to the on-disk
+   * current.json so the renderer can record a back-navigation entry even
+   * before the agent for that scope is activated.
+   */
+  async resolveCurrentSessionId(scope: AgentScope): Promise<string | null> {
+    const live = this.getCurrentSessionIdForScope(scope);
+    if (live) return live;
+    return SessionStore.readCurrentSessionId(scopeSessionStoreId(scope));
+  }
+
+  /**
+   * Keyword lookup over session TITLES — the first user message (the same
+   * text the session rail shows as preview) plus the workspace name. Powers
+   * the chat composer's @-mention popup, which only surfaces sessions when
+   * the user has typed a query — so an empty/blank query returns nothing by
+   * design.
+   *
+   * Deliberately NOT a full-content search: this runs on every keystroke
+   * after `@`, so it stays cheap and predictable. Deep content search is the
+   * agent-side `session_search` tool's job.
    */
   async searchSessions(query: string, limit = 8): Promise<SessionSearchHit[]> {
     const normalized = query.trim().toLowerCase();
@@ -356,17 +373,11 @@ export class CanvasAgentService {
     const hits: SessionSearchHit[] = [];
     for (const entry of await SessionStore.readAllSessionsWithMeta()) {
       const { session } = entry;
-      let matchCount = 0;
-      let firstMatchIndex = -1;
-      for (let i = 0; i < session.messages.length; i++) {
-        const content = session.messages[i]?.content;
-        if (typeof content !== 'string' || !content.toLowerCase().includes(normalized)) continue;
-        matchCount += 1;
-        if (firstMatchIndex < 0) firstMatchIndex = i;
-      }
-      if (matchCount === 0) continue;
-
       const firstUserMsg = session.messages.find(m => m.role === 'user');
+      const title = firstUserMsg ? firstUserMsg.content.replace(/\s+/g, ' ').trim() : '';
+      const haystack = `${title}\n${entry.workspaceName}`.toLowerCase();
+      if (!haystack.includes(normalized)) continue;
+
       hits.push({
         sessionId: session.sessionId,
         workspaceId: session.workspaceId,
@@ -374,9 +385,7 @@ export class CanvasAgentService {
         date: session.startedAt?.slice(0, 10) ?? '',
         isCurrent: entry.isCurrent,
         messageCount: session.messages.length,
-        matchCount,
-        firstMatchIndex,
-        preview: firstUserMsg ? firstUserMsg.content.replace(/\s+/g, ' ').trim().slice(0, 60) : '',
+        preview: title.slice(0, 60),
       });
       if (hits.length >= limit) break;
     }

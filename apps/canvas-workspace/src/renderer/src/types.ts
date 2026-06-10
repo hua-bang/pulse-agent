@@ -711,7 +711,7 @@ export interface CrossWorkspaceSessionGroup {
   sessions: AgentSessionInfo[];
 }
 
-/** One hit from the session keyword search behind the @-mention popup. */
+/** One hit from the session title search behind the @-mention popup. */
 export interface SessionSearchHit {
   sessionId: string;
   workspaceId: string;
@@ -719,8 +719,6 @@ export interface SessionSearchHit {
   date: string;
   isCurrent: boolean;
   messageCount: number;
-  matchCount: number;
-  firstMatchIndex: number;
   preview: string;
 }
 
@@ -1080,6 +1078,10 @@ export interface AgentApi {
     query: string,
     limit?: number,
   ) => Promise<{ ok: boolean; hits?: SessionSearchHit[]; error?: string }>;
+  /** Current session id for a scope (live agent, falling back to disk). */
+  getCurrentSession: (
+    scopeRef: AgentScopeRef
+  ) => Promise<{ ok: boolean; sessionId?: string | null; error?: string }>;
   loadCrossWorkspaceSession: (
     targetWorkspaceId: string,
     sourceWorkspaceId: string,

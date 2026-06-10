@@ -360,6 +360,21 @@ export class SessionStore {
   }
 
   /**
+   * Read the current (on-disk) session id for a session store without
+   * activating an agent. Used by the renderer's session back-navigation to
+   * record where a jump started from.
+   */
+  static async readCurrentSessionId(storeId: string): Promise<string | null> {
+    try {
+      const raw = await fs.readFile(join(STORE_DIR, storeId, 'agent-sessions', 'current.json'), 'utf-8');
+      const data = JSON.parse(raw) as CanvasAgentSession;
+      return data.sessionId ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Load a session by ID from another workspace's archive (read-only).
    */
   static async readSessionFromWorkspace(

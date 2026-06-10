@@ -213,10 +213,10 @@ export function useMentions({
       ? items.filter(item => item.label.toLowerCase().includes(normalizedQuery))
       : items;
 
-    // Past chat sessions: keyword search over stored message content. Only
-    // surfaced when the user typed a query — the default (empty) popup stays
-    // nodes/files/canvases only. Searched main-side, so it matches message
-    // text, not just the labels the renderer has.
+    // Past chat sessions, matched by TITLE (first user message + workspace
+    // name) — deliberately not message content, to keep the per-keystroke
+    // cost low. Only surfaced when the user typed a query — the default
+    // (empty) popup stays nodes/files/canvases only.
     if (normalizedQuery) {
       try {
         const result = await window.canvasWorkspace.agent.searchSessions(query, 5);
@@ -227,7 +227,6 @@ export function useMentions({
               label: `${hit.workspaceName} · ${hit.date}`,
               sessionId: hit.sessionId,
               workspaceId: hit.workspaceId,
-              messageIndex: hit.firstMatchIndex,
               description: hit.preview,
             });
           }
