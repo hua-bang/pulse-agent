@@ -17,12 +17,12 @@ interface SessionBackBarProps {
 }
 
 /**
- * Slim bar pinned above the messages list after a session jump, letting the
- * user return to the conversation they came from. Stacked jumps pop one
- * level at a time.
+ * Slim one-line bar pinned above the messages list after a session jump.
+ * Shows "← label" so the user can return with a single click.
  */
 export const SessionBackBar = ({ entry, disabled, onBack }: SessionBackBarProps) => {
   const { t } = useI18n();
+  const label = entry.label || t('chat.session.back');
   return (
     <div className="chat-session-back">
       <button
@@ -30,11 +30,13 @@ export const SessionBackBar = ({ entry, disabled, onBack }: SessionBackBarProps)
         className="chat-session-back-btn"
         disabled={disabled}
         onClick={onBack}
-        title={entry.label || t('chat.session.back')}
+        title={label}
       >
-        <span className="chat-session-back-arrow">←</span>
-        <span>{t('chat.session.back')}</span>
-        {entry.label && <span className="chat-session-back-label">{entry.label}</span>}
+        <svg className="chat-session-back-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <path d="M7.5 2L3.5 6L7.5 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="chat-session-back-prefix">{t('chat.session.back')}</span>
+        <span className="chat-session-back-label">{label}</span>
       </button>
     </div>
   );
