@@ -12,6 +12,8 @@ export interface CanvasAgentTeamPlanTask {
   description: string;
   ownerName?: string;
   deps: string[];
+  /** File or directory paths this task may create or modify. */
+  scope?: string[];
 }
 
 export interface CanvasAgentTeamPlanDraft {
@@ -66,6 +68,7 @@ export interface CanvasAgentTeamCreateTaskInput {
   ownerName?: string;
   deps?: string[];
   depRefs?: string[];
+  scope?: string[];
   dispatch?: boolean;
 }
 

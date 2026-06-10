@@ -200,6 +200,9 @@ const normalizePlanTasks = (value: unknown, fallbackSummary: string): CanvasAgen
       const obj = asPlainObject(item);
       const title = cleanString(obj.title);
       if (!title) return null;
+      const scope = Array.isArray(obj.scope)
+        ? obj.scope.map((entry) => cleanString(entry)).filter(Boolean)
+        : [];
       return {
         title,
         description: cleanString(obj.description, title),
@@ -207,6 +210,7 @@ const normalizePlanTasks = (value: unknown, fallbackSummary: string): CanvasAgen
         deps: Array.isArray(obj.deps)
           ? obj.deps.map((dep) => cleanString(dep)).filter(Boolean)
           : [],
+        scope: scope.length > 0 ? scope : undefined,
       };
     })
     .filter((item): item is CanvasAgentTeamPlanTask => !!item)
@@ -377,9 +381,11 @@ const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: str
   '',
   'When the plan is ready for user approval, submit it through the Pulse Canvas CLI instead of writing a terminal marker.',
   'Prefer --plan-json so you do not need to edit a temporary file. Use this JSON shape:',
-  '{"summary":"short plan summary","teammates":[{"name":"Backend Codex","agentType":"codex"},{"name":"Frontend Codex","agentType":"codex"},{"name":"QA Codex","agentType":"codex"}],"tasks":[{"title":"Define API contract","description":"Concrete instructions and expected output.","ownerName":"Backend Codex","deps":[]},{"title":"Implement frontend integration","description":"Concrete instructions and expected output.","ownerName":"Frontend Codex","deps":["Define API contract"]},{"title":"QA integration and fixes","description":"Verify the completed backend/frontend flow and report or fix issues.","ownerName":"QA Codex","deps":["Define API contract","Implement frontend integration"]}]}',
+  '{"summary":"short plan summary","teammates":[{"name":"Backend Codex","agentType":"codex"},{"name":"Frontend Codex","agentType":"codex"},{"name":"QA Codex","agentType":"codex"}],"tasks":[{"title":"Define API contract","description":"Concrete instructions and expected output.","ownerName":"Backend Codex","deps":[],"scope":["docs/api-contract.md","src/server/api"]},{"title":"Implement frontend integration","description":"Concrete instructions and expected output.","ownerName":"Frontend Codex","deps":["Define API contract"],"scope":["src/web"]},{"title":"QA integration and fixes","description":"Verify the completed backend/frontend flow and report or fix issues.","ownerName":"QA Codex","deps":["Define API contract","Implement frontend integration"],"scope":["tests"]}]}',
   '',
   'Every task object MUST include "deps": [] or a list of exact task titles from the same plan.',
+  'Give every task that creates or edits files a "scope": the file or directory paths (relative to the working directory) it may modify. Survey, analysis, and review tasks may omit scope.',
+  'Tasks that can run in parallel MUST have non-overlapping scopes. Pulse Canvas will not dispatch two scope-overlapping tasks at the same time, so overlapping scopes silently serialize your DAG.',
   'Use deps to encode the real execution order. Do not rely on wording like "after" or "then" in descriptions.',
   'Plan the smallest DAG that still exposes useful parallel work: usually 3-6 teammates and 4-10 tasks for normal app/repo work. Go above 10 tasks only when there are truly independent deliverables.',
   'Target 2-4 ready-to-start workstreams. Do not serialize the whole graph behind one setup/research task, and do not create one microtask per file, component, command, or tiny edit.',
@@ -419,7 +425,8 @@ const formatLeadExecutionPrompt = (teamName: string, goal: string, content: stri
   'pulse-canvas team complete-task --task "<covered downstream task id or title>" --summary "<why this was already satisfied>"',
   'If a covered downstream task is actively running, send guidance to that teammate instead of marking it complete.',
   'Use create-task only for new work not covered by any existing task:',
-  'pulse-canvas team create-task --title "Task title" --description "Concrete instructions" --owner "Teammate name" --dispatch',
+  'pulse-canvas team create-task --title "Task title" --description "Concrete instructions" --owner "Teammate name" --scope "src/path" --dispatch',
+  'Declare --scope (repeatable) for tasks that edit files; tasks with overlapping scopes never run at the same time.',
   '',
   'Use pulse-canvas team send --to "Teammate name" --message "..." to share context with a teammate.',
   'Use pulse-canvas team propose-plan only when the change needs a new human-approved plan.',
@@ -656,7 +663,10 @@ export class CanvasAgentTeamsService {
         ownerAgentId: owner?.id ?? fallbackOwner?.id,
         deps: resolved.depIds,
         createdBy: lead?.id ?? 'runtime',
-        metadata: { kind: 'leader-plan-task' },
+        metadata: {
+          kind: 'leader-plan-task',
+          ...(task.scope && task.scope.length > 0 ? { scope: task.scope } : {}),
+        },
       });
     }
 
@@ -764,6 +774,7 @@ export class CanvasAgentTeamsService {
       ownerAgentId: owner?.id,
       deps,
       createdBy: 'human',
+      metadata: input.scope && input.scope.length > 0 ? { scope: input.scope } : undefined,
     });
     if (input.dispatch) {
       await runtime.dispatchReadyTasks(input.teamId);

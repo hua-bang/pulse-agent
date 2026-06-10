@@ -713,6 +713,45 @@ describe('CanvasAgentTeamsService', () => {
     expect(mockState.queuedInputs.at(-1)?.input).toContain(`Handoff: ${handoffPathFor(teamId, implement.id)}`);
   });
 
+  it('serializes plan tasks with overlapping file scopes at dispatch', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Scoped parallel work.',
+        teammates: [
+          { name: 'API Codex', agentType: 'codex' },
+          { name: 'Docs Codex', agentType: 'codex' },
+          { name: 'UI Codex', agentType: 'codex' },
+        ],
+        tasks: [
+          { title: 'Edit API', description: 'Edit the API module.', ownerName: 'API Codex', scope: ['src/api/**'] },
+          { title: 'Edit API docs', description: 'Document the API module.', ownerName: 'Docs Codex', scope: ['src/api/readme.md'] },
+          { title: 'Edit UI', description: 'Edit the UI.', ownerName: 'UI Codex', scope: ['src/ui'] },
+        ],
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const byTitle = (title: string) => confirmed.runtime.tasks.find((task) => task.title === title)!;
+
+    // Scopes flow from the plan into task metadata; the overlapping docs task
+    // is deferred while the disjoint API and UI tasks run in parallel.
+    expect(byTitle('Edit API').metadata?.scope).toEqual(['src/api/**']);
+    expect(byTitle('Edit API').status).toBe('in_progress');
+    expect(byTitle('Edit API docs').status).toBe('todo');
+    expect(byTitle('Edit UI').status).toBe('in_progress');
+    const apiOwner = confirmed.runtime.agents.find((agent) => agent.id === byTitle('Edit API').ownerAgentId)!;
+    const apiPrompt = mockState.queuedInputs.find((entry) => entry.nodeId === apiOwner.sessionRef!.sessionId)?.input ?? '';
+    expect(apiPrompt).toContain('File scope for this task — only create or modify files under:');
+    expect(apiPrompt).toContain('- src/api/**');
+
+    // Completing the API task releases its scope and the docs task dispatches.
+    await service.completeTask('ws-1', teamId, byTitle('Edit API').id, 'API edited.');
+    const after = await service.snapshot('ws-1', teamId);
+    expect(after.runtime.tasks.find((task) => task.title === 'Edit API docs')?.status).toBe('in_progress');
+  });
+
   it('rejects a teammate completion until the handoff file exists', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);

@@ -1383,6 +1383,72 @@ describe('TeamRuntime', () => {
     });
   });
 
+  describe('Scope guard', () => {
+    it('defers dispatch of tasks whose file scope overlaps unfinished work', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const apiDev = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'API Dev' });
+      const docsDev = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Docs Dev' });
+      const uiDev = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'UI Dev' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      const apiWithSession = await runtime.createAgentSession(apiDev.id);
+      await runtime.createAgentSession(docsDev.id);
+      await runtime.createAgentSession(uiDev.id);
+      const apiTask = await runtime.createTask({
+        teamId: team.id,
+        title: 'Edit API',
+        description: 'Edit the API module.',
+        ownerAgentId: apiDev.id,
+        metadata: { scope: ['src/api/**'] },
+      });
+      const docsTask = await runtime.createTask({
+        teamId: team.id,
+        title: 'Edit API docs',
+        description: 'Document the API module.',
+        ownerAgentId: docsDev.id,
+        metadata: { scope: ['src/api/readme.md'] },
+      });
+      const uiTask = await runtime.createTask({
+        teamId: team.id,
+        title: 'Edit UI',
+        description: 'Edit the UI.',
+        ownerAgentId: uiDev.id,
+        metadata: { scope: ['src/ui'] },
+      });
+
+      // The docs task overlaps the API task's scope (src/api prefix) and is
+      // deferred even though its owner is idle; the disjoint UI task runs.
+      const first = await runtime.dispatchReadyTasks(team.id);
+      expect(first.assigned.map((task) => task.id)).toEqual([apiTask.id, uiTask.id]);
+      let snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === docsTask.id)?.status).toBe('todo');
+      expect(snapshot.agents.find((agent) => agent.id === docsDev.id)?.status).toBe('idle');
+
+      // The teammate's task prompt states the scope constraint.
+      const apiPrompt = adapter.inputs.find((entry) => entry.sessionId === apiWithSession.sessionRef!.sessionId)?.input ?? '';
+      expect(apiPrompt).toContain('File scope for this task — only create or modify files under:');
+      expect(apiPrompt).toContain('- src/api/**');
+
+      // A completion awaiting acceptance still holds its scope.
+      await runtime.submitTaskCompletion(apiTask.id, 'API edited.', apiDev.id);
+      const whilePending = await runtime.dispatchReadyTasks(team.id);
+      expect(whilePending.assigned).toHaveLength(0);
+
+      // The acceptance prompt asks the lead to check for out-of-scope changes.
+      const acceptancePrompt = adapter.inputs
+        .filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId)
+        .at(-1)?.input ?? '';
+      expect(acceptancePrompt).toContain('Declared file scope for this task:');
+      expect(acceptancePrompt).toContain('send the task back for revision');
+
+      // Acceptance releases the scope and the overlapping task dispatches.
+      await runtime.completeTask(apiTask.id, 'Accepted.', lead.id);
+      const released = await runtime.dispatchReadyTasks(team.id);
+      expect(released.assigned.map((task) => task.id)).toEqual([docsTask.id]);
+    });
+  });
+
   describe('Task handoffs', () => {
     it('threads handoff paths through task, acceptance, revision, and dependency prompts', async () => {
       const { runtime, adapter } = createRuntime({

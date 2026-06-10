@@ -407,6 +407,7 @@ async function handleAgentTeamCreateTask(
   const ownerName = typeof obj.ownerName === 'string' ? obj.ownerName : undefined;
   const deps = Array.isArray(obj.deps) ? obj.deps.filter((dep): dep is string => typeof dep === 'string') : undefined;
   const depRefs = Array.isArray(obj.depRefs) ? obj.depRefs.filter((dep): dep is string => typeof dep === 'string') : undefined;
+  const scope = Array.isArray(obj.scope) ? obj.scope.filter((entry): entry is string => typeof entry === 'string') : undefined;
   const shouldDispatch = obj.dispatch === true;
 
   if (!workspaceId || !teamId) {
@@ -427,6 +428,7 @@ async function handleAgentTeamCreateTask(
       ownerName,
       deps,
       depRefs,
+      scope,
       dispatch: shouldDispatch,
     });
     const snapshot = await service.snapshot(workspaceId, teamId);

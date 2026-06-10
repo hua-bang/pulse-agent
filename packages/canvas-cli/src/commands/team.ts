@@ -168,6 +168,7 @@ export function registerTeamCommands(program: Command): void {
     .requiredOption('--description <description>', 'Task instructions')
     .option('--owner <agent>', 'Owner agent name or ID')
     .option('--dep <task>', 'Dependency task title or ID; repeat for multiple dependencies', collectOption, [])
+    .option('--scope <path>', 'File or directory path this task may modify; repeat for multiple paths', collectOption, [])
     .option('--dispatch', 'Dispatch ready tasks after creating this task')
     .description('Create a follow-up task in the current team')
     .action(async function (
@@ -178,6 +179,7 @@ export function registerTeamCommands(program: Command): void {
         description: string;
         owner?: string;
         dep?: string[];
+        scope?: string[];
         dispatch?: boolean;
       },
     ) {
@@ -193,6 +195,7 @@ export function registerTeamCommands(program: Command): void {
         description: cmdOpts.description,
         ownerName: cmdOpts.owner,
         depRefs: cmdOpts.dep ?? [],
+        ...(cmdOpts.scope && cmdOpts.scope.length > 0 ? { scope: cmdOpts.scope } : {}),
         dispatch: cmdOpts.dispatch === true,
       });
 

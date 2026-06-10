@@ -81,6 +81,37 @@ const quoteCliValue = (value: string): string =>
 
 const TASK_ROUND_METADATA_KEY = 'round';
 const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
+const TASK_SCOPE_METADATA_KEY = 'scope';
+
+// Read a task's declared file scope: the path prefixes it may create or modify.
+const readTaskScope = (metadata: Record<string, unknown> | undefined): string[] => {
+  const value = metadata?.[TASK_SCOPE_METADATA_KEY];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
+};
+
+// Reduce a scope entry to its static path prefix: "src/api" stays "src/api",
+// a glob like "src/api/*.ts" (or any entry containing *, ?, [ or {) is cut at
+// the first glob character so it is compared by its literal prefix.
+const normalizeScopeEntry = (entry: string): string => {
+  let value = entry.trim().replace(/\\/g, '/');
+  value = value.replace(/^\.\//, '');
+  const globIndex = value.search(/[*?[{]/);
+  if (globIndex >= 0) value = value.slice(0, globIndex);
+  return value.replace(/\/+$/, '');
+};
+
+const scopeEntriesOverlap = (a: string, b: string): boolean => {
+  // An empty prefix (an entry like "*" or "**") covers the whole tree.
+  if (!a || !b) return true;
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
+};
+
+const scopesOverlap = (a: string[], b: string[]): boolean => {
+  const left = a.map(normalizeScopeEntry);
+  const right = b.map(normalizeScopeEntry);
+  return left.some((entryA) => right.some((entryB) => scopeEntriesOverlap(entryA, entryB)));
+};
 
 /** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
 const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
@@ -550,8 +581,21 @@ export class TeamRuntime {
     );
     const assigned: TeamTaskRecord[] = [];
     const availableAgents = [...idleAgents];
+    // File scopes held by unfinished work (anything past todo that has not
+    // settled — including needs_review, so a completion awaiting acceptance
+    // keeps its scope until accepted or returned). A ready task whose scope
+    // overlaps a held scope is deferred so two agents never edit the same
+    // paths concurrently. Tasks without a declared scope are unconstrained.
+    const heldScopes = tasks
+      .filter((task) => task.status !== 'todo' && task.status !== 'done' && task.status !== 'failed')
+      .map((task) => readTaskScope(task.metadata))
+      .filter((scope) => scope.length > 0);
 
     for (const task of readyTasks) {
+      const scope = readTaskScope(task.metadata);
+      if (scope.length > 0 && heldScopes.some((held) => scopesOverlap(scope, held))) {
+        continue;
+      }
       const owner = task.ownerAgentId
         ? availableAgents.find(agent => agent.id === task.ownerAgentId)
         : availableAgents.find(agent => agent.role === 'teammate');
@@ -588,6 +632,7 @@ export class TeamRuntime {
         await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
       }
 
+      if (scope.length > 0) heldScopes.push(scope);
       assigned.push({ ...task });
     }
 
@@ -1310,6 +1355,7 @@ export class TeamRuntime {
   private async formatTaskPrompt(task: TeamTaskRecord, tasks: TeamTaskRecord[], owner?: TeamAgentRecord): Promise<string> {
     const dependencyContext = await this.formatDependencyContext(task, tasks);
     const handoffPath = this.taskHandoffPath?.(task);
+    const scopeEntries = readTaskScope(task.metadata);
     const downstreamTasks = tasks
       .filter(candidate => candidate.id !== task.id && candidate.deps.includes(task.id))
       .slice(0, 8);
@@ -1322,6 +1368,14 @@ export class TeamRuntime {
           '',
           `Working directory: ${owner.cwd}`,
           'Run terminal commands from this directory unless the task explicitly requires a different path.',
+        ]
+        : []),
+      ...(scopeEntries.length > 0
+        ? [
+          '',
+          'File scope for this task — only create or modify files under:',
+          ...scopeEntries.map((entry) => `- ${entry}`),
+          'If the task truly requires touching files outside this scope, ask the Team Lead first instead of editing them.',
         ]
         : []),
       '',
@@ -1579,6 +1633,7 @@ export class TeamRuntime {
       return `- ${artifact.title} (${artifact.kind})${detail ? ` — ${detail}` : ''}`;
     });
     const handoffPath = this.taskHandoffPath?.(task);
+    const scopeEntries = readTaskScope(task.metadata);
     return [
       `${submitter.name} reports task complete and needs your acceptance: ${task.title}`,
       '',
@@ -1590,6 +1645,14 @@ export class TeamRuntime {
       `Task description: ${truncate(task.description, 600)}`,
       '',
       'Verify the deliverable lightly before accepting: check that the promised files, changes, or findings exist and match the task description and scope. Do not run heavy builds or full test suites yourself.',
+      ...(scopeEntries.length > 0
+        ? [
+          '',
+          'Declared file scope for this task:',
+          ...scopeEntries.map((entry) => `- ${entry}`),
+          'Check the changes stay inside this scope (e.g. git status or git diff --stat in the working directory). If files outside it were modified, send the task back for revision.',
+        ]
+        : []),
       '',
       'If the work is acceptable, run:',
       `pulse-canvas team complete-task --task "${task.id}" --summary "<accepted summary>"`,
