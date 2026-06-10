@@ -109,3 +109,4 @@
 | `3c5ee92` | Lead 不接派发任务、complete-team Lead-only |
 | `f1e9af0` | create-task Lead-only（服务端强制）、回退客户端工具禁用 |
 | `7ccdcb1` | Lead 行为边界 prompt 化（全局 guard + 诱惑点强化） |
+| `797665f` | Phase 0/1 收口：per-team 互斥锁、store 历史封顶 + JSONL 归档、软卡死提醒、计划超限显式报错 |
