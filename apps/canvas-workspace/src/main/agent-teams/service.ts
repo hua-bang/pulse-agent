@@ -1,3 +1,4 @@
+import { exec } from 'child_process';
 import { randomUUID } from 'crypto';
 import { promises as fsPromises, statSync } from 'fs';
 import { homedir } from 'os';
@@ -9,6 +10,7 @@ import {
   type ArtifactKind,
   type RuntimeSnapshot,
   type TeamAgentRecord,
+  type TaskVerificationResult,
   type TeamTaskRecord,
 } from 'pulse-coder-agent-teams/runtime';
 import { CanvasAgentSessionAdapter } from './canvas-agent-session-adapter';
@@ -49,6 +51,8 @@ const DEFAULT_TEAMMATE_AGENT = 'codex';
 const MAX_AGENT_OUTPUT_BUFFER = 16_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
+const VERIFY_TIMEOUT_MS = 120_000;
+const VERIFY_OUTPUT_TAIL_CHARS = 2_000;
 const MAX_PLAN_TEAMMATES = 6;
 const MAX_PLAN_TASKS = 20;
 const ARTIFACT_KINDS = new Set<ArtifactKind>([
@@ -223,6 +227,7 @@ const normalizePlanTasks = (value: unknown, fallbackSummary: string): CanvasAgen
           ? obj.deps.map((dep) => cleanString(dep)).filter(Boolean)
           : [],
         scope: scope.length > 0 ? scope : undefined,
+        verify: cleanString(obj.verify) || undefined,
       };
     })
     .filter((item): item is CanvasAgentTeamPlanTask => !!item);
@@ -401,11 +406,12 @@ const formatLeaderBriefingPrompt = (teamName: string, goal: string, content: str
   '',
   'When the plan is ready for user approval, submit it through the Pulse Canvas CLI instead of writing a terminal marker.',
   'Prefer --plan-json so you do not need to edit a temporary file. Use this JSON shape:',
-  '{"summary":"short plan summary","teammates":[{"name":"Backend Codex","agentType":"codex"},{"name":"Frontend Codex","agentType":"codex"},{"name":"QA Codex","agentType":"codex"}],"tasks":[{"title":"Define API contract","description":"Concrete instructions and expected output.","ownerName":"Backend Codex","deps":[],"scope":["docs/api-contract.md","src/server/api"]},{"title":"Implement frontend integration","description":"Concrete instructions and expected output.","ownerName":"Frontend Codex","deps":["Define API contract"],"scope":["src/web"]},{"title":"QA integration and fixes","description":"Verify the completed backend/frontend flow and report or fix issues.","ownerName":"QA Codex","deps":["Define API contract","Implement frontend integration"],"scope":["tests"]}]}',
+  '{"summary":"short plan summary","teammates":[{"name":"Backend Codex","agentType":"codex"},{"name":"Frontend Codex","agentType":"codex"},{"name":"QA Codex","agentType":"codex"}],"tasks":[{"title":"Define API contract","description":"Concrete instructions and expected output.","ownerName":"Backend Codex","deps":[],"scope":["docs/api-contract.md","src/server/api"],"verify":"manual"},{"title":"Implement frontend integration","description":"Concrete instructions and expected output.","ownerName":"Frontend Codex","deps":["Define API contract"],"scope":["src/web"],"verify":"npm test --prefix src/web"},{"title":"QA integration and fixes","description":"Verify the completed backend/frontend flow and report or fix issues.","ownerName":"QA Codex","deps":["Define API contract","Implement frontend integration"],"scope":["tests"],"verify":"npm test"}]}',
   '',
   'Every task object MUST include "deps": [] or a list of exact task titles from the same plan.',
   'Give every task that creates or edits files a "scope": the file or directory paths (relative to the working directory) it may modify. Survey, analysis, and review tasks may omit scope.',
   'Tasks that can run in parallel MUST have non-overlapping scopes. Pulse Canvas will not dispatch two scope-overlapping tasks at the same time, so overlapping scopes silently serialize your DAG.',
+  'Give every task that produces code a "verify": ONE cheap, deterministic command that proves the task works (a scoped test, typecheck, or lint — not a full build or long test suite). Pulse Canvas re-runs it when the teammate submits the task and shows you PASS/FAIL during acceptance. Use "verify": "manual" for survey/analysis/contract tasks.',
   'Use deps to encode the real execution order. Do not rely on wording like "after" or "then" in descriptions.',
   'Plan the smallest DAG that still exposes useful parallel work: usually 3-6 teammates and 4-10 tasks for normal app/repo work. Go above 10 tasks only when there are truly independent deliverables.',
   'Target 2-4 ready-to-start workstreams. Do not serialize the whole graph behind one setup/research task, and do not create one microtask per file, component, command, or tiny edit.',
@@ -446,8 +452,9 @@ const formatLeadExecutionPrompt = (teamName: string, goal: string, content: stri
   'pulse-canvas team complete-task --task "<covered downstream task id or title>" --summary "<why this was already satisfied>"',
   'If a covered downstream task is actively running, send guidance to that teammate instead of marking it complete.',
   'Use create-task only for new work not covered by any existing task:',
-  'pulse-canvas team create-task --title "Task title" --description "Concrete instructions" --owner "Teammate name" --scope "src/path" --dispatch',
+  'pulse-canvas team create-task --title "Task title" --description "Concrete instructions" --owner "Teammate name" --scope "src/path" --verify "<cheap test/typecheck command>" --dispatch',
   'Declare --scope (repeatable) for tasks that edit files; tasks with overlapping scopes never run at the same time.',
+  'Declare --verify for tasks that produce code; Pulse Canvas re-runs it at submission and shows you PASS/FAIL during acceptance.',
   '',
   'Use pulse-canvas team send --to "Teammate name" --message "..." to share context with a teammate.',
   'Use pulse-canvas team propose-plan only when the change needs a new human-approved plan.',
@@ -732,6 +739,7 @@ export class CanvasAgentTeamsService {
         metadata: {
           kind: 'leader-plan-task',
           ...(task.scope && task.scope.length > 0 ? { scope: task.scope } : {}),
+          ...(task.verify ? { verify: task.verify } : {}),
         },
       });
     }
@@ -861,6 +869,9 @@ export class CanvasAgentTeamsService {
       ...(input.deps ?? []),
       ...this.resolveTaskReferences(snapshot.tasks, depRefs),
     ]));
+    const taskMetadata: Record<string, unknown> = {};
+    if (input.scope && input.scope.length > 0) taskMetadata.scope = input.scope;
+    if (input.verify && input.verify.trim()) taskMetadata.verify = input.verify.trim();
     await runtime.createTask({
       teamId: input.teamId,
       title: input.title,
@@ -868,7 +879,7 @@ export class CanvasAgentTeamsService {
       ownerAgentId: owner?.id,
       deps,
       createdBy: source?.id ?? 'human',
-      metadata: input.scope && input.scope.length > 0 ? { scope: input.scope } : undefined,
+      metadata: Object.keys(taskMetadata).length > 0 ? taskMetadata : undefined,
     });
     if (input.dispatch) {
       await runtime.dispatchReadyTasks(input.teamId);
@@ -1001,10 +1012,65 @@ export class CanvasAgentTeamsService {
     snapshot: CanvasAgentTeamSnapshot;
     task: TeamTaskRecord;
   }> {
-    return this.withTeamLock(input.workspaceId, input.teamId, () => this.completeAgentTaskLocked(input));
+    // Run the task's verification BEFORE taking the team lock: a verify can
+    // take up to two minutes and must not block the team's other operations.
+    const verification = await this.runVerificationForCompletion(input);
+    return this.withTeamLock(input.workspaceId, input.teamId, () => this.completeAgentTaskLocked(input, verification));
   }
 
-    private async completeAgentTaskLocked(input: CanvasAgentTeamCompleteTaskInput): Promise<{
+  /**
+   * Mechanically re-run the submitting teammate's declared verify command so
+   * the acceptance review sees executable evidence instead of the agent's
+   * self-report. Read-only resolution; any resolution error is left for the
+   * locked path to surface properly.
+   */
+  private async runVerificationForCompletion(
+    input: CanvasAgentTeamCompleteTaskInput,
+  ): Promise<TaskVerificationResult | undefined> {
+    try {
+      const { store } = this.getBundle(input.workspaceId);
+      const agents = await store.listAgents(input.teamId);
+      const agent = input.sourceAgentId
+        ? this.resolveAgentReference(agents, input.sourceAgentId)
+        : undefined;
+      if (agent?.role !== 'teammate') return undefined;
+      const tasks = await store.listTasks(input.teamId);
+      const task = this.resolveTaskForAction(tasks, input.taskId, agent);
+      if (task.status === 'done' || task.status === 'failed') return undefined;
+      const raw = typeof task.metadata?.verify === 'string' ? task.metadata.verify.trim() : '';
+      if (!raw || raw.toLowerCase() === 'manual') return undefined;
+      const metadata = await store.getTeamMetadata(input.teamId);
+      return await this.runTaskVerification(raw, metadata?.cwd || agent.cwd);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private runTaskVerification(command: string, cwd: string | undefined): Promise<TaskVerificationResult> {
+    const startedAt = Date.now();
+    return new Promise((resolve) => {
+      exec(command, {
+        cwd: cwd && isExistingDirectory(cwd) ? cwd : undefined,
+        timeout: VERIFY_TIMEOUT_MS,
+        maxBuffer: 4 * 1024 * 1024,
+      }, (error, stdout, stderr) => {
+        const output = `${stdout ?? ''}${stderr ? `\n${stderr}` : ''}`.trim();
+        const exitCode = error == null
+          ? 0
+          : typeof error.code === 'number' ? error.code : null;
+        resolve({
+          command,
+          ok: error == null,
+          exitCode,
+          durationMs: Date.now() - startedAt,
+          outputTail: output.slice(-VERIFY_OUTPUT_TAIL_CHARS),
+          at: Date.now(),
+        });
+      });
+    });
+  }
+
+    private async completeAgentTaskLocked(input: CanvasAgentTeamCompleteTaskInput, verification?: TaskVerificationResult): Promise<{
     snapshot: CanvasAgentTeamSnapshot;
     task: TeamTaskRecord;
   }> {
@@ -1045,7 +1111,12 @@ export class CanvasAgentTeamsService {
 
     // Teammate completions go through Team Lead acceptance (needs_review)
     // before counting as done; lead/human completions complete directly.
-    const updated = await runtime.submitTaskCompletion(task.id, input.summary, agent?.id ?? 'human');
+    const updated = await runtime.submitTaskCompletion(
+      task.id,
+      input.summary,
+      agent?.id ?? 'human',
+      verification ? { verification } : undefined,
+    );
     await runtime.dispatchReadyTasks(input.teamId);
     return {
       snapshot: await this.snapshotInternal(input.workspaceId, input.teamId),

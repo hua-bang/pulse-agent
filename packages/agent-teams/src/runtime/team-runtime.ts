@@ -14,6 +14,7 @@ import type {
   RuntimeSnapshot,
   TaskId,
   TaskStatus,
+  TaskVerificationResult,
   TeamAgentRecord,
   TeamArtifactRecord,
   TeamEvent,
@@ -84,6 +85,25 @@ const TASK_ROUND_METADATA_KEY = 'round';
 const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
 const TASK_SCOPE_METADATA_KEY = 'scope';
 const TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY = 'blockedByFailedDep';
+const TASK_VERIFY_COMMAND_METADATA_KEY = 'verify';
+const TASK_LAST_VERIFY_METADATA_KEY = 'lastVerify';
+
+// Read a task's declared verification command. 'manual' means the task is
+// intentionally not mechanically verifiable.
+const readTaskVerifyCommand = (metadata: Record<string, unknown> | undefined): string | undefined => {
+  const value = metadata?.[TASK_VERIFY_COMMAND_METADATA_KEY];
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed && trimmed.toLowerCase() !== 'manual' ? trimmed : undefined;
+};
+
+const readTaskVerification = (metadata: Record<string, unknown> | undefined): TaskVerificationResult | undefined => {
+  const value = metadata?.[TASK_LAST_VERIFY_METADATA_KEY];
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as Partial<TaskVerificationResult>;
+  if (typeof candidate.command !== 'string' || typeof candidate.ok !== 'boolean') return undefined;
+  return candidate as TaskVerificationResult;
+};
 
 // Read a task's declared file scope: the path prefixes it may create or modify.
 const readTaskScope = (metadata: Record<string, unknown> | undefined): string[] => {
@@ -665,6 +685,7 @@ export class TeamRuntime {
     taskId: TaskId,
     summary: string,
     actor: AgentId | 'human' | 'runtime' = 'runtime',
+    options?: { verification?: TaskVerificationResult },
   ): Promise<TeamTaskRecord> {
     const task = await this.requireTask(taskId);
     if (task.status === 'done' || task.status === 'failed') return task;
@@ -682,10 +703,13 @@ export class TeamRuntime {
     }
 
     // Agents sometimes re-run the completion command; an identical
-    // resubmission must not re-notify the lead.
+    // resubmission must not re-notify the lead. A changed verification
+    // outcome is real news though (e.g. a previously failing verify now
+    // passes after a fix), so it goes through.
     if (
       task.status === 'needs_review'
       && task.metadata?.[TASK_PROPOSED_RESULT_METADATA_KEY] === summary
+      && options?.verification?.ok === readTaskVerification(task.metadata)?.ok
     ) {
       return task;
     }
@@ -697,6 +721,7 @@ export class TeamRuntime {
       ...(task.metadata ?? {}),
       [TASK_PROPOSED_RESULT_METADATA_KEY]: summary,
       [TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY]: submitter.id,
+      ...(options?.verification ? { [TASK_LAST_VERIFY_METADATA_KEY]: options.verification } : {}),
     };
     task.updatedAt = now;
     await this.store.saveTask(task);
@@ -1426,6 +1451,7 @@ export class TeamRuntime {
     const dependencyContext = await this.formatDependencyContext(task, tasks);
     const handoffPath = this.taskHandoffPath?.(task);
     const scopeEntries = readTaskScope(task.metadata);
+    const verifyCommand = readTaskVerifyCommand(task.metadata);
     const downstreamTasks = tasks
       .filter(candidate => candidate.id !== task.id && candidate.deps.includes(task.id))
       .slice(0, 8);
@@ -1446,6 +1472,14 @@ export class TeamRuntime {
           'File scope for this task — only create or modify files under:',
           ...scopeEntries.map((entry) => `- ${entry}`),
           'If the task truly requires touching files outside this scope, ask the Team Lead first instead of editing them.',
+        ]
+        : []),
+      ...(verifyCommand
+        ? [
+          '',
+          'Verification command for this task:',
+          verifyCommand,
+          'Run it from the working directory before reporting completion — it must pass. Record the result in your handoff. Pulse Canvas re-runs it when you submit and shows the outcome to the Team Lead.',
         ]
         : []),
       '',
@@ -1707,10 +1741,24 @@ export class TeamRuntime {
     });
     const handoffPath = this.taskHandoffPath?.(task);
     const scopeEntries = readTaskScope(task.metadata);
+    const verification = readTaskVerification(task.metadata);
     return [
       `${submitter.name} reports task complete and needs your acceptance: ${task.title}`,
       '',
       `Reported result: ${truncate(summary, MAX_TASK_RESULT_CHARS)}`,
+      ...(verification
+        ? [
+          '',
+          `Verification (re-run by Pulse Canvas): ${verification.ok ? 'PASS' : 'FAIL'} — ${verification.command} (exit ${verification.exitCode ?? 'timeout'}, ${(verification.durationMs / 1000).toFixed(1)}s)`,
+          ...(verification.ok
+            ? []
+            : [
+              'Output tail:',
+              verification.outputTail || '(no output)',
+              'A failed verification usually means the task is not done — send it back unless the verify command itself is wrong.',
+            ]),
+        ]
+        : []),
       ...(handoffPath ? ['', `Handoff file from the teammate — read it to verify: ${handoffPath}`] : []),
       ...(artifactLines.length > 0 ? ['', 'Artifacts from this task:', ...artifactLines] : []),
       '',
@@ -1752,11 +1800,13 @@ export class TeamRuntime {
     const lines = pending.flatMap((task, index) => {
       const owner = task.ownerAgentId ? agentsById.get(task.ownerAgentId) : undefined;
       const proposed = task.metadata?.[TASK_PROPOSED_RESULT_METADATA_KEY];
+      const verification = readTaskVerification(task.metadata);
+      const verifyTag = verification ? ` [verify ${verification.ok ? 'PASS' : 'FAIL'}]` : '';
       const detail = typeof proposed === 'string' && proposed
         ? `Reported result: ${truncate(proposed, 300)}`
         : `Reason: ${truncate(task.blockedReason ?? 'Needs review.', 300)}`;
       return [
-        `${index + 1}. ${task.title}${owner ? ` — ${owner.name}` : ''}`,
+        `${index + 1}. ${task.title}${owner ? ` — ${owner.name}` : ''}${verifyTag}`,
         `   ${detail}`,
         `   Accept: pulse-canvas team complete-task --task "${quoteCliValue(task.id)}" --summary "<accepted summary>"`,
         ...(owner

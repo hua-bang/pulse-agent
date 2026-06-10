@@ -409,6 +409,7 @@ async function handleAgentTeamCreateTask(
   const deps = Array.isArray(obj.deps) ? obj.deps.filter((dep): dep is string => typeof dep === 'string') : undefined;
   const depRefs = Array.isArray(obj.depRefs) ? obj.depRefs.filter((dep): dep is string => typeof dep === 'string') : undefined;
   const scope = Array.isArray(obj.scope) ? obj.scope.filter((entry): entry is string => typeof entry === 'string') : undefined;
+  const verify = typeof obj.verify === 'string' && obj.verify.trim() ? obj.verify.trim() : undefined;
   const shouldDispatch = obj.dispatch === true;
 
   if (!workspaceId || !teamId) {
@@ -430,6 +431,7 @@ async function handleAgentTeamCreateTask(
       deps,
       depRefs,
       scope,
+      verify,
       dispatch: shouldDispatch,
       sourceAgentId,
     });

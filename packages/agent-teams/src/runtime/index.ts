@@ -28,6 +28,7 @@ export type {
   RuntimeSnapshot,
   TaskId,
   TaskStatus,
+  TaskVerificationResult,
   TeamAgentRecord,
   TeamArtifactRecord,
   TeamEvent,

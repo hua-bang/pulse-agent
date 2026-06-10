@@ -14,6 +14,8 @@ export interface CanvasAgentTeamPlanTask {
   deps: string[];
   /** File or directory paths this task may create or modify. */
   scope?: string[];
+  /** Mechanical verification command, or 'manual' for unverifiable tasks. */
+  verify?: string;
 }
 
 export interface CanvasAgentTeamPlanDraft {
@@ -69,6 +71,7 @@ export interface CanvasAgentTeamCreateTaskInput {
   deps?: string[];
   depRefs?: string[];
   scope?: string[];
+  verify?: string;
   dispatch?: boolean;
   /** Calling agent (from the CLI session env); task creation is lead-only. */
   sourceAgentId?: string;

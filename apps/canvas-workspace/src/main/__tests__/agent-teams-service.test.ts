@@ -921,6 +921,50 @@ describe('CanvasAgentTeamsService', () => {
     expect(snapshot.runtime.team.status).not.toBe('completed');
   });
 
+  it('re-runs the declared verify command at submission and shows the lead the result', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Verified work.',
+        teammates: [{ name: 'Codex Exec', agentType: 'codex' }],
+        tasks: [{
+          title: 'Implement thing',
+          description: 'Do it.',
+          ownerName: 'Codex Exec',
+          verify: 'node -e "console.log(\'checks failed\'); process.exit(1)"',
+        }],
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const task = confirmed.runtime.tasks.find((candidate) => candidate.title === 'Implement thing')!;
+    const owner = confirmed.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    // The dispatched task prompt carries the verify instruction.
+    expect(mockState.queuedInputs.some((entry) =>
+      entry.input.includes('Verification command for this task:'))).toBe(true);
+
+    await writeHandoff(teamId, task.id);
+    const submitted = await service.completeAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      sourceAgentId: owner.id,
+      summary: 'Done.',
+    });
+
+    // The server-side re-run recorded the failure as acceptance evidence.
+    expect(submitted.task.status).toBe('needs_review');
+    const verification = submitted.task.metadata?.lastVerify as { ok?: boolean; exitCode?: number | null };
+    expect(verification?.ok).toBe(false);
+    expect(verification?.exitCode).toBe(1);
+    const leadPrompt = [...mockState.queuedInputs].reverse()
+      .find((entry) => entry.nodeId === lead.sessionRef!.sessionId)?.input ?? '';
+    expect(leadPrompt).toContain('Verification (re-run by Pulse Canvas): FAIL');
+    expect(leadPrompt).toContain('checks failed');
+  });
+
   it('rejects a teammate completion until the handoff file exists', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createExecutingTeam(service);

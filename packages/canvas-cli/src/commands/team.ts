@@ -170,6 +170,7 @@ export function registerTeamCommands(program: Command): void {
     .option('--owner <agent>', 'Owner agent name or ID')
     .option('--dep <task>', 'Dependency task title or ID; repeat for multiple dependencies', collectOption, [])
     .option('--scope <path>', 'File or directory path this task may modify; repeat for multiple paths', collectOption, [])
+    .option('--verify <command>', 'Cheap verification command re-run at submission (or "manual")')
     .option('--dispatch', 'Dispatch ready tasks after creating this task')
     .description('Create a follow-up task in the current team (Team Lead only)')
     .action(async function (
@@ -182,6 +183,7 @@ export function registerTeamCommands(program: Command): void {
         owner?: string;
         dep?: string[];
         scope?: string[];
+        verify?: string;
         dispatch?: boolean;
       },
     ) {
@@ -198,6 +200,7 @@ export function registerTeamCommands(program: Command): void {
         ownerName: cmdOpts.owner,
         depRefs: cmdOpts.dep ?? [],
         ...(cmdOpts.scope && cmdOpts.scope.length > 0 ? { scope: cmdOpts.scope } : {}),
+        ...(cmdOpts.verify ? { verify: cmdOpts.verify } : {}),
         dispatch: cmdOpts.dispatch === true,
       }, cmdOpts.sourceAgent));
 

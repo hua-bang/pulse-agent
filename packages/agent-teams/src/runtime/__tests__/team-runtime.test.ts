@@ -1540,6 +1540,66 @@ describe('TeamRuntime', () => {
     });
   });
 
+  describe('Task verification', () => {
+    it('threads verification evidence through prompts and resubmission dedupe', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      const task = await runtime.createTask({
+        teamId: team.id,
+        title: 'Implement change',
+        description: 'Make the change.',
+        ownerAgentId: coder.id,
+        metadata: { verify: 'pnpm --filter x test' },
+      });
+      await runtime.dispatchReadyTasks(team.id);
+      const leadInputs = () => adapter.inputs.filter((entry) => entry.sessionId === leadWithSession.sessionRef!.sessionId);
+
+      // The task prompt instructs the teammate to run the verify command.
+      const taskPrompt = adapter.inputs.at(-1)?.input ?? '';
+      expect(taskPrompt).toContain('Verification command for this task:');
+      expect(taskPrompt).toContain('pnpm --filter x test');
+
+      // A failing verification is stored and shown to the lead as evidence.
+      await runtime.submitTaskCompletion(task.id, 'Implemented.', coder.id, {
+        verification: {
+          command: 'pnpm --filter x test',
+          ok: false,
+          exitCode: 1,
+          durationMs: 3200,
+          outputTail: '2 tests failed',
+          at: Date.now(),
+        },
+      });
+      let snapshot = await runtime.snapshot(team.id);
+      expect((snapshot.tasks[0].metadata?.lastVerify as { ok?: boolean })?.ok).toBe(false);
+      const failPrompt = leadInputs().at(-1)?.input ?? '';
+      expect(failPrompt).toContain('Verification (re-run by Pulse Canvas): FAIL — pnpm --filter x test (exit 1');
+      expect(failPrompt).toContain('2 tests failed');
+      expect(failPrompt).toContain('send it back unless the verify command itself is wrong');
+
+      // Same summary but a now-passing verification is real news, not a dupe.
+      const beforeResubmit = leadInputs().length;
+      await runtime.submitTaskCompletion(task.id, 'Implemented.', coder.id, {
+        verification: {
+          command: 'pnpm --filter x test',
+          ok: true,
+          exitCode: 0,
+          durationMs: 2100,
+          outputTail: 'all passed',
+          at: Date.now(),
+        },
+      });
+      expect(leadInputs()).toHaveLength(beforeResubmit + 1);
+      expect(leadInputs().at(-1)?.input).toContain('Verification (re-run by Pulse Canvas): PASS');
+      snapshot = await runtime.snapshot(team.id);
+      expect((snapshot.tasks[0].metadata?.lastVerify as { ok?: boolean })?.ok).toBe(true);
+    });
+  });
+
   describe('Task handoffs', () => {
     it('threads handoff paths through task, acceptance, revision, and dependency prompts', async () => {
       const { runtime, adapter } = createRuntime({
