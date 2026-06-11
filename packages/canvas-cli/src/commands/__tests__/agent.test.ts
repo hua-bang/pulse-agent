@@ -365,6 +365,86 @@ describe('pulse-canvas team follow-up actions', () => {
     expect(stdout).toMatch(/Message sent in Agent Team to Codex Frontend\./);
   });
 
+  it('renders read-only team status with session health and pending work', async () => {
+    const requests: Array<{ url: string; body: unknown }> = [];
+    const { server, baseUrl } = await startStubServer((body, _headers, url) => {
+      requests.push({ url: url ?? '', body });
+      if ((body as { teamId?: string }).teamId) {
+        return {
+          status: 200,
+          body: {
+            ok: true,
+            snapshot: {
+              phase: 'executing',
+              sessions: { 'lead-1': 'live', 'mate-1': 'dead' },
+              runtime: {
+                team: { id: 'team-1', name: 'Agent Team', status: 'running' },
+                agents: [
+                  { id: 'lead-1', name: 'Team Lead', role: 'lead', status: 'running' },
+                  { id: 'mate-1', name: 'QA Codex', role: 'teammate', status: 'idle' },
+                ],
+                tasks: [
+                  {
+                    id: 'task-1',
+                    title: 'Focused QA regression',
+                    status: 'needs_review',
+                    ownerAgentId: 'mate-1',
+                    blockedReason: 'Awaiting Team Lead acceptance of the reported completion.',
+                  },
+                ],
+                humanGates: [
+                  { id: 'gate-1', status: 'open', prompt: 'Which API version?', agentId: 'mate-1' },
+                ],
+              },
+            },
+          },
+        };
+      }
+      return {
+        status: 200,
+        body: {
+          ok: true,
+          teams: [
+            {
+              teamId: 'team-1',
+              name: 'Agent Team',
+              status: 'running',
+              phase: 'executing',
+              taskCounts: { in_progress: 2, done: 3 },
+              agentCount: 4,
+            },
+          ],
+        },
+      };
+    });
+    await writeRuntime({ pid: process.pid, baseUrl, secret: 'tok', createdAt: '' });
+
+    const detail = await runCli(['--workspace', 'ws-x', 'team', 'status', '--team', 'team-1']);
+    const list = await runCli(['--workspace', 'ws-x', 'team', 'status']);
+    server.close();
+
+    expect(detail.exitCode).toBe(null);
+    expect(requests[0]).toEqual({
+      url: '/agent-team/status',
+      body: { workspaceId: 'ws-x', teamId: 'team-1' },
+    });
+    expect(detail.stdout).toContain('Team: Agent Team (team-1)');
+    expect(detail.stdout).toContain('Team Lead [lead] running · session live');
+    expect(detail.stdout).toContain('QA Codex [teammate] idle · session dead');
+    expect(detail.stdout).toContain('[needs_review] Focused QA regression — QA Codex (task-1)');
+    expect(detail.stdout).toContain('blocker: Awaiting Team Lead acceptance');
+    expect(detail.stdout).toContain('Open questions (1):');
+    expect(detail.stdout).toContain('Waiting for Team Lead review (1):');
+    expect(detail.stdout).toContain('Sessions needing relaunch (1): QA Codex');
+
+    expect(list.exitCode).toBe(null);
+    expect(requests[1]).toEqual({
+      url: '/agent-team/status',
+      body: { workspaceId: 'ws-x' },
+    });
+    expect(list.stdout).toContain('Agent Team (team-1) — running · executing · 4 agents');
+  });
+
   it('posts teammate lifecycle actions through team runtime endpoints', async () => {
     const oldAgent = process.env.PULSE_CANVAS_TEAM_AGENT_ID;
     process.env.PULSE_CANVAS_TEAM_AGENT_ID = 'agent-env';
@@ -398,6 +478,13 @@ describe('pulse-canvas team follow-up actions', () => {
       '--task', 'Review checkout refactor',
       'Waiting for API docs.',
     ]);
+    const cancelTask = await runCli([
+      '--workspace', 'ws-x',
+      'team', 'cancel-task',
+      '--team', 'team-1',
+      '--task', 'Review checkout refactor',
+      'Agent session is gone; fallback takes over.',
+    ]);
     const requestHumanInput = await runCli([
       '--workspace', 'ws-x',
       'team', 'request-human-input',
@@ -427,6 +514,7 @@ describe('pulse-canvas team follow-up actions', () => {
 
     expect(completeTask.exitCode).toBe(null);
     expect(blockTask.exitCode).toBe(null);
+    expect(cancelTask.exitCode).toBe(null);
     expect(requestHumanInput.exitCode).toBe(null);
     expect(publishArtifact.exitCode).toBe(null);
     expect(completeTeam.exitCode).toBe(null);
@@ -449,6 +537,16 @@ describe('pulse-canvas team follow-up actions', () => {
           sourceAgentId: 'agent-blocker',
           taskId: 'Review checkout refactor',
           reason: 'Waiting for API docs.',
+        },
+      },
+      {
+        url: '/agent-team/cancel-task',
+        body: {
+          workspaceId: 'ws-x',
+          teamId: 'team-1',
+          sourceAgentId: 'agent-env',
+          taskId: 'Review checkout refactor',
+          reason: 'Agent session is gone; fallback takes over.',
         },
       },
       {

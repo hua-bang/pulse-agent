@@ -1420,6 +1420,67 @@ describe('TeamRuntime', () => {
       await runtime.notifyLeadPendingTaskReviews(team.id);
       expect(leadInputs()).toHaveLength(afterSubmit + 1);
     });
+
+    it('keeps nagging about pending reviews while teammate questions are open', async () => {
+      let id = 1;
+      let now = 1000;
+      const adapter = new FakeAgentSessionAdapter();
+      const runtime = new TeamRuntime({
+        agentSessions: adapter,
+        idFactory: () => `id-${id++}`,
+        now: () => now++,
+      });
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const helper = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Helper' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      await runtime.createAgentSession(helper.id);
+      const built = await runtime.createTask({
+        teamId: team.id,
+        title: 'Build feature',
+        description: 'Build it.',
+        ownerAgentId: coder.id,
+      });
+      const styled = await runtime.createTask({
+        teamId: team.id,
+        title: 'Style feature',
+        description: 'Style it.',
+        ownerAgentId: helper.id,
+      });
+      void styled;
+      await runtime.dispatchReadyTasks(team.id);
+      const sessionId = leadWithSession.sessionRef!.sessionId;
+      const leadInputs = () => adapter.inputs.filter((entry) => entry.sessionId === sessionId);
+
+      // One completion awaits review while another teammate has an open question.
+      await runtime.submitTaskCompletion(built.id, 'Feature built.', coder.id);
+      await runtime.openHumanGate({
+        teamId: team.id,
+        agentId: helper.id,
+        taskId: styled.id,
+        reason: 'Teammate requested Team Lead input',
+        prompt: 'Which spacing scale should I use?',
+        metadata: { audience: 'lead' },
+      });
+
+      // The open gate must not starve the review nag after the resend window.
+      now += 61_000;
+      const before = leadInputs().length;
+      await runtime.notifyLeadPendingTaskReviews(team.id);
+      expect(leadInputs()).toHaveLength(before + 1);
+      const nag = leadInputs().at(-1)?.input ?? '';
+      // Both backlogs arrive in the same message.
+      expect(nag).toContain('Tasks waiting for Team Lead review (1):');
+      expect(nag).toContain('Current teammate questions waiting for Team Lead (1):');
+
+      // The review backlog also rides along on unrelated lead notifications.
+      await runtime.notifyLeadAttention(team.id, 'Heartbeat status note.');
+      const attention = leadInputs().at(-1)?.input ?? '';
+      expect(attention).toContain('Heartbeat status note.');
+      expect(attention).toContain('Tasks waiting for Team Lead review (1):');
+    });
   });
 
   describe('Scope guard', () => {
@@ -1494,6 +1555,135 @@ describe('TeamRuntime', () => {
         status: 'in_progress',
       });
       expect(snapshot.tasks.find((task) => task.id === docsTask.id)?.blockedReason).toBeUndefined();
+    });
+
+    it('cancelTask releases a blocked task\'s scope and owner so fallback work dispatches', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const qa = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'QA Codex' });
+      const backup = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Backup Codex' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(qa.id);
+      await runtime.createAgentSession(backup.id);
+      const original = await runtime.createTask({
+        teamId: team.id,
+        title: 'QA regression',
+        description: 'Run the regression checklist.',
+        ownerAgentId: qa.id,
+        metadata: { scope: ['apps/web/src', 'docs/regression.md'] },
+      });
+      const report = await runtime.createTask({
+        teamId: team.id,
+        title: 'Ship report',
+        description: 'Summarize the regression results.',
+        deps: [original.id],
+      });
+      await runtime.dispatchReadyTasks(team.id);
+
+      // The agent's session died, so the human parked the task as blocked.
+      // Blocked tasks keep holding their scope: an overlapping fallback task
+      // must wait, even though its owner is idle.
+      await runtime.blockTask(original.id, 'Agent node PTY no longer exists.');
+      const fallback = await runtime.createTask({
+        teamId: team.id,
+        title: 'QA regression fallback',
+        description: 'Re-run the regression on a healthy agent.',
+        ownerAgentId: backup.id,
+        metadata: { scope: ['apps/web/src'] },
+      });
+      await runtime.dispatchReadyTasks(team.id);
+      let snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === fallback.id)).toMatchObject({
+        status: 'todo',
+        blockedReason: 'Waiting for overlapping file scope held by: QA regression',
+      });
+
+      // Cancelling settles the original as failed, frees its owner as idle
+      // (not an agent error), and parks its dependent like any failure.
+      const cancelled = await runtime.cancelTask(original.id, 'Agent session is gone; fallback takes over.');
+      expect(cancelled).toMatchObject({
+        status: 'failed',
+        result: 'Cancelled: Agent session is gone; fallback takes over.',
+      });
+      snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.agents.find((agent) => agent.id === qa.id)).toMatchObject({ status: 'idle' });
+      expect(snapshot.agents.find((agent) => agent.id === qa.id)?.currentTaskId).toBeUndefined();
+      expect(snapshot.tasks.find((task) => task.id === report.id)).toMatchObject({
+        status: 'blocked',
+        blockedReason: 'Blocked by failed dependency: QA regression',
+      });
+
+      // The scope is released: the fallback dispatches and the wait note clears.
+      const result = await runtime.dispatchReadyTasks(team.id);
+      expect(result.assigned.map((task) => task.id)).toEqual([fallback.id]);
+      snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === fallback.id)).toMatchObject({
+        status: 'in_progress',
+        ownerAgentId: backup.id,
+      });
+      expect(snapshot.tasks.find((task) => task.id === fallback.id)?.blockedReason).toBeUndefined();
+
+      // Settled tasks are not re-cancelled.
+      await runtime.completeTask(fallback.id, 'Regression done.', lead.id);
+      const afterDone = await runtime.cancelTask(fallback.id, 'Too late.');
+      expect(afterDone.status).toBe('done');
+    });
+  });
+
+  it('keeps a task in todo when session delivery fails at dispatch', async () => {
+    const { runtime, adapter } = createRuntime();
+    const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+    const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+    const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+    await runtime.createAgentSession(lead.id);
+    await runtime.createAgentSession(coder.id);
+    const task = await runtime.createTask({
+      teamId: team.id,
+      title: 'Implement change',
+      description: 'Do the change.',
+      ownerAgentId: coder.id,
+    });
+
+    const send = adapter.sendInput.bind(adapter);
+    let deliverable = false;
+    adapter.sendInput = async (sessionId: string, input: string) => {
+      if (!deliverable) throw new Error('Agent node not found: node-1');
+      await send(sessionId, input);
+    };
+
+    // Delivery fails: no fake in_progress assignment, the failure is recorded
+    // on the task, and the lead is told once.
+    const first = await runtime.dispatchReadyTasks(team.id);
+    expect(first.assigned).toHaveLength(0);
+    let snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({
+      status: 'todo',
+      blockedReason: 'Dispatch failed: Agent node not found: node-1',
+    });
+    expect(snapshot.agents.find((agent) => agent.id === coder.id)).toMatchObject({ status: 'idle' });
+    expect(snapshot.agents.find((agent) => agent.id === coder.id)?.currentTaskId).toBeUndefined();
+    const deliveryWarnings = snapshot.messages.filter((message) =>
+      message.to === 'lead' && message.content.startsWith('Could not deliver task "Implement change"'));
+    expect(deliveryWarnings).toHaveLength(1);
+
+    // The retrying heartbeat does not re-write the task or re-ping the lead
+    // while the failure stays the same.
+    await runtime.dispatchReadyTasks(team.id);
+    snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.messages.filter((message) =>
+      message.to === 'lead' && message.content.startsWith('Could not deliver task "Implement change"'))).toHaveLength(1);
+
+    // Once the target is deliverable again the task assigns and the note clears.
+    deliverable = true;
+    const second = await runtime.dispatchReadyTasks(team.id);
+    expect(second.assigned.map((candidate) => candidate.id)).toEqual([task.id]);
+    snapshot = await runtime.snapshot(team.id);
+    expect(snapshot.tasks.find((candidate) => candidate.id === task.id)).toMatchObject({ status: 'in_progress' });
+    expect(snapshot.tasks.find((candidate) => candidate.id === task.id)?.blockedReason).toBeUndefined();
+    expect(snapshot.agents.find((agent) => agent.id === coder.id)).toMatchObject({
+      status: 'running',
+      currentTaskId: task.id,
     });
   });
 

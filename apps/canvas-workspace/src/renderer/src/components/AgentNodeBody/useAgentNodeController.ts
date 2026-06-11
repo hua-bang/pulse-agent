@@ -690,6 +690,14 @@ export const useAgentNodeController = ({
               : ''
           : '';
         const commonFlags = dangerousFlag + (agentArgs ? ` ${agentArgs}` : '');
+        // Team nodes run the CLI inside an interactive shell. If the CLI dies
+        // (crash, /quit, context exhaustion) the shell survives, so the node
+        // still reports a live "running" session — and every team
+        // notification queued for this agent gets typed INTO BASH: lost for
+        // the agent and executed as shell commands. Exiting the shell with
+        // the CLI turns CLI death into an observable PTY exit, which feeds
+        // the session-exit review path and the auto-resume relaunch.
+        const teamExitSuffix = dataRef.current.agentTeamId ? '; exit' : '';
 
         if (agentType === 'claude-code' && resumeMode && canResumeClaude && !effectivePrompt && !promptFile) {
           const fallbackSessionId = crypto.randomUUID();
@@ -704,7 +712,7 @@ export const useAgentNodeController = ({
               ' || (',
               `printf '%s\\n' ${shellQuote(fallbackNotice)}`,
               `; ${command}${fallbackFlags} ${shellQuote(fallbackPrompt)}`,
-              ')\n',
+              `)${teamExitSuffix}\n`,
             ].join(''),
           );
         } else if (agentType === 'codex' && resumeMode && !effectivePrompt && !promptFile) {
@@ -714,25 +722,25 @@ export const useAgentNodeController = ({
             setLoading(false);
             return;
           }
-          api.write(sessionId, `${command}${commonFlags} resume ${shellQuote(codexSessionId)}\n`);
+          api.write(sessionId, `${command}${commonFlags} resume ${shellQuote(codexSessionId)}${teamExitSuffix}\n`);
         } else {
           const flags =
             (agentType === 'claude-code'
               ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
               : '') + commonFlags;
           if (promptForCommand) {
-            api.write(sessionId, `${command}${flags} ${shellQuote(promptForCommand)}\n`);
+            api.write(sessionId, `${command}${flags} ${shellQuote(promptForCommand)}${teamExitSuffix}\n`);
           } else if (promptFile) {
             if (codexBindingMarker) {
               api.write(
                 sessionId,
-                `__prompt=$(printf '%s\\n\\n%s' "$(cat ${shellQuote(promptFile)})" ${shellQuote(codexBindingComment(codexBindingMarker))}) && ${command}${flags} "$__prompt"\n`,
+                `__prompt=$(printf '%s\\n\\n%s' "$(cat ${shellQuote(promptFile)})" ${shellQuote(codexBindingComment(codexBindingMarker))}) && ${command}${flags} "$__prompt"${teamExitSuffix}\n`,
               );
             } else {
-              api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"\n`);
+              api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"${teamExitSuffix}\n`);
             }
           } else {
-            api.write(sessionId, `${command}${flags}\n`);
+            api.write(sessionId, `${command}${flags}${teamExitSuffix}\n`);
           }
         }
 
@@ -816,6 +824,15 @@ export const useAgentNodeController = ({
         onUpdateRef.current(nodeIdRef.current, {
           data: { ...dataRef.current, status: 'done' },
         });
+        // A team-managed agent must stay relaunchable while mounted: every
+        // launch effect bails while viewMode is 'running', so keeping it
+        // there after the PTY died would strand everything the main process
+        // queues afterwards (lead notifications, redispatched tasks) until
+        // the node happens to remount. Dropping to the restart view re-arms
+        // the queued-launch and team auto-resume effects.
+        if (dataRef.current.agentTeamId) {
+          setViewMode('restart');
+        }
       });
 
       const currentData = dataRef.current;

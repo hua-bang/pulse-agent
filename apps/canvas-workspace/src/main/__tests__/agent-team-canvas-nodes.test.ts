@@ -468,14 +468,19 @@ describe('agent team canvas node layout', () => {
     const afterFirst = mockState.canvas!.nodes[0];
     const promptFile = afterFirst.data.promptFile as string;
     expect(promptFile).toBeTruthy();
+    // Every queue write bumps the main-owned queue revision: the canvas save
+    // merge uses it to shield queued prompts from stale renderer saves.
+    expect(afterFirst.data.queueRev).toBe(1);
 
     // Duplicate re-send is deduped (segment equality, not substring).
     await sendOrQueueAgentInput('ws-1', 'agent-q', longPrompt);
     let content = await realFs.readFile(join(cwdA, promptFile), 'utf-8');
     expect(content.match(/FIRST BRIEFING/g)).toHaveLength(1);
+    expect(mockState.canvas!.nodes[0].data.queueRev).toBe(2);
 
     // A short message CONTAINED in the long one must still be appended.
     await sendOrQueueAgentInput('ws-1', 'agent-q', 'FIRST BRIEFING');
+    expect(mockState.canvas!.nodes[0].data.queueRev).toBe(3);
     content = await realFs.readFile(join(cwdA, (mockState.canvas!.nodes[0].data.promptFile as string)), 'utf-8');
     expect(content.match(/FIRST BRIEFING/g)!.length).toBeGreaterThanOrEqual(2);
 

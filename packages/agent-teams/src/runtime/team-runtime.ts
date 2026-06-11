@@ -57,6 +57,7 @@ const TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY = 'completionSubmittedBy';
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
   'You are the Team Lead: coordinate, verify, and delegate. Do not create or edit project files yourself — route every change to a teammate. Reading files and quick read-only checks are fine, and writing a temporary plan JSON for propose-plan --plan-file is the one allowed exception.',
+  'If you are unsure of the current team state (task statuses, pending questions or reviews), ground yourself once with: pulse-canvas team status',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
   'If no immediate action is needed, briefly acknowledge and stop. Pulse Canvas will wake you again for the next required decision.',
 ].join('\n');
@@ -678,6 +679,48 @@ export class TeamRuntime {
         : availableAgents.find(agent => agent.role === 'teammate');
       if (!owner) continue;
 
+      // Deliver the task prompt BEFORE committing the assignment. If the
+      // adapter cannot take the input (e.g. the agent's canvas node was
+      // deleted), committing first would leave a fake in_progress task whose
+      // owner never received anything — invisible to the watchdog because the
+      // agent record looks busy. The failed task stays in todo with the
+      // failure recorded on it, and this pass moves on to other ready work.
+      if (this.agentSessions && owner.sessionRef) {
+        const taskPrompt = await this.formatTaskPrompt(task, tasks, owner);
+        try {
+          await this.agentSessions.sendInput(owner.sessionRef.sessionId, taskPrompt);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const reason = `Dispatch failed: ${message}`;
+          // The heartbeat retries every pass; only the first failure (or a
+          // changed error) is persisted and reported, so a dead target does
+          // not rewrite the task or re-ping the lead on every tick.
+          if (task.blockedReason !== reason) {
+            task.blockedReason = reason;
+            task.updatedAt = this.now();
+            await this.store.saveTask(task);
+            await this.appendMessage({
+              teamId,
+              from: 'runtime',
+              to: 'lead',
+              type: 'status_update',
+              content: `Could not deliver task "${task.title}" to ${owner.name}: ${message}. The task stays queued; restore the agent's node or reassign the work.`,
+              taskId: task.id,
+            });
+          }
+          continue;
+        }
+        // Record this as the agent's current launch prompt so a later restart
+        // replays THIS task rather than a previously finished one. Best
+        // effort: the prompt was already delivered, so a bookkeeping failure
+        // must not abort the assignment.
+        try {
+          await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
+        } catch {
+          // Replay bookkeeping only; the live session already has the task.
+        }
+      }
+
       // An explicit assignment to the lead (or to an agent that no longer
       // exists) is being overridden — record it so the reassignment is not
       // silent.
@@ -717,14 +760,6 @@ export class TeamRuntime {
         taskId: task.id,
         agentId: owner.id,
       });
-
-      if (this.agentSessions && owner.sessionRef) {
-        const taskPrompt = await this.formatTaskPrompt(task, tasks, owner);
-        await this.agentSessions.sendInput(owner.sessionRef.sessionId, taskPrompt);
-        // Record this as the agent's current launch prompt so a later restart
-        // replays THIS task rather than a previously finished one.
-        await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
-      }
 
       if (scope.length > 0) heldScopes.push(scope);
       assigned.push({ ...task });
@@ -810,20 +845,7 @@ export class TeamRuntime {
       reason: TASK_ACCEPTANCE_PENDING_REASON,
     });
     await this.notifyLead(task.teamId, await this.formatTaskAcceptancePrompt(task, submitter, summary), task.id);
-    await this.warmPendingTaskReviewDigest(task.teamId);
     return task;
-  }
-
-  /**
-   * Pre-warm the pending-review digest cache after a review prompt was just
-   * delivered, so the snapshot heartbeat does not immediately re-send a
-   * digest covering the same backlog on the next tick.
-   */
-  private async warmPendingTaskReviewDigest(teamId: TeamId): Promise<void> {
-    this.leadTaskReviewDigestCache.set(teamId, {
-      digest: await this.formatPendingTaskReviewDigest(teamId),
-      sentAt: this.now(),
-    });
   }
 
   async completeTask(taskId: TaskId, result: string, actor?: AgentId | 'human' | 'runtime'): Promise<TeamTaskRecord> {
@@ -909,24 +931,17 @@ export class TeamRuntime {
       reason,
     });
     await this.notifyLead(task.teamId, await this.formatTaskReviewPrompt(task, reason), task.id);
-    await this.warmPendingTaskReviewDigest(task.teamId);
     return task;
   }
 
-  async failTask(taskId: TaskId, error: string, actor?: AgentId | 'runtime'): Promise<TeamTaskRecord> {
-    const task = await this.requireTask(taskId);
-    task.status = 'failed';
-    task.result = error;
-    task.updatedAt = this.now();
-    await this.store.saveTask(task);
-    await this.cancelOpenGatesForTask(task.teamId, task.id);
-
-    await this.releaseTaskOwner(task, 'error');
-
-    // A failed dependency would otherwise leave its dependents sitting in
-    // `todo` forever (they can never become ready). Park them as explicitly
-    // blocked so the stall is visible and the lead is forced to decide:
-    // fix-and-complete the failed task (which releases them) or replan.
+  /**
+   * Park a settled-as-failed task's todo dependents as explicitly blocked.
+   * A failed dependency would otherwise leave its dependents sitting in
+   * `todo` forever (they can never become ready). Parking makes the stall
+   * visible and forces the lead to decide: fix-and-complete the failed task
+   * (which releases them) or replan.
+   */
+  private async parkDependentsOnFailure(task: TeamTaskRecord): Promise<TeamTaskRecord[]> {
     const tasks = await this.store.listTasks(task.teamId);
     const blockedDependents: TeamTaskRecord[] = [];
     for (const dependent of tasks) {
@@ -947,6 +962,20 @@ export class TeamRuntime {
       });
       blockedDependents.push(dependent);
     }
+    return blockedDependents;
+  }
+
+  async failTask(taskId: TaskId, error: string, actor?: AgentId | 'runtime'): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    task.status = 'failed';
+    task.result = error;
+    task.updatedAt = this.now();
+    await this.store.saveTask(task);
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
+
+    await this.releaseTaskOwner(task, 'error');
+
+    const blockedDependents = await this.parkDependentsOnFailure(task);
 
     await this.emit(task.teamId, 'task_failed', actor ?? task.ownerAgentId ?? 'runtime', {
       taskId: task.id,
@@ -969,6 +998,52 @@ export class TeamRuntime {
       '',
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
+    ].join('\n'), task.id);
+    await this.checkRoundCompletion(task.teamId);
+    return task;
+  }
+
+  /**
+   * Cancel a task that should no longer run — its agent session is gone,
+   * the work was superseded by a replacement task, or the human withdrew it.
+   * The task settles as failed so it stops holding its declared file scope
+   * (a blocked task holds its scope forever otherwise, starving overlapping
+   * fallback work), and its owner is released as idle: cancellation is a
+   * routing decision, not an agent error. Dependents are parked like any
+   * other failure so the lead must explicitly re-route or close them.
+   */
+  async cancelTask(taskId: TaskId, reason: string, actor: AgentId | 'human' | 'runtime' = 'human'): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    if (task.status === 'done' || task.status === 'failed') return task;
+    task.status = 'failed';
+    task.result = `Cancelled: ${reason}`;
+    task.blockedReason = undefined;
+    task.updatedAt = this.now();
+    await this.store.saveTask(task);
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
+
+    await this.releaseTaskOwner(task, 'idle');
+
+    const blockedDependents = await this.parkDependentsOnFailure(task);
+
+    await this.emit(task.teamId, 'task_failed', actor, {
+      taskId: task.id,
+      error: task.result,
+      cancelled: true,
+    });
+    await this.notifyLead(task.teamId, [
+      `Task cancelled: ${task.title}`,
+      '',
+      reason,
+      'Its file scope is released, so overlapping replacement tasks can now dispatch.',
+      ...(blockedDependents.length > 0
+        ? [
+          '',
+          'Dependent tasks now blocked by this cancellation:',
+          ...blockedDependents.map((dependent) => `- ${dependent.title}`),
+          'Re-route them to replacement tasks or close the ones that no longer apply.',
+        ]
+        : []),
     ].join('\n'), task.id);
     await this.checkRoundCompletion(task.teamId);
     return task;
@@ -1008,6 +1083,8 @@ export class TeamRuntime {
       reason,
       '',
       'Decide whether to answer, create a follow-up task, or ask the user for input.',
+      'A blocked task keeps holding its declared file scope. If it should be abandoned so replacement work can take over its files, cancel it:',
+      `pulse-canvas team cancel-task --task "${quoteCliValue(task.id)}" --reason "<why>"`,
     ].join('\n'), task.id);
     return task;
   }
@@ -1342,7 +1419,10 @@ export class TeamRuntime {
    * session missed it, the task would sit in needs_review forever while
    * downstream work stays blocked. Pulse Canvas calls this on its snapshot
    * heartbeat, like the pending-gate digest. Throttled per digest so an
-   * unchanged backlog is not re-sent within the resend window.
+   * unchanged backlog is not re-sent within the resend window. Open teammate
+   * questions do NOT suppress this nag: a lingering unanswerable gate must
+   * never starve the review backlog (notifyLead appends both digests to one
+   * message anyway).
    */
   async notifyLeadPendingTaskReviews(teamId: TeamId): Promise<void> {
     const team = await this.requireTeam(teamId);
@@ -1350,10 +1430,6 @@ export class TeamRuntime {
       this.leadTaskReviewDigestCache.delete(teamId);
       return;
     }
-    // If teammate questions are pending, the gate digest path is already
-    // re-engaging the lead; don't stack a second prompt on the same tick.
-    if (await this.formatLeadPendingGateDigest(teamId)) return;
-
     const digest = await this.formatPendingTaskReviewDigest(teamId);
     if (!digest) {
       this.leadTaskReviewDigestCache.delete(teamId);
@@ -1363,12 +1439,13 @@ export class TeamRuntime {
     if (cached?.digest === digest && this.now() - cached.sentAt < LEAD_TASK_REVIEW_DIGEST_RESEND_MS) {
       return;
     }
+    // The digest itself rides along via notifyLead, which also re-warms the
+    // resend cache.
     await this.notifyLead(teamId, [
       'Pulse Canvas found tasks still waiting for Team Lead review.',
       '',
-      digest,
+      'Handle each review now: verify the deliverable, then accept it or send it back.',
     ].join('\n'));
-    this.leadTaskReviewDigestCache.set(teamId, { digest, sentAt: this.now() });
   }
 
   /**
@@ -1425,9 +1502,9 @@ export class TeamRuntime {
       this.leadReviewNudgeCache.delete(teamId);
       return;
     }
-    // If teammate questions are still waiting on the lead, the pending-gate digest
-    // path is already re-engaging it; don't stack a second prompt on this tick.
-    if (await this.formatLeadPendingGateDigest(teamId)) return;
+    // Open teammate questions do not suppress the nudge: they ride along on
+    // the same notifyLead message, and a lingering unanswerable gate must not
+    // stall finalization forever.
     const lastNudgedAt = this.leadReviewNudgeCache.get(teamId);
     if (lastNudgedAt !== undefined && this.now() - lastNudgedAt < LEAD_REVIEW_RESEND_MS) {
       return;
@@ -1611,19 +1688,15 @@ export class TeamRuntime {
       `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
       'The Team Lead reviews your reported completion before the task counts as done, and may send it back with revision feedback.',
       '',
-      'If you need human input, prefer:',
+      'If you need human input, run this command from the terminal. Do not merely print it:',
       `pulse-canvas team request-human-input --task "${task.id}" --prompt "<question>"`,
       'Teammate questions are routed to the Team Lead first. The Team Lead asks the human only if needed.',
-      'Fallback marker:',
-      `[agent-team:human-input-needed taskId="${task.id}"] <question>`,
       '',
       'If you are blocked without a human answer, run this command from the terminal. Do not merely print it:',
       `pulse-canvas team block-task --task "${task.id}" --reason "<reason>"`,
       '',
-      'If you create a notable artifact, prefer:',
+      'If you create a notable artifact, run:',
       `pulse-canvas team publish-artifact --task "${task.id}" --kind "diff" --title "filename.diff" --summary "<short summary>"`,
-      'Fallback marker:',
-      `[agent-team:artifact taskId="${task.id}" kind="diff" title="filename.diff"] <short summary>`,
     ].join('\n');
   }
 
@@ -1974,18 +2047,29 @@ export class TeamRuntime {
     });
     if (!this.agentSessions || !lead.sessionRef) return;
 
+    // Both backlogs ride along on every lead notification: a lead that only
+    // reads its latest message still sees every question AND every pending
+    // review, so neither backlog depends on the lead having caught the one
+    // prompt that announced it.
     const pendingGateDigest = await this.formatLeadPendingGateDigest(teamId);
+    const pendingReviewDigest = await this.formatPendingTaskReviewDigest(teamId);
     await this.agentSessions.sendInput(lead.sessionRef.sessionId, [
       LEAD_NOTIFICATION_GUARD,
       '',
       content,
       ...(pendingGateDigest ? ['', pendingGateDigest] : []),
+      ...(pendingReviewDigest ? ['', pendingReviewDigest] : []),
     ].join('\n'));
 
     if (pendingGateDigest) {
       this.leadPendingDigestCache.set(teamId, { digest: pendingGateDigest, sentAt: this.now() });
     } else {
       this.leadPendingDigestCache.delete(teamId);
+    }
+    if (pendingReviewDigest) {
+      this.leadTaskReviewDigestCache.set(teamId, { digest: pendingReviewDigest, sentAt: this.now() });
+    } else {
+      this.leadTaskReviewDigestCache.delete(teamId);
     }
     lead.status = 'running';
     lead.updatedAt = this.now();

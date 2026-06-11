@@ -106,6 +106,29 @@ describe('sendInputToAgentNode', () => {
     ]);
   });
 
+  it('serializes concurrent sends to the same node so their bytes never interleave', async () => {
+    mockCanvas = {
+      nodes: [{ id: 'n1', type: 'agent', title: 'foo', data: { status: 'running', sessionId: 'sess-1' } }],
+    };
+    liveSessions.add('sess-1');
+
+    const [first, second] = await Promise.all([
+      sendInputToAgentNode({ workspaceId: 'ws', nodeId: 'n1', input: 'first message' }),
+      sendInputToAgentNode({ workspaceId: 'ws', nodeId: 'n1', input: 'second message' }),
+    ]);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    // Without per-node serialization both bodies would land inside each
+    // other's body→Enter gap: first, second, \r, \r.
+    expect(sessionWrites).toEqual([
+      { id: 'sess-1', data: 'first message' },
+      { id: 'sess-1', data: '\r' },
+      { id: 'sess-1', data: 'second message' },
+      { id: 'sess-1', data: '\r' },
+    ]);
+  });
+
   it('still sends Enter when the body is empty', async () => {
     mockCanvas = {
       nodes: [{ id: 'n1', type: 'agent', title: 'foo', data: { status: 'running', sessionId: 'sess-1' } }],

@@ -788,7 +788,8 @@ describe('CanvasAgentTeamsService', () => {
     };
 
     // A queued launch prompt (headless dispatch waiting for the renderer) is
-    // healthy: the watchdog leaves the task alone no matter how many ticks.
+    // healthy while inside the launch grace window: the watchdog leaves the
+    // task alone.
     mockState.ptyAlive = false;
     mockState.queuedLaunch = true;
     await service.heartbeatTick();
@@ -810,6 +811,177 @@ describe('CanvasAgentTeamsService', () => {
     // with its task when the canvas next mounts the node.
     const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
     expect(prepared.canResume).toBe(true);
+  });
+
+  it('escalates a launch prompt that stays queued past the grace window', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks.find((candidate) => candidate.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+    const taskStatus = async () => {
+      const snapshot = await service.snapshot('ws-1', teamId);
+      return snapshot.runtime.tasks.find((candidate) => candidate.id === task.id);
+    };
+
+    // The agent's PTY is gone and its task prompt sits queued; windows are
+    // open but nothing mounts the node. The first tick only starts the
+    // grace clock.
+    mockState.ptyAlive = false;
+    mockState.queuedLaunch = true;
+    service.queuedLaunchGraceMs = 0;
+    await service.heartbeatTick();
+    expect((await taskStatus())?.status).toBe('in_progress');
+
+    // Past the grace the watchdog stops trusting the queue: the task goes to
+    // review instead of faking in_progress forever, and the reason matches
+    // the auto-resume pattern so mounting the node still recovers the task.
+    await service.heartbeatTick();
+    expect(await taskStatus()).toMatchObject({
+      status: 'needs_review',
+      blockedReason: 'Agent session was never relaunched to receive the dispatched task.',
+    });
+    const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
+    expect(prepared.canResume).toBe(true);
+    expect((await taskStatus())?.status).toBe('in_progress');
+  });
+
+  it('teamStatus is read-only and reports per-agent session health', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+
+    const queuedBefore = mockState.queuedInputs.length;
+    const status = await service.teamStatus('ws-1', teamId);
+    await service.teamStatus('ws-1', teamId);
+
+    expect(status.runtime.team.id).toBe(teamId);
+    expect(status.runtime.tasks.length).toBeGreaterThan(0);
+    expect(Object.keys(status.sessions ?? {})).toHaveLength(status.runtime.agents.length);
+    for (const agent of status.runtime.agents) {
+      expect(status.sessions?.[agent.id]).toBe('live');
+    }
+    // A status query never nudges the lead or mutates team state.
+    expect(mockState.queuedInputs).toHaveLength(queuedBefore);
+
+    const summaries = await service.listTeamSummaries('ws-1');
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      teamId,
+      name: 'Checkout Team',
+      status: 'running',
+      agentCount: 3,
+    });
+    expect(summaries[0].taskCounts.in_progress).toBe(1);
+  });
+
+  it('opens a human gate when the lead session dies and cancels it on recovery', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const leadDownGates = async () => {
+      const snapshot = await service.teamStatus('ws-1', teamId);
+      return snapshot.runtime.humanGates.filter((gate) => gate.metadata?.kind === 'lead-session-down');
+    };
+
+    // Every session dies (app restart without windows reopening the nodes).
+    // The first tick only marks the lead suspect; the second confirms.
+    mockState.ptyAlive = false;
+    mockState.queuedLaunch = false;
+    await service.heartbeatTick();
+    expect(await leadDownGates()).toHaveLength(0);
+    await service.heartbeatTick();
+    let gates = await leadDownGates();
+    expect(gates).toHaveLength(1);
+    expect(gates[0].status).toBe('open');
+    expect(gates[0].prompt).toContain('Team Lead');
+    // No agent/task attached: parking the lead would block its auto-resume.
+    expect(gates[0].agentId).toBeUndefined();
+    expect(gates[0].taskId).toBeUndefined();
+
+    // Further ticks do not stack duplicate gates.
+    await service.heartbeatTick();
+    await service.heartbeatTick();
+    gates = await leadDownGates();
+    expect(gates.filter((gate) => gate.status === 'open')).toHaveLength(1);
+
+    // The lead session comes back: the next snapshot settles the gate.
+    mockState.ptyAlive = true;
+    await service.snapshot('ws-1', teamId);
+    gates = await leadDownGates();
+    expect(gates.filter((gate) => gate.status === 'open')).toHaveLength(0);
+    expect(gates[0]?.status).toBe('cancelled');
+  });
+
+  it('cancels a task via cancelAgentTask, releasing its scope to fallback work', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'QA with a fallback lane.',
+        teammates: [
+          { name: 'QA Codex', agentType: 'codex' },
+          { name: 'Backup Codex', agentType: 'codex' },
+        ],
+        tasks: [
+          { title: 'QA regression', description: 'Run the regression checklist.', ownerName: 'QA Codex', scope: ['apps/web/src'] },
+        ],
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const lead = confirmed.runtime.agents.find((agent) => agent.role === 'lead')!;
+    const teammate = confirmed.runtime.agents.find((agent) => agent.name === 'Backup Codex')!;
+    const original = confirmed.runtime.tasks.find((task) => task.title === 'QA regression')!;
+    expect(original.status).toBe('in_progress');
+
+    // The QA agent's node died; the human parks the task. Its scope still
+    // blocks the fallback task.
+    await service.blockAgentTask({ workspaceId: 'ws-1', teamId, taskId: original.id, reason: 'Agent node PTY no longer exists.' });
+    await service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'QA regression fallback',
+      description: 'Re-run the regression on a healthy agent.',
+      ownerName: 'Backup Codex',
+      scope: ['apps/web/src'],
+      dispatch: true,
+    });
+    let snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.tasks.find((task) => task.title === 'QA regression fallback')).toMatchObject({
+      status: 'todo',
+      blockedReason: 'Waiting for overlapping file scope held by: QA regression',
+    });
+
+    // Teammates cannot withdraw work; cancellation is a lead/human decision.
+    await expect(service.cancelAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      taskId: original.id,
+      reason: 'I give up.',
+      sourceAgentId: teammate.id,
+    })).rejects.toThrow('Only the Team Lead can cancel tasks');
+
+    // A human cancel settles the task and immediately dispatches the fallback.
+    snapshot = await service.cancelAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      taskId: original.id,
+      reason: 'Agent session is gone; fallback takes over.',
+    });
+    expect(snapshot.runtime.tasks.find((task) => task.id === original.id)).toMatchObject({
+      status: 'failed',
+      result: 'Cancelled: Agent session is gone; fallback takes over.',
+    });
+    expect(snapshot.runtime.tasks.find((task) => task.title === 'QA regression fallback')).toMatchObject({
+      status: 'in_progress',
+    });
+    // The lead is told the scope is now free.
+    const leadNotice = mockState.queuedInputs
+      .filter((entry) => entry.nodeId === lead.sessionRef!.sessionId)
+      .map((entry) => entry.input)
+      .find((input) => input.includes('Task cancelled: QA regression'));
+    expect(leadNotice).toContain('Its file scope is released');
   });
 
   it('rejects create-task requests from teammates but allows the lead', async () => {
@@ -1385,6 +1557,25 @@ describe('CanvasAgentTeamsService', () => {
     );
     expect(generic).toBeNull();
 
+    // The TUI echo of the task prompt wraps at terminal width, so the example
+    // marker also arrives with the placeholder truncated or cut off entirely.
+    const truncated = await service.reportAgentOutput(
+      'ws-1',
+      owner.sessionRef!.sessionId,
+      `[agent-team:human-input-needed taskId="${task.id}"] <ques\n`,
+    );
+    expect(truncated).toBeNull();
+    const empty = await service.reportAgentOutput(
+      'ws-1',
+      owner.sessionRef!.sessionId,
+      `[agent-team:human-input-needed taskId="${task.id}"]\n`,
+    );
+    expect(empty).toBeNull();
+    const unparked = await service.snapshot('ws-1', created.runtime.team.id);
+    expect(unparked.runtime.humanGates).toHaveLength(0);
+    expect(unparked.runtime.tasks[0].status).toBe('in_progress');
+    expect(unparked.runtime.agents.find((agent) => agent.id === owner.id)?.status).toBe('running');
+
     const gated = await service.reportAgentOutput(
       'ws-1',
       owner.sessionRef!.sessionId,
@@ -1402,6 +1593,38 @@ describe('CanvasAgentTeamsService', () => {
       `[agent-team:human-input-needed taskId="${task.id}"] Should I update the public API?\n`,
     );
     expect(duplicate).toBeNull();
+  });
+
+  it('cancels placeholder human gates and resumes the parked task and agent', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    // A junk gate recorded by an older build (the marker parser now rejects
+    // these at the source): the snapshot maintenance pass cancels it and
+    // un-parks the task and agent it froze.
+    const repaired = await service.openHumanGate('ws-1', teamId, {
+      taskId: task.id,
+      agentId: owner.id,
+      reason: 'Teammate requested Team Lead input',
+      prompt: 'Agent requested human input.',
+    });
+    expect(repaired.runtime.humanGates[0].status).toBe('cancelled');
+    expect(repaired.runtime.tasks[0].status).toBe('in_progress');
+    expect(repaired.runtime.agents.find((agent) => agent.id === owner.id)?.status).toBe('running');
+
+    // Gates with a concrete question are untouched by the repair.
+    const gated = await service.openHumanGate('ws-1', teamId, {
+      taskId: task.id,
+      agentId: owner.id,
+      reason: 'Need lead decision',
+      prompt: 'Should the checkout API stay stable?',
+    });
+    const concrete = gated.runtime.humanGates.find((gate) => gate.prompt === 'Should the checkout API stay stable?')!;
+    expect(concrete.status).toBe('open');
+    expect(gated.runtime.tasks[0].status).toBe('needs_input');
   });
 
   it('opens a human-facing gate when the team lead asks for human input', async () => {

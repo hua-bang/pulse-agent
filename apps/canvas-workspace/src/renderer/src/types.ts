@@ -1269,6 +1269,9 @@ export interface AgentTeamPlanDraft {
   updatedAt: number;
 }
 
+/** Liveness of an agent's PTY session as reported by the main process. */
+export type AgentTeamSessionHealth = 'live' | 'queued' | 'dead' | 'missing';
+
 export interface AgentTeamSnapshot {
   workspaceId: string;
   frameNodeId?: string;
@@ -1276,6 +1279,8 @@ export interface AgentTeamSnapshot {
   pendingPlan?: AgentTeamPlanDraft;
   approvedPlan?: AgentTeamPlanDraft;
   runtime: AgentTeamRuntimeSnapshot;
+  /** Per-agent session liveness, keyed by agent id. */
+  sessions?: Record<string, AgentTeamSessionHealth>;
 }
 
 export interface AgentTeamsApi {

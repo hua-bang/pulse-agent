@@ -39,6 +39,118 @@ interface TeamSnapshotResponse {
   code?: string;
 }
 
+interface TeamStatusResponse {
+  ok: boolean;
+  snapshot?: {
+    phase?: string;
+    sessions?: Record<string, string>;
+    runtime?: {
+      team?: { id: string; name?: string; status?: string; goal?: string };
+      agents?: Array<{
+        id: string;
+        name: string;
+        role: string;
+        status: string;
+        currentTaskId?: string;
+      }>;
+      tasks?: Array<{
+        id: string;
+        title: string;
+        status: string;
+        ownerAgentId?: string;
+        blockedReason?: string;
+      }>;
+      humanGates?: Array<{
+        id: string;
+        status: string;
+        prompt: string;
+        agentId?: string;
+        taskId?: string;
+      }>;
+    };
+  };
+  teams?: Array<{
+    teamId: string;
+    name: string;
+    status: string;
+    phase: string;
+    taskCounts: Record<string, number>;
+    agentCount: number;
+  }>;
+  error?: string;
+  code?: string;
+}
+
+const renderTeamStatus = (response: TeamStatusResponse): string => {
+  if (response.teams) {
+    if (response.teams.length === 0) return 'No agent teams in this workspace.';
+    const lines = response.teams.map((team) => {
+      const counts = Object.entries(team.taskCounts)
+        .map(([status, count]) => `${count} ${status}`)
+        .join(', ') || 'no tasks';
+      return `${team.name} (${team.teamId}) — ${team.status} · ${team.phase} · ${team.agentCount} agents · ${counts}`;
+    });
+    return [...lines, '', 'Run with --team <id> for task, agent, and session detail.'].join('\n');
+  }
+
+  const runtime = response.snapshot?.runtime ?? {};
+  const sessions = response.snapshot?.sessions ?? {};
+  const team = runtime.team;
+  const agents = runtime.agents ?? [];
+  const tasks = runtime.tasks ?? [];
+  const agentById = new Map(agents.map((agent) => [agent.id, agent]));
+  const taskById = new Map(tasks.map((task) => [task.id, task]));
+  const lines: string[] = [];
+
+  lines.push(`Team: ${team?.name ?? 'unknown'} (${team?.id ?? '?'})`);
+  lines.push(`Status: ${team?.status ?? 'unknown'} · phase ${response.snapshot?.phase ?? 'unknown'}`);
+
+  lines.push('', `Agents (${agents.length}):`);
+  for (const agent of agents) {
+    const session = sessions[agent.id] ?? 'unknown';
+    const current = agent.currentTaskId ? taskById.get(agent.currentTaskId)?.title : undefined;
+    lines.push(
+      `- ${agent.name} [${agent.role}] ${agent.status} · session ${session}`
+      + (current ? ` · working on: ${current}` : ''),
+    );
+  }
+
+  lines.push('', `Tasks (${tasks.length}):`);
+  for (const task of tasks) {
+    const owner = task.ownerAgentId ? agentById.get(task.ownerAgentId)?.name : undefined;
+    lines.push(`- [${task.status}] ${task.title} — ${owner ?? 'unassigned'} (${task.id})`);
+    if (task.blockedReason) lines.push(`    blocker: ${task.blockedReason}`);
+  }
+
+  const openGates = (runtime.humanGates ?? []).filter((gate) => gate.status === 'open');
+  if (openGates.length > 0) {
+    lines.push('', `Open questions (${openGates.length}):`);
+    for (const gate of openGates) {
+      const from = gate.agentId ? agentById.get(gate.agentId)?.name ?? 'agent' : 'team';
+      lines.push(`- ${from}: ${gate.prompt}`);
+    }
+  }
+
+  const pendingReviews = tasks.filter((task) => task.status === 'needs_review');
+  if (pendingReviews.length > 0) {
+    lines.push('', `Waiting for Team Lead review (${pendingReviews.length}):`);
+    for (const task of pendingReviews) {
+      lines.push(`- ${task.title}: pulse-canvas team complete-task --task "${task.id}" --summary "<reviewed summary>"`);
+    }
+  }
+
+  const deadSessions = agents.filter((agent) => {
+    const session = sessions[agent.id];
+    return session === 'dead' || session === 'missing';
+  });
+  if (deadSessions.length > 0) {
+    lines.push('', `Sessions needing relaunch (${deadSessions.length}): ${deadSessions.map((agent) => agent.name).join(', ')}`);
+    lines.push('Open the workspace window to relaunch them; queued messages deliver on relaunch.');
+  }
+
+  return lines.join('\n');
+};
+
 const collectOption = (value: string, previous: string[] = []): string[] => [...previous, value];
 
 function getOpts(cmd: Command): TeamCommandOpts {
@@ -88,6 +200,7 @@ async function postTeamAction(
     | '/agent-team/create-task'
     | '/agent-team/complete-task'
     | '/agent-team/block-task'
+    | '/agent-team/cancel-task'
     | '/agent-team/request-human-input'
     | '/agent-team/publish-artifact'
     | '/agent-team/complete-team'
@@ -304,6 +417,55 @@ export function registerTeamCommands(program: Command): void {
       if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
 
       output(body, format, () => `Task blocked for ${teamId}.`);
+    });
+
+  team.command('status')
+    .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID}; omit to list all teams)`, process.env[ENV_TEAM_ID])
+    .description('Show read-only team status: agents, session health, tasks, open questions, pending reviews')
+    .action(async function (this: Command, cmdOpts: { team?: string }) {
+      const { format, workspace } = getOpts(this);
+      const teamId = cmdOpts.team || process.env[ENV_TEAM_ID] || undefined;
+
+      const runtime = await readRuntime();
+      const { status, body } = await postRuntime(runtime, '/agent-team/status', {
+        workspaceId: workspace,
+        ...(teamId ? { teamId } : {}),
+      }) as { status: number; body: TeamStatusResponse };
+
+      if (status === 401) errorOutput(runtimeAuthHint());
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+
+      output(body, format, (data) => renderTeamStatus(data as TeamStatusResponse));
+    });
+
+  team.command('cancel-task')
+    .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID})`, process.env[ENV_TEAM_ID])
+    .option('--source-agent <agentId>', `Source agent ID (default: $${ENV_TEAM_AGENT_ID})`, process.env[ENV_TEAM_AGENT_ID])
+    .option('--task <taskId>', 'Task ID or title')
+    .option('--reason <reason>', 'Cancellation reason')
+    .argument('[reason...]', 'Cancellation reason')
+    .description('Cancel a task and release its file scope for replacement work (Team Lead or human only)')
+    .action(async function (
+      this: Command,
+      reasonParts: string[] | undefined,
+      cmdOpts: { team?: string; sourceAgent?: string; task?: string; reason?: string },
+    ) {
+      const { format, workspace } = getOpts(this);
+      const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
+      if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
+      const reason = textFromOptionOrParts(cmdOpts.reason, reasonParts, 'Reason');
+
+      const runtime = await readRuntime();
+      const { status, body } = await postTeamAction(runtime, '/agent-team/cancel-task', addSourceAgent({
+        ...baseTeamBody(workspace, teamId),
+        taskId: cmdOpts.task,
+        reason,
+      }, cmdOpts.sourceAgent));
+
+      if (status === 401) errorOutput(runtimeAuthHint());
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+
+      output(body, format, () => `Task cancelled for ${teamId}; its file scope is released.`);
     });
 
   team.command('request-human-input')

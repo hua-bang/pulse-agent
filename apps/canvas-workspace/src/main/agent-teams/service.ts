@@ -26,12 +26,16 @@ import {
   removeAgentTeamCanvasNodes,
   stopAgentTeamCanvasNodes,
   updateAgentTeamCanvasCwd,
+  type CanvasAgentNodeRuntimeState,
 } from './canvas-nodes';
 import { CanvasAgentTeamStore } from './store';
 import { broadcastCanvasUpdate } from '../canvas/broadcast';
 import type {
   CanvasAgentTeamAddAgentInput,
+  CanvasAgentSessionHealth,
   CanvasAgentTeamBlockTaskInput,
+  CanvasAgentTeamCancelTaskInput,
+  CanvasAgentTeamSummary,
   CanvasAgentTeamCompleteTaskInput,
   CanvasAgentTeamCreateInput,
   CanvasAgentTeamCreateTaskInput,
@@ -70,7 +74,21 @@ const ARTIFACT_KINDS = new Set<ArtifactKind>([
   'other',
 ]);
 const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
-const SESSION_EXIT_REVIEW_REASON_RE = /^Agent session exited(?: with code -?\d+)? before reporting task completion\.$/;
+// Marks the human gate the watchdog opens when the Team Lead's session is
+// confirmed unreachable; recovery auto-cancels gates of this kind.
+const LEAD_SESSION_DOWN_GATE_KIND = 'lead-session-down';
+// Both reasons route the task back through prepareAgentAutoResume: the canvas
+// relaunches the agent with its task when the node next mounts.
+const SESSION_EXIT_REVIEW_REASON_RE =
+  /^Agent session (?:exited(?: with code -?\d+)? before reporting task completion|was never relaunched to receive the dispatched task)\.$/;
+const QUEUED_LAUNCH_REVIEW_REASON = 'Agent session was never relaunched to receive the dispatched task.';
+// How long a dispatched task may sit as a queued launch prompt (agent PTY
+// dead, prompt waiting for the renderer to spawn the node) while windows are
+// open before the watchdog stops trusting it. Within the grace it is the
+// normal headless-dispatch state; past it, nothing is going to mount the node
+// — the workspace is not open in any window — and leaving the task
+// in_progress fakes progress forever.
+const QUEUED_LAUNCH_GRACE_MS = 2 * 60_000;
 const AGENT_TEAM_MARKER_RE =
   /^\s*\[agent-team:(?<kind>plan|human-input-needed|artifact)(?:\s+taskId="(?<taskId>[^"]+)")?(?:\s+kind="(?<artifactKind>[^"]+)")?(?:\s+title="(?<artifactTitle>[^"]+)")?\]\s*(?<text>.*)\s*$/;
 
@@ -100,15 +118,28 @@ const stripAnsi = (value: string): string =>
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
 
+/**
+ * A human-input marker is only actionable with a concrete question. Task
+ * prompts contain the literal fallback example
+ * `[agent-team:human-input-needed taskId="..."] <question>`, and the TUI
+ * echo of that prompt re-enters the PTY output — line-wrapped at terminal
+ * width, so the placeholder arrives whole (`<question>`), truncated
+ * (`<ques`), or cut off entirely (empty text). Opening gates for those
+ * floods the Team Lead backlog with unanswerable questions and parks the
+ * task/agent in needs_input even though the agent is actually working.
+ */
+const isPlaceholderHumanInputText = (text: string): boolean =>
+  !text
+  || text.startsWith('<')
+  || /^agent requested human input\.?$/i.test(text)
+  || /^human input requested\.?$/i.test(text);
+
 const parseAgentOutputMarker = (line: string): AgentOutputMarker | null => {
   const match = AGENT_TEAM_MARKER_RE.exec(stripAnsi(line).trim());
   if (!match?.groups) return null;
   const text = match.groups.text.trim();
   if (/^<[^>]+>$/.test(text)) return null;
-  if (
-    match.groups.kind === 'human-input-needed'
-    && /^agent requested human input\.?$/i.test(text)
-  ) return null;
+  if (match.groups.kind === 'human-input-needed' && isPlaceholderHumanInputText(text)) return null;
   return {
     kind: match.groups.kind as AgentOutputMarkerKind,
     taskId: match.groups.taskId,
@@ -464,6 +495,7 @@ const formatLeadExecutionPrompt = (teamName: string, goal: string, content: stri
   'Declare --scope (repeatable) for tasks that edit files; tasks with overlapping scopes never run at the same time.',
   'Declare --verify for tasks that produce code; Pulse Canvas re-runs it at submission and shows you PASS/FAIL during acceptance.',
   '',
+  'Use pulse-canvas team status to ground yourself in the current tasks, agents, open questions, and pending reviews before deciding.',
   'Use pulse-canvas team send --to "Teammate name" --message "..." to share context with a teammate.',
   'Use pulse-canvas team propose-plan only when the change needs a new human-approved plan.',
   'Do not use Claude/Codex subagents for teammate work; Pulse Canvas owns teammate nodes and dispatch.',
@@ -497,6 +529,11 @@ export class CanvasAgentTeamsService {
   // long while holding a task, the lead is nudged (no state change). Public so
   // tests can shrink the window.
   softStallThresholdMs = SOFT_STALL_THRESHOLD_MS;
+  // Queued-launch grace before the watchdog escalates (public for tests).
+  queuedLaunchGraceMs = QUEUED_LAUNCH_GRACE_MS;
+  // First heartbeat tick that observed each agent's current queued launch
+  // prompt with no live PTY; cleared when the PTY appears or the queue drains.
+  private readonly queuedLaunchSince = new Map<string, number>();
   private readonly lastAgentOutputAt = new Map<string, number>();
   private readonly softStallNudgedAt = new Map<string, number>();
   // nodeId -> agent identity for the PTY hot path (one entry per team node).
@@ -1240,6 +1277,30 @@ export class CanvasAgentTeamsService {
     return this.snapshotInternal(input.workspaceId, input.teamId);
   }
 
+  async cancelAgentTask(input: CanvasAgentTeamCancelTaskInput): Promise<CanvasAgentTeamSnapshot> {
+    return this.withTeamLock(input.workspaceId, input.teamId, () => this.cancelAgentTaskLocked(input));
+  }
+
+  private async cancelAgentTaskLocked(input: CanvasAgentTeamCancelTaskInput): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime } = this.getBundle(input.workspaceId);
+    const snapshot = await runtime.snapshot(input.teamId);
+    const agent = input.sourceAgentId
+      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      : undefined;
+    // Cancellation withdraws work and releases its file scope for replacement
+    // tasks — a routing decision that belongs to the lead or the human, not
+    // to the teammate holding the task (a stuck teammate blocks instead).
+    if (agent && agent.role !== 'lead') {
+      throw new Error('Only the Team Lead can cancel tasks. Use block-task to report a blocker instead.');
+    }
+    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    await runtime.cancelTask(task.id, input.reason, agent?.id ?? 'human');
+    // The cancelled task no longer holds its scope: dispatch immediately so
+    // an overlapping fallback task starts now instead of on the next tick.
+    await runtime.dispatchReadyTasks(input.teamId);
+    return this.snapshotInternal(input.workspaceId, input.teamId);
+  }
+
   async requestHumanInput(input: CanvasAgentTeamRequestHumanInput): Promise<CanvasAgentTeamSnapshot> {
     return this.withTeamLock(input.workspaceId, input.teamId, () => this.requestHumanInputLocked(input));
   }
@@ -1543,6 +1604,7 @@ export class CanvasAgentTeamsService {
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
     await this.repairLegacyOutputMarkerBlocks(store, teamId);
     await this.repairAnsweredHumanGateBlocks(store, teamId);
+    await this.repairPlaceholderHumanGates(store, teamId);
 
     const [team, agent, tasks, metadata] = await Promise.all([
       store.getTeam(teamId),
@@ -1619,11 +1681,14 @@ export class CanvasAgentTeamsService {
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
     await this.repairLegacyOutputMarkerBlocks(store, teamId);
     await this.repairAnsweredHumanGateBlocks(store, teamId);
+    await this.repairPlaceholderHumanGates(store, teamId);
     await runtime.notifyLeadPendingGates(teamId);
     await runtime.notifyLeadPendingTaskReviews(teamId);
     await runtime.notifyLeadReviewIfStalled(teamId);
     const metadata = await store.getTeamMetadata(teamId);
     const runtimeSnapshot = await runtime.snapshot(teamId);
+    const sessions = await this.collectSessionHealth(workspaceId, runtimeSnapshot.agents);
+    await this.cancelRecoveredLeadDownGates(store, runtimeSnapshot, sessions);
     return {
       workspaceId,
       frameNodeId: metadata?.frameNodeId,
@@ -1631,7 +1696,100 @@ export class CanvasAgentTeamsService {
       pendingPlan: metadata?.pendingPlan,
       approvedPlan: metadata?.approvedPlan,
       runtime: runtimeSnapshot,
+      sessions,
     };
+  }
+
+  /** A live lead session settles any open lead-session-down gate. */
+  private async cancelRecoveredLeadDownGates(
+    store: CanvasAgentTeamStore,
+    snapshot: RuntimeSnapshot,
+    sessions: Record<string, CanvasAgentSessionHealth>,
+  ): Promise<void> {
+    const leadId = snapshot.team.leadAgentId;
+    if (!leadId || sessions[leadId] !== 'live') return;
+    const now = Date.now();
+    for (const gate of snapshot.humanGates) {
+      if (gate.status !== 'open' || gate.metadata?.kind !== LEAD_SESSION_DOWN_GATE_KIND) continue;
+      gate.status = 'cancelled';
+      gate.updatedAt = now;
+      await store.saveHumanGate(gate);
+    }
+  }
+
+  /**
+   * Read-only team state for `pulse-canvas team status` (and any other
+   * inspection caller): the snapshot shape WITHOUT the maintenance passes
+   * and lead re-nudges that snapshotInternal performs. A status query must
+   * never mutate team state or wake the lead.
+   */
+  async teamStatus(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+    return this.withTeamLock(workspaceId, teamId, async () => {
+      const { runtime, store } = this.getBundle(workspaceId);
+      const metadata = await store.getTeamMetadata(teamId);
+      const runtimeSnapshot = await runtime.snapshot(teamId);
+      return {
+        workspaceId,
+        frameNodeId: metadata?.frameNodeId,
+        phase: inferPhase(metadata, runtimeSnapshot),
+        pendingPlan: metadata?.pendingPlan,
+        approvedPlan: metadata?.approvedPlan,
+        runtime: runtimeSnapshot,
+        sessions: await this.collectSessionHealth(workspaceId, runtimeSnapshot.agents),
+      };
+    });
+  }
+
+  /** Read-only one-line-per-team overview for `pulse-canvas team status` without --team. */
+  async listTeamSummaries(workspaceId: string): Promise<CanvasAgentTeamSummary[]> {
+    const { runtime, store } = this.getBundle(workspaceId);
+    const entries = await store.listTeamMetadata();
+    const summaries: CanvasAgentTeamSummary[] = [];
+    for (const entry of entries) {
+      try {
+        const snapshot = await runtime.snapshot(entry.teamId);
+        const metadata = await store.getTeamMetadata(entry.teamId);
+        const taskCounts: Record<string, number> = {};
+        for (const task of snapshot.tasks) {
+          taskCounts[task.status] = (taskCounts[task.status] ?? 0) + 1;
+        }
+        summaries.push({
+          teamId: entry.teamId,
+          name: snapshot.team.name,
+          status: snapshot.team.status,
+          phase: inferPhase(metadata, snapshot),
+          taskCounts,
+          agentCount: snapshot.agents.length,
+        });
+      } catch (err) {
+        console.warn(`[agent-teams] failed to summarize team ${entry.teamId}:`, err);
+      }
+    }
+    return summaries;
+  }
+
+  private async collectSessionHealth(
+    workspaceId: string,
+    agents: TeamAgentRecord[],
+  ): Promise<Record<string, CanvasAgentSessionHealth>> {
+    const withSessions = agents.filter((agent) => agent.sessionRef);
+    const states = await getCanvasAgentNodesRuntimeState(
+      workspaceId,
+      withSessions.map((agent) => agent.sessionRef!.sessionId),
+    );
+    const health: Record<string, CanvasAgentSessionHealth> = {};
+    for (const agent of agents) {
+      if (!agent.sessionRef) {
+        health[agent.id] = 'missing';
+        continue;
+      }
+      const state = states.get(agent.sessionRef.sessionId);
+      if (!state || !state.exists) health[agent.id] = 'missing';
+      else if (state.ptyAlive) health[agent.id] = 'live';
+      else if (state.hasQueuedLaunch) health[agent.id] = 'queued';
+      else health[agent.id] = 'dead';
+    }
+    return health;
   }
 
   async listTeams(workspaceId: string): Promise<CanvasAgentTeamSnapshot[]> {
@@ -1696,6 +1854,7 @@ export class CanvasAgentTeamsService {
             await this.watchdogCheckAgents(workspaceId, entry.teamId);
             await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
             await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
+            await this.repairPlaceholderHumanGates(store, entry.teamId);
             await runtime.repairCurrentRound(entry.teamId);
             await runtime.notifyLeadPendingGates(entry.teamId);
             await runtime.notifyLeadPendingTaskReviews(entry.teamId);
@@ -1760,8 +1919,11 @@ export class CanvasAgentTeamsService {
    * Detect agents whose recorded session no longer exists — an app restart or
    * crash killed the PTY without an observed exit, or the canvas node was
    * deleted — and route their in-flight task through the session-exit review
-   * path. The reason string matches the auto-resume pattern, so the canvas
-   * relaunches the agent when its node next mounts.
+   * path. Also escalates launch prompts that stay queued past the grace
+   * window while windows are open (nothing is mounting the node, so the
+   * in_progress task is fake progress). Either reason string matches the
+   * auto-resume pattern, so the canvas relaunches the agent when its node
+   * next mounts.
    */
   private async watchdogCheckAgents(workspaceId: string, teamId: string): Promise<void> {
     // Suspended while no window is open: nothing can relaunch agents, so
@@ -1772,27 +1934,53 @@ export class CanvasAgentTeamsService {
     const agents = await store.listAgents(teamId);
     const watched = agents.filter((agent) =>
       agent.status === 'running' && !!agent.currentTaskId && !!agent.sessionRef);
-    const states = await getCanvasAgentNodesRuntimeState(
-      workspaceId,
-      watched.map((agent) => agent.sessionRef!.sessionId),
-    );
+    const team = await store.getTeam(teamId);
+    const lead = team?.leadAgentId ? agents.find((agent) => agent.id === team.leadAgentId) : undefined;
+    const sessionIds = watched.map((agent) => agent.sessionRef!.sessionId);
+    if (lead?.sessionRef && !sessionIds.includes(lead.sessionRef.sessionId)) {
+      sessionIds.push(lead.sessionRef.sessionId);
+    }
+    const states = await getCanvasAgentNodesRuntimeState(workspaceId, sessionIds);
+    if (team && lead) {
+      await this.watchdogCheckLeadSession(workspaceId, teamId, team.status, lead, states, runtime, store);
+    }
     for (const agent of agents) {
       const suspectKey = `${workspaceId}:${agent.id}`;
       if (agent.status !== 'running' || !agent.currentTaskId || !agent.sessionRef) {
         this.watchdogSuspects.delete(suspectKey);
+        this.queuedLaunchSince.delete(suspectKey);
         continue;
       }
       const state = states.get(agent.sessionRef.sessionId)
         ?? { exists: false, status: 'missing', ptyAlive: false, hasQueuedLaunch: false };
-      // A queued launch prompt means the agent is waiting for the renderer to
-      // spawn it — healthy headless state, not a dead session.
-      if (state.ptyAlive || state.hasQueuedLaunch) {
+      if (state.ptyAlive) {
         this.watchdogSuspects.delete(suspectKey);
-        if (state.ptyAlive) {
-          await this.checkSoftStall(workspaceId, runtime, agent);
-        }
+        this.queuedLaunchSince.delete(suspectKey);
+        await this.checkSoftStall(workspaceId, runtime, agent);
         continue;
       }
+      // A queued launch prompt means the agent is waiting for the renderer to
+      // spawn it — the normal headless-dispatch state. But a renderer with
+      // the workspace open picks the queue up within seconds, so a prompt
+      // still queued long after windows opened means nothing will mount the
+      // node and the in_progress task is going nowhere. Route it through the
+      // session review path: visible to the lead and human, and the reason
+      // matches the auto-resume pattern so mounting the node still recovers
+      // the task automatically.
+      if (state.hasQueuedLaunch) {
+        this.watchdogSuspects.delete(suspectKey);
+        const now = Date.now();
+        const since = this.queuedLaunchSince.get(suspectKey);
+        if (since === undefined) {
+          this.queuedLaunchSince.set(suspectKey, now);
+          continue;
+        }
+        if (now - since < this.queuedLaunchGraceMs) continue;
+        this.queuedLaunchSince.delete(suspectKey);
+        await runtime.requestTaskReview(agent.currentTaskId, QUEUED_LAUNCH_REVIEW_REASON, agent.id);
+        continue;
+      }
+      this.queuedLaunchSince.delete(suspectKey);
       if (!this.watchdogSuspects.has(suspectKey)) {
         this.watchdogSuspects.add(suspectKey);
         continue;
@@ -1804,6 +1992,69 @@ export class CanvasAgentTeamsService {
         agent.id,
       );
     }
+  }
+
+  /**
+   * The regular watchdog never covers the Team Lead — it has no
+   * currentTaskId — so a dead lead session stalls the whole team invisibly:
+   * teammate questions and completed-task reviews queue up with nothing
+   * processing them. When the lead's session is confirmed unreachable while
+   * the team depends on it, open a HUMAN gate (visible in the team frame)
+   * instead of notifying the lead, which would only queue onto the dead
+   * session. The gate carries no agentId/taskId: parking the lead as
+   * needs_input would block the canvas auto-resume that is the actual
+   * recovery path. Recovery is auto-detected and cancels the gate.
+   */
+  private async watchdogCheckLeadSession(
+    workspaceId: string,
+    teamId: string,
+    teamStatus: string,
+    lead: TeamAgentRecord,
+    states: Map<string, CanvasAgentNodeRuntimeState>,
+    runtime: TeamRuntime,
+    store: CanvasAgentTeamStore,
+  ): Promise<void> {
+    const suspectKey = `${workspaceId}:lead-session:${lead.id}`;
+    // The team only depends on a live lead while executing or in final
+    // review; during briefing/plan review the human is already in the loop.
+    const leadRequired = (teamStatus === 'running' || teamStatus === 'reviewing') && !!lead.sessionRef;
+    const state = lead.sessionRef ? states.get(lead.sessionRef.sessionId) : undefined;
+    if (!leadRequired || state?.ptyAlive) {
+      this.watchdogSuspects.delete(suspectKey);
+      this.queuedLaunchSince.delete(suspectKey);
+      return;
+    }
+    if (state?.hasQueuedLaunch) {
+      // Same grace as teammate queued launches: a mounted workspace drains
+      // the queue within seconds; past the grace nothing is going to.
+      this.watchdogSuspects.delete(suspectKey);
+      const now = Date.now();
+      const since = this.queuedLaunchSince.get(suspectKey);
+      if (since === undefined) {
+        this.queuedLaunchSince.set(suspectKey, now);
+        return;
+      }
+      if (now - since < this.queuedLaunchGraceMs) return;
+      this.queuedLaunchSince.delete(suspectKey);
+    } else {
+      this.queuedLaunchSince.delete(suspectKey);
+      if (!this.watchdogSuspects.has(suspectKey)) {
+        this.watchdogSuspects.add(suspectKey);
+        return;
+      }
+      this.watchdogSuspects.delete(suspectKey);
+    }
+
+    const gates = await store.listHumanGates(teamId);
+    const alreadyOpen = gates.some((gate) =>
+      gate.status === 'open' && gate.metadata?.kind === LEAD_SESSION_DOWN_GATE_KIND);
+    if (alreadyOpen) return;
+    await runtime.openHumanGate({
+      teamId,
+      reason: 'Team Lead session unreachable',
+      prompt: 'The Team Lead\'s agent session is not running, so coordination is stalled: teammate questions and completed-task reviews are queueing up with nothing processing them. Open this workspace\'s window to relaunch the lead automatically, or restart the lead agent node.',
+      metadata: { kind: LEAD_SESSION_DOWN_GATE_KIND },
+    });
   }
 
   /**
@@ -2120,6 +2371,56 @@ export class CanvasAgentTeamsService {
         agent.status = 'running';
         agent.updatedAt = now;
         await store.saveAgent(agent);
+      }
+    }
+  }
+
+  /**
+   * Cancel open human gates whose prompt carries no concrete question —
+   * junk recorded before the marker parser filtered echoed/wrapped prompt
+   * examples. Such gates nag the Team Lead with unanswerable digests and
+   * park their task/agent in needs_input although the agent never actually
+   * asked anything; once cancelled, the parked records resume.
+   */
+  private async repairPlaceholderHumanGates(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
+    const gates = await store.listHumanGates(teamId);
+    const junk = gates.filter((gate) => gate.status === 'open' && isPlaceholderHumanInputText(gate.prompt.trim()));
+    if (junk.length === 0) return;
+
+    const now = Date.now();
+    for (const gate of junk) {
+      gate.status = 'cancelled';
+      gate.updatedAt = now;
+      await store.saveHumanGate(gate);
+    }
+
+    const [tasks, agents, refreshedGates] = await Promise.all([
+      store.listTasks(teamId),
+      store.listAgents(teamId),
+      store.listHumanGates(teamId),
+    ]);
+    const remainingOpen = refreshedGates.filter((gate) => gate.status === 'open');
+    const openTaskIds = new Set(remainingOpen.map((gate) => gate.taskId).filter(Boolean));
+    const openAgentIds = new Set(remainingOpen.map((gate) => gate.agentId).filter(Boolean));
+    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+
+    for (const gate of junk) {
+      if (gate.taskId && !openTaskIds.has(gate.taskId)) {
+        const task = tasks.find((candidate) => candidate.id === gate.taskId);
+        if (task && task.status === 'needs_input') {
+          task.status = task.ownerAgentId ? 'in_progress' : 'todo';
+          task.blockedReason = undefined;
+          task.updatedAt = now;
+          await store.saveTask(task);
+        }
+      }
+      if (gate.agentId && !openAgentIds.has(gate.agentId)) {
+        const agent = agentsById.get(gate.agentId);
+        if (agent && agent.status === 'needs_input') {
+          agent.status = agent.currentTaskId ? 'running' : 'idle';
+          agent.updatedAt = now;
+          await store.saveAgent(agent);
+        }
       }
     }
   }

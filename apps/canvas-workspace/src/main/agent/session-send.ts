@@ -37,7 +37,26 @@ const POST_SUBMIT_CONFIRM_MS = 350;
 const wait = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function sendInputToAgentNode(
+// One in-flight send per agent node. The body→Enter submit sequence spans
+// ~470ms of deliberate gaps; concurrent senders (team notifications, manual
+// `agent send`, gate answers) would interleave their bytes inside each
+// other's gaps and submit garbled half-messages.
+const nodeSendQueues = new Map<string, Promise<unknown>>();
+
+export function sendInputToAgentNode(
+  input: SendInputToAgentNodeInput,
+): Promise<SendInputToAgentNodeResult> {
+  const key = `${input.workspaceId}:${input.nodeId}`;
+  const previous = nodeSendQueues.get(key) ?? Promise.resolve();
+  const next = previous.then(
+    () => sendInputToAgentNodeSerialized(input),
+    () => sendInputToAgentNodeSerialized(input),
+  );
+  nodeSendQueues.set(key, next.catch(() => {}));
+  return next;
+}
+
+async function sendInputToAgentNodeSerialized(
   input: SendInputToAgentNodeInput,
 ): Promise<SendInputToAgentNodeResult> {
   const { workspaceId, nodeId } = input;
@@ -72,9 +91,14 @@ export async function sendInputToAgentNode(
 
   const sessionId = (node.data?.sessionId as string | undefined) ?? '';
   if (!sessionId || !hasSession(sessionId)) {
+    // Team-managed agents have a queue-based delivery path that survives a
+    // dead PTY; point callers there instead of dead-ending.
+    const teamHint = typeof node.data?.agentTeamId === 'string'
+      ? ' This is a team agent node: open its workspace window to relaunch it, or use "pulse-canvas team send", which queues the message until the agent relaunches.'
+      : '';
     return {
       ok: false,
-      error: `agent node "${node.title ?? nodeId}" has no active PTY session`,
+      error: `agent node "${node.title ?? nodeId}" has no active PTY session.${teamHint}`,
       code: 'no_session',
     };
   }

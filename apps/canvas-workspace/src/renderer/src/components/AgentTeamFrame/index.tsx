@@ -56,6 +56,16 @@ const TASK_STATUS_RANK: Record<string, number> = {
 const statusLabel = (status: string) =>
   TASK_STATUS_LABELS[status] ?? status.replace(/_/g, ' ');
 
+// Appended to an agent's status chip when its PTY session cannot receive
+// input right now: 'offline' needs a relaunch (reopen/restart the node),
+// 'queued' means messages wait for the renderer to spawn it.
+const sessionHealthSuffix = (health?: string): string =>
+  health === 'dead' || health === 'missing'
+    ? ' · offline'
+    : health === 'queued'
+      ? ' · queued'
+      : '';
+
 const inferPhase = (
   explicit: AgentTeamPhase | undefined,
   teammates: AgentTeamAgentRecord[],
@@ -221,6 +231,7 @@ interface GraphAgentItem {
   currentTaskTitle?: string;
   nodeId?: string;
   sourceAgent?: AgentTeamAgentRecord;
+  sessionHealth?: string;
 }
 
 const DAG_NODE_WIDTH = 236;
@@ -686,9 +697,10 @@ export const AgentTeamFrame = ({
             ? agent.sessionRef.metadata.nodeId
             : undefined,
         sourceAgent: agent,
+        sessionHealth: snapshot?.sessions?.[agent.id],
       };
     });
-  }, [artifacts, graphTaskByKey, graphTasks, phase, plan, teammates]);
+  }, [artifacts, graphTaskByKey, graphTasks, phase, plan, teammates, snapshot?.sessions]);
   const selectedGraphAgent = graphAgents.find((agent) => agent.key === selectedAgentKey);
   const agentTypeByOwnerKey = useMemo(
     () => new Map(graphAgents.map((agent) => [agent.key, agent.agentType])),
@@ -1361,7 +1373,7 @@ export const AgentTeamFrame = ({
       <div className="agent-team-lead-dock__head">
         <strong>{lead?.name ?? 'Team Lead'}</strong>
         <span className={`agent-team-detail__status agent-team-detail__status--${lead?.status ?? 'idle'}`}>
-          {statusLabel(lead?.status ?? 'idle')}
+          {statusLabel(lead?.status ?? 'idle')}{sessionHealthSuffix(lead ? snapshot?.sessions?.[lead.id] : undefined)}
         </span>
       </div>
 
@@ -1444,7 +1456,7 @@ export const AgentTeamFrame = ({
             <strong>{selectedGraphAgent.name}</strong>
           </div>
           <span className={`agent-team-detail__status agent-team-detail__status--${selectedGraphAgent.status}`}>
-            {statusLabel(selectedGraphAgent.status)}
+            {statusLabel(selectedGraphAgent.status)}{sessionHealthSuffix(selectedGraphAgent.sessionHealth)}
           </span>
         </div>
 
@@ -1731,7 +1743,7 @@ export const AgentTeamFrame = ({
                 {agent.name}
               </span>
               <span className={`agent-team-detail__status agent-team-detail__status--${agent.status}`}>
-                {statusLabel(agent.status)}
+                {statusLabel(agent.status)}{sessionHealthSuffix(agent.sessionHealth)}
               </span>
               {editable ? (
                 <div
