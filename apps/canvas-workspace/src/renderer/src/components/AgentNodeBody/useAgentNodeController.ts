@@ -142,6 +142,9 @@ export const detectAgentView = (data: AgentNodeData): ViewMode => {
 const hasQueuedLaunchPrompt = (data: AgentNodeData): boolean =>
   !!(data.inlinePrompt?.trim() || data.promptFile?.trim());
 
+const hasTeamWarmupLaunch = (data: AgentNodeData): boolean =>
+  !!data.agentTeamId && data.agentTeamWarmup === true;
+
 const canResumeCliConversation = (data: AgentNodeData): boolean => {
   if (data.agentType === 'claude-code') return !!data.cliSessionId;
   if (data.agentType === 'codex') return !!data.codexSessionId;
@@ -157,7 +160,7 @@ const cliConversationKey = (data: AgentNodeData): string | undefined => {
 const shouldAutoResume = (data: AgentNodeData): boolean => {
   if (data.status !== 'running') return false;
   if (data.viewMode !== 'running') return false;
-  if (hasQueuedLaunchPrompt(data)) return false;
+  if (hasQueuedLaunchPrompt(data) || hasTeamWarmupLaunch(data)) return false;
   const hasPriorSession =
     !!(data.sessionId && data.sessionId.length > 0)
     || !!(data.scrollback && data.scrollback.length > 0);
@@ -213,8 +216,19 @@ export const useAgentNodeController = ({
   onUpdate,
   readOnly = false,
   terminalMode = 'owner',
+  forceTeamWarmup = false,
 }: AgentNodeBodyProps) => {
-  const data = node.data as AgentNodeData;
+  const rawData = node.data as AgentNodeData;
+  const data = forceTeamWarmup && rawData.agentTeamId
+    ? {
+      ...rawData,
+      status: 'running' as const,
+      viewMode: 'running' as const,
+      inlinePrompt: '',
+      promptFile: '',
+      agentTeamWarmup: true,
+    }
+    : rawData;
   const isMirrorTerminal = terminalMode === 'mirror';
   const isTeamManagedAgent = !!data.agentTeamId;
   const defaultCwd = data.cwd || (isTeamManagedAgent ? rootFolder || '' : '');
@@ -783,11 +797,21 @@ export const useAgentNodeController = ({
         }
         setLoading(false);
       };
+      const markTeamWarmupReady = () => {
+        if (!hasTeamWarmupLaunch(dataRef.current) || dataRef.current.agentTeamWarmupReady) return;
+        const nextData = {
+          ...dataRef.current,
+          agentTeamWarmupReady: true,
+        };
+        dataRef.current = nextData;
+        onUpdateRef.current(nodeIdRef.current, { data: nextData });
+      };
       const scheduleQuiescence = () => {
         if (loadingDismissed) return;
         if (quiescenceTimer) clearTimeout(quiescenceTimer);
         quiescenceTimer = setTimeout(() => {
           quiescenceTimer = null;
+          markTeamWarmupReady();
           dismissLoading();
         }, QUIESCENCE_MS);
       };
@@ -908,24 +932,27 @@ export const useAgentNodeController = ({
 
     const hasLaunchPrompt = hasQueuedLaunchPrompt(data);
     const shouldResumeSavedConversation = !isTeamManagedAgent && !hasLaunchPrompt && canResumeCliConversation(data);
-    if (!hasLaunchPrompt && !shouldResumeSavedConversation) return;
+    if (!hasLaunchPrompt && !hasTeamWarmupLaunch(data) && !shouldResumeSavedConversation) return;
 
     pendingAgentRef.current = data.agentType || 'claude-code';
     pendingCwdRef.current = data.cwd || rootFolder || '';
     pendingPromptRef.current = data.inlinePrompt || '';
     pendingResumeRef.current = shouldResumeSavedConversation;
+    if (hasTeamWarmupLaunch(data)) needsAutoMintRef.current = true;
     setViewMode('running');
   }, [
     data.agentType,
     data.cliSessionId,
     data.codexSessionId,
     data.cwd,
+    data.agentTeamWarmup,
     data.inlinePrompt,
     data.promptFile,
     data.status,
     data.viewMode,
     isMirrorTerminal,
     isTeamManagedAgent,
+    forceTeamWarmup,
     readOnly,
     rootFolder,
     viewMode,
@@ -990,6 +1017,7 @@ export const useAgentNodeController = ({
   }, [
     data.agentTeamAgentId,
     data.agentTeamId,
+    data.agentTeamWarmup,
     data.agentType,
     data.cliSessionId,
     data.codexSessionId,
@@ -1003,6 +1031,7 @@ export const useAgentNodeController = ({
     data.viewMode,
     isMirrorTerminal,
     isTeamManagedAgent,
+    forceTeamWarmup,
     readOnly,
     rootFolder,
     teamAutoResumeRetryTick,

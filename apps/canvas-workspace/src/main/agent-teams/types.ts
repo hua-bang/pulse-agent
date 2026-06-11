@@ -1,6 +1,6 @@
 import type { AgentRole } from 'pulse-coder-agent-teams/runtime';
 
-export type CanvasAgentTeamPhase = 'briefing' | 'plan_review' | 'executing';
+export type CanvasAgentTeamPhase = 'briefing' | 'plan_review' | 'starting' | 'executing';
 
 export interface CanvasAgentTeamPlanTeammate {
   name: string;

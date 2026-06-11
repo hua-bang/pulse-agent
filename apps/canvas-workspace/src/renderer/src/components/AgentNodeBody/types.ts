@@ -12,6 +12,7 @@ export interface AgentNodeBodyProps {
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   readOnly?: boolean;
   terminalMode?: 'owner' | 'mirror';
+  forceTeamWarmup?: boolean;
 }
 
 export type ViewMode = 'setup' | 'running' | 'restart';

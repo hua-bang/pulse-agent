@@ -681,8 +681,8 @@ export const AgentTeamFrame = ({
       const currentTask = agent.currentTaskId
         ? graphTaskByKey.get(agent.currentTaskId)
         : ownedTasks.find((task) => task.status === 'in_progress' || task.status === 'needs_input' || task.status === 'needs_review')
-          ?? ownedTasks.find((task) => task.status !== 'done' && task.status !== 'failed')
-          ?? ownedTasks[0];
+        ?? ownedTasks.find((task) => task.status !== 'done' && task.status !== 'failed')
+        ?? ownedTasks[0];
       const agentArtifacts = artifacts.filter((artifact) => artifact.agentId === agent.id);
       return {
         key: `agent:${agent.id}`,
@@ -730,7 +730,9 @@ export const AgentTeamFrame = ({
         ? `Round ${checkpointRound ?? ''} Checkpoint`
         : phase === 'plan_review'
           ? 'Plan Review'
-          : 'Executing';
+          : phase === 'starting'
+            ? 'Starting Agents'
+            : 'Executing';
   const doneTaskCount = tasks.filter((task) => task.status === 'done').length;
   const activeTaskCount = tasks.filter((task) =>
     task.status === 'in_progress'
@@ -1088,13 +1090,17 @@ export const AgentTeamFrame = ({
   const leadCurrentTask = lead?.currentTaskId ? taskById.get(lead.currentTaskId) : undefined;
   const graphTitle = phase === 'plan_review'
     ? 'Proposed task graph'
-    : phase === 'executing'
-      ? 'Live task graph'
-      : 'Task graph';
+    : phase === 'starting'
+      ? 'Starting task graph'
+      : phase === 'executing'
+        ? 'Live task graph'
+        : 'Task graph';
   const edgeMarkerId = `agent-team-dag-arrow-${(teamId ?? node.id).replace(/[^\w-]/g, '-')}`;
   const graphSubtitle = phase === 'briefing'
     ? 'Brief Team Lead to generate a plan.'
-    : `${graphTasks.length} task${graphTasks.length === 1 ? '' : 's'} · ${graphAgents.length} teammate${graphAgents.length === 1 ? '' : 's'}`;
+    : phase === 'starting'
+      ? 'Starting agent terminals before dispatching tasks.'
+      : `${graphTasks.length} task${graphTasks.length === 1 ? '' : 's'} · ${graphAgents.length} teammate${graphAgents.length === 1 ? '' : 's'}`;
 
   const selectGraphTask = (task: GraphTaskItem) => {
     if (task.sourceTask) setSelectedTaskId(task.sourceTask.id);
@@ -1314,36 +1320,46 @@ export const AgentTeamFrame = ({
 
   const commandMode = phase === 'briefing'
     ? 'brief'
-    : phase === 'plan_review'
-      ? 'revise'
-      : isCompletedTeam
-        ? 'next'
-        : 'message';
+    : phase === 'starting'
+      ? 'starting'
+      : phase === 'plan_review'
+        ? 'revise'
+        : isCompletedTeam
+          ? 'next'
+          : 'message';
   const commandDraft = commandMode === 'brief' ? briefDraft : messageDraft;
   const commandPlaceholder = commandMode === 'brief'
     ? 'Describe the outcome, repo path, constraints, and what this team should handle...'
-    : commandMode === 'revise'
-      ? 'Ask the Lead to adjust the plan — e.g. split a task, add constraints, change scope...'
-      : commandMode === 'next'
-        ? 'Describe the next task or follow-up this team should handle...'
-        : 'Tell Team Lead what to change...';
+    : commandMode === 'starting'
+      ? 'Agent terminals are starting before tasks are dispatched...'
+      : commandMode === 'revise'
+        ? 'Ask the Lead to adjust the plan — e.g. split a task, add constraints, change scope...'
+        : commandMode === 'next'
+          ? 'Describe the next task or follow-up this team should handle...'
+          : 'Tell Team Lead what to change...';
   const commandLabel = commandMode === 'brief'
     ? 'Brief Team Lead'
-    : commandMode === 'revise'
-      ? 'Revise Plan'
-      : commandMode === 'next'
-        ? 'Next Team Task'
-        : 'Message Team Lead';
+    : commandMode === 'starting'
+      ? 'Starting Agents'
+      : commandMode === 'revise'
+        ? 'Revise Plan'
+        : commandMode === 'next'
+          ? 'Next Team Task'
+          : 'Message Team Lead';
   const commandButtonLabel = commandMode === 'brief'
     ? 'Brief'
-    : commandMode === 'revise'
-      ? 'Revise'
-      : commandMode === 'next'
-        ? 'Start next task'
-        : 'Send';
-  const canSendCommand = commandMode === 'brief'
-    ? !!briefDraft.trim()
-    : !!messageDraft.trim() && !!lead;
+    : commandMode === 'starting'
+      ? 'Starting...'
+      : commandMode === 'revise'
+        ? 'Revise'
+        : commandMode === 'next'
+          ? 'Start next task'
+          : 'Send';
+  const canSendCommand = commandMode === 'starting'
+    ? false
+    : commandMode === 'brief'
+      ? !!briefDraft.trim()
+      : !!messageDraft.trim() && !!lead;
   const canPauseTeam = phase === 'executing'
     && teamStatus !== 'paused'
     && teamStatus !== 'completed'
@@ -1418,6 +1434,7 @@ export const AgentTeamFrame = ({
               agentTeamStatus={teamStatus}
               onUpdate={onUpdate}
               readOnly={readOnly}
+              forceTeamWarmup={phase === 'starting'}
             />
           </div>
         ) : (
@@ -1861,11 +1878,10 @@ export const AgentTeamFrame = ({
       </div>
 
       <div
-        className={`agent-team-graph-panel__main${
-          selectedGraphTask || selectedGraphAgent
+        className={`agent-team-graph-panel__main${selectedGraphTask || selectedGraphAgent
             ? ''
             : ' agent-team-graph-panel__main--graph-only'
-        }`}
+          }`}
       >
         <div
           ref={variant === 'fullscreen' ? fullscreenGraphViewportRef : inlineGraphViewportRef}
@@ -1905,9 +1921,9 @@ export const AgentTeamFrame = ({
             <div className="agent-team-agent-inspector__summary">
               <div className="agent-team-agent-inspector__meta">
                 <span className="agent-team-detail__agent-type">
-            <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
-            {agentTypeLabel(selectedGraphAgent.agentType)}
-          </span>
+                  <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
+                  {agentTypeLabel(selectedGraphAgent.agentType)}
+                </span>
                 <span>{statusLabel(selectedGraphAgent.status)}</span>
                 {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
               </div>
@@ -2052,7 +2068,7 @@ export const AgentTeamFrame = ({
             className={`agent-team-frame__status agent-team-frame__status--${teamStatus}`}
             title={loading ? 'Refreshing team snapshot' : undefined}
           >
-            {phase === 'briefing' ? 'briefing' : statusLabel(teamStatus)}
+            {phase === 'briefing' ? 'briefing' : phase === 'starting' ? 'starting' : statusLabel(teamStatus)}
           </div>
           {canResumeTeam && (
             <button
@@ -2143,6 +2159,7 @@ export const AgentTeamFrame = ({
                 workspaceName={workspaceName}
                 onUpdate={onUpdate}
                 readOnly={readOnly}
+                forceTeamWarmup={phase === 'starting'}
               />
             </div>
           ))}

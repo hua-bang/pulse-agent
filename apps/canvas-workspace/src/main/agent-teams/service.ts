@@ -19,6 +19,7 @@ import {
 } from 'pulse-coder-agent-teams/runtime';
 import { CanvasAgentSessionAdapter } from './canvas-agent-session-adapter';
 import {
+  clearAgentTeamCanvasWarmup,
   createAgentTeamCanvasNodes,
   createTeamAgentNode,
   ensureAgentTeamCanvasLayout,
@@ -26,6 +27,7 @@ import {
   removeAgentTeamCanvasNodes,
   stopAgentTeamCanvasNodes,
   updateAgentTeamCanvasCwd,
+  warmupAgentTeamCanvasNodes,
   type CanvasAgentNodeRuntimeState,
 } from './canvas-nodes';
 import { CanvasAgentTeamStore } from './store';
@@ -420,6 +422,41 @@ const inferPhase = (
   return snapshot.team.status === 'waiting_approval' ? 'plan_review' : 'briefing';
 };
 
+const isTaskReadyForDispatch = (task: TeamTaskRecord, tasks: TeamTaskRecord[]): boolean =>
+  task.deps.every(depId => tasks.find(candidate => candidate.id === depId)?.status === 'done');
+
+const plannedStartupAgentIds = (snapshot: RuntimeSnapshot): string[] => {
+  const ids = new Set<string>();
+  if (snapshot.team.leadAgentId) ids.add(snapshot.team.leadAgentId);
+
+  const byId = new Map(snapshot.agents.map(agent => [agent.id, agent]));
+  const teammates = snapshot.agents.filter(agent => agent.role === 'teammate');
+  const readyTasks = snapshot.tasks.filter(task =>
+    task.status === 'todo' && isTaskReadyForDispatch(task, snapshot.tasks));
+  for (const task of readyTasks) {
+    const owner = task.ownerAgentId ? byId.get(task.ownerAgentId) : undefined;
+    if (owner?.role === 'teammate') {
+      ids.add(owner.id);
+      continue;
+    }
+    for (const teammate of teammates) ids.add(teammate.id);
+  }
+
+  if (ids.size === 1) {
+    const firstTeammate = teammates[0];
+    if (firstTeammate) ids.add(firstTeammate.id);
+  }
+  return [...ids];
+};
+
+const agentNodeIdsForAgents = (
+  metadata: CanvasAgentTeamMetadata | undefined,
+  agentIds: string[],
+): string[] =>
+  agentIds
+    .map(agentId => metadata?.agentNodeIds[agentId])
+    .filter((nodeId): nodeId is string => typeof nodeId === 'string' && nodeId.length > 0);
+
 const metadataCanvasNodeIds = (metadata: CanvasAgentTeamMetadata | undefined): string[] => [
   metadata?.frameNodeId,
   ...Object.values(metadata?.agentNodeIds ?? {}),
@@ -545,7 +582,7 @@ export class CanvasAgentTeamsService {
     // Run regardless of how the predecessor settled; keep the stored tail
     // resolved so one failure never wedges the team's queue.
     const next = previous.then(run, run);
-    this.teamLocks.set(key, next.catch(() => {}));
+    this.teamLocks.set(key, next.catch(() => { }));
     return next;
   }
 
@@ -617,7 +654,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.briefLeadLocked(workspaceId, teamId, content));
   }
 
-    private async briefLeadLocked(workspaceId: string, teamId: string, content: string): Promise<CanvasAgentTeamSnapshot> {
+  private async briefLeadLocked(workspaceId: string, teamId: string, content: string): Promise<CanvasAgentTeamSnapshot> {
     const trimmed = content.trim();
     if (!trimmed) throw new Error('Leader briefing is empty');
 
@@ -671,7 +708,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.proposePlanLocked(workspaceId, teamId, input));
   }
 
-    private async proposePlanLocked(
+  private async proposePlanLocked(
     workspaceId: string,
     teamId: string,
     input: { sourceAgentId?: string; plan: unknown },
@@ -710,7 +747,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.confirmPlanLocked(workspaceId, teamId));
   }
 
-    private async confirmPlanLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+  private async confirmPlanLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     const metadata = await this.requireMetadata(store, teamId);
     const plan = metadata.pendingPlan;
@@ -805,15 +842,18 @@ export class CanvasAgentTeamsService {
     const now = Date.now();
     metadata.pendingPlan = undefined;
     metadata.approvedPlan = { ...plan, updatedAt: now };
-    metadata.phase = 'executing';
+    metadata.phase = 'starting';
     if (plan.integrationVerify) metadata.integrationVerify = plan.integrationVerify;
     metadata.updatedAt = now;
     await store.saveTeamMetadata(teamId, metadata);
 
     await runtime.initializeRound(teamId);
     await runtime.setTeamStatus(teamId, 'running', 'human');
-    await runtime.dispatchReadyTasks(teamId);
-    await runtime.notifyLeadPlanApproved(teamId);
+    const afterApproval = await runtime.snapshot(teamId);
+    await warmupAgentTeamCanvasNodes(
+      workspaceId,
+      agentNodeIdsForAgents(metadata, plannedStartupAgentIds(afterApproval)),
+    );
     return this.snapshotInternal(workspaceId, teamId);
   }
 
@@ -825,7 +865,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.updatePlanTeammateLocked(workspaceId, teamId, input));
   }
 
-    private async updatePlanTeammateLocked(
+  private async updatePlanTeammateLocked(
     workspaceId: string,
     teamId: string,
     input: { teammateName: string; agentType: string },
@@ -859,7 +899,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(input.workspaceId, input.teamId, () => this.addAgentLocked(input));
   }
 
-    private async addAgentLocked(input: CanvasAgentTeamAddAgentInput): Promise<CanvasAgentTeamSnapshot> {
+  private async addAgentLocked(input: CanvasAgentTeamAddAgentInput): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(input.workspaceId);
     const metadata = await this.requireMetadata(store, input.teamId);
     const agentId = randomUUID();
@@ -894,7 +934,9 @@ export class CanvasAgentTeamsService {
       metadata: { canvasNodeId: nodeId, cwd },
     });
 
-    if (metadata.phase === 'executing') {
+    if (metadata.phase === 'starting') {
+      await warmupAgentTeamCanvasNodes(input.workspaceId, [nodeId]);
+    } else if (metadata.phase === 'executing') {
       await runtime.dispatchReadyTasks(input.teamId);
     }
 
@@ -905,8 +947,8 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(input.workspaceId, input.teamId, () => this.createTaskLocked(input));
   }
 
-    private async createTaskLocked(input: CanvasAgentTeamCreateTaskInput): Promise<RuntimeSnapshot> {
-    const { runtime } = this.getBundle(input.workspaceId);
+  private async createTaskLocked(input: CanvasAgentTeamCreateTaskInput): Promise<RuntimeSnapshot> {
+    const { runtime, store } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     // The plan belongs to the Lead (and the human). A teammate that found
     // extra work reports it instead of silently expanding the task graph.
@@ -944,7 +986,8 @@ export class CanvasAgentTeamsService {
       createdBy: source?.id ?? 'human',
       metadata: Object.keys(taskMetadata).length > 0 ? taskMetadata : undefined,
     });
-    if (input.dispatch) {
+    const metadata = await store.getTeamMetadata(input.teamId);
+    if (input.dispatch && metadata?.phase !== 'starting') {
       await runtime.dispatchReadyTasks(input.teamId);
     }
     return runtime.snapshot(input.teamId);
@@ -954,8 +997,12 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.dispatchLocked(workspaceId, teamId));
   }
 
-    private async dispatchLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
-    const { runtime } = this.getBundle(workspaceId);
+  private async dispatchLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime, store } = this.getBundle(workspaceId);
+    const metadata = await store.getTeamMetadata(teamId);
+    if (metadata?.phase === 'starting' && !(await this.completeStartingIfReady(workspaceId, teamId))) {
+      return this.snapshotInternal(workspaceId, teamId);
+    }
     await runtime.repairCurrentRound(teamId);
     await runtime.dispatchReadyTasks(teamId);
     return this.snapshotInternal(workspaceId, teamId);
@@ -965,7 +1012,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.pauseTeamLocked(workspaceId, teamId));
   }
 
-    private async pauseTeamLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+  private async pauseTeamLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime } = this.getBundle(workspaceId);
     await runtime.pauseTeam(teamId, 'Paused from the Agent Team frame.');
     await stopAgentTeamCanvasNodes(workspaceId, teamId);
@@ -976,7 +1023,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.resumeTeamLocked(workspaceId, teamId));
   }
 
-    private async resumeTeamLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+  private async resumeTeamLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     // Resuming at a checkpoint advances the round (runtime.resumeTeam), which
     // is the user choosing to continue — withdraw a pending Finish exactly
@@ -996,7 +1043,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.advanceRoundLocked(workspaceId, teamId));
   }
 
-    private async advanceRoundLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+  private async advanceRoundLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     // Choosing to continue with another round withdraws a pending Finish:
     // a stale flag would otherwise auto-finalize at the next checkpoint.
@@ -1015,7 +1062,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.finalizeFromCheckpointLocked(workspaceId, teamId));
   }
 
-    private async finalizeFromCheckpointLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+  private async finalizeFromCheckpointLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
     // Finish is only valid at a checkpoint. Without this guard a stale or
     // double-fired Finish on a paused/running team would inject an
@@ -1079,7 +1126,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.updateTaskLocked(workspaceId, teamId, taskId, patch));
   }
 
-    private async updateTaskLocked(
+  private async updateTaskLocked(
     workspaceId: string,
     teamId: string,
     taskId: string,
@@ -1094,7 +1141,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.deleteTeamLocked(workspaceId, teamId));
   }
 
-    private async deleteTeamLocked(workspaceId: string, teamId: string): Promise<{ deletedNodeIds: string[] }> {
+  private async deleteTeamLocked(workspaceId: string, teamId: string): Promise<{ deletedNodeIds: string[] }> {
     const { runtime, store } = this.getBundle(workspaceId);
     const metadata = await store.getTeamMetadata(teamId);
     const knownNodeIds = metadataCanvasNodeIds(metadata);
@@ -1112,7 +1159,7 @@ export class CanvasAgentTeamsService {
       this.outputBuffers.delete(`${workspaceId}:${nodeId}`);
       this.lastAgentOutputAt.delete(`${workspaceId}:${nodeId}`);
     }
-    await fsPromises.rm(store.handoffDir(teamId), { recursive: true, force: true }).catch(() => {});
+    await fsPromises.rm(store.handoffDir(teamId), { recursive: true, force: true }).catch(() => { });
     return { deletedNodeIds };
   }
 
@@ -1125,7 +1172,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.completeTaskLocked(workspaceId, teamId, taskId, result));
   }
 
-    private async completeTaskLocked(
+  private async completeTaskLocked(
     workspaceId: string,
     teamId: string,
     taskId: string,
@@ -1208,7 +1255,7 @@ export class CanvasAgentTeamsService {
     });
   }
 
-    private async completeAgentTaskLocked(input: CanvasAgentTeamCompleteTaskInput, verification?: TaskVerificationResult): Promise<{
+  private async completeAgentTaskLocked(input: CanvasAgentTeamCompleteTaskInput, verification?: TaskVerificationResult): Promise<{
     snapshot: CanvasAgentTeamSnapshot;
     task: TeamTaskRecord;
   }> {
@@ -1266,7 +1313,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(input.workspaceId, input.teamId, () => this.blockAgentTaskLocked(input));
   }
 
-    private async blockAgentTaskLocked(input: CanvasAgentTeamBlockTaskInput): Promise<CanvasAgentTeamSnapshot> {
+  private async blockAgentTaskLocked(input: CanvasAgentTeamBlockTaskInput): Promise<CanvasAgentTeamSnapshot> {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
@@ -1305,7 +1352,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(input.workspaceId, input.teamId, () => this.requestHumanInputLocked(input));
   }
 
-    private async requestHumanInputLocked(input: CanvasAgentTeamRequestHumanInput): Promise<CanvasAgentTeamSnapshot> {
+  private async requestHumanInputLocked(input: CanvasAgentTeamRequestHumanInput): Promise<CanvasAgentTeamSnapshot> {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
@@ -1327,7 +1374,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(input.workspaceId, input.teamId, () => this.publishArtifactLocked(input));
   }
 
-    private async publishArtifactLocked(input: CanvasAgentTeamPublishArtifactInput): Promise<CanvasAgentTeamSnapshot> {
+  private async publishArtifactLocked(input: CanvasAgentTeamPublishArtifactInput): Promise<CanvasAgentTeamSnapshot> {
     const { runtime } = this.getBundle(input.workspaceId);
     const snapshot = await runtime.snapshot(input.teamId);
     const agent = input.sourceAgentId
@@ -1356,7 +1403,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.completeTeamLocked(workspaceId, teamId, input));
   }
 
-    private async completeTeamLocked(
+  private async completeTeamLocked(
     workspaceId: string,
     teamId: string,
     input: { sourceAgentId?: string; summary: string },
@@ -1411,7 +1458,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.interruptAgentLocked(workspaceId, teamId, agentId, mode, reason));
   }
 
-    private async interruptAgentLocked(
+  private async interruptAgentLocked(
     workspaceId: string,
     teamId: string,
     agentId: string,
@@ -1433,7 +1480,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.sendInputLocked(workspaceId, teamId, agentRef, content, taskRef));
   }
 
-    private async sendInputLocked(
+  private async sendInputLocked(
     workspaceId: string,
     teamId: string,
     agentRef: string,
@@ -1493,7 +1540,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.openHumanGateLocked(workspaceId, teamId, input));
   }
 
-    private async openHumanGateLocked(
+  private async openHumanGateLocked(
     workspaceId: string,
     teamId: string,
     input: { agentId?: string; taskId?: string; reason: string; prompt: string },
@@ -1595,7 +1642,7 @@ export class CanvasAgentTeamsService {
     return this.withTeamLock(workspaceId, teamId, () => this.prepareAgentAutoResumeLocked(workspaceId, teamId, agentId));
   }
 
-    private async prepareAgentAutoResumeLocked(
+  private async prepareAgentAutoResumeLocked(
     workspaceId: string,
     teamId: string,
     agentId: string,
@@ -1620,6 +1667,9 @@ export class CanvasAgentTeamsService {
       && team.status === 'waiting_approval'
       && metadata?.phase === 'plan_review'
       && !!metadata.pendingPlan;
+    const isStartingWarmup = team.status === 'running'
+      && metadata?.phase === 'starting'
+      && !!metadata.agentNodeIds[agent.id];
     const teamAllowsWork = team.status === 'running' || team.status === 'reviewing' || isPlanReviewLead;
     if (!teamAllowsWork) {
       return { canResume: false, snapshot: await this.snapshotInternal(workspaceId, teamId) };
@@ -1642,6 +1692,12 @@ export class CanvasAgentTeamsService {
       canResume = true;
     } else if (isPlanReviewLead && agent.status === 'needs_input') {
       agent.status = 'running';
+      agent.updatedAt = now;
+      await store.saveAgent(agent);
+      canResume = true;
+    } else if (isStartingWarmup && agent.currentTaskId === undefined) {
+      agent.status = 'idle';
+      agent.currentTaskId = undefined;
       agent.updatedAt = now;
       await store.saveAgent(agent);
       canResume = true;
@@ -1685,7 +1741,10 @@ export class CanvasAgentTeamsService {
     await runtime.notifyLeadPendingGates(teamId);
     await runtime.notifyLeadPendingTaskReviews(teamId);
     await runtime.notifyLeadReviewIfStalled(teamId);
-    const metadata = await store.getTeamMetadata(teamId);
+    let metadata = await store.getTeamMetadata(teamId);
+    if (metadata?.phase === 'starting' && await this.completeStartingIfReady(workspaceId, teamId)) {
+      metadata = await store.getTeamMetadata(teamId);
+    }
     const runtimeSnapshot = await runtime.snapshot(teamId);
     const sessions = await this.collectSessionHealth(workspaceId, runtimeSnapshot.agents);
     await this.cancelRecoveredLeadDownGates(store, runtimeSnapshot, sessions);
@@ -1821,7 +1880,7 @@ export class CanvasAgentTeamsService {
   startHeartbeat(intervalMs = HEARTBEAT_INTERVAL_MS): void {
     if (this.heartbeatTimer) return;
     const timer = setInterval(() => {
-      void this.heartbeatTick().catch(() => {});
+      void this.heartbeatTick().catch(() => { });
     }, intervalMs);
     timer.unref?.();
     this.heartbeatTimer = timer;
@@ -1851,6 +1910,10 @@ export class CanvasAgentTeamsService {
             if (!team) return;
             if (team.status === 'completed' || team.status === 'failed' || team.status === 'paused') return;
             await this.autoFinalizeIfPending(workspaceId, entry.teamId);
+            const metadata = await store.getTeamMetadata(entry.teamId);
+            if (metadata?.phase === 'starting' && !(await this.completeStartingIfReady(workspaceId, entry.teamId))) {
+              return;
+            }
             await this.watchdogCheckAgents(workspaceId, entry.teamId);
             await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
             await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
@@ -1913,6 +1976,35 @@ export class CanvasAgentTeamsService {
     metadata.updatedAt = Date.now();
     await store.saveTeamMetadata(teamId, metadata);
     await runtime.finalizeFromCheckpoint(teamId, 'runtime');
+  }
+
+  private async completeStartingIfReady(workspaceId: string, teamId: string): Promise<boolean> {
+    const { runtime, store } = this.getBundle(workspaceId);
+    const metadata = await store.getTeamMetadata(teamId);
+    if (metadata?.phase !== 'starting') return false;
+
+    const snapshot = await runtime.snapshot(teamId);
+    if (snapshot.team.status !== 'running') return false;
+    const startupAgentIds = plannedStartupAgentIds(snapshot);
+    const nodeIds = agentNodeIdsForAgents(metadata, startupAgentIds);
+    if (startupAgentIds.length === 0 || nodeIds.length !== startupAgentIds.length) return false;
+
+    await warmupAgentTeamCanvasNodes(workspaceId, nodeIds);
+    const states = await getCanvasAgentNodesRuntimeState(workspaceId, nodeIds);
+    const allStartupAgentsReady = startupAgentIds.every((agentId) => {
+      const nodeId = metadata.agentNodeIds[agentId];
+      const state = nodeId ? states.get(nodeId) : undefined;
+      return state?.ptyAlive;
+    });
+    if (!allStartupAgentsReady) return false;
+
+    metadata.phase = 'executing';
+    metadata.updatedAt = Date.now();
+    await store.saveTeamMetadata(teamId, metadata);
+    await clearAgentTeamCanvasWarmup(workspaceId, nodeIds);
+    await runtime.notifyLeadPlanApproved(teamId);
+    await runtime.dispatchReadyTasks(teamId);
+    return true;
   }
 
   /**
