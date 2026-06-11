@@ -92,7 +92,7 @@ describe('CanvasAgentTeamStore', () => {
   it('caps per-team event history and archives the trimmed entries', async () => {
     const store = new CanvasAgentTeamStore('ws-3');
 
-    for (let index = 0; index < 450; index += 1) {
+    for (let index = 0; index < 460; index += 1) {
       await store.appendEvent({
         id: `event-${index}`,
         teamId: 'team-3',
@@ -113,18 +113,21 @@ describe('CanvasAgentTeamStore', () => {
     });
 
     const events = await store.listEvents('team-3');
-    expect(events).toHaveLength(400);
-    // The oldest 50 were trimmed; the newest survive.
-    expect(events[0].id).toBe('event-50');
-    expect(events.at(-1)?.id).toBe('event-449');
+    // Hysteresis trims back to the cap once the slack is exceeded; the tail
+    // appended after the trim stays under cap+slack.
+    expect(events.length).toBeLessThanOrEqual(409);
+    expect(events.length).toBeGreaterThanOrEqual(400);
+    // The oldest entries were trimmed; the newest survive.
+    expect(events[0].id).toBe('event-51');
+    expect(events.at(-1)?.id).toBe('event-459');
     expect(await store.listEvents('team-other')).toHaveLength(1);
 
     // Trimmed entries are preserved in the JSONL archive for later reporting.
     const archivePath = join(mockState.root, 'ws-3', 'agent-teams', 'archive', 'team-3.events.jsonl');
     const lines = (await fs.readFile(archivePath, 'utf-8')).trim().split('\n');
-    expect(lines).toHaveLength(50);
+    expect(lines).toHaveLength(51);
     expect(JSON.parse(lines[0]).id).toBe('event-0');
-    expect(JSON.parse(lines.at(-1)!).id).toBe('event-49');
+    expect(JSON.parse(lines.at(-1)!).id).toBe('event-50');
 
     // Deleting the team removes its archive too.
     await store.deleteTeam('team-3');

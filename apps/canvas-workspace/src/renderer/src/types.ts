@@ -1252,12 +1252,18 @@ export interface AgentTeamPlanTask {
   description: string;
   ownerName?: string;
   deps: string[];
+  /** File or directory paths this task may create or modify. */
+  scope?: string[];
+  /** Mechanical verification command, or 'manual'. */
+  verify?: string;
 }
 
 export interface AgentTeamPlanDraft {
   summary: string;
   teammates: AgentTeamPlanTeammate[];
   tasks: AgentTeamPlanTask[];
+  /** Team-level command proving the whole deliverable works together. */
+  integrationVerify?: string;
   sourceAgentId?: string;
   createdAt: number;
   updatedAt: number;
@@ -1319,6 +1325,8 @@ export interface AgentTeamsApi {
     ownerName?: string;
     deps?: string[];
     depRefs?: string[];
+    scope?: string[];
+    verify?: string;
     dispatch?: boolean;
   }) => Promise<{ ok: boolean; runtime?: AgentTeamRuntimeSnapshot; error?: string }>;
   advanceRound: (
@@ -1376,16 +1384,6 @@ export interface AgentTeamsApi {
     agentId: string,
     content: string,
   ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot; error?: string }>;
-  reportAgentOutput: (
-    workspaceId: string,
-    nodeId: string,
-    delta: string,
-  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot | null; error?: string }>;
-  reportAgentExit: (
-    workspaceId: string,
-    nodeId: string,
-    code?: number,
-  ) => Promise<{ ok: boolean; snapshot?: AgentTeamSnapshot | null; error?: string }>;
 }
 
 export interface CodexSessionIndexEntry {

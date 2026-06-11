@@ -56,7 +56,7 @@ const TASK_PROPOSED_RESULT_METADATA_KEY = 'proposedResult';
 const TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY = 'completionSubmittedBy';
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
-  'You are the Team Lead: coordinate, verify, and delegate. Do not create or edit project files yourself — route every change to a teammate. Reading files and quick read-only checks are fine.',
+  'You are the Team Lead: coordinate, verify, and delegate. Do not create or edit project files yourself — route every change to a teammate. Reading files and quick read-only checks are fine, and writing a temporary plan JSON for propose-plan --plan-file is the one allowed exception.',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
   'If no immediate action is needed, briefly acknowledge and stop. Pulse Canvas will wake you again for the next required decision.',
 ].join('\n');
@@ -81,23 +81,41 @@ const isLeadAudienceGate = (metadata: Record<string, unknown> | undefined): bool
 const quoteCliValue = (value: string): string =>
   value.replace(/(["\\$`])/g, '\\$1');
 
+const buildAcceptCommand = (taskId: TaskId, summaryPlaceholder = 'accepted summary'): string =>
+  `pulse-canvas team complete-task --task "${quoteCliValue(taskId)}" --summary "<${summaryPlaceholder}>"`;
+
+const buildSendBackCommand = (teammateName: string, taskId: TaskId): string =>
+  `pulse-canvas team send --to "${quoteCliValue(teammateName)}" --task "${quoteCliValue(taskId)}" --message "Revise: <what to fix>"`;
+
 const TASK_ROUND_METADATA_KEY = 'round';
 const TEAM_CURRENT_ROUND_METADATA_KEY = 'currentRound';
 const TASK_SCOPE_METADATA_KEY = 'scope';
 const TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY = 'blockedByFailedDep';
 const TASK_VERIFY_COMMAND_METADATA_KEY = 'verify';
 const TASK_LAST_VERIFY_METADATA_KEY = 'lastVerify';
+const TASK_REVISION_NOTE_METADATA_KEY = 'revisionNote';
+const SCOPE_WAIT_REASON_PREFIX = 'Waiting for overlapping file scope';
+
+// The task-metadata contract is shared with hosts (the canvas service reads
+// and writes these keys); exported so the contract lives in exactly one place.
+export const TASK_METADATA_KEYS = {
+  round: TASK_ROUND_METADATA_KEY,
+  scope: TASK_SCOPE_METADATA_KEY,
+  verify: TASK_VERIFY_COMMAND_METADATA_KEY,
+  lastVerify: TASK_LAST_VERIFY_METADATA_KEY,
+  blockedByFailedDep: TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY,
+} as const;
 
 // Read a task's declared verification command. 'manual' means the task is
 // intentionally not mechanically verifiable.
-const readTaskVerifyCommand = (metadata: Record<string, unknown> | undefined): string | undefined => {
+export const readTaskVerifyCommand = (metadata: Record<string, unknown> | undefined): string | undefined => {
   const value = metadata?.[TASK_VERIFY_COMMAND_METADATA_KEY];
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
   return trimmed && trimmed.toLowerCase() !== 'manual' ? trimmed : undefined;
 };
 
-const readTaskVerification = (metadata: Record<string, unknown> | undefined): TaskVerificationResult | undefined => {
+export const readTaskVerification = (metadata: Record<string, unknown> | undefined): TaskVerificationResult | undefined => {
   const value = metadata?.[TASK_LAST_VERIFY_METADATA_KEY];
   if (!value || typeof value !== 'object') return undefined;
   const candidate = value as Partial<TaskVerificationResult>;
@@ -106,7 +124,7 @@ const readTaskVerification = (metadata: Record<string, unknown> | undefined): Ta
 };
 
 // Read a task's declared file scope: the path prefixes it may create or modify.
-const readTaskScope = (metadata: Record<string, unknown> | undefined): string[] => {
+export const readTaskScope = (metadata: Record<string, unknown> | undefined): string[] => {
   const value = metadata?.[TASK_SCOPE_METADATA_KEY];
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0);
@@ -136,12 +154,12 @@ const scopesOverlap = (a: string[], b: string[]): boolean => {
 };
 
 /** Read a task's round from its metadata, defaulting to 1 for legacy/unset tasks. */
-const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
+export const readTaskRound = (metadata: Record<string, unknown> | undefined): number => {
   const value = metadata?.[TASK_ROUND_METADATA_KEY];
   return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 };
 
-const readCurrentRound = (metadata: Record<string, unknown> | undefined): number => {
+export const readCurrentRound = (metadata: Record<string, unknown> | undefined): number => {
   const value = metadata?.[TEAM_CURRENT_ROUND_METADATA_KEY];
   return typeof value === 'number' && Number.isFinite(value) && value >= 1 ? Math.floor(value) : 1;
 };
@@ -605,18 +623,48 @@ export class TeamRuntime {
     const availableAgents = [...idleAgents];
     // File scopes held by unfinished work (anything past todo that has not
     // settled — including needs_review, so a completion awaiting acceptance
-    // keeps its scope until accepted or returned). A ready task whose scope
-    // overlaps a held scope is deferred so two agents never edit the same
-    // paths concurrently. Tasks without a declared scope are unconstrained.
+    // keeps its scope until accepted or returned). Tasks parked as blocked by
+    // a FAILED DEPENDENCY never started, so they hold nothing — counting them
+    // would starve the lead's replacement task for the same scope. A ready
+    // task whose scope overlaps a held scope is deferred so two agents never
+    // edit the same paths concurrently; undeclared scopes are unconstrained.
+    const holdsScope = (candidate: TeamTaskRecord): boolean =>
+      candidate.status !== 'todo' && candidate.status !== 'done' && candidate.status !== 'failed'
+      && !(candidate.status === 'blocked' && candidate.metadata?.[TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY] !== undefined);
     const heldScopes = tasks
-      .filter((task) => task.status !== 'todo' && task.status !== 'done' && task.status !== 'failed')
+      .filter(holdsScope)
       .map((task) => readTaskScope(task.metadata))
       .filter((scope) => scope.length > 0);
 
     for (const task of readyTasks) {
       const scope = readTaskScope(task.metadata);
       if (scope.length > 0 && heldScopes.some((held) => scopesOverlap(scope, held))) {
+        // Surface WHY an idle owner is not picking this task up: it stays
+        // todo, but the task detail shows which unfinished work holds the
+        // overlapping scope. Assignment clears the note.
+        const holders = tasks
+          .filter((candidate) =>
+            candidate.id !== task.id
+            && holdsScope(candidate)
+            && scopesOverlap(scope, readTaskScope(candidate.metadata)))
+          .map((candidate) => candidate.title);
+        const reason = holders.length > 0
+          ? `${SCOPE_WAIT_REASON_PREFIX} held by: ${holders.join(', ')}`
+          : `${SCOPE_WAIT_REASON_PREFIX} to be released.`;
+        if (task.blockedReason !== reason) {
+          task.blockedReason = reason;
+          task.updatedAt = this.now();
+          await this.store.saveTask(task);
+        }
         continue;
+      }
+      // The scope is free now: clear a stale wait note even when no idle
+      // teammate is available this pass, so the task never keeps displaying
+      // a holder that already finished.
+      if (task.blockedReason?.startsWith(SCOPE_WAIT_REASON_PREFIX)) {
+        task.blockedReason = undefined;
+        task.updatedAt = this.now();
+        await this.store.saveTask(task);
       }
       // The lead coordinates and verifies; dispatched work always goes to a
       // teammate. A task whose owner is the lead (or no longer exists) is
@@ -630,9 +678,26 @@ export class TeamRuntime {
         : availableAgents.find(agent => agent.role === 'teammate');
       if (!owner) continue;
 
+      // An explicit assignment to the lead (or to an agent that no longer
+      // exists) is being overridden — record it so the reassignment is not
+      // silent.
+      if (task.ownerAgentId && task.ownerAgentId !== owner.id) {
+        await this.appendMessage({
+          teamId,
+          from: 'runtime',
+          to: 'lead',
+          type: 'status_update',
+          content: ownerAgent
+            ? `Task "${task.title}" was assigned to the Team Lead; leads do not execute tasks, so it was reassigned to ${owner.name}.`
+            : `Task "${task.title}" was assigned to an agent that no longer exists; it was reassigned to ${owner.name}.`,
+          taskId: task.id,
+        });
+      }
+
       availableAgents.splice(availableAgents.indexOf(owner), 1);
       task.status = 'in_progress';
       task.ownerAgentId = owner.id;
+      task.blockedReason = undefined;
       task.updatedAt = this.now();
       owner.status = 'running';
       owner.currentTaskId = task.id;
@@ -729,15 +794,7 @@ export class TeamRuntime {
     // this task are superseded by the acceptance request.
     await this.cancelOpenGatesForTask(task.teamId, task.id);
 
-    if (task.ownerAgentId) {
-      const ownerAgent = await this.store.getAgent(task.ownerAgentId);
-      if (ownerAgent?.currentTaskId === task.id) {
-        ownerAgent.currentTaskId = undefined;
-        ownerAgent.status = 'idle';
-        ownerAgent.updatedAt = this.now();
-        await this.store.saveAgent(ownerAgent);
-      }
-    }
+    await this.releaseTaskOwner(task, 'idle');
 
     await this.appendMessage({
       teamId: task.teamId,
@@ -779,11 +836,28 @@ export class TeamRuntime {
     await this.cancelOpenGatesForTask(task.teamId, task.id);
 
     // Completing a previously failed task resolves the failure: dependents
-    // that failTask parked as blocked return to the queue.
+    // that failTask parked as blocked return to the queue — unless ANOTHER
+    // of their dependencies is also failed, in which case the park is
+    // re-pointed at that one instead of releasing the dependent into a todo
+    // it can never leave (isTaskReady requires every dep done).
     const teamTasks = await this.store.listTasks(task.teamId);
     for (const dependent of teamTasks) {
       if (dependent.status !== 'blocked') continue;
       if (dependent.metadata?.[TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY] !== task.id) continue;
+      const otherFailedDep = teamTasks.find((candidate) =>
+        candidate.id !== task.id
+        && dependent.deps.includes(candidate.id)
+        && candidate.status === 'failed');
+      if (otherFailedDep) {
+        dependent.blockedReason = `Blocked by failed dependency: ${otherFailedDep.title}`;
+        dependent.metadata = {
+          ...(dependent.metadata ?? {}),
+          [TASK_BLOCKED_BY_FAILED_DEP_METADATA_KEY]: otherFailedDep.id,
+        };
+        dependent.updatedAt = this.now();
+        await this.store.saveTask(dependent);
+        continue;
+      }
       dependent.status = 'todo';
       dependent.blockedReason = undefined;
       const nextMetadata = { ...(dependent.metadata ?? {}) };
@@ -793,15 +867,7 @@ export class TeamRuntime {
       await this.store.saveTask(dependent);
     }
 
-    if (task.ownerAgentId) {
-      const agent = await this.store.getAgent(task.ownerAgentId);
-      if (agent?.currentTaskId === task.id) {
-        agent.currentTaskId = undefined;
-        agent.status = 'idle';
-        agent.updatedAt = this.now();
-        await this.store.saveAgent(agent);
-      }
-    }
+    await this.releaseTaskOwner(task, 'idle');
 
     await this.appendMessage({
       teamId: task.teamId,
@@ -827,15 +893,7 @@ export class TeamRuntime {
     task.updatedAt = this.now();
     await this.store.saveTask(task);
 
-    if (task.ownerAgentId) {
-      const agent = await this.store.getAgent(task.ownerAgentId);
-      if (agent?.currentTaskId === task.id) {
-        agent.currentTaskId = undefined;
-        agent.status = 'idle';
-        agent.updatedAt = this.now();
-        await this.store.saveAgent(agent);
-      }
-    }
+    await this.releaseTaskOwner(task, 'idle');
 
     await this.appendMessage({
       teamId: task.teamId,
@@ -863,15 +921,7 @@ export class TeamRuntime {
     await this.store.saveTask(task);
     await this.cancelOpenGatesForTask(task.teamId, task.id);
 
-    if (task.ownerAgentId) {
-      const agent = await this.store.getAgent(task.ownerAgentId);
-      if (agent?.currentTaskId === task.id) {
-        agent.currentTaskId = undefined;
-        agent.status = 'error';
-        agent.updatedAt = this.now();
-        await this.store.saveAgent(agent);
-      }
-    }
+    await this.releaseTaskOwner(task, 'error');
 
     // A failed dependency would otherwise leave its dependents sitting in
     // `todo` forever (they can never become ready). Park them as explicitly
@@ -912,7 +962,7 @@ export class TeamRuntime {
           'Dependent tasks now blocked by this failure:',
           ...blockedDependents.map((dependent) => `- ${dependent.title}`),
           'If the failed task can be fixed or its goal is already satisfied, complete it — that returns the blocked dependents to the queue:',
-          `pulse-canvas team complete-task --task "${task.id}" --summary "<how the failure was resolved>"`,
+          buildAcceptCommand(task.id, 'how the failure was resolved'),
           'Otherwise create a replacement task and close the blocked tasks it covers.',
         ]
         : []),
@@ -1104,24 +1154,57 @@ export class TeamRuntime {
 
     // Directing a message at a teammate's needs_review task sends the task
     // back for revision: the reported completion was reviewed and changes are
-    // requested, so the task returns to in_progress with the teammate
-    // re-attached and the message framed against the task.
+    // requested. A FREE teammate is re-attached immediately and gets the
+    // framed revision in its session. A BUSY teammate must not be interrupted
+    // mid-task (and an unbound in_progress task would be invisible to the
+    // watchdog/exit recovery), so the task returns to the QUEUE instead:
+    // back to todo, owner pinned, with the revision feedback recorded so the
+    // next dispatch delivers it inside the full task prompt.
     let deliverable = content;
     if (taskId && agent.role === 'teammate') {
       const task = await this.store.getTask(taskId);
       if (task && task.teamId === agent.teamId && task.status === 'needs_review') {
         const now = this.now();
+        if (agent.currentTaskId) {
+          task.status = 'todo';
+          task.ownerAgentId = agent.id;
+          task.blockedReason = undefined;
+          task.metadata = {
+            ...(task.metadata ?? {}),
+            [TASK_REVISION_NOTE_METADATA_KEY]: content,
+          };
+          task.updatedAt = now;
+          await this.store.saveTask(task);
+          await this.emit(agent.teamId, 'task_assigned', 'runtime', {
+            taskId: task.id,
+            agentId: agent.id,
+            revision: true,
+            queued: true,
+          });
+          // Recorded in the mailbox below; not delivered to the busy session.
+          await this.appendMessage({
+            teamId: agent.teamId,
+            from: 'human',
+            to: agent.id,
+            type: 'answer',
+            content,
+            taskId,
+          });
+          await this.emit(agent.teamId, 'message_sent', 'human', {
+            agentId: agent.id,
+            taskId,
+          });
+          return;
+        }
         task.status = 'in_progress';
         task.ownerAgentId = agent.id;
         task.blockedReason = undefined;
         task.updatedAt = now;
         await this.store.saveTask(task);
-        if (!agent.currentTaskId) {
-          agent.currentTaskId = task.id;
-          agent.status = 'running';
-          agent.updatedAt = now;
-          await this.store.saveAgent(agent);
-        }
+        agent.currentTaskId = task.id;
+        agent.status = 'running';
+        agent.updatedAt = now;
+        await this.store.saveAgent(agent);
         await this.emit(agent.teamId, 'task_assigned', 'runtime', {
           taskId: task.id,
           agentId: agent.id,
@@ -1455,10 +1538,21 @@ export class TeamRuntime {
     const downstreamTasks = tasks
       .filter(candidate => candidate.id !== task.id && candidate.deps.includes(task.id))
       .slice(0, 8);
+    const revisionNote = typeof task.metadata?.[TASK_REVISION_NOTE_METADATA_KEY] === 'string'
+      ? task.metadata[TASK_REVISION_NOTE_METADATA_KEY] as string
+      : '';
     return [
       `You are assigned a team task: ${task.title}`,
       '',
       task.description,
+      ...(revisionNote
+        ? [
+          '',
+          'You worked on this task before and it was sent back. Revision feedback from the Team Lead:',
+          revisionNote,
+          'Apply this feedback to your earlier work instead of starting over.',
+        ]
+        : []),
       ...(owner?.cwd
         ? [
           '',
@@ -1749,14 +1843,19 @@ export class TeamRuntime {
       ...(verification
         ? [
           '',
-          `Verification (re-run by Pulse Canvas): ${verification.ok ? 'PASS' : 'FAIL'} — ${verification.command} (exit ${verification.exitCode ?? 'timeout'}, ${(verification.durationMs / 1000).toFixed(1)}s)`,
+          `Verification (re-run by Pulse Canvas): ${verification.ok ? 'PASS' : verification.exitCode === null ? 'TIMEOUT' : 'FAIL'} — ${verification.command} (exit ${verification.exitCode ?? 'none'}, ${(verification.durationMs / 1000).toFixed(1)}s)`,
           ...(verification.ok
             ? []
-            : [
-              'Output tail:',
-              verification.outputTail || '(no output)',
-              'A failed verification usually means the task is not done — send it back unless the verify command itself is wrong.',
-            ]),
+            : verification.exitCode === null
+              ? [
+                'The command did not finish within the time limit — treat this as INCONCLUSIVE, not as failure.',
+                'Check the handoff for the teammate\'s own run result; accept on that evidence or ask the teammate for the outcome.',
+              ]
+              : [
+                'Output tail:',
+                verification.outputTail || '(no output)',
+                'A failed verification usually means the task is not done — send it back unless the verify command itself is wrong.',
+              ]),
         ]
         : []),
       ...(handoffPath ? ['', `Handoff file from the teammate — read it to verify: ${handoffPath}`] : []),
@@ -1777,11 +1876,11 @@ export class TeamRuntime {
         : []),
       '',
       'If the work is acceptable, run:',
-      `pulse-canvas team complete-task --task "${task.id}" --summary "<accepted summary>"`,
+      buildAcceptCommand(task.id),
       'Accepting unblocks downstream tasks that depend on this one.',
       '',
       'If it needs changes, send it back for revision (this returns the task to the teammate):',
-      `pulse-canvas team send --to "${quoteCliValue(submitter.name)}" --task "${task.id}" --message "Revise: <what to fix>"`,
+      buildSendBackCommand(submitter.name, task.id),
       '',
       'If it is fundamentally off-track, create a corrective follow-up task instead:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
@@ -1801,16 +1900,18 @@ export class TeamRuntime {
       const owner = task.ownerAgentId ? agentsById.get(task.ownerAgentId) : undefined;
       const proposed = task.metadata?.[TASK_PROPOSED_RESULT_METADATA_KEY];
       const verification = readTaskVerification(task.metadata);
-      const verifyTag = verification ? ` [verify ${verification.ok ? 'PASS' : 'FAIL'}]` : '';
+      const verifyTag = verification
+        ? ` [verify ${verification.ok ? 'PASS' : verification.exitCode === null ? 'TIMEOUT' : 'FAIL'}]`
+        : '';
       const detail = typeof proposed === 'string' && proposed
         ? `Reported result: ${truncate(proposed, 300)}`
         : `Reason: ${truncate(task.blockedReason ?? 'Needs review.', 300)}`;
       return [
         `${index + 1}. ${task.title}${owner ? ` — ${owner.name}` : ''}${verifyTag}`,
         `   ${detail}`,
-        `   Accept: pulse-canvas team complete-task --task "${quoteCliValue(task.id)}" --summary "<accepted summary>"`,
+        `   Accept: ${buildAcceptCommand(task.id)}`,
         ...(owner
-          ? [`   Send back: pulse-canvas team send --to "${quoteCliValue(owner.name)}" --task "${quoteCliValue(task.id)}" --message "Revise: <what to fix>"`]
+          ? [`   Send back: ${buildSendBackCommand(owner.name, task.id)}`]
           : []),
       ];
     });
@@ -1945,6 +2046,17 @@ export class TeamRuntime {
     await this.store.appendEvent(event);
     for (const handler of this.handlers) handler(event);
     return event;
+  }
+
+  /** Detach a task's owner agent if it is still bound to this task. */
+  private async releaseTaskOwner(task: TeamTaskRecord, status: 'idle' | 'error'): Promise<void> {
+    if (!task.ownerAgentId) return;
+    const agent = await this.store.getAgent(task.ownerAgentId);
+    if (agent?.currentTaskId !== task.id) return;
+    agent.currentTaskId = undefined;
+    agent.status = status;
+    agent.updatedAt = this.now();
+    await this.store.saveAgent(agent);
   }
 
   private async requireTeam(teamId: TeamId) {

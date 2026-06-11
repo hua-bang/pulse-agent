@@ -108,7 +108,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupAgentTeamPtyBridge((message, detail) => {
       void writeLog("agent-teams", message, detail);
     });
-    getCanvasAgentTeamsService().startHeartbeat();
+    const teamsService = getCanvasAgentTeamsService();
+    teamsService.hasOpenWindows = () => BrowserWindow.getAllWindows().length > 0;
+    teamsService.startHeartbeat();
     setupCanvasModelIpc();
     setupCanvasSkillsIpc();
     setupCanvasMcpIpc();

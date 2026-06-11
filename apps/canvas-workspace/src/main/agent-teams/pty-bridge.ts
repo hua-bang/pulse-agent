@@ -12,7 +12,7 @@
  * events straight into the service — independent of any renderer.
  */
 
-import { registerPtyObserver, type PtySessionInfo } from '../terminal/pty-manager';
+import { isIntentionalPtyShutdown, registerPtyObserver, type PtySessionInfo } from '../terminal/pty-manager';
 import { getCanvasAgentTeamsService } from './service';
 
 interface TeamNodeTarget {
@@ -62,6 +62,11 @@ export const setupAgentTeamPtyBridge = (
     onExit(info, exitCode) {
       const target = teamNodeOf(info);
       if (!target) return;
+      // App-driven teardown (window close / quit) is not a crash: tasks stay
+      // in_progress and resume when the renderer relaunches the agents.
+      // Reporting these exits would flip every task to needs_review and queue
+      // stale review prompts into the (equally dead) lead node.
+      if (isIntentionalPtyShutdown()) return;
       const key = `${target.workspaceId}:${target.nodeId}`;
       enqueue(key, async () => {
         try {
