@@ -303,14 +303,23 @@ export const ChatPageBody = ({
     return unified;
   }, [sessions, otherSessions, workspaceId, allWorkspaces]);
 
+  // Session switches are blocked while a turn is streaming — swapping the
+  // message list mid-generation would let the in-flight stream write into
+  // the newly loaded session. Same rule as the session-ref chips.
   const handleRailNewSession = useCallback(async () => {
+    if (loading) return;
     onClearBackStack?.();
     if (agentScope.kind !== 'global') {
       onNewGlobalSession();
       return;
     }
     await handleNewSession();
-  }, [agentScope.kind, handleNewSession, onClearBackStack, onNewGlobalSession]);
+  }, [agentScope.kind, handleNewSession, loading, onClearBackStack, onNewGlobalSession]);
+
+  const handleRailSelectSession = useCallback((session: UnifiedSession) => {
+    if (loading) return;
+    onSelectSession(session);
+  }, [loading, onSelectSession]);
 
   return (
     <>
@@ -319,7 +328,7 @@ export const ChatPageBody = ({
         <ChatSessionsRail
           allSessions={allSessions}
           onNewSession={handleRailNewSession}
-          onSelectSession={onSelectSession}
+          onSelectSession={handleRailSelectSession}
         />
       </div>
 

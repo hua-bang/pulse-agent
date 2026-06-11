@@ -2,6 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import './index.css';
 import type { CanvasNode, ShapeNodeData } from '../../types';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
+import { isImeComposing } from '../../utils/ime';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 
 interface Props {
   node: CanvasNode;
@@ -113,6 +115,9 @@ export const ShapeNodeBody = ({ node, isSelected, onSelect, onDragStart, onUpdat
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (readOnly) return;
+      // Escape/Enter mid-IME-composition steer the candidate window —
+      // cancelling or committing there would eat the half-typed CJK input.
+      if (isImeComposing(e)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         cancel();
@@ -240,6 +245,8 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [open]);
+
+  useEscapeClose(open, () => setOpen(false));
 
   const patch = useCallback(
     (next: Partial<ShapeNodeData>) => {

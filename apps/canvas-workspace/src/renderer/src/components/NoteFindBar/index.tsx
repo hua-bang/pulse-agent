@@ -102,7 +102,14 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
             value={replacement}
             onChange={(e) => setReplacement(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Escape') onClose();
+              if (isImeComposing(e)) return;
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (total > 0) replaceCurrentMatch(editor.view, replacement);
+              }
             }}
           />
           <button

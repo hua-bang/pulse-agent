@@ -30,6 +30,10 @@ interface Options {
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   onDragMove: (e: React.MouseEvent) => void;
   onDragEnd: () => void;
+  /** Abort handlers for Escape-mid-gesture: restore start positions /
+   *  dimensions without committing a history entry. */
+  onDragCancel: () => void;
+  onResizeCancel: () => void;
   resizingId: string | null;
   onResizeStart: (
     e: React.MouseEvent,
@@ -87,6 +91,8 @@ export const useCanvasMouseHandlers = ({
   onDragStart,
   onDragMove,
   onDragEnd,
+  onDragCancel,
+  onResizeCancel,
   resizingId,
   onResizeStart,
   onResizeMove,
@@ -253,15 +259,34 @@ export const useCanvasMouseHandlers = ({
     const onBlur = () => {
       if (isDraggingRef.current) handleMouseUp();
     };
+    // Escape aborts an in-flight node drag/resize: nodes snap back to where
+    // the gesture found them and no history entry is committed. Capture
+    // phase + stopPropagation so the canvas-level Escape handler doesn't
+    // also clear the selection on the same press.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || !isDraggingRef.current) return;
+      e.stopPropagation();
+      onDragCancel();
+      onResizeCancel();
+      isDraggingRef.current = false;
+      setNodeGestureActive(false);
+      // The trailing mouseup must not commit, sync parents, or let its
+      // click clear the selection that was just restored.
+      if (nodeGestureMovedRef.current) suppressBlankClickRef.current = true;
+      nodeGestureMovedRef.current = false;
+      pendingParentNodesRef.current = null;
+    };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     window.addEventListener('blur', onBlur);
+    window.addEventListener('keydown', onKeyDown, true);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('blur', onBlur);
+      window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [handleWindowDragMove, handleMouseUp]);
+  }, [handleWindowDragMove, handleMouseUp, onDragCancel, onResizeCancel, suppressBlankClickRef]);
 
   useEffect(() => {
     const container = containerRef.current;

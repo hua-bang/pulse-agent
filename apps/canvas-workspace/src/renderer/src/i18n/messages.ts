@@ -301,6 +301,8 @@ const en = {
   'models.cancel': 'Cancel',
   'models.testing': 'Testing...',
   'models.testAndSave': 'Test & Save',
+  'models.removeProvider': 'Remove provider',
+  'models.removeProviderConfirm': 'Click again to remove',
 
   'prompt.loadFailed': 'Failed to load prompt profile',
   'prompt.saveFailed': 'Failed to save prompt profile',
@@ -875,6 +877,8 @@ const zh: Record<keyof typeof en, string> = {
   'models.cancel': '取消',
   'models.testing': '测试中...',
   'models.testAndSave': '测试并保存',
+  'models.removeProvider': '删除 Provider',
+  'models.removeProviderConfirm': '再点一次确认删除',
 
   'prompt.loadFailed': '加载回复风格失败',
   'prompt.saveFailed': '保存回复风格失败',

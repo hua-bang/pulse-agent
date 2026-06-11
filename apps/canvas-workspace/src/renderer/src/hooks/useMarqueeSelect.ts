@@ -102,11 +102,21 @@ export const useMarqueeSelect = ({
       }
       onSelect(hits, m.mods);
     };
+    // Escape aborts the marquee without touching the selection. Capture
+    // phase + stopPropagation so the canvas-level Escape handler doesn't
+    // also clear the existing selection on the same press.
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setMarquee(null);
+    };
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
+    window.addEventListener('keydown', handleKey, true);
     return () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('keydown', handleKey, true);
     };
   }, [marquee, getContainer, screenToCanvas, onSelect]);
 

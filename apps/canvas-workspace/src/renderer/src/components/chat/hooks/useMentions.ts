@@ -80,6 +80,13 @@ export function useMentions({
    * which prefix to strip when it splices the chip in.
    */
   const mentionTriggerRef = useRef<'@' | '/'>('@');
+  /**
+   * Monotonic id of the latest popup build. buildMentionItems is async (file
+   * listing, session search), so when the user types quickly an older, slower
+   * build can resolve after a newer one — or after the popup was dismissed —
+   * and must not apply its stale items / reopen the popup.
+   */
+  const mentionBuildSeqRef = useRef(0);
 
   const insertNodeMention = useCallback((node: CanvasNode) => {
     const element = editableRef.current;
@@ -118,6 +125,7 @@ export function useMentions({
 
   const clearInput = useCallback(() => {
     setInput('');
+    mentionBuildSeqRef.current++;
     setMentionOpen(false);
     setMentionItems([]);
     setMentionIndex(0);
@@ -252,6 +260,9 @@ export function useMentions({
 
     setInput(serializeEditable(element));
 
+    // Every input event supersedes any in-flight popup build.
+    const buildSeq = ++mentionBuildSeqRef.current;
+
     const selection = window.getSelection();
     if (
       !selection
@@ -283,6 +294,7 @@ export function useMentions({
 
     setMentionIndex(0);
     void buildMentionItems(match[1], trigger).then(items => {
+      if (buildSeq !== mentionBuildSeqRef.current) return;
       setMentionItems(items);
       setMentionOpen(items.length > 0);
     });
@@ -298,6 +310,7 @@ export function useMentions({
       if (!target) return;
       if (editableRef.current?.contains(target)) return;
       if (target.closest('.chat-mention-popup')) return;
+      mentionBuildSeqRef.current++;
       setMentionOpen(false);
     };
     document.addEventListener('mousedown', handleMouseDown);
@@ -344,6 +357,7 @@ export function useMentions({
     selection.addRange(range);
 
     setInput(serializeEditable(element));
+    mentionBuildSeqRef.current++;
     setMentionOpen(false);
     element.focus();
   }, [nodes]);
@@ -397,6 +411,7 @@ export function useMentions({
 
       if (event.key === 'Escape') {
         event.preventDefault();
+        mentionBuildSeqRef.current++;
         setMentionOpen(false);
         return;
       }

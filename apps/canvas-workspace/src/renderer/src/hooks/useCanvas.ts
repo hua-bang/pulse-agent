@@ -50,10 +50,14 @@ export const useCanvas = (isHandTool = false) => {
     };
   }, []);
 
+  // NOTE: React (17+) registers root `wheel` listeners as passive, so this
+  // synthetic handler cannot preventDefault — Chromium would log an
+  // intervention error on every pinch and the default ctrl+wheel page zoom
+  // would still fire. The Canvas component attaches a native
+  // `{ passive: false }` wheel listener that does the preventDefault.
   const handleWheel = useCallback((e: React.WheelEvent) => {
     markMoving();
     if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
       e.stopPropagation();
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const mx = e.clientX - rect.left;

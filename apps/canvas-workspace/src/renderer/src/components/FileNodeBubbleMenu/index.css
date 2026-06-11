@@ -1,7 +1,8 @@
 .note-bubble-menu {
   position: fixed;
   z-index: 9000;
-  transform: translate(-50%, calc(-100% - 8px));
+  /* transform (above vs below the selection) is set inline by the
+     component, which clamps the menu into the viewport. */
   display: flex;
   align-items: center;
   gap: 1px;

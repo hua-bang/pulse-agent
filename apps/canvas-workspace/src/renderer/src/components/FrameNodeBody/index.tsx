@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./index.css";
 import type { CanvasNode, FrameNodeData } from "../../types";
 import { AgentTeamFrame } from "../AgentTeamFrame";
+import { useEscapeClose } from "../../hooks/useEscapeClose";
 
 interface Props {
   node: CanvasNode;
@@ -88,6 +89,8 @@ export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
+
+  useEscapeClose(open, () => setOpen(false));
 
   return (
     <div

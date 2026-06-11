@@ -82,11 +82,22 @@ export const useShapeDraw = ({
       commitDraft(d);
       setDraft(null);
     };
+    // Escape aborts the draft — no shape is committed on the following
+    // mouseup. Capture phase + stopPropagation so the canvas-level Escape
+    // handler doesn't also react to the same press.
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      draftRef.current = null;
+      setDraft(null);
+    };
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
+    window.addEventListener('keydown', handleKey, true);
     return () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('keydown', handleKey, true);
     };
     // commitDraft is stable via the closed-over deps below
   // eslint-disable-next-line react-hooks/exhaustive-deps

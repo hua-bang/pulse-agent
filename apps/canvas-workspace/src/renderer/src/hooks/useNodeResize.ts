@@ -98,6 +98,24 @@ export const useNodeResize = (
     setResizingId(null);
   }, [flushResizeMove]);
 
+  /** Abort the gesture (Escape): restore the node's pre-drag dimensions
+   *  and drop all resize state. Skips the restore when no resize tick was
+   *  ever applied so a press-and-Escape doesn't dirty the node. */
+  const onResizeCancel = useCallback(() => {
+    if (moveFrame.current !== null) {
+      cancelAnimationFrame(moveFrame.current);
+      moveFrame.current = null;
+    }
+    const moved = lastMoveEvent.current !== null;
+    lastMoveEvent.current = null;
+    const r = resizing.current;
+    if (r && moved) {
+      resizeNode(r.id, Math.round(r.startW), Math.round(r.startH));
+    }
+    resizing.current = null;
+    setResizingId(null);
+  }, [resizeNode]);
+
   useEffect(() => {
     return () => {
       if (moveFrame.current !== null) {
@@ -106,7 +124,7 @@ export const useNodeResize = (
     };
   }, []);
 
-  return { resizingId, onResizeStart, onResizeMove, onResizeEnd };
+  return { resizingId, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel };
 };
 
 export type ResizeEdge = "right" | "bottom" | "bottom-right";

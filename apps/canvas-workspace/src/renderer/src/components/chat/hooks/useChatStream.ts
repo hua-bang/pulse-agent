@@ -39,6 +39,13 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
     setActiveSessionId(null);
     setPendingClarify(null);
     setClarifyInput('');
+    // A scope switch mid-turn unsubscribes the stream events below, so the
+    // completion event that would normally reset these never arrives —
+    // without this the new scope starts with a permanently spinning
+    // composer and stale tool chips.
+    setLoading(false);
+    setStreamingTools([]);
+    streamingMsgIdx.current = -1;
 
     return cleanupSubscriptions;
   }, [cleanupSubscriptions, scopeKey]);
@@ -57,6 +64,11 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         message.role === 'assistant' && message.toolCalls?.length ? [index] : []
       )),
     ));
+    // Tool ids are minted per turn; after a wholesale message swap the old
+    // ids never come back, so drop their expansion state instead of letting
+    // the set grow (and avoid stale chips from a superseded stream).
+    setExpandedTools(new Set());
+    setStreamingTools([]);
   }, []);
 
   const sendMessage = useCallback(async (rawText: string, requestContext?: AgentRequestContext, attachments: ChatImageAttachment[] = []) => {

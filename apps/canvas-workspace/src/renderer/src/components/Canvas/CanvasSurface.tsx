@@ -281,8 +281,8 @@ export const CanvasSurface = ({
           onToggleFullscreen={onToggleFullscreen}
         />
       ))}
-    {shapeDraft && <ShapeDraftPreview draft={shapeDraft} />}
-    {marqueeRect && <MarqueePreview rect={marqueeRect} />}
+    {shapeDraft && <ShapeDraftPreview draft={shapeDraft} scale={transform.scale} />}
+    {marqueeRect && <MarqueePreview rect={marqueeRect} scale={transform.scale} />}
     {snapLines && snapLines.length > 0 && (
       <CanvasAlignmentGuides lines={snapLines} scale={transform.scale} />
     )}
@@ -294,10 +294,12 @@ export const CanvasSurface = ({
  * Lives inside `.canvas-transform` so the box scales with zoom and
  * pans with the rest of the surface — matches the convention that
  * canvas-coordinate UI renders here, not in the screen-space overlay
- * layer.
+ * layer. The border width is divided by the zoom (same trick as
+ * CanvasAlignmentGuides) so it reads as ~1px on screen at any scale.
  */
-const MarqueePreview = ({ rect }: { rect: MarqueeRect }) => {
+const MarqueePreview = ({ rect, scale }: { rect: MarqueeRect; scale: number }) => {
   if (rect.width <= 0 && rect.height <= 0) return null;
+  const borderPx = 1 / Math.max(scale, 0.0001);
   return (
     <div
       className="canvas-marquee"
@@ -307,7 +309,7 @@ const MarqueePreview = ({ rect }: { rect: MarqueeRect }) => {
         top: rect.y,
         width: Math.max(1, rect.width),
         height: Math.max(1, rect.height),
-        border: '1px solid #5B7CBF',
+        border: `${borderPx}px solid #5B7CBF`,
         background: 'rgba(91, 124, 191, 0.08)',
         pointerEvents: 'none',
         boxSizing: 'border-box',
@@ -322,7 +324,7 @@ const MarqueePreview = ({ rect }: { rect: MarqueeRect }) => {
  * Pointer events are disabled so the overlay above it still receives the
  * ongoing mousemove/mouseup.
  */
-const ShapeDraftPreview = ({ draft }: { draft: ShapeDraft }) => {
+const ShapeDraftPreview = ({ draft, scale }: { draft: ShapeDraft; scale: number }) => {
   const x = Math.min(draft.start.x, draft.current.x);
   const y = Math.min(draft.start.y, draft.current.y);
   const w = Math.max(1, Math.abs(draft.current.x - draft.start.x));
@@ -348,7 +350,7 @@ const ShapeDraftPreview = ({ draft }: { draft: ShapeDraft }) => {
         height={h}
         fill="rgba(91, 124, 191, 0.08)"
         stroke="#5B7CBF"
-        strokeWidth={1.5}
+        strokeWidth={1.5 / Math.max(scale, 0.0001)}
       />
     </svg>
   );

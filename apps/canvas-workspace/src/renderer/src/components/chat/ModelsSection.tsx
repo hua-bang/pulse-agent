@@ -64,6 +64,20 @@ export const ModelsSection = ({
   const [saving, setSaving] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [localError, setLocalError] = useState<string>();
+  // Deleting a provider discards its saved API-key config with no undo, so
+  // the trash button arms on the first click and deletes on the second.
+  // Switching providers or pausing 3s disarms it.
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+
+  useEffect(() => {
+    setConfirmingRemove(false);
+  }, [activeProviderId]);
+
+  useEffect(() => {
+    if (!confirmingRemove) return;
+    const timer = window.setTimeout(() => setConfirmingRemove(false), 3000);
+    return () => window.clearTimeout(timer);
+  }, [confirmingRemove]);
 
   const activeProviderStatus = useMemo(
     () => providers.find((item) => item.id === activeProviderId),
@@ -199,10 +213,20 @@ export const ModelsSection = ({
             {activeProviderId !== 'new' && (
               <button
                 type="button"
-                className="chat-model-danger-btn"
-                onClick={() => void onRemoveProvider(activeProviderId)}
+                className={`chat-model-danger-btn${confirmingRemove ? ' chat-model-danger-btn--confirm' : ''}`}
+                title={t('models.removeProvider')}
+                aria-label={t('models.removeProvider')}
+                onClick={() => {
+                  if (!confirmingRemove) {
+                    setConfirmingRemove(true);
+                    return;
+                  }
+                  setConfirmingRemove(false);
+                  void onRemoveProvider(activeProviderId);
+                }}
               >
                 <TrashIcon />
+                {confirmingRemove && <span>{t('models.removeProviderConfirm')}</span>}
               </button>
             )}
           </div>

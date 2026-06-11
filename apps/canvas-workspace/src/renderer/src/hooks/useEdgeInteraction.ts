@@ -40,6 +40,9 @@ export type EdgeInteractionState =
        *  so preview math stays stable even if its node gets moved by
        *  some other hook. */
       frozen: EdgeEndpoint;
+      /** The dragged end's endpoint at drag start — restored when the
+       *  gesture is cancelled with Escape. */
+      original: EdgeEndpoint;
       cursor: Point;
       hoverNodeId: string | null;
     }
@@ -273,6 +276,30 @@ export const useEdgeInteraction = ({
     setState(null);
   }, [addEdge, commitHistory, onConnectCommitted]);
 
+  /** Abort the gesture (Escape): undo the history-silent live updates by
+   *  restoring the drag-start endpoints/bend, then drop the state without
+   *  committing. A connect draft simply disappears. */
+  const handleCancel = useCallback(() => {
+    const current = stateRef.current;
+    if (!current) return;
+    if (current.kind === 'move-end') {
+      updateEdge(
+        current.edgeId,
+        current.end === 'source' ? { source: current.original } : { target: current.original },
+        false,
+      );
+    } else if (current.kind === 'move-bend') {
+      updateEdge(current.edgeId, { bend: current.originBend }, false);
+    } else if (current.kind === 'move-edge') {
+      updateEdge(
+        current.edgeId,
+        { source: current.initialSource, target: current.initialTarget },
+        false,
+      );
+    }
+    setState(null);
+  }, [updateEdge]);
+
   // Window-level listeners are installed only while an interaction is
   // live. Using window (not the canvas container) means the drag keeps
   // tracking when the cursor slips off the canvas — matches the
@@ -281,13 +308,27 @@ export const useEdgeInteraction = ({
     if (!state) return;
     const onMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
     const onUp = () => handleUp();
+    // Window focus loss never delivers the mouseup — finish the gesture
+    // like the node-drag handlers do, so the edge isn't left half-dragged.
+    const onBlur = () => handleUp();
+    // Escape aborts; capture + stopPropagation keeps the canvas-level
+    // Escape handler from also deselecting on the same press.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      handleCancel();
+    };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('keydown', onKeyDown, true);
     return () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('blur', onBlur);
+      window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [state, handleMove, handleUp]);
+  }, [state, handleMove, handleUp, handleCancel]);
 
   /**
    * Begin drawing a new edge. Called by the connect-mode overlay.
@@ -321,12 +362,14 @@ export const useEdgeInteraction = ({
     const edge = edges.find((e) => e.id === edgeId);
     if (!edge) return;
     const frozen = end === 'source' ? edge.target : edge.source;
+    const original = end === 'source' ? edge.source : edge.target;
     const hit = findNodeAtCanvasPoint(sortedNodesRef.current, pt.x, pt.y);
     setState({
       kind: 'move-end',
       edgeId,
       end,
       frozen,
+      original,
       cursor: pt,
       hoverNodeId: hit?.id ?? null,
     });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { CanvasNode, KnowledgeTagDefinition, WorkspaceNodeListItem } from '../../types';
 import { ChatPanel } from '../chat';
@@ -60,15 +60,24 @@ export function useNodesChatDock() {
   const openDock = useCallback(() => setOpen(true), []);
   const closeDock = useCallback(() => setOpen(false), []);
 
+  // Tear-down for an in-flight resize drag — also invoked on unmount so a
+  // page switch mid-drag can't leak window listeners or leave the document
+  // stuck with `user-select: none`.
+  const stopResizeRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopResizeRef.current?.(), []);
+
   const beginResize = useCallback((event: ReactMouseEvent) => {
     event.preventDefault();
+    stopResizeRef.current?.();
     const startX = event.clientX;
     const startWidth = width;
     const onMove = (move: MouseEvent) => {
       // Dock is pinned to the right edge, so dragging left widens it.
       setWidth(clampWidth(startWidth + (startX - move.clientX)));
     };
-    const onUp = () => {
+    const onUp = () => stopResizeRef.current?.();
+    stopResizeRef.current = () => {
+      stopResizeRef.current = null;
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
       document.body.style.userSelect = '';

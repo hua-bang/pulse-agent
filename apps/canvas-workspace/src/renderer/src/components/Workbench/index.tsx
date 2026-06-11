@@ -396,9 +396,14 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   }, [allNodes, mountedWorkspaceIds, patchWorkspaceNodeSnapshot]);
 
   const resizing = useRef(false);
+  // Tear-down for an in-flight resize drag — also invoked on unmount so the
+  // document can't get stuck with col-resize cursor / user-select disabled.
+  const stopResizeRef = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopResizeRef.current?.(), []);
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
+    stopResizeRef.current?.();
     resizing.current = true;
     const startX = e.clientX;
     const startWidth = chatWidth;
@@ -409,7 +414,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       setChatWidth(newWidth);
     };
 
-    const onMouseUp = () => {
+    const onMouseUp = () => stopResizeRef.current?.();
+    stopResizeRef.current = () => {
+      stopResizeRef.current = null;
       resizing.current = false;
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);

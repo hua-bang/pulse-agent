@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type {
   CanvasEdge,
@@ -12,6 +12,7 @@ import {
   resolveEndpoint,
   resolveEndpointToward,
 } from '../../utils/edgeFactory';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 
 /**
  * A compact floating panel, shown when an edge is selected, that lets
@@ -171,6 +172,9 @@ export const EdgeStylePanel = ({
   useEffect(() => {
     setOpenSection(null);
   }, [edge.id]);
+  // First Escape collapses the open option list; with nothing open the press
+  // falls through to the canvas handler (deselects the edge).
+  useEscapeClose(openSection !== null, () => setOpenSection(null));
 
   // Resolve the edge's midpoint in canvas coords (accounts for bend),
   // then convert to screen coords via the current transform. The panel
@@ -188,6 +192,27 @@ export const EdgeStylePanel = ({
       y: mid.y * transform.scale + transform.y,
     };
   }, [edge, nodes, transform]);
+
+  // Keep the panel inside the canvas container: the CSS default hangs it
+  // centered above the anchor, which cuts it off when the edge sits near the
+  // top or side edges of the viewport. Measure after layout, clamp
+  // horizontally, and flip below the anchor when there's no room above.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<{ left: number; top: number; flipped: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    const host = el.offsetParent as HTMLElement | null;
+    const hostW = host?.clientWidth ?? window.innerWidth;
+    const margin = 8;
+    const gap = 12;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const halfW = w / 2;
+    const left = Math.max(margin + halfW, Math.min(screenPos.x, hostW - margin - halfW));
+    const flipped = screenPos.y - h - gap < margin;
+    setPlacement({ left, top: screenPos.y, flipped });
+  }, [screenPos.x, screenPos.y, openSection]);
 
   const setStroke = (patch: Partial<EdgeStroke>) => {
     onUpdate(edge.id, { stroke: { ...edge.stroke, ...patch } });
@@ -221,8 +246,16 @@ export const EdgeStylePanel = ({
 
   return (
     <div
+      ref={panelRef}
       className="edge-style-panel"
-      style={{ left: screenPos.x, top: screenPos.y }}
+      style={{
+        left: placement?.left ?? screenPos.x,
+        top: placement?.top ?? screenPos.y,
+        // Above the anchor by default; below it when clamped at the top.
+        transform: placement?.flipped
+          ? 'translate(-50%, 12px)'
+          : 'translate(-50%, calc(-100% - 12px))',
+      }}
       // Stop propagation so our own clicks don't hit the canvas-level
       // blank-click handler (which would deselect the edge we're styling).
       onMouseDown={(e) => e.stopPropagation()}

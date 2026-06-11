@@ -2619,6 +2619,20 @@
   background: rgba(180, 35, 24, 0.08);
 }
 
+/* Armed state: first click expands the trash icon into an explicit
+   "click again to remove" pill; a second click actually deletes. */
+.chat-model-danger-btn--confirm {
+  width: auto;
+  padding: 0 11px;
+  color: #fff;
+  background: #b42318;
+  border-color: #b42318;
+}
+
+.chat-model-danger-btn--confirm:hover {
+  background: #9a1d13;
+}
+
 .chat-model-model-list {
   min-height: 42px;
   display: flex;

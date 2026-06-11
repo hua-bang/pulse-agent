@@ -74,6 +74,8 @@ export const AgentTerminal = ({
             ref={containerRef}
             className="agent-xterm-container"
             onMouseDown={(e) => e.stopPropagation()}
+            // Scrolling terminal output must not also pan the canvas underneath.
+            onWheel={(e) => e.stopPropagation()}
           />
           {loading && (
             <div

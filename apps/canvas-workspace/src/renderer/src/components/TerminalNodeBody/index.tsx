@@ -140,6 +140,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
     // If an initial command is set, wait for the shell prompt before writing it.
     // Otherwise attach the data listener immediately.
     let removeData: (() => void) | null = null;
+    let removePrompt: (() => void) | null = null;
     const cmdToRun = initialCommand.current;
 
     if (cmdToRun) {
@@ -149,12 +150,14 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
         if (!prompted) {
           prompted = true;
           promptRemove();
+          removePrompt = null;
           removeData = api.onData(sessionId, (d2: string) => { term.write(d2); });
           setTimeout(() => api.write(sessionId, `${cmdToRun}\n`), 100);
           // Clear so it doesn't re-run on session restore
           initialCommand.current = '';
         }
       });
+      removePrompt = promptRemove;
     } else {
       removeData = api.onData(sessionId, (d: string) => { term.write(d); });
     }
@@ -191,6 +194,9 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
     }, SCROLLBACK_SAVE_INTERVAL);
 
     cleanupRef.current = () => {
+      // If the node unmounts before the shell prompt ever arrived, the
+      // prompt listener is still registered — drop it too.
+      removePrompt?.();
       removeData?.();
       removeExit();
       api.kill(sessionId);
@@ -267,6 +273,8 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
         ref={containerRef}
         className="terminal-xterm-container"
         onMouseDown={(e) => e.stopPropagation()}
+        // Scrolling terminal output must not also pan the canvas underneath.
+        onWheel={(e) => e.stopPropagation()}
       />
     </div>
   );
