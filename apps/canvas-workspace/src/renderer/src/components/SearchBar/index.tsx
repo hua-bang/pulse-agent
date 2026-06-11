@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import './index.css';
 import type { CanvasNode } from '../../types';
 import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
+import { isImeComposing } from '../../utils/ime';
 
 interface Props {
   search: UseCanvasSearchReturn;
@@ -37,11 +38,19 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
     activeMatch, caseSensitive, setCaseSensitive, closeBar, next, prev } = search;
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
+
+  // The results list scrolls past ~7 rows — keep the active match visible
+  // while the user pages with Enter / arrows.
+  useEffect(() => {
+    const active = resultsRef.current?.querySelector('.canvas-search-bar__result.is-active');
+    active?.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
 
   // When the active match changes, ask the canvas to focus it. We
   // depend on `nodeId` (not the match object reference) so a query
@@ -60,6 +69,9 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // Mid-IME-composition Enter/Escape/arrows are aimed at the candidate
+      // window, not at match navigation.
+      if (isImeComposing(e)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         closeBar();
@@ -158,7 +170,7 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
       </div>
 
       {matches.length > 0 && (
-        <div className="canvas-search-bar__results">
+        <div className="canvas-search-bar__results" ref={resultsRef}>
           {matches.slice(0, 30).map((m, idx) => {
             const node = nodesById.get(m.nodeId);
             if (!node) return null;

@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type { LaidOutTopic } from '../../utils/mindmapLayout';
 import type { DropHint, KeyAction } from './types';
+import { isImeComposing } from '../../utils/ime';
 
 interface TopicPillProps {
   topic: LaidOutTopic;
@@ -84,6 +85,10 @@ export const TopicPill = ({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (readOnly) return;
+      // Mid-IME-composition keys (Enter to confirm a candidate, Escape to
+      // dismiss it) belong to the IME — committing/cancelling the topic
+      // here would eat CJK input.
+      if (isImeComposing(e)) return;
       const consume = () => {
         e.preventDefault();
         e.stopPropagation();

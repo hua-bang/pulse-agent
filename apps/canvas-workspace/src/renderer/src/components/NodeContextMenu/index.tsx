@@ -1,6 +1,7 @@
 import "./index.css";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useViewportClampedPosition } from "../../hooks/useViewportClampedPosition";
 
 interface Props {
   x: number;
@@ -12,7 +13,7 @@ interface Props {
 }
 
 export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage, onClose }: Props) => {
-  const menuRef = useRef<HTMLDivElement>(null);
+  const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -41,7 +42,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
     <div
       ref={menuRef}
       className="context-menu"
-      style={{ left: x, top: y }}
+      style={{ left: pos.left, top: pos.top }}
       onClick={(e) => e.stopPropagation()}
     >
       {mode === "mindmap" ? (

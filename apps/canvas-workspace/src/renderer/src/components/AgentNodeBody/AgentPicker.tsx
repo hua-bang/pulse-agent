@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { AGENT_REGISTRY, type AgentDef } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
+import { isImeComposing } from '../../utils/ime';
 
 interface AgentPickerProps {
   selectedAgent: string;
@@ -157,7 +158,7 @@ export const AgentPicker = ({
                     }
                     spellCheck={false}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' && !isImeComposing(e)) {
                         e.preventDefault();
                         onLaunch();
                       }

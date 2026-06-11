@@ -3,6 +3,7 @@ import type { LayerTreeNode } from './utils/layers';
 import { ChevronRightIcon, NodeTypeIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { isContainerNode } from '../../utils/frameHierarchy';
+import { isImeComposing } from '../../utils/ime';
 
 interface LayerItemProps {
   tree: LayerTreeNode;
@@ -61,6 +62,7 @@ export const LayerItem = ({
             onChange={(event) => onRenameChange(event.target.value)}
             onBlur={onRenameCommit}
             onKeyDown={(event) => {
+              if (isImeComposing(event)) return;
               if (event.key === 'Enter') onRenameCommit();
               if (event.key === 'Escape') onRenameCancel();
             }}

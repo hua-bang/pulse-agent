@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode, FileNodeData } from '../../types';
+import { isImeComposing } from '../../utils/ime';
 
 interface Props {
   nodes: CanvasNode[];
@@ -40,6 +41,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (isImeComposing(e)) return;
       if (e.key === 'Escape') {
         onClose();
         return;

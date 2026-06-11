@@ -8,6 +8,12 @@ import { computeSnap, type SnapBox, type SnapLine } from "../utils/canvasSnappin
  *  grid agree. Set to 0 to disable grid snap entirely. */
 const GRID_SIZE = 8;
 
+/** Screen-px dead zone before a mousedown commits to being a drag. A bare
+ *  click jitters by a pixel or two between press and release; without this
+ *  threshold every click on a node header nudges the node and pollutes the
+ *  undo stack with accidental micro-moves. */
+const DRAG_START_THRESHOLD_PX = 4;
+
 export const useNodeDrag = (
   moveNode: (id: string, x: number, y: number) => void,
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void,
@@ -42,6 +48,9 @@ export const useNodeDrag = (
      *  and (when the primary is part of the active selection) every
      *  other selected node. */
     companions: Array<{ id: string; nodeX: number; nodeY: number }>;
+    /** Flips true once the pointer travels past DRAG_START_THRESHOLD_PX;
+     *  no node moves until then so a plain click never displaces a node. */
+    started: boolean;
   } | null>(null);
   const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
   const moveFrame = useRef<number | null>(null);
@@ -116,6 +125,7 @@ export const useNodeDrag = (
         height: node.height,
         snapCandidates,
         companions,
+        started: false,
       };
       setDraggingId(node.id);
       setDraggingIds(new Set(dragSet));
@@ -127,6 +137,15 @@ export const useNodeDrag = (
     (e: React.MouseEvent | MouseEvent) => {
       if (!dragging.current) return;
       const d = dragging.current;
+      if (!d.started) {
+        const screenDx = e.clientX - d.startX;
+        const screenDy = e.clientY - d.startY;
+        if (screenDx * screenDx + screenDy * screenDy <
+            DRAG_START_THRESHOLD_PX * DRAG_START_THRESHOLD_PX) {
+          return;
+        }
+        d.started = true;
+      }
       const rawDx = (e.clientX - d.startX) / scale;
       const rawDy = (e.clientY - d.startY) / scale;
       const baseX = d.nodeX + rawDx;

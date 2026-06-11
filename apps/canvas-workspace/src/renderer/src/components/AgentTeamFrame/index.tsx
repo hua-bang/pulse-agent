@@ -5,6 +5,7 @@ import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { AgentTypeSelect } from './AgentTypeSelect';
 import { useAppShell } from '../AppShellProvider';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
+import { isImeComposing } from '../../utils/ime';
 import type {
   AgentNodeData,
   AgentTeamAgentRecord,
@@ -1336,6 +1337,7 @@ export const AgentTeamFrame = ({
             else setMessageDraft(event.target.value);
           }}
           onKeyDown={(event) => {
+            if (isImeComposing(event)) return;
             const sendBrief = phase === 'briefing' && event.key === 'Enter' && (event.metaKey || event.ctrlKey);
             const sendCommand = phase !== 'briefing' && event.key === 'Enter' && !event.shiftKey;
             if (sendBrief || sendCommand) {

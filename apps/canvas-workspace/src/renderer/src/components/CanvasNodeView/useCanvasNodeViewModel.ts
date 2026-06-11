@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { CanvasNode, TextNodeData } from '../../types';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
+import { isImeComposing } from '../../utils/ime';
 import { collectContainerDescendants } from '../../utils/frameHierarchy';
 import { FULLSCREEN_NODE_TYPES } from './constants';
 import type { CanvasNodeViewProps } from './types';
@@ -183,6 +184,9 @@ export const useCanvasNodeViewModel = ({
 
   const handleTitleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLSpanElement>) => {
+      // Enter/Escape during IME composition confirm/dismiss the candidate
+      // text — committing or reverting the title there would eat the input.
+      if (isImeComposing(e)) return;
       if (e.key === 'Enter') {
         e.preventDefault();
         titleRef.current?.blur();

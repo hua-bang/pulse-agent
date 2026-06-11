@@ -1,6 +1,7 @@
 import type React from 'react';
 import { FolderIcon, WorkspaceIcon } from '../icons';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 
 interface InlineCreateRowProps {
   type: 'workspace' | 'folder';
@@ -35,6 +36,7 @@ export const InlineCreateRow = ({
           onChange={(e) => onChange(e.target.value)}
           onBlur={() => (value.trim() ? onCommit() : onCancel())}
           onKeyDown={(e) => {
+            if (isImeComposing(e)) return;
             if (e.key === 'Enter') onCommit();
             if (e.key === 'Escape') onCancel();
           }}

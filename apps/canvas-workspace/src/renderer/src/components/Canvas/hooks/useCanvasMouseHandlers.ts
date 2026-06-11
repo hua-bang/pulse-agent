@@ -106,6 +106,11 @@ export const useCanvasMouseHandlers = ({
   // so dragging remains uninterrupted when crossing text.
   const isDraggingRef = useRef(false);
   const [nodeGestureActive, setNodeGestureActive] = useState(false);
+  // True once the current node gesture has produced real motion. A moved
+  // drag ends with mouseup on the interaction shield, so the trailing click
+  // resolves on the canvas container — without suppression it would fall
+  // into the blank-click handler and wipe the selection we just dragged.
+  const nodeGestureMovedRef = useRef(false);
   const pendingParentNodesRef = useRef<CanvasNode[] | null>(null);
 
   const handleCanvasClick = useCallback(
@@ -216,15 +221,20 @@ export const useCanvasMouseHandlers = ({
     isDraggingRef.current = false;
     setNodeGestureActive(false);
     if (wasNodeGesture) {
+      if (nodeGestureMovedRef.current) {
+        suppressBlankClickRef.current = true;
+      }
       commitHistory();
       onNodesChange?.(canvasId, pendingParentNodesRef.current ?? nodesRef.current);
       pendingParentNodesRef.current = null;
     }
-  }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange, nodesRef]);
+    nodeGestureMovedRef.current = false;
+  }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange, nodesRef, suppressBlankClickRef]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (isDraggingRef.current) {
+        nodeGestureMovedRef.current = true;
         handleWindowDragMove(e);
         // Defer mounting the interaction shield until we actually see drag
         // motion. Mounting on mousedown swallows the trailing mouseup /

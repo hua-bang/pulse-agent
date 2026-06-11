@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode, FileNodeData, TextNodeData } from '../../types';
+import { isImeComposing } from '../../utils/ime';
 
 /**
  * A single executable entry in the palette. Commands are bound by the
@@ -227,6 +228,10 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // IME composition owns Enter (confirm candidate), Escape (dismiss
+      // candidate), and the arrow keys (navigate candidates) — don't run
+      // a command or close the palette mid-composition.
+      if (isImeComposing(e)) return;
       if (e.key === 'Escape') {
         onClose();
         return;

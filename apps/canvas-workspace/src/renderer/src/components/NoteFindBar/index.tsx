@@ -9,6 +9,7 @@ import {
   replaceCurrentMatch,
   setNoteSearch,
 } from '../../editor/noteSearchExtension';
+import { isImeComposing } from '../../utils/ime';
 
 interface Props {
   editor: Editor;
@@ -40,6 +41,7 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isImeComposing(e)) return;
     if (e.key === 'Escape') {
       e.preventDefault();
       onClose();

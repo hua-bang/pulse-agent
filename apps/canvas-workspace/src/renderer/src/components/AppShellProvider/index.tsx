@@ -11,6 +11,7 @@ import {
 import { DEFAULT_TOAST_DURATION_MS, SHORTCUT_SECTIONS } from '../../constants/interaction';
 import type { ConfirmOptions, ToastInput, ToastRecord } from '../../types/ui-interaction';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 import './index.css';
 
 interface AppShellContextValue {
@@ -254,6 +255,7 @@ const ConfirmDialog = ({
 }) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (isImeComposing(event)) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         onCancel();

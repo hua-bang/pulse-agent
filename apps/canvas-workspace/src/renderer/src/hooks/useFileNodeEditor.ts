@@ -21,6 +21,7 @@ import type { SlashCommandDef } from '../components/SlashCommandMenu';
 import { ALL_SLASH_COMMANDS, filterCmds, type SlashCmdContext } from '../editor/slashCommands';
 import { NoteSearchExtension } from '../editor/noteSearchExtension';
 import { toFileUrl } from '../utils/fileUrl';
+import { isImeComposing } from '../utils/ime';
 
 const lowlight = createLowlight(common);
 
@@ -362,6 +363,9 @@ export const useFileNodeEditor = ({
     const handler = (e: KeyboardEvent) => {
       const menu = slashMenuRef.current;
       if (!menu) return;
+      // Arrow/Enter/Escape during IME composition steer the candidate
+      // window (e.g. a Chinese query after the slash) — leave them alone.
+      if (isImeComposing(e)) return;
       const items = filterCmds(menu.query);
       if (e.key === 'ArrowDown') {
         e.preventDefault();
