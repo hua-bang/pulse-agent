@@ -25,6 +25,9 @@ const BRIEFING_FRAME_HEIGHT = 780;
 // it: the dispatcher never assigns tasks to the lead, team-protocol actions
 // are role-gated server-side, and the lead prompts state the boundary.
 const CLAUDE_TEAM_LEAD_ARGS = '--disallowedTools Task';
+// Joins messages accumulated for a not-yet-launched agent; also the unit of
+// the duplicate check in queueLaunchPrompt.
+const QUEUED_PROMPT_SEPARATOR = '\n\n----\n\n';
 const TEAM_PANEL_HEIGHT = 388;
 const FRAME_HEADER_GAP = TEAM_PANEL_HEIGHT + 24;
 const LEGACY_FRAME_HEADER_GAP = 58;
@@ -134,12 +137,15 @@ const queueLaunchPrompt = async (
       queued = existingInline;
     }
   }
-  // Re-sent nudges are often byte-identical — don't stack copies.
-  const combined = !queued.trim()
+  // Re-sent nudges are often byte-identical — don't stack copies. Compare
+  // whole queued SEGMENTS, not substrings: a short distinct message that
+  // happens to appear inside a queued task prompt must still be appended.
+  const segments = queued.trim() ? queued.split(QUEUED_PROMPT_SEPARATOR) : [];
+  const combined = segments.length === 0
     ? prompt
-    : queued.includes(prompt)
+    : segments.includes(prompt)
       ? queued
-      : `${queued}\n\n${prompt}`;
+      : `${queued}${QUEUED_PROMPT_SEPARATOR}${prompt}`;
 
   let inlinePrompt = combined;
   let promptFile = '';
@@ -410,6 +416,21 @@ export async function updateAgentTeamCanvasCwd(workspaceId: string, teamId: stri
   for (const node of nodes) {
     if (node.type !== 'agent' || node.data?.agentTeamId !== teamId) continue;
     if (node.data.cwd === cwd) continue;
+    // Queued launch-prompt files live under the node's cwd; moving the cwd
+    // without moving the file would silently drop everything queued for a
+    // not-yet-launched agent the next time queueLaunchPrompt reads it.
+    const promptFile = typeof node.data.promptFile === 'string' ? node.data.promptFile : '';
+    const oldCwd = typeof node.data.cwd === 'string' ? node.data.cwd : '';
+    if (promptFile && oldCwd) {
+      try {
+        const content = await fs.readFile(join(oldCwd, promptFile), 'utf-8');
+        await fs.mkdir(cwd, { recursive: true });
+        await fs.writeFile(join(cwd, promptFile), content, 'utf-8');
+        await fs.unlink(join(oldCwd, promptFile)).catch(() => {});
+      } catch {
+        // Best effort — the original file may already be gone.
+      }
+    }
     node.data = {
       ...node.data,
       cwd,
@@ -546,6 +567,37 @@ export async function getCanvasAgentNodeRuntimeState(
     ptyAlive: !!ptySessionId && hasSession(ptySessionId),
     hasQueuedLaunch: !!(inlinePrompt || promptFile),
   };
+}
+
+/**
+ * Batch variant of getCanvasAgentNodeRuntimeState: one canvas read serves
+ * every agent of a team, instead of the watchdog re-reading canvas.json from
+ * disk once per agent per heartbeat tick.
+ */
+export async function getCanvasAgentNodesRuntimeState(
+  workspaceId: string,
+  nodeIds: string[],
+): Promise<Map<string, CanvasAgentNodeRuntimeState>> {
+  const result = new Map<string, CanvasAgentNodeRuntimeState>();
+  if (nodeIds.length === 0) return result;
+  const { data: canvas } = await readCanvasFull(workspaceId);
+  for (const nodeId of nodeIds) {
+    const node = canvas?.nodes?.find((item) => item.id === nodeId);
+    if (!node || node.type !== 'agent') {
+      result.set(nodeId, { exists: false, status: 'missing', ptyAlive: false, hasQueuedLaunch: false });
+      continue;
+    }
+    const ptySessionId = typeof node.data?.sessionId === 'string' ? node.data.sessionId : '';
+    const inlinePrompt = typeof node.data?.inlinePrompt === 'string' ? node.data.inlinePrompt : '';
+    const promptFile = typeof node.data?.promptFile === 'string' ? node.data.promptFile : '';
+    result.set(nodeId, {
+      exists: true,
+      status: typeof node.data?.status === 'string' ? node.data.status : 'idle',
+      ptyAlive: !!ptySessionId && hasSession(ptySessionId),
+      hasQueuedLaunch: !!(inlinePrompt || promptFile),
+    });
+  }
+  return result;
 }
 
 export async function sendOrQueueAgentInput(workspaceId: string, nodeId: string, input: string): Promise<void> {

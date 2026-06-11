@@ -1299,6 +1299,45 @@ describe('TeamRuntime', () => {
       expect(leadInputs()).toHaveLength(afterFirst + 1);
     });
 
+    it('queues a revision for a busy teammate instead of leaving the task unbound', async () => {
+      const { runtime, adapter } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      const coderWithSession = await runtime.createAgentSession(coder.id);
+      const first = await runtime.createTask({ teamId: team.id, title: 'First', description: 'Do first.', ownerAgentId: coder.id });
+      const second = await runtime.createTask({ teamId: team.id, title: 'Second', description: 'Do second.', ownerAgentId: coder.id });
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.submitTaskCompletion(first.id, 'First done.', coder.id);
+      // The freed teammate immediately picks up the second task.
+      await runtime.dispatchReadyTasks(team.id);
+      expect((await runtime.snapshot(team.id)).agents.find((agent) => agent.id === coder.id)?.currentTaskId).toBe(second.id);
+
+      const inputsBefore = adapter.inputs.filter((entry) => entry.sessionId === coderWithSession.sessionRef!.sessionId).length;
+      await runtime.sendToAgent(coder.id, 'Revise: handle the edge case.', first.id);
+
+      // Busy teammate: the revision is QUEUED, not interleaved into the
+      // running session, and the task goes back to todo pinned to its owner.
+      let snapshot = await runtime.snapshot(team.id);
+      const returned = snapshot.tasks.find((task) => task.id === first.id)!;
+      expect(returned.status).toBe('todo');
+      expect(returned.ownerAgentId).toBe(coder.id);
+      expect(returned.metadata?.revisionNote).toBe('Revise: handle the edge case.');
+      expect(adapter.inputs.filter((entry) => entry.sessionId === coderWithSession.sessionRef!.sessionId)).toHaveLength(inputsBefore);
+      // The agent stays bound to its current task — visible to the watchdog.
+      expect(snapshot.agents.find((agent) => agent.id === coder.id)?.currentTaskId).toBe(second.id);
+
+      // When the teammate frees up, the next dispatch delivers the revision
+      // feedback inside the full task prompt.
+      await runtime.completeTask(second.id, 'Second done.', lead.id);
+      const redispatch = await runtime.dispatchReadyTasks(team.id);
+      expect(redispatch.assigned.map((task) => task.id)).toEqual([first.id]);
+      const prompt = adapter.inputs.at(-1)?.input ?? '';
+      expect(prompt).toContain('Revision feedback from the Team Lead');
+      expect(prompt).toContain('Revise: handle the edge case.');
+    });
+
     it('returns a needs_review task to the teammate for revision when a message targets it', async () => {
       const { runtime, team, coder, task, coderInputs } = await createAcceptanceFixture();
       await runtime.submitTaskCompletion(task.id, 'Implemented the change.', coder.id);
@@ -1486,6 +1525,81 @@ describe('TeamRuntime', () => {
   });
 
   describe('Failed dependency policy', () => {
+    it('re-parks a dependent on its other failed dependency instead of releasing it into an unreachable todo', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      const a = await runtime.createTask({ teamId: team.id, title: 'Dep A', description: 'A.' });
+      const b = await runtime.createTask({ teamId: team.id, title: 'Dep B', description: 'B.' });
+      const dependent = await runtime.createTask({
+        teamId: team.id,
+        title: 'Needs both',
+        description: 'Depends on A and B.',
+        deps: [a.id, b.id],
+      });
+
+      await runtime.failTask(a.id, 'A broke.');
+      await runtime.failTask(b.id, 'B broke.');
+      // Fixing A alone must not release the dependent: B is still failed, so
+      // a plain todo would be unreachable forever (isTaskReady needs all deps
+      // done). The park is re-pointed at B instead.
+      await runtime.completeTask(a.id, 'A fixed.', lead.id);
+
+      let snapshot = await runtime.snapshot(team.id);
+      const parked = snapshot.tasks.find((task) => task.id === dependent.id)!;
+      expect(parked.status).toBe('blocked');
+      expect(parked.blockedReason).toBe('Blocked by failed dependency: Dep B');
+      expect(parked.metadata?.blockedByFailedDep).toBe(b.id);
+
+      // Fixing B too finally releases it.
+      await runtime.completeTask(b.id, 'B fixed.', lead.id);
+      snapshot = await runtime.snapshot(team.id);
+      expect(snapshot.tasks.find((task) => task.id === dependent.id)?.status).toBe('todo');
+    });
+
+    it('does not let a never-started failed-dep park hold its file scope', async () => {
+      const { runtime } = createRuntime();
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const backup = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Backup' });
+      await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      await runtime.createAgentSession(backup.id);
+      const failing = await runtime.createTask({
+        teamId: team.id,
+        title: 'Build core',
+        description: 'Build it.',
+        ownerAgentId: coder.id,
+        metadata: { scope: ['src/x'] },
+      });
+      const dependent = await runtime.createTask({
+        teamId: team.id,
+        title: 'Polish core',
+        description: 'Polish it.',
+        deps: [failing.id],
+        metadata: { scope: ['src/x'] },
+      });
+      await runtime.dispatchReadyTasks(team.id);
+      await runtime.failTask(failing.id, 'Build broke.', coder.id);
+      expect((await runtime.snapshot(team.id)).tasks.find((task) => task.id === dependent.id)?.status).toBe('blocked');
+
+      // The lead follows the failure prompt and creates a replacement task
+      // with the same scope; the parked dependent never started, so it must
+      // not defer the replacement.
+      const replacement = await runtime.createTask({
+        teamId: team.id,
+        title: 'Rebuild core',
+        description: 'Rebuild it.',
+        metadata: { scope: ['src/x'] },
+      });
+      const result = await runtime.dispatchReadyTasks(team.id);
+      expect(result.assigned.map((task) => task.id)).toContain(replacement.id);
+    });
+
     it('blocks dependents of a failed task and releases them when the failure is resolved', async () => {
       const { runtime, adapter } = createRuntime();
       const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });

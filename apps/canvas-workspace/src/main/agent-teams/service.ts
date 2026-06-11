@@ -6,6 +6,10 @@ import { dirname, join } from 'path';
 import { STORE_DIR } from '../canvas/storage';
 import {
   TeamRuntime,
+  TASK_METADATA_KEYS,
+  readCurrentRound,
+  readTaskRound,
+  readTaskVerifyCommand,
   type AgentRole,
   type ArtifactKind,
   type RuntimeSnapshot,
@@ -18,7 +22,7 @@ import {
   createAgentTeamCanvasNodes,
   createTeamAgentNode,
   ensureAgentTeamCanvasLayout,
-  getCanvasAgentNodeRuntimeState,
+  getCanvasAgentNodesRuntimeState,
   removeAgentTeamCanvasNodes,
   stopAgentTeamCanvasNodes,
   updateAgentTeamCanvasCwd,
@@ -52,6 +56,7 @@ const MAX_AGENT_OUTPUT_BUFFER = 16_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const SOFT_STALL_THRESHOLD_MS = 10 * 60_000;
 const VERIFY_TIMEOUT_MS = 120_000;
+const INTEGRATION_VERIFY_TIMEOUT_MS = 15 * 60_000;
 const VERIFY_OUTPUT_TAIL_CHARS = 2_000;
 const MAX_PLAN_TEAMMATES = 6;
 const MAX_PLAN_TASKS = 20;
@@ -483,12 +488,19 @@ export class CanvasAgentTeamsService {
   // (PTY created but sessionId not yet persisted to canvas.json) is not
   // falsely reviewed.
   private readonly watchdogSuspects = new Set<string>();
+  // Whether any window is open. Agents are (re)launched by the renderer, so
+  // while no window exists, dead-session reviews achieve nothing actionable —
+  // auto-resume recovers everything the moment a window opens. Injected from
+  // bootstrap; defaults to true so tests and non-Electron use are unaffected.
+  hasOpenWindows: () => boolean = () => true;
   // Soft-stall detection: when a live session stops producing output for this
   // long while holding a task, the lead is nudged (no state change). Public so
   // tests can shrink the window.
   softStallThresholdMs = SOFT_STALL_THRESHOLD_MS;
   private readonly lastAgentOutputAt = new Map<string, number>();
   private readonly softStallNudgedAt = new Map<string, number>();
+  // nodeId -> agent identity for the PTY hot path (one entry per team node).
+  private readonly nodeAgentCache = new Map<string, { teamId: string; agentId: string }>();
 
   private withTeamLock<T>(workspaceId: string, teamId: string, run: () => Promise<T>): Promise<T> {
     const key = `${workspaceId}:${teamId}`;
@@ -501,8 +513,14 @@ export class CanvasAgentTeamsService {
   }
 
   async createTeam(input: CanvasAgentTeamCreateInput): Promise<CanvasAgentTeamSnapshot> {
-    const { runtime, store } = this.getBundle(input.workspaceId);
     const teamId = randomUUID();
+    // The heartbeat discovers teams from persisted state and can take this
+    // team's lock mid-creation; serialize creation like every other mutation.
+    return this.withTeamLock(input.workspaceId, teamId, () => this.createTeamLocked(input, teamId));
+  }
+
+  private async createTeamLocked(input: CanvasAgentTeamCreateInput, teamId: string): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime, store } = this.getBundle(input.workspaceId);
     const leadAgentId = randomUUID();
 
     await runtime.createTeam({
@@ -741,8 +759,8 @@ export class CanvasAgentTeamsService {
         createdBy: lead?.id ?? 'runtime',
         metadata: {
           kind: 'leader-plan-task',
-          ...(task.scope && task.scope.length > 0 ? { scope: task.scope } : {}),
-          ...(task.verify ? { verify: task.verify } : {}),
+          ...(task.scope && task.scope.length > 0 ? { [TASK_METADATA_KEYS.scope]: task.scope } : {}),
+          ...(task.verify ? { [TASK_METADATA_KEYS.verify]: task.verify } : {}),
         },
       });
     }
@@ -855,8 +873,12 @@ export class CanvasAgentTeamsService {
     const snapshot = await runtime.snapshot(input.teamId);
     // The plan belongs to the Lead (and the human). A teammate that found
     // extra work reports it instead of silently expanding the task graph.
+    // A sourceAgentId that does not resolve in THIS team (stale env from
+    // another team's shell) is treated as the human operator, not an error.
     const source = input.sourceAgentId
-      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      ? snapshot.agents.find((candidate) =>
+        candidate.id === input.sourceAgentId
+        || candidate.name.toLowerCase() === input.sourceAgentId!.toLowerCase())
       : undefined;
     if (source && source.role !== 'lead') {
       throw new Error([
@@ -874,8 +896,8 @@ export class CanvasAgentTeamsService {
       ...this.resolveTaskReferences(snapshot.tasks, depRefs),
     ]));
     const taskMetadata: Record<string, unknown> = {};
-    if (input.scope && input.scope.length > 0) taskMetadata.scope = input.scope;
-    if (input.verify && input.verify.trim()) taskMetadata.verify = input.verify.trim();
+    if (input.scope && input.scope.length > 0) taskMetadata[TASK_METADATA_KEYS.scope] = input.scope;
+    if (input.verify && input.verify.trim()) taskMetadata[TASK_METADATA_KEYS.verify] = input.verify.trim();
     await runtime.createTask({
       teamId: input.teamId,
       title: input.title,
@@ -918,7 +940,16 @@ export class CanvasAgentTeamsService {
   }
 
     private async resumeTeamLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
-    const { runtime } = this.getBundle(workspaceId);
+    const { runtime, store } = this.getBundle(workspaceId);
+    // Resuming at a checkpoint advances the round (runtime.resumeTeam), which
+    // is the user choosing to continue — withdraw a pending Finish exactly
+    // like advanceRound does, or the next checkpoint silently auto-finalizes.
+    const metadata = await store.getTeamMetadata(teamId);
+    if (metadata?.pendingFinalization) {
+      metadata.pendingFinalization = undefined;
+      metadata.updatedAt = Date.now();
+      await store.saveTeamMetadata(teamId, metadata);
+    }
     await runtime.resumeTeam(teamId, 'Resumed from the Agent Team frame.');
     await runtime.dispatchReadyTasks(teamId);
     return this.snapshotInternal(workspaceId, teamId);
@@ -949,22 +980,29 @@ export class CanvasAgentTeamsService {
 
     private async finalizeFromCheckpointLocked(workspaceId: string, teamId: string): Promise<CanvasAgentTeamSnapshot> {
     const { runtime, store } = this.getBundle(workspaceId);
+    // Finish is only valid at a checkpoint. Without this guard a stale or
+    // double-fired Finish on a paused/running team would inject an
+    // integration task into unfinished work and arm pendingFinalization.
+    const team = await store.getTeam(teamId);
+    if (team?.status !== 'round_checkpoint') {
+      throw new Error(`Cannot finalize: team status is '${team?.status ?? 'unknown'}', expected 'round_checkpoint'`);
+    }
     // When the plan declared a team-level integration check, Finish first
     // runs it as a regular teammate task (its verify IS the integration
     // command, so acceptance re-runs it mechanically). Once that round
     // settles, the heartbeat auto-finalizes via pendingFinalization — the
-    // human only clicks Finish once.
+    // human only clicks Finish once. The check is ROUND-scoped: a reopened
+    // team's later rounds re-run integration on the new work instead of
+    // matching a long-finished round's task.
     const metadata = await store.getTeamMetadata(teamId);
     const integration = metadata?.integrationVerify?.trim();
+    const currentRound = readCurrentRound(team.metadata);
     if (metadata && integration) {
       const tasks = await store.listTasks(teamId);
-      const existing = tasks.find((task) => task.metadata?.kind === 'integration-verification');
+      const existing = tasks.find((task) =>
+        task.metadata?.kind === 'integration-verification'
+        && readTaskRound(task.metadata) === currentRound);
       if (!existing) {
-        const team = await store.getTeam(teamId);
-        const rawRound = team?.metadata?.currentRound;
-        const currentRound = typeof rawRound === 'number' && Number.isFinite(rawRound) && rawRound >= 1
-          ? Math.floor(rawRound)
-          : 1;
         await runtime.createTask({
           teamId,
           title: 'Integration verification',
@@ -979,8 +1017,8 @@ export class CanvasAgentTeamsService {
           createdBy: 'runtime',
           metadata: {
             kind: 'integration-verification',
-            round: currentRound,
-            verify: integration,
+            [TASK_METADATA_KEYS.round]: currentRound,
+            [TASK_METADATA_KEYS.verify]: integration,
           },
         });
         metadata.pendingFinalization = true;
@@ -1091,21 +1129,30 @@ export class CanvasAgentTeamsService {
       const tasks = await store.listTasks(input.teamId);
       const task = this.resolveTaskForAction(tasks, input.taskId, agent);
       if (task.status === 'done' || task.status === 'failed') return undefined;
-      const raw = typeof task.metadata?.verify === 'string' ? task.metadata.verify.trim() : '';
-      if (!raw || raw.toLowerCase() === 'manual') return undefined;
+      const command = readTaskVerifyCommand(task.metadata);
+      if (!command) return undefined;
+      // A missing handoff fails the completion anyway — check it BEFORE
+      // burning up to the verify timeout on a submission that will be
+      // rejected by the locked path regardless.
+      if (!isExistingFile(store.handoffPath(input.teamId, task.id))) return undefined;
       const metadata = await store.getTeamMetadata(input.teamId);
-      return await this.runTaskVerification(raw, metadata?.cwd || agent.cwd);
+      // Integration checks may legitimately run a full suite; give them a
+      // longer budget than per-task verifies.
+      const timeoutMs = task.metadata?.kind === 'integration-verification'
+        ? INTEGRATION_VERIFY_TIMEOUT_MS
+        : VERIFY_TIMEOUT_MS;
+      return await this.runTaskVerification(command, metadata?.cwd || agent.cwd, timeoutMs);
     } catch {
       return undefined;
     }
   }
 
-  private runTaskVerification(command: string, cwd: string | undefined): Promise<TaskVerificationResult> {
+  private runTaskVerification(command: string, cwd: string | undefined, timeoutMs = VERIFY_TIMEOUT_MS): Promise<TaskVerificationResult> {
     const startedAt = Date.now();
     return new Promise((resolve) => {
       exec(command, {
         cwd: cwd && isExistingDirectory(cwd) ? cwd : undefined,
-        timeout: VERIFY_TIMEOUT_MS,
+        timeout: timeoutMs,
         maxBuffer: 4 * 1024 * 1024,
       }, (error, stdout, stderr) => {
         const output = `${stdout ?? ''}${stderr ? `\n${stderr}` : ''}`.trim();
@@ -1403,14 +1450,14 @@ export class CanvasAgentTeamsService {
 
   async reportAgentOutput(workspaceId: string, nodeId: string, delta: string): Promise<CanvasAgentTeamSnapshot | null> {
     if (!delta) return null;
-    const preMatch = await this.findAgentByNodeId(this.getBundle(workspaceId).store, nodeId);
+    const preMatch = await this.resolveAgentNodeCached(workspaceId, nodeId);
     if (!preMatch) return null;
     return this.withTeamLock(workspaceId, preMatch.teamId, () => this.reportAgentOutputLocked(workspaceId, nodeId, delta));
   }
 
   private async reportAgentOutputLocked(workspaceId: string, nodeId: string, delta: string): Promise<CanvasAgentTeamSnapshot | null> {
     const { runtime, store } = this.getBundle(workspaceId);
-    const match = await this.findAgentByNodeId(store, nodeId);
+    const match = await this.resolveAgentNodeCached(workspaceId, nodeId);
     if (!match) return null;
 
     const bufferKey = `${workspaceId}:${nodeId}`;
@@ -1425,11 +1472,20 @@ export class CanvasAgentTeamsService {
     for (const line of parts) {
       const marker = parseAgentOutputMarker(line);
       if (!marker) continue;
-      changed = (await this.applyAgentOutputMarker(runtime, store, match.agent, marker)) || changed;
+      try {
+        changed = (await this.applyAgentOutputMarker(runtime, store, match.agent, marker)) || changed;
+      } catch (err) {
+        // One bad marker must not abort the rest of this chunk's lines.
+        console.warn('[agent-teams] output marker failed:', err);
+      }
     }
     const pendingMarker = parseAgentOutputMarker(pending);
     if (pendingMarker && pendingMarker.text.trim()) {
-      changed = (await this.applyAgentOutputMarker(runtime, store, match.agent, pendingMarker)) || changed;
+      try {
+        changed = (await this.applyAgentOutputMarker(runtime, store, match.agent, pendingMarker)) || changed;
+      } catch (err) {
+        console.warn('[agent-teams] output marker failed:', err);
+      }
       this.outputBuffers.set(bufferKey, '');
     }
 
@@ -1438,14 +1494,14 @@ export class CanvasAgentTeamsService {
   }
 
   async reportAgentExit(workspaceId: string, nodeId: string, code?: number): Promise<CanvasAgentTeamSnapshot | null> {
-    const preMatch = await this.findAgentByNodeId(this.getBundle(workspaceId).store, nodeId);
+    const preMatch = await this.resolveAgentNodeCached(workspaceId, nodeId);
     if (!preMatch) return null;
     return this.withTeamLock(workspaceId, preMatch.teamId, () => this.reportAgentExitLocked(workspaceId, nodeId, code));
   }
 
   private async reportAgentExitLocked(workspaceId: string, nodeId: string, code?: number): Promise<CanvasAgentTeamSnapshot | null> {
     const { runtime, store } = this.getBundle(workspaceId);
-    const match = await this.findAgentByNodeId(store, nodeId);
+    const match = await this.resolveAgentNodeCached(workspaceId, nodeId);
     if (!match) return null;
 
     const bufferKey = `${workspaceId}:${nodeId}`;
@@ -1579,29 +1635,16 @@ export class CanvasAgentTeamsService {
   }
 
   async listTeams(workspaceId: string): Promise<CanvasAgentTeamSnapshot[]> {
-    const { runtime, store } = this.getBundle(workspaceId);
+    const { store } = this.getBundle(workspaceId);
     const entries = await store.listTeamMetadata();
     const snapshots: CanvasAgentTeamSnapshot[] = [];
     for (const entry of entries) {
       try {
-        const snapshot = await this.withTeamLock(workspaceId, entry.teamId, async () => {
-          await ensureAgentTeamCanvasLayout(workspaceId, entry.teamId);
-          await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
-          await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
-          await runtime.notifyLeadPendingGates(entry.teamId);
-          await runtime.notifyLeadPendingTaskReviews(entry.teamId);
-          await runtime.notifyLeadReviewIfStalled(entry.teamId);
-          const runtimeSnapshot = await runtime.snapshot(entry.teamId);
-          return {
-            workspaceId,
-            frameNodeId: entry.metadata.frameNodeId,
-            phase: inferPhase(entry.metadata, runtimeSnapshot),
-            pendingPlan: entry.metadata.pendingPlan,
-            approvedPlan: entry.metadata.approvedPlan,
-            runtime: runtimeSnapshot,
-          };
-        });
-        snapshots.push(snapshot);
+        // Same maintenance + shape as the single-team snapshot — one body to
+        // keep in sync (and it re-reads metadata instead of using the
+        // possibly stale listing entry).
+        snapshots.push(await this.withTeamLock(workspaceId, entry.teamId, () =>
+          this.snapshotInternal(workspaceId, entry.teamId)));
       } catch (err) {
         console.warn(`[agent-teams] failed to snapshot team ${entry.teamId}:`, err);
       }
@@ -1666,19 +1709,33 @@ export class CanvasAgentTeamsService {
     }
   }
 
+  private workspaceScanCache: { at: number; ids: string[] } | null = null;
+
   private async discoverWorkspaceIds(): Promise<string[]> {
     const ids = new Set(this.runtimes.keys());
-    try {
-      const dirents = await fsPromises.readdir(STORE_DIR, { withFileTypes: true });
-      for (const dirent of dirents) {
-        if (!dirent.isDirectory()) continue;
-        if (isExistingFile(join(STORE_DIR, dirent.name, 'agent-teams', 'state.json'))) {
-          ids.add(dirent.name);
-        }
+    // The on-disk set changes only when a team is created in a new workspace
+    // (which goes through getBundle and is picked up immediately above);
+    // rescan the directory at most once a minute, with async stats, so the
+    // heartbeat never blocks the main thread on storage I/O.
+    if (!this.workspaceScanCache || Date.now() - this.workspaceScanCache.at > 60_000) {
+      const found: string[] = [];
+      try {
+        const dirents = await fsPromises.readdir(STORE_DIR, { withFileTypes: true });
+        await Promise.all(dirents.map(async (dirent) => {
+          if (!dirent.isDirectory()) return;
+          try {
+            const stat = await fsPromises.stat(join(STORE_DIR, dirent.name, 'agent-teams', 'state.json'));
+            if (stat.isFile()) found.push(dirent.name);
+          } catch {
+            // No team state in this workspace.
+          }
+        }));
+      } catch {
+        // Store directory may not exist yet.
       }
-    } catch {
-      // Store directory may not exist yet.
+      this.workspaceScanCache = { at: Date.now(), ids: found };
     }
+    for (const id of this.workspaceScanCache.ids) ids.add(id);
     return [...ids];
   }
 
@@ -1707,15 +1764,26 @@ export class CanvasAgentTeamsService {
    * relaunches the agent when its node next mounts.
    */
   private async watchdogCheckAgents(workspaceId: string, teamId: string): Promise<void> {
+    // Suspended while no window is open: nothing can relaunch agents, so
+    // declaring sessions dead only accumulates stale review prompts for the
+    // (equally dead) lead. Window reopen -> auto-resume handles recovery.
+    if (!this.hasOpenWindows()) return;
     const { runtime, store } = this.getBundle(workspaceId);
     const agents = await store.listAgents(teamId);
+    const watched = agents.filter((agent) =>
+      agent.status === 'running' && !!agent.currentTaskId && !!agent.sessionRef);
+    const states = await getCanvasAgentNodesRuntimeState(
+      workspaceId,
+      watched.map((agent) => agent.sessionRef!.sessionId),
+    );
     for (const agent of agents) {
       const suspectKey = `${workspaceId}:${agent.id}`;
       if (agent.status !== 'running' || !agent.currentTaskId || !agent.sessionRef) {
         this.watchdogSuspects.delete(suspectKey);
         continue;
       }
-      const state = await getCanvasAgentNodeRuntimeState(workspaceId, agent.sessionRef.sessionId);
+      const state = states.get(agent.sessionRef.sessionId)
+        ?? { exists: false, status: 'missing', ptyAlive: false, hasQueuedLaunch: false };
       // A queued launch prompt means the agent is waiting for the renderer to
       // spawn it — healthy headless state, not a dead session.
       if (state.ptyAlive || state.hasQueuedLaunch) {
@@ -1830,6 +1898,32 @@ export class CanvasAgentTeamsService {
     }
   }
 
+
+  /**
+   * Resolve which team agent a canvas node belongs to, cached for the PTY
+   * output hot path. findAgentByNodeId deep-clones every team's metadata on
+   * each call — far too expensive per output chunk. The node->agent mapping
+   * never changes once created, so a hit is validated with a single getAgent
+   * (sessionRef.sessionId is the node id) and deleted teams self-heal.
+   */
+  private async resolveAgentNodeCached(workspaceId: string, nodeId: string): Promise<AgentNodeMatch | null> {
+    const key = `${workspaceId}:${nodeId}`;
+    const { store } = this.getBundle(workspaceId);
+    const cached = this.nodeAgentCache.get(key);
+    if (cached) {
+      const agent = await store.getAgent(cached.agentId);
+      if (agent && agent.teamId === cached.teamId && agent.sessionRef?.sessionId === nodeId) {
+        return { teamId: cached.teamId, agent };
+      }
+      this.nodeAgentCache.delete(key);
+    }
+    const match = await this.findAgentByNodeId(store, nodeId);
+    if (match) {
+      this.nodeAgentCache.set(key, { teamId: match.teamId, agentId: match.agent.id });
+    }
+    return match;
+  }
+
   private async findAgentByNodeId(store: CanvasAgentTeamStore, nodeId: string): Promise<AgentNodeMatch | null> {
     const entries = await store.listTeamMetadata();
     for (const entry of entries) {
@@ -1932,7 +2026,21 @@ export class CanvasAgentTeamsService {
     if (marker.kind === 'plan') {
       if (agent.role !== 'lead') return false;
       const now = Date.now();
-      const plan = parsePlanDraft(text, agent.id, now);
+      let plan: CanvasAgentTeamPlanDraft | null;
+      try {
+        plan = parsePlanDraft(text, agent.id, now);
+      } catch (err) {
+        // Validation errors (e.g. oversized plans) must reach the lead — the
+        // marker path has no HTTP response to carry them, and swallowing the
+        // throw would leave the team silently stuck in briefing.
+        await runtime.notifyLeadAttention(agent.teamId, [
+          'Your proposed plan was rejected:',
+          err instanceof Error ? err.message : String(err),
+          '',
+          'Fix the plan and resubmit with: pulse-canvas team propose-plan --plan-json \'<json>\'',
+        ].join('\n'));
+        return true;
+      }
       if (!plan) return false;
       const metadata = await this.requireMetadata(store, agent.teamId);
       metadata.pendingPlan = plan;

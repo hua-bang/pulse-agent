@@ -33,8 +33,4 @@ export const createAgentTeamsApi = (ipcRenderer: IpcRenderer): AgentTeamsApi => 
   interruptAgent: (input) => ipcRenderer.invoke('agent-teams:interrupt-agent', input),
   sendInput: (workspaceId, teamId, agentId, content) =>
     ipcRenderer.invoke('agent-teams:send-input', { workspaceId, teamId, agentId, content }),
-  reportAgentOutput: (workspaceId, nodeId, delta) =>
-    ipcRenderer.invoke('agent-teams:agent-output', { workspaceId, nodeId, delta }),
-  reportAgentExit: (workspaceId, nodeId, code) =>
-    ipcRenderer.invoke('agent-teams:agent-exit', { workspaceId, nodeId, code }),
 });

@@ -40,8 +40,13 @@ import {
   createTeamAgentNode,
   ensureAgentTeamCanvasLayout,
   removeAgentTeamCanvasNodes,
+  sendOrQueueAgentInput,
   stopAgentTeamCanvasNodes,
+  updateAgentTeamCanvasCwd,
 } from '../agent-teams/canvas-nodes';
+import { promises as realFs } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 describe('agent team canvas node layout', () => {
   beforeEach(() => {
@@ -425,5 +430,65 @@ describe('agent team canvas node layout', () => {
       kind: 'delete',
       source: 'agent-teams',
     });
+  });
+
+  it('accumulates queued inputs with segment dedupe and survives a cwd move', async () => {
+    const cwdA = join(tmpdir(), `team-queue-a-${Date.now()}`);
+    const cwdB = join(tmpdir(), `team-queue-b-${Date.now()}`);
+    await realFs.mkdir(cwdA, { recursive: true });
+    mockState.canvas = {
+      nodes: [
+        {
+          id: 'agent-q',
+          type: 'agent',
+          title: 'Lead',
+          x: 0,
+          y: 0,
+          width: 480,
+          height: 260,
+          data: {
+            agentTeamId: 'team-q',
+            agentTeamRole: 'lead',
+            agentType: 'codex',
+            cwd: cwdA,
+            sessionId: '',
+            status: 'idle',
+          },
+          updatedAt: Date.now(),
+        },
+      ],
+      edges: [],
+      transform: { x: 0, y: 0, scale: 1 },
+      savedAt: new Date().toISOString(),
+    } as unknown as CanvasSaveData;
+
+    // A long first message spills to a prompt file under cwd A.
+    const longPrompt = `FIRST BRIEFING ${'x'.repeat(2000)}`;
+    await sendOrQueueAgentInput('ws-1', 'agent-q', longPrompt);
+    const afterFirst = mockState.canvas!.nodes[0];
+    const promptFile = afterFirst.data.promptFile as string;
+    expect(promptFile).toBeTruthy();
+
+    // Duplicate re-send is deduped (segment equality, not substring).
+    await sendOrQueueAgentInput('ws-1', 'agent-q', longPrompt);
+    let content = await realFs.readFile(join(cwdA, promptFile), 'utf-8');
+    expect(content.match(/FIRST BRIEFING/g)).toHaveLength(1);
+
+    // A short message CONTAINED in the long one must still be appended.
+    await sendOrQueueAgentInput('ws-1', 'agent-q', 'FIRST BRIEFING');
+    content = await realFs.readFile(join(cwdA, (mockState.canvas!.nodes[0].data.promptFile as string)), 'utf-8');
+    expect(content.match(/FIRST BRIEFING/g)!.length).toBeGreaterThanOrEqual(2);
+
+    // Moving the team cwd migrates the queued prompt file; nothing is lost.
+    await updateAgentTeamCanvasCwd('ws-1', 'team-q', cwdB);
+    await sendOrQueueAgentInput('ws-1', 'agent-q', 'AFTER MOVE message');
+    const moved = mockState.canvas!.nodes[0];
+    const movedFile = moved.data.promptFile as string;
+    const movedContent = await realFs.readFile(join(cwdB, movedFile), 'utf-8');
+    expect(movedContent).toContain('FIRST BRIEFING');
+    expect(movedContent).toContain('AFTER MOVE message');
+
+    await realFs.rm(cwdA, { recursive: true, force: true });
+    await realFs.rm(cwdB, { recursive: true, force: true });
   });
 });

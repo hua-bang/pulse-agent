@@ -259,27 +259,4 @@ export function setupCanvasAgentTeamsIpc(): void {
     },
   );
 
-  ipcMain.handle(
-    'agent-teams:agent-output',
-    async (_event, payload: { workspaceId: string; nodeId: string; delta: string }) => {
-      try {
-        const snapshot = await service.reportAgentOutput(payload.workspaceId, payload.nodeId, payload.delta);
-        return ok({ snapshot });
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
-
-  ipcMain.handle(
-    'agent-teams:agent-exit',
-    async (_event, payload: { workspaceId: string; nodeId: string; code?: number }) => {
-      try {
-        const snapshot = await service.reportAgentExit(payload.workspaceId, payload.nodeId, payload.code);
-        return ok({ snapshot });
-      } catch (err) {
-        return fail(err);
-      }
-    },
-  );
 }

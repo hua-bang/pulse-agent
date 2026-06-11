@@ -104,6 +104,8 @@ export const setupPtyIpc = () => {
       if (sessions.has(id)) {
         return { ok: true, reused: true };
       }
+      // A fresh spawn means the app is live again after any teardown.
+      intentionalShutdown = false;
 
       try {
         const shell = defaultShell();
@@ -195,7 +197,16 @@ export const setupPtyIpc = () => {
   });
 };
 
+// Set while the app itself is tearing PTYs down (window-all-closed, quit).
+// Observers use this to tell an intentional shutdown apart from a crash —
+// without it, closing the window on macOS (app stays alive) mass-reports
+// every team agent as died-mid-task. Cleared when the next session spawns.
+let intentionalShutdown = false;
+
+export const isIntentionalPtyShutdown = (): boolean => intentionalShutdown;
+
 export const killAllPty = () => {
+  intentionalShutdown = true;
   for (const [id, proc] of sessions) {
     try {
       proc.kill();

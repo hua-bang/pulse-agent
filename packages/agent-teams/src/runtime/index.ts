@@ -1,4 +1,12 @@
-export { TeamRuntime } from './team-runtime.js';
+export {
+  TeamRuntime,
+  TASK_METADATA_KEYS,
+  readCurrentRound,
+  readTaskRound,
+  readTaskScope,
+  readTaskVerification,
+  readTaskVerifyCommand,
+} from './team-runtime.js';
 export type { TeamRuntimeOptions } from './team-runtime.js';
 export { InMemoryTeamRuntimeStore } from './memory-store.js';
 export { assertTaskGraphAcyclic, findTaskGraphCycle } from './task-graph.js';

@@ -32,6 +32,10 @@ interface PersistedAgentTeamRuntimeState {
 // JSONL archive so later reporting/metrics can still read the full record.
 const MAX_TEAM_EVENTS = 400;
 const MAX_TEAM_MESSAGES = 400;
+// Hysteresis: trim only after exceeding the cap by this much, down to the
+// cap — otherwise every steady-state append would pay two full-array scans
+// plus an archive write for a single dropped record.
+const TRIM_SLACK = 50;
 
 const emptyState = (): PersistedAgentTeamRuntimeState => ({
   teams: [],
@@ -44,7 +48,7 @@ const emptyState = (): PersistedAgentTeamRuntimeState => ({
   metadata: {},
 });
 
-const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+const clone = <T>(value: T): T => structuredClone(value);
 
 export class CanvasAgentTeamStore implements TeamRuntimeStore {
   private loaded = false;
@@ -57,6 +61,7 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
   // and one rename can fire after another already moved the temp file, throwing
   // `ENOENT ... rename state.json.tmp -> state.json`.
   private persistQueue: Promise<void> = Promise.resolve();
+  private archiveDirReady = false;
 
   constructor(private readonly workspaceId: string) {}
 
@@ -174,7 +179,7 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
     await this.ensureLoaded();
     this.state.events.push(clone(event));
     const teamEvents = this.state.events.filter((item) => item.teamId === event.teamId);
-    if (teamEvents.length > MAX_TEAM_EVENTS) {
+    if (teamEvents.length > MAX_TEAM_EVENTS + TRIM_SLACK) {
       const dropped = new Set(teamEvents.slice(0, teamEvents.length - MAX_TEAM_EVENTS));
       this.state.events = this.state.events.filter((item) => !dropped.has(item));
       await this.archiveDropped('events', event.teamId, [...dropped]);
@@ -194,7 +199,7 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
     await this.ensureLoaded();
     this.state.messages.push(clone(message));
     const teamMessages = this.state.messages.filter((item) => item.teamId === message.teamId);
-    if (teamMessages.length > MAX_TEAM_MESSAGES) {
+    if (teamMessages.length > MAX_TEAM_MESSAGES + TRIM_SLACK) {
       const dropped = new Set(teamMessages.slice(0, teamMessages.length - MAX_TEAM_MESSAGES));
       this.state.messages = this.state.messages.filter((item) => !dropped.has(item));
       await this.archiveDropped('messages', message.teamId, [...dropped]);
@@ -283,7 +288,10 @@ export class CanvasAgentTeamStore implements TeamRuntimeStore {
     if (dropped.length === 0) return;
     try {
       const dir = join(this.dir, 'archive');
-      await fs.mkdir(dir, { recursive: true });
+      if (!this.archiveDirReady) {
+        await fs.mkdir(dir, { recursive: true });
+        this.archiveDirReady = true;
+      }
       const lines = `${dropped.map((item) => JSON.stringify(item)).join('\n')}\n`;
       await fs.appendFile(join(dir, `${teamId}.${kind}.jsonl`), lines, 'utf-8');
     } catch {

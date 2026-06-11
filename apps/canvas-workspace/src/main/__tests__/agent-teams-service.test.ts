@@ -55,6 +55,18 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
     ptyAlive: mockState.ptyAlive,
     hasQueuedLaunch: mockState.queuedLaunch,
   })),
+  getCanvasAgentNodesRuntimeState: vi.fn(async (_workspaceId: string, nodeIds: string[]) => {
+    const result = new Map<string, unknown>();
+    for (const nodeId of nodeIds) {
+      result.set(nodeId, {
+        exists: true,
+        status: 'running',
+        ptyAlive: mockState.ptyAlive,
+        hasQueuedLaunch: mockState.queuedLaunch,
+      });
+    }
+    return result;
+  }),
   sendOrQueueAgentInput: vi.fn(async (workspaceId: string, nodeId: string, input: string) => {
     mockState.queuedInputs.push({ workspaceId, nodeId, input });
   }),
@@ -1001,6 +1013,117 @@ describe('CanvasAgentTeamsService', () => {
 
     // A second Finish (already-run integration) goes straight to review.
     // (Covered implicitly: the existing task short-circuits re-injection.)
+  });
+
+  it('rejects Finish outside a round checkpoint', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    // Team is running (tasks in flight) — a stale/double-fired Finish must
+    // not inject work or arm pendingFinalization.
+    await expect(service.finalizeFromCheckpoint('ws-1', teamId)).rejects.toThrow("expected 'round_checkpoint'");
+  });
+
+  it('re-runs integration verification for a later round instead of matching round 1', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'Round-scoped integration.',
+        teammates: [{ name: 'Codex Exec', agentType: 'codex' }],
+        tasks: [{ title: 'Implement thing', description: 'Do it.', ownerName: 'Codex Exec' }],
+        integrationVerify: 'node -e "process.exit(0)"',
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const implement = confirmed.runtime.tasks.find((task) => task.title === 'Implement thing')!;
+
+    // Round 1: finish -> integration task -> settle -> auto-finalize -> complete.
+    await service.completeTask('ws-1', teamId, implement.id, 'Done.');
+    const finalized = await service.finalizeFromCheckpoint('ws-1', teamId);
+    const integration1 = finalized.runtime.tasks.find((task) => task.title === 'Integration verification')!;
+    await service.completeTask('ws-1', teamId, integration1.id, 'Green.');
+    await service.heartbeatTick();
+    await service.completeTeam('ws-1', teamId, { sourceAgentId: lead.id, summary: 'Shipped.' });
+
+    // Reopen for a second round of work.
+    await service.sendInput('ws-1', teamId, lead.id, 'Next milestone.');
+    const roundTwo = await service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'Round two work',
+      description: 'More work.',
+      ownerName: 'Codex Exec',
+    });
+    const followUp = roundTwo.tasks.find((task) => task.title === 'Round two work')!;
+    await service.dispatch('ws-1', teamId);
+    await service.completeTask('ws-1', teamId, followUp.id, 'Done.');
+    expect((await service.snapshot('ws-1', teamId)).runtime.team.status).toBe('round_checkpoint');
+
+    // Finish must create a NEW integration task for THIS round rather than
+    // matching the long-finished round-1 task and skipping verification.
+    const finalized2 = await service.finalizeFromCheckpoint('ws-1', teamId);
+    const integrationTasks = finalized2.runtime.tasks.filter((task) => task.title === 'Integration verification');
+    expect(integrationTasks).toHaveLength(2);
+    expect(integrationTasks.some((task) => task.status === 'in_progress')).toBe(true);
+  });
+
+  it('tells the lead when a plan submitted via output marker is rejected', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const lead = created.runtime.agents.find((agent) => agent.role === 'lead')!;
+    const oversized = {
+      summary: 'Too many tasks via marker.',
+      teammates: [{ name: 'Codex Exec' }],
+      tasks: Array.from({ length: 21 }, (_, index) => ({
+        title: `Task ${index + 1}`,
+        description: 'Do it.',
+        ownerName: 'Codex Exec',
+      })),
+    };
+
+    await service.reportAgentOutput(
+      'ws-1',
+      lead.sessionRef!.sessionId,
+      `[agent-team:plan] ${JSON.stringify(oversized)}\n`,
+    );
+
+    // No pending plan was recorded, and the lead received the actionable
+    // rejection instead of the team silently stalling in briefing.
+    const snapshot = await service.snapshot('ws-1', created.runtime.team.id);
+    expect(snapshot.pendingPlan).toBeUndefined();
+    const rejection = [...mockState.queuedInputs].reverse()
+      .find((entry) => entry.input.includes('Your proposed plan was rejected'));
+    expect(rejection).toBeDefined();
+    expect(rejection?.nodeId).toBe(lead.sessionRef!.sessionId);
+    expect(rejection?.input).toContain('maximum is 20');
+  });
+
+  it('suspends dead-session reviews while no window is open', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks.find((candidate) => candidate.title === 'Implement checkout refactor')!;
+
+    mockState.ptyAlive = false;
+    mockState.queuedLaunch = false;
+    service.hasOpenWindows = () => false;
+    // No matter how many ticks pass with the app closed, nothing can relaunch
+    // agents — flipping tasks to review would only accumulate stale prompts.
+    await service.heartbeatTick();
+    await service.heartbeatTick();
+    await service.heartbeatTick();
+    expect((await service.snapshot('ws-1', teamId)).runtime.tasks.find((candidate) => candidate.id === task.id)?.status)
+      .toBe('in_progress');
+
+    // A window opens: the watchdog resumes its two-tick confirmation.
+    service.hasOpenWindows = () => true;
+    await service.heartbeatTick();
+    await service.heartbeatTick();
+    expect((await service.snapshot('ws-1', teamId)).runtime.tasks.find((candidate) => candidate.id === task.id)?.status)
+      .toBe('needs_review');
   });
 
   it('rejects a teammate completion until the handoff file exists', async () => {

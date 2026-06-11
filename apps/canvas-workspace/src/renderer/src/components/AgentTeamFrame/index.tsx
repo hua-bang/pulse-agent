@@ -199,6 +199,8 @@ interface GraphTaskItem {
   updatedAt?: number;
   result?: string;
   blockedReason?: string;
+  scope?: string[];
+  verify?: string;
   sourceTask?: AgentTeamTaskRecord;
   dependencyWarning?: boolean;
 }
@@ -398,6 +400,8 @@ export const AgentTeamFrame = ({
           depLabels: task.deps,
           artifactCount: 0,
           updatedAt: plan.updatedAt,
+          scope: task.scope,
+          verify: task.verify,
           dependencyWarning: task.deps.length === 0 && isLikelyDownstreamPlanTask(task),
         };
       });
@@ -419,6 +423,10 @@ export const AgentTeamFrame = ({
         updatedAt: task.updatedAt,
         result: task.result,
         blockedReason: task.blockedReason,
+        scope: Array.isArray(task.metadata?.scope)
+          ? (task.metadata.scope as unknown[]).filter((entry): entry is string => typeof entry === 'string')
+          : undefined,
+        verify: typeof task.metadata?.verify === 'string' ? task.metadata.verify : undefined,
         sourceTask: task,
       };
     });
@@ -816,24 +824,44 @@ export const AgentTeamFrame = ({
     setSelectedTaskId(defaultTask?.id ?? orderedTasks[0].id);
   }, [defaultTask, orderedTasks, selectedTaskId, taskById]);
 
+  const refreshInFlight = useRef(false);
+  const refreshQueued = useRef(false);
   const refresh = useCallback(async () => {
     if (!api || !workspaceId || !teamId) return;
-    setLoading(true);
-    const result = await api.snapshot(workspaceId, teamId);
-    setLoading(false);
-    if (!result.ok || !result.snapshot) {
-      setError(result.error ?? 'Unable to load team.');
+    // Coalesce: pushes and the poll can overlap during event bursts; a
+    // snapshot call is not free (it runs the team's repair/nudge pass), so
+    // run one at a time and fold concurrent requests into a single rerun.
+    if (refreshInFlight.current) {
+      refreshQueued.current = true;
       return;
     }
-    setError(null);
-    setSnapshot(result.snapshot);
+    refreshInFlight.current = true;
+    try {
+      setLoading(true);
+      const result = await api.snapshot(workspaceId, teamId);
+      setLoading(false);
+      if (!result.ok || !result.snapshot) {
+        setError(result.error ?? 'Unable to load team.');
+        return;
+      }
+      setError(null);
+      setSnapshot(result.snapshot);
+    } finally {
+      refreshInFlight.current = false;
+      if (refreshQueued.current) {
+        refreshQueued.current = false;
+        void refresh();
+      }
+    }
   }, [api, workspaceId, teamId]);
 
   useEffect(() => {
     void refresh();
+    // Push (onExternalUpdate below) is the primary update path; the poll is a
+    // fallback only, so it can be slow.
     const timer = setInterval(() => {
       void refresh();
-    }, 5000);
+    }, 15000);
     return () => clearInterval(timer);
   }, [refresh]);
 
@@ -1600,6 +1628,18 @@ export const AgentTeamFrame = ({
             )}
           </div>
         </div>
+        {selectedGraphTask.scope && selectedGraphTask.scope.length > 0 && (
+          <div className="agent-team-detail__result">
+            <span className="agent-team-detail__section-title">Scope</span>
+            <span>{selectedGraphTask.scope.join(', ')}</span>
+          </div>
+        )}
+        {selectedGraphTask.verify && (
+          <div className="agent-team-detail__result">
+            <span className="agent-team-detail__section-title">Verify</span>
+            <span>{selectedGraphTask.verify}</span>
+          </div>
+        )}
         {selectedGraphTask.result && (
           <div className="agent-team-detail__result">
             <span className="agent-team-detail__section-title">Result</span>
@@ -1749,6 +1789,11 @@ export const AgentTeamFrame = ({
                 </button>
               ))}
             </div>
+          )}
+          {phase === 'plan_review' && plan?.integrationVerify && (
+            <span className="agent-team-frame__hint" title={plan.integrationVerify}>
+              Integration verify: <code>{plan.integrationVerify}</code>
+            </span>
           )}
           {phase === 'plan_review' && plan && (
             <button type="button" className="agent-team-frame__primary-action" onClick={handleConfirmPlan} disabled={readOnly}>
