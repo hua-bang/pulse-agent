@@ -5,6 +5,7 @@ import { CheckIcon } from '../icons';
 import type { ModelSelection } from './modelSettingsTypes';
 import { providerLabel } from './modelSettingsTypes';
 import { useI18n } from '../../i18n';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 
 interface ModelSwitcherProps {
   status?: CanvasModelStatus;
@@ -64,6 +65,8 @@ export const ModelSwitcher = ({
     }
     updateMenuPosition();
   }, [open, updateMenuPosition]);
+
+  useEscapeClose(open, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;

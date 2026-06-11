@@ -6,6 +6,8 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
 import "./index.css";
 import type { CanvasNode, TextNodeData } from "../../types";
+import { isImeComposing } from "../../utils/ime";
+import { useEscapeClose } from "../../hooks/useEscapeClose";
 
 interface Props {
   node: CanvasNode;
@@ -214,6 +216,9 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (readOnly) return;
+      // Escape mid-IME-composition dismisses the candidate window — exiting
+      // edit mode there would eat the half-typed CJK input.
+      if (isImeComposing(e)) return;
       if (e.key === "Escape") {
         e.preventDefault();
         editor?.commands.blur();
@@ -306,6 +311,8 @@ const TextColorTrigger = ({
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
+
+  useEscapeClose(open, () => setOpen(false));
 
   const isTransparent = currentValue === "transparent";
 

@@ -267,6 +267,8 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
         ref={containerRef}
         className="terminal-xterm-container"
         onMouseDown={(e) => e.stopPropagation()}
+        // Scrolling terminal output must not also pan the canvas underneath.
+        onWheel={(e) => e.stopPropagation()}
       />
     </div>
   );

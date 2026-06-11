@@ -150,6 +150,20 @@ export const Canvas = ({
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
+  // React's root wheel listener is passive, so useCanvas.handleWheel cannot
+  // suppress Chromium's default ctrl/meta+wheel page zoom (trackpad pinch
+  // arrives as ctrl+wheel). Block it with a native non-passive listener;
+  // the zoom itself still runs through the synthetic handler.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const blockNativeZoom = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
+    };
+    el.addEventListener('wheel', blockNativeZoom, { passive: false });
+    return () => el.removeEventListener('wheel', blockNativeZoom);
+  }, [loaded]);
+
   const {
     selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId,

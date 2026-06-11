@@ -101,10 +101,14 @@ export const NodesPage = ({
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  // Reset pagination/scroll only when the user changes a filter — NOT on
+  // every `filteredNodes` identity change. Background reloads (live
+  // workspace-node change events, drawer edits) rebuild the array each time
+  // and would otherwise yank the list back to the top mid-browse.
   useEffect(() => {
     setVisibleCount(NODES_PAGE_SIZE);
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [filteredNodes]);
+  }, [query, typeFilter, tagFilter, activeWorkspaceIds]);
 
   const visibleNodes = useMemo(
     () => filteredNodes.slice(0, visibleCount),

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KnowledgeTagDefinition, WorkspaceNodeListItem, WorkspaceNodeRecord } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { isKnowledgeNodeType } from './utils';
@@ -10,14 +10,19 @@ export function useWorkspaceNodeList(workspaceId: string) {
   const [tags, setTags] = useState<KnowledgeTagDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Live change events and manual refreshes can overlap; only the newest
+  // reload may apply its results.
+  const requestSeqRef = useRef(0);
 
   const reload = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api || !workspaceId) return;
     setLoading(true);
     setError(null);
     try {
       const result = await api.list(workspaceId);
+      if (seq !== requestSeqRef.current) return;
       if (!result.ok) {
         setError(result.error ?? t('workspaceNodes.loadNodesFailed'));
         setNodes([]);
@@ -27,11 +32,12 @@ export function useWorkspaceNodeList(workspaceId: string) {
       setNodes(result.nodes ?? []);
       setTags(result.tags ?? []);
     } catch (err) {
+      if (seq !== requestSeqRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
       setNodes([]);
       setTags([]);
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
   }, [workspaceId, t]);
 
@@ -60,8 +66,12 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
   const [tags, setTags] = useState<KnowledgeTagDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Live change events and manual refreshes can overlap; only the newest
+  // reload may apply its results.
+  const requestSeqRef = useRef(0);
 
   const reload = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api) return;
     setLoading(true);
@@ -76,6 +86,7 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
           return { workspace, result };
         }),
       );
+      if (seq !== requestSeqRef.current) return;
       const tagMap = new Map<string, KnowledgeTagDefinition>();
       const nextNodes: WorkspaceNodeListItem[] = [];
       for (const { workspace, result } of results) {
@@ -93,11 +104,12 @@ export function useAllWorkspaceNodeList(workspaces: WorkspaceEntry[]) {
       setNodes(nextNodes);
       setTags(Array.from(tagMap.values()).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (err) {
+      if (seq !== requestSeqRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
       setNodes([]);
       setTags([]);
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
   }, [workspaces, t]);
 
@@ -124,8 +136,12 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
   const [node, setNode] = useState<WorkspaceNodeRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Monotonic id of the latest read. Clicking node A then node B fires two
+  // overlapping reads; if A's resolves last it must not clobber B's record.
+  const requestSeqRef = useRef(0);
 
   const reload = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     const api = window.canvasWorkspace?.workspaceNodes;
     if (!api || !workspaceId || !nodeId) {
       setNode(null);
@@ -135,6 +151,7 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
     setError(null);
     try {
       const result = await api.read(workspaceId, nodeId);
+      if (seq !== requestSeqRef.current) return;
       if (!result.ok) {
         setError(result.error ?? t('workspaceNodes.loadNodeFailed'));
         setNode(null);
@@ -142,10 +159,11 @@ export function useWorkspaceNode(workspaceId: string, nodeId: string | null) {
       }
       setNode(result.node ?? null);
     } catch (err) {
+      if (seq !== requestSeqRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
       setNode(null);
     } finally {
-      setLoading(false);
+      if (seq === requestSeqRef.current) setLoading(false);
     }
   }, [workspaceId, nodeId, t]);
 
