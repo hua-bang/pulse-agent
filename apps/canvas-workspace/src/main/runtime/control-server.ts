@@ -306,6 +306,9 @@ async function handleRequest(
   if (req.url === '/agent-team/block-task') {
     return handleAgentTeamBlockTask(res, parsed as Record<string, unknown>);
   }
+  if (req.url === '/agent-team/cancel-task') {
+    return handleAgentTeamCancelTask(res, parsed as Record<string, unknown>);
+  }
   if (req.url === '/agent-team/request-human-input') {
     return handleAgentTeamRequestHumanInput(res, parsed as Record<string, unknown>);
   }
@@ -474,6 +477,25 @@ async function handleAgentTeamBlockTask(
 
   try {
     const snapshot = await getCanvasAgentTeamsService().blockAgentTask({ ...base, reason });
+    return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function handleAgentTeamCancelTask(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const base = readTeamTaskAction(obj);
+  const reason = typeof obj.reason === 'string' ? obj.reason.trim() : '';
+  if (!base.workspaceId || !base.teamId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId and teamId are required' });
+  }
+  if (!reason) return reply(res, 400, { ok: false, error: 'reason is required' });
+
+  try {
+    const snapshot = await getCanvasAgentTeamsService().cancelAgentTask({ ...base, reason });
     return reply(res, 200, { ok: true, snapshot });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });

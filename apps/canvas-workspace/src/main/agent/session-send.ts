@@ -72,9 +72,14 @@ export async function sendInputToAgentNode(
 
   const sessionId = (node.data?.sessionId as string | undefined) ?? '';
   if (!sessionId || !hasSession(sessionId)) {
+    // Team-managed agents have a queue-based delivery path that survives a
+    // dead PTY; point callers there instead of dead-ending.
+    const teamHint = typeof node.data?.agentTeamId === 'string'
+      ? ' This is a team agent node: open its workspace window to relaunch it, or use "pulse-canvas team send", which queues the message until the agent relaunches.'
+      : '';
     return {
       ok: false,
-      error: `agent node "${node.title ?? nodeId}" has no active PTY session`,
+      error: `agent node "${node.title ?? nodeId}" has no active PTY session.${teamHint}`,
       code: 'no_session',
     };
   }

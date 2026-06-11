@@ -98,6 +98,14 @@ export interface CanvasAgentTeamBlockTaskInput extends CanvasAgentTeamTaskAction
   reason: string;
 }
 
+/**
+ * Cancel (withdraw) a task so it settles as failed and releases its declared
+ * file scope for replacement work. Lead/human only.
+ */
+export interface CanvasAgentTeamCancelTaskInput extends CanvasAgentTeamTaskActionInput {
+  reason: string;
+}
+
 export interface CanvasAgentTeamRequestHumanInput extends CanvasAgentTeamTaskActionInput {
   prompt: string;
   reason?: string;

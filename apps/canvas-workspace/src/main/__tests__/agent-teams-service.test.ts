@@ -788,7 +788,8 @@ describe('CanvasAgentTeamsService', () => {
     };
 
     // A queued launch prompt (headless dispatch waiting for the renderer) is
-    // healthy: the watchdog leaves the task alone no matter how many ticks.
+    // healthy while inside the launch grace window: the watchdog leaves the
+    // task alone.
     mockState.ptyAlive = false;
     mockState.queuedLaunch = true;
     await service.heartbeatTick();
@@ -810,6 +811,110 @@ describe('CanvasAgentTeamsService', () => {
     // with its task when the canvas next mounts the node.
     const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
     expect(prepared.canResume).toBe(true);
+  });
+
+  it('escalates a launch prompt that stays queued past the grace window', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks.find((candidate) => candidate.title === 'Implement checkout refactor')!;
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+    const taskStatus = async () => {
+      const snapshot = await service.snapshot('ws-1', teamId);
+      return snapshot.runtime.tasks.find((candidate) => candidate.id === task.id);
+    };
+
+    // The agent's PTY is gone and its task prompt sits queued; windows are
+    // open but nothing mounts the node. The first tick only starts the
+    // grace clock.
+    mockState.ptyAlive = false;
+    mockState.queuedLaunch = true;
+    service.queuedLaunchGraceMs = 0;
+    await service.heartbeatTick();
+    expect((await taskStatus())?.status).toBe('in_progress');
+
+    // Past the grace the watchdog stops trusting the queue: the task goes to
+    // review instead of faking in_progress forever, and the reason matches
+    // the auto-resume pattern so mounting the node still recovers the task.
+    await service.heartbeatTick();
+    expect(await taskStatus()).toMatchObject({
+      status: 'needs_review',
+      blockedReason: 'Agent session was never relaunched to receive the dispatched task.',
+    });
+    const prepared = await service.prepareAgentAutoResume('ws-1', teamId, owner.id);
+    expect(prepared.canResume).toBe(true);
+    expect((await taskStatus())?.status).toBe('in_progress');
+  });
+
+  it('cancels a task via cancelAgentTask, releasing its scope to fallback work', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createTeam(service);
+    const teamId = created.runtime.team.id;
+    await service.proposePlan('ws-1', teamId, {
+      plan: {
+        summary: 'QA with a fallback lane.',
+        teammates: [
+          { name: 'QA Codex', agentType: 'codex' },
+          { name: 'Backup Codex', agentType: 'codex' },
+        ],
+        tasks: [
+          { title: 'QA regression', description: 'Run the regression checklist.', ownerName: 'QA Codex', scope: ['apps/web/src'] },
+        ],
+      },
+    });
+    const confirmed = await service.confirmPlan('ws-1', teamId);
+    const lead = confirmed.runtime.agents.find((agent) => agent.role === 'lead')!;
+    const teammate = confirmed.runtime.agents.find((agent) => agent.name === 'Backup Codex')!;
+    const original = confirmed.runtime.tasks.find((task) => task.title === 'QA regression')!;
+    expect(original.status).toBe('in_progress');
+
+    // The QA agent's node died; the human parks the task. Its scope still
+    // blocks the fallback task.
+    await service.blockAgentTask({ workspaceId: 'ws-1', teamId, taskId: original.id, reason: 'Agent node PTY no longer exists.' });
+    await service.createTask({
+      workspaceId: 'ws-1',
+      teamId,
+      title: 'QA regression fallback',
+      description: 'Re-run the regression on a healthy agent.',
+      ownerName: 'Backup Codex',
+      scope: ['apps/web/src'],
+      dispatch: true,
+    });
+    let snapshot = await service.snapshot('ws-1', teamId);
+    expect(snapshot.runtime.tasks.find((task) => task.title === 'QA regression fallback')).toMatchObject({
+      status: 'todo',
+      blockedReason: 'Waiting for overlapping file scope held by: QA regression',
+    });
+
+    // Teammates cannot withdraw work; cancellation is a lead/human decision.
+    await expect(service.cancelAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      taskId: original.id,
+      reason: 'I give up.',
+      sourceAgentId: teammate.id,
+    })).rejects.toThrow('Only the Team Lead can cancel tasks');
+
+    // A human cancel settles the task and immediately dispatches the fallback.
+    snapshot = await service.cancelAgentTask({
+      workspaceId: 'ws-1',
+      teamId,
+      taskId: original.id,
+      reason: 'Agent session is gone; fallback takes over.',
+    });
+    expect(snapshot.runtime.tasks.find((task) => task.id === original.id)).toMatchObject({
+      status: 'failed',
+      result: 'Cancelled: Agent session is gone; fallback takes over.',
+    });
+    expect(snapshot.runtime.tasks.find((task) => task.title === 'QA regression fallback')).toMatchObject({
+      status: 'in_progress',
+    });
+    // The lead is told the scope is now free.
+    const leadNotice = mockState.queuedInputs
+      .filter((entry) => entry.nodeId === lead.sessionRef!.sessionId)
+      .map((entry) => entry.input)
+      .find((input) => input.includes('Task cancelled: QA regression'));
+    expect(leadNotice).toContain('Its file scope is released');
   });
 
   it('rejects create-task requests from teammates but allows the lead', async () => {

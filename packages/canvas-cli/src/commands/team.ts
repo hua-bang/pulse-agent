@@ -88,6 +88,7 @@ async function postTeamAction(
     | '/agent-team/create-task'
     | '/agent-team/complete-task'
     | '/agent-team/block-task'
+    | '/agent-team/cancel-task'
     | '/agent-team/request-human-input'
     | '/agent-team/publish-artifact'
     | '/agent-team/complete-team'
@@ -304,6 +305,36 @@ export function registerTeamCommands(program: Command): void {
       if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
 
       output(body, format, () => `Task blocked for ${teamId}.`);
+    });
+
+  team.command('cancel-task')
+    .option('--team <teamId>', `Team ID (default: $${ENV_TEAM_ID})`, process.env[ENV_TEAM_ID])
+    .option('--source-agent <agentId>', `Source agent ID (default: $${ENV_TEAM_AGENT_ID})`, process.env[ENV_TEAM_AGENT_ID])
+    .option('--task <taskId>', 'Task ID or title')
+    .option('--reason <reason>', 'Cancellation reason')
+    .argument('[reason...]', 'Cancellation reason')
+    .description('Cancel a task and release its file scope for replacement work (Team Lead or human only)')
+    .action(async function (
+      this: Command,
+      reasonParts: string[] | undefined,
+      cmdOpts: { team?: string; sourceAgent?: string; task?: string; reason?: string },
+    ) {
+      const { format, workspace } = getOpts(this);
+      const teamId = cmdOpts.team || process.env[ENV_TEAM_ID];
+      if (!teamId) errorOutput(`Team ID required. Pass --team <id> or set $${ENV_TEAM_ID}.`);
+      const reason = textFromOptionOrParts(cmdOpts.reason, reasonParts, 'Reason');
+
+      const runtime = await readRuntime();
+      const { status, body } = await postTeamAction(runtime, '/agent-team/cancel-task', addSourceAgent({
+        ...baseTeamBody(workspace, teamId),
+        taskId: cmdOpts.task,
+        reason,
+      }, cmdOpts.sourceAgent));
+
+      if (status === 401) errorOutput(runtimeAuthHint());
+      if (!body.ok) errorOutput(body.error ?? `HTTP ${status}`);
+
+      output(body, format, () => `Task cancelled for ${teamId}; its file scope is released.`);
     });
 
   team.command('request-human-input')

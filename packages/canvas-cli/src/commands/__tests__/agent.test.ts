@@ -398,6 +398,13 @@ describe('pulse-canvas team follow-up actions', () => {
       '--task', 'Review checkout refactor',
       'Waiting for API docs.',
     ]);
+    const cancelTask = await runCli([
+      '--workspace', 'ws-x',
+      'team', 'cancel-task',
+      '--team', 'team-1',
+      '--task', 'Review checkout refactor',
+      'Agent session is gone; fallback takes over.',
+    ]);
     const requestHumanInput = await runCli([
       '--workspace', 'ws-x',
       'team', 'request-human-input',
@@ -427,6 +434,7 @@ describe('pulse-canvas team follow-up actions', () => {
 
     expect(completeTask.exitCode).toBe(null);
     expect(blockTask.exitCode).toBe(null);
+    expect(cancelTask.exitCode).toBe(null);
     expect(requestHumanInput.exitCode).toBe(null);
     expect(publishArtifact.exitCode).toBe(null);
     expect(completeTeam.exitCode).toBe(null);
@@ -449,6 +457,16 @@ describe('pulse-canvas team follow-up actions', () => {
           sourceAgentId: 'agent-blocker',
           taskId: 'Review checkout refactor',
           reason: 'Waiting for API docs.',
+        },
+      },
+      {
+        url: '/agent-team/cancel-task',
+        body: {
+          workspaceId: 'ws-x',
+          teamId: 'team-1',
+          sourceAgentId: 'agent-env',
+          taskId: 'Review checkout refactor',
+          reason: 'Agent session is gone; fallback takes over.',
         },
       },
       {

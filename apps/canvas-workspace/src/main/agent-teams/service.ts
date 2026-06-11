@@ -32,6 +32,7 @@ import { broadcastCanvasUpdate } from '../canvas/broadcast';
 import type {
   CanvasAgentTeamAddAgentInput,
   CanvasAgentTeamBlockTaskInput,
+  CanvasAgentTeamCancelTaskInput,
   CanvasAgentTeamCompleteTaskInput,
   CanvasAgentTeamCreateInput,
   CanvasAgentTeamCreateTaskInput,
@@ -70,7 +71,18 @@ const ARTIFACT_KINDS = new Set<ArtifactKind>([
   'other',
 ]);
 const LEGACY_OUTPUT_BLOCK_REASON = 'Blocked by agent output marker.';
-const SESSION_EXIT_REVIEW_REASON_RE = /^Agent session exited(?: with code -?\d+)? before reporting task completion\.$/;
+// Both reasons route the task back through prepareAgentAutoResume: the canvas
+// relaunches the agent with its task when the node next mounts.
+const SESSION_EXIT_REVIEW_REASON_RE =
+  /^Agent session (?:exited(?: with code -?\d+)? before reporting task completion|was never relaunched to receive the dispatched task)\.$/;
+const QUEUED_LAUNCH_REVIEW_REASON = 'Agent session was never relaunched to receive the dispatched task.';
+// How long a dispatched task may sit as a queued launch prompt (agent PTY
+// dead, prompt waiting for the renderer to spawn the node) while windows are
+// open before the watchdog stops trusting it. Within the grace it is the
+// normal headless-dispatch state; past it, nothing is going to mount the node
+// — the workspace is not open in any window — and leaving the task
+// in_progress fakes progress forever.
+const QUEUED_LAUNCH_GRACE_MS = 2 * 60_000;
 const AGENT_TEAM_MARKER_RE =
   /^\s*\[agent-team:(?<kind>plan|human-input-needed|artifact)(?:\s+taskId="(?<taskId>[^"]+)")?(?:\s+kind="(?<artifactKind>[^"]+)")?(?:\s+title="(?<artifactTitle>[^"]+)")?\]\s*(?<text>.*)\s*$/;
 
@@ -497,6 +509,11 @@ export class CanvasAgentTeamsService {
   // long while holding a task, the lead is nudged (no state change). Public so
   // tests can shrink the window.
   softStallThresholdMs = SOFT_STALL_THRESHOLD_MS;
+  // Queued-launch grace before the watchdog escalates (public for tests).
+  queuedLaunchGraceMs = QUEUED_LAUNCH_GRACE_MS;
+  // First heartbeat tick that observed each agent's current queued launch
+  // prompt with no live PTY; cleared when the PTY appears or the queue drains.
+  private readonly queuedLaunchSince = new Map<string, number>();
   private readonly lastAgentOutputAt = new Map<string, number>();
   private readonly softStallNudgedAt = new Map<string, number>();
   // nodeId -> agent identity for the PTY hot path (one entry per team node).
@@ -1240,6 +1257,30 @@ export class CanvasAgentTeamsService {
     return this.snapshotInternal(input.workspaceId, input.teamId);
   }
 
+  async cancelAgentTask(input: CanvasAgentTeamCancelTaskInput): Promise<CanvasAgentTeamSnapshot> {
+    return this.withTeamLock(input.workspaceId, input.teamId, () => this.cancelAgentTaskLocked(input));
+  }
+
+  private async cancelAgentTaskLocked(input: CanvasAgentTeamCancelTaskInput): Promise<CanvasAgentTeamSnapshot> {
+    const { runtime } = this.getBundle(input.workspaceId);
+    const snapshot = await runtime.snapshot(input.teamId);
+    const agent = input.sourceAgentId
+      ? this.resolveAgentReference(snapshot.agents, input.sourceAgentId)
+      : undefined;
+    // Cancellation withdraws work and releases its file scope for replacement
+    // tasks — a routing decision that belongs to the lead or the human, not
+    // to the teammate holding the task (a stuck teammate blocks instead).
+    if (agent && agent.role !== 'lead') {
+      throw new Error('Only the Team Lead can cancel tasks. Use block-task to report a blocker instead.');
+    }
+    const task = this.resolveTaskForAction(snapshot.tasks, input.taskId, agent);
+    await runtime.cancelTask(task.id, input.reason, agent?.id ?? 'human');
+    // The cancelled task no longer holds its scope: dispatch immediately so
+    // an overlapping fallback task starts now instead of on the next tick.
+    await runtime.dispatchReadyTasks(input.teamId);
+    return this.snapshotInternal(input.workspaceId, input.teamId);
+  }
+
   async requestHumanInput(input: CanvasAgentTeamRequestHumanInput): Promise<CanvasAgentTeamSnapshot> {
     return this.withTeamLock(input.workspaceId, input.teamId, () => this.requestHumanInputLocked(input));
   }
@@ -1760,8 +1801,11 @@ export class CanvasAgentTeamsService {
    * Detect agents whose recorded session no longer exists — an app restart or
    * crash killed the PTY without an observed exit, or the canvas node was
    * deleted — and route their in-flight task through the session-exit review
-   * path. The reason string matches the auto-resume pattern, so the canvas
-   * relaunches the agent when its node next mounts.
+   * path. Also escalates launch prompts that stay queued past the grace
+   * window while windows are open (nothing is mounting the node, so the
+   * in_progress task is fake progress). Either reason string matches the
+   * auto-resume pattern, so the canvas relaunches the agent when its node
+   * next mounts.
    */
   private async watchdogCheckAgents(workspaceId: string, teamId: string): Promise<void> {
     // Suspended while no window is open: nothing can relaunch agents, so
@@ -1780,19 +1824,39 @@ export class CanvasAgentTeamsService {
       const suspectKey = `${workspaceId}:${agent.id}`;
       if (agent.status !== 'running' || !agent.currentTaskId || !agent.sessionRef) {
         this.watchdogSuspects.delete(suspectKey);
+        this.queuedLaunchSince.delete(suspectKey);
         continue;
       }
       const state = states.get(agent.sessionRef.sessionId)
         ?? { exists: false, status: 'missing', ptyAlive: false, hasQueuedLaunch: false };
-      // A queued launch prompt means the agent is waiting for the renderer to
-      // spawn it — healthy headless state, not a dead session.
-      if (state.ptyAlive || state.hasQueuedLaunch) {
+      if (state.ptyAlive) {
         this.watchdogSuspects.delete(suspectKey);
-        if (state.ptyAlive) {
-          await this.checkSoftStall(workspaceId, runtime, agent);
-        }
+        this.queuedLaunchSince.delete(suspectKey);
+        await this.checkSoftStall(workspaceId, runtime, agent);
         continue;
       }
+      // A queued launch prompt means the agent is waiting for the renderer to
+      // spawn it — the normal headless-dispatch state. But a renderer with
+      // the workspace open picks the queue up within seconds, so a prompt
+      // still queued long after windows opened means nothing will mount the
+      // node and the in_progress task is going nowhere. Route it through the
+      // session review path: visible to the lead and human, and the reason
+      // matches the auto-resume pattern so mounting the node still recovers
+      // the task automatically.
+      if (state.hasQueuedLaunch) {
+        this.watchdogSuspects.delete(suspectKey);
+        const now = Date.now();
+        const since = this.queuedLaunchSince.get(suspectKey);
+        if (since === undefined) {
+          this.queuedLaunchSince.set(suspectKey, now);
+          continue;
+        }
+        if (now - since < this.queuedLaunchGraceMs) continue;
+        this.queuedLaunchSince.delete(suspectKey);
+        await runtime.requestTaskReview(agent.currentTaskId, QUEUED_LAUNCH_REVIEW_REASON, agent.id);
+        continue;
+      }
+      this.queuedLaunchSince.delete(suspectKey);
       if (!this.watchdogSuspects.has(suspectKey)) {
         this.watchdogSuspects.add(suspectKey);
         continue;

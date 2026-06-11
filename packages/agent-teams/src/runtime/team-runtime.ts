@@ -678,6 +678,48 @@ export class TeamRuntime {
         : availableAgents.find(agent => agent.role === 'teammate');
       if (!owner) continue;
 
+      // Deliver the task prompt BEFORE committing the assignment. If the
+      // adapter cannot take the input (e.g. the agent's canvas node was
+      // deleted), committing first would leave a fake in_progress task whose
+      // owner never received anything — invisible to the watchdog because the
+      // agent record looks busy. The failed task stays in todo with the
+      // failure recorded on it, and this pass moves on to other ready work.
+      if (this.agentSessions && owner.sessionRef) {
+        const taskPrompt = await this.formatTaskPrompt(task, tasks, owner);
+        try {
+          await this.agentSessions.sendInput(owner.sessionRef.sessionId, taskPrompt);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const reason = `Dispatch failed: ${message}`;
+          // The heartbeat retries every pass; only the first failure (or a
+          // changed error) is persisted and reported, so a dead target does
+          // not rewrite the task or re-ping the lead on every tick.
+          if (task.blockedReason !== reason) {
+            task.blockedReason = reason;
+            task.updatedAt = this.now();
+            await this.store.saveTask(task);
+            await this.appendMessage({
+              teamId,
+              from: 'runtime',
+              to: 'lead',
+              type: 'status_update',
+              content: `Could not deliver task "${task.title}" to ${owner.name}: ${message}. The task stays queued; restore the agent's node or reassign the work.`,
+              taskId: task.id,
+            });
+          }
+          continue;
+        }
+        // Record this as the agent's current launch prompt so a later restart
+        // replays THIS task rather than a previously finished one. Best
+        // effort: the prompt was already delivered, so a bookkeeping failure
+        // must not abort the assignment.
+        try {
+          await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
+        } catch {
+          // Replay bookkeeping only; the live session already has the task.
+        }
+      }
+
       // An explicit assignment to the lead (or to an agent that no longer
       // exists) is being overridden — record it so the reassignment is not
       // silent.
@@ -717,14 +759,6 @@ export class TeamRuntime {
         taskId: task.id,
         agentId: owner.id,
       });
-
-      if (this.agentSessions && owner.sessionRef) {
-        const taskPrompt = await this.formatTaskPrompt(task, tasks, owner);
-        await this.agentSessions.sendInput(owner.sessionRef.sessionId, taskPrompt);
-        // Record this as the agent's current launch prompt so a later restart
-        // replays THIS task rather than a previously finished one.
-        await this.agentSessions.persistLaunchPrompt?.(owner.sessionRef.sessionId, taskPrompt);
-      }
 
       if (scope.length > 0) heldScopes.push(scope);
       assigned.push({ ...task });
@@ -913,20 +947,14 @@ export class TeamRuntime {
     return task;
   }
 
-  async failTask(taskId: TaskId, error: string, actor?: AgentId | 'runtime'): Promise<TeamTaskRecord> {
-    const task = await this.requireTask(taskId);
-    task.status = 'failed';
-    task.result = error;
-    task.updatedAt = this.now();
-    await this.store.saveTask(task);
-    await this.cancelOpenGatesForTask(task.teamId, task.id);
-
-    await this.releaseTaskOwner(task, 'error');
-
-    // A failed dependency would otherwise leave its dependents sitting in
-    // `todo` forever (they can never become ready). Park them as explicitly
-    // blocked so the stall is visible and the lead is forced to decide:
-    // fix-and-complete the failed task (which releases them) or replan.
+  /**
+   * Park a settled-as-failed task's todo dependents as explicitly blocked.
+   * A failed dependency would otherwise leave its dependents sitting in
+   * `todo` forever (they can never become ready). Parking makes the stall
+   * visible and forces the lead to decide: fix-and-complete the failed task
+   * (which releases them) or replan.
+   */
+  private async parkDependentsOnFailure(task: TeamTaskRecord): Promise<TeamTaskRecord[]> {
     const tasks = await this.store.listTasks(task.teamId);
     const blockedDependents: TeamTaskRecord[] = [];
     for (const dependent of tasks) {
@@ -947,6 +975,20 @@ export class TeamRuntime {
       });
       blockedDependents.push(dependent);
     }
+    return blockedDependents;
+  }
+
+  async failTask(taskId: TaskId, error: string, actor?: AgentId | 'runtime'): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    task.status = 'failed';
+    task.result = error;
+    task.updatedAt = this.now();
+    await this.store.saveTask(task);
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
+
+    await this.releaseTaskOwner(task, 'error');
+
+    const blockedDependents = await this.parkDependentsOnFailure(task);
 
     await this.emit(task.teamId, 'task_failed', actor ?? task.ownerAgentId ?? 'runtime', {
       taskId: task.id,
@@ -969,6 +1011,52 @@ export class TeamRuntime {
       '',
       'Review the failure. You may create follow-up tasks with:',
       'pulse-canvas team create-task --title "..." --description "..." --owner "..." --dispatch',
+    ].join('\n'), task.id);
+    await this.checkRoundCompletion(task.teamId);
+    return task;
+  }
+
+  /**
+   * Cancel a task that should no longer run — its agent session is gone,
+   * the work was superseded by a replacement task, or the human withdrew it.
+   * The task settles as failed so it stops holding its declared file scope
+   * (a blocked task holds its scope forever otherwise, starving overlapping
+   * fallback work), and its owner is released as idle: cancellation is a
+   * routing decision, not an agent error. Dependents are parked like any
+   * other failure so the lead must explicitly re-route or close them.
+   */
+  async cancelTask(taskId: TaskId, reason: string, actor: AgentId | 'human' | 'runtime' = 'human'): Promise<TeamTaskRecord> {
+    const task = await this.requireTask(taskId);
+    if (task.status === 'done' || task.status === 'failed') return task;
+    task.status = 'failed';
+    task.result = `Cancelled: ${reason}`;
+    task.blockedReason = undefined;
+    task.updatedAt = this.now();
+    await this.store.saveTask(task);
+    await this.cancelOpenGatesForTask(task.teamId, task.id);
+
+    await this.releaseTaskOwner(task, 'idle');
+
+    const blockedDependents = await this.parkDependentsOnFailure(task);
+
+    await this.emit(task.teamId, 'task_failed', actor, {
+      taskId: task.id,
+      error: task.result,
+      cancelled: true,
+    });
+    await this.notifyLead(task.teamId, [
+      `Task cancelled: ${task.title}`,
+      '',
+      reason,
+      'Its file scope is released, so overlapping replacement tasks can now dispatch.',
+      ...(blockedDependents.length > 0
+        ? [
+          '',
+          'Dependent tasks now blocked by this cancellation:',
+          ...blockedDependents.map((dependent) => `- ${dependent.title}`),
+          'Re-route them to replacement tasks or close the ones that no longer apply.',
+        ]
+        : []),
     ].join('\n'), task.id);
     await this.checkRoundCompletion(task.teamId);
     return task;
@@ -1008,6 +1096,8 @@ export class TeamRuntime {
       reason,
       '',
       'Decide whether to answer, create a follow-up task, or ask the user for input.',
+      'A blocked task keeps holding its declared file scope. If it should be abandoned so replacement work can take over its files, cancel it:',
+      `pulse-canvas team cancel-task --task "${quoteCliValue(task.id)}" --reason "<why>"`,
     ].join('\n'), task.id);
     return task;
   }
