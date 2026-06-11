@@ -435,7 +435,7 @@ export async function updateAgentTeamCanvasCwd(workspaceId: string, teamId: stri
         const content = await fs.readFile(join(oldCwd, promptFile), 'utf-8');
         await fs.mkdir(cwd, { recursive: true });
         await fs.writeFile(join(cwd, promptFile), content, 'utf-8');
-        await fs.unlink(join(oldCwd, promptFile)).catch(() => {});
+        await fs.unlink(join(oldCwd, promptFile)).catch(() => { });
       } catch {
         // Best effort — the original file may already be gone.
       }
@@ -556,6 +556,8 @@ export interface CanvasAgentNodeRuntimeState {
   ptyAlive: boolean;
   /** Whether a launch prompt is queued, waiting for the renderer to spawn. */
   hasQueuedLaunch: boolean;
+  /** Whether a warmup launch has reached a ready interactive CLI. */
+  warmupReady?: boolean;
 }
 
 export async function getCanvasAgentNodeRuntimeState(
@@ -575,6 +577,7 @@ export async function getCanvasAgentNodeRuntimeState(
     status: typeof node.data?.status === 'string' ? node.data.status : 'idle',
     ptyAlive: !!ptySessionId && hasSession(ptySessionId),
     hasQueuedLaunch: !!(inlinePrompt || promptFile),
+    warmupReady: node.data?.agentTeamWarmupReady === true,
   };
 }
 
@@ -604,6 +607,7 @@ export async function getCanvasAgentNodesRuntimeState(
       status: typeof node.data?.status === 'string' ? node.data.status : 'idle',
       ptyAlive: !!ptySessionId && hasSession(ptySessionId),
       hasQueuedLaunch: !!(inlinePrompt || promptFile),
+      warmupReady: node.data?.agentTeamWarmupReady === true,
     });
   }
   return result;
@@ -649,6 +653,75 @@ export async function persistAgentNodeLaunchPrompt(
   node.updatedAt = Date.now();
   await writeCanvasFull(workspaceId, canvas);
   broadcastCanvasUpdate(workspaceId, [nodeId], 'update', 'agent-teams');
+}
+
+export async function warmupAgentTeamCanvasNodes(
+  workspaceId: string,
+  nodeIds: string[],
+): Promise<string[]> {
+  if (nodeIds.length === 0) return [];
+  const wanted = new Set(nodeIds);
+  const canvas = await loadCanvasOrEmpty(workspaceId);
+  const changedIds: string[] = [];
+  const now = Date.now();
+
+  for (const node of canvas.nodes ?? []) {
+    if (!wanted.has(node.id) || node.type !== 'agent') continue;
+    const data = node.data ?? {};
+    const alreadyWarm =
+      data.status === 'running'
+      && data.viewMode === 'running'
+      && data.agentTeamWarmup === true
+      && !data.inlinePrompt
+      && !data.promptFile;
+    if (alreadyWarm) continue;
+    node.data = {
+      ...data,
+      status: 'running',
+      viewMode: 'running',
+      inlinePrompt: '',
+      promptFile: '',
+      agentTeamWarmup: true,
+      agentTeamWarmupReady: false,
+      cliSessionId: withClaudeCliSessionId(data.agentType, data.cliSessionId),
+      queueRev: nextQueueRev(data),
+    };
+    node.updatedAt = now;
+    changedIds.push(node.id);
+  }
+
+  if (changedIds.length === 0) return [];
+  await writeCanvasFull(workspaceId, canvas);
+  broadcastCanvasUpdate(workspaceId, changedIds, 'update', 'agent-teams');
+  return changedIds;
+}
+
+export async function clearAgentTeamCanvasWarmup(
+  workspaceId: string,
+  nodeIds: string[],
+): Promise<string[]> {
+  if (nodeIds.length === 0) return [];
+  const wanted = new Set(nodeIds);
+  const canvas = await loadCanvasOrEmpty(workspaceId);
+  const changedIds: string[] = [];
+  const now = Date.now();
+
+  for (const node of canvas.nodes ?? []) {
+    if (!wanted.has(node.id) || node.type !== 'agent') continue;
+    if (!node.data?.agentTeamWarmup) continue;
+    node.data = {
+      ...node.data,
+      agentTeamWarmup: false,
+      agentTeamWarmupReady: false,
+    };
+    node.updatedAt = now;
+    changedIds.push(node.id);
+  }
+
+  if (changedIds.length === 0) return [];
+  await writeCanvasFull(workspaceId, canvas);
+  broadcastCanvasUpdate(workspaceId, changedIds, 'update', 'agent-teams');
+  return changedIds;
 }
 
 export async function interruptCanvasAgentNode(

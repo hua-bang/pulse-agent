@@ -80,6 +80,7 @@ export const AgentNodeBody = ({
   onUpdate,
   readOnly = false,
   terminalMode = 'owner',
+  forceTeamWarmup = false,
 }: AgentNodeBodyProps) => {
   const controller = useAgentNodeController({
     node,
@@ -89,6 +90,7 @@ export const AgentNodeBody = ({
     onUpdate,
     readOnly,
     terminalMode,
+    forceTeamWarmup,
   });
   const [leadSnapshot, setLeadSnapshot] = useState<AgentTeamSnapshot | null>(null);
   const isTeamLead = controller.data.agentTeamRole === 'lead';

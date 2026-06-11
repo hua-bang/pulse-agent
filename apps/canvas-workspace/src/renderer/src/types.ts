@@ -3,18 +3,18 @@ import type { PluginBridge } from '../../plugins/types';
 export interface CanvasNode {
   id: string;
   type:
-    | "file"
-    | "terminal"
-    | "frame"
-    | "group"
-    | "agent"
-    | "text"
-    | "iframe"
-    | "image"
-    | "shape"
-    | "mindmap"
-    | "reference"
-    | "dynamic-app";
+  | "file"
+  | "terminal"
+  | "frame"
+  | "group"
+  | "agent"
+  | "text"
+  | "iframe"
+  | "image"
+  | "shape"
+  | "mindmap"
+  | "reference"
+  | "dynamic-app";
   title: string;
   x: number;
   y: number;
@@ -24,18 +24,18 @@ export interface CanvasNode {
   properties?: Record<string, WorkspaceNodePropertyValue>;
   links?: WorkspaceNodeLink[];
   data:
-    | FileNodeData
-    | TerminalNodeData
-    | FrameNodeData
-    | GroupNodeData
-    | AgentNodeData
-    | TextNodeData
-    | IframeNodeData
-    | ImageNodeData
-    | ShapeNodeData
-    | MindmapNodeData
-    | ReferenceNodeData
-    | DynamicAppNodeData;
+  | FileNodeData
+  | TerminalNodeData
+  | FrameNodeData
+  | GroupNodeData
+  | AgentNodeData
+  | TextNodeData
+  | IframeNodeData
+  | ImageNodeData
+  | ShapeNodeData
+  | MindmapNodeData
+  | ReferenceNodeData
+  | DynamicAppNodeData;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
 }
@@ -120,14 +120,14 @@ export interface KnowledgeTagDefinition {
 
 export type CanvasNodeRef =
   | {
-      kind: 'workspace-node';
-      workspaceId: string;
-      nodeId: string;
-    }
+    kind: 'workspace-node';
+    workspaceId: string;
+    nodeId: string;
+  }
   | {
-      kind: 'global-node';
-      nodeId: string;
-    };
+    kind: 'global-node';
+    nodeId: string;
+  };
 
 export interface FileNodeData {
   filePath: string;
@@ -214,6 +214,10 @@ export interface AgentNodeData {
     attempts?: number;
     lastAttemptAt?: number;
   };
+  /** Team-managed node should launch an idle CLI session before task dispatch. */
+  agentTeamWarmup?: boolean;
+  /** The warmup CLI has produced output and is ready to receive team input. */
+  agentTeamWarmupReady?: boolean;
   agentTeamId?: string;
   agentTeamAgentId?: string;
   agentTeamRole?: 'lead' | 'teammate';
@@ -1240,7 +1244,7 @@ export interface AgentTeamRuntimeSnapshot {
   checkpointRound?: number;
 }
 
-export type AgentTeamPhase = 'briefing' | 'plan_review' | 'executing';
+export type AgentTeamPhase = 'briefing' | 'plan_review' | 'starting' | 'executing';
 
 export interface AgentTeamPlanTeammate {
   name: string;
@@ -1493,12 +1497,12 @@ export interface CanvasWorkspaceApi {
       callback: (event: {
         workspaceId: string;
         phase:
-          | "starting"
-          | "backup"
-          | "split-nodes"
-          | "commit"
-          | "done"
-          | "error";
+        | "starting"
+        | "backup"
+        | "split-nodes"
+        | "commit"
+        | "done"
+        | "error";
         current?: number;
         total?: number;
         message?: string;

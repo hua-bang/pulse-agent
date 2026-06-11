@@ -9,8 +9,11 @@ const mockState = vi.hoisted(() => ({
   createdAgents: [] as any[],
   cwdUpdates: [] as Array<{ workspaceId: string; teamId: string; cwd: string }>,
   queuedInputs: [] as Array<{ workspaceId: string; nodeId: string; input: string }>,
+  warmedNodes: [] as Array<{ workspaceId: string; nodeIds: string[] }>,
+  clearedWarmupNodes: [] as Array<{ workspaceId: string; nodeIds: string[] }>,
   interrupts: [] as Array<{ workspaceId: string; nodeId: string; mode: string }>,
   ptyAlive: true,
+  warmupReady: true,
   queuedLaunch: false,
 }));
 
@@ -54,6 +57,7 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
     status: 'running',
     ptyAlive: mockState.ptyAlive,
     hasQueuedLaunch: mockState.queuedLaunch,
+    warmupReady: mockState.warmupReady,
   })),
   getCanvasAgentNodesRuntimeState: vi.fn(async (_workspaceId: string, nodeIds: string[]) => {
     const result = new Map<string, unknown>();
@@ -63,6 +67,7 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
         status: 'running',
         ptyAlive: mockState.ptyAlive,
         hasQueuedLaunch: mockState.queuedLaunch,
+        warmupReady: mockState.warmupReady,
       });
     }
     return result;
@@ -70,11 +75,19 @@ vi.mock('../agent-teams/canvas-nodes', () => ({
   sendOrQueueAgentInput: vi.fn(async (workspaceId: string, nodeId: string, input: string) => {
     mockState.queuedInputs.push({ workspaceId, nodeId, input });
   }),
-  persistAgentNodeLaunchPrompt: vi.fn(async () => {}),
+  persistAgentNodeLaunchPrompt: vi.fn(async () => { }),
+  warmupAgentTeamCanvasNodes: vi.fn(async (workspaceId: string, nodeIds: string[]) => {
+    mockState.warmedNodes.push({ workspaceId, nodeIds });
+    return nodeIds;
+  }),
+  clearAgentTeamCanvasWarmup: vi.fn(async (workspaceId: string, nodeIds: string[]) => {
+    mockState.clearedWarmupNodes.push({ workspaceId, nodeIds });
+    return nodeIds;
+  }),
   interruptCanvasAgentNode: vi.fn(async (workspaceId: string, nodeId: string, mode: string) => {
     mockState.interrupts.push({ workspaceId, nodeId, mode });
   }),
-  ensureAgentTeamCanvasLayout: vi.fn(async () => {}),
+  ensureAgentTeamCanvasLayout: vi.fn(async () => { }),
   removeAgentTeamCanvasNodes: vi.fn(async () => []),
   stopAgentTeamCanvasNodes: vi.fn(async () => []),
   updateAgentTeamCanvasCwd: vi.fn(async (workspaceId: string, teamId: string, cwd: string) => {
@@ -134,7 +147,9 @@ const emitPlan = async (
 const createExecutingTeam = async (service: CanvasAgentTeamsService): Promise<CanvasAgentTeamSnapshot> => {
   const created = await createTeam(service);
   await emitPlan(service, created);
-  return service.confirmPlan('ws-1', created.runtime.team.id);
+  await service.confirmPlan('ws-1', created.runtime.team.id);
+  await service.heartbeatTick();
+  return service.snapshot('ws-1', created.runtime.team.id);
 };
 
 const handoffPathFor = (teamId: string, taskId: string): string =>
@@ -154,8 +169,11 @@ describe('CanvasAgentTeamsService', () => {
     mockState.createdAgents.length = 0;
     mockState.cwdUpdates.length = 0;
     mockState.queuedInputs.length = 0;
+    mockState.warmedNodes.length = 0;
+    mockState.clearedWarmupNodes.length = 0;
     mockState.interrupts.length = 0;
     mockState.ptyAlive = true;
+    mockState.warmupReady = true;
     mockState.queuedLaunch = false;
   });
 
@@ -212,8 +230,9 @@ describe('CanvasAgentTeamsService', () => {
     expect(planned.pendingPlan?.tasks[1].deps).toEqual(['Implement checkout refactor']);
     expect(planned.runtime.team.status).toBe('waiting_approval');
 
+    mockState.ptyAlive = false;
     const confirmed = await service.confirmPlan('ws-1', created.runtime.team.id);
-    expect(confirmed.phase).toBe('executing');
+    expect(confirmed.phase).toBe('starting');
     expect(confirmed.pendingPlan).toBeUndefined();
     expect(confirmed.approvedPlan?.summary).toBe(plan.summary);
     expect(confirmed.runtime.agents.map((agent) => agent.name).sort()).toEqual([
@@ -226,6 +245,22 @@ describe('CanvasAgentTeamsService', () => {
       'Review checkout refactor',
     ]);
     expect(mockState.createdAgents.map((input) => input.name).sort()).toEqual(['Codex Exec', 'Reviewer'].sort());
+    const expectedStartupNodeIds = confirmed.runtime.agents
+      .filter((agent) => agent.role === 'lead' || agent.name === 'Codex Exec')
+      .map((agent) => agent.sessionRef!.sessionId)
+      .sort();
+    expect(mockState.warmedNodes.length).toBeGreaterThan(0);
+    expect(mockState.warmedNodes[mockState.warmedNodes.length - 1].nodeIds.sort()).toEqual(
+      expectedStartupNodeIds,
+    );
+    expect(mockState.queuedInputs.some((entry) => entry.input.includes('Implement checkout refactor'))).toBe(false);
+
+    mockState.ptyAlive = true;
+    const executing = await service.snapshot('ws-1', created.runtime.team.id);
+    expect(executing.phase).toBe('executing');
+    expect(mockState.clearedWarmupNodes[0].nodeIds.sort()).toEqual(
+      expectedStartupNodeIds,
+    );
     expect(mockState.queuedInputs.some((entry) => entry.input.includes('Implement checkout refactor'))).toBe(true);
   });
 
