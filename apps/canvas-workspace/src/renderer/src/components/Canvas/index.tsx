@@ -311,10 +311,10 @@ export const Canvas = ({
     handleNodeViewportFocus(node);
   }, [handleNodeViewportFocus]);
 
-  const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd } = useNodeDrag(
+  const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd, onDragCancel } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds,
   );
-  const { resizingId, onResizeStart, onResizeMove, onResizeEnd } =
+  const { resizingId, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel } =
     useNodeResize(resizeNode, transform.scale);
 
   const { sortedNodes, renderGroups } = useCanvasRenderOrder(nodes);
@@ -444,6 +444,7 @@ export const Canvas = ({
     canvasMouseDown, canvasMouseMove, canvasMouseUp,
     moving, panning,
     onDragStart, onDragMove, onDragEnd,
+    onDragCancel, onResizeCancel,
     resizingId, onResizeStart, onResizeMove, onResizeEnd,
     edgeInteractionState, marquee, shapeToolActive, shapeDraft,
     commitHistory, onNodesChange,

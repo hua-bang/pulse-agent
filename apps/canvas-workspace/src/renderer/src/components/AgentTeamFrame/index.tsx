@@ -304,6 +304,13 @@ export const AgentTeamFrame = ({
   const [snapshot, setSnapshot] = useState<AgentTeamSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | 'dispatch' | null>(null);
+  // In-flight guard for the plan-phase actions (Approve & Run / Continue /
+  // Finish). These fire IPC calls that re-plan or advance the team — a
+  // double-click must not submit the action twice.
+  const [planAction, setPlanAction] = useState<'confirm' | 'advance' | 'finalize' | null>(null);
+  // In-flight guard for the composer (brief / message / revise) so a second
+  // Enter during the send round-trip doesn't dispatch the same text twice.
+  const [commandSending, setCommandSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [briefDraft, setBriefDraft] = useState('');
   const [messageDraft, setMessageDraft] = useState('');
@@ -904,37 +911,52 @@ export const AgentTeamFrame = ({
   }, [api, workspaceId, teamId, briefDraft]);
 
   const handleConfirmPlan = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
-    const result = await api.confirmPlan(workspaceId, teamId);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to confirm plan.');
+    if (!api || !workspaceId || !teamId || planAction) return;
+    setPlanAction('confirm');
+    try {
+      const result = await api.confirmPlan(workspaceId, teamId);
+      if (result.ok && result.snapshot) {
+        setSnapshot(result.snapshot);
+        setError(null);
+      } else {
+        setError(result.error ?? 'Unable to confirm plan.');
+      }
+    } finally {
+      setPlanAction(null);
     }
-  }, [api, workspaceId, teamId]);
+  }, [api, workspaceId, teamId, planAction]);
 
   const handleAdvanceRound = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
-    const result = await api.advanceRound(workspaceId, teamId);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to advance to next round.');
+    if (!api || !workspaceId || !teamId || planAction) return;
+    setPlanAction('advance');
+    try {
+      const result = await api.advanceRound(workspaceId, teamId);
+      if (result.ok && result.snapshot) {
+        setSnapshot(result.snapshot);
+        setError(null);
+      } else {
+        setError(result.error ?? 'Unable to advance to next round.');
+      }
+    } finally {
+      setPlanAction(null);
     }
-  }, [api, workspaceId, teamId]);
+  }, [api, workspaceId, teamId, planAction]);
 
   const handleFinalizeCheckpoint = useCallback(async () => {
-    if (!api || !workspaceId || !teamId) return;
-    const result = await api.finalizeFromCheckpoint(workspaceId, teamId);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to finalize team.');
+    if (!api || !workspaceId || !teamId || planAction) return;
+    setPlanAction('finalize');
+    try {
+      const result = await api.finalizeFromCheckpoint(workspaceId, teamId);
+      if (result.ok && result.snapshot) {
+        setSnapshot(result.snapshot);
+        setError(null);
+      } else {
+        setError(result.error ?? 'Unable to finalize team.');
+      }
+    } finally {
+      setPlanAction(null);
     }
-  }, [api, workspaceId, teamId]);
+  }, [api, workspaceId, teamId, planAction]);
 
   const handleUpdatePlanTeammate = useCallback(async (teammateName: string, agentType: string) => {
     if (!api || !workspaceId || !teamId) return;
@@ -948,28 +970,34 @@ export const AgentTeamFrame = ({
   }, [api, workspaceId, teamId]);
 
   const handleTeamCommand = useCallback(async () => {
-    if (phase === 'briefing') {
-      await handleBriefLead();
-      return;
-    }
+    if (commandSending) return;
+    setCommandSending(true);
+    try {
+      if (phase === 'briefing') {
+        await handleBriefLead();
+        return;
+      }
 
-    const content = messageDraft.trim();
-    if (!api || !workspaceId || !teamId || !lead || !content) return;
-    const revisePrefix = phase === 'plan_review'
-      ? 'The user wants to revise the current plan before approving it. Regenerate the plan incorporating this feedback:\n\n'
-      : '';
-    const taskContext = !revisePrefix && teamStatus !== 'completed' && selectedTask
-      ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\n`
-      : '';
-    const result = await api.sendInput(workspaceId, teamId, lead.id, `${revisePrefix}${taskContext}${content}`);
-    if (result.ok && result.snapshot) {
-      setSnapshot(result.snapshot);
-      setMessageDraft('');
-      setError(null);
-    } else {
-      setError(result.error ?? 'Unable to send command.');
+      const content = messageDraft.trim();
+      if (!api || !workspaceId || !teamId || !lead || !content) return;
+      const revisePrefix = phase === 'plan_review'
+        ? 'The user wants to revise the current plan before approving it. Regenerate the plan incorporating this feedback:\n\n'
+        : '';
+      const taskContext = !revisePrefix && teamStatus !== 'completed' && selectedTask
+        ? `Task context: "${selectedTask.title}" (${selectedTask.status}).\n`
+        : '';
+      const result = await api.sendInput(workspaceId, teamId, lead.id, `${revisePrefix}${taskContext}${content}`);
+      if (result.ok && result.snapshot) {
+        setSnapshot(result.snapshot);
+        setMessageDraft('');
+        setError(null);
+      } else {
+        setError(result.error ?? 'Unable to send command.');
+      }
+    } finally {
+      setCommandSending(false);
     }
-  }, [api, handleBriefLead, lead, messageDraft, phase, selectedTask, teamId, teamStatus, workspaceId]);
+  }, [api, commandSending, handleBriefLead, lead, messageDraft, phase, selectedTask, teamId, teamStatus, workspaceId]);
 
   const handlePauseTeam = useCallback(async () => {
     if (!api || !workspaceId || !teamId) return;
@@ -1362,8 +1390,8 @@ export const AgentTeamFrame = ({
           rows={commandMode === 'brief' ? 8 : commandMode === 'revise' ? 3 : commandMode === 'next' ? 3 : 1}
         />
       </div>
-      <button type="button" onClick={() => void handleTeamCommand()} disabled={readOnly || !canSendCommand}>
-        {commandButtonLabel}
+      <button type="button" onClick={() => void handleTeamCommand()} disabled={readOnly || !canSendCommand || commandSending}>
+        {commandSending ? 'Sending…' : commandButtonLabel}
       </button>
     </div>
   );
@@ -1810,17 +1838,17 @@ export const AgentTeamFrame = ({
             </span>
           )}
           {phase === 'plan_review' && plan && (
-            <button type="button" className="agent-team-frame__primary-action" onClick={handleConfirmPlan} disabled={readOnly}>
-              Approve & Run
+            <button type="button" className="agent-team-frame__primary-action" onClick={handleConfirmPlan} disabled={readOnly || planAction !== null}>
+              {planAction === 'confirm' ? 'Approving…' : 'Approve & Run'}
             </button>
           )}
           {isCheckpoint && (
             <>
-              <button type="button" className="agent-team-frame__secondary-action" onClick={() => void handleFinalizeCheckpoint()} disabled={readOnly}>
-                Finish
+              <button type="button" className="agent-team-frame__secondary-action" onClick={() => void handleFinalizeCheckpoint()} disabled={readOnly || planAction !== null}>
+                {planAction === 'finalize' ? 'Finishing…' : 'Finish'}
               </button>
-              <button type="button" className="agent-team-frame__primary-action" onClick={() => void handleAdvanceRound()} disabled={readOnly}>
-                Continue to Round {(checkpointRound ?? 0) + 1}
+              <button type="button" className="agent-team-frame__primary-action" onClick={() => void handleAdvanceRound()} disabled={readOnly || planAction !== null}>
+                {planAction === 'advance' ? 'Starting…' : `Continue to Round ${(checkpointRound ?? 0) + 1}`}
               </button>
             </>
           )}
@@ -2082,17 +2110,17 @@ export const AgentTeamFrame = ({
               type="button"
               className="agent-team-frame__secondary-action"
               onClick={() => void handleFinalizeCheckpoint()}
-              disabled={readOnly}
+              disabled={readOnly || planAction !== null}
             >
-              Finish
+              {planAction === 'finalize' ? 'Finishing…' : 'Finish'}
             </button>
             <button
               type="button"
               className="agent-team-frame__primary-action"
               onClick={() => void handleAdvanceRound()}
-              disabled={readOnly}
+              disabled={readOnly || planAction !== null}
             >
-              Continue to Round {(checkpointRound ?? 0) + 1}
+              {planAction === 'advance' ? 'Starting…' : `Continue to Round ${(checkpointRound ?? 0) + 1}`}
             </button>
           </div>
         </div>

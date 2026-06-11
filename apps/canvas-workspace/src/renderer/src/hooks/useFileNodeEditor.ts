@@ -143,6 +143,9 @@ interface SlashMenuState {
 export interface BubbleState {
   x: number;
   y: number;
+  /** Bottom edge of the selection rect — anchor for flipping the bubble
+   *  below the selection when there's no room above it. */
+  bottom: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -319,6 +322,7 @@ export const useFileNodeEditor = ({
         setBubble({
           x: selRect.left + selRect.width / 2,
           y: selRect.top,
+          bottom: selRect.bottom,
         });
       });
     },

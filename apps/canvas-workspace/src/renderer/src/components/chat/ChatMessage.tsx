@@ -4,6 +4,7 @@ import { toFileUrl } from '../../utils/fileUrl';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions } from './utils/mentions';
+import { isImeComposing } from '../../utils/ime';
 import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
@@ -150,11 +151,17 @@ export const ChatMessage = ({
     if (!onEditUserMessage) return;
     const trimmed = editValue.trim();
     if (!trimmed) return;
-    setIsEditing(false);
-    await onEditUserMessage(index, trimmed);
+    // Close the editor only when the rewind+resend actually went through —
+    // otherwise (e.g. another turn is still streaming) the user's edited
+    // text would be silently discarded.
+    const ok = await onEditUserMessage(index, trimmed);
+    if (ok !== false) setIsEditing(false);
   }, [editValue, index, onEditUserMessage]);
 
   const handleEditKeyDown = useCallback((event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Escape/Enter during IME composition dismiss/confirm the candidate
+    // text — cancelling the edit or saving there would eat CJK input.
+    if (isImeComposing(event)) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       handleCancelEdit();

@@ -241,6 +241,32 @@ export const useNodeDrag = (
     setSnapLines([]);
   }, [flushDragMove]);
 
+  /** Abort the gesture (Escape): put the primary node and every companion
+   *  back where the drag found them, then drop all drag state. The caller
+   *  is responsible for NOT committing history afterwards. */
+  const onDragCancel = useCallback(() => {
+    if (moveFrame.current !== null) {
+      cancelAnimationFrame(moveFrame.current);
+      moveFrame.current = null;
+    }
+    lastMoveEvent.current = null;
+    const d = dragging.current;
+    if (d && d.started) {
+      if (d.companions.length > 0) {
+        moveNodes([
+          { id: d.id, x: d.nodeX, y: d.nodeY },
+          ...d.companions.map((c) => ({ id: c.id, x: c.nodeX, y: c.nodeY })),
+        ]);
+      } else {
+        moveNode(d.id, d.nodeX, d.nodeY);
+      }
+    }
+    dragging.current = null;
+    setDraggingId(null);
+    setDraggingIds(new Set());
+    setSnapLines([]);
+  }, [moveNode, moveNodes]);
+
   useEffect(() => {
     return () => {
       if (moveFrame.current !== null) {
@@ -249,5 +275,5 @@ export const useNodeDrag = (
     };
   }, []);
 
-  return { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd };
+  return { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd, onDragCancel };
 };

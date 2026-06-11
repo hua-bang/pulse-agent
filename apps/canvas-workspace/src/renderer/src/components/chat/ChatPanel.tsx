@@ -261,16 +261,21 @@ export const ChatPanel = ({
     await jumpToSession(entry.sessionId, entry.workspaceId);
   }, [jumpToSession, sessionBackStack]);
 
-  // Manual session switches reset the jump trail.
+  // Manual session switches reset the jump trail. Both are blocked while a
+  // turn is streaming — same rule as session-ref chips and the back bar:
+  // swapping the message list mid-generation would let the in-flight
+  // stream write into the newly loaded session.
   const handleNewSessionFromMenu = useCallback(async () => {
+    if (loading) return;
     setSessionBackStack([]);
     await handleNewSession();
-  }, [handleNewSession]);
+  }, [handleNewSession, loading]);
 
   const handleLoadSessionFromMenu = useCallback(async (sessionId: string, sourceWorkspaceId?: string) => {
+    if (loading) return;
     setSessionBackStack([]);
     await handleLoadSession(sessionId, sourceWorkspaceId);
-  }, [handleLoadSession]);
+  }, [handleLoadSession, loading]);
 
   const backEntry = sessionBackStack[sessionBackStack.length - 1];
 

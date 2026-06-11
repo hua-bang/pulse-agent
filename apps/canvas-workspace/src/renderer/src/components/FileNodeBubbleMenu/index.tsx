@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './index.css';
 import type { Editor } from '@tiptap/react';
@@ -9,10 +10,42 @@ interface Props {
   onOpenLinkPrompt: () => void;
 }
 
-export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) => createPortal(
+const VIEWPORT_MARGIN_PX = 8;
+const SELECTION_GAP_PX = 8;
+
+export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) => {
+  // The CSS default hangs the menu centered above the selection, which cuts
+  // it off for selections near the top or side edges of the window. Measure
+  // after layout, clamp horizontally, and flip below the selection when
+  // there's no room above.
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [placement, setPlacement] = useState<{ left: number; top: number; flipped: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const halfW = w / 2;
+    const left = Math.max(
+      VIEWPORT_MARGIN_PX + halfW,
+      Math.min(bubble.x, window.innerWidth - VIEWPORT_MARGIN_PX - halfW),
+    );
+    const flipped = bubble.y - h - SELECTION_GAP_PX < VIEWPORT_MARGIN_PX;
+    setPlacement({ left, top: flipped ? bubble.bottom : bubble.y, flipped });
+  }, [bubble.x, bubble.y, bubble.bottom]);
+
+  return createPortal(
   <div
+    ref={menuRef}
     className="note-bubble-menu"
-    style={{ left: bubble.x, top: bubble.y }}
+    style={{
+      left: placement?.left ?? bubble.x,
+      top: placement?.top ?? bubble.y,
+      // Above the selection by default; below it when clamped at the top.
+      transform: placement?.flipped
+        ? `translate(-50%, ${SELECTION_GAP_PX}px)`
+        : `translate(-50%, calc(-100% - ${SELECTION_GAP_PX}px))`,
+    }}
     onMouseDown={(e) => e.preventDefault()}
   >
     <button
@@ -137,4 +170,5 @@ export const FileNodeBubbleMenu = ({ editor, bubble, onOpenLinkPrompt }: Props) 
     </button>
   </div>,
   document.body,
-);
+  );
+};
