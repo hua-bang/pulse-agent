@@ -112,15 +112,28 @@ const stripAnsi = (value: string): string =>
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
     .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
 
+/**
+ * A human-input marker is only actionable with a concrete question. Task
+ * prompts contain the literal fallback example
+ * `[agent-team:human-input-needed taskId="..."] <question>`, and the TUI
+ * echo of that prompt re-enters the PTY output — line-wrapped at terminal
+ * width, so the placeholder arrives whole (`<question>`), truncated
+ * (`<ques`), or cut off entirely (empty text). Opening gates for those
+ * floods the Team Lead backlog with unanswerable questions and parks the
+ * task/agent in needs_input even though the agent is actually working.
+ */
+const isPlaceholderHumanInputText = (text: string): boolean =>
+  !text
+  || text.startsWith('<')
+  || /^agent requested human input\.?$/i.test(text)
+  || /^human input requested\.?$/i.test(text);
+
 const parseAgentOutputMarker = (line: string): AgentOutputMarker | null => {
   const match = AGENT_TEAM_MARKER_RE.exec(stripAnsi(line).trim());
   if (!match?.groups) return null;
   const text = match.groups.text.trim();
   if (/^<[^>]+>$/.test(text)) return null;
-  if (
-    match.groups.kind === 'human-input-needed'
-    && /^agent requested human input\.?$/i.test(text)
-  ) return null;
+  if (match.groups.kind === 'human-input-needed' && isPlaceholderHumanInputText(text)) return null;
   return {
     kind: match.groups.kind as AgentOutputMarkerKind,
     taskId: match.groups.taskId,
@@ -1584,6 +1597,7 @@ export class CanvasAgentTeamsService {
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
     await this.repairLegacyOutputMarkerBlocks(store, teamId);
     await this.repairAnsweredHumanGateBlocks(store, teamId);
+    await this.repairPlaceholderHumanGates(store, teamId);
 
     const [team, agent, tasks, metadata] = await Promise.all([
       store.getTeam(teamId),
@@ -1660,6 +1674,7 @@ export class CanvasAgentTeamsService {
     await ensureAgentTeamCanvasLayout(workspaceId, teamId);
     await this.repairLegacyOutputMarkerBlocks(store, teamId);
     await this.repairAnsweredHumanGateBlocks(store, teamId);
+    await this.repairPlaceholderHumanGates(store, teamId);
     await runtime.notifyLeadPendingGates(teamId);
     await runtime.notifyLeadPendingTaskReviews(teamId);
     await runtime.notifyLeadReviewIfStalled(teamId);
@@ -1737,6 +1752,7 @@ export class CanvasAgentTeamsService {
             await this.watchdogCheckAgents(workspaceId, entry.teamId);
             await this.repairLegacyOutputMarkerBlocks(store, entry.teamId);
             await this.repairAnsweredHumanGateBlocks(store, entry.teamId);
+            await this.repairPlaceholderHumanGates(store, entry.teamId);
             await runtime.repairCurrentRound(entry.teamId);
             await runtime.notifyLeadPendingGates(entry.teamId);
             await runtime.notifyLeadPendingTaskReviews(entry.teamId);
@@ -2184,6 +2200,56 @@ export class CanvasAgentTeamsService {
         agent.status = 'running';
         agent.updatedAt = now;
         await store.saveAgent(agent);
+      }
+    }
+  }
+
+  /**
+   * Cancel open human gates whose prompt carries no concrete question —
+   * junk recorded before the marker parser filtered echoed/wrapped prompt
+   * examples. Such gates nag the Team Lead with unanswerable digests and
+   * park their task/agent in needs_input although the agent never actually
+   * asked anything; once cancelled, the parked records resume.
+   */
+  private async repairPlaceholderHumanGates(store: CanvasAgentTeamStore, teamId: string): Promise<void> {
+    const gates = await store.listHumanGates(teamId);
+    const junk = gates.filter((gate) => gate.status === 'open' && isPlaceholderHumanInputText(gate.prompt.trim()));
+    if (junk.length === 0) return;
+
+    const now = Date.now();
+    for (const gate of junk) {
+      gate.status = 'cancelled';
+      gate.updatedAt = now;
+      await store.saveHumanGate(gate);
+    }
+
+    const [tasks, agents, refreshedGates] = await Promise.all([
+      store.listTasks(teamId),
+      store.listAgents(teamId),
+      store.listHumanGates(teamId),
+    ]);
+    const remainingOpen = refreshedGates.filter((gate) => gate.status === 'open');
+    const openTaskIds = new Set(remainingOpen.map((gate) => gate.taskId).filter(Boolean));
+    const openAgentIds = new Set(remainingOpen.map((gate) => gate.agentId).filter(Boolean));
+    const agentsById = new Map(agents.map((agent) => [agent.id, agent]));
+
+    for (const gate of junk) {
+      if (gate.taskId && !openTaskIds.has(gate.taskId)) {
+        const task = tasks.find((candidate) => candidate.id === gate.taskId);
+        if (task && task.status === 'needs_input') {
+          task.status = task.ownerAgentId ? 'in_progress' : 'todo';
+          task.blockedReason = undefined;
+          task.updatedAt = now;
+          await store.saveTask(task);
+        }
+      }
+      if (gate.agentId && !openAgentIds.has(gate.agentId)) {
+        const agent = agentsById.get(gate.agentId);
+        if (agent && agent.status === 'needs_input') {
+          agent.status = agent.currentTaskId ? 'running' : 'idle';
+          agent.updatedAt = now;
+          await store.saveAgent(agent);
+        }
       }
     }
   }

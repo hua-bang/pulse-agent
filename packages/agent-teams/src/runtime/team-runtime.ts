@@ -844,20 +844,7 @@ export class TeamRuntime {
       reason: TASK_ACCEPTANCE_PENDING_REASON,
     });
     await this.notifyLead(task.teamId, await this.formatTaskAcceptancePrompt(task, submitter, summary), task.id);
-    await this.warmPendingTaskReviewDigest(task.teamId);
     return task;
-  }
-
-  /**
-   * Pre-warm the pending-review digest cache after a review prompt was just
-   * delivered, so the snapshot heartbeat does not immediately re-send a
-   * digest covering the same backlog on the next tick.
-   */
-  private async warmPendingTaskReviewDigest(teamId: TeamId): Promise<void> {
-    this.leadTaskReviewDigestCache.set(teamId, {
-      digest: await this.formatPendingTaskReviewDigest(teamId),
-      sentAt: this.now(),
-    });
   }
 
   async completeTask(taskId: TaskId, result: string, actor?: AgentId | 'human' | 'runtime'): Promise<TeamTaskRecord> {
@@ -943,7 +930,6 @@ export class TeamRuntime {
       reason,
     });
     await this.notifyLead(task.teamId, await this.formatTaskReviewPrompt(task, reason), task.id);
-    await this.warmPendingTaskReviewDigest(task.teamId);
     return task;
   }
 
@@ -1432,7 +1418,10 @@ export class TeamRuntime {
    * session missed it, the task would sit in needs_review forever while
    * downstream work stays blocked. Pulse Canvas calls this on its snapshot
    * heartbeat, like the pending-gate digest. Throttled per digest so an
-   * unchanged backlog is not re-sent within the resend window.
+   * unchanged backlog is not re-sent within the resend window. Open teammate
+   * questions do NOT suppress this nag: a lingering unanswerable gate must
+   * never starve the review backlog (notifyLead appends both digests to one
+   * message anyway).
    */
   async notifyLeadPendingTaskReviews(teamId: TeamId): Promise<void> {
     const team = await this.requireTeam(teamId);
@@ -1440,10 +1429,6 @@ export class TeamRuntime {
       this.leadTaskReviewDigestCache.delete(teamId);
       return;
     }
-    // If teammate questions are pending, the gate digest path is already
-    // re-engaging the lead; don't stack a second prompt on the same tick.
-    if (await this.formatLeadPendingGateDigest(teamId)) return;
-
     const digest = await this.formatPendingTaskReviewDigest(teamId);
     if (!digest) {
       this.leadTaskReviewDigestCache.delete(teamId);
@@ -1453,12 +1438,13 @@ export class TeamRuntime {
     if (cached?.digest === digest && this.now() - cached.sentAt < LEAD_TASK_REVIEW_DIGEST_RESEND_MS) {
       return;
     }
+    // The digest itself rides along via notifyLead, which also re-warms the
+    // resend cache.
     await this.notifyLead(teamId, [
       'Pulse Canvas found tasks still waiting for Team Lead review.',
       '',
-      digest,
+      'Handle each review now: verify the deliverable, then accept it or send it back.',
     ].join('\n'));
-    this.leadTaskReviewDigestCache.set(teamId, { digest, sentAt: this.now() });
   }
 
   /**
@@ -1515,9 +1501,9 @@ export class TeamRuntime {
       this.leadReviewNudgeCache.delete(teamId);
       return;
     }
-    // If teammate questions are still waiting on the lead, the pending-gate digest
-    // path is already re-engaging it; don't stack a second prompt on this tick.
-    if (await this.formatLeadPendingGateDigest(teamId)) return;
+    // Open teammate questions do not suppress the nudge: they ride along on
+    // the same notifyLead message, and a lingering unanswerable gate must not
+    // stall finalization forever.
     const lastNudgedAt = this.leadReviewNudgeCache.get(teamId);
     if (lastNudgedAt !== undefined && this.now() - lastNudgedAt < LEAD_REVIEW_RESEND_MS) {
       return;
@@ -2064,18 +2050,29 @@ export class TeamRuntime {
     });
     if (!this.agentSessions || !lead.sessionRef) return;
 
+    // Both backlogs ride along on every lead notification: a lead that only
+    // reads its latest message still sees every question AND every pending
+    // review, so neither backlog depends on the lead having caught the one
+    // prompt that announced it.
     const pendingGateDigest = await this.formatLeadPendingGateDigest(teamId);
+    const pendingReviewDigest = await this.formatPendingTaskReviewDigest(teamId);
     await this.agentSessions.sendInput(lead.sessionRef.sessionId, [
       LEAD_NOTIFICATION_GUARD,
       '',
       content,
       ...(pendingGateDigest ? ['', pendingGateDigest] : []),
+      ...(pendingReviewDigest ? ['', pendingReviewDigest] : []),
     ].join('\n'));
 
     if (pendingGateDigest) {
       this.leadPendingDigestCache.set(teamId, { digest: pendingGateDigest, sentAt: this.now() });
     } else {
       this.leadPendingDigestCache.delete(teamId);
+    }
+    if (pendingReviewDigest) {
+      this.leadTaskReviewDigestCache.set(teamId, { digest: pendingReviewDigest, sentAt: this.now() });
+    } else {
+      this.leadTaskReviewDigestCache.delete(teamId);
     }
     lead.status = 'running';
     lead.updatedAt = this.now();

@@ -1490,6 +1490,25 @@ describe('CanvasAgentTeamsService', () => {
     );
     expect(generic).toBeNull();
 
+    // The TUI echo of the task prompt wraps at terminal width, so the example
+    // marker also arrives with the placeholder truncated or cut off entirely.
+    const truncated = await service.reportAgentOutput(
+      'ws-1',
+      owner.sessionRef!.sessionId,
+      `[agent-team:human-input-needed taskId="${task.id}"] <ques\n`,
+    );
+    expect(truncated).toBeNull();
+    const empty = await service.reportAgentOutput(
+      'ws-1',
+      owner.sessionRef!.sessionId,
+      `[agent-team:human-input-needed taskId="${task.id}"]\n`,
+    );
+    expect(empty).toBeNull();
+    const unparked = await service.snapshot('ws-1', created.runtime.team.id);
+    expect(unparked.runtime.humanGates).toHaveLength(0);
+    expect(unparked.runtime.tasks[0].status).toBe('in_progress');
+    expect(unparked.runtime.agents.find((agent) => agent.id === owner.id)?.status).toBe('running');
+
     const gated = await service.reportAgentOutput(
       'ws-1',
       owner.sessionRef!.sessionId,
@@ -1507,6 +1526,38 @@ describe('CanvasAgentTeamsService', () => {
       `[agent-team:human-input-needed taskId="${task.id}"] Should I update the public API?\n`,
     );
     expect(duplicate).toBeNull();
+  });
+
+  it('cancels placeholder human gates and resumes the parked task and agent', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const task = created.runtime.tasks[0];
+    const owner = created.runtime.agents.find((agent) => agent.id === task.ownerAgentId)!;
+
+    // A junk gate recorded by an older build (the marker parser now rejects
+    // these at the source): the snapshot maintenance pass cancels it and
+    // un-parks the task and agent it froze.
+    const repaired = await service.openHumanGate('ws-1', teamId, {
+      taskId: task.id,
+      agentId: owner.id,
+      reason: 'Teammate requested Team Lead input',
+      prompt: 'Agent requested human input.',
+    });
+    expect(repaired.runtime.humanGates[0].status).toBe('cancelled');
+    expect(repaired.runtime.tasks[0].status).toBe('in_progress');
+    expect(repaired.runtime.agents.find((agent) => agent.id === owner.id)?.status).toBe('running');
+
+    // Gates with a concrete question are untouched by the repair.
+    const gated = await service.openHumanGate('ws-1', teamId, {
+      taskId: task.id,
+      agentId: owner.id,
+      reason: 'Need lead decision',
+      prompt: 'Should the checkout API stay stable?',
+    });
+    const concrete = gated.runtime.humanGates.find((gate) => gate.prompt === 'Should the checkout API stay stable?')!;
+    expect(concrete.status).toBe('open');
+    expect(gated.runtime.tasks[0].status).toBe('needs_input');
   });
 
   it('opens a human-facing gate when the team lead asks for human input', async () => {

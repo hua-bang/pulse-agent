@@ -1420,6 +1420,67 @@ describe('TeamRuntime', () => {
       await runtime.notifyLeadPendingTaskReviews(team.id);
       expect(leadInputs()).toHaveLength(afterSubmit + 1);
     });
+
+    it('keeps nagging about pending reviews while teammate questions are open', async () => {
+      let id = 1;
+      let now = 1000;
+      const adapter = new FakeAgentSessionAdapter();
+      const runtime = new TeamRuntime({
+        agentSessions: adapter,
+        idFactory: () => `id-${id++}`,
+        now: () => now++,
+      });
+      const { team } = await runtime.createTeam({ name: 'Team', goal: 'Ship it' });
+      const lead = await runtime.addAgent({ teamId: team.id, role: 'lead', name: 'Lead' });
+      const coder = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Coder' });
+      const helper = await runtime.addAgent({ teamId: team.id, role: 'teammate', name: 'Helper' });
+      const leadWithSession = await runtime.createAgentSession(lead.id);
+      await runtime.createAgentSession(coder.id);
+      await runtime.createAgentSession(helper.id);
+      const built = await runtime.createTask({
+        teamId: team.id,
+        title: 'Build feature',
+        description: 'Build it.',
+        ownerAgentId: coder.id,
+      });
+      const styled = await runtime.createTask({
+        teamId: team.id,
+        title: 'Style feature',
+        description: 'Style it.',
+        ownerAgentId: helper.id,
+      });
+      void styled;
+      await runtime.dispatchReadyTasks(team.id);
+      const sessionId = leadWithSession.sessionRef!.sessionId;
+      const leadInputs = () => adapter.inputs.filter((entry) => entry.sessionId === sessionId);
+
+      // One completion awaits review while another teammate has an open question.
+      await runtime.submitTaskCompletion(built.id, 'Feature built.', coder.id);
+      await runtime.openHumanGate({
+        teamId: team.id,
+        agentId: helper.id,
+        taskId: styled.id,
+        reason: 'Teammate requested Team Lead input',
+        prompt: 'Which spacing scale should I use?',
+        metadata: { audience: 'lead' },
+      });
+
+      // The open gate must not starve the review nag after the resend window.
+      now += 61_000;
+      const before = leadInputs().length;
+      await runtime.notifyLeadPendingTaskReviews(team.id);
+      expect(leadInputs()).toHaveLength(before + 1);
+      const nag = leadInputs().at(-1)?.input ?? '';
+      // Both backlogs arrive in the same message.
+      expect(nag).toContain('Tasks waiting for Team Lead review (1):');
+      expect(nag).toContain('Current teammate questions waiting for Team Lead (1):');
+
+      // The review backlog also rides along on unrelated lead notifications.
+      await runtime.notifyLeadAttention(team.id, 'Heartbeat status note.');
+      const attention = leadInputs().at(-1)?.input ?? '';
+      expect(attention).toContain('Heartbeat status note.');
+      expect(attention).toContain('Tasks waiting for Team Lead review (1):');
+    });
   });
 
   describe('Scope guard', () => {
