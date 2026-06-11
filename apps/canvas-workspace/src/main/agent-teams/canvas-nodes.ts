@@ -117,6 +117,9 @@ const withClaudeCliSessionId = (agentType: unknown, existing: unknown): string |
   return typeof existing === 'string' && existing ? existing : randomUUID();
 };
 
+const nextQueueRev = (data: Record<string, unknown>): number =>
+  (typeof data.queueRev === 'number' && Number.isFinite(data.queueRev) ? data.queueRev : 0) + 1;
+
 const queueLaunchPrompt = async (
   node: CanvasNode,
   prompt: string,
@@ -164,6 +167,12 @@ const queueLaunchPrompt = async (
     inlinePrompt,
     promptFile,
     lastInitPrompt: combined,
+    // Monotonic revision of the main-owned launch-queue fields. The canvas
+    // save merge uses it to protect a queued prompt from a renderer save
+    // built on a snapshot that predates this write (renderer saves always
+    // win the per-node updatedAt race because every renderer touch bumps
+    // updatedAt).
+    queueRev: nextQueueRev(data),
   };
   node.updatedAt = Date.now();
 };
@@ -636,7 +645,7 @@ export async function persistAgentNodeLaunchPrompt(
   const node = canvas.nodes?.find((item) => item.id === nodeId);
   if (!node || node.type !== 'agent') return;
   if (node.data?.lastInitPrompt === prompt) return;
-  node.data = { ...node.data, lastInitPrompt: prompt };
+  node.data = { ...node.data, lastInitPrompt: prompt, queueRev: nextQueueRev(node.data ?? {}) };
   node.updatedAt = Date.now();
   await writeCanvasFull(workspaceId, canvas);
   broadcastCanvasUpdate(workspaceId, [nodeId], 'update', 'agent-teams');

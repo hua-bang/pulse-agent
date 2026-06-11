@@ -324,6 +324,9 @@ async function handleRequest(
   if (req.url === '/agent-team/send') {
     return handleAgentTeamSend(res, parsed as Record<string, unknown>);
   }
+  if (req.url === '/agent-team/status') {
+    return handleAgentTeamStatus(res, parsed as Record<string, unknown>);
+  }
 
   return reply(res, 404, { ok: false, error: 'not found' });
 }
@@ -478,6 +481,34 @@ async function handleAgentTeamBlockTask(
   try {
     const snapshot = await getCanvasAgentTeamsService().blockAgentTask({ ...base, reason });
     return reply(res, 200, { ok: true, snapshot });
+  } catch (err) {
+    return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+/**
+ * Read-only status: with teamId returns the full team snapshot (including
+ * per-agent session health); without it returns one-line team summaries.
+ * Never mutates team state or wakes the lead.
+ */
+async function handleAgentTeamStatus(
+  res: ServerResponse,
+  obj: Record<string, unknown>,
+): Promise<void> {
+  const workspaceId = typeof obj.workspaceId === 'string' ? obj.workspaceId : '';
+  const teamId = typeof obj.teamId === 'string' && obj.teamId.trim() ? obj.teamId.trim() : undefined;
+  if (!workspaceId) {
+    return reply(res, 400, { ok: false, error: 'workspaceId is required' });
+  }
+
+  try {
+    const service = getCanvasAgentTeamsService();
+    if (teamId) {
+      const snapshot = await service.teamStatus(workspaceId, teamId);
+      return reply(res, 200, { ok: true, snapshot });
+    }
+    const teams = await service.listTeamSummaries(workspaceId);
+    return reply(res, 200, { ok: true, teams });
   } catch (err) {
     return reply(res, 400, { ok: false, error: err instanceof Error ? err.message : String(err) });
   }

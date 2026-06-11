@@ -118,6 +118,15 @@ export interface CanvasAgentTeamPublishArtifactInput extends CanvasAgentTeamTask
   summary?: string;
 }
 
+/**
+ * Liveness of an agent's PTY session as seen from the main process:
+ * - `live`: PTY is running and can receive input now.
+ * - `queued`: no PTY, but a launch prompt is queued — delivers on relaunch.
+ * - `dead`: node exists, no PTY, nothing queued.
+ * - `missing`: no session ref or the canvas node is gone.
+ */
+export type CanvasAgentSessionHealth = 'live' | 'queued' | 'dead' | 'missing';
+
 export interface CanvasAgentTeamSnapshot {
   workspaceId: string;
   frameNodeId?: string;
@@ -125,6 +134,17 @@ export interface CanvasAgentTeamSnapshot {
   pendingPlan?: CanvasAgentTeamPlanDraft;
   approvedPlan?: CanvasAgentTeamPlanDraft;
   runtime: import('pulse-coder-agent-teams/runtime').RuntimeSnapshot;
+  /** Per-agent session liveness, keyed by agent id. */
+  sessions?: Record<string, CanvasAgentSessionHealth>;
+}
+
+export interface CanvasAgentTeamSummary {
+  teamId: string;
+  name: string;
+  status: string;
+  phase: CanvasAgentTeamPhase;
+  taskCounts: Record<string, number>;
+  agentCount: number;
 }
 
 export type CanvasAgentTeamResult<T> =

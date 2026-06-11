@@ -542,6 +542,42 @@ const ensureMigrated = async (workspaceId: string): Promise<void> => {
   });
 };
 
+/**
+ * Launch-queue fields on team-managed agent nodes (queued prompt, replay
+ * prompt, launch status) are written by the MAIN process and carry a
+ * monotonically increasing `data.queueRev`. Renderer saves win the per-node
+ * `updatedAt` race almost by definition — every renderer touch (including
+ * pure scrollback ticks) bumps `updatedAt` — so a save built on a snapshot
+ * that predates the latest queue write would silently erase a queued prompt
+ * the agent never received. When the disk copy carries a newer queueRev,
+ * graft the queue fields onto the otherwise-winning memory node. A renderer
+ * that consumed the queue (launched the agent) has, by construction, synced
+ * the same queueRev first, so legitimate clears pass through untouched.
+ *
+ * Exported for tests.
+ */
+export const preserveMainOwnedQueueFields = (memNode: CanvasNode, diskNode: CanvasNode): CanvasNode => {
+  if (memNode.type !== 'agent') return memNode;
+  const memData = (memNode.data ?? {}) as Record<string, unknown>;
+  const diskData = (diskNode.data ?? {}) as Record<string, unknown>;
+  if (typeof diskData.agentTeamId !== 'string') return memNode;
+  const diskRev = typeof diskData.queueRev === 'number' ? diskData.queueRev : 0;
+  const memRev = typeof memData.queueRev === 'number' ? memData.queueRev : 0;
+  if (diskRev <= memRev) return memNode;
+  return {
+    ...memNode,
+    data: {
+      ...memData,
+      inlinePrompt: diskData.inlinePrompt,
+      promptFile: diskData.promptFile,
+      lastInitPrompt: diskData.lastInitPrompt,
+      status: diskData.status,
+      viewMode: diskData.viewMode,
+      queueRev: diskRev,
+    } as CanvasNode['data'],
+  };
+};
+
 const mergeExternalNodes = async (
   id: string,
   inMemoryData: CanvasSaveData,
@@ -623,7 +659,7 @@ const mergeExternalNodes = async (
     }
     const memTs = typeof memNode.updatedAt === 'number' ? memNode.updatedAt : 0;
     const diskTs = typeof diskNode.updatedAt === 'number' ? diskNode.updatedAt : 0;
-    mergedExisting.push(diskTs > memTs ? diskNode : memNode);
+    mergedExisting.push(diskTs > memTs ? diskNode : preserveMainOwnedQueueFields(memNode, diskNode));
   }
 
   // Rule 2: nodes only on disk and never-seen → CLI creates, add them.

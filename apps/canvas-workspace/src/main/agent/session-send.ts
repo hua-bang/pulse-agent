@@ -37,7 +37,26 @@ const POST_SUBMIT_CONFIRM_MS = 350;
 const wait = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function sendInputToAgentNode(
+// One in-flight send per agent node. The body→Enter submit sequence spans
+// ~470ms of deliberate gaps; concurrent senders (team notifications, manual
+// `agent send`, gate answers) would interleave their bytes inside each
+// other's gaps and submit garbled half-messages.
+const nodeSendQueues = new Map<string, Promise<unknown>>();
+
+export function sendInputToAgentNode(
+  input: SendInputToAgentNodeInput,
+): Promise<SendInputToAgentNodeResult> {
+  const key = `${input.workspaceId}:${input.nodeId}`;
+  const previous = nodeSendQueues.get(key) ?? Promise.resolve();
+  const next = previous.then(
+    () => sendInputToAgentNodeSerialized(input),
+    () => sendInputToAgentNodeSerialized(input),
+  );
+  nodeSendQueues.set(key, next.catch(() => {}));
+  return next;
+}
+
+async function sendInputToAgentNodeSerialized(
   input: SendInputToAgentNodeInput,
 ): Promise<SendInputToAgentNodeResult> {
   const { workspaceId, nodeId } = input;

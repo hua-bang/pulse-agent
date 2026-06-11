@@ -846,6 +846,73 @@ describe('CanvasAgentTeamsService', () => {
     expect((await taskStatus())?.status).toBe('in_progress');
   });
 
+  it('teamStatus is read-only and reports per-agent session health', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+
+    const queuedBefore = mockState.queuedInputs.length;
+    const status = await service.teamStatus('ws-1', teamId);
+    await service.teamStatus('ws-1', teamId);
+
+    expect(status.runtime.team.id).toBe(teamId);
+    expect(status.runtime.tasks.length).toBeGreaterThan(0);
+    expect(Object.keys(status.sessions ?? {})).toHaveLength(status.runtime.agents.length);
+    for (const agent of status.runtime.agents) {
+      expect(status.sessions?.[agent.id]).toBe('live');
+    }
+    // A status query never nudges the lead or mutates team state.
+    expect(mockState.queuedInputs).toHaveLength(queuedBefore);
+
+    const summaries = await service.listTeamSummaries('ws-1');
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      teamId,
+      name: 'Checkout Team',
+      status: 'running',
+      agentCount: 3,
+    });
+    expect(summaries[0].taskCounts.in_progress).toBe(1);
+  });
+
+  it('opens a human gate when the lead session dies and cancels it on recovery', async () => {
+    const service = new CanvasAgentTeamsService();
+    const created = await createExecutingTeam(service);
+    const teamId = created.runtime.team.id;
+    const leadDownGates = async () => {
+      const snapshot = await service.teamStatus('ws-1', teamId);
+      return snapshot.runtime.humanGates.filter((gate) => gate.metadata?.kind === 'lead-session-down');
+    };
+
+    // Every session dies (app restart without windows reopening the nodes).
+    // The first tick only marks the lead suspect; the second confirms.
+    mockState.ptyAlive = false;
+    mockState.queuedLaunch = false;
+    await service.heartbeatTick();
+    expect(await leadDownGates()).toHaveLength(0);
+    await service.heartbeatTick();
+    let gates = await leadDownGates();
+    expect(gates).toHaveLength(1);
+    expect(gates[0].status).toBe('open');
+    expect(gates[0].prompt).toContain('Team Lead');
+    // No agent/task attached: parking the lead would block its auto-resume.
+    expect(gates[0].agentId).toBeUndefined();
+    expect(gates[0].taskId).toBeUndefined();
+
+    // Further ticks do not stack duplicate gates.
+    await service.heartbeatTick();
+    await service.heartbeatTick();
+    gates = await leadDownGates();
+    expect(gates.filter((gate) => gate.status === 'open')).toHaveLength(1);
+
+    // The lead session comes back: the next snapshot settles the gate.
+    mockState.ptyAlive = true;
+    await service.snapshot('ws-1', teamId);
+    gates = await leadDownGates();
+    expect(gates.filter((gate) => gate.status === 'open')).toHaveLength(0);
+    expect(gates[0]?.status).toBe('cancelled');
+  });
+
   it('cancels a task via cancelAgentTask, releasing its scope to fallback work', async () => {
     const service = new CanvasAgentTeamsService();
     const created = await createTeam(service);

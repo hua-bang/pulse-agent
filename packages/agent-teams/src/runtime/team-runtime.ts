@@ -57,6 +57,7 @@ const TASK_COMPLETION_SUBMITTED_BY_METADATA_KEY = 'completionSubmittedBy';
 const LEAD_NOTIFICATION_GUARD = [
   'Pulse Canvas team event. Handle this notification once.',
   'You are the Team Lead: coordinate, verify, and delegate. Do not create or edit project files yourself — route every change to a teammate. Reading files and quick read-only checks are fine, and writing a temporary plan JSON for propose-plan --plan-file is the one allowed exception.',
+  'If you are unsure of the current team state (task statuses, pending questions or reviews), ground yourself once with: pulse-canvas team status',
   'Do not run sleep, watch, tail, polling loops, or repeated status checks.',
   'If no immediate action is needed, briefly acknowledge and stop. Pulse Canvas will wake you again for the next required decision.',
 ].join('\n');
@@ -1687,19 +1688,15 @@ export class TeamRuntime {
       `pulse-canvas team complete-task --task "${task.id}" --summary "<short summary>"`,
       'The Team Lead reviews your reported completion before the task counts as done, and may send it back with revision feedback.',
       '',
-      'If you need human input, prefer:',
+      'If you need human input, run this command from the terminal. Do not merely print it:',
       `pulse-canvas team request-human-input --task "${task.id}" --prompt "<question>"`,
       'Teammate questions are routed to the Team Lead first. The Team Lead asks the human only if needed.',
-      'Fallback marker:',
-      `[agent-team:human-input-needed taskId="${task.id}"] <question>`,
       '',
       'If you are blocked without a human answer, run this command from the terminal. Do not merely print it:',
       `pulse-canvas team block-task --task "${task.id}" --reason "<reason>"`,
       '',
-      'If you create a notable artifact, prefer:',
+      'If you create a notable artifact, run:',
       `pulse-canvas team publish-artifact --task "${task.id}" --kind "diff" --title "filename.diff" --summary "<short summary>"`,
-      'Fallback marker:',
-      `[agent-team:artifact taskId="${task.id}" kind="diff" title="filename.diff"] <short summary>`,
     ].join('\n');
   }
 
