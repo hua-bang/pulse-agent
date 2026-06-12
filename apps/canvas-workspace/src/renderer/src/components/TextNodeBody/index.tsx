@@ -8,6 +8,7 @@ import "./index.css";
 import type { CanvasNode, TextNodeData } from "../../types";
 import { isImeComposing } from "../../utils/ime";
 import { useEscapeClose } from "../../hooks/useEscapeClose";
+import { useI18n } from "../../i18n";
 
 interface Props {
   node: CanvasNode;
@@ -44,6 +45,7 @@ interface Props {
  * ------------------------------------------------------------------------- */
 
 export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart, readOnly = false }: Props) => {
+  const { t } = useI18n();
   const data = node.data as TextNodeData;
   const autoSize = data.autoSize !== false;
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -70,8 +72,10 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
       // `showOnlyWhenEditable: false` — an empty text node is otherwise
       // invisible on the canvas (transparent bg, no chrome). The placeholder
       // doubles as a "there's a node here" marker at rest.
+      // The placeholder string is captured at editor creation; a language
+      // switch updates it on the next mount, which is acceptable here.
       Placeholder.configure({
-        placeholder: "Double-click or press Enter to edit",
+        placeholder: t('canvas.textPlaceholder'),
         showOnlyWhenEditable: false,
       }),
       // Markdown extension kept for keyboard shortcuts (`# `, `- `, etc.)

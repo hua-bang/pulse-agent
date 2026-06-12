@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useViewportClampedPosition } from "../../hooks/useViewportClampedPosition";
 import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
+import { useI18n } from "../../i18n";
 
 interface Props {
   x: number;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage, onClose }: Props) => {
+  const { t } = useI18n();
   const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
 
   // Arrow-key navigation + Escape; replaces the old window Escape
@@ -45,29 +47,29 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
     >
       {mode === "mindmap" ? (
         <>
-          <div className="context-menu-title">Mindmap</div>
+          <div className="context-menu-title">{t('canvas.menu.mindmapTitle')}</div>
           <button
             className="context-menu-item" role="menuitem"
             onClick={() => onExportImage?.()}
           >
             <span className="context-menu-icon">{"\u21E9"}</span>
             <span className="context-menu-label">
-              <strong>Export as image</strong>
-              <small>Save this mindmap as a PNG</small>
+              <strong>{t('canvas.menu.exportImage')}</strong>
+              <small>{t('canvas.menu.exportImageDesc')}</small>
             </span>
           </button>
         </>
       ) : (
         <>
-          <div className="context-menu-title">Create Node</div>
+          <div className="context-menu-title">{t('canvas.menu.createTitle')}</div>
           <button
             className="context-menu-item" role="menuitem"
             onClick={() => onCreate?.("text")}
           >
             <span className="context-menu-icon">{"\u0041"}</span>
             <span className="context-menu-label">
-              <strong>Text</strong>
-              <small>Free-form text label</small>
+              <strong>{t('canvas.menu.text')}</strong>
+              <small>{t('canvas.menu.textDesc')}</small>
             </span>
           </button>
           <button
@@ -76,8 +78,8 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           >
             <span className="context-menu-icon">{"\u2756"}</span>
             <span className="context-menu-label">
-              <strong>Note</strong>
-              <small>Markdown note card</small>
+              <strong>{t('canvas.menu.note')}</strong>
+              <small>{t('canvas.menu.noteDesc')}</small>
             </span>
           </button>
           <button
@@ -86,8 +88,8 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           >
             <span className="context-menu-icon">{"\u25A1"}</span>
             <span className="context-menu-label">
-              <strong>Frame</strong>
-              <small>Named spatial container</small>
+              <strong>{t('canvas.menu.frame')}</strong>
+              <small>{t('canvas.menu.frameDesc')}</small>
             </span>
           </button>
           <button
@@ -96,8 +98,8 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           >
             <span className="context-menu-icon">{"\u232C"}</span>
             <span className="context-menu-label">
-              <strong>Web Page</strong>
-              <small>Embed a URL or open blank</small>
+              <strong>{t('canvas.menu.web')}</strong>
+              <small>{t('canvas.menu.webDesc')}</small>
             </span>
           </button>
           <button
@@ -106,8 +108,8 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           >
             <span className="context-menu-icon">{"\u2726"}</span>
             <span className="context-menu-label">
-              <strong>Agent</strong>
-              <small>Launch a coding agent</small>
+              <strong>{t('canvas.menu.agent')}</strong>
+              <small>{t('canvas.menu.agentDesc')}</small>
             </span>
           </button>
           <button
@@ -116,8 +118,8 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           >
             <span className="context-menu-icon">{"✿"}</span>
             <span className="context-menu-label">
-              <strong>Mindmap</strong>
-              <small>Branching topic tree</small>
+              <strong>{t('canvas.menu.mindmap')}</strong>
+              <small>{t('canvas.menu.mindmapDesc')}</small>
             </span>
           </button>
         </>

@@ -2,6 +2,7 @@ import type React from 'react';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
+import { useI18n, type I18nKey } from '../../i18n';
 
 interface AgentTerminalProps {
   containerRef: React.RefObject<HTMLDivElement>;
@@ -25,11 +26,11 @@ const FolderGlyph = () => (
   </svg>
 );
 
-const STATUS_TEXT: Record<string, { load: string; tone: 'running' | 'done' | 'error' }> = {
-  running: { load: '已加载', tone: 'running' },
-  done: { load: '已退出', tone: 'done' },
-  error: { load: '出错', tone: 'error' },
-  idle: { load: '空闲', tone: 'done' },
+const STATUS_TEXT: Record<string, { loadKey: I18nKey; tone: 'running' | 'done' | 'error' }> = {
+  running: { loadKey: 'agent.statusRunning', tone: 'running' },
+  done: { loadKey: 'agent.statusExited', tone: 'done' },
+  error: { loadKey: 'agent.statusError', tone: 'error' },
+  idle: { loadKey: 'agent.statusIdle', tone: 'done' },
 };
 
 export const AgentTerminal = ({
@@ -39,10 +40,11 @@ export const AgentTerminal = ({
   cwd,
   loading = false,
 }: AgentTerminalProps) => {
+  const { t } = useI18n();
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
   const statusInfo = STATUS_TEXT[status] ?? STATUS_TEXT.running;
   const displayCwd = cwd ? truncatePath(cwd, 32) : '—';
-  const loadStripText = loading ? '启动中' : statusInfo.load;
+  const loadStripText = loading ? t('agent.statusStarting') : t(statusInfo.loadKey);
   const loadStripTone = loading ? 'running' : statusInfo.tone;
 
   return (
