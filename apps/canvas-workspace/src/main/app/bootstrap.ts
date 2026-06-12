@@ -57,6 +57,7 @@ import {
   registerPulseCanvasProtocol,
   registerPulseCanvasSchemesAsPrivileged,
 } from "./protocol";
+import { configureApplicationMenu } from "./menu";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
@@ -86,6 +87,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     spoofUserAgentFallback();
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);
+    // Must run before the window opens: the default menu's Undo/Redo
+    // accelerators would otherwise swallow Cmd/Ctrl+Z before the
+    // renderer's canvas-history handler receives the keydown.
+    configureApplicationMenu();
     setupRendererLogIpc(writeLog);
     setupFatalErrorLogging(writeLog);
 

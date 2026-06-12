@@ -113,12 +113,16 @@ export const useCanvasKeyboard = ({
         setSearchOpen((prev) => !prev);
         return;
       }
-      if (isMod && !e.shiftKey && e.key === 'z' && !isEditable) {
+      // Normalize the key: with Shift held, e.key is 'Z', so a strict
+      // === 'z' comparison silently broke Cmd/Ctrl+Shift+Z redo.
+      if (isMod && e.key.toLowerCase() === 'z' && !isEditable) {
         e.preventDefault();
-        undo();
+        if (e.shiftKey) redo();
+        else undo();
         return;
       }
-      if (isMod && e.shiftKey && e.key === 'z' && !isEditable) {
+      // Ctrl+Y — conventional redo on Windows/Linux.
+      if (isMod && !e.shiftKey && e.key.toLowerCase() === 'y' && !isEditable) {
         e.preventDefault();
         redo();
         return;
