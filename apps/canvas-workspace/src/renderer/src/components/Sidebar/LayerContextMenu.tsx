@@ -1,4 +1,5 @@
 import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 
 interface LayerContextMenuProps {
   x: number;
@@ -23,16 +24,21 @@ export const LayerContextMenu = ({
 }: LayerContextMenuProps) => {
   const { ref, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
 
+  // Arrow keys cycle the items, Enter activates, Escape closes — the
+  // menu was previously mouse-only.
+  useMenuKeyboardNav(ref, onClose);
+
   return (
   <div
     ref={ref}
     className="sidebar-layer-context-menu"
+    role="menu"
     style={{ left: pos.left, top: pos.top }}
     onMouseDown={(e) => e.stopPropagation()}
     onContextMenu={(e) => e.preventDefault()}
   >
     <button
-      className="sidebar-layer-context-menu-item"
+      className="sidebar-layer-context-menu-item" role="menuitem"
       onClick={() => { onFocus(nodeId); onClose(); }}
     >
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -43,7 +49,7 @@ export const LayerContextMenu = ({
       <span>Focus</span>
     </button>
     <button
-      className="sidebar-layer-context-menu-item"
+      className="sidebar-layer-context-menu-item" role="menuitem"
       onClick={() => { onRename(nodeId); onClose(); }}
     >
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -53,7 +59,7 @@ export const LayerContextMenu = ({
       <span>Rename</span>
     </button>
     <button
-      className="sidebar-layer-context-menu-item"
+      className="sidebar-layer-context-menu-item" role="menuitem"
       onClick={() => { onCopyLink(nodeId); onClose(); }}
     >
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
@@ -64,7 +70,7 @@ export const LayerContextMenu = ({
     </button>
     <div className="sidebar-layer-context-menu-separator" />
     <button
-      className="sidebar-layer-context-menu-item sidebar-layer-context-menu-item--danger"
+      className="sidebar-layer-context-menu-item sidebar-layer-context-menu-item--danger" role="menuitem"
       onClick={() => { onDelete(nodeId); onClose(); }}
     >
       <svg width="13" height="13" viewBox="0 0 16 16" fill="none">

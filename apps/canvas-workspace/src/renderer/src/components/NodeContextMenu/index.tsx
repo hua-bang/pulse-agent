@@ -2,6 +2,7 @@ import "./index.css";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useViewportClampedPosition } from "../../hooks/useViewportClampedPosition";
+import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
 
 interface Props {
   x: number;
@@ -15,13 +16,9 @@ interface Props {
 export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage, onClose }: Props) => {
   const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
 
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
-  }, [onClose]);
+  // Arrow-key navigation + Escape; replaces the old window Escape
+  // listener so the menu is fully operable without a mouse.
+  useMenuKeyboardNav(menuRef, onClose);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -42,6 +39,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
     <div
       ref={menuRef}
       className="context-menu"
+      role="menu"
       style={{ left: pos.left, top: pos.top }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -49,7 +47,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
         <>
           <div className="context-menu-title">Mindmap</div>
           <button
-            className="context-menu-item"
+            className="context-menu-item" role="menuitem"
             onClick={() => onExportImage?.()}
           >
             <span className="context-menu-icon">{"\u21E9"}</span>
@@ -63,7 +61,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
         <>
           <div className="context-menu-title">Create Node</div>
           <button
-            className="context-menu-item"
+            className="context-menu-item" role="menuitem"
             onClick={() => onCreate?.("text")}
           >
             <span className="context-menu-icon">{"\u0041"}</span>
@@ -73,7 +71,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
             </span>
           </button>
           <button
-            className="context-menu-item"
+            className="context-menu-item" role="menuitem"
             onClick={() => onCreate?.("file")}
           >
             <span className="context-menu-icon">{"\u2756"}</span>
@@ -83,7 +81,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
             </span>
           </button>
           <button
-            className="context-menu-item"
+            className="context-menu-item" role="menuitem"
             onClick={() => onCreate?.("frame")}
           >
             <span className="context-menu-icon">{"\u25A1"}</span>
@@ -93,7 +91,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
             </span>
           </button>
           <button
-            className="context-menu-item"
+            className="context-menu-item" role="menuitem"
             onClick={() => onCreate?.("iframe")}
           >
             <span className="context-menu-icon">{"\u232C"}</span>
@@ -103,7 +101,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
             </span>
           </button>
           <button
-            className="context-menu-item"
+            className="context-menu-item" role="menuitem"
             onClick={() => onCreate?.("agent")}
           >
             <span className="context-menu-icon">{"\u2726"}</span>
@@ -113,7 +111,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
             </span>
           </button>
           <button
-            className="context-menu-item"
+            className="context-menu-item" role="menuitem"
             onClick={() => onCreate?.("mindmap")}
           >
             <span className="context-menu-icon">{"✿"}</span>
