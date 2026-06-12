@@ -9,12 +9,13 @@ The workbench has exactly two side regions plus a modal tier:
 
 ```
 ┌─────────┬──────────────┬──────────────────────────────┬───────────┐
-│ Sidebar │ Reference    │ Canvas                       │ Chat      │
-│ (nav)   │ Drawer       │   + canvas chrome            │ Panel     │
-│         │ (left,       │     (floating toolbar,       │ (right,   │
-│         │  in-flow)    │      zoom, fullscreen chip)  │  in-flow) │
-│         │              │                              ┆←RightDock │
-│         │              │                              ┆ (overlay) │
+│ Sidebar │ Reference    │ Canvas                       │ RightDock │
+│ (nav)   │ Drawer       │   + canvas chrome            │ ┌───────┐ │
+│         │ (left,       │     (floating toolbar,       │ │Chat│▦│🔗│ ← tabs
+│         │  in-flow)    │      zoom, fullscreen chip)  │ ├───────┤ │
+│         │              │                              │ │ pane  │ │
+│         │              │   (canvas reflows: dock      │ └───────┘ │
+│         │              │    reserves its width)       │           │
 └─────────┴──────────────┴──────────────────────────────┴───────────┘
                  modal tier: settings drawers, command palette,
                  app-shell dialogs / toasts (above everything)
@@ -23,25 +24,39 @@ The workbench has exactly two side regions plus a modal tier:
 - **Left region — reference.** `ReferenceDrawer` is the only left-side
   container: pinned nodes, URL references, previews. New "look things up
   while working" surfaces belong here, not in a new drawer.
-- **Right region — chat + work output.** Two cooperating containers:
-  - `ChatPanel` (in-flow flex column, resizes the canvas) — conversation.
-  - `RightDock` (`components/RightDock`) — the **tabbed** fixed-overlay
-    panel hosting every right-side *preview* surface: artifact tabs
-    (`components/artifacts/ArtifactTabView`) and the link tab
-    (`components/LinkDrawer` → `LinkTabView`). `DockStore` owns the tab
-    policies:
-    - artifact tabs are deduped by `(workspaceId, artifactId)` — opening
-      an already-open artifact re-activates its tab;
-    - at most ONE link tab exists — a new intercepted link replaces its
-      URL (every `<webview>` owns a guest renderer process, so stacking
-      one per URL would leak processes);
-    - closing the active tab activates its right neighbour; the dock
-      slides away when the last tab closes; `ESC` closes the active tab,
-      the strip's trailing `×` closes the whole dock;
-    - tab contents stay mounted and hide via `visibility` (never
-      `display: none` — Electron detaches a `<webview>`'s guest when its
-      layout collapses; artifacts keep scroll/render state).
-    The dock is non-modal: no backdrop, canvas stays interactive.
+- **Right region — `RightDock`** (`components/RightDock`): ONE tabbed
+  panel whose first tab is the **pinned chat**; preview surfaces open as
+  additional tabs — artifacts (`components/artifacts/ArtifactTabView`)
+  and the link preview (`components/LinkDrawer` → `LinkTabView`).
+  `DockStore` owns the policies:
+  - **the tab strip only renders when a preview tab exists** — chat alone
+    looks like a plain chat panel (and the migration was invisible to
+    chat-only users);
+  - chat is pinned and non-closable; collapsing the dock (strip's `⇥`,
+    chat header's close, toolbar chat toggle) keeps every tab alive;
+  - chat activity while another tab is visible sets an unread dot on the
+    chat tab, cleared on activation;
+  - artifact tabs are deduped by `(workspaceId, artifactId)` — opening
+    an already-open artifact re-activates its tab;
+  - at most ONE link tab exists — a new intercepted link replaces its
+    URL (every `<webview>` owns a guest renderer process, so stacking
+    one per URL would leak processes);
+  - closing the active preview activates its right neighbour, falling
+    back to chat; `ESC` closes the active preview tab and never touches
+    chat;
+  - tab contents stay mounted and hide via `visibility` (never
+    `display: none` — Electron detaches a `<webview>`'s guest when its
+    layout collapses; artifacts keep scroll/render state).
+
+  Layout: the dock is a fixed element on `--layer-dock` that stays
+  mounted while collapsed. On the canvas route it reserves its width via
+  the `--right-dock-inset` custom property consumed by `.app-body`, so it
+  behaves like an in-flow column (canvas reflows; the floating toolbar
+  stays fully visible). On other routes (/chat, nodes, …) the chat tab is
+  hidden and previews overlay. Chat internals stay owned by `Workbench`,
+  which portals its per-workspace `ChatPanel` instances into the dock's
+  chat pane (`useRightDockChatHost`) — the portal escapes the keep-alive
+  router's `display:none` wrapper, so chat state survives route switches.
 - **Modal tier.** Settings drawers (`SettingsDrawer` shell), the command
   palette, and app-shell dialogs/toasts. These are modal with backdrops
   and sit above both side regions.
@@ -49,10 +64,10 @@ The workbench has exactly two side regions plus a modal tier:
 ## Rules
 
 1. **No new top-level drawer containers.** A new right-side preview
-   surface is a new tab kind: add it to `DockTab` in
+   surface is a new tab kind: add it to `DockPreviewTab` in
    `RightDock/dock-store.ts` and render its view from the `RightDock`
    pane switch — the dock provides positioning, the tab strip, width
-   drag + persistence, ESC, slide animations and layering. Candidates:
+   drag + persistence, ESC, slide transitions and layering. Candidates:
    terminal output, diff views. Reference-style surfaces extend
    `ReferenceDrawer`.
 2. **No hardcoded z-index for full-app surfaces.** Take a `--layer-*`
@@ -87,7 +102,7 @@ chat-internal overlays. Migrate them opportunistically when touched.
 
 ## History
 
-This structure came out of a 2026-06 container cleanup, in two steps:
+This structure came out of a 2026-06 container cleanup, in three steps:
 
 1. Previously the artifact preview, link preview and chat panel were
    three unrelated containers, each with its own resize/ESC/animation/
@@ -98,3 +113,7 @@ This structure came out of a 2026-06 container cleanup, in two steps:
    previous one") became "a new preview opens a tab"; `DockCoordinator`
    grew into `DockStore` (tab list + active pointer) and the per-panel
    shell became the single tabbed `RightDock` container.
+3. Chat moved in as the pinned first tab (with the strip hidden while
+   chat is alone), and the dock switched from pure overlay to reserving
+   layout space on the canvas route — making the right region one
+   container, symmetric with the left reference area.

@@ -515,7 +515,7 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
-      <RightDock activeWorkspaceId={activeId} />
+      <RightDock activeWorkspaceId={activeId} chatTabEnabled={activeView === 'canvas'} />
       <MigrationSpinner />
       <WorkspaceSettingsDrawer
         workspace={
