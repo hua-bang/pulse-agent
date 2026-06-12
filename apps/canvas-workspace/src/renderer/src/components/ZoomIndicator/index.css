@@ -21,6 +21,7 @@
   color: var(--text-secondary);
   display: flex;
   align-items: center;
+  gap: 5px;
   transition: background 0.1s, color 0.1s;
 }
 

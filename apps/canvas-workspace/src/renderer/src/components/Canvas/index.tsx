@@ -358,6 +358,16 @@ export const Canvas = ({
     return created;
   }, [pasteReferenceNodes, notify, t]);
 
+  // Zoom-chip companions: reframe around everything / the selection.
+  const handleFitAll = useCallback(() => {
+    fitAllNodes(nodes);
+  }, [fitAllNodes, nodes]);
+
+  const handleFitSelection = useCallback(() => {
+    const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
+    if (selected.length > 0) fitAllNodes(selected);
+  }, [fitAllNodes, nodes, selectedNodeIds]);
+
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
   // through matches. See useCanvasSearch for details.
@@ -558,6 +568,8 @@ export const Canvas = ({
       nodes={nodes}
       nodesById={nodesById}
       onChatToggle={onChatToggle}
+      onFitAll={handleFitAll}
+      onFitSelection={handleFitSelection}
       onOpenReferenceSource={onOpenReferenceSource}
       onPinReferenceNode={onPinReferenceNode}
       onAddToChat={onAddToChat}

@@ -48,6 +48,8 @@ type CanvasRootViewProps = Pick<
   moving: boolean;
   nodes: CanvasNode[];
   nodesById: Map<string, CanvasNode>;
+  onFitAll?: () => void;
+  onFitSelection?: () => void;
   openShortcuts: () => void;
   paletteCommands: any[];
   referenceDrawerOpen?: boolean;
@@ -110,6 +112,8 @@ export const CanvasRootView = ({
   nodes,
   nodesById,
   onChatToggle,
+  onFitAll,
+  onFitSelection,
   onOpenReferenceSource,
   onPinReferenceNode,
   onAddToChat,
@@ -246,6 +250,8 @@ export const CanvasRootView = ({
         activeTool={activeTool}
         scale={transform.scale}
         selectionCount={selectedNodeIds.length}
+        onFitAll={onFitAll}
+        onFitSelection={onFitSelection}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
         referenceDrawerOpen={referenceDrawerOpen}

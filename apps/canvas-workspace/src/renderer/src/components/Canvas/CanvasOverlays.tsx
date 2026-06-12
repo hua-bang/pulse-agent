@@ -24,6 +24,10 @@ interface CanvasOverlaysProps {
   /** Forwarded to the bottom-right indicator so multi-selection state
    *  is always visible alongside the zoom % chip. */
   selectionCount: number;
+  /** Reframe the viewport around all nodes / the current selection.
+   *  Surfaced as buttons next to the zoom chip. */
+  onFitAll?: () => void;
+  onFitSelection?: () => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
@@ -82,6 +86,8 @@ export const CanvasOverlays = ({
   activeTool,
   scale,
   selectionCount,
+  onFitAll,
+  onFitSelection,
   chatPanelOpen,
   onChatToggle,
   referenceDrawerOpen,
@@ -217,6 +223,8 @@ export const CanvasOverlays = ({
       scale={scale}
       onReset={onResetTransform}
       selectionCount={focusModeEnabled ? 0 : selectionCount}
+      onFitAll={onFitAll}
+      onFitSelection={onFitSelection}
     />
 
     {searchOpen && (

@@ -294,6 +294,13 @@ const en = {
   'canvas.saveRetry': 'Retry',
   'canvas.textPlaceholder': 'Double-click or press Enter to edit',
 
+  'canvas.zoom.selectedChip': '{count} selected',
+  'canvas.zoom.fitAll': 'Fit all nodes in view',
+  'canvas.zoom.fitAllLabel': 'Fit',
+  'canvas.zoom.fitSelection': 'Fit the selection in view',
+  'canvas.zoom.fitSelectionLabel': 'Fit selection',
+  'canvas.zoom.resetTitle': 'Reset to 100%',
+
   'canvas.menu.createTitle': 'Create Node',
   'canvas.menu.text': 'Text',
   'canvas.menu.textDesc': 'Free-form text label',
@@ -927,6 +934,13 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.saveFailedDescription': '最新更改未能写入磁盘。',
   'canvas.saveRetry': '重试',
   'canvas.textPlaceholder': '双击或按 Enter 编辑',
+
+  'canvas.zoom.selectedChip': '已选 {count} 个',
+  'canvas.zoom.fitAll': '缩放至显示全部节点',
+  'canvas.zoom.fitAllLabel': '适配',
+  'canvas.zoom.fitSelection': '缩放至显示所选节点',
+  'canvas.zoom.fitSelectionLabel': '适配所选',
+  'canvas.zoom.resetTitle': '重置为 100%',
 
   'canvas.menu.createTitle': '创建节点',
   'canvas.menu.text': '文本',
