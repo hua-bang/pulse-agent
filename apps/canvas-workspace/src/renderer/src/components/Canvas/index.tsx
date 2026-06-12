@@ -25,6 +25,7 @@ import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
+import { useI18n } from '../../i18n';
 import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
 import type { AgentNodeData, CanvasNode } from '../../types';
 import type { CanvasProps } from './types';
@@ -72,7 +73,30 @@ export const Canvas = ({
   nodePatchRequest,
   onNodePatchComplete,
 }: CanvasProps) => {
-  const { confirm, notify, updateToast, openShortcuts, isOverlayOpen } = useAppShell();
+  const { confirm, notify, updateToast, dismissToast, openShortcuts, isOverlayOpen } = useAppShell();
+  const { t } = useI18n();
+
+  // Persistent save-failure toast with a Retry action. Repeated failures
+  // replace the previous toast instead of stacking; flushSave is assigned
+  // to the ref after useNodes returns it below.
+  const flushSaveRef = useRef<() => void>(() => undefined);
+  const saveErrorToastIdRef = useRef<string | null>(null);
+  const handleSaveError = useCallback(() => {
+    if (saveErrorToastIdRef.current) dismissToast(saveErrorToastIdRef.current);
+    saveErrorToastIdRef.current = notify({
+      tone: 'error',
+      title: t('canvas.saveFailed'),
+      description: t('canvas.saveFailedDescription'),
+      autoCloseMs: 0,
+      action: {
+        label: t('canvas.saveRetry'),
+        onClick: () => {
+          saveErrorToastIdRef.current = null;
+          flushSaveRef.current();
+        },
+      },
+    });
+  }, [dismissToast, notify, t]);
   const [activeTool, setActiveTool] = useState('select');
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -146,7 +170,10 @@ export const Canvas = ({
       setTransform(savedTransform);
     },
     handleAgentCreated,
+    handleSaveError,
   );
+
+  useEffect(() => { flushSaveRef.current = flushSave; }, [flushSave]);
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
@@ -303,6 +330,44 @@ export const Canvas = ({
     updateNode,
   });
 
+  // Keyboard undo/redo with boundary feedback: a no-op Cmd+Z looks like
+  // the app froze, so a short toast tells the user the stack is empty.
+  const undoWithFeedback = useCallback(() => {
+    if (!undo()) {
+      notify({ tone: 'info', title: t('canvas.nothingToUndo'), autoCloseMs: 1500 });
+    }
+  }, [undo, notify, t]);
+
+  const redoWithFeedback = useCallback(() => {
+    if (!redo()) {
+      notify({ tone: 'info', title: t('canvas.nothingToRedo'), autoCloseMs: 1500 });
+    }
+  }, [redo, notify, t]);
+
+  // Cross-workspace Cmd+V silently creates *reference* nodes, which can
+  // read as a failed paste; a toast makes the reference semantics explicit.
+  const pasteReferenceNodesWithFeedback = useCallback((clip: Parameters<typeof pasteReferenceNodes>[0]) => {
+    const created = pasteReferenceNodes(clip);
+    if (created.length > 0) {
+      notify({
+        tone: 'info',
+        title: t('canvas.pastedReferences', { count: created.length }),
+        description: t('canvas.pastedReferencesDescription'),
+      });
+    }
+    return created;
+  }, [pasteReferenceNodes, notify, t]);
+
+  // Zoom-chip companions: reframe around everything / the selection.
+  const handleFitAll = useCallback(() => {
+    fitAllNodes(nodes);
+  }, [fitAllNodes, nodes]);
+
+  const handleFitSelection = useCallback(() => {
+    const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
+    if (selected.length > 0) fitAllNodes(selected);
+  }, [fitAllNodes, nodes, selectedNodeIds]);
+
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
   // through matches. See useCanvasSearch for details.
@@ -370,13 +435,14 @@ export const Canvas = ({
 
   useCanvasKeyboard({
     canvasId,
-    undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
+    undo: undoWithFeedback, redo: redoWithFeedback,
+    nodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNode,
     clipboard,
     setClipboard: onClipboardChange ?? (() => undefined),
     pasteNodes,
-    pasteReferencedNodes: pasteReferenceNodes,
+    pasteReferencedNodes: pasteReferenceNodesWithFeedback,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     removeNodes: actions.requestRemoveNodes,
@@ -502,6 +568,8 @@ export const Canvas = ({
       nodes={nodes}
       nodesById={nodesById}
       onChatToggle={onChatToggle}
+      onFitAll={handleFitAll}
+      onFitSelection={handleFitSelection}
       onOpenReferenceSource={onOpenReferenceSource}
       onPinReferenceNode={onPinReferenceNode}
       onAddToChat={onAddToChat}

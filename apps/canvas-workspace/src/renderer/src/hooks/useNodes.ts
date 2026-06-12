@@ -33,6 +33,10 @@ export const useNodes = (
    *  Stored in a ref so callback identity changes don't tear down the
    *  subscription effect on every render. */
   onAgentCreated?: (node: CanvasNode) => void,
+  /** Invoked when a save fails to persist (store rejection or IPC
+   *  error). The canvas surfaces a retry toast — without this, failed
+   *  saves were console.warn-only and edits could be silently lost. */
+  onSaveError?: () => void,
 ) => {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transformRef = useRef<CanvasTransform>({ x: 0, y: 0, scale: 1 });
@@ -40,6 +44,8 @@ export const useNodes = (
   onRestoreTransformRef.current = onRestoreTransform;
   const onAgentCreatedRef = useRef(onAgentCreated);
   onAgentCreatedRef.current = onAgentCreated;
+  const onSaveErrorRef = useRef(onSaveError);
+  onSaveErrorRef.current = onSaveError;
 
   /**
    * Mirrors `loaded` state so `doSave`/`flushSave` (stable callbacks) can
@@ -85,12 +91,16 @@ export const useNodes = (
     void api.save(canvasId, payload).then((res) => {
       if (!res.ok) {
         console.warn('[canvas] save failed:', res.error);
+        onSaveErrorRef.current?.();
         return;
       }
       // Save succeeded — every id we just persisted is now on disk, so
       // it's safe for the external-update handler to treat future
       // disk-absence of these ids as "deleted elsewhere".
       for (const n of snapshot) persistedIdsRef.current.add(n.id);
+    }).catch((err) => {
+      console.warn('[canvas] save failed:', err);
+      onSaveErrorRef.current?.();
     });
   }, [canvasId]);
 

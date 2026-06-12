@@ -1,5 +1,6 @@
 import { useCallback, type MutableRefObject } from 'react';
 import type { AgentNodeData, CanvasEdge, CanvasNode, FrameNodeData } from '../../../types';
+import { useI18n } from '../../../i18n';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 import { exportMindmapNodeToPng } from '../../../utils/mindmapExport';
 
@@ -74,12 +75,26 @@ export const useCanvasNodeActions = ({
   confirm,
 }: Options) => {
   void _selectedEdgeId;
+  const { t } = useI18n();
 
   const requestRemoveNodes = useCallback(
     async (ids: string[]) => {
       const idSet = new Set(ids);
       const victims = nodesRef.current.filter((node) => idSet.has(node.id));
       if (victims.length === 0) return;
+
+      // Single-node deletes stay instant (they're one undo step away);
+      // multi-node deletes confirm first since one keystroke can wipe a
+      // whole marquee selection.
+      if (victims.length > 1) {
+        const accepted = await confirm({
+          intent: 'danger',
+          title: t('canvas.deleteNodesTitle', { count: victims.length }),
+          description: t('canvas.deleteNodesDescription'),
+          confirmLabel: t('canvas.deleteNodesConfirm'),
+        });
+        if (!accepted) return;
+      }
 
       const teamIds = Array.from(new Set(
         victims
@@ -133,7 +148,7 @@ export const useCanvasNodeActions = ({
 
       setSelectedNodeIds((current) => current.filter((id) => !removedIds.has(id)));
     },
-    [canvasId, nodesRef, notify, removeNodes, setSelectedNodeIds, syncDeletedNodes],
+    [canvasId, confirm, nodesRef, notify, removeNodes, setSelectedNodeIds, syncDeletedNodes, t],
   );
 
   const requestRemoveEdge = useCallback(

@@ -1,7 +1,9 @@
+import { useCallback, useState } from 'react';
 import type { CanvasEdge, CanvasNode } from '../../types';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
+import { EdgeContextMenu } from '../EdgeContextMenu';
 import type { CanvasProps } from './types';
 
 type CanvasRootViewProps = Pick<
@@ -48,6 +50,8 @@ type CanvasRootViewProps = Pick<
   moving: boolean;
   nodes: CanvasNode[];
   nodesById: Map<string, CanvasNode>;
+  onFitAll?: () => void;
+  onFitSelection?: () => void;
   openShortcuts: () => void;
   paletteCommands: any[];
   referenceDrawerOpen?: boolean;
@@ -110,6 +114,8 @@ export const CanvasRootView = ({
   nodes,
   nodesById,
   onChatToggle,
+  onFitAll,
+  onFitSelection,
   onOpenReferenceSource,
   onPinReferenceNode,
   onAddToChat,
@@ -141,6 +147,15 @@ export const CanvasRootView = ({
   updateEdge,
   updateNode,
 }: CanvasRootViewProps) => {
+  // Right-click menu on a connection. Selecting the edge first keeps the
+  // style panel / Delete-key behavior consistent with the menu actions.
+  const [edgeMenu, setEdgeMenu] = useState<{ edgeId: string; x: number; y: number } | null>(null);
+  const handleEdgeContextMenu = useCallback((edgeId: string, e: React.MouseEvent) => {
+    setSelectedEdgeId(edgeId);
+    setSelectedNodeIds([]);
+    setEdgeMenu({ edgeId, x: e.clientX, y: e.clientY });
+  }, [setSelectedEdgeId, setSelectedNodeIds]);
+
   if (!loaded) {
     return (
       <div className="canvas-container">
@@ -223,9 +238,25 @@ export const CanvasRootView = ({
         onEdgeHandleMouseDown={edgeHandlers.handleEdgeHandleMouseDown}
         onEdgeBodyMouseDown={edgeHandlers.handleEdgeBodyMouseDown}
         onEdgeBodyDoubleClick={edgeHandlers.handleEdgeBodyDoubleClick}
+        onEdgeBodyContextMenu={handleEdgeContextMenu}
         onExitFullscreen={focus.exitFullscreen}
         getAllNodes={getAllNodes}
       />
+
+      {edgeMenu && (
+        <EdgeContextMenu
+          x={edgeMenu.x}
+          y={edgeMenu.y}
+          edgeId={edgeMenu.edgeId}
+          onEditLabel={(id) => edgeHandlers.handleEdgeBodyDoubleClick(id)}
+          onEditStyle={(id) => {
+            setSelectedEdgeId(id);
+            setSelectedNodeIds([]);
+          }}
+          onDelete={(id) => { void actions.requestRemoveEdge(id); }}
+          onClose={() => setEdgeMenu(null)}
+        />
+      )}
 
       {focus.fullscreenNodeId && (
         <CanvasFullscreenChip
@@ -246,6 +277,8 @@ export const CanvasRootView = ({
         activeTool={activeTool}
         scale={transform.scale}
         selectionCount={selectedNodeIds.length}
+        onFitAll={onFitAll}
+        onFitSelection={onFitSelection}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
         referenceDrawerOpen={referenceDrawerOpen}

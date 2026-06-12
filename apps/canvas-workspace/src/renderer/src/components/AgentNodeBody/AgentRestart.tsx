@@ -1,6 +1,7 @@
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
+import { useI18n } from '../../i18n';
 
 interface AgentRestartProps {
   agentType: string;
@@ -85,10 +86,11 @@ export const AgentRestart = ({
   onRestart,
   onEdit,
 }: AgentRestartProps) => {
+  const { t } = useI18n();
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
   const cwdDisplay = cwd ? truncatePath(cwd, 36) : 'Working Directory';
   const hasPrompt = !!(prompt && prompt.trim().length > 0);
-  const promptPreview = hasPrompt ? '已保存' : '未提供';
+  const promptPreview = hasPrompt ? t('agent.promptSaved') : t('agent.promptNotProvided');
   // Only offer "resume" when the node has a stable CLI conversation id.
   // Falling back to Codex `--last` can attach this node to another agent.
   const canResume = agentType === 'claude-code'
@@ -96,19 +98,19 @@ export const AgentRestart = ({
     : agentType === 'codex'
       ? !!codexSessionId
       : false;
-  const restartLabel = canResume ? '继续上次会话' : '重新启动会话';
+  const restartLabel = canResume ? t('agent.resumeSession') : t('agent.restartSession');
   const restartTitle = canResume
     ? `Resume the previous ${agentDef?.label ?? 'agent'} conversation`
     : 'Restart with saved configuration';
   const warningText = canResume
-    ? '终端进程已结束，可继续上次会话。'
-    : '应用重启后，CLI 运行状态已丢失。';
+    ? t('agent.resumeWarning')
+    : t('agent.restartWarning');
 
   return (
     <div className="agent-body-wrap agent-body-wrap--restart">
       <div className="agent-card">
         <div className="agent-card-body">
-          <div className="agent-section-title">已保存的配置</div>
+          <div className="agent-section-title">{t('agent.savedConfigTitle')}</div>
 
           <div className="agent-saved-list">
             <div className="agent-saved-row" title={agentDef?.label ?? agentType}>
@@ -164,7 +166,7 @@ export const AgentRestart = ({
               title="Edit initial parameters"
             >
               <PencilGlyph />
-              编辑初始化参数
+              {t('agent.editParams')}
             </button>
           )}
         </div>

@@ -3,6 +3,7 @@ import { AGENT_REGISTRY, type AgentDef } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
 import { isImeComposing } from '../../utils/ime';
+import { useI18n } from '../../i18n';
 
 interface AgentPickerProps {
   selectedAgent: string;
@@ -67,6 +68,7 @@ export const AgentPicker = ({
   onPickFolder,
   onLaunch,
 }: AgentPickerProps) => {
+  const { t } = useI18n();
   const agentDef = AGENT_REGISTRY.find((a: AgentDef) => a.id === selectedAgent);
   const effectiveCwd = cwdInput || rootFolder || '';
   const previewCmd = agentDef?.command ?? 'agent';
@@ -94,7 +96,7 @@ export const AgentPicker = ({
               onClick={onBack}
               title="Back to saved configuration"
             >
-              ← 返回
+              ← {t('agent.back')}
             </button>
           </div>
         )}
@@ -207,7 +209,7 @@ export const AgentPicker = ({
                       onLaunch();
                     }
                   }}
-                  placeholder="请输入初始提示..."
+                  placeholder={t('agent.promptPlaceholder')}
                   spellCheck={false}
                   rows={3}
                 />
@@ -222,7 +224,7 @@ export const AgentPicker = ({
                       onChange={(e) => onDangerousModeChange(e.target.checked)}
                     />
                     <span className="agent-dangerous-toggle-text">
-                      跳过权限确认 <code>{dangerousFlag}</code>
+                      {t('agent.skipPermissions')} <code>{dangerousFlag}</code>
                     </span>
                   </label>
                 </div>
@@ -241,7 +243,7 @@ export const AgentPicker = ({
             title={startTitle}
           >
             <PlayGlyph />
-            {isTeamLead ? 'Start lead' : '初始化'}
+            {isTeamLead ? 'Start lead' : t('agent.initialize')}
           </button>
           </div>
         )}

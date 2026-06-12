@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { isImeComposing } from '../../utils/ime';
+import { useI18n } from '../../i18n';
 
 interface Props {
   nodes: CanvasNode[];
@@ -12,6 +13,7 @@ interface Props {
 const MAX_RESULTS = 20;
 
 export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,7 +70,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
     <div className="node-mention-backdrop" onMouseDown={(e) => e.stopPropagation()} onClick={onClose}>
       <div className="node-mention-picker" onClick={(e) => e.stopPropagation()}>
         <div className="node-mention-header">
-          <span className="node-mention-label">@ 引用节点</span>
+          <span className="node-mention-label">{t('nodeMention.title')}</span>
           <kbd className="node-mention-kbd">Ctrl/⌘+2</kbd>
         </div>
         <div className="node-mention-search">
@@ -76,7 +78,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
             ref={inputRef}
             type="text"
             className="node-mention-input"
-            placeholder="搜索节点名称..."
+            placeholder={t('nodeMention.searchPlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -84,7 +86,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
         </div>
         <div className="node-mention-list">
           {filtered.length === 0 ? (
-            <div className="node-mention-empty">无匹配节点</div>
+            <div className="node-mention-empty">{t('nodeMention.empty')}</div>
           ) : (
             filtered.map((node, idx) => {
               const filePath = node.type === 'file' ? (node.data as FileNodeData).filePath : undefined;
@@ -107,9 +109,9 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
           )}
         </div>
         <div className="node-mention-hint">
-          <span>↑↓ 导航</span>
-          <span>↵ 插入</span>
-          <span>Esc 关闭</span>
+          <span>{t('nodeMention.hintNavigate')}</span>
+          <span>{t('nodeMention.hintInsert')}</span>
+          <span>{t('nodeMention.hintClose')}</span>
         </div>
       </div>
     </div>

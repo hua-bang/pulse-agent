@@ -97,17 +97,21 @@ export const useNodeHistory = (scheduleSave: () => void) => {
   }, []);
 
   const undo = useCallback(() => {
-    if (historyIndexRef.current <= 0) return;
+    // Returns whether a step was applied so callers can surface
+    // "nothing left to undo" feedback instead of failing silently.
+    if (historyIndexRef.current <= 0) return false;
     historyIndexRef.current--;
     applySnapshot(historyRef.current[historyIndexRef.current]);
     scheduleSave();
+    return true;
   }, [applySnapshot, scheduleSave]);
 
   const redo = useCallback(() => {
-    if (historyIndexRef.current >= historyRef.current.length - 1) return;
+    if (historyIndexRef.current >= historyRef.current.length - 1) return false;
     historyIndexRef.current++;
     applySnapshot(historyRef.current[historyIndexRef.current]);
     scheduleSave();
+    return true;
   }, [applySnapshot, scheduleSave]);
 
   return {

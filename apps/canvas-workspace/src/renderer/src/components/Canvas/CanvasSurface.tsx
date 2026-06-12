@@ -106,6 +106,8 @@ interface CanvasSurfaceProps {
   onEdgeBodyMouseDown: (edgeId: string, e: React.MouseEvent) => void;
   /** Double-click on the edge body. Opens the edge-label editor. */
   onEdgeBodyDoubleClick: (edgeId: string, e: React.MouseEvent) => void;
+  /** Right-click on the edge body. Opens the edge context menu. */
+  onEdgeBodyContextMenu?: (edgeId: string, e: React.MouseEvent) => void;
   getAllNodes: () => CanvasNode[];
 }
 
@@ -156,6 +158,7 @@ export const CanvasSurface = ({
   onEdgeHandleMouseDown,
   onEdgeBodyMouseDown,
   onEdgeBodyDoubleClick,
+  onEdgeBodyContextMenu,
   getAllNodes,
 }: CanvasSurfaceProps) => (
   <div
@@ -242,6 +245,7 @@ export const CanvasSurface = ({
       onHandleMouseDown={onEdgeHandleMouseDown}
       onBodyMouseDown={onEdgeBodyMouseDown}
       onBodyDoubleClick={onEdgeBodyDoubleClick}
+      onBodyContextMenu={onEdgeBodyContextMenu}
     />
     {renderGroups.regular
       .map((node) => (

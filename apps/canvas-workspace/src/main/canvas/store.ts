@@ -1263,6 +1263,19 @@ export const setupCanvasStoreIpc = () => {
                 if (n.id) knownForWs.add(n.id);
               }
             }
+            // Prune ids whose deletion this save just persisted: absent
+            // from the renderer's own snapshot AND from the merged write.
+            // Keeping them in `known` broke undo — restoring the node via
+            // Ctrl+Z put a known-but-not-on-disk id back in memory, which
+            // Rule 1 misreads as "CLI deleted it, drop", so the next save
+            // stripped the node and the pickedUp broadcast deleted it
+            // from the canvas again. Ids the renderer still holds in
+            // memory (true CLI deletes it hasn't synced yet) stay known.
+            for (const id of Array.from(knownForWs)) {
+              if (!mergedMap.has(id) && !rendererMemoryMap.has(id)) {
+                knownForWs.delete(id);
+              }
+            }
             knownNodeIds.set(payload.id, knownForWs);
             // If the merge result differs from the renderer's memory,
             // the CLI made changes between the renderer's last sync
