@@ -1,6 +1,7 @@
-/* Shared shell for right-anchored dock panels (artifact preview, link
+/* Shared shell for the tabbed right dock (artifact previews, link
  * preview). No backdrop on purpose: the dock is a side panel, not a
- * modal — the canvas underneath stays pannable / editable. ESC closes.
+ * modal — the canvas underneath stays pannable / editable. ESC closes
+ * the active tab.
  *
  * Sits on --layer-dock: above canvas chrome (floating toolbar, zoom
  * indicator, fullscreen chip), below the search bar and modal tiers.
@@ -60,4 +61,139 @@
 .right-dock__resize-handle:hover,
 .right-dock__resize-handle:active {
   background: rgba(55, 53, 47, 0.12);
+}
+
+/* ── Tab strip ──────────────────────────────────────────────────────── */
+
+.right-dock__tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 6px 8px 0 10px;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
+  background: #fbfbfa;
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.right-dock__tab {
+  appearance: none;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 200px;
+  flex: 0 1 auto;
+  border: 1px solid transparent;
+  border-bottom: none;
+  background: transparent;
+  border-radius: 7px 7px 0 0;
+  padding: 6px 7px 7px 10px;
+  font-size: 12px;
+  color: #6b6b68;
+  cursor: pointer;
+}
+
+.right-dock__tab:hover {
+  background: #f1f1ef;
+  color: #37352f;
+}
+
+/* Active tab fuses with the pane below by overlapping the strip's
+ * bottom border. */
+.right-dock__tab--active {
+  background: #fff;
+  border-color: rgba(55, 53, 47, 0.1);
+  color: #37352f;
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding-bottom: 8px;
+}
+
+.right-dock__tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.right-dock__tab-dot--artifact { background: #a594e0; }
+.right-dock__tab-dot--link { background: #2383e2; }
+
+.right-dock__tab-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.right-dock__tab-close {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #b4b0a8;
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.right-dock__tab-close:hover {
+  background: rgba(55, 53, 47, 0.1);
+  color: #37352f;
+}
+
+.right-dock__tabs-spacer { flex: 1 0 8px; }
+
+.right-dock__close-all {
+  appearance: none;
+  border: none;
+  background: transparent;
+  width: 24px;
+  height: 24px;
+  margin-bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: #6b6b68;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.right-dock__close-all:hover {
+  background: rgba(55, 53, 47, 0.08);
+  color: #37352f;
+}
+
+/* ── Tab panes ──────────────────────────────────────────────────────── */
+
+/* Panes are stacked, not display-toggled: hiding a <webview> with
+ * `display: none` collapses its layout and Electron detaches the guest
+ * contents, so inactive panes keep layout and hide via visibility. */
+.right-dock__panes {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.right-dock__pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.right-dock__pane--active {
+  visibility: visible;
+  pointer-events: auto;
 }

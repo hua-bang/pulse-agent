@@ -1,18 +1,13 @@
 /**
- * Right-dock panel that previews an artifact with version history and
- * pin-to-canvas control.
- *
- * Driven by `ArtifactDrawerContext` — any component that calls
- * `openArtifact(workspaceId, artifactId)` causes this panel to mount
- * and load the requested artifact. Positioning, resizing, layering and
- * exclusivity against other dock panels live in RightDockPanel.
+ * Right-dock tab content that previews one artifact with live updates and
+ * a pin-to-canvas control. Tab chrome (label, close, switching) lives in
+ * components/RightDock; the loaded artifact's title is reported up via
+ * `onTitleChange` so the tab label tracks renames.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Artifact, ArtifactVersion } from '../../types';
-import { useArtifactDrawer, type OpenArtifactRef } from './ArtifactContext';
 import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
-import { RightDockPanel } from '../RightDock';
 
 const TYPE_LABEL: Record<string, string> = {
   html: 'HTML',
@@ -20,36 +15,25 @@ const TYPE_LABEL: Record<string, string> = {
   mermaid: 'Mermaid',
 };
 
-const WIDTH_STORAGE_KEY = 'canvas-workspace:artifact-drawer-width';
-const MIN_DRAWER_WIDTH = 360;
-const DEFAULT_DRAWER_WIDTH = 640;
+interface ArtifactTabViewProps {
+  workspaceId: string;
+  artifactId: string;
+  onTitleChange?: (title: string) => void;
+}
 
-export const ArtifactDrawer = () => {
-  const { open, close } = useArtifactDrawer();
-  // Retain the last-opened ref while the dock's exit animation plays so
-  // the content doesn't vanish mid-slide; cleared in onExited.
-  const [retained, setRetained] = useState<OpenArtifactRef | null>(null);
-  useEffect(() => {
-    if (open) setRetained(open);
-  }, [open]);
-  const shown = open ?? retained;
-
+export const ArtifactTabView = ({ workspaceId, artifactId, onTitleChange }: ArtifactTabViewProps) => {
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [pinning, setPinning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load + subscribe whenever the shown (workspace, artifact) pair changes.
+  // Load + subscribe for the lifetime of the (workspace, artifact) pair.
   useEffect(() => {
-    if (!shown) {
-      setArtifact(null);
-      setError(null);
-      return;
-    }
     let cancelled = false;
+    setArtifact(null);
     setError(null);
 
     const refresh = async () => {
-      const result = await window.canvasWorkspace.artifacts.get(shown.workspaceId, shown.artifactId);
+      const result = await window.canvasWorkspace.artifacts.get(workspaceId, artifactId);
       if (cancelled) return;
       if (!result?.ok || !result.artifact) {
         setError(result?.error ?? 'Artifact not found');
@@ -62,8 +46,8 @@ export const ArtifactDrawer = () => {
     void refresh();
 
     const unsubscribe = window.canvasWorkspace.artifacts.onChange((event) => {
-      if (event.workspaceId !== shown.workspaceId) return;
-      if (event.artifactId !== shown.artifactId) return;
+      if (event.workspaceId !== workspaceId) return;
+      if (event.artifactId !== artifactId) return;
       if (event.kind === 'delete') {
         setArtifact(null);
         setError('Artifact was deleted');
@@ -76,7 +60,14 @@ export const ArtifactDrawer = () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [shown]);
+  }, [workspaceId, artifactId]);
+
+  const onTitleChangeRef = useRef(onTitleChange);
+  onTitleChangeRef.current = onTitleChange;
+  const title = artifact?.title;
+  useEffect(() => {
+    if (title) onTitleChangeRef.current?.(title);
+  }, [title]);
 
   const viewedVersion: ArtifactVersion | null = useMemo(() => {
     if (!artifact) return null;
@@ -88,19 +79,15 @@ export const ArtifactDrawer = () => {
   }, [artifact]);
 
   const handlePin = useCallback(async () => {
-    if (!open || !artifact || artifact.pinnedNodeId || pinning) return;
+    if (!artifact || artifact.pinnedNodeId || pinning) return;
     setPinning(true);
     try {
-      const result = await window.canvasWorkspace.artifacts.pinToCanvas(open.workspaceId, open.artifactId, {});
+      const result = await window.canvasWorkspace.artifacts.pinToCanvas(workspaceId, artifactId, {});
       if (!result.ok) setError(result.error ?? 'Pin failed');
     } finally {
       setPinning(false);
     }
-  }, [open, artifact, pinning]);
-
-  const handleExited = useCallback(() => setRetained(null), []);
-
-  if (!shown) return null;
+  }, [workspaceId, artifactId, artifact, pinning]);
 
   const renderBody = () => {
     if (error) {
@@ -130,7 +117,7 @@ export const ArtifactDrawer = () => {
     }
     if (artifact.type === 'mermaid') {
       return (
-        <ArtifactDrawerMermaid
+        <ArtifactMermaid
           key={viewedVersion.id}
           source={viewedVersion.content}
         />
@@ -140,52 +127,33 @@ export const ArtifactDrawer = () => {
   };
 
   return (
-    <RightDockPanel
-      panelId="artifact"
-      open={open !== null}
-      ariaLabel="Artifact preview"
-      className="artifact-drawer"
-      defaultWidth={DEFAULT_DRAWER_WIDTH}
-      minWidth={MIN_DRAWER_WIDTH}
-      maxViewportRatio={0.95}
-      widthStorageKey={WIDTH_STORAGE_KEY}
-      onCloseRequest={close}
-      onExited={handleExited}
-    >
-      <div className="artifact-drawer__header">
-        <div className="artifact-drawer__title" title={artifact?.title}>
-          {artifact?.title ?? 'Artifact'}
-        </div>
-        {artifact && (
-          <span className="artifact-drawer__type-badge">{TYPE_LABEL[artifact.type] ?? artifact.type}</span>
-        )}
-        <button type="button" className="artifact-drawer__close" onClick={close} aria-label="Close">
-          ×
-        </button>
-      </div>
-      {artifact && artifact.versions.length > 0 && (
+    <>
+      {artifact && (
         <div className="artifact-drawer__toolbar">
+          <span className="artifact-drawer__type-badge">{TYPE_LABEL[artifact.type] ?? artifact.type}</span>
           <div className="artifact-drawer__toolbar-spacer" />
-          {artifact.pinnedNodeId ? (
-            <span className="artifact-drawer__pinned-badge">Pinned to canvas</span>
-          ) : (
-            <button
-              type="button"
-              className="artifact-drawer__action artifact-drawer__action--primary"
-              onClick={() => void handlePin()}
-              disabled={pinning}
-            >
-              {pinning ? 'Pinning…' : 'Pin to canvas'}
-            </button>
+          {artifact.versions.length > 0 && (
+            artifact.pinnedNodeId ? (
+              <span className="artifact-drawer__pinned-badge">Pinned to canvas</span>
+            ) : (
+              <button
+                type="button"
+                className="artifact-drawer__action artifact-drawer__action--primary"
+                onClick={() => void handlePin()}
+                disabled={pinning}
+              >
+                {pinning ? 'Pinning…' : 'Pin to canvas'}
+              </button>
+            )
           )}
         </div>
       )}
       <div className="artifact-drawer__body">{renderBody()}</div>
-    </RightDockPanel>
+    </>
   );
 };
 
-const ArtifactDrawerMermaid = ({ source }: { source: string }) => {
+const ArtifactMermaid = ({ source }: { source: string }) => {
   const [result, setResult] = useState<MermaidRenderResult | null>(null);
   useEffect(() => {
     let cancelled = false;

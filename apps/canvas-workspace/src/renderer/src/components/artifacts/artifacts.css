@@ -410,29 +410,9 @@
   cursor: default;
 }
 
-/* ─── Right-dock artifact panel ─────────────────────────────────────────
- * The shell (positioning, width/resize, layering, animations) comes from
- * components/RightDock — only panel content is styled here. */
-
-.artifact-drawer__header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
-  flex-shrink: 0;
-}
-
-.artifact-drawer__title {
-  flex: 1;
-  min-width: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #37352f;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* ─── Right-dock artifact tab content ───────────────────────────────────
+ * The shell (tab strip, positioning, width/resize, layering, animations)
+ * comes from components/RightDock — only tab content is styled here. */
 
 .artifact-drawer__type-badge {
   font-size: 10px;
@@ -444,27 +424,6 @@
   padding: 2px 6px;
   border-radius: 4px;
   flex-shrink: 0;
-}
-
-.artifact-drawer__close {
-  width: 26px;
-  height: 26px;
-  border: 0;
-  background: transparent;
-  color: #6b6b68;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.artifact-drawer__close:hover {
-  background: rgba(55, 53, 47, 0.08);
-  color: #37352f;
 }
 
 .artifact-drawer__toolbar {

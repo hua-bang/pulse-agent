@@ -1,5 +1,5 @@
 import './index.css';
-import { useArtifactDrawer } from '../artifacts';
+import { useRightDock } from '../RightDock';
 import { IframeEditor } from './IframeEditor';
 import { IframeRenderedView } from './IframeRenderedView';
 import type { IframeNodeBodyProps } from './types';
@@ -12,7 +12,7 @@ export const IframeNodeBody = ({
   isResizing,
   readOnly = false,
 }: IframeNodeBodyProps) => {
-  const { openArtifact } = useArtifactDrawer();
+  const { openArtifact } = useRightDock();
   const state = useIframeNodeState({
     node,
     workspaceId,
