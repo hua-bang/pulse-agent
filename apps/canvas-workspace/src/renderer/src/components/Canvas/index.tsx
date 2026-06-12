@@ -25,6 +25,7 @@ import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
+import { useI18n } from '../../i18n';
 import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
 import type { AgentNodeData, CanvasNode } from '../../types';
 import type { CanvasProps } from './types';
@@ -73,6 +74,7 @@ export const Canvas = ({
   onNodePatchComplete,
 }: CanvasProps) => {
   const { confirm, notify, updateToast, openShortcuts, isOverlayOpen } = useAppShell();
+  const { t } = useI18n();
   const [activeTool, setActiveTool] = useState('select');
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -303,6 +305,34 @@ export const Canvas = ({
     updateNode,
   });
 
+  // Keyboard undo/redo with boundary feedback: a no-op Cmd+Z looks like
+  // the app froze, so a short toast tells the user the stack is empty.
+  const undoWithFeedback = useCallback(() => {
+    if (!undo()) {
+      notify({ tone: 'info', title: t('canvas.nothingToUndo'), autoCloseMs: 1500 });
+    }
+  }, [undo, notify, t]);
+
+  const redoWithFeedback = useCallback(() => {
+    if (!redo()) {
+      notify({ tone: 'info', title: t('canvas.nothingToRedo'), autoCloseMs: 1500 });
+    }
+  }, [redo, notify, t]);
+
+  // Cross-workspace Cmd+V silently creates *reference* nodes, which can
+  // read as a failed paste; a toast makes the reference semantics explicit.
+  const pasteReferenceNodesWithFeedback = useCallback((clip: Parameters<typeof pasteReferenceNodes>[0]) => {
+    const created = pasteReferenceNodes(clip);
+    if (created.length > 0) {
+      notify({
+        tone: 'info',
+        title: t('canvas.pastedReferences', { count: created.length }),
+        description: t('canvas.pastedReferencesDescription'),
+      });
+    }
+    return created;
+  }, [pasteReferenceNodes, notify, t]);
+
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
   // through matches. See useCanvasSearch for details.
@@ -370,13 +400,14 @@ export const Canvas = ({
 
   useCanvasKeyboard({
     canvasId,
-    undo, redo, nodes, selectedNodeIds, setSelectedNodeIds,
+    undo: undoWithFeedback, redo: redoWithFeedback,
+    nodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNode,
     clipboard,
     setClipboard: onClipboardChange ?? (() => undefined),
     pasteNodes,
-    pasteReferencedNodes: pasteReferenceNodes,
+    pasteReferencedNodes: pasteReferenceNodesWithFeedback,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
     removeNodes: actions.requestRemoveNodes,

@@ -281,6 +281,10 @@ const en = {
   'canvas.deleteNodesTitle': 'Delete {count} nodes?',
   'canvas.deleteNodesDescription': 'This removes the selected nodes and their connections from the canvas.',
   'canvas.deleteNodesConfirm': 'Delete nodes',
+  'canvas.nothingToUndo': 'Nothing to undo',
+  'canvas.nothingToRedo': 'Nothing to redo',
+  'canvas.pastedReferences': 'Pasted {count} reference(s)',
+  'canvas.pastedReferencesDescription': 'Nodes copied from another workspace are pasted as references.',
 
   'models.addProvider': 'Add provider',
   'models.providerCount': '{count} models',
@@ -868,6 +872,10 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.deleteNodesTitle': '删除 {count} 个节点?',
   'canvas.deleteNodesDescription': '这将从画布中移除所选节点及其连线。',
   'canvas.deleteNodesConfirm': '删除节点',
+  'canvas.nothingToUndo': '没有可撤销的操作',
+  'canvas.nothingToRedo': '没有可重做的操作',
+  'canvas.pastedReferences': '已粘贴 {count} 个引用',
+  'canvas.pastedReferencesDescription': '来自其他工作区的节点以引用方式粘贴。',
 
   'models.addProvider': '添加 Provider',
   'models.providerCount': '{count} 个模型',
