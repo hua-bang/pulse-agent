@@ -7,6 +7,7 @@ import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
 import { LinkDrawer } from './components/LinkDrawer';
 import { MigrationSpinner } from './components/MigrationSpinner';
+import { RightDockProvider } from './components/RightDock';
 import { Settings, type SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
@@ -540,10 +541,12 @@ const AppContent = () => {
 const App = () => (
   <I18nProvider>
     <AppShellProvider>
-      <ArtifactDrawerProvider>
-        <AppContent />
-        <ArtifactDrawer />
-      </ArtifactDrawerProvider>
+      <RightDockProvider>
+        <ArtifactDrawerProvider>
+          <AppContent />
+          <ArtifactDrawer />
+        </ArtifactDrawerProvider>
+      </RightDockProvider>
     </AppShellProvider>
   </I18nProvider>
 );

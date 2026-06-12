@@ -410,66 +410,9 @@
   cursor: default;
 }
 
-/* ─── Right-side artifact drawer ────────────────────────────────────── */
-
-.artifact-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 15, 14, 0.18);
-  z-index: 90;
-  animation: artifact-fade-in 0.12s ease-out;
-}
-
-.artifact-drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  /* Width is controlled inline by ArtifactDrawer.tsx so the user can drag the
-   * left-edge handle to resize. Fallback only applies when no inline style is
-   * set (e.g. SSR or stripped runtime). */
-  width: 640px;
-  min-width: 360px;
-  max-width: 95vw;
-  background: #fff;
-  border-left: 1px solid rgba(55, 53, 47, 0.12);
-  display: flex;
-  flex-direction: column;
-  z-index: 100;
-  box-shadow: -2px 0 12px rgba(15, 15, 14, 0.08);
-  animation: artifact-slide-in 0.18s ease-out;
-}
-
-/* Thin draggable strip on the LEFT edge of the right-anchored drawer.
- * Transparent at rest; the cursor hint is the only visual cue until hover,
- * which paints a soft indigo bar so the drag target is discoverable. */
-.artifact-drawer__resize-handle {
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 6px;
-  margin-left: -3px;
-  cursor: ew-resize;
-  z-index: 1;
-  background: transparent;
-  transition: background 0.12s ease;
-}
-
-.artifact-drawer__resize-handle:hover,
-.artifact-drawer__resize-handle:active {
-  background: rgba(99, 102, 241, 0.35);
-}
-
-@keyframes artifact-slide-in {
-  from { transform: translateX(20px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes artifact-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+/* ─── Right-dock artifact panel ─────────────────────────────────────────
+ * The shell (positioning, width/resize, layering, animations) comes from
+ * components/RightDock — only panel content is styled here. */
 
 .artifact-drawer__header {
   display: flex;

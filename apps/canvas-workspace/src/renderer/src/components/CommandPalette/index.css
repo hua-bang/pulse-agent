@@ -6,7 +6,7 @@
   align-items: flex-start;
   justify-content: center;
   padding-top: 15vh;
-  z-index: 2000;
+  z-index: var(--layer-palette);
   animation: fadeIn 0.12s ease;
   touch-action: none;
   overscroll-behavior: contain;

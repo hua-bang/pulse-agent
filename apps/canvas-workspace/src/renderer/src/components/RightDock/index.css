@@ -1,0 +1,63 @@
+/* Shared shell for right-anchored dock panels (artifact preview, link
+ * preview). No backdrop on purpose: the dock is a side panel, not a
+ * modal — the canvas underneath stays pannable / editable. ESC closes.
+ *
+ * Sits on --layer-dock: above canvas chrome (floating toolbar, zoom
+ * indicator, fullscreen chip), below the search bar and modal tiers.
+ * See the layering scale in styles.css. */
+.right-dock {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  z-index: var(--layer-dock);
+  background: #fff;
+  border-left: 1px solid rgba(55, 53, 47, 0.09);
+  box-shadow: -8px 0 24px rgba(15, 15, 15, 0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Animation direction is driven by `data-state` so a panel can play an
+ * exit animation before unmounting. `forwards` keeps the panel parked
+ * off-screen between animation end and React unmount, otherwise it
+ * would snap back into view for one frame. A closing panel also drops
+ * below the dock layer so an incoming panel always paints on top. */
+.right-dock[data-state="open"] {
+  animation: right-dock-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.right-dock[data-state="closing"] {
+  animation: right-dock-out 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+  z-index: calc(var(--layer-dock) - 1);
+}
+
+@keyframes right-dock-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes right-dock-out {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+
+/* Thin transparent strip on the left edge that catches mousedown. A
+ * darker indicator appears on hover so users discover they can drag. */
+.right-dock__resize-handle {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 1;
+  background: transparent;
+  transition: background 0.12s;
+}
+
+.right-dock__resize-handle:hover,
+.right-dock__resize-handle:active {
+  background: rgba(55, 53, 47, 0.12);
+}

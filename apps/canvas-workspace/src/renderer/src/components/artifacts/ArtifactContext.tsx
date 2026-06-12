@@ -8,7 +8,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
-interface OpenArtifactRef {
+export interface OpenArtifactRef {
   workspaceId: string;
   artifactId: string;
 }

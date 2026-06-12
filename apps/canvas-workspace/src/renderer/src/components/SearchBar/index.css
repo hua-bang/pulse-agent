@@ -12,7 +12,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 10px);
   box-shadow: var(--shadow-float), 0 6px 24px rgba(0, 0, 0, 0.10);
-  z-index: 1500;
+  z-index: var(--layer-search);
   font-family: var(--font);
   color: var(--text);
   animation: searchBarFadeIn 0.12s ease;
