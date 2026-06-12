@@ -285,6 +285,9 @@ const en = {
   'canvas.nothingToRedo': 'Nothing to redo',
   'canvas.pastedReferences': 'Pasted {count} reference(s)',
   'canvas.pastedReferencesDescription': 'Nodes copied from another workspace are pasted as references.',
+  'canvas.saveFailed': 'Saving failed',
+  'canvas.saveFailedDescription': 'Your latest changes could not be written to disk.',
+  'canvas.saveRetry': 'Retry',
 
   'models.addProvider': 'Add provider',
   'models.providerCount': '{count} models',
@@ -876,6 +879,9 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.nothingToRedo': '没有可重做的操作',
   'canvas.pastedReferences': '已粘贴 {count} 个引用',
   'canvas.pastedReferencesDescription': '来自其他工作区的节点以引用方式粘贴。',
+  'canvas.saveFailed': '保存失败',
+  'canvas.saveFailedDescription': '最新更改未能写入磁盘。',
+  'canvas.saveRetry': '重试',
 
   'models.addProvider': '添加 Provider',
   'models.providerCount': '{count} 个模型',

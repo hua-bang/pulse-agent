@@ -187,9 +187,14 @@ const ToastViewport = ({
 }) => {
   const { t } = useI18n();
 
+  // Cap the visible stack: rapid-fire actions (e.g. bulk node operations)
+  // could otherwise overflow the viewport. Older toasts stay queued and
+  // surface as newer ones dismiss.
+  const visible = toasts.slice(-4);
+
   return (
     <div className="shell-toast-region" aria-live="polite" aria-atomic="true">
-      {toasts.map((toast) => (
+      {visible.map((toast) => (
         <article
           key={toast.id}
           className={`shell-toast shell-toast--${toast.tone}`}

@@ -73,8 +73,30 @@ export const Canvas = ({
   nodePatchRequest,
   onNodePatchComplete,
 }: CanvasProps) => {
-  const { confirm, notify, updateToast, openShortcuts, isOverlayOpen } = useAppShell();
+  const { confirm, notify, updateToast, dismissToast, openShortcuts, isOverlayOpen } = useAppShell();
   const { t } = useI18n();
+
+  // Persistent save-failure toast with a Retry action. Repeated failures
+  // replace the previous toast instead of stacking; flushSave is assigned
+  // to the ref after useNodes returns it below.
+  const flushSaveRef = useRef<() => void>(() => undefined);
+  const saveErrorToastIdRef = useRef<string | null>(null);
+  const handleSaveError = useCallback(() => {
+    if (saveErrorToastIdRef.current) dismissToast(saveErrorToastIdRef.current);
+    saveErrorToastIdRef.current = notify({
+      tone: 'error',
+      title: t('canvas.saveFailed'),
+      description: t('canvas.saveFailedDescription'),
+      autoCloseMs: 0,
+      action: {
+        label: t('canvas.saveRetry'),
+        onClick: () => {
+          saveErrorToastIdRef.current = null;
+          flushSaveRef.current();
+        },
+      },
+    });
+  }, [dismissToast, notify, t]);
   const [activeTool, setActiveTool] = useState('select');
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -148,7 +170,10 @@ export const Canvas = ({
       setTransform(savedTransform);
     },
     handleAgentCreated,
+    handleSaveError,
   );
+
+  useEffect(() => { flushSaveRef.current = flushSave; }, [flushSave]);
 
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
