@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  z-index: 500;
+  z-index: var(--layer-canvas-chrome);
 }
 
 .zoom-indicator {

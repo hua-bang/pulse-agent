@@ -2,13 +2,13 @@
  * Compact in-chat representation of a stored artifact.
  *
  * Source: `artifact_create` / `artifact_update` tool result. Clicking the
- * card opens the side drawer; the "Pin to Canvas" shortcut promotes the
- * artifact to a spatial canvas node in one click.
+ * card opens the artifact in a right-dock tab; the "Pin to Canvas"
+ * shortcut promotes the artifact to a spatial canvas node in one click.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import type { Artifact, ArtifactType } from '../../types';
-import { useArtifactDrawer } from './ArtifactContext';
+import { useRightDock } from '../RightDock';
 
 export interface ArtifactCardPayload {
   artifactId: string;
@@ -31,7 +31,7 @@ const TYPE_ICONS: Record<ArtifactType, string> = {
 };
 
 export const ChatArtifactCard = ({ workspaceId, payload }: ChatArtifactCardProps) => {
-  const { openArtifact } = useArtifactDrawer();
+  const { openArtifact } = useRightDock();
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [pinning, setPinning] = useState(false);
 

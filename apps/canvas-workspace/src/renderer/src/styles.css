@@ -38,6 +38,25 @@
   --sidebar-width: 240px;
   --sidebar-collapsed: 48px;
   --titlebar-height: 38px;
+
+  /* ── Layering scale ──────────────────────────────────────────────
+   * Every surface that overlays other components takes its z-index
+   * from this scale; never hardcode a z-index for a full-app surface.
+   * Stacking that stays inside one component (node bodies, menus
+   * anchored within a panel) keeps local values.
+   * See docs/renderer-surfaces.md for the surface inventory. */
+  --layer-canvas-chrome: 500;        /* floating toolbar, zoom indicator */
+  --layer-canvas-chrome-raised: 600; /* toolbar flyouts (shape picker) */
+  --layer-status-pill: 950;          /* migration spinner */
+  --layer-fullscreen-node: 1000;     /* fullscreened canvas node */
+  --layer-fullscreen-chrome: 1010;   /* fullscreen chip */
+  --layer-dock: 1100;                /* right dock: artifact / link previews */
+  --layer-search: 1500;              /* find-in-canvas bar */
+  --layer-interaction-shield: 1800;  /* drag shield over webviews */
+  --layer-modal: 1900;               /* settings drawers (with backdrop) */
+  --layer-palette: 2000;             /* command palette */
+  --layer-dialog: 2050;              /* app-shell confirm dialogs */
+  --layer-toast: 2100;               /* app-shell toasts */
 }
 
 * {

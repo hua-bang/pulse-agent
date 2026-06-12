@@ -2,11 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
-import { ArtifactDrawer, ArtifactDrawerProvider } from './components/artifacts';
 import './components/artifacts/artifacts.css';
 import { ChatPage } from './components/chat';
-import { LinkDrawer } from './components/LinkDrawer';
 import { MigrationSpinner } from './components/MigrationSpinner';
+import { RightDock, RightDockProvider } from './components/RightDock';
 import { Settings, type SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
@@ -516,7 +515,7 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
-      <LinkDrawer activeWorkspaceId={activeId} />
+      <RightDock activeWorkspaceId={activeId} />
       <MigrationSpinner />
       <WorkspaceSettingsDrawer
         workspace={
@@ -540,10 +539,9 @@ const AppContent = () => {
 const App = () => (
   <I18nProvider>
     <AppShellProvider>
-      <ArtifactDrawerProvider>
+      <RightDockProvider>
         <AppContent />
-        <ArtifactDrawer />
-      </ArtifactDrawerProvider>
+      </RightDockProvider>
     </AppShellProvider>
   </I18nProvider>
 );

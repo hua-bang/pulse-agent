@@ -43,7 +43,7 @@
 .canvas-interaction-shield {
   position: fixed;
   inset: 0;
-  z-index: 1800;
+  z-index: var(--layer-interaction-shield);
   background: transparent;
   pointer-events: auto;
   cursor: inherit;
@@ -118,13 +118,13 @@
  * jump isn't visible. The transform layer also gets explicit
  * dimensions so the absolutely-positioned fullscreen node has a real
  * containing block to fill, and its z-index is raised above the
- * floating toolbar (500-600) and zoom indicator (500). */
+ * canvas chrome layer (floating toolbar, zoom indicator). */
 .canvas-container[data-fullscreen="on"] .canvas-transform {
   transform: none !important;
   transition: none !important;
   width: 100%;
   height: 100%;
-  z-index: 1000;
+  z-index: var(--layer-fullscreen-node);
 }
 
 .canvas-container[data-fullscreen="on"] .canvas-grid {
@@ -145,7 +145,7 @@
 /* Fullscreen-only chip with Chat / Reference toggles. Floats above
  * the fullscreen node so the user can still pop the canvas-level
  * panels open without seeing the rest of the toolbar. z-index sits
- * above `.canvas-transform`'s bumped 1000. */
+ * one tier above the fullscreened node layer. */
 /* Single control surface for fullscreen mode — Reference / Chat
  * toggles + exit button. Sits at top-right since the node's own
  * exit button is hidden in fullscreen (see CanvasNodeView CSS), so
@@ -162,7 +162,7 @@
   border: 1px solid rgba(0, 0, 0, 0.06);
   border-radius: 8px;
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.18);
-  z-index: 1010;
+  z-index: var(--layer-fullscreen-chrome);
 }
 
 .canvas-fullscreen-chip__divider {

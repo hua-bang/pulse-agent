@@ -2,7 +2,7 @@
   position: fixed;
   top: 18px;
   right: 18px;
-  z-index: 2100;
+  z-index: var(--layer-toast);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -125,7 +125,7 @@
 .shell-dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2050;
+  z-index: var(--layer-dialog);
   background: var(--overlay-backdrop);
   backdrop-filter: blur(6px);
   display: flex;

@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ArtifactType } from '../../types';
-import { useArtifactDrawer } from './ArtifactContext';
+import { useRightDock } from '../RightDock';
 import { extractPartialStringField } from './partialJson';
 import { STREAMING_SHELL, withAutoHeight } from './streamingShell';
 import { renderMermaidSource, type MermaidRenderResult } from '../chat/utils/mermaid';
@@ -66,7 +66,7 @@ export const ChatInlineVisual = ({
   streamedContent,
   streaming = false,
 }: ChatInlineVisualProps) => {
-  const { openArtifact } = useArtifactDrawer();
+  const { openArtifact } = useRightDock();
   const [savedId, setSavedId] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [pinning, setPinning] = useState(false);

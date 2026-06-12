@@ -11,7 +11,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
-  z-index: 500;
+  z-index: var(--layer-canvas-chrome);
 }
 
 .toolbar-group {
@@ -149,7 +149,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
-  z-index: 600;
+  z-index: var(--layer-canvas-chrome-raised);
 }
 
 .shape-tool-option {
