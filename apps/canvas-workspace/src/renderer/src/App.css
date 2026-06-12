@@ -13,6 +13,15 @@
   display: flex;
   overflow: hidden;
   min-height: 0;
+  /* The right dock (fixed, --layer-dock) reserves its width here while
+   * expanded on the canvas route, so it behaves like an in-flow column:
+   * the canvas reflows and the floating toolbar stays fully visible. */
+  margin-right: var(--right-dock-inset, 0px);
+  transition: margin-right 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.right-dock-resizing .app-body {
+  transition: none;
 }
 
 .canvas-viewport {
@@ -26,16 +35,4 @@
 .canvas-host {
   position: absolute;
   inset: 0;
-}
-
-.chat-panel-wrapper {
-  width: 0;
-  overflow: hidden;
-  flex-shrink: 0;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.chat-panel-wrapper--open {
-  width: 380px; /* fallback; overridden by inline style when resized */
 }

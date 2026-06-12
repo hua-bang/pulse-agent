@@ -64,6 +64,8 @@ export interface ChatPanelProps {
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Called once the insert-mention function is ready; returns a cleanup fn. */
   onRegisterInsertMention?: (fn: (node: CanvasNode) => void) => () => void;
+  /** Fires when a streaming turn finishes — hosts use it for unread badges. */
+  onTurnComplete?: () => void;
 }
 
 export interface OtherWorkspaceSession extends AgentSessionInfo {

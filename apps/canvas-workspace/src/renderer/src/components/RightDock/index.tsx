@@ -1,26 +1,32 @@
 /**
- * RightDock — the tabbed right-side panel hosting preview surfaces.
- * The left side of the workbench is the reference area (ReferenceDrawer);
- * the right side is chat (in-flow ChatPanel) plus this dock.
+ * RightDock — the right-side panel of the workbench. Its first tab is the
+ * pinned chat; preview surfaces (artifacts, intercepted links) open as
+ * additional tabs. With no preview tabs the strip is hidden and the dock
+ * looks like a plain chat panel.
  *
  * Architecture:
- *  - `DockStore` (dock-store.ts) owns the tab list + active tab and the
- *    dedup/replacement policies;
+ *  - `DockStore` (dock-store.ts) owns tabs / active pointer / expanded /
+ *    chat-unread and the dedup policies;
  *  - `RightDockProvider` creates the store; `useRightDock()` exposes the
- *    open actions to any component (chat artifact cards, iframe nodes, …);
- *  - `<RightDock>` renders the dock chrome once (mounted in AppContent):
- *    tab strip, width drag + persistence, slide in/out animations, ESC.
- *    It also feeds intercepted external links (`link:open` IPC) into the
- *    link tab.
+ *    actions; `useRightDockState()` subscribes to state;
+ *  - the chat pane is a portal outlet: `useRightDockChatHost()` hands its
+ *    DOM element to Workbench, which portals its per-workspace ChatPanels
+ *    into it — chat logic, sessions and keep-alive stay where they always
+ *    lived, only the DOM target moved;
+ *  - `<RightDock>` is mounted once (AppContent) and STAYS mounted while
+ *    collapsed so chat and preview tabs keep their state.
  *
- * Non-modal by design: no backdrop, the canvas underneath stays
- * interactive. Sits on `--layer-dock`, above canvas chrome and below
- * search/modal tiers (see the layering scale in styles.css).
+ * Layout: the dock is a fixed right-side element on `--layer-dock`. On
+ * the canvas route (`chatTabEnabled`) it reserves its width through the
+ * `--right-dock-inset` custom property consumed by `.app-body`, so it
+ * behaves like an in-flow column (the canvas reflows and the floating
+ * toolbar stays fully visible). On other routes (/chat, nodes, …) the
+ * chat tab is hidden and the dock overlays previews only.
  *
- * Tab contents stay mounted while their tab exists and are hidden with
- * `visibility: hidden` instead of `display: none` — collapsing a
- * <webview>'s layout detaches its guest contents in Electron, and keeping
- * artifacts mounted preserves scroll position and rendered mermaid SVG.
+ * Tab contents stay mounted and hide via `visibility` instead of
+ * `display: none` — collapsing a <webview>'s layout detaches its guest
+ * contents in Electron, and keeping artifacts mounted preserves scroll
+ * position and rendered mermaid SVG.
  */
 
 import {
@@ -39,47 +45,79 @@ import {
 // which would create an import cycle.
 import { ArtifactTabView } from '../artifacts/ArtifactTabView';
 import { LinkTabView } from '../LinkDrawer';
-import { DockStore, type DockState } from './dock-store';
+import { CHAT_TAB_ID, DockStore, type DockState } from './dock-store';
 import './index.css';
 
-const EXIT_ANIMATION_NAME = 'right-dock-out';
-const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
-const DEFAULT_WIDTH = 640;
-const MIN_WIDTH = 360;
-const MAX_VIEWPORT_RATIO = 0.95;
+export { CHAT_TAB_ID } from './dock-store';
 
-const RightDockContext = createContext<DockStore | null>(null);
+const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
+const DEFAULT_WIDTH = 480;
+const MIN_WIDTH = 320;
+const MAX_VIEWPORT_RATIO = 0.95;
+const RESIZING_CLASS = 'right-dock-resizing';
+
+interface RightDockContextValue {
+  store: DockStore;
+  chatHost: HTMLDivElement | null;
+  setChatHost: (el: HTMLDivElement | null) => void;
+}
+
+const RightDockContext = createContext<RightDockContextValue | null>(null);
 
 export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const store = useMemo(() => new DockStore(), []);
+  const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
+  const value = useMemo<RightDockContextValue>(
+    () => ({ store, chatHost, setChatHost }),
+    [store, chatHost],
+  );
   return (
-    <RightDockContext.Provider value={store}>
+    <RightDockContext.Provider value={value}>
       {children}
     </RightDockContext.Provider>
   );
 };
 
-const useDockStore = (): DockStore => {
-  const store = useContext(RightDockContext);
-  if (!store) {
+const useDockContext = (): RightDockContextValue => {
+  const ctx = useContext(RightDockContext);
+  if (!ctx) {
     throw new Error('useRightDock must be used within <RightDockProvider>');
   }
-  return store;
+  return ctx;
 };
 
-/** Open actions for the dock — safe to call from anywhere under the provider. */
+/** Dock actions — safe to call from anywhere under the provider. */
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
   openLink: (url: string) => void;
+  openChat: () => void;
+  toggleChat: () => void;
+  collapse: () => void;
+  notifyChatActivity: () => void;
 } {
-  const store = useDockStore();
+  const { store } = useDockContext();
   return useMemo(
     () => ({
       openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
       openLink: (url: string) => store.openLink(url),
+      openChat: () => store.openChat(),
+      toggleChat: () => store.toggleChat(),
+      collapse: () => store.collapse(),
+      notifyChatActivity: () => store.notifyChatActivity(),
     }),
     [store],
   );
+}
+
+/** Reactive dock state (tabs, active tab, expanded, chat unread). */
+export function useRightDockState(): DockState {
+  const { store } = useDockContext();
+  return useSyncExternalStore(store.subscribe, store.getSnapshot);
+}
+
+/** DOM element of the dock's chat pane; Workbench portals ChatPanels into it. */
+export function useRightDockChatHost(): HTMLDivElement | null {
+  return useDockContext().chatHost;
 }
 
 function readStoredWidth(): number | null {
@@ -103,27 +141,32 @@ function clampWidth(value: number): number {
 interface RightDockProps {
   /** Target canvas for the link tab's "add to current canvas" action. */
   activeWorkspaceId: string;
+  /** True on the canvas route: shows the pinned chat tab and reserves
+   * layout space (in-flow behaviour). Other routes overlay previews only. */
+  chatTabEnabled: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId }: RightDockProps) => {
-  const store = useDockStore();
-  const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
-  const asideRef = useRef<HTMLElement>(null);
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps) => {
+  const { store, setChatHost } = useDockContext();
+  const state = useRightDockState();
 
   // External links intercepted by the main process land in the link tab.
   useEffect(() => {
     return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
   }, [store]);
 
-  const open = state.tabs.length > 0;
-
-  // Retain the last non-empty state while the exit animation plays so tab
-  // contents don't vanish mid-slide; cleared in the animationend handler.
-  const [retained, setRetained] = useState<DockState | null>(null);
+  // Route guard: while the chat tab is unavailable, an active 'chat'
+  // pointer falls forward to the first preview so the dock never shows an
+  // empty pane.
   useEffect(() => {
-    if (state.tabs.length > 0) setRetained(state);
-  }, [state]);
-  const shown = open ? state : retained;
+    if (chatTabEnabled) return;
+    if (state.activeTabId === CHAT_TAB_ID && state.tabs.length > 0) {
+      store.activate(state.tabs[0].id);
+    }
+  }, [chatTabEnabled, state.activeTabId, state.tabs, store]);
+
+  const hasPreviews = state.tabs.length > 0;
+  const visible = state.expanded && (chatTabEnabled || hasPreviews);
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
   const widthRef = useRef(width);
@@ -137,21 +180,33 @@ export const RightDock = ({ activeWorkspaceId }: RightDockProps) => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // ESC closes the active tab — the gentlest dismissal: background tabs
-  // survive, and the dock slides away once the last tab goes.
+  // Reserve layout space on the canvas route (in-flow behaviour). The
+  // inset lives on <html> so .app-body can consume it from anywhere.
   useEffect(() => {
-    if (!open) return;
+    const inset = visible && chatTabEnabled ? `${width}px` : '0px';
+    document.documentElement.style.setProperty('--right-dock-inset', inset);
+    return () => {
+      document.documentElement.style.setProperty('--right-dock-inset', '0px');
+    };
+  }, [visible, chatTabEnabled, width]);
+
+  // ESC closes the active preview tab. Chat is persistent workspace UI and
+  // never ESC-closes — same as the old standalone chat panel, and it keeps
+  // ESC free for canvas interactions (deselect, exit fullscreen, …).
+  useEffect(() => {
+    if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      const activeTabId = store.getSnapshot().activeTabId;
-      if (activeTabId) store.close(activeTabId);
+      const { activeTabId } = store.getSnapshot();
+      if (activeTabId !== CHAT_TAB_ID) store.close(activeTabId);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, store]);
+  }, [visible, store]);
 
   // Drag the left edge to resize. Lock body cursor + selection during the
-  // drag and tear listeners down on mouseup.
+  // drag; the resizing class disables the width/margin transitions so the
+  // canvas tracks the handle without rubber-banding.
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -166,6 +221,7 @@ export const RightDock = ({ activeWorkspaceId }: RightDockProps) => {
     const onMouseUp = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      document.documentElement.classList.remove(RESIZING_CLASS);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       try {
@@ -175,33 +231,24 @@ export const RightDock = ({ activeWorkspaceId }: RightDockProps) => {
       }
     };
 
+    document.documentElement.classList.add(RESIZING_CLASS);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   }, []);
 
-  // The exit animation runs `forwards` and parks the dock off-screen;
-  // drop the retained content once it finishes. Animations bubble from
-  // children, so gate on name + target.
-  const handleAnimationEnd = useCallback((e: React.AnimationEvent<HTMLElement>) => {
-    if (open) return;
-    if (e.target !== asideRef.current) return;
-    if (e.animationName !== EXIT_ANIMATION_NAME) return;
-    setRetained(null);
-  }, [open]);
-
-  if (!shown) return null;
+  // While the chat tab is unavailable a transient 'chat' active pointer
+  // (route guard hasn't run yet) should highlight nothing.
+  const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID ? null : state.activeTabId;
 
   return (
     <aside
-      ref={asideRef}
       className="right-dock"
-      data-state={open ? 'open' : 'closing'}
+      data-expanded={visible}
       role="complementary"
-      aria-label="Preview dock"
+      aria-label="Chat and preview panel"
       style={{ width }}
-      onAnimationEnd={handleAnimationEnd}
     >
       <div
         className="right-dock__resize-handle"
@@ -210,51 +257,74 @@ export const RightDock = ({ activeWorkspaceId }: RightDockProps) => {
         aria-orientation="vertical"
         aria-label="Resize panel"
       />
-      <div className="right-dock__tabs" role="tablist">
-        {shown.tabs.map((tab) => {
-          const active = tab.id === shown.activeTabId;
-          return (
+      {/* Always in the DOM so its appearance/disappearance can animate;
+          hidden (and out of the tab order) while chat is alone. */}
+      <div className="right-dock__tabs" role="tablist" data-visible={hasPreviews}>
+          {chatTabEnabled && (
             <button
-              key={tab.id}
               type="button"
               role="tab"
-              aria-selected={active}
-              className={`right-dock__tab${active ? ' right-dock__tab--active' : ''}`}
-              title={tab.title}
-              onClick={() => store.activate(tab.id)}
+              aria-selected={activePaneId === CHAT_TAB_ID}
+              className={`right-dock__tab right-dock__tab--chat${activePaneId === CHAT_TAB_ID ? ' right-dock__tab--active' : ''}`}
+              data-unread={state.chatUnread}
+              title="Chat"
+              onClick={() => store.activate(CHAT_TAB_ID)}
             >
-              <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
-              <span className="right-dock__tab-title">{tab.title}</span>
-              <span
-                role="button"
-                aria-label="Close tab"
-                className="right-dock__tab-close"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  store.close(tab.id);
-                }}
-              >
-                ×
-              </span>
+              <span className="right-dock__tab-dot right-dock__tab-dot--chat" />
+              <span className="right-dock__tab-title">Chat</span>
+              <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
-          );
-        })}
-        <div className="right-dock__tabs-spacer" />
-        <button
-          type="button"
-          className="right-dock__close-all"
-          aria-label="Close panel"
-          title="Close panel"
-          onClick={() => store.closeAll()}
-        >
-          ×
-        </button>
+          )}
+          {state.tabs.map((tab) => {
+            const active = tab.id === activePaneId;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`right-dock__tab${active ? ' right-dock__tab--active' : ''}`}
+                title={tab.title}
+                onClick={() => store.activate(tab.id)}
+              >
+                <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
+                <span className="right-dock__tab-title">{tab.title}</span>
+                <span
+                  role="button"
+                  aria-label="Close tab"
+                  className="right-dock__tab-close"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    store.close(tab.id);
+                  }}
+                >
+                  ×
+                </span>
+              </button>
+            );
+          })}
+          <div className="right-dock__tabs-spacer" />
+          <button
+            type="button"
+            className="right-dock__collapse"
+            aria-label="Collapse panel"
+            title="Collapse panel (tabs are kept)"
+            onClick={() => store.collapse()}
+          >
+            ⇥
+          </button>
       </div>
       <div className="right-dock__panes">
-        {shown.tabs.map((tab) => (
+        {/* Chat pane: portal outlet — always mounted so chat keeps its
+            state across collapse, tab switches and route changes. */}
+        <div
+          ref={setChatHost}
+          className={`right-dock__pane right-dock__pane--chat${activePaneId === CHAT_TAB_ID ? ' right-dock__pane--active' : ''}`}
+        />
+        {state.tabs.map((tab) => (
           <div
             key={tab.id}
-            className={`right-dock__pane${tab.id === shown.activeTabId ? ' right-dock__pane--active' : ''}`}
+            className={`right-dock__pane${tab.id === activePaneId ? ' right-dock__pane--active' : ''}`}
           >
             {tab.kind === 'artifact' ? (
               <ArtifactTabView

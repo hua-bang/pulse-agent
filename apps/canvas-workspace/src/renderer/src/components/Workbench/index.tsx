@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanel } from '../chat';
+import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
 import {
   createReferenceNodeDataSnapshot,
   ReferenceDrawer,
@@ -20,10 +22,6 @@ import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
-
-const DEFAULT_CHAT_WIDTH = 420;
-const MIN_CHAT_WIDTH = 240;
-const MAX_CHAT_WIDTH = 900;
 
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
 interface WorkbenchProps {
@@ -60,13 +58,19 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     clearRenameRequest,
   } = controller;
 
-  const [chatPanelOpen, setChatPanelOpen] = useState(false);
+  // Chat lives in the right dock as its pinned tab; Workbench keeps owning
+  // the per-workspace ChatPanel instances (sessions, mentions, keep-alive)
+  // and portals them into the dock's chat pane.
+  const dock = useRightDock();
+  const dockState = useRightDockState();
+  const chatHost = useRightDockChatHost();
+  const chatPanelOpen = dockState.expanded && dockState.activeTabId === CHAT_TAB_ID;
+
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
   const [activeReferenceIdByWorkspace, setActiveReferenceIdByWorkspace] = useState<Record<string, string | undefined>>({});
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
-  const [chatWidth, setChatWidth] = useState(DEFAULT_CHAT_WIDTH);
   const patchRequestIdRef = useRef(0);
   const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId);
 
@@ -196,7 +200,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const handleAddNodeToChat = useCallback((workspaceId: string, nodeId: string) => {
     const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
     if (!node) return;
-    setChatPanelOpen(true);
+    dock.openChat();
     const tryInsert = () => {
       const fn = insertMentionByWorkspaceRef.current.get(workspaceId);
       if (fn) {
@@ -209,7 +213,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
       // ChatPanel may not have registered yet (just opened). Retry on next tick.
       requestAnimationFrame(() => { tryInsert(); });
     }
-  }, [allNodes]);
+  }, [allNodes, dock]);
 
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
@@ -395,41 +399,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     patchWorkspaceNodeSnapshot(ref.workspaceId, ref.nodeId, patch);
   }, [allNodes, mountedWorkspaceIds, patchWorkspaceNodeSnapshot]);
 
-  const resizing = useRef(false);
-  // Tear-down for an in-flight resize drag — also invoked on unmount so the
-  // document can't get stuck with col-resize cursor / user-select disabled.
-  const stopResizeRef = useRef<(() => void) | null>(null);
-  useEffect(() => () => stopResizeRef.current?.(), []);
-
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    stopResizeRef.current?.();
-    resizing.current = true;
-    const startX = e.clientX;
-    const startWidth = chatWidth;
-
-    const onMouseMove = (ev: MouseEvent) => {
-      const delta = startX - ev.clientX;
-      const newWidth = Math.min(MAX_CHAT_WIDTH, Math.max(MIN_CHAT_WIDTH, startWidth + delta));
-      setChatWidth(newWidth);
-    };
-
-    const onMouseUp = () => stopResizeRef.current?.();
-    stopResizeRef.current = () => {
-      stopResizeRef.current = null;
-      resizing.current = false;
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-    };
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [chatWidth]);
-
   return (
     <>
       <FileNodeEditorRegistryProvider>
@@ -476,7 +445,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
                   onRenameComplete={clearRenameRequest}
                   chatPanelOpen={chatPanelOpen}
-                  onChatToggle={() => setChatPanelOpen((prev) => !prev)}
+                  onChatToggle={dock.toggleChat}
                   referenceDrawerOpen={referenceDrawerOpen}
                   onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
                   onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
@@ -499,26 +468,33 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             );
           })}
         </div>
-        {workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id)).map((ws) => (
-          <div
-            key={ws.id}
-            className={`chat-panel-wrapper${chatPanelOpen && ws.id === activeWorkspaceId ? ' chat-panel-wrapper--open' : ''}`}
-            style={ws.id !== activeWorkspaceId ? { display: 'none' } : chatPanelOpen ? { width: chatWidth } : undefined}
-          >
-            <ChatPanel
-              workspaceId={ws.id}
-              allWorkspaces={workspaces}
-              nodes={allNodes[ws.id] || []}
-              selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
-              rootFolder={ws.rootFolder}
-              onClose={() => setChatPanelOpen(false)}
-              onResizeStart={handleResizeStart}
-              onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
-              onOpenAppSettings={onOpenAppSettings}
-              onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
-            />
-          </div>
-        ))}
+        {/* Per-workspace ChatPanels render into the right dock's chat pane.
+            The portal escapes the keep-alive router's display:none wrapper,
+            so chat stays usable from any route while its state and handlers
+            keep living here next to the canvases. */}
+        {chatHost && createPortal(
+          workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id)).map((ws) => (
+            <div
+              key={ws.id}
+              className="right-dock__chat-instance"
+              style={ws.id !== activeWorkspaceId ? { display: 'none' } : undefined}
+            >
+              <ChatPanel
+                workspaceId={ws.id}
+                allWorkspaces={workspaces}
+                nodes={allNodes[ws.id] || []}
+                selectedNodeIds={selectedNodeIdsByWorkspace[ws.id] || []}
+                rootFolder={ws.rootFolder}
+                onClose={dock.collapse}
+                onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
+                onOpenAppSettings={onOpenAppSettings}
+                onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
+                onTurnComplete={dock.notifyChatActivity}
+              />
+            </div>
+          )),
+          chatHost,
+        )}
       </FileNodeEditorRegistryProvider>
     </>
   );

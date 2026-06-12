@@ -29,6 +29,7 @@ export const ChatPanel = ({
   onNodeFocus,
   onOpenAppSettings,
   onRegisterInsertMention,
+  onTurnComplete,
 }: ChatPanelProps) => {
   const { t } = useI18n();
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
@@ -108,6 +109,16 @@ export const ChatPanel = ({
     if (!onRegisterInsertMention) return;
     return onRegisterInsertMention(insertNodeMention);
   }, [insertNodeMention, onRegisterInsertMention]);
+
+  // Report turn completion (loading true → false) so the host can show an
+  // unread badge when this chat isn't the visible tab.
+  const onTurnCompleteRef = useRef(onTurnComplete);
+  onTurnCompleteRef.current = onTurnComplete;
+  const prevLoadingRef = useRef(false);
+  useEffect(() => {
+    if (prevLoadingRef.current && !loading) onTurnCompleteRef.current?.();
+    prevLoadingRef.current = loading;
+  }, [loading]);
 
   // Explicit context refs (the cross-workspace global host) win; otherwise
   // derive from the single-workspace selection (the canvas panel).

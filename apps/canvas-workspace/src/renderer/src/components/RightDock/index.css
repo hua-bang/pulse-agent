@@ -1,7 +1,11 @@
-/* Shared shell for the tabbed right dock (artifact previews, link
- * preview). No backdrop on purpose: the dock is a side panel, not a
- * modal — the canvas underneath stays pannable / editable. ESC closes
- * the active tab.
+/* Shell for the tabbed right dock: pinned chat tab + preview tabs
+ * (artifacts, link preview). No backdrop on purpose: it's a side panel,
+ * not a modal. ESC closes the active preview tab; chat never ESC-closes.
+ *
+ * The dock stays mounted while collapsed (translated off-screen) so chat
+ * and preview tabs keep their state. On the canvas route it reserves its
+ * width via --right-dock-inset (consumed by .app-body), behaving like an
+ * in-flow column; on other routes it overlays.
  *
  * Sits on --layer-dock: above canvas chrome (floating toolbar, zoom
  * indicator, fullscreen chip), below the search bar and modal tiers.
@@ -17,31 +21,25 @@
   box-shadow: -8px 0 24px rgba(15, 15, 15, 0.08);
   display: flex;
   flex-direction: column;
-}
-
-/* Animation direction is driven by `data-state` so a panel can play an
- * exit animation before unmounting. `forwards` keeps the panel parked
- * off-screen between animation end and React unmount, otherwise it
- * would snap back into view for one frame. A closing panel also drops
- * below the dock layer so an incoming panel always paints on top. */
-.right-dock[data-state="open"] {
-  animation: right-dock-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.right-dock[data-state="closing"] {
-  animation: right-dock-out 0.18s cubic-bezier(0.4, 0, 1, 1) forwards;
+  transform: translateX(102%);
+  visibility: hidden;
   pointer-events: none;
-  z-index: calc(var(--layer-dock) - 1);
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.26s;
 }
 
-@keyframes right-dock-in {
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0); }
+.right-dock[data-expanded="true"] {
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-@keyframes right-dock-out {
-  from { transform: translateX(0); }
-  to   { transform: translateX(100%); }
+/* While dragging the resize handle the canvas must track the handle
+ * 1:1 — disable the slide/margin transitions for the duration. */
+.right-dock-resizing .right-dock {
+  transition: none;
 }
 
 /* Thin transparent strip on the left edge that catches mousedown. A
@@ -63,18 +61,45 @@
   background: rgba(55, 53, 47, 0.12);
 }
 
-/* ── Tab strip ──────────────────────────────────────────────────────── */
+/* ── Tab strip ──────────────────────────────────────────────────────────
+ * Visible only while at least one preview tab exists — chat alone looks
+ * like a plain chat panel (zero extra chrome). The strip stays in the
+ * DOM and collapses via max-height so showing/hiding doesn't make the
+ * pane content jump; visibility:hidden keeps its buttons out of the tab
+ * order while collapsed. */
 
 .right-dock__tabs {
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  padding: 6px 8px 0 10px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
   background: #fbfbfa;
   flex-shrink: 0;
-  overflow-x: auto;
   scrollbar-width: thin;
+  max-height: 0;
+  padding: 0 8px 0 10px;
+  border-bottom: 0 solid rgba(55, 53, 47, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+  transition:
+    max-height 0.2s ease,
+    padding 0.2s ease,
+    opacity 0.16s ease,
+    visibility 0s linear 0.2s;
+}
+
+.right-dock__tabs[data-visible="true"] {
+  max-height: 42px;
+  padding: 6px 8px 0 10px;
+  border-bottom-width: 1px;
+  opacity: 1;
+  visibility: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  transition:
+    max-height 0.2s ease,
+    padding 0.2s ease,
+    opacity 0.16s ease;
 }
 
 .right-dock__tab {
@@ -94,6 +119,7 @@
   font-size: 12px;
   color: #6b6b68;
   cursor: pointer;
+  position: relative;
 }
 
 .right-dock__tab:hover {
@@ -112,6 +138,12 @@
   padding-bottom: 8px;
 }
 
+/* The pinned chat tab has no close affordance. */
+.right-dock__tab--chat {
+  flex-shrink: 0;
+  padding-right: 11px;
+}
+
 .right-dock__tab-dot {
   width: 7px;
   height: 7px;
@@ -119,6 +151,7 @@
   flex-shrink: 0;
 }
 
+.right-dock__tab-dot--chat { background: #1f7a4d; border-radius: 50%; }
 .right-dock__tab-dot--artifact { background: #a594e0; }
 .right-dock__tab-dot--link { background: #2383e2; }
 
@@ -147,9 +180,26 @@
   color: #37352f;
 }
 
+/* Unread dot: a chat turn finished while chat wasn't the visible tab. */
+.right-dock__tab-unread {
+  display: none;
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e0533d;
+  border: 1.5px solid #fbfbfa;
+}
+
+.right-dock__tab--chat[data-unread="true"] .right-dock__tab-unread {
+  display: block;
+}
+
 .right-dock__tabs-spacer { flex: 1 0 8px; }
 
-.right-dock__close-all {
+.right-dock__collapse {
   appearance: none;
   border: none;
   background: transparent;
@@ -161,13 +211,13 @@
   justify-content: center;
   border-radius: 5px;
   color: #6b6b68;
-  font-size: 16px;
+  font-size: 13px;
   line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
 }
 
-.right-dock__close-all:hover {
+.right-dock__collapse:hover {
   background: rgba(55, 53, 47, 0.08);
   color: #37352f;
 }
@@ -196,4 +246,14 @@
 .right-dock__pane--active {
   visibility: visible;
   pointer-events: auto;
+}
+
+/* Per-workspace ChatPanel instances portaled in by Workbench; the active
+ * workspace's instance fills the pane, the rest are display-hidden by an
+ * inline style (no webviews inside chat, so display:none is safe). */
+.right-dock__chat-instance {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
 }

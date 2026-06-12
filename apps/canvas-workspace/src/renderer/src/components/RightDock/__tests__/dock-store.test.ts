@@ -1,14 +1,25 @@
 import { describe, expect, it, vi } from 'vitest';
-import { DockStore, LINK_TAB_ID, artifactTabId } from '../dock-store';
+import { CHAT_TAB_ID, DockStore, LINK_TAB_ID, artifactTabId } from '../dock-store';
 
 describe('DockStore', () => {
-  it('opens an artifact as a new active tab', () => {
+  it('starts collapsed on the pinned chat tab with no previews', () => {
+    const dock = new DockStore();
+    expect(dock.getSnapshot()).toEqual({
+      tabs: [],
+      activeTabId: CHAT_TAB_ID,
+      expanded: false,
+      chatUnread: false,
+    });
+  });
+
+  it('opening an artifact expands the dock and activates its new tab', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
-    const { tabs, activeTabId } = dock.getSnapshot();
+    const { tabs, activeTabId, expanded } = dock.getSnapshot();
     expect(tabs).toHaveLength(1);
     expect(tabs[0]).toMatchObject({ kind: 'artifact', workspaceId: 'ws1', artifactId: 'a1' });
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
+    expect(expanded).toBe(true);
   });
 
   it('re-activates instead of duplicating an already-open artifact', () => {
@@ -21,15 +32,6 @@ describe('DockStore', () => {
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
-  it('keeps previous previews as background tabs (no eviction)', () => {
-    const dock = new DockStore();
-    dock.openArtifact('ws1', 'a1');
-    dock.openLink('https://example.com');
-    const { tabs, activeTabId } = dock.getSnapshot();
-    expect(tabs.map((t) => t.kind)).toEqual(['artifact', 'link']);
-    expect(activeTabId).toBe(LINK_TAB_ID);
-  });
-
   it('keeps a single link tab: a new URL replaces it in place', () => {
     const dock = new DockStore();
     dock.openLink('https://a.example');
@@ -37,10 +39,7 @@ describe('DockStore', () => {
     dock.openLink('https://b.example');
     const { tabs, activeTabId } = dock.getSnapshot();
     expect(tabs).toHaveLength(2);
-    const link = tabs.find((t) => t.kind === 'link');
-    expect(link).toMatchObject({ id: LINK_TAB_ID, url: 'https://b.example', title: 'https://b.example' });
-    // Replacement keeps the tab's original position.
-    expect(tabs[0].kind).toBe('link');
+    expect(tabs[0]).toMatchObject({ id: LINK_TAB_ID, url: 'https://b.example', title: 'https://b.example' });
     expect(activeTabId).toBe(LINK_TAB_ID);
   });
 
@@ -55,27 +54,18 @@ describe('DockStore', () => {
     expect(tabs.find((t) => t.kind === 'link')?.title).toBe('Page title');
   });
 
-  it('activate switches tabs and ignores unknown ids', () => {
+  it('activate switches between chat and previews and ignores unknown ids', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
-    dock.openArtifact('ws1', 'a2');
+    dock.activate(CHAT_TAB_ID);
+    expect(dock.getSnapshot().activeTabId).toBe(CHAT_TAB_ID);
     dock.activate(artifactTabId('ws1', 'a1'));
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a1'));
     dock.activate('nope');
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
-  it('closing an inactive tab keeps the active tab', () => {
-    const dock = new DockStore();
-    dock.openArtifact('ws1', 'a1');
-    dock.openArtifact('ws1', 'a2');
-    dock.close(artifactTabId('ws1', 'a1'));
-    const { tabs, activeTabId } = dock.getSnapshot();
-    expect(tabs).toHaveLength(1);
-    expect(activeTabId).toBe(artifactTabId('ws1', 'a2'));
-  });
-
-  it('closing the active tab activates the right neighbour, else the new last tab', () => {
+  it('closing the active preview activates the right neighbour, falling back to chat', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
     dock.openArtifact('ws1', 'a2');
@@ -83,19 +73,75 @@ describe('DockStore', () => {
     dock.activate(artifactTabId('ws1', 'a2'));
     dock.close(artifactTabId('ws1', 'a2'));
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a3'));
-    // a3 is active and last — closing it falls back to the new last tab (a1).
     dock.close(artifactTabId('ws1', 'a3'));
     expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a1'));
+    // Last preview gone → pinned chat becomes active again.
+    dock.close(artifactTabId('ws1', 'a1'));
+    const { tabs, activeTabId, expanded } = dock.getSnapshot();
+    expect(tabs).toHaveLength(0);
+    expect(activeTabId).toBe(CHAT_TAB_ID);
+    expect(expanded).toBe(true);
   });
 
-  it('closing the last tab empties the dock', () => {
+  it('closing an inactive preview keeps the active tab', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
+    dock.openArtifact('ws1', 'a2');
     dock.close(artifactTabId('ws1', 'a1'));
-    expect(dock.getSnapshot()).toEqual({ tabs: [], activeTabId: null });
+    expect(dock.getSnapshot().activeTabId).toBe(artifactTabId('ws1', 'a2'));
   });
 
-  it('setTitle updates the tab label and ignores blank titles', () => {
+  it('collapse hides the dock but keeps all tabs and the active pointer', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    dock.collapse();
+    const { tabs, activeTabId, expanded } = dock.getSnapshot();
+    expect(expanded).toBe(false);
+    expect(tabs).toHaveLength(1);
+    expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
+  });
+
+  it('toggleChat collapses only when chat is already the visible tab', () => {
+    const dock = new DockStore();
+    dock.toggleChat();
+    expect(dock.getSnapshot()).toMatchObject({ expanded: true, activeTabId: CHAT_TAB_ID });
+    dock.toggleChat();
+    expect(dock.getSnapshot().expanded).toBe(false);
+    // From a preview tab, toggleChat switches to chat instead of collapsing.
+    dock.openArtifact('ws1', 'a1');
+    dock.toggleChat();
+    expect(dock.getSnapshot()).toMatchObject({ expanded: true, activeTabId: CHAT_TAB_ID });
+  });
+
+  it('chat activity sets unread only while chat is not the visible tab', () => {
+    const dock = new DockStore();
+    dock.openChat();
+    dock.notifyChatActivity();
+    expect(dock.getSnapshot().chatUnread).toBe(false);
+    dock.openArtifact('ws1', 'a1');
+    dock.notifyChatActivity();
+    expect(dock.getSnapshot().chatUnread).toBe(true);
+    // Viewing chat clears the dot.
+    dock.activate(CHAT_TAB_ID);
+    expect(dock.getSnapshot().chatUnread).toBe(false);
+    // Also set while collapsed (reply arrives with the panel hidden).
+    dock.collapse();
+    dock.notifyChatActivity();
+    expect(dock.getSnapshot().chatUnread).toBe(true);
+    dock.openChat();
+    expect(dock.getSnapshot().chatUnread).toBe(false);
+  });
+
+  it('closing the active preview back to chat clears unread', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    dock.notifyChatActivity();
+    expect(dock.getSnapshot().chatUnread).toBe(true);
+    dock.close(artifactTabId('ws1', 'a1'));
+    expect(dock.getSnapshot()).toMatchObject({ activeTabId: CHAT_TAB_ID, chatUnread: false });
+  });
+
+  it('setTitle updates a preview label and ignores blank titles', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
     const id = artifactTabId('ws1', 'a1');
@@ -105,15 +151,7 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().tabs[0].title).toBe('进店意图 SQL 加工逻辑');
   });
 
-  it('closeAll empties the dock', () => {
-    const dock = new DockStore();
-    dock.openArtifact('ws1', 'a1');
-    dock.openLink('https://a.example');
-    dock.closeAll();
-    expect(dock.getSnapshot()).toEqual({ tabs: [], activeTabId: null });
-  });
-
-  it('notifies subscribers on change and stops after unsubscribe', () => {
+  it('notifies subscribers on change, skips no-ops, and stops after unsubscribe', () => {
     const dock = new DockStore();
     const listener = vi.fn();
     const unsubscribe = dock.subscribe(listener);
@@ -122,9 +160,12 @@ describe('DockStore', () => {
     // No-op operations must not notify (snapshot identity is the contract
     // useSyncExternalStore relies on).
     dock.activate(artifactTabId('ws1', 'a1'));
-    expect(listener).toHaveBeenCalledTimes(1);
+    dock.collapse(); // expanded → false
+    expect(listener).toHaveBeenCalledTimes(2);
+    dock.collapse(); // already collapsed → no-op
+    expect(listener).toHaveBeenCalledTimes(2);
     unsubscribe();
-    dock.closeAll();
-    expect(listener).toHaveBeenCalledTimes(1);
+    dock.openChat();
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 });
