@@ -257,8 +257,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
         aria-orientation="vertical"
         aria-label="Resize panel"
       />
-      {hasPreviews && (
-        <div className="right-dock__tabs" role="tablist">
+      {/* Always in the DOM so its appearance/disappearance can animate;
+          hidden (and out of the tab order) while chat is alone. */}
+      <div className="right-dock__tabs" role="tablist" data-visible={hasPreviews}>
           {chatTabEnabled && (
             <button
               type="button"
@@ -312,8 +313,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
           >
             ⇥
           </button>
-        </div>
-      )}
+      </div>
       <div className="right-dock__panes">
         {/* Chat pane: portal outlet — always mounted so chat keeps its
             state across collapse, tab switches and route changes. */}

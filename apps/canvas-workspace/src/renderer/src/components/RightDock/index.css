@@ -62,19 +62,44 @@
 }
 
 /* ── Tab strip ──────────────────────────────────────────────────────────
- * Only rendered when at least one preview tab exists — chat alone looks
- * like a plain chat panel (zero extra chrome). */
+ * Visible only while at least one preview tab exists — chat alone looks
+ * like a plain chat panel (zero extra chrome). The strip stays in the
+ * DOM and collapses via max-height so showing/hiding doesn't make the
+ * pane content jump; visibility:hidden keeps its buttons out of the tab
+ * order while collapsed. */
 
 .right-dock__tabs {
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  padding: 6px 8px 0 10px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.08);
   background: #fbfbfa;
   flex-shrink: 0;
-  overflow-x: auto;
   scrollbar-width: thin;
+  max-height: 0;
+  padding: 0 8px 0 10px;
+  border-bottom: 0 solid rgba(55, 53, 47, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+  transition:
+    max-height 0.2s ease,
+    padding 0.2s ease,
+    opacity 0.16s ease,
+    visibility 0s linear 0.2s;
+}
+
+.right-dock__tabs[data-visible="true"] {
+  max-height: 42px;
+  padding: 6px 8px 0 10px;
+  border-bottom-width: 1px;
+  opacity: 1;
+  visibility: visible;
+  overflow-x: auto;
+  overflow-y: hidden;
+  transition:
+    max-height 0.2s ease,
+    padding 0.2s ease,
+    opacity 0.16s ease;
 }
 
 .right-dock__tab {
