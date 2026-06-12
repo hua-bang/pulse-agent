@@ -85,6 +85,21 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [scheduleDismiss]);
 
+  // Pause auto-dismiss while the pointer is over a toast so users can
+  // read it or reach its action button; the full duration restarts on
+  // mouse-leave.
+  const pauseToast = useCallback((id: string) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
+  }, []);
+
+  const resumeToast = useCallback((toast: ToastRecord) => {
+    scheduleDismiss(toast.id, toast.autoCloseMs);
+  }, [scheduleDismiss]);
+
   const confirm = useCallback((options: ConfirmOptions) => new Promise<boolean>((resolve) => {
     if (confirmResolverRef.current) {
       confirmResolverRef.current(false);
@@ -135,7 +150,7 @@ export const AppShellProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AppShellContext.Provider value={value}>
       {children}
-      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} onPause={pauseToast} onResume={resumeToast} />
       {confirmState && (
         <ConfirmDialog
           options={confirmState}
@@ -162,16 +177,25 @@ export const useAppShell = (): AppShellContextValue => {
 const ToastViewport = ({
   toasts,
   onDismiss,
+  onPause,
+  onResume,
 }: {
   toasts: ToastRecord[];
   onDismiss: (id: string) => void;
+  onPause: (id: string) => void;
+  onResume: (toast: ToastRecord) => void;
 }) => {
   const { t } = useI18n();
 
   return (
     <div className="shell-toast-region" aria-live="polite" aria-atomic="true">
       {toasts.map((toast) => (
-        <article key={toast.id} className={`shell-toast shell-toast--${toast.tone}`}>
+        <article
+          key={toast.id}
+          className={`shell-toast shell-toast--${toast.tone}`}
+          onMouseEnter={() => onPause(toast.id)}
+          onMouseLeave={() => onResume(toast)}
+        >
           <span className="shell-toast__icon" aria-hidden="true">
             <ToastIcon tone={toast.tone} />
           </span>

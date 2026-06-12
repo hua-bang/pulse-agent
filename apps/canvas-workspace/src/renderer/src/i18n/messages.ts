@@ -271,6 +271,17 @@ const en = {
   'chat.mention.projectFiles': 'Project Files',
   'chat.mention.projectFolders': 'Project Folders',
 
+  'nodeMention.title': '@ Reference a node',
+  'nodeMention.searchPlaceholder': 'Search node names...',
+  'nodeMention.empty': 'No matching nodes',
+  'nodeMention.hintNavigate': '↑↓ Navigate',
+  'nodeMention.hintInsert': '↵ Insert',
+  'nodeMention.hintClose': 'Esc Close',
+
+  'canvas.deleteNodesTitle': 'Delete {count} nodes?',
+  'canvas.deleteNodesDescription': 'This removes the selected nodes and their connections from the canvas.',
+  'canvas.deleteNodesConfirm': 'Delete nodes',
+
   'models.addProvider': 'Add provider',
   'models.providerCount': '{count} models',
   'models.providerName': 'Provider name',
@@ -846,6 +857,17 @@ const zh: Record<keyof typeof en, string> = {
   'chat.mention.canvas': '画布',
   'chat.mention.projectFiles': '项目文件',
   'chat.mention.projectFolders': '项目文件夹',
+
+  'nodeMention.title': '@ 引用节点',
+  'nodeMention.searchPlaceholder': '搜索节点名称...',
+  'nodeMention.empty': '无匹配节点',
+  'nodeMention.hintNavigate': '↑↓ 导航',
+  'nodeMention.hintInsert': '↵ 插入',
+  'nodeMention.hintClose': 'Esc 关闭',
+
+  'canvas.deleteNodesTitle': '删除 {count} 个节点?',
+  'canvas.deleteNodesDescription': '这将从画布中移除所选节点及其连线。',
+  'canvas.deleteNodesConfirm': '删除节点',
 
   'models.addProvider': '添加 Provider',
   'models.providerCount': '{count} 个模型',
