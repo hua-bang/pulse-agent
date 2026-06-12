@@ -48,6 +48,10 @@ interface Props {
    *  canvas-container's blank dbl-click handler (which spawns the
    *  new-node context menu). */
   onBodyDoubleClick?: (edgeId: string, e: React.MouseEvent) => void;
+  /** Right-click on the edge body — opens the edge context menu. The
+   *  hit-proxy swallows the event so the blank-canvas create menu
+   *  doesn't open on top of it. */
+  onBodyContextMenu?: (edgeId: string, e: React.MouseEvent) => void;
 }
 
 const DEFAULT_STROKE: Required<EdgeStroke> = {
@@ -173,6 +177,7 @@ export const CanvasEdgesLayer = ({
   onHandleMouseDown,
   onBodyMouseDown,
   onBodyDoubleClick,
+  onBodyContextMenu,
 }: Props) => {
   const nodesById = useMemo(() => {
     const m = new Map<string, CanvasNode>();
@@ -285,6 +290,11 @@ export const CanvasEdgesLayer = ({
                 // fire. The parent opens the edge-label editor instead.
                 e.stopPropagation();
                 onBodyDoubleClick?.(edge.id, e);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onBodyContextMenu?.(edge.id, e);
               }}
             />
             {/* Selection underlay: soft blue tint, rendered under the

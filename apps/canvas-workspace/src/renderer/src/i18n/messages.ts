@@ -301,6 +301,14 @@ const en = {
   'canvas.zoom.fitSelectionLabel': 'Fit selection',
   'canvas.zoom.resetTitle': 'Reset to 100%',
 
+  'canvas.edgeMenu.title': 'Connection',
+  'canvas.edgeMenu.editLabel': 'Edit label',
+  'canvas.edgeMenu.editLabelDesc': 'Add or change the text on this connection',
+  'canvas.edgeMenu.editStyle': 'Edit style',
+  'canvas.edgeMenu.editStyleDesc': 'Color, width, dashes and arrowheads',
+  'canvas.edgeMenu.delete': 'Delete connection',
+  'canvas.edgeMenu.deleteDesc': 'Remove the arrow and its label',
+
   'canvas.menu.createTitle': 'Create Node',
   'canvas.menu.text': 'Text',
   'canvas.menu.textDesc': 'Free-form text label',
@@ -941,6 +949,14 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.zoom.fitSelection': '缩放至显示所选节点',
   'canvas.zoom.fitSelectionLabel': '适配所选',
   'canvas.zoom.resetTitle': '重置为 100%',
+
+  'canvas.edgeMenu.title': '连线',
+  'canvas.edgeMenu.editLabel': '编辑标签',
+  'canvas.edgeMenu.editLabelDesc': '添加或修改这条连线上的文字',
+  'canvas.edgeMenu.editStyle': '编辑样式',
+  'canvas.edgeMenu.editStyleDesc': '颜色、粗细、虚线与箭头',
+  'canvas.edgeMenu.delete': '删除连线',
+  'canvas.edgeMenu.deleteDesc': '移除箭头及其标签',
 
   'canvas.menu.createTitle': '创建节点',
   'canvas.menu.text': '文本',
