@@ -613,17 +613,19 @@
   opacity: 1;
 }
 
-/* Frames and groups opt out of the floating-popover treatment above. Both
-   render their header as an absolutely-positioned, reverse-scaled tab that
-   already stays readable at every zoom, so they don't need the detached
-   popover. Worse: because that tab is itself position:absolute, the generic
-   rule anchors .node-header__actions to the narrow tab and — since the tab
-   carries its own counter-scale — the popover inherits that scale AND applies
-   its own on top, double-scaling the buttons into an oversized pill that grows
-   the further you zoom out (and floats detached off the tab's corner). Keep
-   them inline in the tab — exactly how they render at normal zoom. */
+/* Frames, groups, and text nodes opt out of the floating-popover treatment
+   above. Each renders its header as an absolutely-positioned, reverse-scaled
+   tab/toolbar that already stays readable at every zoom, so they don't need the
+   detached popover. Worse: because that tab is itself position:absolute, the
+   generic rule anchors .node-header__actions to the narrow tab and — since the
+   tab carries its own counter-scale — the popover inherits that scale AND
+   applies its own on top, double-scaling the buttons into an oversized pill
+   that grows the further you zoom out (and floats detached off the tab's
+   corner). Keep them inline in the tab — exactly how they render at normal
+   zoom. */
 .canvas-transform--small .canvas-node--frame .node-header__actions,
-.canvas-transform--small .canvas-node--group .node-header__actions {
+.canvas-transform--small .canvas-node--group .node-header__actions,
+.canvas-transform--small .canvas-node--text .node-header__actions {
   position: static;
   transform: none;
   padding: 0;
