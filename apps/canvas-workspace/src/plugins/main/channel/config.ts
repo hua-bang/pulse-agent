@@ -5,8 +5,8 @@ import { dirname, join } from 'path';
 
 // Persistent channel credentials, configurable from Settings → Experimental
 // instead of (or in addition to) shell env vars. The Feishu app secret is a
-// secret, so it is stored encrypted via Electron safeStorage — mirroring how
-// the model API key is handled.
+// secret, so it is stored locally. Legacy safeStorage-encrypted values remain
+// readable for existing users.
 //
 // Resolution: env vars take precedence (power users / CI). On startup,
 // applyChannelConfigToEnv() populates process.env from this file ONLY for
@@ -35,13 +35,8 @@ function trimOrUndefined(value: unknown): string | undefined {
 }
 
 function encryptSecret(secret: string): string {
-  try {
-    if (safeStorage.isEncryptionAvailable()) {
-      return `safe:${safeStorage.encryptString(secret).toString('base64')}`;
-    }
-  } catch {
-    // Fall through to obfuscation for dev environments without an OS keychain.
-  }
+  // Avoid macOS Keychain prompts for new saves. Legacy `safe:` values are
+  // still readable in decryptSecret for existing users.
   return `plain:${Buffer.from(secret, 'utf8').toString('base64')}`;
 }
 

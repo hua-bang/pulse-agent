@@ -91,21 +91,18 @@ function normalizeCredentialId(value: unknown): BuiltInToolCredentialId {
 }
 
 function encryptApiKey(apiKey: string): string {
-  try {
-    if (safeStorage.isEncryptionAvailable()) {
-      return `safe:${safeStorage.encryptString(apiKey).toString('base64')}`;
-    }
-  } catch {
-    // Fall through to local obfuscation for dev environments without OS keychain.
-  }
+  // Avoid macOS Keychain prompts for new saves. Legacy `safe:` values are
+  // still readable in decryptApiKey for existing users.
   return `plain:${Buffer.from(apiKey, 'utf8').toString('base64')}`;
 }
 
-function decryptApiKey(encrypted?: string): string | undefined {
+function decryptApiKey(encrypted?: string, options: { allowSafe?: boolean } = {}): string | undefined {
   const value = normalizeStr(encrypted);
   if (!value) return undefined;
+  const allowSafe = options.allowSafe ?? true;
   try {
     if (value.startsWith('safe:')) {
+      if (!allowSafe) return undefined;
       return safeStorage.decryptString(Buffer.from(value.slice(5), 'base64'));
     }
     if (value.startsWith('plain:')) {
@@ -161,17 +158,18 @@ function credentialStatus(
   def: BuiltInToolCredentialDef,
   config: BuiltInToolsConfigFile,
 ): BuiltInToolCredentialStatus {
-  const stored = getStoredApiKey(config, def.id);
+  const encrypted = normalizeStr(config.credentials?.[def.id]?.encrypted_api_key);
+  const stored = decryptApiKey(encrypted, { allowSafe: false });
   const storedBaseUrl = getStoredBaseUrl(config, def.id);
   const envBaseUrl = getEnvValue(def.baseUrlEnvKey);
   const baseUrl = storedBaseUrl ?? envBaseUrl ?? def.defaultBaseUrl;
   const baseUrlSource = storedBaseUrl ? 'stored' : envBaseUrl ? 'env' : 'default';
 
-  if (stored) {
+  if (stored || encrypted) {
     return {
       ...def,
       apiKeyPresent: true,
-      apiKeyLength: stored.length,
+      apiKeyLength: stored ? stored.length : undefined,
       source: 'stored',
       baseUrl,
       baseUrlSource,
