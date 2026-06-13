@@ -33,12 +33,14 @@
             <span>Pulse Canvas</span>
           </h1>
           <p class="slogan" data-i18n="slogan">组织信息，驱动动作，闭环反馈。</p>
-          <div class="version-card" id="version-card">
-            <span class="status-dot" aria-hidden="true"></span>
-            <span id="version-label">正在检查最新版本...</span>
-          </div>
           <div class="download-actions" id="download-actions">
-            <a class="primary-action" id="primary-download" href="#" aria-disabled="true">下载最新版本</a>
+            <a class="primary-action" id="primary-download" href="#" aria-disabled="true">
+              <span class="primary-action__label" id="download-label">下载最新版本</span>
+              <span class="primary-action__meta">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span id="version-label">正在检查最新版本...</span>
+              </span>
+            </a>
           </div>
         </div>
         <figure class="product-preview">
@@ -47,9 +49,11 @@
       </section>
 
       <section class="release-notes" id="release-notes" hidden>
-        <span class="section-kicker" data-i18n="releaseNotesKicker">更新说明</span>
-        <h2 data-i18n="releaseNotesTitle">本次更新</h2>
-        <p id="release-notes-body"></p>
+        <div class="release-notes__header">
+          <span class="section-kicker" data-i18n="releaseNotesKicker">版本更新</span>
+          <h2 data-i18n="releaseNotesTitle">Release notes</h2>
+        </div>
+        <div class="release-list" id="release-list"></div>
       </section>
 
       <section class="install-grid" id="install">

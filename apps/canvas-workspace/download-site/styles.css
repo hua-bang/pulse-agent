@@ -213,15 +213,17 @@ h1 span {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 4px;
+  margin-top: 20px;
 }
 
 .primary-action {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 10px 17px;
+  gap: 5px;
+  min-height: 58px;
+  padding: 11px 18px 10px;
   border-radius: 7px;
   font-size: 14px;
   font-weight: 750;
@@ -242,6 +244,30 @@ h1 span {
   background: var(--accent);
   color: #fff;
   box-shadow: 0 12px 24px rgba(35, 131, 226, 0.22);
+}
+
+.primary-action__label,
+.primary-action__meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.primary-action__label {
+  font-size: 15px;
+}
+
+.primary-action__meta {
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.primary-action .status-dot {
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .primary-action:hover {
@@ -286,20 +312,78 @@ h1 span {
   display: none;
 }
 
+.release-notes__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+
 .release-notes h2 {
-  margin: 0 0 10px;
+  margin: 0;
   color: var(--text);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 740;
   letter-spacing: 0;
 }
 
-.release-notes p {
+.release-list {
+  display: grid;
+  gap: 14px;
+}
+
+.release-entry {
+  display: grid;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+
+.release-entry:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.release-entry__header {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+
+.release-entry__version {
+  width: fit-content;
+  padding: 4px 9px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.release-entry__date {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.release-entry__body p,
+.release-entry__body li {
   margin: 0;
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.68;
-  white-space: pre-line;
+}
+
+.release-entry__body ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.release-entry__body li + li {
+  margin-top: 4px;
 }
 
 .install-grid {
@@ -368,6 +452,11 @@ h1 span {
   .install-grid {
     grid-template-columns: 1fr;
     margin-top: 18px;
+  }
+
+  .release-entry {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 }
 

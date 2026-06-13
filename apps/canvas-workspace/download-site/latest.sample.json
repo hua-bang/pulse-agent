@@ -7,5 +7,15 @@
     "zh": "手动更新包。",
     "en": "Manual update package."
   },
+  "releases": [
+    {
+      "version": "0.1.0",
+      "releasedAt": "2026-06-13T00:00:00.000Z",
+      "notes": {
+        "zh": "手动更新包。",
+        "en": "Manual update package."
+      }
+    }
+  ],
   "files": []
 }
