@@ -2,6 +2,7 @@ import type { IpcRenderer, IpcRendererEvent } from "electron";
 import type {
   CanvasMcpApi,
   CanvasModelApi,
+  BuiltInToolsConfigApi,
   CanvasSkillsApi,
   ChannelConfigApi,
   DialogApi,
@@ -84,6 +85,16 @@ export const createChannelConfigApi = (ipcRenderer: IpcRenderer): ChannelConfigA
   clearFeishu: () => ipcRenderer.invoke("channel-config:clear-feishu"),
 
   relaunch: () => ipcRenderer.invoke("channel-config:relaunch")
+});
+
+export const createBuiltInToolsConfigApi = (ipcRenderer: IpcRenderer): BuiltInToolsConfigApi => ({
+  status: () => ipcRenderer.invoke("built-in-tools:status"),
+
+  setCredential: (id, input) =>
+    ipcRenderer.invoke("built-in-tools:set-credential", { id, ...input }),
+
+  clearCredential: (id) =>
+    ipcRenderer.invoke("built-in-tools:clear-credential", { id })
 });
 
 export const createPromptProfileApi = (ipcRenderer: IpcRenderer): PromptProfileApi => ({

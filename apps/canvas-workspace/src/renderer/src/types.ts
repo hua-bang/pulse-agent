@@ -828,6 +828,39 @@ export interface CanvasModelApi {
   reset: () => Promise<{ ok: boolean; status?: CanvasModelStatus; error?: string }>;
 }
 
+export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily';
+
+export interface BuiltInToolCredentialStatus {
+  id: BuiltInToolCredentialId;
+  name: string;
+  description: string;
+  envKey: string;
+  baseUrlEnvKey: string;
+  defaultBaseUrl: string;
+  tools: string[];
+  apiKeyPresent: boolean;
+  apiKeyLength?: number;
+  source: 'stored' | 'env' | 'missing';
+  baseUrl: string;
+  baseUrlSource: 'stored' | 'env' | 'default';
+}
+
+export interface BuiltInToolsConfigStatus {
+  path: string;
+  credentials: BuiltInToolCredentialStatus[];
+}
+
+export interface BuiltInToolsConfigApi {
+  status: () => Promise<{ ok: boolean; status?: BuiltInToolsConfigStatus; error?: string }>;
+  setCredential: (
+    id: BuiltInToolCredentialId,
+    input: { apiKey?: string; baseUrl?: string },
+  ) => Promise<{ ok: boolean; status?: BuiltInToolsConfigStatus; error?: string }>;
+  clearCredential: (
+    id: BuiltInToolCredentialId,
+  ) => Promise<{ ok: boolean; status?: BuiltInToolsConfigStatus; error?: string }>;
+}
+
 // --- User-configurable Skills & MCP (global + per-workspace scope) ---
 
 export type CanvasConfigScope =
@@ -1555,6 +1588,7 @@ export interface CanvasWorkspaceApi {
   canvasMcp: CanvasMcpApi;
   experimental: ExperimentalApi;
   channelConfig: ChannelConfigApi;
+  builtInTools: BuiltInToolsConfigApi;
   model: CanvasModelApi;
   promptProfile: PromptProfileApi;
   agent: AgentApi;

@@ -1,4 +1,4 @@
-import { PulseGlyphIcon } from '../icons';
+import { AppLogoIcon } from '../icons';
 
 interface Props {
   /** Reference-drawer state used to flag the button as active. The
@@ -49,7 +49,7 @@ export const CanvasFullscreenChip = ({
         title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
         aria-label="Toggle AI Chat"
       >
-        <PulseGlyphIcon size={16} />
+        <AppLogoIcon size={16} />
       </button>
     )}
     <div className="canvas-fullscreen-chip__divider" />

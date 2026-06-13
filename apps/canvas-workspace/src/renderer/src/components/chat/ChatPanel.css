@@ -257,26 +257,32 @@
   align-self: stretch;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  margin-bottom: 18px;
-  border: 1px solid rgba(217, 119, 6, 0.32);
-  border-radius: 10px;
-  background: rgba(254, 243, 199, 0.55);
-  color: #78350f;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-top: 20px;
+  border: 1px solid rgba(55, 53, 47, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.74);
+  color: #37352f;
   text-align: left;
   cursor: pointer;
   font: inherit;
+  box-shadow: 0 1px 2px rgba(55, 53, 47, 0.035);
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 
 .chat-empty-configure-banner:hover {
-  background: rgba(254, 243, 199, 0.85);
-  border-color: rgba(217, 119, 6, 0.5);
+  background: #fff;
+  border-color: rgba(35, 131, 226, 0.24);
+  box-shadow: 0 2px 8px rgba(55, 53, 47, 0.055);
 }
 
 .chat-empty-configure-icon {
-  font-size: 16px;
-  line-height: 1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2383e2;
+  box-shadow: 0 0 0 4px rgba(35, 131, 226, 0.08);
   flex-shrink: 0;
 }
 
@@ -285,22 +291,23 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   font-size: 12px;
   line-height: 1.4;
+  color: rgba(55, 53, 47, 0.62);
 }
 
 .chat-empty-configure-text strong {
   font-weight: 650;
-  font-size: 13px;
-  color: #92400e;
+  font-size: 12.5px;
+  color: #37352f;
 }
 
 .chat-empty-configure-cta {
   flex-shrink: 0;
   font-size: 12px;
   font-weight: 650;
-  color: #b45309;
+  color: #2383e2;
 }
 
 .chat-empty-icon {
@@ -2160,20 +2167,20 @@
 }
 
 .chat-model-switcher-btn--warning {
-  background: rgba(254, 243, 199, 0.55);
-  border-color: rgba(217, 119, 6, 0.32);
-  color: #92400e;
+  background: rgba(35, 131, 226, 0.06);
+  border-color: rgba(35, 131, 226, 0.2);
+  color: #1f76cc;
   max-width: 180px;
 }
 
 .chat-model-switcher-btn--warning:hover {
-  background: rgba(254, 243, 199, 0.85);
-  border-color: rgba(217, 119, 6, 0.5);
-  color: #78350f;
+  background: rgba(35, 131, 226, 0.1);
+  border-color: rgba(35, 131, 226, 0.32);
+  color: #1c6dbf;
 }
 
 .chat-model-switcher-btn--warning .chat-model-switcher-dot {
-  background: #d97706;
+  background: #2383e2;
   opacity: 0.9;
 }
 

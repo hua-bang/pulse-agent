@@ -28,6 +28,8 @@ import { setupCanvasSkillsIpc } from "../agent/skills/ipc";
 import { setupCanvasMcpIpc } from "../agent/mcp/ipc";
 import { ensureDefaultSkillsSeeded } from "../agent/default-skills";
 import { setupCanvasPromptIpc } from "../agent/prompt-profile-ipc";
+import { setupBuiltInToolsConfigIpc } from "../settings/built-in-tools-ipc";
+import { applyStoredBuiltInToolsConfigToEnv } from "../settings/built-in-tools-config";
 import { setupExperimentalIpc } from "../settings/experimental-ipc";
 import { setupWebviewRegistryIpc } from "../webview/registry";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
@@ -119,6 +121,8 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupCanvasModelIpc();
     setupCanvasSkillsIpc();
     setupCanvasMcpIpc();
+    setupBuiltInToolsConfigIpc();
+    await applyStoredBuiltInToolsConfigToEnv();
     // Seed the meta-skills (save-as-skill, promote-skill) into the global
     // scope on first start. Idempotent — user edits are preserved.
     void ensureDefaultSkillsSeeded().catch((err) => {

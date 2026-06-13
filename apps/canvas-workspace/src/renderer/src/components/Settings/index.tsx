@@ -19,6 +19,7 @@ import { SettingsDrawer } from '../SettingsDrawer';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
+import { BuiltInToolsSection } from './BuiltInToolsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { LanguageSection } from './LanguageSection';
 import { SkillsManager } from '../settings-config/SkillsManager';
@@ -26,7 +27,7 @@ import { McpManager } from '../settings-config/McpManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'experimental' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'experimental' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -43,6 +44,12 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.models.label',
     descriptionKey: 'settings.models.description',
     titleKey: 'settings.models.title',
+  },
+  {
+    id: 'built-in-tools',
+    labelKey: 'settings.builtInTools.label',
+    descriptionKey: 'settings.builtInTools.description',
+    titleKey: 'settings.builtInTools.title',
   },
   {
     id: 'reply-style',
@@ -150,6 +157,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
               onReset={promptProfile.reset}
             />
           )}
+          {activeSection === 'built-in-tools' && <BuiltInToolsSection onClose={onClose} />}
           {activeSection === 'agent' && <AgentSection onClose={onClose} />}
           {activeSection === 'skills' && (
             <div className="cfg-pane">

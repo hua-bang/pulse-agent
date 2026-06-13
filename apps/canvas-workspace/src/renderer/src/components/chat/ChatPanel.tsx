@@ -1,15 +1,17 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 'react';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
+import { useAppShell } from '../AppShellProvider';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { AgentContextNodeRef, AgentRequestContext } from '../../types';
 import type { AgentScope, ChatPanelProps, SelectedContextChip } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 
 export const ChatPanel = ({
   workspaceId,
@@ -32,6 +34,7 @@ export const ChatPanel = ({
   onTurnComplete,
 }: ChatPanelProps) => {
   const { t } = useI18n();
+  const { notify } = useAppShell();
   const [executionMode, setExecutionMode] = useState<'auto' | 'ask'>('auto');
   const requestContextRef = useRef<AgentRequestContext>();
 
@@ -187,9 +190,27 @@ export const ChatPanel = ({
   // "configured" so we don't bounce the user into Settings on first paint.
   const notConfigured = canvasModels.status !== undefined && !canvasModels.status.apiKeyPresent;
 
+  const openModelSettingsWithHint = useCallback(() => {
+    onOpenAppSettings('models');
+    notify({
+      tone: 'info',
+      title: t('chat.configureModelToastTitle'),
+      description: t('chat.configureModelToastDescription'),
+      autoCloseMs: 2200,
+    });
+  }, [notify, onOpenAppSettings, t]);
+
+  const openModelSettingsFromSwitcher = useCallback(() => {
+    if (notConfigured) {
+      openModelSettingsWithHint();
+      return;
+    }
+    onOpenAppSettings('models');
+  }, [notConfigured, onOpenAppSettings, openModelSettingsWithHint]);
+
   const handleQuickAction = useCallback(async (prompt: string, quickAction?: string) => {
     if (notConfigured) {
-      onOpenAppSettings('models');
+      openModelSettingsWithHint();
       return;
     }
     if (!prompt) {
@@ -201,15 +222,33 @@ export const ChatPanel = ({
     if (ok) {
       clearInput();
     }
-  }, [clearInput, focusInput, notConfigured, onOpenAppSettings, requestContext, sendMessage]);
+  }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
 
   const handleSubmit = useCallback(async () => {
     if (notConfigured) {
-      onOpenAppSettings('models');
+      openModelSettingsWithHint();
       return false;
     }
     return await submitCurrentInput(requestContext);
-  }, [notConfigured, onOpenAppSettings, requestContext, submitCurrentInput]);
+  }, [notConfigured, openModelSettingsWithHint, requestContext, submitCurrentInput]);
+
+  const handleComposerKeyDown = useCallback<KeyboardEventHandler<HTMLDivElement>>((event) => {
+    const mentionSelecting = mentionOpen && mentionItems.length > 0;
+    const hasDraft = Boolean(input.trim() || attachments.length > 0);
+    if (
+      notConfigured
+      && hasDraft
+      && !mentionSelecting
+      && event.key === 'Enter'
+      && !event.shiftKey
+      && !isImeComposing(event)
+    ) {
+      event.preventDefault();
+      openModelSettingsWithHint();
+      return;
+    }
+    handleKeyDown(event);
+  }, [attachments.length, handleKeyDown, input, mentionItems.length, mentionOpen, notConfigured, openModelSettingsWithHint]);
 
   const handleToggleExecutionMode = useCallback(() => {
     setExecutionMode(mode => mode === 'auto' ? 'ask' : 'auto');
@@ -355,7 +394,7 @@ export const ChatPanel = ({
       onSelectMention={selectMention}
       onMentionIndexChange={setMentionIndex}
       onInput={handleInput}
-      onKeyDown={handleKeyDown}
+      onKeyDown={handleComposerKeyDown}
       onPaste={handlePaste}
       onAttachFiles={handleAttachFiles}
       onRemoveAttachment={removeAttachment}
@@ -366,7 +405,7 @@ export const ChatPanel = ({
       modelLabel={canvasModels.selectedLabel}
       onSelectAutoModel={canvasModels.selectAuto}
       onSelectModel={canvasModels.selectModel}
-      onOpenModelSettings={() => onOpenAppSettings('models')}
+      onOpenModelSettings={openModelSettingsFromSwitcher}
       contextComposer
       executionMode={scopeWorkspaceId ? executionMode : undefined}
       onToggleExecutionMode={scopeWorkspaceId ? handleToggleExecutionMode : undefined}
