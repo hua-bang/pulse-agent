@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, DockStore, LINK_TAB_ID, artifactTabId } from '../dock-store';
+import { CHAT_TAB_ID, DockStore, artifactTabId, linkTabId } from '../dock-store';
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -32,26 +32,37 @@ describe('DockStore', () => {
     expect(activeTabId).toBe(artifactTabId('ws1', 'a1'));
   });
 
-  it('keeps a single link tab: a new URL replaces it in place', () => {
+  it('opens different URLs as separate link tabs', () => {
     const dock = new DockStore();
     dock.openLink('https://a.example');
     dock.openArtifact('ws1', 'a1');
     dock.openLink('https://b.example');
     const { tabs, activeTabId } = dock.getSnapshot();
-    expect(tabs).toHaveLength(2);
-    expect(tabs[0]).toMatchObject({ id: LINK_TAB_ID, url: 'https://b.example', title: 'https://b.example' });
-    expect(activeTabId).toBe(LINK_TAB_ID);
+    expect(tabs).toHaveLength(3);
+    expect(tabs[0]).toMatchObject({
+      id: linkTabId('https://a.example'),
+      url: 'https://a.example',
+      title: 'https://a.example',
+    });
+    expect(tabs[2]).toMatchObject({
+      id: linkTabId('https://b.example'),
+      url: 'https://b.example',
+      title: 'https://b.example',
+    });
+    expect(activeTabId).toBe(linkTabId('https://b.example'));
   });
 
-  it('re-opening the same URL just activates the link tab and keeps its title', () => {
+  it('re-opening the same URL activates the existing link tab and keeps its title', () => {
     const dock = new DockStore();
+    const id = linkTabId('https://a.example');
     dock.openLink('https://a.example');
-    dock.setTitle(LINK_TAB_ID, 'Page title');
+    dock.setTitle(id, 'Page title');
     dock.openArtifact('ws1', 'a1');
     dock.openLink('https://a.example');
     const { tabs, activeTabId } = dock.getSnapshot();
-    expect(activeTabId).toBe(LINK_TAB_ID);
-    expect(tabs.find((t) => t.kind === 'link')?.title).toBe('Page title');
+    expect(tabs).toHaveLength(2);
+    expect(activeTabId).toBe(id);
+    expect(tabs.find((t) => t.kind === 'link' && t.url === 'https://a.example')?.title).toBe('Page title');
   });
 
   it('activate switches between chat and previews and ignores unknown ids', () => {

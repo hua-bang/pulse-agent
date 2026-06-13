@@ -34,6 +34,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -139,18 +140,24 @@ function clampWidth(value: number): number {
 }
 
 interface RightDockProps {
-  /** Target canvas for the link tab's "add to current canvas" action. */
+  /** Target canvas for link tabs' "add to current canvas" action. */
   activeWorkspaceId: string;
   /** True on the canvas route: shows the pinned chat tab and reserves
    * layout space (in-flow behaviour). Other routes overlay previews only. */
   chatTabEnabled: boolean;
 }
 
+interface TabIndicatorState {
+  left: number;
+  width: number;
+  visible: boolean;
+}
+
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps) => {
   const { store, setChatHost } = useDockContext();
   const state = useRightDockState();
 
-  // External links intercepted by the main process land in the link tab.
+  // External links intercepted by the main process land in link preview tabs.
   useEffect(() => {
     return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
   }, [store]);
@@ -167,10 +174,68 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
 
   const hasPreviews = state.tabs.length > 0;
   const visible = state.expanded && (chatTabEnabled || hasPreviews);
+  // While the chat tab is unavailable a transient 'chat' active pointer
+  // (route guard hasn't run yet) should highlight nothing.
+  const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID ? null : state.activeTabId;
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
   const widthRef = useRef(width);
   widthRef.current = width;
+
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [tabIndicator, setTabIndicator] = useState<TabIndicatorState>({
+    left: 0,
+    width: 0,
+    visible: false,
+  });
+
+  const registerTab = useCallback((id: string, element: HTMLButtonElement | null) => {
+    if (element) {
+      tabRefs.current.set(id, element);
+      return;
+    }
+    tabRefs.current.delete(id);
+  }, []);
+
+  const updateTabIndicator = useCallback(() => {
+    const activeTab = activePaneId ? tabRefs.current.get(activePaneId) : null;
+    if (!hasPreviews || !activeTab) {
+      setTabIndicator((prev) => (prev.visible ? { ...prev, visible: false } : prev));
+      return;
+    }
+    const next = {
+      left: activeTab.offsetLeft,
+      width: activeTab.offsetWidth,
+      visible: true,
+    };
+    setTabIndicator((prev) => (
+      prev.left === next.left && prev.width === next.width && prev.visible === next.visible
+        ? prev
+        : next
+    ));
+  }, [activePaneId, hasPreviews]);
+
+  useLayoutEffect(() => {
+    updateTabIndicator();
+  }, [updateTabIndicator, state.tabs, chatTabEnabled, width]);
+
+  useEffect(() => {
+    if (!hasPreviews || !activePaneId) return;
+    const activeTab = tabRefs.current.get(activePaneId);
+    activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+  }, [activePaneId, hasPreviews, state.tabs]);
+
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(updateTabIndicator);
+    const tabsElement = tabsRef.current;
+    if (tabsElement) observer.observe(tabsElement);
+    for (const tabElement of tabRefs.current.values()) {
+      observer.observe(tabElement);
+    }
+    return () => observer.disconnect();
+  }, [updateTabIndicator, state.tabs, chatTabEnabled]);
 
   // Re-clamp on viewport resize so a stored width wider than the new
   // viewport doesn't push the dock off-screen.
@@ -238,10 +303,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     document.addEventListener('mouseup', onMouseUp);
   }, []);
 
-  // While the chat tab is unavailable a transient 'chat' active pointer
-  // (route guard hasn't run yet) should highlight nothing.
-  const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID ? null : state.activeTabId;
-
   return (
     <aside
       className="right-dock"
@@ -259,9 +320,20 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
       />
       {/* Always in the DOM so its appearance/disappearance can animate;
           hidden (and out of the tab order) while chat is alone. */}
-      <div className="right-dock__tabs" role="tablist" data-visible={hasPreviews}>
+      <div className="right-dock__tabs" data-visible={hasPreviews}>
+        <div ref={tabsRef} className="right-dock__tab-scroll" role="tablist" aria-label="Dock tabs">
+          <span
+            className="right-dock__tab-glider"
+            aria-hidden="true"
+            data-visible={tabIndicator.visible}
+            style={{
+              width: tabIndicator.width,
+              transform: `translateX(${tabIndicator.left}px)`,
+            }}
+          />
           {chatTabEnabled && (
             <button
+              ref={(element) => registerTab(CHAT_TAB_ID, element)}
               type="button"
               role="tab"
               aria-selected={activePaneId === CHAT_TAB_ID}
@@ -279,6 +351,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             const active = tab.id === activePaneId;
             return (
               <button
+                ref={(element) => registerTab(tab.id, element)}
                 key={tab.id}
                 type="button"
                 role="tab"
@@ -303,16 +376,16 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
               </button>
             );
           })}
-          <div className="right-dock__tabs-spacer" />
-          <button
-            type="button"
-            className="right-dock__collapse"
-            aria-label="Collapse panel"
-            title="Collapse panel (tabs are kept)"
-            onClick={() => store.collapse()}
-          >
-            ⇥
-          </button>
+        </div>
+        <button
+          type="button"
+          className="right-dock__collapse"
+          aria-label="Collapse panel"
+          title="Collapse panel (tabs are kept)"
+          onClick={() => store.collapse()}
+        >
+          ⇥
+        </button>
       </div>
       <div className="right-dock__panes">
         {/* Chat pane: portal outlet — always mounted so chat keeps its

@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import type { CanvasNode } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
@@ -40,95 +40,141 @@ export const ReferencePicker = ({
   setSearchDraft,
   workspaceNameById,
   onPick,
-}: ReferencePickerProps) => (
-  <div className="reference-picker-anchor" ref={pickerRef}>
-    <button
-      className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'current' ? ' reference-drawer-action--open' : ''}`}
-      type="button"
-      onClick={() => {
-        setSearchDraft('');
-        setPickerOpen((prev) => prev === 'current' ? null : 'current');
-      }}
-      disabled={currentNodeCount === 0}
-      title={currentNodeCount === 0 ? 'No more current workspace nodes to pin' : 'Pick a current workspace node'}
-      aria-haspopup="dialog"
-      aria-expanded={pickerOpen === 'current'}
-    >
-      <ListIcon />
-      Current workspace
-    </button>
+}: ReferencePickerProps) => {
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const selectedWorkspace = externalWorkspaces.find((workspace) => workspace.id === externalWorkspaceId);
 
-    <button
-      className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'other' ? ' reference-drawer-action--open' : ''}`}
-      type="button"
-      onClick={() => {
-        setSearchDraft('');
-        setPickerOpen((prev) => prev === 'other' ? null : 'other');
-      }}
-      disabled={externalWorkspaces.length === 0}
-      title={externalWorkspaces.length === 0 ? 'No other workspaces yet' : 'Pick a node from another workspace'}
-      aria-haspopup="dialog"
-      aria-expanded={pickerOpen === 'other'}
-    >
-      <BranchIcon />
-      Other workspace
-    </button>
+  useEffect(() => {
+    if (pickerOpen !== 'other') setWorkspaceMenuOpen(false);
+  }, [pickerOpen]);
 
-    {pickerOpen && (
-      <div className="reference-picker-popover" role="dialog" aria-label="Pick canvas reference">
-        {pickerOpen === 'other' && (
-          <div className="reference-workspace-picker">
-            <label htmlFor="reference-workspace-select">Workspace</label>
-            <select
-              id="reference-workspace-select"
-              value={externalWorkspaceId ?? ''}
-              onChange={(event) => {
-                setExternalWorkspaceId(event.target.value || undefined);
-                setSearchDraft('');
-              }}
-            >
-              {externalWorkspaces.map((workspace) => (
-                <option key={workspace.id} value={workspace.id}>{workspace.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        <div className="reference-picker-controls">
-          <div className="reference-picker-search">
-            <SearchIcon />
-            <input
-              value={searchDraft}
-              onChange={(e) => setSearchDraft(e.target.value)}
-              placeholder={pickerOpen === 'other' ? 'Search selected workspace' : 'Search current workspace'}
-              aria-label="Search canvas nodes"
-            />
-            {searchDraft && (
+  return (
+    <div className="reference-picker-anchor" ref={pickerRef}>
+      <button
+        className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'current' ? ' reference-drawer-action--open' : ''}`}
+        type="button"
+        onClick={() => {
+          setWorkspaceMenuOpen(false);
+          setSearchDraft('');
+          setPickerOpen((prev) => prev === 'current' ? null : 'current');
+        }}
+        disabled={currentNodeCount === 0}
+        title={currentNodeCount === 0 ? 'No more current workspace nodes to pin' : 'Pick a current workspace node'}
+        aria-haspopup="dialog"
+        aria-expanded={pickerOpen === 'current'}
+      >
+        <ListIcon />
+        Current workspace
+      </button>
+
+      <button
+        className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'other' ? ' reference-drawer-action--open' : ''}`}
+        type="button"
+        onClick={() => {
+          setWorkspaceMenuOpen(false);
+          setSearchDraft('');
+          setPickerOpen((prev) => prev === 'other' ? null : 'other');
+        }}
+        disabled={externalWorkspaces.length === 0}
+        title={externalWorkspaces.length === 0 ? 'No other workspaces yet' : 'Pick a node from another workspace'}
+        aria-haspopup="dialog"
+        aria-expanded={pickerOpen === 'other'}
+      >
+        <BranchIcon />
+        Other workspace
+      </button>
+
+      {pickerOpen && (
+        <div className="reference-picker-popover" role="dialog" aria-label="Pick canvas reference">
+          {pickerOpen === 'other' && (
+            <div className="reference-workspace-picker">
+              <span className="reference-workspace-picker-label">Workspace</span>
               <button
                 type="button"
-                className="reference-search-clear"
-                onClick={() => setSearchDraft('')}
-                aria-label="Clear canvas node search"
-                title="Clear search"
+                className={`reference-workspace-select${workspaceMenuOpen ? ' reference-workspace-select--open' : ''}`}
+                onClick={() => setWorkspaceMenuOpen((prev) => !prev)}
+                aria-haspopup="listbox"
+                aria-expanded={workspaceMenuOpen}
               >
-                x
+                <span className="reference-workspace-select-name">
+                  {selectedWorkspace?.name ?? 'Choose workspace'}
+                </span>
+                <svg
+                  className="reference-workspace-select-caret"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path d="M3.5 4.5L6 7l2.5-2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
-            )}
+              {workspaceMenuOpen && (
+                <div className="reference-workspace-options" role="listbox" aria-label="Workspace">
+                  {externalWorkspaces.map((workspace) => {
+                    const selected = workspace.id === externalWorkspaceId;
+                    return (
+                      <button
+                        key={workspace.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        className={`reference-workspace-option${selected ? ' reference-workspace-option--selected' : ''}`}
+                        onClick={() => {
+                          setExternalWorkspaceId(workspace.id);
+                          setSearchDraft('');
+                          setWorkspaceMenuOpen(false);
+                        }}
+                      >
+                        <span className="reference-workspace-option-check" aria-hidden="true">
+                          {selected ? '✓' : ''}
+                        </span>
+                        <span className="reference-workspace-option-name">{workspace.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="reference-picker-controls">
+            <div className="reference-picker-search">
+              <SearchIcon />
+              <input
+                value={searchDraft}
+                onChange={(e) => setSearchDraft(e.target.value)}
+                placeholder={pickerOpen === 'other' ? 'Search selected workspace' : 'Search current workspace'}
+                aria-label="Search canvas nodes"
+              />
+              {searchDraft && (
+                <button
+                  type="button"
+                  className="reference-search-clear"
+                  onClick={() => setSearchDraft('')}
+                  aria-label="Clear canvas node search"
+                  title="Clear search"
+                >
+                  x
+                </button>
+              )}
+            </div>
           </div>
+          <ReferencePickerList
+            allNodes={allNodes}
+            externalWorkspaceId={externalWorkspaceId}
+            pickerOpen={pickerOpen}
+            pickableNodeGroups={pickableNodeGroups}
+            pickableNodes={pickableNodes}
+            searchActive={searchActive}
+            workspaceNameById={workspaceNameById}
+            onPick={onPick}
+          />
         </div>
-        <ReferencePickerList
-          allNodes={allNodes}
-          externalWorkspaceId={externalWorkspaceId}
-          pickerOpen={pickerOpen}
-          pickableNodeGroups={pickableNodeGroups}
-          pickableNodes={pickableNodes}
-          searchActive={searchActive}
-          workspaceNameById={workspaceNameById}
-          onPick={onPick}
-        />
-      </div>
-    )}
-  </div>
-);
+      )}
+    </div>
+  );
+};
 
 interface ReferencePickerListProps {
   allNodes: Record<string, CanvasNode[]>;
