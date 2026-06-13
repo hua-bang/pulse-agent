@@ -1,8 +1,8 @@
 /**
  * Right-dock tab content for external links intercepted from embedded
- * webviews and sandboxed iframes. The dock keeps at most ONE link tab —
- * a new link replaces this view's URL instead of stacking webviews (each
- * <webview> owns a guest renderer process). The view exposes:
+ * webviews and sandboxed iframes. Each open link preview owns its own
+ * <webview>; the dock dedupes exact URLs while allowing different links
+ * to stay open side by side. The view exposes:
  *  - open in system browser (escape hatch for X-Frame-Options-blocked
  *    sites, or when the user wants a real browser tab)
  *  - add to current canvas (creates a new iframe node bound to the URL,

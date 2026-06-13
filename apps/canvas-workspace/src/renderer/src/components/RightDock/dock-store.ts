@@ -9,9 +9,8 @@
  *  - chat is implicit/pinned: `tabs` holds preview tabs only and
  *    `activeTabId` is either `CHAT_TAB_ID` or a preview tab id;
  *  - artifact tabs are deduped by (workspaceId, artifactId);
- *  - there is at most ONE link tab — a new link replaces its URL rather
- *    than adding a tab, because every <webview> owns a guest renderer
- *    process and stacking them per-URL would leak processes;
+ *  - link tabs are deduped by exact URL, while different URLs can stay
+ *    open side by side as separate previews;
  *  - closing the active preview activates the tab that slides into its
  *    slot (right neighbour, falling back to the last preview, then chat);
  *  - collapsing the dock keeps all tabs — expanding restores them;
@@ -37,6 +36,15 @@ export const LINK_TAB_ID = 'link';
 
 export const artifactTabId = (workspaceId: string, artifactId: string): string =>
   `artifact:${workspaceId}:${artifactId}`;
+
+export const linkTabId = (url: string): string => {
+  let hash = 2166136261;
+  for (let i = 0; i < url.length; i += 1) {
+    hash ^= url.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${LINK_TAB_ID}:${url.length.toString(36)}:${(hash >>> 0).toString(36)}`;
+};
 
 const INITIAL: DockState = {
   tabs: [],
@@ -74,26 +82,27 @@ export class DockStore {
   }
 
   openLink(url: string): void {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return;
     const existing = this.state.tabs.find(
-      (tab): tab is Extract<DockPreviewTab, { kind: 'link' }> => tab.kind === 'link',
+      (tab): tab is Extract<DockPreviewTab, { kind: 'link' }> =>
+        tab.kind === 'link' && tab.url === trimmedUrl,
     );
-    if (!existing) {
-      const tab: DockPreviewTab = { id: LINK_TAB_ID, kind: 'link', title: url, url };
-      this.commit({ tabs: [...this.state.tabs, tab], activeTabId: tab.id, expanded: true });
-      return;
-    }
-    if (existing.url === url) {
+    if (existing) {
       // Same page: keep the loaded webview (and its resolved title).
       this.commit({ expanded: true, activeTabId: existing.id });
       return;
     }
-    this.commit({
-      tabs: this.state.tabs.map((tab) =>
-        tab.kind === 'link' ? { ...tab, url, title: url } : tab,
-      ),
-      activeTabId: existing.id,
-      expanded: true,
-    });
+
+    const baseId = linkTabId(trimmedUrl);
+    let id = baseId;
+    let suffix = 2;
+    while (this.state.tabs.some((tab) => tab.id === id)) {
+      id = `${baseId}:${suffix}`;
+      suffix += 1;
+    }
+    const tab: DockPreviewTab = { id, kind: 'link', title: trimmedUrl, url: trimmedUrl };
+    this.commit({ tabs: [...this.state.tabs, tab], activeTabId: tab.id, expanded: true });
   }
 
   /** Switch to an existing tab (chat or preview). Viewing chat clears unread. */
