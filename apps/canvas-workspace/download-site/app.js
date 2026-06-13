@@ -2,6 +2,8 @@ const manifestUrl = document.documentElement.dataset.manifestUrl || '/latest.jso
 const versionLabel = document.querySelector('#version-label');
 const primaryDownload = document.querySelector('#primary-download');
 const heroTitle = document.querySelector('#hero-title');
+const releaseNotes = document.querySelector('#release-notes');
+const releaseNotesBody = document.querySelector('#release-notes-body');
 const languageLinks = document.querySelectorAll('[data-lang-option]');
 
 const copy = {
@@ -21,6 +23,8 @@ const copy = {
     installStep1: '下载 DMG，并把 Pulse Canvas 拖进 Applications。',
     installStep2: '如果 macOS 阻止打开，右键 Pulse Canvas，选择 Open。',
     installStep3: '首次确认 Open 后，后续通常可直接启动。',
+    releaseNotesKicker: '更新说明',
+    releaseNotesTitle: '本次更新',
     updatesKicker: '更新',
     updatesTitle: '手动更新',
     updatesBody: '从本页下载最新版本并替换已安装的 app。你的 canvas 数据会单独保存。',
@@ -43,6 +47,8 @@ const copy = {
     installStep1: 'Download the DMG and drag Pulse Canvas into Applications.',
     installStep2: 'If macOS blocks the app, right-click Pulse Canvas and choose Open.',
     installStep3: 'Confirm Open once. Later launches should open normally.',
+    releaseNotesKicker: 'Release notes',
+    releaseNotesTitle: 'What changed',
     updatesKicker: 'Updates',
     updatesTitle: 'Manual updates',
     updatesBody: 'Download the latest version from this page and replace the installed app. Your canvas data is stored separately.',
@@ -105,6 +111,13 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString(copy[activeLanguage].locale);
 }
 
+function resolveLocalizedNotes(notes) {
+  if (typeof notes === 'string') return notes.trim();
+  if (!notes || typeof notes !== 'object' || Array.isArray(notes)) return '';
+  const localized = notes[activeLanguage] || notes.en || notes.zh;
+  return typeof localized === 'string' ? localized.trim() : '';
+}
+
 function renderTitle(parts) {
   heroTitle.replaceChildren(...parts.map((part) => {
     const span = document.createElement('span');
@@ -137,10 +150,14 @@ function renderReleaseState() {
   if (!latestManifest) {
     versionLabel.textContent = text.checking;
     primaryDownload.textContent = text.download('');
+    releaseNotes.hidden = true;
     return;
   }
 
   versionLabel.textContent = text.latest(latestManifest.version, formatDate(latestManifest.releasedAt));
+  const notes = resolveLocalizedNotes(latestManifest.notes);
+  releaseNotes.hidden = !notes;
+  releaseNotesBody.textContent = notes;
 
   if (primaryFile) {
     primaryDownload.href = primaryFile.url;
@@ -193,5 +210,6 @@ try {
 } catch (err) {
   versionLabel.textContent = copy[activeLanguage].unavailable;
   primaryDownload.textContent = copy[activeLanguage].tryAgain;
+  releaseNotes.hidden = true;
   console.error(err);
 }

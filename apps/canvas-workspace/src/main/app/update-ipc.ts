@@ -45,6 +45,21 @@ const compareVersions = (a: string, b: string): number => {
   return 0;
 };
 
+const sanitizeNotes = (notes: unknown) => {
+  if (typeof notes === 'string') {
+    const trimmed = notes.trim();
+    return trimmed || undefined;
+  }
+  if (!notes || typeof notes !== 'object' || Array.isArray(notes)) return undefined;
+
+  const value: { zh?: string; en?: string } = {};
+  const zh = (notes as { zh?: unknown }).zh;
+  const en = (notes as { en?: unknown }).en;
+  if (typeof zh === 'string' && zh.trim()) value.zh = zh.trim();
+  if (typeof en === 'string' && en.trim()) value.en = en.trim();
+  return value.zh || value.en ? value : undefined;
+};
+
 const sanitizeManifest = (manifest: UpdateManifest, fallbackDownloadUrl: string) => {
   const version = typeof manifest.version === 'string' ? manifest.version.trim() : '';
   if (!version) {
@@ -60,7 +75,7 @@ const sanitizeManifest = (manifest: UpdateManifest, fallbackDownloadUrl: string)
     version,
     releasedAt: typeof manifest.releasedAt === 'string' ? manifest.releasedAt : undefined,
     downloadUrl,
-    notes: typeof manifest.notes === 'string' ? manifest.notes : undefined,
+    notes: sanitizeNotes(manifest.notes),
   };
 };
 

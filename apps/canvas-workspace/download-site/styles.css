@@ -273,6 +273,35 @@ h1 span {
   object-position: center;
 }
 
+.release-notes {
+  margin-top: 16px;
+  padding: 22px 24px;
+  border: 1px solid rgba(35, 131, 226, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: var(--shadow-card);
+}
+
+.release-notes[hidden] {
+  display: none;
+}
+
+.release-notes h2 {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 740;
+  letter-spacing: 0;
+}
+
+.release-notes p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.68;
+  white-space: pre-line;
+}
+
 .install-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -338,7 +367,7 @@ h1 span {
 
   .install-grid {
     grid-template-columns: 1fr;
-    margin-top: 32px;
+    margin-top: 18px;
   }
 }
 

@@ -10,8 +10,15 @@ type AvailableUpdate = Extract<UpdateCheckResult, { ok: true }> & {
   updateAvailable: true;
 };
 
+const resolveNotes = (notes: AvailableUpdate['latest']['notes'], language: string): string => {
+  if (typeof notes === 'string') return notes.trim();
+  if (!notes) return '';
+  const localized = language === 'zh' ? notes.zh : notes.en;
+  return (localized ?? notes.en ?? notes.zh ?? '').trim();
+};
+
 export const UpdateNotice = () => {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
   const [update, setUpdate] = useState<AvailableUpdate | null>(null);
 
   useEffect(() => {
@@ -39,6 +46,7 @@ export const UpdateNotice = () => {
   if (!update) return null;
 
   const latest = update.latest;
+  const notes = resolveNotes(latest.notes, language);
   const openDownload = () => {
     void window.canvasWorkspace?.shell.openExternal(latest.downloadUrl);
   };
@@ -60,6 +68,11 @@ export const UpdateNotice = () => {
           <div className="update-notice__meta">
             {t('updateNotice.currentVersion', { version: update.currentVersion })}
           </div>
+          {notes ? (
+            <div className="update-notice__notes">
+              {notes}
+            </div>
+          ) : null}
         </div>
       </div>
       <button type="button" className="update-notice__download" onClick={openDownload}>
