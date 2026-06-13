@@ -291,6 +291,10 @@ function summarizeNode(node: CanvasNode): NodeSummary {
     id: node.id,
     type: node.type,
     title: node.title,
+    x: node.x,
+    y: node.y,
+    width: node.width,
+    height: node.height,
   };
 
   switch (node.type) {
@@ -690,6 +694,17 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
       const labelHint = e.label ? ` — "${e.label}"` : '';
       const kindHint = e.kind ? ` [${e.kind}]` : '';
       lines.push(`- [${e.id}] ${e.source} → ${e.target}${labelHint}${kindHint}`);
+    }
+    lines.push('');
+  }
+
+  const nodesWithPos = summary.nodes.filter(n => n.x !== undefined && n.y !== undefined);
+  if (nodesWithPos.length > 0) {
+    lines.push('## Spatial Layout');
+    lines.push('_Current positions and sizes for all nodes (canvas coordinates). Use with `canvas_move_node` when arranging the layout._');
+    for (const n of nodesWithPos) {
+      const sizeHint = (n.width && n.height) ? ` size(${n.width}×${n.height})` : '';
+      lines.push(`- [${n.id}] ${n.type} "${n.title}": pos(${Math.round(n.x!)}, ${Math.round(n.y!)})${sizeHint}`);
     }
     lines.push('');
   }

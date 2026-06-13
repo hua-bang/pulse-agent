@@ -205,6 +205,14 @@ export interface NodeSummary {
   rootText?: string;
   /** Total topic count (including root) for mindmap nodes. */
   topicCount?: number;
+  /** Canvas X coordinate (canvas pixels). */
+  x?: number;
+  /** Canvas Y coordinate (canvas pixels). */
+  y?: number;
+  /** Node width (canvas pixels). */
+  width?: number;
+  /** Node height (canvas pixels). */
+  height?: number;
 }
 
 /**
