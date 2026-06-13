@@ -1,0 +1,8 @@
+{
+  "version": "0.1.0",
+  "channel": "stable",
+  "releasedAt": "2026-06-13T00:00:00.000Z",
+  "downloadUrl": "https://pulse-canvas-download.pages.dev",
+  "notes": "Manual update package for Pulse Canvas.",
+  "files": []
+}

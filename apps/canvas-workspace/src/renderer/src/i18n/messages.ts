@@ -45,6 +45,11 @@ const en = {
   'app.deleteFolderConfirm': 'Delete folder',
   'app.folderDeleted': 'Folder deleted',
   'app.folderDeletedDescription': '{name} was removed. Nested workspaces were kept.',
+  'updateNotice.ariaLabel': 'Pulse Canvas update',
+  'updateNotice.title': 'Pulse Canvas {version} is available',
+  'updateNotice.currentVersion': 'Current version {version}',
+  'updateNotice.download': 'Download',
+  'updateNotice.dismiss': 'Dismiss update notice',
 
   'settings.kicker': 'Settings',
   'settings.ariaLabel': 'Settings',
@@ -729,6 +734,11 @@ const zh: Record<keyof typeof en, string> = {
   'app.deleteFolderConfirm': '删除文件夹',
   'app.folderDeleted': '文件夹已删除',
   'app.folderDeletedDescription': '{name} 已移除。内部工作区已保留。',
+  'updateNotice.ariaLabel': 'Pulse Canvas 更新',
+  'updateNotice.title': 'Pulse Canvas {version} 已可下载',
+  'updateNotice.currentVersion': '当前版本 {version}',
+  'updateNotice.download': '下载',
+  'updateNotice.dismiss': '关闭更新提示',
 
   'settings.kicker': '设置',
   'settings.ariaLabel': '设置',

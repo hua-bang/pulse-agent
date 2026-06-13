@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-Hans" data-manifest-url="__PULSE_CANVAS_MANIFEST_URL__">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pulse Canvas Download</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="Pulse Canvas home">
+          <img class="brand-icon" src="./icon.png" alt="" />
+          <span>Pulse Canvas</span>
+        </a>
+        <div class="header-actions">
+          <a class="header-link" href="https://github.com/hua-bang" target="_blank" rel="noreferrer">GitHub</a>
+          <span class="header-divider" aria-hidden="true"></span>
+          <a class="header-link" href="#install" data-i18n="installNav">安装说明</a>
+          <span class="header-divider" aria-hidden="true"></span>
+          <nav class="language-switch" aria-label="Language">
+            <a href="?lang=zh" data-lang-option="zh" aria-current="true">中文</a>
+            <span aria-hidden="true">/</span>
+            <a href="?lang=en" data-lang-option="en">EN</a>
+          </nav>
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <img class="app-icon" src="./icon.png" alt="" />
+          <h1 id="hero-title">
+            <span>Pulse Canvas</span>
+          </h1>
+          <p class="slogan" data-i18n="slogan">组织信息，驱动动作，闭环反馈。</p>
+          <div class="version-card" id="version-card">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="version-label">正在检查最新版本...</span>
+          </div>
+          <div class="download-actions" id="download-actions">
+            <a class="primary-action" id="primary-download" href="#" aria-disabled="true">下载最新版本</a>
+          </div>
+        </div>
+        <figure class="product-preview">
+          <img src="./product-visual.png" alt="Pulse Canvas concept visual with canvas cards, coding panels, and workspace tools" />
+        </figure>
+      </section>
+
+      <section class="install-grid" id="install">
+        <article>
+          <span class="section-kicker" data-i18n="installKicker">安装</span>
+          <h2 data-i18n="installTitle">macOS 首次打开</h2>
+          <ol>
+            <li data-i18n="installStep1">下载 DMG，并把 Pulse Canvas 拖进 Applications。</li>
+            <li data-i18n="installStep2">如果 macOS 阻止打开，右键 Pulse Canvas，选择 Open。</li>
+            <li data-i18n="installStep3">首次确认 Open 后，后续通常可直接启动。</li>
+          </ol>
+        </article>
+        <article>
+          <span class="section-kicker" data-i18n="updatesKicker">更新</span>
+          <h2 data-i18n="updatesTitle">手动更新</h2>
+          <p data-i18n="updatesBody">
+            从本页下载最新版本并替换已安装的 app。你的 canvas 数据会单独保存。
+          </p>
+        </article>
+      </section>
+    </main>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
