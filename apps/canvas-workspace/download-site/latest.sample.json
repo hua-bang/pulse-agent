@@ -17,5 +17,18 @@
       }
     }
   ],
-  "files": []
+  "files": [
+    {
+      "name": "Pulse-Canvas-0.1.0-arm64.dmg",
+      "size": 158266765,
+      "url": "https://downloads.example.com/pulse-canvas/Pulse-Canvas-0.1.0-arm64.dmg",
+      "sha256": "replace-with-arm64-sha256"
+    },
+    {
+      "name": "Pulse-Canvas-0.1.0-x64.dmg",
+      "size": 164799233,
+      "url": "https://downloads.example.com/pulse-canvas/Pulse-Canvas-0.1.0-x64.dmg",
+      "sha256": "replace-with-x64-sha256"
+    }
+  ]
 }

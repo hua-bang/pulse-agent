@@ -1,7 +1,11 @@
-const manifestUrl = document.documentElement.dataset.manifestUrl || '/latest.json';
+const configuredManifestUrl = document.documentElement.dataset.manifestUrl;
+const manifestUrl = configuredManifestUrl && !configuredManifestUrl.includes('__PULSE_CANVAS_MANIFEST_URL__')
+  ? configuredManifestUrl
+  : './latest.sample.json';
 const versionLabel = document.querySelector('#version-label');
 const downloadLabel = document.querySelector('#download-label');
 const primaryDownload = document.querySelector('#primary-download');
+const downloadOptions = document.querySelector('#download-options');
 const heroTitle = document.querySelector('#hero-title');
 const releaseNotes = document.querySelector('#release-notes');
 const releaseList = document.querySelector('#release-list');
@@ -15,15 +19,25 @@ const copy = {
     slogan: '组织信息，驱动动作，闭环反馈。',
     checking: '正在检查最新版本...',
     latest: (version, date) => `最新版本 ${version}${date ? ` · ${date}` : ''}`,
-    download: (size) => `下载 Apple Silicon 版${size ? ` · ${size}` : ''}`,
+    download: (label, size) => `${label}${size ? ` · ${size}` : ''}`,
+    downloadRecommended: '下载推荐版本',
+    macAppleSilicon: 'macOS Apple Silicon',
+    macIntel: 'macOS Intel',
+    windowsX64: 'Windows x64',
+    linuxX64: 'Linux x64',
+    otherDownload: '下载此版本',
+    comingSoon: '即将提供',
+    checksum: 'SHA256',
     openDownloadPage: '打开下载页',
     unavailable: '暂时无法获取最新版本。',
     tryAgain: '稍后再试',
+    unsignedNotice: '当前为早期测试版，尚未经过 Apple notarization。首次打开可能需要右键选择“打开”。',
     installKicker: '安装',
     installTitle: 'macOS 首次打开',
     installStep1: '下载 DMG，并把 Pulse Canvas 拖进 Applications。',
-    installStep2: '如果 macOS 阻止打开，右键 Pulse Canvas，选择 Open。',
-    installStep3: '首次确认 Open 后，后续通常可直接启动。',
+    installStep2: '如果 macOS 阻止打开，请在 Finder 中右键 Pulse Canvas，选择“打开”。',
+    installStep3: '再确认一次“打开”。后续通常可直接启动。',
+    installNote: '这是早期版本暂未使用 Apple Developer ID 签名导致的安全提示，不影响本地使用。',
     releaseNotesKicker: '版本更新',
     releaseNotesTitle: 'Release notes',
     updatesKicker: '更新',
@@ -39,15 +53,25 @@ const copy = {
     slogan: 'Organize information, drive action, and close the feedback loop.',
     checking: 'Checking latest version...',
     latest: (version, date) => `Latest version ${version}${date ? ` · ${date}` : ''}`,
-    download: (size) => `Download for Apple Silicon${size ? ` · ${size}` : ''}`,
+    download: (label, size) => `${label}${size ? ` · ${size}` : ''}`,
+    downloadRecommended: 'Download recommended build',
+    macAppleSilicon: 'macOS Apple Silicon',
+    macIntel: 'macOS Intel',
+    windowsX64: 'Windows x64',
+    linuxX64: 'Linux x64',
+    otherDownload: 'Download this build',
+    comingSoon: 'Coming soon',
+    checksum: 'SHA256',
     openDownloadPage: 'Open download page',
     unavailable: 'Latest version is temporarily unavailable.',
     tryAgain: 'Try again later',
+    unsignedNotice: 'This early build is not Apple-notarized yet. On first launch, macOS may require right-clicking and choosing Open.',
     installKicker: 'Install',
     installTitle: 'macOS first open',
     installStep1: 'Download the DMG and drag Pulse Canvas into Applications.',
-    installStep2: 'If macOS blocks the app, right-click Pulse Canvas and choose Open.',
+    installStep2: 'If macOS blocks the app, right-click Pulse Canvas in Finder and choose Open.',
     installStep3: 'Confirm Open once. Later launches should open normally.',
+    installNote: 'This security prompt appears because the early build does not use an Apple Developer ID signature yet. Local use is still supported.',
     releaseNotesKicker: 'Versions',
     releaseNotesTitle: 'Release notes',
     updatesKicker: 'Updates',
@@ -69,6 +93,7 @@ const platform = (() => {
 let activeLanguage = getInitialLanguage();
 let latestManifest = null;
 let primaryFile = null;
+let visibleFiles = [];
 
 function getInitialLanguage() {
   const params = new URLSearchParams(window.location.search);
@@ -84,6 +109,7 @@ function getInitialLanguage() {
 function scoreFile(name) {
   const lower = name.toLowerCase();
   if (platform === 'mac') {
+    if (lower.includes('arm64') && lower.endsWith('.dmg')) return 110;
     if (lower.endsWith('.dmg')) return 100;
     if (lower.endsWith('.zip')) return 80;
   }
@@ -93,6 +119,36 @@ function scoreFile(name) {
     if (lower.endsWith('.deb')) return 80;
   }
   return 0;
+}
+
+function isVisibleDownload(file) {
+  return file?.url && file?.name && !/(\.blockmap|^latest.*\.ya?ml$|\.json)$/i.test(file.name);
+}
+
+function getFileKind(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.dmg') || name.endsWith('.zip')) {
+    return name.includes('arm64') || name.includes('aarch64') ? 'mac-arm64' : 'mac-x64';
+  }
+  if (name.endsWith('.exe')) return 'windows-x64';
+  if (name.endsWith('.appimage') || name.endsWith('.deb')) return 'linux-x64';
+  return 'other';
+}
+
+function labelForFile(file) {
+  const text = copy[activeLanguage];
+  switch (getFileKind(file)) {
+    case 'mac-arm64':
+      return text.macAppleSilicon;
+    case 'mac-x64':
+      return text.macIntel;
+    case 'windows-x64':
+      return text.windowsX64;
+    case 'linux-x64':
+      return text.linuxX64;
+    default:
+      return text.otherDownload;
+  }
 }
 
 function formatBytes(bytes) {
@@ -195,6 +251,66 @@ function renderReleaseNotes() {
   }));
 }
 
+function renderDownloadOption(file) {
+  const text = copy[activeLanguage];
+  const link = document.createElement('a');
+  link.className = 'download-option';
+  link.href = file.url;
+  link.title = file.name;
+
+  const title = document.createElement('span');
+  title.className = 'download-option__title';
+  title.textContent = labelForFile(file);
+
+  const meta = document.createElement('span');
+  meta.className = 'download-option__meta';
+  meta.textContent = [formatBytes(file.size), file.name].filter(Boolean).join(' · ');
+
+  link.append(title, meta);
+
+  if (file.sha256) {
+    const checksum = document.createElement('span');
+    checksum.className = 'download-option__checksum';
+    checksum.textContent = `${text.checksum}: ${file.sha256}`;
+    link.appendChild(checksum);
+  }
+
+  return link;
+}
+
+function renderComingSoonOption(kind) {
+  const text = copy[activeLanguage];
+  const item = document.createElement('div');
+  item.className = 'download-option download-option--disabled';
+
+  const title = document.createElement('span');
+  title.className = 'download-option__title';
+  title.textContent = kind === 'mac-x64' ? text.macIntel : text.otherDownload;
+
+  const meta = document.createElement('span');
+  meta.className = 'download-option__meta';
+  meta.textContent = text.comingSoon;
+
+  item.append(title, meta);
+  return item;
+}
+
+function renderDownloadOptions() {
+  if (!downloadOptions) return;
+  if (!latestManifest || visibleFiles.length === 0) {
+    downloadOptions.replaceChildren();
+    return;
+  }
+
+  const order = ['mac-arm64', 'mac-x64', 'windows-x64', 'linux-x64', 'other'];
+  const files = visibleFiles.slice().sort((a, b) => order.indexOf(getFileKind(a)) - order.indexOf(getFileKind(b)));
+  const items = files.map(renderDownloadOption);
+  if (platform === 'mac' && !files.some((file) => getFileKind(file) === 'mac-x64')) {
+    items.push(renderComingSoonOption('mac-x64'));
+  }
+  downloadOptions.replaceChildren(...items);
+}
+
 function renderTitle(parts) {
   heroTitle.replaceChildren(...parts.map((part) => {
     const span = document.createElement('span');
@@ -226,18 +342,20 @@ function renderReleaseState() {
   const text = copy[activeLanguage];
   if (!latestManifest) {
     versionLabel.textContent = text.checking;
-    downloadLabel.textContent = text.download('');
+    downloadLabel.textContent = text.download(text.downloadRecommended, '');
+    renderDownloadOptions();
     renderReleaseNotes();
     return;
   }
 
   versionLabel.textContent = text.latest(latestManifest.version, formatDate(latestManifest.releasedAt));
   renderReleaseNotes();
+  renderDownloadOptions();
 
   if (primaryFile) {
     primaryDownload.href = primaryFile.url;
     primaryDownload.removeAttribute('aria-disabled');
-    downloadLabel.textContent = text.download(formatBytes(primaryFile.size));
+    downloadLabel.textContent = text.download(labelForFile(primaryFile), formatBytes(primaryFile.size));
     primaryDownload.title = primaryFile.name;
   } else if (latestManifest.downloadUrl) {
     primaryDownload.href = latestManifest.downloadUrl;
@@ -276,7 +394,7 @@ try {
   const files = Array.isArray(latestManifest.files)
     ? latestManifest.files.filter((file) => file?.url && file?.name)
     : [];
-  const visibleFiles = files.filter((file) => !/(\.blockmap|^latest.*\.ya?ml$|\.json)$/i.test(file.name));
+  visibleFiles = files.filter(isVisibleDownload);
   primaryFile = visibleFiles
     .map((file) => ({ file, score: scoreFile(file.name) }))
     .sort((a, b) => b.score - a.score)[0]?.file ?? null;

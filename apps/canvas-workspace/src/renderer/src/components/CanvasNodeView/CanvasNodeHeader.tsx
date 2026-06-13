@@ -1,5 +1,5 @@
 import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
-import type { AgentNodeData, CanvasNode } from '../../types';
+import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
 import { FrameColorPicker } from '../FrameNodeBody';
 import { TextColorPicker } from '../TextNodeBody';
 import { CloseButton, FocusButton, ReferenceButton, AddToChatButton } from './NodeButtons';
@@ -57,6 +57,9 @@ export const CanvasNodeHeader = ({
   const agentTeamRole = node.type === 'agent'
     ? (node.data as AgentNodeData).agentTeamRole
     : undefined;
+  const faviconUrl = node.type === 'iframe'
+    ? (node.data as IframeNodeData).faviconUrl
+    : undefined;
 
   return (
     <div
@@ -64,6 +67,17 @@ export const CanvasNodeHeader = ({
       onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
     >
       <NodeTypeBadge type={node.type} />
+      {faviconUrl ? (
+        <img
+          className="node-favicon"
+          src={faviconUrl}
+          alt=""
+          aria-hidden="true"
+          onError={(event) => {
+            event.currentTarget.style.display = 'none';
+          }}
+        />
+      ) : null}
       <span
         ref={titleRef}
         className="node-title"

@@ -540,11 +540,12 @@
 
 .agent-tab {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 10px;
+  gap: 4px;
+  height: 52px;
+  padding: 6px 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -559,9 +560,65 @@
   min-width: 0;
 }
 
-.agent-tab span {
+.agent-tab__main {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.agent-tab__label {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.agent-tab-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+  color: var(--agent-faint);
+  font-size: 10px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.agent-tab-status__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.agent-tab-status__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-tab-status--available {
+  color: #12835c;
+}
+
+.agent-tab-status--missing {
+  color: var(--agent-warning);
+}
+
+.agent-tab-status--unknown {
+  color: var(--agent-muted);
+}
+
+.agent-tab-status--checking .agent-tab-status__dot {
+  animation: agent-cli-status-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes agent-cli-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
 .agent-tab:hover {
@@ -577,6 +634,112 @@
 
 .agent-tab--active:hover {
   filter: brightness(0.98);
+}
+
+.agent-cli-warning {
+  display: grid;
+  gap: 6px;
+  padding: 10px 11px;
+  border: 1px solid var(--agent-warning-border);
+  border-radius: 10px;
+  background: var(--agent-warning-soft);
+  color: #7c4a03;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agent-cli-warning strong {
+  color: #6f3d00;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.agent-cli-warning .agent-text-link {
+  justify-self: start;
+  padding: 0;
+}
+
+.agent-install-guide {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid rgba(35, 131, 226, 0.14);
+  border-radius: 10px;
+  background: rgba(247, 250, 255, 0.86);
+}
+
+.agent-install-guide__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.agent-install-guide__header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--agent-text);
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-install-guide p {
+  margin: 0;
+  color: var(--agent-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.agent-install-guide__commands {
+  display: grid;
+  gap: 7px;
+}
+
+.agent-install-command {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.agent-install-command > span {
+  color: var(--agent-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.agent-install-command code {
+  min-width: 0;
+  overflow: hidden;
+  padding: 5px 7px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--agent-text);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-install-copy {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid rgba(35, 131, 226, 0.18);
+  border-radius: 7px;
+  background: rgba(35, 131, 226, 0.06);
+  color: var(--agent-accent);
+  font: 800 10.5px var(--agent-sans);
+  cursor: pointer;
+}
+
+.agent-install-copy:hover {
+  background: rgba(35, 131, 226, 0.12);
 }
 
 /* ── Setup: working directory field ────────────────────────────── */

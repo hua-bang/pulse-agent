@@ -1,4 +1,5 @@
 import type { CanvasNode } from '../../types';
+import type { SettingsSection } from '../Settings';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import type { NodeReferenceEntryForCanvas } from '../ReferenceDrawer';
 
@@ -32,4 +33,7 @@ export interface CanvasProps {
   onPasteReferences?: (targetWorkspaceId: string, clipboard: CanvasClipboard) => CanvasNode[];
   nodePatchRequest?: CanvasNodePatchRequest;
   onNodePatchComplete?: (requestId: number) => void;
+  onOpenAppSettings?: (section: SettingsSection) => void;
+  onSetRootFolder?: () => void;
+  onCreateDemoCanvas?: () => void;
 }

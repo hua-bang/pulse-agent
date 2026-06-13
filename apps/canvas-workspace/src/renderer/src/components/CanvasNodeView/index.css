@@ -416,6 +416,14 @@
   color: var(--text-muted);
 }
 
+.node-favicon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
 .node-title {
   flex: 1;
   font-size: 13px;

@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import * as pty from "node-pty";
 import { platform, homedir } from "os";
-import { execSync } from "child_process";
+import { execFileSync, execSync } from "child_process";
 import { existsSync } from "fs";
 
 const sessions = new Map<string, pty.IPty>();
@@ -60,6 +60,27 @@ const defaultShell = () => {
     if (s && existsSync(s)) return s;
   }
   return "/bin/sh";
+};
+
+const shellQuote = (value: string): string =>
+  `'${value.replace(/'/g, "'\\''")}'`;
+
+const checkCommand = (command: string): { ok: boolean; available: boolean; path?: string; error?: string } => {
+  const trimmed = command.trim();
+  if (!trimmed) return { ok: false, available: false, error: "command is required" };
+  try {
+    const output = platform() === "win32"
+      ? execFileSync("where", [trimmed], { encoding: "utf8", timeout: 3000 })
+      : execFileSync(defaultShell(), ["-lc", `command -v ${shellQuote(trimmed)}`], {
+        encoding: "utf8",
+        timeout: 3000,
+        env: process.env,
+      });
+    const path = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+    return { ok: true, available: Boolean(path), path };
+  } catch (err) {
+    return { ok: true, available: false, error: err instanceof Error ? err.message : String(err) };
+  }
 };
 
 const getCwd = (pid: number): string | null => {
@@ -167,6 +188,10 @@ export const setupPtyIpc = () => {
     if (!proc) return { ok: false, error: "session not found" };
     const cwd = getCwd(proc.pid);
     return { ok: true, cwd };
+  });
+
+  ipcMain.handle("pty:checkCommand", (_event, payload: { command: string }) => {
+    return checkCommand(payload.command);
   });
 
   ipcMain.on("pty:write", (_event, payload: { id: string; data: string }) => {

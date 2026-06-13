@@ -85,6 +85,15 @@
   text-overflow: ellipsis;
 }
 
+.iframe-bar-favicon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  margin-right: 6px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
 /* ── Frame wrapper (holds the iframe + streaming effects) ──────────── */
 
 .iframe-frame-wrapper {
@@ -213,6 +222,13 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-muted);
+}
+
+.iframe-load-error-note {
+  margin: -4px 0 12px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-secondary);
 }
 
 .iframe-load-error-actions {

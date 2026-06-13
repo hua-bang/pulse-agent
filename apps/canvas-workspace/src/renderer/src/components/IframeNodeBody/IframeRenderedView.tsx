@@ -11,6 +11,7 @@ interface IframeRenderedViewProps {
   handleRegenerate: () => Promise<void> | void;
   handleReload: () => void;
   html: string;
+  faviconUrl?: string;
   isArtifactMode: boolean;
   isResizing?: boolean;
   loadError: string | null;
@@ -37,6 +38,7 @@ export const IframeRenderedView = ({
   handleRegenerate,
   handleReload,
   html,
+  faviconUrl,
   isArtifactMode,
   isResizing,
   loadError,
@@ -80,6 +82,7 @@ export const IframeRenderedView = ({
           savedPrompt={savedPrompt}
           setEditing={setEditing}
           url={url}
+          faviconUrl={faviconUrl}
           workspaceId={workspaceId}
         />
 
@@ -117,9 +120,12 @@ export const IframeRenderedView = ({
             {loadState === 'failed' && (
               <div className="iframe-load-error">
                 <div className="iframe-load-error-card">
-                  <div className="iframe-load-error-title">Page failed to load</div>
+                  <div className="iframe-load-error-title">Can’t display this page here</div>
                   <div className="iframe-load-error-message">
                     {loadError ?? 'The embedded page could not be displayed.'}
+                  </div>
+                  <div className="iframe-load-error-note">
+                    It stays on the canvas as a reference.
                   </div>
                   <div className="iframe-load-error-actions">
                     <button type="button" className="iframe-empty-btn iframe-empty-btn--primary" onClick={handleReload}>
@@ -172,6 +178,7 @@ const IframeAddressButton = ({
   savedPrompt,
   setEditing,
   url,
+  faviconUrl,
   workspaceId,
 }: Pick<IframeRenderedViewProps,
   | 'artifact'
@@ -185,6 +192,7 @@ const IframeAddressButton = ({
   | 'savedPrompt'
   | 'setEditing'
   | 'url'
+  | 'faviconUrl'
   | 'workspaceId'
 >) => {
   if (isArtifactMode) {
@@ -213,6 +221,17 @@ const IframeAddressButton = ({
         }}
         title={readOnly ? url : 'Edit URL'}
       >
+        {faviconUrl ? (
+          <img
+            className="iframe-bar-favicon"
+            src={faviconUrl}
+            alt=""
+            aria-hidden="true"
+            onError={(event) => {
+              event.currentTarget.style.display = 'none';
+            }}
+          />
+        ) : null}
         <span className="iframe-bar-url-text">{url}</span>
       </button>
     );

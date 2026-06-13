@@ -8,7 +8,15 @@ import {
 } from 'react';
 import type { Artifact, IframeNodeData } from '../../types';
 import type { EditMode, IframeNodeBodyProps, LoadState, WebviewTag } from './types';
-import { BLANK_PAGE_URL, normalizeUrl, prettyTitle, sanitizePageTitle, shouldSyncIframeTitle } from './utils';
+import {
+  BLANK_PAGE_URL,
+  getFriendlyLoadErrorMessage,
+  normalizeUrl,
+  pickFaviconUrl,
+  prettyTitle,
+  sanitizePageTitle,
+  shouldSyncIframeTitle,
+} from './utils';
 import { isImeComposing } from '../../utils/ime';
 
 export const useIframeNodeState = ({
@@ -79,10 +87,15 @@ export const useIframeNodeState = ({
   const webviewRef = useRef<WebviewTag | null>(null);
   const webviewHostRef = useRef<HTMLDivElement>(null);
   const streamIframeRef = useRef<HTMLIFrameElement>(null);
+  const latestDataRef = useRef(data);
   const streamBuf = useRef('');
   const rafId = useRef(0);
   const shellReady = useRef(false);
   const pendingMorph = useRef<string | null>(null);
+
+  useEffect(() => {
+    latestDataRef.current = data;
+  }, [data]);
 
   useLayoutEffect(() => {
     if (mode !== 'url') return;
@@ -137,12 +150,24 @@ export const useIframeNodeState = ({
       const rawTitle = sanitizePageTitle((event as Event & { title?: string }).title);
       const nextTitle = url === BLANK_PAGE_URL && rawTitle === BLANK_PAGE_URL ? 'Blank page' : rawTitle;
       if (!nextTitle || nextTitle === node.title) return;
-      if (!shouldSyncIframeTitle(node.title, data, url)) return;
+      const latestData = latestDataRef.current;
+      if (!shouldSyncIframeTitle(node.title, latestData, url)) return;
 
+      const nextData = { ...latestData, pageTitle: nextTitle };
+      latestDataRef.current = nextData;
       onUpdate(node.id, {
         title: nextTitle,
-        data: { ...data, pageTitle: nextTitle },
+        data: nextData,
       });
+    };
+    const handlePageFaviconUpdated = (event: Event) => {
+      const faviconUrl = pickFaviconUrl((event as Event & { favicons?: string[] }).favicons);
+      if (!faviconUrl) return;
+      const latestData = latestDataRef.current;
+      if (latestData.faviconUrl === faviconUrl) return;
+      const nextData = { ...latestData, faviconUrl };
+      latestDataRef.current = nextData;
+      onUpdate(node.id, { data: nextData });
     };
     const handleDidStartLoading = () => {
       setLoadState('loading');
@@ -154,15 +179,17 @@ export const useIframeNodeState = ({
       if (detail.isMainFrame === false) return;
       if (detail.errorCode === -3) return;
       setLoadState('failed');
-      setLoadError(detail.errorDescription || 'This page failed to load.');
+      setLoadError(getFriendlyLoadErrorMessage(detail.errorDescription, detail.errorCode));
     };
 
     el.addEventListener('page-title-updated', handlePageTitleUpdated);
+    el.addEventListener('page-favicon-updated', handlePageFaviconUpdated);
     el.addEventListener('did-start-loading', handleDidStartLoading);
     el.addEventListener('did-stop-loading', handleDidStopLoading);
     el.addEventListener('did-fail-load', handleDidFailLoad);
     return () => {
       el.removeEventListener('page-title-updated', handlePageTitleUpdated);
+      el.removeEventListener('page-favicon-updated', handlePageFaviconUpdated);
       el.removeEventListener('did-start-loading', handleDidStartLoading);
       el.removeEventListener('did-stop-loading', handleDidStopLoading);
       el.removeEventListener('did-fail-load', handleDidFailLoad);

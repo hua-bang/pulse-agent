@@ -35,6 +35,7 @@ export const IframeNodeBody = ({
         handleRegenerate={state.handleRegenerate}
         handleReload={state.handleReload}
         html={state.html}
+        faviconUrl={state.data.faviconUrl}
         isArtifactMode={state.isArtifactMode}
         isResizing={isResizing}
         loadError={state.loadError}

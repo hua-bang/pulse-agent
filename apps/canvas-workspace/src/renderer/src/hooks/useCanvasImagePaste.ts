@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { CanvasNode, TextNodeData } from '../types';
+import { normalizeReferenceUrl } from '../components/ReferenceDrawer/utils';
 
 interface Options {
   /** Current canvas workspace id — used as the saveImage target directory. */
@@ -16,6 +17,8 @@ interface Options {
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
   /** Make the new image the current selection. */
   onCreated?: (node: CanvasNode) => void;
+  /** Create a web node when the clipboard carries a URL instead of plain notes. */
+  onPasteUrl?: (url: string) => CanvasNode | null;
 }
 
 /** Clamp the pasted image to a reasonable default on-canvas size while
@@ -105,6 +108,7 @@ export const useCanvasImagePaste = ({
   addNode,
   updateNode,
   onCreated,
+  onPasteUrl,
 }: Options) => {
   useEffect(() => {
     if (!active) return;
@@ -117,6 +121,12 @@ export const useCanvasImagePaste = ({
       if (!imageItem) {
         const text = getClipboardText(e).trim();
         if (!text) return;
+        const normalizedUrl = normalizeReferenceUrl(text);
+        if (normalizedUrl && onPasteUrl) {
+          e.preventDefault();
+          onPasteUrl(normalizedUrl);
+          return;
+        }
         e.preventDefault();
         const container = containerRef.current;
         if (!container) return;
@@ -176,5 +186,5 @@ export const useCanvasImagePaste = ({
 
     document.addEventListener('paste', handler);
     return () => document.removeEventListener('paste', handler);
-  }, [active, canvasId, containerRef, screenToCanvas, addNode, updateNode, onCreated]);
+  }, [active, canvasId, containerRef, screenToCanvas, addNode, updateNode, onCreated, onPasteUrl]);
 };

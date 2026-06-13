@@ -55,7 +55,7 @@
 
 .canvas-empty-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -90,6 +90,61 @@
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.canvas-empty-url-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  margin: -2px 0 16px;
+}
+
+.canvas-empty-url-input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.canvas-empty-url-input:focus {
+  border-color: rgba(35, 131, 226, 0.45);
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+}
+
+.canvas-empty-url-submit,
+.canvas-empty-url-cancel {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.canvas-empty-url-submit {
+  border: 1px solid rgba(35, 131, 226, 0.2);
+  background: var(--accent);
+  color: #fff;
+}
+
+.canvas-empty-url-cancel {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text-secondary);
+}
+
+.canvas-empty-url-error {
+  grid-column: 1 / -1;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: left;
 }
 
 .canvas-empty-shortcuts {
@@ -133,6 +188,10 @@
 
   .canvas-empty-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .canvas-empty-url-form {
+    grid-template-columns: 1fr;
   }
 }
 
