@@ -34,6 +34,7 @@
     "test:all": "pnpm -r test",
     "start": "pnpm --filter pulse-coder-cli start",
     "start:debug": "pnpm --filter pulse-coder-cli start:debug",
+    "canvas:package:mac:arm64": "pnpm --filter canvas-workspace package:mac:arm64",
     "clean": "pnpm -r clean",
     "preview:teams": "pnpm --filter pulse-coder-orchestrator build && pnpm --filter pulse-coder-engine build && pnpm --filter pulse-coder-agent-teams build && pnpm --filter @pulse-coder/teams-cli preview",
     "preview:teams:run": "pnpm --filter pulse-coder-orchestrator build && pnpm --filter pulse-coder-engine build && pnpm --filter pulse-coder-agent-teams build && pnpm --filter @pulse-coder/teams-cli preview:run",

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { CanvasWorkspaceApi } from "../renderer/src/types";
 import { createAgentApi } from "./bridge/agent";
 import { createAgentTeamsApi } from "./bridge/agent-teams";
+import { createAppInfoApi } from "./bridge/app-info";
 import { createArtifactsApi } from "./bridge/artifacts";
 import { createCodexSessionsApi } from "./bridge/codex-sessions";
 import { createFileApi } from "./bridge/file";
@@ -30,11 +31,14 @@ import {
 } from "./bridge/webview";
 import { createWorkspaceNodesApi } from "./bridge/workspace-nodes";
 
+declare const __APP_VERSION__: string;
+
 const sendLog = createLogSender(ipcRenderer);
 installRendererErrorLogging(sendLog);
 
 const canvasWorkspace: CanvasWorkspaceApi = {
-  version: "0.1.0",
+  version: __APP_VERSION__,
+  appInfo: createAppInfoApi(ipcRenderer),
   pluginFlags: readPluginFlags(ipcRenderer, sendLog),
   pty: createPtyApi(ipcRenderer),
   store: createStoreApi(ipcRenderer),

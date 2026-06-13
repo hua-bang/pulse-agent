@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+.DS_Store
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -70,6 +71,7 @@ web_modules/
 .env
 .env.*
 !.env.example
+.wrangler/
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache

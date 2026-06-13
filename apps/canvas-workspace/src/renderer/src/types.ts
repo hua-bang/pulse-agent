@@ -1457,6 +1457,7 @@ export interface CodexSessionsApi {
 
 export interface CanvasWorkspaceApi {
   version: string;
+  appInfo: AppInfoApi;
   pluginFlags: Record<string, boolean>;
   pty: {
     spawn: (
@@ -1606,6 +1607,39 @@ export interface CanvasWorkspaceApi {
 export interface ShellApi {
   openExternal: (url: string) => Promise<{ ok: boolean; error?: string }>;
 }
+
+export interface AppInfoApi {
+  getInfo: () => Promise<AppInfoResult>;
+  checkForUpdates: () => Promise<UpdateCheckResult>;
+}
+
+export interface AppInfoResult {
+  ok: boolean;
+  version?: string;
+  updateManifestUrl?: string;
+  downloadUrl?: string;
+  error?: string;
+}
+
+export interface UpdateManifestSummary {
+  version: string;
+  releasedAt?: string;
+  downloadUrl: string;
+  notes?: string;
+}
+
+export type UpdateCheckResult =
+  | {
+      ok: true;
+      currentVersion: string;
+      updateAvailable: boolean;
+      latest: UpdateManifestSummary;
+    }
+  | {
+      ok: false;
+      currentVersion?: string;
+      error?: string;
+    };
 
 export interface ExperimentalFeatureDef {
   id: string;

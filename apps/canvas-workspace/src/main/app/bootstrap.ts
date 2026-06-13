@@ -35,6 +35,7 @@ import { setupWebviewRegistryIpc } from "../webview/registry";
 import { setupHtmlGeneratorIpc } from "../generation/ipc";
 import { setupArtifactIpc } from "../artifacts/ipc";
 import { setupShellIpc } from "./shell-ipc";
+import { setupUpdateIpc } from "./update-ipc";
 import { setupWebpageReaderIpc } from "../webview/reader";
 import { setupWorkspaceNodeIpc } from "../canvas/nodes/ipc";
 import {
@@ -134,6 +135,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupHtmlGeneratorIpc();
     setupArtifactIpc();
     setupShellIpc();
+    setupUpdateIpc();
     setupWebpageReaderIpc();
     setupWorkspaceNodeIpc();
     // Channel credentials: register the config IPC (independent of the
