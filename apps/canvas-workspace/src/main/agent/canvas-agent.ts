@@ -978,6 +978,19 @@ export class CanvasAgent {
         runId: finalizedTrace?.runId,
       });
 
+      // Unconditional per-turn event so plugins (e.g. memory) can react to
+      // every completed turn with the full turn text. Fire-and-forget; the
+      // sync emit never blocks the chat response.
+      agentBus.emitTurn('turnComplete', {
+        runId: finalizedTrace?.runId ?? '',
+        sessionId: this.sessionStore.getCurrentSession()?.sessionId ?? '',
+        data: {
+          scope: this.config.scope,
+          userText: message,
+          assistantText: responseText,
+        },
+      });
+
       // Notify subscribed plugins (devtools persists the trace to its own
       // store; other plugins may inspect the finalized turn). Emitted
       // only when a trace was actually captured.

@@ -8,8 +8,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "rebuild": "electron-rebuild -f -w node-pty",
-    "postinstall": "electron-rebuild -f -w node-pty",
+    "rebuild": "electron-rebuild -f -w node-pty,better-sqlite3",
+    "postinstall": "electron-rebuild -f -w node-pty,better-sqlite3",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "typecheck:renderer": "tsc --noEmit -p tsconfig.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
@@ -36,7 +36,8 @@
       "main": "dist/main/index.js"
     },
     "asarUnpack": [
-      "node_modules/node-pty/**/*"
+      "node_modules/node-pty/**/*",
+      "node_modules/better-sqlite3/**/*"
     ],
     "mac": {
       "target": [
@@ -117,6 +118,7 @@
     "node-pty": "^1.1.0",
     "pulse-coder-agent-teams": "workspace:*",
     "pulse-coder-engine": "workspace:*",
+    "pulse-coder-memory-plugin": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-force-graph-2d": "^1.29.1",

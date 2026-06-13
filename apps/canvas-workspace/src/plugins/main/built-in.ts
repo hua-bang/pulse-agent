@@ -3,6 +3,7 @@ import { DynamicAppPlugin } from './dynamic-app';
 import { DevtoolsMainPlugin } from './devtools';
 import { WebviewPageControlPlugin } from './webview-page-control';
 import { ChannelMainPlugin } from './channel';
+import { MemoryMainPlugin } from './memory';
 
 // Main-side halves of built-in Canvas plugins.
 export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
@@ -10,4 +11,5 @@ export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
   WebviewPageControlPlugin,
   DynamicAppPlugin,
   ChannelMainPlugin,
+  MemoryMainPlugin,
 ];

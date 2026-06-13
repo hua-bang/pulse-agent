@@ -15,7 +15,10 @@ export interface AgentTurn {
   data?: unknown;
 }
 
-export type AgentEvent = 'turnStart' | 'turnEnd';
+// `turnComplete` fires unconditionally after every agent turn (unlike
+// `turnEnd`, which only fires when debug tracing is on) and carries the full
+// turn text, so plugins like memory can react to every turn.
+export type AgentEvent = 'turnStart' | 'turnEnd' | 'turnComplete';
 
 export interface PluginStore {
   get<T>(key: string): Promise<T | undefined>;
