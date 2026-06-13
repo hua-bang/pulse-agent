@@ -60,6 +60,16 @@
   white-space: nowrap;
 }
 
+.update-notice__notes {
+  max-width: 320px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .update-notice__download,
 .update-notice__close {
   display: inline-flex;

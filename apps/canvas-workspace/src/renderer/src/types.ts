@@ -1625,7 +1625,10 @@ export interface UpdateManifestSummary {
   version: string;
   releasedAt?: string;
   downloadUrl: string;
-  notes?: string;
+  notes?: string | {
+    zh?: string;
+    en?: string;
+  };
 }
 
 export type UpdateCheckResult =
