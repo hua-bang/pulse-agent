@@ -8,7 +8,7 @@ const copy = {
   zh: {
     documentTitle: '下载 Pulse Canvas',
     installNav: '安装说明',
-    title: ['下载', 'Pulse Canvas'],
+    title: ['Pulse Canvas'],
     slogan: '组织信息，驱动动作，闭环反馈。',
     checking: '正在检查最新版本...',
     latest: (version, date) => `最新版本 ${version}${date ? ` · ${date}` : ''}`,
@@ -30,7 +30,7 @@ const copy = {
   en: {
     documentTitle: 'Pulse Canvas Download',
     installNav: 'Install notes',
-    title: ['Download', 'Pulse', 'Canvas'],
+    title: ['Pulse Canvas'],
     slogan: 'Organize information, drive action, and close the feedback loop.',
     checking: 'Checking latest version...',
     latest: (version, date) => `Latest version ${version}${date ? ` · ${date}` : ''}`,

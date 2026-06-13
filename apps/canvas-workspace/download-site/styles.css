@@ -167,7 +167,7 @@ a {
 h1 {
   max-width: 520px;
   margin: 0;
-  color: #24211e;
+  color: var(--accent);
   font-size: clamp(52px, 5.9vw, 74px);
   font-weight: 780;
   letter-spacing: 0;
