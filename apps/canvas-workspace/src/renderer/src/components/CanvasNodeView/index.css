@@ -1042,7 +1042,11 @@
 .canvas-node.canvas-node--fullscreen,
 .canvas-node.canvas-node--fullscreen:hover {
   position: absolute !important;
-  inset: 12px !important;
+  inset:
+    var(--canvas-fullscreen-top-gutter, 48px)
+    var(--canvas-fullscreen-inset, 12px)
+    var(--canvas-fullscreen-inset, 12px)
+    var(--canvas-fullscreen-inset, 12px) !important;
   width: auto !important;
   height: auto !important;
   transform: none !important;
@@ -1067,9 +1071,11 @@
  * header stays clean (title only). The chip also owns the exit
  * button, so `.node-fullscreen` itself hides. */
 .canvas-node--fullscreen .node-reference,
+.canvas-node--fullscreen .node-add-to-chat,
 .canvas-node--fullscreen .node-focus,
 .canvas-node--fullscreen .node-close,
 .canvas-node--fullscreen .node-fullscreen,
+.canvas-node--fullscreen .node-header__actions,
 .canvas-node--fullscreen .node-time-label,
 .canvas-node--fullscreen .frame-color-trigger,
 .canvas-node--fullscreen .text-color-trigger,

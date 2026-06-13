@@ -3,6 +3,12 @@ import type { CanvasModelProviderConfig } from '../../types';
 import type { ModelSelection, UseCanvasModelsResult } from './modelSettingsTypes';
 import { shortModelName } from './modelSettingsTypes';
 
+const MODEL_SETTINGS_CHANGED_EVENT = 'canvas-workspace:model-settings-changed';
+
+function broadcastModelStatus(status?: UseCanvasModelsResult['status']): void {
+  window.dispatchEvent(new CustomEvent(MODEL_SETTINGS_CHANGED_EVENT, { detail: status }));
+}
+
 export function useCanvasModels(): UseCanvasModelsResult {
   const [status, setStatus] = useState<UseCanvasModelsResult['status']>();
   const [loading, setLoading] = useState(true);
@@ -26,6 +32,21 @@ export function useCanvasModels(): UseCanvasModelsResult {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    const handleModelSettingsChanged = (event: Event) => {
+      const nextStatus = (event as CustomEvent<UseCanvasModelsResult['status']>).detail;
+      if (nextStatus) {
+        setError(undefined);
+        setLoading(false);
+        setStatus(nextStatus);
+        return;
+      }
+      void refresh();
+    };
+    window.addEventListener(MODEL_SETTINGS_CHANGED_EVENT, handleModelSettingsChanged);
+    return () => window.removeEventListener(MODEL_SETTINGS_CHANGED_EVENT, handleModelSettingsChanged);
+  }, [refresh]);
+
   const selection = useMemo<ModelSelection>(() => {
     if (status?.currentProvider && status.currentModel) {
       return { mode: 'model', providerId: status.currentProvider, modelId: status.currentModel };
@@ -46,6 +67,7 @@ export function useCanvasModels(): UseCanvasModelsResult {
     }
     setError(undefined);
     setStatus(result.status);
+    broadcastModelStatus(result.status);
   }, []);
 
   const selectModel = useCallback(async (providerId: string, modelId: string) => {
@@ -56,6 +78,7 @@ export function useCanvasModels(): UseCanvasModelsResult {
     }
     setError(undefined);
     setStatus(result.status);
+    broadcastModelStatus(result.status);
   }, []);
 
   const upsertProvider = useCallback(async (provider: CanvasModelProviderConfig) => {
@@ -66,6 +89,7 @@ export function useCanvasModels(): UseCanvasModelsResult {
     }
     setError(undefined);
     setStatus(result.status);
+    broadcastModelStatus(result.status);
     return result.status;
   }, []);
 
@@ -77,6 +101,7 @@ export function useCanvasModels(): UseCanvasModelsResult {
     }
     setError(undefined);
     setStatus(result.status);
+    broadcastModelStatus(result.status);
   }, []);
 
   const fetchModels = useCallback(async (provider: CanvasModelProviderConfig) => {

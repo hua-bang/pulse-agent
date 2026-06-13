@@ -1,6 +1,6 @@
 import './index.css';
 import { ShapeToolButton } from './ShapeToolButton';
-import { CodingAgentIcon, PulseGlyphIcon } from '../icons';
+import { AppLogoIcon, CodingAgentIcon, PulseGlyphIcon } from '../icons';
 import { useI18n, type I18nKey } from '../../i18n';
 
 interface Props {
@@ -88,7 +88,7 @@ export const FloatingToolbar = ({
               onClick={onChatToggle}
               title={t('canvas.toolbar.toggleChat')}
             >
-              <PulseGlyphIcon size={18} />
+              <AppLogoIcon size={18} />
             </button>
           </div>
           <div className="toolbar-divider" />
@@ -204,6 +204,23 @@ export const FloatingToolbar = ({
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
+          onClick={() => onAddNode("mindmap")}
+          title={t('canvas.toolbar.addMindmap')}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <circle cx="4.5" cy="9" r="2" stroke="currentColor" strokeWidth="1.3" />
+            <circle cx="14" cy="4.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <circle cx="14" cy="9" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <circle cx="14" cy="13.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
+            <path
+              d="M6.5 8.2 L12.5 5 M6.5 9 L12.5 9 M6.5 9.8 L12.5 13"
+              stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
+            />
+          </svg>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.mindmap')}</span>
+        </button>
+        <button
+          className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("agent")}
           title={t('canvas.toolbar.addCodingAgent')}
         >
@@ -225,23 +242,6 @@ export const FloatingToolbar = ({
             <span className="toolbar-btn-label">{t('canvas.toolbar.team')}</span>
           </button>
         )}
-        <button
-          className="toolbar-btn toolbar-btn--create"
-          onClick={() => onAddNode("mindmap")}
-          title={t('canvas.toolbar.addMindmap')}
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="4.5" cy="9" r="2" stroke="currentColor" strokeWidth="1.3" />
-            <circle cx="14" cy="4.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-            <circle cx="14" cy="9" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-            <circle cx="14" cy="13.5" r="1.5" stroke="currentColor" strokeWidth="1.2" />
-            <path
-              d="M6.5 8.2 L12.5 5 M6.5 9 L12.5 9 M6.5 9.8 L12.5 13"
-              stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"
-            />
-          </svg>
-          <span className="toolbar-btn-label">{t('canvas.toolbar.mindmap')}</span>
-        </button>
       </div>
     </div>
   );

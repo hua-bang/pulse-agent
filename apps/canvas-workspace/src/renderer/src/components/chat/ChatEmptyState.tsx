@@ -65,21 +65,6 @@ export const ChatEmptyState = ({
   const showConfigureBanner = modelStatus !== undefined && !modelStatus.apiKeyPresent;
   return (
     <div className="chat-empty-state">
-      {showConfigureBanner && (
-        <button
-          type="button"
-          className="chat-empty-configure-banner"
-          onClick={onConfigureModel}
-          aria-label={t('chat.configureModelAria')}
-        >
-          <span className="chat-empty-configure-icon" aria-hidden="true">⚠</span>
-          <span className="chat-empty-configure-text">
-            <strong>{t('chat.configureModelTitle')}</strong>
-            <span>{t('chat.configureModelDescription')}</span>
-          </span>
-          <span className="chat-empty-configure-cta">{t('chat.configureModelCta')}</span>
-        </button>
-      )}
       <div className="chat-empty-icon">
         <AppLogoIcon size={36} />
       </div>
@@ -98,6 +83,21 @@ export const ChatEmptyState = ({
           </button>
         ))}
       </div>
+      {showConfigureBanner && (
+        <button
+          type="button"
+          className="chat-empty-configure-banner"
+          onClick={onConfigureModel}
+          aria-label={t('chat.configureModelAria')}
+        >
+          <span className="chat-empty-configure-icon" aria-hidden="true" />
+          <span className="chat-empty-configure-text">
+            <strong>{t('chat.configureModelTitle')}</strong>
+            <span>{t('chat.configureModelDescription')}</span>
+          </span>
+          <span className="chat-empty-configure-cta">{t('chat.configureModelCta')}</span>
+        </button>
+      )}
     </div>
   );
 };

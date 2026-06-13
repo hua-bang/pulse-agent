@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type KeyboardEventHandler } from 'react';
 import type { CanvasNode } from '../../types';
 import { CloseIcon, PlusIcon, SettingsIcon, SparklesIcon } from '../icons';
 import type { SettingsSection } from '../Settings';
@@ -9,9 +9,11 @@ import { ChatSessionsRail, type UnifiedSession } from './ChatSessionsRail';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
+import { useAppShell } from '../AppShellProvider';
 import type { AgentScope, WorkspaceOption } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
+import { isImeComposing } from '../../utils/ime';
 
 const RailToggleIcon = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
@@ -73,6 +75,7 @@ export const ChatPageBody = ({
   onOpenAppSettings,
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
+  const { notify } = useAppShell();
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const anchorScopeId = workspaceId ?? 'global';
   // Snapshot at mount: the caller might change pendingSessionId later (e.g.
@@ -160,9 +163,27 @@ export const ChatPageBody = ({
   // avoid bouncing the user to Settings before status loads.
   const notConfigured = canvasModels.status !== undefined && !canvasModels.status.apiKeyPresent;
 
+  const openModelSettingsWithHint = useCallback(() => {
+    onOpenAppSettings('models');
+    notify({
+      tone: 'info',
+      title: t('chat.configureModelToastTitle'),
+      description: t('chat.configureModelToastDescription'),
+      autoCloseMs: 2200,
+    });
+  }, [notify, onOpenAppSettings, t]);
+
+  const openModelSettingsFromSwitcher = useCallback(() => {
+    if (notConfigured) {
+      openModelSettingsWithHint();
+      return;
+    }
+    onOpenAppSettings('models');
+  }, [notConfigured, onOpenAppSettings, openModelSettingsWithHint]);
+
   const handleQuickAction = useCallback(async (prompt: string) => {
     if (notConfigured) {
-      onOpenAppSettings('models');
+      openModelSettingsWithHint();
       return;
     }
     if (!prompt) {
@@ -174,15 +195,33 @@ export const ChatPageBody = ({
     if (ok) {
       clearInput();
     }
-  }, [clearInput, focusInput, notConfigured, onOpenAppSettings, sendMessage]);
+  }, [clearInput, focusInput, notConfigured, openModelSettingsWithHint, sendMessage]);
 
   const handleSubmit = useCallback(async () => {
     if (notConfigured) {
-      onOpenAppSettings('models');
+      openModelSettingsWithHint();
       return false;
     }
     return await submitCurrentInput();
-  }, [notConfigured, onOpenAppSettings, submitCurrentInput]);
+  }, [notConfigured, openModelSettingsWithHint, submitCurrentInput]);
+
+  const handleComposerKeyDown = useCallback<KeyboardEventHandler<HTMLDivElement>>((event) => {
+    const mentionSelecting = mentionOpen && mentionItems.length > 0;
+    const hasDraft = Boolean(input.trim() || attachments.length > 0);
+    if (
+      notConfigured
+      && hasDraft
+      && !mentionSelecting
+      && event.key === 'Enter'
+      && !event.shiftKey
+      && !isImeComposing(event)
+    ) {
+      event.preventDefault();
+      openModelSettingsWithHint();
+      return;
+    }
+    handleKeyDown(event);
+  }, [attachments.length, handleKeyDown, input, mentionItems.length, mentionOpen, notConfigured, openModelSettingsWithHint]);
 
   // Clicking a mention chip should jump back to the canvas and focus the node.
   const handleNodeFocus = useCallback((nodeId: string) => {
@@ -409,7 +448,7 @@ export const ChatPageBody = ({
           onSelectMention={selectMention}
           onMentionIndexChange={setMentionIndex}
           onInput={handleInput}
-          onKeyDown={handleKeyDown}
+          onKeyDown={handleComposerKeyDown}
           onPaste={handlePaste}
           onAttachFiles={handleAttachFiles}
           onRemoveAttachment={removeAttachment}
@@ -420,7 +459,7 @@ export const ChatPageBody = ({
           modelLabel={canvasModels.selectedLabel}
           onSelectAutoModel={canvasModels.selectAuto}
           onSelectModel={canvasModels.selectModel}
-          onOpenModelSettings={() => onOpenAppSettings('models')}
+          onOpenModelSettings={openModelSettingsFromSwitcher}
           contextComposer
           onEditUserMessage={handleEditUserMessage}
           onRegenerate={handleRegenerate}
