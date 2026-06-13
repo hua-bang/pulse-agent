@@ -1,16 +1,102 @@
-import { EMPTY_CANVAS_ACTIONS } from '../../constants/interaction';
+import { useState, type FormEvent } from 'react';
 import type { CanvasNode } from '../../types';
 import { AppLogoIcon } from '../icons';
 import { useI18n } from '../../i18n';
+import { normalizeReferenceUrl } from '../ReferenceDrawer/utils';
 import './index.css';
 
 interface CanvasEmptyHintProps {
   onCreateNode: (type: Extract<CanvasNode['type'], 'agent' | 'terminal' | 'file' | 'iframe'>) => void;
+  onCreateUrl?: (url: string) => void;
+  onCreateDemo?: () => void;
+  onConfigureAi?: () => void;
+  onOpenChat?: () => void;
   onOpenShortcuts: () => void;
+  onSetRootFolder?: () => void;
 }
 
-export const CanvasEmptyHint = ({ onCreateNode, onOpenShortcuts }: CanvasEmptyHintProps) => {
+export const CanvasEmptyHint = ({
+  onCreateNode,
+  onCreateUrl,
+  onCreateDemo,
+  onConfigureAi,
+  onOpenChat,
+  onOpenShortcuts,
+  onSetRootFolder,
+}: CanvasEmptyHintProps) => {
   const { t } = useI18n();
+  const [urlComposerOpen, setUrlComposerOpen] = useState(false);
+  const [urlDraft, setUrlDraft] = useState('');
+  const [urlError, setUrlError] = useState('');
+
+  const openUrlComposer = () => {
+    if (!onCreateUrl) {
+      onCreateNode('iframe');
+      return;
+    }
+    setUrlComposerOpen(true);
+    setUrlError('');
+    void navigator.clipboard?.readText?.().then((text) => {
+      const normalized = normalizeReferenceUrl(text);
+      if (!normalized) return;
+      setUrlDraft((current) => (current.trim() ? current : normalized));
+    }).catch(() => {
+      // Clipboard access can be denied; the input still works manually.
+    });
+  };
+
+  const submitUrl = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!onCreateUrl) return;
+    const normalized = normalizeReferenceUrl(urlDraft);
+    if (!normalized) {
+      setUrlError(t('canvas.empty.urlInvalid'));
+      return;
+    }
+    onCreateUrl(normalized);
+    setUrlComposerOpen(false);
+    setUrlDraft('');
+    setUrlError('');
+  };
+
+  const actions = [
+    {
+      key: 'web',
+      label: t('canvas.empty.webPage'),
+      description: t('canvas.empty.webPageDescription'),
+      onClick: openUrlComposer,
+    },
+    {
+      key: 'demo',
+      label: t('canvas.empty.demoCanvas'),
+      description: t('canvas.empty.demoCanvasDescription'),
+      onClick: onCreateDemo,
+    },
+    {
+      key: 'set-root',
+      label: t('canvas.empty.setProjectFolder'),
+      description: t('canvas.empty.setProjectFolderDescription'),
+      onClick: onSetRootFolder,
+    },
+    {
+      key: 'note',
+      label: t('canvas.empty.newNote'),
+      description: t('canvas.empty.newNoteDescription'),
+      onClick: () => onCreateNode('file'),
+    },
+    {
+      key: 'ai',
+      label: t('canvas.empty.openAiChat'),
+      description: t('canvas.empty.openAiChatDescription'),
+      onClick: onOpenChat ?? onConfigureAi,
+    },
+    {
+      key: 'agent',
+      label: t('canvas.empty.createAgent'),
+      description: t('canvas.empty.createAgentDescription'),
+      onClick: () => onCreateNode('agent'),
+    },
+  ].filter((action) => Boolean(action.onClick));
 
   return (
     <div className="canvas-empty-hint">
@@ -21,18 +107,50 @@ export const CanvasEmptyHint = ({ onCreateNode, onOpenShortcuts }: CanvasEmptyHi
         <div className="hint-text">{t('canvas.empty.title')}</div>
         <div className="hint-sub">{t('canvas.empty.description')}</div>
         <div className="canvas-empty-actions">
-          {EMPTY_CANVAS_ACTIONS.map((action) => (
+          {actions.map((action) => (
             <button
-              key={action.actionKey}
+              key={action.key}
               type="button"
               className="canvas-empty-action"
-              onClick={() => onCreateNode(action.nodeType)}
+              onClick={action.onClick}
             >
-              <span className="canvas-empty-action__label">{t(action.labelKey)}</span>
-              <span className="canvas-empty-action__description">{t(action.descriptionKey)}</span>
+              <span className="canvas-empty-action__label">{action.label}</span>
+              <span className="canvas-empty-action__description">{action.description}</span>
             </button>
           ))}
         </div>
+        {urlComposerOpen && (
+          <form className="canvas-empty-url-form" onSubmit={submitUrl}>
+            <input
+              type="text"
+              inputMode="url"
+              autoComplete="url"
+              className="canvas-empty-url-input"
+              value={urlDraft}
+              onChange={(event) => {
+                setUrlDraft(event.target.value);
+                setUrlError('');
+              }}
+              placeholder={t('canvas.empty.urlPlaceholder')}
+              autoFocus
+              spellCheck={false}
+            />
+            <button type="submit" className="canvas-empty-url-submit">
+              {t('canvas.empty.urlAdd')}
+            </button>
+            <button
+              type="button"
+              className="canvas-empty-url-cancel"
+              onClick={() => {
+                setUrlComposerOpen(false);
+                setUrlError('');
+              }}
+            >
+              {t('canvas.empty.urlCancel')}
+            </button>
+            {urlError && <div className="canvas-empty-url-error">{urlError}</div>}
+          </form>
+        )}
         <button type="button" className="canvas-empty-shortcuts" onClick={onOpenShortcuts}>
           <span className="canvas-empty-shortcuts__key">?</span>
           <span>{t('canvas.empty.showShortcuts')}</span>

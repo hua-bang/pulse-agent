@@ -251,6 +251,7 @@ export const useAgentNodeController = ({
   });
   const [fromRestart, setFromRestart] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [launchErrorCommand, setLaunchErrorCommand] = useState<string | null>(null);
   const [teamAutoResumePending, setTeamAutoResumePending] = useState(false);
   const [teamAutoResumeRetryTick, setTeamAutoResumeRetryTick] = useState(0);
 
@@ -1115,8 +1116,22 @@ export const useAgentNodeController = ({
     });
   }, [viewMode, isMirrorTerminal, readOnly]);
 
-  const handleLaunch = useCallback(() => {
+  const ensureAgentCommandAvailable = useCallback(async (agentType: string, skipPreflight = false): Promise<boolean> => {
+    setLaunchErrorCommand(null);
+    if (skipPreflight) return true;
+    const command = getAgentCommand(agentType);
+    if (!command) return true;
+    const api = window.canvasWorkspace?.pty;
+    if (!api?.checkCommand) return true;
+    const result = await api.checkCommand(command);
+    if (result.ok && result.available) return true;
+    setLaunchErrorCommand(command);
+    return false;
+  }, []);
+
+  const handleLaunch = useCallback(async (options?: { skipPreflight?: boolean }) => {
     if (readOnly || isMirrorTerminal) return;
+    if (!(await ensureAgentCommandAvailable(selectedAgent, options?.skipPreflight))) return;
     const effectiveCwd = cwdInput || dataRef.current.cwd || rootFolder || '';
     const prompt = promptInput.trim();
     const effectiveDangerousMode = dataRef.current.agentTeamId ? true : dangerousMode;
@@ -1150,7 +1165,7 @@ export const useAgentNodeController = ({
     });
     setFromRestart(false);
     setViewMode('running');
-  }, [selectedAgent, cwdInput, promptInput, dangerousMode, rootFolder, isMirrorTerminal, readOnly]);
+  }, [selectedAgent, cwdInput, promptInput, dangerousMode, rootFolder, isMirrorTerminal, readOnly, ensureAgentCommandAvailable]);
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
     if (readOnly) return;
@@ -1173,9 +1188,10 @@ export const useAgentNodeController = ({
     termRef.current?.focus();
   }, []);
 
-  const handleRestartSession = useCallback(() => {
+  const handleRestartSession = useCallback(async (options?: { skipPreflight?: boolean }) => {
     if (readOnly || isMirrorTerminal) return;
     const savedAgent = data.agentType || selectedAgent;
+    if (!(await ensureAgentCommandAvailable(savedAgent, options?.skipPreflight))) return;
     const savedCwd = data.cwd || rootFolder || '';
     const savedPrompt = data.lastInitPrompt || '';
     const shouldResumeSavedSession =
@@ -1207,7 +1223,12 @@ export const useAgentNodeController = ({
     });
     setFromRestart(false);
     setViewMode('running');
-  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, rootFolder, isMirrorTerminal, readOnly]);
+  }, [data.agentType, data.cwd, data.lastInitPrompt, selectedAgent, rootFolder, isMirrorTerminal, readOnly, ensureAgentCommandAvailable]);
+
+  const handleSelectedAgentChange = useCallback((agentType: string) => {
+    setLaunchErrorCommand(null);
+    setSelectedAgent(agentType);
+  }, []);
 
   const handleEditInit = useCallback(() => {
     if (readOnly || isMirrorTerminal) return;
@@ -1246,6 +1267,7 @@ export const useAgentNodeController = ({
     handleMentionSelect,
     handlePickFolder,
     handleRestartSession,
+    launchErrorCommand,
     loading,
     pickerOpen,
     promptInput,
@@ -1253,7 +1275,7 @@ export const useAgentNodeController = ({
     selectedAgent,
     setCwdInput,
     setPromptInput,
-    setSelectedAgent,
+    setSelectedAgent: handleSelectedAgentChange,
     dangerousMode,
     setDangerousMode,
     status: data.status ?? 'idle',

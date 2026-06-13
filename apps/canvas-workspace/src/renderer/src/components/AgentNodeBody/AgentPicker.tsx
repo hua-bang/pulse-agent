@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AGENT_REGISTRY, type AgentDef } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
@@ -13,6 +13,7 @@ interface AgentPickerProps {
   rootFolder?: string;
   recentCwds: string[];
   variant?: 'default' | 'team-lead';
+  launchErrorCommand?: string | null;
   teamLeadBriefSlot?: ReactNode;
   /** Optional Back button used when entering Setup from the Restart view. */
   onBack?: () => void;
@@ -21,7 +22,7 @@ interface AgentPickerProps {
   onPromptChange: (value: string) => void;
   onDangerousModeChange: (value: boolean) => void;
   onPickFolder: () => void;
-  onLaunch: () => void;
+  onLaunch: (options?: { skipPreflight?: boolean }) => void;
 }
 
 const FolderGlyph = () => (
@@ -51,6 +52,44 @@ const PlayGlyph = () => (
   </svg>
 );
 
+type CommandStatus = 'checking' | 'available' | 'missing' | 'unknown';
+
+interface AgentInstallGuide {
+  primaryCommand: string;
+  alternateCommands?: string[];
+  verifyCommand: string;
+  docUrl?: string;
+  noteKey: 'agent.installNoteClaude' | 'agent.installNoteCodex' | 'agent.installNotePulseCoder';
+}
+
+const AGENT_INSTALL_GUIDES: Record<string, AgentInstallGuide> = {
+  'claude-code': {
+    primaryCommand: 'curl -fsSL https://claude.ai/install.sh | bash',
+    alternateCommands: [
+      'brew install --cask claude-code',
+      'winget install Anthropic.ClaudeCode',
+    ],
+    verifyCommand: 'claude',
+    docUrl: 'https://code.claude.com/docs/quickstart',
+    noteKey: 'agent.installNoteClaude',
+  },
+  codex: {
+    primaryCommand: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
+    alternateCommands: [
+      'npm install -g @openai/codex',
+      'brew install --cask codex',
+    ],
+    verifyCommand: 'codex',
+    docUrl: 'https://developers.openai.com/codex/quickstart',
+    noteKey: 'agent.installNoteCodex',
+  },
+  'pulse-coder': {
+    primaryCommand: 'pnpm install && pnpm --filter pulse-coder-cli build && pnpm --dir packages/cli link --global',
+    verifyCommand: 'pulse-coder',
+    noteKey: 'agent.installNotePulseCoder',
+  },
+};
+
 export const AgentPicker = ({
   selectedAgent,
   cwdInput,
@@ -59,6 +98,7 @@ export const AgentPicker = ({
   rootFolder,
   recentCwds,
   variant = 'default',
+  launchErrorCommand,
   teamLeadBriefSlot,
   onBack,
   onAgentChange,
@@ -69,6 +109,10 @@ export const AgentPicker = ({
   onLaunch,
 }: AgentPickerProps) => {
   const { t } = useI18n();
+  const [commandStatusByAgent, setCommandStatusByAgent] = useState<Record<string, CommandStatus>>(() => {
+    return Object.fromEntries(AGENT_REGISTRY.map((agent) => [agent.id, 'checking']));
+  });
+  const [copiedCommand, setCopiedCommand] = useState<string | null>(null);
   const agentDef = AGENT_REGISTRY.find((a: AgentDef) => a.id === selectedAgent);
   const effectiveCwd = cwdInput || rootFolder || '';
   const previewCmd = agentDef?.command ?? 'agent';
@@ -82,8 +126,69 @@ export const AgentPicker = ({
         : '';
   const supportsDangerous = dangerousFlag !== '';
   const effectiveDangerousMode = isTeamLead ? true : dangerousMode;
+  const selectedCommandStatus = commandStatusByAgent[selectedAgent] ?? 'checking';
+  const installGuide = AGENT_INSTALL_GUIDES[selectedAgent];
+  const shouldShowInstallGuide = Boolean(installGuide && (selectedCommandStatus === 'missing' || launchErrorCommand));
   const startTitle = `Start ${agentDef?.label ?? 'agent'}  —  ${previewCmd}${effectiveDangerousMode && supportsDangerous ? ` ${dangerousFlag}` : ''
     }${effectiveCwd ? ` in ${effectiveCwd}` : ''}`;
+  const allInstallCommands = useMemo(() => {
+    if (!installGuide) return [];
+    return [installGuide.primaryCommand, ...(installGuide.alternateCommands ?? [])];
+  }, [installGuide]);
+  const getStatusLabel = (status: CommandStatus) => {
+    if (status === 'available') return t('agent.cliStatusInstalled');
+    if (status === 'missing') return t('agent.cliStatusMissing');
+    if (status === 'unknown') return t('agent.cliStatusUnknown');
+    return t('agent.cliStatusChecking');
+  };
+
+  useEffect(() => {
+    const checker = window.canvasWorkspace?.pty?.checkCommand;
+    if (!checker) {
+      setCommandStatusByAgent(Object.fromEntries(
+        AGENT_REGISTRY.map((agent) => [agent.id, 'unknown']),
+      ));
+      return;
+    }
+
+    let cancelled = false;
+    for (const agent of AGENT_REGISTRY) {
+      void checker(agent.command).then((result) => {
+        if (cancelled) return;
+        setCommandStatusByAgent((prev) => ({
+          ...prev,
+          [agent.id]: result.ok && result.available ? 'available' : 'missing',
+        }));
+      }).catch(() => {
+        if (cancelled) return;
+        setCommandStatusByAgent((prev) => ({
+          ...prev,
+          [agent.id]: 'missing',
+        }));
+      });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const copyCommand = (command: string) => {
+    const clipboard = navigator.clipboard;
+    if (!clipboard?.writeText) {
+      setCopiedCommand(null);
+      return;
+    }
+    void clipboard.writeText(command).then(() => {
+      setCopiedCommand(command);
+    }).catch(() => {
+      setCopiedCommand(null);
+    });
+  };
+
+  const openInstallDocs = (url: string) => {
+    void window.canvasWorkspace?.shell.openExternal(url);
+  };
 
   return (
     <div className="agent-body-wrap agent-body-wrap--setup">
@@ -114,11 +219,80 @@ export const AgentPicker = ({
                 onClick={() => onAgentChange(a.id)}
                 title={`${a.label} — ${a.description}`}
               >
-                <AgentIcon id={a.id} size={16} />
-                <span>{a.label}</span>
+                <span className="agent-tab__main">
+                  <AgentIcon id={a.id} size={16} />
+                  <span className="agent-tab__label">{a.label}</span>
+                </span>
+                <span
+                  className={`agent-tab-status agent-tab-status--${commandStatusByAgent[a.id] ?? 'checking'}`}
+                  title={`${a.command}: ${getStatusLabel(commandStatusByAgent[a.id] ?? 'checking')}`}
+                >
+                  <span className="agent-tab-status__dot" />
+                  <span className="agent-tab-status__text">
+                    {getStatusLabel(commandStatusByAgent[a.id] ?? 'checking')}
+                  </span>
+                </span>
               </button>
             ))}
           </div>
+
+          {launchErrorCommand && (
+            <div className="agent-cli-warning" role="status">
+              <strong>{t('agent.cliMissingTitle', { command: launchErrorCommand })}</strong>
+              <span>{t('agent.cliMissingDescription')}</span>
+              <button
+                type="button"
+                className="agent-text-link"
+                onClick={() => onLaunch({ skipPreflight: true })}
+              >
+                {t('agent.startAnyway')}
+              </button>
+            </div>
+          )}
+
+          {shouldShowInstallGuide && installGuide && agentDef && (
+            <div className="agent-install-guide">
+              <div className="agent-install-guide__header">
+                <strong>{t('agent.installGuideTitle', { agent: agentDef.label })}</strong>
+                {installGuide.docUrl ? (
+                  <button
+                    type="button"
+                    className="agent-text-link"
+                    onClick={() => openInstallDocs(installGuide.docUrl!)}
+                  >
+                    {t('agent.installDocs')}
+                  </button>
+                ) : null}
+              </div>
+              <p>{t(installGuide.noteKey)}</p>
+              <div className="agent-install-guide__commands">
+                {allInstallCommands.map((command, index) => (
+                  <div className="agent-install-command" key={command}>
+                    <span>{index === 0 ? t('agent.installRecommended') : t('agent.installAlternative')}</span>
+                    <code>{command}</code>
+                    <button
+                      type="button"
+                      className="agent-install-copy"
+                      onClick={() => copyCommand(command)}
+                    >
+                      {copiedCommand === command ? t('agent.installCopied') : t('agent.installCopy')}
+                    </button>
+                  </div>
+                ))}
+                <div className="agent-install-command agent-install-command--verify">
+                  <span>{t('agent.installVerify')}</span>
+                  <code>{installGuide.verifyCommand}</code>
+                  <button
+                    type="button"
+                    className="agent-install-copy"
+                    onClick={() => copyCommand(installGuide.verifyCommand)}
+                  >
+                    {copiedCommand === installGuide.verifyCommand ? t('agent.installCopied') : t('agent.installCopy')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {isTeamLead ? (
             <>
@@ -239,7 +413,7 @@ export const AgentPicker = ({
             type="button"
             className="agent-primary-btn"
             style={{ opacity: 0.8 }}
-            onClick={onLaunch}
+            onClick={() => onLaunch()}
             title={startTitle}
           >
             <PlayGlyph />

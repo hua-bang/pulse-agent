@@ -26,8 +26,10 @@ import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
-import { NODE_TYPE_LABELS } from '../../utils/nodeFactory';
-import type { AgentNodeData, CanvasNode } from '../../types';
+import { getNodeDefaultSize, NODE_TYPE_LABELS } from '../../utils/nodeFactory';
+import { createDefaultEdge } from '../../utils/edgeFactory';
+import { getUrlHostname, normalizeReferenceUrl } from '../ReferenceDrawer/utils';
+import type { AgentNodeData, CanvasNode, IframeNodeData, TerminalNodeData, TextNodeData } from '../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../shared/experimental-features';
 
@@ -72,6 +74,8 @@ export const Canvas = ({
   onPasteReferences,
   nodePatchRequest,
   onNodePatchComplete,
+  onOpenAppSettings,
+  onSetRootFolder,
 }: CanvasProps) => {
   const { confirm, notify, updateToast, dismissToast, openShortcuts, isOverlayOpen } = useAppShell();
   const { t } = useI18n();
@@ -358,6 +362,134 @@ export const Canvas = ({
     return created;
   }, [pasteReferenceNodes, notify, t]);
 
+  const getViewportCenter = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    return screenToCanvas(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+      container,
+    );
+  }, [containerRef, screenToCanvas]);
+
+  const handleCreateUrlNode = useCallback((value: string): CanvasNode | null => {
+    const url = normalizeReferenceUrl(value);
+    const center = getViewportCenter();
+    if (!url || !center) return null;
+
+    const size = getNodeDefaultSize('iframe');
+    const node = addNode('iframe', center.x - size.width / 2, center.y - size.height / 2);
+    const title = getUrlHostname(url) || url;
+    const patch = {
+      title,
+      data: {
+        url,
+        html: '',
+        mode: 'url',
+        prompt: '',
+      } satisfies IframeNodeData,
+    };
+    updateNode(node.id, patch);
+    setSelectedNodeIds([node.id]);
+    setHighlightedId(node.id);
+    return { ...node, ...patch };
+  }, [addNode, getViewportCenter, setHighlightedId, setSelectedNodeIds, updateNode]);
+
+  const handleCreateDemoCanvas = useCallback(() => {
+    const center = getViewportCenter();
+    if (!center) return;
+
+    const intro = addNode('text', center.x - 600, center.y - 285);
+    updateNode(intro.id, {
+      title: t('canvas.demo.introTitle'),
+      width: 420,
+      height: 280,
+      data: {
+        content: t('canvas.demo.introContent'),
+        textColor: '#1f2328',
+        backgroundColor: '#ffffff',
+        fontSize: 17,
+        autoSize: false,
+      } satisfies TextNodeData,
+    });
+
+    const web = addNode('iframe', center.x - 120, center.y - 285);
+    updateNode(web.id, {
+      title: t('canvas.demo.webTitle'),
+      width: 520,
+      height: 360,
+      data: {
+        url: 'https://github.com/hua-bang/pulse-agent',
+        html: '',
+        mode: 'url',
+        prompt: '',
+      } satisfies IframeNodeData,
+    });
+
+    const terminal = addNode('terminal', center.x - 600, center.y + 80);
+    updateNode(terminal.id, {
+      title: t('canvas.demo.terminalTitle'),
+      width: 480,
+      height: 300,
+      data: {
+        sessionId: '',
+        ...(rootFolder ? { cwd: rootFolder } : {}),
+      } satisfies TerminalNodeData,
+    });
+
+    const agent = addNode('agent', center.x - 60, center.y + 80);
+    updateNode(agent.id, {
+      title: t('canvas.demo.agentTitle'),
+      width: 520,
+      height: 360,
+      data: {
+        sessionId: '',
+        ...(rootFolder ? { cwd: rootFolder } : {}),
+        agentType: 'claude-code',
+        status: 'idle',
+        viewMode: 'setup',
+        lastInitPrompt: t('canvas.demo.agentPrompt'),
+      } satisfies AgentNodeData,
+    });
+
+    addEdge(createDefaultEdge(
+      { kind: 'node', nodeId: intro.id, anchor: 'right' },
+      { kind: 'node', nodeId: web.id, anchor: 'left' },
+      {
+        label: t('canvas.demo.edgeReference'),
+        stroke: { color: '#2383e2', width: 2.4, style: 'solid' },
+      },
+    ));
+    addEdge(createDefaultEdge(
+      { kind: 'node', nodeId: terminal.id, anchor: 'right' },
+      { kind: 'node', nodeId: agent.id, anchor: 'left' },
+      {
+        label: t('canvas.demo.edgeRun'),
+        stroke: { color: '#10b981', width: 2.4, style: 'solid' },
+      },
+    ));
+
+    setSelectedNodeIds([intro.id]);
+    setHighlightedId(intro.id);
+    notify({
+      tone: 'success',
+      title: t('canvas.demo.createdTitle'),
+      description: t('canvas.demo.createdDescription'),
+      autoCloseMs: 2600,
+    });
+  }, [
+    addEdge,
+    addNode,
+    getViewportCenter,
+    notify,
+    rootFolder,
+    setHighlightedId,
+    setSelectedNodeIds,
+    t,
+    updateNode,
+  ]);
+
   // Zoom-chip companions: reframe around everything / the selection.
   const handleFitAll = useCallback(() => {
     fitAllNodes(nodes);
@@ -473,6 +605,7 @@ export const Canvas = ({
     canvasId, active: isActive, containerRef, screenToCanvas,
     addNode, updateNode,
     onCreated: (node) => setSelectedNodeIds([node.id]),
+    onPasteUrl: handleCreateUrlNode,
   });
 
   useCanvasExternalNodeEvents({
@@ -556,6 +689,8 @@ export const Canvas = ({
       getPreviewEndpoints={getPreviewEndpoints}
       handleNodeViewportFocus={handleNodeViewportFocus}
       handleCreateAgentTeam={AGENT_TEAMS_ENABLED ? handleCreateAgentTeam : undefined}
+      handleCreateDemoCanvas={handleCreateDemoCanvas}
+      handleCreateUrlNode={handleCreateUrlNode}
       handleSearchMatchActivate={handleSearchMatchActivate}
       handleSelectNode={handleSelectNode}
       handleShapeOverlayMouseDown={handleShapeOverlayMouseDown}
@@ -600,6 +735,8 @@ export const Canvas = ({
       transform={transform}
       updateEdge={updateEdge}
       updateNode={updateNode}
+      onOpenAppSettings={onOpenAppSettings}
+      onSetRootFolder={onSetRootFolder}
     />
   );
 };

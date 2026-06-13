@@ -187,6 +187,7 @@ export const AgentNodeBody = ({
         dangerousMode={controller.dangerousMode}
         rootFolder={rootFolder}
         recentCwds={controller.recentCwds}
+        launchErrorCommand={controller.launchErrorCommand}
         variant={isTeamLead ? 'team-lead' : 'default'}
         teamLeadBriefSlot={isTeamLead ? teamLeadBriefSlot : undefined}
         onBack={controller.fromRestart ? controller.handleBackToRestart : undefined}

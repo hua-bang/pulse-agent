@@ -16,6 +16,8 @@ export const createPtyApi = (ipcRenderer: IpcRenderer): CanvasWorkspaceApi["pty"
 
   getCwd: (id) => ipcRenderer.invoke("pty:getCwd", { id }),
 
+  checkCommand: (command) => ipcRenderer.invoke("pty:checkCommand", { command }),
+
   onData: (id, callback) => subscribe<string>(ipcRenderer, `pty:data:${id}`, callback),
 
   onExit: (id, callback) => subscribe<number>(ipcRenderer, `pty:exit:${id}`, callback)

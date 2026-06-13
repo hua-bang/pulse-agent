@@ -31,6 +31,7 @@ interface WorkbenchProps {
   onSelectWorkspace: (workspaceId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  onSetActiveRootFolder: () => void;
 }
 
 export const Workbench: React.FC<WorkbenchProps> = ({
@@ -39,6 +40,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   controller,
   onSelectWorkspace,
   onOpenAppSettings,
+  onSetActiveRootFolder,
 }) => {
   const {
     allNodes,
@@ -463,6 +465,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onNodePatchComplete={(requestId) => {
                     if (nodePatchRequest?.requestId === requestId) setNodePatchRequest(undefined);
                   }}
+                  onOpenAppSettings={onOpenAppSettings}
+                  onSetRootFolder={onSetActiveRootFolder}
                 />
               </div>
             );

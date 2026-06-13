@@ -274,6 +274,8 @@ export interface IframeNodeData {
   prompt?: string;
   /** Last page title reported by the embedded webview for URL mode. */
   pageTitle?: string;
+  /** Last favicon URL reported by the embedded webview for URL mode. */
+  faviconUrl?: string;
   /** When set, content is sourced from `artifacts.get(artifactId)`. */
   artifactId?: string;
 }
@@ -1472,6 +1474,7 @@ export interface CanvasWorkspaceApi {
     resize: (id: string, cols: number, rows: number) => void;
     kill: (id: string) => void;
     getCwd: (id: string) => Promise<{ ok: boolean; cwd?: string | null }>;
+    checkCommand: (command: string) => Promise<{ ok: boolean; available: boolean; path?: string; error?: string }>;
     onData: (id: string, callback: (data: string) => void) => () => void;
     onExit: (id: string, callback: (exitCode: number) => void) => () => void;
   };

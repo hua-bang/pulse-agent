@@ -281,6 +281,88 @@ h1 span {
   opacity: 0.52;
 }
 
+.download-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.download-option {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid rgba(35, 131, 226, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--shadow-card);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.download-option:hover {
+  border-color: rgba(35, 131, 226, 0.28);
+  box-shadow: 0 10px 22px rgba(35, 131, 226, 0.08);
+  transform: translateY(-1px);
+}
+
+.download-option--disabled {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow: none;
+}
+
+.download-option--disabled:hover {
+  border-color: rgba(35, 131, 226, 0.14);
+  box-shadow: none;
+  transform: none;
+}
+
+.download-option__title {
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.download-option__meta,
+.download-option__checksum {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-option__checksum {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+}
+
+.download-note,
+.install-note {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.download-note {
+  margin: 12px 0 0;
+}
+
+.install-note {
+  margin: 14px 0 0;
+}
+
 .product-preview {
   width: min(100%, 690px);
   margin: 0;
@@ -443,6 +525,10 @@ h1 span {
 
   .hero-copy {
     max-width: 660px;
+  }
+
+  .download-options {
+    grid-template-columns: 1fr;
   }
 
   .product-preview {

@@ -28,6 +28,61 @@ const emptyProvider = (): CanvasModelProviderConfig => ({
   models: [],
 });
 
+const PROVIDER_PRESETS = [
+  {
+    id: 'openai',
+    labelKey: 'models.presetOpenAI',
+    descriptionKey: 'models.presetOpenAIDescription',
+    provider: {
+      id: 'openai',
+      name: 'OpenAI',
+      provider_type: 'openai',
+      base_url: 'https://api.openai.com/v1',
+      api_key_env: 'OPENAI_API_KEY',
+      models: [{ id: 'gpt-4o' }],
+    },
+  },
+  {
+    id: 'anthropic',
+    labelKey: 'models.presetAnthropic',
+    descriptionKey: 'models.presetAnthropicDescription',
+    provider: {
+      id: 'anthropic',
+      name: 'Anthropic',
+      provider_type: 'claude',
+      base_url: 'https://api.anthropic.com',
+      api_key_env: 'ANTHROPIC_API_KEY',
+      models: [{ id: 'claude-3-5-sonnet-latest' }],
+    },
+  },
+  {
+    id: 'deepseek',
+    labelKey: 'models.presetDeepSeek',
+    descriptionKey: 'models.presetDeepSeekDescription',
+    provider: {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      provider_type: 'openai',
+      base_url: 'https://api.deepseek.com/v1',
+      api_key_env: 'DEEPSEEK_API_KEY',
+      models: [{ id: 'deepseek-chat' }],
+    },
+  },
+  {
+    id: 'compatible',
+    labelKey: 'models.presetCompatible',
+    descriptionKey: 'models.presetCompatibleDescription',
+    provider: {
+      id: 'openai-compatible',
+      name: 'OpenAI-compatible',
+      provider_type: 'openai',
+      base_url: '',
+      api_key_env: 'OPENAI_API_KEY',
+      models: [],
+    },
+  },
+] as const;
+
 const providerToDraft = (provider?: CanvasModelProviderStatus): CanvasModelProviderConfig => {
   if (!provider) return emptyProvider();
   return {
@@ -125,6 +180,17 @@ export const ModelsSection = ({
     setManualModel('');
   }, [manualModel]);
 
+  const applyPreset = useCallback((preset: (typeof PROVIDER_PRESETS)[number]) => {
+    setActiveProviderId('new');
+    setDraft({
+      ...emptyProvider(),
+      ...preset.provider,
+      models: [...preset.provider.models],
+    });
+    setManualModel('');
+    setLocalError(undefined);
+  }, []);
+
   const removeModel = useCallback((modelId: string) => {
     setDraft((current) => ({
       ...current,
@@ -209,6 +275,13 @@ export const ModelsSection = ({
                   : t('models.editTitle', { name: draft.name || t('models.providerFallback') })}
               </strong>
               <p>{t('models.intro')}</p>
+              {status && (
+                <p>
+                  {status.apiKeyPresent
+                    ? t('models.detectedKey', { env: status.resolvedApiKeyEnv ?? 'API key' })
+                    : t('models.noDetectedKey')}
+                </p>
+              )}
             </div>
             {activeProviderId !== 'new' && (
               <button
@@ -232,6 +305,22 @@ export const ModelsSection = ({
           </div>
 
           {(localError || error) && <div className="chat-model-settings-error">{localError || error}</div>}
+
+          {activeProviderId === 'new' && (
+            <div className="chat-model-preset-grid" aria-label={t('models.presetsAria')}>
+              {PROVIDER_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  className={`chat-model-preset${draft.id === preset.provider.id ? ' chat-model-preset--active' : ''}`}
+                  onClick={() => applyPreset(preset)}
+                >
+                  <span className="chat-model-preset__title">{t(preset.labelKey)}</span>
+                  <span className="chat-model-preset__description">{t(preset.descriptionKey)}</span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <ModelProviderFields
             activeProviderId={activeProviderId}

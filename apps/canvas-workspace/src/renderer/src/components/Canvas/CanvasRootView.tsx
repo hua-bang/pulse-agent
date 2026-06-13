@@ -20,6 +20,8 @@ type CanvasRootViewProps = Pick<
   | 'resolveReferenceNode'
   | 'onOpenReferenceSource'
   | 'onUpdateReferenceSource'
+  | 'onOpenAppSettings'
+  | 'onSetRootFolder'
 > & {
   actions: any;
   activeTool: string;
@@ -39,6 +41,8 @@ type CanvasRootViewProps = Pick<
   getPreviewEndpoints: () => any;
   handleNodeViewportFocus: (node: CanvasNode) => void;
   handleCreateAgentTeam?: () => void;
+  handleCreateDemoCanvas?: () => void;
+  handleCreateUrlNode?: (url: string) => void;
   handleSearchMatchActivate: (node: CanvasNode) => void;
   handleSelectNode: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   handleShapeOverlayMouseDown: (event: React.MouseEvent) => void;
@@ -102,6 +106,8 @@ export const CanvasRootView = ({
   getPreviewEndpoints,
   handleNodeViewportFocus,
   handleCreateAgentTeam,
+  handleCreateDemoCanvas,
+  handleCreateUrlNode,
   handleSearchMatchActivate,
   handleSelectNode,
   handleShapeOverlayMouseDown,
@@ -121,6 +127,8 @@ export const CanvasRootView = ({
   onAddToChat,
   onReferenceToggle,
   onUpdateReferenceSource,
+  onOpenAppSettings,
+  onSetRootFolder,
   onRemoveNodesLocally,
   openShortcuts,
   paletteCommands,
@@ -284,9 +292,13 @@ export const CanvasRootView = ({
         referenceDrawerOpen={referenceDrawerOpen}
         onReferenceToggle={onReferenceToggle}
         onCreateNode={ctxMenu.handleCreateNode}
+        onCreateUrl={handleCreateUrlNode}
+        onCreateDemo={handleCreateDemoCanvas}
         onCreateAgentTeam={handleCreateAgentTeam}
         onCloseContextMenu={ctxMenu.closeContextMenu}
         onOpenShortcuts={openShortcuts}
+        onConfigureAi={() => onOpenAppSettings?.('models')}
+        onSetRootFolder={onSetRootFolder}
         onToolChange={setActiveTool}
         onAddNode={ctxMenu.handleToolbarAddNode}
         onResetTransform={resetTransform}

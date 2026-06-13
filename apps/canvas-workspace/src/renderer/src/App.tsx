@@ -30,6 +30,27 @@ const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
 const ROUTE_GRAPH = '/graph';
+const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
+
+const readSidebarCollapsedPreference = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (stored === '1') return true;
+    if (stored === '0') return false;
+  } catch {
+    // localStorage may be unavailable; default to discoverability.
+  }
+  return false;
+};
+
+const writeSidebarCollapsedPreference = (collapsed: boolean): void => {
+  try {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+  } catch {
+    // Preference persistence is best-effort only.
+  }
+};
 
 // Plugin flags are snapshotted at preload-time, so reading once at module
 // init is fine — toggling in Settings only takes effect after a reload.
@@ -77,7 +98,7 @@ const AppContent = () => {
 
   const { notify, updateToast, confirm, openShortcuts, isOverlayOpen } = useAppShell();
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<SelectedWorkspaceNode | null>(null);
   // null = global Settings drawer closed. Setting to a section name opens
@@ -87,6 +108,14 @@ const AppContent = () => {
     setAppSettingsSection(section);
   }, []);
   const closeAppSettings = useCallback(() => setAppSettingsSection(null), []);
+
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed((collapsed) => {
+      const next = !collapsed;
+      writeSidebarCollapsedPreference(next);
+      return next;
+    });
+  }, []);
 
   const {
     workspaces,
@@ -319,6 +348,29 @@ const AppContent = () => {
     setLocation(ROUTE_CANVAS);
   }, [importWorkspace, notify, updateToast, setLocation, t]);
 
+  const handleSetActiveRootFolder = useCallback(async () => {
+    const api = window.canvasWorkspace?.dialog;
+    if (!api) {
+      notify({
+        tone: 'error',
+        title: t('app.rootFolderPickerUnavailable'),
+        autoCloseMs: 3200,
+      });
+      return;
+    }
+
+    const result = await api.openFolder();
+    if (!result.ok || result.canceled || !result.folderPath) return;
+
+    setRootFolder(activeId, result.folderPath);
+    notify({
+      tone: 'success',
+      title: t('app.rootFolderSet'),
+      description: result.folderPath,
+      autoCloseMs: 3000,
+    });
+  }, [activeId, notify, setRootFolder, t]);
+
   const handleCreateFolder = useCallback((name: string) => {
     const trimmed = name.trim() || t('app.untitledFolder');
     const id = createFolder(name);
@@ -421,7 +473,7 @@ const AppContent = () => {
       <div className="app-body">
         <Sidebar
           collapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          onToggle={handleSidebarToggle}
           workspaces={workspaces}
           folders={folders}
           activeId={activeId}
@@ -462,6 +514,7 @@ const AppContent = () => {
               controller={workbench}
               onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
+              onSetActiveRootFolder={handleSetActiveRootFolder}
             />
           </PulseRouterView>
           <PulseRouterView name="chat">
