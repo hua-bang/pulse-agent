@@ -1065,7 +1065,8 @@
  * Canvas/index.css), so a plain `inset` here just resolves against
  * the canvas-container viewport. We leave a small inset so the
  * fullscreen node reads as a focused card floating on the dim
- * backdrop rather than bleeding to the chrome. The inline
+ * backdrop, while fullscreen controls float above the content instead
+ * of reserving their own top lane. The inline
  * `transform: translate(x,y)` + width/height set by CanvasNodeView
  * for the node's normal slot are overridden with `!important` — the
  * node DOM never moves, only its CSS box flips between "slot" and
@@ -1075,7 +1076,7 @@
 .canvas-node.canvas-node--fullscreen:hover {
   position: absolute !important;
   inset:
-    var(--canvas-fullscreen-top-gutter, 48px)
+    var(--canvas-fullscreen-inset, 12px)
     var(--canvas-fullscreen-inset, 12px)
     var(--canvas-fullscreen-inset, 12px)
     var(--canvas-fullscreen-inset, 12px) !important;

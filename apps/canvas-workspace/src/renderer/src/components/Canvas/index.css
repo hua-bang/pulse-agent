@@ -140,7 +140,6 @@
   height: 100%;
   z-index: var(--layer-fullscreen-node);
   --canvas-fullscreen-inset: 12px;
-  --canvas-fullscreen-top-gutter: 48px;
 }
 
 .canvas-container[data-fullscreen="on"] .canvas-grid {
@@ -158,8 +157,9 @@
   z-index: 50;
 }
 
-/* Single control surface for fullscreen mode. It sits in the reserved
- * top chrome lane rather than covering the fullscreen node content. */
+/* Single control surface for fullscreen mode. It overlays the fullscreen
+ * node so the content can use the whole viewport instead of yielding a
+ * separate top chrome lane. */
 .canvas-fullscreen-chip {
   position: absolute;
   top: 8px;
