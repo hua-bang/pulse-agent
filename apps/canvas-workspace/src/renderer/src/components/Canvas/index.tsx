@@ -704,7 +704,6 @@ export const Canvas = ({
       nodesById={nodesById}
       onChatToggle={onChatToggle}
       onFitAll={handleFitAll}
-      onFitSelection={handleFitSelection}
       onOpenReferenceSource={onOpenReferenceSource}
       onPinReferenceNode={onPinReferenceNode}
       onAddToChat={onAddToChat}

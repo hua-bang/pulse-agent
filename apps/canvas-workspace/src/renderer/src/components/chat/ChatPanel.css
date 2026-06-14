@@ -2099,16 +2099,16 @@
 }
 
 
-/* Refine image messages into one compact message group. */
+/* Keep user attachment messages in reading order: preview first, note after. */
 .chat-message-user .chat-message-images {
-  order: 2;
+  order: 1;
   width: 100%;
   justify-items: end;
 }
 
 .chat-message-user .chat-message-content {
-  order: 1;
-  margin-bottom: 8px;
+  order: 2;
+  margin-bottom: 0;
 }
 
 .chat-message-image-card,

@@ -4,8 +4,22 @@
   right: 16px;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 6px;
+  max-width: min(520px, calc(100% - 32px));
   z-index: var(--layer-canvas-chrome);
+}
+
+.canvas-bottom-chrome .zoom-indicator-group {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  grid-column: 3;
+  justify-self: end;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  pointer-events: auto;
 }
 
 .zoom-indicator {
@@ -22,21 +36,12 @@
   display: flex;
   align-items: center;
   gap: 5px;
+  flex: 0 0 auto;
+  white-space: nowrap;
   transition: background 0.1s, color 0.1s;
 }
 
 .zoom-indicator:hover {
   background: var(--surface-hover);
-  color: var(--text);
-}
-
-.zoom-indicator--selection {
-  cursor: default;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
-}
-
-.zoom-indicator--selection:hover {
-  background: var(--surface);
   color: var(--text);
 }

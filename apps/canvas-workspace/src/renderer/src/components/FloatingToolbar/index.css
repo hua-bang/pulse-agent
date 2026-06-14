@@ -3,6 +3,7 @@
   bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
+  max-width: calc(100% - 32px);
   display: flex;
   align-items: center;
   gap: 2px;
@@ -12,6 +13,17 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
   z-index: var(--layer-canvas-chrome);
+}
+
+.canvas-bottom-chrome .floating-toolbar {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  grid-column: 2;
+  justify-self: center;
+  max-width: 100%;
+  transform: none;
+  pointer-events: auto;
 }
 
 .toolbar-group {
@@ -30,6 +42,7 @@
 }
 
 .toolbar-btn {
+  position: relative;
   height: 32px;
   min-width: 32px;
   border: none;
@@ -47,6 +60,12 @@
   flex: 0 0 auto;
   white-space: nowrap;
   transition: background 0.1s, color 0.1s;
+}
+
+.toolbar-btn--create[data-tooltip]::before,
+.toolbar-btn--create[data-tooltip]::after {
+  display: none;
+  pointer-events: none;
 }
 
 /* Make icon media a block so baseline gaps don't misalign against labels. */
@@ -179,4 +198,73 @@
 .shape-tool-option--active {
   background: var(--accent-light);
   color: var(--accent);
+}
+
+@container (max-width: 1040px) {
+  .floating-toolbar {
+    max-width: calc(100% - 24px);
+  }
+
+  .toolbar-btn--create {
+    padding: 0 7px;
+  }
+
+  .toolbar-btn--create .toolbar-btn-label {
+    display: none;
+  }
+
+  .toolbar-btn--create[data-tooltip]::before,
+  .toolbar-btn--create[data-tooltip]::after {
+    position: absolute;
+    left: 50%;
+    opacity: 0;
+    transform: translateX(-50%) translateY(2px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    display: block;
+    z-index: 1;
+  }
+
+  .toolbar-btn--create[data-tooltip]::before {
+    content: attr(data-tooltip);
+    bottom: calc(100% + 8px);
+    padding: 6px 9px;
+    border: 1px solid rgba(35, 131, 226, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.98);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    box-shadow:
+      0 6px 18px rgba(15, 23, 42, 0.08),
+      0 1px 4px rgba(35, 131, 226, 0.08);
+  }
+
+  .toolbar-btn--create[data-tooltip]::after {
+    content: "";
+    bottom: calc(100% + 5px);
+    width: 7px;
+    height: 7px;
+    border-right: 1px solid rgba(35, 131, 226, 0.14);
+    border-bottom: 1px solid rgba(35, 131, 226, 0.14);
+    background: rgba(255, 255, 255, 0.98);
+    transform: translateX(-50%) translateY(2px) rotate(45deg);
+  }
+
+  .toolbar-btn--create[data-tooltip]:hover::before,
+  .toolbar-btn--create[data-tooltip]:focus-visible::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .toolbar-btn--create[data-tooltip]:hover::after,
+  .toolbar-btn--create[data-tooltip]:focus-visible::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) rotate(45deg);
+  }
+
+  .toolbar-divider {
+    margin: 0 2px;
+  }
 }

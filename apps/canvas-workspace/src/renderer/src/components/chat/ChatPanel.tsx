@@ -382,6 +382,7 @@ export const ChatPanel = ({
       onAddImageToCanvas={addImageToCanvas}
       nodes={nodes}
       selectedContext={selectedContext}
+      showContextChips={false}
       onRemoveContext={onRemoveContext}
       onNodeFocus={onNodeFocus}
       onQuickAction={handleQuickAction}

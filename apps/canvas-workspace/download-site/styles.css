@@ -106,6 +106,10 @@ a {
   color: var(--text);
 }
 
+.header-link--contact {
+  color: var(--text);
+}
+
 .header-divider {
   width: 1px;
   height: 14px;
@@ -282,10 +286,7 @@ h1 span {
 }
 
 .download-options {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 12px;
+  display: none;
 }
 
 .download-option {
@@ -412,14 +413,14 @@ h1 span {
 
 .release-list {
   display: grid;
-  gap: 14px;
+  gap: 0;
 }
 
 .release-entry {
   display: grid;
   grid-template-columns: 176px minmax(0, 1fr);
   gap: 20px;
-  padding-top: 14px;
+  padding: 14px 0;
   border-top: 1px solid var(--border-light);
 }
 
@@ -451,6 +452,37 @@ h1 span {
   font-weight: 650;
 }
 
+.release-entry__body {
+  min-width: 0;
+}
+
+.release-entry--extra {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-color: transparent;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    max-height 300ms ease,
+    padding 260ms ease,
+    border-color 260ms ease,
+    opacity 180ms ease,
+    transform 260ms ease;
+}
+
+.release-list--expanded .release-entry--extra {
+  max-height: 900px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-top-color: var(--border-light);
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
 .release-entry__body p,
 .release-entry__body li {
   margin: 0;
@@ -480,6 +512,37 @@ h1 span {
 
 .release-entry__body li.release-entry__highlight {
   list-style-position: inside;
+}
+
+.release-list__more {
+  width: fit-content;
+  justify-self: center;
+  margin-top: 14px;
+  padding: 7px 12px;
+  border: 1px solid rgba(35, 131, 226, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 720;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.release-list__more:hover {
+  border-color: rgba(35, 131, 226, 0.34);
+  background: rgba(35, 131, 226, 0.08);
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .release-entry--extra,
+  .release-list__more {
+    transition: none;
+  }
 }
 
 .install-grid {
@@ -542,7 +605,7 @@ h1 span {
   }
 
   .download-options {
-    grid-template-columns: 1fr;
+    display: none;
   }
 
   .product-preview {
@@ -588,6 +651,10 @@ h1 span {
 
   .header-link {
     display: none;
+  }
+
+  .header-link--contact {
+    display: inline-flex;
   }
 
   .app-icon {

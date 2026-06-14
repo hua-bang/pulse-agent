@@ -21,13 +21,8 @@ interface CanvasOverlaysProps {
   searchOpen: boolean;
   activeTool: string;
   scale: number;
-  /** Forwarded to the bottom-right indicator so multi-selection state
-   *  is always visible alongside the zoom % chip. */
-  selectionCount: number;
-  /** Reframe the viewport around all nodes / the current selection.
-   *  Surfaced as buttons next to the zoom chip. */
+  /** Reframe the viewport around every node. Surfaced next to the zoom chip. */
   onFitAll?: () => void;
-  onFitSelection?: () => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
@@ -80,7 +75,6 @@ interface CanvasOverlaysProps {
   onStartEditEdgeLabel?: (id: string) => void;
   onCommitEditEdgeLabel?: (id: string, label: string) => void;
   onCancelEditEdgeLabel?: () => void;
-  focusModeEnabled?: boolean;
 }
 
 export const CanvasOverlays = ({
@@ -89,9 +83,7 @@ export const CanvasOverlays = ({
   searchOpen,
   activeTool,
   scale,
-  selectionCount,
   onFitAll,
-  onFitSelection,
   chatPanelOpen,
   onChatToggle,
   referenceDrawerOpen,
@@ -125,136 +117,132 @@ export const CanvasOverlays = ({
   onStartEditEdgeLabel,
   onCommitEditEdgeLabel,
   onCancelEditEdgeLabel,
-  focusModeEnabled = false,
-}: CanvasOverlaysProps) => (
-  <>
-    {nodes.length === 0 && !contextMenu && (
-      <CanvasEmptyHint
-        onCreateNode={(type) => onAddNode(type)}
-        onCreateUrl={onCreateUrl}
-        onCreateDemo={onCreateDemo}
-        onConfigureAi={onConfigureAi}
-        onOpenChat={onChatToggle}
-        onOpenShortcuts={onOpenShortcuts}
-        onSetRootFolder={onSetRootFolder}
-      />
-    )}
+}: CanvasOverlaysProps) => {
+  return (
+    <>
+      {nodes.length === 0 && !contextMenu && (
+        <CanvasEmptyHint
+          onCreateNode={(type) => onAddNode(type)}
+          onCreateUrl={onCreateUrl}
+          onCreateDemo={onCreateDemo}
+          onConfigureAi={onConfigureAi}
+          onOpenChat={onChatToggle}
+          onOpenShortcuts={onOpenShortcuts}
+          onSetRootFolder={onSetRootFolder}
+        />
+      )}
 
-    {contextMenu && (
-      <NodeContextMenu
-        x={contextMenu.screenX}
-        y={contextMenu.screenY}
-        onCreate={onCreateNode}
-        onClose={onCloseContextMenu}
-      />
-    )}
+      {contextMenu && (
+        <NodeContextMenu
+          x={contextMenu.screenX}
+          y={contextMenu.screenY}
+          onCreate={onCreateNode}
+          onClose={onCloseContextMenu}
+        />
+      )}
 
-    {/* Full-canvas overlay active only in Connect mode. It intercepts
+      {/* Full-canvas overlay active only in Connect mode. It intercepts
         pointer events above nodes so mousedown on any location — node
         or blank — begins an edge draft instead of a node drag. The
         FloatingToolbar renders AFTER this element and has its own
         position/z-index, so mode switching still works while this is
         mounted. */}
-    {activeTool === 'connect' && (
-      <div
-        className="canvas-connect-overlay"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          cursor: 'crosshair',
-          // Slightly below the zero-indexed floating toolbar
-          // (`.floating-toolbar` has its own z-index for chrome) but
-          // above nodes inside `.canvas-transform`.
-          zIndex: 5,
-        }}
-        onMouseDown={onConnectMouseDown}
-      />
-    )}
+      {activeTool === 'connect' && (
+        <div
+          className="canvas-connect-overlay"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            cursor: 'crosshair',
+            // Slightly below the zero-indexed floating toolbar
+            // (`.floating-toolbar` has its own z-index for chrome) but
+            // above nodes inside `.canvas-transform`.
+            zIndex: 5,
+          }}
+          onMouseDown={onConnectMouseDown}
+        />
+      )}
 
-    {/* Drag-to-draw overlay for shape tools. Same layering trick as the
+      {/* Drag-to-draw overlay for shape tools. Same layering trick as the
         connect overlay so a drag that starts over an existing node still
         creates a shape rather than selecting the node underneath. */}
-    {shapeToolActive && (
-      <div
-        className="canvas-shape-overlay"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          cursor: 'crosshair',
-          zIndex: 5,
-        }}
-        onMouseDown={onShapeMouseDown}
-      />
-    )}
+      {shapeToolActive && (
+        <div
+          className="canvas-shape-overlay"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            cursor: 'crosshair',
+            zIndex: 5,
+          }}
+          onMouseDown={onShapeMouseDown}
+        />
+      )}
 
-    <FloatingToolbar
-      activeTool={activeTool}
-      onToolChange={onToolChange}
-      onAddNode={onAddNode}
-      onCreateAgentTeam={onCreateAgentTeam}
-      chatPanelOpen={chatPanelOpen}
-      onChatToggle={onChatToggle}
-      referenceDrawerOpen={referenceDrawerOpen}
-      onReferenceToggle={onReferenceToggle}
-    />
+      {selectedEdge && onUpdateEdge && onRemoveEdge && (
+        <EdgeStylePanel
+          edge={selectedEdge}
+          nodes={nodes}
+          transform={transform}
+          onUpdate={onUpdateEdge}
+          onRemove={onRemoveEdge}
+        />
+      )}
 
-    {selectedEdge && onUpdateEdge && onRemoveEdge && (
-      <EdgeStylePanel
-        edge={selectedEdge}
-        nodes={nodes}
-        transform={transform}
-        onUpdate={onUpdateEdge}
-        onRemove={onRemoveEdge}
-      />
-    )}
-
-    {/* Edge labels. Rendered for every edge that either carries a
+      {/* Edge labels. Rendered for every edge that either carries a
         non-empty label or is currently in edit mode. The edit-mode check
         lets us open the input on a freshly-dbl-clicked unlabeled edge
         without first persisting an empty string. */}
-    {edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
-      edges
-        .filter((edge) => (edge.label && edge.label.length > 0) || editingEdgeLabelId === edge.id)
-        .map((edge) => (
-          <EdgeLabel
-            key={edge.id}
-            edge={edge}
-            nodes={nodes}
-            transform={transform}
-            isEditing={editingEdgeLabelId === edge.id}
-            onStartEdit={onStartEditEdgeLabel}
-            onCommit={onCommitEditEdgeLabel}
-            onCancel={onCancelEditEdgeLabel}
-          />
-        ))}
+      {edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
+        edges
+          .filter((edge) => (edge.label && edge.label.length > 0) || editingEdgeLabelId === edge.id)
+          .map((edge) => (
+            <EdgeLabel
+              key={edge.id}
+              edge={edge}
+              nodes={nodes}
+              transform={transform}
+              isEditing={editingEdgeLabelId === edge.id}
+              onStartEdit={onStartEditEdgeLabel}
+              onCommit={onCommitEditEdgeLabel}
+              onCancel={onCancelEditEdgeLabel}
+            />
+          ))}
 
-    {/* The "N selected" chip is suppressed in focus mode — by definition
-        focus mode operates on a single node, so the count is redundant
-        noise alongside the focused card. The zoom % chip stays as the
-        only persistent UI in the bottom-right. */}
-    <ZoomIndicator
-      scale={scale}
-      onReset={onResetTransform}
-      selectionCount={focusModeEnabled ? 0 : selectionCount}
-      onFitAll={onFitAll}
-      onFitSelection={onFitSelection}
-    />
+      <div className="canvas-bottom-chrome">
+        <FloatingToolbar
+          activeTool={activeTool}
+          onToolChange={onToolChange}
+          onAddNode={onAddNode}
+          onCreateAgentTeam={onCreateAgentTeam}
+          chatPanelOpen={chatPanelOpen}
+          onChatToggle={onChatToggle}
+          referenceDrawerOpen={referenceDrawerOpen}
+          onReferenceToggle={onReferenceToggle}
+        />
+        <ZoomIndicator
+          scale={scale}
+          onReset={onResetTransform}
+          onFitAll={onFitAll}
+        />
+      </div>
 
-    {searchOpen && (
-      <CommandPalette
-        nodes={nodes}
-        commands={paletteCommands}
-        onSelectNode={onSearchSelect}
-        onClose={onCloseSearch}
-      />
-    )}
+      {searchOpen && (
+        <CommandPalette
+          nodes={nodes}
+          commands={paletteCommands}
+          onSelectNode={onSearchSelect}
+          onClose={onCloseSearch}
+        />
+      )}
 
-    {findSearch.open && (
-      <SearchBar
-        search={findSearch}
-        nodesById={findNodesById}
-        onActivateMatch={onFindMatchActivate}
-      />
-    )}
-  </>
-);
+      {findSearch.open && (
+        <SearchBar
+          search={findSearch}
+          nodesById={findNodesById}
+          onActivateMatch={onFindMatchActivate}
+        />
+      )}
+    </>
+  );
+};

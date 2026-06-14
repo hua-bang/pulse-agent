@@ -10,6 +10,7 @@ const heroTitle = document.querySelector('#hero-title');
 const releaseNotes = document.querySelector('#release-notes');
 const releaseList = document.querySelector('#release-list');
 const languageLinks = document.querySelectorAll('[data-lang-option]');
+const INITIAL_RELEASE_COUNT = 3;
 
 const copy = {
   zh: {
@@ -41,6 +42,8 @@ const copy = {
     installNote: '这是早期版本暂未使用 Apple Developer ID 签名导致的安全提示，不影响本地使用。',
     releaseNotesKicker: '版本更新',
     releaseNotesTitle: 'Release notes',
+    showMoreReleases: '查看更多版本',
+    showFewerReleases: '收起版本',
     updatesKicker: '更新',
     updatesTitle: '手动更新',
     updatesBody: '从本页下载最新版本并替换已安装的 app。你的 canvas 数据会单独保存。',
@@ -76,6 +79,8 @@ const copy = {
     installNote: 'This security prompt appears because the early build does not use an Apple Developer ID signature yet. Local use is still supported.',
     releaseNotesKicker: 'Versions',
     releaseNotesTitle: 'Release notes',
+    showMoreReleases: 'Show more versions',
+    showFewerReleases: 'Show fewer versions',
     updatesKicker: 'Updates',
     updatesTitle: 'Manual updates',
     updatesBody: 'Download the latest version from this page and replace the installed app. Your canvas data is stored separately.',
@@ -96,6 +101,7 @@ let activeLanguage = getInitialLanguage();
 let latestManifest = null;
 let primaryFile = null;
 let visibleFiles = [];
+let showAllReleases = false;
 
 function getInitialLanguage() {
   const params = new URLSearchParams(window.location.search);
@@ -222,6 +228,7 @@ function isImportantReleaseNoteLine(line) {
 }
 
 function renderReleaseNotes() {
+  const text = copy[activeLanguage];
   if (!latestManifest) {
     releaseNotes.hidden = true;
     releaseList.replaceChildren();
@@ -237,9 +244,19 @@ function renderReleaseNotes() {
     .filter((entry) => entry.version && entry.notes);
 
   releaseNotes.hidden = entries.length === 0;
-  releaseList.replaceChildren(...entries.map((entry) => {
+  if (entries.length === 0) {
+    releaseList.replaceChildren();
+    return;
+  }
+
+  releaseList.classList.toggle('release-list--expanded', showAllReleases);
+
+  const releaseNodes = entries.map((entry, index) => {
     const article = document.createElement('article');
-    article.className = 'release-entry';
+    article.className = `release-entry${index >= INITIAL_RELEASE_COUNT ? ' release-entry--extra' : ''}`;
+    if (index >= INITIAL_RELEASE_COUNT) {
+      article.setAttribute('aria-hidden', String(!showAllReleases));
+    }
 
     const header = document.createElement('div');
     header.className = 'release-entry__header';
@@ -264,7 +281,27 @@ function renderReleaseNotes() {
 
     article.append(header, body);
     return article;
-  }));
+  });
+
+  if (entries.length > INITIAL_RELEASE_COUNT) {
+    const more = document.createElement('button');
+    more.className = 'release-list__more';
+    more.type = 'button';
+    more.textContent = showAllReleases ? text.showFewerReleases : text.showMoreReleases;
+    more.setAttribute('aria-expanded', String(showAllReleases));
+    more.addEventListener('click', () => {
+      showAllReleases = !showAllReleases;
+      releaseList.classList.toggle('release-list--expanded', showAllReleases);
+      releaseList.querySelectorAll('.release-entry--extra').forEach((node) => {
+        node.setAttribute('aria-hidden', String(!showAllReleases));
+      });
+      more.textContent = showAllReleases ? text.showFewerReleases : text.showMoreReleases;
+      more.setAttribute('aria-expanded', String(showAllReleases));
+    });
+    releaseNodes.push(more);
+  }
+
+  releaseList.replaceChildren(...releaseNodes);
 }
 
 function renderDownloadOption(file) {
@@ -313,18 +350,7 @@ function renderComingSoonOption(kind) {
 
 function renderDownloadOptions() {
   if (!downloadOptions) return;
-  if (!latestManifest || visibleFiles.length === 0) {
-    downloadOptions.replaceChildren();
-    return;
-  }
-
-  const order = ['mac-arm64', 'mac-x64', 'windows-x64', 'linux-x64', 'other'];
-  const files = visibleFiles.slice().sort((a, b) => order.indexOf(getFileKind(a)) - order.indexOf(getFileKind(b)));
-  const items = files.map(renderDownloadOption);
-  if (platform === 'mac' && !files.some((file) => getFileKind(file) === 'mac-x64')) {
-    items.push(renderComingSoonOption('mac-x64'));
-  }
-  downloadOptions.replaceChildren(...items);
+  downloadOptions.replaceChildren();
 }
 
 function renderTitle(parts) {

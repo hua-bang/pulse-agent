@@ -1,3 +1,4 @@
+import type { KeyboardEventHandler, RefObject } from 'react';
 import type { Artifact } from '../../types';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import type { LoadState } from './types';
@@ -6,8 +7,12 @@ interface IframeRenderedViewProps {
   artifact: Artifact | null;
   artifactHtml: string;
   artifactId: string | null;
+  cancel: () => void;
+  commit: () => void;
+  draftUrl: string;
   generating: boolean;
   handleOpenExternal: () => void;
+  handleKeyDown: KeyboardEventHandler<HTMLInputElement>;
   handleRegenerate: () => Promise<void> | void;
   handleReload: () => void;
   html: string;
@@ -20,11 +25,12 @@ interface IframeRenderedViewProps {
   openArtifact: (workspaceId: string, artifactId: string) => void;
   readOnly: boolean;
   savedPrompt: string;
+  setDraftUrl: (value: string) => void;
   setEditing: (editing: boolean) => void;
-  streamIframeRef: React.RefObject<HTMLIFrameElement>;
+  streamIframeRef: RefObject<HTMLIFrameElement>;
   streamingActive: boolean;
   url: string;
-  webviewHostRef: React.RefObject<HTMLDivElement>;
+  webviewHostRef: RefObject<HTMLDivElement>;
   webviewKey: number;
   workspaceId?: string;
 }
@@ -33,8 +39,12 @@ export const IframeRenderedView = ({
   artifact,
   artifactHtml,
   artifactId,
+  cancel,
+  commit,
+  draftUrl,
   generating,
   handleOpenExternal,
+  handleKeyDown,
   handleRegenerate,
   handleReload,
   html,
@@ -47,6 +57,7 @@ export const IframeRenderedView = ({
   openArtifact,
   readOnly,
   savedPrompt,
+  setDraftUrl,
   setEditing,
   streamIframeRef,
   streamingActive,
@@ -73,13 +84,18 @@ export const IframeRenderedView = ({
         <IframeAddressButton
           artifact={artifact}
           artifactId={artifactId}
+          cancel={cancel}
+          commit={commit}
+          draftUrl={draftUrl}
           generating={generating}
+          handleKeyDown={handleKeyDown}
           html={html}
           isArtifactMode={isArtifactMode}
           mode={mode}
           openArtifact={openArtifact}
           readOnly={readOnly}
           savedPrompt={savedPrompt}
+          setDraftUrl={setDraftUrl}
           setEditing={setEditing}
           url={url}
           faviconUrl={faviconUrl}
@@ -169,13 +185,18 @@ export const IframeRenderedView = ({
 const IframeAddressButton = ({
   artifact,
   artifactId,
+  cancel,
+  commit,
+  draftUrl,
   generating,
+  handleKeyDown,
   html,
   isArtifactMode,
   mode,
   openArtifact,
   readOnly,
   savedPrompt,
+  setDraftUrl,
   setEditing,
   url,
   faviconUrl,
@@ -183,13 +204,18 @@ const IframeAddressButton = ({
 }: Pick<IframeRenderedViewProps,
   | 'artifact'
   | 'artifactId'
+  | 'cancel'
+  | 'commit'
+  | 'draftUrl'
   | 'generating'
+  | 'handleKeyDown'
   | 'html'
   | 'isArtifactMode'
   | 'mode'
   | 'openArtifact'
   | 'readOnly'
   | 'savedPrompt'
+  | 'setDraftUrl'
   | 'setEditing'
   | 'url'
   | 'faviconUrl'
@@ -214,11 +240,8 @@ const IframeAddressButton = ({
 
   if (mode === 'url') {
     return (
-      <button
-        className="iframe-bar-url"
-        onClick={() => {
-          if (!readOnly) setEditing(true);
-        }}
+      <div
+        className={`iframe-bar-url iframe-bar-url--editable${readOnly ? ' iframe-bar-url--readonly' : ''}`}
         title={readOnly ? url : 'Edit URL'}
       >
         {faviconUrl ? (
@@ -232,8 +255,33 @@ const IframeAddressButton = ({
             }}
           />
         ) : null}
-        <span className="iframe-bar-url-text">{url}</span>
-      </button>
+        <input
+          className="iframe-bar-url-input"
+          type="url"
+          value={draftUrl}
+          readOnly={readOnly || generating}
+          tabIndex={readOnly ? -1 : 0}
+          aria-label="URL"
+          spellCheck={false}
+          onFocus={(event) => {
+            if (!readOnly) event.currentTarget.select();
+          }}
+          onChange={(event) => setDraftUrl(event.target.value)}
+          onKeyDown={(event) => {
+            handleKeyDown(event);
+            if (event.key === 'Escape') event.currentTarget.select();
+          }}
+          onBlur={() => {
+            if (readOnly || generating) return;
+            const next = draftUrl.trim();
+            if (!next) {
+              cancel();
+              return;
+            }
+            if (next !== url) commit();
+          }}
+        />
+      </div>
     );
   }
 
