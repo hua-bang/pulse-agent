@@ -1,19 +1,18 @@
-import { join } from 'path';
-import { homedir } from 'os';
 import {
-  readCanvasFull,
-  writeCanvasFull,
-  getCanvasJsonPath,
-} from '../../../canvas/storage';
+  STORE_DIR,
+  canvasPath as resolveCanvasPath,
+  loadCanvas as loadCanvasFromService,
+  saveCanvas as saveCanvasWithService,
+} from '../../../canvas/service';
 import type { CanvasSaveData } from '../types';
 
-export const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
+export { STORE_DIR };
 export const BLANK_PAGE_URL = 'about:blank';
 
 // ─── Helpers ───────────────────────────────────────────────────────
 
 export function canvasPath(workspaceId: string): string {
-  return getCanvasJsonPath(workspaceId);
+  return resolveCanvasPath(workspaceId);
 }
 
 /**
@@ -29,13 +28,7 @@ export function canvasPath(workspaceId: string): string {
  * transparent v1/v2 read support and `.bak` recovery for free.
  */
 export async function loadCanvas(workspaceId: string): Promise<CanvasSaveData | null> {
-  const { data } = await readCanvasFull(workspaceId);
-  if (!data) return null;
-  // Mirror the legacy guarantee that `nodes` is always an array; some
-  // downstream tool handlers index into it without a length check.
-  const out = data as CanvasSaveData;
-  out.nodes = out.nodes ?? [];
-  return out;
+  return loadCanvasFromService(workspaceId) as Promise<CanvasSaveData | null>;
 }
 
 export interface SaveCanvasOptions {
@@ -54,31 +47,5 @@ export async function saveCanvas(
   data: CanvasSaveData,
   opts: SaveCanvasOptions = {},
 ): Promise<void> {
-  data.savedAt = new Date().toISOString();
-
-  // Empty-write guard: refuse to overwrite a populated canvas with a
-  // zero-node payload. Mirrors the same guard in canvas-store.ts /
-  // canvas-cli — every writer to canvas.json enforces this contract.
-  if (!opts.allowEmpty && Array.isArray(data.nodes) && data.nodes.length === 0) {
-    const existing = await readCanvasFull(workspaceId).catch(() => {
-      // Can't verify what's on disk — refuse rather than risk wiping a
-      // populated canvas that just happened to be unreadable this turn.
-      throw new Error(
-        `[canvas-agent] failed to read canvas.json while guarding empty write ` +
-          `for workspace "${workspaceId}"`,
-      );
-    });
-    const existingNodes = Array.isArray(existing.data?.nodes)
-      ? existing.data!.nodes
-      : [];
-    if (existingNodes.length > 0) {
-      throw new Error(
-        `[canvas-agent] refusing to overwrite ${existingNodes.length} on-disk nodes ` +
-          `with empty nodes for workspace "${workspaceId}". ` +
-          `Pass { allowEmpty: true } to saveCanvas if this wipe is intentional.`,
-      );
-    }
-  }
-
-  await writeCanvasFull(workspaceId, data);
+  await saveCanvasWithService(workspaceId, data, opts);
 }

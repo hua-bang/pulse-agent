@@ -23,16 +23,12 @@
  *   Completion arrives on         `canvas-agent:chat-complete:{sessionId}`.
  */
 
-import { BrowserWindow, ipcMain } from 'electron';
+import { ipcMain } from 'electron';
 import { randomUUID } from 'crypto';
-import { promises as fs } from 'fs';
-import { basename, join } from 'path';
-import { homedir } from 'os';
 import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
+import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentScope, AgentScopeRef } from './types';
-
-const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
 let service: CanvasAgentService | null = null;
 
@@ -191,46 +187,7 @@ export function setupCanvasAgentIpc(): void {
     'canvas-agent:add-image-to-canvas',
     async (_event, payload: { workspaceId: string; imagePath: string; title?: string }) => {
       try {
-        const workspaceId = payload.workspaceId;
-        const imagePath = payload.imagePath;
-        if (!workspaceId || !imagePath) return { ok: false, error: 'workspaceId and imagePath are required' };
-
-        const canvasPath = join(STORE_DIR, workspaceId, 'canvas.json');
-        const raw = await fs.readFile(canvasPath, 'utf-8');
-        const canvas = JSON.parse(raw) as {
-          nodes?: Array<any>;
-          edges?: Array<any>;
-          transform?: { x: number; y: number; scale: number };
-          savedAt?: string;
-        };
-        const nodes = Array.isArray(canvas.nodes) ? canvas.nodes : [];
-        const maxRight = nodes.reduce((max, node) => Math.max(max, (node.x ?? 0) + (node.width ?? 0)), 0);
-        const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const node = {
-          id: nodeId,
-          type: 'image',
-          title: payload.title?.trim() || basename(imagePath),
-          x: maxRight > 0 ? maxRight + 40 : 100,
-          y: nodes[0]?.y ?? 100,
-          width: 480,
-          height: 360,
-          data: { filePath: imagePath },
-          updatedAt: Date.now(),
-        };
-        canvas.nodes = [...nodes, node];
-        canvas.savedAt = new Date().toISOString();
-        await fs.writeFile(canvasPath, JSON.stringify(canvas, null, 2), 'utf-8');
-
-        for (const win of BrowserWindow.getAllWindows()) {
-          if (!win.isDestroyed()) {
-            win.webContents.send('canvas:external-update', {
-              type: 'canvas:updated',
-              workspaceId,
-              nodeIds: [nodeId],
-              source: 'canvas-agent',
-            });
-          }
-        }
+        const { nodeId } = await appendImageNodeToCanvas(payload);
         return { ok: true, nodeId };
       } catch (err) {
         return { ok: false, error: String(err) };

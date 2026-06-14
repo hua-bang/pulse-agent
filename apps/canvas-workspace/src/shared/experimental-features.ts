@@ -30,6 +30,21 @@ export interface ExperimentalFeatureDef {
   defaultEnabled: boolean;
 }
 
+/**
+ * Pushed from main when a flag toggle kicks off a background tooling install
+ * (for example the Agent Teams skill + CLI). Delivered over the
+ * `experimental:tooling-status` channel once the install settles.
+ */
+export interface ToolingInstallStatus {
+  /** The experimental flag id that triggered the install. */
+  feature: string;
+  ok: boolean;
+  skillsInstalled: boolean;
+  cliInstalled: boolean;
+  cliError?: string | null;
+  manualCommand?: string | null;
+}
+
 export const EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE = 'canvas-agent-debug-trace';
 export const EXPERIMENTAL_FLAG_WORKSPACE_NODES = 'workspace-nodes-page';
 export const EXPERIMENTAL_FLAG_WORKSPACE_GRAPH = 'workspace-graph-page';
