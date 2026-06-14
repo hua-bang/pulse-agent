@@ -11,6 +11,7 @@ interface ChatInputProps {
   loading: boolean;
   input: string;
   selectedContext?: SelectedContextChip[];
+  showContextChips?: boolean;
   onRemoveContext?: (key: string) => void;
   attachments?: ChatImageAttachment[];
   contextComposer?: boolean;
@@ -39,6 +40,7 @@ export const ChatInput = ({
   loading,
   input,
   selectedContext,
+  showContextChips: showContextChipsProp = true,
   onRemoveContext,
   attachments = [],
   contextComposer = false,
@@ -65,6 +67,7 @@ export const ChatInput = ({
   const contextChips = (selectedContext && selectedContext.length > 0)
     ? selectedContext
     : [];
+  const showContextChips = showContextChipsProp && contextComposer && contextChips.length > 0 && !loading;
 
   return (
     <div className="chat-input-container">
@@ -73,7 +76,7 @@ export const ChatInput = ({
         <div className="chat-generating-status" aria-live="polite">{t('chat.generatingCanContinue')}</div>
       )}
       <div className={`chat-input-box${loading ? ' chat-input-box--generating' : ''}`}>
-        {contextComposer && contextChips.length > 0 && (
+        {showContextChips && (
           <div className="chat-context-chips" aria-label={t('chat.currentContext')}>
             {contextChips.map(chip => (
               <span

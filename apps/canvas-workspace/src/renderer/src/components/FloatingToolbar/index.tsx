@@ -144,7 +144,8 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("text")}
-          title={t('canvas.toolbar.addText')}
+          aria-label={t('canvas.toolbar.addText')}
+          data-tooltip={t('canvas.toolbar.text')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <path
@@ -157,7 +158,8 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("file")}
-          title={t('canvas.toolbar.addNote')}
+          aria-label={t('canvas.toolbar.addNote')}
+          data-tooltip={t('canvas.toolbar.note')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <rect
@@ -174,7 +176,8 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("frame")}
-          title={t('canvas.toolbar.addFrame')}
+          aria-label={t('canvas.toolbar.addFrame')}
+          data-tooltip={t('canvas.toolbar.frame')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <rect
@@ -191,7 +194,8 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("iframe")}
-          title={t('canvas.toolbar.addWeb')}
+          aria-label={t('canvas.toolbar.addWeb')}
+          data-tooltip={t('canvas.toolbar.web')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <circle cx="9" cy="9" r="6.5" stroke="currentColor" strokeWidth="1.3" />
@@ -205,7 +209,8 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("mindmap")}
-          title={t('canvas.toolbar.addMindmap')}
+          aria-label={t('canvas.toolbar.addMindmap')}
+          data-tooltip={t('canvas.toolbar.mindmap')}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <circle cx="4.5" cy="9" r="2" stroke="currentColor" strokeWidth="1.3" />
@@ -222,7 +227,8 @@ export const FloatingToolbar = ({
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("agent")}
-          title={t('canvas.toolbar.addCodingAgent')}
+          aria-label={t('canvas.toolbar.addCodingAgent')}
+          data-tooltip={t('canvas.toolbar.coding')}
         >
           <CodingAgentIcon size={18} />
           <span className="toolbar-btn-label">{t('canvas.toolbar.coding')}</span>
@@ -231,7 +237,8 @@ export const FloatingToolbar = ({
           <button
             className="toolbar-btn toolbar-btn--create"
             onClick={onCreateAgentTeam}
-            title={t('canvas.toolbar.addAgentTeam')}
+            aria-label={t('canvas.toolbar.addAgentTeam')}
+            data-tooltip={t('canvas.toolbar.team')}
           >
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <rect x="2.5" y="3" width="13" height="12" rx="2" stroke="currentColor" strokeWidth="1.25" />

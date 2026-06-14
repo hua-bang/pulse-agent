@@ -35,6 +35,11 @@
   flex-shrink: 0;
 }
 
+.canvas-node--iframe.canvas-node--selected .iframe-bar {
+  border-bottom-color: rgba(35, 131, 226, 0.16);
+  background: color-mix(in srgb, var(--accent-light) 34%, var(--surface));
+}
+
 .iframe-bar-btn {
   width: 22px;
   height: 22px;
@@ -79,6 +84,42 @@
   color: var(--text);
 }
 
+.iframe-bar-url--editable {
+  cursor: text;
+}
+
+.iframe-bar-url--editable:focus-within {
+  border-color: var(--accent-border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.12);
+}
+
+.iframe-bar-url--readonly {
+  cursor: default;
+}
+
+.iframe-bar-url-input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.iframe-bar-url-input::selection {
+  background: rgba(35, 131, 226, 0.22);
+}
+
+.iframe-bar-url-input:read-only {
+  cursor: default;
+}
+
 .iframe-bar-url-text {
   white-space: nowrap;
   overflow: hidden;
@@ -102,6 +143,10 @@
   display: flex;
   position: relative;
   overflow: hidden;
+}
+
+.canvas-node--iframe.canvas-node--selected .iframe-frame-wrapper {
+  box-shadow: inset 0 0 0 1px rgba(35, 131, 226, 0.1);
 }
 
 .iframe-frame-wrapper--streaming {

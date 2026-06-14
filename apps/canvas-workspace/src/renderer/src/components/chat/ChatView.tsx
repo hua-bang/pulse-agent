@@ -38,6 +38,7 @@ interface ChatViewProps {
   // Canvas context
   nodes?: CanvasNode[];
   selectedContext?: SelectedContextChip[];
+  showContextChips?: boolean;
   onRemoveContext?: (key: string) => void;
   onNodeFocus?: (nodeId: string) => void;
 
@@ -108,6 +109,7 @@ export const ChatView = ({
   onAddImageToCanvas,
   nodes,
   selectedContext,
+  showContextChips = true,
   onRemoveContext,
   onNodeFocus,
   onQuickAction,
@@ -185,6 +187,7 @@ export const ChatView = ({
         input={input}
         attachments={attachments}
         selectedContext={selectedContext}
+        showContextChips={showContextChips}
         onRemoveContext={onRemoveContext}
         contextComposer={contextComposer}
         executionMode={executionMode}

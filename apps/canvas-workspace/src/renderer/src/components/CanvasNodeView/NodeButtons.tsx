@@ -1,4 +1,5 @@
 import type { MouseEvent } from 'react';
+import { AppLogoIcon } from '../icons';
 
 interface FullscreenButtonProps {
   floating?: boolean;
@@ -76,14 +77,19 @@ export const ReferenceButton = ({
     title="Reference"
     aria-label={`Pin ${nodeTitle} as reference`}
   >
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
       <path
-        d="M3.2 2.2c0-.55.45-1 1-1h3.6c.55 0 1 .45 1 1v8.1L6 8.65 3.2 10.3V2.2z"
+        d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
         stroke="currentColor"
-        strokeWidth="1.25"
+        strokeWidth="1.35"
         strokeLinejoin="round"
       />
-      <path d="M4.8 3.6h2.4" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
+      <path
+        d="M6.6 6.2h4.8M6.6 8.7h3"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+      />
     </svg>
   </button>
 );
@@ -97,10 +103,7 @@ export const AddToChatButton = ({ onClick }: { onClick: (e: MouseEvent) => void 
     title="Add to chat"
     aria-label="Add node to AI chat"
   >
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-      <path d="M10 1H2a1 1 0 00-1 1v6a1 1 0 001 1h2l2 2 2-2h2a1 1 0 001-1V2a1 1 0 00-1-1z" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" />
-      <path d="M6 4v3M4.5 5.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
+    <AppLogoIcon />
   </button>
 );
 
