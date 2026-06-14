@@ -10,6 +10,7 @@ const heroTitle = document.querySelector('#hero-title');
 const releaseNotes = document.querySelector('#release-notes');
 const releaseList = document.querySelector('#release-list');
 const languageLinks = document.querySelectorAll('[data-lang-option]');
+const INITIAL_RELEASE_COUNT = 3;
 
 const copy = {
   zh: {
@@ -41,6 +42,10 @@ const copy = {
     installNote: '这是早期版本暂未使用 Apple Developer ID 签名导致的安全提示，不影响本地使用。',
     releaseNotesKicker: '版本更新',
     releaseNotesTitle: 'Release notes',
+    expandRelease: '展开版本说明',
+    collapseRelease: '收起版本说明',
+    showMoreReleases: '查看更多版本',
+    showFewerReleases: '收起版本',
     updatesKicker: '更新',
     updatesTitle: '手动更新',
     updatesBody: '从本页下载最新版本并替换已安装的 app。你的 canvas 数据会单独保存。',
@@ -76,6 +81,10 @@ const copy = {
     installNote: 'This security prompt appears because the early build does not use an Apple Developer ID signature yet. Local use is still supported.',
     releaseNotesKicker: 'Versions',
     releaseNotesTitle: 'Release notes',
+    expandRelease: 'Expand release notes',
+    collapseRelease: 'Collapse release notes',
+    showMoreReleases: 'Show more versions',
+    showFewerReleases: 'Show fewer versions',
     updatesKicker: 'Updates',
     updatesTitle: 'Manual updates',
     updatesBody: 'Download the latest version from this page and replace the installed app. Your canvas data is stored separately.',
@@ -96,6 +105,9 @@ let activeLanguage = getInitialLanguage();
 let latestManifest = null;
 let primaryFile = null;
 let visibleFiles = [];
+let releaseExpansionInitialized = false;
+let expandedReleaseVersions = new Set();
+let showAllReleases = false;
 
 function getInitialLanguage() {
   const params = new URLSearchParams(window.location.search);
@@ -222,6 +234,7 @@ function isImportantReleaseNoteLine(line) {
 }
 
 function renderReleaseNotes() {
+  const text = copy[activeLanguage];
   if (!latestManifest) {
     releaseNotes.hidden = true;
     releaseList.replaceChildren();
@@ -237,17 +250,35 @@ function renderReleaseNotes() {
     .filter((entry) => entry.version && entry.notes);
 
   releaseNotes.hidden = entries.length === 0;
-  releaseList.replaceChildren(...entries.map((entry) => {
+  if (entries.length === 0) {
+    releaseList.replaceChildren();
+    return;
+  }
+
+  if (!releaseExpansionInitialized) {
+    expandedReleaseVersions = new Set([entries[0].version]);
+    releaseExpansionInitialized = true;
+  }
+
+  const visibleEntries = showAllReleases ? entries : entries.slice(0, INITIAL_RELEASE_COUNT);
+  const releaseNodes = visibleEntries.map((entry) => {
+    const isExpanded = expandedReleaseVersions.has(entry.version);
     const article = document.createElement('article');
-    article.className = 'release-entry';
+    article.className = `release-entry${isExpanded ? ' release-entry--expanded' : ''}`;
 
     const header = document.createElement('div');
     header.className = 'release-entry__header';
 
+    const toggle = document.createElement('button');
+    toggle.className = 'release-entry__toggle';
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', String(isExpanded));
+    toggle.setAttribute('aria-label', isExpanded ? text.collapseRelease : text.expandRelease);
+
     const version = document.createElement('span');
     version.className = 'release-entry__version';
     version.textContent = `v${entry.version}`;
-    header.appendChild(version);
+    toggle.appendChild(version);
 
     const date = formatDate(entry.releasedAt);
     if (date) {
@@ -255,16 +286,49 @@ function renderReleaseNotes() {
       time.className = 'release-entry__date';
       time.dateTime = entry.releasedAt;
       time.textContent = date;
-      header.appendChild(time);
+      toggle.appendChild(time);
     }
+    const icon = document.createElement('span');
+    icon.className = 'release-entry__chevron';
+    icon.setAttribute('aria-hidden', 'true');
+    toggle.appendChild(icon);
+    header.appendChild(toggle);
 
     const body = document.createElement('div');
     body.className = 'release-entry__body';
     renderNotesText(body, entry.notes);
+    body.setAttribute('aria-hidden', String(!isExpanded));
+
+    toggle.addEventListener('click', () => {
+      const nextExpanded = !expandedReleaseVersions.has(entry.version);
+      if (nextExpanded) {
+        expandedReleaseVersions.add(entry.version);
+      } else {
+        expandedReleaseVersions.delete(entry.version);
+      }
+      article.classList.toggle('release-entry--expanded', nextExpanded);
+      toggle.setAttribute('aria-expanded', String(nextExpanded));
+      toggle.setAttribute('aria-label', nextExpanded ? text.collapseRelease : text.expandRelease);
+      body.setAttribute('aria-hidden', String(!nextExpanded));
+    });
 
     article.append(header, body);
     return article;
-  }));
+  });
+
+  if (entries.length > INITIAL_RELEASE_COUNT) {
+    const more = document.createElement('button');
+    more.className = 'release-list__more';
+    more.type = 'button';
+    more.textContent = showAllReleases ? text.showFewerReleases : text.showMoreReleases;
+    more.addEventListener('click', () => {
+      showAllReleases = !showAllReleases;
+      renderReleaseNotes();
+    });
+    releaseNodes.push(more);
+  }
+
+  releaseList.replaceChildren(...releaseNodes);
 }
 
 function renderDownloadOption(file) {
@@ -313,18 +377,7 @@ function renderComingSoonOption(kind) {
 
 function renderDownloadOptions() {
   if (!downloadOptions) return;
-  if (!latestManifest || visibleFiles.length === 0) {
-    downloadOptions.replaceChildren();
-    return;
-  }
-
-  const order = ['mac-arm64', 'mac-x64', 'windows-x64', 'linux-x64', 'other'];
-  const files = visibleFiles.slice().sort((a, b) => order.indexOf(getFileKind(a)) - order.indexOf(getFileKind(b)));
-  const items = files.map(renderDownloadOption);
-  if (platform === 'mac' && !files.some((file) => getFileKind(file) === 'mac-x64')) {
-    items.push(renderComingSoonOption('mac-x64'));
-  }
-  downloadOptions.replaceChildren(...items);
+  downloadOptions.replaceChildren();
 }
 
 function renderTitle(parts) {
