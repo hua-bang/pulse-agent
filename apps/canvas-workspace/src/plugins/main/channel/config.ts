@@ -1,12 +1,11 @@
-import { safeStorage } from 'electron';
 import { promises as fs, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { dirname, join } from 'path';
 
 // Persistent channel credentials, configurable from Settings → Experimental
 // instead of (or in addition to) shell env vars. The Feishu app secret is a
-// secret, so it is stored locally. Legacy safeStorage-encrypted values remain
-// readable for existing users.
+// secret, so it is stored locally. Legacy safeStorage-encrypted values are not
+// auto-read because doing so can trigger macOS Keychain prompts.
 //
 // Resolution: env vars take precedence (power users / CI). On startup,
 // applyChannelConfigToEnv() populates process.env from this file ONLY for
@@ -35,8 +34,8 @@ function trimOrUndefined(value: unknown): string | undefined {
 }
 
 function encryptSecret(secret: string): string {
-  // Avoid macOS Keychain prompts for new saves. Legacy `safe:` values are
-  // still readable in decryptSecret for existing users.
+  // Avoid macOS Keychain prompts. This is local obfuscation, not secure
+  // OS-backed storage; users can also use env vars for secrets.
   return `plain:${Buffer.from(secret, 'utf8').toString('base64')}`;
 }
 
@@ -45,7 +44,9 @@ function decryptSecret(encrypted?: string): string | undefined {
   if (!value) return undefined;
   try {
     if (value.startsWith('safe:')) {
-      return safeStorage.decryptString(Buffer.from(value.slice(5), 'base64'));
+      // Legacy Electron safeStorage values can trigger macOS Keychain prompts.
+      // Treat them as unavailable; re-saving the secret rewrites it as `plain:`.
+      return undefined;
     }
     if (value.startsWith('plain:')) {
       return Buffer.from(value.slice(6), 'base64').toString('utf8');
@@ -133,11 +134,12 @@ export async function getChannelConfigStatus(): Promise<ChannelConfigStatus> {
   const appIdFromEnv = Boolean(process.env.FEISHU_APP_ID);
   const secretFromEnv = Boolean(process.env.FEISHU_APP_SECRET);
   const defaultWorkspaceFromEnv = Boolean(process.env.CANVAS_FEISHU_DEFAULT_WORKSPACE);
+  const storedSecret = decryptSecret(feishu.encryptedAppSecret);
   return {
     path: configPath(),
     feishu: {
       appId: feishu.appId,
-      secretPresent: Boolean(feishu.encryptedAppSecret) || secretFromEnv,
+      secretPresent: Boolean(storedSecret) || secretFromEnv,
       defaultWorkspaceId: feishu.defaultWorkspaceId,
       appIdFromEnv,
       secretFromEnv,
@@ -158,6 +160,9 @@ export interface SetFeishuConfigInput {
 export async function setFeishuConfig(input: SetFeishuConfigInput): Promise<void> {
   const cfg = await readConfig();
   const feishu: FeishuConfig = { ...(cfg.feishu ?? {}) };
+  if (feishu.encryptedAppSecret && !decryptSecret(feishu.encryptedAppSecret)) {
+    delete feishu.encryptedAppSecret;
+  }
 
   if (input.appId !== undefined) feishu.appId = trimOrUndefined(input.appId);
   if (input.defaultWorkspaceId !== undefined) {

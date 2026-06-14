@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join, resolve } from 'path';
-import { safeStorage } from 'electron';
 
 export type BuiltInToolCredentialId = 'openai' | 'gemini' | 'tavily';
 
@@ -91,19 +90,19 @@ function normalizeCredentialId(value: unknown): BuiltInToolCredentialId {
 }
 
 function encryptApiKey(apiKey: string): string {
-  // Avoid macOS Keychain prompts for new saves. Legacy `safe:` values are
-  // still readable in decryptApiKey for existing users.
+  // Avoid macOS Keychain prompts. This is local obfuscation, not secure
+  // OS-backed storage; users can also use API-key env vars for secrets.
   return `plain:${Buffer.from(apiKey, 'utf8').toString('base64')}`;
 }
 
-function decryptApiKey(encrypted?: string, options: { allowSafe?: boolean } = {}): string | undefined {
+function decryptApiKey(encrypted?: string): string | undefined {
   const value = normalizeStr(encrypted);
   if (!value) return undefined;
-  const allowSafe = options.allowSafe ?? true;
   try {
     if (value.startsWith('safe:')) {
-      if (!allowSafe) return undefined;
-      return safeStorage.decryptString(Buffer.from(value.slice(5), 'base64'));
+      // Legacy Electron safeStorage values can trigger macOS Keychain prompts.
+      // Treat them as unavailable; re-saving the key rewrites it as `plain:`.
+      return undefined;
     }
     if (value.startsWith('plain:')) {
       return Buffer.from(value.slice(6), 'base64').toString('utf8');
@@ -159,13 +158,13 @@ function credentialStatus(
   config: BuiltInToolsConfigFile,
 ): BuiltInToolCredentialStatus {
   const encrypted = normalizeStr(config.credentials?.[def.id]?.encrypted_api_key);
-  const stored = decryptApiKey(encrypted, { allowSafe: false });
+  const stored = decryptApiKey(encrypted);
   const storedBaseUrl = getStoredBaseUrl(config, def.id);
   const envBaseUrl = getEnvValue(def.baseUrlEnvKey);
   const baseUrl = storedBaseUrl ?? envBaseUrl ?? def.defaultBaseUrl;
   const baseUrlSource = storedBaseUrl ? 'stored' : envBaseUrl ? 'env' : 'default';
 
-  if (stored || encrypted) {
+  if (stored) {
     return {
       ...def,
       apiKeyPresent: true,
@@ -219,6 +218,9 @@ export async function setBuiltInToolCredential(
   const next = {
     ...existing,
   };
+  if (next.encrypted_api_key && !decryptApiKey(next.encrypted_api_key)) {
+    delete next.encrypted_api_key;
+  }
   if (apiKey) next.encrypted_api_key = encryptApiKey(apiKey);
   if (hasBaseUrlInput) {
     if (baseUrl) next.base_url = baseUrl;
