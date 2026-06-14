@@ -8,6 +8,7 @@ import {
   teardownCanvasWatchers,
   auditPollutedWorkspacesAtStartup,
 } from "../canvas/store";
+import { ensureWelcomeWorkspaceSeeded } from "../canvas/welcome-workspace";
 import { setupFileManagerIpc } from "../files/manager";
 // MCP server disabled: canvas-cli is the preferred agent interface now.
 // import { startMCPServer } from "../runtime/mcp-server";
@@ -99,6 +100,11 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
     setupPtyIpc();
     setupCanvasStoreIpc();
+    try {
+      await ensureWelcomeWorkspaceSeeded();
+    } catch (err) {
+      await writeLog("main", "ensureWelcomeWorkspaceSeeded failed", String(err));
+    }
     // Audit pollution-shaped workspaces in the background; surfaces a log
     // entry per finding. The renderer's MigrationSpinner separately
     // surfaces user-visible sticky alerts via canvas:listPollutedWorkspaces
@@ -252,9 +258,10 @@ function configureAppChrome(
   iconPath: string | undefined,
   writeLog: WriteLog
 ): void {
-  // Set the macOS dock icon in dev/preview. Packaged builds use the .icns from
-  // electron-builder, so this is a no-op there.
-  if (process.platform === "darwin" && iconPath && app.dock) {
+  // Set the macOS dock icon in dev/preview. Packaged builds should keep using
+  // the bundle .icns from electron-builder so the launch and running Dock icon
+  // stay visually consistent.
+  if (process.platform === "darwin" && !app.isPackaged && iconPath && app.dock) {
     try {
       app.dock.setIcon(iconPath);
     } catch (error) {

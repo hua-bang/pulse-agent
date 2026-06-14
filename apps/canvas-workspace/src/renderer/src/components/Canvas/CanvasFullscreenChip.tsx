@@ -7,7 +7,7 @@ interface Props {
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   chatPanelOpen?: boolean;
-  onChatToggle?: () => void;
+  onChatOpen?: () => void;
   onExitFullscreen: () => void;
 }
 
@@ -23,10 +23,14 @@ export const CanvasFullscreenChip = ({
   referenceDrawerOpen,
   onReferenceToggle,
   chatPanelOpen,
-  onChatToggle,
+  onChatOpen,
   onExitFullscreen,
 }: Props) => (
-  <div className="canvas-fullscreen-chip">
+  <div
+    className="canvas-fullscreen-chip"
+    onMouseDown={(event) => event.stopPropagation()}
+    onClick={(event) => event.stopPropagation()}
+  >
     {onReferenceToggle && (
       <button
         className={`canvas-fullscreen-chip__btn${referenceDrawerOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
@@ -41,13 +45,13 @@ export const CanvasFullscreenChip = ({
         </svg>
       </button>
     )}
-    {onChatToggle && (
+    {onChatOpen && (
       <button
         className={`canvas-fullscreen-chip__btn${chatPanelOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
         type="button"
-        onClick={onChatToggle}
-        title="Toggle AI Chat (Cmd/Ctrl+Shift+A)"
-        aria-label="Toggle AI Chat"
+        onClick={onChatOpen}
+        title="Open AI Chat"
+        aria-label="Open AI Chat"
       >
         <AppLogoIcon size={16} />
       </button>

@@ -59,7 +59,6 @@ interface AgentInstallGuide {
   alternateCommands?: string[];
   verifyCommand: string;
   docUrl?: string;
-  noteKey: 'agent.installNoteClaude' | 'agent.installNoteCodex' | 'agent.installNotePulseCoder';
 }
 
 const AGENT_INSTALL_GUIDES: Record<string, AgentInstallGuide> = {
@@ -71,7 +70,6 @@ const AGENT_INSTALL_GUIDES: Record<string, AgentInstallGuide> = {
     ],
     verifyCommand: 'claude',
     docUrl: 'https://code.claude.com/docs/quickstart',
-    noteKey: 'agent.installNoteClaude',
   },
   codex: {
     primaryCommand: 'curl -fsSL https://chatgpt.com/codex/install.sh | sh',
@@ -81,12 +79,6 @@ const AGENT_INSTALL_GUIDES: Record<string, AgentInstallGuide> = {
     ],
     verifyCommand: 'codex',
     docUrl: 'https://developers.openai.com/codex/quickstart',
-    noteKey: 'agent.installNoteCodex',
-  },
-  'pulse-coder': {
-    primaryCommand: 'pnpm install && pnpm --filter pulse-coder-cli build && pnpm --dir packages/cli link --global',
-    verifyCommand: 'pulse-coder',
-    noteKey: 'agent.installNotePulseCoder',
   },
 };
 
@@ -135,13 +127,6 @@ export const AgentPicker = ({
     if (!installGuide) return [];
     return [installGuide.primaryCommand, ...(installGuide.alternateCommands ?? [])];
   }, [installGuide]);
-  const getStatusLabel = (status: CommandStatus) => {
-    if (status === 'available') return t('agent.cliStatusInstalled');
-    if (status === 'missing') return t('agent.cliStatusMissing');
-    if (status === 'unknown') return t('agent.cliStatusUnknown');
-    return t('agent.cliStatusChecking');
-  };
-
   useEffect(() => {
     const checker = window.canvasWorkspace?.pty?.checkCommand;
     if (!checker) {
@@ -208,32 +193,39 @@ export const AgentPicker = ({
 
         <div className="agent-card-body">
           <div className="agent-tabs" role="tablist" aria-label="Coding agent">
-            {AGENT_REGISTRY.map((a: AgentDef) => (
-              <button
-                key={a.id}
-                type="button"
-                role="tab"
-                aria-selected={selectedAgent === a.id}
-                className={`agent-tab${selectedAgent === a.id ? ' agent-tab--active' : ''
-                  }`}
-                onClick={() => onAgentChange(a.id)}
-                title={`${a.label} — ${a.description}`}
-              >
-                <span className="agent-tab__main">
-                  <AgentIcon id={a.id} size={16} />
-                  <span className="agent-tab__label">{a.label}</span>
-                </span>
+            {AGENT_REGISTRY.map((a: AgentDef) => {
+              const commandStatus = commandStatusByAgent[a.id] ?? 'checking';
+              const isMissing = commandStatus === 'missing';
+              const tooltip = isMissing
+                ? t('agent.cliInstallTooltip', { agent: a.label, command: a.command })
+                : `${a.label} — ${a.description}`;
+
+              return (
                 <span
-                  className={`agent-tab-status agent-tab-status--${commandStatusByAgent[a.id] ?? 'checking'}`}
-                  title={`${a.command}: ${getStatusLabel(commandStatusByAgent[a.id] ?? 'checking')}`}
+                  key={a.id}
+                  className={`agent-tab-shell${isMissing ? ' agent-tab-shell--disabled' : ''}`}
+                  title={tooltip}
                 >
-                  <span className="agent-tab-status__dot" />
-                  <span className="agent-tab-status__text">
-                    {getStatusLabel(commandStatusByAgent[a.id] ?? 'checking')}
-                  </span>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={selectedAgent === a.id}
+                    className={`agent-tab${selectedAgent === a.id ? ' agent-tab--active' : ''
+                      }${isMissing ? ' agent-tab--disabled' : ''}`}
+                    onClick={() => {
+                      if (!isMissing) onAgentChange(a.id);
+                    }}
+                    disabled={isMissing}
+                    aria-label={tooltip}
+                  >
+                    <span className="agent-tab__main">
+                      <AgentIcon id={a.id} size={16} />
+                      <span className="agent-tab__label">{a.label}</span>
+                    </span>
+                  </button>
                 </span>
-              </button>
-            ))}
+              );
+            })}
           </div>
 
           {launchErrorCommand && (
@@ -264,7 +256,6 @@ export const AgentPicker = ({
                   </button>
                 ) : null}
               </div>
-              <p>{t(installGuide.noteKey)}</p>
               <div className="agent-install-guide__commands">
                 {allInstallCommands.map((command, index) => (
                   <div className="agent-install-command" key={command}>

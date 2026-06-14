@@ -74,7 +74,7 @@ export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange 
         }}
       >
         <span className="agent-type-select__logo">
-          <AgentIcon id={selected?.id ?? 'pulse-coder'} size={14} />
+          <AgentIcon id={selected?.id ?? 'claude-code'} size={14} />
         </span>
         <span className="agent-type-select__value">{selected?.label ?? 'Coding agent'}</span>
         <span className="agent-type-select__caret">

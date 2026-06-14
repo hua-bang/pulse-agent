@@ -22,12 +22,13 @@ import { AgentSection } from './AgentSection';
 import { BuiltInToolsSection } from './BuiltInToolsSection';
 import { ExperimentalSection } from './ExperimentalSection';
 import { LanguageSection } from './LanguageSection';
+import { UpdateSection } from './UpdateSection';
 import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'experimental' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'experimental' | 'updates' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -80,6 +81,12 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.experimental.label',
     descriptionKey: 'settings.experimental.description',
     titleKey: 'settings.experimental.title',
+  },
+  {
+    id: 'updates',
+    labelKey: 'settings.updates.label',
+    descriptionKey: 'settings.updates.description',
+    titleKey: 'settings.updates.title',
   },
   {
     id: 'language',
@@ -170,6 +177,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
             </div>
           )}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}
+          {activeSection === 'updates' && <UpdateSection />}
           {activeSection === 'language' && <LanguageSection />}
         </div>
       </div>

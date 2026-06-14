@@ -1542,7 +1542,7 @@ export const AgentTeamFrame = ({
             <div className="agent-team-agent-detail__activity">
               <div className="agent-team-agent-detail__meta">
                 <span className="agent-team-detail__agent-type">
-                  <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
+                  <AgentIcon id={selectedGraphAgent.agentType ?? 'claude-code'} size={13} />
                   {agentTypeLabel(selectedGraphAgent.agentType)}
                 </span>
                 {selectedGraphAgent.nodeId && <code>{selectedGraphAgent.nodeId}</code>}
@@ -1783,7 +1783,7 @@ export const AgentTeamFrame = ({
             >
               <span className="agent-team-summary-agent__name">
                 <span className="agent-team-summary-agent__logo">
-                  <AgentIcon id={agent.agentType ?? 'pulse-coder'} size={14} />
+                  <AgentIcon id={agent.agentType ?? 'claude-code'} size={14} />
                 </span>
                 {agent.name}
               </span>
@@ -1921,7 +1921,7 @@ export const AgentTeamFrame = ({
             <div className="agent-team-agent-inspector__summary">
               <div className="agent-team-agent-inspector__meta">
                 <span className="agent-team-detail__agent-type">
-                  <AgentIcon id={selectedGraphAgent.agentType ?? 'pulse-coder'} size={13} />
+                  <AgentIcon id={selectedGraphAgent.agentType ?? 'claude-code'} size={13} />
                   {agentTypeLabel(selectedGraphAgent.agentType)}
                 </span>
                 <span>{statusLabel(selectedGraphAgent.status)}</span>

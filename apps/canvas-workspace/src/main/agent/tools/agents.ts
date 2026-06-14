@@ -14,12 +14,12 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
       name: 'canvas_create_agent_node',
       description:
         'Create and optionally auto-launch an AI agent node on the canvas. ' +
-        'Use this when you need to delegate a task to another agent (Claude Code, Codex, Pulse Coder). ' +
+        'Use this when you need to delegate a task to another agent (Claude Code or Codex). ' +
         'Set `prompt` with task instructions and relevant canvas context so the agent knows what to do. ' +
         'The prompt is piped directly to the agent as its initial prompt.',
       inputSchema: z.object({
         title: z.string().optional().describe('Node title (e.g. "Codex: Implement login").'),
-        agentType: z.enum(['claude-code', 'codex', 'pulse-coder']).optional()
+        agentType: z.enum(['claude-code', 'codex']).optional()
           .describe('Agent type. Defaults to "claude-code".'),
         cwd: z.string().optional()
           .describe('Working directory for the agent. Defaults to the workspace root folder when set; omit unless the agent needs to run outside the workspace root.'),
@@ -98,7 +98,7 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
       name: 'canvas_send_to_agent',
       defer_loading: true,
       description:
-        'Send a follow-up prompt to an existing, RUNNING agent node (Claude Code / Codex / Pulse Coder). ' +
+        'Send a follow-up prompt to an existing, RUNNING agent node (Claude Code / Codex). ' +
         'Writes the text directly to the agent\'s PTY as if the user typed it, and auto-appends Enter ' +
         '(a carriage return) so the agent receives and executes it immediately — you do NOT need to ' +
         'call this twice or send a separate newline. ' +

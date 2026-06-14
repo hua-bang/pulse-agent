@@ -144,7 +144,7 @@ export const AgentNodeBody = ({
       <AgentTerminal
         containerRef={controller.containerRef}
         status={controller.status}
-        agentType={controller.data.agentType || 'claude-code'}
+        agentType={controller.selectedAgent || 'claude-code'}
         cwd={controller.data.cwd}
         loading={controller.loading || controller.teamAutoResumePending}
       />
@@ -168,7 +168,7 @@ export const AgentNodeBody = ({
   if (suppressFinishedTeamLeadRestart) {
     return (
       <AgentTeamManaged
-        agentType={controller.data.agentType || controller.selectedAgent || 'claude-code'}
+        agentType={controller.selectedAgent || 'claude-code'}
         cwd={controller.data.cwd || rootFolder}
         status={managedLeadStatus}
         lastPrompt={controller.data.lastInitPrompt}
@@ -205,7 +205,7 @@ export const AgentNodeBody = ({
     return (
       <div className={isTeamLead ? 'agent-team-lead-advanced' : undefined}>
         <AgentRestart
-          agentType={controller.data.agentType || 'claude-code'}
+          agentType={controller.selectedAgent || 'claude-code'}
           cwd={controller.data.cwd}
           prompt={controller.data.lastInitPrompt}
           cliSessionId={controller.data.cliSessionId}
@@ -220,7 +220,7 @@ export const AgentNodeBody = ({
   if (isTeamLead) {
     return (
       <AgentTeamManaged
-        agentType={controller.data.agentType || controller.selectedAgent || 'claude-code'}
+        agentType={controller.selectedAgent || 'claude-code'}
         cwd={controller.data.cwd || rootFolder}
         status={managedLeadStatus}
         lastPrompt={controller.data.lastInitPrompt}

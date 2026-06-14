@@ -447,6 +447,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
                   onRenameComplete={clearRenameRequest}
                   chatPanelOpen={chatPanelOpen}
+                  onChatOpen={dock.openChat}
                   onChatToggle={dock.toggleChat}
                   referenceDrawerOpen={referenceDrawerOpen}
                   onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
