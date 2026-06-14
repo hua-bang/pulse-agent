@@ -17,8 +17,8 @@ SOURCE_PATH = os.path.join(RESOURCES_DIR, "icon@2x.png")
 # Common sizes for app icons
 SIZES = [16, 32, 48, 64, 128, 256, 512, 1024]
 ICO_SIZES = [16, 32, 48, 64, 128, 256]
-APP_ICON_PADDING_RATIO = 0.26
-UI_ICON_PADDING_RATIO = 0.08
+APP_ICON_PADDING_RATIO = 0.14
+UI_ICON_PADDING_RATIO = APP_ICON_PADDING_RATIO
 
 
 def load_source_icon() -> Image.Image:
