@@ -8,6 +8,7 @@ import {
   teardownCanvasWatchers,
   auditPollutedWorkspacesAtStartup,
 } from "../canvas/store";
+import { ensureWelcomeWorkspaceSeeded } from "../canvas/welcome-workspace";
 import { setupFileManagerIpc } from "../files/manager";
 // MCP server disabled: canvas-cli is the preferred agent interface now.
 // import { startMCPServer } from "../runtime/mcp-server";
@@ -99,6 +100,11 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
     setupPtyIpc();
     setupCanvasStoreIpc();
+    try {
+      await ensureWelcomeWorkspaceSeeded();
+    } catch (err) {
+      await writeLog("main", "ensureWelcomeWorkspaceSeeded failed", String(err));
+    }
     // Audit pollution-shaped workspaces in the background; surfaces a log
     // entry per finding. The renderer's MigrationSpinner separately
     // surfaces user-visible sticky alerts via canvas:listPollutedWorkspaces

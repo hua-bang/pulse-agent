@@ -100,7 +100,7 @@ export interface CanvasNode {
  * on-disk schema version, accepted by `writeCanvasFull`. `schemaVersion` is
  * the *target* version that should end up on disk after a write; callers
  * don't need to set it (defaults to whatever is currently on disk, or v2 for
- * fresh workspaces post-PR3).
+ * fresh workspaces).
  */
 export interface CanvasSaveData {
   schemaVersion?: 1 | 2;
@@ -799,13 +799,8 @@ async function assembleV2(
 
 /**
  * Write a full canvas (v1-shape input) to disk, matching whatever schema
- * version is currently on disk.
- *
- * In PR1 every workspace is still v1, so this just writes the whole shape
- * to canvas.json atomically — identical behavior to the legacy code. Once
- * PR3 flips on v2, this same call splits the input into layout + per-node
- * files automatically; callers (`canvas:save`, MCP server, etc.) need no
- * code change to follow along.
+ * version is currently on disk. Fresh workspaces default to v2 so they don't
+ * immediately trip the lazy migration toast on first load.
  */
 export async function writeCanvasFull(
   workspaceId: string,
@@ -815,11 +810,16 @@ export async function writeCanvasFull(
   const canvasPath = getCanvasJsonPath(workspaceId, root);
   await fs.mkdir(dirname(canvasPath), { recursive: true });
 
-  // Detect current on-disk version. Fresh workspace → default to v1 to
-  // keep PR1 behaviorally identical; PR3 changes this default to v2.
+  // Detect current on-disk version. Fresh workspace → default to v2 now
+  // that lazy migration is active; callers can still request v1 explicitly
+  // with `data.schemaVersion = 1` for recovery/compat tests.
   const existing = await readJsonWithRecovery<CanvasSaveData>(canvasPath);
   const currentVersion: SchemaVersion =
-    existing.kind === 'ok' ? detectSchemaVersion(existing.data) : 1;
+    existing.kind === 'ok'
+      ? detectSchemaVersion(existing.data)
+      : data.schemaVersion === 1
+        ? 1
+        : CANVAS_SCHEMA_VERSION_V2;
 
   if (currentVersion === 1) {
     // Pollution guard: if any incoming node id has a corresponding v2

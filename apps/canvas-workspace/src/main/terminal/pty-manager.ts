@@ -1,10 +1,13 @@
 import { ipcMain } from "electron";
 import * as pty from "node-pty";
+import { createRequire } from "module";
 import { platform, homedir } from "os";
 import { execFileSync, execSync } from "child_process";
-import { existsSync } from "fs";
+import { chmodSync, existsSync } from "fs";
+import { delimiter, dirname, join, resolve } from "path";
 
 const sessions = new Map<string, pty.IPty>();
+const nodeRequire = createRequire(import.meta.url);
 
 /**
  * Main-process observers of PTY session lifecycle. Data and exit events are
@@ -65,22 +68,140 @@ const defaultShell = () => {
 const shellQuote = (value: string): string =>
   `'${value.replace(/'/g, "'\\''")}'`;
 
+let nodePtyHelperChecked = false;
+
+const ensureNodePtySpawnHelperExecutable = (): void => {
+  if (nodePtyHelperChecked || platform() === "win32") return;
+  nodePtyHelperChecked = true;
+
+  try {
+    const unixTerminalPath = nodeRequire.resolve("node-pty/lib/unixTerminal");
+    const packageRoot = resolve(dirname(unixTerminalPath), "..");
+    const helperCandidates = [
+      join(packageRoot, "prebuilds", `${process.platform}-${process.arch}`, "spawn-helper"),
+      join(packageRoot, "build", "Release", "spawn-helper"),
+      join(packageRoot, "build", "Debug", "spawn-helper"),
+    ];
+
+    for (const helperPath of helperCandidates) {
+      if (!existsSync(helperPath)) continue;
+      try {
+        chmodSync(helperPath, 0o755);
+      } catch {
+        // Best effort: node-pty will surface the spawn error if this is still unusable.
+      }
+    }
+  } catch {
+    // If resolution fails, keep the PTY startup path unchanged.
+  }
+};
+
+const toStringEnv = (): Record<string, string> => {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === "string") env[key] = value;
+  }
+  return env;
+};
+
+const uniquePath = (parts: string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const part of parts) {
+    if (!part || seen.has(part)) continue;
+    seen.add(part);
+    result.push(part);
+  }
+  return result;
+};
+
+const commonPosixBinDirs = (): string[] => {
+  const home = homedir();
+  return [
+    join(home, ".local", "bin"),
+    join(home, "bin"),
+    join(home, ".npm-global", "bin"),
+    join(home, ".yarn", "bin"),
+    join(home, ".bun", "bin"),
+    join(home, ".cargo", "bin"),
+    join(home, "Library", "pnpm"),
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    "/usr/local/bin",
+    "/usr/local/sbin",
+  ];
+};
+
+const buildPtyEnv = (): Record<string, string> => {
+  const env = toStringEnv();
+  if (platform() === "win32") return env;
+  env.PATH = uniquePath([
+    ...(env.PATH ? env.PATH.split(delimiter) : []),
+    ...commonPosixBinDirs(),
+  ]).join(delimiter);
+  return env;
+};
+
+const COMMAND_LOOKUP_MARKER = "__PULSE_CANVAS_COMMAND_PATH__:";
+
+const parseLookupPath = (output: string): string | undefined => {
+  for (const line of output.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith(COMMAND_LOOKUP_MARKER)) continue;
+    const path = trimmed.slice(COMMAND_LOOKUP_MARKER.length).trim();
+    if (path) return path;
+  }
+  return undefined;
+};
+
+const commandLookupScript = (command: string): string => [
+  `__pulse_canvas_cmd=${shellQuote(command)}`,
+  `__pulse_canvas_path=$(command -v "$__pulse_canvas_cmd" 2>/dev/null || true)`,
+  `printf '${COMMAND_LOOKUP_MARKER}%s\\n' "$__pulse_canvas_path"`,
+].join("; ");
+
 const checkCommand = (command: string): { ok: boolean; available: boolean; path?: string; error?: string } => {
   const trimmed = command.trim();
   if (!trimmed) return { ok: false, available: false, error: "command is required" };
+  const env = buildPtyEnv();
+  const errors: string[] = [];
   try {
-    const output = platform() === "win32"
-      ? execFileSync("where", [trimmed], { encoding: "utf8", timeout: 3000 })
-      : execFileSync(defaultShell(), ["-lc", `command -v ${shellQuote(trimmed)}`], {
-        encoding: "utf8",
-        timeout: 3000,
-        env: process.env,
-      });
-    const path = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
-    return { ok: true, available: Boolean(path), path };
+    if (platform() === "win32") {
+      const output = execFileSync("where", [trimmed], { encoding: "utf8", timeout: 3000, env });
+      const path = output.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
+      return { ok: true, available: Boolean(path), path };
+    }
+
+    const shell = defaultShell();
+    const script = commandLookupScript(trimmed);
+    const attempts = [
+      ["-lc", script],
+      ["-ic", script],
+    ];
+
+    for (const args of attempts) {
+      try {
+        const output = execFileSync(shell, args, {
+          encoding: "utf8",
+          timeout: 3000,
+          env,
+        });
+        const path = parseLookupPath(output);
+        if (path) return { ok: true, available: true, path };
+      } catch (err) {
+        errors.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    return { ok: true, available: false };
   } catch (err) {
-    return { ok: true, available: false, error: err instanceof Error ? err.message : String(err) };
+    errors.push(err instanceof Error ? err.message : String(err));
   }
+  return {
+    ok: true,
+    available: false,
+    error: errors.find(Boolean),
+  };
 };
 
 const getCwd = (pid: number): string | null => {
@@ -130,9 +251,8 @@ export const setupPtyIpc = () => {
 
       try {
         const shell = defaultShell();
-        const spawnEnv: Record<string, string> = {
-          ...(process.env as Record<string, string>),
-        };
+        ensureNodePtySpawnHelperExecutable();
+        const spawnEnv: Record<string, string> = buildPtyEnv();
         const canvasEnv: Record<string, string> = {};
         for (const [key, value] of Object.entries(payload.env ?? {})) {
           if (!/^PULSE_CANVAS_[A-Z0-9_]+$/.test(key)) continue;

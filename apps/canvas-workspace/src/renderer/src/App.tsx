@@ -8,7 +8,6 @@ import { MigrationSpinner } from './components/MigrationSpinner';
 import { RightDock, RightDockProvider } from './components/RightDock';
 import { Settings, type SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
-import { UpdateNotice } from './components/UpdateNotice';
 import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
@@ -570,7 +569,6 @@ const AppContent = () => {
         </PulseRouter>
       </div>
       <RightDock activeWorkspaceId={activeId} chatTabEnabled={activeView === 'canvas'} />
-      <UpdateNotice />
       <MigrationSpinner />
       <WorkspaceSettingsDrawer
         workspace={

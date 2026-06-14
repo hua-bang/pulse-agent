@@ -16,7 +16,7 @@
    * same product instead of a separate purple sub-theme. Per-agent
    * brand colors still live in `.agent-loading-overlay--<agent>` for
    * the loading mark, which is the one place the agent's own identity
-   * (Claude orange, Pulse-Coder indigo) is meaningful. */
+   * is meaningful. */
   --agent-accent: #2383e2;
   --agent-accent-hover: #1c6dbf;
   --agent-accent-soft: rgba(35, 131, 226, 0.1);
@@ -534,16 +534,23 @@
 
 .agent-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.agent-tab-shell {
+  min-width: 0;
+}
+
+.agent-tab-shell--disabled {
+  cursor: not-allowed;
 }
 
 .agent-tab {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  width: 100%;
   height: 52px;
   padding: 6px 8px;
   border: 1px solid var(--border);
@@ -574,53 +581,6 @@
   text-overflow: ellipsis;
 }
 
-.agent-tab-status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  max-width: 100%;
-  color: var(--agent-faint);
-  font-size: 10px;
-  font-weight: 750;
-  line-height: 1;
-}
-
-.agent-tab-status__dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  flex-shrink: 0;
-}
-
-.agent-tab-status__text {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.agent-tab-status--available {
-  color: #12835c;
-}
-
-.agent-tab-status--missing {
-  color: var(--agent-warning);
-}
-
-.agent-tab-status--unknown {
-  color: var(--agent-muted);
-}
-
-.agent-tab-status--checking .agent-tab-status__dot {
-  animation: agent-cli-status-pulse 1.3s ease-in-out infinite;
-}
-
-@keyframes agent-cli-status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
-}
-
 .agent-tab:hover {
   border-color: var(--agent-accent-border);
 }
@@ -634,6 +594,17 @@
 
 .agent-tab--active:hover {
   filter: brightness(0.98);
+}
+
+.agent-tab:disabled,
+.agent-tab--disabled {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(245, 245, 244, 0.72);
+  color: var(--agent-faint);
+  cursor: not-allowed;
+  opacity: 0.62;
+  pointer-events: none;
+  box-shadow: none;
 }
 
 .agent-cli-warning {
@@ -1120,12 +1091,6 @@
   --loading-accent: #e07b3f;
   --loading-tint: rgba(224, 123, 63, 0.14);
   --loading-tint-strong: rgba(224, 123, 63, 0.26);
-}
-
-.agent-loading-overlay--pulse-coder {
-  --loading-accent: #6366f1;
-  --loading-tint: rgba(99, 102, 241, 0.14);
-  --loading-tint-strong: rgba(99, 102, 241, 0.26);
 }
 
 @keyframes agent-fade-in {

@@ -23,7 +23,7 @@ export function createWindow({
     title: APP_NAME,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: "#f6f6f4",
+    backgroundColor: "#f8f8f7",
     ...(iconPath ? { icon: iconPath } : {}),
     webPreferences: {
       preload: preloadPath,

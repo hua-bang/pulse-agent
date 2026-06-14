@@ -6,6 +6,7 @@
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
+    "dev:temp-home": "sh -c 'SANDBOX_HOME=\"$(mktemp -d \"${TMPDIR:-/tmp}/pulse-canvas-dev-home.XXXXXX\")\" && echo \"Using HOME=$SANDBOX_HOME\" && HOME=\"$SANDBOX_HOME\" electron-vite dev'",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "rebuild": "electron-rebuild -f -w node-pty",

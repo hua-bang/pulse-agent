@@ -336,9 +336,26 @@ describe('readCanvasFull / writeCanvasFull on v1', () => {
     ).toBe(false);
   });
 
-  it('writes v1 for fresh workspace (no on-disk version yet)', async () => {
-    const v1: CanvasSaveData = {
+  it('writes v2 for fresh workspace (no on-disk version yet)', async () => {
+    const fresh: CanvasSaveData = {
       nodes: [{ id: 'fresh', type: 'text', data: {} }],
+      transform: { x: 0, y: 0, scale: 1 },
+    };
+    await writeCanvasFull(wsId, fresh, root);
+    const raw = JSON.parse(
+      await fs.readFile(getCanvasJsonPath(wsId, root), 'utf-8'),
+    );
+    expect(raw.schemaVersion).toBe(CANVAS_SCHEMA_VERSION_V2);
+    expect(raw.nodes[0].id).toBe('fresh');
+    expect(raw.nodes[0].data).toBeUndefined();
+    const perNode = await readNodeFile(wsId, 'fresh', root);
+    expect(perNode?.data).toEqual({});
+  });
+
+  it('can explicitly write v1 for a fresh workspace when requested', async () => {
+    const v1: CanvasSaveData = {
+      schemaVersion: 1,
+      nodes: [{ id: 'fresh-v1', type: 'text', data: { content: 'legacy' } }],
       transform: { x: 0, y: 0, scale: 1 },
     };
     await writeCanvasFull(wsId, v1, root);
@@ -346,7 +363,8 @@ describe('readCanvasFull / writeCanvasFull on v1', () => {
       await fs.readFile(getCanvasJsonPath(wsId, root), 'utf-8'),
     );
     expect(raw.schemaVersion).toBeUndefined();
-    expect(raw.nodes[0].id).toBe('fresh');
+    expect(raw.nodes[0].id).toBe('fresh-v1');
+    expect(raw.nodes[0].data.content).toBe('legacy');
   });
 });
 
@@ -1085,9 +1103,10 @@ describe('writeCanvasFull pollution guard', () => {
     expect(n1?.data?.content).toBe('real-A');
   });
 
-  it('permits v1 write when no per-node files exist (legit fresh v1 workspace)', async () => {
+  it('permits explicitly requested v1 write when no per-node files exist', async () => {
     await fs.mkdir(join(root, wsId), { recursive: true });
     const incoming: CanvasSaveData = {
+      schemaVersion: 1,
       nodes: [
         { id: 'fresh', type: 'text', title: '', x: 0, y: 0, width: 10, height: 10, data: { content: 'hi' } },
       ],

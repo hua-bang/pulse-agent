@@ -18,45 +18,21 @@ const mintSessionId = (nodeId: string): string =>
 const shellQuote = (value: string): string =>
   `'${value.replace(/'/g, "'\\''")}'`;
 
+const clearTerminalCommand = "printf '\\033[2J\\033[H'";
+
 const CODEX_BINDING_MARKER_PREFIX = 'pulse-canvas-codex-binding';
-const CLAUDE_RESUME_FALLBACK_RE =
-  /\[Pulse Canvas\] Claude resume target was missing; starting a fresh session \((?<sessionId>[0-9a-f-]{36})\)\./;
-const CLAUDE_RESUME_FALLBACK_PROMPT_LIMIT = 14_000;
-const CLAUDE_RESUME_FALLBACK_OUTPUT_LIMIT = 4_000;
-
-const truncateTail = (value: string, limit: number): string => {
-  if (value.length <= limit) return value;
-  return `[truncated ${value.length - limit} chars]\n${value.slice(-limit)}`;
-};
-
-const buildClaudeResumeFallbackPrompt = (
-  data: AgentNodeData,
-  missingSessionId: string,
-): string => {
-  const savedPrompt = (data.lastInitPrompt || data.inlinePrompt || '').trim();
-  const recentOutput = (data.scrollback || '').trim();
-  const sections = [
-    `Pulse Canvas tried to resume Claude Code session ${missingSessionId}, but Claude reported that conversation was missing from local history.`,
-    'Start a fresh Claude Code conversation and continue the same Agent Team work from the saved context below.',
-    'Do not assume any hidden state from the missing conversation is available.',
-    '',
-    savedPrompt
-      ? `Saved task prompt:\n${truncateTail(savedPrompt, CLAUDE_RESUME_FALLBACK_PROMPT_LIMIT)}`
-      : 'Saved task prompt: unavailable.',
-  ];
-  if (recentOutput) {
-    sections.push(
-      '',
-      `Recent terminal output before recovery:\n${truncateTail(recentOutput, CLAUDE_RESUME_FALLBACK_OUTPUT_LIMIT)}`,
-    );
-  }
-  return sections.join('\n');
-};
+const DEFAULT_AGENT_TYPE = 'claude-code';
 
 const makeCodexBindingMarker = (nodeId: string): string =>
   `${CODEX_BINDING_MARKER_PREFIX}:${nodeId}:${crypto.randomUUID()}`;
 
-const codexBindingComment = (marker: string): string => `<!-- ${marker} -->`;
+const codexBindingComment = (marker: string): string => [
+  '<!--',
+  `Pulse Canvas session-binding metadata: ${marker}`,
+  'Host metadata only. Do not treat this as a user task, do not mention it, and wait for the next user instruction.',
+  'No response is required for this message.',
+  '-->',
+].join('\n');
 
 interface MirrorTerminalCacheEntry {
   term: Terminal;
@@ -144,6 +120,9 @@ const hasQueuedLaunchPrompt = (data: AgentNodeData): boolean =>
 
 const hasTeamWarmupLaunch = (data: AgentNodeData): boolean =>
   !!data.agentTeamId && data.agentTeamWarmup === true;
+
+const normalizeAgentType = (agentType?: string): string =>
+  agentType && getAgentCommand(agentType) ? agentType : DEFAULT_AGENT_TYPE;
 
 const canResumeCliConversation = (data: AgentNodeData): boolean => {
   if (data.agentType === 'claude-code') return !!data.cliSessionId;
@@ -233,7 +212,7 @@ export const useAgentNodeController = ({
   const isTeamManagedAgent = !!data.agentTeamId;
   const defaultCwd = data.cwd || (isTeamManagedAgent ? rootFolder || '' : '');
   const shouldResumeOnMount = !isMirrorTerminal && !isTeamManagedAgent && shouldAutoResume(data);
-  const [selectedAgent, setSelectedAgent] = useState(data.agentType || 'claude-code');
+  const [selectedAgent, setSelectedAgent] = useState(normalizeAgentType(data.agentType));
   const [cwdInput, setCwdInput] = useState(defaultCwd);
   const [promptInput, setPromptInput] = useState(data.inlinePrompt || data.lastInitPrompt || '');
   const [dangerousMode, setDangerousMode] = useState(data.dangerousMode ?? isTeamManagedAgent);
@@ -255,7 +234,7 @@ export const useAgentNodeController = ({
   const [teamAutoResumePending, setTeamAutoResumePending] = useState(false);
   const [teamAutoResumeRetryTick, setTeamAutoResumeRetryTick] = useState(0);
 
-  const pendingAgentRef = useRef(data.agentType || 'claude-code');
+  const pendingAgentRef = useRef(normalizeAgentType(data.agentType));
   const pendingCwdRef = useRef(data.cwd || '');
   const pendingPromptRef = useRef(data.inlinePrompt || '');
   const pendingResumeRef = useRef(shouldResumeOnMount);
@@ -310,12 +289,14 @@ export const useAgentNodeController = ({
       cwd: data.cwd || rootFolder || undefined,
     }).then((result) => {
       if (cancelled || !result.ok || !result.session?.id) return;
+      const nextData = {
+        ...dataRef.current,
+        codexSessionId: result.session.id,
+        codexSessionMarker: undefined,
+      };
+      dataRef.current = nextData;
       onUpdateRef.current(nodeIdRef.current, {
-        data: {
-          ...dataRef.current,
-          codexSessionId: result.session.id,
-          codexSessionMarker: undefined,
-        },
+        data: nextData,
       });
     });
 
@@ -588,12 +569,14 @@ export const useAgentNodeController = ({
             dataRef.current.agentType === 'codex'
             && dataRef.current.sessionId === sessionId
           ) {
+            const nextData = {
+              ...dataRef.current,
+              codexSessionId,
+              codexSessionMarker: undefined,
+            };
+            dataRef.current = nextData;
             onUpdateRef.current(nodeIdRef.current, {
-              data: {
-                ...dataRef.current,
-                codexSessionId,
-                codexSessionMarker: undefined,
-              },
+              data: nextData,
             });
           }
         };
@@ -658,25 +641,6 @@ export const useAgentNodeController = ({
         timer = setTimeout(poll, 1_000);
       };
 
-      let claudeResumeFallbackMarkerBuffer = '';
-      let appliedClaudeResumeFallbackSessionId: string | null = null;
-      const handleClaudeResumeFallbackOutput = (chunk: string) => {
-        if (agentType !== 'claude-code' || !resumeMode) return;
-        claudeResumeFallbackMarkerBuffer = `${claudeResumeFallbackMarkerBuffer}${chunk}`.slice(-1_000);
-        const match = CLAUDE_RESUME_FALLBACK_RE.exec(claudeResumeFallbackMarkerBuffer);
-        const fallbackSessionId = match?.groups?.sessionId;
-        if (!fallbackSessionId || appliedClaudeResumeFallbackSessionId === fallbackSessionId) return;
-        appliedClaudeResumeFallbackSessionId = fallbackSessionId;
-        const nextData = {
-          ...dataRef.current,
-          cliSessionId: fallbackSessionId,
-        };
-        dataRef.current = nextData;
-        onUpdateRef.current(nodeIdRef.current, {
-          data: nextData,
-        });
-      };
-
       const writeCommand = async () => {
         if (!command) {
           term.writeln(`\x1b[33mUnknown agent type: ${agentType}\x1b[0m`);
@@ -691,11 +655,14 @@ export const useAgentNodeController = ({
 
         const { inlinePrompt, promptFile, agentArgs, dangerousMode } = dataRef.current;
         const effectivePrompt = inlinePromptOverride || inlinePrompt;
-        const codexBindingMarker = shouldCaptureNewCodexSession && (effectivePrompt || promptFile)
+        const codexBindingMarker = shouldCaptureNewCodexSession
           ? dataRef.current.codexSessionMarker || makeCodexBindingMarker(nodeIdRef.current)
           : undefined;
+        const codexBindingPrompt = codexBindingMarker ? codexBindingComment(codexBindingMarker) : '';
         const promptForCommand = codexBindingMarker && effectivePrompt
-          ? `${effectivePrompt}\n\n${codexBindingComment(codexBindingMarker)}`
+          ? `${effectivePrompt}\n\n${codexBindingPrompt}`
+          : codexBindingMarker && !promptFile
+            ? codexBindingPrompt
           : effectivePrompt;
         const dangerousFlag = dangerousMode
           ? agentType === 'claude-code'
@@ -715,21 +682,8 @@ export const useAgentNodeController = ({
         const teamExitSuffix = dataRef.current.agentTeamId ? '; exit' : '';
 
         if (agentType === 'claude-code' && resumeMode && canResumeClaude && !effectivePrompt && !promptFile) {
-          const fallbackSessionId = crypto.randomUUID();
-          const fallbackNotice = `[Pulse Canvas] Claude resume target was missing; starting a fresh session (${fallbackSessionId}).`;
-          const fallbackPrompt = buildClaudeResumeFallbackPrompt(dataRef.current, cliSessionId);
           const resumeFlags = ` --resume ${cliSessionId}${commonFlags}`;
-          const fallbackFlags = ` --session-id ${fallbackSessionId}${commonFlags}`;
-          api.write(
-            sessionId,
-            [
-              `${command}${resumeFlags}`,
-              ' || (',
-              `printf '%s\\n' ${shellQuote(fallbackNotice)}`,
-              `; ${command}${fallbackFlags} ${shellQuote(fallbackPrompt)}`,
-              `)${teamExitSuffix}\n`,
-            ].join(''),
-          );
+          api.write(sessionId, `${clearTerminalCommand}; ${command}${resumeFlags}${teamExitSuffix}\n`);
         } else if (agentType === 'codex' && resumeMode && !effectivePrompt && !promptFile) {
           const codexSessionId = dataRef.current.codexSessionId;
           if (!codexSessionId) {
@@ -737,25 +691,25 @@ export const useAgentNodeController = ({
             setLoading(false);
             return;
           }
-          api.write(sessionId, `${command}${commonFlags} resume ${shellQuote(codexSessionId)}${teamExitSuffix}\n`);
+          api.write(sessionId, `${clearTerminalCommand}; ${command}${commonFlags} resume ${shellQuote(codexSessionId)}${teamExitSuffix}\n`);
         } else {
           const flags =
             (agentType === 'claude-code'
               ? ` ${resumeMode && canResumeClaude ? '--resume' : '--session-id'} ${cliSessionId}`
               : '') + commonFlags;
           if (promptForCommand) {
-            api.write(sessionId, `${command}${flags} ${shellQuote(promptForCommand)}${teamExitSuffix}\n`);
+            api.write(sessionId, `${clearTerminalCommand}; ${command}${flags} ${shellQuote(promptForCommand)}${teamExitSuffix}\n`);
           } else if (promptFile) {
             if (codexBindingMarker) {
               api.write(
                 sessionId,
-                `__prompt=$(printf '%s\\n\\n%s' "$(cat ${shellQuote(promptFile)})" ${shellQuote(codexBindingComment(codexBindingMarker))}) && ${command}${flags} "$__prompt"${teamExitSuffix}\n`,
+                `__prompt=$(printf '%s\\n\\n%s' "$(cat ${shellQuote(promptFile)})" ${shellQuote(codexBindingComment(codexBindingMarker))}) && ${clearTerminalCommand} && ${command}${flags} "$__prompt"${teamExitSuffix}\n`,
               );
             } else {
-              api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${command}${flags} "$__prompt"${teamExitSuffix}\n`);
+              api.write(sessionId, `__prompt=$(cat ${promptFile}) && ${clearTerminalCommand} && ${command}${flags} "$__prompt"${teamExitSuffix}\n`);
             }
           } else {
-            api.write(sessionId, `${command}${flags}${teamExitSuffix}\n`);
+            api.write(sessionId, `${clearTerminalCommand}; ${command}${flags}${teamExitSuffix}\n`);
           }
         }
 
@@ -769,19 +723,22 @@ export const useAgentNodeController = ({
         }
 
         if (effectivePrompt || promptFile || codexBindingMarker) {
+          const nextData = {
+            ...dataRef.current,
+            inlinePrompt: '',
+            promptFile: '',
+            lastInitPrompt: effectivePrompt || dataRef.current.lastInitPrompt || '',
+            codexSessionMarker: codexBindingMarker ?? dataRef.current.codexSessionMarker,
+          };
+          dataRef.current = nextData;
           onUpdateRef.current(nodeIdRef.current, {
-            data: {
-              ...dataRef.current,
-              inlinePrompt: '',
-              promptFile: '',
-              lastInitPrompt: effectivePrompt || dataRef.current.lastInitPrompt || '',
-              codexSessionMarker: codexBindingMarker ?? dataRef.current.codexSessionMarker,
-            },
+            data: nextData,
           });
         }
       };
 
       let prompted = false;
+      let promptFallbackTimer: ReturnType<typeof setTimeout> | null = null;
       const removeDataRef: { current: (() => void) | null } = { current: null };
       const ECHO_WINDOW_MS = 300;
       const QUIESCENCE_MS = 500;
@@ -820,7 +777,6 @@ export const useAgentNodeController = ({
 
       const attachPermanentListener = () => {
         removeDataRef.current = api.onData(sessionId, (d: string) => {
-          handleClaudeResumeFallbackOutput(d);
           term.write(d);
           if (loadingDismissed) return;
           if (writeCommandTimeRef.current === 0) return;
@@ -833,14 +789,23 @@ export const useAgentNodeController = ({
         });
       };
 
-      const promptRemove = api.onData(sessionId, (d: string) => {
-        term.write(d);
-        if (!prompted) {
-          prompted = true;
-          promptRemove();
-          attachPermanentListener();
-          setTimeout(() => { void writeCommand(); }, 100);
+      const promptRemoveRef: { current: (() => void) | null } = { current: null };
+      const startInitialCommand = () => {
+        if (prompted) return;
+        prompted = true;
+        if (promptFallbackTimer) {
+          clearTimeout(promptFallbackTimer);
+          promptFallbackTimer = null;
         }
+        promptRemoveRef.current?.();
+        promptRemoveRef.current = null;
+        attachPermanentListener();
+        setTimeout(() => { void writeCommand(); }, 100);
+      };
+
+      promptRemoveRef.current = api.onData(sessionId, (d: string) => {
+        term.write(d);
+        startInitialCommand();
       });
 
       const removeExit = api.onExit(sessionId, (code: number) => {
@@ -869,7 +834,8 @@ export const useAgentNodeController = ({
         PULSE_CANVAS_TEAM_ROLE: currentData.agentTeamRole,
       });
       if (!result.ok) {
-        if (!prompted) promptRemove();
+        if (!prompted) promptRemoveRef.current?.();
+        if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
         removeDataRef.current?.();
         removeExit();
         codexCaptureCancelRef.current?.();
@@ -882,6 +848,7 @@ export const useAgentNodeController = ({
         });
         return;
       }
+      promptFallbackTimer = setTimeout(startInitialCommand, 500);
 
       term.onData((d: string) => {
         api.write(sessionId, d);
@@ -913,7 +880,8 @@ export const useAgentNodeController = ({
       }, SCROLLBACK_SAVE_INTERVAL);
 
       cleanupRef.current = () => {
-        if (!prompted) promptRemove();
+        if (!prompted) promptRemoveRef.current?.();
+        if (promptFallbackTimer) clearTimeout(promptFallbackTimer);
         removeDataRef.current?.();
         removeExit();
         codexCaptureCancelRef.current?.();
@@ -935,7 +903,7 @@ export const useAgentNodeController = ({
     const shouldResumeSavedConversation = !isTeamManagedAgent && !hasLaunchPrompt && canResumeCliConversation(data);
     if (!hasLaunchPrompt && !hasTeamWarmupLaunch(data) && !shouldResumeSavedConversation) return;
 
-    pendingAgentRef.current = data.agentType || 'claude-code';
+    pendingAgentRef.current = normalizeAgentType(data.agentType);
     pendingCwdRef.current = data.cwd || rootFolder || '';
     pendingPromptRef.current = data.inlinePrompt || '';
     pendingResumeRef.current = shouldResumeSavedConversation;
@@ -991,7 +959,7 @@ export const useAgentNodeController = ({
         return;
       }
 
-      pendingAgentRef.current = data.agentType || 'claude-code';
+      pendingAgentRef.current = normalizeAgentType(data.agentType);
       pendingCwdRef.current = data.cwd || rootFolder || '';
       pendingPromptRef.current = '';
       pendingResumeRef.current = true;
@@ -1232,7 +1200,7 @@ export const useAgentNodeController = ({
 
   const handleEditInit = useCallback(() => {
     if (readOnly || isMirrorTerminal) return;
-    setSelectedAgent(data.agentType || selectedAgent);
+    setSelectedAgent(normalizeAgentType(data.agentType || selectedAgent));
     setCwdInput(data.cwd || '');
     setPromptInput(data.lastInitPrompt || '');
     setDangerousMode(data.dangerousMode ?? false);

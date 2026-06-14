@@ -373,7 +373,7 @@ If the user request mentions multiple intents ("可视化加工流程，包含�
 \`artifact_create\` may go further toward product-quality polish (subtle gradients on hero, brand color, slightly stronger shadows) since it lives in the side drawer; \`visual_render\` stays at documentation density.
 
 ### Delegating Tasks to Agent Nodes
-Use \`canvas_create_agent_node\` to spawn another agent (Claude Code, Codex, Pulse Coder) with context.
+Use \`canvas_create_agent_node\` to spawn another agent (Claude Code or Codex) with context.
 
 **Workflow:**
 1. Read relevant canvas nodes with \`canvas_read_node\` to gather context.

@@ -112,8 +112,8 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         '- **terminal**: Spawns an interactive shell session on the canvas. The PTY starts automatically. Use `data.cwd` to set the working directory.\n' +
         '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
         '- **group**: Creates a lightweight grouping relationship. Use `data.childIds` for members, plus optional `data.color` (hex) and `data.label`.\n' +
-        '- **agent**: Creates an AI agent node (Claude Code, Codex, Pulse Coder). ' +
-        'Set `data.agentType` ("claude-code" | "codex" | "pulse-coder"), `data.cwd` for the working directory, ' +
+        '- **agent**: Creates an AI agent node (Claude Code or Codex). ' +
+        'Set `data.agentType` ("claude-code" | "codex"), `data.cwd` for the working directory, ' +
         'and `data.status` to "running" to auto-launch (default "idle" shows a picker). ' +
         'Use `data.prompt` to inject a task/context — it is written to a file in the cwd and piped directly ' +
         'to the agent as its initial prompt. Include relevant canvas content so the agent knows the context. ' +
@@ -145,7 +145,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
           '- terminal: { cwd?: string }\n' +
-          '- agent: { agentType?: "claude-code"|"codex"|"pulse-coder", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
+          '- agent: { agentType?: "claude-code"|"codex", cwd?: string, status?: "idle"|"running", prompt?: string, agentArgs?: string }\n' +
           '- frame: { color?: string, label?: string }\n' +
           '- group: { color?: string, label?: string, childIds?: string[] }\n' +
           '- text: { textColor?: string, backgroundColor?: string, fontSize?: number }\n' +

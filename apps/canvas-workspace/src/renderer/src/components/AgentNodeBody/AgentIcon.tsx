@@ -23,18 +23,6 @@ export const AgentIcon = ({ id, size = 14 }: { id: string; size?: number }) => {
           />
         </svg>
       );
-    case 'pulse-coder':
-      return (
-        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path
-            d="M1.5 8h2.2l1.6-4 2 8 1.6-5 1.4 3h4.2"
-            stroke="#6366f1"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
     default:
       return (
         <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -44,4 +32,3 @@ export const AgentIcon = ({ id, size = 14 }: { id: string; size?: number }) => {
       );
   }
 };
-
