@@ -1,10 +1,20 @@
-import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic, ReferenceNodeData, DynamicAppNodeData } from '../types';
+import type { CanvasNode, FileNodeData, TerminalNodeData, FrameNodeData, GroupNodeData, AgentNodeData, TextNodeData, IframeNodeData, ImageNodeData, ShapeNodeData, MindmapNodeData, MindmapTopic, ReferenceNodeData, DynamicAppNodeData, PluginNodeData } from '../types';
+import {
+  MOCK_CARD_DEFAULT_PAYLOAD,
+  MOCK_CARD_NODE_TYPE,
+  MOCK_NODE_PLUGIN_ID,
+} from '../../../plugins/mock-node/constants';
 
 let nodeIdCounter = 0;
 export const genId = (): string => `node-${Date.now()}-${++nodeIdCounter}`;
 
 let topicIdCounter = 0;
 export const genTopicId = (): string => `topic-${Date.now()}-${++topicIdCounter}`;
+
+export type CreatableCanvasNodeType = Extract<
+  CanvasNode['type'],
+  'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap' | 'plugin'
+>;
 
 const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; height: number }> = {
   file:     { title: 'Untitled', width: 420, height: 360 },
@@ -19,6 +29,7 @@ const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; 
   shape:    { title: 'Shape',    width: 200, height: 140 },
   mindmap:  { title: 'Mindmap',  width: 640, height: 420 },
   reference: { title: 'Reference', width: 420, height: 300 },
+  plugin:   { title: 'Plugin Node', width: 360, height: 240 },
 };
 
 /** Default width/height for a node type — single source of truth so
@@ -47,9 +58,10 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   shape:    'Shape',
   mindmap:  'Mindmap',
   reference: 'Reference',
+  plugin:   'Plugin node',
 };
 
-export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData | ReferenceNodeData | DynamicAppNodeData => {
+export const createNodeData = (type: CanvasNode['type']): FileNodeData | TerminalNodeData | FrameNodeData | GroupNodeData | AgentNodeData | TextNodeData | IframeNodeData | ImageNodeData | ShapeNodeData | MindmapNodeData | ReferenceNodeData | DynamicAppNodeData | PluginNodeData => {
   switch (type) {
     case 'file':     return { filePath: '', content: '', saved: false, modified: false };
     case 'terminal': return { sessionId: '' };
@@ -67,6 +79,11 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
     case 'image':    return { filePath: '' };
     case 'shape':    return { kind: 'rect', fill: '#E8EEF7', stroke: '#5B7CBF', strokeWidth: 2 };
     case 'reference': return {};
+    case 'plugin': return {
+      pluginId: MOCK_NODE_PLUGIN_ID,
+      nodeType: MOCK_CARD_NODE_TYPE,
+      payload: { ...MOCK_CARD_DEFAULT_PAYLOAD },
+    };
     case 'mindmap':  return {
       root: {
         id: genTopicId(),

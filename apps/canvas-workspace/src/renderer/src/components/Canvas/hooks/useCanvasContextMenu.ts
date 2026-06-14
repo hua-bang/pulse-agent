@@ -1,17 +1,7 @@
 import { useCallback, useState, type RefObject } from 'react';
 import type { CanvasNode } from '../../../types';
-import { getNodeDefaultSize, NODE_TYPE_LABELS } from '../../../utils/nodeFactory';
+import { getNodeDefaultSize, NODE_TYPE_LABELS, type CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { ToastInput } from '../../../types/ui-interaction';
-
-type CreatableNodeType =
-  | 'file'
-  | 'terminal'
-  | 'frame'
-  | 'group'
-  | 'agent'
-  | 'text'
-  | 'iframe'
-  | 'mindmap';
 
 interface ContextMenuState {
   screenX: number;
@@ -42,7 +32,7 @@ interface Options {
     clientY: number,
     container: HTMLDivElement,
   ) => { x: number; y: number };
-  addNode: (type: CreatableNodeType, x: number, y: number) => CanvasNode;
+  addNode: (type: CreatableCanvasNodeType, x: number, y: number) => CanvasNode;
   /** Live read of the current node list, used to detect stacked
    *  positions before placing a new node. */
   nodesRef: RefObject<CanvasNode[]>;
@@ -102,7 +92,7 @@ export const useCanvasContextMenu = ({
    *  varies per entry point — right-click drops at cursor, toolbar
    *  centers on viewport — so callers pass it in. */
   const finalizeAddedNode = useCallback(
-    (node: CanvasNode, type: CreatableNodeType, placementHint: string) => {
+    (node: CanvasNode, type: CreatableCanvasNodeType, placementHint: string) => {
       setSelectedNodeIds([node.id]);
       setHighlightedId(node.id);
       notify({
@@ -143,7 +133,7 @@ export const useCanvasContextMenu = ({
   );
 
   const handleCreateNode = useCallback(
-    (type: CreatableNodeType) => {
+    (type: CreatableCanvasNodeType) => {
       if (!contextMenu) return;
       // Right-click drop point becomes the new node's top-left so the
       // node grows down-right from the cursor — matches typical
@@ -165,7 +155,7 @@ export const useCanvasContextMenu = ({
   );
 
   const handleToolbarAddNode = useCallback(
-    (type: CreatableNodeType) => {
+    (type: CreatableCanvasNodeType) => {
       if (!containerRef.current) return;
       // Center the new node on the current viewport: project the
       // container's screen-space midpoint into canvas coordinates, then

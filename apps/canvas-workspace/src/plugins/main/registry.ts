@@ -4,6 +4,8 @@ import type {
   CanvasToolFactory,
   MainCanvasPlugin,
   MainCtx,
+  PluginNodeCapabilities,
+  PluginNodeCapabilityEntry,
 } from '../types';
 import { agentBus } from './agent-bus';
 import { createPluginStore } from './plugin-store';
@@ -37,6 +39,7 @@ const deactivators: Array<{ id: string; deactivate: () => void | Promise<void> }
  * canvas-agent construction time to assemble plugin-contributed tools.
  */
 const canvasToolFactories = new Map<string, CanvasToolFactory>();
+const nodeCapabilities = new Map<string, PluginNodeCapabilityEntry>();
 
 export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<void> {
   for (const plugin of plugins) {
@@ -87,6 +90,16 @@ export function getRegisteredCanvasToolFactories(): ReadonlyArray<[string, Canva
   return Array.from(canvasToolFactories.entries());
 }
 
+export function getRegisteredNodeCapabilities(): ReadonlyArray<PluginNodeCapabilityEntry> {
+  return Array.from(nodeCapabilities.values());
+}
+
+export function getRegisteredNodeCapability(
+  nodeType: string,
+): PluginNodeCapabilityEntry | undefined {
+  return nodeCapabilities.get(nodeType);
+}
+
 function createMainCtx(pluginId: string): MainCtx {
   return {
     store: createPluginStore(pluginId),
@@ -118,6 +131,23 @@ function createMainCtx(pluginId: string): MainCtx {
         );
       }
       canvasToolFactories.set(pluginId, factory);
+    },
+    registerNodeCapabilities(nodeType: string, capabilities: PluginNodeCapabilities) {
+      const normalizedNodeType = nodeType.trim();
+      if (!normalizedNodeType) {
+        console.warn(`[canvas-plugins] ${pluginId} tried to register empty node capabilities`);
+        return;
+      }
+      if (nodeCapabilities.has(normalizedNodeType)) {
+        console.warn(
+          `[canvas-plugins] duplicate node capabilities "${normalizedNodeType}" from ${pluginId}; replacing previous registration`,
+        );
+      }
+      nodeCapabilities.set(normalizedNodeType, {
+        pluginId,
+        nodeType: normalizedNodeType,
+        capabilities,
+      });
     },
   };
 }

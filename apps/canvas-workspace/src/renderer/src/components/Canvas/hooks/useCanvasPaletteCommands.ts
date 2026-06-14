@@ -1,5 +1,6 @@
 import { useMemo, type MutableRefObject } from 'react';
 import type { CanvasNode } from '../../../types';
+import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { PaletteCommand } from '../../CommandPalette';
 
 interface Options {
@@ -15,9 +16,7 @@ interface Options {
   groupSelectedNodes: () => void;
   ungroupSelectedNodes: () => void;
   wrapSelectedNodesInFrame: () => void;
-  handleToolbarAddNode: (
-    type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap',
-  ) => void;
+  handleToolbarAddNode: (type: CreatableCanvasNodeType) => void;
   fitAllNodes: (nodes: CanvasNode[]) => void;
   resetTransform: () => void;
   chatPanelOpen?: boolean;
@@ -194,6 +193,14 @@ export const useCanvasPaletteCommands = ({
         title: 'New mindmap',
         aliases: ['tree', 'topic', 'outline'],
         run: () => handleToolbarAddNode('mindmap'),
+      },
+      {
+        id: 'create-plugin-node',
+        group: 'create',
+        title: 'Create plugin node',
+        hint: 'Generic shell for external node plugins',
+        aliases: ['plugin', 'custom node', 'lego', 'extension'],
+        run: () => handleToolbarAddNode('plugin'),
       },
       {
         id: 'fit-all',

@@ -152,4 +152,28 @@ describe('setupCanvasPlugins + registerCanvasTool', () => {
     expect(entries.map(([id]) => id)).toEqual(['p-ok']);
     errSpy.mockRestore();
   });
+
+  it('registers main-side plugin node capabilities by node type', async () => {
+    const {
+      setupCanvasPlugins,
+      getRegisteredNodeCapability,
+      getRegisteredNodeCapabilities,
+    } = await loadRegistry();
+
+    await setupCanvasPlugins([
+      {
+        id: 'p-node',
+        activate(ctx) {
+          ctx.registerNodeCapabilities('demo.card', {
+            read: () => ({ content: 'hello' }),
+          });
+        },
+      },
+    ]);
+
+    const entry = getRegisteredNodeCapability('demo.card');
+    expect(entry?.pluginId).toBe('p-node');
+    expect(entry?.nodeType).toBe('demo.card');
+    expect(getRegisteredNodeCapabilities()).toHaveLength(1);
+  });
 });

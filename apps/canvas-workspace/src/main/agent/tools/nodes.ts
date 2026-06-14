@@ -15,6 +15,11 @@ import { broadcastUpdate } from './_shared/broadcast';
 import { autoPlace, DEFAULT_DIMENSIONS, INLINE_PROMPT_THRESHOLD } from './_shared/placement';
 import { genTopicId, normalizeMindmapTopic } from './_shared/mindmap';
 import { normalizeIframeUrl, shouldCreateIframeForHtml } from './_shared/iframe';
+import {
+  MOCK_CARD_DEFAULT_PAYLOAD,
+  MOCK_CARD_NODE_TYPE,
+  MOCK_NODE_PLUGIN_ID,
+} from '../../../plugins/mock-node/constants';
 
 export function createNodeTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -136,9 +141,11 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         'Topic ids are auto-generated; you do NOT need to supply them. ' +
         'If `data.root` is omitted a single placeholder topic is inserted so the user can fill it in. ' +
         'Use this whenever the user asks for a mindmap / brainstorm / outline that should be laid out radially ' +
-        'rather than as a flat text node.',
+        'rather than as a flat text node.\n' +
+        '- **plugin**: Creates a custom plugin node shell. Pass `data.pluginId`, `data.nodeType`, and optional `data.payload`. ' +
+        'For the built-in MVP mock node, use `{ pluginId: "mock", nodeType: "mock.card", payload: { text?: string, count?: number } }`.',
       inputSchema: z.object({
-        type: z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap']).describe('Node type.'),
+        type: z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap', 'plugin']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
         content: z.string().optional().describe('Initial content (for file and text nodes).'),
         x: z.number().optional().describe('X position (auto-placed if omitted).'),
@@ -153,7 +160,8 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           '- iframe: { url?: string, html?: string, prompt?: string, mode?: \"url\"|\"html\"|\"ai\" }. `url: \"blank\"` opens about:blank.\\n' +
           '- file HTML routing: { contentType?: \"text/html\", renderAs?: \"html\"|\"note\" }\\n' +
           '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
-          '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape',
+          '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape\n' +
+          '- plugin: { pluginId: string, nodeType: string, payload?: Record<string, unknown>, version?: string }. Defaults to the built-in mock.card plugin node.',
         ),
       }),
       execute: async (input) => {
@@ -293,6 +301,24 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
               root,
               layout: 'right',
               rev: 0,
+            };
+            break;
+          }
+          case 'plugin': {
+            const pluginId = typeof extraData.pluginId === 'string' && extraData.pluginId.trim()
+              ? extraData.pluginId.trim()
+              : MOCK_NODE_PLUGIN_ID;
+            const pluginNodeType = typeof extraData.nodeType === 'string' && extraData.nodeType.trim()
+              ? extraData.nodeType.trim()
+              : MOCK_CARD_NODE_TYPE;
+            const payload = extraData.payload && typeof extraData.payload === 'object' && !Array.isArray(extraData.payload)
+              ? extraData.payload as Record<string, unknown>
+              : { ...MOCK_CARD_DEFAULT_PAYLOAD };
+            nodeData = {
+              pluginId,
+              nodeType: pluginNodeType,
+              payload,
+              version: typeof extraData.version === 'string' ? extraData.version : undefined,
             };
             break;
           }

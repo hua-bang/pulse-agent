@@ -2,11 +2,12 @@ import './index.css';
 import { ShapeToolButton } from './ShapeToolButton';
 import { AppLogoIcon, CodingAgentIcon, PulseGlyphIcon } from '../icons';
 import { useI18n, type I18nKey } from '../../i18n';
+import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 
 interface Props {
   activeTool: string;
   onToolChange: (tool: string) => void;
-  onAddNode: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap") => void;
+  onAddNode: (type: CreatableCanvasNodeType) => void;
   onCreateAgentTeam?: () => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;

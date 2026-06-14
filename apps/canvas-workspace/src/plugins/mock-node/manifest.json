@@ -1,0 +1,18 @@
+{
+  "id": "mock",
+  "version": "0.0.1",
+  "nodes": [
+    {
+      "type": "mock.card",
+      "title": "Plugin Node",
+      "capabilities": ["read", "write", "action"],
+      "actions": ["increment"],
+      "renderer": {
+        "remoteName": "pulse_canvas_mock_node",
+        "entry": "renderer/remoteEntry.js",
+        "expose": "./plugin",
+        "type": "global"
+      }
+    }
+  ]
+}

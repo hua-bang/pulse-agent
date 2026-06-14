@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 // ─── Types mirrored from canvas-cli ────────────────────────────────
 
-export type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'image' | 'shape' | 'mindmap';
+export type NodeType = 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'image' | 'shape' | 'mindmap' | 'plugin';
 
 export interface MindmapTopic {
   id: string;

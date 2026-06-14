@@ -5,6 +5,7 @@ import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
 import { FileNodeBody } from '../FileNodeBody';
 import { FrameNodeBody } from '../FrameNodeBody';
 import { IframeNodeBody } from '../IframeNodeBody';
+import { PluginNodeBody } from '../PluginNodeBody';
 import { TerminalNodeBody } from '../TerminalNodeBody';
 import { TextNodeBody } from '../TextNodeBody';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
@@ -149,6 +150,8 @@ export const DefaultCanvasNode = ({
         />
       ) : node.type === 'dynamic-app' ? (
         <DynamicAppNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
+      ) : node.type === 'plugin' ? (
+        <PluginNodeBody node={node} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />
       ) : (
         <AgentNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
       )}

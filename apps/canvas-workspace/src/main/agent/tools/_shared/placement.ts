@@ -11,6 +11,7 @@ export const DEFAULT_DIMENSIONS: Record<NodeType, { title: string; width: number
   image: { title: 'Image', width: 480, height: 360 },
   shape: { title: 'Shape', width: 200, height: 140 },
   mindmap: { title: 'Mindmap', width: 640, height: 420 },
+  plugin: { title: 'Plugin Node', width: 360, height: 240 },
 };
 
 export function autoPlace(nodes: CanvasNode[]): { x: number; y: number } {

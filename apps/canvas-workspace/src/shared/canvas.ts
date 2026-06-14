@@ -12,7 +12,8 @@ export interface CanvasNode {
     | 'shape'
     | 'mindmap'
     | 'reference'
-    | 'dynamic-app';
+    | 'dynamic-app'
+    | 'plugin';
   title: string;
   x: number;
   y: number;
@@ -33,7 +34,8 @@ export interface CanvasNode {
     | ShapeNodeData
     | MindmapNodeData
     | ReferenceNodeData
-    | DynamicAppNodeData;
+    | DynamicAppNodeData
+    | PluginNodeData;
   /** Epoch millis of last mutation; used for cross-process merge. */
   updatedAt?: number;
 }
@@ -48,6 +50,24 @@ export interface DynamicAppNodeData {
   url: string;
   /** Identity hook for persisted spec/state files and plugin IPC channels. */
   dynamicAppId: string;
+}
+
+/**
+ * Generic shell for externally-provided canvas node types.
+ *
+ * The stable canvas `type` stays `plugin` so existing renderer/main switch
+ * points do not need to know every third-party node type. The plugin runtime
+ * resolves `pluginId + nodeType` to a renderer view and capability provider.
+ */
+export interface PluginNodeData {
+  /** Plugin package id, e.g. `figma` or `com.example.mock-design`. */
+  pluginId: string;
+  /** Plugin-defined node type, e.g. `figma.frame` or `mock.card`. */
+  nodeType: string;
+  /** Plugin-owned JSON payload. The host treats this as opaque state. */
+  payload?: Record<string, unknown>;
+  /** Optional plugin/package version snapshot for future migration logic. */
+  version?: string;
 }
 
 export type WorkspaceNodePropertyValue =
