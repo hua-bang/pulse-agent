@@ -1,7 +1,6 @@
 import { promises as fs } from 'fs';
 import { homedir } from 'os';
 import { dirname, join, resolve } from 'path';
-import { safeStorage } from 'electron';
 import { createOpenAI } from '@ai-sdk/openai';
 import { buildProvider, type LLMProviderFactory, type ModelType } from 'pulse-coder-engine';
 
@@ -176,19 +175,19 @@ function normalizeModelOption(option: CanvasModelOption): CanvasModelOption {
 }
 
 function encryptApiKey(apiKey: string): string {
-  // Avoid macOS Keychain prompts for new saves. Legacy `safe:` values are
-  // still readable in decryptApiKey for existing users.
+  // Avoid macOS Keychain prompts. This is local obfuscation, not secure
+  // OS-backed storage; users can also use API-key env vars for secrets.
   return `plain:${Buffer.from(apiKey, 'utf8').toString('base64')}`;
 }
 
-function decryptApiKey(encrypted?: string, options: { allowSafe?: boolean } = {}): string | undefined {
+function decryptApiKey(encrypted?: string): string | undefined {
   const value = normalizeStr(encrypted);
   if (!value) return undefined;
-  const allowSafe = options.allowSafe ?? true;
   try {
     if (value.startsWith('safe:')) {
-      if (!allowSafe) return undefined;
-      return safeStorage.decryptString(Buffer.from(value.slice(5), 'base64'));
+      // Legacy Electron safeStorage values can trigger macOS Keychain prompts.
+      // Treat them as unavailable; re-saving the key rewrites it as `plain:`.
+      return undefined;
     }
     if (value.startsWith('plain:')) {
       return Buffer.from(value.slice(6), 'base64').toString('utf8');
@@ -220,7 +219,7 @@ function normalizeProviderConfig(
     normalized.encrypted_api_key = encryptApiKey(plainApiKey);
   } else {
     const encrypted = normalizeStr(provider.encrypted_api_key) ?? normalizeStr(existing?.encrypted_api_key);
-    if (encrypted) normalized.encrypted_api_key = encrypted;
+    if (encrypted && decryptApiKey(encrypted)) normalized.encrypted_api_key = encrypted;
   }
 
   const models = normalizeProviderModels(provider.models);
@@ -290,7 +289,7 @@ function flattenProviderOptions(config: CanvasModelConfig): CanvasModelOption[] 
   return [...(config.options ?? []), ...options];
 }
 
-function resolveEffectiveFields(config: CanvasModelConfig, options: { allowSafeStorage?: boolean } = {}) {
+function resolveEffectiveFields(config: CanvasModelConfig) {
   const provider = findCurrentProvider(config);
   const providerType = normalizeProviderType(provider?.provider_type ?? config.provider_type) ?? 'openai';
   const option = provider ? undefined : findCurrentOption(config);
@@ -313,7 +312,7 @@ function resolveEffectiveFields(config: CanvasModelConfig, options: { allowSafeS
     normalizeStr(config.api_key_env) ??
     (providerType === 'claude' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY');
   const headers = normalizeHeaders(provider?.headers) ?? normalizeHeaders(option?.headers) ?? normalizeHeaders(config.headers);
-  const apiKey = decryptApiKey(provider?.encrypted_api_key, { allowSafe: options.allowSafeStorage }) ?? normalizeStr(process.env[apiKeyEnv]);
+  const apiKey = decryptApiKey(provider?.encrypted_api_key) ?? normalizeStr(process.env[apiKeyEnv]);
 
   return { providerType, model, baseURL, apiKeyEnv, apiKey, headers, provider };
 }
@@ -347,7 +346,7 @@ function toProviderStatus(provider: CanvasModelProviderConfig): CanvasModelProvi
   const providerType = normalizeProviderType(provider.provider_type) ?? 'openai';
   const apiKeyEnv = normalizeStr(provider.api_key_env);
   const encrypted = normalizeStr(provider.encrypted_api_key);
-  const decrypted = decryptApiKey(encrypted, { allowSafe: false });
+  const decrypted = decryptApiKey(encrypted);
   const envKey = apiKeyEnv ? normalizeStr(process.env[apiKeyEnv]) : undefined;
   const resolvedKey = decrypted ?? envKey;
   return {
@@ -356,7 +355,7 @@ function toProviderStatus(provider: CanvasModelProviderConfig): CanvasModelProvi
     provider_type: providerType,
     base_url: provider.base_url,
     api_key_env: apiKeyEnv,
-    apiKeyPresent: Boolean(resolvedKey || encrypted),
+    apiKeyPresent: Boolean(resolvedKey),
     apiKeyLength: resolvedKey ? resolvedKey.length : undefined,
     headers: provider.headers,
     models: normalizeProviderModels(provider.models),
@@ -365,8 +364,7 @@ function toProviderStatus(provider: CanvasModelProviderConfig): CanvasModelProvi
 
 export async function getCanvasModelStatus(): Promise<CanvasModelStatus> {
   const config = sanitizeConfig(await readConfig());
-  const resolved = resolveEffectiveFields(config, { allowSafeStorage: false });
-  const activeEncryptedKey = normalizeStr(resolved.provider?.encrypted_api_key);
+  const resolved = resolveEffectiveFields(config);
   return {
     path: getConfigPath(),
     currentProvider: normalizeStr(config.current_provider),
@@ -375,7 +373,7 @@ export async function getCanvasModelStatus(): Promise<CanvasModelStatus> {
     resolvedModel: resolved.model,
     resolvedBaseURL: resolved.baseURL,
     resolvedApiKeyEnv: resolved.apiKeyEnv,
-    apiKeyPresent: Boolean(resolved.apiKey || activeEncryptedKey),
+    apiKeyPresent: Boolean(resolved.apiKey),
     options: flattenProviderOptions(config),
     providers: (config.providers ?? []).map(toProviderStatus),
   };
