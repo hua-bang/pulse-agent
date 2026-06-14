@@ -2221,7 +2221,7 @@
   padding: 6px;
   box-shadow: 0 18px 44px rgba(55, 53, 47, 0.13), 0 0 0 1px rgba(55, 53, 47, 0.02);
   animation: chat-menu-in 0.12s ease-out;
-  z-index: 1000;
+  z-index: calc(var(--layer-dock) + 10);
 }
 
 .chat-model-menu-label,
