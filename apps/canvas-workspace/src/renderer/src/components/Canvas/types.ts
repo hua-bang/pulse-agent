@@ -18,6 +18,7 @@ export interface CanvasProps {
   onRenameComplete?: () => void;
   chatPanelOpen?: boolean;
   onChatToggle?: () => void;
+  onChatOpen?: () => void;
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
   onPinReferenceNode?: (nodeId: string) => void;

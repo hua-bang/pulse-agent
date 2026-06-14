@@ -59,6 +59,7 @@ export const Canvas = ({
   onRenameComplete,
   chatPanelOpen,
   onChatToggle,
+  onChatOpen,
   referenceDrawerOpen,
   onReferenceToggle,
   onPinReferenceNode,
@@ -702,6 +703,7 @@ export const Canvas = ({
       moving={moving}
       nodes={nodes}
       nodesById={nodesById}
+      onChatOpen={onChatOpen}
       onChatToggle={onChatToggle}
       onFitAll={handleFitAll}
       onOpenReferenceSource={onOpenReferenceSource}

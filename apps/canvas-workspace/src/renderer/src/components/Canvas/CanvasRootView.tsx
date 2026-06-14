@@ -13,6 +13,7 @@ type CanvasRootViewProps = Pick<
   | 'rootFolder'
   | 'chatPanelOpen'
   | 'onChatToggle'
+  | 'onChatOpen'
   | 'referenceDrawerOpen'
   | 'onReferenceToggle'
   | 'onPinReferenceNode'
@@ -90,6 +91,7 @@ export const CanvasRootView = ({
   canvasId,
   canvasName,
   chatPanelOpen,
+  onChatOpen,
   containerRef,
   ctxMenu,
   draggingId,
@@ -269,7 +271,7 @@ export const CanvasRootView = ({
           referenceDrawerOpen={referenceDrawerOpen}
           onReferenceToggle={onReferenceToggle}
           chatPanelOpen={chatPanelOpen}
-          onChatToggle={onChatToggle}
+          onChatOpen={onChatOpen}
           onExitFullscreen={focus.exitFullscreen}
         />
       )}
