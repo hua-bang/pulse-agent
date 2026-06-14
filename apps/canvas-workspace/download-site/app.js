@@ -194,6 +194,9 @@ function renderNotesText(container, notes) {
   if (lines.length <= 1) {
     const paragraph = document.createElement('p');
     paragraph.textContent = notes;
+    if (isImportantReleaseNoteLine(notes)) {
+      paragraph.className = 'release-entry__highlight';
+    }
     container.appendChild(paragraph);
     return;
   }
@@ -202,9 +205,20 @@ function renderNotesText(container, notes) {
   for (const line of lines) {
     const item = document.createElement('li');
     item.textContent = line.replace(/^[-*]\s+/, '');
+    if (isImportantReleaseNoteLine(item.textContent)) {
+      item.className = 'release-entry__highlight';
+    }
     list.appendChild(item);
   }
   container.appendChild(list);
+}
+
+function isImportantReleaseNoteLine(line) {
+  const normalized = line.toLowerCase();
+  return (
+    (line.includes('重新保存一次') && line.includes('旧 key 不会自动读取')) ||
+    (normalized.includes('save them again') && normalized.includes('no longer read automatically'))
+  );
 }
 
 function renderReleaseNotes() {
