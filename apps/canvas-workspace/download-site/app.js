@@ -42,8 +42,6 @@ const copy = {
     installNote: '这是早期版本暂未使用 Apple Developer ID 签名导致的安全提示，不影响本地使用。',
     releaseNotesKicker: '版本更新',
     releaseNotesTitle: 'Release notes',
-    expandRelease: '展开版本说明',
-    collapseRelease: '收起版本说明',
     showMoreReleases: '查看更多版本',
     showFewerReleases: '收起版本',
     updatesKicker: '更新',
@@ -81,8 +79,6 @@ const copy = {
     installNote: 'This security prompt appears because the early build does not use an Apple Developer ID signature yet. Local use is still supported.',
     releaseNotesKicker: 'Versions',
     releaseNotesTitle: 'Release notes',
-    expandRelease: 'Expand release notes',
-    collapseRelease: 'Collapse release notes',
     showMoreReleases: 'Show more versions',
     showFewerReleases: 'Show fewer versions',
     updatesKicker: 'Updates',
@@ -105,8 +101,6 @@ let activeLanguage = getInitialLanguage();
 let latestManifest = null;
 let primaryFile = null;
 let visibleFiles = [];
-let releaseExpansionInitialized = false;
-let expandedReleaseVersions = new Set();
 let showAllReleases = false;
 
 function getInitialLanguage() {
@@ -255,30 +249,22 @@ function renderReleaseNotes() {
     return;
   }
 
-  if (!releaseExpansionInitialized) {
-    expandedReleaseVersions = new Set([entries[0].version]);
-    releaseExpansionInitialized = true;
-  }
+  releaseList.classList.toggle('release-list--expanded', showAllReleases);
 
-  const visibleEntries = showAllReleases ? entries : entries.slice(0, INITIAL_RELEASE_COUNT);
-  const releaseNodes = visibleEntries.map((entry) => {
-    const isExpanded = expandedReleaseVersions.has(entry.version);
+  const releaseNodes = entries.map((entry, index) => {
     const article = document.createElement('article');
-    article.className = `release-entry${isExpanded ? ' release-entry--expanded' : ''}`;
+    article.className = `release-entry${index >= INITIAL_RELEASE_COUNT ? ' release-entry--extra' : ''}`;
+    if (index >= INITIAL_RELEASE_COUNT) {
+      article.setAttribute('aria-hidden', String(!showAllReleases));
+    }
 
     const header = document.createElement('div');
     header.className = 'release-entry__header';
 
-    const toggle = document.createElement('button');
-    toggle.className = 'release-entry__toggle';
-    toggle.type = 'button';
-    toggle.setAttribute('aria-expanded', String(isExpanded));
-    toggle.setAttribute('aria-label', isExpanded ? text.collapseRelease : text.expandRelease);
-
     const version = document.createElement('span');
     version.className = 'release-entry__version';
     version.textContent = `v${entry.version}`;
-    toggle.appendChild(version);
+    header.appendChild(version);
 
     const date = formatDate(entry.releasedAt);
     if (date) {
@@ -286,31 +272,12 @@ function renderReleaseNotes() {
       time.className = 'release-entry__date';
       time.dateTime = entry.releasedAt;
       time.textContent = date;
-      toggle.appendChild(time);
+      header.appendChild(time);
     }
-    const icon = document.createElement('span');
-    icon.className = 'release-entry__chevron';
-    icon.setAttribute('aria-hidden', 'true');
-    toggle.appendChild(icon);
-    header.appendChild(toggle);
 
     const body = document.createElement('div');
     body.className = 'release-entry__body';
     renderNotesText(body, entry.notes);
-    body.setAttribute('aria-hidden', String(!isExpanded));
-
-    toggle.addEventListener('click', () => {
-      const nextExpanded = !expandedReleaseVersions.has(entry.version);
-      if (nextExpanded) {
-        expandedReleaseVersions.add(entry.version);
-      } else {
-        expandedReleaseVersions.delete(entry.version);
-      }
-      article.classList.toggle('release-entry--expanded', nextExpanded);
-      toggle.setAttribute('aria-expanded', String(nextExpanded));
-      toggle.setAttribute('aria-label', nextExpanded ? text.collapseRelease : text.expandRelease);
-      body.setAttribute('aria-hidden', String(!nextExpanded));
-    });
 
     article.append(header, body);
     return article;
@@ -321,9 +288,15 @@ function renderReleaseNotes() {
     more.className = 'release-list__more';
     more.type = 'button';
     more.textContent = showAllReleases ? text.showFewerReleases : text.showMoreReleases;
+    more.setAttribute('aria-expanded', String(showAllReleases));
     more.addEventListener('click', () => {
       showAllReleases = !showAllReleases;
-      renderReleaseNotes();
+      releaseList.classList.toggle('release-list--expanded', showAllReleases);
+      releaseList.querySelectorAll('.release-entry--extra').forEach((node) => {
+        node.setAttribute('aria-hidden', String(!showAllReleases));
+      });
+      more.textContent = showAllReleases ? text.showFewerReleases : text.showMoreReleases;
+      more.setAttribute('aria-expanded', String(showAllReleases));
     });
     releaseNodes.push(more);
   }

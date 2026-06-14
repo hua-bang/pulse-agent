@@ -426,29 +426,9 @@ h1 span {
 }
 
 .release-entry__header {
-  min-width: 0;
-}
-
-.release-entry__toggle {
-  width: fit-content;
-  max-width: 100%;
   display: grid;
   align-content: start;
-  justify-items: start;
   gap: 6px;
-  padding: 0 22px 0 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-  position: relative;
-}
-
-.release-entry__toggle:hover .release-entry__version {
-  border-color: rgba(35, 131, 226, 0.55);
-  background: rgba(35, 131, 226, 0.12);
 }
 
 .release-entry__version {
@@ -460,7 +440,6 @@ h1 span {
   color: var(--accent-dark);
   font-size: 13px;
   font-weight: 750;
-  transition: background 140ms ease, border-color 140ms ease;
 }
 
 .release-entry__date {
@@ -469,43 +448,35 @@ h1 span {
   font-weight: 650;
 }
 
-.release-entry__chevron {
-  position: absolute;
-  top: 8px;
-  right: 2px;
-  width: 8px;
-  height: 8px;
-  border-right: 2px solid rgba(55, 53, 47, 0.34);
-  border-bottom: 2px solid rgba(55, 53, 47, 0.34);
-  transform: rotate(45deg);
-  transition: transform 180ms ease, border-color 140ms ease;
-}
-
-.release-entry__toggle:hover .release-entry__chevron,
-.release-entry--expanded .release-entry__chevron {
-  border-color: var(--accent);
-}
-
-.release-entry--expanded .release-entry__chevron {
-  transform: translateY(3px) rotate(225deg);
-}
-
 .release-entry__body {
   min-width: 0;
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transform: translateY(-3px);
-  transition:
-    max-height 260ms ease,
-    opacity 180ms ease,
-    transform 220ms ease;
 }
 
-.release-entry--expanded .release-entry__body {
+.release-entry--extra {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-color: transparent;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    max-height 300ms ease,
+    padding 260ms ease,
+    border-color 260ms ease,
+    opacity 180ms ease,
+    transform 260ms ease;
+}
+
+.release-list--expanded .release-entry--extra {
   max-height: 900px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-top-color: var(--border-light);
   opacity: 1;
   transform: translateY(0);
+  pointer-events: auto;
 }
 
 .release-entry__body p,
@@ -564,9 +535,7 @@ h1 span {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .release-entry__body,
-  .release-entry__chevron,
-  .release-entry__version,
+  .release-entry--extra,
   .release-list__more {
     transition: none;
   }
