@@ -3,6 +3,7 @@ import { promises as fs } from 'fs';
 import { dirname, isAbsolute, join, normalize, resolve } from 'path';
 import type {
   CanvasPluginEntry,
+  CanvasPluginMainSpec,
   CanvasPluginManifestNode,
   CanvasPluginRendererSpec,
   CanvasPluginsImportEntry,
@@ -16,6 +17,7 @@ interface CanvasPluginsConfigFile {
 interface CanvasPluginManifest {
   id?: unknown;
   version?: unknown;
+  main?: unknown;
   nodes?: unknown;
 }
 
@@ -140,6 +142,25 @@ function rendererSpecFromNode(
   };
 }
 
+function mainSpecFromManifest(dir: string, value: unknown): CanvasPluginMainSpec | undefined {
+  if (!isRecord(value)) return undefined;
+  const entry = typeof value.entry === 'string' ? value.entry.trim() : '';
+  if (!entry) return undefined;
+  const sourcePath = isAbsolute(entry) ? normalize(entry) : normalize(join(dir, entry));
+  return {
+    entry: sourcePath,
+    format: typeof value.format === 'string' && value.format.trim()
+      ? value.format.trim()
+      : undefined,
+    runtime: typeof value.runtime === 'string' && value.runtime.trim()
+      ? value.runtime.trim()
+      : undefined,
+    permissions: Array.isArray(value.permissions)
+      ? value.permissions.filter((item): item is string => typeof item === 'string')
+      : undefined,
+  };
+}
+
 function dedupeRendererSpecs(specs: CanvasPluginRendererSpec[]): CanvasPluginRendererSpec[] {
   const seen = new Set<string>();
   const out: CanvasPluginRendererSpec[] = [];
@@ -170,6 +191,7 @@ async function readPluginEntry(dir: string): Promise<CanvasPluginEntry> {
     }
 
     const version = typeof manifest.version === 'string' ? manifest.version : undefined;
+    const main = mainSpecFromManifest(dir, manifest.main);
     const nodes = Array.isArray(manifest.nodes)
       ? manifest.nodes
           .map(normalizeManifestNode)
@@ -186,6 +208,7 @@ async function readPluginEntry(dir: string): Promise<CanvasPluginEntry> {
       version,
       dir,
       manifestPath,
+      main,
       nodes,
       rendererSpecs,
       error: nodes.length === 0 ? 'manifest.json has no valid nodes' : undefined,

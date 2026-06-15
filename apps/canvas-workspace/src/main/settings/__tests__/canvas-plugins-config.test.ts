@@ -30,6 +30,12 @@ async function createPluginDir(id: string, nodeType = `${id}.card`): Promise<str
       {
         id,
         version: '1.2.3',
+        main: {
+          entry: 'dist/main.js',
+          format: 'esm',
+          runtime: 'electron-main',
+          permissions: ['canvas'],
+        },
         nodes: [
           {
             type: nodeType,
@@ -83,6 +89,12 @@ describe('canvas plugins config', () => {
       id: 'demo',
       version: '1.2.3',
       dir: resolve(pluginDir),
+      main: {
+        entry: resolve(pluginDir, 'dist/main.js'),
+        format: 'esm',
+        runtime: 'electron-main',
+        permissions: ['canvas'],
+      },
       nodes: [
         {
           type: 'demo.widget',

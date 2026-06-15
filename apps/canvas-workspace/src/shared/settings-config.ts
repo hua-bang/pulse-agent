@@ -143,6 +143,13 @@ export interface CanvasPluginRendererSpec {
   version?: string;
 }
 
+export interface CanvasPluginMainSpec {
+  entry: string;
+  format?: string;
+  runtime?: string;
+  permissions?: string[];
+}
+
 export interface CanvasPluginManifestNode {
   type: string;
   title?: string;
@@ -163,6 +170,7 @@ export interface CanvasPluginEntry {
   version?: string;
   dir: string;
   manifestPath: string;
+  main?: CanvasPluginMainSpec;
   nodes: CanvasPluginManifestNode[];
   rendererSpecs: CanvasPluginRendererSpec[];
   error?: string;

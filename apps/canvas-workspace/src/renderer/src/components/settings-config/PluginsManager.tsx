@@ -289,6 +289,18 @@ export const PluginsManager = () => {
                     ))}
                   </ul>
                 )}
+                {plugin.main && (
+                  <ul className="cfg-tools-list">
+                    <li className="cfg-tool">
+                      <span className="cfg-tool-name">{t('pluginConfig.mainEntry')}</span>
+                      <span className="cfg-tool-desc" title={plugin.main.entry}>
+                        {plugin.main.entry}
+                        {plugin.main.format ? ` · ${plugin.main.format}` : ''}
+                        {plugin.main.runtime ? ` · ${plugin.main.runtime}` : ''}
+                      </span>
+                    </li>
+                  </ul>
+                )}
               </div>
             </li>
           ))}

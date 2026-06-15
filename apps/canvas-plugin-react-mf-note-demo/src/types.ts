@@ -42,3 +42,52 @@ export interface RendererCanvasPlugin {
   id: string;
   activate(ctx: RendererCtx): void;
 }
+
+export interface PluginNodeRef {
+  workspaceId: string;
+  node: CanvasNode;
+}
+
+export interface PluginNodeReadResult {
+  content?: string;
+  summary?: string;
+  payload?: unknown;
+  data?: unknown;
+  availableActions?: string[];
+}
+
+export interface PluginNodeWriteInput {
+  title?: string;
+  payload?: unknown;
+}
+
+export interface PluginNodeWritePatch {
+  title?: string;
+  payload?: unknown;
+}
+
+export interface PluginNodeActionResult {
+  result?: unknown;
+  patch?: PluginNodeWritePatch;
+}
+
+export interface PluginNodeCapabilities {
+  read?(ref: PluginNodeRef): PluginNodeReadResult | Promise<PluginNodeReadResult>;
+  write?(
+    ref: PluginNodeRef,
+    input: PluginNodeWriteInput,
+  ): PluginNodeWritePatch | Promise<PluginNodeWritePatch>;
+  actions?: Record<
+    string,
+    (ref: PluginNodeRef, input?: unknown) => PluginNodeActionResult | Promise<PluginNodeActionResult>
+  >;
+}
+
+export interface MainCtx {
+  registerNodeCapabilities(nodeType: string, capabilities: PluginNodeCapabilities): void;
+}
+
+export interface MainCanvasPlugin {
+  id: string;
+  activate(ctx: MainCtx): void | Promise<void>;
+}
