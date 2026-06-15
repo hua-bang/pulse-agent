@@ -9,9 +9,8 @@
       "actions": ["pin"],
       "renderer": {
         "remoteName": "pulse_canvas_demo_note",
-        "entry": "dist/remoteEntry.js",
-        "expose": "./plugin",
-        "type": "global"
+        "entry": "dist/mf-manifest.json",
+        "expose": "./plugin"
       }
     }
   ]

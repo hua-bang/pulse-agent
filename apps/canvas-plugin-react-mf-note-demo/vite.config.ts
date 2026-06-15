@@ -1,5 +1,6 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { federation } from '@module-federation/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
@@ -11,26 +12,29 @@ export default defineConfig({
     react({
       jsxRuntime: 'classic',
     }),
+    federation({
+      name: 'pulse_canvas_demo_note',
+      filename: 'remoteEntry.js',
+      manifest: true,
+      exposes: {
+        './plugin': './src/plugin.tsx',
+      },
+      shared: {
+        react: {
+          singleton: true,
+          requiredVersion: false,
+        },
+        'react/': {
+          singleton: true,
+          requiredVersion: false,
+        },
+      },
+    }),
   ],
   build: {
     outDir: resolve(root, 'dist'),
     emptyOutDir: true,
-    target: 'es2020',
+    target: 'chrome89',
     minify: false,
-    lib: {
-      entry: resolve(root, 'src/remote-entry.ts'),
-      name: 'pulse_canvas_demo_note_bundle',
-      formats: ['iife'],
-      fileName: () => 'remoteEntry.js',
-    },
-    rollupOptions: {
-      external: ['react'],
-      output: {
-        globals: {
-          react: '__PULSE_CANVAS_PLUGIN_REACT__',
-        },
-        inlineDynamicImports: true,
-      },
-    },
   },
 });

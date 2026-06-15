@@ -1,0 +1,100 @@
+{
+  "_NoteNodeView-B7JNBMnH.js": {
+    "file": "assets/NoteNodeView-B7JNBMnH.js",
+    "name": "NoteNodeView",
+    "imports": [
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+    ]
+  },
+  "___virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-EXCOvGxd.js": {
+    "file": "assets/__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-EXCOvGxd.js",
+    "name": "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy",
+    "imports": [
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+    ]
+  },
+  "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js": {
+    "file": "assets/_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js",
+    "name": "_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js",
+    "isDynamicEntry": true
+  },
+  "_preload-helper-CmrIWoG2.js": {
+    "file": "assets/preload-helper-CmrIWoG2.js",
+    "name": "preload-helper"
+  },
+  "index.html": {
+    "file": "assets/index-DfZYy8Et.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "imports": [
+      "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
+      "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js",
+      "___virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-EXCOvGxd.js",
+      "_NoteNodeView-B7JNBMnH.js",
+      "_preload-helper-CmrIWoG2.js"
+    ]
+  },
+  "src/plugin.tsx": {
+    "file": "assets/plugin-CbN2GWU9.js",
+    "name": "plugin",
+    "src": "src/plugin.tsx",
+    "isEntry": true,
+    "isDynamicEntry": true,
+    "imports": [
+      "_NoteNodeView-B7JNBMnH.js",
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+    ]
+  },
+  "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js": {
+    "file": "remoteEntry.js",
+    "name": "remoteEntry",
+    "src": "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_preload-helper-CmrIWoG2.js"
+    ],
+    "dynamicImports": [
+      "virtual:mf-localSharedImportMap:__mfe_internal__pulse_canvas_demo_note",
+      "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+    ]
+  },
+  "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js": {
+    "file": "assets/virtualExposes-Cc61neVT.js",
+    "name": "virtualExposes",
+    "src": "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_preload-helper-CmrIWoG2.js"
+    ],
+    "dynamicImports": [
+      "src/plugin.tsx"
+    ]
+  },
+  "virtual:mf-localSharedImportMap:__mfe_internal__pulse_canvas_demo_note": {
+    "file": "assets/_virtual_mf-localSharedImportMap___mfe_internal__pulse_canvas_demo_note-Ce29WLjB.js",
+    "name": "_virtual_mf-localSharedImportMap___mfe_internal__pulse_canvas_demo_note",
+    "src": "virtual:mf-localSharedImportMap:__mfe_internal__pulse_canvas_demo_note",
+    "isDynamicEntry": true,
+    "imports": [
+      "_preload-helper-CmrIWoG2.js",
+      "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js"
+    ],
+    "dynamicImports": [
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+    ]
+  },
+  "virtual:mf:__mfe_internal__pulse_canvas_demo_note__H_A_I__hostAutoInit__H_A_I__.js": {
+    "file": "assets/hostInit-D12o3gjj.js",
+    "name": "hostInit",
+    "src": "virtual:mf:__mfe_internal__pulse_canvas_demo_note__H_A_I__hostAutoInit__H_A_I__.js",
+    "imports": [
+      "_preload-helper-CmrIWoG2.js"
+    ],
+    "dynamicImports": [
+      "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js"
+    ]
+  }
+}

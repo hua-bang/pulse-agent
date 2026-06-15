@@ -42,13 +42,3 @@ export interface RendererCanvasPlugin {
   id: string;
   activate(ctx: RendererCtx): void;
 }
-
-export type RemoteFactory = () => {
-  default: RendererCanvasPlugin;
-  plugin: RendererCanvasPlugin;
-};
-
-export interface GlobalRemoteContainer {
-  init: () => void | Promise<void>;
-  get: (expose: string) => Promise<RemoteFactory>;
-}
