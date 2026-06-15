@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import "./index.css";
 import type { CanvasNode, FrameNodeData } from "../../types";
 import { AgentTeamFrame } from "../AgentTeamFrame";
@@ -64,6 +64,91 @@ interface ColorPickerProps {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
 }
+
+interface FrameChildrenToggleProps {
+  node: CanvasNode;
+  descendantCount: number;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+}
+
+export const FrameChildrenToggle = ({
+  node,
+  descendantCount,
+  onUpdate,
+}: FrameChildrenToggleProps) => {
+  if (node.type !== 'frame') return null;
+  const data = node.data as FrameNodeData;
+  const collapsed = data.childrenCollapsed === true;
+  const hasDescendants = descendantCount > 0;
+
+  const handleToggle = useCallback(
+    (e: ReactMouseEvent) => {
+      e.stopPropagation();
+      onUpdate(node.id, {
+        data: {
+          ...data,
+          childrenCollapsed: !collapsed,
+        },
+      });
+    },
+    [collapsed, data, node.id, onUpdate],
+  );
+
+  return (
+    <button
+      className={`frame-children-toggle${collapsed ? ' frame-children-toggle--collapsed' : ''}`}
+      type="button"
+      onClick={handleToggle}
+      onMouseDown={(e) => e.stopPropagation()}
+      title={
+        !hasDescendants
+          ? 'No frame children'
+          : collapsed ? 'Show frame children' : 'Hide frame children'
+      }
+      aria-label={collapsed ? 'Show frame children' : 'Hide frame children'}
+      aria-pressed={collapsed}
+      disabled={!hasDescendants}
+    >
+      <FrameToggleIcon collapsed={collapsed} />
+      <span className="frame-children-count">{descendantCount}</span>
+    </button>
+  );
+};
+
+const FrameToggleIcon = ({ collapsed }: { collapsed: boolean }) => (
+  <svg
+    className="frame-children-toggle-icon"
+    width="16"
+    height="16"
+    viewBox="0 0 16 16"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path
+      className="frame-children-toggle-icon__rail frame-children-toggle-icon__rail--top"
+      d="M4.25 4.25h7.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <path
+      className="frame-children-toggle-icon__chevron"
+      d="M5 6.75l3 3 3-3"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      className="frame-children-toggle-icon__rail frame-children-toggle-icon__rail--bottom"
+      d="M4.25 11.75h7.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <title>{collapsed ? 'Expand frame children' : 'Collapse frame children'}</title>
+  </svg>
+);
 
 export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
   const data = node.data as FrameNodeData;

@@ -242,7 +242,7 @@ export const useCanvasNodeViewModel = ({
   );
 
   const textAutoSize = getTextAutoSize(node);
-  const groupDescendantCount = node.type === 'group' && getAllNodes
+  const containerDescendantCount = (node.type === 'group' || node.type === 'frame') && getAllNodes
     ? collectContainerDescendants(node.id, getAllNodes()).length
     : 0;
 
@@ -261,7 +261,7 @@ export const useCanvasNodeViewModel = ({
       textAutoSize,
     }),
     fullscreenButtonEnabled: FULLSCREEN_NODE_TYPES.has(node.type) && !!onToggleFullscreen,
-    groupDescendantCount,
+    containerDescendantCount,
     handleClose,
     handleFocus,
     handleHeaderMouseDown,

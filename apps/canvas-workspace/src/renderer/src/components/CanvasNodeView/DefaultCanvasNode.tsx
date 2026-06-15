@@ -15,7 +15,7 @@ interface DefaultCanvasNodeProps {
   classes: string;
   fullscreenButton: ReactNode;
   getAllNodes?: () => CanvasNode[];
-  groupDescendantCount: number;
+  containerDescendantCount: number;
   handleClose: (e: MouseEvent) => void;
   handleFocus: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
@@ -54,7 +54,7 @@ export const DefaultCanvasNode = ({
   classes,
   fullscreenButton,
   getAllNodes,
-  groupDescendantCount,
+  containerDescendantCount,
   handleClose,
   handleFocus,
   handleHeaderMouseDown,
@@ -91,7 +91,7 @@ export const DefaultCanvasNode = ({
   <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
     <CanvasNodeHeader
       fullscreenButton={fullscreenButton}
-      groupDescendantCount={groupDescendantCount}
+      containerDescendantCount={containerDescendantCount}
       handleClose={handleClose}
       handleFocus={handleFocus}
       handleHeaderMouseDown={handleHeaderMouseDown}

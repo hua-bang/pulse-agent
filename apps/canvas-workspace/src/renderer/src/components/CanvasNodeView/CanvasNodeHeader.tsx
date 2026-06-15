@@ -1,13 +1,13 @@
 import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
-import { FrameColorPicker } from '../FrameNodeBody';
+import { FrameChildrenToggle, FrameColorPicker } from '../FrameNodeBody';
 import { TextColorPicker } from '../TextNodeBody';
 import { CloseButton, FocusButton, ReferenceButton, AddToChatButton } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;
-  groupDescendantCount: number;
+  containerDescendantCount: number;
   handleClose: (e: MouseEvent) => void;
   handleFocus: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
@@ -32,7 +32,7 @@ interface CanvasNodeHeaderProps {
 
 export const CanvasNodeHeader = ({
   fullscreenButton,
-  groupDescendantCount,
+  containerDescendantCount,
   handleClose,
   handleFocus,
   handleHeaderMouseDown,
@@ -95,7 +95,7 @@ export const CanvasNodeHeader = ({
       </span>
       {node.type === 'group' && (
         <span className="group-count-label">
-          {groupDescendantCount}
+          {containerDescendantCount}
         </span>
       )}
       {agentTeamRole && (
@@ -113,6 +113,13 @@ export const CanvasNodeHeader = ({
         >
           Ungroup
         </button>
+      )}
+      {node.type === 'frame' && !readOnly && (
+        <FrameChildrenToggle
+          node={node}
+          descendantCount={containerDescendantCount}
+          onUpdate={onUpdate}
+        />
       )}
       {relativeTime && (
         <span className="node-time-label" title={new Date(node.updatedAt!).toLocaleString()}>
