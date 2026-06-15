@@ -154,6 +154,21 @@ Manifest paths are package-local:
 The host scans local manifests and exposes renderer entries as runtime URLs such
 as `/plugins/mock-node/remoteEntry.js`.
 
+User-configured plugin directories use the same manifest shape, but they do not
+need to live inside the repository. Settings -> Canvas Plugins writes local
+configuration to the Electron user data directory:
+
+```json
+{
+  "pluginDirs": [
+    "/Users/me/pulse-plugin"
+  ]
+}
+```
+
+For those external directories, package-local renderer paths are resolved to
+`pulse-canvas://local/<absolute-path>`.
+
 ## Current MVP
 
 The current MVP proves the first vertical slice:
@@ -164,6 +179,8 @@ The current MVP proves the first vertical slice:
 - A main-side capability provider exposes read/write/action for `mock.card`.
 - The same mock plugin also exposes `mock.todo-list`, proving one plugin package
   can contribute multiple custom node types.
+- Users can add local plugin directories from Settings or import a JSON config,
+  so renderer plugins are no longer limited to repository-local paths.
 - The Canvas Agent can read semantic plugin content, patch plugin payload, and
   execute actions such as `increment`, `add_item`, `toggle_item`, and
   `clear_completed`.
@@ -191,10 +208,14 @@ Status: implemented.
 Goal: make mock node less special.
 
 - Scan `src/plugins/*/manifest.json`.
-- Register renderer remotes from manifests.
+- Add Settings UI for user-configured local plugin directories.
+- Register renderer remotes from built-in and user-configured manifests.
 - Register main plugin modules from manifests.
 - Replace hard-coded built-in mock wiring with manifest-driven activation.
 - Add validation errors visible in devtools/logs.
+
+Status: renderer manifest loading and Settings UI are implemented. Dynamic
+main-plugin module loading is still pending.
 
 ### Phase 2: Plugin Package MVP
 

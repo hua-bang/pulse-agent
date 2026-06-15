@@ -12,6 +12,7 @@ import { createPluginBridge } from "./bridge/plugin";
 import { createPtyApi } from "./bridge/pty";
 import {
   createCanvasMcpApi,
+  createCanvasPluginsApi,
   createCanvasSkillsApi,
   createBuiltInToolsConfigApi,
   createChannelConfigApi,
@@ -48,6 +49,7 @@ const canvasWorkspace: CanvasWorkspaceApi = {
   skills: createSkillsApi(ipcRenderer),
   canvasSkills: createCanvasSkillsApi(ipcRenderer),
   canvasMcp: createCanvasMcpApi(ipcRenderer),
+  canvasPlugins: createCanvasPluginsApi(ipcRenderer),
   experimental: createExperimentalApi(ipcRenderer),
   channelConfig: createChannelConfigApi(ipcRenderer),
   builtInTools: createBuiltInToolsConfigApi(ipcRenderer),

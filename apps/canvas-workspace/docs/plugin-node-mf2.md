@@ -82,8 +82,35 @@ Host tools exposed to the Canvas Agent:
 
 ## Dev Loading
 
-In development, pass remote renderer specs through
-`VITE_CANVAS_RENDERER_MF_REMOTES`:
+There are three renderer loading paths:
+
+1. Built-in local plugin manifests under `src/plugins/*/manifest.json`.
+2. User-configured local plugin directories stored in the app's
+   `canvas-plugins.json`.
+3. Development-only remote specs passed through
+   `VITE_CANVAS_RENDERER_MF_REMOTES`.
+
+### User-Configured Local Directories
+
+Open Settings -> Canvas Plugins, then either choose a folder or import a JSON
+file:
+
+```json
+{
+  "pluginDirs": [
+    "/Users/me/pulse-plugin"
+  ]
+}
+```
+
+The selected folder must contain `manifest.json`. Renderer entries can be
+package-local paths such as `renderer/remoteEntry.js`; the main process resolves
+them to `pulse-canvas://local/<absolute-path>` so the renderer can load them
+without relying on a repository path.
+
+### Environment Remotes
+
+In development, pass remote renderer specs through:
 
 ```bash
 VITE_CANVAS_RENDERER_MF_REMOTES='[
@@ -109,3 +136,7 @@ The same mock plugin now declares two node types:
 
 - `mock.card`: counter card with `increment`.
 - `mock.todo-list`: task list with `add_item`, `toggle_item`, and `clear_completed`.
+
+The mock plugin directory can also be used as a local package example in
+Settings -> Canvas Plugins because its manifest uses package-local renderer
+paths.

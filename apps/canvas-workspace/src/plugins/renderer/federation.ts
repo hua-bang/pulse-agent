@@ -6,6 +6,10 @@ import type {
   RendererCtx,
   RendererFederatedPluginSpec,
 } from '../types';
+import type {
+  CanvasPluginRendererSpec,
+  CanvasPluginsStatus,
+} from '../../shared/settings-config';
 import {
   MOCK_NODE_PLUGIN_ID,
   MOCK_NODE_REMOTE_ENTRY,
@@ -18,6 +22,7 @@ const DEFAULT_EXPOSE = './plugin';
 const ENV_REMOTES_KEY = 'VITE_CANVAS_RENDERER_MF_REMOTES';
 
 let initialized = false;
+const registeredRemoteNames = new Set<string>();
 
 type RemotePluginModule = {
   default?: unknown;
@@ -85,7 +90,13 @@ function toRemote(spec: RendererFederatedPluginSpec): RemoteShape {
 
 function ensureFederation(specs: RendererFederatedPluginSpec[]): void {
   installLocalSmokeRemoteBridge();
-  const remotes = specs.map(toRemote);
+  const remotes = specs
+    .map(toRemote)
+    .filter((remote) => {
+      if (registeredRemoteNames.has(remote.name)) return false;
+      registeredRemoteNames.add(remote.name);
+      return true;
+    });
   if (!initialized) {
     init({
       name: HOST_NAME,
@@ -196,6 +207,50 @@ function parseSpec(value: unknown): RendererFederatedPluginSpec | null {
   };
 }
 
+function specFromConfiguredPlugin(value: CanvasPluginRendererSpec): RendererFederatedPluginSpec {
+  return {
+    id: value.id,
+    name: value.name,
+    entry: value.entry,
+    expose: value.expose ?? DEFAULT_EXPOSE,
+    type: value.type,
+    entryGlobalName: value.entryGlobalName,
+    version: value.version,
+  };
+}
+
+export function specsFromCanvasPluginsStatus(
+  status: CanvasPluginsStatus | undefined,
+): RendererFederatedPluginSpec[] {
+  if (!status) return [];
+  return status.rendererSpecs.map(specFromConfiguredPlugin);
+}
+
+export async function readFederatedRendererPluginSpecsFromUserConfig(): Promise<RendererFederatedPluginSpec[]> {
+  const api = (
+    globalThis as {
+      canvasWorkspace?: {
+        canvasPlugins?: {
+          list?: () => Promise<{ ok: boolean; status?: CanvasPluginsStatus; error?: string }>;
+        };
+      };
+    }
+  ).canvasWorkspace?.canvasPlugins;
+  if (!api?.list) return [];
+
+  try {
+    const res = await api.list();
+    if (!res.ok) {
+      console.warn('[canvas-plugins] failed to read user plugin config', res.error);
+      return [];
+    }
+    return specsFromCanvasPluginsStatus(res.status);
+  } catch (err) {
+    console.warn('[canvas-plugins] failed to read user plugin config', err);
+    return [];
+  }
+}
+
 export function readFederatedRendererPluginSpecsFromEnv(): RendererFederatedPluginSpec[] {
   const raw = readEnvString(ENV_REMOTES_KEY);
   if (!raw) return [];
@@ -239,8 +294,10 @@ export async function activateFederatedRendererPlugins(
 }
 
 export async function activateConfiguredFederatedRendererPlugins(): Promise<RendererCanvasPlugin[]> {
+  const userSpecs = await readFederatedRendererPluginSpecsFromUserConfig();
   return activateFederatedRendererPlugins([
     ...getBuiltInFederatedRendererPluginSpecs(),
     ...readFederatedRendererPluginSpecsFromEnv(),
+    ...userSpecs,
   ]);
 }

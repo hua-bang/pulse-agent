@@ -5,6 +5,8 @@ import type {
   CanvasMcpImportEntry,
   CanvasMcpServer,
   CanvasMcpStatus,
+  CanvasPluginsImportEntry,
+  CanvasPluginsStatus,
   CanvasSkillImportEntry,
   CanvasSkillInput,
   CanvasSkillsStatus,
@@ -102,4 +104,29 @@ export interface CanvasMcpApi {
     tool: string,
     enabled: boolean,
   ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+}
+
+export interface CanvasPluginsApi {
+  list: () => Promise<{ ok: boolean; status?: CanvasPluginsStatus; error?: string }>;
+  addDirectory: (
+    dir: string,
+  ) => Promise<{ ok: boolean; status?: CanvasPluginsStatus; error?: string }>;
+  chooseDirectory: () => Promise<{
+    ok: boolean;
+    canceled?: boolean;
+    selectedDir?: string;
+    status?: CanvasPluginsStatus;
+    error?: string;
+  }>;
+  removeDirectory: (
+    dir: string,
+  ) => Promise<{ ok: boolean; status?: CanvasPluginsStatus; error?: string }>;
+  importJson: (
+    json: string,
+  ) => Promise<{
+    ok: boolean;
+    status?: CanvasPluginsStatus;
+    entries?: CanvasPluginsImportEntry[];
+    error?: string;
+  }>;
 }

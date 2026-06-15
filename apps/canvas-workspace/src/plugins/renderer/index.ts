@@ -16,4 +16,5 @@ export {
   activateFederatedRendererPlugins,
   getBuiltInFederatedRendererPluginSpecs,
   readFederatedRendererPluginSpecsFromEnv,
+  specsFromCanvasPluginsStatus,
 } from './federation';

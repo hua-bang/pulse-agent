@@ -10,7 +10,13 @@ import type { AgentTeamsApi } from './agent-teams';
 import type { AppInfoApi } from './app-info';
 import type { ArtifactsApi } from './artifacts';
 import type { CanvasModelApi, PromptProfileApi } from './models';
-import type { CanvasMcpApi, CanvasSkillsApi, BuiltInToolsConfigApi, SkillsApi } from './settings-config';
+import type {
+  CanvasMcpApi,
+  CanvasPluginsApi,
+  CanvasSkillsApi,
+  BuiltInToolsConfigApi,
+  SkillsApi,
+} from './settings-config';
 import type { ChannelConfigApi } from './channel-config';
 import type { CodexSessionsApi } from './codex-sessions';
 import type { DialogApi, FileApi } from './files';
@@ -150,6 +156,7 @@ export interface CanvasWorkspaceApi {
   skills: SkillsApi;
   canvasSkills: CanvasSkillsApi;
   canvasMcp: CanvasMcpApi;
+  canvasPlugins: CanvasPluginsApi;
   experimental: ExperimentalApi;
   channelConfig: ChannelConfigApi;
   builtInTools: BuiltInToolsConfigApi;

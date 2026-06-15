@@ -132,3 +132,51 @@ export interface CanvasMcpImportEntry {
   status: 'added' | 'replaced' | 'skipped';
   reason?: string;
 }
+
+export interface CanvasPluginRendererSpec {
+  id: string;
+  name: string;
+  entry: string;
+  expose?: string;
+  type?: string;
+  entryGlobalName?: string;
+  version?: string;
+}
+
+export interface CanvasPluginManifestNode {
+  type: string;
+  title?: string;
+  capabilities?: string[];
+  actions?: string[];
+  renderer?: {
+    remoteName?: string;
+    name?: string;
+    entry?: string;
+    expose?: string;
+    type?: string;
+    entryGlobalName?: string;
+  };
+}
+
+export interface CanvasPluginEntry {
+  id: string;
+  version?: string;
+  dir: string;
+  manifestPath: string;
+  nodes: CanvasPluginManifestNode[];
+  rendererSpecs: CanvasPluginRendererSpec[];
+  error?: string;
+}
+
+export interface CanvasPluginsStatus {
+  path: string;
+  pluginDirs: string[];
+  plugins: CanvasPluginEntry[];
+  rendererSpecs: CanvasPluginRendererSpec[];
+}
+
+export interface CanvasPluginsImportEntry {
+  dir: string;
+  status: 'added' | 'existing' | 'skipped';
+  reason?: string;
+}
