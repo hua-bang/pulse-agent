@@ -43,6 +43,54 @@ afterEach(async () => {
 });
 
 describe('disabledTools persistence', () => {
+  it('round-trips OAuth config through upsert and status', async () => {
+    await upsertCanvasMcpServer(GLOBAL, {
+      name: 'figma',
+      transport: 'http',
+      url: 'https://mcp.figma.com/mcp',
+      auth: 'oauth',
+      oauth: {
+        clientId: 'client-id',
+        clientSecret: 'client-secret',
+        scope: 'files:read',
+      },
+    });
+
+    const status = await getCanvasMcpStatus(GLOBAL);
+    const server = status.servers.find((s) => s.name === 'figma');
+    expect(server?.auth).toBe('oauth');
+    expect(server?.oauth).toEqual({
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      scope: 'files:read',
+    });
+
+    const raw = await readRaw();
+    expect(raw.servers.figma.auth).toBe('oauth');
+    expect(raw.servers.figma.oauth).toEqual({
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      scope: 'files:read',
+    });
+  });
+
+  it('keeps OAuth off stdio servers', async () => {
+    await upsertCanvasMcpServer(GLOBAL, {
+      name: 'local',
+      transport: 'stdio',
+      command: 'node',
+      auth: 'oauth',
+      oauth: {
+        clientId: 'ignored',
+      },
+    });
+
+    const raw = await readRaw();
+    expect(raw.servers.local.transport).toBe('stdio');
+    expect('auth' in raw.servers.local).toBe(false);
+    expect('oauth' in raw.servers.local).toBe(false);
+  });
+
   it('round-trips disabledTools through upsert and status', async () => {
     await upsertCanvasMcpServer(GLOBAL, {
       name: 'eido',
@@ -115,6 +163,25 @@ describe('setCanvasMcpToolEnabled', () => {
 });
 
 describe('importCanvasMcpJson', () => {
+  it('carries OAuth config through native-shape import', async () => {
+    const json = JSON.stringify({
+      servers: {
+        figma: {
+          transport: 'http',
+          url: 'https://mcp.figma.com/mcp',
+          auth: 'oauth',
+          oauth: {
+            scope: 'files:read',
+          },
+        },
+      },
+    });
+    await importCanvasMcpJson(GLOBAL, json);
+    const raw = await readRaw();
+    expect(raw.servers.figma.auth).toBe('oauth');
+    expect(raw.servers.figma.oauth).toEqual({ scope: 'files:read' });
+  });
+
   it('carries disabledTools through native-shape import', async () => {
     const json = JSON.stringify({
       servers: {

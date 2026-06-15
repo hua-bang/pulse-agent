@@ -104,6 +104,14 @@ export interface CanvasMcpApi {
     tool: string,
     enabled: boolean,
   ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  oauthConnect: (
+    scope: CanvasConfigScope,
+    name: string,
+  ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  oauthDisconnect: (
+    scope: CanvasConfigScope,
+    name: string,
+  ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
 }
 
 export interface CanvasPluginsApi {
@@ -129,4 +137,9 @@ export interface CanvasPluginsApi {
     entries?: CanvasPluginsImportEntry[];
     error?: string;
   }>;
+  setConfig: (
+    pluginId: string,
+    key: string,
+    value: string,
+  ) => Promise<{ ok: boolean; status?: CanvasPluginsStatus; error?: string }>;
 }

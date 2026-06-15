@@ -52,6 +52,13 @@ export type {
   TaskStatus,
   WorkTask,
   WorkTaskListSnapshot,
+  HTTPOrSSEServerConfig,
+  MCPAuthProviderFactory,
+  MCPAuthProviderFactoryContext,
+  OAuthClientInformation,
+  OAuthClientMetadata,
+  OAuthClientProvider,
+  OAuthTokens,
   TeamRole,
   TaskGraph,
   TaskNode,
@@ -59,6 +66,7 @@ export type {
   TeamRunInput,
   TeamRunOutput
 } from './built-in/index.js';
+export { mcpAuth } from './built-in/index.js';
 
 // 原有导出保持不变
 export * from './shared/types.js';

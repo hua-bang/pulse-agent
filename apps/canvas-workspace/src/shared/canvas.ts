@@ -60,9 +60,9 @@ export interface DynamicAppNodeData {
  * resolves `pluginId + nodeType` to a renderer view and capability provider.
  */
 export interface PluginNodeData {
-  /** Plugin package id, e.g. `figma` or `com.example.mock-design`. */
+  /** Plugin package id, e.g. `design-tools` or `com.example.mock-design`. */
   pluginId: string;
-  /** Plugin-defined node type, e.g. `figma.frame` or `mock.card`. */
+  /** Plugin-defined node type, e.g. `design.frame` or `mock.card`. */
   nodeType: string;
   /** Plugin-owned JSON payload. The host treats this as opaque state. */
   payload?: Record<string, unknown>;

@@ -176,4 +176,36 @@ describe('setupCanvasPlugins + registerCanvasTool', () => {
     expect(entry?.nodeType).toBe('demo.card');
     expect(getRegisteredNodeCapabilities()).toHaveLength(1);
   });
+
+  it('deactivates plugin registrations by plugin id', async () => {
+    const {
+      deactivateCanvasPlugin,
+      setupCanvasPlugins,
+      getRegisteredCanvasToolFactories,
+      getRegisteredNodeCapability,
+    } = await loadRegistry();
+    const deactivate = vi.fn();
+
+    await setupCanvasPlugins([
+      {
+        id: 'p-dynamic',
+        activate(ctx) {
+          ctx.registerCanvasTool(() => ({ tool_dynamic: { name: 'tool_dynamic' } }));
+          ctx.registerNodeCapabilities('demo.dynamic', {
+            read: () => ({ content: 'dynamic' }),
+          });
+        },
+        deactivate,
+      },
+    ]);
+
+    expect(getRegisteredCanvasToolFactories()).toHaveLength(1);
+    expect(getRegisteredNodeCapability('demo.dynamic')?.pluginId).toBe('p-dynamic');
+
+    await deactivateCanvasPlugin('p-dynamic');
+
+    expect(deactivate).toHaveBeenCalledTimes(1);
+    expect(getRegisteredCanvasToolFactories()).toEqual([]);
+    expect(getRegisteredNodeCapability('demo.dynamic')).toBeUndefined();
+  });
 });

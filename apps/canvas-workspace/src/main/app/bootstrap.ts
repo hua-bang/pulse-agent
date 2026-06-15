@@ -46,6 +46,7 @@ import {
 } from "../runtime/control-server";
 import {
   BUILT_IN_MAIN_PLUGINS,
+  reloadConfiguredExternalMainPlugins,
   setupCanvasPlugins,
   teardownCanvasPlugins,
   setAgentServiceAccessor,
@@ -160,6 +161,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // renderer first calls into canvas-agent IPC). Await so the registry
     // is fully populated by the time the window comes up.
     await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
+    await reloadConfiguredExternalMainPlugins();
     void ensureRuntimeControlServer((message, detail) => {
       void writeLog("main", message, detail);
     }).then((ok) => {

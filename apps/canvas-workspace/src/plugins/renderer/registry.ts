@@ -65,7 +65,6 @@ function emitRegistryChange(): void {
 export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
   for (const plugin of plugins) {
     if (activated.has(plugin.id)) {
-      console.warn(`[canvas-plugins] duplicate plugin id, skipping: ${plugin.id}`);
       continue;
     }
     if (plugin.enabledWhen && !plugin.enabledWhen()) continue;
@@ -131,6 +130,10 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
     }
   }
+}
+
+export function isRendererPluginActivated(pluginId: string): boolean {
+  return activated.has(pluginId);
 }
 
 export function subscribeRendererPluginRegistry(listener: () => void): () => void {

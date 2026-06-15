@@ -7,6 +7,7 @@ export {
   getRegisteredNodeViews,
   getRegisteredRoutes,
   getRendererPluginRegistryVersion,
+  isRendererPluginActivated,
   subscribeRendererPluginRegistry,
 } from './registry';
 export { PluginChatCardForMessage } from './chat-card';

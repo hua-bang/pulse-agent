@@ -12,6 +12,13 @@ import { dirname } from 'path';
 import { prettyPath, scopeMcpConfigPath, type CanvasConfigScope } from '../config-scope';
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
+export type CanvasMcpAuth = 'none' | 'oauth';
+
+export interface CanvasMcpOAuthConfig {
+  clientId?: string;
+  clientSecret?: string;
+  scope?: string;
+}
 
 export interface CanvasMcpServer {
   name: string;
@@ -19,6 +26,8 @@ export interface CanvasMcpServer {
   /** http/sse */
   url?: string;
   headers?: Record<string, string>;
+  auth?: CanvasMcpAuth;
+  oauth?: CanvasMcpOAuthConfig;
   /** stdio */
   command?: string;
   args?: string[];
@@ -40,6 +49,11 @@ export type CanvasMcpServerHealth =
   | { ok: true; toolCount: number; tools?: CanvasMcpToolInfo[] }
   | { ok: false; error: string };
 
+export interface CanvasMcpOAuthStatus {
+  connected: boolean;
+  hasClientInformation: boolean;
+}
+
 export interface CanvasMcpStatus {
   scope: 'global' | 'workspace';
   path: string;
@@ -50,6 +64,7 @@ export interface CanvasMcpStatus {
    * loaded that server (e.g. workspace not activated yet).
    */
   statuses?: Record<string, CanvasMcpServerHealth>;
+  oauthStatuses?: Record<string, CanvasMcpOAuthStatus>;
 }
 
 interface McpFileShape {
@@ -77,6 +92,25 @@ function normalizeStringArray(value: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+function normalizeAuth(value: unknown): CanvasMcpAuth | undefined {
+  const auth = normalizeStr(value).toLowerCase();
+  if (auth === 'oauth') return 'oauth';
+  return undefined;
+}
+
+function normalizeOAuthConfig(value: unknown): CanvasMcpOAuthConfig | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const out: CanvasMcpOAuthConfig = {};
+  const clientId = normalizeStr(raw.clientId);
+  const clientSecret = normalizeStr(raw.clientSecret);
+  const scope = normalizeStr(raw.scope);
+  if (clientId) out.clientId = clientId;
+  if (clientSecret) out.clientSecret = clientSecret;
+  if (scope) out.scope = scope;
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** Normalize + validate a single server; throws on invalid input. */
 function normalizeServer(server: CanvasMcpServer): { name: string; config: Record<string, unknown> } {
   const name = normalizeStr(server.name);
@@ -98,6 +132,12 @@ function normalizeServer(server: CanvasMcpServer): { name: string; config: Recor
     config.url = url;
     const headers = normalizeStringMap(server.headers);
     if (headers) config.headers = headers;
+    const auth = normalizeAuth(server.auth);
+    if (auth === 'oauth') {
+      config.auth = auth;
+      const oauth = normalizeOAuthConfig(server.oauth);
+      if (oauth) config.oauth = oauth;
+    }
   } else {
     const command = normalizeStr(server.command);
     if (!command) throw new Error(`Server "${name}" requires a command for stdio transport`);
@@ -132,6 +172,12 @@ function readServer(name: string, raw: Record<string, unknown>): CanvasMcpServer
     server.url = normalizeStr(raw.url);
     const headers = normalizeStringMap(raw.headers);
     if (headers) server.headers = headers;
+    const auth = normalizeAuth(raw.auth);
+    if (auth === 'oauth') {
+      server.auth = auth;
+      const oauth = normalizeOAuthConfig(raw.oauth);
+      if (oauth) server.oauth = oauth;
+    }
   }
   return server;
 }
@@ -296,6 +342,12 @@ function rawToServer(name: string, raw: Record<string, unknown>): CanvasMcpServe
     if (url) server.url = url;
     const headers = normalizeStringMap(raw.headers);
     if (headers) server.headers = headers;
+    const auth = normalizeAuth(raw.auth);
+    if (auth === 'oauth') {
+      server.auth = auth;
+      const oauth = normalizeOAuthConfig(raw.oauth);
+      if (oauth) server.oauth = oauth;
+    }
   }
   return server;
 }

@@ -4,7 +4,7 @@
  */
 
 import { EnginePlugin, EnginePluginContext } from '../../plugin/EnginePlugin';
-import { createMCPClient, type MCPClientConfig } from '@ai-sdk/mcp';
+import { createMCPClient, type MCPClientConfig, type OAuthClientProvider } from '@ai-sdk/mcp';
 import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
 import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
@@ -12,10 +12,12 @@ import * as path from 'path';
 
 type RawMCPServerConfig = Record<string, unknown>;
 
-interface HTTPOrSSEServerConfig {
+export interface HTTPOrSSEServerConfig {
   transport: 'http' | 'sse';
   url: string;
   headers?: Record<string, string>;
+  auth?: string;
+  oauth?: Record<string, unknown>;
   deferTools?: boolean;
   disabledTools?: string[];
 }
@@ -154,6 +156,16 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
         normalized.headers = raw.headers;
       }
     }
+    if (typeof raw.auth === 'string' && raw.auth.trim()) {
+      normalized.auth = raw.auth.trim();
+    }
+    if (raw.oauth !== undefined) {
+      if (!raw.oauth || typeof raw.oauth !== 'object' || Array.isArray(raw.oauth)) {
+        console.warn(`[MCP] Server "${serverName}" has invalid oauth; expected object, ignoring oauth`);
+      } else {
+        normalized.oauth = raw.oauth as Record<string, unknown>;
+      }
+    }
 
     return normalized;
   }
@@ -203,7 +215,20 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
 }
 
 
-function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['transport'] {
+export interface MCPAuthProviderFactoryContext {
+  serverName: string;
+  config: HTTPOrSSEServerConfig;
+}
+
+export type MCPAuthProviderFactory = (
+  context: MCPAuthProviderFactoryContext,
+) => OAuthClientProvider | undefined | Promise<OAuthClientProvider | undefined>;
+
+async function createTransport(
+  serverName: string,
+  config: NormalizedMCPServerConfig,
+  authProviderFactory?: MCPAuthProviderFactory,
+): Promise<MCPClientConfig['transport']> {
   if (config.transport === 'stdio') {
     return new Experimental_StdioMCPTransport({
       command: config.command,
@@ -216,7 +241,8 @@ function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['tr
   return {
     type: config.transport,
     url: config.url,
-    headers: config.headers
+    headers: config.headers,
+    authProvider: await authProviderFactory?.({ serverName, config })
   };
 }
 
@@ -257,6 +283,7 @@ export interface MCPClientManager {
 export interface MCPPluginOptions {
   configPaths?: string[];
   cwd?: string;
+  authProviderFactory?: MCPAuthProviderFactory;
 }
 
 /**
@@ -316,7 +343,11 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
             continue;
           }
 
-          const transport = createTransport(normalizedConfig);
+          const transport = await createTransport(
+            serverName,
+            normalizedConfig,
+            options.authProviderFactory
+          );
           const client = await createMCPClient({ transport });
           clients.push(client as { close?: () => Promise<void> | void });
 

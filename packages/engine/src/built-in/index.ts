@@ -38,8 +38,18 @@ export type {
   MCPClientManager,
   MCPPluginConfig,
   MCPServerStatus,
-  McpToolInfo
+  McpToolInfo,
+  HTTPOrSSEServerConfig,
+  MCPAuthProviderFactory,
+  MCPAuthProviderFactoryContext
 } from './mcp-plugin';
+export { auth as mcpAuth } from '@ai-sdk/mcp';
+export type {
+  OAuthClientInformation,
+  OAuthClientMetadata,
+  OAuthClientProvider,
+  OAuthTokens,
+} from '@ai-sdk/mcp';
 export { builtInSkillsPlugin, createSkillsPlugin, BuiltInSkillRegistry } from './skills-plugin';
 export type { SkillInfo, SkillScanPath, SkillsPluginOptions, SkillRegistryOptions } from './skills-plugin';
 export { builtInPlanModePlugin, BuiltInPlanModeService } from './plan-mode-plugin';

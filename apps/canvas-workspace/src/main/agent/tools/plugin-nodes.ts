@@ -161,7 +161,7 @@ export function createPluginNodeTools(workspaceId: string): Record<string, Canva
       name: 'canvas_plugin_node_action',
       description:
         'Execute a named action on a custom plugin node through its registered action capability. ' +
-        'Examples: increment a mock card, sync a Figma frame, run a plugin-specific transform. ' +
+        'Examples: increment a mock card, sync a design frame, run a plugin-specific transform. ' +
         'Use this only for type="plugin" nodes that list the action capability.',
       inputSchema: z.object({
         nodeId: z.string().describe('The plugin node id to act on.'),

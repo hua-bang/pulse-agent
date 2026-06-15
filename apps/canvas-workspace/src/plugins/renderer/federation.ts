@@ -16,7 +16,7 @@ import {
   MOCK_NODE_REMOTE_ENTRY,
   MOCK_NODE_REMOTE_NAME,
 } from '../mock-node/constants';
-import { activateCanvasPlugins } from './registry';
+import { activateCanvasPlugins, isRendererPluginActivated } from './registry';
 
 const HOST_NAME = 'pulse_canvas_workspace';
 const DEFAULT_EXPOSE = './plugin';
@@ -277,6 +277,7 @@ export async function activateFederatedRendererPlugins(
   const activated: RendererCanvasPlugin[] = [];
 
   for (const spec of specs) {
+    if (isRendererPluginActivated(spec.id)) continue;
     try {
       const mod = await loadRemote<RemotePluginModule>(loadId(spec), { from: 'runtime' });
       const plugin = normalizeRemotePlugin(spec, mod);

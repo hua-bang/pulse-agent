@@ -55,7 +55,13 @@ export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
     ipcRenderer.invoke("canvas-mcp:import-json", { scope, json }),
 
   setToolEnabled: (scope, name, tool, enabled) =>
-    ipcRenderer.invoke("canvas-mcp:set-tool-enabled", { scope, name, tool, enabled })
+    ipcRenderer.invoke("canvas-mcp:set-tool-enabled", { scope, name, tool, enabled }),
+
+  oauthConnect: (scope, name) =>
+    ipcRenderer.invoke("canvas-mcp:oauth-connect", { scope, name }),
+
+  oauthDisconnect: (scope, name) =>
+    ipcRenderer.invoke("canvas-mcp:oauth-disconnect", { scope, name })
 });
 
 export const createCanvasPluginsApi = (ipcRenderer: IpcRenderer): CanvasPluginsApi => ({
@@ -71,7 +77,10 @@ export const createCanvasPluginsApi = (ipcRenderer: IpcRenderer): CanvasPluginsA
     ipcRenderer.invoke("canvas-plugins:remove-directory", { dir }),
 
   importJson: (json) =>
-    ipcRenderer.invoke("canvas-plugins:import-json", { json })
+    ipcRenderer.invoke("canvas-plugins:import-json", { json }),
+
+  setConfig: (pluginId, key, value) =>
+    ipcRenderer.invoke("canvas-plugins:set-config", { pluginId, key, value })
 });
 
 export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi => ({

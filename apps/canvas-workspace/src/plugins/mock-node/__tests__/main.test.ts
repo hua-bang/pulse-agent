@@ -17,6 +17,18 @@ function createCtx() {
       delete: vi.fn(),
       list: vi.fn(),
     },
+    config: {
+      get: vi.fn(async () => undefined),
+    },
+    canvas: {
+      read: vi.fn(async () => null),
+    },
+    webviews: {
+      get: vi.fn(() => null),
+      withCdp: vi.fn(async () => {
+        throw new Error('No webview in mock-node tests');
+      }),
+    },
     handle: vi.fn(),
     onAgent: vi.fn(() => vi.fn()),
     getAgentService: vi.fn(() => ({} as ReturnType<MainCtx['getAgentService']>)),

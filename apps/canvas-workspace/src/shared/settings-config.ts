@@ -57,7 +57,8 @@ export type CanvasSkillSourceName =
   | 'agents'
   | 'coder'
   | 'claude'
-  | 'codex';
+  | 'codex'
+  | 'plugin';
 
 export interface CanvasSkillEntry {
   name: string;
@@ -90,12 +91,21 @@ export interface CanvasSkillImportEntry {
 }
 
 export type CanvasMcpTransport = 'http' | 'sse' | 'stdio';
+export type CanvasMcpAuth = 'none' | 'oauth';
+
+export interface CanvasMcpOAuthConfig {
+  clientId?: string;
+  clientSecret?: string;
+  scope?: string;
+}
 
 export interface CanvasMcpServer {
   name: string;
   transport: CanvasMcpTransport;
   url?: string;
   headers?: Record<string, string>;
+  auth?: CanvasMcpAuth;
+  oauth?: CanvasMcpOAuthConfig;
   command?: string;
   args?: string[];
   env?: Record<string, string>;
@@ -116,6 +126,11 @@ export type CanvasMcpServerHealth =
   | { ok: true; toolCount: number; tools?: CanvasMcpToolInfo[] }
   | { ok: false; error: string };
 
+export interface CanvasMcpOAuthStatus {
+  connected: boolean;
+  hasClientInformation: boolean;
+}
+
 export interface CanvasMcpStatus {
   scope: 'global' | 'workspace';
   path: string;
@@ -125,6 +140,7 @@ export interface CanvasMcpStatus {
    * absent from this map have never been loaded by an active agent yet.
    */
   statuses?: Record<string, CanvasMcpServerHealth>;
+  oauthStatuses?: Record<string, CanvasMcpOAuthStatus>;
 }
 
 export interface CanvasMcpImportEntry {
@@ -150,6 +166,34 @@ export interface CanvasPluginMainSpec {
   permissions?: string[];
 }
 
+export interface CanvasPluginSkillSpec {
+  /** Optional manifest hint. The SKILL.md front matter remains the runtime source of truth. */
+  name?: string;
+  description?: string;
+  /** Absolute path to the SKILL.md file. */
+  path: string;
+  /** Directory scanned by the engine for this skill. */
+  scanPath: string;
+}
+
+export type CanvasPluginConfigFieldType = 'string' | 'password' | 'url';
+
+export interface CanvasPluginConfigField {
+  key: string;
+  label?: string;
+  description?: string;
+  type?: CanvasPluginConfigFieldType;
+  placeholder?: string;
+  required?: boolean;
+  envKeys?: string[];
+}
+
+export interface CanvasPluginConfigFieldStatus extends CanvasPluginConfigField {
+  configured: boolean;
+  source: 'stored' | 'env' | 'missing';
+  valueLength?: number;
+}
+
 export interface CanvasPluginManifestNode {
   type: string;
   title?: string;
@@ -171,6 +215,9 @@ export interface CanvasPluginEntry {
   dir: string;
   manifestPath: string;
   main?: CanvasPluginMainSpec;
+  skills?: CanvasPluginSkillSpec[];
+  config?: CanvasPluginConfigField[];
+  configStatus?: CanvasPluginConfigFieldStatus[];
   nodes: CanvasPluginManifestNode[];
   rendererSpecs: CanvasPluginRendererSpec[];
   error?: string;

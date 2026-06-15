@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   CanvasPluginEntry,
+  CanvasPluginConfigFieldStatus,
   CanvasPluginManifestNode,
   CanvasPluginsImportEntry,
   CanvasPluginsStatus,
@@ -41,6 +42,104 @@ const PluginHealth = ({ plugin }: { plugin: CanvasPluginEntry }) => {
     <span className="cfg-health cfg-health--ok">
       {t('pluginConfig.healthOk', { count: plugin.nodes.length })}
     </span>
+  );
+};
+
+const configStatusLabel = (
+  field: CanvasPluginConfigFieldStatus,
+  t: ReturnType<typeof useI18n>['t'],
+): string => {
+  const label = field.source === 'stored'
+    ? t('pluginConfig.configStored')
+    : field.source === 'env'
+      ? t('pluginConfig.configEnv')
+      : t('pluginConfig.configMissing');
+  return field.valueLength ? `${label} · ${t('pluginConfig.configValueLength', { length: field.valueLength })}` : label;
+};
+
+interface PluginConfigEditorProps {
+  plugin: CanvasPluginEntry;
+  saving: boolean;
+  onSave(pluginId: string, key: string, value: string): Promise<void>;
+}
+
+const PluginConfigEditor = ({ plugin, saving, onSave }: PluginConfigEditorProps) => {
+  const { t } = useI18n();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const fields = plugin.configStatus ?? [];
+  if (fields.length === 0) return null;
+
+  const setDraft = (key: string, value: string) => {
+    setDrafts((current) => ({ ...current, [key]: value }));
+  };
+
+  return (
+    <div className="cfg-plugin-config">
+      <div className="cfg-plugin-config-title">{t('pluginConfig.configTitle')}</div>
+      <div className="cfg-plugin-config-list">
+        {fields.map((field) => {
+          const value = drafts[field.key] ?? '';
+          const inputType = field.type === 'password' ? 'password' : field.type === 'url' ? 'url' : 'text';
+          return (
+            <div key={field.key} className="cfg-plugin-config-row">
+              <label className="cfg-field cfg-plugin-config-field">
+                <span>
+                  {field.label ?? field.key}
+                  {field.required && <span className="cfg-required">*</span>}
+                </span>
+                <input
+                  className="cfg-input"
+                  type={inputType}
+                  value={value}
+                  placeholder={
+                    field.configured
+                      ? t('pluginConfig.configKeepPlaceholder')
+                      : field.placeholder ?? t('pluginConfig.configEnterPlaceholder')
+                  }
+                  onChange={(event) => setDraft(field.key, event.target.value)}
+                />
+              </label>
+              <div className="cfg-plugin-config-meta">
+                <span className={`cfg-health cfg-health--${field.source === 'missing' ? 'unknown' : 'ok'}`}>
+                  {configStatusLabel(field, t)}
+                </span>
+                {field.description && (
+                  <span className="cfg-plugin-config-description">{field.description}</span>
+                )}
+                {field.envKeys?.length ? (
+                  <span className="cfg-plugin-config-description">
+                    {t('pluginConfig.configEnvKeys', { envKeys: field.envKeys.join(', ') })}
+                  </span>
+                ) : null}
+              </div>
+              <div className="cfg-plugin-config-actions">
+                {field.source === 'stored' && (
+                  <button
+                    type="button"
+                    className="cfg-secondary-btn"
+                    onClick={() => void onSave(plugin.id, field.key, '')}
+                    disabled={saving}
+                  >
+                    {t('pluginConfig.configClear')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="cfg-primary-btn"
+                  onClick={() => {
+                    void onSave(plugin.id, field.key, value);
+                    setDraft(field.key, '');
+                  }}
+                  disabled={saving || !value.trim()}
+                >
+                  {t('pluginConfig.configSave')}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 
@@ -181,6 +280,23 @@ export const PluginsManager = () => {
     }
   }, [importJson]);
 
+  const savePluginConfig = useCallback(
+    async (pluginId: string, key: string, value: string) => {
+      setSaving(true);
+      try {
+        const res = await window.canvasWorkspace.canvasPlugins.setConfig(pluginId, key, value);
+        await handleStatusResult(
+          res,
+          value.trim() ? t('pluginConfig.configSaved') : t('pluginConfig.configCleared'),
+          pluginId,
+        );
+      } finally {
+        setSaving(false);
+      }
+    },
+    [handleStatusResult, t],
+  );
+
   const plugins = status?.plugins ?? [];
   const configPath = status?.path ?? '';
 
@@ -301,6 +417,23 @@ export const PluginsManager = () => {
                     </li>
                   </ul>
                 )}
+                {(plugin.skills?.length ?? 0) > 0 && (
+                  <ul className="cfg-tools-list">
+                    {plugin.skills?.map((skill) => (
+                      <li key={skill.path} className="cfg-tool">
+                        <span className="cfg-tool-name">
+                          {skill.name ?? t('pluginConfig.skillEntry')}
+                        </span>
+                        <span className="cfg-tool-desc" title={skill.path}>
+                          {skill.description
+                            ? `${skill.description} · ${skill.path}`
+                            : skill.path}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <PluginConfigEditor plugin={plugin} saving={saving} onSave={savePluginConfig} />
               </div>
             </li>
           ))}

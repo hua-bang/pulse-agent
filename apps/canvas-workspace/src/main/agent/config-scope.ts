@@ -62,7 +62,8 @@ export type CanvasSkillSourceName =
   | 'agents'
   | 'coder'
   | 'claude'
-  | 'codex';
+  | 'codex'
+  | 'plugin';
 
 export interface SkillSourceDir {
   base: string;

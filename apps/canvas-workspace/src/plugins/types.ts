@@ -156,8 +156,45 @@ export type PluginIpcHandler = (
   ...args: unknown[]
 ) => unknown;
 
+export interface PluginCanvasSnapshot {
+  nodes: CanvasNode[];
+}
+
+export interface PluginCanvasApi {
+  read(workspaceId: string): Promise<PluginCanvasSnapshot | null>;
+}
+
+export interface PluginWebContentsRef {
+  getURL?(): string;
+  executeJavaScript(script: string, userGesture?: boolean): Promise<unknown>;
+}
+
+export type PluginCdpSender = <T = unknown>(
+  method: string,
+  params?: Record<string, unknown>,
+) => Promise<T>;
+
+export interface PluginWebviewApi {
+  get(workspaceId: string, nodeId: string): PluginWebContentsRef | null;
+  withCdp<T>(
+    workspaceId: string,
+    nodeId: string,
+    fn: (send: PluginCdpSender) => Promise<T>,
+  ): Promise<T>;
+}
+
+export interface PluginConfigApi {
+  get(key: string): Promise<string | undefined>;
+}
+
 export interface MainCtx {
   store: PluginStore;
+  /** Plugin-scoped configuration values declared in manifest.json. */
+  config: PluginConfigApi;
+  /** Read-only access to Canvas state for plugin tools/capabilities. */
+  canvas: PluginCanvasApi;
+  /** Access to live webviews mounted by plugin/iframe nodes. */
+  webviews: PluginWebviewApi;
   // Mirror of ipcMain.handle: register a channel callable from the
   // renderer plugin via ctx.invoke. Channel is auto-prefixed with
   // `plugin:<id>:` so plugins cannot collide with each other or with
