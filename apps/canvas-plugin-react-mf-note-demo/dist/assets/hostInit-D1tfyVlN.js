@@ -15,7 +15,8 @@ async function initHost() {
         "react": {
           shareConfig: {
             singleton: true,
-            requiredVersion: "^18.3.1"
+            requiredVersion: "*",
+            import: false
           }
         }
       };

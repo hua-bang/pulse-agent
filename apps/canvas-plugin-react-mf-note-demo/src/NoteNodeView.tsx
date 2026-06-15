@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import type { NotePayload, PluginNodeData, PluginNodeViewProps } from './types';
 
 const accents = ['#2383e2', '#0f766e', '#7c3aed', '#c2410c'];
@@ -27,10 +27,7 @@ function normalizePayload(payload: NotePayload): Required<NotePayload> {
 
 export function NoteNodeView({ node, readOnly, selected, updateNode }: PluginNodeViewProps) {
   const payload = normalizePayload(readPayload(node.data));
-  const wordCount = useMemo(
-    () => payload.body.trim().split(/\s+/).filter(Boolean).length,
-    [payload.body],
-  );
+  const wordCount = payload.body.trim().split(/\s+/).filter(Boolean).length;
 
   const patchPayload = (patch: Partial<NotePayload>) => {
     if (readOnly) return;

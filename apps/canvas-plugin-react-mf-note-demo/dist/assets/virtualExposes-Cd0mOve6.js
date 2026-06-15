@@ -44,7 +44,7 @@ const virtual_mfExposes___mfe_internal__pulse_canvas_demo_note__remoteEntry_js =
   "./plugin": async () => {
     await injectCssAssets("./plugin");
     const importModule = await importExposedModule(
-      () => __vitePreload(() => import("./plugin-CbN2GWU9.js"), true ? [] : void 0)
+      () => __vitePreload(() => import("./plugin-zQe4baMR.js"), true ? [] : void 0)
     );
     const exportModule = {};
     Object.assign(exportModule, importModule);

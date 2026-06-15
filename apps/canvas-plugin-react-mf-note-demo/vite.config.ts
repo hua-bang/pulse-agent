@@ -23,10 +23,12 @@ export default defineConfig({
         react: {
           singleton: true,
           requiredVersion: false,
+          import: false,
         },
         'react/': {
           singleton: true,
           requiredVersion: false,
+          import: false,
         },
       },
     }),

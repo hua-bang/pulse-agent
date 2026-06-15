@@ -1,8 +1,8 @@
-import "./virtualExposes-Cc61neVT.js";
+import "./virtualExposes-Cd0mOve6.js";
 import "../remoteEntry.js";
-import { b as __mfDefaultExport$1, c as __mf_32 } from "./_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js";
-import { _ as __mfDefaultExport } from "./__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-EXCOvGxd.js";
-import { N as NoteNodeView } from "./NoteNodeView-B7JNBMnH.js";
+import { _ as __mf_default$1, a as __mf_32 } from "./_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-7VD4eXUO.js";
+import { _ as __mf_default } from "./__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-Cdlt5vRF.js";
+import { N as NoteNodeView } from "./NoteNodeView-e7dSI2pb.js";
 import "./preload-helper-CmrIWoG2.js";
 (function polyfill() {
   const relList = document.createElement("link").relList;
@@ -296,7 +296,7 @@ var schedulerExports = scheduler.exports;
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-var aa = __mfDefaultExport, ca = schedulerExports;
+var aa = __mf_default, ca = schedulerExports;
 function p(a) {
   for (var b = "https://reactjs.org/docs/error-decoder.html?invariant=" + a, c = 1; c < arguments.length; c++) b += "&args[]=" + encodeURIComponent(arguments[c]);
   return "Minified React error #" + a + "; visit " + b + " for the full message or use the non-minified dev environment for full errors and additional helpful warnings.";
@@ -6736,7 +6736,7 @@ const initialNode = {
 function PreviewApp() {
   const [node, setNode] = __mf_32(initialNode);
   const invoke = async () => void 0;
-  return /* @__PURE__ */ __mfDefaultExport$1.createElement(
+  return /* @__PURE__ */ __mf_default$1.createElement(
     "main",
     {
       style: {
@@ -6748,7 +6748,7 @@ function PreviewApp() {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
       }
     },
-    /* @__PURE__ */ __mfDefaultExport$1.createElement(
+    /* @__PURE__ */ __mf_default$1.createElement(
       "section",
       {
         style: {
@@ -6761,7 +6761,7 @@ function PreviewApp() {
           boxShadow: "0 18px 48px rgba(15, 23, 42, 0.12)"
         }
       },
-      /* @__PURE__ */ __mfDefaultExport$1.createElement(
+      /* @__PURE__ */ __mf_default$1.createElement(
         NoteNodeView,
         {
           node,
@@ -6773,4 +6773,4 @@ function PreviewApp() {
     )
   );
 }
-createRoot(document.getElementById("root")).render(/* @__PURE__ */ __mfDefaultExport$1.createElement(PreviewApp, null));
+createRoot(document.getElementById("root")).render(/* @__PURE__ */ __mf_default$1.createElement(PreviewApp, null));

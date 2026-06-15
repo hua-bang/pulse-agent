@@ -1,5 +1,6 @@
 import { init, loadRemote, registerRemotes } from '@module-federation/runtime';
 import * as React from 'react';
+import * as ReactDom from 'react-dom';
 import * as ReactJsxRuntime from 'react/jsx-runtime';
 import type {
   RendererCanvasPlugin,
@@ -56,17 +57,17 @@ function resolveRendererPublicAsset(path: string): string {
 
 function createHostShared() {
   const shareConfig = { singleton: true, requiredVersion: false as const };
+  const createShare = <T,>(lib: T) => ({
+    version: React.version,
+    get: () => () => lib,
+    lib: () => lib,
+    shareConfig,
+    loaded: true,
+  });
   return {
-    react: {
-      version: React.version,
-      lib: () => React,
-      shareConfig,
-    },
-    'react/jsx-runtime': {
-      version: React.version,
-      lib: () => ReactJsxRuntime,
-      shareConfig,
-    },
+    react: createShare(React),
+    'react-dom': createShare(ReactDom),
+    'react/jsx-runtime': createShare(ReactJsxRuntime),
   };
 }
 

@@ -1,4 +1,4 @@
-import { d as __mf_29, b as __mfDefaultExport } from "./_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js";
+import { _ as __mf_default } from "./_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-7VD4eXUO.js";
 const accents = ["#2383e2", "#0f766e", "#7c3aed", "#c2410c"];
 function readPayload(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return {};
@@ -16,10 +16,7 @@ function normalizePayload(payload) {
 }
 function NoteNodeView({ node, readOnly, selected, updateNode }) {
   const payload = normalizePayload(readPayload(node.data));
-  const wordCount = __mf_29(
-    () => payload.body.trim().split(/\s+/).filter(Boolean).length,
-    [payload.body]
-  );
+  const wordCount = payload.body.trim().split(/\s+/).filter(Boolean).length;
   const patchPayload = (patch) => {
     if (readOnly) return;
     const data = node.data && typeof node.data === "object" && !Array.isArray(node.data) ? node.data : {};
@@ -33,7 +30,7 @@ function NoteNodeView({ node, readOnly, selected, updateNode }) {
       }
     });
   };
-  return /* @__PURE__ */ __mfDefaultExport.createElement(
+  return /* @__PURE__ */ __mf_default.createElement(
     "div",
     {
       style: {
@@ -48,7 +45,7 @@ function NoteNodeView({ node, readOnly, selected, updateNode }) {
         boxShadow: selected ? `inset 0 0 0 1px ${payload.accent}` : "none"
       }
     },
-    /* @__PURE__ */ __mfDefaultExport.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 } }, /* @__PURE__ */ __mfDefaultExport.createElement("div", null, /* @__PURE__ */ __mfDefaultExport.createElement(
+    /* @__PURE__ */ __mf_default.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 } }, /* @__PURE__ */ __mf_default.createElement("div", null, /* @__PURE__ */ __mf_default.createElement(
       "div",
       {
         style: {
@@ -59,7 +56,7 @@ function NoteNodeView({ node, readOnly, selected, updateNode }) {
         }
       },
       "React MF / demo.note"
-    ), /* @__PURE__ */ __mfDefaultExport.createElement(
+    ), /* @__PURE__ */ __mf_default.createElement(
       "input",
       {
         value: payload.title,
@@ -79,7 +76,7 @@ function NoteNodeView({ node, readOnly, selected, updateNode }) {
           lineHeight: 1.25
         }
       }
-    )), /* @__PURE__ */ __mfDefaultExport.createElement(
+    )), /* @__PURE__ */ __mf_default.createElement(
       "button",
       {
         type: "button",
@@ -99,7 +96,7 @@ function NoteNodeView({ node, readOnly, selected, updateNode }) {
       },
       payload.pinned ? "Pinned" : "Pin"
     )),
-    /* @__PURE__ */ __mfDefaultExport.createElement(
+    /* @__PURE__ */ __mf_default.createElement(
       "textarea",
       {
         value: payload.body,
@@ -123,7 +120,7 @@ function NoteNodeView({ node, readOnly, selected, updateNode }) {
         }
       }
     ),
-    /* @__PURE__ */ __mfDefaultExport.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 } }, /* @__PURE__ */ __mfDefaultExport.createElement("div", { style: { display: "flex", gap: 6 } }, accents.map((accent) => /* @__PURE__ */ __mfDefaultExport.createElement(
+    /* @__PURE__ */ __mf_default.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 } }, /* @__PURE__ */ __mf_default.createElement("div", { style: { display: "flex", gap: 6 } }, accents.map((accent) => /* @__PURE__ */ __mf_default.createElement(
       "button",
       {
         key: accent,
@@ -140,7 +137,7 @@ function NoteNodeView({ node, readOnly, selected, updateNode }) {
           cursor: readOnly ? "not-allowed" : "pointer"
         }
       }
-    ))), /* @__PURE__ */ __mfDefaultExport.createElement("div", { style: { fontSize: 11, color: "rgba(55, 53, 47, 0.5)" } }, wordCount, " words"))
+    ))), /* @__PURE__ */ __mf_default.createElement("div", { style: { fontSize: 11, color: "rgba(55, 53, 47, 0.5)" } }, wordCount, " words"))
   );
 }
 export {

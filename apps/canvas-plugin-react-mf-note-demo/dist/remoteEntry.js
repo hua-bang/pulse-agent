@@ -3527,7 +3527,7 @@ async function retrySharedInit(fn) {
 }
 async function getLocalSharedImportMap() {
   if (!localSharedImportMapPromise) {
-    localSharedImportMapPromise = retrySharedInit(() => __vitePreload(() => import("./assets/_virtual_mf-localSharedImportMap___mfe_internal__pulse_canvas_demo_note-Ce29WLjB.js"), true ? [] : void 0)).catch((e) => {
+    localSharedImportMapPromise = retrySharedInit(() => __vitePreload(() => import("./assets/_virtual_mf-localSharedImportMap___mfe_internal__pulse_canvas_demo_note-BQGNtmIN.js"), true ? [] : void 0)).catch((e) => {
       localSharedImportMapPromise = void 0;
       throw e;
     });
@@ -3536,7 +3536,7 @@ async function getLocalSharedImportMap() {
 }
 async function getExposesMap() {
   if (!exposesMapPromise) {
-    exposesMapPromise = retrySharedInit(() => __vitePreload(() => import("./assets/virtualExposes-Cc61neVT.js"), true ? [] : void 0)).then((mod) => mod.default ?? mod).catch((e) => {
+    exposesMapPromise = retrySharedInit(() => __vitePreload(() => import("./assets/virtualExposes-Cd0mOve6.js"), true ? [] : void 0)).then((mod) => mod.default ?? mod).catch((e) => {
       exposesMapPromise = void 0;
       throw e;
     });
@@ -3577,27 +3577,6 @@ async function init(shared = {}, initScope = []) {
     }
   } catch (e) {
     console.error("[Module Federation] Failed to bridge external shared modules", e);
-  }
-  if (__mfModuleCache.share["react"] === void 0) {
-    const mod = await __vitePreload(() => import("./assets/_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js").then((n) => n._), true ? [] : void 0);
-    const __mfNormalizeRuntimeShare = (mod2) => {
-      let current = mod2;
-      for (let i = 0; i < 5; i++) {
-        const defaultExport = current == null ? void 0 : current.default;
-        if (!defaultExport || typeof defaultExport !== "object" || Object.keys(defaultExport).length === 0) break;
-        const namedValues = Object.keys(current).filter((key) => key !== "default").map((key) => current[key]);
-        if (namedValues.length > 0 && namedValues.some((value) => value !== void 0)) break;
-        current = defaultExport;
-      }
-      return current;
-    };
-    const normalizedModule = __mfNormalizeRuntimeShare(mod);
-    const exportModule = normalizedModule === mod ? { ...mod } : normalizedModule;
-    Object.defineProperty(exportModule, "__esModule", {
-      value: true,
-      enumerable: false
-    });
-    __mfModuleCache.share["react"] = exportModule;
   }
   const __browserPlugins = [];
   const __ssrPlugins = typeof globalThis.window === "undefined" ? await Promise.all([]) : [];

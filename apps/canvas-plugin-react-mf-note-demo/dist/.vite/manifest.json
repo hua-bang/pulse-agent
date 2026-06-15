@@ -1,50 +1,46 @@
 {
-  "_NoteNodeView-B7JNBMnH.js": {
-    "file": "assets/NoteNodeView-B7JNBMnH.js",
+  "_NoteNodeView-e7dSI2pb.js": {
+    "file": "assets/NoteNodeView-e7dSI2pb.js",
     "name": "NoteNodeView",
     "imports": [
-      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-7VD4eXUO.js"
     ]
   },
-  "___virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-EXCOvGxd.js": {
-    "file": "assets/__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-EXCOvGxd.js",
-    "name": "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy",
-    "imports": [
-      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
-    ]
+  "___virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-Cdlt5vRF.js": {
+    "file": "assets/__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-Cdlt5vRF.js",
+    "name": "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy"
   },
-  "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js": {
-    "file": "assets/_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js",
-    "name": "_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js",
-    "isDynamicEntry": true
+  "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-7VD4eXUO.js": {
+    "file": "assets/_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-7VD4eXUO.js",
+    "name": "_virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js"
   },
   "_preload-helper-CmrIWoG2.js": {
     "file": "assets/preload-helper-CmrIWoG2.js",
     "name": "preload-helper"
   },
   "index.html": {
-    "file": "assets/index-DfZYy8Et.js",
+    "file": "assets/index-Crj5ecVP.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
     "imports": [
       "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
       "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
-      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js",
-      "___virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-EXCOvGxd.js",
-      "_NoteNodeView-B7JNBMnH.js",
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-7VD4eXUO.js",
+      "___virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js_commonjs-proxy-Cdlt5vRF.js",
+      "_NoteNodeView-e7dSI2pb.js",
       "_preload-helper-CmrIWoG2.js"
     ]
   },
   "src/plugin.tsx": {
-    "file": "assets/plugin-CbN2GWU9.js",
+    "file": "assets/plugin-zQe4baMR.js",
     "name": "plugin",
     "src": "src/plugin.tsx",
     "isEntry": true,
     "isDynamicEntry": true,
     "imports": [
-      "_NoteNodeView-B7JNBMnH.js",
-      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+      "_NoteNodeView-e7dSI2pb.js",
+      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-7VD4eXUO.js"
     ]
   },
   "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js": {
@@ -57,12 +53,11 @@
     ],
     "dynamicImports": [
       "virtual:mf-localSharedImportMap:__mfe_internal__pulse_canvas_demo_note",
-      "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
-      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+      "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js"
     ]
   },
   "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js": {
-    "file": "assets/virtualExposes-Cc61neVT.js",
+    "file": "assets/virtualExposes-Cd0mOve6.js",
     "name": "virtualExposes",
     "src": "virtual:mf-exposes:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
     "isDynamicEntry": true,
@@ -74,20 +69,17 @@
     ]
   },
   "virtual:mf-localSharedImportMap:__mfe_internal__pulse_canvas_demo_note": {
-    "file": "assets/_virtual_mf-localSharedImportMap___mfe_internal__pulse_canvas_demo_note-Ce29WLjB.js",
+    "file": "assets/_virtual_mf-localSharedImportMap___mfe_internal__pulse_canvas_demo_note-BQGNtmIN.js",
     "name": "_virtual_mf-localSharedImportMap___mfe_internal__pulse_canvas_demo_note",
     "src": "virtual:mf-localSharedImportMap:__mfe_internal__pulse_canvas_demo_note",
     "isDynamicEntry": true,
     "imports": [
-      "_preload-helper-CmrIWoG2.js",
-      "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js"
-    ],
-    "dynamicImports": [
-      "__virtual_mf___mfe_internal__pulse_canvas_demo_note__loadShare__react__loadShare__.js-B8ucmBWv.js"
+      "virtual:mf-REMOTE_ENTRY_ID:__mfe_internal__pulse_canvas_demo_note__remoteEntry_js",
+      "_preload-helper-CmrIWoG2.js"
     ]
   },
   "virtual:mf:__mfe_internal__pulse_canvas_demo_note__H_A_I__hostAutoInit__H_A_I__.js": {
-    "file": "assets/hostInit-D12o3gjj.js",
+    "file": "assets/hostInit-D1tfyVlN.js",
     "name": "hostInit",
     "src": "virtual:mf:__mfe_internal__pulse_canvas_demo_note__H_A_I__hostAutoInit__H_A_I__.js",
     "imports": [
