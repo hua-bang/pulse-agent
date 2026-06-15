@@ -1,0 +1,18 @@
+{
+  "id": "demo-note",
+  "version": "0.1.0",
+  "nodes": [
+    {
+      "type": "demo.note",
+      "title": "Demo Note",
+      "capabilities": ["read", "write", "action"],
+      "actions": ["pin"],
+      "renderer": {
+        "remoteName": "pulse_canvas_demo_note",
+        "entry": "dist/remoteEntry.js",
+        "expose": "./plugin",
+        "type": "global"
+      }
+    }
+  ]
+}
