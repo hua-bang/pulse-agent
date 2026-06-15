@@ -1,0 +1,30 @@
+{
+  "id": "pulse-canvas-nodes",
+  "version": "0.1.0",
+  "main": {
+    "entry": "dist/main.js",
+    "format": "esm",
+    "runtime": "electron-main",
+    "permissions": ["canvas"]
+  },
+  "skills": [
+    {
+      "name": "excalidraw-node",
+      "description": "Create and modify Excalidraw board plugin nodes in Pulse Canvas.",
+      "path": "skills/excalidraw-node/SKILL.md"
+    }
+  ],
+  "nodes": [
+    {
+      "type": "excalidraw.board",
+      "title": "Excalidraw Board",
+      "capabilities": ["read", "write", "action"],
+      "actions": ["set_scene", "append_elements", "add_text", "clear_scene", "summarize"],
+      "renderer": {
+        "remoteName": "pulse_canvas_nodes",
+        "entry": "dist/mf-manifest.json",
+        "expose": "./plugin"
+      }
+    }
+  ]
+}

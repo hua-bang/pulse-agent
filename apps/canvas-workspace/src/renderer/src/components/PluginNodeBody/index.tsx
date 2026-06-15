@@ -56,17 +56,19 @@ export const PluginNodeBody = ({
   if (entry) {
     const Component = entry.Component;
     return (
-      <Component
-        node={node}
-        workspaceId={workspaceId}
-        workspaceName={workspaceName}
-        readOnly={readOnly}
-        selected={isSelected}
-        updateNode={(patch) => onUpdate(node.id, patch)}
-        invoke={(channel, ...args) =>
-          window.canvasWorkspace.plugin.invoke(entry.pluginId, channel, ...args)
-        }
-      />
+      <div className="plugin-node-body-host">
+        <Component
+          node={node}
+          workspaceId={workspaceId}
+          workspaceName={workspaceName}
+          readOnly={readOnly}
+          selected={isSelected}
+          updateNode={(patch) => onUpdate(node.id, patch)}
+          invoke={(channel, ...args) =>
+            window.canvasWorkspace.plugin.invoke(entry.pluginId, channel, ...args)
+          }
+        />
+      </div>
     );
   }
 

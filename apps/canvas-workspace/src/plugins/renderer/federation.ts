@@ -1,6 +1,7 @@
 import { init, loadRemote, registerRemotes } from '@module-federation/runtime';
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
+import * as ReactDomClient from 'react-dom/client';
 import * as ReactJsxRuntime from 'react/jsx-runtime';
 import type {
   RendererCanvasPlugin,
@@ -67,6 +68,7 @@ function createHostShared() {
   return {
     react: createShare(React),
     'react-dom': createShare(ReactDom),
+    'react-dom/client': createShare(ReactDomClient),
     'react/jsx-runtime': createShare(ReactJsxRuntime),
   };
 }

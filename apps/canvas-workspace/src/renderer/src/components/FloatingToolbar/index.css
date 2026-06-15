@@ -200,6 +200,95 @@
   color: var(--accent);
 }
 
+/* ---- Plugin node menu ---- */
+
+.plugin-tool-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.plugin-tool-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: min(300px, calc(100vw - 32px));
+  max-height: 340px;
+  overflow: auto;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  z-index: var(--layer-canvas-chrome-raised);
+}
+
+.plugin-tool-option {
+  width: 100%;
+  min-height: 42px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.plugin-tool-option:hover,
+.plugin-tool-option:focus-visible {
+  outline: none;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.plugin-tool-option__icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.plugin-tool-option__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.plugin-tool-option__title {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-tool-option__meta {
+  overflow: hidden;
+  color: var(--text-tertiary);
+  font-size: 10.5px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plugin-tool-empty {
+  padding: 7px 9px 6px;
+  color: var(--text-tertiary);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 @container (max-width: 1040px) {
   .floating-toolbar {
     max-width: calc(100% - 24px);

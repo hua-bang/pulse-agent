@@ -13,7 +13,7 @@ export default defineConfig({
       jsxRuntime: 'classic',
     }),
     federation({
-      name: 'pulse_canvas_demo_note',
+      name: 'pulse_canvas_nodes',
       filename: 'remoteEntry.js',
       manifest: true,
       exposes: {
@@ -22,17 +22,27 @@ export default defineConfig({
       shared: {
         react: {
           singleton: true,
-          requiredVersion: false,
+          requiredVersion: '*',
+          import: false,
+        },
+        'react-dom': {
+          singleton: true,
+          requiredVersion: '*',
           import: false,
         },
         'react-dom/client': {
           singleton: true,
-          requiredVersion: false,
+          requiredVersion: '*',
+          import: false,
+        },
+        'react/jsx-runtime': {
+          singleton: true,
+          requiredVersion: '*',
           import: false,
         },
         'react/': {
           singleton: true,
-          requiredVersion: false,
+          requiredVersion: '*',
           import: false,
         },
       },
@@ -43,5 +53,8 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'chrome89',
     minify: false,
+    rollupOptions: {
+      input: resolve(root, 'src/plugin.tsx'),
+    },
   },
 });

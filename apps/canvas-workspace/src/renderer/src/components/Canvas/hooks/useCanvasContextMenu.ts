@@ -176,7 +176,13 @@ export const useCanvasContextMenu = ({
         rect.top + rect.height / 2,
         containerRef.current,
       );
-      const { width, height } = getNodeDefaultSize(type);
+      const defaultSize = getNodeDefaultSize(type);
+      const width = typeof options?.nodePatch?.width === 'number'
+        ? options.nodePatch.width
+        : defaultSize.width;
+      const height = typeof options?.nodePatch?.height === 'number'
+        ? options.nodePatch.height
+        : defaultSize.height;
       const slot = resolveNonStackingSlot(
         nodesRef.current ?? [],
         center.x - width / 2,
