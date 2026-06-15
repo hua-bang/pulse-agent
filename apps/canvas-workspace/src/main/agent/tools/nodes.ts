@@ -19,6 +19,8 @@ import {
   MOCK_CARD_DEFAULT_PAYLOAD,
   MOCK_CARD_NODE_TYPE,
   MOCK_NODE_PLUGIN_ID,
+  MOCK_TODO_LIST_DEFAULT_PAYLOAD,
+  MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 
 export function createNodeTools(workspaceId: string): Record<string, CanvasTool> {
@@ -143,7 +145,8 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         'Use this whenever the user asks for a mindmap / brainstorm / outline that should be laid out radially ' +
         'rather than as a flat text node.\n' +
         '- **plugin**: Creates a custom plugin node shell. Pass `data.pluginId`, `data.nodeType`, and optional `data.payload`. ' +
-        'For the built-in MVP mock node, use `{ pluginId: "mock", nodeType: "mock.card", payload: { text?: string, count?: number } }`.',
+        'For the built-in MVP mock nodes, use `{ pluginId: "mock", nodeType: "mock.card", payload: { text?: string, count?: number } }` ' +
+        'or `{ pluginId: "mock", nodeType: "mock.todo-list", payload: { title?: string, items?: Array<{ id?: string, text: string, done?: boolean }> } }`.',
       inputSchema: z.object({
         type: z.enum(['file', 'terminal', 'frame', 'group', 'agent', 'text', 'iframe', 'image', 'shape', 'mindmap', 'plugin']).describe('Node type.'),
         title: z.string().optional().describe('Node title.'),
@@ -161,7 +164,7 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           '- file HTML routing: { contentType?: \"text/html\", renderAs?: \"html\"|\"note\" }\\n' +
           '- shape: { kind?: "rect"|"rounded-rect"|"ellipse"|"triangle"|"diamond"|"hexagon"|"star", fill?: string, stroke?: string, strokeWidth?: number, text?: string, textColor?: string, fontSize?: number }\n' +
           '- mindmap: { root?: { text: string, children?: Topic[], color?: string, collapsed?: boolean } } where Topic has the same recursive shape\n' +
-          '- plugin: { pluginId: string, nodeType: string, payload?: Record<string, unknown>, version?: string }. Defaults to the built-in mock.card plugin node.',
+          '- plugin: { pluginId: string, nodeType: string, payload?: Record<string, unknown>, version?: string }. Defaults to the built-in mock.card plugin node. Use nodeType "mock.todo-list" for a Todo List plugin node.',
         ),
       }),
       execute: async (input) => {
@@ -169,7 +172,10 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         const content = (input.content as string) ?? '';
         const extraData = (input.data as Record<string, unknown>) ?? {};
         const nodeType: NodeType = shouldCreateIframeForHtml(requestedNodeType, content, extraData) ? 'iframe' : requestedNodeType;
-        const title = (input.title as string) ?? DEFAULT_DIMENSIONS[nodeType]?.title ?? 'Untitled';
+        const defaultTitle = nodeType === 'plugin' && extraData.nodeType === MOCK_TODO_LIST_NODE_TYPE
+          ? MOCK_TODO_LIST_DEFAULT_PAYLOAD.title
+          : DEFAULT_DIMENSIONS[nodeType]?.title ?? 'Untitled';
+        const title = (input.title as string) ?? defaultTitle;
 
         const canvas = await loadCanvas(workspaceId);
         if (!canvas) return 'Error: workspace not found';
@@ -313,7 +319,12 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
               : MOCK_CARD_NODE_TYPE;
             const payload = extraData.payload && typeof extraData.payload === 'object' && !Array.isArray(extraData.payload)
               ? extraData.payload as Record<string, unknown>
-              : { ...MOCK_CARD_DEFAULT_PAYLOAD };
+              : pluginNodeType === MOCK_TODO_LIST_NODE_TYPE
+                ? {
+                    title: MOCK_TODO_LIST_DEFAULT_PAYLOAD.title,
+                    items: MOCK_TODO_LIST_DEFAULT_PAYLOAD.items.map((item) => ({ ...item })),
+                  }
+                : { ...MOCK_CARD_DEFAULT_PAYLOAD };
             nodeData = {
               pluginId,
               nodeType: pluginNodeType,

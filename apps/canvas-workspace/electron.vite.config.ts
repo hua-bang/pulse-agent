@@ -27,6 +27,7 @@ function fileNameFromEntry(entry: string): string {
 function discoverLocalPluginRendererAssets(): LocalPluginRendererAsset[] {
   const pluginsRoot = new URL("./src/plugins/", import.meta.url);
   const assets: LocalPluginRendererAsset[] = [];
+  const seen = new Set<string>();
 
   for (const entry of readdirSync(pluginsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -40,11 +41,15 @@ function discoverLocalPluginRendererAssets(): LocalPluginRendererAsset[] {
       if (typeof rendererEntry !== "string" || !rendererEntry.trim()) continue;
 
       const remoteFileName = fileNameFromEntry(rendererEntry);
-      assets.push({
+      const asset = {
         publicPath: `/plugins/${entry.name}/${remoteFileName}`,
         fileName: `plugins/${entry.name}/${remoteFileName}`,
         sourcePath: new URL(`${entry.name}/${rendererEntry}`, pluginsRoot),
-      });
+      };
+      const key = `${asset.fileName}:${asset.sourcePath.href}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      assets.push(asset);
     }
   }
 

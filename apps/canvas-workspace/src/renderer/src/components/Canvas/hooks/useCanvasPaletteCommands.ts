@@ -1,7 +1,11 @@
 import { useMemo, type MutableRefObject } from 'react';
 import type { CanvasNode } from '../../../types';
-import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
+import {
+  createTodoListPluginNodePatch,
+  type CreatableCanvasNodeType,
+} from '../../../utils/nodeFactory';
 import type { PaletteCommand } from '../../CommandPalette';
+import type { AddNodeOptions } from '../../../hooks/useNodes';
 
 interface Options {
   selectedNodeIds: string[];
@@ -16,7 +20,10 @@ interface Options {
   groupSelectedNodes: () => void;
   ungroupSelectedNodes: () => void;
   wrapSelectedNodesInFrame: () => void;
-  handleToolbarAddNode: (type: CreatableCanvasNodeType) => void;
+  handleToolbarAddNode: (
+    type: CreatableCanvasNodeType,
+    options?: AddNodeOptions & { label?: string },
+  ) => void;
   fitAllNodes: (nodes: CanvasNode[]) => void;
   resetTransform: () => void;
   chatPanelOpen?: boolean;
@@ -201,6 +208,17 @@ export const useCanvasPaletteCommands = ({
         hint: 'Generic shell for external node plugins',
         aliases: ['plugin', 'custom node', 'lego', 'extension'],
         run: () => handleToolbarAddNode('plugin'),
+      },
+      {
+        id: 'create-todo-list-node',
+        group: 'create',
+        title: 'Create todo list node',
+        hint: 'Plugin node with read/write/action tasks',
+        aliases: ['todo', 'task', 'checklist', 'plugin todo'],
+        run: () => handleToolbarAddNode('plugin', {
+          label: 'Todo list',
+          nodePatch: createTodoListPluginNodePatch(),
+        }),
       },
       {
         id: 'fit-all',

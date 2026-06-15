@@ -162,8 +162,11 @@ The current MVP proves the first vertical slice:
 - `mock.card` is loaded through the same MF2 runtime path future third-party
   renderer plugins will use.
 - A main-side capability provider exposes read/write/action for `mock.card`.
+- The same mock plugin also exposes `mock.todo-list`, proving one plugin package
+  can contribute multiple custom node types.
 - The Canvas Agent can read semantic plugin content, patch plugin payload, and
-  execute the `increment` action.
+  execute actions such as `increment`, `add_item`, `toggle_item`, and
+  `clear_completed`.
 - A local manifest describes the plugin directory shape.
 
 This is enough to validate the mental model: a custom node is both visible UI

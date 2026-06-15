@@ -3,6 +3,8 @@ import {
   MOCK_CARD_DEFAULT_PAYLOAD,
   MOCK_CARD_NODE_TYPE,
   MOCK_NODE_PLUGIN_ID,
+  MOCK_TODO_LIST_DEFAULT_PAYLOAD,
+  MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 
 let nodeIdCounter = 0;
@@ -99,6 +101,25 @@ export const createNodeData = (type: CanvasNode['type']): FileNodeData | Termina
     };
   }
 };
+
+const cloneTodoListPayload = (): {
+  title: string;
+  items: Array<{ id: string; text: string; done: boolean }>;
+} => ({
+  title: MOCK_TODO_LIST_DEFAULT_PAYLOAD.title,
+  items: MOCK_TODO_LIST_DEFAULT_PAYLOAD.items.map((item) => ({ ...item })),
+});
+
+export const createTodoListPluginNodePatch = (): Partial<CanvasNode> => ({
+  title: MOCK_TODO_LIST_DEFAULT_PAYLOAD.title,
+  width: 380,
+  height: 320,
+  data: {
+    pluginId: MOCK_NODE_PLUGIN_ID,
+    nodeType: MOCK_TODO_LIST_NODE_TYPE,
+    payload: cloneTodoListPayload(),
+  },
+});
 
 /**
  * Deep-clone a mindmap topic tree, minting fresh ids so the result can

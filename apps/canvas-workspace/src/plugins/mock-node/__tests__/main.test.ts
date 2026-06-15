@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { CanvasNode } from '../../../shared/canvas';
+import type { CanvasNode, PluginNodeData } from '../../../shared/canvas';
 import type { MainCtx, PluginNodeCapabilities } from '../../types';
-import { MOCK_CARD_NODE_TYPE, MOCK_NODE_PLUGIN_ID } from '../constants';
+import {
+  MOCK_CARD_NODE_TYPE,
+  MOCK_NODE_PLUGIN_ID,
+  MOCK_TODO_LIST_NODE_TYPE,
+} from '../constants';
 import { MockNodeMainPlugin } from '../main';
 
 function createCtx() {
@@ -46,10 +50,14 @@ describe('MockNodeMainPlugin', () => {
     const { ctx, registrations } = createCtx();
     await MockNodeMainPlugin.activate(ctx);
 
-    expect(registrations).toHaveLength(1);
-    expect(registrations[0].nodeType).toBe(MOCK_CARD_NODE_TYPE);
+    expect(registrations.map((registration) => registration.nodeType).sort()).toEqual([
+      MOCK_CARD_NODE_TYPE,
+      MOCK_TODO_LIST_NODE_TYPE,
+    ]);
 
-    const capabilities = registrations[0].capabilities;
+    const capabilities = registrations.find(
+      (registration) => registration.nodeType === MOCK_CARD_NODE_TYPE,
+    )!.capabilities;
     const ref = {
       workspaceId: 'ws-test',
       node: createNode({ text: 'Alpha', count: 2 }),
@@ -75,6 +83,78 @@ describe('MockNodeMainPlugin', () => {
     expect(action).toMatchObject({
       patch: { payload: { count: 6 } },
       result: { count: 6, amount: 4 },
+    });
+  });
+
+  it('registers todo-list read/write/action capabilities', async () => {
+    const { ctx, registrations } = createCtx();
+    await MockNodeMainPlugin.activate(ctx);
+
+    const capabilities = registrations.find(
+      (registration) => registration.nodeType === MOCK_TODO_LIST_NODE_TYPE,
+    )!.capabilities;
+    const ref = {
+      workspaceId: 'ws-test',
+      node: createNode({
+        title: 'Launch list',
+        items: [
+          { id: 'todo-1', text: 'Draft', done: true },
+          { id: 'todo-2', text: 'Ship', done: false },
+        ],
+      }),
+    };
+    (ref.node.data as PluginNodeData).nodeType = MOCK_TODO_LIST_NODE_TYPE;
+
+    const read = await capabilities.read?.(ref);
+    expect(read).toMatchObject({
+      payload: {
+        title: 'Launch list',
+        items: [
+          { id: 'todo-1', text: 'Draft', done: true },
+          { id: 'todo-2', text: 'Ship', done: false },
+        ],
+      },
+      summary: 'Launch list: 1 open / 1 done',
+    });
+
+    const write = await capabilities.write?.(ref, {
+      payload: {
+        title: 'Updated',
+        items: [{ text: 'Keep this', done: false }, { text: '', done: true }],
+      },
+    });
+    expect(write).toMatchObject({
+      payload: {
+        title: 'Updated',
+        items: [{ id: 'todo-1', text: 'Keep this', done: false }],
+      },
+    });
+
+    const add = await capabilities.actions?.add_item(ref, { text: 'Review', done: false });
+    expect(add).toMatchObject({
+      patch: {
+        payload: {
+          items: [
+            { id: 'todo-1', text: 'Draft', done: true },
+            { id: 'todo-2', text: 'Ship', done: false },
+            { id: 'todo-3', text: 'Review', done: false },
+          ],
+        },
+      },
+      result: { ok: true, total: 3 },
+    });
+
+    const toggle = await capabilities.actions?.toggle_item(ref, { id: 'todo-2' });
+    expect(toggle).toMatchObject({
+      patch: {
+        payload: {
+          items: [
+            { id: 'todo-1', text: 'Draft', done: true },
+            { id: 'todo-2', text: 'Ship', done: true },
+          ],
+        },
+      },
+      result: { ok: true, id: 'todo-2' },
     });
   });
 });

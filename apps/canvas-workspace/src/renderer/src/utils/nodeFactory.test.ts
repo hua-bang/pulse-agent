@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { PluginNodeData } from '../types';
-import { createDefaultNode } from './nodeFactory';
+import { createDefaultNode, createTodoListPluginNodePatch } from './nodeFactory';
 import {
   MOCK_CARD_DEFAULT_PAYLOAD,
   MOCK_CARD_NODE_TYPE,
   MOCK_NODE_PLUGIN_ID,
+  MOCK_TODO_LIST_DEFAULT_PAYLOAD,
+  MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
 
 describe('createDefaultNode', () => {
@@ -21,5 +23,19 @@ describe('createDefaultNode', () => {
     expect(data.pluginId).toBe(MOCK_NODE_PLUGIN_ID);
     expect(data.nodeType).toBe(MOCK_CARD_NODE_TYPE);
     expect(data.payload).toMatchObject(MOCK_CARD_DEFAULT_PAYLOAD);
+  });
+
+  it('creates a todo list plugin node patch', () => {
+    const patch = createTodoListPluginNodePatch();
+    const data = patch.data as PluginNodeData;
+
+    expect(patch).toMatchObject({
+      title: 'Todo List',
+      width: 380,
+      height: 320,
+    });
+    expect(data.pluginId).toBe(MOCK_NODE_PLUGIN_ID);
+    expect(data.nodeType).toBe(MOCK_TODO_LIST_NODE_TYPE);
+    expect(data.payload).toMatchObject(MOCK_TODO_LIST_DEFAULT_PAYLOAD);
   });
 });

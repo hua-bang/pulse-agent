@@ -19,9 +19,10 @@ import { useNodeHistory } from './useNodeHistory';
 const SAVE_DEBOUNCE_MS = 800;
 const DEFAULT_CANVAS_ID = 'default';
 
-interface AddNodeOptions {
+export interface AddNodeOptions {
   fileName?: string;
   fileContent?: string;
+  nodePatch?: Partial<CanvasNode>;
 }
 
 export const useNodes = (
@@ -343,7 +344,16 @@ export const useNodes = (
 
   const addNode = useCallback(
     (type: CanvasNode['type'], x: number, y: number, options?: AddNodeOptions) => {
-      const node = { ...createDefaultNode(type, x, y), updatedAt: Date.now() };
+      const baseNode = createDefaultNode(type, x, y);
+      const nodePatch = options?.nodePatch ?? {};
+      const node = {
+        ...baseNode,
+        ...nodePatch,
+        data: nodePatch.data
+          ? { ...baseNode.data, ...nodePatch.data }
+          : baseNode.data,
+        updatedAt: Date.now(),
+      };
 
       if (type === 'file') {
         const api = window.canvasWorkspace?.file;

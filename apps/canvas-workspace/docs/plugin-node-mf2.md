@@ -104,3 +104,8 @@ uses the package-local path `renderer/remoteEntry.js`; the host scans local
 plugin manifests and resolves that to the runtime URL
 `/plugins/mock-node/remoteEntry.js` so `mock.card` still loads through the same
 MF2 runtime path.
+
+The same mock plugin now declares two node types:
+
+- `mock.card`: counter card with `increment`.
+- `mock.todo-list`: task list with `add_item`, `toggle_item`, and `clear_completed`.

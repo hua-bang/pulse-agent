@@ -1,12 +1,24 @@
 {
   "id": "mock",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "nodes": [
     {
       "type": "mock.card",
       "title": "Plugin Node",
       "capabilities": ["read", "write", "action"],
       "actions": ["increment"],
+      "renderer": {
+        "remoteName": "pulse_canvas_mock_node",
+        "entry": "renderer/remoteEntry.js",
+        "expose": "./plugin",
+        "type": "global"
+      }
+    },
+    {
+      "type": "mock.todo-list",
+      "title": "Todo List",
+      "capabilities": ["read", "write", "action"],
+      "actions": ["add_item", "toggle_item", "clear_completed"],
       "renderer": {
         "remoteName": "pulse_canvas_mock_node",
         "entry": "renderer/remoteEntry.js",

@@ -61,6 +61,26 @@ describe('plugin node tools', () => {
             },
           },
         },
+        {
+          id: 'node-todo',
+          type: 'plugin',
+          title: 'Todo List',
+          x: 420,
+          y: 0,
+          width: 380,
+          height: 320,
+          data: {
+            pluginId: 'mock',
+            nodeType: 'mock.todo-list',
+            payload: {
+              title: 'Todo List',
+              items: [
+                { id: 'todo-1', text: 'Draft', done: false },
+                { id: 'todo-2', text: 'Ship', done: true },
+              ],
+            },
+          },
+        },
       ],
       edges: [],
       transform: { x: 0, y: 0, scale: 1 },
@@ -103,6 +123,51 @@ describe('plugin node tools', () => {
     expect(canvasState.current?.nodes[0].data.payload).toMatchObject({
       text: 'Beta',
       count: 3,
+    });
+  });
+
+  it('reads and executes mock.todo-list capabilities', async () => {
+    const { setupCanvasPlugins } = await import('../../../plugins/main/registry');
+    const { MockNodeMainPlugin } = await import('../../../plugins/mock-node/main');
+    const { createPluginNodeTools } = await import('./plugin-nodes');
+
+    await setupCanvasPlugins([MockNodeMainPlugin]);
+    const tools = createPluginNodeTools('ws-plugin-test');
+
+    const read = JSON.parse(await tools.canvas_plugin_node_read.execute({
+      nodeId: 'node-todo',
+    }));
+    expect(read.ok).toBe(true);
+    expect(read.content).toContain('Open: 1, Done: 1');
+    expect(read.availableActions).toEqual(['add_item', 'clear_completed', 'toggle_item']);
+
+    const add = JSON.parse(await tools.canvas_plugin_node_action.execute({
+      nodeId: 'node-todo',
+      action: 'add_item',
+      input: { text: 'Review' },
+    }));
+    expect(add.ok).toBe(true);
+    expect(add.result).toMatchObject({ ok: true, total: 3 });
+    expect(canvasState.current?.nodes[1].data.payload).toMatchObject({
+      items: [
+        { id: 'todo-1', text: 'Draft', done: false },
+        { id: 'todo-2', text: 'Ship', done: true },
+        { id: 'todo-3', text: 'Review', done: false },
+      ],
+    });
+
+    const toggle = JSON.parse(await tools.canvas_plugin_node_action.execute({
+      nodeId: 'node-todo',
+      action: 'toggle_item',
+      input: { id: 'todo-1' },
+    }));
+    expect(toggle.ok).toBe(true);
+    expect(canvasState.current?.nodes[1].data.payload).toMatchObject({
+      items: [
+        { id: 'todo-1', text: 'Draft', done: true },
+        { id: 'todo-2', text: 'Ship', done: true },
+        { id: 'todo-3', text: 'Review', done: false },
+      ],
     });
   });
 });
