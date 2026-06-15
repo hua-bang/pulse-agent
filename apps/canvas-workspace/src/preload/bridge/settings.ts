@@ -54,7 +54,13 @@ export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
     ipcRenderer.invoke("canvas-mcp:import-json", { scope, json }),
 
   setToolEnabled: (scope, name, tool, enabled) =>
-    ipcRenderer.invoke("canvas-mcp:set-tool-enabled", { scope, name, tool, enabled })
+    ipcRenderer.invoke("canvas-mcp:set-tool-enabled", { scope, name, tool, enabled }),
+
+  authorize: (scope, name) =>
+    ipcRenderer.invoke("canvas-mcp:authorize", { scope, name }),
+
+  signOut: (scope, name) =>
+    ipcRenderer.invoke("canvas-mcp:sign-out", { scope, name })
 });
 
 export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi => ({

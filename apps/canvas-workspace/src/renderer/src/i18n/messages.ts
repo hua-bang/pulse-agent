@@ -759,6 +759,20 @@ const en = {
   'mcpConfig.toolsUnavailable': 'Connect the server to list its tools.',
   'mcpConfig.toolsNone': 'This server exposes no tools.',
   'mcpConfig.toolUpdateFailed': 'Failed to update tool.',
+  'mcpConfig.auth': 'Authentication',
+  'mcpConfig.authNone': 'None / static headers',
+  'mcpConfig.authOauth': 'OAuth 2.1',
+  'mcpConfig.scopes': 'Scopes (optional, one per line)',
+  'mcpConfig.scopesPlaceholder': 'e.g. read write',
+  'mcpConfig.authHint': 'Save, then click "Sign in" to authorize in your browser.',
+  'mcpConfig.signIn': 'Sign in',
+  'mcpConfig.reauthorize': 'Re-authorize',
+  'mcpConfig.signOut': 'Sign out',
+  'mcpConfig.signingIn': 'Signing in…',
+  'mcpConfig.signInOk': '"{name}" signed in — {count} tools available.',
+  'mcpConfig.signInErr': '"{name}" sign-in failed.',
+  'mcpConfig.signedOut': '"{name}" signed out.',
+  'mcpConfig.healthNeedsAuth': 'sign-in required',
 } as const;
 
 const zh: Record<keyof typeof en, string> = {
@@ -1507,6 +1521,20 @@ const zh: Record<keyof typeof en, string> = {
   'mcpConfig.toolsUnavailable': '连接服务后可查看其工具。',
   'mcpConfig.toolsNone': '该服务未提供任何工具。',
   'mcpConfig.toolUpdateFailed': '更新工具失败。',
+  'mcpConfig.auth': '认证方式',
+  'mcpConfig.authNone': '无 / 静态请求头',
+  'mcpConfig.authOauth': 'OAuth 2.1',
+  'mcpConfig.scopes': '授权范围 Scopes（可选，每行一个）',
+  'mcpConfig.scopesPlaceholder': '例如 read write',
+  'mcpConfig.authHint': '保存后点击「登录」，在浏览器中完成授权。',
+  'mcpConfig.signIn': '登录',
+  'mcpConfig.reauthorize': '重新授权',
+  'mcpConfig.signOut': '退出登录',
+  'mcpConfig.signingIn': '登录中…',
+  'mcpConfig.signInOk': '「{name}」已登录 — {count} 个工具可用。',
+  'mcpConfig.signInErr': '「{name}」登录失败。',
+  'mcpConfig.signedOut': '「{name}」已退出登录。',
+  'mcpConfig.healthNeedsAuth': '待登录',
 };
 
 export const messages = {

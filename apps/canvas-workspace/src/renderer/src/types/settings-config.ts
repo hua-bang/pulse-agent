@@ -102,4 +102,14 @@ export interface CanvasMcpApi {
     tool: string,
     enabled: boolean,
   ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  /** Run the interactive OAuth sign-in for a server configured with `auth: 'oauth'`. */
+  authorize: (
+    scope: CanvasConfigScope,
+    name: string,
+  ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  /** Forget stored OAuth credentials for a server. */
+  signOut: (
+    scope: CanvasConfigScope,
+    name: string,
+  ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
 }

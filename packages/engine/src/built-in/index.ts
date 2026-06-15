@@ -32,13 +32,25 @@ export const builtInPlugins = [
 /**
  * 单独导出各个内置插件，便于外部使用
  */
-export { builtInMCPPlugin, createMcpPlugin } from './mcp-plugin';
+export {
+  builtInMCPPlugin,
+  createMcpPlugin,
+  createFileOAuthProvider,
+  authorizeMcpServer,
+  UnauthorizedError
+} from './mcp-plugin';
 export type {
   MCPPluginOptions,
   MCPClientManager,
   MCPPluginConfig,
   MCPServerStatus,
-  McpToolInfo
+  McpToolInfo,
+  OAuthClientProvider,
+  OAuthCipher,
+  OAuthTokens,
+  OAuthClientInformation,
+  FileOAuthProviderOptions,
+  AuthorizeOptions
 } from './mcp-plugin';
 export { builtInSkillsPlugin, createSkillsPlugin, BuiltInSkillRegistry } from './skills-plugin';
 export type { SkillInfo, SkillScanPath, SkillsPluginOptions, SkillRegistryOptions } from './skills-plugin';

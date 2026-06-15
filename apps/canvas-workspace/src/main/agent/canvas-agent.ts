@@ -12,6 +12,7 @@ import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model/config';
 import { scopeMcpConfigPath, skillSourceDirs } from './config-scope';
+import { createConnectAuthProvider } from './mcp/oauth';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
@@ -686,7 +687,14 @@ export class CanvasAgent {
       enginePlugins: {
         plugins: [
           createSkillsPlugin({ scanPaths: skillsScanPaths }),
-          createMcpPlugin({ configPaths: mcpConfigPaths }),
+          createMcpPlugin({
+            configPaths: mcpConfigPaths,
+            // OAuth servers get a token-backed provider; background connects
+            // never open a browser — a missing token surfaces as needsAuth and
+            // the user signs in from MCP settings.
+            createAuthProvider: (serverName, server) =>
+              createConnectAuthProvider(serverName, { scopes: server.scopes }),
+          }),
         ],
       },
       model: this.config.model,

@@ -34,6 +34,8 @@ interface Draft {
   transport: CanvasMcpTransport;
   url: string;
   headersText: string;
+  auth: 'none' | 'oauth';
+  scopesText: string;
   command: string;
   argsText: string;
   envText: string;
@@ -46,12 +48,19 @@ const EMPTY_DRAFT: Draft = {
   transport: 'http',
   url: '',
   headersText: '',
+  auth: 'none',
+  scopesText: '',
   command: '',
   argsText: '',
   envText: '',
   cwd: '',
   deferTools: false,
 };
+
+/** Scopes are entered one-per-line or whitespace-separated. */
+function parseScopes(text: string): string[] {
+  return text.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+}
 
 function parseKeyValues(text: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -81,6 +90,8 @@ function serverToDraft(server: CanvasMcpServer): Draft {
     transport: server.transport,
     url: server.url ?? '',
     headersText: stringifyKeyValues(server.headers),
+    auth: server.auth === 'oauth' ? 'oauth' : 'none',
+    scopesText: (server.scopes ?? []).join('\n'),
     command: server.command ?? '',
     argsText: (server.args ?? []).join('\n'),
     envText: stringifyKeyValues(server.env),
@@ -106,6 +117,11 @@ function draftToServer(draft: Draft): CanvasMcpServer {
     server.url = draft.url.trim();
     const headers = parseKeyValues(draft.headersText);
     if (Object.keys(headers).length) server.headers = headers;
+    if (draft.auth === 'oauth') {
+      server.auth = 'oauth';
+      const scopes = parseScopes(draft.scopesText);
+      if (scopes.length) server.scopes = scopes;
+    }
   }
   return server;
 }
@@ -128,6 +144,11 @@ const HealthBadge = ({ health, t }: HealthBadgeProps) => {
         ? t('mcpConfig.healthOkPartial', { enabled: health.toolCount, total })
         : t('mcpConfig.healthOk', { count: health.toolCount });
     return <span className="cfg-health cfg-health--ok">✓ {label}</span>;
+  }
+  // An OAuth server with no/expired token reports needsAuth — prompt sign-in
+  // rather than showing it as a hard failure.
+  if (health.needsAuth) {
+    return <span className="cfg-health cfg-health--auth">🔑 {t('mcpConfig.healthNeedsAuth')}</span>;
   }
   return (
     <span className="cfg-health cfg-health--err" title={health.error}>
@@ -194,6 +215,8 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
   // currently mid-toggle (so we can disable just that one checkbox).
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busyTool, setBusyTool] = useState<string | null>(null);
+  // Server name whose OAuth sign-in / sign-out is in flight.
+  const [busyAuth, setBusyAuth] = useState<string | null>(null);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
   const inheritedEnabled = showInherited && scope.level === 'workspace';
 
@@ -279,6 +302,51 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         else notify({ tone: 'error', title: res.error ?? t('mcpConfig.toolUpdateFailed') });
       } finally {
         setBusyTool(null);
+      }
+    },
+    [scope, applyStatus, notify, t],
+  );
+
+  const authorize = useCallback(
+    async (name: string) => {
+      setBusyAuth(name);
+      try {
+        const res = await window.canvasWorkspace.canvasMcp.authorize(scope, name);
+        if (res.ok && res.status) {
+          applyStatus(res.status);
+          const health = res.status.statuses?.[name];
+          if (health?.ok) {
+            notify({ tone: 'success', title: t('mcpConfig.signInOk', { name, count: health.toolCount }) });
+          } else {
+            notify({
+              tone: 'error',
+              title: t('mcpConfig.signInErr', { name }),
+              description: health && !health.ok ? health.error : undefined,
+            });
+          }
+        } else {
+          notify({ tone: 'error', title: t('mcpConfig.signInErr', { name }), description: res.error });
+        }
+      } finally {
+        setBusyAuth(null);
+      }
+    },
+    [scope, applyStatus, notify, t],
+  );
+
+  const signOut = useCallback(
+    async (name: string) => {
+      setBusyAuth(name);
+      try {
+        const res = await window.canvasWorkspace.canvasMcp.signOut(scope, name);
+        if (res.ok && res.status) {
+          applyStatus(res.status);
+          notify({ tone: 'success', title: t('mcpConfig.signedOut', { name }) });
+        } else {
+          notify({ tone: 'error', title: res.error ?? t('mcpConfig.loadFailed') });
+        }
+      } finally {
+        setBusyAuth(null);
       }
     },
     [scope, applyStatus, notify, t],
@@ -474,6 +542,33 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                   onChange={(e) => setDraft({ ...draft, headersText: e.target.value })}
                 />
               </label>
+              <label className="cfg-field">
+                <span>{t('mcpConfig.auth')}</span>
+                <select
+                  className="cfg-input"
+                  value={draft.auth}
+                  onChange={(e) => setDraft({ ...draft, auth: e.target.value as 'none' | 'oauth' })}
+                >
+                  <option value="none">{t('mcpConfig.authNone')}</option>
+                  <option value="oauth">{t('mcpConfig.authOauth')}</option>
+                </select>
+              </label>
+              {draft.auth === 'oauth' && (
+                <label className="cfg-field">
+                  <span>{t('mcpConfig.scopes')}</span>
+                  <textarea
+                    className="cfg-textarea"
+                    rows={2}
+                    value={draft.scopesText}
+                    placeholder={t('mcpConfig.scopesPlaceholder')}
+                    spellCheck={false}
+                    onChange={(e) => setDraft({ ...draft, scopesText: e.target.value })}
+                  />
+                  <div className="cfg-toolbar-hint" style={{ flex: 'none', marginTop: 4 }}>
+                    {t('mcpConfig.authHint')}
+                  </div>
+                </label>
+              )}
             </>
           )}
 
@@ -523,6 +618,30 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                     <div className="cfg-list-desc">{server.transport === 'stdio' ? server.command : server.url}</div>
                   </div>
                   <div className="cfg-list-actions">
+                    {server.auth === 'oauth' && (
+                      <>
+                        <button
+                          type="button"
+                          className="cfg-secondary-btn"
+                          disabled={busyAuth === server.name}
+                          onClick={() => void authorize(server.name)}
+                        >
+                          {busyAuth === server.name
+                            ? t('mcpConfig.signingIn')
+                            : statuses[server.name]?.ok
+                              ? t('mcpConfig.reauthorize')
+                              : t('mcpConfig.signIn')}
+                        </button>
+                        <button
+                          type="button"
+                          className="cfg-secondary-btn"
+                          disabled={busyAuth === server.name}
+                          onClick={() => void signOut(server.name)}
+                        >
+                          {t('mcpConfig.signOut')}
+                        </button>
+                      </>
+                    )}
                     <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(serverToDraft(server))}>
                       {t('mcpConfig.edit')}
                     </button>

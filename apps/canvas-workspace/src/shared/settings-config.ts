@@ -96,6 +96,10 @@ export interface CanvasMcpServer {
   transport: CanvasMcpTransport;
   url?: string;
   headers?: Record<string, string>;
+  /** http/sse — `'oauth'` enables the OAuth 2.1 sign-in flow for this server. */
+  auth?: 'oauth';
+  /** http/sse — OAuth scopes to request during authorization. */
+  scopes?: string[];
   command?: string;
   args?: string[];
   env?: Record<string, string>;
@@ -114,7 +118,7 @@ export interface CanvasMcpToolInfo {
 
 export type CanvasMcpServerHealth =
   | { ok: true; toolCount: number; tools?: CanvasMcpToolInfo[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; needsAuth?: boolean };
 
 export interface CanvasMcpStatus {
   scope: 'global' | 'workspace';

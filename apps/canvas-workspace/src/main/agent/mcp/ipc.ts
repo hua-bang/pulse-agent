@@ -28,6 +28,7 @@ import {
   type CanvasMcpServer,
   type CanvasMcpStatus,
 } from './config';
+import { clearMcpOAuth, runMcpOAuthSignIn } from './oauth';
 
 async function reloadAgents(scope: CanvasConfigScope): Promise<void> {
   const service = getCanvasAgentService();
@@ -39,6 +40,23 @@ function withStatuses(status: CanvasMcpStatus, scope: CanvasConfigScope): Canvas
   const workspaceId = scope.level === 'workspace' ? scope.workspaceId : undefined;
   const statuses = getCanvasAgentService().getMcpStatuses(workspaceId);
   return { ...status, statuses };
+}
+
+/**
+ * Find a server's config for sign-in. Checks the requesting scope first, then
+ * falls back to global for a workspace scope — a workspace agent merges global
+ * servers, so a global-defined server can be authorized from a workspace too.
+ */
+async function findServerForAuth(
+  scope: CanvasConfigScope,
+  name: string,
+): Promise<CanvasMcpServer | undefined> {
+  const inScope = (await getCanvasMcpStatus(scope)).servers.find((s) => s.name === name);
+  if (inScope) return inScope;
+  if (scope.level === 'workspace') {
+    return (await getCanvasMcpStatus({ level: 'global' })).servers.find((s) => s.name === name);
+  }
+  return undefined;
 }
 
 export function setupCanvasMcpIpc(): void {
@@ -101,6 +119,51 @@ export function setupCanvasMcpIpc(): void {
         const status = await setCanvasMcpToolEnabled(scope, payload.name, payload.tool, payload.enabled);
         await reloadAgents(scope);
         return { ok: true, status: withStatuses(status, scope) };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-mcp:authorize',
+    async (_event, payload: { scope?: unknown; name: string }) => {
+      try {
+        const scope = parseScopePayload(payload?.scope);
+        const name = String(payload?.name ?? '').trim();
+        if (!name) return { ok: false, error: 'MCP server name is required' };
+
+        const server = await findServerForAuth(scope, name);
+        if (!server || !server.url) {
+          return { ok: false, error: `MCP server "${name}" not found or has no URL` };
+        }
+        if (server.auth !== 'oauth') {
+          return { ok: false, error: `MCP server "${name}" is not configured for OAuth` };
+        }
+
+        const result = await runMcpOAuthSignIn(name, server.url, server.scopes);
+        if (!result.ok) return { ok: false, error: result.error };
+
+        // Reload so the agent reconnects with the freshly stored token.
+        await reloadAgents(scope);
+        return { ok: true, status: withStatuses(await getCanvasMcpStatus(scope), scope) };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
+  );
+
+  ipcMain.handle(
+    'canvas-mcp:sign-out',
+    async (_event, payload: { scope?: unknown; name: string }) => {
+      try {
+        const scope = parseScopePayload(payload?.scope);
+        const name = String(payload?.name ?? '').trim();
+        if (!name) return { ok: false, error: 'MCP server name is required' };
+
+        await clearMcpOAuth(name);
+        await reloadAgents(scope);
+        return { ok: true, status: withStatuses(await getCanvasMcpStatus(scope), scope) };
       } catch (err) {
         return { ok: false, error: String(err) };
       }

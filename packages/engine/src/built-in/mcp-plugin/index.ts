@@ -9,6 +9,7 @@ import { Experimental_StdioMCPTransport } from '@ai-sdk/mcp/mcp-stdio';
 import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import * as path from 'path';
+import { UnauthorizedError, type OAuthClientProvider } from './oauth';
 
 type RawMCPServerConfig = Record<string, unknown>;
 
@@ -18,6 +19,10 @@ interface HTTPOrSSEServerConfig {
   headers?: Record<string, string>;
   deferTools?: boolean;
   disabledTools?: string[];
+  /** When `'oauth'`, attach an OAuth client provider supplied by the host. */
+  auth?: 'oauth';
+  /** OAuth scopes to request during authorization. */
+  scopes?: string[];
 }
 
 interface StdioServerConfig {
@@ -155,6 +160,19 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
       }
     }
 
+    if (typeof raw.auth === 'string' && raw.auth.toLowerCase() === 'oauth') {
+      normalized.auth = 'oauth';
+    }
+
+    if (raw.scopes !== undefined) {
+      if (!Array.isArray(raw.scopes) || !raw.scopes.every(scope => typeof scope === 'string')) {
+        console.warn(`[MCP] Server "${serverName}" has invalid scopes; expected string array, ignoring scopes`);
+      } else {
+        const scopes = raw.scopes.map(scope => scope.trim()).filter(Boolean);
+        if (scopes.length > 0) normalized.scopes = scopes;
+      }
+    }
+
     return normalized;
   }
 
@@ -203,7 +221,10 @@ function normalizeServerConfig(serverName: string, raw: RawMCPServerConfig): Nor
 }
 
 
-function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['transport'] {
+function createTransport(
+  config: NormalizedMCPServerConfig,
+  authProvider?: OAuthClientProvider
+): MCPClientConfig['transport'] {
   if (config.transport === 'stdio') {
     return new Experimental_StdioMCPTransport({
       command: config.command,
@@ -216,7 +237,8 @@ function createTransport(config: NormalizedMCPServerConfig): MCPClientConfig['tr
   return {
     type: config.transport,
     url: config.url,
-    headers: config.headers
+    headers: config.headers,
+    ...(authProvider ? { authProvider } : {})
   };
 }
 
@@ -237,7 +259,7 @@ export interface McpToolInfo {
  */
 export type MCPServerStatus =
   | { ok: true; toolCount: number; tools: McpToolInfo[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; needsAuth?: boolean };
 
 /**
  * 管理本插件创建的所有 MCP client，便于宿主在重建 Engine 前统一关闭，
@@ -257,6 +279,18 @@ export interface MCPClientManager {
 export interface MCPPluginOptions {
   configPaths?: string[];
   cwd?: string;
+  /**
+   * Supplies an OAuth client provider for servers configured with
+   * `auth: 'oauth'`. The host owns token storage + the browser redirect; the
+   * plugin only attaches the provider to the transport. Returning `undefined`
+   * leaves the server unauthenticated. Background connects should pass a
+   * provider whose `redirectToAuthorization` is a no-op so a missing token
+   * surfaces as a `needsAuth` status instead of opening a browser.
+   */
+  createAuthProvider?: (
+    serverName: string,
+    server: { transport: 'http' | 'sse'; url: string; scopes?: string[] }
+  ) => OAuthClientProvider | undefined;
 }
 
 /**
@@ -316,7 +350,20 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
             continue;
           }
 
-          const transport = createTransport(normalizedConfig);
+          let authProvider: OAuthClientProvider | undefined;
+          if (
+            (normalizedConfig.transport === 'http' || normalizedConfig.transport === 'sse') &&
+            normalizedConfig.auth === 'oauth' &&
+            options.createAuthProvider
+          ) {
+            authProvider = options.createAuthProvider(serverName, {
+              transport: normalizedConfig.transport,
+              url: normalizedConfig.url,
+              scopes: normalizedConfig.scopes
+            });
+          }
+
+          const transport = createTransport(normalizedConfig, authProvider);
           const client = await createMCPClient({ transport });
           clients.push(client as { close?: () => Promise<void> | void });
 
@@ -353,7 +400,13 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
 
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown error';
-          statuses[serverName] = { ok: false, error: message };
+          // An OAuth server with no/expired token (and a no-op background
+          // redirect) rejects with UnauthorizedError. Flag it so the host can
+          // prompt the user to sign in rather than showing a generic failure.
+          const needsAuth = error instanceof UnauthorizedError || /\b401\b|unauthor/i.test(message);
+          statuses[serverName] = needsAuth
+            ? { ok: false, error: message, needsAuth: true }
+            : { ok: false, error: message };
           console.warn(`[MCP] Failed to load server "${serverName}": ${message}`);
         }
       }
@@ -375,5 +428,19 @@ export function createMcpPlugin(options: MCPPluginOptions = {}): EnginePlugin {
  * 内置 MCP 插件（默认实例，使用 cwd + homedir 默认配置路径）。
  */
 export const builtInMCPPlugin: EnginePlugin = createMcpPlugin();
+
+export {
+  createFileOAuthProvider,
+  authorizeMcpServer,
+  UnauthorizedError
+} from './oauth';
+export type {
+  OAuthClientProvider,
+  OAuthCipher,
+  OAuthTokens,
+  OAuthClientInformation,
+  FileOAuthProviderOptions,
+  AuthorizeOptions
+} from './oauth';
 
 export default builtInMCPPlugin;

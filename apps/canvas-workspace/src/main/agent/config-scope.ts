@@ -101,6 +101,21 @@ export function scopeMcpConfigPath(scope: CanvasConfigScope): string {
 }
 
 /**
+ * Directory holding per-server MCP OAuth credential files. Keyed by server
+ * name and shared across scopes (not nested under a workspace): a workspace
+ * agent merges global + workspace servers, so a single sign-in for a given
+ * server name applies wherever that server is used. Kept separate from
+ * `mcp.json` so secrets never live in the declarative config.
+ */
+export const CANVAS_MCP_OAUTH_DIR = join(CANVAS_STORE_DIR, 'mcp-oauth');
+
+/** Absolute path to the OAuth credential file for one MCP server. */
+export function mcpOAuthTokenFile(serverName: string): string {
+  const safe = serverName.replace(/[^a-zA-Z0-9_.-]/g, '_') || '_';
+  return join(CANVAS_MCP_OAUTH_DIR, `${safe}.json`);
+}
+
+/**
  * Parse an IPC scope payload into a typed scope. Throws on a malformed
  * workspace scope so handlers fail loudly rather than silently writing to
  * the global root.

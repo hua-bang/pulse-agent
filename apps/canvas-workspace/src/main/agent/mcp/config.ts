@@ -19,6 +19,10 @@ export interface CanvasMcpServer {
   /** http/sse */
   url?: string;
   headers?: Record<string, string>;
+  /** http/sse — `'oauth'` enables the OAuth 2.1 sign-in flow for this server. */
+  auth?: 'oauth';
+  /** http/sse — OAuth scopes to request during authorization. */
+  scopes?: string[];
   /** stdio */
   command?: string;
   args?: string[];
@@ -38,7 +42,7 @@ export interface CanvasMcpToolInfo {
 
 export type CanvasMcpServerHealth =
   | { ok: true; toolCount: number; tools?: CanvasMcpToolInfo[] }
-  | { ok: false; error: string };
+  | { ok: false; error: string; needsAuth?: boolean };
 
 export interface CanvasMcpStatus {
   scope: 'global' | 'workspace';
@@ -98,6 +102,11 @@ function normalizeServer(server: CanvasMcpServer): { name: string; config: Recor
     config.url = url;
     const headers = normalizeStringMap(server.headers);
     if (headers) config.headers = headers;
+    if (server.auth === 'oauth') {
+      config.auth = 'oauth';
+      const scopes = normalizeStringArray(server.scopes);
+      if (scopes) config.scopes = scopes;
+    }
   } else {
     const command = normalizeStr(server.command);
     if (!command) throw new Error(`Server "${name}" requires a command for stdio transport`);
@@ -132,6 +141,11 @@ function readServer(name: string, raw: Record<string, unknown>): CanvasMcpServer
     server.url = normalizeStr(raw.url);
     const headers = normalizeStringMap(raw.headers);
     if (headers) server.headers = headers;
+    if (typeof raw.auth === 'string' && raw.auth.toLowerCase() === 'oauth') {
+      server.auth = 'oauth';
+      const scopes = normalizeStringArray(raw.scopes);
+      if (scopes) server.scopes = scopes;
+    }
   }
   return server;
 }
@@ -296,6 +310,11 @@ function rawToServer(name: string, raw: Record<string, unknown>): CanvasMcpServe
     if (url) server.url = url;
     const headers = normalizeStringMap(raw.headers);
     if (headers) server.headers = headers;
+    if (typeof raw.auth === 'string' && raw.auth.toLowerCase() === 'oauth') {
+      server.auth = 'oauth';
+      const scopes = normalizeStringArray(raw.scopes);
+      if (scopes) server.scopes = scopes;
+    }
   }
   return server;
 }

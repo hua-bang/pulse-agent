@@ -5,12 +5,13 @@ import { join } from 'path';
 
 // Fake MCP client tools shared with the hoisted module mock. `plain` has no
 // description so we also cover the "description omitted" branch.
-const { fakeTools } = vi.hoisted(() => ({
+const { fakeTools, FakeUnauthorizedError } = vi.hoisted(() => ({
   fakeTools: {
     search: { description: 'Search the web' },
     danger_tool: { description: 'Dangerous operation' },
     plain: {},
   } as Record<string, { description?: string }>,
+  FakeUnauthorizedError: class FakeUnauthorizedError extends Error {},
 }));
 
 vi.mock('@ai-sdk/mcp', () => ({
@@ -18,12 +19,16 @@ vi.mock('@ai-sdk/mcp', () => ({
     tools: async () => fakeTools,
     close: vi.fn(),
   })),
+  // oauth.ts imports `auth` + `UnauthorizedError` as values.
+  auth: vi.fn(async () => 'AUTHORIZED'),
+  UnauthorizedError: FakeUnauthorizedError,
 }));
 
 vi.mock('@ai-sdk/mcp/mcp-stdio', () => ({
   Experimental_StdioMCPTransport: class {},
 }));
 
+import { createMCPClient } from '@ai-sdk/mcp';
 import { createMcpPlugin, type MCPClientManager } from './index';
 import type { EnginePluginContext } from '../../plugin/EnginePlugin';
 
@@ -122,5 +127,67 @@ describe('createMcpPlugin disabledTools', () => {
     if (status.ok) {
       expect(status.tools.every((t) => t.enabled)).toBe(true);
     }
+  });
+});
+
+describe('createMcpPlugin OAuth', () => {
+  beforeEach(() => {
+    vi.mocked(createMCPClient).mockClear();
+    vi.mocked(createMCPClient).mockImplementation(async () => ({
+      tools: async () => fakeTools,
+      close: vi.fn(),
+    }) as any);
+  });
+
+  it('asks the host for an auth provider and attaches it to the transport', async () => {
+    const cfgPath = await writeConfig({
+      gh: { transport: 'http', url: 'https://mcp.example.com', auth: 'oauth', scopes: ['repo'] },
+    });
+
+    const fakeProvider = { tokens: vi.fn() } as any;
+    const createAuthProvider = vi.fn(() => fakeProvider);
+    const plugin = createMcpPlugin({ configPaths: [cfgPath], createAuthProvider });
+    const { ctx } = makeContext();
+    await plugin.initialize(ctx);
+
+    expect(createAuthProvider).toHaveBeenCalledWith('gh', {
+      transport: 'http',
+      url: 'https://mcp.example.com',
+      scopes: ['repo'],
+    });
+    const transport = vi.mocked(createMCPClient).mock.calls[0][0].transport as any;
+    expect(transport.authProvider).toBe(fakeProvider);
+  });
+
+  it('does not attach a provider for servers without auth: oauth', async () => {
+    const cfgPath = await writeConfig({
+      plain: { transport: 'http', url: 'https://mcp.example.com' },
+    });
+    const createAuthProvider = vi.fn();
+    const plugin = createMcpPlugin({ configPaths: [cfgPath], createAuthProvider });
+    const { ctx } = makeContext();
+    await plugin.initialize(ctx);
+
+    expect(createAuthProvider).not.toHaveBeenCalled();
+    const transport = vi.mocked(createMCPClient).mock.calls[0][0].transport as any;
+    expect(transport.authProvider).toBeUndefined();
+  });
+
+  it('flags needsAuth when the connection is unauthorized', async () => {
+    const cfgPath = await writeConfig({
+      gh: { transport: 'http', url: 'https://mcp.example.com', auth: 'oauth' },
+    });
+    vi.mocked(createMCPClient).mockRejectedValueOnce(new FakeUnauthorizedError('Unauthorized'));
+
+    const plugin = createMcpPlugin({
+      configPaths: [cfgPath],
+      createAuthProvider: () => ({ tokens: vi.fn() }) as any,
+    });
+    const { ctx, services } = makeContext();
+    await plugin.initialize(ctx);
+
+    const status = (services['mcp:__manager__'] as MCPClientManager).getStatuses()['gh'];
+    expect(status.ok).toBe(false);
+    if (!status.ok) expect(status.needsAuth).toBe(true);
   });
 });

@@ -114,12 +114,43 @@ interface HTTPTransportConfig {
 - 服务器连接失败：单个服务器失败不影响其他
 - 工具注册失败：记录日志
 
+## OAuth 2.1 认证
+
+HTTP / SSE 服务可声明 `auth: "oauth"` 以启用 MCP 授权流（基于 `@ai-sdk/mcp`
+内置的 `OAuthClientProvider`：元数据发现、动态客户端注册、PKCE、令牌刷新）：
+
+```json
+{
+  "servers": {
+    "github": {
+      "transport": "http",
+      "url": "https://mcp.example.com",
+      "auth": "oauth",
+      "scopes": ["repo", "read:org"]
+    }
+  }
+}
+```
+
+设计要点：
+
+- **引擎与宿主解耦**：引擎只负责挂载 `authProvider` 并把「未授权」连接标记为
+  `needsAuth`；打开浏览器、捕获回调由宿主提供。通过
+  `MCPPluginOptions.createAuthProvider` 注入 provider。
+- **令牌存储**：`createFileOAuthProvider` 将令牌 / 客户端注册信息 / PKCE verifier
+  持久化到 JSON 文件，并支持注入 `OAuthCipher` 做静态加密。
+- **后台连接不弹浏览器**：连接态 provider 的 `redirectToAuthorization` 为
+  no-op，缺令牌时连接以 `UnauthorizedError` 失败并上报 `needsAuth`，由用户在设置里
+  手动「登录」触发 `authorizeMcpServer` 完成授权码交换。
+
+Pulse Canvas 的接入见
+`apps/canvas-workspace/src/main/agent/mcp/oauth.ts`：系统浏览器 + 127.0.0.1
+本地回调端口（RFC 8252），令牌经 Electron `safeStorage` 加密落盘。
+
 ## 扩展计划
 
 ### 后续版本可能添加
-- stdio 传输支持
 - YAML 配置支持
-- 用户级配置
 - 热重载功能
-- OAuth 认证
 - 健康检查
+- OAuth：预注册客户端（静态 client_id/secret）与自定义授权服务器元数据

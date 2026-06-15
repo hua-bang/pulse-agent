@@ -129,4 +129,66 @@ describe('importCanvasMcpJson', () => {
     const raw = await readRaw();
     expect(raw.servers.eido.disabledTools).toEqual(['danger_tool']);
   });
+
+  it('carries OAuth auth + scopes through import', async () => {
+    const json = JSON.stringify({
+      servers: {
+        gh: {
+          transport: 'http',
+          url: 'https://mcp.example.com',
+          auth: 'oauth',
+          scopes: ['repo', 'read:org'],
+        },
+      },
+    });
+    await importCanvasMcpJson(GLOBAL, json);
+    const raw = await readRaw();
+    expect(raw.servers.gh.auth).toBe('oauth');
+    expect(raw.servers.gh.scopes).toEqual(['repo', 'read:org']);
+  });
+});
+
+describe('OAuth auth persistence', () => {
+  it('round-trips auth + scopes through upsert and status', async () => {
+    await upsertCanvasMcpServer(GLOBAL, {
+      name: 'gh',
+      transport: 'http',
+      url: 'https://mcp.example.com',
+      auth: 'oauth',
+      scopes: ['repo'],
+    });
+
+    const status = await getCanvasMcpStatus(GLOBAL);
+    const server = status.servers.find((s) => s.name === 'gh');
+    expect(server?.auth).toBe('oauth');
+    expect(server?.scopes).toEqual(['repo']);
+
+    const raw = await readRaw();
+    expect(raw.servers.gh.auth).toBe('oauth');
+    expect(raw.servers.gh.scopes).toEqual(['repo']);
+  });
+
+  it('omits auth for servers that do not opt in', async () => {
+    await upsertCanvasMcpServer(GLOBAL, {
+      name: 'plain',
+      transport: 'http',
+      url: 'https://mcp.example.com',
+    });
+    const raw = await readRaw();
+    expect('auth' in raw.servers.plain).toBe(false);
+    expect('scopes' in raw.servers.plain).toBe(false);
+  });
+
+  it('does not attach auth/scopes to stdio servers', async () => {
+    await upsertCanvasMcpServer(GLOBAL, {
+      name: 'local',
+      transport: 'stdio',
+      command: 'npx',
+      auth: 'oauth',
+      scopes: ['repo'],
+    });
+    const raw = await readRaw();
+    expect('auth' in raw.servers.local).toBe(false);
+    expect('scopes' in raw.servers.local).toBe(false);
+  });
 });
