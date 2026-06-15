@@ -1,4 +1,7 @@
 import './index.css';
+import './iframeBar.css';
+import { useState } from 'react';
+import { useAppShell } from '../AppShellProvider';
 import { useRightDock } from '../RightDock';
 import { IframeEditor } from './IframeEditor';
 import { IframeRenderedView } from './IframeRenderedView';
@@ -10,9 +13,12 @@ export const IframeNodeBody = ({
   workspaceId,
   onUpdate,
   isResizing,
+  onAddDomSelectionToChat,
   readOnly = false,
 }: IframeNodeBodyProps) => {
   const { openArtifact } = useRightDock();
+  const { notify } = useAppShell();
+  const [domPickerActive, setDomPickerActive] = useState(false);
   const state = useIframeNodeState({
     node,
     workspaceId,
@@ -20,6 +26,37 @@ export const IframeNodeBody = ({
     isResizing,
     readOnly,
   });
+
+  const handlePickDomElement = async () => {
+    if (!workspaceId || state.mode !== 'url') return;
+    setDomPickerActive(true);
+    try {
+      const result = await window.canvasWorkspace.iframe.pickDomElement(workspaceId, node.id);
+      if (result.ok && result.selection) {
+        onAddDomSelectionToChat?.({
+          ...result.selection,
+          workspaceId,
+          nodeId: node.id,
+          nodeTitle: node.title,
+        });
+        notify({
+          tone: 'success',
+          title: 'DOM selection added',
+          description: result.selection.label,
+          autoCloseMs: 1800,
+        });
+      } else if (!result.cancelled) {
+        notify({
+          tone: 'error',
+          title: 'Could not select DOM',
+          description: result.error ?? 'The page did not return a selected element.',
+          autoCloseMs: 3600,
+        });
+      }
+    } finally {
+      setDomPickerActive(false);
+    }
+  };
 
   // Keep the rendered view (and therefore the <webview>) mounted at all times;
   // toggle the editor as an overlay so the guest WebContents survives URL
@@ -36,6 +73,7 @@ export const IframeNodeBody = ({
         generating={state.generating}
         handleOpenExternal={state.handleOpenExternal}
         handleKeyDown={state.handleKeyDown}
+        handlePickDomElement={handlePickDomElement}
         handleRegenerate={state.handleRegenerate}
         handleReload={state.handleReload}
         html={state.html}
@@ -46,6 +84,7 @@ export const IframeNodeBody = ({
         loadState={state.loadState}
         mode={state.mode}
         openArtifact={openArtifact}
+        domPickerActive={domPickerActive}
         readOnly={readOnly}
         savedPrompt={state.savedPrompt}
         setDraftUrl={state.setDraftUrl}

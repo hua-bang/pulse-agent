@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHa
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
+import './DomMention.css';
 import { ChatView } from './ChatView';
 import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
@@ -31,6 +32,7 @@ export const ChatPanel = ({
   onNodeFocus,
   onOpenAppSettings,
   onRegisterInsertMention,
+  onRegisterInsertDomSelectionMention,
   onTurnComplete,
 }: ChatPanelProps) => {
   const { t } = useI18n();
@@ -74,6 +76,7 @@ export const ChatPanel = ({
     handleNewSession,
     handlePaste,
     input,
+    insertDomSelectionMention,
     insertNodeMention,
     loading,
     mentionIndex,
@@ -104,7 +107,7 @@ export const ChatPanel = ({
     rootFolder,
     knowledgeNodes,
     knowledgeTags,
-    collectStructuredContext: agentScope.kind === 'global',
+    collectStructuredContext: true,
     getRequestContext: () => requestContextRef.current,
   });
 
@@ -112,6 +115,11 @@ export const ChatPanel = ({
     if (!onRegisterInsertMention) return;
     return onRegisterInsertMention(insertNodeMention);
   }, [insertNodeMention, onRegisterInsertMention]);
+
+  useEffect(() => {
+    if (!onRegisterInsertDomSelectionMention) return;
+    return onRegisterInsertDomSelectionMention(insertDomSelectionMention);
+  }, [insertDomSelectionMention, onRegisterInsertDomSelectionMention]);
 
   // Report turn completion (loading true → false) so the host can show an
   // unread badge when this chat isn't the visible tab.

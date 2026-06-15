@@ -79,6 +79,102 @@ export async function readDOM(
   }
 }
 
+export async function readDOMElement(
+  wc: AnyWebContents,
+  selector: string,
+  maxChars: number,
+): Promise<{
+  ok: boolean;
+  title: string;
+  url: string;
+  selector: string;
+  tagName?: string;
+  text: string;
+  html?: string;
+  rect?: { x: number; y: number; width: number; height: number; scrollX: number; scrollY: number };
+  error?: string;
+}> {
+  const script = `
+    (function () {
+      try {
+        var selector = ${JSON.stringify(selector)};
+        var el = document.querySelector(selector);
+        if (!el) {
+          return { ok: false, title: document.title || '', url: location.href, selector: selector, text: '', error: 'selector not found: ' + selector };
+        }
+        var rect = el.getBoundingClientRect();
+        return {
+          ok: true,
+          title: document.title || '',
+          url: location.href,
+          selector: selector,
+          tagName: el.tagName ? el.tagName.toLowerCase() : '',
+          text: el.innerText || el.textContent || '',
+          html: el.outerHTML || '',
+          rect: {
+            x: Math.round(rect.left),
+            y: Math.round(rect.top),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+            scrollX: Math.round(window.scrollX || 0),
+            scrollY: Math.round(window.scrollY || 0)
+          }
+        };
+      } catch (err) {
+        return { ok: false, title: '', url: '', selector: ${JSON.stringify(selector)}, text: '', error: String(err) };
+      }
+    })();
+  `;
+
+  try {
+    const raw = await Promise.race([
+      wc.executeJavaScript(script, false) as Promise<{
+        ok: boolean;
+        title: string;
+        url: string;
+        selector: string;
+        tagName?: string;
+        text: string;
+        html?: string;
+        rect?: { x: number; y: number; width: number; height: number; scrollX: number; scrollY: number };
+        error?: string;
+      }>,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('DOM element extraction timed out')), EXTRACT_TIMEOUT_MS),
+      ),
+    ]);
+
+    if (!raw.ok) return { ...raw, ok: false };
+
+    const clean = (value: string | undefined, limit: number) => {
+      const normalized = (value ?? '').replace(/\s+/g, ' ').trim();
+      return limit > 0 && normalized.length > limit
+        ? normalized.slice(0, limit) + '\n\n[...content truncated]'
+        : normalized;
+    };
+    const htmlLimit = Math.min(Math.max(maxChars, 1), 16_000);
+    return {
+      ok: true,
+      title: raw.title,
+      url: raw.url,
+      selector: raw.selector,
+      tagName: raw.tagName,
+      text: clean(raw.text, maxChars),
+      html: clean(raw.html, htmlLimit),
+      rect: raw.rect,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      title: '',
+      url: '',
+      selector,
+      text: '',
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 /** Flatten an AX node tree into indented readable text. */
 function flattenA11yNodes(
   nodes: Array<{

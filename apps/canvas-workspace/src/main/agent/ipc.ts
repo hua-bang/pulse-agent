@@ -28,7 +28,7 @@ import { randomUUID } from 'crypto';
 import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
-import type { AgentScope, AgentScopeRef } from './types';
+import type { AgentRequestContext, AgentScope, AgentScopeRef } from './types';
 
 let service: CanvasAgentService | null = null;
 
@@ -72,14 +72,7 @@ export function setupCanvasAgentIpc(): void {
         workspaceId?: string;
         message: string;
         mentionedWorkspaceIds?: string[];
-        requestContext?: {
-          executionMode?: 'auto' | 'ask';
-          scope?: 'current_canvas' | 'selected_nodes';
-          selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
-          tags?: Array<{ name: string; workspaceIds?: string[] }>;
-          canvases?: Array<{ id: string; name: string }>;
-          quickAction?: string;
-        };
+        requestContext?: AgentRequestContext;
         attachments?: Array<{ id: string; path: string; fileName?: string; mimeType?: string }>;
       },
     ) => {

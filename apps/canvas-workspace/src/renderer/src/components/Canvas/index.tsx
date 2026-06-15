@@ -62,8 +62,7 @@ export const Canvas = ({
   onChatOpen,
   referenceDrawerOpen,
   onReferenceToggle,
-  onPinReferenceNode,
-  onAddToChat,
+  onPinReferenceNode, onAddToChat, onAddDomSelectionToChat,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -707,8 +706,7 @@ export const Canvas = ({
       onChatToggle={onChatToggle}
       onFitAll={handleFitAll}
       onOpenReferenceSource={onOpenReferenceSource}
-      onPinReferenceNode={onPinReferenceNode}
-      onAddToChat={onAddToChat}
+      onPinReferenceNode={onPinReferenceNode} onAddToChat={onAddToChat} onAddDomSelectionToChat={onAddDomSelectionToChat}
       onReferenceToggle={onReferenceToggle}
       onUpdateReferenceSource={onUpdateReferenceSource}
       onRemoveNodesLocally={handleRemoveNodesLocally}

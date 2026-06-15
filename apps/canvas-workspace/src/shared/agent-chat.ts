@@ -165,6 +165,27 @@ export interface AgentContextCanvasRef {
   name: string;
 }
 
+export interface AgentContextDomSelectionRef {
+  id: string;
+  label: string;
+  workspaceId?: string;
+  nodeId: string;
+  nodeTitle?: string;
+  url?: string;
+  selector: string;
+  tagName?: string;
+  rect?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    scrollX?: number;
+    scrollY?: number;
+  };
+  text?: string;
+  html?: string;
+}
+
 export interface AgentRequestContext {
   executionMode?: 'auto' | 'ask';
   scope?: 'current_canvas' | 'selected_nodes';
@@ -173,6 +194,8 @@ export interface AgentRequestContext {
   tags?: AgentContextTagRef[];
   /** Whole canvases the user scoped the turn to (global assistant). */
   canvases?: AgentContextCanvasRef[];
+  /** DOM elements the user picked inside iframe/webview nodes. */
+  domSelections?: AgentContextDomSelectionRef[];
   quickAction?: string;
 }
 

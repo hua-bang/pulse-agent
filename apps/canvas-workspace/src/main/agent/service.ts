@@ -13,6 +13,7 @@ import { CanvasAgent, type CanvasClarificationRequest } from './canvas-agent';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import { GLOBAL_CHAT_SESSION_STORE_ID, GLOBAL_CHAT_WORKSPACE_NAME, SessionStore } from './session-store';
 import type {
+  AgentRequestContext,
   AgentScope,
   CanvasAgentImageAttachment,
   ChatResponse,
@@ -82,14 +83,7 @@ export class CanvasAgentService {
     onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
-    requestContext?: {
-      executionMode?: 'auto' | 'ask';
-      scope?: 'current_canvas' | 'selected_nodes';
-      selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
-      tags?: Array<{ name: string; workspaceIds?: string[] }>;
-      canvases?: Array<{ id: string; name: string }>;
-      quickAction?: string;
-    },
+    requestContext?: AgentRequestContext,
     attachments?: CanvasAgentImageAttachment[],
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,
@@ -119,14 +113,7 @@ export class CanvasAgentService {
     onToolResult?: (data: { name: string; result: string; toolCallId?: string }) => void,
     mentionedWorkspaceIds?: string[],
     onClarificationRequest?: (req: CanvasClarificationRequest) => void,
-    requestContext?: {
-      executionMode?: 'auto' | 'ask';
-      scope?: 'current_canvas' | 'selected_nodes';
-      selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
-      tags?: Array<{ name: string; workspaceIds?: string[] }>;
-      canvases?: Array<{ id: string; name: string }>;
-      quickAction?: string;
-    },
+    requestContext?: AgentRequestContext,
     attachments?: CanvasAgentImageAttachment[],
     onToolInputStart?: (data: { id: string; toolName: string }) => void,
     onToolInputDelta?: (data: { id: string; delta: string }) => void,

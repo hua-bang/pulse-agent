@@ -1,4 +1,4 @@
-import type { CanvasNode } from '../../types';
+import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { CanvasClipboard, CanvasNodePatchRequest, CanvasNodeRenameRequest } from '../../types/ui-interaction';
 import type { NodeReferenceEntryForCanvas } from '../ReferenceDrawer';
@@ -23,6 +23,7 @@ export interface CanvasProps {
   onReferenceToggle?: () => void;
   onPinReferenceNode?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;

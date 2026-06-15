@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { CanvasEdge, CanvasNode } from '../../types';
+import type { AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
@@ -83,6 +83,7 @@ interface CanvasSurfaceProps {
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
@@ -147,6 +148,7 @@ export const CanvasSurface = ({
   onFocus,
   onReference,
   onAddToChat,
+  onAddDomSelectionToChat,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -224,6 +226,7 @@ export const CanvasSurface = ({
           onFocus={onFocus}
           onReference={onReference}
           onAddToChat={onAddToChat}
+          onAddDomSelectionToChat={onAddDomSelectionToChat}
           resolveReferenceNode={resolveReferenceNode}
           onOpenReferenceSource={onOpenReferenceSource}
           onUpdateReferenceSource={onUpdateReferenceSource}
@@ -277,6 +280,7 @@ export const CanvasSurface = ({
           onFocus={onFocus}
           onReference={onReference}
           onAddToChat={onAddToChat}
+          onAddDomSelectionToChat={onAddDomSelectionToChat}
           resolveReferenceNode={resolveReferenceNode}
           onOpenReferenceSource={onOpenReferenceSource}
           onUpdateReferenceSource={onUpdateReferenceSource}

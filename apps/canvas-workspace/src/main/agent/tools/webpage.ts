@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { getWebContentsForNode } from '../../webview/registry';
 import { ensureOperable } from '../../webview/ensure-operable';
 import { activateWorkspaceWindow } from '../../app/window-manager';
-import { readDOM, readA11y, captureScreenshot } from '../../webview/reader';
+import { readDOM, readDOMElement, readA11y, captureScreenshot } from '../../webview/reader';
 import type { CanvasTool } from './types';
 
 /**
@@ -22,6 +22,60 @@ const READINESS_HINT =
 
 export function createWebpageTools(workspaceId: string): Record<string, CanvasTool> {
   return {
+    canvas_read_dom_selection: {
+      name: 'canvas_read_dom_selection',
+      defer_loading: true,
+      description:
+        'Read one DOM element inside a canvas iframe/webview node using a CSS selector. ' +
+        'Use this when the user picked a DOM region in an iframe node and the current request is about that specific region. ' +
+        'The selector usually comes from the domSelections block in the request context. Returns text, capped HTML, rect, title, and URL.',
+      inputSchema: z.object({
+        nodeId: z.string().describe('ID of the iframe canvas node.'),
+        selector: z.string().describe('CSS selector for the selected DOM element.'),
+        maxChars: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Maximum characters for text output. Defaults to 12 000.'),
+      }),
+      execute: async (input) => {
+        const nodeId = input.nodeId as string;
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
+        const selector = input.selector as string;
+        const maxChars = (input.maxChars as number) ?? 12_000;
+        const wc = await ensureOperable({
+          lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
+          activate: () => activateWorkspaceWindow(targetWorkspaceId),
+          mode: 'read',
+        });
+        if (!wc) {
+          return JSON.stringify({
+            ok: false,
+            error:
+              `No active webview for node ${nodeId} in workspace ${targetWorkspaceId} ` +
+              `(auto-activation attempted). Make sure the iframe node exists and is in URL mode.`,
+          });
+        }
+        const r = await readDOMElement(wc, selector, maxChars);
+        return JSON.stringify(r.ok
+          ? {
+              ok: true,
+              strategy: 'dom-selection',
+              title: r.title,
+              url: r.url,
+              selector: r.selector,
+              tagName: r.tagName,
+              rect: r.rect,
+              text: r.text,
+              html: r.html,
+              textLength: r.text.trim().length,
+              hint: READINESS_HINT,
+            }
+          : { ok: false, strategy: 'dom-selection', selector: r.selector, error: r.error });
+      },
+    },
+
     canvas_read_webpage: {
       name: 'canvas_read_webpage',
       defer_loading: true,
@@ -61,6 +115,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       }),
       execute: async (input) => {
         const nodeId = input.nodeId as string;
+        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
         const strategy = (input.strategy as 'auto' | 'dom' | 'a11y' | 'screenshot') ?? 'auto';
         const maxChars = (input.maxChars as number) ?? 12_000;
         const sparseThreshold = (input.sparseThreshold as number) ?? 200;
@@ -69,15 +124,15 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
         // operate (force-activate) request; dom/a11y reads work even on a
         // display:none node, so only activate them when nothing is registered.
         const wc = await ensureOperable({
-          lookup: () => getWebContentsForNode(workspaceId, nodeId),
-          activate: () => activateWorkspaceWindow(workspaceId),
+          lookup: () => getWebContentsForNode(targetWorkspaceId, nodeId),
+          activate: () => activateWorkspaceWindow(targetWorkspaceId),
           mode: strategy === 'screenshot' ? 'operate' : 'read',
         });
         if (!wc) {
           return JSON.stringify({
             ok: false,
             error:
-              `No active webview for node ${nodeId} in workspace ${workspaceId} ` +
+              `No active webview for node ${nodeId} in workspace ${targetWorkspaceId} ` +
               `(auto-activation attempted). Make sure the iframe node exists and is in URL mode.`,
           });
         }

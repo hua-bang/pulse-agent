@@ -18,6 +18,7 @@ type CanvasRootViewProps = Pick<
   | 'onReferenceToggle'
   | 'onPinReferenceNode'
   | 'onAddToChat'
+  | 'onAddDomSelectionToChat'
   | 'resolveReferenceNode'
   | 'onOpenReferenceSource'
   | 'onUpdateReferenceSource'
@@ -125,6 +126,7 @@ export const CanvasRootView = ({
   onOpenReferenceSource,
   onPinReferenceNode,
   onAddToChat,
+  onAddDomSelectionToChat,
   onReferenceToggle,
   onUpdateReferenceSource,
   onOpenAppSettings,
@@ -233,6 +235,7 @@ export const CanvasRootView = ({
         onFocus={handleNodeViewportFocus}
         onReference={onPinReferenceNode}
         onAddToChat={onAddToChat}
+        onAddDomSelectionToChat={onAddDomSelectionToChat}
         resolveReferenceNode={resolveReferenceNode}
         onOpenReferenceSource={onOpenReferenceSource}
         onUpdateReferenceSource={onUpdateReferenceSource}

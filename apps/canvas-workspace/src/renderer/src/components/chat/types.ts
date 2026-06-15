@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextNodeRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
 
@@ -64,6 +64,8 @@ export interface ChatPanelProps {
   onOpenAppSettings: (section: SettingsSection) => void;
   /** Called once the insert-mention function is ready; returns a cleanup fn. */
   onRegisterInsertMention?: (fn: (node: CanvasNode) => void) => () => void;
+  /** Called once the DOM-selection mention inserter is ready; returns a cleanup fn. */
+  onRegisterInsertDomSelectionMention?: (fn: (selection: AgentContextDomSelectionRef) => void) => () => void;
   /** Fires when a streaming turn finishes — hosts use it for unread badges. */
   onTurnComplete?: () => void;
 }
@@ -78,7 +80,7 @@ export type ToolCallStatus = AgentChatToolCall;
 export type { ChatImageAttachment };
 
 export interface MentionItem {
-  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag' | 'session';
+  type: 'node' | 'file' | 'folder' | 'workspace' | 'skill' | 'tag' | 'session' | 'dom';
   label: string;
   nodeType?: CanvasNode['type'];
   /** For type === 'node': the canvas node id, used to focus it when clicked. */
@@ -93,6 +95,8 @@ export interface MentionItem {
   sessionId?: string;
   /** For type === 'session': index of the first message matching the query. */
   messageIndex?: number;
+  /** For type === 'dom': selected iframe/webview DOM element context. */
+  domSelection?: AgentContextDomSelectionRef;
 }
 
 export interface PendingClarification {

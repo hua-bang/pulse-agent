@@ -13,6 +13,7 @@ interface IframeRenderedViewProps {
   generating: boolean;
   handleOpenExternal: () => void;
   handleKeyDown: KeyboardEventHandler<HTMLInputElement>;
+  handlePickDomElement: () => Promise<void> | void;
   handleRegenerate: () => Promise<void> | void;
   handleReload: () => void;
   html: string;
@@ -23,6 +24,7 @@ interface IframeRenderedViewProps {
   loadState: LoadState;
   mode: string;
   openArtifact: (workspaceId: string, artifactId: string) => void;
+  domPickerActive: boolean;
   readOnly: boolean;
   savedPrompt: string;
   setDraftUrl: (value: string) => void;
@@ -45,6 +47,7 @@ export const IframeRenderedView = ({
   generating,
   handleOpenExternal,
   handleKeyDown,
+  handlePickDomElement,
   handleRegenerate,
   handleReload,
   html,
@@ -55,6 +58,7 @@ export const IframeRenderedView = ({
   loadState,
   mode,
   openArtifact,
+  domPickerActive,
   readOnly,
   savedPrompt,
   setDraftUrl,
@@ -109,6 +113,17 @@ export const IframeRenderedView = ({
             title="Regenerate"
           >
             <SparkIcon />
+          </button>
+        )}
+
+        {mode === 'url' && (
+          <button
+            className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
+            onClick={() => void handlePickDomElement()}
+            title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
+            disabled={generating || domPickerActive || !workspaceId}
+          >
+            <InspectIcon />
           </button>
         )}
 
@@ -340,6 +355,18 @@ const ReloadIcon = () => (
 const SparkIcon = () => (
   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
     <path d="M8 1.5l1.85 4.15L14 7.5l-4.15 1.85L8 13.5l-1.85-4.15L2 7.5l4.15-1.85L8 1.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+  </svg>
+);
+
+const InspectIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path
+      d="M2 2.5A.5.5 0 012.5 2h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5h-7a.5.5 0 01-.5-.5v-7zM4.2 5L3.2 6l1 1M7.8 5l1 1-1 1M5.4 8l1.2-4"
+      stroke="currentColor"
+      strokeWidth="1.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
