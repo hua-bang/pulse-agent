@@ -88,6 +88,103 @@
   background: rgba(255, 255, 255, 0.5);
 }
 
+.frame-children-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+  height: 20px;
+  min-width: 34px;
+  padding: 0 6px 0 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 62%, #111111);
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+}
+
+.frame-children-toggle svg {
+  flex: 0 0 auto;
+}
+
+.frame-children-toggle-icon__chevron,
+.frame-children-toggle-icon__rail {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    opacity 0.16s ease,
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.frame-children-toggle-icon__rail {
+  opacity: 0.42;
+}
+
+.frame-children-toggle-icon__rail--top {
+  transform: translateY(0);
+}
+
+.frame-children-toggle-icon__rail--bottom {
+  transform: translateY(0);
+}
+
+.frame-children-toggle--collapsed .frame-children-toggle-icon__chevron {
+  transform: rotate(-180deg);
+}
+
+.frame-children-toggle--collapsed .frame-children-toggle-icon__rail--top {
+  transform: translateY(1.25px);
+  opacity: 0.28;
+}
+
+.frame-children-toggle--collapsed .frame-children-toggle-icon__rail--bottom {
+  transform: translateY(-1.25px);
+  opacity: 0.52;
+}
+
+.frame-children-toggle:hover {
+  background: color-mix(in srgb, var(--frame-color, #A8B0BD) 14%, transparent);
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 82%, #000000);
+  transform: translateY(-0.5px);
+}
+
+.frame-children-toggle:hover .frame-children-toggle-icon__rail {
+  opacity: 0.62;
+}
+
+.frame-children-toggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.frame-children-toggle:disabled:hover {
+  background: transparent;
+  color: color-mix(in srgb, var(--frame-color, #A8B0BD) 62%, #111111);
+  transform: none;
+}
+
+.frame-children-toggle:active {
+  transform: translateY(0.5px) scale(0.96);
+}
+
+.frame-children-count {
+  min-width: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  text-align: center;
+  transition: transform 0.18s ease;
+}
+
+.frame-children-toggle:hover .frame-children-count {
+  transform: translateX(0.5px);
+}
+
 .canvas-node--frame .node-header .node-focus,
 .canvas-node--frame .node-header .node-close {
   color: color-mix(in srgb, var(--frame-color, #A8B0BD) 55%, #333333);

@@ -23,6 +23,7 @@ import { useCanvasEdgeHandlers } from './hooks/useCanvasEdgeHandlers';
 import { useCanvasRenderOrder } from './hooks/useCanvasRenderOrder';
 import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
+import { useCanvasVisibility } from './hooks/useCanvasVisibility';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
@@ -106,6 +107,7 @@ export const Canvas = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<CanvasNode[]>([]);
+  const visibleNodesRef = useRef<CanvasNode[]>([]);
   const hasAutoFittedRef = useRef(false);
 
   const {
@@ -214,17 +216,14 @@ export const Canvas = ({
     setSelectedNodeIds((current) => current.filter((id) => !removed.has(id)));
   }, [setSelectedNodeIds, syncDeletedNodes]);
 
-  // Indexed lookup for O(1) access by id. Declared before the focus
-  // memos so they can use it without falling back to O(n)
-  // `Array.find`, and reused later for the find-bar's match resolver.
-  const nodesById = useMemo(() => {
-    const m = new Map<string, CanvasNode>();
-    for (const n of nodes) m.set(n.id, n);
-    return m;
-  }, [nodes]);
+  const { visibleNodes, visibleNodesById, visibleEdges } = useCanvasVisibility({
+    nodes, edges, selectedEdgeId, setSelectedEdgeId, setSelectedNodeIds,
+  });
+
+  visibleNodesRef.current = visibleNodes;
 
   const focus = useCanvasFocusMode({
-    nodes, nodesById, nodesRef, selectedNodeIds, handleFocusNode,
+    nodes: visibleNodes, nodesById: visibleNodesById, nodesRef, selectedNodeIds, handleFocusNode,
   });
 
   const ctxMenu = useCanvasContextMenu({
@@ -492,18 +491,18 @@ export const Canvas = ({
 
   // Zoom-chip companions: reframe around everything / the selection.
   const handleFitAll = useCallback(() => {
-    fitAllNodes(nodes);
-  }, [fitAllNodes, nodes]);
+    fitAllNodes(visibleNodes);
+  }, [fitAllNodes, visibleNodes]);
 
   const handleFitSelection = useCallback(() => {
-    const selected = nodes.filter((n) => selectedNodeIds.includes(n.id));
+    const selected = visibleNodes.filter((n) => selectedNodeIds.includes(n.id));
     if (selected.length > 0) fitAllNodes(selected);
-  }, [fitAllNodes, nodes, selectedNodeIds]);
+  }, [fitAllNodes, selectedNodeIds, visibleNodes]);
 
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
   // through matches. See useCanvasSearch for details.
-  const search = useCanvasSearch({ nodes });
+  const search = useCanvasSearch({ nodes: visibleNodes });
   const handleSearchMatchActivate = useCallback((node: CanvasNode) => {
     handleNodeViewportFocus(node);
   }, [handleNodeViewportFocus]);
@@ -514,7 +513,7 @@ export const Canvas = ({
   const { resizingId, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel } =
     useNodeResize(resizeNode, transform.scale);
 
-  const { sortedNodes, renderGroups } = useCanvasRenderOrder(nodes);
+  const { sortedNodes, renderGroups } = useCanvasRenderOrder(visibleNodes);
 
   const getContainer = useCallback(() => containerRef.current, []);
 
@@ -523,8 +522,8 @@ export const Canvas = ({
     beginConnect, beginMoveEnd, beginMoveBend, beginMoveEdge,
     getPreviewEndpoints,
   } = useEdgeInteraction({
-    nodes, sortedNodes, screenToCanvas, getContainer,
-    addEdge, updateEdge, commitHistory, edges,
+    nodes: visibleNodes, sortedNodes, screenToCanvas, getContainer,
+    addEdge, updateEdge, commitHistory, edges: visibleEdges,
     // After the user commits one arrow, hop back to the select tool and
     // auto-select the new edge so the style panel is immediately
     // available. Matches tldraw's "draw one arrow, then edit" flow.
@@ -561,14 +560,14 @@ export const Canvas = ({
     // and shape modes mount their own full-canvas overlays that already
     // intercept mousedown.
     enabled: activeTool === 'select' && !shapeToolActive,
-    screenToCanvas, getContainer, nodes,
+    screenToCanvas, getContainer, nodes: visibleNodes,
     onSelect: handleMarqueeSelect,
   });
 
   useCanvasKeyboard({
     canvasId,
     undo: undoWithFeedback, redo: redoWithFeedback,
-    nodes, selectedNodeIds, setSelectedNodeIds,
+    nodes: visibleNodes, selectedNodeIds, setSelectedNodeIds,
     selectedEdgeId, setSelectedEdgeId, removeEdge: actions.requestRemoveEdge,
     duplicateNode,
     clipboard,
@@ -618,7 +617,7 @@ export const Canvas = ({
   });
 
   const paletteCommands = useCanvasPaletteCommands({
-    selectedNodeIds, setSelectedNodeIds, nodesRef,
+    selectedNodeIds, setSelectedNodeIds, nodesRef: visibleNodesRef,
     duplicateNode, requestRemoveNodes: actions.requestRemoveNodes,
     groupSelectedNodes: actions.groupSelectedNodes,
     ungroupSelectedNodes: actions.ungroupSelectedNodes,
@@ -651,6 +650,7 @@ export const Canvas = ({
 
   useCanvasSyncEffects({
     canvasId, loaded, nodes, transform, selectedNodeIds,
+    autoFitNodes: visibleNodes,
     nodesRef,
     isDraggingRef: mouse.isDraggingRef,
     pendingParentNodesRef: mouse.pendingParentNodesRef,
@@ -680,10 +680,10 @@ export const Canvas = ({
       draggingIds={draggingIds}
       edgeHandlers={edgeHandlers}
       edgeInteractionState={edgeInteractionState}
-      edges={edges}
+      edges={visibleEdges}
       editingEdgeLabelId={editingEdgeLabelId}
       externallyEditedIds={externallyEditedIds}
-      findNodesById={nodesById}
+      findNodesById={visibleNodesById}
       focus={focus}
       getAllNodes={getAllNodes}
       getPreviewEndpoints={getPreviewEndpoints}
@@ -700,8 +700,8 @@ export const Canvas = ({
       marquee={marquee}
       mouse={mouse}
       moving={moving}
-      nodes={nodes}
-      nodesById={nodesById}
+      nodes={visibleNodes}
+      nodesById={visibleNodesById}
       onChatOpen={onChatOpen}
       onChatToggle={onChatToggle}
       onFitAll={handleFitAll}

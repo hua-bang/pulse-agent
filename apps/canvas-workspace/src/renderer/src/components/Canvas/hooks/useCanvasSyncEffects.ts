@@ -6,6 +6,9 @@ interface Options {
   canvasId: string;
   loaded: boolean;
   nodes: CanvasNode[];
+  /** Nodes to use for viewport auto-fit. Defaults to `nodes`; callers can
+   *  pass visible-only nodes while still syncing full canvas data upward. */
+  autoFitNodes?: CanvasNode[];
   transform: CanvasTransform;
   selectedNodeIds: string[];
   nodesRef: MutableRefObject<CanvasNode[]>;
@@ -49,6 +52,7 @@ export const useCanvasSyncEffects = ({
   canvasId,
   loaded,
   nodes,
+  autoFitNodes = nodes,
   transform,
   selectedNodeIds,
   nodesRef,
@@ -94,9 +98,9 @@ export const useCanvasSyncEffects = ({
   useEffect(() => {
     if (loaded && !hasAutoFittedRef.current) {
       hasAutoFittedRef.current = true;
-      if (nodes.length > 0) fitAllNodes(nodes);
+      if (autoFitNodes.length > 0) fitAllNodes(autoFitNodes);
     }
-  }, [loaded, nodes, fitAllNodes, hasAutoFittedRef]);
+  }, [autoFitNodes, loaded, fitAllNodes, hasAutoFittedRef]);
 
   // Report nodes to parent only after loaded. While dragging, stash the
   // latest snapshot so the mouse-handlers hook can flush it once the

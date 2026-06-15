@@ -1,4 +1,4 @@
-import type { CanvasNode, GroupNodeData } from '../types';
+import type { CanvasNode, FrameNodeData, GroupNodeData } from '../types';
 
 export const isContainerNode = (node: CanvasNode): boolean =>
   node.type === 'frame' || node.type === 'group';
@@ -16,6 +16,9 @@ export const isInsideContainer = (node: CanvasNode, container: CanvasNode): bool
 };
 
 export const isInsideFrame = isInsideContainer;
+
+export const isFrameChildrenCollapsed = (node: CanvasNode): boolean =>
+  node.type === 'frame' && (node.data as Partial<FrameNodeData>).childrenCollapsed === true;
 
 const containerArea = (container: CanvasNode) => container.width * container.height;
 
@@ -132,6 +135,48 @@ export const collectContainerDescendants = (
 };
 
 export const collectFrameDescendants = collectContainerDescendants;
+
+/**
+ * Return every node hidden by a collapsed frame. The collapsed frame itself
+ * remains visible; all transitive descendants disappear until that frame is
+ * expanded again.
+ */
+export const collectCollapsedFrameDescendantIds = (
+  nodes: CanvasNode[],
+): Set<string> => {
+  const collapsedFrameIds = new Set(
+    nodes
+      .filter(isFrameChildrenCollapsed)
+      .map((node) => node.id),
+  );
+  if (collapsedFrameIds.size === 0) return new Set();
+
+  const parentMap = computeParentContainerMap(nodes);
+  const hiddenIds = new Set<string>();
+
+  for (const node of nodes) {
+    if (collapsedFrameIds.has(node.id)) continue;
+
+    let parentId = parentMap.get(node.id) ?? null;
+    while (parentId) {
+      if (collapsedFrameIds.has(parentId)) {
+        hiddenIds.add(node.id);
+        break;
+      }
+      parentId = parentMap.get(parentId) ?? null;
+    }
+  }
+
+  return hiddenIds;
+};
+
+export const filterCollapsedFrameDescendants = (
+  nodes: CanvasNode[],
+): CanvasNode[] => {
+  const hiddenIds = collectCollapsedFrameDescendantIds(nodes);
+  if (hiddenIds.size === 0) return nodes;
+  return nodes.filter((node) => !hiddenIds.has(node.id));
+};
 
 /**
  * Compute the nesting depth of each container (root containers = 0, container

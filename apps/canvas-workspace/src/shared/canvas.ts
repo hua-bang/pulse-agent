@@ -141,6 +141,8 @@ export interface TerminalNodeData {
 export interface FrameNodeData {
   color: string;
   label?: string;
+  /** When true, descendants are kept in the canvas data but hidden from view. */
+  childrenCollapsed?: boolean;
   agentTeamId?: string;
   agentTeamName?: string;
   agentTeamGoal?: string;
