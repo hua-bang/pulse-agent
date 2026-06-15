@@ -1,8 +1,9 @@
 import { createElement, type ReactNode } from 'react';
-import type { AgentContextCanvasRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
-import { CANVAS_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
+import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
+import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown } from './markdown';
+import { readDomSelectionDataset, writeDomSelectionDataset } from './domMentionData';
 
 const MENTION_RE = /@\[([^\]]+)\]/g;
 
@@ -76,6 +77,8 @@ export function mentionIconSvg(nodeType: string): string {
       return '<path d="M1.5 4.5a1 1 0 0 1 1-1H6l1.2 1.5h4.3a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1V4.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>';
     case 'session':
       return '<path d="M2.5 3h9a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6.8L4 12.2V10H2.5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M4.5 5.8h5M4.5 7.8h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>';
+    case 'dom':
+      return '<rect x="2" y="2" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.2 5.2L2.8 7l1.4 1.8M9.8 5.2L11.2 7 9.8 8.8M6.2 10.2L7.8 3.8" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>';
     default:
       return '<rect x="2" y="1.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4.5 5h5M4.5 7.5h3" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>';
   }
@@ -96,6 +99,7 @@ export function getMentionNodeType(item: MentionItem, nodes?: CanvasNode[]): str
   if (item.type === 'workspace') return 'workspace';
   if (item.type === 'folder') return 'folder';
   if (item.type === 'node') return item.nodeType ?? 'file';
+  if (item.type === 'dom') return 'dom';
 
   return nodes?.find(node => node.title === item.label)?.type ?? item.nodeType ?? 'file';
 }
@@ -158,6 +162,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   const isNode = item.type === 'node';
   const isTag = item.type === 'tag';
   const isSession = item.type === 'session';
+  const isDom = item.type === 'dom';
   const nodeType = getMentionNodeType(item, nodes);
   const chip = document.createElement('span');
 
@@ -193,6 +198,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
   if (isSkill) classes.push('chat-mention-chip--skill');
   if (isFolder) classes.push('chat-mention-chip--folder');
   if (isTag) classes.push('chat-mention-chip--tag');
+  if (isDom) classes.push('chat-mention-chip--dom');
   if (isNavigable) classes.push('chat-mention-chip--clickable');
   chip.className = classes.join(' ');
   chip.contentEditable = 'false';
@@ -204,7 +210,9 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
         ? `${FOLDER_MENTION_PREFIX}${item.label.replace(/\/$/, '')}`
         : isTag
           ? `${TAG_MENTION_PREFIX}${item.label}`
-          : item.label;
+          : isDom
+            ? `${DOM_MENTION_PREFIX}${item.domSelection?.id ?? item.label}|${item.label}`
+            : item.label;
   chip.dataset.nodeType = nodeType;
 
   // data-mention-kind + ids let the composer collect structured, workspace-aware
@@ -222,6 +230,8 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
     chip.dataset.mentionKind = 'node';
     if (item.nodeId) chip.dataset.nodeId = item.nodeId;
     if (item.workspaceId) chip.dataset.workspaceId = item.workspaceId;
+  } else if (isDom && item.domSelection) {
+    writeDomSelectionDataset(chip, item.domSelection);
   }
 
   if (!isSkill) {
@@ -251,10 +261,12 @@ export function collectContextRefsFromEditable(editable: HTMLElement): {
   nodes: AgentContextNodeRef[];
   tags: AgentContextTagRef[];
   canvases: AgentContextCanvasRef[];
+  domSelections: AgentContextDomSelectionRef[];
 } {
   const nodes: AgentContextNodeRef[] = [];
   const tags: AgentContextTagRef[] = [];
   const canvases: AgentContextCanvasRef[] = [];
+  const domSelections: AgentContextDomSelectionRef[] = [];
   const chips = editable.querySelectorAll<HTMLElement>('[data-mention-kind]');
 
   chips.forEach((chip) => {
@@ -272,10 +284,13 @@ export function collectContextRefsFromEditable(editable: HTMLElement): {
       tags.push({ name: chip.dataset.tag, workspaceIds: ids.length ? ids : undefined });
     } else if (kind === 'canvas' && chip.dataset.workspaceId) {
       canvases.push({ id: chip.dataset.workspaceId, name: label });
+    } else if (kind === 'dom-selection') {
+      const ref = readDomSelectionDataset(chip, label, domSelections.length);
+      if (ref) domSelections.push(ref);
     }
   });
 
-  return { nodes, tags, canvases };
+  return { nodes, tags, canvases, domSelections };
 }
 
 export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactNode {
@@ -373,6 +388,28 @@ export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactN
       continue;
     }
 
+    if (rawLabel.startsWith(DOM_MENTION_PREFIX)) {
+      const domLabel = rawLabel.slice(DOM_MENTION_PREFIX.length).split('|').slice(1).join('|') || 'DOM selection';
+      parts.push(
+        createElement(
+          'span',
+          {
+            key: match.index,
+            className: 'chat-mention-chip chat-mention-chip--dom',
+            'data-node-type': 'dom',
+          } as any,
+          createElement(
+            'span',
+            { className: 'chat-mention-chip-icon' },
+            createElement(MentionNodeIcon, { nodeType: 'dom' }),
+          ),
+          createElement('span', { className: 'chat-mention-chip-label' }, domLabel),
+        ),
+      );
+      lastIndex = re.lastIndex;
+      continue;
+    }
+
     const node = nodes?.find(item => item.title === rawLabel);
     parts.push(
       createElement(
@@ -423,6 +460,11 @@ export function renderMdWithMentions(content: string, nodes?: CanvasNode[]): str
     if (rawLabel.startsWith(TAG_MENTION_PREFIX)) {
       const tagLabel = rawLabel.slice(TAG_MENTION_PREFIX.length);
       return `<span class="chat-mention-chip chat-mention-chip--tag" data-node-type="tag"><span class="chat-mention-chip-icon"><span class="chat-mention-chip-hash">#</span></span><span class="chat-mention-chip-label">${escapeHtml(tagLabel)}</span></span>`;
+    }
+
+    if (rawLabel.startsWith(DOM_MENTION_PREFIX)) {
+      const domLabel = rawLabel.slice(DOM_MENTION_PREFIX.length).split('|').slice(1).join('|') || 'DOM selection';
+      return `<span class="chat-mention-chip chat-mention-chip--dom" data-node-type="dom"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('dom')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(domLabel)}</span></span>`;
     }
 
     if (rawLabel.startsWith(SESSION_MENTION_PREFIX)) {

@@ -19,6 +19,7 @@ import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-interaction';
 import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
+import { useChatInsertionBridge } from './useChatInsertionBridge';
 
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -190,32 +191,12 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     setReferenceDrawerOpen(true);
   }, [activeWorkspaceId]);
 
-  const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode) => void>>(new Map());
-
-  const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode) => void) => {
-    insertMentionByWorkspaceRef.current.set(workspaceId, fn);
-    return () => {
-      insertMentionByWorkspaceRef.current.delete(workspaceId);
-    };
-  }, []);
-
-  const handleAddNodeToChat = useCallback((workspaceId: string, nodeId: string) => {
-    const node = (allNodes[workspaceId] ?? []).find((item) => item.id === nodeId);
-    if (!node) return;
-    dock.openChat();
-    const tryInsert = () => {
-      const fn = insertMentionByWorkspaceRef.current.get(workspaceId);
-      if (fn) {
-        fn(node);
-        return true;
-      }
-      return false;
-    };
-    if (!tryInsert()) {
-      // ChatPanel may not have registered yet (just opened). Retry on next tick.
-      requestAnimationFrame(() => { tryInsert(); });
-    }
-  }, [allNodes, dock]);
+  const {
+    handleAddDomSelectionToChat,
+    handleAddNodeToChat,
+    registerInsertDomSelectionMention,
+    registerInsertMention,
+  } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
 
   const workspaceNameById = useCallback(
     (workspaceId: string) => workspaces.find((workspace) => workspace.id === workspaceId)?.name,
@@ -453,6 +434,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                   onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
                   onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
                   onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
+                  onAddDomSelectionToChat={(selection) => handleAddDomSelectionToChat(ws.id, selection)}
                   resolveReferenceNode={resolveReferenceNode}
                   onOpenReferenceSource={handleOpenReferenceSource}
                   onUpdateReferenceSource={updateReferenceSourceNode}
@@ -494,6 +476,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                 onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
                 onOpenAppSettings={onOpenAppSettings}
                 onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
+                onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                 onTurnComplete={dock.notifyChatActivity}
               />
             </div>

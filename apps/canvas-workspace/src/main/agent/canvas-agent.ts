@@ -33,6 +33,7 @@ import {
 } from './debug-trace';
 import type {
   AgentScope,
+  AgentRequestContext,
   CanvasAgentConfig,
   CanvasAgentDebugTrace,
   CanvasAgentImageAttachment,
@@ -40,16 +41,9 @@ import type {
   CanvasAgentToolCall,
   WorkspaceSummary,
 } from './types';
+import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
 
-interface CanvasAgentRequestContext {
-  executionMode?: 'auto' | 'ask';
-  scope?: 'current_canvas' | 'selected_nodes';
-  selectedNodes?: Array<{ id: string; title: string; type: string; workspaceId?: string }>;
-  tags?: Array<{ name: string; workspaceIds?: string[] }>;
-  canvases?: Array<{ id: string; name: string }>;
-  quickAction?: string;
-}
-
+type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
 
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
@@ -572,16 +566,14 @@ function buildSystemPrompt(
   promptProfileSection: string = '',
   workspaceDocSection: string = '',
 ): string {
-  const selectedNodes = requestContext?.selectedNodes ?? [];
-
+  const selectedNodes = requestContext?.selectedNodes ?? [], domSelections = requestContext?.domSelections ?? [];
   // When the user has nodes selected, surface them BEFORE the full workspace
   // summary so the focused subset is the first thing the model anchors on.
   const selectionBlock = formatSelectionFocusBlock(selectedNodes, { requireWorkspaceId: false });
-
+  const domSelectionBlock = formatDomSelectionFocusBlock(domSelections, { requireWorkspaceId: false });
   let base = summary
-    ? BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
-    : BASE_SYSTEM_PROMPT + selectionBlock + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
-
+    ? BASE_SYSTEM_PROMPT + selectionBlock + domSelectionBlock + '\n## Current Canvas\n' + formatSummaryForPrompt(summary)
+    : BASE_SYSTEM_PROMPT + selectionBlock + domSelectionBlock + '\n## Current Canvas\n(empty workspace — no nodes yet)\n';
   if (requestContext) {
     const mode = requestContext.executionMode ?? 'auto';
     const scope = requestContext.scope ?? 'current_canvas';
@@ -599,6 +591,12 @@ function buildSystemPrompt(
     if (selectedNodes.length > 0) {
       lines.push(
         `- Selection: ${selectedNodes.length} node(s) — see "Current Focus" above for the authoritative list.`,
+      );
+    }
+
+    if (domSelections.length > 0) {
+      lines.push(
+        `- DOM selection: ${domSelections.length} element(s) — see "Current Focus" above for selectors and text excerpts.`,
       );
     }
 
@@ -821,6 +819,7 @@ export class CanvasAgent {
       ? buildSystemPrompt(summary, mentionedCanvases, requestContext, promptProfileSection, workspaceDocSection)
       : GLOBAL_AGENT_SYSTEM_PROMPT
         + formatSelectionFocusBlock(requestContext?.selectedNodes ?? [], { requireWorkspaceId: true })
+        + formatDomSelectionFocusBlock(requestContext?.domSelections ?? [], { requireWorkspaceId: true })
         + formatScopeContextBlock(requestContext?.tags ?? [], requestContext?.canvases ?? [])
         + formatMentionedCanvasesSection(mentionedCanvases)
         + promptProfileSection;

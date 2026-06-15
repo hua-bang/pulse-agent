@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react';
-import type { CanvasNode } from '../../types';
+import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 
 export interface CanvasNodeViewProps {
@@ -33,6 +33,7 @@ export interface CanvasNodeViewProps {
   onFocus: (node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;

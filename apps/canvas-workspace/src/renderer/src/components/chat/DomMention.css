@@ -1,0 +1,11 @@
+.chat-mention-chip--dom,
+.chat-mention-chip[data-node-type="dom"] {
+  background: rgba(20, 184, 166, 0.09);
+  border-color: rgba(20, 184, 166, 0.22);
+  color: #0f766e;
+}
+
+.chat-mention-chip--dom .chat-mention-chip-icon,
+.chat-mention-chip[data-node-type="dom"] .chat-mention-chip-icon {
+  color: rgba(15, 118, 110, 0.82);
+}

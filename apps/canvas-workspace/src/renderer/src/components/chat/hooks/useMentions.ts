@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentRequestContext, CanvasNode, ChatImageAttachment, DirEntry } from '../../../types';
+import type { AgentContextDomSelectionRef, AgentRequestContext, CanvasNode, ChatImageAttachment, DirEntry } from '../../../types';
 import { isImeComposing } from '../../../utils/ime';
 import {
   MENTION_GROUP_ORDER,
@@ -13,6 +13,7 @@ import {
   createMentionChipElement,
   serializeEditable,
 } from '../utils/mentions';
+import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
 
 interface UseMentionsOptions {
@@ -101,24 +102,24 @@ export function useMentions({
     };
     const chip = createMentionChipElement(item, nodes);
 
-    const lastChild = element.lastChild;
-    const lastText = lastChild?.nodeType === Node.TEXT_NODE ? (lastChild.textContent ?? '') : '';
-    if (element.childNodes.length > 0 && !lastText.endsWith(' ')) {
-      element.appendChild(document.createTextNode(' '));
-    }
-    element.appendChild(chip);
-    const spaceNode = document.createTextNode(' ');
-    element.appendChild(spaceNode);
+    appendMentionChipToEditable(element, chip);
+    setInput(serializeEditable(element));
+    element.focus();
+  }, [nodes]);
 
-    const selection = window.getSelection();
-    if (selection) {
-      const range = document.createRange();
-      range.setStartAfter(spaceNode);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
+  const insertDomSelectionMention = useCallback((domSelection: AgentContextDomSelectionRef) => {
+    const element = editableRef.current;
+    if (!element) return;
 
+    const item: MentionItem = {
+      type: 'dom',
+      label: domSelection.label,
+      nodeType: 'iframe',
+      domSelection,
+    };
+    const chip = createMentionChipElement(item, nodes);
+
+    appendMentionChipToEditable(element, chip);
     setInput(serializeEditable(element));
     element.focus();
   }, [nodes]);
@@ -367,12 +368,13 @@ export function useMentions({
     // Pull workspace-aware refs out of the inline @-mention chips (global host).
     if (collectStructuredContext && editableRef.current) {
       const collected = collectContextRefsFromEditable(editableRef.current);
-      if (collected.nodes.length || collected.tags.length || collected.canvases.length) {
+      if (collected.nodes.length || collected.tags.length || collected.canvases.length || collected.domSelections.length) {
         ctx = {
           ...(ctx ?? {}),
           selectedNodes: [...(ctx?.selectedNodes ?? []), ...collected.nodes],
           tags: [...(ctx?.tags ?? []), ...collected.tags],
           canvases: [...(ctx?.canvases ?? []), ...collected.canvases],
+          domSelections: [...(ctx?.domSelections ?? []), ...collected.domSelections],
           scope: 'selected_nodes',
         };
       }
@@ -479,6 +481,7 @@ export function useMentions({
     handleKeyDown,
     handlePaste,
     input,
+    insertDomSelectionMention,
     insertNodeMention,
     mentionIndex,
     mentionItems,

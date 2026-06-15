@@ -5,6 +5,7 @@ export const CANVAS_MENTION_PREFIX = 'canvas:';
 export const SKILL_MENTION_PREFIX = 'skill:';
 export const FOLDER_MENTION_PREFIX = 'folder:';
 export const TAG_MENTION_PREFIX = 'tag:';
+export const DOM_MENTION_PREFIX = 'dom:';
 /** Assistant-emitted session citation: `@[session:<wsId>:<sessionId>:<msgIdx?>|<label>]`. */
 export const SESSION_MENTION_PREFIX = 'session:';
 

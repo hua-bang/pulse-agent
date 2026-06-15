@@ -1,5 +1,5 @@
 import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
-import type { CanvasNode } from '../../types';
+import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import { AgentNodeBody } from '../AgentNodeBody';
 import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
 import { FileNodeBody } from '../FileNodeBody';
@@ -36,6 +36,7 @@ interface DefaultCanvasNodeProps {
   onDragStart: (e: MouseEvent, node: CanvasNode) => void;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
+  onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onUngroupSelectedGroups?: () => void;
@@ -74,6 +75,7 @@ export const DefaultCanvasNode = ({
   onDragStart,
   onReference,
   onAddToChat,
+  onAddDomSelectionToChat,
   onSelect,
   onRemoveNodes,
   onUngroupSelectedGroups,
@@ -137,7 +139,14 @@ export const DefaultCanvasNode = ({
           readOnly={readOnly}
         />
       ) : node.type === 'iframe' ? (
-        <IframeNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
+        <IframeNodeBody
+          node={node}
+          workspaceId={workspaceId}
+          onUpdate={onUpdate}
+          isResizing={isResizing}
+          onAddDomSelectionToChat={onAddDomSelectionToChat}
+          readOnly={readOnly}
+        />
       ) : node.type === 'dynamic-app' ? (
         <DynamicAppNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
       ) : (

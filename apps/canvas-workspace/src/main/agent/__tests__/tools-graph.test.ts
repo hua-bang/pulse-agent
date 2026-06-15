@@ -416,6 +416,7 @@ describe('deferred tool partition', () => {
       'canvas_generate_mindmap_image',
       'canvas_list_edges',
       'canvas_move_node',
+      'canvas_read_dom_selection',
       'canvas_read_webpage',
       'canvas_remove_from_group',
       'canvas_send_to_agent',

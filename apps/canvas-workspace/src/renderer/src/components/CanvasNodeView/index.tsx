@@ -33,6 +33,7 @@ const CanvasNodeViewComponent = ({
   onFocus,
   onReference,
   onAddToChat,
+  onAddDomSelectionToChat,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -198,6 +199,7 @@ const CanvasNodeViewComponent = ({
       onDragStart={onDragStart}
       onReference={onReference}
       onAddToChat={onAddToChat}
+      onAddDomSelectionToChat={onAddDomSelectionToChat}
       onSelect={onSelect}
       onRemoveNodes={onRemoveNodes}
       onUngroupSelectedGroups={onUngroupSelectedGroups}
@@ -230,6 +232,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.resolveReferenceNode === next.resolveReferenceNode &&
   prev.onOpenReferenceSource === next.onOpenReferenceSource &&
   prev.onUpdateReferenceSource === next.onUpdateReferenceSource &&
+  prev.onAddDomSelectionToChat === next.onAddDomSelectionToChat &&
   prev.onRemoveNodes === next.onRemoveNodes &&
   prev.readOnly === next.readOnly &&
   prev.embedded === next.embedded

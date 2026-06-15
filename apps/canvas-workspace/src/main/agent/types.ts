@@ -6,6 +6,8 @@
  * can perform canvas operations, file I/O, and coding tasks directly.
  */
 
+export type { AgentRequestContext } from '../../shared/agent-chat';
+
 // ─── Configuration ──────────────────────────────────────────────────
 
 export interface CanvasAgentConfig {
