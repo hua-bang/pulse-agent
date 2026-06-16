@@ -10,6 +10,7 @@ import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
 import { SlashCommandMenu } from '../SlashCommandMenu';
 import { NoteFindBar } from '../NoteFindBar';
 import { NoteLinkPrompt } from '../NoteLinkPrompt';
+import { useRightDock } from '../RightDock';
 
 interface Props {
   node: CanvasNode;
@@ -20,6 +21,7 @@ interface Props {
 
 export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: Props) => {
   const data = node.data as FileNodeData;
+  const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
   const dataRef = useRef(data);
@@ -153,6 +155,24 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
     [insertImageFromFile, readOnly],
   );
 
+  // Clicking a link inside the note opens it in the right-dock preview
+  // drawer — the same surface webview/iframe link clicks use. The Tiptap Link
+  // extension is configured with `openOnClick: false`, so without this a click
+  // just places the caret (in edit mode) or escapes to the system browser
+  // (read-only); neither previews the page. Capture phase intercepts before
+  // ProseMirror's own click handling.
+  const handleLinkClickCapture = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const anchor = (e.target as HTMLElement).closest?.('a');
+      const href = anchor?.getAttribute('href')?.trim();
+      if (!href || !/^https?:\/\//i.test(href)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openLink(href);
+    },
+    [openLink],
+  );
+
   const filePath = data.filePath;
   const fileName = filePath ? filePath.split('/').pop() : null;
 
@@ -190,6 +210,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
         className="note-content"
         onPaste={(e) => e.stopPropagation()}
         onWheel={(e) => e.stopPropagation()}
+        onClickCapture={handleLinkClickCapture}
       >
         <EditorContent editor={editor} className="note-tiptap-editor" />
       </div>
