@@ -10,6 +10,7 @@
     {
       "type": "demo.note",
       "title": "Demo Note",
+      "icon": "note",
       "capabilities": ["read", "write", "action"],
       "actions": ["pin"],
       "renderer": {

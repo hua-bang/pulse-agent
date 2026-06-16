@@ -212,7 +212,7 @@
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  width: min(300px, calc(100vw - 32px));
+  width: min(260px, calc(100vw - 32px));
   max-height: 340px;
   overflow: auto;
   padding: 5px;
@@ -225,7 +225,7 @@
 
 .plugin-tool-option {
   width: 100%;
-  min-height: 42px;
+  min-height: 36px;
   border: none;
   border-radius: var(--radius);
   background: transparent;
@@ -260,7 +260,6 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
 }
 
 .plugin-tool-option__title {
@@ -273,13 +272,17 @@
   white-space: nowrap;
 }
 
-.plugin-tool-option__meta {
-  overflow: hidden;
-  color: var(--text-tertiary);
-  font-size: 10.5px;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.plugin-node-icon-media {
+  display: block;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.plugin-node-icon-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .plugin-tool-empty {

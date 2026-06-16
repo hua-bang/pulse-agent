@@ -13,6 +13,7 @@ import type {
   CanvasPluginsImportEntry,
   CanvasPluginsStatus,
 } from '../../shared/settings-config';
+import { normalizeManifestIcon } from './plugin-manifest-icons';
 
 interface CanvasPluginsConfigFile {
   pluginDirs?: string[];
@@ -148,7 +149,7 @@ function decodeConfigValue(value: string): string | undefined {
   return value;
 }
 
-function normalizeManifestNode(value: unknown): CanvasPluginManifestNode | null {
+function normalizeManifestNode(dir: string, value: unknown): CanvasPluginManifestNode | null {
   if (!isRecord(value)) return null;
   const type = typeof value.type === 'string' ? value.type.trim() : '';
   if (!type) return null;
@@ -157,6 +158,7 @@ function normalizeManifestNode(value: unknown): CanvasPluginManifestNode | null 
   return {
     type,
     title: typeof value.title === 'string' ? value.title : undefined,
+    icon: normalizeManifestIcon(dir, value.icon),
     capabilities: Array.isArray(value.capabilities)
       ? value.capabilities.filter((item): item is string => typeof item === 'string')
       : undefined,
@@ -358,7 +360,7 @@ async function readPluginEntry(
     const pluginConfigFields = normalizeManifestConfig(manifest.config);
     const nodes = Array.isArray(manifest.nodes)
       ? manifest.nodes
-          .map(normalizeManifestNode)
+          .map((node) => normalizeManifestNode(dir, node))
           .filter((node): node is CanvasPluginManifestNode => node !== null)
       : [];
     const rendererSpecs = dedupeRendererSpecs(

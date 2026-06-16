@@ -12,6 +12,7 @@ import {
   activateFederatedRendererPlugins,
   specsFromCanvasPluginsStatus,
 } from '../../../../plugins/renderer';
+import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../constants/canvasPlugins';
 import './settings-config.css';
 
 const countImportEntries = (entries: CanvasPluginsImportEntry[]) => {
@@ -155,6 +156,7 @@ export const PluginsManager = () => {
   const applyStatus = useCallback(
     async (nextStatus: CanvasPluginsStatus) => {
       setStatus(nextStatus);
+      window.dispatchEvent(new CustomEvent(CANVAS_PLUGINS_CHANGED_EVENT, { detail: nextStatus }));
       try {
         await activateFederatedRendererPlugins(specsFromCanvasPluginsStatus(nextStatus));
       } catch (err) {

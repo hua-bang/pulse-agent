@@ -108,6 +108,24 @@ package-local paths such as `renderer/remoteEntry.js`; the main process resolves
 them to `pulse-canvas://local/<absolute-path>` so the renderer can load them
 without relying on a repository path.
 
+Node entries may also declare an optional `icon` for creation menus:
+
+```json
+{
+  "nodes": [
+    {
+      "type": "figma.frame",
+      "title": "Figma Frame",
+      "icon": "icons/figma.svg",
+      "renderer": { "entry": "dist/mf-manifest.json" }
+    }
+  ]
+}
+```
+
+`icon` supports built-in tokens such as `plugin`, `note`, `todo`, and
+`excalidraw`, short emoji strings, or package-local image paths.
+
 ### Environment Remotes
 
 In development, pass remote renderer specs through:

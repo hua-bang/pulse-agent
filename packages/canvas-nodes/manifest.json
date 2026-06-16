@@ -18,6 +18,7 @@
     {
       "type": "excalidraw.board",
       "title": "Excalidraw Board",
+      "icon": "assets/excalidraw.svg",
       "capabilities": ["read", "write", "action"],
       "actions": ["set_scene", "append_elements", "add_text", "clear_scene", "summarize"],
       "renderer": {

@@ -197,6 +197,12 @@ export interface CanvasPluginConfigFieldStatus extends CanvasPluginConfigField {
 export interface CanvasPluginManifestNode {
   type: string;
   title?: string;
+  /**
+   * Optional icon hint for creation menus. Built-in tokens such as
+   * "plugin", "note", "todo", and "excalidraw" are supported; relative
+   * asset paths may be resolved by the host.
+   */
+  icon?: string;
   capabilities?: string[];
   actions?: string[];
   renderer?: {

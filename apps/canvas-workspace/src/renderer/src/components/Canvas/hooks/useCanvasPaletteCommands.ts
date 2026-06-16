@@ -1,9 +1,6 @@
 import { useMemo, type MutableRefObject } from 'react';
 import type { CanvasNode } from '../../../types';
-import {
-  createTodoListPluginNodePatch,
-  type CreatableCanvasNodeType,
-} from '../../../utils/nodeFactory';
+import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { PaletteCommand } from '../../CommandPalette';
 import type { AddNodeOptions } from '../../../hooks/useNodes';
 
@@ -200,25 +197,6 @@ export const useCanvasPaletteCommands = ({
         title: 'New mindmap',
         aliases: ['tree', 'topic', 'outline'],
         run: () => handleToolbarAddNode('mindmap'),
-      },
-      {
-        id: 'create-plugin-node',
-        group: 'create',
-        title: 'Create plugin node',
-        hint: 'Generic shell for external node plugins',
-        aliases: ['plugin', 'custom node', 'lego', 'extension'],
-        run: () => handleToolbarAddNode('plugin'),
-      },
-      {
-        id: 'create-todo-list-node',
-        group: 'create',
-        title: 'Create todo list node',
-        hint: 'Plugin node with read/write/action tasks',
-        aliases: ['todo', 'task', 'checklist', 'plugin todo'],
-        run: () => handleToolbarAddNode('plugin', {
-          label: 'Todo list',
-          nodePatch: createTodoListPluginNodePatch(),
-        }),
       },
       {
         id: 'fit-all',

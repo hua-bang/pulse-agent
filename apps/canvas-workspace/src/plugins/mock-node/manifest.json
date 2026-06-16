@@ -5,6 +5,7 @@
     {
       "type": "mock.card",
       "title": "Plugin Node",
+      "icon": "plugin",
       "capabilities": ["read", "write", "action"],
       "actions": ["increment"],
       "renderer": {
@@ -17,6 +18,7 @@
     {
       "type": "mock.todo-list",
       "title": "Todo List",
+      "icon": "todo",
       "capabilities": ["read", "write", "action"],
       "actions": ["add_item", "toggle_item", "clear_completed"],
       "renderer": {

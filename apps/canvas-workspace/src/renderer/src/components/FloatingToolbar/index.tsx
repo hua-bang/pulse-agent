@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
+import { inferPluginIcon, PluginNodeIcon } from './PluginNodeIcon';
 import { ShapeToolButton } from './ShapeToolButton';
 import { AppLogoIcon, CodingAgentIcon, PulseGlyphIcon } from '../icons';
 import { useI18n, type I18nKey } from '../../i18n';
-import {
-  createTodoListPluginNodePatch,
-  type CreatableCanvasNodeType,
-} from '../../utils/nodeFactory';
+import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { CanvasNode } from '../../types';
 import type {
   CanvasPluginEntry,
   CanvasPluginManifestNode,
   CanvasPluginsStatus,
 } from '../../types/settings-config';
+import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../constants/canvasPlugins';
 
 interface AddNodeUiOptions {
   label?: string;
@@ -88,6 +87,7 @@ interface PluginNodeOption {
   nodeType: string;
   title: string;
   pluginLabel: string;
+  icon?: string;
   version?: string;
   nodePatch?: Partial<CanvasNode>;
 }
@@ -96,16 +96,6 @@ const DEFAULT_PLUGIN_WIDTH = 640;
 const DEFAULT_PLUGIN_HEIGHT = 420;
 const EXCALIDRAW_BOARD_WIDTH = 900;
 const EXCALIDRAW_BOARD_HEIGHT = 640;
-
-function pluginNodeIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <rect x="3" y="3.5" width="12" height="11" rx="2" stroke="currentColor" strokeWidth="1.25" />
-      <path d="M6 6.5h6M6 9h6M6 11.5h3.5" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
-      <path d="M12.5 11.2v2.6M11.2 12.5h2.6" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round" />
-    </svg>
-  );
-}
 
 function manifestNodeTitle(node: CanvasPluginManifestNode): string {
   return typeof node.title === 'string' && node.title.trim() ? node.title.trim() : node.type;
@@ -123,6 +113,14 @@ function optionsFromPluginStatus(status: CanvasPluginsStatus | undefined): Plugi
   return options;
 }
 
+function statusFromPluginsChangedEvent(event: Event): CanvasPluginsStatus | undefined {
+  const detail = (event as CustomEvent<CanvasPluginsStatus | { status?: CanvasPluginsStatus }>).detail;
+  if (!detail || typeof detail !== 'object') return undefined;
+  if ('plugins' in detail && Array.isArray(detail.plugins)) return detail as CanvasPluginsStatus;
+  if ('status' in detail && detail.status) return detail.status;
+  return undefined;
+}
+
 function optionFromManifestNode(
   plugin: CanvasPluginEntry,
   node: CanvasPluginManifestNode,
@@ -137,6 +135,7 @@ function optionFromManifestNode(
     nodeType: node.type,
     title,
     pluginLabel: plugin.id,
+    icon: node.icon ?? inferPluginIcon(node.type),
     version: plugin.version,
     nodePatch: {
       title,
@@ -168,32 +167,11 @@ export const FloatingToolbar = ({
   const [pluginStatus, setPluginStatus] = useState<CanvasPluginsStatus | undefined>();
   const [pluginLoading, setPluginLoading] = useState(false);
 
-  const builtInPluginOptions = useMemo<PluginNodeOption[]>(() => [
-    {
-      key: 'builtin:mock.card',
-      pluginId: 'mock',
-      nodeType: 'mock.card',
-      title: t('canvas.toolbar.pluginGeneric'),
-      pluginLabel: t('canvas.toolbar.pluginBuiltIn'),
-    },
-    {
-      key: 'builtin:mock.todo-list',
-      pluginId: 'mock',
-      nodeType: 'mock.todo-list',
-      title: 'Todo List',
-      pluginLabel: t('canvas.toolbar.pluginBuiltIn'),
-      nodePatch: createTodoListPluginNodePatch(),
-    },
-  ], [t]);
-
-  const externalPluginOptions = useMemo(
+  const pluginOptions = useMemo(
     () => optionsFromPluginStatus(pluginStatus),
     [pluginStatus],
   );
-  const pluginOptions = useMemo(
-    () => [...builtInPluginOptions, ...externalPluginOptions],
-    [builtInPluginOptions, externalPluginOptions],
-  );
+  const showPluginTool = pluginOptions.length > 0;
 
   const loadPluginNodes = useCallback(async () => {
     const api = window.canvasWorkspace?.canvasPlugins;
@@ -209,6 +187,27 @@ export const FloatingToolbar = ({
       setPluginLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    void loadPluginNodes();
+  }, [loadPluginNodes]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      void loadPluginNodes();
+    };
+    const handlePluginsChanged = (event: Event) => {
+      const nextStatus = statusFromPluginsChangedEvent(event);
+      if (nextStatus) setPluginStatus(nextStatus);
+      else void loadPluginNodes();
+    };
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener(CANVAS_PLUGINS_CHANGED_EVENT, handlePluginsChanged);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener(CANVAS_PLUGINS_CHANGED_EVENT, handlePluginsChanged);
+    };
+  }, [loadPluginNodes]);
 
   useEffect(() => {
     if (!pluginMenuOpen) return undefined;
@@ -415,46 +414,44 @@ export const FloatingToolbar = ({
             <span className="toolbar-btn-label">{t('canvas.toolbar.team')}</span>
           </button>
         )}
-        <div className="plugin-tool-menu" ref={pluginMenuRef}>
-          <button
-            className={`toolbar-btn toolbar-btn--create${pluginMenuOpen ? ' toolbar-btn--active' : ''}`}
-            onClick={togglePluginMenu}
-            aria-label={t('canvas.toolbar.addPluginNode')}
-            aria-haspopup="menu"
-            aria-expanded={pluginMenuOpen}
-            data-tooltip={t('canvas.toolbar.plugin')}
-          >
-            {pluginNodeIcon()}
-            <span className="toolbar-btn-label">{t('canvas.toolbar.plugin')}</span>
-          </button>
-          {pluginMenuOpen && (
-            <div className="plugin-tool-popover" role="menu" aria-label={t('canvas.toolbar.plugin')}>
-              {pluginOptions.map((option) => (
-                <button
-                  key={option.key}
-                  type="button"
-                  className="plugin-tool-option"
-                  role="menuitem"
-                  onClick={() => createPluginNode(option)}
-                >
-                  <span className="plugin-tool-option__icon">{pluginNodeIcon()}</span>
-                  <span className="plugin-tool-option__copy">
-                    <span className="plugin-tool-option__title">{option.title}</span>
-                    <span className="plugin-tool-option__meta">
-                      {option.pluginLabel} / {option.nodeType}
+        {showPluginTool && (
+          <div className="plugin-tool-menu" ref={pluginMenuRef}>
+            <button
+              className={`toolbar-btn toolbar-btn--create${pluginMenuOpen ? ' toolbar-btn--active' : ''}`}
+              onClick={togglePluginMenu}
+              aria-label={t('canvas.toolbar.addPluginNode')}
+              aria-haspopup="menu"
+              aria-expanded={pluginMenuOpen}
+              data-tooltip={t('canvas.toolbar.plugin')}
+            >
+              <PluginNodeIcon icon="plugin" />
+              <span className="toolbar-btn-label">{t('canvas.toolbar.plugin')}</span>
+            </button>
+            {pluginMenuOpen && (
+              <div className="plugin-tool-popover" role="menu" aria-label={t('canvas.toolbar.plugin')}>
+                {pluginOptions.map((option) => (
+                  <button
+                    key={option.key}
+                    type="button"
+                    className="plugin-tool-option"
+                    role="menuitem"
+                    onClick={() => createPluginNode(option)}
+                  >
+                    <span className="plugin-tool-option__icon">
+                      <PluginNodeIcon icon={option.icon ?? inferPluginIcon(option.nodeType)} />
                     </span>
-                  </span>
-                </button>
-              ))}
-              {pluginLoading && (
-                <div className="plugin-tool-empty">{t('canvas.toolbar.pluginLoading')}</div>
-              )}
-              {!pluginLoading && externalPluginOptions.length === 0 && (
-                <div className="plugin-tool-empty">{t('canvas.toolbar.pluginOnlyBuiltIn')}</div>
-              )}
-            </div>
-          )}
-        </div>
+                    <span className="plugin-tool-option__copy">
+                      <span className="plugin-tool-option__title">{option.title}</span>
+                    </span>
+                  </button>
+                ))}
+                {pluginLoading && (
+                  <div className="plugin-tool-empty">{t('canvas.toolbar.pluginLoading')}</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
