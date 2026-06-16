@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SHAPE_KINDS, ShapePrimitive, type ShapeKind } from '../../utils/shapeGeometry';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useI18n, type I18nKey } from '../../i18n';
 
 interface Props {
@@ -53,17 +55,10 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
     if (activeKind) setLastKind(activeKind);
   }, [activeKind]);
 
-  // Close popover on outside click.
-  useEffect(() => {
-    if (!popoverOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setPopoverOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [popoverOpen]);
+  // Close the popover on outside click or Escape, matching every other
+  // canvas overlay.
+  useClickOutside(rootRef, () => setPopoverOpen(false), popoverOpen);
+  useEscapeClose(popoverOpen, () => setPopoverOpen(false));
 
   const handleMainClick = useCallback(() => {
     onToolChange(`${SHAPE_TOOL_PREFIX}${displayKind}`);
