@@ -215,6 +215,12 @@ export interface NodeSummary {
   refWorkspaceId?: string;
   /** For reference nodes: human-readable name of the source workspace. */
   refWorkspaceName?: string;
+  /** Owning plugin id for custom plugin nodes. */
+  pluginId?: string;
+  /** Plugin-defined node type, e.g. `mock.card` or `design.frame`. */
+  pluginNodeType?: string;
+  /** Registered semantic capabilities available to the Canvas Agent. */
+  pluginCapabilities?: Array<'read' | 'write' | 'action'>;
 }
 
 /**

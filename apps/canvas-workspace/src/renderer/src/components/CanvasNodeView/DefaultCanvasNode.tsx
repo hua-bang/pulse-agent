@@ -1,12 +1,23 @@
-import type { CSSProperties, FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
+import {
+  useCallback,
+  useState,
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import { AgentNodeBody } from '../AgentNodeBody';
 import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
 import { FileNodeBody } from '../FileNodeBody';
 import { FrameNodeBody } from '../FrameNodeBody';
 import { IframeNodeBody } from '../IframeNodeBody';
+import { PluginNodeBody } from '../PluginNodeBody';
 import { TerminalNodeBody } from '../TerminalNodeBody';
 import { TextNodeBody } from '../TextNodeBody';
+import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { ResizeHandlerFactory } from './types';
@@ -87,77 +98,153 @@ export const DefaultCanvasNode = ({
   workspaceId,
   workspaceName,
   wrapperStyle,
-}: DefaultCanvasNodeProps) => (
-  <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
-    <CanvasNodeHeader
-      fullscreenButton={fullscreenButton}
-      containerDescendantCount={containerDescendantCount}
-      handleClose={handleClose}
-      handleFocus={handleFocus}
-      handleHeaderMouseDown={handleHeaderMouseDown}
-      handleReference={handleReference}
-      handleAddToChat={handleAddToChat}
-      handleTitleBlur={handleTitleBlur}
-      handleTitleDoubleClick={handleTitleDoubleClick}
-      handleTitleKeyDown={handleTitleKeyDown}
-      handleUngroup={handleUngroup}
-      isEditingTitle={isEditingTitle}
-      isFullscreen={isFullscreen}
-      isSelected={isSelected}
-      node={node}
-      onReference={onReference}
-      onAddToChat={onAddToChat}
-      onUngroupSelectedGroups={onUngroupSelectedGroups}
-      onUpdate={onUpdate}
-      readOnly={readOnly}
-      relativeTime={relativeTime}
-      titleRef={titleRef}
-    />
-    <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
-      {node.type === 'file' ? (
-        <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />
-      ) : node.type === 'terminal' ? (
-        <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
-      ) : node.type === 'frame' || node.type === 'group' ? (
-        <FrameNodeBody
-          node={node}
-          getAllNodes={getAllNodes}
-          onUpdate={onUpdate}
-          onRemoveNodes={onRemoveNodes}
-          rootFolder={rootFolder}
-          workspaceId={workspaceId}
-          workspaceName={workspaceName}
-          readOnly={readOnly}
-        />
-      ) : node.type === 'text' ? (
-        <TextNodeBody
-          node={node}
-          onUpdate={onUpdate}
-          isSelected={isSelected}
-          onSelect={onSelect}
-          onDragStart={onDragStart}
-          readOnly={readOnly}
-        />
-      ) : node.type === 'iframe' ? (
-        <IframeNodeBody
-          node={node}
-          workspaceId={workspaceId}
-          onUpdate={onUpdate}
-          isResizing={isResizing}
-          onAddDomSelectionToChat={onAddDomSelectionToChat}
-          readOnly={readOnly}
-        />
-      ) : node.type === 'dynamic-app' ? (
-        <DynamicAppNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
-      ) : (
-        <AgentNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
-      )}
+}: DefaultCanvasNodeProps) => {
+  const { notify } = useAppShell();
+  const [pluginElementPickerActive, setPluginElementPickerActive] = useState(false);
+
+  const handlePluginSelectElement = useCallback((event: MouseEvent) => {
+    event.stopPropagation();
+    if (!workspaceId) {
+      notify({
+        tone: 'error',
+        title: 'Could not select element',
+        description: 'This workspace is not ready yet.',
+        autoCloseMs: 3200,
+      });
+      return;
+    }
+
+    if (pluginElementPickerActive) {
+      setPluginElementPickerActive(false);
+      void window.canvasWorkspace.iframe.cancelDomElementPick(workspaceId, node.id)
+        .then((result) => {
+          if (!result.ok) {
+            console.warn('[plugin-node] failed to cancel DOM picker', result.error);
+          }
+        })
+        .catch((err) => {
+          console.warn('[plugin-node] failed to cancel DOM picker', err);
+        });
+      return;
+    }
+
+    setPluginElementPickerActive(true);
+    void (async () => {
+      try {
+        const result = await window.canvasWorkspace.iframe.pickDomElement(workspaceId, node.id);
+        if (result.ok && result.selection) {
+          onAddDomSelectionToChat?.({
+            ...result.selection,
+            workspaceId,
+            nodeId: node.id,
+            nodeTitle: node.title,
+          });
+          notify({
+            tone: 'success',
+            title: 'DOM selection added',
+            description: result.selection.label,
+            autoCloseMs: 1800,
+          });
+          return;
+        }
+
+        if (!result.cancelled) {
+          notify({
+            tone: 'error',
+            title: 'Could not select element',
+            description: result.error ?? 'This plugin does not have an active webview yet.',
+            autoCloseMs: 3600,
+          });
+        }
+      } catch (err) {
+        notify({
+          tone: 'error',
+          title: 'Could not select element',
+          description: err instanceof Error ? err.message : String(err),
+          autoCloseMs: 3600,
+        });
+      } finally {
+        setPluginElementPickerActive(false);
+      }
+    })();
+  }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
+
+  return (
+    <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
+      <CanvasNodeHeader
+        fullscreenButton={fullscreenButton}
+        containerDescendantCount={containerDescendantCount}
+        handleClose={handleClose}
+        handleFocus={handleFocus}
+        handleHeaderMouseDown={handleHeaderMouseDown}
+        handlePluginSelectElement={handlePluginSelectElement}
+        handleReference={handleReference}
+        handleAddToChat={handleAddToChat}
+        handleTitleBlur={handleTitleBlur}
+        handleTitleDoubleClick={handleTitleDoubleClick}
+        handleTitleKeyDown={handleTitleKeyDown}
+        handleUngroup={handleUngroup}
+        isEditingTitle={isEditingTitle}
+        isFullscreen={isFullscreen}
+        isSelected={isSelected}
+        node={node}
+        pluginElementPickerActive={pluginElementPickerActive}
+        onReference={onReference}
+        onAddToChat={onAddToChat}
+        onUngroupSelectedGroups={onUngroupSelectedGroups}
+        onUpdate={onUpdate}
+        readOnly={readOnly}
+        relativeTime={relativeTime}
+        titleRef={titleRef}
+      />
+      <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
+        {node.type === 'file' ? (
+          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />
+        ) : node.type === 'terminal' ? (
+          <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
+        ) : node.type === 'frame' || node.type === 'group' ? (
+          <FrameNodeBody
+            node={node}
+            getAllNodes={getAllNodes}
+            onUpdate={onUpdate}
+            onRemoveNodes={onRemoveNodes}
+            rootFolder={rootFolder}
+            workspaceId={workspaceId}
+            workspaceName={workspaceName}
+            readOnly={readOnly}
+          />
+        ) : node.type === 'text' ? (
+          <TextNodeBody
+            node={node}
+            onUpdate={onUpdate}
+            isSelected={isSelected}
+            onSelect={onSelect}
+            onDragStart={onDragStart}
+            readOnly={readOnly}
+          />
+        ) : node.type === 'iframe' ? (
+          <IframeNodeBody
+            node={node}
+            workspaceId={workspaceId}
+            onUpdate={onUpdate}
+            isResizing={isResizing}
+            onAddDomSelectionToChat={onAddDomSelectionToChat}
+            readOnly={readOnly}
+          />
+        ) : node.type === 'dynamic-app' ? (
+          <DynamicAppNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
+        ) : node.type === 'plugin' ? (
+          <PluginNodeBody node={node} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />
+        ) : (
+          <AgentNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
+        )}
+      </div>
+      <NodeResizeHandles
+        isFullscreen={isFullscreen}
+        makeResizeHandler={makeResizeHandler}
+        nodeType={node.type}
+        readOnly={readOnly}
+      />
     </div>
-    <NodeResizeHandles
-      isFullscreen={isFullscreen}
-      makeResizeHandler={makeResizeHandler}
-      nodeType={node.type}
-      readOnly={readOnly}
-    />
-  </div>
-);
+  );
+};

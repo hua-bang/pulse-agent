@@ -4,7 +4,14 @@ import type {
   CanvasToolFactory,
   MainCanvasPlugin,
   MainCtx,
+  PluginCanvasSnapshot,
+  PluginNodeCapabilities,
+  PluginNodeCapabilityEntry,
 } from '../types';
+import { loadCanvas } from '../../main/agent/tools/_shared/canvas-io';
+import { resolveCanvasPluginConfigValue } from '../../main/settings/canvas-plugins-config';
+import { withCdp, type CdpSender } from '../../main/webview/cdp-session';
+import { getWebContentsForNode } from '../../main/webview/registry';
 import { agentBus } from './agent-bus';
 import { createPluginStore } from './plugin-store';
 
@@ -37,8 +44,10 @@ const deactivators: Array<{ id: string; deactivate: () => void | Promise<void> }
  * canvas-agent construction time to assemble plugin-contributed tools.
  */
 const canvasToolFactories = new Map<string, CanvasToolFactory>();
+const nodeCapabilities = new Map<string, PluginNodeCapabilityEntry>();
 
-export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<void> {
+export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<string[]> {
+  const activated: string[] = [];
   for (const plugin of plugins) {
     if (loaded.has(plugin.id)) {
       console.warn(`[canvas-plugins] duplicate plugin id, skipping: ${plugin.id}`);
@@ -50,11 +59,33 @@ export async function setupCanvasPlugins(plugins: MainCanvasPlugin[]): Promise<v
     try {
       await plugin.activate(createMainCtx(plugin.id));
       loaded.add(plugin.id);
+      activated.push(plugin.id);
       if (plugin.deactivate) {
         deactivators.push({ id: plugin.id, deactivate: plugin.deactivate.bind(plugin) });
       }
     } catch (err) {
       console.error(`[canvas-plugins] activate failed for ${plugin.id}`, err);
+    }
+  }
+  return activated;
+}
+
+export async function deactivateCanvasPlugin(pluginId: string): Promise<void> {
+  if (!loaded.has(pluginId)) return;
+  loaded.delete(pluginId);
+  canvasToolFactories.delete(pluginId);
+  for (const [nodeType, entry] of Array.from(nodeCapabilities.entries())) {
+    if (entry.pluginId === pluginId) nodeCapabilities.delete(nodeType);
+  }
+
+  for (let index = deactivators.length - 1; index >= 0; index -= 1) {
+    const item = deactivators[index];
+    if (item.id !== pluginId) continue;
+    deactivators.splice(index, 1);
+    try {
+      await item.deactivate();
+    } catch (err) {
+      console.error(`[canvas-plugins] deactivate failed for ${pluginId}`, err);
     }
   }
 }
@@ -87,9 +118,48 @@ export function getRegisteredCanvasToolFactories(): ReadonlyArray<[string, Canva
   return Array.from(canvasToolFactories.entries());
 }
 
+export function getRegisteredNodeCapabilities(): ReadonlyArray<PluginNodeCapabilityEntry> {
+  return Array.from(nodeCapabilities.values());
+}
+
+export function getRegisteredNodeCapability(
+  nodeType: string,
+): PluginNodeCapabilityEntry | undefined {
+  return nodeCapabilities.get(nodeType);
+}
+
 function createMainCtx(pluginId: string): MainCtx {
   return {
     store: createPluginStore(pluginId),
+    config: {
+      async get(key) {
+        return await resolveCanvasPluginConfigValue(pluginId, key);
+      },
+    },
+    canvas: {
+      async read(workspaceId): Promise<PluginCanvasSnapshot | null> {
+        const canvas = await loadCanvas(workspaceId);
+        return canvas ? { nodes: canvas.nodes as unknown as PluginCanvasSnapshot['nodes'] } : null;
+      },
+    },
+    webviews: {
+      get(workspaceId, nodeId) {
+        return getWebContentsForNode(workspaceId, nodeId) ?? null;
+      },
+      async withCdp<T>(
+        workspaceId: string,
+        nodeId: string,
+        fn: (send: CdpSender) => Promise<T>,
+      ): Promise<T> {
+        const webContents = getWebContentsForNode(workspaceId, nodeId);
+        if (!webContents) {
+          throw new Error(
+            `No active webview found for node ${workspaceId}::${nodeId}. Open the node so its webview is mounted.`,
+          );
+        }
+        return await withCdp(webContents, fn);
+      },
+    },
     handle(channel, handler) {
       const fqChannel = `plugin:${pluginId}:${channel}`;
       // Cast at the boundary: MainCtx exposes a structural IpcInvokeEvent
@@ -118,6 +188,23 @@ function createMainCtx(pluginId: string): MainCtx {
         );
       }
       canvasToolFactories.set(pluginId, factory);
+    },
+    registerNodeCapabilities(nodeType: string, capabilities: PluginNodeCapabilities) {
+      const normalizedNodeType = nodeType.trim();
+      if (!normalizedNodeType) {
+        console.warn(`[canvas-plugins] ${pluginId} tried to register empty node capabilities`);
+        return;
+      }
+      if (nodeCapabilities.has(normalizedNodeType)) {
+        console.warn(
+          `[canvas-plugins] duplicate node capabilities "${normalizedNodeType}" from ${pluginId}; replacing previous registration`,
+        );
+      }
+      nodeCapabilities.set(normalizedNodeType, {
+        pluginId,
+        nodeType: normalizedNodeType,
+        capabilities,
+      });
     },
   };
 }

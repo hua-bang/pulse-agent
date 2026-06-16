@@ -62,6 +62,33 @@ export const FocusButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) =
   </button>
 );
 
+export const PluginSelectElementButton = ({
+  active,
+  onClick,
+}: {
+  active?: boolean;
+  onClick: (e: MouseEvent) => void;
+}) => (
+  <button
+    className={`node-plugin-select${active ? ' node-plugin-select--active' : ''}`}
+    type="button"
+    onClick={onClick}
+    onMouseDown={(e) => e.stopPropagation()}
+    title={active ? 'Cancel element selection' : 'Select element for AI Chat'}
+    aria-label={active ? 'Cancel plugin element selection' : 'Select plugin element for AI Chat'}
+  >
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path
+        d="M1.8 3.8V2.6a.8.8 0 01.8-.8h1.2M8.2 1.8h1.2a.8.8 0 01.8.8v1.2M10.2 8.2v1.2a.8.8 0 01-.8.8H8.2M3.8 10.2H2.6a.8.8 0 01-.8-.8V8.2M5 4.8l2.9 1.1-1.3.7 1.2 1.7-1 .7-1.1-1.7-1 1.1L5 4.8z"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </button>
+);
+
 export const ReferenceButton = ({
   nodeTitle,
   onClick,

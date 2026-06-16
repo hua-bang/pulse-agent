@@ -7,6 +7,7 @@ const REFERENCEABLE_NODE_TYPES = new Set<CanvasNode['type']>([
   'image',
   'shape',
   'mindmap',
+  'plugin',
 ]);
 
 export const isReferenceableNodeType = (type: CanvasNode['type'] | undefined): boolean => (

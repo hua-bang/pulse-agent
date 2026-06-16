@@ -354,6 +354,37 @@ export async function pickDomElementForNode(
   }
 }
 
+export async function cancelDomElementPickForNode(
+  workspaceId: string,
+  nodeId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const wc = getWebContentsForNode(workspaceId, nodeId);
+  if (!wc) {
+    return {
+      ok: false,
+      error:
+        `No active webview for node ${nodeId} in workspace ${workspaceId}.`,
+    };
+  }
+
+  try {
+    const cancelled = await wc.executeJavaScript(
+      `(() => {
+        const cancel = window.__pulseDomPickerCancel;
+        if (typeof cancel !== 'function') return false;
+        cancel('cancelled');
+        return true;
+      })()`,
+      false,
+    ) as boolean;
+    return cancelled
+      ? { ok: true }
+      : { ok: false, error: 'No active DOM picker for this node.' };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /**
  * Pull the rendered text of the webview hosting an iframe node.
  *
@@ -466,6 +497,16 @@ export function setupWebviewRegistryIpc(): void {
         return { ok: false, error: 'workspaceId and nodeId are required' };
       }
       return pickDomElementForNode(payload.workspaceId, payload.nodeId);
+    },
+  );
+
+  ipcMain.handle(
+    'iframe:cancel-dom-element-pick',
+    async (_event, payload: { workspaceId: string; nodeId: string }) => {
+      if (!payload?.workspaceId || !payload?.nodeId) {
+        return { ok: false, error: 'workspaceId and nodeId are required' };
+      }
+      return cancelDomElementPickForNode(payload.workspaceId, payload.nodeId);
     },
   );
 }

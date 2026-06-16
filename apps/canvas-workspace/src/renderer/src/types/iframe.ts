@@ -19,4 +19,11 @@ export interface IframeApi {
     error?: string;
     cancelled?: boolean;
   }>;
+  cancelDomElementPick: (
+    workspaceId: string,
+    nodeId: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+  }>;
 }

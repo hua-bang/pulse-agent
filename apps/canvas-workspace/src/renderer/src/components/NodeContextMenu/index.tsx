@@ -4,12 +4,13 @@ import { useViewportClampedPosition } from "../../hooks/useViewportClampedPositi
 import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
 import { useClickOutside } from "../../hooks/useClickOutside";
 import { useI18n } from "../../i18n";
+import type { CreatableCanvasNodeType } from "../../utils/nodeFactory";
 
 interface Props {
   x: number;
   y: number;
   mode?: "create" | "mindmap";
-  onCreate?: (type: "file" | "terminal" | "frame" | "group" | "agent" | "text" | "iframe" | "mindmap") => void;
+  onCreate?: (type: CreatableCanvasNodeType) => void;
   onExportImage?: () => void;
   onClose: () => void;
 }

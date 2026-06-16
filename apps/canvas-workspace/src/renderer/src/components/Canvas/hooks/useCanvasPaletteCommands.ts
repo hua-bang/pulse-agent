@@ -1,6 +1,8 @@
 import { useMemo, type MutableRefObject } from 'react';
 import type { CanvasNode } from '../../../types';
+import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { PaletteCommand } from '../../CommandPalette';
+import type { AddNodeOptions } from '../../../hooks/useNodes';
 
 interface Options {
   selectedNodeIds: string[];
@@ -16,7 +18,8 @@ interface Options {
   ungroupSelectedNodes: () => void;
   wrapSelectedNodesInFrame: () => void;
   handleToolbarAddNode: (
-    type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap',
+    type: CreatableCanvasNodeType,
+    options?: AddNodeOptions & { label?: string },
   ) => void;
   fitAllNodes: (nodes: CanvasNode[]) => void;
   resetTransform: () => void;

@@ -1,0 +1,30 @@
+{
+  "name": "@pulse-canvas/nodes",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "External Pulse Canvas node plugins packaged as runtime-loadable plugin directories.",
+  "scripts": {
+    "build": "pnpm build:renderer && pnpm build:webview && pnpm build:main",
+    "build:renderer": "vite build",
+    "build:webview": "vite build --config vite.webview.config.ts",
+    "build:main": "vite build --config vite.main.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "vite": "^5.4.21",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@module-federation/vite": "^1.16.8",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.6.3",
+    "vitest": "^1.0.0"
+  }
+}

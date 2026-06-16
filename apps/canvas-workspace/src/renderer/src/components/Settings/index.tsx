@@ -25,10 +25,11 @@ import { LanguageSection } from './LanguageSection';
 import { UpdateSection } from './UpdateSection';
 import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
+import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
 import './index.css';
 
-export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'experimental' | 'updates' | 'language';
+export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'plugins' | 'experimental' | 'updates' | 'language';
 
 const GLOBAL_SCOPE = { level: 'global' } as const;
 
@@ -75,6 +76,12 @@ const SECTIONS: SectionDef[] = [
     labelKey: 'settings.mcp.label',
     descriptionKey: 'settings.mcp.description',
     titleKey: 'settings.mcp.title',
+  },
+  {
+    id: 'plugins',
+    labelKey: 'settings.plugins.label',
+    descriptionKey: 'settings.plugins.description',
+    titleKey: 'settings.plugins.title',
   },
   {
     id: 'experimental',
@@ -174,6 +181,11 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           {activeSection === 'mcp' && (
             <div className="cfg-pane">
               <McpManager scope={GLOBAL_SCOPE} />
+            </div>
+          )}
+          {activeSection === 'plugins' && (
+            <div className="cfg-pane">
+              <PluginsManager />
             </div>
           )}
           {activeSection === 'experimental' && <ExperimentalSection onClose={onClose} />}

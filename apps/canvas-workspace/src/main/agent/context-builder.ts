@@ -12,6 +12,12 @@ import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
 import type { CanvasNodeRef } from '../../shared/canvas';
 import { getNodeRenderedText } from '../webview/registry';
 import { readCanvasFull } from '../canvas/storage';
+import {
+  formatPluginNodeFallbackContent,
+  getPluginNodeCapabilityKinds,
+  getPluginNodeIdentity,
+  readPluginNodeCapability,
+} from './plugin-node-capabilities';
 
 const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
 
@@ -348,6 +354,16 @@ function summarizeNode(node: CanvasNode): NodeSummary {
       }
       break;
     }
+    case 'plugin': {
+      const identity = getPluginNodeIdentity(node);
+      if (identity) {
+        summary.pluginId = identity.pluginId;
+        summary.pluginNodeType = identity.nodeType;
+        summary.pluginCapabilities = getPluginNodeCapabilityKinds(node);
+        if (!summary.title) summary.title = identity.nodeType;
+      }
+      break;
+    }
     case 'reference': {
       // A reference is a shell that mirrors a source node (usually in another
       // canvas). The lightweight summary stays cheap — it surfaces where the
@@ -443,6 +459,12 @@ interface DetailedNodeContext extends NodeSummary {
   content?: string;
   scrollback?: string;
   cwd?: string;
+  plugin?: {
+    pluginId: string;
+    nodeType: string;
+    capabilities: Array<'read' | 'write' | 'action'>;
+    readResult?: unknown;
+  };
 }
 
 interface DetailedWorkspaceContext {
@@ -542,6 +564,7 @@ async function populateReferenceDetail(
   detailed.imagePath = sourceDetail.imagePath;
   detailed.rootText = sourceDetail.rootText;
   detailed.topicCount = sourceDetail.topicCount;
+  detailed.plugin = sourceDetail.plugin;
   detailed.refType = resolved.node.type;
   detailed.refNodeId = resolved.node.id;
   detailed.refWorkspaceId = resolved.workspaceId;
@@ -610,6 +633,21 @@ async function populateNodeDetail(
     case 'mindmap': {
       const root = node.data.root as MindmapTopic | undefined;
       detailed.content = root ? flattenMindmapTopics(root) : '';
+      break;
+    }
+    case 'plugin': {
+      const read = await readPluginNodeCapability(workspaceId, node);
+      if (read) {
+        detailed.content = read.content;
+        detailed.plugin = {
+          pluginId: read.pluginId,
+          nodeType: read.nodeType,
+          capabilities: read.capabilities,
+          readResult: read.result,
+        };
+      } else {
+        detailed.content = formatPluginNodeFallbackContent(node);
+      }
       break;
     }
     case 'reference':
@@ -778,6 +816,24 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
       const wsHint = n.refWorkspaceName ? ` — in "${n.refWorkspaceName}"` : '';
       const idHint = n.refNodeId ? ` → [${n.refNodeId}]` : '';
       lines.push(`- [${n.id}] **${n.title}**${typeHint}${wsHint}${idHint}`);
+    }
+    lines.push('');
+  }
+
+  if (byType.plugin?.length) {
+    lines.push('## Plugin Nodes');
+    lines.push(
+      '_Custom software-lego nodes. Use `canvas_read_node` for semantic content, ' +
+      'and `canvas_plugin_node_write` / `canvas_plugin_node_action` when the listed capabilities allow it._',
+    );
+    for (const n of byType.plugin) {
+      const identity = n.pluginId && n.pluginNodeType
+        ? ` (${n.pluginId}/${n.pluginNodeType})`
+        : '';
+      const capabilities = n.pluginCapabilities?.length
+        ? ` [${n.pluginCapabilities.join(', ')}]`
+        : '';
+      lines.push(`- [${n.id}] **${n.title}**${identity}${capabilities}`);
     }
     lines.push('');
   }

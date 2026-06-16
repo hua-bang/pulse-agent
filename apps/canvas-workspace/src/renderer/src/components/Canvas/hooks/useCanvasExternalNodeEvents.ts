@@ -28,6 +28,7 @@ function coerceCanvasNodeType(value: unknown): CanvasNode['type'] | null {
     || value === 'shape'
     || value === 'mindmap'
     || value === 'reference'
+    || value === 'plugin'
   ) {
     return value;
   }

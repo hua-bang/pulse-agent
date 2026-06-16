@@ -1,4 +1,4 @@
-import { app, type WebContents } from "electron";
+import { app, shell, type WebContents } from "electron";
 import { isSafeExternalUrl } from "./shell-ipc";
 
 // Centralized popup policy. Fires for every webContents the app ever creates:
@@ -14,6 +14,11 @@ export function setupLinkPolicy(): void {
   app.on("web-contents-created", (_event, contents) => {
     contents.setWindowOpenHandler(({ url, disposition }) => {
       if (!isSafeExternalUrl(url)) return { action: "deny" };
+
+      if (isExternalAuthUrl(url)) {
+        openExternal(url);
+        return { action: "deny" };
+      }
 
       // OAuth-style popups need a real BrowserWindow. The page reads back the
       // returned window reference and relies on opener messaging / window.close
@@ -37,13 +42,55 @@ export function setupLinkPolicy(): void {
         } catch {
           crossOrigin = true;
         }
+        if (crossOrigin && isEmbeddedAuthNavigation(currentUrl, url)) {
+          return;
+        }
         if (crossOrigin && isSafeExternalUrl(url)) {
           event.preventDefault();
-          forwardLinkToRenderer(contents, url);
+          if (isExternalAuthUrl(url)) {
+            openExternal(url);
+          } else {
+            forwardLinkToRenderer(contents, url);
+          }
         }
       });
     }
   });
+}
+
+function isEmbeddedAuthNavigation(currentRaw: string, nextRaw: string): boolean {
+  try {
+    const current = new URL(currentRaw);
+    const next = new URL(nextRaw);
+    return isFigmaSamlCallback(next) || (isFigmaHost(current.hostname) && isLikelySsoHost(next.hostname));
+  } catch {
+    return false;
+  }
+}
+
+function isFigmaHost(hostname: string): boolean {
+  return hostname === "figma.com" || hostname === "www.figma.com";
+}
+
+function isLikelySsoHost(hostname: string): boolean {
+  return hostname.includes("sso") || hostname.includes("okta") || hostname.includes("onelogin");
+}
+
+function isFigmaSamlCallback(url: URL): boolean {
+  return isFigmaHost(url.hostname) && /^\/saml\/[^/]+\/consume\/?$/i.test(url.pathname);
+}
+
+function isExternalAuthUrl(raw: string): boolean {
+  try {
+    const { hostname } = new URL(raw);
+    return hostname === "accounts.google.com";
+  } catch {
+    return false;
+  }
+}
+
+function openExternal(url: string): void {
+  void shell.openExternal(url).catch(() => undefined);
 }
 
 function forwardLinkToRenderer(contents: WebContents, url: string): void {

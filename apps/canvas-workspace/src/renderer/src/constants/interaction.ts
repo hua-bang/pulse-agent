@@ -36,6 +36,7 @@ export const NODE_TYPE_LABELS: Record<CanvasNode['type'], string> = {
   shape: 'Shape',
   mindmap: 'Mindmap',
   reference: 'Reference',
+  plugin: 'Plugin',
 };
 
 export const EMPTY_CANVAS_ACTIONS: Array<{

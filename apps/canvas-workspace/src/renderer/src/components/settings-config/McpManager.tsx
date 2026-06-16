@@ -14,6 +14,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type {
   CanvasConfigScope,
+  CanvasMcpAuth,
+  CanvasMcpOAuthStatus,
   CanvasMcpServer,
   CanvasMcpServerHealth,
   CanvasMcpStatus,
@@ -34,6 +36,10 @@ interface Draft {
   transport: CanvasMcpTransport;
   url: string;
   headersText: string;
+  auth: CanvasMcpAuth;
+  oauthClientId: string;
+  oauthClientSecret: string;
+  oauthScope: string;
   command: string;
   argsText: string;
   envText: string;
@@ -46,6 +52,10 @@ const EMPTY_DRAFT: Draft = {
   transport: 'http',
   url: '',
   headersText: '',
+  auth: 'none',
+  oauthClientId: '',
+  oauthClientSecret: '',
+  oauthScope: '',
   command: '',
   argsText: '',
   envText: '',
@@ -81,6 +91,10 @@ function serverToDraft(server: CanvasMcpServer): Draft {
     transport: server.transport,
     url: server.url ?? '',
     headersText: stringifyKeyValues(server.headers),
+    auth: server.auth ?? 'none',
+    oauthClientId: server.oauth?.clientId ?? '',
+    oauthClientSecret: server.oauth?.clientSecret ?? '',
+    oauthScope: server.oauth?.scope ?? '',
     command: server.command ?? '',
     argsText: (server.args ?? []).join('\n'),
     envText: stringifyKeyValues(server.env),
@@ -106,8 +120,25 @@ function draftToServer(draft: Draft): CanvasMcpServer {
     server.url = draft.url.trim();
     const headers = parseKeyValues(draft.headersText);
     if (Object.keys(headers).length) server.headers = headers;
+    if (draft.auth === 'oauth') {
+      server.auth = 'oauth';
+      const oauth = {
+        clientId: draft.oauthClientId.trim(),
+        clientSecret: draft.oauthClientSecret.trim(),
+        scope: draft.oauthScope.trim(),
+      };
+      const cleanOauth: NonNullable<CanvasMcpServer['oauth']> = {};
+      if (oauth.clientId) cleanOauth.clientId = oauth.clientId;
+      if (oauth.clientSecret) cleanOauth.clientSecret = oauth.clientSecret;
+      if (oauth.scope) cleanOauth.scope = oauth.scope;
+      if (Object.keys(cleanOauth).length) server.oauth = cleanOauth;
+    }
   }
   return server;
+}
+
+function authDraftForTransport(transport: CanvasMcpTransport, draft: Draft): CanvasMcpAuth {
+  return transport === 'stdio' ? 'none' : draft.auth;
 }
 
 interface HealthBadgeProps {
@@ -183,8 +214,10 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
   const { notify } = useAppShell();
   const [servers, setServers] = useState<CanvasMcpServer[]>([]);
   const [statuses, setStatuses] = useState<Record<string, CanvasMcpServerHealth>>({});
+  const [oauthStatuses, setOauthStatuses] = useState<Record<string, CanvasMcpOAuthStatus>>({});
   const [inherited, setInherited] = useState<CanvasMcpServer[]>([]);
   const [inheritedStatuses, setInheritedStatuses] = useState<Record<string, CanvasMcpServerHealth>>({});
+  const [inheritedOauthStatuses, setInheritedOauthStatuses] = useState<Record<string, CanvasMcpOAuthStatus>>({});
   const [path, setPath] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -194,6 +227,7 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
   // currently mid-toggle (so we can disable just that one checkbox).
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busyTool, setBusyTool] = useState<string | null>(null);
+  const [busyOAuth, setBusyOAuth] = useState<string | null>(null);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
   const inheritedEnabled = showInherited && scope.level === 'workspace';
 
@@ -201,6 +235,7 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
     setServers(status.servers);
     setPath(status.path);
     setStatuses(status.statuses ?? {});
+    setOauthStatuses(status.oauthStatuses ?? {});
   }, []);
 
   const load = useCallback(async () => {
@@ -215,10 +250,12 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
       if (g.ok && g.status) {
         setInherited(g.status.servers);
         setInheritedStatuses(g.status.statuses ?? {});
+        setInheritedOauthStatuses(g.status.oauthStatuses ?? {});
       }
     } else {
       setInherited([]);
       setInheritedStatuses({});
+      setInheritedOauthStatuses({});
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey, inheritedEnabled, applyStatus, t]);
@@ -242,12 +279,15 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         applyStatus(res.status);
         setDraft(null);
         // Toast the connection outcome so the user knows it actually worked.
-        const health = res.status.statuses?.[draftToServer(draft).name];
+        const server = draftToServer(draft);
+        const health = res.status.statuses?.[server.name];
         if (health?.ok) {
           notify({
             tone: 'success',
             title: t('mcpConfig.savedOk', { name: draft.name, count: health.toolCount }),
           });
+        } else if (server.auth === 'oauth' && !health?.ok) {
+          notify({ tone: 'success', title: t('mcpConfig.oauthSavedPending', { name: draft.name }) });
         } else if (health && !health.ok) {
           notify({ tone: 'error', title: t('mcpConfig.savedErr', { name: draft.name }), description: health.error });
         }
@@ -279,6 +319,42 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         else notify({ tone: 'error', title: res.error ?? t('mcpConfig.toolUpdateFailed') });
       } finally {
         setBusyTool(null);
+      }
+    },
+    [scope, applyStatus, notify, t],
+  );
+
+  const connectOAuth = useCallback(
+    async (name: string) => {
+      setBusyOAuth(name);
+      try {
+        const res = await window.canvasWorkspace.canvasMcp.oauthConnect(scope, name);
+        if (res.ok && res.status) {
+          applyStatus(res.status);
+          notify({ tone: 'success', title: t('mcpConfig.oauthConnectOk', { name }) });
+        } else {
+          notify({ tone: 'error', title: res.error ?? t('mcpConfig.oauthConnectFailed') });
+        }
+      } finally {
+        setBusyOAuth(null);
+      }
+    },
+    [scope, applyStatus, notify, t],
+  );
+
+  const disconnectOAuth = useCallback(
+    async (name: string) => {
+      setBusyOAuth(name);
+      try {
+        const res = await window.canvasWorkspace.canvasMcp.oauthDisconnect(scope, name);
+        if (res.ok && res.status) {
+          applyStatus(res.status);
+          notify({ tone: 'success', title: t('mcpConfig.oauthDisconnectOk', { name }) });
+        } else {
+          notify({ tone: 'error', title: res.error ?? t('mcpConfig.oauthDisconnectFailed') });
+        }
+      } finally {
+        setBusyOAuth(null);
       }
     },
     [scope, applyStatus, notify, t],
@@ -405,7 +481,10 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
             <select
               className="cfg-input"
               value={draft.transport}
-              onChange={(e) => setDraft({ ...draft, transport: e.target.value as CanvasMcpTransport })}
+              onChange={(e) => {
+                const transport = e.target.value as CanvasMcpTransport;
+                setDraft({ ...draft, transport, auth: authDraftForTransport(transport, draft) });
+              }}
             >
               <option value="http">http</option>
               <option value="sse">sse</option>
@@ -474,6 +553,52 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                   onChange={(e) => setDraft({ ...draft, headersText: e.target.value })}
                 />
               </label>
+              <label className="cfg-field">
+                <span>{t('mcpConfig.auth')}</span>
+                <select
+                  className="cfg-input"
+                  value={draft.auth}
+                  onChange={(e) => setDraft({ ...draft, auth: e.target.value as CanvasMcpAuth })}
+                >
+                  <option value="none">{t('mcpConfig.authNone')}</option>
+                  <option value="oauth">{t('mcpConfig.authOAuth')}</option>
+                </select>
+              </label>
+              {draft.auth === 'oauth' && (
+                <>
+                  <label className="cfg-field">
+                    <span>{t('mcpConfig.oauthClientId')}</span>
+                    <input
+                      className="cfg-input"
+                      value={draft.oauthClientId}
+                      placeholder={t('mcpConfig.oauthClientIdPlaceholder')}
+                      onChange={(e) => setDraft({ ...draft, oauthClientId: e.target.value })}
+                    />
+                  </label>
+                  <label className="cfg-field">
+                    <span>{t('mcpConfig.oauthClientSecret')}</span>
+                    <input
+                      className="cfg-input"
+                      type="password"
+                      value={draft.oauthClientSecret}
+                      placeholder={t('mcpConfig.oauthClientSecretPlaceholder')}
+                      onChange={(e) => setDraft({ ...draft, oauthClientSecret: e.target.value })}
+                    />
+                  </label>
+                  <label className="cfg-field">
+                    <span>{t('mcpConfig.oauthScope')}</span>
+                    <input
+                      className="cfg-input"
+                      value={draft.oauthScope}
+                      placeholder={t('mcpConfig.oauthScopePlaceholder')}
+                      onChange={(e) => setDraft({ ...draft, oauthScope: e.target.value })}
+                    />
+                  </label>
+                  <div className="cfg-toolbar-hint" style={{ flex: 'none', marginTop: -2 }}>
+                    {t('mcpConfig.oauthHint')}
+                  </div>
+                </>
+              )}
             </>
           )}
 
@@ -518,11 +643,40 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                   <div className="cfg-list-main">
                     <div className="cfg-list-title">
                       {server.name} <span className="cfg-tag">{server.transport}</span>
+                      {server.auth === 'oauth' && <span className="cfg-tag">oauth</span>}
+                      {server.auth === 'oauth' && (
+                        <span
+                          className={`cfg-health ${
+                            oauthStatuses[server.name]?.connected ? 'cfg-health--ok' : 'cfg-health--unknown'
+                          }`}
+                        >
+                          {oauthStatuses[server.name]?.connected
+                            ? t('mcpConfig.oauthConnected')
+                            : t('mcpConfig.oauthNotConnected')}
+                        </span>
+                      )}
                       <HealthBadge health={statuses[server.name]} t={t} />
                     </div>
                     <div className="cfg-list-desc">{server.transport === 'stdio' ? server.command : server.url}</div>
                   </div>
-                  <div className="cfg-list-actions">
+                  <div className={`cfg-list-actions${server.auth === 'oauth' ? ' cfg-list-actions--pinned' : ''}`}>
+                    {server.auth === 'oauth' && (
+                      <button
+                        type="button"
+                        className="cfg-secondary-btn"
+                        onClick={() => {
+                          const connected = oauthStatuses[server.name]?.connected;
+                          void (connected ? disconnectOAuth(server.name) : connectOAuth(server.name));
+                        }}
+                        disabled={busyOAuth === server.name}
+                      >
+                        {busyOAuth === server.name
+                          ? t('mcpConfig.oauthConnecting')
+                          : oauthStatuses[server.name]?.connected
+                            ? t('mcpConfig.oauthDisconnect')
+                            : t('mcpConfig.oauthConnect')}
+                      </button>
+                    )}
                     <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(serverToDraft(server))}>
                       {t('mcpConfig.edit')}
                     </button>
@@ -577,7 +731,19 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                     <div className="cfg-list-main">
                       <div className="cfg-list-title">
                         {server.name} <span className="cfg-tag">{server.transport}</span>
+                        {server.auth === 'oauth' && <span className="cfg-tag">oauth</span>}
                         <span className="cfg-tag">global</span>
+                        {server.auth === 'oauth' && (
+                          <span
+                            className={`cfg-health ${
+                              inheritedOauthStatuses[server.name]?.connected ? 'cfg-health--ok' : 'cfg-health--unknown'
+                            }`}
+                          >
+                            {inheritedOauthStatuses[server.name]?.connected
+                              ? t('mcpConfig.oauthConnected')
+                              : t('mcpConfig.oauthNotConnected')}
+                          </span>
+                        )}
                         <HealthBadge health={inheritedStatuses[server.name]} t={t} />
                       </div>
                       <div className="cfg-list-desc">

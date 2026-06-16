@@ -2,7 +2,13 @@ import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
 import { FrameChildrenToggle, FrameColorPicker } from '../FrameNodeBody';
 import { TextColorPicker } from '../TextNodeBody';
-import { CloseButton, FocusButton, ReferenceButton, AddToChatButton } from './NodeButtons';
+import {
+  AddToChatButton,
+  CloseButton,
+  FocusButton,
+  PluginSelectElementButton,
+  ReferenceButton,
+} from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
 
 interface CanvasNodeHeaderProps {
@@ -11,6 +17,7 @@ interface CanvasNodeHeaderProps {
   handleClose: (e: MouseEvent) => void;
   handleFocus: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
+  handlePluginSelectElement: (e: MouseEvent) => void;
   handleReference: (e: MouseEvent) => void;
   handleAddToChat: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
@@ -21,6 +28,7 @@ interface CanvasNodeHeaderProps {
   isFullscreen: boolean;
   isSelected: boolean;
   node: CanvasNode;
+  pluginElementPickerActive: boolean;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
@@ -36,6 +44,7 @@ export const CanvasNodeHeader = ({
   handleClose,
   handleFocus,
   handleHeaderMouseDown,
+  handlePluginSelectElement,
   handleReference,
   handleAddToChat,
   handleTitleBlur,
@@ -46,6 +55,7 @@ export const CanvasNodeHeader = ({
   isFullscreen,
   isSelected,
   node,
+  pluginElementPickerActive,
   onReference,
   onAddToChat,
   onUngroupSelectedGroups,
@@ -138,6 +148,12 @@ export const CanvasNodeHeader = ({
         ) : null}
         {!readOnly && onAddToChat ? (
           <AddToChatButton onClick={handleAddToChat} />
+        ) : null}
+        {node.type === 'plugin' ? (
+          <PluginSelectElementButton
+            active={pluginElementPickerActive}
+            onClick={handlePluginSelectElement}
+          />
         ) : null}
         {fullscreenButton}
         <FocusButton onClick={handleFocus} />

@@ -2,6 +2,7 @@
 // main and renderer tsconfigs.
 
 import type { ComponentType } from 'react';
+import type { CanvasNode } from '../shared/canvas';
 
 export interface AgentTurn {
   runId: string;
@@ -155,8 +156,45 @@ export type PluginIpcHandler = (
   ...args: unknown[]
 ) => unknown;
 
+export interface PluginCanvasSnapshot {
+  nodes: CanvasNode[];
+}
+
+export interface PluginCanvasApi {
+  read(workspaceId: string): Promise<PluginCanvasSnapshot | null>;
+}
+
+export interface PluginWebContentsRef {
+  getURL?(): string;
+  executeJavaScript(script: string, userGesture?: boolean): Promise<unknown>;
+}
+
+export type PluginCdpSender = <T = unknown>(
+  method: string,
+  params?: Record<string, unknown>,
+) => Promise<T>;
+
+export interface PluginWebviewApi {
+  get(workspaceId: string, nodeId: string): PluginWebContentsRef | null;
+  withCdp<T>(
+    workspaceId: string,
+    nodeId: string,
+    fn: (send: PluginCdpSender) => Promise<T>,
+  ): Promise<T>;
+}
+
+export interface PluginConfigApi {
+  get(key: string): Promise<string | undefined>;
+}
+
 export interface MainCtx {
   store: PluginStore;
+  /** Plugin-scoped configuration values declared in manifest.json. */
+  config: PluginConfigApi;
+  /** Read-only access to Canvas state for plugin tools/capabilities. */
+  canvas: PluginCanvasApi;
+  /** Access to live webviews mounted by plugin/iframe nodes. */
+  webviews: PluginWebviewApi;
   // Mirror of ipcMain.handle: register a channel callable from the
   // renderer plugin via ctx.invoke. Channel is auto-prefixed with
   // `plugin:<id>:` so plugins cannot collide with each other or with
@@ -184,6 +222,12 @@ export interface MainCtx {
    * the registry boundary.
    */
   registerCanvasTool(factory: CanvasToolFactory): void;
+  /**
+   * Register read/write/action capabilities for a plugin-owned node type.
+   * The renderer half owns pixels; this main-side provider owns the semantic
+   * contract that the Canvas Agent can compose.
+   */
+  registerNodeCapabilities(nodeType: string, capabilities: PluginNodeCapabilities): void;
 }
 
 /**
@@ -194,6 +238,63 @@ export interface MainCtx {
  * structurally at the boundary, not via a TS import.
  */
 export type CanvasToolFactory = (workspaceId: string) => Record<string, unknown>;
+
+export interface PluginNodeCapabilityRef {
+  workspaceId: string;
+  node: CanvasNode;
+}
+
+export interface PluginNodeWriteInput {
+  /** Optional host title change for the canvas shell. */
+  title?: string;
+  /** Patch for host-visible plugin node data. */
+  data?: Record<string, unknown>;
+  /** Patch for the plugin-owned JSON payload at node.data.payload. */
+  payload?: Record<string, unknown>;
+}
+
+export interface PluginNodePatch extends PluginNodeWriteInput {}
+
+export interface PluginNodeActionResult {
+  /** Optional host-applied mutation after the action completes. */
+  patch?: PluginNodePatch;
+  /** Action-specific response returned to the Agent. */
+  result?: unknown;
+}
+
+export type PluginNodeMutationResult =
+  | void
+  | PluginNodePatch
+  | PluginNodeActionResult;
+
+export type PluginNodeActionHandler = (
+  ref: PluginNodeCapabilityRef,
+  input: Record<string, unknown>,
+) => PluginNodeMutationResult | Promise<PluginNodeMutationResult>;
+
+export interface PluginNodeCapabilities {
+  /**
+   * Return semantic content for the Agent. A string is accepted for simple
+   * nodes; structured objects are preserved in `plugin.readResult`.
+   */
+  read?(ref: PluginNodeCapabilityRef): unknown | Promise<unknown>;
+  /**
+   * Validate/normalize a write request and return the patch the host should
+   * persist on the canvas node.
+   */
+  write?(
+    ref: PluginNodeCapabilityRef,
+    input: PluginNodeWriteInput,
+  ): PluginNodeMutationResult | Promise<PluginNodeMutationResult>;
+  /** Named executable capabilities, e.g. `increment`, `sync`, `summarize`. */
+  actions?: Record<string, PluginNodeActionHandler>;
+}
+
+export interface PluginNodeCapabilityEntry {
+  pluginId: string;
+  nodeType: string;
+  capabilities: PluginNodeCapabilities;
+}
 
 // Minimal contract — hosts pass any chat-message object that has at
 // least a `role`. Plugins' match() functions cast to read whatever
@@ -227,12 +328,40 @@ export interface NavItem {
   icon?: ComponentType<{ size?: number }>;
 }
 
+export interface PluginNodeViewProps {
+  node: CanvasNode;
+  workspaceId?: string;
+  workspaceName?: string;
+  readOnly?: boolean;
+  selected?: boolean;
+  updateNode(patch: Partial<CanvasNode>): void;
+  invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T>;
+}
+
+export interface RendererFederatedPluginSpec {
+  /** Stable plugin id used by the host, persisted nodes, and plugin IPC. */
+  id: string;
+  /** Module Federation remote container name. */
+  name: string;
+  /** `remoteEntry.js` or `mf-manifest.json` URL. */
+  entry: string;
+  /** Exposed module that exports a `RendererCanvasPlugin`. Defaults to `./plugin`. */
+  expose?: string;
+  /** Remote entry format. MF manifests can omit this. */
+  type?: string;
+  /** Optional global key when `type` points at a script/global remote. */
+  entryGlobalName?: string;
+  /** Optional version snapshot for future install/update UX. */
+  version?: string;
+}
+
 export interface RendererCtx {
   registerRoute(path: string, Component: ComponentType): void;
   registerChatCard<TRef = unknown, TPayload = TRef>(
     spec: ChatCardSpec<TRef, TPayload>,
   ): void;
   registerNavItem(item: NavItem): void;
+  registerNodeView(nodeType: string, Component: ComponentType<PluginNodeViewProps>): void;
   // Mirror of ipcRenderer.invoke: call a channel registered by this
   // plugin's main half via ctx.handle. Plugin id is bound on activation
   // so the renderer code does not have to repeat it.

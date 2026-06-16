@@ -152,4 +152,60 @@ describe('setupCanvasPlugins + registerCanvasTool', () => {
     expect(entries.map(([id]) => id)).toEqual(['p-ok']);
     errSpy.mockRestore();
   });
+
+  it('registers main-side plugin node capabilities by node type', async () => {
+    const {
+      setupCanvasPlugins,
+      getRegisteredNodeCapability,
+      getRegisteredNodeCapabilities,
+    } = await loadRegistry();
+
+    await setupCanvasPlugins([
+      {
+        id: 'p-node',
+        activate(ctx) {
+          ctx.registerNodeCapabilities('demo.card', {
+            read: () => ({ content: 'hello' }),
+          });
+        },
+      },
+    ]);
+
+    const entry = getRegisteredNodeCapability('demo.card');
+    expect(entry?.pluginId).toBe('p-node');
+    expect(entry?.nodeType).toBe('demo.card');
+    expect(getRegisteredNodeCapabilities()).toHaveLength(1);
+  });
+
+  it('deactivates plugin registrations by plugin id', async () => {
+    const {
+      deactivateCanvasPlugin,
+      setupCanvasPlugins,
+      getRegisteredCanvasToolFactories,
+      getRegisteredNodeCapability,
+    } = await loadRegistry();
+    const deactivate = vi.fn();
+
+    await setupCanvasPlugins([
+      {
+        id: 'p-dynamic',
+        activate(ctx) {
+          ctx.registerCanvasTool(() => ({ tool_dynamic: { name: 'tool_dynamic' } }));
+          ctx.registerNodeCapabilities('demo.dynamic', {
+            read: () => ({ content: 'dynamic' }),
+          });
+        },
+        deactivate,
+      },
+    ]);
+
+    expect(getRegisteredCanvasToolFactories()).toHaveLength(1);
+    expect(getRegisteredNodeCapability('demo.dynamic')?.pluginId).toBe('p-dynamic');
+
+    await deactivateCanvasPlugin('p-dynamic');
+
+    expect(deactivate).toHaveBeenCalledTimes(1);
+    expect(getRegisteredCanvasToolFactories()).toEqual([]);
+    expect(getRegisteredNodeCapability('demo.dynamic')).toBeUndefined();
+  });
 });

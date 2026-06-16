@@ -17,6 +17,7 @@ import {
   skillSourceDirs,
   type CanvasConfigScope,
   type CanvasSkillSourceName,
+  type SkillSourceDir,
 } from '../config-scope';
 
 export interface CanvasSkill {
@@ -131,12 +132,24 @@ async function findSkillFiles(base: string): Promise<string[]> {
   return out;
 }
 
+async function pluginSkillSources(): Promise<SkillSourceDir[]> {
+  try {
+    const { getCanvasPluginSkillSources } = await import('../../settings/canvas-plugins-config');
+    return await getCanvasPluginSkillSources();
+  } catch {
+    return [];
+  }
+}
+
 export async function listCanvasSkills(scope: CanvasConfigScope): Promise<CanvasSkillEntry[]> {
   // Iterate every source dir for the scope, in priority order. Dedupe by
   // realpath (symlinked files) and then by name (case-insensitive) so the
   // higher-priority source — canvas-managed first, then external tools —
   // wins on collisions, matching the engine's first-wins scan rule.
-  const sources = skillSourceDirs(scope);
+  const sources = [
+    ...skillSourceDirs(scope),
+    ...(scope.level === 'global' ? await pluginSkillSources() : []),
+  ];
   const skills: CanvasSkillEntry[] = [];
   const seenPaths = new Set<string>();
   const seenNames = new Set<string>();

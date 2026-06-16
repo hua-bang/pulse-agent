@@ -4,6 +4,7 @@ import type {
   ChatMessageRef,
   NavItem,
   PluginBridge,
+  PluginNodeViewProps,
   RendererCanvasPlugin,
   RendererCtx,
 } from '../types';
@@ -24,10 +25,19 @@ interface NavItemEntry {
   item: NavItem;
 }
 
+interface NodeViewEntry {
+  pluginId: string;
+  nodeType: string;
+  Component: ComponentType<PluginNodeViewProps>;
+}
+
 const routes: RouteEntry[] = [];
 const chatCards: ChatCardEntry[] = [];
 const navItems: NavItemEntry[] = [];
+const nodeViews: NodeViewEntry[] = [];
 const activated = new Set<string>();
+const registryListeners = new Set<() => void>();
+let registryVersion = 0;
 
 // The preload-side bridge is looked up lazily on each invoke so renderer
 // plugins can be authored without depending on a specific global shape.
@@ -45,10 +55,16 @@ function resolveBridge(pluginId: string): PluginBridge {
   return bridge;
 }
 
+function emitRegistryChange(): void {
+  registryVersion += 1;
+  for (const listener of registryListeners) {
+    listener();
+  }
+}
+
 export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
   for (const plugin of plugins) {
     if (activated.has(plugin.id)) {
-      console.warn(`[canvas-plugins] duplicate plugin id, skipping: ${plugin.id}`);
       continue;
     }
     if (plugin.enabledWhen && !plugin.enabledWhen()) continue;
@@ -62,6 +78,7 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
           return;
         }
         routes.push({ pluginId: plugin.id, path, Component });
+        emitRegistryChange();
       },
       registerChatCard(spec) {
         if (chatCards.some((c) => c.spec.id === spec.id)) {
@@ -74,6 +91,7 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
           pluginId: plugin.id,
           spec: spec as ChatCardSpec<unknown>,
         });
+        emitRegistryChange();
       },
       registerNavItem(item) {
         if (navItems.some((n) => n.item.id === item.id)) {
@@ -83,6 +101,22 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
           return;
         }
         navItems.push({ pluginId: plugin.id, item });
+        emitRegistryChange();
+      },
+      registerNodeView(nodeType, Component) {
+        if (!nodeType.trim()) {
+          console.warn(`[canvas-plugins] ${plugin.id} tried to register an empty node type`);
+          return;
+        }
+        const existingIndex = nodeViews.findIndex((entry) => entry.nodeType === nodeType);
+        if (existingIndex !== -1) {
+          console.warn(
+            `[canvas-plugins] duplicate node view "${nodeType}" from ${plugin.id}, replacing previous registration`,
+          );
+          nodeViews.splice(existingIndex, 1);
+        }
+        nodeViews.push({ pluginId: plugin.id, nodeType, Component });
+        emitRegistryChange();
       },
       invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
         return resolveBridge(plugin.id).invoke<T>(plugin.id, channel, ...args);
@@ -98,6 +132,21 @@ export function activateCanvasPlugins(plugins: RendererCanvasPlugin[]): void {
   }
 }
 
+export function isRendererPluginActivated(pluginId: string): boolean {
+  return activated.has(pluginId);
+}
+
+export function subscribeRendererPluginRegistry(listener: () => void): () => void {
+  registryListeners.add(listener);
+  return () => {
+    registryListeners.delete(listener);
+  };
+}
+
+export function getRendererPluginRegistryVersion(): number {
+  return registryVersion;
+}
+
 export function getRegisteredRoutes(): ReadonlyArray<RouteEntry> {
   return routes;
 }
@@ -108,6 +157,14 @@ export function getRegisteredChatCards(): ReadonlyArray<ChatCardEntry> {
 
 export function getRegisteredNavItems(): ReadonlyArray<NavItem> {
   return navItems.map((entry) => entry.item);
+}
+
+export function getRegisteredNodeViews(): ReadonlyArray<NodeViewEntry> {
+  return nodeViews;
+}
+
+export function getRegisteredNodeView(nodeType: string): NodeViewEntry | undefined {
+  return nodeViews.find((entry) => entry.nodeType === nodeType);
 }
 
 export function findMatchingChatCard<T extends ChatMessageRef>(

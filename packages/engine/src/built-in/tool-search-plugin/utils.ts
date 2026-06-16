@@ -177,7 +177,7 @@ export function buildToolSearchReferenceResult(
   options?: { limit?: number }
 ): { type: 'tool_search_tool_search_result'; tool_references: Array<{ type: 'tool_reference'; tool_name: string }> } {
   const limit = options?.limit ?? DEFAULT_LIMIT;
-  const tool_references = matches.slice(0, limit).map((match) => ({
+  const tool_references: Array<{ type: 'tool_reference'; tool_name: string }> = matches.slice(0, limit).map((match) => ({
     type: 'tool_reference',
     tool_name: match.toolName,
   }));

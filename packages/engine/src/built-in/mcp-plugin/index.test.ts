@@ -5,19 +5,23 @@ import { join } from 'path';
 
 // Fake MCP client tools shared with the hoisted module mock. `plain` has no
 // description so we also cover the "description omitted" branch.
-const { fakeTools } = vi.hoisted(() => ({
+const { fakeTools, mcpCalls } = vi.hoisted(() => ({
   fakeTools: {
     search: { description: 'Search the web' },
     danger_tool: { description: 'Dangerous operation' },
     plain: {},
   } as Record<string, { description?: string }>,
+  mcpCalls: [] as any[],
 }));
 
 vi.mock('@ai-sdk/mcp', () => ({
-  createMCPClient: vi.fn(async () => ({
-    tools: async () => fakeTools,
-    close: vi.fn(),
-  })),
+  createMCPClient: vi.fn(async (config) => {
+    mcpCalls.push(config);
+    return {
+      tools: async () => fakeTools,
+      close: vi.fn(),
+    };
+  }),
 }));
 
 vi.mock('@ai-sdk/mcp/mcp-stdio', () => ({
@@ -63,6 +67,7 @@ async function writeConfig(servers: Record<string, unknown>): Promise<string> {
 
 beforeEach(async () => {
   dir = await fs.mkdtemp(join(tmpdir(), 'mcp-plugin-test-'));
+  mcpCalls.length = 0;
 });
 
 afterEach(async () => {
@@ -122,5 +127,32 @@ describe('createMcpPlugin disabledTools', () => {
     if (status.ok) {
       expect(status.tools.every((t) => t.enabled)).toBe(true);
     }
+  });
+
+  it('attaches an OAuth authProvider for oauth-enabled http servers', async () => {
+    const cfgPath = await writeConfig({
+      figma: {
+        transport: 'http',
+        url: 'https://mcp.figma.com/mcp',
+        auth: 'oauth',
+      },
+    });
+    const authProvider = { marker: 'oauth-provider' } as any;
+    const authProviderFactory = vi.fn(async ({ serverName, config }) => {
+      expect(serverName).toBe('figma');
+      expect(config.auth).toBe('oauth');
+      return authProvider;
+    });
+
+    const plugin = createMcpPlugin({ configPaths: [cfgPath], authProviderFactory });
+    const { ctx } = makeContext();
+    await plugin.initialize(ctx);
+
+    expect(authProviderFactory).toHaveBeenCalledTimes(1);
+    expect(mcpCalls[0].transport).toMatchObject({
+      type: 'http',
+      url: 'https://mcp.figma.com/mcp',
+      authProvider,
+    });
   });
 });

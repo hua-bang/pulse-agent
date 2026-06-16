@@ -9,6 +9,12 @@ import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
+import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
+import type { AddNodeOptions } from '../../hooks/useNodes';
+
+interface AddNodeUiOptions extends AddNodeOptions {
+  label?: string;
+}
 
 interface CanvasOverlaysProps {
   nodes: CanvasNode[];
@@ -27,7 +33,7 @@ interface CanvasOverlaysProps {
   onChatToggle?: () => void;
   referenceDrawerOpen?: boolean;
   onReferenceToggle?: () => void;
-  onCreateNode: (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
+  onCreateNode: (type: CreatableCanvasNodeType) => void;
   onCreateUrl?: (url: string) => void;
   onCreateDemo?: () => void;
   onCreateAgentTeam?: () => void;
@@ -36,7 +42,7 @@ interface CanvasOverlaysProps {
   onConfigureAi?: () => void;
   onSetRootFolder?: () => void;
   onToolChange: (tool: string) => void;
-  onAddNode: (type: 'file' | 'terminal' | 'frame' | 'group' | 'agent' | 'text' | 'iframe' | 'mindmap') => void;
+  onAddNode: (type: CreatableCanvasNodeType, options?: AddNodeUiOptions) => void;
   onResetTransform: () => void;
   /** Commands shown in the Cmd+K palette alongside node search results.
    *  Built by the parent so each entry can capture the latest tool /

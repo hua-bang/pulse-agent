@@ -17,6 +17,7 @@
     "src/preload",
     "src/plugins/types.ts",
     "src/plugins/main/**/*",
+    "src/plugins/mock-node/**/*",
     "src/shared/**/*"
   ]
 }

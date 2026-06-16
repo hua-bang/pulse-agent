@@ -1,0 +1,23 @@
+{
+  "id": "demo-note",
+  "version": "0.1.0",
+  "main": {
+    "entry": "dist/main.js",
+    "format": "esm",
+    "runtime": "electron-main"
+  },
+  "nodes": [
+    {
+      "type": "demo.note",
+      "title": "Demo Note",
+      "icon": "note",
+      "capabilities": ["read", "write", "action"],
+      "actions": ["pin"],
+      "renderer": {
+        "remoteName": "pulse_canvas_demo_note",
+        "entry": "dist/mf-manifest.json",
+        "expose": "./plugin"
+      }
+    }
+  ]
+}

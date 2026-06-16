@@ -3,6 +3,7 @@ import type {
   CanvasMcpApi,
   CanvasModelApi,
   BuiltInToolsConfigApi,
+  CanvasPluginsApi,
   CanvasSkillsApi,
   ChannelConfigApi,
   DialogApi,
@@ -54,7 +55,32 @@ export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
     ipcRenderer.invoke("canvas-mcp:import-json", { scope, json }),
 
   setToolEnabled: (scope, name, tool, enabled) =>
-    ipcRenderer.invoke("canvas-mcp:set-tool-enabled", { scope, name, tool, enabled })
+    ipcRenderer.invoke("canvas-mcp:set-tool-enabled", { scope, name, tool, enabled }),
+
+  oauthConnect: (scope, name) =>
+    ipcRenderer.invoke("canvas-mcp:oauth-connect", { scope, name }),
+
+  oauthDisconnect: (scope, name) =>
+    ipcRenderer.invoke("canvas-mcp:oauth-disconnect", { scope, name })
+});
+
+export const createCanvasPluginsApi = (ipcRenderer: IpcRenderer): CanvasPluginsApi => ({
+  list: () => ipcRenderer.invoke("canvas-plugins:list"),
+
+  addDirectory: (dir) =>
+    ipcRenderer.invoke("canvas-plugins:add-directory", { dir }),
+
+  chooseDirectory: () =>
+    ipcRenderer.invoke("canvas-plugins:choose-directory"),
+
+  removeDirectory: (dir) =>
+    ipcRenderer.invoke("canvas-plugins:remove-directory", { dir }),
+
+  importJson: (json) =>
+    ipcRenderer.invoke("canvas-plugins:import-json", { json }),
+
+  setConfig: (pluginId, key, value) =>
+    ipcRenderer.invoke("canvas-plugins:set-config", { pluginId, key, value })
 });
 
 export const createExperimentalApi = (ipcRenderer: IpcRenderer): ExperimentalApi => ({

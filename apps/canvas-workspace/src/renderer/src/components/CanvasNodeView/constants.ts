@@ -7,5 +7,6 @@ export const FULLSCREEN_NODE_TYPES = new Set<CanvasNode['type']>([
   'iframe',
   'image',
   'mindmap',
+  'plugin',
   'text',
 ]);

@@ -12,6 +12,7 @@ import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
 import type { ModelMessage } from 'ai';
 import { resolveCanvasModel } from './model/config';
 import { scopeMcpConfigPath, skillSourceDirs } from './config-scope';
+import { getCanvasPluginSkillScanPathsSync } from '../settings/canvas-plugins-config';
 import { agentBus } from '../../plugins/main';
 import {
   buildWorkspaceSummary,
@@ -22,6 +23,7 @@ import { createCanvasTools, createGlobalCanvasTools } from './tools';
 import { SessionStore } from './session-store';
 import { formatPromptProfileForSystem, getPromptProfile } from './prompt-profile';
 import { readWorkspaceDoc, readWorkspaceMeta, WORKSPACE_DOC_FILENAME } from './workspace-meta';
+import { createCanvasMcpOAuthProvider } from './mcp/oauth';
 import {
   attachTraceModel,
   createCanvasAgentDebugTrace,
@@ -670,6 +672,7 @@ export class CanvasAgent {
     const skillsScanPaths = [
       ...(wsScope ? skillSourceDirs(wsScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })) : []),
       ...skillSourceDirs(globalScope).map((d) => ({ base: d.base, pattern: '**/SKILL.md' })),
+      ...getCanvasPluginSkillScanPathsSync().map((base) => ({ base, pattern: '**/SKILL.md' })),
     ];
     // MCP: global first, workspace later so it overrides on same server name.
     const mcpConfigPaths = [
@@ -684,7 +687,13 @@ export class CanvasAgent {
       enginePlugins: {
         plugins: [
           createSkillsPlugin({ scanPaths: skillsScanPaths }),
-          createMcpPlugin({ configPaths: mcpConfigPaths }),
+          createMcpPlugin({
+            configPaths: mcpConfigPaths,
+            authProviderFactory: ({ serverName, config }) => {
+              if (config.auth !== 'oauth') return undefined;
+              return createCanvasMcpOAuthProvider(serverName, config.oauth);
+            },
+          }),
         ],
       },
       model: this.config.model,
