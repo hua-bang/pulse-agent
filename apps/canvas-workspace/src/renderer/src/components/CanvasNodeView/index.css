@@ -276,8 +276,7 @@
 .canvas-node--embedded .node-close,
 .canvas-node--embedded .node-reference,
 .canvas-node--embedded .node-add-to-chat,
-.canvas-node--embedded .node-plugin-reload,
-.canvas-node--embedded .node-plugin-devtools,
+.canvas-node--embedded .node-plugin-select,
 .canvas-node--embedded .node-fullscreen,
 .canvas-node--embedded .resize-handle,
 .canvas-node--embedded .node-time-label {
@@ -520,8 +519,7 @@
 
 .node-reference,
 .node-add-to-chat,
-.node-plugin-reload,
-.node-plugin-devtools,
+.node-plugin-select,
 .node-focus,
 .node-fullscreen,
 .node-close {
@@ -545,8 +543,7 @@
 }
 
 .node-add-to-chat,
-.node-plugin-reload,
-.node-plugin-devtools,
+.node-plugin-select,
 .node-focus,
 .node-fullscreen,
 .node-close {
@@ -555,8 +552,7 @@
 
 .canvas-node:hover .node-reference,
 .canvas-node:hover .node-add-to-chat,
-.canvas-node:hover .node-plugin-reload,
-.canvas-node:hover .node-plugin-devtools,
+.canvas-node:hover .node-plugin-select,
 .canvas-node:hover .node-focus,
 .canvas-node:hover .node-fullscreen,
 .canvas-node:hover .node-close {
@@ -565,8 +561,8 @@
 
 .node-reference:hover,
 .node-add-to-chat:hover,
-.node-plugin-reload:hover,
-.node-plugin-devtools:hover {
+.node-plugin-select:hover,
+.node-plugin-select--active {
   background: var(--accent-light);
   color: var(--accent);
 }
@@ -649,8 +645,7 @@
    overriding the default `opacity: 0` set on individual buttons. */
 .canvas-transform--small .canvas-node .node-header__actions .node-reference,
 .canvas-transform--small .canvas-node .node-header__actions .node-add-to-chat,
-.canvas-transform--small .canvas-node .node-header__actions .node-plugin-reload,
-.canvas-transform--small .canvas-node .node-header__actions .node-plugin-devtools,
+.canvas-transform--small .canvas-node .node-header__actions .node-plugin-select,
 .canvas-transform--small .canvas-node .node-header__actions .node-focus,
 .canvas-transform--small .canvas-node .node-header__actions .node-fullscreen,
 .canvas-transform--small .canvas-node .node-header__actions .node-close {
@@ -937,8 +932,7 @@
 
 .canvas-node--group .node-header .node-reference,
 .canvas-node--group .node-header .node-add-to-chat,
-.canvas-node--group .node-header .node-plugin-reload,
-.canvas-node--group .node-header .node-plugin-devtools,
+.canvas-node--group .node-header .node-plugin-select,
 .canvas-node--group .node-header .node-focus,
 .canvas-node--group .node-header .node-close,
 .canvas-node--group .node-header .node-time-label {
@@ -1119,8 +1113,7 @@
  * button, so `.node-fullscreen` itself hides. */
 .canvas-node--fullscreen .node-reference,
 .canvas-node--fullscreen .node-add-to-chat,
-.canvas-node--fullscreen .node-plugin-reload,
-.canvas-node--fullscreen .node-plugin-devtools,
+.canvas-node--fullscreen .node-plugin-select,
 .canvas-node--fullscreen .node-focus,
 .canvas-node--fullscreen .node-close,
 .canvas-node--fullscreen .node-fullscreen,

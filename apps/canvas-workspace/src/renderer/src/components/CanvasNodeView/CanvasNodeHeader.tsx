@@ -6,8 +6,7 @@ import {
   AddToChatButton,
   CloseButton,
   FocusButton,
-  PluginDevToolsButton,
-  PluginReloadButton,
+  PluginSelectElementButton,
   ReferenceButton,
 } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
@@ -18,8 +17,7 @@ interface CanvasNodeHeaderProps {
   handleClose: (e: MouseEvent) => void;
   handleFocus: (e: MouseEvent) => void;
   handleHeaderMouseDown: (e: MouseEvent) => void;
-  handlePluginDevTools: (e: MouseEvent) => void;
-  handlePluginReload: (e: MouseEvent) => void;
+  handlePluginSelectElement: (e: MouseEvent) => void;
   handleReference: (e: MouseEvent) => void;
   handleAddToChat: (e: MouseEvent) => void;
   handleTitleBlur: (e: FocusEvent<HTMLSpanElement>) => void;
@@ -30,6 +28,7 @@ interface CanvasNodeHeaderProps {
   isFullscreen: boolean;
   isSelected: boolean;
   node: CanvasNode;
+  pluginElementPickerActive: boolean;
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   onUngroupSelectedGroups?: () => void;
@@ -45,8 +44,7 @@ export const CanvasNodeHeader = ({
   handleClose,
   handleFocus,
   handleHeaderMouseDown,
-  handlePluginDevTools,
-  handlePluginReload,
+  handlePluginSelectElement,
   handleReference,
   handleAddToChat,
   handleTitleBlur,
@@ -57,6 +55,7 @@ export const CanvasNodeHeader = ({
   isFullscreen,
   isSelected,
   node,
+  pluginElementPickerActive,
   onReference,
   onAddToChat,
   onUngroupSelectedGroups,
@@ -151,10 +150,10 @@ export const CanvasNodeHeader = ({
           <AddToChatButton onClick={handleAddToChat} />
         ) : null}
         {node.type === 'plugin' ? (
-          <>
-            <PluginReloadButton onClick={handlePluginReload} />
-            <PluginDevToolsButton onClick={handlePluginDevTools} />
-          </>
+          <PluginSelectElementButton
+            active={pluginElementPickerActive}
+            onClick={handlePluginSelectElement}
+          />
         ) : null}
         {fullscreenButton}
         <FocusButton onClick={handleFocus} />

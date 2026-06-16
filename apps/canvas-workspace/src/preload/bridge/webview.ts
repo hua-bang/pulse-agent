@@ -16,7 +16,10 @@ export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
     ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId }),
 
   pickDomElement: (workspaceId, nodeId) =>
-    ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId })
+    ipcRenderer.invoke("iframe:pick-dom-element", { workspaceId, nodeId }),
+
+  cancelDomElementPick: (workspaceId, nodeId) =>
+    ipcRenderer.invoke("iframe:cancel-dom-element-pick", { workspaceId, nodeId })
 });
 
 export const createShellApi = (ipcRenderer: IpcRenderer): ShellApi => ({

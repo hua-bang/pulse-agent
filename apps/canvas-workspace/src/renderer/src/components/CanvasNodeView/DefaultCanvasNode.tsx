@@ -17,6 +17,7 @@ import { IframeNodeBody } from '../IframeNodeBody';
 import { PluginNodeBody } from '../PluginNodeBody';
 import { TerminalNodeBody } from '../TerminalNodeBody';
 import { TextNodeBody } from '../TextNodeBody';
+import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { ResizeHandlerFactory } from './types';
@@ -60,72 +61,6 @@ interface DefaultCanvasNodeProps {
   wrapperStyle: CSSProperties;
 }
 
-interface PluginEmbeddedElement extends HTMLElement {
-  executeJavaScript?: <T = unknown>(script: string, userGesture?: boolean) => Promise<T>;
-  reload?: () => void;
-  openDevTools?: () => void;
-}
-
-interface PluginReloadSnapshot {
-  data?: unknown;
-  payload?: unknown;
-  title?: unknown;
-}
-
-function findPluginEmbeddedElement(event: MouseEvent): PluginEmbeddedElement | null {
-  const target = event.currentTarget;
-  if (!(target instanceof HTMLElement)) return null;
-  return target.closest('.canvas-node')?.querySelector('webview, iframe') as PluginEmbeddedElement | null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-async function readPluginReloadSnapshot(
-  embedded: PluginEmbeddedElement | null,
-): Promise<PluginReloadSnapshot | null> {
-  if (!embedded || typeof embedded.executeJavaScript !== 'function') return null;
-  try {
-    const snapshot = await embedded.executeJavaScript<unknown>(
-      `(() => {
-        const bridge = window.__pulseCanvasPluginNode;
-        if (!bridge) return null;
-        if (typeof bridge.beforeReload === 'function') return bridge.beforeReload();
-        if (typeof bridge.snapshot === 'function') return bridge.snapshot();
-        return null;
-      })()`,
-      false,
-    );
-    return isRecord(snapshot) ? snapshot : null;
-  } catch (err) {
-    console.warn('[plugin-node] failed to snapshot plugin before reload', err);
-    return null;
-  }
-}
-
-function patchFromPluginSnapshot(
-  node: CanvasNode,
-  snapshot: PluginReloadSnapshot | null,
-): Partial<CanvasNode> | null {
-  if (!snapshot) return null;
-  const patch: Partial<CanvasNode> = {};
-  if (typeof snapshot.title === 'string' && snapshot.title.trim()) {
-    patch.title = snapshot.title.trim();
-  }
-
-  const baseData = isRecord(node.data) ? node.data : {};
-  const nextData = isRecord(snapshot.data) ? { ...baseData, ...snapshot.data } : { ...baseData };
-  let hasDataPatch = isRecord(snapshot.data);
-  if (snapshot.payload !== undefined) {
-    nextData.payload = snapshot.payload;
-    hasDataPatch = true;
-  }
-  if (hasDataPatch) patch.data = nextData;
-
-  return Object.keys(patch).length > 0 ? patch : null;
-}
-
 export const DefaultCanvasNode = ({
   classes,
   fullscreenButton,
@@ -164,37 +99,75 @@ export const DefaultCanvasNode = ({
   workspaceName,
   wrapperStyle,
 }: DefaultCanvasNodeProps) => {
-  const [pluginReloadToken, setPluginReloadToken] = useState(0);
-  const handlePluginReload = useCallback((event: MouseEvent) => {
-    event.stopPropagation();
-    const embedded = findPluginEmbeddedElement(event);
-    void (async () => {
-      const snapshot = await readPluginReloadSnapshot(embedded);
-      const patch = patchFromPluginSnapshot(node, snapshot);
-      if (patch) onUpdate(node.id, patch);
+  const { notify } = useAppShell();
+  const [pluginElementPickerActive, setPluginElementPickerActive] = useState(false);
 
-      if (embedded && !patch) {
-        console.warn('[plugin-node] reload without snapshot; plugin state may reset');
-      }
-      window.setTimeout(() => {
-        setPluginReloadToken((value) => value + 1);
-      }, 0);
-    })();
-  }, [node, onUpdate]);
-
-  const handlePluginDevTools = useCallback((event: MouseEvent) => {
+  const handlePluginSelectElement = useCallback((event: MouseEvent) => {
     event.stopPropagation();
-    const embedded = findPluginEmbeddedElement(event);
-    if (embedded && typeof embedded.openDevTools === 'function') {
-      try {
-        embedded.openDevTools();
-        return;
-      } catch (err) {
-        console.warn('[plugin-node] failed to open plugin DevTools', err);
-      }
+    if (!workspaceId) {
+      notify({
+        tone: 'error',
+        title: 'Could not select element',
+        description: 'This workspace is not ready yet.',
+        autoCloseMs: 3200,
+      });
+      return;
     }
-    console.warn('[plugin-node] no debuggable webview found for this plugin node');
-  }, []);
+
+    if (pluginElementPickerActive) {
+      setPluginElementPickerActive(false);
+      void window.canvasWorkspace.iframe.cancelDomElementPick(workspaceId, node.id)
+        .then((result) => {
+          if (!result.ok) {
+            console.warn('[plugin-node] failed to cancel DOM picker', result.error);
+          }
+        })
+        .catch((err) => {
+          console.warn('[plugin-node] failed to cancel DOM picker', err);
+        });
+      return;
+    }
+
+    setPluginElementPickerActive(true);
+    void (async () => {
+      try {
+        const result = await window.canvasWorkspace.iframe.pickDomElement(workspaceId, node.id);
+        if (result.ok && result.selection) {
+          onAddDomSelectionToChat?.({
+            ...result.selection,
+            workspaceId,
+            nodeId: node.id,
+            nodeTitle: node.title,
+          });
+          notify({
+            tone: 'success',
+            title: 'DOM selection added',
+            description: result.selection.label,
+            autoCloseMs: 1800,
+          });
+          return;
+        }
+
+        if (!result.cancelled) {
+          notify({
+            tone: 'error',
+            title: 'Could not select element',
+            description: result.error ?? 'This plugin does not have an active webview yet.',
+            autoCloseMs: 3600,
+          });
+        }
+      } catch (err) {
+        notify({
+          tone: 'error',
+          title: 'Could not select element',
+          description: err instanceof Error ? err.message : String(err),
+          autoCloseMs: 3600,
+        });
+      } finally {
+        setPluginElementPickerActive(false);
+      }
+    })();
+  }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
 
   return (
     <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
@@ -204,8 +177,7 @@ export const DefaultCanvasNode = ({
         handleClose={handleClose}
         handleFocus={handleFocus}
         handleHeaderMouseDown={handleHeaderMouseDown}
-        handlePluginDevTools={handlePluginDevTools}
-        handlePluginReload={handlePluginReload}
+        handlePluginSelectElement={handlePluginSelectElement}
         handleReference={handleReference}
         handleAddToChat={handleAddToChat}
         handleTitleBlur={handleTitleBlur}
@@ -216,6 +188,7 @@ export const DefaultCanvasNode = ({
         isFullscreen={isFullscreen}
         isSelected={isSelected}
         node={node}
+        pluginElementPickerActive={pluginElementPickerActive}
         onReference={onReference}
         onAddToChat={onAddToChat}
         onUngroupSelectedGroups={onUngroupSelectedGroups}
@@ -261,7 +234,7 @@ export const DefaultCanvasNode = ({
         ) : node.type === 'dynamic-app' ? (
           <DynamicAppNodeBody node={node} workspaceId={workspaceId} onUpdate={onUpdate} isResizing={isResizing} readOnly={readOnly} />
         ) : node.type === 'plugin' ? (
-          <PluginNodeBody key={pluginReloadToken} node={node} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />
+          <PluginNodeBody node={node} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} isSelected={isSelected} readOnly={readOnly} />
         ) : (
           <AgentNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         )}
