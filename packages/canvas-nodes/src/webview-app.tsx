@@ -28,9 +28,15 @@ interface ExcalidrawWebviewBridge {
   resize(payload: unknown): void;
 }
 
+interface PulseCanvasPluginNodeBridge {
+  beforeReload(): { payload: ExcalidrawBoardScene };
+  snapshot(): { payload: ExcalidrawBoardScene };
+}
+
 declare global {
   interface Window {
     __pulseCanvasExcalidraw?: ExcalidrawWebviewBridge;
+    __pulseCanvasPluginNode?: PulseCanvasPluginNodeBridge;
   }
 }
 
@@ -82,6 +88,15 @@ window.__pulseCanvasExcalidraw = {
     requestAnimationFrame(() => {
       window.dispatchEvent(new Event('resize'));
     });
+  },
+};
+
+window.__pulseCanvasPluginNode = {
+  beforeReload() {
+    return { payload: latestScene };
+  },
+  snapshot() {
+    return { payload: latestScene };
   },
 };
 

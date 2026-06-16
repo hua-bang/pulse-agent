@@ -62,6 +62,53 @@ export const FocusButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) =
   </button>
 );
 
+export const PluginReloadButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+  <button
+    className="node-plugin-reload"
+    type="button"
+    onClick={onClick}
+    onMouseDown={(e) => e.stopPropagation()}
+    title="Reload plugin view"
+    aria-label="Reload plugin view"
+  >
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path
+        d="M9.2 3.2A4 4 0 103.4 9M9.2 3.2V1.4M9.2 3.2H7.4"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </button>
+);
+
+export const PluginDevToolsButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+  <button
+    className="node-plugin-devtools"
+    type="button"
+    onClick={onClick}
+    onMouseDown={(e) => e.stopPropagation()}
+    title="Open plugin DevTools"
+    aria-label="Open plugin DevTools"
+  >
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path
+        d="M2.2 3.2h7.6a1 1 0 011 1v5.1a1 1 0 01-1 1H2.2a1 1 0 01-1-1V4.2a1 1 0 011-1z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path
+        d="M3.2 1.7h5.6M4 6.1l1.3 1.1L4 8.3M6.5 8.4h1.7"
+        stroke="currentColor"
+        strokeWidth="1.15"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </button>
+);
+
 export const ReferenceButton = ({
   nodeTitle,
   onClick,
