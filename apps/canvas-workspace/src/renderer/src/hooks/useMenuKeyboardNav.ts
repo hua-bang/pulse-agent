@@ -1,10 +1,16 @@
 import { useEffect, type RefObject } from 'react';
+import { useEscapeClose } from './useEscapeClose';
 
 /**
  * Keyboard navigation for popup menus (context menus, dropdowns). Moves
  * focus into the first item on mount, lets ArrowUp/ArrowDown (and
  * Home/End) cycle through the menu's buttons, and closes on Escape.
  * Enter/Space activate the focused item via native button behavior.
+ *
+ * Escape is delegated to the shared `useEscapeClose` so every overlay
+ * dismisses on Escape identically: capture phase, `stopPropagation` (so it
+ * doesn't also fire window-level shortcuts like canvas deselect), and
+ * IME-aware (the Escape that dismisses a CJK candidate window is ignored).
  */
 export const useMenuKeyboardNav = (
   ref: RefObject<HTMLElement>,
@@ -19,13 +25,10 @@ export const useMenuKeyboardNav = (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEscapeClose(true, () => onClose?.());
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose?.();
-        return;
-      }
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') {
         return;
       }

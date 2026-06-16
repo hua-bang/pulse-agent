@@ -207,6 +207,14 @@ export interface NodeSummary {
   rootText?: string;
   /** Total topic count (including root) for mindmap nodes. */
   topicCount?: number;
+  /** For reference nodes: type of the source node (from snapshot or resolved). */
+  refType?: string;
+  /** For reference nodes: id of the source node this points to. */
+  refNodeId?: string;
+  /** For reference nodes: workspace id holding the source node. */
+  refWorkspaceId?: string;
+  /** For reference nodes: human-readable name of the source workspace. */
+  refWorkspaceName?: string;
 }
 
 /**

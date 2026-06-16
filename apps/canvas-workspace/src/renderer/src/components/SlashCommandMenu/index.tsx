@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import './index.css';
 import { createPortal } from 'react-dom';
 import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 export interface SlashCommandDef {
   id: string;
@@ -38,15 +39,7 @@ export const SlashCommandMenu = ({
   }, [selectedIndex]);
 
   // Close on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
+  useClickOutside(menuRef, onClose);
 
   if (items.length === 0) return null;
 

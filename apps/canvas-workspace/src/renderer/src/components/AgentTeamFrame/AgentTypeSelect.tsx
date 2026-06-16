@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import type { AgentDef } from '../../config/agentRegistry';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 
 interface AgentTypeSelectProps {
   value: string;
@@ -33,21 +35,8 @@ export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange 
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = options.find((opt) => opt.id === value) ?? options[0];
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    window.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('mousedown', onPointerDown);
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open]);
+  useClickOutside(rootRef, () => setOpen(false), open);
+  useEscapeClose(open, () => setOpen(false));
 
   const pick = (id: string) => {
     setOpen(false);

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import "./index.css";
 import type { CanvasNode, FrameNodeData } from "../../types";
 import { AgentTeamFrame } from "../AgentTeamFrame";
 import { useEscapeClose } from "../../hooks/useEscapeClose";
+import { useClickOutside } from "../../hooks/useClickOutside";
 
 interface Props {
   node: CanvasNode;
@@ -163,18 +164,8 @@ export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
     [node.id, data, onUpdate]
   );
 
-  // Close popover on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
+  // Close popover on outside click or Escape
+  useClickOutside(triggerRef, () => setOpen(false), open);
   useEscapeClose(open, () => setOpen(false));
 
   return (

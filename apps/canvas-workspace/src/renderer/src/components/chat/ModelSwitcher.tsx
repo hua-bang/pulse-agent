@@ -6,6 +6,7 @@ import type { ModelSelection } from './modelSettingsTypes';
 import { providerLabel } from './modelSettingsTypes';
 import { useI18n } from '../../i18n';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface ModelSwitcherProps {
   status?: CanvasModelStatus;
@@ -67,24 +68,18 @@ export const ModelSwitcher = ({
   }, [open, updateMenuPosition]);
 
   useEscapeClose(open, () => setOpen(false));
+  // Trigger + menu both count as "inside" so clicking the trigger toggles
+  // rather than double-firing a close.
+  useClickOutside([triggerRef, menuRef], () => setOpen(false), open);
 
   useEffect(() => {
     if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const onResize = () => updateMenuPosition();
-    const onScroll = () => updateMenuPosition();
-    document.addEventListener('mousedown', onPointerDown);
-    window.addEventListener('resize', onResize);
-    window.addEventListener('scroll', onScroll, true);
+    const reposition = () => updateMenuPosition();
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
     return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
     };
   }, [open, updateMenuPosition]);
 

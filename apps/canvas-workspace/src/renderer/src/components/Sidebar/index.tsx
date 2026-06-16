@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 import type { NavItem } from '../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
 import type { CanvasNode } from '../../types';
@@ -103,14 +105,16 @@ export const Sidebar = ({
     setLayerContextMenu({ x: e.clientX, y: e.clientY, nodeId });
   }, []);
 
+  // A right-click context menu dismisses on the next press anywhere (no ref
+  // containment — clicking an item runs its handler, then this closes it).
+  // Escape goes through the shared IME-aware hook like every other overlay.
   useEffect(() => {
     if (!layerContextMenu) return;
     const close = () => setLayerContextMenu(null);
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setLayerContextMenu(null); };
     document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', onKey);
-    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', onKey); };
+    return () => document.removeEventListener('mousedown', close);
   }, [layerContextMenu]);
+  useEscapeClose(!!layerContextMenu, () => setLayerContextMenu(null));
 
   const toggleLayerCollapse = useCallback((id: string) => {
     setCollapsedLayers((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
@@ -127,12 +131,8 @@ export const Sidebar = ({
   useEffect(() => { if (renamingLayerId && renameLayerInputRef.current) { renameLayerInputRef.current.focus(); renameLayerInputRef.current.select(); } }, [renamingLayerId]);
   useEffect(() => { if (inlineCreate && inlineCreateRef.current) inlineCreateRef.current.focus(); }, [inlineCreate]);
 
-  useEffect(() => {
-    if (!showAddMenu) return;
-    const handler = (e: MouseEvent) => { if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) setShowAddMenu(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showAddMenu]);
+  useClickOutside(addMenuRef, () => setShowAddMenu(false), showAddMenu);
+  useEscapeClose(showAddMenu, () => setShowAddMenu(false));
 
   const startRename = (ws: WorkspaceEntry) => { setRenamingId(ws.id); setRenameValue(ws.name); };
   const commitRename = () => { if (renamingId && renameValue.trim()) onRename(renamingId, renameValue); setRenamingId(null); };

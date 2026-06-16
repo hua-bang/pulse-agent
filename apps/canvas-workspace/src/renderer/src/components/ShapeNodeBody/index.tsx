@@ -4,6 +4,7 @@ import type { CanvasNode, ShapeNodeData } from '../../types';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { isImeComposing } from '../../utils/ime';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface Props {
   node: CanvasNode;
@@ -235,17 +236,7 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const handle = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [open]);
-
+  useClickOutside(rootRef, () => setOpen(false), open);
   useEscapeClose(open, () => setOpen(false));
 
   const patch = useCallback(

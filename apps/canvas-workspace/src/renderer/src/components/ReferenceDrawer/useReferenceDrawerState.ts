@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { CanvasNode } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { copyTextToClipboard } from '../../utils/clipboard';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { isReferenceableNode } from '../../utils/referenceNodes';
@@ -86,27 +87,8 @@ export const useReferenceDrawerState = ({
     return () => window.clearTimeout(timer);
   }, [searchDraft]);
 
-  useEffect(() => {
-    if (!pickerOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!pickerRef.current?.contains(event.target as Node)) {
-        setPickerOpen(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [pickerOpen]);
-
-  useEffect(() => {
-    if (!urlEditorOpen) return;
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!urlEditorRef.current?.contains(event.target as Node)) {
-        setUrlEditorOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [urlEditorOpen]);
+  useClickOutside(pickerRef, () => setPickerOpen(null), !!pickerOpen);
+  useClickOutside(urlEditorRef, () => setUrlEditorOpen(false), urlEditorOpen);
 
   useEffect(() => {
     if (!externalWorkspaceId || externalWorkspaceId === activeWorkspaceId) return;

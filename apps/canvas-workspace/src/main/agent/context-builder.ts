@@ -9,6 +9,7 @@ import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { EdgeSummary, NodeSummary, WorkspaceSummary } from './types';
+import type { CanvasNodeRef } from '../../shared/canvas';
 import { getNodeRenderedText } from '../webview/registry';
 import { readCanvasFull } from '../canvas/storage';
 
@@ -22,6 +23,8 @@ interface CanvasNode {
   y: number;
   width: number;
   height: number;
+  /** Set on `type: 'reference'` nodes; points at the source node. */
+  ref?: CanvasNodeRef;
   data: Record<string, unknown>;
   updatedAt?: number;
 }
@@ -345,6 +348,26 @@ function summarizeNode(node: CanvasNode): NodeSummary {
       }
       break;
     }
+    case 'reference': {
+      // A reference is a shell that mirrors a source node (usually in another
+      // canvas). The lightweight summary stays cheap — it surfaces where the
+      // node points from the persisted snapshot, without loading the source
+      // workspace. `canvas_read_node` resolves the real content on demand.
+      const typeSnapshot = node.data.typeSnapshot as string | undefined;
+      const titleSnapshot = node.data.titleSnapshot as string | undefined;
+      const workspaceNameSnapshot = node.data.workspaceNameSnapshot as string | undefined;
+      if (typeSnapshot) summary.refType = typeSnapshot;
+      if (titleSnapshot && !summary.title) summary.title = titleSnapshot;
+      const ref = node.ref;
+      if (ref?.kind === 'workspace-node') {
+        summary.refNodeId = ref.nodeId;
+        summary.refWorkspaceId = ref.workspaceId;
+        summary.refWorkspaceName = workspaceNameSnapshot;
+      } else if (ref?.kind === 'global-node') {
+        summary.refNodeId = ref.nodeId;
+      }
+      break;
+    }
   }
 
   return summary;
@@ -431,95 +454,112 @@ interface DetailedWorkspaceContext {
 }
 
 /**
- * Build a full detailed context including file contents and terminal
- * scrollback. This is expensive and only loaded via the canvas_read_context
- * tool when the agent needs deep context.
+ * Guard against pathological reference chains (A → B → A). The normal
+ * creation flow can't produce ref→ref links — references only target
+ * "referenceable" content types — but a hand-edited canvas could, so cap
+ * the recursion cheaply rather than risk an infinite loop.
  */
-export async function buildDetailedContext(workspaceId: string): Promise<DetailedWorkspaceContext | null> {
-  const canvas = await loadCanvasJson(workspaceId);
-  if (!canvas) return null;
+const MAX_REFERENCE_DEPTH = 4;
 
-  const manifest = await loadManifest();
-  const entry = manifest.workspaces.find(e => e.id === workspaceId);
-  const workspaceName = entry?.name ?? workspaceId;
-  const canvasDir = join(STORE_DIR, workspaceId);
-
-  const nodes: DetailedNodeContext[] = [];
-
-  for (const node of canvas.nodes) {
-    const base = summarizeNode(node);
-    const detailed: DetailedNodeContext = { ...base };
-
-    switch (node.type) {
-      case 'file': {
-        const filePath = node.data.filePath as string;
-        if (filePath) {
-          try {
-            detailed.content = await fs.readFile(filePath, 'utf-8');
-          } catch {
-            detailed.content = (node.data.content as string) ?? '';
-          }
-        } else {
-          detailed.content = (node.data.content as string) ?? '';
-        }
-        break;
-      }
-      case 'terminal':
-        detailed.scrollback = (node.data.scrollback as string) ?? '';
-        detailed.cwd = (node.data.cwd as string) ?? '';
-        break;
-      case 'agent':
-        detailed.scrollback = (node.data.scrollback as string) ?? '';
-        detailed.cwd = (node.data.cwd as string) ?? '';
-        break;
-      case 'image':
-        detailed.content = node.data.filePath ? `[image file: ${node.data.filePath as string}]` : '[image node has no filePath]';
-        break;
-      case 'iframe': {
-        const iframeMode = (node.data.mode as string) || 'url';
-        if (iframeMode === 'html' || iframeMode === 'ai') {
-          detailed.content = (node.data.html as string) ?? '';
-        } else {
-          const url = (node.data.url as string) || '';
-          detailed.content = await readIframeContent(workspaceId, node.id, url);
-        }
-        break;
-      }
-      case 'text':
-        detailed.content = (node.data.content as string) ?? '';
-        break;
-      case 'mindmap': {
-        const root = node.data.root as MindmapTopic | undefined;
-        detailed.content = root ? flattenMindmapTopics(root) : '';
-        break;
-      }
-    }
-
-    nodes.push(detailed);
-  }
-
-  // Read AGENTS.md if present
-  let agentsMd: string | undefined;
-  try {
-    agentsMd = await fs.readFile(join(canvasDir, 'AGENTS.md'), 'utf-8');
-  } catch {
-    // not present
-  }
-
-  return { workspaceId, workspaceName, canvasDir, nodes, agentsMd };
+/**
+ * Resolve a reference node to its source node. A reference is a lightweight
+ * shell whose real content lives in another node — usually in a different
+ * workspace. We follow `node.ref` to load the target workspace's canvas and
+ * locate the source by id. Mirrors the renderer's `resolveReferenceNode`.
+ *
+ * Returns null when the node isn't a resolvable reference (unsupported ref
+ * kind, missing source, or removed workspace) so callers fall back to the
+ * persisted snapshot.
+ */
+async function resolveReferenceSource(
+  node: CanvasNode,
+): Promise<{ node: CanvasNode; workspaceId: string; workspaceName: string } | null> {
+  const ref = node.ref;
+  // Only workspace-node references resolve to a concrete source today; this
+  // matches what the renderer can open. Other kinds fall through to snapshot.
+  if (!ref || ref.kind !== 'workspace-node') return null;
+  const canvas = await loadCanvasJson(ref.workspaceId);
+  const source = canvas?.nodes.find((n) => n.id === ref.nodeId);
+  if (!source) return null;
+  const [resolved] = await resolveWorkspaceNames([ref.workspaceId]);
+  return {
+    node: source,
+    workspaceId: ref.workspaceId,
+    workspaceName: resolved?.name ?? ref.workspaceId,
+  };
 }
 
-// ─── Read a single node in detail ──────────────────────────────────
+/** Human-readable description of where a reference node points, for diagnostics. */
+function describeRefTarget(node: CanvasNode): string {
+  const ref = node.ref;
+  if (ref?.kind === 'workspace-node') {
+    const wsName = (node.data.workspaceNameSnapshot as string | undefined) ?? ref.workspaceId;
+    return `node "${ref.nodeId}" in workspace "${wsName}"`;
+  }
+  if (ref?.kind === 'global-node') {
+    return `global node "${ref.nodeId}"`;
+  }
+  return 'an unknown source';
+}
 
-export async function readNodeDetail(workspaceId: string, nodeId: string): Promise<DetailedNodeContext | null> {
-  const canvas = await loadCanvasJson(workspaceId);
-  if (!canvas) return null;
+/**
+ * Fill a reference node's detail by resolving its source and copying the
+ * source's content + metadata up. Keeps the reference node's own id/title so
+ * the agent can still refer to the on-canvas node the user mentioned, but
+ * annotates `ref*` fields with the resolved truth. When the source can't be
+ * resolved, surface the snapshot so the agent can explain it instead of
+ * returning an empty shell.
+ */
+async function populateReferenceDetail(
+  detailed: DetailedNodeContext,
+  node: CanvasNode,
+  depth: number,
+): Promise<void> {
+  const resolved = depth < MAX_REFERENCE_DEPTH ? await resolveReferenceSource(node) : null;
 
-  const node = canvas.nodes.find(n => n.id === nodeId);
-  if (!node) return null;
+  if (!resolved) {
+    const titleSnapshot = node.data.titleSnapshot as string | undefined;
+    const typeSnapshot = node.data.typeSnapshot as string | undefined;
+    detailed.content = [
+      '[reference node — source content unavailable]',
+      `This is a reference shell pointing to ${describeRefTarget(node)}.`,
+      titleSnapshot ? `Snapshot title: ${titleSnapshot}` : '',
+      typeSnapshot ? `Snapshot type: ${typeSnapshot}` : '',
+      'The source node may have been deleted, or its workspace is no longer available.',
+    ].filter(Boolean).join('\n');
+    return;
+  }
 
-  const base = summarizeNode(node);
-  const detailed: DetailedNodeContext = { ...base };
+  const sourceDetail = await populateNodeDetail(resolved.node, resolved.workspaceId, depth + 1);
+  // Carry the source's body + type-specific metadata up onto the reference,
+  // but keep `id`/`title`/`type` as the reference node so the agent knows it
+  // read a reference (and can still address the on-canvas node).
+  detailed.content = sourceDetail.content;
+  detailed.scrollback = sourceDetail.scrollback;
+  detailed.cwd = sourceDetail.cwd;
+  detailed.path = sourceDetail.path;
+  detailed.url = sourceDetail.url;
+  detailed.imagePath = sourceDetail.imagePath;
+  detailed.rootText = sourceDetail.rootText;
+  detailed.topicCount = sourceDetail.topicCount;
+  detailed.refType = resolved.node.type;
+  detailed.refNodeId = resolved.node.id;
+  detailed.refWorkspaceId = resolved.workspaceId;
+  detailed.refWorkspaceName = resolved.workspaceName;
+}
+
+/**
+ * Read the type-specific detail (content / scrollback / cwd) for a single
+ * node. Shared by `readNodeDetail` (single-node `canvas_read_node`) and
+ * `buildDetailedContext` (full `canvas_read_context`) so the two stay in
+ * lockstep. `depth` is only used to bound reference recursion.
+ */
+async function populateNodeDetail(
+  node: CanvasNode,
+  workspaceId: string,
+  depth = 0,
+): Promise<DetailedNodeContext> {
+  const detailed: DetailedNodeContext = { ...summarizeNode(node) };
 
   switch (node.type) {
     case 'file': {
@@ -555,10 +595,10 @@ export async function readNodeDetail(workspaceId: string, nodeId: string): Promi
       if (iframeMode === 'html' || iframeMode === 'ai') {
         detailed.content = (node.data.html as string) ?? '';
       } else {
-        // Use the same live-webview-first path as buildDetailedContext so a
-        // single-node read (the common case for `@Link 总结`) can see the
-        // post-JS DOM — otherwise SPAs like Lark wiki come back as empty-ish
-        // shell HTML and the agent gets `content: ""`.
+        // Use the live-webview-first path so a single-node read (the common
+        // case for `@Link 总结`) can see the post-JS DOM — otherwise SPAs like
+        // Lark wiki come back as empty-ish shell HTML and the agent gets
+        // `content: ""`.
         const url = (node.data.url as string) || '';
         detailed.content = await readIframeContent(workspaceId, node.id, url);
       }
@@ -572,9 +612,55 @@ export async function readNodeDetail(workspaceId: string, nodeId: string): Promi
       detailed.content = root ? flattenMindmapTopics(root) : '';
       break;
     }
+    case 'reference':
+      await populateReferenceDetail(detailed, node, depth);
+      break;
   }
 
   return detailed;
+}
+
+/**
+ * Build a full detailed context including file contents and terminal
+ * scrollback. This is expensive and only loaded via the canvas_read_context
+ * tool when the agent needs deep context.
+ */
+export async function buildDetailedContext(workspaceId: string): Promise<DetailedWorkspaceContext | null> {
+  const canvas = await loadCanvasJson(workspaceId);
+  if (!canvas) return null;
+
+  const manifest = await loadManifest();
+  const entry = manifest.workspaces.find(e => e.id === workspaceId);
+  const workspaceName = entry?.name ?? workspaceId;
+  const canvasDir = join(STORE_DIR, workspaceId);
+
+  const nodes: DetailedNodeContext[] = [];
+
+  for (const node of canvas.nodes) {
+    nodes.push(await populateNodeDetail(node, workspaceId));
+  }
+
+  // Read AGENTS.md if present
+  let agentsMd: string | undefined;
+  try {
+    agentsMd = await fs.readFile(join(canvasDir, 'AGENTS.md'), 'utf-8');
+  } catch {
+    // not present
+  }
+
+  return { workspaceId, workspaceName, canvasDir, nodes, agentsMd };
+}
+
+// ─── Read a single node in detail ──────────────────────────────────
+
+export async function readNodeDetail(workspaceId: string, nodeId: string): Promise<DetailedNodeContext | null> {
+  const canvas = await loadCanvasJson(workspaceId);
+  if (!canvas) return null;
+
+  const node = canvas.nodes.find(n => n.id === nodeId);
+  if (!node) return null;
+
+  return populateNodeDetail(node, workspaceId);
 }
 
 // ─── Format summary as system prompt section ───────────────────────
@@ -676,6 +762,22 @@ export function formatSummaryForPrompt(summary: WorkspaceSummary): string {
     for (const n of byType.mindmap) {
       const countHint = n.topicCount ? ` (${n.topicCount} topics)` : '';
       lines.push(`- [${n.id}] **${n.title}**${countHint}`);
+    }
+    lines.push('');
+  }
+
+  if (byType.reference?.length) {
+    lines.push('## Reference Nodes');
+    lines.push(
+      '_Shells that mirror a node from another canvas. `canvas_read_node` on a ' +
+      'reference returns the SOURCE node\'s content (not an empty shell). The ' +
+      'source id/workspace is shown so you can also read it directly._',
+    );
+    for (const n of byType.reference) {
+      const typeHint = n.refType ? ` (${n.refType})` : '';
+      const wsHint = n.refWorkspaceName ? ` — in "${n.refWorkspaceName}"` : '';
+      const idHint = n.refNodeId ? ` → [${n.refNodeId}]` : '';
+      lines.push(`- [${n.id}] **${n.title}**${typeHint}${wsHint}${idHint}`);
     }
     lines.push('');
   }
