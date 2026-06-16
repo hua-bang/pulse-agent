@@ -8,6 +8,7 @@ import "./index.css";
 import type { CanvasNode, TextNodeData } from "../../types";
 import { isImeComposing } from "../../utils/ime";
 import { useEscapeClose } from "../../hooks/useEscapeClose";
+import { useClickOutside } from "../../hooks/useClickOutside";
 import { useI18n } from "../../i18n";
 
 interface Props {
@@ -305,17 +306,7 @@ const TextColorTrigger = ({
     [kind, node.id, data, onUpdate]
   );
 
-  useEffect(() => {
-    if (!open) return;
-    const handleClick = (e: MouseEvent) => {
-      if (triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
+  useClickOutside(triggerRef, () => setOpen(false), open);
   useEscapeClose(open, () => setOpen(false));
 
   const isTransparent = currentValue === "transparent";
