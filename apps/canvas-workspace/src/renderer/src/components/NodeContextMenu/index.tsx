@@ -1,8 +1,8 @@
 import "./index.css";
-import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useViewportClampedPosition } from "../../hooks/useViewportClampedPosition";
 import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
+import { useClickOutside } from "../../hooks/useClickOutside";
 import { useI18n } from "../../i18n";
 
 interface Props {
@@ -21,21 +21,7 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
   // Arrow-key navigation + Escape; replaces the old window Escape
   // listener so the menu is fully operable without a mouse.
   useMenuKeyboardNav(menuRef, onClose);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    const timer = setTimeout(() => {
-      window.addEventListener("click", handleClick);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("click", handleClick);
-    };
-  }, [onClose]);
+  useClickOutside(menuRef, onClose);
 
   const menu = (
     <div

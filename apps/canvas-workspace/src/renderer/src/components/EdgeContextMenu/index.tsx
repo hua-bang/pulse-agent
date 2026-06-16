@@ -1,9 +1,9 @@
-import { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import '../NodeContextMenu/index.css';
 import './index.css';
 import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import { useI18n } from '../../i18n';
 
 interface Props {
@@ -26,23 +26,7 @@ export const EdgeContextMenu = ({ x, y, edgeId, onEditLabel, onEditStyle, onDele
   const { t } = useI18n();
   const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
   useMenuKeyboardNav(menuRef, onClose);
-
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-    // Deferred so the opening right-click's own click event doesn't
-    // immediately dismiss the menu.
-    const timer = setTimeout(() => {
-      window.addEventListener('mousedown', handleClick);
-    }, 0);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('mousedown', handleClick);
-    };
-  }, [menuRef, onClose]);
+  useClickOutside(menuRef, onClose);
 
   const menu = (
     <div
