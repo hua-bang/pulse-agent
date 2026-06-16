@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ListLinesIcon } from '../icons';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 import type { ChatAnchor } from './utils/anchors';
 
 interface ChatAnchorsProps {
@@ -31,17 +33,8 @@ export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
 
   useEffect(() => () => cancelClose(), [cancelClose]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDocMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (wrapperRef.current && target && !wrapperRef.current.contains(target)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [open]);
+  useClickOutside(wrapperRef, () => setOpen(false), open);
+  useEscapeClose(open, () => setOpen(false));
 
   const handleSelect = useCallback((index: number) => {
     cancelClose();

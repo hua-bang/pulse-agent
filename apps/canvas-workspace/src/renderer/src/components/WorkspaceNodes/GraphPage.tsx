@@ -21,6 +21,8 @@ import { useAllWorkspaceNodeList } from './useWorkspaceNodes';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -241,14 +243,8 @@ export const GraphPage = ({
     return () => window.removeEventListener('keydown', handler);
   }, [searchOpen]);
 
-  useEffect(() => {
-    if (!overflowOpen) return;
-    const handler = (event: MouseEvent) => {
-      if (!overflowRef.current?.contains(event.target as Node)) setOverflowOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [overflowOpen]);
+  useClickOutside(overflowRef, () => setOverflowOpen(false), overflowOpen);
+  useEscapeClose(overflowOpen, () => setOverflowOpen(false));
 
   useEffect(() => {
     setActiveNodeId(selectedGraphId(selectedNode));
