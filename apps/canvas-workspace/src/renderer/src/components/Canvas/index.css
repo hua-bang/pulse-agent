@@ -100,6 +100,52 @@
   will-change: transform;
 }
 
+.canvas-gesture-hud {
+  position: absolute;
+  z-index: var(--layer-canvas-chrome);
+  min-width: 126px;
+  padding: 6px 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.16);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.2;
+  pointer-events: none;
+  transform-origin: top left;
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.canvas-gesture-hud__main,
+.canvas-gesture-hud__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.canvas-gesture-hud__main {
+  font-weight: 650;
+}
+
+.canvas-gesture-hud__meta {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-gesture-hud__badge {
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(35, 131, 226, 0.1);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 650;
+}
+
 /* Focus-mode backdrop. Lives inside `.canvas-transform` (see
  * CanvasSurface) so it scales/pans with the canvas and sits below all
  * nodes within the same stacking context. Sized at ±100k canvas units

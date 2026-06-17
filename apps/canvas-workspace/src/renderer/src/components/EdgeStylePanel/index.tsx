@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type {
   CanvasEdge,
@@ -12,7 +12,8 @@ import {
   resolveEndpoint,
   resolveEndpointToward,
 } from '../../utils/edgeFactory';
-import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { useI18n, type I18nKey } from '../../i18n';
 
 /**
  * A compact floating panel, shown when an edge is selected, that lets
@@ -64,6 +65,20 @@ const WIDTHS: Array<{ label: string; value: number }> = [
 const STYLES: Array<NonNullable<EdgeStroke['style']>> = ['solid', 'dashed', 'dotted'];
 
 const CAPS: EdgeArrowCap[] = ['none', 'triangle', 'arrow', 'dot', 'bar'];
+
+const STYLE_LABEL_KEY: Record<NonNullable<EdgeStroke['style']>, I18nKey> = {
+  solid: 'edgeStyle.style.solid',
+  dashed: 'edgeStyle.style.dashed',
+  dotted: 'edgeStyle.style.dotted',
+};
+
+const CAP_LABEL_KEY: Record<EdgeArrowCap, I18nKey> = {
+  none: 'edgeStyle.cap.none',
+  triangle: 'edgeStyle.cap.triangle',
+  arrow: 'edgeStyle.cap.arrow',
+  dot: 'edgeStyle.cap.dot',
+  bar: 'edgeStyle.cap.bar',
+};
 
 const strokeDasharrayFor = (style: EdgeStroke['style']): string | undefined => {
   switch (style) {
@@ -159,6 +174,7 @@ export const EdgeStylePanel = ({
   onUpdate,
   onRemove,
 }: Props) => {
+  const { t } = useI18n();
   const color = edge.stroke?.color ?? '#1f2328';
   const width = edge.stroke?.width ?? 2.4;
   const style = edge.stroke?.style ?? 'solid';
@@ -166,15 +182,33 @@ export const EdgeStylePanel = ({
   const tail: EdgeArrowCap = edge.arrowTail ?? 'none';
 
   const [openSection, setOpenSection] = useState<Section | null>(null);
+  const popoverId = useId();
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const chipRefs = useRef<Record<Section, HTMLButtonElement | null>>({
+    color: null,
+    width: null,
+    style: null,
+    head: null,
+    tail: null,
+  });
   // Collapse the popover whenever the selection switches to a different
   // edge — otherwise the old section would stay open against the fresh
   // current values, which feels confusing.
   useEffect(() => {
     setOpenSection(null);
   }, [edge.id]);
-  // First Escape collapses the open option list; with nothing open the press
-  // falls through to the canvas handler (deselects the edge).
-  useEscapeClose(openSection !== null, () => setOpenSection(null));
+  const closeSection = useCallback((restoreFocus = false) => {
+    const section = openSection;
+    setOpenSection(null);
+    if (restoreFocus && section) {
+      chipRefs.current[section]?.focus();
+    }
+  }, [openSection]);
+
+  // First Escape collapses the open option list and returns focus to the
+  // active chip; with nothing open the press falls through to the canvas
+  // handler (deselects the edge).
+  useMenuKeyboardNav(popoverRef, () => closeSection(true), openSection !== null);
 
   // Resolve the edge's midpoint in canvas coords (accounts for bend),
   // then convert to screen coords via the current transform. The panel
@@ -227,7 +261,7 @@ export const EdgeStylePanel = ({
   // footprint minimal.
   const choose = (fn: () => void) => {
     fn();
-    setOpenSection(null);
+    closeSection(true);
   };
 
   const renderChip = (
@@ -236,13 +270,22 @@ export const EdgeStylePanel = ({
     children: React.ReactNode,
   ) => (
     <button
+      ref={(node) => { chipRefs.current[section] = node; }}
+      type="button"
       className={`edge-chip${openSection === section ? ' edge-chip--active' : ''}`}
       onClick={() => toggleSection(section)}
       title={title}
+      aria-label={title}
+      aria-expanded={openSection === section}
+      aria-haspopup="menu"
+      aria-controls={openSection === section ? popoverId : undefined}
     >
       {children}
     </button>
   );
+
+  const styleLabel = (value: NonNullable<EdgeStroke['style']>) => t(STYLE_LABEL_KEY[value]);
+  const capLabel = (value: EdgeArrowCap) => t(CAP_LABEL_KEY[value]);
 
   return (
     <div
@@ -265,31 +308,33 @@ export const EdgeStylePanel = ({
       <div className="edge-style-chip-row">
         {renderChip(
           'color',
-          `Color ${color}`,
+          t('edgeStyle.color', { color }),
           <span className="edge-chip-swatch" style={{ background: color }} />,
         )}
-        {renderChip('width', `Width`, <WidthPreview width={width} />)}
-        {renderChip('style', `Style ${style ?? 'solid'}`, <StylePreview style={style} />)}
+        {renderChip('width', t('edgeStyle.width'), <WidthPreview width={width} />)}
+        {renderChip('style', t('edgeStyle.style', { style: styleLabel(style) }), <StylePreview style={style} />)}
 
         <div className="edge-style-divider" />
 
         {renderChip(
           'head',
-          `Arrow end`,
+          t('edgeStyle.arrowEnd'),
           <CapPreview cap={head} color="currentColor" side="head" />,
         )}
         {renderChip(
           'tail',
-          `Arrow start`,
+          t('edgeStyle.arrowStart'),
           <CapPreview cap={tail} color="currentColor" side="tail" />,
         )}
 
         <div className="edge-style-divider" />
 
         <button
+          type="button"
           className="edge-chip edge-chip--danger"
           onClick={() => onRemove(edge.id)}
-          title="Delete edge"
+          title={t('edgeStyle.delete')}
+          aria-label={t('edgeStyle.delete')}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path
@@ -303,16 +348,27 @@ export const EdgeStylePanel = ({
       </div>
 
       {openSection && (
-        <div className="edge-style-popover">
+        <div
+          ref={popoverRef}
+          id={popoverId}
+          className="edge-style-popover"
+          role="menu"
+          aria-label={t('edgeStyle.options')}
+        >
           {openSection === 'color' && (
             <div className="edge-style-row">
               {COLORS.map((c) => (
                 <button
+                  type="button"
                   key={c}
+                  role="menuitemradio"
+                  aria-checked={c === color}
+                  data-menu-autofocus={c === color ? 'true' : undefined}
                   className={`edge-style-swatch${c === color ? ' edge-style-swatch--active' : ''}`}
                   style={{ background: c }}
                   onClick={() => choose(() => setStroke({ color: c }))}
-                  title={c}
+                  title={t('edgeStyle.colorOption', { color: c })}
+                  aria-label={t('edgeStyle.colorOption', { color: c })}
                 />
               ))}
             </div>
@@ -322,10 +378,15 @@ export const EdgeStylePanel = ({
             <div className="edge-style-row">
               {WIDTHS.map((w) => (
                 <button
+                  type="button"
                   key={w.label}
+                  role="menuitemradio"
+                  aria-checked={Math.abs(width - w.value) < 0.05}
+                  data-menu-autofocus={Math.abs(width - w.value) < 0.05 ? 'true' : undefined}
                   className={`edge-style-btn${Math.abs(width - w.value) < 0.05 ? ' edge-style-btn--active' : ''}`}
                   onClick={() => choose(() => setStroke({ width: w.value }))}
-                  title={`Width ${w.label}`}
+                  title={t('edgeStyle.widthOption', { label: w.label })}
+                  aria-label={t('edgeStyle.widthOption', { label: w.label })}
                 >
                   <svg width="26" height="18" viewBox="0 0 26 18">
                     <line
@@ -347,10 +408,15 @@ export const EdgeStylePanel = ({
             <div className="edge-style-row">
               {STYLES.map((st) => (
                 <button
+                  type="button"
                   key={st}
+                  role="menuitemradio"
+                  aria-checked={st === style}
+                  data-menu-autofocus={st === style ? 'true' : undefined}
                   className={`edge-style-btn${st === style ? ' edge-style-btn--active' : ''}`}
                   onClick={() => choose(() => setStroke({ style: st }))}
-                  title={st}
+                  title={styleLabel(st)}
+                  aria-label={styleLabel(st)}
                 >
                   <svg width="30" height="18" viewBox="0 0 30 18">
                     <line
@@ -373,10 +439,15 @@ export const EdgeStylePanel = ({
             <div className="edge-style-row edge-style-row--caps">
               {CAPS.map((c) => (
                 <button
+                  type="button"
                   key={`head-${c}`}
+                  role="menuitemradio"
+                  aria-checked={c === head}
+                  data-menu-autofocus={c === head ? 'true' : undefined}
                   className={`edge-style-btn edge-style-btn--cap${c === head ? ' edge-style-btn--active' : ''}`}
                   onClick={() => choose(() => onUpdate(edge.id, { arrowHead: c }))}
-                  title={`End: ${c}`}
+                  title={t('edgeStyle.arrowEndOption', { cap: capLabel(c) })}
+                  aria-label={t('edgeStyle.arrowEndOption', { cap: capLabel(c) })}
                 >
                   <CapPreview cap={c} color="currentColor" side="head" />
                 </button>
@@ -388,10 +459,15 @@ export const EdgeStylePanel = ({
             <div className="edge-style-row edge-style-row--caps">
               {CAPS.map((c) => (
                 <button
+                  type="button"
                   key={`tail-${c}`}
+                  role="menuitemradio"
+                  aria-checked={c === tail}
+                  data-menu-autofocus={c === tail ? 'true' : undefined}
                   className={`edge-style-btn edge-style-btn--cap${c === tail ? ' edge-style-btn--active' : ''}`}
                   onClick={() => choose(() => onUpdate(edge.id, { arrowTail: c }))}
-                  title={`Start: ${c}`}
+                  title={t('edgeStyle.arrowStartOption', { cap: capLabel(c) })}
+                  aria-label={t('edgeStyle.arrowStartOption', { cap: capLabel(c) })}
                 >
                   <CapPreview cap={c} color="currentColor" side="tail" />
                 </button>

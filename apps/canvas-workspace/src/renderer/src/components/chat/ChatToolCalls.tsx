@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useI18n } from '../../i18n';
 import type { ToolCallStatus } from './types';
 
 interface ChatToolCallsProps {
@@ -169,6 +170,7 @@ export const ChatToolCalls = ({
   onToggleToolExpand,
   onSessionJump,
 }: ChatToolCallsProps) => {
+  const { t } = useI18n();
   const sessionRefsByToolId = useMemo(() => {
     const map = new Map<number, SessionRef[]>();
     for (const tool of tools) {
@@ -178,43 +180,56 @@ export const ChatToolCalls = ({
     }
     return map;
   }, [tools]);
+
+  const completedLabel = t('chat.toolCalls.completed', { count: tools.length });
+
   if (collapsed) {
     return (
-      <div className="chat-tool-calls chat-tool-calls--collapsed" onClick={onToggleSection}>
+      <button
+        type="button"
+        className="chat-tool-calls chat-tool-calls--collapsed"
+        aria-expanded="false"
+        aria-label={t('chat.toolCalls.expandSection', { count: tools.length })}
+        onClick={onToggleSection}
+      >
         <span className="chat-tool-call-icon">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-        <span className="chat-tool-calls-summary">已完成 {tools.length} 个操作</span>
+        <span className="chat-tool-calls-summary">{completedLabel}</span>
         <span className="chat-tool-call-chevron">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
-      </div>
+      </button>
     );
   }
 
   return (
     <div className="chat-tool-calls">
       {showSectionHeader && tools.length > 0 && (
-        <div className="chat-tool-calls-section-header" onClick={onToggleSection}>
-          <span className="chat-tool-calls-summary">已完成 {tools.length} 个操作</span>
+        <button
+          type="button"
+          className="chat-tool-calls-section-header"
+          aria-expanded="true"
+          aria-label={t('chat.toolCalls.collapseSection', { count: tools.length })}
+          onClick={onToggleSection}
+        >
+          <span className="chat-tool-calls-summary">{completedLabel}</span>
           <span className="chat-tool-call-chevron chat-tool-call-chevron--open">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
-        </div>
+        </button>
       )}
-      {tools.map(tool => (
-        <div key={tool.id} className={`chat-tool-call chat-tool-call--${tool.status}`}>
-          <div
-            className="chat-tool-call-header"
-            onClick={tool.status === 'done' && tool.result ? () => onToggleToolExpand(tool.id) : undefined}
-            style={tool.status === 'done' && tool.result ? { cursor: 'pointer' } : undefined}
-          >
+      {tools.map(tool => {
+        const canToggle = tool.status === 'done' && !!tool.result;
+        const expanded = expandedTools.has(tool.id);
+        const headerContent = (
+          <>
             <span className="chat-tool-call-icon">
               {tool.status === 'running' ? (
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
@@ -230,14 +245,35 @@ export const ChatToolCalls = ({
               <span className="chat-tool-call-label">{formatToolLabel(tool.name, tool.status)}</span>
               <span className="chat-tool-call-name">{tool.name}</span>
             </span>
-            {tool.status === 'done' && tool.result && (
-              <span className={`chat-tool-call-chevron${expandedTools.has(tool.id) ? ' chat-tool-call-chevron--open' : ''}`}>
+            {canToggle && (
+              <span className={`chat-tool-call-chevron${expanded ? ' chat-tool-call-chevron--open' : ''}`}>
                 <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
                   <path d="M3 4l2 2 2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
             )}
-          </div>
+          </>
+        );
+
+        return (
+          <div key={tool.id} className={`chat-tool-call chat-tool-call--${tool.status}`}>
+          {canToggle ? (
+            <button
+              type="button"
+              className="chat-tool-call-header chat-tool-call-header--expandable"
+              aria-expanded={expanded}
+              aria-label={expanded
+                ? t('chat.toolCalls.collapseResult', { name: tool.name })
+                : t('chat.toolCalls.expandResult', { name: tool.name })}
+              onClick={() => onToggleToolExpand(tool.id)}
+            >
+              {headerContent}
+            </button>
+          ) : (
+            <div className="chat-tool-call-header">
+              {headerContent}
+            </div>
+          )}
           {sessionRefsByToolId.has(tool.id) && (
             <SessionRefChips refs={sessionRefsByToolId.get(tool.id)!} />
           )}
@@ -258,7 +294,8 @@ export const ChatToolCalls = ({
             </div>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

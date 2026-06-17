@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import type { CanvasNode, FileNodeData, TextNodeData } from '../../types';
 import { isImeComposing } from '../../utils/ime';
+import { useI18n, type I18nKey } from '../../i18n';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 
 /**
  * A single executable entry in the palette. Commands are bound by the
@@ -28,12 +30,12 @@ export interface PaletteCommand {
 
 const GROUP_ORDER: Array<PaletteCommand['group']> = ['edit', 'create', 'navigate', 'view', 'help'];
 
-const GROUP_LABEL: Record<PaletteCommand['group'], string> = {
-  create: 'Create',
-  navigate: 'Navigate',
-  view: 'View',
-  edit: 'Edit',
-  help: 'Help',
+const GROUP_LABEL_KEY: Record<PaletteCommand['group'], I18nKey> = {
+  create: 'canvas.palette.group.create',
+  navigate: 'canvas.palette.group.navigate',
+  view: 'canvas.palette.group.view',
+  edit: 'canvas.palette.group.edit',
+  help: 'canvas.palette.group.help',
 };
 
 interface NodeResult {
@@ -80,6 +82,7 @@ const MAX_NODE_RESULTS = 20;
  * still surface "Create agent" so the panel is always actionable.
  */
 export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props) => {
+  const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +110,7 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
         const items = enabledCommands
           .filter((c) => c.group === group)
           .map((c): CommandResult => ({ kind: 'command', command: c }));
-        if (items.length > 0) out.push({ label: GROUP_LABEL[group], items });
+        if (items.length > 0) out.push({ label: t(GROUP_LABEL_KEY[group]), items });
       }
       const recentNodes = [...nodes]
         .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
@@ -118,7 +121,7 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
           matchType: 'recent',
           matchText: node.title,
         }));
-      if (recentNodes.length > 0) out.push({ label: 'Recent nodes', items: recentNodes });
+      if (recentNodes.length > 0) out.push({ label: t('canvas.palette.section.recentNodes'), items: recentNodes });
       return out;
     }
 
@@ -184,16 +187,16 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
 
     const out: Section[] = [];
     if (nodeResults.length > 0) {
-      out.push({ label: 'Nodes', items: nodeResults.slice(0, MAX_NODE_RESULTS) });
+      out.push({ label: t('canvas.palette.section.nodes'), items: nodeResults.slice(0, MAX_NODE_RESULTS) });
     }
     if (commandHits.length > 0) {
       out.push({
-        label: 'Commands',
+        label: t('canvas.palette.section.commands'),
         items: commandHits.map((c): CommandResult => ({ kind: 'command', command: c })),
       });
     }
     return out;
-  }, [query, nodes, enabledCommands]);
+  }, [query, nodes, enabledCommands, t]);
 
   // Flat list of items in display order — what arrow-key navigation
   // walks. Section headers don't get a slot; selectedIndex points
@@ -202,6 +205,10 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
     () => sections.flatMap((s) => s.items),
     [sections],
   );
+  const resultsId = 'command-palette-results';
+  const activeOptionId = selectedIndex >= 0 && selectedIndex < flatItems.length
+    ? `command-palette-option-${selectedIndex}`
+    : undefined;
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -226,16 +233,18 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
     [onSelectNode, onClose],
   );
 
-  const handleKeyDown = useCallback(
+  const handleInputKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       // IME composition owns Enter (confirm candidate), Escape (dismiss
       // candidate), and the arrow keys (navigate candidates) — don't run
       // a command or close the palette mid-composition.
       if (isImeComposing(e)) return;
       if (e.key === 'Escape') {
+        e.preventDefault();
         onClose();
         return;
       }
+      if (flatItems.length === 0) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedIndex((prev) => Math.min(prev + 1, flatItems.length - 1));
@@ -254,11 +263,43 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
     [flatItems, selectedIndex, runItem, onClose],
   );
 
+  const handleResultsKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (isImeComposing(e)) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (flatItems.length === 0) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.min(prev + 1, flatItems.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Home') {
+        e.preventDefault();
+        setSelectedIndex(0);
+        return;
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        setSelectedIndex(flatItems.length - 1);
+      }
+    },
+    [flatItems.length, onClose],
+  );
+
   let runningIndex = 0;
 
   return (
     <div className="command-palette-overlay" onClick={onClose} onWheel={(e) => e.stopPropagation()}>
-      <div className="command-palette" onClick={(e) => e.stopPropagation()}>
+      <div className="command-palette" role="dialog" aria-modal="true" aria-label={t('canvas.palette.label')} onClick={(e) => e.stopPropagation()}>
         <div className="command-palette-input-wrapper">
           <svg className="command-palette-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
             <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" />
@@ -268,16 +309,29 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
             ref={inputRef}
             type="text"
             className="command-palette-input"
-            placeholder="Search nodes or run a command..."
+            placeholder={t('canvas.palette.placeholder')}
+            aria-label={t('canvas.palette.placeholder')}
+            role="combobox"
+            aria-controls={flatItems.length > 0 ? resultsId : undefined}
+            aria-activedescendant={activeOptionId}
+            aria-expanded={flatItems.length > 0}
+            aria-haspopup="listbox"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onKeyDown={handleInputKeyDown}
           />
         </div>
 
-        <div className="command-palette-results" ref={resultsRef}>
+        <div
+          id={resultsId}
+          className="command-palette-results"
+          ref={resultsRef}
+          role="listbox"
+          aria-label={t('canvas.palette.results')}
+          onKeyDown={handleResultsKeyDown}
+        >
           {flatItems.length === 0 ? (
-            <div className="command-palette-empty">No matches</div>
+            <div className="command-palette-empty">{t('canvas.palette.noMatches')}</div>
           ) : (
             sections.map((section) => (
               <div key={section.label} className="command-palette-section">
@@ -293,6 +347,7 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
                       isSelected={isSelected}
                       onActivate={runItem}
                       onHover={setSelectedIndex}
+                      onFocus={setSelectedIndex}
                     />
                   );
                 })}
@@ -302,9 +357,9 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
         </div>
 
         <div className="command-palette-hint">
-          <span>↑↓ Navigate</span>
-          <span>↵ Run</span>
-          <span>Esc Close</span>
+          <span>{t('canvas.palette.hint.navigate')}</span>
+          <span>{t('canvas.palette.hint.run')}</span>
+          <span>{t('canvas.palette.hint.close')}</span>
         </div>
       </div>
     </div>
@@ -317,43 +372,62 @@ interface RowProps {
   isSelected: boolean;
   onActivate: (item: PaletteItem) => void;
   onHover: (index: number) => void;
+  onFocus: (index: number) => void;
 }
 
-const PaletteRow = ({ item, index, isSelected, onActivate, onHover }: RowProps) => {
+const PaletteRow = ({ item, index, isSelected, onActivate, onHover, onFocus }: RowProps) => {
+  const { t } = useI18n();
   const className = `command-palette-row ${isSelected ? 'selected' : ''}`;
   if (item.kind === 'node') {
     const showSnippet = item.matchType !== 'title-prefix' && item.matchType !== 'title-contains' && item.matchType !== 'recent';
+    const title = item.node.title || t('canvas.palette.untitled');
+    const typeLabel = t(CANVAS_NODE_TYPE_LABEL_KEY[item.node.type]);
     return (
-      <div
+      <button
+        type="button"
         className={className}
+        id={`command-palette-option-${index}`}
+        role="option"
+        aria-selected={isSelected}
+        aria-label={t('canvas.palette.nodeOption', { type: typeLabel, title })}
         data-palette-index={index}
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => onActivate(item)}
         onMouseEnter={() => onHover(index)}
+        onFocus={() => onFocus(index)}
       >
         <div className="command-palette-row-main">
           <span className={`command-palette-badge command-palette-badge--${item.node.type}`}>
-            {item.node.type}
+            {typeLabel}
           </span>
-          <span className="command-palette-row-title">{item.node.title}</span>
+          <span className="command-palette-row-title">{title}</span>
         </div>
         {showSnippet && <div className="command-palette-row-hint">{item.matchText}</div>}
-      </div>
+      </button>
     );
   }
   const c = item.command;
+  const groupLabel = t(GROUP_LABEL_KEY[c.group]);
   return (
-    <div
+    <button
+      type="button"
       className={className}
+      id={`command-palette-option-${index}`}
+      role="option"
+      aria-selected={isSelected}
+      aria-label={t('canvas.palette.commandOption', { group: groupLabel, title: c.title })}
       data-palette-index={index}
+      onMouseDown={(e) => e.preventDefault()}
       onClick={() => onActivate(item)}
       onMouseEnter={() => onHover(index)}
+      onFocus={() => onFocus(index)}
     >
       <div className="command-palette-row-main">
-        <span className="command-palette-badge command-palette-badge--cmd">{c.group}</span>
+        <span className="command-palette-badge command-palette-badge--cmd">{groupLabel}</span>
         <span className="command-palette-row-title">{c.title}</span>
         {c.shortcut && <span className="command-palette-shortcut">{c.shortcut}</span>}
       </div>
       {c.hint && <div className="command-palette-row-hint">{c.hint}</div>}
-    </div>
+    </button>
   );
 };

@@ -85,9 +85,17 @@
   display: block;
 }
 
-.edge-chip:hover {
+.edge-chip:hover,
+.edge-chip:focus-visible {
   background: rgba(0, 0, 0, 0.04);
   color: var(--text);
+}
+
+.edge-chip:focus-visible,
+.edge-style-swatch:focus-visible,
+.edge-style-btn:focus-visible {
+  outline: 1px solid rgba(35, 131, 226, 0.38);
+  outline-offset: 2px;
 }
 
 .edge-chip--active {
@@ -133,7 +141,8 @@
   transition: transform 0.1s, box-shadow 0.1s;
 }
 
-.edge-style-swatch:hover {
+.edge-style-swatch:hover,
+.edge-style-swatch:focus-visible {
   transform: scale(1.08);
 }
 
@@ -163,7 +172,8 @@
   display: block;
 }
 
-.edge-style-btn:hover {
+.edge-style-btn:hover,
+.edge-style-btn:focus-visible {
   background: rgba(0, 0, 0, 0.04);
   color: var(--text);
 }

@@ -76,10 +76,12 @@ export const Select = ({
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
         onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault();
-            setOpen(true);
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') {
+            return;
           }
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
         }}
       >
         <span className={`ui-select__value${selected ? '' : ' ui-select__value--placeholder'}`}>
@@ -129,6 +131,7 @@ const SelectMenu = ({
             type="button"
             role="option"
             aria-selected={isActive}
+            data-menu-autofocus={isActive ? 'true' : undefined}
             disabled={opt.disabled}
             className={`ui-select__option${isActive ? ' ui-select__option--active' : ''}`}
             onClick={() => onPick(opt.value)}

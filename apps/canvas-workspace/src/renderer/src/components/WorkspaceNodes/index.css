@@ -201,7 +201,9 @@
   color: var(--nodes-muted);
 }
 
-.workspace-node-tag--add:hover {
+.workspace-node-tag--add:hover,
+.workspace-node-tag--add:focus-visible {
+  outline: none;
   background: var(--nodes-surface-hover);
   color: var(--nodes-text);
 }
@@ -231,7 +233,9 @@
   line-height: 16px;
 }
 
-.workspace-node-tag__remove:hover {
+.workspace-node-tag__remove:hover,
+.workspace-node-tag__remove:focus-visible {
+  outline: none;
   background: rgba(55, 53, 47, 0.08);
   color: var(--nodes-text);
 }
@@ -294,7 +298,10 @@
   font-size: 12px;
 }
 
-.node-tag-editor__option:hover {
+.node-tag-editor__option:hover,
+.node-tag-editor__option:focus-visible,
+.node-tag-editor__option--active {
+  outline: none;
   background: var(--nodes-surface-hover);
 }
 
@@ -810,7 +817,9 @@
   color: inherit;
 }
 
-.workspace-graph-toolbar__menu-item:hover {
+.workspace-graph-toolbar__menu-item:hover,
+.workspace-graph-toolbar__menu-item:focus-visible {
+  outline: none;
   background: rgba(55, 53, 47, 0.06);
 }
 
@@ -873,8 +882,14 @@
 }
 
 .workspace-graph-search__item.is-active,
-.workspace-graph-search__item:hover {
+.workspace-graph-search__item:hover,
+.workspace-graph-search__item:focus-visible {
   background: rgba(55, 53, 47, 0.06);
+}
+
+.workspace-graph-search__item:focus-visible {
+  outline: 1px solid rgba(35, 131, 226, 0.35);
+  outline-offset: -1px;
 }
 
 .workspace-graph-search__title {

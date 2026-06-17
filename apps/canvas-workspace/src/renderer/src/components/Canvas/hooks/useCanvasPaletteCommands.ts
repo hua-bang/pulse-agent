@@ -3,6 +3,7 @@ import type { CanvasNode } from '../../../types';
 import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { PaletteCommand } from '../../CommandPalette';
 import type { AddNodeOptions } from '../../../hooks/useNodes';
+import { useI18n } from '../../../i18n';
 
 interface Options {
   selectedNodeIds: string[];
@@ -62,6 +63,8 @@ export const useCanvasPaletteCommands = ({
   focusModeAvailable,
   toggleFocusMode,
 }: Options): PaletteCommand[] => {
+  const { t } = useI18n();
+
   return useMemo<PaletteCommand[]>(() => {
     const selectionCount = selectedNodeIds.length;
     const list: PaletteCommand[] = [
@@ -69,8 +72,8 @@ export const useCanvasPaletteCommands = ({
         id: 'duplicate-selection',
         group: 'edit',
         title: selectionCount > 1
-          ? `Duplicate ${selectionCount} selected nodes`
-          : 'Duplicate selected node',
+          ? t('canvas.palette.command.duplicateMany', { count: selectionCount })
+          : t('canvas.palette.command.duplicateOne'),
         shortcut: 'Cmd+D',
         enabled: selectionCount > 0,
         run: () => {
@@ -86,8 +89,8 @@ export const useCanvasPaletteCommands = ({
         id: 'delete-selection',
         group: 'edit',
         title: selectionCount > 1
-          ? `Delete ${selectionCount} selected nodes`
-          : 'Delete selected node',
+          ? t('canvas.palette.command.deleteMany', { count: selectionCount })
+          : t('canvas.palette.command.deleteOne'),
         shortcut: 'Del',
         enabled: selectionCount > 0,
         run: () => {
@@ -98,8 +101,8 @@ export const useCanvasPaletteCommands = ({
         id: 'group-selection',
         group: 'edit',
         title: selectionCount > 1
-          ? `Group ${selectionCount} selected nodes`
-          : 'Group selected node',
+          ? t('canvas.palette.command.groupMany', { count: selectionCount })
+          : t('canvas.palette.command.groupOne'),
         shortcut: 'Cmd+G',
         aliases: ['group', 'bundle'],
         enabled: selectionCount > 0,
@@ -110,7 +113,7 @@ export const useCanvasPaletteCommands = ({
       {
         id: 'ungroup-selection',
         group: 'edit',
-        title: 'Ungroup selected group',
+        title: t('canvas.palette.command.ungroup'),
         shortcut: 'Cmd+Shift+G',
         aliases: ['ungroup', 'dissolve group', 'release group'],
         enabled: selectedNodeIds.some((id) =>
@@ -124,8 +127,8 @@ export const useCanvasPaletteCommands = ({
         id: 'wrap-selection-in-frame',
         group: 'edit',
         title: selectionCount > 1
-          ? `Wrap ${selectionCount} selected nodes in frame`
-          : 'Wrap selected node in frame',
+          ? t('canvas.palette.command.wrapMany', { count: selectionCount })
+          : t('canvas.palette.command.wrapOne'),
         aliases: ['frame', 'wrap'],
         enabled: selectionCount > 0,
         run: () => {
@@ -135,7 +138,9 @@ export const useCanvasPaletteCommands = ({
       {
         id: 'pin-reference',
         group: 'view',
-        title: selectionCount === 1 ? 'Pin selected node as reference' : 'Pin node as reference',
+        title: selectionCount === 1
+          ? t('canvas.palette.command.pinSelected')
+          : t('canvas.palette.command.pinNode'),
         aliases: ['reference', 'pin', 'context'],
         enabled: selectionCount === 1 && !!onPinReferenceNode,
         run: () => {
@@ -146,7 +151,9 @@ export const useCanvasPaletteCommands = ({
       {
         id: 'toggle-focus-mode',
         group: 'view',
-        title: focusModeActive ? 'Exit Focus mode' : 'Focus selected node',
+        title: focusModeActive
+          ? t('canvas.palette.command.exitFocus')
+          : t('canvas.palette.command.focusSelected'),
         shortcut: 'F',
         aliases: ['focus', 'spotlight', 'dim'],
         enabled: focusModeActive || focusModeAvailable,
@@ -155,54 +162,62 @@ export const useCanvasPaletteCommands = ({
       {
         id: 'create-note',
         group: 'create',
-        title: 'New note',
-        hint: 'Markdown file backed by disk',
+        title: t('canvas.palette.command.newNote'),
+        hint: t('canvas.palette.command.newNoteHint'),
         aliases: ['file', 'markdown', 'doc', 'md'],
         run: () => handleToolbarAddNode('file'),
       },
       {
         id: 'create-agent',
         group: 'create',
-        title: 'Create agent',
-        hint: 'Run an AI coding agent in a PTY',
+        title: t('canvas.palette.command.createAgent'),
+        hint: t('canvas.palette.command.createAgentHint'),
         aliases: ['ai', 'chat', 'assistant', 'claude'],
         run: () => handleToolbarAddNode('agent'),
       },
       {
         id: 'create-text',
         group: 'create',
-        title: 'Add text',
+        title: t('canvas.palette.command.addText'),
         aliases: ['label', 'sticky', 'note'],
         run: () => handleToolbarAddNode('text'),
       },
       {
         id: 'create-frame',
         group: 'create',
-        title: 'Add frame',
-        hint: 'Named spatial container',
+        title: t('canvas.palette.command.addFrame'),
+        hint: t('canvas.palette.command.addFrameHint'),
         aliases: ['section', 'box', 'container'],
         run: () => handleToolbarAddNode('frame'),
       },
       {
         id: 'create-link',
         group: 'create',
-        title: 'Web page',
-        hint: 'URL, HTML, AI, or blank page',
+        title: t('canvas.palette.command.webPage'),
+        hint: t('canvas.palette.command.webPageHint'),
         aliases: ['iframe', 'web', 'url', 'browser', 'blank', 'page', 'link'],
         run: () => handleToolbarAddNode('iframe'),
       },
       {
+        id: 'create-terminal',
+        group: 'create',
+        title: t('canvas.palette.command.newTerminal'),
+        hint: t('canvas.palette.command.newTerminalHint'),
+        aliases: ['shell', 'pty', 'command', 'run'],
+        run: () => handleToolbarAddNode('terminal'),
+      },
+      {
         id: 'create-mindmap',
         group: 'create',
-        title: 'New mindmap',
+        title: t('canvas.palette.command.newMindmap'),
         aliases: ['tree', 'topic', 'outline'],
         run: () => handleToolbarAddNode('mindmap'),
       },
       {
         id: 'fit-all',
         group: 'navigate',
-        title: 'Fit all nodes in view',
-        hint: 'Zoom and center to show every node',
+        title: t('canvas.palette.command.fitAll'),
+        hint: t('canvas.palette.command.fitAllHint'),
         aliases: ['zoom', 'overview', 'show all'],
         enabled: nodesRef.current.length > 0,
         run: () => fitAllNodes(nodesRef.current),
@@ -210,14 +225,16 @@ export const useCanvasPaletteCommands = ({
       {
         id: 'reset-zoom',
         group: 'navigate',
-        title: 'Reset zoom to 100%',
+        title: t('canvas.palette.command.resetZoom'),
         aliases: ['1:1', 'actual size'],
         run: () => resetTransform(),
       },
       {
         id: 'toggle-reference',
         group: 'view',
-        title: referenceDrawerOpen ? 'Hide reference drawer' : 'Show reference drawer',
+        title: referenceDrawerOpen
+          ? t('canvas.palette.command.hideReference')
+          : t('canvas.palette.command.showReference'),
         aliases: ['reference', 'ref', 'drawer', 'context'],
         enabled: !!onReferenceToggle,
         run: () => onReferenceToggle?.(),
@@ -225,7 +242,9 @@ export const useCanvasPaletteCommands = ({
       {
         id: 'toggle-chat',
         group: 'view',
-        title: chatPanelOpen ? 'Hide chat panel' : 'Show chat panel',
+        title: chatPanelOpen
+          ? t('canvas.palette.command.hideChat')
+          : t('canvas.palette.command.showChat'),
         shortcut: 'Cmd+Shift+A',
         aliases: ['ai', 'sidebar', 'assistant'],
         enabled: !!onChatToggle,
@@ -234,7 +253,7 @@ export const useCanvasPaletteCommands = ({
       {
         id: 'shortcuts',
         group: 'help',
-        title: 'Show keyboard shortcuts',
+        title: t('canvas.palette.command.shortcuts'),
         shortcut: '?',
         aliases: ['keys', 'bindings', 'cheatsheet'],
         run: () => openShortcuts(),
@@ -262,5 +281,6 @@ export const useCanvasPaletteCommands = ({
     focusModeActive,
     focusModeAvailable,
     toggleFocusMode,
+    t,
   ]);
 };

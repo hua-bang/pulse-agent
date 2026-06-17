@@ -1,0 +1,43 @@
+.sidebar-collapsed-rail {
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.sidebar-collapsed-btn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background 0.12s, color 0.12s;
+}
+
+.sidebar-collapsed-btn:hover,
+.sidebar-collapsed-btn:focus-visible {
+  outline: none;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.sidebar-collapsed-btn--active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.sidebar-footer-btn:focus-visible,
+.sidebar-section-btn:focus-visible,
+.sidebar-nav-item:focus-visible,
+.sidebar-item:focus-visible,
+.sidebar-folder-toggle:focus-visible,
+.sidebar-add-menu-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18);
+}

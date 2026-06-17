@@ -1,6 +1,6 @@
 import type { CanvasNode, ReferenceNodeData } from '../../types';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
-import { MIN_REFERENCE_DRAWER_WIDTH, NODE_TYPE_LABELS } from './constants';
+import { MIN_REFERENCE_DRAWER_WIDTH } from './constants';
 import type { ReferenceEntry, ReferenceGroupKey, UrlReferenceEntry } from './types';
 
 export const isUrlReference = (entry: ReferenceEntry): entry is UrlReferenceEntry => entry.kind === 'url';
@@ -10,12 +10,6 @@ export const getReferenceId = (entry: ReferenceEntry) => isUrlReference(entry)
   : `${entry.workspaceId}:${entry.nodeId}`;
 
 export const getNodeReferenceId = (workspaceId: string, nodeId: string) => `${workspaceId}:${nodeId}`;
-
-export const getReferenceGroupLabel = (type: ReferenceGroupKey) => {
-  if (type === 'url') return 'URL';
-  if (type === 'missing') return 'Missing nodes';
-  return NODE_TYPE_LABELS[type];
-};
 
 export const getReferenceGroupIcon = (type: ReferenceGroupKey) => {
   switch (type) {

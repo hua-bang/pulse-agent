@@ -126,7 +126,9 @@
   transition: background 0.1s;
 }
 
-.chat-session-menu-new:hover {
+.chat-session-menu-new:hover,
+.chat-session-menu-new:focus-visible {
+  outline: none;
   background: rgba(55, 53, 47, 0.06);
 }
 
@@ -179,11 +181,14 @@
   text-align: left;
 }
 
-.chat-session-menu-item:hover {
+.chat-session-menu-item:hover,
+.chat-session-menu-item:focus-visible {
+  outline: none;
   background: rgba(55, 53, 47, 0.06);
 }
 
-.chat-session-menu-item--active {
+.chat-session-menu-item--active,
+.chat-session-menu-item--active:focus-visible {
   background: rgba(55, 53, 47, 0.04);
 }
 
@@ -1474,6 +1479,11 @@
 }
 
 .chat-tool-calls--collapsed {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  background: transparent;
+  width: 100%;
   max-height: none;
   overflow: visible;
   flex-direction: row;
@@ -1491,12 +1501,25 @@
   background: rgba(55, 53, 47, 0.04);
 }
 
+.chat-tool-calls--collapsed:focus-visible,
+.chat-tool-calls-section-header:focus-visible,
+.chat-tool-call-header--expandable:focus-visible {
+  outline: 2px solid rgba(35, 131, 226, 0.36);
+  outline-offset: 2px;
+  background: rgba(35, 131, 226, 0.08);
+}
+
 .chat-tool-calls-summary {
   font-size: 11.5px;
   color: rgba(55, 53, 47, 0.4);
 }
 
 .chat-tool-calls-section-header {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  background: transparent;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -1522,6 +1545,11 @@
 }
 
 .chat-tool-call-header {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  background: transparent;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 5px;
@@ -1529,11 +1557,12 @@
   border-radius: 4px;
 }
 
-.chat-tool-call-header[style*="cursor"] {
+.chat-tool-call-header--expandable {
+  cursor: pointer;
   transition: background 0.1s;
 }
 
-.chat-tool-call-header[style*="cursor"]:hover {
+.chat-tool-call-header--expandable:hover {
   background: rgba(55, 53, 47, 0.04);
 }
 
@@ -2266,11 +2295,15 @@
 }
 
 .chat-model-menu-item:hover,
-.chat-model-menu-action:hover {
+.chat-model-menu-item:focus-visible,
+.chat-model-menu-action:hover,
+.chat-model-menu-action:focus-visible {
+  outline: none;
   background: rgba(55, 53, 47, 0.06);
 }
 
-.chat-model-menu-item--active {
+.chat-model-menu-item--active,
+.chat-model-menu-item--active:focus-visible {
   background: rgba(35, 131, 226, 0.08);
 }
 
@@ -2864,8 +2897,14 @@
   transition: background 0.1s;
 }
 
-.chat-anchors-menu-item:hover {
+.chat-anchors-menu-item:hover,
+.chat-anchors-menu-item:focus-visible {
   background: rgba(55, 53, 47, 0.06);
+}
+
+.chat-anchors-menu-item:focus-visible {
+  outline: 1px solid rgba(35, 131, 226, 0.35);
+  outline-offset: -1px;
 }
 
 .chat-anchors-menu-item-num {

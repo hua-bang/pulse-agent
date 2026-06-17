@@ -121,29 +121,18 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         '- **frame**: Creates a named spatial container. Use `data.color` (hex) and `data.label`.\n' +
         '- **group**: Creates a lightweight grouping relationship. Use `data.childIds` for members, plus optional `data.color` (hex) and `data.label`.\n' +
         '- **agent**: Creates an AI agent node (Claude Code or Codex). ' +
-        'Set `data.agentType` ("claude-code" | "codex"), `data.cwd` for the working directory, ' +
-        'and `data.status` to "running" to auto-launch (default "idle" shows a picker). ' +
-        'Use `data.prompt` to inject a task/context — it is written to a file in the cwd and piped directly ' +
-        'to the agent as its initial prompt. Include relevant canvas content so the agent knows the context. ' +
-        'Optional `data.agentArgs` overrides the auto-generated CLI arguments.\n' +
+        'Set `data.agentType`, `data.cwd`, `data.status: "running"` to auto-launch, `data.prompt` for initial context, and optional `data.agentArgs`.\n' +
         '- **text**: Creates a free-form text label (TLDRAW-style). Use `content` for the text body, ' +
         'and `data.textColor` / `data.backgroundColor` (hex or "transparent") for styling. Optional `data.fontSize`.\n' +
         '- **iframe**: Embeds an external web page, renders raw HTML, or generates HTML from a prompt. ' +
-        'For URL mode: pass `data.url` with the full URL (including protocol), or "blank"/"about:blank" for an empty page. ' +
-        'For HTML mode: pass `data.html` with raw HTML content and `data.mode: "html"`. ' +
-        'For AI mode: pass `data.prompt` with a description and `data.mode: "ai"` — ' +
-        'the LLM will generate self-contained HTML. ' +
+        'Use `data.url` for URL mode, `data.html` + `data.mode: "html"` for raw HTML, or `data.prompt` + `data.mode: "ai"` for generated HTML. ' +
         'Note: some sites block URL embedding via X-Frame-Options / CSP.\n' +
         '- **shape**: Draws a primitive geometric shape (rectangle or ellipse). ' +
         'Use `data.kind` ("rect" | "ellipse"), `data.fill` / `data.stroke` (hex or "transparent"), ' +
         'and `data.strokeWidth` (px). For precise sizing pass explicit `x`, `y`, and set width/height ' +
         'via the dedicated `canvas_create_shape` tool — this generic one uses default dimensions.\n' +
         '- **mindmap**: Creates a radial mindmap. Pass `data.root` as a recursive topic tree ' +
-        '`{ text: string, children?: Topic[], color?: string, collapsed?: boolean }`. ' +
-        'Topic ids are auto-generated; you do NOT need to supply them. ' +
-        'If `data.root` is omitted a single placeholder topic is inserted so the user can fill it in. ' +
-        'Use this whenever the user asks for a mindmap / brainstorm / outline that should be laid out radially ' +
-        'rather than as a flat text node.\n' +
+        '`{ text: string, children?: Topic[], color?: string, collapsed?: boolean }`; topic ids are auto-generated.\n' +
         '- **plugin**: Creates a custom plugin node shell. Pass `data.pluginId`, `data.nodeType`, and optional `data.payload`. ' +
         'For the built-in MVP mock nodes, use `{ pluginId: "mock", nodeType: "mock.card", payload: { text?: string, count?: number } }` ' +
         'or `{ pluginId: "mock", nodeType: "mock.todo-list", payload: { title?: string, items?: Array<{ id?: string, text: string, done?: boolean }> } }`.',
@@ -153,6 +142,8 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         content: z.string().optional().describe('Initial content (for file and text nodes).'),
         x: z.number().optional().describe('X position (auto-placed if omitted).'),
         y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+        width: z.number().min(40).optional().describe('Node width in canvas px. Defaults by type if omitted.'),
+        height: z.number().min(40).optional().describe('Node height in canvas px. Defaults by type if omitted.'),
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
           '- terminal: { cwd?: string }\n' +
@@ -353,8 +344,8 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           title,
           x: pos.x,
           y: pos.y,
-          width: def.width,
-          height: def.height,
+          width: (input.width as number | undefined) ?? def.width,
+          height: (input.height as number | undefined) ?? def.height,
           data: nodeData,
           updatedAt: Date.now(),
         };

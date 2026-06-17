@@ -18,6 +18,7 @@ import { createWebpageTools } from './webpage';
 import { createSkillTools } from './skills';
 import { createSessionTools } from './sessions';
 import { createPluginNodeTools } from './plugin-nodes';
+import { createLayoutTools } from './layout-tools';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
 
@@ -56,11 +57,13 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
   const searchTools = createSearchTools('');
   const edgeTools = createEdgeTools('');
   const workspaceNodeTools = createWorkspaceNodeTools('');
+  const layoutTools = createLayoutTools('');
 
   return {
     canvas_ask_user: nodeTools.canvas_ask_user,
     canvas_read_context: requireWorkspaceId(nodeTools.canvas_read_context),
     canvas_read_node: requireWorkspaceId(nodeTools.canvas_read_node),
+    canvas_read_layout: requireWorkspaceId(layoutTools.canvas_read_layout),
     canvas_search_nodes: requireWorkspaceId(searchTools.canvas_search_nodes),
     canvas_list_edges: requireWorkspaceId(edgeTools.canvas_list_edges),
     workspace_node_list: requireWorkspaceId(workspaceNodeTools.workspace_node_list),
@@ -97,6 +100,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createSkillTools(workspaceId),
     ...createSessionTools(workspaceId),
     ...createPluginNodeTools(workspaceId),
+    ...createLayoutTools(workspaceId),
   };
 
   // Plugin-contributed tools (see `plugins/main/registry.ts`). A plugin's

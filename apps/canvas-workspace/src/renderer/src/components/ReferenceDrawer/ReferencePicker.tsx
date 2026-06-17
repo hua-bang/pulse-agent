@@ -1,7 +1,20 @@
-import { useEffect, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type Dispatch,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
 import type { CanvasNode } from '../../types';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
+import { useI18n } from '../../i18n';
 import { BranchIcon, ListIcon, SearchIcon } from './Icons';
 import type { ReferencePickerMode, ReferencePickerNodeGroup } from './types';
 import { getReferenceGroupIcon } from './utils';
@@ -41,63 +54,142 @@ export const ReferencePicker = ({
   workspaceNameById,
   onPick,
 }: ReferencePickerProps) => {
+  const { t } = useI18n();
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+  const pickerPopoverId = useId();
+  const pickerListId = useId();
+  const workspaceOptionsId = useId();
+  const workspaceOptionsRef = useRef<HTMLDivElement>(null);
+  const pickerListRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const currentTriggerRef = useRef<HTMLButtonElement>(null);
+  const otherTriggerRef = useRef<HTMLButtonElement>(null);
+  const lastPickerTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const workspaceSelectRef = useRef<HTMLButtonElement>(null);
   const selectedWorkspace = externalWorkspaces.find((workspace) => workspace.id === externalWorkspaceId);
 
   useEffect(() => {
     if (pickerOpen !== 'other') setWorkspaceMenuOpen(false);
   }, [pickerOpen]);
 
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [pickerOpen]);
+
+  const closePicker = useCallback((restoreFocus = false) => {
+    setPickerOpen(null);
+    setWorkspaceMenuOpen(false);
+    if (restoreFocus) {
+      lastPickerTriggerRef.current?.focus();
+    }
+  }, [setPickerOpen]);
+
+  const closeWorkspaceMenu = useCallback((restoreFocus = false) => {
+    setWorkspaceMenuOpen(false);
+    if (restoreFocus) {
+      workspaceSelectRef.current?.focus();
+    }
+  }, []);
+
+  useMenuKeyboardNav(workspaceOptionsRef, () => closeWorkspaceMenu(true), workspaceMenuOpen);
+  useMenuKeyboardNav(pickerListRef, () => closePicker(true), {
+    enabled: !!pickerOpen && !workspaceMenuOpen,
+    autoFocus: false,
+    scope: 'within',
+  });
+
+  const focusPickerItem = useCallback((position: 'first' | 'last' = 'first') => {
+    const items = Array.from(
+      pickerListRef.current?.querySelectorAll<HTMLButtonElement>('.reference-picker-item:not(:disabled)') ?? [],
+    );
+    if (items.length === 0) return false;
+    items[position === 'first' ? 0 : items.length - 1].focus();
+    return true;
+  }, []);
+
+  const handleSearchKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closePicker(true);
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    const moved = focusPickerItem(event.key === 'ArrowUp' ? 'last' : 'first');
+    if (!moved) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, [closePicker, focusPickerItem]);
+
   return (
     <div className="reference-picker-anchor" ref={pickerRef}>
       <button
+        ref={currentTriggerRef}
         className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'current' ? ' reference-drawer-action--open' : ''}`}
         type="button"
         onClick={() => {
+          lastPickerTriggerRef.current = currentTriggerRef.current;
           setWorkspaceMenuOpen(false);
           setSearchDraft('');
           setPickerOpen((prev) => prev === 'current' ? null : 'current');
         }}
         disabled={currentNodeCount === 0}
-        title={currentNodeCount === 0 ? 'No more current workspace nodes to pin' : 'Pick a current workspace node'}
+        title={currentNodeCount === 0 ? t('reference.currentWorkspaceEmptyTitle') : t('reference.currentWorkspaceTitle')}
         aria-haspopup="dialog"
         aria-expanded={pickerOpen === 'current'}
+        aria-controls={pickerOpen === 'current' ? pickerPopoverId : undefined}
       >
         <ListIcon />
-        Current workspace
+        {t('reference.currentWorkspace')}
       </button>
 
       <button
+        ref={otherTriggerRef}
         className={`reference-drawer-action reference-drawer-action--ghost${pickerOpen === 'other' ? ' reference-drawer-action--open' : ''}`}
         type="button"
         onClick={() => {
+          lastPickerTriggerRef.current = otherTriggerRef.current;
           setWorkspaceMenuOpen(false);
           setSearchDraft('');
           setPickerOpen((prev) => prev === 'other' ? null : 'other');
         }}
         disabled={externalWorkspaces.length === 0}
-        title={externalWorkspaces.length === 0 ? 'No other workspaces yet' : 'Pick a node from another workspace'}
+        title={externalWorkspaces.length === 0 ? t('reference.otherWorkspaceEmptyTitle') : t('reference.otherWorkspaceTitle')}
         aria-haspopup="dialog"
         aria-expanded={pickerOpen === 'other'}
+        aria-controls={pickerOpen === 'other' ? pickerPopoverId : undefined}
       >
         <BranchIcon />
-        Other workspace
+        {t('reference.otherWorkspace')}
       </button>
 
       {pickerOpen && (
-        <div className="reference-picker-popover" role="dialog" aria-label="Pick canvas reference">
+        <div id={pickerPopoverId} className="reference-picker-popover" role="dialog" aria-label={t('reference.pickDialog')}>
           {pickerOpen === 'other' && (
             <div className="reference-workspace-picker">
-              <span className="reference-workspace-picker-label">Workspace</span>
+              <span className="reference-workspace-picker-label">{t('reference.workspace')}</span>
               <button
+                ref={workspaceSelectRef}
                 type="button"
                 className={`reference-workspace-select${workspaceMenuOpen ? ' reference-workspace-select--open' : ''}`}
                 onClick={() => setWorkspaceMenuOpen((prev) => !prev)}
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') {
+                    return;
+                  }
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setWorkspaceMenuOpen(true);
+                }}
                 aria-haspopup="listbox"
                 aria-expanded={workspaceMenuOpen}
+                aria-controls={workspaceMenuOpen ? workspaceOptionsId : undefined}
+                aria-label={t('reference.workspace')}
               >
                 <span className="reference-workspace-select-name">
-                  {selectedWorkspace?.name ?? 'Choose workspace'}
+                  {selectedWorkspace?.name ?? t('reference.chooseWorkspace')}
                 </span>
                 <svg
                   className="reference-workspace-select-caret"
@@ -111,7 +203,13 @@ export const ReferencePicker = ({
                 </svg>
               </button>
               {workspaceMenuOpen && (
-                <div className="reference-workspace-options" role="listbox" aria-label="Workspace">
+                <div
+                  ref={workspaceOptionsRef}
+                  id={workspaceOptionsId}
+                  className="reference-workspace-options"
+                  role="listbox"
+                  aria-label={t('reference.workspace')}
+                >
                   {externalWorkspaces.map((workspace) => {
                     const selected = workspace.id === externalWorkspaceId;
                     return (
@@ -120,6 +218,7 @@ export const ReferencePicker = ({
                         type="button"
                         role="option"
                         aria-selected={selected}
+                        data-menu-autofocus={selected ? 'true' : undefined}
                         className={`reference-workspace-option${selected ? ' reference-workspace-option--selected' : ''}`}
                         onClick={() => {
                           setExternalWorkspaceId(workspace.id);
@@ -142,18 +241,24 @@ export const ReferencePicker = ({
             <div className="reference-picker-search">
               <SearchIcon />
               <input
+                ref={searchInputRef}
                 value={searchDraft}
                 onChange={(e) => setSearchDraft(e.target.value)}
-                placeholder={pickerOpen === 'other' ? 'Search selected workspace' : 'Search current workspace'}
-                aria-label="Search canvas nodes"
+                onKeyDown={handleSearchKeyDown}
+                placeholder={pickerOpen === 'other' ? t('reference.searchSelectedWorkspace') : t('reference.searchCurrentWorkspace')}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={true}
+                aria-controls={pickerListId}
+                aria-label={t('reference.searchNodes')}
               />
               {searchDraft && (
                 <button
                   type="button"
                   className="reference-search-clear"
                   onClick={() => setSearchDraft('')}
-                  aria-label="Clear canvas node search"
-                  title="Clear search"
+                  aria-label={t('reference.clearSearch')}
+                  title={t('reference.clearSearch')}
                 >
                   x
                 </button>
@@ -163,10 +268,12 @@ export const ReferencePicker = ({
           <ReferencePickerList
             allNodes={allNodes}
             externalWorkspaceId={externalWorkspaceId}
+            listId={pickerListId}
+            listRef={pickerListRef}
             pickerOpen={pickerOpen}
             pickableNodeGroups={pickableNodeGroups}
             pickableNodes={pickableNodes}
-            searchActive={searchActive}
+            searchActiveText={searchActive ? t('reference.noSearchMatches') : t('reference.allEligiblePinned')}
             workspaceNameById={workspaceNameById}
             onPick={onPick}
           />
@@ -179,10 +286,12 @@ export const ReferencePicker = ({
 interface ReferencePickerListProps {
   allNodes: Record<string, CanvasNode[]>;
   externalWorkspaceId?: string;
+  listId: string;
+  listRef: RefObject<HTMLDivElement>;
   pickerOpen: ReferencePickerMode;
   pickableNodeGroups: ReferencePickerNodeGroup[];
   pickableNodes: CanvasNode[];
-  searchActive: boolean;
+  searchActiveText: string;
   workspaceNameById: Map<string, string>;
   onPick: (nodeId: string) => void;
 }
@@ -190,34 +299,40 @@ interface ReferencePickerListProps {
 const ReferencePickerList = ({
   allNodes,
   externalWorkspaceId,
+  listId,
+  listRef,
   pickerOpen,
   pickableNodeGroups,
   pickableNodes,
-  searchActive,
+  searchActiveText,
   workspaceNameById,
   onPick,
-}: ReferencePickerListProps) => (
-  <div className="reference-picker-list" role="listbox">
-    {pickerOpen === 'other' && externalWorkspaceId && !Object.prototype.hasOwnProperty.call(allNodes, externalWorkspaceId) ? (
-      <div className="reference-picker-empty">Loading workspace nodes...</div>
-    ) : pickableNodes.length === 0 ? (
-      <div className="reference-picker-empty">
-        {searchActive ? 'No canvas nodes match this search.' : 'All eligible nodes are pinned.'}
-      </div>
-    ) : (
-      pickableNodeGroups.map((group) => (
-        <ReferencePickerGroupSection
-          key={group.type}
-          type={group.type}
-          name={group.name}
-          nodes={group.nodes}
-          workspaceName={pickerOpen === 'other' && externalWorkspaceId ? workspaceNameById.get(externalWorkspaceId) : undefined}
-          onPick={onPick}
-        />
-      ))
-    )}
-  </div>
-);
+}: ReferencePickerListProps) => {
+  const { t } = useI18n();
+
+  return (
+    <div id={listId} ref={listRef} className="reference-picker-list" role="listbox" aria-label={t('reference.searchNodes')}>
+      {pickerOpen === 'other' && externalWorkspaceId && !Object.prototype.hasOwnProperty.call(allNodes, externalWorkspaceId) ? (
+        <div className="reference-picker-empty">{t('reference.loadingWorkspaceNodes')}</div>
+      ) : pickableNodes.length === 0 ? (
+        <div className="reference-picker-empty">
+          {searchActiveText}
+        </div>
+      ) : (
+        pickableNodeGroups.map((group) => (
+          <ReferencePickerGroupSection
+            key={group.type}
+            type={group.type}
+            name={group.name}
+            nodes={group.nodes}
+            workspaceName={pickerOpen === 'other' && externalWorkspaceId ? workspaceNameById.get(externalWorkspaceId) : undefined}
+            onPick={onPick}
+          />
+        ))
+      )}
+    </div>
+  );
+};
 
 interface ReferencePickerGroupSectionProps {
   name: string;
@@ -234,6 +349,7 @@ const ReferencePickerGroupSection = ({
   workspaceName,
   onPick,
 }: ReferencePickerGroupSectionProps) => {
+  const { t } = useI18n();
   const [collapsed, setCollapsed] = useState(false);
   return (
     <div className={`reference-picker-group reference-group--type-${type}${collapsed ? ' reference-group--collapsed' : ''}`}>
@@ -264,9 +380,11 @@ const ReferencePickerGroupSection = ({
               key={node.id}
               className="reference-picker-item"
               type="button"
+              role="option"
+              aria-selected={false}
               onClick={() => onPick(node.id)}
             >
-              <span className="reference-picker-item-type">{node.type}</span>
+              <span className="reference-picker-item-type">{t(CANVAS_NODE_TYPE_LABEL_KEY[node.type])}</span>
               <span className="reference-picker-item-label">{getNodeDisplayLabel(node)}</span>
               {workspaceName ? <span className="reference-picker-item-workspace">{workspaceName}</span> : null}
             </button>

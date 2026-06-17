@@ -5,7 +5,6 @@
  * canvas-specific tools + built-in filesystem tools (read, write, edit,
  * grep, ls, bash). Runs in the Electron main process.
  */
-
 import { Engine } from 'pulse-coder-engine';
 import { createSkillsPlugin, createMcpPlugin } from 'pulse-coder-engine/built-in';
 import type { MCPServerStatus } from 'pulse-coder-engine/built-in';
@@ -44,10 +43,8 @@ import type {
   WorkspaceSummary,
 } from './types';
 import { formatDomSelectionFocusBlock, type CanvasAgentDomSelection } from './dom-selection-context';
-
 type CanvasAgentRequestContext = AgentRequestContext & { domSelections?: CanvasAgentDomSelection[] };
 const CANVAS_AGENT_MAX_STEPS = 200;
-
 const GLOBAL_AGENT_SYSTEM_PROMPT = `You are the Pulse Canvas AI Chat assistant.
 
 This is a global chat, not bound to any specific canvas workspace.
@@ -72,7 +69,7 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 
 ## Scope Rules
 - Do not assume there is a current canvas or selected workspace. When you need one, call \`canvas_list_workspaces\` to enumerate them and pick the right \`workspaceId\`; only ask the user when the choice is genuinely ambiguous.
-- The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
+- The remaining read-only canvas tools (\`canvas_read_context\`, \`canvas_read_layout\`, \`canvas_read_node\`, \`canvas_search_nodes\`, \`canvas_list_edges\`, \`workspace_node_*\`) need a concrete workspaceId on every call — get it from \`canvas_list_workspaces\` or a workspace mention.
 - Tagging via \`canvas_tag_node\` is allowed; every other mutation (creating, updating, deleting, or moving canvas nodes, or editing node content/properties) is not. Ask the user to switch to the relevant workspace chat for those write actions.
 - When the user asks for coding help, use filesystem tools only when their request clearly points to local files or paths.
 
@@ -80,7 +77,6 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 - Be concise and direct.
 - Ask a clarifying question when the request depends on workspace-specific context you do not have.
 `;
-
 // AI SDK v6 wraps tool execute return values into a tagged `ToolResultOutput`
 // — `{ type: 'text'|'json'|'error-text'|'error-json'|..., value }` — on the
 // `tool-result` parts of persisted ModelMessages. Stringifying the wrapper
@@ -103,14 +99,12 @@ function unwrapToolOutput(raw: unknown): string {
 function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall[] {
   const toolCalls: CanvasAgentToolCall[] = [];
   const byToolCallId = new Map<string, CanvasAgentToolCall>();
-
   const findOrCreate = (toolCallId: string, name: string): CanvasAgentToolCall => {
     const existing = byToolCallId.get(toolCallId);
     if (existing) {
       if (!existing.name && name) existing.name = name;
       return existing;
     }
-
     const tool: CanvasAgentToolCall = {
       id: toolCalls.length + 1,
       name,
@@ -121,11 +115,9 @@ function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall
     byToolCallId.set(toolCallId, tool);
     return tool;
   };
-
   for (const message of messages) {
     const content = (message as any).content;
     if (!Array.isArray(content)) continue;
-
     for (const part of content) {
       if (part?.type === 'tool-call') {
         const toolCallId = typeof part.toolCallId === 'string' ? part.toolCallId : undefined;
@@ -147,19 +139,15 @@ function modelMessagesToToolCalls(messages: ModelMessage[]): CanvasAgentToolCall
       }
     }
   }
-
   return toolCalls;
 }
-
 function sessionMessageToModelMessage(message: CanvasAgentMessage): ModelMessage {
   const content = message.attachments?.length
     ? `${message.content}\n\nAttached image files:\n${message.attachments.map((a, i) => `${i + 1}. ${a.path}`).join('\n')}`
     : message.content;
   return { role: message.role, content } as ModelMessage;
 }
-
 // ─── System prompt ─────────────────────────────────────────────────
-
 const BASE_SYSTEM_PROMPT = `You are the Canvas Agent — the AI Copilot for this workspace.
 
 ## Your Role
@@ -174,12 +162,15 @@ You are the single AI entry point for this workspace. You can:
 Your system prompt contains a summary of all canvas nodes. For detailed content:
 - Use \`canvas_read_node\` to read a specific node's full content
 - Use \`canvas_read_context\` with detail="full" for everything at once
+- For spatial/layout work, use \`canvas_read_layout\` first, then \`canvas_apply_layout\`; do not hand-calculate large batches of coordinates.
 
 ## Canvas Tools (always loaded)
 - \`canvas_read_context\`: Read workspace overview or full context
 - \`canvas_read_node\`: Read a single node's content in detail
 - \`canvas_search_nodes\`: Search nodes by query / type / tag — use this BEFORE \`canvas_read_node\` when the canvas has many nodes so you don't blow the context window pulling the full summary
 - \`canvas_create_node\`: Create new file/frame/text/image/iframe/mindmap nodes (generic)
+- \`canvas_read_layout\`: Read node bboxes, canvas bounds, frame containment, and overlaps
+- \`canvas_apply_layout\`: Apply deterministic placement/grid/frame layout algorithms; preferred for organizing generated or existing nodes
 - \`canvas_create_agent_node\`: **Create and launch an AI agent node** — preferred for agent creation
 - \`canvas_update_node\`: Update existing nodes (content, title, data)
 - \`visual_render\`: Inline visual rendering (default for any visual request — see Visualization Tools below)
@@ -188,7 +179,8 @@ Your system prompt contains a summary of all canvas nodes. For detailed content:
 
 ## Additional Tools (also loaded)
 The following tools are loaded and callable directly. Grouped by intent:
-- **Node mutation (delete / move)**: \`canvas_delete_node\`, \`canvas_move_node\` — use when the user asks to remove or reposition a specific node.
+- **Node mutation (delete / move / resize)**: \`canvas_delete_node\`, \`canvas_move_node\`, \`canvas_resize_node\` — use when the user asks to remove, reposition, or resize a specific node.
+- **Layout**: \`canvas_read_layout\`, \`canvas_apply_layout\` — use these whenever the user asks to organize, tidy, arrange, lay out, wrap nodes in a frame, or generate a structured canvas. Let the algorithm choose x/y instead of doing coordinate arithmetic in the prompt.
 - **Specialized creators**: \`canvas_create_terminal_node\` (preferred for terminal creation), \`canvas_create_shape\` (precise shape sizing).
 - **Agent follow-ups**: \`canvas_send_to_agent\` — use whenever you need to interact with an ALREADY-running agent node (after the initial launch).
 - **Image / vision**: \`canvas_analyze_image\` (read/OCR/analyze image nodes or local paths), \`canvas_generate_image\` (AI-generated image as a canvas image node), \`canvas_generate_mindmap_image\` (visual export of an existing mindmap node).

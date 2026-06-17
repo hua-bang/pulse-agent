@@ -1,12 +1,21 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from 'react';
 import { createPortal } from 'react-dom';
 import type { CanvasModelStatus } from '../../types';
 import { CheckIcon } from '../icons';
 import type { ModelSelection } from './modelSettingsTypes';
 import { providerLabel } from './modelSettingsTypes';
 import { useI18n } from '../../i18n';
-import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 
 interface ModelSwitcherProps {
   status?: CanvasModelStatus;
@@ -30,6 +39,7 @@ export const ModelSwitcher = ({
   onOpenSettings,
 }: ModelSwitcherProps) => {
   const { t } = useI18n();
+  const menuId = useId();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -67,7 +77,12 @@ export const ModelSwitcher = ({
     updateMenuPosition();
   }, [open, updateMenuPosition]);
 
-  useEscapeClose(open, () => setOpen(false));
+  const closeMenuAndRestoreFocus = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
+
+  useMenuKeyboardNav(menuRef, closeMenuAndRestoreFocus, open);
   // Trigger + menu both count as "inside" so clicking the trigger toggles
   // rather than double-firing a close.
   useClickOutside([triggerRef, menuRef], () => setOpen(false), open);
@@ -87,6 +102,22 @@ export const ModelSwitcher = ({
   const hasConfiguredModels = providers.some((provider) => provider.models.length > 0);
   const notConfigured = status !== undefined && !status.apiKeyPresent;
 
+  const openMenuFromKeyboard = useCallback((event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    if (notConfigured) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!open) {
+      setOpen(true);
+      return;
+    }
+    const items = Array.from(
+      menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+    );
+    const target = event.key === 'ArrowUp' ? items[items.length - 1] : items[0];
+    target?.focus();
+  }, [notConfigured, open]);
+
   return (
     <div className="chat-model-switcher">
       <button
@@ -100,8 +131,12 @@ export const ModelSwitcher = ({
           }
           setOpen((value) => !value);
         }}
+        onKeyDown={openMenuFromKeyboard}
         title={notConfigured ? t('chat.model.notConfiguredTitle') : t('chat.model.chooseTitle')}
         aria-label={notConfigured ? t('chat.model.configureProviderAria') : t('chat.model.chooseModelAria')}
+        aria-haspopup={!notConfigured ? 'menu' : undefined}
+        aria-expanded={!notConfigured ? open : undefined}
+        aria-controls={!notConfigured && open ? menuId : undefined}
       >
         <span className="chat-model-switcher-dot" />
         <span className="chat-model-switcher-label">{notConfigured ? t('chat.model.configure') : label}</span>
@@ -116,7 +151,10 @@ export const ModelSwitcher = ({
       {open && createPortal(
         <div
           ref={menuRef}
+          id={menuId}
           className="chat-model-menu"
+          role="menu"
+          aria-label={t('chat.model.useModel')}
           style={{
             top: menuPosition?.top ?? -9999,
             left: menuPosition?.left ?? -9999,
@@ -127,6 +165,9 @@ export const ModelSwitcher = ({
           <button
             type="button"
             className={`chat-model-menu-item${selection.mode === 'auto' ? ' chat-model-menu-item--active' : ''}`}
+            role="menuitemradio"
+            aria-checked={selection.mode === 'auto'}
+            data-menu-autofocus={selection.mode === 'auto' ? 'true' : undefined}
             onClick={() => {
               setOpen(false);
               void onSelectAuto();
@@ -152,6 +193,9 @@ export const ModelSwitcher = ({
                     key={`${provider.id}:${model.id}`}
                     type="button"
                     className={`chat-model-menu-item chat-model-menu-item--model${active ? ' chat-model-menu-item--active' : ''}`}
+                    role="menuitemradio"
+                    aria-checked={active}
+                    data-menu-autofocus={active ? 'true' : undefined}
                     onClick={() => {
                       setOpen(false);
                       void onSelectModel(provider.id, model.id);
@@ -178,6 +222,7 @@ export const ModelSwitcher = ({
           <button
             type="button"
             className="chat-model-menu-action"
+            role="menuitem"
             onClick={() => {
               setOpen(false);
               onOpenSettings();

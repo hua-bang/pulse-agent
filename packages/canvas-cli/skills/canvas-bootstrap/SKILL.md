@@ -56,6 +56,16 @@ pulse-canvas workspace create "<topic>" --format json
 
 ### Phase 4: Create Nodes with Dynamic Layout
 
+If you are running inside Pulse Canvas with Canvas Agent tools available, do **not**
+hand-calculate every coordinate. Create the semantic nodes/frames, then call:
+
+- `canvas_apply_layout({ mode: "frame_grid", frameId, nodeIds })` for each frame
+- `canvas_apply_layout({ mode: "canvas_grid", nodeIds: frameIds })` for the top-level frame arrangement
+- `canvas_read_layout` / `canvas_apply_layout({ mode: "validate" })` to verify bounds and overlaps
+
+Use the manual CLI layout algorithm below only when those tools are unavailable
+(for example, from an external terminal agent that can only call `pulse-canvas`).
+
 #### Layout algorithm
 
 Frames are arranged in a grid. Each frame is sized to fit its children.

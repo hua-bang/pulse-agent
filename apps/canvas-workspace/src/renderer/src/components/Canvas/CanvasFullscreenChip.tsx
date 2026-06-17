@@ -1,4 +1,5 @@
 import { AppLogoIcon } from '../icons';
+import { useI18n } from '../../i18n';
 
 interface Props {
   /** Reference-drawer state used to flag the button as active. The
@@ -25,48 +26,52 @@ export const CanvasFullscreenChip = ({
   chatPanelOpen,
   onChatOpen,
   onExitFullscreen,
-}: Props) => (
-  <div
-    className="canvas-fullscreen-chip"
-    onMouseDown={(event) => event.stopPropagation()}
-    onClick={(event) => event.stopPropagation()}
-  >
-    {onReferenceToggle && (
+}: Props) => {
+  const { t } = useI18n();
+
+  return (
+    <div
+      className="canvas-fullscreen-chip"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {onReferenceToggle && (
+        <button
+          className={`canvas-fullscreen-chip__btn${referenceDrawerOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
+          type="button"
+          onClick={onReferenceToggle}
+          title={t('canvas.toolbar.toggleReference')}
+          aria-label={t('canvas.toolbar.toggleReference')}
+        >
+          <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+            <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
+            <path d="M6 6h6M6 9h4M6 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+        </button>
+      )}
+      {onChatOpen && (
+        <button
+          className={`canvas-fullscreen-chip__btn${chatPanelOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
+          type="button"
+          onClick={onChatOpen}
+          title={t('canvas.empty.openAiChat')}
+          aria-label={t('canvas.empty.openAiChat')}
+        >
+          <AppLogoIcon size={16} />
+        </button>
+      )}
+      <div className="canvas-fullscreen-chip__divider" />
       <button
-        className={`canvas-fullscreen-chip__btn${referenceDrawerOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
+        className="canvas-fullscreen-chip__btn"
         type="button"
-        onClick={onReferenceToggle}
-        title="Toggle Reference Drawer"
-        aria-label="Toggle Reference Drawer"
+        onClick={onExitFullscreen}
+        title={t('canvas.fullscreen.exit')}
+        aria-label={t('canvas.fullscreen.exit')}
       >
-        <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-          <rect x="3" y="3" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
-          <path d="M6 6h6M6 9h4M6 12h5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M7 1v3a1 1 0 01-1 1H3M9 1v3a1 1 0 001 1h3M7 15v-3a1 1 0 00-1-1H3M9 15v-3a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-    )}
-    {onChatOpen && (
-      <button
-        className={`canvas-fullscreen-chip__btn${chatPanelOpen ? ' canvas-fullscreen-chip__btn--active' : ''}`}
-        type="button"
-        onClick={onChatOpen}
-        title="Open AI Chat"
-        aria-label="Open AI Chat"
-      >
-        <AppLogoIcon size={16} />
-      </button>
-    )}
-    <div className="canvas-fullscreen-chip__divider" />
-    <button
-      className="canvas-fullscreen-chip__btn"
-      type="button"
-      onClick={onExitFullscreen}
-      title="Exit fullscreen (Esc)"
-      aria-label="Exit fullscreen"
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M7 1v3a1 1 0 01-1 1H3M9 1v3a1 1 0 001 1h3M7 15v-3a1 1 0 00-1-1H3M9 15v-3a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </button>
-  </div>
-);
+    </div>
+  );
+};

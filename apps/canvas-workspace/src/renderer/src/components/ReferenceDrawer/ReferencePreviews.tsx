@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import type { CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { IframeNodeBody } from '../IframeNodeBody';
+import { useI18n } from '../../i18n';
 import { MIN_REFERENCE_DRAWER_WIDTH } from './constants';
 import type { NodeReferenceEntry, ReferenceEntry, UrlReferenceEntry } from './types';
 import { createUrlPreviewNode, getReferenceId, isUrlReference } from './utils';
@@ -55,6 +56,7 @@ export const ReferencePreviewPanel = ({
   onRemoveReference,
   workspaceNameById,
 }: ReferencePreviewPanelProps) => {
+  const { t } = useI18n();
   const urlReferences = useMemo(
     () => references.filter(isUrlReference),
     [references],
@@ -181,29 +183,29 @@ export const ReferencePreviewPanel = ({
                 type="button"
                 onClick={() => onOpenUrl(activeUrlReference.url)}
               >
-                Open
+                {t('reference.open')}
               </button>
               <button
                 className="reference-drawer-secondary"
                 type="button"
                 onClick={() => copyUrl(activeUrlReference.url)}
               >
-                Copy URL
+                {t('reference.copyUrl')}
               </button>
               <button
                 className="reference-drawer-secondary"
                 type="button"
                 onClick={() => onRemoveReference(activeUrlReference.id)}
               >
-                Unpin
+                {t('reference.unpin')}
               </button>
               <button
                 className="reference-drawer-secondary"
                 type="button"
                 onClick={onClearAll}
-                title="Remove all references"
+                title={t('reference.clearAllTitle')}
               >
-                Clear all
+                {t('reference.clearAll')}
               </button>
             </div>
           )}
@@ -257,11 +259,11 @@ export const ReferencePreviewPanel = ({
       )}
 
       {activeReference && !isUrlReference(activeReference) && !activeReferenceNode && (
-        <div className="reference-pick-hint reference-pick-hint--overlay">Source node is not loaded or no longer exists.</div>
+        <div className="reference-pick-hint reference-pick-hint--overlay">{t('reference.sourceMissing')}</div>
       )}
 
       {!activeReference && (
-        <div className="reference-pick-hint reference-pick-hint--overlay">Pick a reference above to preview it here.</div>
+        <div className="reference-pick-hint reference-pick-hint--overlay">{t('reference.pickPreviewHint')}</div>
       )}
     </div>
   );
@@ -281,40 +283,44 @@ const NodeReferenceFooter = ({
   onClearAll,
   onFocusNode,
   onRemoveReference,
-}: NodeReferenceFooterProps) => (
-  <div className="reference-card-footer">
-    <button
-      className="reference-drawer-secondary"
-      type="button"
-      onClick={() => onFocusNode(entry.workspaceId, entry.nodeId)}
-      title="Open source"
-    >
-      Open source
-    </button>
-    <button
-      className="reference-drawer-secondary"
-      type="button"
-      onClick={() => onAddReferenceToCanvas(entry)}
-    >
-      Add to canvas
-    </button>
-    <button
-      className="reference-drawer-secondary"
-      type="button"
-      onClick={() => onRemoveReference(getReferenceId(entry))}
-    >
-      Unpin
-    </button>
-    <button
-      className="reference-drawer-secondary"
-      type="button"
-      onClick={onClearAll}
-      title="Remove all references"
-    >
-      Clear all
-    </button>
-  </div>
-);
+}: NodeReferenceFooterProps) => {
+  const { t } = useI18n();
+
+  return (
+    <div className="reference-card-footer">
+      <button
+        className="reference-drawer-secondary"
+        type="button"
+        onClick={() => onFocusNode(entry.workspaceId, entry.nodeId)}
+        title={t('reference.openSource')}
+      >
+        {t('reference.openSource')}
+      </button>
+      <button
+        className="reference-drawer-secondary"
+        type="button"
+        onClick={() => onAddReferenceToCanvas(entry)}
+      >
+        {t('reference.addToCanvas')}
+      </button>
+      <button
+        className="reference-drawer-secondary"
+        type="button"
+        onClick={() => onRemoveReference(getReferenceId(entry))}
+      >
+        {t('reference.unpin')}
+      </button>
+      <button
+        className="reference-drawer-secondary"
+        type="button"
+        onClick={onClearAll}
+        title={t('reference.clearAllTitle')}
+      >
+        {t('reference.clearAll')}
+      </button>
+    </div>
+  );
+};
 
 interface ReferenceUrlWebPreviewProps {
   reference: UrlReferenceEntry;

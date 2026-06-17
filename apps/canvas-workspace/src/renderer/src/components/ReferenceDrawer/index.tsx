@@ -8,6 +8,7 @@ import { ReferencePreviewPanel } from './ReferencePreviews';
 import type { NodeReferenceEntry, ReferenceEntry } from './types';
 import { useReferenceDrawerState } from './useReferenceDrawerState';
 import { getReferenceId } from './utils';
+import { useI18n } from '../../i18n';
 
 interface ReferenceDrawerProps {
   open: boolean;
@@ -50,6 +51,7 @@ export const ReferenceDrawer = ({
   onAddReferenceToCanvas,
   onWorkspaceNodesRequest,
 }: ReferenceDrawerProps) => {
+  const { t } = useI18n();
   const state = useReferenceDrawerState({
     open,
     activeWorkspaceId,
@@ -78,20 +80,20 @@ export const ReferenceDrawer = ({
         onMouseDown={state.handleResizeStart}
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize reference drawer"
-        title="Drag to resize"
+        aria-label={t('reference.resize')}
+        title={t('reference.resize')}
       />
       <header className="reference-drawer-header">
         <div>
-          <div className="reference-drawer-kicker">Pinned context</div>
-          <h2>Reference</h2>
+          <div className="reference-drawer-kicker">{t('reference.kicker')}</div>
+          <h2>{t('reference.title')}</h2>
         </div>
         <button
           className="reference-drawer-icon-button"
           type="button"
           onClick={() => onOpenChange(false)}
-          title="Close reference panel"
-          aria-label="Close reference panel"
+          title={t('reference.close')}
+          aria-label={t('reference.close')}
         >
           x
         </button>

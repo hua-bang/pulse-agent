@@ -1,5 +1,7 @@
 import type { CanvasNode } from '../../types';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
+import { useI18n } from '../../i18n';
 import type { NodeReferenceEntry, ReferenceEntry } from './types';
 import { getReferenceId, getUrlHostname, getUrlReferenceLabel, isUrlReference } from './utils';
 
@@ -25,60 +27,58 @@ export const ReferenceEntryList = ({
   onFocus,
   onOpenUrl,
   onRemove,
-}: ReferenceEntryListProps) => (
-  <ul className="reference-group-items">
-    {entries.map((entry) => {
-      const id = getReferenceId(entry);
-      const node = isUrlReference(entry) ? undefined : getNodeByEntry(entry);
-      const label = isUrlReference(entry)
-        ? getUrlReferenceLabel(entry)
-        : node
-          ? getNodeDisplayLabel(node)
-          : entry.titleSnapshot ?? entry.nodeId;
-      const type = isUrlReference(entry) ? 'url' : node?.type ?? entry.typeSnapshot ?? 'missing';
-      const active = id === activeId;
-      const workspaceLabel = isUrlReference(entry)
-        ? getUrlHostname(entry.url)
-        : entry.workspaceId === activeWorkspaceId
-          ? 'Current'
-          : workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot ?? 'Workspace';
+}: ReferenceEntryListProps) => {
+  const { t } = useI18n();
 
-      return (
-        <li key={id}>
-          <button
-            type="button"
-            className={`reference-group-item${active ? ' reference-group-item--active' : ''}`}
-            onClick={() => onSelect(id)}
-            onDoubleClick={() => isUrlReference(entry) ? onOpenUrl(entry.url) : onFocus(entry.workspaceId, entry.nodeId)}
-          >
-            <span className="reference-group-item-label" title={label}>
-              {label}
-            </span>
-            <span className="reference-group-item-meta" title={workspaceLabel}>{workspaceLabel}</span>
-            <span className="reference-group-item-type">{type}</span>
-            <span
+  return (
+    <ul className="reference-group-items">
+      {entries.map((entry) => {
+        const id = getReferenceId(entry);
+        const node = isUrlReference(entry) ? undefined : getNodeByEntry(entry);
+        const label = isUrlReference(entry)
+          ? getUrlReferenceLabel(entry)
+          : node
+            ? getNodeDisplayLabel(node)
+            : entry.titleSnapshot ?? entry.nodeId;
+        const type = isUrlReference(entry) ? 'url' : node?.type ?? entry.typeSnapshot ?? 'missing';
+        const active = id === activeId;
+        const workspaceLabel = isUrlReference(entry)
+          ? getUrlHostname(entry.url)
+          : entry.workspaceId === activeWorkspaceId
+            ? t('reference.current')
+            : workspaceNameById.get(entry.workspaceId) ?? entry.workspaceNameSnapshot ?? t('reference.workspace');
+        const typeLabel = type === 'url'
+          ? t('reference.group.url')
+          : type === 'missing'
+            ? t('reference.group.missing')
+            : t(CANVAS_NODE_TYPE_LABEL_KEY[type]);
+
+        return (
+          <li key={id} className="reference-group-item-row">
+            <button
+              type="button"
+              className={`reference-group-item${active ? ' reference-group-item--active' : ''}`}
+              onClick={() => onSelect(id)}
+              onDoubleClick={() => isUrlReference(entry) ? onOpenUrl(entry.url) : onFocus(entry.workspaceId, entry.nodeId)}
+            >
+              <span className="reference-group-item-label" title={label}>
+                {label}
+              </span>
+              <span className="reference-group-item-meta" title={workspaceLabel}>{workspaceLabel}</span>
+              <span className="reference-group-item-type">{typeLabel}</span>
+            </button>
+            <button
               className="reference-group-item-remove"
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove(id);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onRemove(id);
-                }
-              }}
-              aria-label="Remove from references"
-              title="Remove"
+              type="button"
+              onClick={() => onRemove(id)}
+              aria-label={t('reference.remove')}
+              title={t('reference.remove')}
             >
               x
-            </span>
-          </button>
-        </li>
-      );
-    })}
-  </ul>
-);
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};

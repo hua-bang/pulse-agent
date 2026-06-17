@@ -1534,7 +1534,6 @@
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.9);
   color: var(--text);
-  cursor: pointer;
   text-align: left;
   box-shadow: inset 4px 0 0 #d9dee8;
 }
@@ -1588,6 +1587,29 @@
   justify-self: end;
   min-width: 62px;
   justify-content: center;
+}
+
+.agent-team-summary-agent__identity {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 8px;
+  align-items: start;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.agent-team-summary-agent__identity:focus-visible {
+  outline: 2px solid rgba(35, 131, 226, 0.36);
+  outline-offset: 2px;
 }
 
 .agent-team-summary-agent__name {

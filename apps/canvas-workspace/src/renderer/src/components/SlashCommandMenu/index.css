@@ -33,8 +33,14 @@
 }
 
 .slash-menu-item:hover,
+.slash-menu-item:focus-visible,
 .slash-menu-item--active {
   background: var(--accent-light);
+}
+
+.slash-menu-item:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline-offset: -1px;
 }
 
 .slash-menu-icon {

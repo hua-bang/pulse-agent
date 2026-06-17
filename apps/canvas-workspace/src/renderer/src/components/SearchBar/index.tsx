@@ -3,6 +3,8 @@ import './index.css';
 import type { CanvasNode } from '../../types';
 import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { isImeComposing } from '../../utils/ime';
+import { useI18n } from '../../i18n';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 
 interface Props {
   search: UseCanvasSearchReturn;
@@ -34,6 +36,7 @@ interface Props {
  *  - Different shortcuts (Ctrl+F vs Ctrl+K) and different mental models.
  */
 export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
+  const { t } = useI18n();
   const { query, setQuery, matches, activeIndex, setActiveIndex,
     activeMatch, caseSensitive, setCaseSensitive, closeBar, next, prev } = search;
 
@@ -97,6 +100,10 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
     [closeBar, next, prev],
   );
 
+  const visibleMatches = useMemo(() => matches.slice(0, 30), [matches]);
+  const resultsId = 'canvas-search-bar-results';
+  const activeResultId = activeIndex < visibleMatches.length ? `canvas-search-bar-result-${activeIndex}` : undefined;
+
   const counter = useMemo(() => {
     if (!query.trim()) return '';
     if (matches.length === 0) return '0 / 0';
@@ -123,7 +130,12 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
           ref={inputRef}
           type="text"
           className="canvas-search-bar__input"
-          placeholder="Find in canvas…"
+          placeholder={t('canvas.find.placeholder')}
+          aria-label={t('canvas.find.placeholder')}
+          aria-controls={matches.length > 0 ? resultsId : undefined}
+          aria-activedescendant={activeResultId}
+          aria-expanded={matches.length > 0}
+          aria-haspopup="listbox"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -135,7 +147,8 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
         <button
           type="button"
           className={`canvas-search-bar__toggle${caseSensitive ? ' is-active' : ''}`}
-          title="Match case"
+          title={t('canvas.find.matchCase')}
+          aria-label={t('canvas.find.matchCase')}
           aria-pressed={caseSensitive}
           onClick={() => setCaseSensitive(!caseSensitive)}
         >
@@ -144,7 +157,8 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
         <button
           type="button"
           className="canvas-search-bar__nav"
-          title="Previous match (Shift+Enter)"
+          title={t('canvas.find.previous')}
+          aria-label={t('canvas.find.previous')}
           onClick={prev}
           disabled={matches.length === 0}
         >
@@ -153,7 +167,8 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
         <button
           type="button"
           className="canvas-search-bar__nav"
-          title="Next match (Enter)"
+          title={t('canvas.find.next')}
+          aria-label={t('canvas.find.next')}
           onClick={next}
           disabled={matches.length === 0}
         >
@@ -162,7 +177,8 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
         <button
           type="button"
           className="canvas-search-bar__close"
-          title="Close (Esc)"
+          title={t('canvas.find.close')}
+          aria-label={t('canvas.find.close')}
           onClick={closeBar}
         >
           ×
@@ -170,30 +186,41 @@ export const SearchBar = ({ search, nodesById, onActivateMatch }: Props) => {
       </div>
 
       {matches.length > 0 && (
-        <div className="canvas-search-bar__results" ref={resultsRef}>
-          {matches.slice(0, 30).map((m, idx) => {
+        <div id={resultsId} className="canvas-search-bar__results" ref={resultsRef} role="listbox" aria-label={t('canvas.find.results')}>
+          {visibleMatches.map((m, idx) => {
             const node = nodesById.get(m.nodeId);
             if (!node) return null;
             const isActive = idx === activeIndex;
+            const title = node.title || t('canvas.find.untitled');
             return (
-              <div
+              <button
+                type="button"
                 key={`${m.nodeId}:${m.field}:${idx}`}
+                id={`canvas-search-bar-result-${idx}`}
                 className={`canvas-search-bar__result${isActive ? ' is-active' : ''}`}
+                role="option"
+                aria-selected={isActive}
+                aria-label={t('canvas.find.resultOption', {
+                  type: t(CANVAS_NODE_TYPE_LABEL_KEY[node.type]),
+                  title,
+                })}
+                onMouseDown={(e) => e.preventDefault()}
+                onFocus={() => setActiveIndex(idx)}
                 onClick={() => setActiveIndex(idx)}
               >
                 <span className={`canvas-search-bar__badge canvas-search-bar__badge--${node.type}`}>
-                  {node.type}
+                  {t(CANVAS_NODE_TYPE_LABEL_KEY[node.type])}
                 </span>
-                <span className="canvas-search-bar__title">{node.title || '(untitled)'}</span>
+                <span className="canvas-search-bar__title">{title}</span>
                 {m.field !== 'title' && (
                   <span className="canvas-search-bar__snippet">{m.snippet}</span>
                 )}
-              </div>
+              </button>
             );
           })}
           {matches.length > 30 && (
             <div className="canvas-search-bar__overflow">
-              + {matches.length - 30} more — refine the query to narrow down
+              {t('canvas.find.overflow', { count: matches.length - 30 })}
             </div>
           )}
         </div>

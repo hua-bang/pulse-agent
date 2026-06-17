@@ -1,6 +1,7 @@
-import type { Dispatch, RefObject, SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, type Dispatch, type FormEvent, type RefObject, type SetStateAction } from 'react';
 import { LinkIcon } from './Icons';
-import { isImeComposing } from '../../utils/ime';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useI18n } from '../../i18n';
 
 interface ReferenceUrlEditorProps {
   handleAddUrl: () => void;
@@ -22,64 +23,97 @@ export const ReferenceUrlEditor = ({
   urlEditorOpen,
   urlEditorRef,
   urlError,
-}: ReferenceUrlEditorProps) => (
-  <div className="reference-url-anchor" ref={urlEditorRef}>
-    <button
-      className={`reference-drawer-action reference-drawer-action--ghost${urlEditorOpen ? ' reference-drawer-action--open' : ''}`}
-      type="button"
-      onClick={() => {
-        setUrlEditorOpen((prev) => !prev);
-        setUrlError(undefined);
-      }}
-      aria-haspopup="dialog"
-      aria-expanded={urlEditorOpen}
-      title="Add URL reference"
-    >
-      <LinkIcon />
-      URL
-    </button>
-    {urlEditorOpen && (
-      <div className="reference-url-popover" role="dialog" aria-label="Add URL reference">
-        <label className="reference-url-label" htmlFor="reference-url-input">Reference URL</label>
-        <input
-          id="reference-url-input"
-          autoFocus
-          className="reference-url-input"
-          value={urlDraft}
-          placeholder="https://example.com/article"
-          onChange={(e) => {
-            setUrlDraft(e.target.value);
-            setUrlError(undefined);
-          }}
-          onKeyDown={(e) => {
-            if (isImeComposing(e)) return;
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              handleAddUrl();
-            } else if (e.key === 'Escape') {
-              setUrlEditorOpen(false);
-            }
-          }}
-        />
-        {urlError && <div className="reference-url-error">{urlError}</div>}
-        <div className="reference-url-actions">
-          <button
-            type="button"
-            className="reference-drawer-secondary"
-            onClick={() => setUrlEditorOpen(false)}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="reference-drawer-primary"
-            onClick={handleAddUrl}
-            disabled={!urlDraft.trim()}
-          >
-            Add URL
-          </button>
-        </div>
-      </div>
-    )}
-  </div>
-);
+}: ReferenceUrlEditorProps) => {
+  const { t } = useI18n();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const restoreFocusOnCloseRef = useRef(false);
+
+  const closeEditor = useCallback((restoreFocus = false) => {
+    restoreFocusOnCloseRef.current = restoreFocus;
+    setUrlEditorOpen(false);
+  }, [setUrlEditorOpen]);
+
+  useEffect(() => {
+    if (!urlEditorOpen) {
+      if (restoreFocusOnCloseRef.current) {
+        restoreFocusOnCloseRef.current = false;
+        triggerRef.current?.focus();
+      }
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [urlEditorOpen]);
+
+  useEscapeClose(urlEditorOpen, () => closeEditor(true));
+
+  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!urlDraft.trim()) return;
+    restoreFocusOnCloseRef.current = true;
+    handleAddUrl();
+    window.requestAnimationFrame(() => {
+      if (inputRef.current) restoreFocusOnCloseRef.current = false;
+    });
+  }, [handleAddUrl, urlDraft]);
+
+  return (
+    <div className="reference-url-anchor" ref={urlEditorRef}>
+      <button
+        ref={triggerRef}
+        className={`reference-drawer-action reference-drawer-action--ghost${urlEditorOpen ? ' reference-drawer-action--open' : ''}`}
+        type="button"
+        onClick={() => {
+          setUrlEditorOpen((prev) => !prev);
+          setUrlError(undefined);
+        }}
+        aria-haspopup="dialog"
+        aria-expanded={urlEditorOpen}
+        title={t('reference.addUrlReference')}
+      >
+        <LinkIcon />
+        URL
+      </button>
+      {urlEditorOpen && (
+        <form className="reference-url-popover" role="dialog" aria-label={t('reference.addUrlDialog')} onSubmit={handleSubmit}>
+          <label className="reference-url-label" htmlFor="reference-url-input">{t('reference.urlLabel')}</label>
+          <input
+            ref={inputRef}
+            id="reference-url-input"
+            className="reference-url-input"
+            value={urlDraft}
+            placeholder={t('reference.urlPlaceholder')}
+            aria-invalid={urlError ? true : undefined}
+            aria-describedby={urlError ? 'reference-url-error' : undefined}
+            onChange={(e) => {
+              setUrlDraft(e.target.value);
+              setUrlError(undefined);
+            }}
+          />
+          {urlError && <div id="reference-url-error" className="reference-url-error">{urlError}</div>}
+          <div className="reference-url-actions">
+            <button
+              type="button"
+              className="reference-drawer-secondary"
+              onClick={() => closeEditor(true)}
+            >
+              {t('reference.cancel')}
+            </button>
+            <button
+              type="submit"
+              className="reference-drawer-primary"
+              disabled={!urlDraft.trim()}
+            >
+              {t('reference.addUrl')}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+};

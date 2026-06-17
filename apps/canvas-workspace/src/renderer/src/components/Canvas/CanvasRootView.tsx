@@ -5,6 +5,8 @@ import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
 import type { CanvasProps } from './types';
+import type { NodeDragPreview } from '../../hooks/useNodeDrag';
+import type { NodeResizePreview } from '../../hooks/useNodeResize';
 
 type CanvasRootViewProps = Pick<
   CanvasProps,
@@ -32,6 +34,7 @@ type CanvasRootViewProps = Pick<
   ctxMenu: any;
   draggingId: string | null;
   draggingIds: Set<string>;
+  dragPreview: NodeDragPreview | null;
   edgeHandlers: any;
   edgeInteractionState: any;
   edges: CanvasEdge[];
@@ -57,6 +60,8 @@ type CanvasRootViewProps = Pick<
   nodes: CanvasNode[];
   nodesById: Map<string, CanvasNode>;
   onFitAll?: () => void;
+  onFitSelection?: () => void;
+  onDuplicateSelection?: () => void;
   openShortcuts: () => void;
   paletteCommands: any[];
   referenceDrawerOpen?: boolean;
@@ -67,6 +72,7 @@ type CanvasRootViewProps = Pick<
   resetTransform: () => void;
   resizeNode: (id: string, width: number, height: number) => void;
   resizingId: string | null;
+  resizePreview: NodeResizePreview | null;
   search: ReturnType<typeof import('../../hooks/useCanvasSearch').useCanvasSearch>;
   searchOpen: boolean;
   selectedEdgeId: string | null;
@@ -97,6 +103,7 @@ export const CanvasRootView = ({
   ctxMenu,
   draggingId,
   draggingIds,
+  dragPreview,
   edgeHandlers,
   edgeInteractionState,
   edges,
@@ -123,6 +130,8 @@ export const CanvasRootView = ({
   nodesById,
   onChatToggle,
   onFitAll,
+  onFitSelection,
+  onDuplicateSelection,
   onOpenReferenceSource,
   onPinReferenceNode,
   onAddToChat,
@@ -139,6 +148,7 @@ export const CanvasRootView = ({
   resetTransform,
   resizeNode,
   resizingId,
+  resizePreview,
   resolveReferenceNode,
   rootFolder,
   search,
@@ -211,7 +221,9 @@ export const CanvasRootView = ({
         canvasName={canvasName}
         draggingId={draggingId}
         draggingIds={draggingIds}
+        dragPreview={dragPreview}
         resizingId={resizingId}
+        resizePreview={resizePreview}
         selectedNodeIdSet={selectedNodeIdSet}
         selectedEdgeId={selectedEdgeId}
         highlightedId={highlightedId}
@@ -306,6 +318,27 @@ export const CanvasRootView = ({
         paletteCommands={paletteCommands}
         onSearchSelect={handleNodeViewportFocus}
         onCloseSearch={() => setSearchOpen(false)}
+        selectedNodeIds={selectedNodeIds}
+        onFitSelection={onFitSelection}
+        onDuplicateSelection={onDuplicateSelection}
+        onGroupSelection={actions.groupSelectedNodes}
+        onWrapSelectionInFrame={actions.wrapSelectedNodesInFrame}
+        onPinReferenceSelection={onPinReferenceNode && selectedNodeIds.length === 1
+          ? () => {
+              const [nodeId] = selectedNodeIds;
+              if (nodeId) onPinReferenceNode(nodeId);
+            }
+          : undefined}
+        onAddSelectionToChat={onAddToChat && selectedNodeIds.length === 1
+          ? () => {
+              const [nodeId] = selectedNodeIds;
+              if (nodeId) onAddToChat(nodeId);
+            }
+          : undefined}
+        onDeleteSelection={() => { void actions.requestRemoveNodes(selectedNodeIds); }}
+        focusModeActive={focus.focusModeActive}
+        focusModeAvailable={focus.focusModeAvailable}
+        onToggleFocusMode={focus.toggleFocusMode}
         findSearch={search}
         findNodesById={nodesById}
         onFindMatchActivate={handleSearchMatchActivate}

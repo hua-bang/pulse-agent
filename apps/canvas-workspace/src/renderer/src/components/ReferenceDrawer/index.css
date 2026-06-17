@@ -255,10 +255,12 @@
 }
 
 .reference-workspace-select:hover,
+.reference-workspace-select:focus-visible,
 .reference-workspace-select--open {
   border-color: rgba(35, 131, 226, 0.34);
   box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.08);
   color: var(--accent);
+  outline: none;
 }
 
 .reference-workspace-select-name {
@@ -321,9 +323,11 @@
     color 0.12s ease;
 }
 
-.reference-workspace-option:hover {
+.reference-workspace-option:hover,
+.reference-workspace-option:focus-visible {
   background: rgba(35, 131, 226, 0.08);
   color: var(--accent);
+  outline: none;
 }
 
 .reference-workspace-option--selected {
@@ -414,8 +418,10 @@
   transition: background 0.1s ease;
 }
 
-.reference-picker-item:hover {
+.reference-picker-item:hover,
+.reference-picker-item:focus-visible {
   background: rgba(0, 0, 0, 0.05);
+  outline: none;
 }
 
 .reference-picker-item-type {
@@ -425,6 +431,10 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   min-width: 44px;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reference-picker-item-label {
@@ -455,6 +465,7 @@
   left: auto;
   right: 0;
   min-width: 260px;
+  margin: 0;
   padding: 10px;
   gap: 8px;
 }
@@ -550,9 +561,11 @@
   letter-spacing: 0;
 }
 
-.reference-group-header:hover {
+.reference-group-header:hover,
+.reference-group-header:focus-visible {
   background: rgba(0, 0, 0, 0.04);
   color: var(--text);
+  outline: none;
 }
 
 .reference-group-caret {
@@ -624,6 +637,13 @@
   gap: 2px;
 }
 
+.reference-group-item-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
 .reference-picker-group .reference-group-items {
   padding-left: 14px;
 }
@@ -632,7 +652,9 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  width: auto;
   padding: 3px 6px;
   border: 0;
   border-radius: 5px;
@@ -684,6 +706,10 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .reference-group-item-remove {
@@ -692,20 +718,26 @@
   justify-content: center;
   width: 18px;
   height: 18px;
+  flex: 0 0 18px;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
   color: var(--text-muted);
   font-size: 13px;
   line-height: 1;
+  cursor: pointer;
   opacity: 0;
   transition: opacity 0.1s ease, background 0.1s ease, color 0.1s ease;
 }
 
-.reference-group-item:hover .reference-group-item-remove,
-.reference-group-item--active .reference-group-item-remove {
+.reference-group-item-row:hover .reference-group-item-remove,
+.reference-group-item--active ~ .reference-group-item-remove,
+.reference-group-item-remove:focus-visible {
   opacity: 1;
 }
 
-.reference-group-item-remove:hover {
+.reference-group-item-remove:hover,
+.reference-group-item-remove:focus-visible {
   background: rgba(0, 0, 0, 0.06);
   color: var(--text);
 }

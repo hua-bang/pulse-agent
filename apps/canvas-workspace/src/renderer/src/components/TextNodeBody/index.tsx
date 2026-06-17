@@ -7,8 +7,8 @@ import { Markdown } from "tiptap-markdown";
 import "./index.css";
 import type { CanvasNode, TextNodeData } from "../../types";
 import { isImeComposing } from "../../utils/ime";
-import { useEscapeClose } from "../../hooks/useEscapeClose";
 import { useClickOutside } from "../../hooks/useClickOutside";
+import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
 import { useI18n } from "../../i18n";
 
 interface Props {
@@ -288,13 +288,16 @@ const TextColorTrigger = ({
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   kind: PickerKind;
 }) => {
+  const { t } = useI18n();
   const data = node.data as TextNodeData;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const currentValue = kind === "text" ? data.textColor : data.backgroundColor;
   const presets = kind === "text" ? TEXT_COLOR_PRESETS : BG_COLOR_PRESETS;
-  const title = kind === "text" ? "Text color" : "Background color";
+  const title = kind === "text" ? t('canvas.textStyle.textColor') : t('canvas.textStyle.backgroundColor');
+  const optionLabelKey = kind === "text" ? 'canvas.textStyle.textColorOption' : 'canvas.textStyle.backgroundColorOption';
 
   const handlePick = useCallback(
     (value: string) => {
@@ -306,8 +309,9 @@ const TextColorTrigger = ({
     [kind, node.id, data, onUpdate]
   );
 
-  useClickOutside(triggerRef, () => setOpen(false), open);
-  useEscapeClose(open, () => setOpen(false));
+  const closePopover = useCallback(() => setOpen(false), []);
+  useClickOutside(triggerRef, closePopover, open);
+  useMenuKeyboardNav(popoverRef, closePopover, open);
 
   const isTransparent = currentValue === "transparent";
 
@@ -323,23 +327,34 @@ const TextColorTrigger = ({
         e.preventDefault();
       }}
     >
-      <div
+      <button
+        type="button"
         className={`text-color-dot${isTransparent ? " text-color-dot--transparent" : ""}`}
         style={{ backgroundColor: isTransparent ? undefined : currentValue }}
+        title={title}
+        aria-label={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
         }}
       >
         {kind === "text" && <span className="text-color-dot-glyph">A</span>}
-      </div>
+      </button>
       {open && (
-        <div className="text-color-popover text-color-popover--open">
+        <div
+          ref={popoverRef}
+          className="text-color-popover text-color-popover--open"
+          role="menu"
+          aria-label={title}
+        >
           {presets.map((preset) => {
             const active = currentValue === preset.value;
             const isNone = preset.value === "transparent";
             return (
               <button
+                type="button"
                 key={preset.name}
                 className={
                   "text-color-swatch" +
@@ -349,7 +364,10 @@ const TextColorTrigger = ({
                 style={{
                   backgroundColor: isNone ? undefined : preset.value,
                 }}
-                title={preset.name}
+                role="menuitemradio"
+                aria-checked={active}
+                title={t(optionLabelKey, { name: preset.name })}
+                aria-label={t(optionLabelKey, { name: preset.name })}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={(e) => {
                   e.stopPropagation();

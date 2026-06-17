@@ -4,11 +4,14 @@ import { CanvasNodeView } from '../CanvasNodeView';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
+import type { NodeResizePreview } from '../../hooks/useNodeResize';
+import type { NodeDragPreview } from '../../hooks/useNodeDrag';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
 import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
 import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
+import { useI18n } from '../../i18n';
 
 interface NodeRenderGroup {
   containers: CanvasNode[];
@@ -35,7 +38,9 @@ interface CanvasSurfaceProps {
   /** Every node participating in the current drag — includes descendants of a
    *  dragged frame so the full group can share the lifted stacking context. */
   draggingIds: Set<string>;
+  dragPreview?: NodeDragPreview | null;
   resizingId: string | null;
+  resizePreview?: NodeResizePreview | null;
   selectedNodeIdSet: Set<string>;
   selectedEdgeId: string | null;
   highlightedId: string | null;
@@ -124,7 +129,9 @@ export const CanvasSurface = ({
   canvasName,
   draggingId,
   draggingIds,
+  dragPreview,
   resizingId,
+  resizePreview,
   selectedNodeIdSet,
   selectedEdgeId,
   highlightedId,
@@ -294,6 +301,14 @@ export const CanvasSurface = ({
     {snapLines && snapLines.length > 0 && (
       <CanvasAlignmentGuides lines={snapLines} scale={transform.scale} />
     )}
+    {(dragPreview || resizePreview) && (
+      <CanvasGestureHud
+        dragPreview={dragPreview}
+        nodes={nodes}
+        resizePreview={resizePreview}
+        scale={transform.scale}
+      />
+    )}
   </div>
 );
 
@@ -361,5 +376,68 @@ const ShapeDraftPreview = ({ draft, scale }: { draft: ShapeDraft; scale: number 
         strokeWidth={1.5 / Math.max(scale, 0.0001)}
       />
     </svg>
+  );
+};
+
+interface GestureHudProps {
+  dragPreview?: NodeDragPreview | null;
+  resizePreview?: NodeResizePreview | null;
+  nodes: CanvasNode[];
+  scale: number;
+}
+
+const CanvasGestureHud = ({ dragPreview, resizePreview, nodes, scale }: GestureHudProps) => {
+  const { t } = useI18n();
+  const resizeNode = resizePreview ? nodes.find((node) => node.id === resizePreview.id) : null;
+  const preview = dragPreview
+    ? {
+        x: dragPreview.x,
+        y: dragPreview.y,
+        width: dragPreview.width,
+        height: dragPreview.height,
+      }
+    : resizePreview && resizeNode
+      ? {
+          x: resizeNode.x,
+          y: resizeNode.y,
+          width: resizePreview.width,
+          height: resizePreview.height,
+        }
+      : null;
+
+  if (!preview) return null;
+
+  const safeScale = Math.max(scale, 0.0001);
+  const label = dragPreview
+    ? dragPreview.count > 1
+      ? t('canvas.gesture.movingMany', { count: dragPreview.count })
+      : t('canvas.gesture.movingOne')
+    : t('canvas.gesture.resizing');
+  const dimensions = `${Math.round(preview.width)} x ${Math.round(preview.height)}`;
+  const position = dragPreview
+    ? `X ${Math.round(preview.x)}  Y ${Math.round(preview.y)}`
+    : null;
+
+  return (
+    <div
+      className="canvas-gesture-hud"
+      aria-hidden="true"
+      style={{
+        left: preview.x,
+        top: preview.y + preview.height + (8 / safeScale),
+        transform: `scale(${1 / safeScale})`,
+      } as React.CSSProperties}
+    >
+      <div className="canvas-gesture-hud__main">
+        <span>{label}</span>
+        {dragPreview?.snapDisabled && (
+          <span className="canvas-gesture-hud__badge">{t('canvas.gesture.freeMove')}</span>
+        )}
+      </div>
+      <div className="canvas-gesture-hud__meta">
+        {position && <span>{position}</span>}
+        <span>{dimensions}</span>
+      </div>
+    </div>
   );
 };
