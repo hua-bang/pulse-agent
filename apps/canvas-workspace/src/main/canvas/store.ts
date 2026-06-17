@@ -18,6 +18,19 @@ import {
   type MigrationProgress,
   type ReadJsonResult,
 } from "./storage";
+import {
+  createWorkspaceExportArchive,
+  createWorkspaceExportPayload,
+  isSafeRelativePath,
+  parseWorkspaceExportFile,
+  type WorkspaceExportFile,
+} from "./workspace-export-archive";
+import {
+  chooseExternalFilesExportMode,
+  collectExternalFilePaths,
+  collectExternalWorkspaceFiles,
+  confirmSkippedExternalFilesExport,
+} from "./workspace-export-external-files";
 
 /**
  * Extra fields the canvas-store side attaches to migration-progress events
@@ -89,27 +102,7 @@ const AGENTS_MD_TEMPLATE = `# Canvas Agent Config
 `;
 
 
-const EXPORT_FORMAT = 'pulse-canvas-workspace';
-const EXPORT_VERSION = 1;
 const PORTABLE_WORKSPACE_URL_PREFIX = 'pulsecanvas://workspace/';
-
-interface WorkspaceExportFile {
-  relativePath: string;
-  encoding: 'base64';
-  content: string;
-}
-
-interface WorkspaceExportPayload {
-  format: typeof EXPORT_FORMAT;
-  version: typeof EXPORT_VERSION;
-  exportedAt: string;
-  workspace: {
-    id: string;
-    name: string;
-  };
-  canvas: unknown;
-  files: WorkspaceExportFile[];
-}
 
 const sanitizeFileName = (name: string): string => {
   const safe = name.replace(/[^a-zA-Z0-9_\- .]/g, '').trim();
@@ -128,12 +121,6 @@ const portableUrlForRelativePath = (relativePath: string): string =>
 const relativePathFromPortableUrl = (value: string): string | null => {
   if (!value.startsWith(PORTABLE_WORKSPACE_URL_PREFIX)) return null;
   return decodeURI(value.slice(PORTABLE_WORKSPACE_URL_PREFIX.length));
-};
-
-const isSafeRelativePath = (relativePath: string): boolean => {
-  if (!relativePath || isAbsolute(relativePath)) return false;
-  const normalized = relativePath.replace(/\\/g, '/');
-  return !normalized.split('/').some((part) => part === '..' || part === '');
 };
 
 const rewriteCanvasFilePaths = (
@@ -215,31 +202,6 @@ const createUniqueImportedWorkspaceId = async (): Promise<string> => {
     }
   }
   return `ws-imported-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-};
-
-const parseWorkspaceExportPayload = (raw: string): WorkspaceExportPayload => {
-  const parsed = JSON.parse(raw) as Partial<WorkspaceExportPayload>;
-  if (parsed.format !== EXPORT_FORMAT) {
-    throw new Error('Selected file is not a Pulse Canvas workspace export.');
-  }
-  if (parsed.version !== EXPORT_VERSION) {
-    throw new Error(`Unsupported Pulse Canvas export version: ${String(parsed.version)}`);
-  }
-  if (!parsed.workspace || typeof parsed.workspace.name !== 'string') {
-    throw new Error('Workspace export is missing workspace metadata.');
-  }
-  if (!Array.isArray(parsed.files)) {
-    throw new Error('Workspace export is missing file payloads.');
-  }
-  for (const file of parsed.files) {
-    if (!file || typeof file.relativePath !== 'string' || file.encoding !== 'base64' || typeof file.content !== 'string') {
-      throw new Error('Workspace export contains an invalid file entry.');
-    }
-    if (!isSafeRelativePath(file.relativePath)) {
-      throw new Error(`Workspace export contains an unsafe file path: ${file.relativePath}`);
-    }
-  }
-  return parsed as WorkspaceExportPayload;
 };
 
 /** Manifest stays as a flat file; all other workspaces live in subdirectories. */
@@ -1409,27 +1371,49 @@ export const setupCanvasStoreIpc = () => {
 
         const workspaceDir = getWorkspaceDir(payload.id);
         const canvas = await readWorkspaceCanvasForExport(payload.id);
-        const portableCanvas = rewriteCanvasFilePaths(canvas, (filePath) => {
-          const relativePath = toPortableRelativePath(filePath, workspaceDir);
-          return relativePath ? portableUrlForRelativePath(relativePath) : filePath;
-        });
         const files = await collectWorkspaceFiles(workspaceDir);
 
         const win = BrowserWindow.getFocusedWindow();
+        const externalFilePaths = collectExternalFilePaths(canvas, workspaceDir);
+        let externalFilePathMap = new Map<string, string>();
+        let skippedExternalFileCount = 0;
+        if (externalFilePaths.length > 0) {
+          const mode = await chooseExternalFilesExportMode(externalFilePaths.length, win);
+          if (mode === 'cancel') {
+            return { ok: false, canceled: true };
+          }
+          if (mode === 'copy') {
+            const externalBundle = await collectExternalWorkspaceFiles(
+              externalFilePaths,
+              files.map((file) => file.relativePath),
+            );
+            files.push(...externalBundle.files);
+            externalFilePathMap = externalBundle.pathMap;
+            skippedExternalFileCount = externalBundle.skipped.length;
+            if (skippedExternalFileCount > 0 && !(await confirmSkippedExternalFilesExport(skippedExternalFileCount, win))) {
+              return { ok: false, canceled: true };
+            }
+          }
+        }
+
+        const portableCanvas = rewriteCanvasFilePaths(canvas, (filePath) => {
+          const relativePath = toPortableRelativePath(filePath, workspaceDir) ?? externalFilePathMap.get(filePath);
+          return relativePath ? portableUrlForRelativePath(relativePath) : filePath;
+        });
         const result = win
           ? await dialog.showSaveDialog(win, {
             title: 'Export Workspace',
-            defaultPath: `${sanitizeFileName(payload.name)}.pulsecanvas.json`,
+            defaultPath: `${sanitizeFileName(payload.name)}.pulsecanvas.zip`,
             filters: [
-              { name: 'Pulse Canvas Workspace', extensions: ['pulsecanvas.json', 'json'] },
+              { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
               { name: 'All Files', extensions: ['*'] },
             ],
           })
           : await dialog.showSaveDialog({
             title: 'Export Workspace',
-            defaultPath: `${sanitizeFileName(payload.name)}.pulsecanvas.json`,
+            defaultPath: `${sanitizeFileName(payload.name)}.pulsecanvas.zip`,
             filters: [
-              { name: 'Pulse Canvas Workspace', extensions: ['pulsecanvas.json', 'json'] },
+              { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
               { name: 'All Files', extensions: ['*'] },
             ],
           });
@@ -1437,16 +1421,20 @@ export const setupCanvasStoreIpc = () => {
           return { ok: false, canceled: true };
         }
 
-        const exportPayload: WorkspaceExportPayload = {
-          format: EXPORT_FORMAT,
-          version: EXPORT_VERSION,
+        const exportPayload = createWorkspaceExportPayload({
           exportedAt: new Date().toISOString(),
           workspace: { id: payload.id, name: payload.name },
           canvas: portableCanvas,
           files,
+        });
+        await fs.writeFile(result.filePath, createWorkspaceExportArchive(exportPayload));
+        return {
+          ok: true,
+          filePath: result.filePath,
+          fileCount: files.length,
+          externalFileCount: externalFilePathMap.size,
+          skippedExternalFileCount,
         };
-        await fs.writeFile(result.filePath, JSON.stringify(exportPayload, null, 2), 'utf-8');
-        return { ok: true, filePath: result.filePath, fileCount: files.length };
       } catch (err) {
         return { ok: false, error: err instanceof Error ? err.message : String(err) };
       }
@@ -1460,7 +1448,8 @@ export const setupCanvasStoreIpc = () => {
         ? await dialog.showOpenDialog(win, {
           title: 'Import Workspace',
           filters: [
-            { name: 'Pulse Canvas Workspace', extensions: ['pulsecanvas.json', 'json'] },
+            { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
+            { name: 'Legacy Pulse Canvas Workspace JSON', extensions: ['pulsecanvas.json', 'json'] },
             { name: 'All Files', extensions: ['*'] },
           ],
           properties: ['openFile'],
@@ -1468,7 +1457,8 @@ export const setupCanvasStoreIpc = () => {
         : await dialog.showOpenDialog({
           title: 'Import Workspace',
           filters: [
-            { name: 'Pulse Canvas Workspace', extensions: ['pulsecanvas.json', 'json'] },
+            { name: 'Pulse Canvas Workspace Archive', extensions: ['pulsecanvas.zip', 'zip'] },
+            { name: 'Legacy Pulse Canvas Workspace JSON', extensions: ['pulsecanvas.json', 'json'] },
             { name: 'All Files', extensions: ['*'] },
           ],
           properties: ['openFile'],
@@ -1477,8 +1467,8 @@ export const setupCanvasStoreIpc = () => {
         return { ok: false, canceled: true };
       }
 
-      const raw = await fs.readFile(result.filePaths[0], 'utf-8');
-      const imported = parseWorkspaceExportPayload(raw);
+      const raw = await fs.readFile(result.filePaths[0]);
+      const imported = parseWorkspaceExportFile(raw);
       const workspaceId = await createUniqueImportedWorkspaceId();
       const workspaceName = imported.workspace.name.trim() || 'Imported Workspace';
       const workspaceDir = getWorkspaceDir(workspaceId);

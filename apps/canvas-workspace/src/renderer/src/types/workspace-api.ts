@@ -62,7 +62,15 @@ export interface CanvasWorkspaceApi {
     exportWorkspace: (
       id: string,
       name: string,
-    ) => Promise<{ ok: boolean; canceled?: boolean; filePath?: string; fileCount?: number; error?: string }>;
+    ) => Promise<{
+      ok: boolean;
+      canceled?: boolean;
+      filePath?: string;
+      fileCount?: number;
+      externalFileCount?: number;
+      skippedExternalFileCount?: number;
+      error?: string;
+    }>;
     importWorkspace: () => Promise<{
       ok: boolean;
       canceled?: boolean;
