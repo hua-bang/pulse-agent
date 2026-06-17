@@ -385,7 +385,7 @@
   top: 100%;
   right: 0;
   margin-top: 4px;
-  min-width: 160px;
+  min-width: 196px; width: max-content; max-width: calc(100vw - 32px);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -406,10 +406,10 @@
   cursor: pointer;
   font-size: 13px;
   color: var(--text);
-  text-align: left;
+  text-align: left; white-space: nowrap;
   transition: background 0.1s;
 }
-
+.sidebar-add-menu-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sidebar-add-menu-item:hover {
   background: rgba(0, 0, 0, 0.04);
 }
