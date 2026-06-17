@@ -30,6 +30,7 @@ const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
 const ROUTE_GRAPH = '/graph';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
+const EMPTY_SELECTED_NODE_IDS: string[] = [];
 
 const readSidebarCollapsedPreference = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -138,6 +139,7 @@ const AppContent = () => {
   const workbench = useWorkbenchState({ activeWorkspaceId: activeId });
   const {
     activeNodes,
+    selectedNodeIdsByWorkspace,
     ensureWorkspaceNodesLoaded,
     getWorkspaceNodes,
     requestNodeFocus,
@@ -145,6 +147,7 @@ const AppContent = () => {
     requestActiveNodeDelete,
     requestActiveNodeRename,
   } = workbench;
+  const activeSelectedNodeIds = selectedNodeIdsByWorkspace[activeId] ?? EMPTY_SELECTED_NODE_IDS;
 
   useEffect(() => {
     if (!routeQuery || routePath !== ROUTE_CANVAS) return;
@@ -504,6 +507,7 @@ const AppContent = () => {
           pluginNavItems={pluginNavItems}
           onNavigate={navigateToPath}
           onExitChat={exitChatView}
+          selectedNodeIds={activeSelectedNodeIds}
         />
         <PulseRouter<ActiveView> activeKey={activeView}>
           <PulseRouterView name='canvas' keepAlive>

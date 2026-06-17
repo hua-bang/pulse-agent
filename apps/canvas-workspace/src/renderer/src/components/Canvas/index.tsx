@@ -9,6 +9,7 @@ import { useCanvasFit } from '../../hooks/useCanvasFit';
 import { useCanvasKeyboard } from '../../hooks/useCanvasKeyboard';
 import { useCanvasSearch } from '../../hooks/useCanvasSearch';
 import { useCanvasImagePaste } from '../../hooks/useCanvasImagePaste';
+import { useTemporaryHandTool } from '../../hooks/useTemporaryHandTool';
 import { useEdgeInteraction } from '../../hooks/useEdgeInteraction';
 import { useShapeDraw } from '../../hooks/useShapeDraw';
 import { useMarqueeSelect } from '../../hooks/useMarqueeSelect';
@@ -27,7 +28,8 @@ import { useCanvasVisibility } from './hooks/useCanvasVisibility';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
-import { getNodeDefaultSize, NODE_TYPE_LABELS } from '../../utils/nodeFactory';
+import { getNodeDefaultSize } from '../../utils/nodeFactory';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 import { createDefaultEdge } from '../../utils/edgeFactory';
 import { getUrlHostname, normalizeReferenceUrl } from '../ReferenceDrawer/utils';
 import type { AgentNodeData, CanvasNode, IframeNodeData, TerminalNodeData, TextNodeData } from '../../types';
@@ -104,6 +106,9 @@ export const Canvas = ({
   }, [dismissToast, notify, t]);
   const [activeTool, setActiveTool] = useState('select');
   const [searchOpen, setSearchOpen] = useState(false);
+  const keyboardLocked = !isActive || isOverlayOpen;
+  const temporaryHandTool = useTemporaryHandTool(!keyboardLocked);
+  const effectiveActiveTool = temporaryHandTool ? 'hand' : activeTool;
 
   const containerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<CanvasNode[]>([]);
@@ -117,7 +122,7 @@ export const Canvas = ({
     handleMouseMove: canvasMouseMove,
     handleMouseUp: canvasMouseUp,
     screenToCanvas, resetTransform,
-  } = useCanvas(activeTool === 'hand');
+  } = useCanvas(effectiveActiveTool === 'hand');
 
   const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
 
@@ -148,16 +153,16 @@ export const Canvas = ({
 
       notify({
         tone: 'info',
-        title: `Agent added a ${NODE_TYPE_LABELS[node.type]}`,
-        description: 'Placed outside the current viewport',
+        title: t('canvas.agentAddedNode', { label: t(CANVAS_NODE_TYPE_LABEL_KEY[node.type]) }),
+        description: t('canvas.agentAddedNodeOffscreen'),
         autoCloseMs: 8000,
         action: {
-          label: 'Jump',
+          label: t('canvas.jumpToNode'),
           onClick: () => handleFocusNode(node),
         },
       });
     },
-    [transform, notify, handleFocusNode],
+    [transform, notify, handleFocusNode, t],
   );
 
   const {
@@ -245,23 +250,23 @@ export const Canvas = ({
     const y = center.y - 310;
     const toastId = notify({
       tone: 'loading',
-      title: 'Creating agent team...',
+      title: t('canvas.agentTeamCreating'),
       description: canvasName ?? canvasId,
     });
     void api.create({
       workspaceId: canvasId,
-      name: 'Agent Team',
-      goal: 'Clarify the goal with the user, then propose a team plan.',
+      name: t('canvas.agentTeamName'),
+      goal: t('canvas.agentTeamGoal'),
       cwd: rootFolder,
-      leadName: 'Team Lead',
+      leadName: t('canvas.agentTeamLeadName'),
       x,
       y,
     }).then((result) => {
       if (!result.ok || !result.snapshot) {
         updateToast(toastId, {
           tone: 'error',
-          title: 'Agent team creation failed',
-          description: result.error ?? 'Unable to create team.',
+          title: t('canvas.agentTeamCreationFailed'),
+          description: result.error ?? t('canvas.agentTeamCreateFailedDescription'),
           autoCloseMs: 4200,
         });
         return;
@@ -273,14 +278,14 @@ export const Canvas = ({
       }
       updateToast(toastId, {
         tone: 'success',
-        title: 'Agent team created',
-        description: 'Team frame and agent nodes were added to the canvas.',
+        title: t('canvas.agentTeamCreated'),
+        description: t('canvas.agentTeamCreatedDescription'),
         autoCloseMs: 2800,
       });
     }).catch((err) => {
       updateToast(toastId, {
         tone: 'error',
-        title: 'Agent team creation failed',
+        title: t('canvas.agentTeamCreationFailed'),
         description: err instanceof Error ? err.message : String(err),
         autoCloseMs: 4200,
       });
@@ -294,6 +299,7 @@ export const Canvas = ({
     screenToCanvas,
     setHighlightedId,
     setSelectedNodeIds,
+    t,
     updateToast,
   ]);
 
@@ -499,6 +505,16 @@ export const Canvas = ({
     if (selected.length > 0) fitAllNodes(selected);
   }, [fitAllNodes, selectedNodeIds, visibleNodes]);
 
+  const handleDuplicateSelection = useCallback(() => {
+    if (selectedNodeIds.length === 0) return;
+    const created: string[] = [];
+    for (const id of selectedNodeIds) {
+      const copy = duplicateNode(id);
+      if (copy) created.push(copy.id);
+    }
+    if (created.length > 0) setSelectedNodeIds(created);
+  }, [duplicateNode, selectedNodeIds, setSelectedNodeIds]);
+
   // Ctrl/Cmd+F "find in canvas". Kept separate from the Cmd+K palette
   // because Find is iterative — the bar stays open while the user pages
   // through matches. See useCanvasSearch for details.
@@ -507,10 +523,19 @@ export const Canvas = ({
     handleNodeViewportFocus(node);
   }, [handleNodeViewportFocus]);
 
-  const { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd, onDragCancel } = useNodeDrag(
+  const {
+    draggingId,
+    draggingIds,
+    dragPreview,
+    snapLines,
+    onDragStart,
+    onDragMove,
+    onDragEnd,
+    onDragCancel,
+  } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds,
   );
-  const { resizingId, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel } =
+  const { resizingId, resizePreview, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel } =
     useNodeResize(resizeNode, transform.scale);
 
   const { sortedNodes, renderGroups } = useCanvasRenderOrder(visibleNodes);
@@ -545,7 +570,7 @@ export const Canvas = ({
     handleOverlayMouseDown: handleShapeOverlayMouseDown,
     isActive: shapeToolActive,
   } = useShapeDraw({
-    activeTool, screenToCanvas, getContainer, addNode, updateNode,
+    activeTool: effectiveActiveTool, screenToCanvas, getContainer, addNode, updateNode,
     // Drop back to the select tool and select the committed shape so
     // the user can immediately restyle it via the ShapeStylePicker.
     onCommitted: (node) => {
@@ -559,7 +584,7 @@ export const Canvas = ({
     // Only the plain select tool should own blank-canvas drags. Connect
     // and shape modes mount their own full-canvas overlays that already
     // intercept mousedown.
-    enabled: activeTool === 'select' && !shapeToolActive,
+    enabled: effectiveActiveTool === 'select' && !shapeToolActive,
     screenToCanvas, getContainer, nodes: visibleNodes,
     onSelect: handleMarqueeSelect,
   });
@@ -597,7 +622,7 @@ export const Canvas = ({
     // Hidden canvases stay mounted to preserve their UI state across
     // workspace switches; gate global keyboard shortcuts so only the
     // visible one reacts.
-    keyboardLocked: !isActive || isOverlayOpen,
+    keyboardLocked,
   });
 
   useCanvasImagePaste({
@@ -633,7 +658,7 @@ export const Canvas = ({
   });
 
   const mouse = useCanvasMouseHandlers({
-    canvasId, activeTool, containerRef, nodesRef,
+    canvasId, activeTool: effectiveActiveTool, containerRef, nodesRef,
     suppressBlankClickRef,
     setSelectedNodeIds, setSelectedEdgeId,
     contextMenu: ctxMenu.contextMenu,
@@ -669,7 +694,7 @@ export const Canvas = ({
   return (
     <CanvasRootView
       actions={actions}
-      activeTool={activeTool}
+      activeTool={effectiveActiveTool}
       animating={animating}
       canvasId={canvasId}
       canvasName={canvasName}
@@ -678,6 +703,7 @@ export const Canvas = ({
       ctxMenu={ctxMenu}
       draggingId={draggingId}
       draggingIds={draggingIds}
+      dragPreview={dragPreview}
       edgeHandlers={edgeHandlers}
       edgeInteractionState={edgeInteractionState}
       edges={visibleEdges}
@@ -705,6 +731,8 @@ export const Canvas = ({
       onChatOpen={onChatOpen}
       onChatToggle={onChatToggle}
       onFitAll={handleFitAll}
+      onFitSelection={handleFitSelection}
+      onDuplicateSelection={handleDuplicateSelection}
       onOpenReferenceSource={onOpenReferenceSource}
       onPinReferenceNode={onPinReferenceNode} onAddToChat={onAddToChat} onAddDomSelectionToChat={onAddDomSelectionToChat}
       onReferenceToggle={onReferenceToggle}
@@ -717,6 +745,7 @@ export const Canvas = ({
       resetTransform={resetTransform}
       resizeNode={resizeNode}
       resizingId={resizingId}
+      resizePreview={resizePreview}
       resolveReferenceNode={resolveReferenceNode}
       rootFolder={rootFolder}
       search={search}

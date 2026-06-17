@@ -228,6 +228,7 @@
 }
 
 .node-header:hover .frame-color-trigger,
+.frame-color-trigger:focus-within,
 .frame-color-trigger--open {
   opacity: 1;
 }
@@ -235,9 +236,17 @@
 .frame-color-dot {
   width: 12px;
   height: 12px;
+  padding: 0;
   border-radius: 50%;
   border: 1.5px solid color-mix(in srgb, var(--frame-color, #A8B0BD) 55%, #ffffff);
+  background: transparent;
+  cursor: pointer;
   transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.frame-color-dot:focus-visible {
+  outline: 2px solid var(--accent, #2383e2);
+  outline-offset: 2px;
 }
 
 .frame-color-trigger:hover .frame-color-dot {

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { inferPluginIcon, PluginNodeIcon } from './PluginNodeIcon';
 import { ShapeToolButton } from './ShapeToolButton';
-import { AppLogoIcon, CodingAgentIcon, PulseGlyphIcon } from '../icons';
+import { AppLogoIcon, CodingAgentIcon } from '../icons';
+import { useClickOutside } from '../../hooks/useClickOutside';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { useI18n, type I18nKey } from '../../i18n';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { CanvasNode } from '../../types';
@@ -163,6 +165,7 @@ export const FloatingToolbar = ({
 }: Props) => {
   const { t } = useI18n();
   const pluginMenuRef = useRef<HTMLDivElement | null>(null);
+  const pluginPopoverRef = useRef<HTMLDivElement | null>(null);
   const [pluginMenuOpen, setPluginMenuOpen] = useState(false);
   const [pluginStatus, setPluginStatus] = useState<CanvasPluginsStatus | undefined>();
   const [pluginLoading, setPluginLoading] = useState(false);
@@ -209,23 +212,9 @@ export const FloatingToolbar = ({
     };
   }, [loadPluginNodes]);
 
-  useEffect(() => {
-    if (!pluginMenuOpen) return undefined;
-    const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target;
-      if (target instanceof Node && pluginMenuRef.current?.contains(target)) return;
-      setPluginMenuOpen(false);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPluginMenuOpen(false);
-    };
-    window.addEventListener('pointerdown', handlePointerDown, true);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown, true);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [pluginMenuOpen]);
+  const closePluginMenu = useCallback(() => setPluginMenuOpen(false), []);
+  useClickOutside(pluginMenuRef, closePluginMenu, pluginMenuOpen);
+  useMenuKeyboardNav(pluginPopoverRef, closePluginMenu, pluginMenuOpen);
 
   const togglePluginMenu = useCallback(() => {
     setPluginMenuOpen((open) => {
@@ -252,6 +241,8 @@ export const FloatingToolbar = ({
               className={`toolbar-btn${chatPanelOpen ? " toolbar-btn--active" : ""}`}
               onClick={onChatToggle}
               title={t('canvas.toolbar.toggleChat')}
+              aria-label={t('canvas.toolbar.toggleChat')}
+              aria-pressed={chatPanelOpen}
             >
               <AppLogoIcon size={18} />
             </button>
@@ -268,6 +259,7 @@ export const FloatingToolbar = ({
               onClick={onReferenceToggle}
               title={t('canvas.toolbar.toggleReference')}
               aria-label={t('canvas.toolbar.toggleReference')}
+              aria-pressed={referenceDrawerOpen}
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                 <path
@@ -290,16 +282,21 @@ export const FloatingToolbar = ({
       )}
 
       <div className="toolbar-group">
-        {tools.map((tool) => (
-          <button
-            key={tool.id}
-            className={`toolbar-btn${activeTool === tool.id ? " toolbar-btn--active" : ""}`}
-            onClick={() => onToolChange(tool.id)}
-            title={t(tool.labelKey)}
-          >
-            {tool.icon}
-          </button>
-        ))}
+        {tools.map((tool) => {
+          const label = tool.id === 'hand' ? t('canvas.toolbar.panHint') : t(tool.labelKey);
+          return (
+            <button
+              key={tool.id}
+              className={`toolbar-btn${activeTool === tool.id ? " toolbar-btn--active" : ""}`}
+              onClick={() => onToolChange(tool.id)}
+              title={label}
+              aria-label={label}
+              aria-pressed={activeTool === tool.id}
+            >
+              {tool.icon}
+            </button>
+          );
+        })}
         <ShapeToolButton activeTool={activeTool} onToolChange={onToolChange} />
       </div>
 
@@ -373,6 +370,24 @@ export const FloatingToolbar = ({
         </button>
         <button
           className="toolbar-btn toolbar-btn--create"
+          onClick={() => onAddNode("terminal")}
+          aria-label={t('canvas.toolbar.addTerminal')}
+          data-tooltip={t('canvas.toolbar.terminal')}
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <rect
+              x="2.5" y="3" width="13" height="12" rx="2"
+              stroke="currentColor" strokeWidth="1.3"
+            />
+            <path
+              d="M5.5 8l2 1.5-2 1.5M9 11h3.5"
+              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
+            />
+          </svg>
+          <span className="toolbar-btn-label">{t('canvas.toolbar.terminal')}</span>
+        </button>
+        <button
+          className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("mindmap")}
           aria-label={t('canvas.toolbar.addMindmap')}
           data-tooltip={t('canvas.toolbar.mindmap')}
@@ -428,7 +443,12 @@ export const FloatingToolbar = ({
               <span className="toolbar-btn-label">{t('canvas.toolbar.plugin')}</span>
             </button>
             {pluginMenuOpen && (
-              <div className="plugin-tool-popover" role="menu" aria-label={t('canvas.toolbar.plugin')}>
+              <div
+                ref={pluginPopoverRef}
+                className="plugin-tool-popover"
+                role="menu"
+                aria-label={t('canvas.toolbar.plugin')}
+              >
                 {pluginOptions.map((option) => (
                   <button
                     key={option.key}

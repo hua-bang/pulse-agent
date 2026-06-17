@@ -1,12 +1,13 @@
-import type { ReactNode } from 'react';
+import { useCallback, useId, useRef, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { AppLogoIcon, CloseIcon, ListLinesIcon, PlusIcon, SettingsIcon, SparklesIcon, SpinnerIcon } from '../icons';
 import type { OtherWorkspaceSession } from './types';
 import { useI18n } from '../../i18n';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 
 interface ChatHeaderProps {
   title: string;
   sessionMenuOpen: boolean;
-  sessionMenuRef: React.RefObject<HTMLDivElement>;
+  sessionMenuRef: RefObject<HTMLDivElement>;
   /** True while the session list is being (re)fetched. */
   sessionsLoading?: boolean;
   sessions: Array<{
@@ -18,6 +19,7 @@ interface ChatHeaderProps {
   }>;
   otherSessions: OtherWorkspaceSession[];
   onToggleSessionMenu: () => Promise<void>;
+  onCloseSessionMenu: () => void;
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
   onOpenModelSettings: () => void;
@@ -41,6 +43,7 @@ export const ChatHeader = ({
   sessions,
   otherSessions,
   onToggleSessionMenu,
+  onCloseSessionMenu,
   onNewSession,
   onLoadSession,
   onOpenModelSettings,
@@ -49,11 +52,49 @@ export const ChatHeader = ({
   anchors,
 }: ChatHeaderProps) => {
   const { t } = useI18n();
+  const menuId = useId();
+  const titleButtonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const closeSessionMenuAndRestoreFocus = useCallback(() => {
+    onCloseSessionMenu();
+    titleButtonRef.current?.focus();
+  }, [onCloseSessionMenu]);
+
+  useMenuKeyboardNav(menuRef, closeSessionMenuAndRestoreFocus, sessionMenuOpen);
+
+  const handleTitleButtonKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!sessionMenuOpen) {
+        void onToggleSessionMenu();
+        return;
+      }
+      const items = Array.from(
+        menuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+      );
+      const target = event.key === 'ArrowUp' ? items[items.length - 1] : items[0];
+      target?.focus();
+    },
+    [onToggleSessionMenu, sessionMenuOpen],
+  );
 
   return (
     <div className="chat-panel-header">
       <div className="chat-panel-title-wrapper" ref={sessionMenuRef}>
-        <button className="chat-panel-title-btn" onClick={() => void onToggleSessionMenu()}>
+        <button
+          ref={titleButtonRef}
+          type="button"
+          className="chat-panel-title-btn"
+          onClick={() => void onToggleSessionMenu()}
+          onKeyDown={handleTitleButtonKeyDown}
+          aria-haspopup="menu"
+          aria-expanded={sessionMenuOpen}
+          aria-controls={sessionMenuOpen ? menuId : undefined}
+          aria-label={sessionMenuOpen ? t('chat.hideSessionList') : t('chat.showSessionList')}
+        >
           <PulseCanvasMark />
           <span className="chat-panel-title-text">{title}</span>
           {sessionsLoading ? (
@@ -65,8 +106,19 @@ export const ChatHeader = ({
           )}
         </button>
         {sessionMenuOpen && (
-          <div className="chat-session-menu">
-            <button className="chat-session-menu-new" onClick={() => void onNewSession()}>
+          <div
+            ref={menuRef}
+            id={menuId}
+            className="chat-session-menu"
+            role="menu"
+            aria-label={t('chat.showSessionList')}
+          >
+            <button
+              type="button"
+              className="chat-session-menu-new"
+              role="menuitem"
+              onClick={() => void onNewSession()}
+            >
               <PlusIcon size={14} strokeWidth={1.3} />
               <span>{t('chat.newAiChat')}</span>
             </button>
@@ -84,13 +136,17 @@ export const ChatHeader = ({
                   {sessions.map(session => (
                     <button
                       key={session.sessionId}
+                      type="button"
                       className={`chat-session-menu-item${session.isCurrent ? ' chat-session-menu-item--active' : ''}`}
+                      role="menuitem"
+                      aria-current={session.isCurrent ? 'true' : undefined}
+                      data-menu-autofocus={session.isCurrent ? 'true' : undefined}
                       onClick={() => {
                         if (!session.isCurrent) {
                           void onLoadSession(session.sessionId);
                           return;
                         }
-                        void onToggleSessionMenu();
+                        onCloseSessionMenu();
                       }}
                     >
                       <ListLinesIcon size={14} />
@@ -111,7 +167,9 @@ export const ChatHeader = ({
                   {otherSessions.map(session => (
                     <button
                       key={session.sessionId}
+                      type="button"
                       className="chat-session-menu-item chat-session-menu-item--other-ws"
+                      role="menuitem"
                       onClick={() => void onLoadSession(session.sessionId, session.sourceWorkspaceId)}
                     >
                       <ListLinesIcon size={14} />

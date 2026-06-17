@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, AgentSessionInfo } from '../../../types';
 import type { AgentScope, OtherWorkspaceSession, WorkspaceOption } from '../types';
-import { useEscapeClose } from '../../../hooks/useEscapeClose';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 
 interface UseChatSessionsOptions {
@@ -55,7 +54,7 @@ export function useChatSessions({
   }, [onMessagesLoaded, skipInitialHistory, scopeKey]);
 
   useClickOutside(sessionMenuRef, () => setSessionMenuOpen(false), sessionMenuOpen);
-  useEscapeClose(sessionMenuOpen, () => setSessionMenuOpen(false));
+  const closeSessionMenu = useCallback(() => setSessionMenuOpen(false), []);
 
   const loadSessions = useCallback(async () => {
       setSessionsLoading(true);
@@ -139,6 +138,7 @@ export function useChatSessions({
     handleLoadSession,
     handleNewSession,
     loadSessions,
+    closeSessionMenu,
     openSessionMenu,
     sessionMenuOpen,
     sessionMenuRef,

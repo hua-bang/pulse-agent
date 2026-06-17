@@ -7,6 +7,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useI18n } from '../../i18n';
 import type { Artifact, ArtifactType } from '../../types';
 import { useRightDock } from '../RightDock';
 
@@ -32,6 +33,7 @@ const TYPE_ICONS: Record<ArtifactType, string> = {
 
 export const ChatArtifactCard = ({ workspaceId, payload }: ChatArtifactCardProps) => {
   const { openArtifact } = useRightDock();
+  const { t } = useI18n();
   const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
   const [pinning, setPinning] = useState(false);
 
@@ -51,8 +53,7 @@ export const ChatArtifactCard = ({ workspaceId, payload }: ChatArtifactCardProps
     openArtifact(workspaceId, payload.artifactId);
   }, [openArtifact, workspaceId, payload.artifactId]);
 
-  const handlePin = useCallback(async (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handlePin = useCallback(async () => {
     if (pinnedNodeId || pinning) return;
     setPinning(true);
     try {
@@ -66,46 +67,48 @@ export const ChatArtifactCard = ({ workspaceId, payload }: ChatArtifactCardProps
   }, [pinnedNodeId, pinning, workspaceId, payload.artifactId]);
 
   const subtitle = payload.isUpdate
-    ? `Iterated · v${payload.versionCount ?? '?'}`
-    : `New artifact · ${payload.type.toUpperCase()}`;
+    ? t('artifactCard.iterated', { version: payload.versionCount ?? '?' })
+    : t('artifactCard.new', { type: payload.type.toUpperCase() });
 
   return (
-    <div
-      className="chat-artifact-card"
-      role="button"
-      tabIndex={0}
-      onClick={handleOpen}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleOpen();
-        }
-      }}
-    >
+    <article className="chat-artifact-card">
       <div className="chat-artifact-card__row">
-        <div className="chat-artifact-card__icon">{TYPE_ICONS[payload.type] ?? '▣'}</div>
-        <div className="chat-artifact-card__meta">
-          <div className="chat-artifact-card__title">{payload.title}</div>
-          <div className="chat-artifact-card__sub">{subtitle}{pinnedNodeId ? ' · pinned' : ''}</div>
-        </div>
+        <button
+          type="button"
+          className="chat-artifact-card__main"
+          aria-label={t('artifactCard.openLabel', { title: payload.title })}
+          onClick={handleOpen}
+        >
+          <span className="chat-artifact-card__icon">{TYPE_ICONS[payload.type] ?? '▣'}</span>
+          <span className="chat-artifact-card__meta">
+            <span className="chat-artifact-card__title">{payload.title}</span>
+            <span className="chat-artifact-card__sub">
+              {subtitle}{pinnedNodeId ? ` · ${t('artifactCard.pinned')}` : ''}
+            </span>
+          </span>
+        </button>
         <div className="chat-artifact-card__actions">
           <button
             type="button"
             className="chat-artifact-card__action"
-            onClick={(e) => { e.stopPropagation(); handleOpen(); }}
+            onClick={handleOpen}
           >
-            Open
+            {t('artifactCard.open')}
           </button>
           <button
             type="button"
             className="chat-artifact-card__action"
-            onClick={(e) => void handlePin(e)}
+            onClick={() => void handlePin()}
             disabled={!!pinnedNodeId || pinning}
           >
-            {pinnedNodeId ? 'Pinned' : pinning ? 'Pinning…' : 'Pin to canvas'}
+            {pinnedNodeId
+              ? t('artifactCard.pinned')
+              : pinning
+                ? t('artifactCard.pinning')
+                : t('artifactCard.pinToCanvas')}
           </button>
         </div>
       </div>
-    </div>
+    </article>
   );
 };

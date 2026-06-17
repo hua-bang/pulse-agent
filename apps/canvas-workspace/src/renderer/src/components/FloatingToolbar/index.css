@@ -75,7 +75,9 @@
   flex-shrink: 0;
 }
 
-.toolbar-btn:hover {
+.toolbar-btn:hover,
+.toolbar-btn:focus-visible {
+  outline: none;
   background: rgba(0, 0, 0, 0.04);
   color: var(--text);
 }
@@ -190,7 +192,9 @@
   display: block;
 }
 
-.shape-tool-option:hover {
+.shape-tool-option:hover,
+.shape-tool-option:focus-visible {
+  outline: none;
   background: rgba(0, 0, 0, 0.04);
   color: var(--text);
 }

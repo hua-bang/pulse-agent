@@ -1,6 +1,12 @@
 import { useEffect, type RefObject } from 'react';
 import { useEscapeClose } from './useEscapeClose';
 
+type MenuKeyboardNavOptions = {
+  enabled?: boolean;
+  autoFocus?: boolean;
+  scope?: 'global' | 'within';
+};
+
 /**
  * Keyboard navigation for popup menus (context menus, dropdowns). Moves
  * focus into the first item on mount, lets ArrowUp/ArrowDown (and
@@ -15,28 +21,41 @@ import { useEscapeClose } from './useEscapeClose';
 export const useMenuKeyboardNav = (
   ref: RefObject<HTMLElement>,
   onClose?: () => void,
+  config: boolean | MenuKeyboardNavOptions = true,
 ) => {
-  // Focus the first item once on mount so arrow keys work immediately;
+  const enabled = typeof config === 'boolean' ? config : config.enabled ?? true;
+  const autoFocus = typeof config === 'boolean' ? true : config.autoFocus ?? true;
+  const scope = typeof config === 'boolean' ? 'global' : config.scope ?? 'global';
+
+  // Focus the active item once on mount so arrow keys work immediately.
   // kept separate from the keydown effect so identity changes in
   // `onClose` don't yank focus back to the top mid-navigation.
   useEffect(() => {
-    const first = ref.current?.querySelector<HTMLButtonElement>('button:not(:disabled)');
-    first?.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!enabled || !autoFocus) return;
+    const initial = ref.current?.querySelector<HTMLButtonElement>(
+      '[data-menu-autofocus="true"]:not(:disabled), button:not(:disabled)',
+    );
+    initial?.focus();
+  }, [autoFocus, enabled, ref]);
 
-  useEscapeClose(true, () => onClose?.());
+  useEscapeClose(enabled, () => onClose?.());
 
   useEffect(() => {
+    if (!enabled) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') {
         return;
+      }
+      if (scope === 'within') {
+        const target = e.target as Node | null;
+        if (!target || !ref.current?.contains(target)) return;
       }
       const items = Array.from(
         ref.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
       );
       if (items.length === 0) return;
       e.preventDefault();
+      e.stopPropagation();
       const current = items.indexOf(document.activeElement as HTMLButtonElement);
       let next: number;
       if (e.key === 'ArrowDown') next = current < 0 ? 0 : (current + 1) % items.length;
@@ -45,7 +64,7 @@ export const useMenuKeyboardNav = (
       else next = items.length - 1;
       items[next].focus();
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [ref, onClose]);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [enabled, ref, onClose, scope]);
 };

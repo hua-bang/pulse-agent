@@ -35,6 +35,12 @@
   background: var(--accent-light);
 }
 
+.context-menu-item:focus-visible {
+  outline: none;
+  background: var(--accent-light);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
 .context-menu-icon {
   width: 26px;
   height: 26px;
@@ -44,16 +50,39 @@
   justify-content: center;
   font-size: 13px;
   flex-shrink: 0;
+  background: rgba(96, 125, 139, 0.1);
+  color: #607d8b;
 }
 
-.context-menu-item:first-of-type .context-menu-icon {
+.context-menu-icon svg {
+  display: block;
+}
+
+.context-menu-icon--file {
   background: rgba(217, 115, 13, 0.08);
   color: var(--accent-file);
 }
 
-.context-menu-item:last-of-type .context-menu-icon {
+.context-menu-icon--terminal {
   background: rgba(15, 123, 108, 0.08);
   color: var(--accent-term);
+}
+
+.context-menu-icon--frame {
+  background: rgba(149, 117, 212, 0.11);
+  color: var(--accent-frame);
+}
+
+.context-menu-icon--iframe {
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
+}
+
+.context-menu-icon--agent,
+.context-menu-icon--mindmap,
+.context-menu-icon--export {
+  background: rgba(35, 131, 226, 0.08);
+  color: var(--accent);
 }
 
 .context-menu-label {

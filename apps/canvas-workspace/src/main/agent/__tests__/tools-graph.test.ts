@@ -200,6 +200,7 @@ describe('createGlobalCanvasTools', () => {
       'canvas_list_tags',
       'canvas_list_workspaces',
       'canvas_read_context',
+      'canvas_read_layout',
       'canvas_read_node',
       'canvas_search_nodes',
       'canvas_tag_node',
@@ -210,6 +211,7 @@ describe('createGlobalCanvasTools', () => {
     ]);
     // canvas_tag_node is the ONLY write; layout/content mutations stay absent.
     expect(tools.canvas_create_node).toBeUndefined();
+    expect(tools.canvas_apply_layout).toBeUndefined();
     expect(tools.canvas_update_node).toBeUndefined();
     expect(tools.workspace_node_upsert).toBeUndefined();
   });
@@ -287,7 +289,7 @@ describe('canvas_add_to_group / canvas_remove_from_group', () => {
 });
 
 describe('workspace_node_list / get / upsert', () => {
-  it('creates a workspace-node atom with tags + properties + links on first upsert', async () => {
+  it('merges workspace-node metadata into the existing per-node atom', async () => {
     await setupCanvas();
     const tools = createCanvasTools(wsId);
 
@@ -300,7 +302,7 @@ describe('workspace_node_list / get / upsert', () => {
       links: [{ relation: 'references', targetNodeId: 'n-iframe' }],
     }));
     expect(result.ok).toBe(true);
-    expect(result.created).toBe(true);
+    expect(result.created).toBe(false);
     expect(result.record.properties.tags).toEqual(['AI', 'RAG']);
     expect(result.record.properties.summary).toBe('Doc covering the RAG flow');
     expect(result.record.links).toEqual([
@@ -330,7 +332,7 @@ describe('workspace_node_list / get / upsert', () => {
     expect(merged.record.properties.sourceUrl).toEqual({ type: 'url', value: 'https://example.com' });
   });
 
-  it('lists workspace-node atoms with tags + property keys', async () => {
+  it('lists all per-node atoms with tags + property keys', async () => {
     await setupCanvas();
     const tools = createCanvasTools(wsId);
     await tools.workspace_node_upsert.execute({
@@ -345,19 +347,25 @@ describe('workspace_node_list / get / upsert', () => {
 
     const listed = JSON.parse(await tools.workspace_node_list.execute({}));
     expect(listed.ok).toBe(true);
-    expect(listed.total).toBe(2);
+    expect(listed.total).toBe(4);
     const fileEntry = listed.nodes.find((n: { id: string }) => n.id === 'n-file');
     expect(fileEntry.tags).toEqual(['AI']);
     expect(fileEntry.propertyKeys).toEqual(expect.arrayContaining(['tags', 'summary']));
   });
 
-  it('returns null record when the atom does not exist yet', async () => {
+  it('returns the base per-node record even before extra metadata is added', async () => {
     await setupCanvas();
     const tools = createCanvasTools(wsId);
 
     const result = JSON.parse(await tools.workspace_node_get.execute({ nodeId: 'n-iframe' }));
     expect(result.ok).toBe(true);
-    expect(result.record).toBeNull();
+    expect(result.record).toMatchObject({
+      id: 'n-iframe',
+      type: 'iframe',
+      title: 'Docs',
+      data: { url: 'https://example.com/rag' },
+    });
+    expect(result.record.properties).toBeUndefined();
   });
 });
 
@@ -387,6 +395,7 @@ describe('deferred tool partition', () => {
 
     expect(eager).toEqual([
       'artifact_create',
+      'canvas_apply_layout',
       'canvas_ask_user',
       'canvas_create_agent_node',
       'canvas_create_node',
@@ -398,6 +407,7 @@ describe('deferred tool partition', () => {
       'canvas_plugin_node_write',
       'canvas_promote_skill',
       'canvas_read_context',
+      'canvas_read_layout',
       'canvas_read_node',
       'canvas_save_skill',
       'canvas_search_nodes',
@@ -422,6 +432,7 @@ describe('deferred tool partition', () => {
       'canvas_read_dom_selection',
       'canvas_read_webpage',
       'canvas_remove_from_group',
+      'canvas_resize_node',
       'canvas_send_to_agent',
       'canvas_update_edge',
       'session_search',

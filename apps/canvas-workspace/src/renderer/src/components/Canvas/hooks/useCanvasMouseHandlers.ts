@@ -28,7 +28,7 @@ interface Options {
   moving: boolean;
   panning: boolean;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
-  onDragMove: (e: React.MouseEvent) => void;
+  onDragMove: (e: React.MouseEvent) => boolean;
   onDragEnd: () => void;
   /** Abort handlers for Escape-mid-gesture: restore start positions /
    *  dimensions without committing a history entry. */
@@ -214,10 +214,11 @@ export const useCanvasMouseHandlers = ({
 
   const handleWindowDragMove = useCallback(
     (e: MouseEvent) => {
-      onDragMove(e as unknown as React.MouseEvent);
+      const nodeMoved = onDragMove(e as unknown as React.MouseEvent);
       onResizeMove(e as unknown as React.MouseEvent);
+      return nodeMoved || resizingId !== null;
     },
-    [onDragMove, onResizeMove],
+    [onDragMove, onResizeMove, resizingId],
   );
 
   const handleMouseUp = useCallback(() => {
@@ -227,22 +228,20 @@ export const useCanvasMouseHandlers = ({
     onResizeEnd();
     isDraggingRef.current = false;
     setNodeGestureActive(false);
-    if (wasNodeGesture) {
-      if (nodeGestureMovedRef.current) {
-        suppressBlankClickRef.current = true;
-      }
+    if (wasNodeGesture && nodeGestureMovedRef.current) {
+      suppressBlankClickRef.current = true;
       commitHistory();
       onNodesChange?.(canvasId, pendingParentNodesRef.current ?? nodesRef.current);
-      pendingParentNodesRef.current = null;
     }
+    pendingParentNodesRef.current = null;
     nodeGestureMovedRef.current = false;
   }, [canvasId, canvasMouseUp, onDragEnd, onResizeEnd, commitHistory, onNodesChange, nodesRef, suppressBlankClickRef]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (isDraggingRef.current) {
-        nodeGestureMovedRef.current = true;
-        handleWindowDragMove(e);
+        const moved = handleWindowDragMove(e);
+        nodeGestureMovedRef.current = nodeGestureMovedRef.current || moved;
         // Defer mounting the interaction shield until we actually see drag
         // motion. Mounting on mousedown swallows the trailing mouseup /
         // click / dblclick on top of the originating node (the shield is
@@ -251,7 +250,7 @@ export const useCanvasMouseHandlers = ({
         // silently breaks "double-click a text node to edit" and similar
         // node interactions. Idempotent setState skips re-renders past the
         // first move.
-        setNodeGestureActive(true);
+        if (moved) setNodeGestureActive(true);
       }
     };
     const onUp = () => {

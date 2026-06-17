@@ -14,6 +14,16 @@ const GRID_SIZE = 8;
  *  undo stack with accidental micro-moves. */
 const DRAG_START_THRESHOLD_PX = 4;
 
+export interface NodeDragPreview {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  count: number;
+  snapDisabled: boolean;
+}
+
 export const useNodeDrag = (
   moveNode: (id: string, x: number, y: number) => void,
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void,
@@ -51,6 +61,9 @@ export const useNodeDrag = (
     /** Flips true once the pointer travels past DRAG_START_THRESHOLD_PX;
      *  no node moves until then so a plain click never displaces a node. */
     started: boolean;
+    /** Frozen ids that should receive the lifted dragging visual once the
+     *  gesture crosses the drag threshold. */
+    dragSetIds: string[];
   } | null>(null);
   const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
   const moveFrame = useRef<number | null>(null);
@@ -66,6 +79,7 @@ export const useNodeDrag = (
   // Lives in state so the Canvas can render them without re-computing
   // snap in two places.
   const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
+  const [dragPreview, setDragPreview] = useState<NodeDragPreview | null>(null);
 
   const onDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
@@ -126,26 +140,46 @@ export const useNodeDrag = (
         snapCandidates,
         companions,
         started: false,
+        dragSetIds: Array.from(dragSet),
       };
-      setDraggingId(node.id);
-      setDraggingIds(new Set(dragSet));
     },
     []
   );
+
+  const markDragStarted = useCallback((e: React.MouseEvent | MouseEvent) => {
+    const d = dragging.current;
+    if (!d) return false;
+    if (d.started) return true;
+
+    const screenDx = e.clientX - d.startX;
+    const screenDy = e.clientY - d.startY;
+    if (
+      screenDx * screenDx + screenDy * screenDy <
+      DRAG_START_THRESHOLD_PX * DRAG_START_THRESHOLD_PX
+    ) {
+      return false;
+    }
+
+    d.started = true;
+    setDraggingId(d.id);
+    setDraggingIds(new Set(d.dragSetIds));
+    setDragPreview({
+      id: d.id,
+      x: d.nodeX,
+      y: d.nodeY,
+      width: d.width,
+      height: d.height,
+      count: d.dragSetIds.length,
+      snapDisabled: false,
+    });
+    return true;
+  }, []);
 
   const flushDragMove = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
       if (!dragging.current) return;
       const d = dragging.current;
-      if (!d.started) {
-        const screenDx = e.clientX - d.startX;
-        const screenDy = e.clientY - d.startY;
-        if (screenDx * screenDx + screenDy * screenDy <
-            DRAG_START_THRESHOLD_PX * DRAG_START_THRESHOLD_PX) {
-          return;
-        }
-        d.started = true;
-      }
+      if (!d.started) return;
       const rawDx = (e.clientX - d.startX) / scale;
       const rawDy = (e.clientY - d.startY) / scale;
       const baseX = d.nodeX + rawDx;
@@ -192,6 +226,30 @@ export const useNodeDrag = (
 
       const appliedDx = finalX - d.nodeX;
       const appliedDy = finalY - d.nodeY;
+      const nextPreview = {
+        id: d.id,
+        x: Math.round(finalX),
+        y: Math.round(finalY),
+        width: Math.round(d.width),
+        height: Math.round(d.height),
+        count: d.dragSetIds.length,
+        snapDisabled,
+      };
+      setDragPreview((prev) => {
+        if (
+          prev &&
+          prev.id === nextPreview.id &&
+          prev.x === nextPreview.x &&
+          prev.y === nextPreview.y &&
+          prev.width === nextPreview.width &&
+          prev.height === nextPreview.height &&
+          prev.count === nextPreview.count &&
+          prev.snapDisabled === nextPreview.snapDisabled
+        ) {
+          return prev;
+        }
+        return nextPreview;
+      });
 
       if (d.companions.length > 0) {
         // Batch move primary + every companion in one applyNodes call so
@@ -214,15 +272,17 @@ export const useNodeDrag = (
 
   const onDragMove = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
+      if (!markDragStarted(e)) return false;
       lastMoveEvent.current = e;
-      if (moveFrame.current !== null) return;
+      if (moveFrame.current !== null) return true;
       moveFrame.current = requestAnimationFrame(() => {
         moveFrame.current = null;
         const nextEvent = lastMoveEvent.current;
         if (nextEvent) flushDragMove(nextEvent);
       });
+      return true;
     },
-    [flushDragMove]
+    [flushDragMove, markDragStarted]
   );
 
   const onDragEnd = useCallback(() => {
@@ -239,6 +299,7 @@ export const useNodeDrag = (
     setDraggingId(null);
     setDraggingIds(new Set());
     setSnapLines([]);
+    setDragPreview(null);
   }, [flushDragMove]);
 
   /** Abort the gesture (Escape): put the primary node and every companion
@@ -265,6 +326,7 @@ export const useNodeDrag = (
     setDraggingId(null);
     setDraggingIds(new Set());
     setSnapLines([]);
+    setDragPreview(null);
   }, [moveNode, moveNodes]);
 
   useEffect(() => {
@@ -275,5 +337,14 @@ export const useNodeDrag = (
     };
   }, []);
 
-  return { draggingId, draggingIds, snapLines, onDragStart, onDragMove, onDragEnd, onDragCancel };
+  return {
+    draggingId,
+    draggingIds,
+    dragPreview,
+    snapLines,
+    onDragStart,
+    onDragMove,
+    onDragEnd,
+    onDragCancel,
+  };
 };

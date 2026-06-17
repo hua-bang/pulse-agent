@@ -95,12 +95,12 @@ describe('canvas_tag_node', () => {
     expect(out.changed).toBe(3);
     // existing rag kept + new ai id appended (stored as ids, not names)
     expect(await tagsOf('ws-a', 'a1')).toEqual(['rag', 'ai']);
-    expect(await tagsOf('ws-a', 'a2')).toEqual(['ai']); // record created
-    expect(await tagsOf('ws-b', 'b1')).toEqual(['ai']); // record created
+    expect(await tagsOf('ws-a', 'a2')).toEqual(['ai']); // metadata merged into existing per-node record
+    expect(await tagsOf('ws-b', 'b1')).toEqual(['ai']); // metadata merged into existing per-node record
     // tag was registered in the global store
     expect((await readKnowledgeTags()).map((t) => t.id)).toEqual(expect.arrayContaining(['rag', 'ai']));
     const a2Created = out.results.find((r: { nodeId: string }) => r.nodeId === 'a2');
-    expect(a2Created.created).toBe(true);
+    expect(a2Created.created).toBe(false);
   });
 
   it('applies a top-level default workspaceId and merges without duplicating (name vs id)', async () => {

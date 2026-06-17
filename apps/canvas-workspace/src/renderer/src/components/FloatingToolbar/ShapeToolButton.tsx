@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SHAPE_KINDS, ShapePrimitive, type ShapeKind } from '../../utils/shapeGeometry';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { useI18n, type I18nKey } from '../../i18n';
 
 interface Props {
@@ -37,6 +37,7 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [lastKind, setLastKind] = useState<ShapeKind>('rect');
   const rootRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Derive the kind the main button should show: if a shape tool is
   // currently active, display it; otherwise fall back to the last one
@@ -55,10 +56,12 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
     if (activeKind) setLastKind(activeKind);
   }, [activeKind]);
 
+  const closePopover = useCallback(() => setPopoverOpen(false), []);
+
   // Close the popover on outside click or Escape, matching every other
-  // canvas overlay.
-  useClickOutside(rootRef, () => setPopoverOpen(false), popoverOpen);
-  useEscapeClose(popoverOpen, () => setPopoverOpen(false));
+  // canvas overlay. Arrow keys / Home / End cycle the shape options.
+  useClickOutside(rootRef, closePopover, popoverOpen);
+  useMenuKeyboardNav(popoverRef, closePopover, popoverOpen);
 
   const handleMainClick = useCallback(() => {
     onToolChange(`${SHAPE_TOOL_PREFIX}${displayKind}`);
@@ -84,6 +87,7 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
         className={`toolbar-btn shape-tool-main${isActive ? ' toolbar-btn--active' : ''}`}
         onClick={handleMainClick}
         title={t('canvas.shape.dragToDraw', { shape: t(SHAPE_LABEL_KEYS[displayKind]) })}
+        aria-label={t('canvas.shape.dragToDraw', { shape: t(SHAPE_LABEL_KEYS[displayKind]) })}
       >
         <svg width="18" height="18" viewBox="0 0 18 18">
           <ShapePrimitive
@@ -100,21 +104,32 @@ export const ShapeToolButton = ({ activeTool, onToolChange }: Props) => {
         className={`toolbar-btn shape-tool-caret${popoverOpen ? ' toolbar-btn--active' : ''}`}
         onClick={handleCaretClick}
         title={t('canvas.toolbar.moreShapes')}
+        aria-label={t('canvas.toolbar.moreShapes')}
+        aria-haspopup="menu"
+        aria-expanded={popoverOpen}
       >
         <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
           <path d="M1.5 3l2.5 2.5L6.5 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       {popoverOpen && (
-        <div className="shape-tool-popover">
+        <div
+          ref={popoverRef}
+          className="shape-tool-popover"
+          role="menu"
+          aria-label={t('canvas.toolbar.moreShapes')}
+        >
           {SHAPE_KINDS.map((kind) => {
             const selected = displayKind === kind;
             return (
               <button
                 key={kind}
+                type="button"
                 className={`shape-tool-option${selected ? ' shape-tool-option--active' : ''}`}
                 onClick={() => handlePick(kind)}
                 title={t(SHAPE_LABEL_KEYS[kind])}
+                role="menuitem"
+                aria-label={t(SHAPE_LABEL_KEYS[kind])}
               >
                 <svg width="20" height="20" viewBox="0 0 20 20">
                   <ShapePrimitive

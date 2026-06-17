@@ -70,6 +70,9 @@
 }
 
 .node-mention-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -77,11 +80,15 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.08s;
+  font: inherit;
+  text-align: left;
 }
 
 .node-mention-item.selected,
-.node-mention-item:hover {
+.node-mention-item:hover,
+.node-mention-item:focus-visible {
   background: var(--accent-light);
+  outline: none;
 }
 
 .node-mention-badge {
@@ -92,6 +99,10 @@
   flex-shrink: 0;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  max-width: 82px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .node-mention-badge--file {

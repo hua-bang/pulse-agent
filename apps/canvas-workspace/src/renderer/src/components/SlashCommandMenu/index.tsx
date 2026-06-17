@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import './index.css';
 import { createPortal } from 'react-dom';
 import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { useI18n } from '../../i18n';
 
 export interface SlashCommandDef {
   id: string;
@@ -28,6 +29,10 @@ export const SlashCommandMenu = ({
   onSelect,
   onClose,
 }: Props) => {
+  const { t } = useI18n();
+  const listboxId = useId();
+  const activeIndex = Math.min(selectedIndex, items.length - 1);
+  const activeItem = items[activeIndex];
   // Keep the menu fully on-screen: typing `/` near the right or bottom
   // window edge would otherwise push the list out of the viewport.
   const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y + 6);
@@ -49,14 +54,22 @@ export const SlashCommandMenu = ({
   return createPortal(
     <div
       ref={menuRef}
+      id={listboxId}
       className="slash-menu"
+      role="listbox"
+      aria-label={t('slashCommand.label')}
+      aria-activedescendant={activeItem ? `${listboxId}-${activeItem.id}` : undefined}
       style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 9000 }}
     >
-      <div className="slash-menu-header">BLOCKS</div>
+      <div className="slash-menu-header">{t('slashCommand.blocks')}</div>
       {items.map((item, i) => (
         <button
           key={item.id}
-          className={`slash-menu-item${i === selectedIndex ? ' slash-menu-item--active' : ''}`}
+          id={`${listboxId}-${item.id}`}
+          className={`slash-menu-item${i === activeIndex ? ' slash-menu-item--active' : ''}`}
+          role="option"
+          aria-selected={i === activeIndex}
+          aria-label={`${item.label}: ${item.desc}`}
           onMouseDown={(e) => {
             e.preventDefault();
             onSelect(item);

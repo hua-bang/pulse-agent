@@ -116,8 +116,8 @@ export const useCanvasNodeActions = ({
         if (!api) {
           notify({
             tone: 'error',
-            title: 'Agent Team delete failed',
-            description: 'Agent Team API unavailable.',
+            title: t('canvas.agentTeamDeleteFailed'),
+            description: t('canvas.agentTeamApiUnavailable'),
           });
           return;
         }
@@ -128,8 +128,8 @@ export const useCanvasNodeActions = ({
           if (!result.ok) {
             notify({
               tone: 'error',
-              title: 'Agent Team delete failed',
-              description: result.error ?? 'Unable to delete the Agent Team.',
+              title: t('canvas.agentTeamDeleteFailed'),
+              description: result.error ?? t('canvas.agentTeamDeleteFailedDescription'),
             });
             return;
           }
@@ -158,9 +158,9 @@ export const useCanvasNodeActions = ({
 
       const accepted = await confirm({
         intent: 'danger',
-        title: 'Delete this connection?',
-        description: 'This removes the arrow and its label from the canvas.',
-        confirmLabel: 'Delete connection',
+        title: t('canvas.deleteConnectionTitle'),
+        description: t('canvas.deleteConnectionDescription'),
+        confirmLabel: t('canvas.deleteConnectionConfirm'),
       });
       if (!accepted) return;
 
@@ -169,11 +169,11 @@ export const useCanvasNodeActions = ({
       if (editingEdgeLabelId === id) setEditingEdgeLabelId(null);
       notify({
         tone: 'success',
-        title: 'Connection deleted',
-        description: edge.label?.trim() ? edge.label : 'Arrow removed from the canvas.',
+        title: t('canvas.connectionDeleted'),
+        description: edge.label?.trim() ? edge.label : t('canvas.connectionDeletedDescription'),
       });
     },
-    [edges, confirm, removeEdge, editingEdgeLabelId, setEditingEdgeLabelId, notify, setSelectedEdgeId],
+    [edges, confirm, removeEdge, editingEdgeLabelId, setEditingEdgeLabelId, notify, setSelectedEdgeId, t],
   );
 
   const handleRemoveNode = useCallback(
@@ -190,10 +190,10 @@ export const useCanvasNodeActions = ({
     setSelectedNodeIds([group.id]);
     notify({
       tone: 'success',
-      title: 'Nodes grouped',
-      description: `Grouped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'}.`,
+      title: t('canvas.nodesGrouped'),
+      description: t('canvas.nodesGroupedDescription', { count: selectedNodeIds.length }),
     });
-  }, [groupNodes, selectedNodeIds, notify, setSelectedNodeIds]);
+  }, [groupNodes, selectedNodeIds, notify, setSelectedNodeIds, t]);
 
   const ungroupSelectedNodes = useCallback(() => {
     if (selectedNodeIds.length === 0) return;
@@ -205,12 +205,12 @@ export const useCanvasNodeActions = ({
     setSelectedNodeIds(releasedIds);
     notify({
       tone: 'success',
-      title: selectedGroups.length === 1 ? 'Group dissolved' : 'Groups dissolved',
+      title: selectedGroups.length === 1 ? t('canvas.groupDissolved') : t('canvas.groupsDissolved'),
       description: releasedIds.length > 0
-        ? `Released ${releasedIds.length} child node${releasedIds.length === 1 ? '' : 's'}.`
-        : 'Removed empty group container.',
+        ? t('canvas.groupDissolvedDescription', { count: releasedIds.length })
+        : t('canvas.groupDissolvedEmpty'),
     });
-  }, [selectedNodeIds, ungroupNodes, notify, nodesRef, setSelectedNodeIds]);
+  }, [selectedNodeIds, ungroupNodes, notify, nodesRef, setSelectedNodeIds, t]);
 
   const wrapSelectedNodesInFrame = useCallback(() => {
     if (selectedNodeIds.length === 0) return;
@@ -219,10 +219,10 @@ export const useCanvasNodeActions = ({
     setSelectedNodeIds([frame.id]);
     notify({
       tone: 'success',
-      title: 'Frame created',
-      description: `Wrapped ${selectedNodeIds.length} node${selectedNodeIds.length === 1 ? '' : 's'} in a new frame.`,
+      title: t('canvas.frameCreated'),
+      description: t('canvas.frameCreatedDescription', { count: selectedNodeIds.length }),
     });
-  }, [wrapNodesInFrame, selectedNodeIds, notify, setSelectedNodeIds]);
+  }, [wrapNodesInFrame, selectedNodeIds, notify, setSelectedNodeIds, t]);
 
   const handleExportMindmapImage = useCallback(
     async (nodeId: string) => {
@@ -232,7 +232,7 @@ export const useCanvasNodeActions = ({
 
       notify({
         tone: 'loading',
-        title: 'Exporting mindmap...',
+        title: t('canvas.mindmapExporting'),
         description: getNodeDisplayLabel(node),
       });
 
@@ -243,27 +243,27 @@ export const useCanvasNodeActions = ({
           if (result.canceled) {
             notify({
               tone: 'info',
-              title: 'Export canceled',
+              title: t('canvas.mindmapExportCanceled'),
               description: getNodeDisplayLabel(node),
             });
             return;
           }
-          throw new Error(result.error ?? 'The image could not be saved.');
+          throw new Error(result.error ?? t('canvas.mindmapExportSaveFailed'));
         }
         notify({
           tone: 'success',
-          title: 'Mindmap image exported',
+          title: t('canvas.mindmapExported'),
           description: result.filePath ?? image.fileName,
         });
       } catch (err) {
         notify({
           tone: 'error',
-          title: 'Mindmap export failed',
+          title: t('canvas.mindmapExportFailed'),
           description: err instanceof Error ? err.message : String(err),
         });
       }
     },
-    [notify, nodesRef],
+    [notify, nodesRef, t],
   );
 
   // External-delete request handler (e.g. sidebar layers context menu).

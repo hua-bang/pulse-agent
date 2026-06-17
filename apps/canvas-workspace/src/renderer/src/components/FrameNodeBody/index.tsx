@@ -2,8 +2,9 @@ import { useCallback, useRef, useState, type MouseEvent as ReactMouseEvent } fro
 import "./index.css";
 import type { CanvasNode, FrameNodeData } from "../../types";
 import { AgentTeamFrame } from "../AgentTeamFrame";
-import { useEscapeClose } from "../../hooks/useEscapeClose";
 import { useClickOutside } from "../../hooks/useClickOutside";
+import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
+import { useI18n } from "../../i18n";
 
 interface Props {
   node: CanvasNode;
@@ -152,9 +153,11 @@ const FrameToggleIcon = ({ collapsed }: { collapsed: boolean }) => (
 );
 
 export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
+  const { t } = useI18n();
   const data = node.data as FrameNodeData;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   const handleColorChange = useCallback(
     (color: string) => {
@@ -164,33 +167,47 @@ export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
     [node.id, data, onUpdate]
   );
 
-  // Close popover on outside click or Escape
-  useClickOutside(triggerRef, () => setOpen(false), open);
-  useEscapeClose(open, () => setOpen(false));
+  const closePopover = useCallback(() => setOpen(false), []);
+  useClickOutside(triggerRef, closePopover, open);
+  useMenuKeyboardNav(popoverRef, closePopover, open);
 
   return (
     <div
       className={`frame-color-trigger${open ? ' frame-color-trigger--open' : ''}`}
       ref={triggerRef}
-      title="Frame color"
+      title={t('canvas.frameStyle.color')}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div
+      <button
+        type="button"
         className="frame-color-dot"
         style={{ backgroundColor: data.color }}
+        title={t('canvas.frameStyle.color')}
+        aria-label={t('canvas.frameStyle.color')}
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={(e) => {
           e.stopPropagation();
           setOpen((v) => !v);
         }}
       />
       {open && (
-        <div className="frame-color-popover frame-color-popover--open">
+        <div
+          ref={popoverRef}
+          className="frame-color-popover frame-color-popover--open"
+          role="menu"
+          aria-label={t('canvas.frameStyle.color')}
+        >
           {COLOR_PRESETS.map((preset) => (
             <button
+              type="button"
               key={preset.name}
               className={`frame-color-swatch${data.color === preset.value ? ' frame-color-swatch--active' : ''}`}
               style={{ backgroundColor: preset.value }}
-              title={preset.name}
+              role="menuitemradio"
+              aria-checked={data.color === preset.value}
+              title={t('canvas.frameStyle.colorOption', { name: preset.name })}
+              aria-label={t('canvas.frameStyle.colorOption', { name: preset.name })}
               onClick={(e) => {
                 e.stopPropagation();
                 handleColorChange(preset.value);

@@ -155,6 +155,13 @@
   opacity: 1;
 }
 
+.right-dock__tab-shell {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  z-index: 1;
+}
+
 .right-dock__tab {
   appearance: none;
   font: inherit;
@@ -185,6 +192,10 @@
     transform 0.2s var(--tab-ease);
 }
 
+.right-dock__tab--with-close {
+  padding-right: 29px;
+}
+
 .right-dock__tab::before {
   content: "";
   position: absolute;
@@ -207,6 +218,12 @@
   background: rgba(55, 53, 47, 0.06);
   color: #37352f;
   transform: translateY(-1px);
+}
+
+.right-dock__tab:focus-visible,
+.right-dock__tab-close:focus-visible {
+  outline: 2px solid rgba(35, 131, 226, 0.38);
+  outline-offset: 2px;
 }
 
 .right-dock__tab--active {
@@ -260,6 +277,14 @@
 }
 
 .right-dock__tab-close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  position: absolute;
+  top: 6px;
+  right: 5px;
+  z-index: 2;
   width: 18px;
   height: 18px;
   display: inline-flex;
@@ -269,8 +294,7 @@
   color: #aaa6a0;
   font-size: 14px;
   line-height: 1;
-  flex-shrink: 0;
-  margin-right: -2px;
+  cursor: pointer;
   opacity: 0.58;
   transform: scale(0.96);
   transition:
@@ -280,8 +304,9 @@
     transform 0.16s ease;
 }
 
-.right-dock__tab:hover .right-dock__tab-close,
-.right-dock__tab--active .right-dock__tab-close {
+.right-dock__tab-shell:hover .right-dock__tab-close,
+.right-dock__tab--active + .right-dock__tab-close,
+.right-dock__tab-close:focus-visible {
   opacity: 1;
   transform: scale(1);
 }
@@ -370,6 +395,7 @@
   .right-dock__tabs[data-visible="true"],
   .right-dock__tab-scroll,
   .right-dock__tab-glider,
+  .right-dock__tab-shell,
   .right-dock__tab,
   .right-dock__tab::before,
   .right-dock__tab-dot,

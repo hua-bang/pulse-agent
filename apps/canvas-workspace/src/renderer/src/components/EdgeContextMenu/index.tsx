@@ -4,6 +4,7 @@ import './index.css';
 import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { PencilIcon, SettingsIcon, TrashIcon } from '../icons';
 import { useI18n } from '../../i18n';
 
 interface Props {
@@ -43,7 +44,9 @@ export const EdgeContextMenu = ({ x, y, edgeId, onEditLabel, onEditStyle, onDele
         className="context-menu-item" role="menuitem"
         onClick={() => { onEditLabel(edgeId); onClose(); }}
       >
-        <span className="context-menu-icon">{'✎'}</span>
+        <span className="context-menu-icon">
+          <PencilIcon size={15} />
+        </span>
         <span className="context-menu-label">
           <strong>{t('canvas.edgeMenu.editLabel')}</strong>
           <small>{t('canvas.edgeMenu.editLabelDesc')}</small>
@@ -53,7 +56,9 @@ export const EdgeContextMenu = ({ x, y, edgeId, onEditLabel, onEditStyle, onDele
         className="context-menu-item" role="menuitem"
         onClick={() => { onEditStyle(edgeId); onClose(); }}
       >
-        <span className="context-menu-icon">{'◉'}</span>
+        <span className="context-menu-icon">
+          <SettingsIcon size={15} />
+        </span>
         <span className="context-menu-label">
           <strong>{t('canvas.edgeMenu.editStyle')}</strong>
           <small>{t('canvas.edgeMenu.editStyleDesc')}</small>
@@ -63,7 +68,9 @@ export const EdgeContextMenu = ({ x, y, edgeId, onEditLabel, onEditStyle, onDele
         className="context-menu-item context-menu-item--danger" role="menuitem"
         onClick={() => { onDelete(edgeId); onClose(); }}
       >
-        <span className="context-menu-icon">{'✕'}</span>
+        <span className="context-menu-icon">
+          <TrashIcon size={15} />
+        </span>
         <span className="context-menu-label">
           <strong>{t('canvas.edgeMenu.delete')}</strong>
           <small>{t('canvas.edgeMenu.deleteDesc')}</small>

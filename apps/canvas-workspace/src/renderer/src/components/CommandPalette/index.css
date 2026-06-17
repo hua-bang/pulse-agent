@@ -82,18 +82,26 @@
 }
 
 .command-palette-row {
+  width: 100%;
+  border: 0;
   padding: 8px 18px;
   min-height: 38px;
+  background: transparent;
+  color: inherit;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  font: inherit;
+  text-align: left;
   transition: background 0.08s;
 }
 
 .command-palette-row:hover,
+.command-palette-row:focus-visible,
 .command-palette-row.selected {
   background: var(--accent-light);
+  outline: none;
 }
 
 .command-palette-row.selected {
@@ -144,9 +152,13 @@
   padding: 2px 6px;
   border-radius: 4px;
   letter-spacing: 0.3px;
-  width: 52px;
+  min-width: 52px;
+  max-width: 86px;
   text-align: center;
   flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .command-palette-badge--file    { background: rgba(217, 115, 13, 0.1); color: var(--accent-file); }

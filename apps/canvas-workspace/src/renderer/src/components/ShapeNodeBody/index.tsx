@@ -3,8 +3,9 @@ import './index.css';
 import type { CanvasNode, ShapeNodeData } from '../../types';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { isImeComposing } from '../../utils/ime';
-import { useEscapeClose } from '../../hooks/useEscapeClose';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { useI18n } from '../../i18n';
 
 interface Props {
   node: CanvasNode;
@@ -232,12 +233,15 @@ interface StylePickerProps {
 }
 
 export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
+  const { t } = useI18n();
   const data = node.data as ShapeNodeData;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
-  useClickOutside(rootRef, () => setOpen(false), open);
-  useEscapeClose(open, () => setOpen(false));
+  const closePopover = useCallback(() => setOpen(false), []);
+  useClickOutside(rootRef, closePopover, open);
+  useMenuKeyboardNav(popoverRef, closePopover, open);
 
   const patch = useCallback(
     (next: Partial<ShapeNodeData>) => {
@@ -254,8 +258,12 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
       onClick={(e) => e.stopPropagation()}
     >
       <button
+        type="button"
         className="shape-style-preview"
-        title="Shape style"
+        title={t('canvas.shapeStyle.title')}
+        aria-label={t('canvas.shapeStyle.title')}
+        aria-haspopup="menu"
+        aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
         <svg className="shape-style-preview-svg" viewBox="0 0 18 18" width="14" height="14">
@@ -270,15 +278,24 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
         </svg>
       </button>
       {open && (
-        <div className="shape-style-popover">
-          <div className="shape-style-row">
-            <span className="shape-style-label">Fill</span>
+        <div
+          ref={popoverRef}
+          className="shape-style-popover"
+          role="menu"
+          aria-label={t('canvas.shapeStyle.title')}
+        >
+          <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.fill')}>
+            <span className="shape-style-label">{t('canvas.shapeStyle.fill')}</span>
             <div className="shape-style-swatches">
               {FILL_PRESETS.map((p) => (
                 <button
+                  type="button"
                   key={p.name}
                   className={`shape-style-swatch-btn${data.fill === p.value ? ' shape-style-swatch-btn--active' : ''}`}
-                  title={p.name}
+                  role="menuitemradio"
+                  aria-checked={data.fill === p.value}
+                  title={t('canvas.shapeStyle.fillOption', { name: p.name })}
+                  aria-label={t('canvas.shapeStyle.fillOption', { name: p.name })}
                   style={{
                     background: p.value === 'transparent' ? 'none' : p.value,
                   }}
@@ -289,14 +306,18 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
               ))}
             </div>
           </div>
-          <div className="shape-style-row">
-            <span className="shape-style-label">Stroke</span>
+          <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.stroke')}>
+            <span className="shape-style-label">{t('canvas.shapeStyle.stroke')}</span>
             <div className="shape-style-swatches">
               {STROKE_PRESETS.map((p) => (
                 <button
+                  type="button"
                   key={p.name}
                   className={`shape-style-swatch-btn${data.stroke === p.value ? ' shape-style-swatch-btn--active' : ''}`}
-                  title={p.name}
+                  role="menuitemradio"
+                  aria-checked={data.stroke === p.value}
+                  title={t('canvas.shapeStyle.strokeOption', { name: p.name })}
+                  aria-label={t('canvas.shapeStyle.strokeOption', { name: p.name })}
                   style={{
                     background: p.value === 'transparent' ? 'none' : p.value,
                   }}
@@ -307,14 +328,18 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
               ))}
             </div>
           </div>
-          <div className="shape-style-row">
-            <span className="shape-style-label">Width</span>
+          <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.width')}>
+            <span className="shape-style-label">{t('canvas.shapeStyle.width')}</span>
             <div className="shape-style-widths">
               {STROKE_WIDTHS.map((w) => (
                 <button
+                  type="button"
                   key={w}
                   className={`shape-style-width-btn${data.strokeWidth === w ? ' shape-style-width-btn--active' : ''}`}
-                  title={`${w}px`}
+                  role="menuitemradio"
+                  aria-checked={data.strokeWidth === w}
+                  title={t('canvas.shapeStyle.widthOption', { width: w })}
+                  aria-label={t('canvas.shapeStyle.widthOption', { width: w })}
                   onClick={() => patch({ strokeWidth: w })}
                 >
                   {w === 0 ? (

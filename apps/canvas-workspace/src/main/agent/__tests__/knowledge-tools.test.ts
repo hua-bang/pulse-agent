@@ -120,8 +120,8 @@ describe('canvas_list_tags', () => {
 
     const out = JSON.parse(await tools.canvas_list_tags.execute({}));
     expect(out.ok).toBe(true);
-    expect(out.totalKnowledgeNodes).toBe(4); // n1, n2, n3, w2
-    expect(out.untaggedKnowledgeNodes).toBe(1); // n2
+    expect(out.totalKnowledgeNodes).toBe(5); // n1, n2, n3, w1, w2
+    expect(out.untaggedKnowledgeNodes).toBe(2); // n2, w1
     const byId = new Map(out.tags.map((t: { id: string }) => [t.id, t]));
     expect(byId.get('ai-agent')).toMatchObject({ name: 'AI Agent', nodeCount: 2 }); // n1 (name) + w2 (name)
     expect(byId.get('rag')).toMatchObject({ name: 'RAG', nodeCount: 1 }); // n3 (id)

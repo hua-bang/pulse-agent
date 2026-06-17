@@ -12,14 +12,12 @@
 
 .canvas-empty-card {
   pointer-events: auto;
-  width: min(560px, 100%);
-  padding: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 22px;
-  background:
-    radial-gradient(circle at top left, rgba(35, 131, 226, 0.08), transparent 42%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(252, 251, 249, 0.98));
-  box-shadow: 0 24px 70px rgba(27, 28, 29, 0.08), var(--shadow-float);
+  width: min(680px, 100%);
+  padding: 22px;
+  border: 1px solid rgba(55, 53, 47, 0.08);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 18px 54px rgba(27, 28, 29, 0.09), var(--shadow-float);
   text-align: center;
 }
 
@@ -53,31 +51,100 @@
   max-width: 420px;
 }
 
-.canvas-empty-actions {
+.canvas-empty-primary {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
   margin-bottom: 16px;
 }
 
+.canvas-empty-section {
+  text-align: left;
+}
+
+.canvas-empty-section + .canvas-empty-section {
+  margin-top: 14px;
+}
+
+.canvas-empty-section__title {
+  margin: 0 0 8px 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.canvas-empty-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.canvas-empty-actions--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .canvas-empty-action {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: flex-start;
-  gap: 6px;
-  padding: 14px;
-  border: 1px solid rgba(35, 131, 226, 0.08);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.84);
+  gap: 10px;
+  min-height: 74px;
+  padding: 12px;
+  border: 1px solid rgba(55, 53, 47, 0.08);
+  border-radius: var(--radius);
+  background: #ffffff;
   cursor: pointer;
   text-align: left;
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
-.canvas-empty-action:hover {
+.canvas-empty-action--primary {
+  min-height: 88px;
+  border-color: rgba(35, 131, 226, 0.16);
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.canvas-empty-action:hover,
+.canvas-empty-action:focus-visible {
+  outline: none;
   transform: translateY(-1px);
   border-color: rgba(35, 131, 226, 0.2);
   box-shadow: 0 10px 24px rgba(35, 131, 226, 0.08);
+}
+
+.canvas-empty-action__icon {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-empty-action--primary .canvas-empty-action__icon {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.canvas-empty-action__copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.canvas-empty-action__meta {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .canvas-empty-action__label {
@@ -97,7 +164,7 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
-  margin: -2px 0 16px;
+  margin: 16px 0;
 }
 
 .canvas-empty-url-input {
@@ -133,6 +200,13 @@
   color: #fff;
 }
 
+.canvas-empty-url-submit:focus-visible,
+.canvas-empty-url-cancel:focus-visible,
+.canvas-empty-shortcuts:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
+}
+
 .canvas-empty-url-cancel {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.72);
@@ -148,7 +222,7 @@
 }
 
 .canvas-empty-shortcuts {
-  margin: 0 auto;
+  margin: 16px auto 0;
   height: 34px;
   padding: 0 12px 0 10px;
   border: none;
@@ -186,7 +260,9 @@
     padding: 22px;
   }
 
-  .canvas-empty-actions {
+  .canvas-empty-primary,
+  .canvas-empty-actions,
+  .canvas-empty-actions--three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -196,7 +272,9 @@
 }
 
 @media (max-width: 460px) {
-  .canvas-empty-actions {
+  .canvas-empty-primary,
+  .canvas-empty-actions,
+  .canvas-empty-actions--three {
     grid-template-columns: 1fr;
   }
 }

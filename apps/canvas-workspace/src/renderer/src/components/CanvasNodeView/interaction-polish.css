@@ -1,0 +1,24 @@
+.canvas-node--selected .node-reference,
+.canvas-node--selected .node-add-to-chat,
+.canvas-node--selected .node-plugin-select,
+.canvas-node--selected .node-focus,
+.canvas-node--selected .node-fullscreen,
+.canvas-node--selected .node-close,
+.node-reference:focus-visible,
+.node-add-to-chat:focus-visible,
+.node-plugin-select:focus-visible,
+.node-focus:focus-visible,
+.node-fullscreen:focus-visible,
+.node-close:focus-visible {
+  opacity: 1;
+}
+
+.node-reference:focus-visible,
+.node-add-to-chat:focus-visible,
+.node-plugin-select:focus-visible,
+.node-focus:focus-visible,
+.node-fullscreen:focus-visible,
+.node-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18);
+}

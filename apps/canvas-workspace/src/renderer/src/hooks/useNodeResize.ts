@@ -3,6 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const DEFAULT_MIN_WIDTH = 200;
 const DEFAULT_MIN_HEIGHT = 120;
 
+export interface NodeResizePreview {
+  id: string;
+  width: number;
+  height: number;
+  edge: ResizeEdge;
+}
+
 export const useNodeResize = (
   resizeNode: (id: string, width: number, height: number) => void,
   scale: number
@@ -20,6 +27,7 @@ export const useNodeResize = (
   const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
   const moveFrame = useRef<number | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
+  const [resizePreview, setResizePreview] = useState<NodeResizePreview | null>(null);
 
   const onResizeStart = useCallback(
     (
@@ -45,6 +53,12 @@ export const useNodeResize = (
         edge
       };
       setResizingId(nodeId);
+      setResizePreview({
+        id: nodeId,
+        width: Math.round(width),
+        height: Math.round(height),
+        edge,
+      });
     },
     []
   );
@@ -66,7 +80,21 @@ export const useNodeResize = (
         newH = Math.max(r.minH, r.startH + dy);
       }
 
-      resizeNode(r.id, Math.round(newW), Math.round(newH));
+      const width = Math.round(newW);
+      const height = Math.round(newH);
+      setResizePreview((prev) => {
+        if (
+          prev &&
+          prev.id === r.id &&
+          prev.width === width &&
+          prev.height === height &&
+          prev.edge === r.edge
+        ) {
+          return prev;
+        }
+        return { id: r.id, width, height, edge: r.edge };
+      });
+      resizeNode(r.id, width, height);
     },
     [resizeNode, scale]
   );
@@ -96,6 +124,7 @@ export const useNodeResize = (
     }
     resizing.current = null;
     setResizingId(null);
+    setResizePreview(null);
   }, [flushResizeMove]);
 
   /** Abort the gesture (Escape): restore the node's pre-drag dimensions
@@ -114,6 +143,7 @@ export const useNodeResize = (
     }
     resizing.current = null;
     setResizingId(null);
+    setResizePreview(null);
   }, [resizeNode]);
 
   useEffect(() => {
@@ -124,7 +154,14 @@ export const useNodeResize = (
     };
   }, []);
 
-  return { resizingId, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel };
+  return {
+    resizingId,
+    resizePreview,
+    onResizeStart,
+    onResizeMove,
+    onResizeEnd,
+    onResizeCancel,
+  };
 };
 
 export type ResizeEdge = "right" | "bottom" | "bottom-right";

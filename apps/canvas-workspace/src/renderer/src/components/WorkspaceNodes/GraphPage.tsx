@@ -1,9 +1,11 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
 } from 'react';
 import ForceGraph2D, {
@@ -22,7 +24,7 @@ import { getNodeTags, getNodeTitle, getNodeWorkspaceId, tagName } from './utils'
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 
 interface GraphPageProps {
   workspaces: WorkspaceEntry[];
@@ -225,8 +227,13 @@ export const GraphPage = ({
   // Off-canvas nodes (knowledge records with no matching canvas node — e.g.
   // stale/orphan records) are hidden by default; toggle to reveal them.
   const [showOffCanvas, setShowOffCanvas] = useState(false);
+  const overflowMenuId = useId();
+  const searchListboxId = useId();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchListboxRef = useRef<HTMLDivElement>(null);
   const overflowRef = useRef<HTMLDivElement>(null);
+  const overflowButtonRef = useRef<HTMLButtonElement>(null);
+  const overflowMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -244,7 +251,26 @@ export const GraphPage = ({
   }, [searchOpen]);
 
   useClickOutside(overflowRef, () => setOverflowOpen(false), overflowOpen);
-  useEscapeClose(overflowOpen, () => setOverflowOpen(false));
+  const closeOverflowAndRestoreFocus = useCallback(() => {
+    setOverflowOpen(false);
+    overflowButtonRef.current?.focus();
+  }, []);
+  useMenuKeyboardNav(overflowMenuRef, closeOverflowAndRestoreFocus, overflowOpen);
+
+  const handleOverflowKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!overflowOpen) {
+      setOverflowOpen(true);
+      return;
+    }
+    const items = Array.from(
+      overflowMenuRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [],
+    );
+    const target = event.key === 'ArrowUp' ? items[items.length - 1] : items[0];
+    target?.focus();
+  }, [overflowOpen]);
 
   useEffect(() => {
     setActiveNodeId(selectedGraphId(selectedNode));
@@ -293,6 +319,20 @@ export const GraphPage = ({
 
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   useEffect(() => { setSuggestionIndex(0); }, [query]);
+  useEffect(() => {
+    setSuggestionIndex((index) => Math.min(index, Math.max(0, searchSuggestions.length - 1)));
+  }, [searchSuggestions.length]);
+  useEffect(() => {
+    if (!query.trim()) return;
+    const item = searchListboxRef.current?.querySelector<HTMLElement>(
+      `[data-search-index="${suggestionIndex}"]`,
+    );
+    item?.scrollIntoView({ block: 'nearest' });
+  }, [query, suggestionIndex, searchSuggestions.length]);
+
+  const activeSearchOptionId = query.trim() && searchSuggestions[suggestionIndex]
+    ? `${searchListboxId}-option-${suggestionIndex}`
+    : undefined;
 
   const graphData = useMemo(
     () => buildGraphData(
@@ -542,16 +582,31 @@ export const GraphPage = ({
           <button className="workspace-node-chip workspace-node-chip--toolbar-action" onClick={() => graphRef.current?.zoomToFit(450, 140)}>{t('workspaceGraph.fit')}</button>
           <div className="workspace-graph-toolbar__more" ref={overflowRef}>
             <button
+              ref={overflowButtonRef}
+              type="button"
               className="workspace-node-chip workspace-node-chip--toolbar-action"
               onClick={() => setOverflowOpen((value) => !value)}
+              onKeyDown={handleOverflowKeyDown}
               title={t('workspaceGraph.moreOptions')}
+              aria-label={t('workspaceGraph.moreOptions')}
+              aria-haspopup="menu"
+              aria-expanded={overflowOpen}
+              aria-controls={overflowOpen ? overflowMenuId : undefined}
             >
               {t('workspaceGraph.more')}
             </button>
             {overflowOpen && (
-              <div className="workspace-graph-toolbar__menu" role="menu">
+              <div
+                ref={overflowMenuRef}
+                id={overflowMenuId}
+                className="workspace-graph-toolbar__menu"
+                role="menu"
+                aria-label={t('workspaceGraph.moreMenuLabel')}
+              >
                 <button
+                  type="button"
                   className="workspace-graph-toolbar__menu-item"
+                  role="menuitem"
                   onClick={() => {
                     const graph = graphRef.current;
                     if (!graph) return;
@@ -563,7 +618,9 @@ export const GraphPage = ({
                   {isPaused ? t('workspaceGraph.resumeLayout') : t('workspaceGraph.pauseLayout')}
                 </button>
                 <button
+                  type="button"
                   className="workspace-graph-toolbar__menu-item"
+                  role="menuitem"
                   onClick={() => setLayoutPreset((value) => value === 'compact' ? 'normal' : value === 'normal' ? 'loose' : 'compact')}
                 >
                   {t('workspaceGraph.density', {
@@ -575,7 +632,9 @@ export const GraphPage = ({
                   })}
                 </button>
                 <button
+                  type="button"
                   className="workspace-graph-toolbar__menu-item"
+                  role="menuitem"
                   onClick={() => { setOverflowOpen(false); void reload(); }}
                 >
                   {t('workspaceNodes.refresh')}
@@ -594,6 +653,12 @@ export const GraphPage = ({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t('workspaceGraph.searchPlaceholder')}
+              role="combobox"
+              aria-label={t('workspaceGraph.searchLabel')}
+              aria-autocomplete="list"
+              aria-expanded={Boolean(query.trim())}
+              aria-controls={query.trim() ? searchListboxId : undefined}
+              aria-activedescendant={activeSearchOptionId}
               onKeyDown={(event) => {
                 if (isImeComposing(event)) return;
                 if (event.key === 'Escape') {
@@ -614,15 +679,23 @@ export const GraphPage = ({
               }}
             />
             <button
+              type="button"
               className="workspace-node-chip"
               onClick={() => { setQuery(''); setSearchOpen(false); }}
               title={t('workspaceGraph.close')}
+              aria-label={t('workspaceGraph.close')}
             >
               ✕
             </button>
           </div>
           {query.trim() && (
-            <div className="workspace-graph-search__list" role="listbox">
+            <div
+              ref={searchListboxRef}
+              id={searchListboxId}
+              className="workspace-graph-search__list"
+              role="listbox"
+              aria-label={t('workspaceGraph.searchResults')}
+            >
               {searchSuggestions.length === 0 ? (
                 <div className="workspace-graph-search__empty">{t('workspaceGraph.noMatches')}</div>
               ) : (
@@ -640,11 +713,15 @@ export const GraphPage = ({
                   return (
                     <button
                       key={key}
+                      id={`${searchListboxId}-option-${index}`}
                       type="button"
                       role="option"
                       aria-selected={index === suggestionIndex}
+                      aria-label={t('workspaceGraph.searchOption', { type: meta, title: isTag ? `# ${title}` : title })}
+                      data-search-index={index}
                       className={`workspace-graph-search__item${index === suggestionIndex ? ' is-active' : ''}${isTag ? ' workspace-graph-search__item--tag' : ''}`}
                       onMouseEnter={() => setSuggestionIndex(index)}
+                      onMouseDown={(event) => event.preventDefault()}
                       onClick={() => pickSuggestion(result)}
                     >
                       <span className="workspace-graph-search__title">{isTag ? `# ${title}` : title}</span>

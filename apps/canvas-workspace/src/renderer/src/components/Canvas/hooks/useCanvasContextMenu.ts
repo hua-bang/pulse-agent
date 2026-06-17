@@ -1,8 +1,9 @@
 import { useCallback, useState, type RefObject } from 'react';
 import type { CanvasNode } from '../../../types';
-import { getNodeDefaultSize, NODE_TYPE_LABELS, type CreatableCanvasNodeType } from '../../../utils/nodeFactory';
+import { getNodeDefaultSize, type CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { ToastInput } from '../../../types/ui-interaction';
 import type { AddNodeOptions } from '../../../hooks/useNodes';
+import { useI18n, type I18nKey } from '../../../i18n';
 
 interface ContextMenuState {
   screenX: number;
@@ -50,6 +51,18 @@ interface AddNodeUiOptions extends AddNodeOptions {
   label?: string;
 }
 
+const CREATABLE_TYPE_LABEL_KEY: Record<CreatableCanvasNodeType, I18nKey> = {
+  file: 'node.type.file',
+  terminal: 'node.type.terminal',
+  frame: 'node.type.frame',
+  group: 'node.type.group',
+  agent: 'node.type.codingAgent',
+  text: 'node.type.text',
+  iframe: 'node.type.webPage',
+  mindmap: 'node.type.mindmap',
+  plugin: 'node.type.plugin',
+};
+
 /** Walk diagonally from the desired top-left until we find a slot
  *  whose top-left doesn't sit on top of any existing node within
  *  `STACK_TOLERANCE` pixels. Returns whether a cascade actually
@@ -89,6 +102,7 @@ export const useCanvasContextMenu = ({
   setHighlightedId,
   notify,
 }: Options) => {
+  const { t } = useI18n();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   /** Shared post-add side effects: select, flash, and toast the new node
@@ -98,15 +112,16 @@ export const useCanvasContextMenu = ({
    *  centers on viewport — so callers pass it in. */
   const finalizeAddedNode = useCallback(
     (node: CanvasNode, type: CreatableCanvasNodeType, placementHint: string, label?: string) => {
+      const nodeLabel = label ?? t(CREATABLE_TYPE_LABEL_KEY[type]);
       setSelectedNodeIds([node.id]);
       setHighlightedId(node.id);
       notify({
         tone: 'success',
-        title: `${label ?? NODE_TYPE_LABELS[type]} added`,
+        title: t('canvas.nodeAdded', { label: nodeLabel }),
         description: placementHint,
       });
     },
-    [notify, setHighlightedId, setSelectedNodeIds],
+    [notify, setHighlightedId, setSelectedNodeIds, t],
   );
 
   const isBlankCanvasTarget = useCallback((target: EventTarget | null) => {
@@ -152,11 +167,11 @@ export const useCanvasContextMenu = ({
       finalizeAddedNode(
         node,
         type,
-        slot.cascaded ? 'Offset to avoid stacking' : 'Placed at the cursor',
+        slot.cascaded ? t('canvas.nodeAddedOffset') : t('canvas.nodeAddedAtCursor'),
       );
       setContextMenu(null);
     },
-    [addNode, contextMenu, finalizeAddedNode, nodesRef],
+    [addNode, contextMenu, finalizeAddedNode, nodesRef, t],
   );
 
   const handleToolbarAddNode = useCallback(
@@ -193,12 +208,12 @@ export const useCanvasContextMenu = ({
         node,
         type,
         slot.cascaded
-          ? 'Offset to avoid stacking'
-          : 'Centered on the current viewport',
+          ? t('canvas.nodeAddedOffset')
+          : t('canvas.nodeAddedCentered'),
         options?.label,
       );
     },
-    [addNode, screenToCanvas, finalizeAddedNode, containerRef, nodesRef],
+    [addNode, screenToCanvas, finalizeAddedNode, containerRef, nodesRef, t],
   );
 
   const closeContextMenu = useCallback(() => setContextMenu(null), []);

@@ -13,18 +13,18 @@ import { useClickOutside } from '../../hooks/useClickOutside';
 import { copyTextToClipboard } from '../../utils/clipboard';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { isReferenceableNode } from '../../utils/referenceNodes';
+import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
+import { useI18n } from '../../i18n';
 import {
   DEFAULT_REFERENCE_DRAWER_WIDTH,
   MAX_REFERENCE_DRAWER_WIDTH,
   MIN_REFERENCE_DRAWER_WIDTH,
-  NODE_TYPE_LABELS,
   PICKER_NODE_TYPE_GROUP_ORDER,
   REFERENCE_SEARCH_DEBOUNCE_MS,
 } from './constants';
 import type { NodeReferenceEntry, ReferenceEntry, ReferencePickerMode } from './types';
 import {
   getNodeReferenceId,
-  getReferenceGroupLabel,
   getReferenceId,
   getUrlHostname,
   isUrlReference,
@@ -54,6 +54,7 @@ export const useReferenceDrawerState = ({
   onAddUrlReference,
   onWorkspaceNodesRequest,
 }: UseReferenceDrawerStateParams) => {
+  const { t } = useI18n();
   const [drawerWidth, setDrawerWidth] = useState(DEFAULT_REFERENCE_DRAWER_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [shouldRender, setShouldRender] = useState(open);
@@ -189,11 +190,11 @@ export const useReferenceDrawerState = ({
     if (!debouncedSearch) return items;
     return items.filter((node) => {
       const label = getNodeDisplayLabel(node);
-      const typeLabel = NODE_TYPE_LABELS[node.type] ?? node.type;
+      const typeLabel = t(CANVAS_NODE_TYPE_LABEL_KEY[node.type]);
       return [label, node.type, typeLabel, node.id]
         .some((value) => value.toLowerCase().includes(debouncedSearch));
     });
-  }, [debouncedSearch]);
+  }, [debouncedSearch, t]);
 
   const pickableNodes = useMemo(
     () => filterNodes(pickerOpen === 'other' ? eligibleExternalNodes : eligibleCurrentNodes),
@@ -212,10 +213,10 @@ export const useReferenceDrawerState = ({
       .filter((type) => map.has(type))
       .map((type) => ({
         type,
-        name: getReferenceGroupLabel(type),
+        name: t(CANVAS_NODE_TYPE_LABEL_KEY[type]),
         nodes: map.get(type) ?? [],
       }));
-  }, [pickableNodes]);
+  }, [pickableNodes, t]);
 
   const handleAddFromPicker = useCallback((nodeId: string) => {
     const workspaceId = pickerOpen === 'other' ? externalWorkspaceId : activeWorkspaceId;
@@ -227,14 +228,14 @@ export const useReferenceDrawerState = ({
   const handleAddUrl = useCallback(() => {
     const normalized = normalizeReferenceUrl(urlDraft);
     if (!normalized) {
-      setUrlError('Enter a valid http(s) URL.');
+      setUrlError(t('reference.invalidUrl'));
       return;
     }
     onAddUrlReference(normalized, getUrlHostname(normalized) || normalized);
     setUrlDraft('');
     setUrlError(undefined);
     setUrlEditorOpen(false);
-  }, [onAddUrlReference, urlDraft]);
+  }, [onAddUrlReference, t, urlDraft]);
 
   const openUrl = useCallback((url: string) => {
     void window.canvasWorkspace?.shell.openExternal(url);

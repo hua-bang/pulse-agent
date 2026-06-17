@@ -84,6 +84,7 @@ export const ChatPanel = ({
     mentionOpen,
     messageTools,
     messages,
+    closeSessionMenu,
     openSessionMenu,
     otherSessions,
     pendingClarify,
@@ -363,6 +364,7 @@ export const ChatPanel = ({
           otherSessions={otherSessions}
           title={sessionTitle}
           onToggleSessionMenu={openSessionMenu}
+          onCloseSessionMenu={closeSessionMenu}
           onNewSession={handleNewSessionFromMenu}
           onOpenModelSettings={() => onOpenAppSettings('models')}
           onOpenPromptSettings={() => onOpenAppSettings('reply-style')}

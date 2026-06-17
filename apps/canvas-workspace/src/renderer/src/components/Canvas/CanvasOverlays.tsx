@@ -9,6 +9,7 @@ import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
+import { SelectionToolbar } from '../SelectionToolbar';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../hooks/useNodes';
 
@@ -50,6 +51,17 @@ interface CanvasOverlaysProps {
   paletteCommands: PaletteCommand[];
   onSearchSelect: (node: CanvasNode) => void;
   onCloseSearch: () => void;
+  selectedNodeIds: string[];
+  onFitSelection?: () => void;
+  onDuplicateSelection?: () => void;
+  onGroupSelection?: () => void;
+  onWrapSelectionInFrame?: () => void;
+  onPinReferenceSelection?: () => void;
+  onAddSelectionToChat?: () => void;
+  onDeleteSelection?: () => void;
+  focusModeActive?: boolean;
+  focusModeAvailable?: boolean;
+  onToggleFocusMode?: () => void;
   /** Find-in-canvas (Ctrl/Cmd+F) state, owned by the parent so the
    *  keyboard hook and the bar share one source of truth. */
   findSearch: UseCanvasSearchReturn;
@@ -108,6 +120,17 @@ export const CanvasOverlays = ({
   paletteCommands,
   onSearchSelect,
   onCloseSearch,
+  selectedNodeIds,
+  onFitSelection,
+  onDuplicateSelection,
+  onGroupSelection,
+  onWrapSelectionInFrame,
+  onPinReferenceSelection,
+  onAddSelectionToChat,
+  onDeleteSelection,
+  focusModeActive,
+  focusModeAvailable,
+  onToggleFocusMode,
   findSearch,
   findNodesById,
   onFindMatchActivate,
@@ -216,6 +239,24 @@ export const CanvasOverlays = ({
           ))}
 
       <div className="canvas-bottom-chrome">
+        <SelectionToolbar
+          selectedCount={selectedNodeIds.length}
+          canFocus={selectedNodeIds.length === 1 && !!focusModeAvailable}
+          focusModeActive={!!focusModeActive}
+          canGroup={selectedNodeIds.length > 1}
+          canPinReference={selectedNodeIds.length === 1 && !!onPinReferenceSelection}
+          canAddToChat={selectedNodeIds.length === 1 && !!onAddSelectionToChat}
+          showPinReference={!!onPinReferenceSelection}
+          showAddToChat={!!onAddSelectionToChat}
+          onFitSelection={onFitSelection ?? (() => undefined)}
+          onDuplicate={onDuplicateSelection ?? (() => undefined)}
+          onToggleFocus={onToggleFocusMode ?? (() => undefined)}
+          onGroup={onGroupSelection ?? (() => undefined)}
+          onWrapFrame={onWrapSelectionInFrame ?? (() => undefined)}
+          onPinReference={onPinReferenceSelection ?? (() => undefined)}
+          onAddToChat={onAddSelectionToChat ?? (() => undefined)}
+          onDelete={onDeleteSelection ?? (() => undefined)}
+        />
         <FloatingToolbar
           activeTool={activeTool}
           onToolChange={onToolChange}

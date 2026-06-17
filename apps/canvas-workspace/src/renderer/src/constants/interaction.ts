@@ -80,6 +80,7 @@ export const SHORTCUT_SECTIONS: Array<{
     items: [
       { combo: 'Right-click / Double-click', description: '', descriptionKey: 'shortcuts.canvas.createMenu' },
       { combo: 'Scroll', description: '', descriptionKey: 'shortcuts.canvas.pan' },
+      { combo: 'Space + Drag', description: '', descriptionKey: 'shortcuts.canvas.spacePan' },
       { combo: 'Ctrl/Cmd + Scroll', description: '', descriptionKey: 'shortcuts.canvas.zoom' },
       { combo: 'Drag on blank canvas', description: '', descriptionKey: 'shortcuts.canvas.marquee' },
       { combo: 'Ctrl/Cmd + K', description: '', descriptionKey: 'shortcuts.canvas.commandPalette' },

@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import './index.css';
+import './interaction-polish.css';
 import { DefaultCanvasNode } from './DefaultCanvasNode';
 import { FullscreenButton } from './NodeButtons';
 import { ImageCanvasNode } from './ImageCanvasNode';

@@ -5,14 +5,15 @@ import type { NavItem } from '../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
 import type { CanvasNode } from '../../types';
 import './index.css';
-import { buildLayerTree, collectFrameIds } from './utils/layers';
+import './interaction-polish.css';
+import { buildLayerTree, collectFrameIds, type LayerTreeNode } from './utils/layers';
 import { SidebarHeader, SidebarToggleIcon } from './SidebarHeader';
 import { WorkspaceItem } from './WorkspaceItem';
 import { WorkspaceList } from './WorkspaceList';
 import { LayersPanel } from './LayersPanel';
 import { LayerContextMenu } from './LayerContextMenu';
 import { useAppShell } from '../AppShellProvider';
-import { SettingsIcon } from '../icons';
+import { AvatarIcon, SettingsIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { buildCanvasNodeLink } from '../../utils/canvasLinks';
 import { copyTextToClipboard } from '../../utils/clipboard';
@@ -45,6 +46,7 @@ interface Props {
   ) => void;
   onReorderFolder: (folderId: string, beforeFolderId: string | null) => void;
   activeNodes?: CanvasNode[];
+  selectedNodeIds?: string[];
   onNodeFocus?: (nodeId: string) => void;
   onNodeDelete?: (nodeId: string) => void;
   onNodeRename?: (nodeId: string, title: string) => void;
@@ -68,7 +70,7 @@ export const Sidebar = ({
   collapsed, onToggle, workspaces, folders, activeId, onSelect, onCreate, onRename, onDelete,
   onExport, onOpenSettings, onOpenAppSettings, onImport, onCreateFolder, onRenameFolder, onDeleteFolder, onToggleFolder, onMoveWorkspace,
   onReorderWorkspace, onReorderFolder,
-  activeNodes = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
+  activeNodes = [], selectedNodeIds = [], onNodeFocus, onNodeDelete, onNodeRename, activeView, onEnterChat, pluginNavItems, onNavigate,
   onEnterNodes, onEnterGraph, nodesEnabled, graphEnabled,
 }: Props) => {
   const { notify } = useAppShell();
@@ -91,7 +93,37 @@ export const Sidebar = ({
 
   const layerTree = useMemo(() => buildLayerTree(activeNodes), [activeNodes]);
   const frameIds = useMemo(() => collectFrameIds(layerTree), [layerTree]);
+  const selectedLayerIds = useMemo(() => new Set(selectedNodeIds), [selectedNodeIds]);
+  const primarySelectedNodeId = selectedNodeIds[0];
   const anyFrameExpanded = useMemo(() => frameIds.some((id) => !collapsedLayers.has(id)), [frameIds, collapsedLayers]);
+
+  useEffect(() => {
+    if (selectedLayerIds.size === 0 || layerTree.length === 0) return;
+
+    const ancestorIds = new Set<string>();
+    const walk = (items: LayerTreeNode[], ancestors: string[]) => {
+      for (const item of items) {
+        if (selectedLayerIds.has(item.node.id)) {
+          for (const id of ancestors) ancestorIds.add(id);
+        }
+        if (item.children.length > 0) {
+          walk(item.children, [...ancestors, item.node.id]);
+        }
+      }
+    };
+
+    walk(layerTree, []);
+    if (ancestorIds.size === 0) return;
+
+    setCollapsedLayers((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of ancestorIds) {
+        if (next.delete(id)) changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [layerTree, selectedLayerIds]);
 
   const toggleAllLayers = useCallback(() => {
     setCollapsedLayers((prev) => {
@@ -132,7 +164,6 @@ export const Sidebar = ({
   useEffect(() => { if (inlineCreate && inlineCreateRef.current) inlineCreateRef.current.focus(); }, [inlineCreate]);
 
   useClickOutside(addMenuRef, () => setShowAddMenu(false), showAddMenu);
-  useEscapeClose(showAddMenu, () => setShowAddMenu(false));
 
   const startRename = (ws: WorkspaceEntry) => { setRenamingId(ws.id); setRenameValue(ws.name); };
   const commitRename = () => { if (renamingId && renameValue.trim()) onRename(renamingId, renameValue); setRenamingId(null); };
@@ -308,6 +339,7 @@ export const Sidebar = ({
             nodesEnabled={nodesEnabled} graphEnabled={graphEnabled}
             pluginNavItems={pluginNavItems} onNavigate={onNavigate}
             showAddMenu={showAddMenu} onToggleAddMenu={() => setShowAddMenu((v) => !v)}
+            onCloseAddMenu={() => setShowAddMenu(false)}
             addMenuRef={addMenuRef}
             onNewWorkspace={() => { setShowAddMenu(false); setInlineCreate('workspace'); setInlineCreateValue(''); setInlineCreateFolderId(null); }}
             onNewFolder={() => { setShowAddMenu(false); setInlineCreate('folder'); setInlineCreateValue(''); setInlineCreateFolderId(null); }}
@@ -343,6 +375,8 @@ export const Sidebar = ({
         <LayersPanel
           layerTree={layerTree} frameIds={frameIds} nodeCount={activeNodes.length}
           anyFrameExpanded={anyFrameExpanded} collapsedLayers={collapsedLayers}
+          selectedNodeIds={selectedLayerIds}
+          primarySelectedNodeId={primarySelectedNodeId}
           onNodeFocus={(nodeId) => onNodeFocus?.(nodeId)}
           onContextMenu={handleLayerContextMenu} onToggleCollapse={toggleLayerCollapse}
           onToggleAll={toggleAllLayers}
@@ -367,9 +401,32 @@ export const Sidebar = ({
       )}
 
       {collapsed && (
-        <div className="sidebar-collapsed-toggle">
-          <button className="sidebar-toggle" onClick={onToggle} title={t('sidebar.expand')}>
+        <div className="sidebar-collapsed-rail">
+          <button
+            className="sidebar-collapsed-btn"
+            onClick={onToggle}
+            title={t('sidebar.expand')}
+            aria-label={t('sidebar.expand')}
+          >
             <SidebarToggleIcon size={14} />
+          </button>
+          <button
+            type="button"
+            className={`sidebar-collapsed-btn${activeView === 'chat' ? ' sidebar-collapsed-btn--active' : ''}`}
+            onClick={onEnterChat}
+            title={t('sidebar.aiChatTitle')}
+            aria-label={t('sidebar.aiChat')}
+          >
+            <AvatarIcon size={14} />
+          </button>
+          <button
+            type="button"
+            className="sidebar-collapsed-btn"
+            onClick={onOpenAppSettings}
+            title={t('sidebar.settings')}
+            aria-label={t('sidebar.openSettings')}
+          >
+            <SettingsIcon size={14} strokeWidth={1.4} />
           </button>
         </div>
       )}

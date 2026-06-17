@@ -1,8 +1,8 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import type { AgentDef } from '../../config/agentRegistry';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 
 interface AgentTypeSelectProps {
   value: string;
@@ -33,15 +33,18 @@ const CheckGlyph = () => (
 export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange }: AgentTypeSelectProps) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const selected = options.find((opt) => opt.id === value) ?? options[0];
 
-  useClickOutside(rootRef, () => setOpen(false), open);
-  useEscapeClose(open, () => setOpen(false));
+  const closeMenu = useCallback(() => setOpen(false), []);
 
-  const pick = (id: string) => {
+  useClickOutside(rootRef, closeMenu, open);
+  useMenuKeyboardNav(menuRef, closeMenu, open);
+
+  const pick = useCallback((id: string) => {
     setOpen(false);
     if (id !== value) onChange(id);
-  };
+  }, [onChange, value]);
 
   return (
     <div
@@ -61,6 +64,14 @@ export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange 
           event.stopPropagation();
           setOpen((prev) => !prev);
         }}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen(true);
+        }}
       >
         <span className="agent-type-select__logo">
           <AgentIcon id={selected?.id ?? 'claude-code'} size={14} />
@@ -72,7 +83,7 @@ export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange 
       </button>
 
       {open && (
-        <div className="agent-type-select__menu" role="listbox" aria-label={ariaLabel}>
+        <div ref={menuRef} className="agent-type-select__menu" role="listbox" aria-label={ariaLabel}>
           {options.map((opt) => {
             const isActive = opt.id === value;
             return (
@@ -81,6 +92,7 @@ export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange 
                 type="button"
                 role="option"
                 aria-selected={isActive}
+                data-menu-autofocus={isActive ? 'true' : undefined}
                 className={`agent-type-select__option${isActive ? ' agent-type-select__option--active' : ''}`}
                 onClick={(event) => {
                   event.stopPropagation();

@@ -1767,35 +1767,34 @@ export const AgentTeamFrame = ({
             setDetailPanelMode('agent');
           };
           const editable = phase === 'plan_review' && agent.role === 'teammate' && !readOnly;
+          const agentClasses = `agent-team-summary-agent agent-team-summary-agent--${agent.status}${selectedAgentKey === agent.key ? ' agent-team-summary-agent--selected' : ''}${selectedGraphTask?.ownerKey === agent.key ? ' agent-team-summary-agent--task-owner' : ''}`;
+          const taskLabel = agent.currentTaskTitle ?? `${agent.taskCount} task${agent.taskCount === 1 ? '' : 's'}`;
           return (
-            <div
-              key={agent.key}
-              role="button"
-              tabIndex={0}
-              className={`agent-team-summary-agent agent-team-summary-agent--${agent.status}${selectedAgentKey === agent.key ? ' agent-team-summary-agent--selected' : ''}${selectedGraphTask?.ownerKey === agent.key ? ' agent-team-summary-agent--task-owner' : ''}`}
-              onClick={selectAgent}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  selectAgent();
-                }
-              }}
-            >
-              <span className="agent-team-summary-agent__name">
-                <span className="agent-team-summary-agent__logo">
-                  <AgentIcon id={agent.agentType ?? 'claude-code'} size={14} />
+            <div key={agent.key} className={agentClasses}>
+              <button
+                type="button"
+                className="agent-team-summary-agent__identity"
+                aria-pressed={selectedAgentKey === agent.key}
+                aria-label={`Select ${agent.name}`}
+                onClick={selectAgent}
+              >
+                <span className="agent-team-summary-agent__name">
+                  <span className="agent-team-summary-agent__logo">
+                    <AgentIcon id={agent.agentType ?? 'claude-code'} size={14} />
+                  </span>
+                  {agent.name}
                 </span>
-                {agent.name}
-              </span>
-              <span className={`agent-team-detail__status agent-team-detail__status--${agent.status}`}>
-                {statusLabel(agent.status)}{sessionHealthSuffix(agent.sessionHealth)}
-              </span>
+                <span className={`agent-team-detail__status agent-team-detail__status--${agent.status}`}>
+                  {statusLabel(agent.status)}{sessionHealthSuffix(agent.sessionHealth)}
+                </span>
+                {!editable ? (
+                  <span className="agent-team-summary-agent__task">
+                    {taskLabel}
+                  </span>
+                ) : null}
+              </button>
               {editable ? (
-                <div
-                  className="agent-team-summary-agent__agent-select"
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
-                >
+                <div className="agent-team-summary-agent__agent-select">
                   <span className="agent-team-summary-agent__agent-select-label">Coding agent</span>
                   <AgentTypeSelect
                     value={TEAM_AGENT_OPTIONS.some((def) => def.id === agent.agentType)
@@ -1806,11 +1805,7 @@ export const AgentTeamFrame = ({
                     onChange={(id) => void handleUpdatePlanTeammate(agent.name, id)}
                   />
                 </div>
-              ) : (
-                <span className="agent-team-summary-agent__task">
-                  {agent.currentTaskTitle ?? `${agent.taskCount} task${agent.taskCount === 1 ? '' : 's'}`}
-                </span>
-              )}
+              ) : null}
               <span className="agent-team-summary-agent__stats">
                 <span>Tasks {agent.doneCount}/{agent.taskCount}</span>
                 <span>Tools {agent.toolCount ?? '—'}</span>

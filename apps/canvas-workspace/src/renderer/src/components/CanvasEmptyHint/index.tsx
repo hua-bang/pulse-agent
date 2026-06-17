@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import type { CanvasNode } from '../../types';
 import { AppLogoIcon } from '../icons';
+import { NodeTypeBadge } from '../CanvasNodeView/NodeTypeBadge';
 import { useI18n } from '../../i18n';
 import { normalizeReferenceUrl } from '../ReferenceDrawer/utils';
 import './index.css';
@@ -59,39 +60,60 @@ export const CanvasEmptyHint = ({
     setUrlError('');
   };
 
-  const actions = [
-    {
-      key: 'web',
-      label: t('canvas.empty.webPage'),
-      description: t('canvas.empty.webPageDescription'),
-      onClick: openUrlComposer,
-    },
-    {
-      key: 'demo',
-      label: t('canvas.empty.demoCanvas'),
-      description: t('canvas.empty.demoCanvasDescription'),
-      onClick: onCreateDemo,
-    },
+  const primaryActions = [
     {
       key: 'set-root',
+      icon: <NodeTypeBadge type="file" />,
+      kicker: t('canvas.empty.recommended'),
       label: t('canvas.empty.setProjectFolder'),
       description: t('canvas.empty.setProjectFolderDescription'),
       onClick: onSetRootFolder,
     },
     {
+      key: 'demo',
+      icon: <AppLogoIcon size={16} />,
+      kicker: t('canvas.empty.preview'),
+      label: t('canvas.empty.demoCanvas'),
+      description: t('canvas.empty.demoCanvasDescription'),
+      onClick: onCreateDemo,
+    },
+  ].filter((action) => Boolean(action.onClick));
+
+  const captureActions = [
+    {
       key: 'note',
+      icon: <NodeTypeBadge type="file" />,
       label: t('canvas.empty.newNote'),
       description: t('canvas.empty.newNoteDescription'),
       onClick: () => onCreateNode('file'),
     },
     {
+      key: 'web',
+      icon: <NodeTypeBadge type="iframe" />,
+      label: t('canvas.empty.webPage'),
+      description: t('canvas.empty.webPageDescription'),
+      onClick: openUrlComposer,
+    },
+  ];
+
+  const executionActions = [
+    {
+      key: 'terminal',
+      icon: <NodeTypeBadge type="terminal" />,
+      label: t('canvas.empty.openTerminal'),
+      description: t('canvas.empty.openTerminalDescription'),
+      onClick: () => onCreateNode('terminal'),
+    },
+    {
       key: 'ai',
+      icon: <AppLogoIcon size={16} />,
       label: t('canvas.empty.openAiChat'),
       description: t('canvas.empty.openAiChatDescription'),
       onClick: onOpenChat ?? onConfigureAi,
     },
     {
       key: 'agent',
+      icon: <NodeTypeBadge type="agent" />,
       label: t('canvas.empty.createAgent'),
       description: t('canvas.empty.createAgentDescription'),
       onClick: () => onCreateNode('agent'),
@@ -106,18 +128,62 @@ export const CanvasEmptyHint = ({
         </div>
         <div className="hint-text">{t('canvas.empty.title')}</div>
         <div className="hint-sub">{t('canvas.empty.description')}</div>
-        <div className="canvas-empty-actions">
-          {actions.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              className="canvas-empty-action"
-              onClick={action.onClick}
-            >
-              <span className="canvas-empty-action__label">{action.label}</span>
-              <span className="canvas-empty-action__description">{action.description}</span>
-            </button>
-          ))}
+        {primaryActions.length > 0 && (
+          <div className="canvas-empty-primary">
+            {primaryActions.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                className="canvas-empty-action canvas-empty-action--primary"
+                onClick={action.onClick}
+              >
+                <span className="canvas-empty-action__icon">{action.icon}</span>
+                <span className="canvas-empty-action__copy">
+                  <span className="canvas-empty-action__meta">{action.kicker}</span>
+                  <span className="canvas-empty-action__label">{action.label}</span>
+                  <span className="canvas-empty-action__description">{action.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="canvas-empty-section">
+          <div className="canvas-empty-section__title">{t('canvas.empty.captureSection')}</div>
+          <div className="canvas-empty-actions">
+            {captureActions.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                className="canvas-empty-action"
+                onClick={action.onClick}
+              >
+                <span className="canvas-empty-action__icon">{action.icon}</span>
+                <span className="canvas-empty-action__copy">
+                  <span className="canvas-empty-action__label">{action.label}</span>
+                  <span className="canvas-empty-action__description">{action.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="canvas-empty-section">
+          <div className="canvas-empty-section__title">{t('canvas.empty.executionSection')}</div>
+          <div className="canvas-empty-actions canvas-empty-actions--three">
+            {executionActions.map((action) => (
+              <button
+                key={action.key}
+                type="button"
+                className="canvas-empty-action"
+                onClick={action.onClick}
+              >
+                <span className="canvas-empty-action__icon">{action.icon}</span>
+                <span className="canvas-empty-action__copy">
+                  <span className="canvas-empty-action__label">{action.label}</span>
+                  <span className="canvas-empty-action__description">{action.description}</span>
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
         {urlComposerOpen && (
           <form className="canvas-empty-url-form" onSubmit={submitUrl}>

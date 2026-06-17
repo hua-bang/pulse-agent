@@ -45,6 +45,7 @@ import {
 // also re-exports chat cards that consume useRightDock from this module,
 // which would create an import cycle.
 import { ArtifactTabView } from '../artifacts/ArtifactTabView';
+import { useI18n } from '../../i18n';
 import { LinkTabView } from '../LinkDrawer';
 import { CHAT_TAB_ID, DockStore, type DockState } from './dock-store';
 import './index.css';
@@ -156,6 +157,7 @@ interface TabIndicatorState {
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps) => {
   const { store, setChatHost } = useDockContext();
   const state = useRightDockState();
+  const { t } = useI18n();
 
   // External links intercepted by the main process land in link preview tabs.
   useEffect(() => {
@@ -308,7 +310,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
       className="right-dock"
       data-expanded={visible}
       role="complementary"
-      aria-label="Chat and preview panel"
+      aria-label={t('rightDock.ariaLabel')}
       style={{ width }}
     >
       <div
@@ -316,12 +318,12 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
         onMouseDown={handleResizeStart}
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize panel"
+        aria-label={t('rightDock.resizePanel')}
       />
       {/* Always in the DOM so its appearance/disappearance can animate;
           hidden (and out of the tab order) while chat is alone. */}
       <div className="right-dock__tabs" data-visible={hasPreviews}>
-        <div ref={tabsRef} className="right-dock__tab-scroll" role="tablist" aria-label="Dock tabs">
+        <div ref={tabsRef} className="right-dock__tab-scroll" role="tablist" aria-label={t('rightDock.tabs')}>
           <span
             className="right-dock__tab-glider"
             aria-hidden="true"
@@ -339,32 +341,34 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
               aria-selected={activePaneId === CHAT_TAB_ID}
               className={`right-dock__tab right-dock__tab--chat${activePaneId === CHAT_TAB_ID ? ' right-dock__tab--active' : ''}`}
               data-unread={state.chatUnread}
-              title="Chat"
+              title={t('rightDock.chat')}
               onClick={() => store.activate(CHAT_TAB_ID)}
             >
               <span className="right-dock__tab-dot right-dock__tab-dot--chat" />
-              <span className="right-dock__tab-title">Chat</span>
+              <span className="right-dock__tab-title">{t('rightDock.chat')}</span>
               <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
           )}
           {state.tabs.map((tab) => {
             const active = tab.id === activePaneId;
             return (
-              <button
-                ref={(element) => registerTab(tab.id, element)}
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={`right-dock__tab${active ? ' right-dock__tab--active' : ''}`}
-                title={tab.title}
-                onClick={() => store.activate(tab.id)}
-              >
-                <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
-                <span className="right-dock__tab-title">{tab.title}</span>
-                <span
-                  role="button"
-                  aria-label="Close tab"
+              <span key={tab.id} className="right-dock__tab-shell">
+                <button
+                  ref={(element) => registerTab(tab.id, element)}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`right-dock__tab right-dock__tab--with-close${active ? ' right-dock__tab--active' : ''}`}
+                  title={tab.title}
+                  onClick={() => store.activate(tab.id)}
+                >
+                  <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
+                  <span className="right-dock__tab-title">{tab.title}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={t('rightDock.closeTab', { title: tab.title })}
+                  title={t('rightDock.closeTab', { title: tab.title })}
                   className="right-dock__tab-close"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -372,16 +376,16 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
                   }}
                 >
                   ×
-                </span>
-              </button>
+                </button>
+              </span>
             );
           })}
         </div>
         <button
           type="button"
           className="right-dock__collapse"
-          aria-label="Collapse panel"
-          title="Collapse panel (tabs are kept)"
+          aria-label={t('rightDock.collapse')}
+          title={t('rightDock.collapseTitle')}
           onClick={() => store.collapse()}
         >
           ⇥
