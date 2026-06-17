@@ -23,6 +23,7 @@ import type {
 } from '../../types';
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
+import { Select } from '../Select';
 import './settings-config.css';
 
 interface Props {
@@ -211,7 +212,7 @@ const ToolsList = ({ health, readOnly, isBusy, onToggle, t }: ToolsListProps) =>
 
 export const McpManager = ({ scope, showInherited = false }: Props) => {
   const { t } = useI18n();
-  const { notify } = useAppShell();
+  const { notify, confirm } = useAppShell();
   const [servers, setServers] = useState<CanvasMcpServer[]>([]);
   const [statuses, setStatuses] = useState<Record<string, CanvasMcpServerHealth>>({});
   const [oauthStatuses, setOauthStatuses] = useState<Record<string, CanvasMcpOAuthStatus>>({});
@@ -301,12 +302,17 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
 
   const remove = useCallback(
     async (name: string) => {
-      if (!window.confirm(t('mcpConfig.deleteConfirm', { name }))) return;
+      const accepted = await confirm({
+        intent: 'danger',
+        title: t('mcpConfig.deleteConfirm', { name }),
+        confirmLabel: t('mcpConfig.delete'),
+      });
+      if (!accepted) return;
       const res = await window.canvasWorkspace.canvasMcp.remove(scope, name);
       if (res.ok && res.status) applyStatus(res.status);
       else notify({ tone: 'error', title: res.error ?? t('mcpConfig.loadFailed') });
     },
-    [scope, notify, t, applyStatus],
+    [scope, notify, confirm, t, applyStatus],
   );
 
   const toggleTool = useCallback(
@@ -476,21 +482,22 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             />
           </label>
-          <label className="cfg-field">
+          <div className="cfg-field">
             <span>{t('mcpConfig.transport')}</span>
-            <select
-              className="cfg-input"
+            <Select
+              ariaLabel={t('mcpConfig.transport')}
               value={draft.transport}
-              onChange={(e) => {
-                const transport = e.target.value as CanvasMcpTransport;
+              options={[
+                { value: 'http', label: 'http' },
+                { value: 'sse', label: 'sse' },
+                { value: 'stdio', label: 'stdio' },
+              ]}
+              onChange={(value) => {
+                const transport = value as CanvasMcpTransport;
                 setDraft({ ...draft, transport, auth: authDraftForTransport(transport, draft) });
               }}
-            >
-              <option value="http">http</option>
-              <option value="sse">sse</option>
-              <option value="stdio">stdio</option>
-            </select>
-          </label>
+            />
+          </div>
 
           {isStdio ? (
             <>
@@ -553,17 +560,18 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                   onChange={(e) => setDraft({ ...draft, headersText: e.target.value })}
                 />
               </label>
-              <label className="cfg-field">
+              <div className="cfg-field">
                 <span>{t('mcpConfig.auth')}</span>
-                <select
-                  className="cfg-input"
+                <Select
+                  ariaLabel={t('mcpConfig.auth')}
                   value={draft.auth}
-                  onChange={(e) => setDraft({ ...draft, auth: e.target.value as CanvasMcpAuth })}
-                >
-                  <option value="none">{t('mcpConfig.authNone')}</option>
-                  <option value="oauth">{t('mcpConfig.authOAuth')}</option>
-                </select>
-              </label>
+                  options={[
+                    { value: 'none', label: t('mcpConfig.authNone') },
+                    { value: 'oauth', label: t('mcpConfig.authOAuth') },
+                  ]}
+                  onChange={(value) => setDraft({ ...draft, auth: value as CanvasMcpAuth })}
+                />
+              </div>
               {draft.auth === 'oauth' && (
                 <>
                   <label className="cfg-field">

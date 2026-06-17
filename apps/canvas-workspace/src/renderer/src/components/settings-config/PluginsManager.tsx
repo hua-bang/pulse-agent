@@ -146,7 +146,7 @@ const PluginConfigEditor = ({ plugin, saving, onSave }: PluginConfigEditorProps)
 
 export const PluginsManager = () => {
   const { t } = useI18n();
-  const { notify } = useAppShell();
+  const { notify, confirm } = useAppShell();
   const [status, setStatus] = useState<CanvasPluginsStatus | null>(null);
   const [pathText, setPathText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -233,7 +233,12 @@ export const PluginsManager = () => {
 
   const removeDirectory = useCallback(
     async (dir: string) => {
-      if (!window.confirm(t('pluginConfig.deleteConfirm', { dir }))) return;
+      const accepted = await confirm({
+        intent: 'danger',
+        title: t('pluginConfig.deleteConfirm', { dir }),
+        confirmLabel: t('pluginConfig.remove'),
+      });
+      if (!accepted) return;
       setSaving(true);
       try {
         const res = await window.canvasWorkspace.canvasPlugins.removeDirectory(dir);
@@ -242,7 +247,7 @@ export const PluginsManager = () => {
         setSaving(false);
       }
     },
-    [handleStatusResult, t],
+    [handleStatusResult, confirm, t],
   );
 
   const importJson = useCallback(
