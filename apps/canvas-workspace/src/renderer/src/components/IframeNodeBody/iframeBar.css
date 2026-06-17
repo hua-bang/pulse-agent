@@ -13,19 +13,12 @@
   background: color-mix(in srgb, var(--accent-light) 34%, var(--surface));
 }
 
+/* In fullscreen the bar stays docked at the top — same as the windowed
+ * layout — instead of floating over the page. A translucent glass box on
+ * top of the embedded site read as clutter and competed with the single
+ * fullscreen control chip (see CanvasFullscreenChip), so keep it in flow. */
 .canvas-node--fullscreen.canvas-node--iframe .iframe-bar {
-  position: absolute;
-  top: 8px;
-  left: 10px;
-  right: 118px;
-  z-index: 4;
-  min-width: 240px;
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  position: static;
 }
 
 .iframe-bar-btn {
