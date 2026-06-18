@@ -10,6 +10,7 @@ import {
   loadRecentCwds,
   pushRecentCwd,
   serializeBuffer,
+  syncTerminalFontSizeToCanvas,
 } from './utils/terminal';
 
 const mintSessionId = (nodeId: string): string =>
@@ -87,19 +88,30 @@ const pruneMirrorTerminalCache = (activeKey: string) => {
   }
 };
 
-const fitAndRefreshTerminal = (fitAddon: FitAddon, term: Terminal) => {
+const fitAndRefreshTerminal = (
+  fitAddon: FitAddon,
+  term: Terminal,
+  containerEl?: HTMLElement | null,
+) => {
+  if (containerEl !== undefined) {
+    syncTerminalFontSizeToCanvas(term, containerEl);
+  }
   try { fitAddon.fit(); } catch { /* ignore */ }
   try { term.refresh(0, Math.max(0, term.rows - 1)); } catch { /* ignore */ }
 };
 
-const scheduleTerminalFit = (fitAddon: FitAddon, term: Terminal) => {
-  fitAndRefreshTerminal(fitAddon, term);
-  requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term));
+const scheduleTerminalFit = (
+  fitAddon: FitAddon,
+  term: Terminal,
+  containerEl?: HTMLElement | null,
+) => {
+  fitAndRefreshTerminal(fitAddon, term, containerEl);
+  requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term, containerEl));
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term));
+    requestAnimationFrame(() => fitAndRefreshTerminal(fitAddon, term, containerEl));
   });
-  setTimeout(() => fitAndRefreshTerminal(fitAddon, term), 80);
-  setTimeout(() => fitAndRefreshTerminal(fitAddon, term), 240);
+  setTimeout(() => fitAndRefreshTerminal(fitAddon, term, containerEl), 80);
+  setTimeout(() => fitAndRefreshTerminal(fitAddon, term, containerEl), 240);
 };
 
 export const detectAgentView = (data: AgentNodeData): ViewMode => {
@@ -340,7 +352,7 @@ export const useAgentNodeController = ({
           if (element) containerRef.current.appendChild(element);
           termRef.current = cachedEntry.term;
           fitRef.current = cachedEntry.fitAddon;
-          scheduleTerminalFit(cachedEntry.fitAddon, cachedEntry.term);
+          scheduleTerminalFit(cachedEntry.fitAddon, cachedEntry.term, containerRef.current);
           cleanupRef.current = () => detachMirrorTerminal(cachedEntry);
           return;
         }
@@ -361,7 +373,7 @@ export const useAgentNodeController = ({
           return true;
         });
 
-        scheduleTerminalFit(fitAddon, term);
+        scheduleTerminalFit(fitAddon, term, containerRef.current);
 
         const api = window.canvasWorkspace?.pty;
         if (!api) {
@@ -397,7 +409,7 @@ export const useAgentNodeController = ({
           if (!restoredSavedOutput) term.clear();
           let wroteLivePlaceholder = true;
           term.writeln('\x1b[2mConnected to live teammate terminal. New output will stream here.\x1b[0m');
-          scheduleTerminalFit(fitAddon, term);
+          scheduleTerminalFit(fitAddon, term, containerRef.current);
 
           const removeData = api.onData(activeSessionId, (d: string) => {
             if (wroteLivePlaceholder && !restoredSavedOutput) {
@@ -440,7 +452,7 @@ export const useAgentNodeController = ({
           term.write(saved.split('\n').join('\r\n'));
           term.writeln('');
           term.writeln('\x1b[2m--- waiting for live session to reconnect ---\x1b[0m');
-          scheduleTerminalFit(fitAddon, term);
+          scheduleTerminalFit(fitAddon, term, containerRef.current);
         };
 
         const retryLiveMirror = async () => {
@@ -494,7 +506,7 @@ export const useAgentNodeController = ({
         } else {
           term.writeln('\x1b[2m--- no saved agent output ---\x1b[0m');
         }
-        scheduleTerminalFit(fitAddon, term);
+        scheduleTerminalFit(fitAddon, term, containerRef.current);
         return;
       }
       spawnedRef.current = true;
@@ -516,7 +528,7 @@ export const useAgentNodeController = ({
         return true;
       });
 
-      scheduleTerminalFit(fitAddon, term);
+      scheduleTerminalFit(fitAddon, term, containerRef.current);
 
       const api = window.canvasWorkspace?.pty;
       if (!api) {
@@ -663,7 +675,7 @@ export const useAgentNodeController = ({
           ? `${effectivePrompt}\n\n${codexBindingPrompt}`
           : codexBindingMarker && !promptFile
             ? codexBindingPrompt
-          : effectivePrompt;
+            : effectivePrompt;
         const dangerousFlag = dangerousMode
           ? agentType === 'claude-code'
             ? ' --dangerously-skip-permissions'
@@ -1069,8 +1081,16 @@ export const useAgentNodeController = ({
 
   useEffect(() => {
     if (!fitRef.current) return;
+    // Container CSS width/height resolve through `calc(100% * var(--canvas-scale))`
+    // so canvas zoom changes also fire this observer. We update the xterm
+    // font size to track the zoom (the inverse-scale wrapper keeps xterm
+    // in a net `transform: 1` space, so selection math stays correct).
     const observer = new ResizeObserver(() => {
-      try { fitRef.current?.fit(); } catch { /* ignore */ }
+      const term = termRef.current;
+      const fit = fitRef.current;
+      if (!term || !fit) return;
+      syncTerminalFontSizeToCanvas(term, containerRef.current);
+      try { fit.fit(); } catch { /* ignore */ }
     });
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();

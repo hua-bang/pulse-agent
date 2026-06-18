@@ -1,4 +1,6 @@
 import { Terminal } from '@xterm/xterm';
+import type { FitAddon } from '@xterm/addon-fit';
+import { BASE_TERMINAL_FONT_SIZE } from '../../../config/terminalTheme';
 
 export const SCROLLBACK_SAVE_INTERVAL = 2000;
 export const MAX_SCROLLBACK_CHARS = 50000;
@@ -54,4 +56,43 @@ export const truncatePath = (p: string, maxLen = 36): string => {
     result = next;
   }
   return result;
+};
+
+/** Read the cascading `--canvas-scale` CSS variable injected by
+ *  `CanvasSurface` onto `.canvas-transform`. Falls back to 1 when the
+ *  element is detached or the var is missing/invalid. */
+export const readCanvasScale = (el: HTMLElement | null | undefined): number => {
+  if (!el) return 1;
+  const raw = getComputedStyle(el).getPropertyValue('--canvas-scale').trim();
+  const n = parseFloat(raw);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+};
+
+/** Keep the xterm font size in lock-step with the canvas zoom so the
+ *  visual text size scales with the rest of the canvas while the xterm
+ *  subtree stays in a net `transform: 1` coordinate space (thanks to the
+ *  inverse-scale wrapper in the matching CSS). The combination lets
+ *  selection math stay self-consistent and gives users a true zoom on the
+ *  glyph size. Returns true when the font size was actually changed so
+ *  callers can decide whether to re-fit. */
+export const syncTerminalFontSizeToCanvas = (
+  term: Terminal | null,
+  containerEl: HTMLElement | null | undefined,
+): boolean => {
+  if (!term) return false;
+  const scale = readCanvasScale(containerEl);
+  const next = BASE_TERMINAL_FONT_SIZE * scale;
+  if (term.options.fontSize === next) return false;
+  term.options.fontSize = next;
+  return true;
+};
+
+/** Convenience wrapper: sync font size to canvas scale, then re-fit. */
+export const fitTerminalWithCanvasScale = (
+  term: Terminal | null,
+  fit: FitAddon | null,
+  containerEl: HTMLElement | null | undefined,
+): void => {
+  syncTerminalFontSizeToCanvas(term, containerEl);
+  try { fit?.fit(); } catch { /* ignore */ }
 };

@@ -6,6 +6,7 @@ import type { CanvasNode, FileNodeData, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { AI_TOOL_PATTERN, writeCanvasContext } from '../../utils/canvasContextWriter';
 import { NodeMentionPicker } from '../NodeMentionPicker';
+import { fitTerminalWithCanvasScale, syncTerminalFontSizeToCanvas } from '../AgentNodeBody/utils/terminal';
 
 interface Props {
   node: CanvasNode;
@@ -78,13 +79,14 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
       term.open(containerRef.current);
       termRef.current = term;
       fitRef.current = fitAddon;
+      syncTerminalFontSizeToCanvas(term, containerRef.current);
       if (initialScrollback.current) {
         term.write(initialScrollback.current.split('\n').join('\r\n'));
       } else {
         term.writeln('\x1b[2m--- no saved terminal output ---\x1b[0m');
       }
       requestAnimationFrame(() => {
-        try { fitAddon.fit(); } catch { /* ignore */ }
+        fitTerminalWithCanvasScale(term, fitAddon, containerRef.current);
       });
       return;
     }
@@ -96,6 +98,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;
+    syncTerminalFontSizeToCanvas(term, containerRef.current);
 
     if (initialScrollback.current) {
       const RESTORE_TAIL_LINES = 10;
@@ -117,7 +120,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
     });
 
     requestAnimationFrame(() => {
-      try { fitAddon.fit(); } catch { /* ignore */ }
+      fitTerminalWithCanvasScale(term, fitAddon, containerRef.current);
     });
 
     const api = window.canvasWorkspace?.pty;
@@ -233,8 +236,13 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
 
   useEffect(() => {
     if (!fitRef.current) return;
+    // The xterm container's CSS width/height resolve through
+    // `calc(100% * var(--canvas-scale))`, so every canvas zoom change
+    // triggers a layout-size change on the container, which in turn fires
+    // this ResizeObserver. We piggy-back on it to keep the xterm font
+    // size proportional to the canvas zoom and re-fit cols/rows.
     const observer = new ResizeObserver(() => {
-      try { fitRef.current?.fit(); } catch { /* ignore */ }
+      fitTerminalWithCanvasScale(termRef.current, fitRef.current, containerRef.current);
     });
     if (containerRef.current) observer.observe(containerRef.current);
     return () => observer.disconnect();

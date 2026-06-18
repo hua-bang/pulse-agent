@@ -1,7 +1,9 @@
 import type { ITerminalOptions } from '@xterm/xterm';
 
+export const BASE_TERMINAL_FONT_SIZE = 12;
+
 export const TERMINAL_OPTIONS: ITerminalOptions = {
-  fontSize: 12,
+  fontSize: BASE_TERMINAL_FONT_SIZE,
   lineHeight: 1.4,
   letterSpacing: 0,
   fontFamily: "'SF Mono', 'Fira Code', Menlo, 'Cascadia Code', monospace",

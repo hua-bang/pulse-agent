@@ -1019,20 +1019,38 @@
 /* ── Running: terminal panel ───────────────────────────────────── */
 
 /* Positioned wrapper so the loading overlay can absolutely cover the
- * xterm canvas without bleeding into the info strip above. */
+ * xterm canvas without bleeding into the info strip above. Also acts
+ * as the layout box that the inverse-scaled xterm container nests
+ * inside (`overflow: hidden` clips the inflated child layout when
+ * canvas-scale > 1). */
 .agent-xterm-wrap {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: 120px;
   display: flex;
+  overflow: hidden;
 }
 
+/* Counter-scale the xterm container against the canvas zoom — see the
+ * matching note in TerminalNodeBody/index.css. xterm's selection
+ * service mixes screen-pixel rect coords with unscaled CSS-pixel cell
+ * widths; collapsing the two coordinate systems by inflating the
+ * container's layout box and then `scale(1 / canvasScale)`-ing it
+ * back to the original visual footprint is what stops the highlight
+ * drift. The inflated layout also lets the existing ResizeObserver
+ * notice zoom changes and re-fit cols/rows automatically. */
 .agent-xterm-wrap > .agent-xterm-container {
-  flex: 1;
+  flex: none;
 }
 
 .agent-xterm-container {
-  min-height: 120px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% * var(--canvas-scale, 1));
+  height: calc(100% * var(--canvas-scale, 1));
+  transform: scale(calc(1 / var(--canvas-scale, 1)));
+  transform-origin: top left;
   border-radius: 10px;
   background: #fafaf9;
   padding: 6px 4px 4px;
