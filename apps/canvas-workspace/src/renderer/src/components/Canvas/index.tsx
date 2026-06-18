@@ -429,11 +429,11 @@ export const Canvas = ({
 
     // Scenario 1 — code with an agent.
     makeFrame(leftA, t('canvas.demo.frameCodeTitle'), '#2383e2');
-    const goal = addNode('text', leftA + 30, top + 70);
+    const goal = addNode('text', leftA + 34, top + 60);
     updateNode(goal.id, {
       title: t('canvas.demo.introTitle'),
       width: 300,
-      height: 190,
+      height: 184,
       data: {
         content: t('canvas.demo.introContent'),
         textColor: '#1f2328',
@@ -442,11 +442,11 @@ export const Canvas = ({
         autoSize: false,
       } satisfies TextNodeData,
     });
-    const repo = addNode('iframe', leftA + 370, top + 70);
+    const repo = addNode('iframe', leftA + 366, top + 60);
     updateNode(repo.id, {
       title: t('canvas.demo.webTitle'),
       width: 300,
-      height: 190,
+      height: 184,
       data: {
         url: 'https://github.com/hua-bang/pulse-agent',
         html: '',
@@ -454,11 +454,14 @@ export const Canvas = ({
         prompt: '',
       } satisfies IframeNodeData,
     });
-    const agent = addNode('agent', leftA + 30, top + 300);
+    // Sits lower so the two inbound edges have room. `auto` targets let the
+    // brief/context lines fan out to either side of the agent's top edge
+    // instead of stacking on the same center point.
+    const agent = addNode('agent', leftA + 34, top + 320);
     updateNode(agent.id, {
       title: t('canvas.demo.agentTitle'),
-      width: 640,
-      height: 200,
+      width: 632,
+      height: 196,
       data: {
         sessionId: '',
         ...(rootFolder ? { cwd: rootFolder } : {}),
@@ -470,22 +473,22 @@ export const Canvas = ({
     });
     addEdge(createDefaultEdge(
       { kind: 'node', nodeId: goal.id, anchor: 'bottom' },
-      { kind: 'node', nodeId: agent.id, anchor: 'top' },
+      { kind: 'node', nodeId: agent.id, anchor: 'auto' },
       { label: t('canvas.demo.edgeBrief'), stroke: { color: '#2383e2', width: 2.4, style: 'solid' } },
     ));
     addEdge(createDefaultEdge(
       { kind: 'node', nodeId: repo.id, anchor: 'bottom' },
-      { kind: 'node', nodeId: agent.id, anchor: 'top' },
+      { kind: 'node', nodeId: agent.id, anchor: 'auto' },
       { label: t('canvas.demo.edgeContext'), stroke: { color: '#10b981', width: 2.4, style: 'solid' } },
     ));
 
     // Scenario 2 — research the web.
     makeFrame(leftB, t('canvas.demo.frameResearchTitle'), '#f59e0b');
-    const source = addNode('iframe', leftB + 30, top + 90);
+    const source = addNode('iframe', leftB + 34, top + 92);
     updateNode(source.id, {
       title: t('canvas.demo.researchWebTitle'),
       width: 300,
-      height: 320,
+      height: 388,
       data: {
         url: 'https://github.com/hua-bang/pulse-agent/issues',
         html: '',
@@ -493,11 +496,11 @@ export const Canvas = ({
         prompt: '',
       } satisfies IframeNodeData,
     });
-    const takeaways = addNode('text', leftB + 370, top + 90);
+    const takeaways = addNode('text', leftB + 366, top + 92);
     updateNode(takeaways.id, {
       title: t('canvas.demo.researchNoteTitle'),
       width: 300,
-      height: 320,
+      height: 388,
       data: {
         content: t('canvas.demo.researchNoteContent'),
         textColor: '#1f2328',
@@ -514,11 +517,13 @@ export const Canvas = ({
 
     // Scenario 3 — brainstorm a plan.
     makeFrame(leftC, t('canvas.demo.frameBrainstormTitle'), '#9575d4');
-    const ideas = addNode('mindmap', leftC + 40, top + 70);
+    // Centered horizontally so the auto-sized map fills the frame instead of
+    // hugging the left edge, with the plan note centered right below it.
+    const ideas = addNode('mindmap', leftC + 150, top + 80);
     updateNode(ideas.id, {
       title: t('canvas.demo.brainstormMapTitle'),
-      width: 620,
-      height: 240,
+      width: 400,
+      height: 220,
       data: {
         root: {
           id: genTopicId(),
@@ -533,11 +538,11 @@ export const Canvas = ({
         rev: 0,
       } satisfies MindmapNodeData,
     });
-    const plan = addNode('text', leftC + 160, top + 340);
+    const plan = addNode('text', leftC + 170, top + 352);
     updateNode(plan.id, {
       title: t('canvas.demo.planNoteTitle'),
-      width: 380,
-      height: 170,
+      width: 360,
+      height: 162,
       data: {
         content: t('canvas.demo.planNoteContent'),
         textColor: '#1f2328',
