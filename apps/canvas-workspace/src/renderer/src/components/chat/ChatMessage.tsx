@@ -8,6 +8,7 @@ import { isImeComposing } from '../../utils/ime';
 import { renderMermaidIn } from './utils/mermaid';
 import { formatAbsoluteTime, formatRelativeTime } from './utils/time';
 import { ChatToolCalls } from './ChatToolCalls';
+import { ChatImageLightbox, type LightboxImage } from './ChatImageLightbox';
 import { PluginChatCardForMessage } from '../../../../plugins/renderer';
 import {
   ChatArtifactCard,
@@ -183,6 +184,46 @@ export const ChatMessage = ({
     card?.classList.add('chat-message-image-card--broken');
   }, []);
 
+  // Click-to-zoom: any image in this message (user attachments first, then
+  // generated images) opens a shared fullscreen viewer at its position.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  const generatedImages = useMemo(() => {
+    if (message.role !== 'assistant' || !tools) return [];
+    const out: Array<{ key: string; src: string; outputPath: string; title?: string }> = [];
+    for (const tool of tools) {
+      const image = parseGeneratedImage(tool.result);
+      if (!image?.outputPath) continue;
+      out.push({
+        key: `generated-${tool.id}`,
+        src: toFileUrl(image.outputPath),
+        outputPath: image.outputPath,
+        title: image.title,
+      });
+    }
+    return out;
+  }, [message.role, tools]);
+
+  const attachmentCount = message.attachments?.length ?? 0;
+
+  const lightboxImages = useMemo<LightboxImage[]>(() => [
+    ...(message.attachments ?? []).map(attachment => ({
+      src: toFileUrl(attachment.path),
+      caption: attachment.fileName,
+    })),
+    ...generatedImages.map(image => ({ src: image.src, caption: image.title })),
+  ], [message.attachments, generatedImages]);
+
+  const handleImageKeyOpen = useCallback(
+    (event: KeyboardEvent<HTMLImageElement>, openIndex: number) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        setLightboxIndex(openIndex);
+      }
+    },
+    [],
+  );
+
   // After every (re-)render of a message body, render any pending mermaid
   // placeholders. Applies to both assistant output and pasted user content
   // (a user can paste a ```mermaid block too). We skip while streaming
@@ -204,13 +245,18 @@ export const ChatMessage = ({
     <div className="chat-message-body">
       {message.attachments && message.attachments.length > 0 && (
         <div className="chat-message-images">
-          {message.attachments.map(attachment => (
+          {message.attachments.map((attachment, attachmentIndex) => (
             <figure key={attachment.id} className="chat-message-image-card">
               <img
                 src={toFileUrl(attachment.path)}
                 alt={attachment.fileName ?? 'image'}
                 loading="lazy"
                 decoding="async"
+                className="chat-image-clickable"
+                role="button"
+                tabIndex={0}
+                onClick={() => setLightboxIndex(attachmentIndex)}
+                onKeyDown={(event) => handleImageKeyOpen(event, attachmentIndex)}
                 onError={handleImageError}
               />
               {attachment.fileName && <figcaption>{attachment.fileName}</figcaption>}
@@ -229,26 +275,35 @@ export const ChatMessage = ({
             onToggleToolExpand={onToggleToolExpand}
             onSessionJump={onSessionJump}
           />
-          <div className="chat-generated-images">
-            {tools.map(tool => {
-              const image = parseGeneratedImage(tool.result);
-              if (!image?.outputPath) return null;
-              return (
-                <figure key={`generated-${tool.id}`} className="chat-generated-image-card">
-                  <img src={toFileUrl(image.outputPath)} alt={image.title ?? 'Generated image'} />
-                  <figcaption>
-                    <span>{image.title ?? 'Generated image'}</span>
-                    <button
-                      type="button"
-                      onClick={() => void onAddImageToCanvas?.(image.outputPath!, image.title)}
-                    >
-                      Add to canvas
-                    </button>
-                  </figcaption>
-                </figure>
-              );
-            })}
-          </div>
+          {generatedImages.length > 0 && (
+            <div className="chat-generated-images">
+              {generatedImages.map((image, generatedIndex) => {
+                const openIndex = attachmentCount + generatedIndex;
+                return (
+                  <figure key={image.key} className="chat-generated-image-card">
+                    <img
+                      src={image.src}
+                      alt={image.title ?? 'Generated image'}
+                      className="chat-image-clickable"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setLightboxIndex(openIndex)}
+                      onKeyDown={(event) => handleImageKeyOpen(event, openIndex)}
+                    />
+                    <figcaption>
+                      <span>{image.title ?? 'Generated image'}</span>
+                      <button
+                        type="button"
+                        onClick={() => void onAddImageToCanvas?.(image.outputPath, image.title)}
+                      >
+                        Add to canvas
+                      </button>
+                    </figcaption>
+                  </figure>
+                );
+              })}
+            </div>
+          )}
           {tools.map(tool => {
             // visual_render in flight: drive an inline streaming preview.
             // Prefer `streamedContent` (the tool's own side-channel chunks)
@@ -403,6 +458,13 @@ export const ChatMessage = ({
         </div>
       )}
     </div>
+    {lightboxIndex !== null && lightboxImages[lightboxIndex] && (
+      <ChatImageLightbox
+        images={lightboxImages}
+        startIndex={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
+    )}
   </div>
   );
 };
