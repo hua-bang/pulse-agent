@@ -144,7 +144,10 @@
 }
 
 .shell-dialog--wide {
-  width: min(760px, 100%);
+  width: min(820px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
 }
 
 .shell-dialog__header {
@@ -234,6 +237,9 @@
 
 .shell-shortcuts {
   padding: 0 20px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .shell-shortcuts__intro {
@@ -272,10 +278,9 @@
 }
 
 .shell-shortcuts__item {
-  display: grid;
-  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .shell-shortcuts__combo {
