@@ -1,0 +1,36 @@
+.chat-floating-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-float);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  transition: background 0.1s, border-color 0.1s, color 0.1s, transform 0.1s;
+}
+
+.chat-floating-button:hover,
+.chat-floating-button:focus-visible {
+  outline: none;
+  background: var(--surface-hover);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.chat-floating-button--active {
+  border-color: rgba(35, 131, 226, 0.28);
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.chat-floating-button--active:hover,
+.chat-floating-button--active:focus-visible {
+  background: var(--accent-light);
+  color: var(--accent);
+}

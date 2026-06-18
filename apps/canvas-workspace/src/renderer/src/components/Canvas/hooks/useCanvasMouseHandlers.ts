@@ -132,6 +132,7 @@ export const useCanvasMouseHandlers = ({
       const target = e.target as HTMLElement;
       if (target.closest('.canvas-node')) return;
       if (target.closest('.canvas-fullscreen-chip')) return;
+      if (target.closest('.canvas-bottom-chrome')) return;
       // Clicking inside the edges SVG (either a hit-proxy or a handle)
       // lands on a child of .canvas-edges. Those children stopPropagate
       // their own onMouseDown, but the click event can still arrive

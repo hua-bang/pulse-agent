@@ -4,7 +4,7 @@ import type { CanvasNode, KnowledgeTagDefinition, WorkspaceNodeListItem } from '
 import { ChatPanel } from '../chat';
 import type { AgentScope, WorkspaceOption } from '../chat/types';
 import type { SettingsSection } from '../Settings';
-import { AppLogoIcon } from '../icons';
+import { ChatFloatingButton } from '../ChatFloatingButton';
 import { useI18n } from '../../i18n';
 import { getNodeTags, getNodeTitle, getNodeWorkspaceId } from './utils';
 
@@ -13,6 +13,7 @@ const MIN_DOCK_WIDTH = 300;
 const MAX_DOCK_WIDTH = 760;
 const OPEN_STORAGE_KEY = 'pulse-canvas.nodes-chat.open';
 const WIDTH_STORAGE_KEY = 'pulse-canvas.nodes-chat.width';
+const DOCK_TRANSITION_MS = 260;
 
 const GLOBAL_SCOPE: AgentScope = { kind: 'global' };
 
@@ -32,6 +33,7 @@ export function useNodesChatDock() {
       return false;
     }
   });
+  const [rendered, setRendered] = useState(open);
   const [width, setWidth] = useState<number>(() => {
     try {
       const raw = Number(localStorage.getItem(WIDTH_STORAGE_KEY));
@@ -50,6 +52,16 @@ export function useNodesChatDock() {
   }, [open]);
 
   useEffect(() => {
+    if (open) {
+      setRendered(true);
+      return undefined;
+    }
+    if (!rendered) return undefined;
+    const timeout = window.setTimeout(() => setRendered(false), DOCK_TRANSITION_MS);
+    return () => window.clearTimeout(timeout);
+  }, [open, rendered]);
+
+  useEffect(() => {
     try {
       localStorage.setItem(WIDTH_STORAGE_KEY, String(width));
     } catch {
@@ -57,7 +69,10 @@ export function useNodesChatDock() {
     }
   }, [width]);
 
-  const openDock = useCallback(() => setOpen(true), []);
+  const openDock = useCallback(() => {
+    setRendered(true);
+    window.requestAnimationFrame(() => setOpen(true));
+  }, []);
   const closeDock = useCallback(() => setOpen(false), []);
 
   // Tear-down for an in-flight resize drag — also invoked on unmount so a
@@ -88,15 +103,16 @@ export function useNodesChatDock() {
   }, [width]);
 
   const rootStyle = useMemo(
-    () => ({ '--chat-dock-w': open ? `${width}px` : '0px' } as React.CSSProperties),
-    [open, width],
+    () => ({ '--chat-dock-w': rendered ? `${width}px` : '0px' } as React.CSSProperties),
+    [rendered, width],
   );
 
-  return { open, width, openDock, closeDock, beginResize, rootStyle };
+  return { open, rendered, width, openDock, closeDock, beginResize, rootStyle };
 }
 
 interface NodesChatDockProps {
   open: boolean;
+  rendered: boolean;
   width: number;
   onOpen: () => void;
   onClose: () => void;
@@ -123,6 +139,7 @@ interface NodesChatDockProps {
  */
 export function NodesChatDock({
   open,
+  rendered,
   width,
   onOpen,
   onClose,
@@ -167,31 +184,30 @@ export function NodesChatDock({
     }));
   }, [nodes, tags]);
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        className="nodes-chat-dock__launcher"
-        onClick={onOpen}
-        title={t('workspaceNodes.chat.openHint')}
-        aria-label={t('workspaceNodes.chat.openHint')}
-      >
-        <AppLogoIcon size={28} />
-      </button>
-    );
-  }
+  const launcherTitle = open ? t('chat.closePanel') : t('workspaceNodes.chat.openHint');
 
   return (
-    <div className="nodes-chat-dock" style={{ width }}>
-      <ChatPanel
-        agentScope={GLOBAL_SCOPE}
-        allWorkspaces={workspaces}
-        knowledgeNodes={knowledgeNodes}
-        knowledgeTags={knowledgeTags}
-        onClose={onClose}
-        onResizeStart={onBeginResize}
-        onOpenAppSettings={onOpenAppSettings}
+    <>
+      <ChatFloatingButton
+        active={open}
+        className="nodes-chat-dock__launcher"
+        onClick={open ? onClose : onOpen}
+        title={launcherTitle}
+        ariaLabel={launcherTitle}
       />
-    </div>
+      {rendered && (
+        <div className={`nodes-chat-dock${open ? ' is-open' : ' is-closing'}`} style={{ width }}>
+          <ChatPanel
+            agentScope={GLOBAL_SCOPE}
+            allWorkspaces={workspaces}
+            knowledgeNodes={knowledgeNodes}
+            knowledgeTags={knowledgeTags}
+            onClose={onClose}
+            onResizeStart={onBeginResize}
+            onOpenAppSettings={onOpenAppSettings}
+          />
+        </div>
+      )}
+    </>
   );
 }

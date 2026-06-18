@@ -562,7 +562,7 @@ export const GraphPage = ({
 
   return (
     <main
-      className={`workspace-graph-page${showDock && dock.open ? ' has-chat-dock' : ''}`}
+      className={`workspace-graph-page${showDock && dock.rendered ? ' has-chat-dock' : ''}`}
       ref={containerRef}
       style={showDock ? dock.rootStyle : undefined}
     >
@@ -797,6 +797,7 @@ export const GraphPage = ({
       {showDock && onOpenAppSettings && (
         <NodesChatDock
           open={dock.open}
+          rendered={dock.rendered}
           width={dock.width}
           onOpen={dock.openDock}
           onClose={dock.closeDock}

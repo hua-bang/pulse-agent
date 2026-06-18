@@ -137,7 +137,7 @@ export const NodesPage = ({
 
   return (
     <main
-      className={`workspace-nodes-page${showDock && dock.open ? ' has-chat-dock' : ''}`}
+      className={`workspace-nodes-page${showDock && dock.rendered ? ' has-chat-dock' : ''}`}
       style={showDock ? dock.rootStyle : undefined}
     >
       <section className="workspace-nodes-page__main">
@@ -281,6 +281,7 @@ export const NodesPage = ({
       {showDock && onOpenAppSettings && (
         <NodesChatDock
           open={dock.open}
+          rendered={dock.rendered}
           width={dock.width}
           onOpen={dock.openDock}
           onClose={dock.closeDock}
