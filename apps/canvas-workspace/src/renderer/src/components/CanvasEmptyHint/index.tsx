@@ -98,13 +98,6 @@ export const CanvasEmptyHint = ({
 
   const executionActions = [
     {
-      key: 'terminal',
-      icon: <NodeTypeBadge type="terminal" />,
-      label: t('canvas.empty.openTerminal'),
-      description: t('canvas.empty.openTerminalDescription'),
-      onClick: () => onCreateNode('terminal'),
-    },
-    {
       key: 'ai',
       icon: <AppLogoIcon size={16} />,
       label: t('canvas.empty.openAiChat'),
@@ -168,7 +161,7 @@ export const CanvasEmptyHint = ({
         </div>
         <div className="canvas-empty-section">
           <div className="canvas-empty-section__title">{t('canvas.empty.executionSection')}</div>
-          <div className="canvas-empty-actions canvas-empty-actions--three">
+          <div className="canvas-empty-actions">
             {executionActions.map((action) => (
               <button
                 key={action.key}

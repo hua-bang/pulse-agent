@@ -28,11 +28,11 @@ import { useCanvasVisibility } from './hooks/useCanvasVisibility';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
-import { getNodeDefaultSize } from '../../utils/nodeFactory';
+import { genTopicId, getNodeDefaultSize } from '../../utils/nodeFactory';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 import { createDefaultEdge } from '../../utils/edgeFactory';
 import { getUrlHostname, normalizeReferenceUrl } from '../ReferenceDrawer/utils';
-import type { AgentNodeData, CanvasNode, IframeNodeData, TerminalNodeData, TextNodeData } from '../../types';
+import type { AgentNodeData, CanvasNode, FrameNodeData, IframeNodeData, MindmapNodeData, TextNodeData } from '../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../shared/experimental-features';
 
@@ -405,25 +405,48 @@ export const Canvas = ({
     const center = getViewportCenter();
     if (!center) return;
 
-    const intro = addNode('text', center.x - 600, center.y - 285);
-    updateNode(intro.id, {
+    // Three scenario frames in a row, centered on the viewport. Frame
+    // membership is spatial, so each scenario's nodes only need their center
+    // to fall inside the matching frame box.
+    const FRAME_W = 700;
+    const FRAME_H = 540;
+    const GAP = 80;
+    const top = center.y - FRAME_H / 2;
+    const leftA = center.x - (FRAME_W * 1.5 + GAP);
+    const leftB = leftA + FRAME_W + GAP;
+    const leftC = leftB + FRAME_W + GAP;
+
+    const makeFrame = (x: number, title: string, color: string) => {
+      const frame = addNode('frame', x, top);
+      updateNode(frame.id, {
+        title,
+        width: FRAME_W,
+        height: FRAME_H,
+        data: { color } satisfies FrameNodeData,
+      });
+      return frame;
+    };
+
+    // Scenario 1 — code with an agent.
+    makeFrame(leftA, t('canvas.demo.frameCodeTitle'), '#2383e2');
+    const goal = addNode('text', leftA + 30, top + 70);
+    updateNode(goal.id, {
       title: t('canvas.demo.introTitle'),
-      width: 420,
-      height: 280,
+      width: 300,
+      height: 190,
       data: {
         content: t('canvas.demo.introContent'),
         textColor: '#1f2328',
         backgroundColor: '#ffffff',
-        fontSize: 17,
+        fontSize: 14,
         autoSize: false,
       } satisfies TextNodeData,
     });
-
-    const web = addNode('iframe', center.x - 120, center.y - 285);
-    updateNode(web.id, {
+    const repo = addNode('iframe', leftA + 370, top + 70);
+    updateNode(repo.id, {
       title: t('canvas.demo.webTitle'),
-      width: 520,
-      height: 360,
+      width: 300,
+      height: 190,
       data: {
         url: 'https://github.com/hua-bang/pulse-agent',
         html: '',
@@ -431,23 +454,11 @@ export const Canvas = ({
         prompt: '',
       } satisfies IframeNodeData,
     });
-
-    const terminal = addNode('terminal', center.x - 600, center.y + 80);
-    updateNode(terminal.id, {
-      title: t('canvas.demo.terminalTitle'),
-      width: 480,
-      height: 300,
-      data: {
-        sessionId: '',
-        ...(rootFolder ? { cwd: rootFolder } : {}),
-      } satisfies TerminalNodeData,
-    });
-
-    const agent = addNode('agent', center.x - 60, center.y + 80);
+    const agent = addNode('agent', leftA + 30, top + 300);
     updateNode(agent.id, {
       title: t('canvas.demo.agentTitle'),
-      width: 520,
-      height: 360,
+      width: 640,
+      height: 200,
       data: {
         sessionId: '',
         ...(rootFolder ? { cwd: rootFolder } : {}),
@@ -457,26 +468,92 @@ export const Canvas = ({
         lastInitPrompt: t('canvas.demo.agentPrompt'),
       } satisfies AgentNodeData,
     });
-
     addEdge(createDefaultEdge(
-      { kind: 'node', nodeId: intro.id, anchor: 'right' },
-      { kind: 'node', nodeId: web.id, anchor: 'left' },
-      {
-        label: t('canvas.demo.edgeReference'),
-        stroke: { color: '#2383e2', width: 2.4, style: 'solid' },
-      },
+      { kind: 'node', nodeId: goal.id, anchor: 'bottom' },
+      { kind: 'node', nodeId: agent.id, anchor: 'top' },
+      { label: t('canvas.demo.edgeBrief'), stroke: { color: '#2383e2', width: 2.4, style: 'solid' } },
     ));
     addEdge(createDefaultEdge(
-      { kind: 'node', nodeId: terminal.id, anchor: 'right' },
-      { kind: 'node', nodeId: agent.id, anchor: 'left' },
-      {
-        label: t('canvas.demo.edgeRun'),
-        stroke: { color: '#10b981', width: 2.4, style: 'solid' },
-      },
+      { kind: 'node', nodeId: repo.id, anchor: 'bottom' },
+      { kind: 'node', nodeId: agent.id, anchor: 'top' },
+      { label: t('canvas.demo.edgeContext'), stroke: { color: '#10b981', width: 2.4, style: 'solid' } },
     ));
 
-    setSelectedNodeIds([intro.id]);
-    setHighlightedId(intro.id);
+    // Scenario 2 — research the web.
+    makeFrame(leftB, t('canvas.demo.frameResearchTitle'), '#f59e0b');
+    const source = addNode('iframe', leftB + 30, top + 90);
+    updateNode(source.id, {
+      title: t('canvas.demo.researchWebTitle'),
+      width: 300,
+      height: 320,
+      data: {
+        url: 'https://github.com/hua-bang/pulse-agent/issues',
+        html: '',
+        mode: 'url',
+        prompt: '',
+      } satisfies IframeNodeData,
+    });
+    const takeaways = addNode('text', leftB + 370, top + 90);
+    updateNode(takeaways.id, {
+      title: t('canvas.demo.researchNoteTitle'),
+      width: 300,
+      height: 320,
+      data: {
+        content: t('canvas.demo.researchNoteContent'),
+        textColor: '#1f2328',
+        backgroundColor: '#ffffff',
+        fontSize: 14,
+        autoSize: false,
+      } satisfies TextNodeData,
+    });
+    addEdge(createDefaultEdge(
+      { kind: 'node', nodeId: source.id, anchor: 'right' },
+      { kind: 'node', nodeId: takeaways.id, anchor: 'left' },
+      { label: t('canvas.demo.edgeCapture'), stroke: { color: '#f59e0b', width: 2.4, style: 'solid' } },
+    ));
+
+    // Scenario 3 — brainstorm a plan.
+    makeFrame(leftC, t('canvas.demo.frameBrainstormTitle'), '#9575d4');
+    const ideas = addNode('mindmap', leftC + 40, top + 70);
+    updateNode(ideas.id, {
+      title: t('canvas.demo.brainstormMapTitle'),
+      width: 620,
+      height: 240,
+      data: {
+        root: {
+          id: genTopicId(),
+          text: t('canvas.demo.mapTopicRoot'),
+          children: [
+            { id: genTopicId(), text: t('canvas.demo.mapTopicA'), children: [] },
+            { id: genTopicId(), text: t('canvas.demo.mapTopicB'), children: [] },
+            { id: genTopicId(), text: t('canvas.demo.mapTopicC'), children: [] },
+          ],
+        },
+        layout: 'right',
+        rev: 0,
+      } satisfies MindmapNodeData,
+    });
+    const plan = addNode('text', leftC + 160, top + 340);
+    updateNode(plan.id, {
+      title: t('canvas.demo.planNoteTitle'),
+      width: 380,
+      height: 170,
+      data: {
+        content: t('canvas.demo.planNoteContent'),
+        textColor: '#1f2328',
+        backgroundColor: '#ffffff',
+        fontSize: 14,
+        autoSize: false,
+      } satisfies TextNodeData,
+    });
+    addEdge(createDefaultEdge(
+      { kind: 'node', nodeId: ideas.id, anchor: 'bottom' },
+      { kind: 'node', nodeId: plan.id, anchor: 'top' },
+      { label: t('canvas.demo.edgePrioritize'), stroke: { color: '#9575d4', width: 2.4, style: 'solid' } },
+    ));
+
+    setSelectedNodeIds([goal.id]);
+    setHighlightedId(goal.id);
     notify({
       tone: 'success',
       title: t('canvas.demo.createdTitle'),
