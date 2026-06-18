@@ -968,6 +968,27 @@
   flex-direction: column;
   background: var(--nodes-surface);
   box-shadow: -8px 0 24px rgba(15, 15, 15, 0.05);
+  transform: translateX(102%);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0.26s;
+  will-change: transform;
+}
+
+.nodes-chat-dock.is-open {
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.nodes-chat-dock.is-closing {
+  transform: translateX(102%);
+  visibility: visible;
+  pointer-events: none;
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Nodes page is a flex row, so the dock is a pushing column sitting to the
@@ -994,33 +1015,29 @@
   right: var(--chat-dock-w, 0);
 }
 
-.nodes-chat-dock__launcher {
+.chat-floating-button.nodes-chat-dock__launcher {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
+  right: 16px;
+  bottom: 16px;
   z-index: 6;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  padding: 0;
-  border: 1px solid var(--nodes-border);
-  border-radius: 50%;
-  background: var(--nodes-surface);
-  cursor: pointer;
-  box-shadow: var(--nodes-shadow);
-  transition: box-shadow 140ms ease, transform 140ms ease;
+  transition:
+    right 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.1s,
+    border-color 0.1s,
+    color 0.1s,
+    transform 0.1s;
 }
 
-.nodes-chat-dock__launcher:hover {
-  box-shadow: 0 3px 8px rgba(15, 15, 15, 0.1), 0 12px 28px rgba(15, 15, 15, 0.12);
-  transform: translateY(-1px);
+.workspace-nodes-page.has-chat-dock .nodes-chat-dock__launcher,
+.workspace-graph-page.has-chat-dock .nodes-chat-dock__launcher {
+  right: calc(var(--chat-dock-w, 0px) + 16px);
 }
 
-.nodes-chat-dock__launcher svg,
-.nodes-chat-dock__launcher img {
-  width: 30px;
-  height: 30px;
-  display: block;
+@media (prefers-reduced-motion: reduce) {
+  .nodes-chat-dock,
+  .nodes-chat-dock.is-open,
+  .nodes-chat-dock.is-closing,
+  .chat-floating-button.nodes-chat-dock__launcher {
+    transition: none;
+  }
 }

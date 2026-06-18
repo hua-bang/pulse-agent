@@ -9,7 +9,8 @@ import type { UseCanvasSearchReturn } from '../../hooks/useCanvasSearch';
 import { CanvasEmptyHint } from '../CanvasEmptyHint';
 import { EdgeStylePanel } from '../EdgeStylePanel';
 import { EdgeLabel } from '../EdgeLabel';
-import { SelectionToolbar } from '../SelectionToolbar';
+import { ChatFloatingButton } from '../ChatFloatingButton';
+import { useI18n } from '../../i18n';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { AddNodeOptions } from '../../hooks/useNodes';
 
@@ -147,6 +148,8 @@ export const CanvasOverlays = ({
   onCommitEditEdgeLabel,
   onCancelEditEdgeLabel,
 }: CanvasOverlaysProps) => {
+  const { t } = useI18n();
+
   return (
     <>
       {nodes.length === 0 && !contextMenu && (
@@ -239,39 +242,31 @@ export const CanvasOverlays = ({
           ))}
 
       <div className="canvas-bottom-chrome">
-        <SelectionToolbar
-          selectedCount={selectedNodeIds.length}
-          canFocus={selectedNodeIds.length === 1 && !!focusModeAvailable}
-          focusModeActive={!!focusModeActive}
-          canGroup={selectedNodeIds.length > 1}
-          canPinReference={selectedNodeIds.length === 1 && !!onPinReferenceSelection}
-          canAddToChat={selectedNodeIds.length === 1 && !!onAddSelectionToChat}
-          showPinReference={!!onPinReferenceSelection}
-          showAddToChat={!!onAddSelectionToChat}
-          onFitSelection={onFitSelection ?? (() => undefined)}
-          onDuplicate={onDuplicateSelection ?? (() => undefined)}
-          onToggleFocus={onToggleFocusMode ?? (() => undefined)}
-          onGroup={onGroupSelection ?? (() => undefined)}
-          onWrapFrame={onWrapSelectionInFrame ?? (() => undefined)}
-          onPinReference={onPinReferenceSelection ?? (() => undefined)}
-          onAddToChat={onAddSelectionToChat ?? (() => undefined)}
-          onDelete={onDeleteSelection ?? (() => undefined)}
-        />
         <FloatingToolbar
           activeTool={activeTool}
           onToolChange={onToolChange}
           onAddNode={onAddNode}
           onCreateAgentTeam={onCreateAgentTeam}
-          chatPanelOpen={chatPanelOpen}
-          onChatToggle={onChatToggle}
           referenceDrawerOpen={referenceDrawerOpen}
           onReferenceToggle={onReferenceToggle}
         />
-        <ZoomIndicator
-          scale={scale}
-          onReset={onResetTransform}
-          onFitAll={onFitAll}
-        />
+        <div className="canvas-bottom-chrome__left">
+          <ZoomIndicator
+            scale={scale}
+            onReset={onResetTransform}
+            onFitAll={onFitAll}
+          />
+        </div>
+        <div className="canvas-bottom-chrome__right">
+          {onChatToggle && (
+            <ChatFloatingButton
+              active={chatPanelOpen}
+              onClick={onChatToggle}
+              title={t('canvas.toolbar.toggleChat')}
+              ariaLabel={t('canvas.toolbar.toggleChat')}
+            />
+          )}
+        </div>
       </div>
 
       {searchOpen && (

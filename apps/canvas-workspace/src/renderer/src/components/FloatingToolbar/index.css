@@ -20,7 +20,9 @@
   bottom: auto;
   left: auto;
   grid-column: 2;
+  grid-row: 1;
   justify-self: center;
+  align-self: center;
   max-width: 100%;
   transform: none;
   pointer-events: auto;
