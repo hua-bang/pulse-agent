@@ -20,7 +20,7 @@ import { TextNodeBody } from '../TextNodeBody';
 import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
-import type { ResizeHandlerFactory } from './types';
+import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 
 interface DefaultCanvasNodeProps {
   classes: string;
@@ -53,6 +53,7 @@ interface DefaultCanvasNodeProps {
   onUngroupSelectedGroups?: () => void;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   readOnly: boolean;
+  renderMode?: CanvasNodeRenderMode;
   relativeTime: string | null;
   rootFolder?: string;
   titleRef: RefObject<HTMLSpanElement>;
@@ -92,6 +93,7 @@ export const DefaultCanvasNode = ({
   onUngroupSelectedGroups,
   onUpdate,
   readOnly,
+  renderMode = 'full',
   relativeTime,
   rootFolder,
   titleRef,
@@ -169,34 +171,53 @@ export const DefaultCanvasNode = ({
     })();
   }, [node.id, node.title, notify, onAddDomSelectionToChat, pluginElementPickerActive, workspaceId]);
 
+  const frameTitleOnly = node.type === 'frame' && renderMode === 'frame-title';
+  const frameBodyOnly = node.type === 'frame' && renderMode === 'frame-body';
+  const nodeClasses = [
+    classes,
+    frameTitleOnly && 'canvas-node--frame-title-overlay',
+    frameBodyOnly && 'canvas-node--frame-body-layer',
+  ].filter(Boolean).join(' ');
+  const header = (
+    <CanvasNodeHeader
+      fullscreenButton={fullscreenButton}
+      containerDescendantCount={containerDescendantCount}
+      handleClose={handleClose}
+      handleFocus={handleFocus}
+      handleHeaderMouseDown={handleHeaderMouseDown}
+      handlePluginSelectElement={handlePluginSelectElement}
+      handleReference={handleReference}
+      handleAddToChat={handleAddToChat}
+      handleTitleBlur={handleTitleBlur}
+      handleTitleDoubleClick={handleTitleDoubleClick}
+      handleTitleKeyDown={handleTitleKeyDown}
+      handleUngroup={handleUngroup}
+      isEditingTitle={isEditingTitle}
+      isFullscreen={isFullscreen}
+      isSelected={isSelected}
+      node={node}
+      pluginElementPickerActive={pluginElementPickerActive}
+      onReference={onReference}
+      onAddToChat={onAddToChat}
+      onUngroupSelectedGroups={onUngroupSelectedGroups}
+      onUpdate={onUpdate}
+      readOnly={readOnly}
+      relativeTime={relativeTime}
+      titleRef={titleRef}
+    />
+  );
+
+  if (frameTitleOnly) {
+    return (
+      <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
+        {header}
+      </div>
+    );
+  }
+
   return (
-    <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
-      <CanvasNodeHeader
-        fullscreenButton={fullscreenButton}
-        containerDescendantCount={containerDescendantCount}
-        handleClose={handleClose}
-        handleFocus={handleFocus}
-        handleHeaderMouseDown={handleHeaderMouseDown}
-        handlePluginSelectElement={handlePluginSelectElement}
-        handleReference={handleReference}
-        handleAddToChat={handleAddToChat}
-        handleTitleBlur={handleTitleBlur}
-        handleTitleDoubleClick={handleTitleDoubleClick}
-        handleTitleKeyDown={handleTitleKeyDown}
-        handleUngroup={handleUngroup}
-        isEditingTitle={isEditingTitle}
-        isFullscreen={isFullscreen}
-        isSelected={isSelected}
-        node={node}
-        pluginElementPickerActive={pluginElementPickerActive}
-        onReference={onReference}
-        onAddToChat={onAddToChat}
-        onUngroupSelectedGroups={onUngroupSelectedGroups}
-        onUpdate={onUpdate}
-        readOnly={readOnly}
-        relativeTime={relativeTime}
-        titleRef={titleRef}
-      />
+    <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
+      {!frameBodyOnly && header}
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         {node.type === 'file' ? (
           <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />

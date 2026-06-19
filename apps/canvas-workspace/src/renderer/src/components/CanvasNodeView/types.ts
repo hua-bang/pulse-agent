@@ -2,6 +2,8 @@ import type { MouseEvent, ReactNode } from 'react';
 import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 
+export type CanvasNodeRenderMode = 'full' | 'frame-body' | 'frame-title';
+
 export interface CanvasNodeViewProps {
   node: CanvasNode;
   getAllNodes?: () => CanvasNode[];
@@ -42,6 +44,7 @@ export interface CanvasNodeViewProps {
   onToggleFullscreen?: (nodeId: string) => void;
   readOnly?: boolean;
   embedded?: boolean;
+  renderMode?: CanvasNodeRenderMode;
 }
 
 export type ResizeHandlerFactory = (edge: ResizeEdge) => (e: MouseEvent) => void;

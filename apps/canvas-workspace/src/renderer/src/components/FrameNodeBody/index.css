@@ -78,6 +78,27 @@
   box-shadow: 0 0 0 2px oklch(0.66 calc(var(--_c) * 1.10) var(--_h) / 0.30);
 }
 
+.canvas-node--frame.canvas-node--frame-title-overlay,
+.canvas-node--frame.canvas-node--frame-title-overlay:hover,
+.canvas-node--frame.canvas-node--frame-title-overlay.canvas-node--selected,
+.canvas-node--frame.canvas-node--frame-title-overlay.canvas-node--focus-mode-focused,
+.canvas-node--frame.canvas-node--frame-title-overlay.canvas-node--focus-mode-focused.canvas-node--selected {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  content-visibility: visible;
+  pointer-events: none;
+  z-index: 120;
+}
+
+.canvas-node--frame.canvas-node--frame-title-overlay::before {
+  display: none;
+}
+
+.canvas-node--frame.canvas-node--frame-title-overlay>.node-header {
+  pointer-events: auto;
+}
+
 /* ---- Header pill ----
  * Floating chip above the frame body, inset from the top-left corner. The
  * body's 30px radius keeps the corner clear so the bottom of the pill can

@@ -43,6 +43,7 @@ const CanvasNodeViewComponent = ({
   onToggleFullscreen,
   readOnly = false,
   embedded = false,
+  renderMode = 'full',
 }: CanvasNodeViewProps) => {
   const viewModel = useCanvasNodeViewModel({
     embedded,
@@ -206,6 +207,7 @@ const CanvasNodeViewComponent = ({
       onUngroupSelectedGroups={onUngroupSelectedGroups}
       onUpdate={onUpdate}
       readOnly={readOnly}
+      renderMode={renderMode}
       relativeTime={viewModel.relativeTime}
       rootFolder={rootFolder}
       titleRef={viewModel.titleRef}
@@ -236,5 +238,6 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.onAddDomSelectionToChat === next.onAddDomSelectionToChat &&
   prev.onRemoveNodes === next.onRemoveNodes &&
   prev.readOnly === next.readOnly &&
-  prev.embedded === next.embedded
+  prev.embedded === next.embedded &&
+  prev.renderMode === next.renderMode
 ));
