@@ -47,19 +47,28 @@ export const FrameNodeBody = ({
 
 /* ---- Color picker (rendered in header) ---- */
 
-// FigJam-style soft palette: L≈70, S≈55%, hues evenly distributed.
-// These read as a cohesive family and produce good dark-text contrast in the
-// narrow header tab (see FrameNodeBody/index.css).
+// "Soft" palette from design/frame-color.html.
+//
+// Each preset is one hue around the wheel (terracotta → amber → citron →
+// sage → teal → azure → indigo → plum + a low-chroma graphite slot). All
+// derived tones (pill bg, pill text, body tint, border, dot pattern) are
+// computed in CSS as `oklch(L C var(--frame-hue))` with the design's exact
+// L/C math; see CanvasNodeView/utils.ts for the parse path.
+//
+// `value` is the saturated identity at L=0.66, C=0.155 — what the picker
+// dot displays and what gets written into `data.color`. The 9th preset uses
+// near-zero chroma so the frame reads as a quiet neutral (like the design's
+// gray frame in the 3×3 grid).
 const COLOR_PRESETS = [
-  { name: "Red", value: "#F08F82" },
-  { name: "Orange", value: "#F5B36B" },
-  { name: "Yellow", value: "#E8C468" },
-  { name: "Green", value: "#7BC89B" },
-  { name: "Teal", value: "#6FBFC7" },
-  { name: "Blue", value: "#7AA7E8" },
-  { name: "Purple", value: "#A594E0" },
-  { name: "Pink", value: "#E89BBF" },
-  { name: "Gray", value: "#A8B0BD" }
+  { name: "Terracotta", hue: 32,  value: "oklch(0.66 0.155 32)"  },
+  { name: "Amber",      hue: 68,  value: "oklch(0.66 0.155 68)"  },
+  { name: "Citron",     hue: 108, value: "oklch(0.66 0.155 108)" },
+  { name: "Sage",       hue: 152, value: "oklch(0.66 0.155 152)" },
+  { name: "Teal",       hue: 195, value: "oklch(0.66 0.155 195)" },
+  { name: "Azure",      hue: 248, value: "oklch(0.66 0.155 248)" },
+  { name: "Indigo",     hue: 292, value: "oklch(0.66 0.155 292)" },
+  { name: "Plum",       hue: 328, value: "oklch(0.66 0.155 328)" },
+  { name: "Graphite",   hue: 265, value: "oklch(0.66 0.006 265)" }
 ];
 
 interface ColorPickerProps {
