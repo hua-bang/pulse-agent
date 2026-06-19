@@ -40,7 +40,7 @@ function makeFrameNode(id: string, label: string, color: string): CanvasNode {
     id,
     type: 'frame',
     title: 'Test Frame',
-    x: 0, y: 0, width: 600, height: 400,
+    x: 0, y: 0, width: 720, height: 600,
     data: { label, color },
   };
 }

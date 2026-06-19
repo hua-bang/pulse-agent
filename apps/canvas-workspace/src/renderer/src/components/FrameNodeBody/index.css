@@ -25,12 +25,15 @@
 .canvas-node--frame {
   --_c: var(--frame-chroma, 0.072);
   --_h: var(--frame-hue, 250);
+  /* Tunable opacity. The design reference uses an almost-solid pale tint;
+   * keeping this as a variable lets focus/experiments still tune it. */
+  --_a: var(--frame-bg-alpha, 1);
 
-  background: oklch(0.986 calc(var(--_c) * 0.10) var(--_h));
+  background: oklch(0.986 calc(var(--_c) * 0.10) var(--_h) / var(--_a));
   border: 1.5px dashed oklch(0.90 calc(var(--_c) * 0.40) var(--_h));
-  border-radius: 12px;
+  border-radius: 30px;
   box-shadow: none;
-  /* Header pill floats above the body via top:-22px, so we mustn't clip it. */
+  /* Header pill floats above the body via top:-21px, so we mustn't clip it. */
   overflow: visible;
 }
 
@@ -46,8 +49,8 @@
   background-image: radial-gradient(circle,
       oklch(0.90 calc(var(--_c) * 0.16) var(--_h)) 1px,
       transparent 1px);
-  background-size: 28px 28px;
-  opacity: 0.5;
+  background-size: 30px 30px;
+  opacity: 0.4;
   z-index: 0;
 }
 
@@ -69,7 +72,7 @@
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.978 calc(var(--_c) * 0.13) var(--_h));
+  background: oklch(0.978 calc(var(--_c) * 0.13) var(--_h) / 0.88);
   border-style: solid;
   border-color: oklch(0.85 calc(var(--_c) * 0.45) var(--_h));
   box-shadow: 0 0 0 2px oklch(0.66 calc(var(--_c) * 1.10) var(--_h) / 0.30);
@@ -77,7 +80,7 @@
 
 /* ---- Header pill ----
  * Floating chip above the frame body, inset from the top-left corner. The
- * body's 20px radius keeps the corner clear so the bottom of the pill can
+ * body's 30px radius keeps the corner clear so the bottom of the pill can
  * sit slightly inside the body. */
 
 .canvas-node--frame .node-header {
@@ -85,20 +88,20 @@
   --_h: var(--frame-hue, 250);
 
   position: absolute;
-  top: -22px;
-  left: 16px;
-  height: 28px;
+  top: -21px;
+  left: 34px;
+  height: auto;
   /* Override the generic .node-header min-height: 32px so the pill renders
    * at its intended height. */
   min-height: 0;
   width: auto;
-  max-width: calc(100% - 32px);
-  padding: 0 10px;
-  gap: 7px;
+  max-width: calc(100% - 68px);
+  padding: 9px 14px 9px 12px;
+  gap: 9px;
 
   background: oklch(0.935 calc(var(--_c) * 0.55) var(--_h));
   border: none;
-  border-radius: 8px;
+  border-radius: 13px;
   color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
 
   /* Soft tinted shadow — pill reads as floating, not glued to the body. */
@@ -112,18 +115,22 @@
    * so the pill grows downward into the body, not upward off the frame. */
   transform: scale(calc(clamp(0.6, var(--canvas-scale, 1), 1) / var(--canvas-scale, 1)));
   transform-origin: left top;
-  z-index: 2;
+  z-index: 120;
 }
 
 .canvas-node--frame .node-header .node-type-badge--frame {
   color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
+  width: 15px;
+  height: 15px;
 }
 
 .canvas-node--frame .node-header .node-title {
+  flex: 0 1 auto;
   color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
   font-weight: 700;
-  font-size: 13px;
-  letter-spacing: -0.005em;
+  font-size: 15px;
+  line-height: 1.2;
+  letter-spacing: 0;
 }
 
 .canvas-node--frame .node-header .node-title:focus {
@@ -133,8 +140,9 @@
 
 /* ---- Children-collapse toggle / count badge ----
  * Compact rounded-square chip carrying the count, in the design's countBg
- * tone (slightly darker than the pill bg). The chevron stays for the
- * collapse-children behavior. */
+ * tone (slightly darker than the pill bg). The button still owns the
+ * collapse-children behavior; the icon is hidden so the resting state reads
+ * like the reference's simple count badge. */
 
 .frame-children-toggle {
   --_c: var(--frame-chroma, 0.072);
@@ -143,10 +151,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 0;
   flex-shrink: 0;
-  height: 19px;
-  min-width: 28px;
+  height: 21px;
+  min-width: 21px;
   padding: 0 6px;
   border: 0;
   border-radius: 7px;
@@ -160,9 +168,7 @@
 }
 
 .frame-children-toggle svg {
-  flex: 0 0 auto;
-  width: 13px;
-  height: 13px;
+  display: none;
 }
 
 .frame-children-toggle-icon__chevron,
@@ -212,7 +218,7 @@
 
 .frame-children-toggle:disabled {
   cursor: default;
-  opacity: 0.5;
+  opacity: 1;
 }
 
 .frame-children-toggle:disabled:hover {
@@ -226,9 +232,9 @@
 }
 
 .frame-children-count {
-  min-width: 6px;
+  min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-size: 12.5px;
   font-weight: 700;
   line-height: 1;
   text-align: center;
@@ -256,6 +262,63 @@
   color: #d03b3b;
 }
 
+.canvas-node--frame .node-header .node-header__actions,
+.canvas-transform--small .canvas-node--frame .node-header .node-header__actions {
+  position: static;
+  transform: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+  transition: none;
+  z-index: auto;
+}
+
+.canvas-node--frame .node-header .node-header__actions .node-reference,
+.canvas-node--frame .node-header .node-header__actions .node-add-to-chat,
+.canvas-node--frame .node-header .node-header__actions .node-focus,
+.canvas-node--frame .node-header .node-header__actions .node-fullscreen,
+.canvas-node--frame .node-header .node-header__actions .node-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: oklch(0.55 calc(var(--_c) * 0.80) var(--_h));
+}
+
+.canvas-node--frame .node-header .node-header__actions .node-reference svg,
+.canvas-node--frame .node-header .node-header__actions .node-add-to-chat svg,
+.canvas-node--frame .node-header .node-header__actions .node-focus svg,
+.canvas-node--frame .node-header .node-header__actions .node-fullscreen svg,
+.canvas-node--frame .node-header .node-header__actions .node-close svg {
+  width: 17px;
+  height: 17px;
+}
+
+.canvas-node--frame:hover .node-header .node-header__actions .node-reference,
+.canvas-node--frame:hover .node-header .node-header__actions .node-add-to-chat,
+.canvas-node--frame:hover .node-header .node-header__actions .node-focus,
+.canvas-node--frame:hover .node-header .node-header__actions .node-fullscreen,
+.canvas-node--frame:hover .node-header .node-header__actions .node-close,
+.canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-reference,
+.canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-add-to-chat,
+.canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-focus,
+.canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-fullscreen,
+.canvas-node--frame.canvas-node--selected .node-header .node-header__actions .node-close,
+.canvas-node--frame .node-header:focus-within .node-header__actions .node-reference,
+.canvas-node--frame .node-header:focus-within .node-header__actions .node-add-to-chat,
+.canvas-node--frame .node-header:focus-within .node-header__actions .node-focus,
+.canvas-node--frame .node-header:focus-within .node-header__actions .node-fullscreen,
+.canvas-node--frame .node-header:focus-within .node-header__actions .node-close {
+  opacity: 1;
+}
+
 /* ---- Body fill ---- */
 
 .canvas-node--frame .node-body {
@@ -271,12 +334,13 @@
 
 /* ---- Color trigger (in pill) ----
  * Reserve a fixed 16px slot so the pill width doesn't jump when the dot
- * fades in on hover. */
+ * fades in on hover or selection. */
 .frame-color-trigger {
   --_c: var(--frame-chroma, 0.072);
   --_h: var(--frame-hue, 250);
 
   position: relative;
+  transform: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -285,9 +349,12 @@
   width: 16px;
   height: 16px;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 5;
 }
 
+.canvas-node--frame:hover .frame-color-trigger,
+.canvas-node--frame.canvas-node--selected .frame-color-trigger,
 .node-header:hover .frame-color-trigger,
 .frame-color-trigger:focus-within,
 .frame-color-trigger--open {
