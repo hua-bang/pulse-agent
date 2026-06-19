@@ -17,7 +17,7 @@ export const NODE_CAPABILITIES: Record<NodeType, NodeCapability[]> = {
 export const DEFAULT_NODE_DIMENSIONS: Record<NodeType, { title: string; width: number; height: number }> = {
   file: { title: 'Untitled', width: 420, height: 360 },
   terminal: { title: 'Terminal', width: 480, height: 300 },
-  frame: { title: 'Frame', width: 600, height: 400 },
+  frame: { title: 'Frame', width: 720, height: 600 },
   group: { title: 'Group', width: 360, height: 240 },
   agent: { title: 'Agent', width: 520, height: 380 },
   mindmap: { title: 'Mindmap', width: 640, height: 420 },

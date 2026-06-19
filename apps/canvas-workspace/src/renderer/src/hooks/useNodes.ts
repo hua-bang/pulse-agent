@@ -821,7 +821,7 @@ export const useNodes = (
       const targets = nodesRef.current.filter((n) => idSet.has(n.id));
       if (targets.length === 0) return null;
 
-      const PADDING = 40;
+      const PADDING = { x: 40, top: 72, bottom: 40 };
       let minX = Infinity;
       let minY = Infinity;
       let maxX = -Infinity;
@@ -837,10 +837,10 @@ export const useNodes = (
         id: genId(),
         type: 'frame',
         title: 'Frame',
-        x: minX - PADDING,
-        y: minY - PADDING,
-        width: maxX - minX + PADDING * 2,
-        height: maxY - minY + PADDING * 2,
+        x: minX - PADDING.x,
+        y: minY - PADDING.top,
+        width: maxX - minX + PADDING.x * 2,
+        height: maxY - minY + PADDING.top + PADDING.bottom,
         data: createNodeData('frame'),
         updatedAt: Date.now(),
       };

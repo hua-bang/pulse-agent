@@ -130,8 +130,7 @@ const resolveFrameHue = (color: string): { hue: number; chroma: number } => {
 };
 
 export const getNodeWrapperStyle = (node: CanvasNode): CSSProperties => {
-  const base: CSSProperties = {
-    transform: `translate(${node.x}px, ${node.y}px)`,
+  const size: CSSProperties = {
     width: node.width,
     height: node.height,
   };
@@ -139,12 +138,18 @@ export const getNodeWrapperStyle = (node: CanvasNode): CSSProperties => {
     const color = (node.data as FrameNodeData).color;
     const { hue, chroma } = resolveFrameHue(color);
     return {
-      ...base,
+      ...size,
+      left: node.x,
+      top: node.y,
       '--frame-color': color,
       '--frame-hue': String(hue),
       '--frame-chroma': String(chroma),
     } as CSSProperties;
   }
+  const base: CSSProperties = {
+    ...size,
+    transform: `translate(${node.x}px, ${node.y}px)`,
+  };
   if (node.type === 'group') {
     return {
       ...base,

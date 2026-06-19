@@ -21,7 +21,7 @@ export type CreatableCanvasNodeType = Extract<
 const NODE_DEFAULTS: Record<CanvasNode['type'], { title: string; width: number; height: number }> = {
   file:     { title: 'Untitled', width: 420, height: 360 },
   terminal: { title: 'Terminal', width: 480, height: 300 },
-  frame:    { title: 'Frame',    width: 600, height: 400 },
+  frame:    { title: 'Frame',    width: 720, height: 600 },
   group:    { title: 'Group',    width: 360, height: 240 },
   agent:    { title: 'Coding Agent', width: 520, height: 440 },
   text:     { title: 'Text',     width: 260, height: 120 },

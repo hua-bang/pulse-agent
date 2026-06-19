@@ -13,9 +13,16 @@ export const NodeTypeBadge = ({ type }: { type: CanvasNode['type'] }) => (
         <path d="M4.5 7l2 1.5-2 1.5M8 10.5h3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ) : type === 'frame' ? (
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-        <rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" strokeWidth="1.3" />
-        <rect x="4.5" y="4.5" width="7" height="7" rx="1" stroke="currentColor" strokeWidth="1" strokeDasharray="2 1.5" />
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+        <path
+          d="M8 1.4l1.15 3.45L12.6 6l-3.45 1.15L8 10.6 6.85 7.15 3.4 6l3.45-1.15z"
+          fill="currentColor"
+        />
+        <path
+          d="M12.7 9.6l.45 1.35 1.35.45-1.35.45-.45 1.35-.45-1.35-1.35-.45 1.35-.45z"
+          fill="currentColor"
+          opacity="0.75"
+        />
       </svg>
     ) : type === 'group' ? (
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
