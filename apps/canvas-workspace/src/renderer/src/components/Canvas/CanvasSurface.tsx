@@ -12,6 +12,7 @@ import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
 import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { useI18n } from '../../i18n';
+import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
 
 interface NodeRenderGroup {
   containers: CanvasNode[];
@@ -169,148 +170,119 @@ export const CanvasSurface = ({
   onEdgeBodyDoubleClick,
   onEdgeBodyContextMenu,
   getAllNodes,
-}: CanvasSurfaceProps) => (
-  <div
-    className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${transform.scale < 0.6 ? ' canvas-transform--small' : ''}`}
-    style={{
-      transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-      '--canvas-scale': transform.scale,
-      transition: animating
-        ? 'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94), --canvas-scale 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-        : undefined,
-    } as React.CSSProperties}
-  >
-    {/* Focus-mode backdrop: a giant translucent dark rectangle that
-        lives INSIDE the transform so it scales/pans with the canvas
-        and we never have to fight `.canvas-transform`'s stacking
-        context. Sized large enough to cover any reasonable zoom/pan
-        combination so the user never sees its edge. Without this, the
-        per-node dim opacity competes with a bright white canvas
-        background and the focused node fails to pop. */}
-    {focusModeEnabled && <div className="canvas-focus-backdrop" />}
-    {/* Fullscreen backdrop. Sits between the other (now offset-jumped)
-        nodes and the fullscreen node, dimming everything behind. Click
-        anywhere on the backdrop to exit. */}
-    {fullscreenNodeId && (
-      <div
-        className="canvas-fullscreen-backdrop"
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          onExitFullscreen?.();
-        }}
-      />
-    )}
-    {/* Containers render first as the canvas background/grouping layer. Edges
-        render after containers so frame fills can no longer cover connection
-        lines, while regular nodes still paint above edges. */}
-    {renderGroups.containers
-      .map((node) => (
-        <CanvasNodeView
-          key={node.id}
-          node={node}
-          getAllNodes={getAllNodes}
-          rootFolder={rootFolder}
-          workspaceId={canvasId}
-          workspaceName={canvasName}
-          isDragging={draggingIds.has(node.id) || draggingId === node.id}
-          isResizing={resizingId === node.id}
-          isSelected={selectedNodeIdSet.has(node.id)}
-          isHighlighted={highlightedId === node.id}
-          isAgentEdited={externallyEditedIds.has(node.id)}
-          focusState={!focusModeEnabled
-            ? 'neutral'
-            : focusedNodeIds?.has(node.id) ? 'focused'
-              : focusContextNodeIds?.has(node.id) ? 'context'
-                : 'dimmed'}
-          onDragStart={onDragStart}
-          onResizeStart={onResizeStart}
-          onUpdate={onUpdate}
-          onAutoResize={onAutoResize}
-          onRemove={onRemove}
-          onRemoveNodes={onRemoveNodes}
-          onExportMindmapImage={onExportMindmapImage}
-          onSelect={onSelect}
-          onFocus={onFocus}
-          onReference={onReference}
-          onAddToChat={onAddToChat}
-          onAddDomSelectionToChat={onAddDomSelectionToChat}
-          resolveReferenceNode={resolveReferenceNode}
-          onOpenReferenceSource={onOpenReferenceSource}
-          onUpdateReferenceSource={onUpdateReferenceSource}
-          onUngroupSelectedGroups={onUngroupSelectedGroups}
-          isFullscreen={fullscreenNodeId === node.id}
-          onToggleFullscreen={onToggleFullscreen}
-        />
-      ))}
-    <CanvasEdgesLayer
-      edges={edges}
-      nodes={nodes}
-      selectedEdgeId={selectedEdgeId}
-      onSelectEdge={onSelectEdge}
-      interactionState={edgeInteractionState}
-      previewEndpoints={edgePreviewEndpoints}
-      focusedNodeIds={focusedNodeIds}
-      focusContextNodeIds={focusContextNodeIds}
-      focusModeEnabled={focusModeEnabled}
-      onHandleMouseDown={onEdgeHandleMouseDown}
-      onBodyMouseDown={onEdgeBodyMouseDown}
-      onBodyDoubleClick={onEdgeBodyDoubleClick}
-      onBodyContextMenu={onEdgeBodyContextMenu}
+}: CanvasSurfaceProps) => {
+  const renderNode = (node: CanvasNode, renderMode: CanvasNodeRenderMode = 'full') => (
+    <CanvasNodeView
+      key={`${node.id}:${renderMode}`}
+      node={node}
+      getAllNodes={getAllNodes}
+      rootFolder={rootFolder}
+      workspaceId={canvasId}
+      workspaceName={canvasName}
+      isDragging={draggingIds.has(node.id) || draggingId === node.id}
+      isResizing={resizingId === node.id}
+      isSelected={selectedNodeIdSet.has(node.id)}
+      isHighlighted={highlightedId === node.id}
+      isAgentEdited={externallyEditedIds.has(node.id)}
+      focusState={!focusModeEnabled
+        ? 'neutral'
+        : focusedNodeIds?.has(node.id) ? 'focused'
+          : focusContextNodeIds?.has(node.id) ? 'context'
+            : 'dimmed'}
+      onDragStart={onDragStart}
+      onResizeStart={onResizeStart}
+      onUpdate={onUpdate}
+      onAutoResize={onAutoResize}
+      onRemove={onRemove}
+      onRemoveNodes={onRemoveNodes}
+      onExportMindmapImage={onExportMindmapImage}
+      onSelect={onSelect}
+      onFocus={onFocus}
+      onReference={onReference}
+      onAddToChat={onAddToChat}
+      onAddDomSelectionToChat={onAddDomSelectionToChat}
+      resolveReferenceNode={resolveReferenceNode}
+      onOpenReferenceSource={onOpenReferenceSource}
+      onUpdateReferenceSource={onUpdateReferenceSource}
+      onUngroupSelectedGroups={onUngroupSelectedGroups}
+      isFullscreen={fullscreenNodeId === node.id}
+      onToggleFullscreen={onToggleFullscreen}
+      renderMode={renderMode}
     />
-    {renderGroups.regular
-      .map((node) => (
-        <CanvasNodeView
-          key={node.id}
-          node={node}
-          getAllNodes={getAllNodes}
-          rootFolder={rootFolder}
-          workspaceId={canvasId}
-          workspaceName={canvasName}
-          isDragging={draggingIds.has(node.id) || draggingId === node.id}
-          isResizing={resizingId === node.id}
-          isSelected={selectedNodeIdSet.has(node.id)}
-          isHighlighted={highlightedId === node.id}
-          isAgentEdited={externallyEditedIds.has(node.id)}
-          focusState={!focusModeEnabled
-            ? 'neutral'
-            : focusedNodeIds?.has(node.id) ? 'focused'
-              : focusContextNodeIds?.has(node.id) ? 'context'
-                : 'dimmed'}
-          onDragStart={onDragStart}
-          onResizeStart={onResizeStart}
-          onUpdate={onUpdate}
-          onAutoResize={onAutoResize}
-          onRemove={onRemove}
-          onRemoveNodes={onRemoveNodes}
-          onExportMindmapImage={onExportMindmapImage}
-          onSelect={onSelect}
-          onFocus={onFocus}
-          onReference={onReference}
-          onAddToChat={onAddToChat}
-          onAddDomSelectionToChat={onAddDomSelectionToChat}
-          resolveReferenceNode={resolveReferenceNode}
-          onOpenReferenceSource={onOpenReferenceSource}
-          onUpdateReferenceSource={onUpdateReferenceSource}
-          onUngroupSelectedGroups={onUngroupSelectedGroups}
-          isFullscreen={fullscreenNodeId === node.id}
-          onToggleFullscreen={onToggleFullscreen}
+  );
+
+  return (
+    <div
+      className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${transform.scale < 0.6 ? ' canvas-transform--small' : ''}`}
+      style={{
+        transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
+        '--canvas-scale': transform.scale,
+        transition: animating
+          ? 'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94), --canvas-scale 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+          : undefined,
+      } as React.CSSProperties}
+    >
+      {/* Focus-mode backdrop: a giant translucent dark rectangle that
+          lives INSIDE the transform so it scales/pans with the canvas
+          and we never have to fight `.canvas-transform`'s stacking
+          context. Sized large enough to cover any reasonable zoom/pan
+          combination so the user never sees its edge. Without this, the
+          per-node dim opacity competes with a bright white canvas
+          background and the focused node fails to pop. */}
+      {focusModeEnabled && <div className="canvas-focus-backdrop" />}
+      {/* Fullscreen backdrop. Sits between the other (now offset-jumped)
+          nodes and the fullscreen node, dimming everything behind. Click
+          anywhere on the backdrop to exit. */}
+      {fullscreenNodeId && (
+        <div
+          className="canvas-fullscreen-backdrop"
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            onExitFullscreen?.();
+          }}
         />
+      )}
+      {/* Containers render first as the canvas background/grouping layer. Edges
+          render after containers so frame fills can no longer cover connection
+          lines, while regular nodes still paint above edges. */}
+      {renderGroups.containers.map((node) => (
+        renderNode(node, node.type === 'frame' ? 'frame-body' : 'full')
       ))}
-    {shapeDraft && <ShapeDraftPreview draft={shapeDraft} scale={transform.scale} />}
-    {marqueeRect && <MarqueePreview rect={marqueeRect} scale={transform.scale} />}
-    {snapLines && snapLines.length > 0 && (
-      <CanvasAlignmentGuides lines={snapLines} scale={transform.scale} />
-    )}
-    {(dragPreview || resizePreview) && (
-      <CanvasGestureHud
-        dragPreview={dragPreview}
+      <CanvasEdgesLayer
+        edges={edges}
         nodes={nodes}
-        resizePreview={resizePreview}
-        scale={transform.scale}
+        selectedEdgeId={selectedEdgeId}
+        onSelectEdge={onSelectEdge}
+        interactionState={edgeInteractionState}
+        previewEndpoints={edgePreviewEndpoints}
+        focusedNodeIds={focusedNodeIds}
+        focusContextNodeIds={focusContextNodeIds}
+        focusModeEnabled={focusModeEnabled}
+        onHandleMouseDown={onEdgeHandleMouseDown}
+        onBodyMouseDown={onEdgeBodyMouseDown}
+        onBodyDoubleClick={onEdgeBodyDoubleClick}
+        onBodyContextMenu={onEdgeBodyContextMenu}
       />
-    )}
-  </div>
-);
+      {renderGroups.regular.map((node) => renderNode(node))}
+      {!fullscreenNodeId && renderGroups.containers
+        .filter((node) => node.type === 'frame')
+        .map((node) => renderNode(node, 'frame-title'))}
+      {shapeDraft && <ShapeDraftPreview draft={shapeDraft} scale={transform.scale} />}
+      {marqueeRect && <MarqueePreview rect={marqueeRect} scale={transform.scale} />}
+      {snapLines && snapLines.length > 0 && (
+        <CanvasAlignmentGuides lines={snapLines} scale={transform.scale} />
+      )}
+      {(dragPreview || resizePreview) && (
+        <CanvasGestureHud
+          dragPreview={dragPreview}
+          nodes={nodes}
+          resizePreview={resizePreview}
+          scale={transform.scale}
+        />
+      )}
+    </div>
+  );
+};
 
 /**
  * Dashed rectangle drawn while the user box-selects on blank canvas.

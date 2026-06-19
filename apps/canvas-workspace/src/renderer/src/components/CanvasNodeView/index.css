@@ -12,6 +12,33 @@
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
+/* Skip layout / paint / hit-test for nodes that are offscreen. The wrapper
+ * already has explicit width/height inline (see CanvasNodeView/utils.ts
+ * getNodeWrapperStyle), so contain-intrinsic-size isn't required for the
+ * box to keep its size when content is skipped — Chromium falls back to
+ * the explicit width/height. The win:
+ *  - React mount stays unchanged (no churn during pan/resize, no Tiptap /
+ *    xterm / webview re-init cost — that's why we did NOT switch to
+ *    viewport-based mount/unmount).
+ *  - Browser skips paint and tile rasterization for nodes outside the
+ *    visible viewport, easing the "tile memory limits exceeded" pressure
+ *    on large canvases.
+ *
+ * Carve-outs: node types whose internal engines read DOM dimensions on
+ * init (Tiptap, xterm) or run a separate rendering pipeline (<webview>,
+ * mindmap's force-graph) are excluded — those need to be visible when
+ * they boot or they may compute a 0×0 layout and never recover. They
+ * still benefit indirectly via .canvas-transform--moving (will-change is
+ * only set during pan/zoom, see Canvas/index.css). */
+.canvas-node--frame,
+.canvas-node--group,
+.canvas-node--text,
+.canvas-node--shape,
+.canvas-node--image,
+.canvas-node--reference {
+  content-visibility: auto;
+}
+
 /* File / note nodes — Heptabase + Notion lean. The chrome is intentionally
  * quieter than the generic node: warmer paper background, softer
  * shadow, slightly larger corner radius, and a header that fades into
