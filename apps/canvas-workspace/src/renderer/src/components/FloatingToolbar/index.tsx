@@ -36,52 +36,52 @@ const tools: Array<{
   labelKey: I18nKey;
   icon: JSX.Element;
 }> = [
-  {
-    id: "select",
-    labelKey: 'canvas.toolbar.select',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path
-          d="M4 2l10 6.5L9 10l-1.5 6L4 2z"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinejoin="round"
-        />
-      </svg>
-    )
-  },
-  {
-    id: "hand",
-    labelKey: 'canvas.toolbar.pan',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <path
-          d="M9 2v7M6 5v6.5a2.5 2.5 0 002.5 2.5h3A2.5 2.5 0 0014 11.5V8M6 5a1.5 1.5 0 013 0M12 5a1.5 1.5 0 00-3 0M12 5v3M14 8a1.5 1.5 0 00-3 0"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    )
-  },
-  {
-    id: "connect",
-    labelKey: 'canvas.toolbar.connect',
-    icon: (
-      <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-        <circle cx="4" cy="4" r="2" stroke="currentColor" strokeWidth="1.3" />
-        <circle cx="14" cy="14" r="2" stroke="currentColor" strokeWidth="1.3" />
-        <path
-          d="M5.5 5.5L12.5 12.5"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinecap="round"
-        />
-      </svg>
-    )
-  }
-];
+    {
+      id: "select",
+      labelKey: 'canvas.toolbar.select',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path
+            d="M4 2l10 6.5L9 10l-1.5 6L4 2z"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    },
+    {
+      id: "hand",
+      labelKey: 'canvas.toolbar.pan',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path
+            d="M9 2v7M6 5v6.5a2.5 2.5 0 002.5 2.5h3A2.5 2.5 0 0014 11.5V8M6 5a1.5 1.5 0 013 0M12 5a1.5 1.5 0 00-3 0M12 5v3M14 8a1.5 1.5 0 00-3 0"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )
+    },
+    {
+      id: "connect",
+      labelKey: 'canvas.toolbar.connect',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="4" cy="4" r="2" stroke="currentColor" strokeWidth="1.3" />
+          <circle cx="14" cy="14" r="2" stroke="currentColor" strokeWidth="1.3" />
+          <path
+            d="M5.5 5.5L12.5 12.5"
+            stroke="currentColor"
+            strokeWidth="1.3"
+            strokeLinecap="round"
+          />
+        </svg>
+      )
+    }
+  ];
 
 interface PluginNodeOption {
   key: string;
@@ -368,7 +368,7 @@ export const FloatingToolbar = ({
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.web')}</span>
         </button>
-        <button
+        {/* <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("terminal")}
           aria-label={t('canvas.toolbar.addTerminal')}
@@ -385,7 +385,7 @@ export const FloatingToolbar = ({
             />
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.terminal')}</span>
-        </button>
+        </button> */}
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("mindmap")}
