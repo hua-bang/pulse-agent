@@ -18,6 +18,7 @@ import {
   shouldSyncIframeTitle,
 } from './utils';
 import { isImeComposing } from '../../utils/ime';
+import { useWebviewBackgroundThrottle } from './useWebviewBackgroundThrottle';
 
 export const useIframeNodeState = ({
   node,
@@ -264,6 +265,18 @@ export const useIframeNodeState = ({
       if (registered) void api.unregisterWebview(workspaceId, node.id);
     };
   }, [workspaceId, node.id, editing, url, mode, webviewKey]);
+
+  // Drop the webview's paint frame rate when the node is parked outside the
+  // canvas viewport long enough. Disabled during editing (no live webview to
+  // throttle) and when the node is in non-url modes (html/ai/artifact don't
+  // use a <webview>). readOnly iframes still register a webview and should
+  // still benefit. See useWebviewBackgroundThrottle for the rationale.
+  useWebviewBackgroundThrottle({
+    hostRef: webviewHostRef,
+    workspaceId,
+    nodeId: node.id,
+    disabled: editing || mode !== 'url',
+  });
 
   const flushToIframe = useCallback(() => {
     const currentHtml = streamBuf.current;

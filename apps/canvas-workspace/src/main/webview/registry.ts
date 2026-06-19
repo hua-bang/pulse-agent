@@ -509,4 +509,47 @@ export function setupWebviewRegistryIpc(): void {
       return cancelDomElementPickForNode(payload.workspaceId, payload.nodeId);
     },
   );
+
+  /**
+   * Background throttle for off-canvas-viewport webviews.
+   *
+   * Renderer detects when a webview-bearing node has been outside the visible
+   * canvas viewport for long enough (see useWebviewBackgroundThrottle) and
+   * asks main to drop its `setFrameRate`. The webview's guest process stays
+   * alive — only the paint cadence drops, so JS execution, timers, and
+   * network continue at normal speed and no in-page state is lost. When the
+   * node returns to the viewport renderer asks main to restore 60fps.
+   *
+   * Frame rate is clamped to Electron's [1, 240] range. Calls for unknown
+   * (workspaceId, nodeId) pairs (or already-destroyed webContents) silently
+   * resolve to {ok:false} — this happens normally during teardown when the
+   * IO observer fires after webview unregistration.
+   */
+  ipcMain.handle(
+    'iframe:set-frame-rate',
+    (
+      _event,
+      payload: { workspaceId: string; nodeId: string; frameRate: number },
+    ) => {
+      if (
+        !payload?.workspaceId ||
+        !payload?.nodeId ||
+        typeof payload.frameRate !== 'number'
+      ) {
+        return { ok: false };
+      }
+      const wc = getWebContentsForNode(payload.workspaceId, payload.nodeId);
+      if (!wc) return { ok: false };
+      const clamped = Math.max(1, Math.min(240, Math.round(payload.frameRate)));
+      try {
+        wc.setFrameRate(clamped);
+        return { ok: true, frameRate: clamped };
+      } catch (err) {
+        console.warn(
+          `[webview-registry] setFrameRate(${clamped}) failed for ${payload.workspaceId}::${payload.nodeId}: ${(err as Error).message}`,
+        );
+        return { ok: false };
+      }
+    },
+  );
 }
