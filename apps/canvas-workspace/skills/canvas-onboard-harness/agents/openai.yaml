@@ -1,0 +1,4 @@
+interface:
+  display_name: "Canvas Onboard Harness"
+  short_description: "Verify Canvas onboarding with CDP evidence."
+  default_prompt: "Use $canvas-onboard-harness to verify first-run Canvas onboarding."

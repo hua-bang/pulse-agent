@@ -1,0 +1,4 @@
+interface:
+  display_name: "Canvas Harness"
+  short_description: "Operate Canvas with the local harness."
+  default_prompt: "Use $canvas-harness to launch and inspect Canvas safely."
