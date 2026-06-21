@@ -88,6 +88,9 @@ dist
 # electron-builder output (e.g. apps/canvas-workspace)
 release/
 
+# Pulse Canvas harness runtime artifacts
+apps/canvas-workspace/.harness/
+
 # Gatsby files
 .cache/
 # Comment in the public line in if your project uses Gatsby and not Next.js
