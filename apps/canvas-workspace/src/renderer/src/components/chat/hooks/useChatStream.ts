@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from '../../../types';
 import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
+import { markToolResult, settleRunningTools, upsertToolInputStart } from './toolStreamState';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
@@ -163,14 +164,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       // toolCallId before the final tool-call chunk arrives.
       const unsubscribeToolInputStart = window.canvasWorkspace.agent.onToolInputStart(sessionId, data => {
         ensureAssistantMessage();
-        toolCalls.push({
-          id: ++toolIdCounter.current,
-          name: data.toolName,
-          toolCallId: data.id,
-          status: 'running',
-          partialInput: '',
-          inputStreaming: true,
-        });
+        upsertToolInputStart(toolCalls, data, () => ++toolIdCounter.current);
         publishTools();
       });
 
@@ -239,21 +233,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       });
 
       const unsubscribeToolResult = window.canvasWorkspace.agent.onToolResult(sessionId, data => {
-        const tool = findTool(data.toolCallId, data.name);
-        if (tool) {
-          tool.status = 'done';
-          tool.result = data.result;
-          tool.inputStreaming = false;
-          // Safety: if the tool already pushed visual stream chunks but
-          // the final `done` frame hasn't landed yet (IPC ordering race
-          // between visual-stream and tool-result channels), promote the
-          // last chunk to "done" so the renderer can swap to the final
-          // script-enabled iframe instead of getting stuck in streaming
-          // view.
-          if (tool.streamedContent != null) {
-            tool.streamedDone = true;
-          }
-        }
+        markToolResult(toolCalls, data);
         publishTools();
       });
 
@@ -276,6 +256,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
 
       const unsubscribeComplete = window.canvasWorkspace.agent.onChatComplete(sessionId, completeResult => {
         cleanupTurn();
+        settleRunningTools(toolCalls);
         if (assistantIndex.current >= 0 && toolCalls.length > 0) {
           setCollapsedSections(prev => new Set(prev).add(assistantIndex.current));
         }

@@ -11,6 +11,8 @@ const DEFAULT_TITLE = 'Excalidraw Board';
 const DEFAULT_BACKGROUND = '#ffffff';
 const DEFAULT_STROKE = '#1e1e1e';
 const DEFAULT_FILL = 'transparent';
+const TEXT_HORIZONTAL_PADDING = 40;
+const TEXT_VERTICAL_PADDING = 28;
 
 let elementCounter = 0;
 
@@ -51,6 +53,27 @@ function safeType(value: unknown): ExcalidrawSkeletonType {
     value === 'line'
     ? value
     : 'rectangle';
+}
+
+function isWideTextChar(char: string): boolean {
+  return /[^\u0000-\u00ff]/.test(char);
+}
+
+function estimateLineWidth(line: string, fontSize: number): number {
+  let width = 0;
+  for (const char of line) {
+    width += fontSize * (isWideTextChar(char) ? 1.08 : 0.6);
+  }
+  return width;
+}
+
+function estimateTextSize(text: string, fontSize: number, lineHeight: number): { width: number; height: number } {
+  const lines = text.split('\n');
+  const longestLineWidth = Math.max(0, ...lines.map((line) => estimateLineWidth(line, fontSize)));
+  return {
+    width: Math.max(80, Math.ceil(longestLineWidth)),
+    height: Math.ceil(fontSize * lineHeight * Math.max(1, lines.length)),
+  };
 }
 
 function normalizeAppState(value: unknown): Record<string, unknown> {
@@ -144,13 +167,15 @@ function textElement(
   const text = typeof skeleton.text === 'string' ? skeleton.text : '';
   const fontSize = finiteNumber(skeleton.fontSize, 20);
   const lineHeight = 1.25;
-  const lines = Math.max(1, text.split('\n').length);
-  const fallbackWidth = Math.max(80, Math.min(420, text.length * fontSize * 0.58));
-  const fallbackHeight = Math.ceil(fontSize * lineHeight * lines);
+  const fallbackSize = estimateTextSize(text, fontSize, lineHeight);
   const id = stringValue(skeleton.id, nextId(options.idPrefix ?? 'text'));
   const center = options.centerIn;
-  const width = finiteNumber(skeleton.width, center ? Math.max(32, Number(center.width) - 24) : fallbackWidth);
-  const height = finiteNumber(skeleton.height, fallbackHeight);
+  const width = finiteNumber(skeleton.width, center
+    ? Math.max(32, Number(center.width) - TEXT_HORIZONTAL_PADDING)
+    : fallbackSize.width);
+  const height = finiteNumber(skeleton.height, center
+    ? Math.max(fallbackSize.height, Number(center.height) - TEXT_VERTICAL_PADDING)
+    : fallbackSize.height);
   const x = center
     ? finiteNumber(center.x, 80) + (finiteNumber(center.width, 180) - width) / 2
     : finiteNumber(skeleton.x, 80);

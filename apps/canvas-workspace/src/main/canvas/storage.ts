@@ -220,6 +220,16 @@ function isEnoent(err: unknown): boolean {
   return !!err && typeof err === 'object' && (err as { code?: string }).code === 'ENOENT';
 }
 
+function shouldRotateRollingBackup(parsed: unknown): boolean {
+  if (!parsed || typeof parsed !== 'object') return false;
+  const obj = parsed as { nodes?: unknown[]; workspaces?: unknown[]; entries?: unknown[] };
+  return (
+    (Array.isArray(obj.nodes) && obj.nodes.length > 0) ||
+    (Array.isArray(obj.workspaces) && obj.workspaces.length > 0) ||
+    (Array.isArray(obj.entries) && obj.entries.length > 0)
+  );
+}
+
 /**
  * Atomically write JSON to disk via tmp + rename.
  *
@@ -241,7 +251,10 @@ export async function atomicWriteJson(
 ): Promise<void> {
   const dir = dirname(finalPath);
   const base = basename(finalPath);
-  const tmpPath = join(dir, `${base}.tmp`);
+  const tmpPath = join(
+    dir,
+    `${base}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`,
+  );
   const bakPath = join(dir, `${base}.bak`);
 
   await fs.mkdir(dir, { recursive: true });
@@ -251,10 +264,9 @@ export async function atomicWriteJson(
     try {
       const currentRaw = await fs.readFile(finalPath, 'utf-8');
       try {
-        const current = JSON.parse(currentRaw) as { nodes?: unknown[] };
         // Only rotate when the current file is a *good* snapshot. Don't let
         // a corrupt save poison the last-known-good backup.
-        if (Array.isArray(current.nodes) && current.nodes.length > 0) {
+        if (shouldRotateRollingBackup(JSON.parse(currentRaw))) {
           await fs.copyFile(finalPath, bakPath).catch(() => undefined);
         }
       } catch {

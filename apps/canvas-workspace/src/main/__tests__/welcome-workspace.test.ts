@@ -27,7 +27,7 @@ async function writeManifest(payload: unknown): Promise<void> {
 
 describe('welcome workspace seed', () => {
   it('seeds a first-run workspace with welcome notes and download page iframe', async () => {
-    const result = await ensureWelcomeWorkspaceSeeded(root);
+    const result = await ensureWelcomeWorkspaceSeeded(root, 'zh');
 
     expect(result).toEqual({ seeded: true, workspaceId: WELCOME_WORKSPACE_ID });
 
@@ -63,6 +63,21 @@ describe('welcome workspace seed', () => {
     expect(detail?.data?.content).toContain('## 1. 先把工作区连到项目');
     expect(detail?.data?.content).toContain('Cmd/Ctrl+Shift+A');
     expect(await fs.readFile(String(detail?.data?.filePath), 'utf-8')).toBe(detail?.data?.content);
+  });
+
+  it('seeds English welcome content when language is "en"', async () => {
+    const result = await ensureWelcomeWorkspaceSeeded(root, 'en');
+
+    expect(result).toEqual({ seeded: true, workspaceId: WELCOME_WORKSPACE_ID });
+
+    const canvas = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
+    const note = canvas.data?.nodes?.find((node) => node.type === 'file' && node.id !== 'node-welcome-detail');
+    const detail = canvas.data?.nodes?.find((node) => node.id === 'node-welcome-detail');
+
+    expect(note?.title).toBe('Welcome to Pulse Canvas');
+    expect(note?.data?.content).toContain('Pulse Canvas is a local-first visual workspace');
+    expect(detail?.title).toBe('Pulse Canvas — Detailed Usage');
+    expect(detail?.data?.content).toContain('## 1. Connect the workspace to your project');
   });
 
   it('does not seed when a manifest already has workspaces', async () => {

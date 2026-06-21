@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useI18n } from '../../i18n';
+import type { I18nKey } from '../../i18n/messages';
 import type { ToolCallStatus } from './types';
 
 interface ChatToolCallsProps {
@@ -43,46 +44,33 @@ function formatToolSignature(name: string, args: any): string {
   return `${name}(${parts.join(', ')})`;
 }
 
-function formatToolLabel(name: string, status: ToolCallStatus['status']): string {
-  const prefix = status === 'running' ? '正在' : '已';
-  switch (name) {
-    case 'canvas_read_context':
-      return `${prefix}读取画布上下文`;
-    case 'canvas_read_node':
-      return `${prefix}读取节点内容`;
-    case 'canvas_create_node':
-      return `${prefix}创建画布节点`;
-    case 'canvas_create_agent_node':
-      return `${prefix}创建 Agent 节点`;
-    case 'canvas_create_terminal_node':
-      return `${prefix}创建 Terminal 节点`;
-    case 'canvas_update_node':
-      return `${prefix}更新画布节点`;
-    case 'canvas_delete_node':
-      return `${prefix}删除画布节点`;
-    case 'canvas_move_node':
-      return `${prefix}移动画布节点`;
-    case 'canvas_send_to_agent':
-      return `${prefix}发送给 Agent`;
-    case 'read':
-      return `${prefix}读取文件`;
-    case 'write':
-      return `${prefix}写入文件`;
-    case 'edit':
-      return `${prefix}编辑文件`;
-    case 'grep':
-      return `${prefix}搜索内容`;
-    case 'ls':
-      return `${prefix}查看目录`;
-    case 'bash':
-      return `${prefix}运行命令`;
-    case 'session_search':
-      return `${prefix}检索会话`;
-    case 'session_summary':
-      return `${prefix}获取会话摘要`;
-    default:
-      return status === 'running' ? '正在执行' : '已执行';
+const TOOL_LABEL_SLUGS: Record<string, string> = {
+  canvas_read_context: 'readCanvasContext',
+  canvas_read_node: 'readNode',
+  canvas_create_node: 'createNode',
+  canvas_create_agent_node: 'createAgentNode',
+  canvas_create_terminal_node: 'createTerminalNode',
+  canvas_update_node: 'updateNode',
+  canvas_delete_node: 'deleteNode',
+  canvas_move_node: 'moveNode',
+  canvas_send_to_agent: 'sendToAgent',
+  read: 'readFile',
+  write: 'writeFile',
+  edit: 'editFile',
+  grep: 'search',
+  ls: 'listDir',
+  bash: 'runCommand',
+  session_search: 'searchSession',
+  session_summary: 'summarizeSession',
+};
+
+function formatToolLabel(name: string, status: ToolCallStatus['status'], t: (key: I18nKey) => string): string {
+  const slug = TOOL_LABEL_SLUGS[name];
+  const state = status === 'running' ? 'running' : 'done';
+  if (slug) {
+    return t(`toolCall.${slug}.${state}` as I18nKey);
   }
+  return t(`toolCall.default.${state}`);
 }
 
 function formatArgs(args: unknown): string {
@@ -242,7 +230,7 @@ export const ChatToolCalls = ({
               )}
             </span>
             <span className="chat-tool-call-sig" title={formatToolSignature(tool.name, tool.args)}>
-              <span className="chat-tool-call-label">{formatToolLabel(tool.name, tool.status)}</span>
+              <span className="chat-tool-call-label">{formatToolLabel(tool.name, tool.status, t)}</span>
               <span className="chat-tool-call-name">{tool.name}</span>
             </span>
             {canToggle && (

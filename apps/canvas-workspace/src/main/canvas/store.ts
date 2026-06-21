@@ -156,7 +156,7 @@ const collectWorkspaceFiles = async (workspaceDir: string): Promise<WorkspaceExp
     }
 
     for (const entry of entries) {
-      if (entry.name === 'canvas.json' || entry.name === 'canvas.json.bak' || entry.name === 'canvas.json.tmp') {
+      if (entry.name === 'canvas.json' || entry.name === 'canvas.json.bak' || entry.name.endsWith('.tmp')) {
         continue;
       }
       const fullPath = join(dir, entry.name);
@@ -478,9 +478,8 @@ const ensureMigrated = async (workspaceId: string): Promise<void> => {
           workspaceId,
           {
             phase: 'error',
-            message:
-              '检测到旧版本工具污染了 canvas.json。原始数据仍保留在 nodes/ 中，' +
-              '已拒绝执行迁移以防止数据丢失。请使用 canvas-cli restore 或参考文档恢复。',
+            // No message: the renderer's MigrationSpinner localizes the
+            // pollution alert per the user's language (t('migration.toast.*')).
           },
           {
             errorKind: 'pollution',
