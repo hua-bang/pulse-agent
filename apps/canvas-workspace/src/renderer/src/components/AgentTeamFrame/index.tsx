@@ -3,8 +3,10 @@ import './index.css';
 import { AgentNodeBody } from '../AgentNodeBody';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { AgentTypeSelect } from './AgentTypeSelect';
+import { NodeMentionPicker } from '../NodeMentionPicker';
 import { useAppShell } from '../AppShellProvider';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
+import { useTextareaMention } from '../../hooks/useTextareaMention';
 import { isImeComposing } from '../../utils/ime';
 import type {
   AgentNodeData,
@@ -1328,6 +1330,15 @@ export const AgentTeamFrame = ({
           ? 'next'
           : 'message';
   const commandDraft = commandMode === 'brief' ? briefDraft : messageDraft;
+  const commandMention = useTextareaMention({
+    textareaRef: commandRef,
+    value: commandDraft,
+    onChange: (next) => {
+      if (phase === 'briefing') setBriefDraft(next);
+      else setMessageDraft(next);
+    },
+    disabled: readOnly,
+  });
   const commandPlaceholder = commandMode === 'brief'
     ? 'Describe the outcome, repo path, constraints, and what this team should handle...'
     : commandMode === 'starting'
@@ -1376,6 +1387,13 @@ export const AgentTeamFrame = ({
 
   const renderTeamCommand = (placement: 'top' | 'lead' = 'top') => (
     <div className={`agent-team-command agent-team-command--${placement}`} aria-label="Team command">
+      {commandMention.pickerOpen && (
+        <NodeMentionPicker
+          nodes={getAllNodes?.() ?? []}
+          onSelect={commandMention.handleSelect}
+          onClose={commandMention.handleClose}
+        />
+      )}
       <div className="agent-team-command__copy">
         <span className="agent-team-command__label">
           {commandLabel}
@@ -1394,6 +1412,7 @@ export const AgentTeamFrame = ({
           }}
           onKeyDown={(event) => {
             if (isImeComposing(event)) return;
+            if (commandMention.handleKeyDown(event)) return;
             const sendBrief = phase === 'briefing' && event.key === 'Enter' && (event.metaKey || event.ctrlKey);
             const sendCommand = phase !== 'briefing' && event.key === 'Enter' && !event.shiftKey;
             if (sendBrief || sendCommand) {

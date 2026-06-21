@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
-import type { AgentNodeData, CanvasNode, FileNodeData } from '../../types';
+import type { AgentNodeData, CanvasNode } from '../../types';
 import { getAgentCommand } from '../../config/agentRegistry';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
+import { buildNodeMention } from '../../utils/nodeMention';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
@@ -1160,13 +1161,8 @@ export const useAgentNodeController = ({
     setPickerOpen(false);
     const api = window.canvasWorkspace?.pty;
     if (api) {
-      const filePath = selected.type === 'file'
-        ? (selected.data as FileNodeData).filePath
-        : undefined;
-      const label = filePath ? filePath.split('/').pop() : selected.title;
-      const mention = `@[${label}](canvas:${selected.id})`;
       const activeSessionId = dataRef.current.sessionId || nodeIdRef.current;
-      void api.write(activeSessionId, mention);
+      void api.write(activeSessionId, buildNodeMention(selected));
     }
     termRef.current?.focus();
   }, [readOnly]);

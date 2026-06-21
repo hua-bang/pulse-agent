@@ -2,9 +2,10 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import './index.css';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import type { CanvasNode, FileNodeData, TerminalNodeData } from '../../types';
+import type { CanvasNode, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { AI_TOOL_PATTERN, writeCanvasContext } from '../../utils/canvasContextWriter';
+import { buildNodeMention } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import { fitTerminalWithCanvasScale, syncTerminalFontSizeToCanvas } from '../AgentNodeBody/utils/terminal';
 
@@ -253,12 +254,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
     setPickerOpen(false);
     const api = window.canvasWorkspace?.pty;
     if (api) {
-      const filePath = selected.type === 'file'
-        ? (selected.data as FileNodeData).filePath
-        : undefined;
-      const label = filePath ? filePath.split('/').pop() : selected.title;
-      const mention = `@[${label}](canvas:${selected.id})`;
-      void api.write(sessionId, mention);
+      void api.write(sessionId, buildNodeMention(selected));
     }
     termRef.current?.focus();
   }, [sessionId, readOnly]);
