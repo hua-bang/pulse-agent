@@ -1,4 +1,5 @@
 import type { CanvasModelProviderStatus } from '../../types';
+import { useI18n } from '../../i18n';
 
 interface ApiKeyStatusHintProps {
   status?: CanvasModelProviderStatus;
@@ -6,19 +7,20 @@ interface ApiKeyStatusHintProps {
 }
 
 export const ApiKeyStatusHint = ({ status, drafting }: ApiKeyStatusHintProps) => {
+  const { t } = useI18n();
   if (drafting) {
-    return <span className="chat-model-field-hint chat-model-field-hint--info">将用输入的新 Key 覆盖已保存的值</span>;
+    return <span className="chat-model-field-hint chat-model-field-hint--info">{t('apiKeyHint.willOverwrite')}</span>;
   }
   if (!status) return null;
   if (status.apiKeyPresent) {
     const length = status.apiKeyLength;
-    const lengthSuffix = typeof length === 'number' && length > 0 ? `（共 ${length} 字符）` : '';
-    const source = status.api_key_env && !length ? `（来自环境变量 ${status.api_key_env}）` : '';
+    const lengthSuffix = typeof length === 'number' && length > 0 ? t('apiKeyHint.charCount', { length }) : '';
+    const source = status.api_key_env && !length ? t('apiKeyHint.fromEnv', { env: status.api_key_env }) : '';
     return (
       <span className="chat-model-field-hint chat-model-field-hint--ok">
-        ✓ 已保存{lengthSuffix}{source}
+        {t('apiKeyHint.saved')}{lengthSuffix}{source}
       </span>
     );
   }
-  return <span className="chat-model-field-hint chat-model-field-hint--warn">未设置 API Key — 调用模型时会失败</span>;
+  return <span className="chat-model-field-hint chat-model-field-hint--warn">{t('apiKeyHint.notSet')}</span>;
 };

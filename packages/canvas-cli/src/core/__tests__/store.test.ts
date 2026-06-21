@@ -48,6 +48,15 @@ describe('store', () => {
       const loaded = await loadWorkspaceManifest(testDir);
       expect(loaded.workspaces).toEqual([{ id: 'ws-1', name: 'Test' }]);
     });
+
+    it('recovers manifest from .bak when the primary is corrupt', async () => {
+      await saveWorkspaceManifest({ workspaces: [{ id: 'ws-a', name: 'A' }] }, testDir);
+      await saveWorkspaceManifest({ workspaces: [{ id: 'ws-b', name: 'B' }] }, testDir);
+      await fs.writeFile(join(testDir, '__workspaces__.json'), '{"workspaces": [', 'utf-8');
+
+      const loaded = await loadWorkspaceManifest(testDir);
+      expect(loaded.workspaces).toEqual([{ id: 'ws-a', name: 'A' }]);
+    });
   });
 
   describe('canvas CRUD', () => {
@@ -84,6 +93,21 @@ describe('store', () => {
       const ids = await listWorkspaceIds(testDir);
       expect(ids.sort()).toEqual(['ws-a', 'ws-b']);
     });
+
+    it('excludes reserved directories and includes safe manifest-only entries', async () => {
+      await saveWorkspaceManifest({
+        workspaces: [
+          { id: 'ws-manifest', name: 'Manifest Only' },
+          { id: '../bad', name: 'Unsafe' },
+        ],
+      }, testDir);
+      await fs.mkdir(join(testDir, 'skills'), { recursive: true });
+      await fs.mkdir(join(testDir, '__workspaces__.lock'), { recursive: true });
+      await fs.mkdir(join(testDir, 'ws-dir'), { recursive: true });
+
+      const ids = await listWorkspaceIds(testDir);
+      expect(ids.sort()).toEqual(['ws-dir', 'ws-manifest']);
+    });
   });
 
   describe('createWorkspace', () => {
@@ -102,6 +126,21 @@ describe('store', () => {
       expect(canvas).not.toBeNull();
       expect(canvas!.nodes).toEqual([]);
     });
+
+    it('preserves every manifest entry when workspaces are created concurrently', async () => {
+      const results = await Promise.all(
+        Array.from({ length: 12 }, (_, i) => createWorkspace(`Workspace ${i}`, testDir)),
+      );
+      expect(results.every(result => result.ok)).toBe(true);
+
+      const createdIds = results
+        .filter((result): result is { ok: true; data: { id: string } } => result.ok)
+        .map(result => result.data.id)
+        .sort();
+      const manifest = await loadWorkspaceManifest(testDir);
+      const manifestIds = manifest.workspaces.map(entry => entry.id).sort();
+      expect(manifestIds).toEqual(createdIds);
+    });
   });
 
   describe('deleteWorkspace', () => {
@@ -119,6 +158,15 @@ describe('store', () => {
 
       const manifest = await loadWorkspaceManifest(testDir);
       expect(manifest.workspaces.find(e => e.id === wsId)).toBeUndefined();
+    });
+
+    it('refuses unsafe workspace ids without deleting the store root', async () => {
+      const sentinel = join(testDir, 'sentinel.txt');
+      await fs.writeFile(sentinel, 'keep me', 'utf-8');
+
+      const result = await deleteWorkspace('.', testDir);
+      expect(result.ok).toBe(false);
+      await expect(fs.readFile(sentinel, 'utf-8')).resolves.toBe('keep me');
     });
   });
 

@@ -67,6 +67,7 @@ describe('atomicWriteJson', () => {
     const entries = await fs.readdir(root);
     expect(entries).toContain('file.json');
     expect(entries).not.toContain('file.json.tmp');
+    expect(entries.filter((entry) => entry.endsWith('.tmp'))).toEqual([]);
   });
 
   it('with rollingBackup=true: rotates current into .bak when it had nodes', async () => {
@@ -77,6 +78,16 @@ describe('atomicWriteJson', () => {
     });
     const bak = JSON.parse(await fs.readFile(`${path}.bak`, 'utf-8'));
     expect(bak.nodes[0].id).toBe('a');
+  });
+
+  it('with rollingBackup=true: rotates workspace manifests into .bak', async () => {
+    const path = join(root, '__workspaces__.json');
+    await atomicWriteJson(path, JSON.stringify({ workspaces: [{ id: 'ws-a', name: 'A' }] }));
+    await atomicWriteJson(path, JSON.stringify({ workspaces: [{ id: 'ws-b', name: 'B' }] }), {
+      rollingBackup: true,
+    });
+    const bak = JSON.parse(await fs.readFile(`${path}.bak`, 'utf-8'));
+    expect(bak.workspaces).toEqual([{ id: 'ws-a', name: 'A' }]);
   });
 
   it('with rollingBackup=true: skips rotation when current is unparseable', async () => {

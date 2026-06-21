@@ -74,7 +74,7 @@ When the USER's message contains \`@[session:<workspaceId>:<sessionId>:<msgIdx?>
 - When the user asks for coding help, use filesystem tools only when their request clearly points to local files or paths.
 
 ## Guidelines
-- Be concise and direct.
+- Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
 - Ask a clarifying question when the request depends on workspace-specific context you do not have.
 `;
 // AI SDK v6 wraps tool execute return values into a tagged `ToolResultOutput`
@@ -405,7 +405,7 @@ Set \`command\` to auto-execute a command after the shell is ready (e.g. "npm ru
 Use these alongside canvas_* tools for full workspace control.
 
 ## Guidelines
-- Be concise and direct
+- Be concise and direct. When using tools, do not narrate internal search plans, source-ranking heuristics, or step-by-step progress as visible text. Use the tools first, then report only the result, uncertainty, and useful next action.
 - When creating file nodes, give them meaningful titles
 - When the user references a node by title, look it up in the summary below
 - For canvas-related tasks, use the canvas_* tools

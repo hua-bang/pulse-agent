@@ -38,6 +38,31 @@ describe('excalidraw scene helpers', () => {
     expect(elements[2].endArrowhead).toBe('arrow');
   });
 
+  it('sizes Chinese skeleton labels with safer bounds', () => {
+    const elements = skeletonToElements([
+      {
+        type: 'rectangle',
+        x: 10,
+        y: 20,
+        width: 220,
+        height: 120,
+        text: '张一鸣的信息观\n工程化的信息匹配观',
+      },
+      {
+        type: 'text',
+        text: '不是媒体内容观，而是工程化的信息匹配观',
+        fontSize: 18,
+      },
+    ]);
+
+    const label = elements[1];
+    const standalone = elements[2];
+
+    expect(label.width).toBe(180);
+    expect(label.height).toBe(92);
+    expect(standalone.width).toBeGreaterThanOrEqual(360);
+  });
+
   it('applies replace and append scene inputs', () => {
     const initial = normalizeBoardPayload({ title: 'Board' });
     const replaced = applySceneInput(initial, {

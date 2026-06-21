@@ -1,5 +1,5 @@
 import { promises as fs } from 'fs';
-import { join, dirname, basename } from 'path';
+import { join, dirname, basename, resolve, relative, isAbsolute } from 'path';
 import { DEFAULT_STORE_DIR, AGENTS_MD_TEMPLATE } from './constants';
 import type { CanvasNode, CanvasEdge, CanvasSaveData, WorkspaceManifest, Result } from './types';
 import {
@@ -16,12 +16,93 @@ function manifestPath(storeDir?: string): string {
   return join(resolveDir(storeDir), '__workspaces__.json');
 }
 
+function manifestLockPath(storeDir?: string): string {
+  return join(resolveDir(storeDir), '__workspaces__.lock');
+}
+
 function canvasPath(workspaceId: string, storeDir?: string): string {
-  return join(resolveDir(storeDir), workspaceId, 'canvas.json');
+  return join(getWorkspaceDir(workspaceId, storeDir), 'canvas.json');
+}
+
+const NON_WORKSPACE_DIRS = new Set(['skills', '__workspaces__', '__workspaces__.lock']);
+
+export function isSafeWorkspaceId(workspaceId: string): boolean {
+  if (!workspaceId) return false;
+  if (workspaceId === '.' || workspaceId === '..') return false;
+  if (workspaceId === '__workspaces__' || workspaceId === '__workspaces__.json') return false;
+  if (NON_WORKSPACE_DIRS.has(workspaceId)) return false;
+  if (workspaceId.includes('/') || workspaceId.includes('\\')) return false;
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(workspaceId);
+}
+
+function assertSafeWorkspaceId(workspaceId: string): void {
+  if (!isSafeWorkspaceId(workspaceId)) {
+    throw new Error(`[canvas-cli] unsafe workspace id: "${workspaceId}"`);
+  }
 }
 
 export function getWorkspaceDir(workspaceId: string, storeDir?: string): string {
-  return join(resolveDir(storeDir), workspaceId);
+  assertSafeWorkspaceId(workspaceId);
+  const root = resolve(resolveDir(storeDir));
+  const dir = resolve(root, workspaceId);
+  const rel = relative(root, dir);
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) {
+    throw new Error(`[canvas-cli] unsafe workspace path for id: "${workspaceId}"`);
+  }
+  return dir;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function withManifestLock<T>(storeDir: string | undefined, fn: () => Promise<T>): Promise<T> {
+  const root = resolveDir(storeDir);
+  await fs.mkdir(root, { recursive: true });
+  const lockDir = manifestLockPath(storeDir);
+  const started = Date.now();
+  const staleAfterMs = 10_000;
+  const timeoutMs = 15_000;
+
+  while (true) {
+    try {
+      await fs.mkdir(lockDir);
+      await fs.writeFile(join(lockDir, 'owner'), `${process.pid}\n${new Date().toISOString()}\n`, 'utf-8');
+      break;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code !== 'EEXIST') throw err;
+      try {
+        const stat = await fs.stat(lockDir);
+        if (Date.now() - stat.mtimeMs > staleAfterMs) {
+          await fs.rm(lockDir, { recursive: true, force: true });
+          continue;
+        }
+      } catch {
+        continue;
+      }
+      if (Date.now() - started > timeoutMs) {
+        throw new Error('[canvas-cli] timed out waiting for workspace manifest lock');
+      }
+      await sleep(25 + Math.floor(Math.random() * 35));
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    await fs.rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+function shouldRotateBackup(parsed: unknown): boolean {
+  if (!parsed || typeof parsed !== 'object') return false;
+  const obj = parsed as { nodes?: unknown[]; workspaces?: unknown[]; entries?: unknown[] };
+  return (
+    (Array.isArray(obj.nodes) && obj.nodes.length > 0) ||
+    (Array.isArray(obj.workspaces) && obj.workspaces.length > 0) ||
+    (Array.isArray(obj.entries) && obj.entries.length > 0)
+  );
 }
 
 /**
@@ -34,8 +115,8 @@ export function getWorkspaceDir(workspaceId: string, storeDir?: string): string 
  * canvas-cli, canvas-agent, MCP server), the truncate window is wide
  * enough to corrupt data in practice. This helper:
  *   1. Writes the new content to `<path>.tmp`.
- *   2. Copies the current `<path>` to `<path>.bak` iff it parses and has
- *      at least one node (rolling last-known-good snapshot).
+ *   2. Copies the current `<path>` to `<path>.bak` iff it parses and looks
+ *      like useful canvas or workspace data (rolling last-known-good snapshot).
  *   3. Renames `<path>.tmp` → `<path>`. Rename is atomic on the same
  *      filesystem, so concurrent readers see either the old or the new
  *      file — never a truncated one.
@@ -50,7 +131,10 @@ export async function atomicWriteCanvasJson(
 ): Promise<void> {
   const dir = dirname(finalPath);
   const base = basename(finalPath);
-  const tmpPath = join(dir, `${base}.tmp`);
+  const tmpPath = join(
+    dir,
+    `${base}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}.tmp`,
+  );
   const bakPath = join(dir, `${base}.bak`);
 
   await fs.mkdir(dir, { recursive: true });
@@ -62,8 +146,7 @@ export async function atomicWriteCanvasJson(
   try {
     const currentRaw = await fs.readFile(finalPath, 'utf-8');
     try {
-      const current = JSON.parse(currentRaw) as { nodes?: unknown[] };
-      if (Array.isArray(current.nodes) && current.nodes.length > 0) {
+      if (shouldRotateBackup(JSON.parse(currentRaw))) {
         await fs.copyFile(finalPath, bakPath).catch(() => undefined);
       }
     } catch {
@@ -77,37 +160,72 @@ export async function atomicWriteCanvasJson(
 }
 
 export async function loadWorkspaceManifest(storeDir?: string): Promise<WorkspaceManifest> {
+  const path = manifestPath(storeDir);
+  const backupPath = `${path}.bak`;
   try {
-    const raw = await fs.readFile(manifestPath(storeDir), 'utf-8');
+    const raw = await fs.readFile(path, 'utf-8');
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     // Support both Electron format ("workspaces") and legacy CLI format ("entries")
     const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
     return { workspaces, activeId: parsed.activeId as string | undefined };
-  } catch {
-    return { workspaces: [] };
+  } catch (primaryErr) {
+    try {
+      const raw = await fs.readFile(backupPath, 'utf-8');
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
+      console.warn(
+        `[canvas-cli] workspace manifest unreadable (${String(primaryErr)}); recovered from __workspaces__.json.bak`,
+      );
+      return { workspaces, activeId: parsed.activeId as string | undefined };
+    } catch {
+      return { workspaces: [] };
+    }
   }
 }
 
 export async function saveWorkspaceManifest(manifest: WorkspaceManifest, storeDir?: string): Promise<void> {
-  const dir = resolveDir(storeDir);
-  await fs.mkdir(dir, { recursive: true });
-  await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(manifest, null, 2));
+  await withManifestLock(storeDir, async () => {
+    const dir = resolveDir(storeDir);
+    await fs.mkdir(dir, { recursive: true });
+    await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(manifest, null, 2));
+  });
+}
+
+async function updateWorkspaceManifest(
+  storeDir: string | undefined,
+  updater: (manifest: WorkspaceManifest) => WorkspaceManifest | void,
+): Promise<WorkspaceManifest> {
+  return withManifestLock(storeDir, async () => {
+    const manifest = await loadWorkspaceManifest(storeDir);
+    const next = updater(manifest) ?? manifest;
+    await atomicWriteCanvasJson(manifestPath(storeDir), JSON.stringify(next, null, 2));
+    return next;
+  });
 }
 
 export async function listWorkspaceIds(storeDir?: string): Promise<string[]> {
   const dir = resolveDir(storeDir);
+  const ids = new Set<string>();
   try {
     await fs.mkdir(dir, { recursive: true });
     const entries = await fs.readdir(dir, { withFileTypes: true });
-    return entries
-      .filter(e => e.isDirectory() && e.name !== '__workspaces__')
-      .map(e => e.name);
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (!isSafeWorkspaceId(entry.name)) continue;
+      ids.add(entry.name);
+    }
   } catch {
-    return [];
+    // Fall through to manifest entries, if any.
   }
+  const manifest = await loadWorkspaceManifest(storeDir);
+  for (const entry of manifest.workspaces ?? []) {
+    if (isSafeWorkspaceId(entry.id)) ids.add(entry.id);
+  }
+  return Array.from(ids);
 }
 
 export async function ensureWorkspaceDir(workspaceId: string, storeDir?: string): Promise<void> {
+  assertSafeWorkspaceId(workspaceId);
   const dir = getWorkspaceDir(workspaceId, storeDir);
   await fs.mkdir(dir, { recursive: true });
   const agentsPath = join(dir, 'AGENTS.md');
@@ -447,9 +565,11 @@ export async function createWorkspace(
   name: string,
   storeDir?: string,
 ): Promise<Result<{ id: string }>> {
+  let createdDir: string | null = null;
   try {
     const id = `ws-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     await ensureWorkspaceDir(id, storeDir);
+    createdDir = getWorkspaceDir(id, storeDir);
 
     // Initialize empty canvas
     const emptyCanvas: CanvasSaveData = {
@@ -461,13 +581,20 @@ export async function createWorkspace(
     // explicitly so the wipe guard is never tripped by this bootstrap step.
     await saveCanvas(id, emptyCanvas, storeDir, { allowEmpty: true });
 
-    // Update manifest
-    const manifest = await loadWorkspaceManifest(storeDir);
-    manifest.workspaces.push({ id, name });
-    await saveWorkspaceManifest(manifest, storeDir);
+    await updateWorkspaceManifest(storeDir, (manifest) => {
+      const workspaces = manifest.workspaces ?? [];
+      if (!workspaces.some(entry => entry.id === id)) {
+        workspaces.push({ id, name });
+      }
+      manifest.workspaces = workspaces;
+      return manifest;
+    });
 
     return { ok: true, data: { id } };
   } catch (err) {
+    if (createdDir) {
+      await fs.rm(createdDir, { recursive: true, force: true }).catch(() => undefined);
+    }
     return { ok: false, error: String(err) };
   }
 }
@@ -477,13 +604,18 @@ export async function deleteWorkspace(
   storeDir?: string,
 ): Promise<Result> {
   try {
+    assertSafeWorkspaceId(workspaceId);
     const dir = getWorkspaceDir(workspaceId, storeDir);
-    await fs.rm(dir, { recursive: true, force: true });
 
-    // Update manifest
-    const manifest = await loadWorkspaceManifest(storeDir);
-    manifest.workspaces = manifest.workspaces.filter(e => e.id !== workspaceId);
-    await saveWorkspaceManifest(manifest, storeDir);
+    await updateWorkspaceManifest(storeDir, (manifest) => {
+      manifest.workspaces = (manifest.workspaces ?? []).filter(e => e.id !== workspaceId);
+      if (manifest.activeId === workspaceId) {
+        manifest.activeId = manifest.workspaces[0]?.id;
+      }
+      return manifest;
+    });
+
+    await fs.rm(dir, { recursive: true, force: true });
 
     return { ok: true, data: undefined };
   } catch (err) {

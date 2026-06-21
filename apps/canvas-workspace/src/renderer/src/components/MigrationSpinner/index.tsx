@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAppShell } from '../AppShellProvider';
+import { useI18n } from '../../i18n';
+import type { I18nKey } from '../../i18n/messages';
 import './index.css';
 
 type MigrationPhase =
@@ -53,17 +55,18 @@ interface VisibleState {
 const DELAY_MS = 1000;
 const SUCCESS_TOAST_AUTOCLOSE_MS = 6000;
 
-const PHASE_LABELS: Record<MigrationPhase, string> = {
-  starting: '准备升级存储格式…',
-  backup: '正在备份原数据…',
-  'split-nodes': '正在迁移节点…',
-  commit: '正在切换到新格式…',
-  done: '已升级',
-  error: '升级失败',
+const PHASE_LABEL_KEYS: Record<MigrationPhase, I18nKey> = {
+  starting: 'migration.phase.starting',
+  backup: 'migration.phase.backup',
+  'split-nodes': 'migration.phase.split-nodes',
+  commit: 'migration.phase.commit',
+  done: 'migration.phase.done',
+  error: 'migration.phase.error',
 };
 
 export const MigrationSpinner = (): JSX.Element | null => {
   const { notify } = useAppShell();
+  const { t } = useI18n();
 
   const [visible, setVisible] = useState<VisibleState | null>(null);
   // Buffer the latest event from the moment a migration starts; the timer
@@ -107,9 +110,8 @@ export const MigrationSpinner = (): JSX.Element | null => {
           realMigrationRef.current.delete(event.workspaceId);
           notify({
             tone: 'success',
-            title: '画布存储已升级',
-            description:
-              '原数据已备份到工作区目录下的 canvas.json.v1.bak（需要时可手工恢复）。',
+            title: t('migration.toast.successTitle'),
+            description: t('migration.toast.successDesc'),
             autoCloseMs: SUCCESS_TOAST_AUTOCLOSE_MS,
           });
         }
@@ -134,10 +136,9 @@ export const MigrationSpinner = (): JSX.Element | null => {
           // own guard will also refuse).
           notify({
             tone: 'error',
-            title: '检测到画布存储被旧版工具污染',
+            title: t('migration.toast.pollutionTitle'),
             description:
-              event.message ??
-              '已拒绝执行迁移以防止数据丢失。请使用 canvas-cli restore 或参考文档恢复。',
+              event.message ?? t('migration.toast.pollutionDesc'),
             // No autoCloseMs → sticky; user must dismiss.
           });
           return;
@@ -208,11 +209,11 @@ export const MigrationSpinner = (): JSX.Element | null => {
       for (const finding of result.polluted) {
         notify({
           tone: 'error',
-          title: `工作区 "${finding.workspaceId}" 检测到存储污染`,
-          description:
-            `${finding.conflictingNodeIds.length} 个节点的真实数据仍在 nodes/ 中，` +
-            `但 canvas.json 已被旧版工具破坏。请使用 ` +
-            `\`canvas-cli restore apply ${finding.workspaceId} --from <snapshot>\` 恢复。`,
+          title: t('migration.toast.auditTitle', { workspaceId: finding.workspaceId }),
+          description: t('migration.toast.auditDesc', {
+            count: finding.conflictingNodeIds.length,
+            workspaceId: finding.workspaceId,
+          }),
           // No autoCloseMs → sticky.
         });
       }
@@ -221,12 +222,12 @@ export const MigrationSpinner = (): JSX.Element | null => {
     return () => {
       cancelled = true;
     };
-  }, [notify]);
+  }, [notify, t]);
 
   if (!visible) return null;
 
   const isError = visible.phase === 'error';
-  const label = PHASE_LABELS[visible.phase];
+  const label = t(PHASE_LABEL_KEYS[visible.phase]);
   const showProgress =
     !isError &&
     visible.phase === 'split-nodes' &&
