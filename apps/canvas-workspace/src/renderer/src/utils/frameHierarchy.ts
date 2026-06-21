@@ -137,6 +137,20 @@ export const collectContainerDescendants = (
 export const collectFrameDescendants = collectContainerDescendants;
 
 /**
+ * Direct children of a container: nodes whose immediate parent container
+ * (per `computeParentContainerMap`) is `containerId`. Excludes the container
+ * itself and any deeper-nested descendants. Used to render a compact summary
+ * of what a collapsed frame is hiding.
+ */
+export const collectDirectContainerChildren = (
+  containerId: string,
+  nodes: CanvasNode[],
+): CanvasNode[] => {
+  const parentMap = computeParentContainerMap(nodes);
+  return nodes.filter((n) => parentMap.get(n.id) === containerId);
+};
+
+/**
  * Return every node hidden by a collapsed frame. The collapsed frame itself
  * remains visible; all transitive descendants disappear until that frame is
  * expanded again.

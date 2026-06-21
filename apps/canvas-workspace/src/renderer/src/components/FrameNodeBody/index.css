@@ -354,6 +354,81 @@
   position: relative;
 }
 
+/* ---- Collapsed frame ----
+ * When children are collapsed the body no longer hosts live nodes, so we
+ * quiet the fill + dot texture and let the children summary read clearly.
+ * The wrapper class is applied by getNodeClasses; the body variant scopes
+ * the summary layout. */
+.canvas-node--frame.canvas-node--frame-collapsed {
+  --_a: var(--frame-bg-alpha, 0.5);
+}
+
+.canvas-node--frame.canvas-node--frame-collapsed::before {
+  opacity: 0.14;
+}
+
+.frame-body--collapsed {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 10px 12px;
+  overflow: hidden;
+}
+
+.frame-children-summary {
+  --_c: var(--frame-chroma, 0.052);
+  --_h: var(--frame-hue, 250);
+
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.frame-children-summary__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 3px 4px;
+  border-radius: 5px;
+  /* Subtle row tint so each child reads as a chip against the dimmed body. */
+  background: oklch(0.96 calc(var(--_c) * 0.22) var(--_h) / 0.55);
+}
+
+.frame-children-summary__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: oklch(0.46 calc(var(--_c) * 0.85) var(--_h));
+}
+
+.frame-children-summary__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.frame-children-summary__more {
+  padding: 3px 4px 0 28px;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
 /* ---- Color trigger (in pill) ----
  * Reserve a fixed 16px slot so the pill width doesn't jump when the dot
  * fades in on hover or selection. */
