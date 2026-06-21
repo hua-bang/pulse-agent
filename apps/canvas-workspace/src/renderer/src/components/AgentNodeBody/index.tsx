@@ -190,6 +190,7 @@ export const AgentNodeBody = ({
         launchErrorCommand={controller.launchErrorCommand}
         variant={isTeamLead ? 'team-lead' : 'default'}
         teamLeadBriefSlot={isTeamLead ? teamLeadBriefSlot : undefined}
+        mentionNodes={controller.visibleNodes}
         onBack={controller.fromRestart ? controller.handleBackToRestart : undefined}
         onAgentChange={controller.setSelectedAgent}
         onCwdChange={controller.setCwdInput}

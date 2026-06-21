@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AGENT_REGISTRY, type AgentDef } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
 import { isImeComposing } from '../../utils/ime';
 import { useI18n } from '../../i18n';
+import { NodeMentionPicker } from '../NodeMentionPicker';
+import { useTextareaMention } from '../../hooks/useTextareaMention';
+import type { CanvasNode } from '../../types';
 
 interface AgentPickerProps {
   selectedAgent: string;
@@ -15,6 +18,8 @@ interface AgentPickerProps {
   variant?: 'default' | 'team-lead';
   launchErrorCommand?: string | null;
   teamLeadBriefSlot?: ReactNode;
+  /** Canvas nodes offered by the "@" mention picker in the prompt input. */
+  mentionNodes?: CanvasNode[];
   /** Optional Back button used when entering Setup from the Restart view. */
   onBack?: () => void;
   onAgentChange: (id: string) => void;
@@ -92,6 +97,7 @@ export const AgentPicker = ({
   variant = 'default',
   launchErrorCommand,
   teamLeadBriefSlot,
+  mentionNodes,
   onBack,
   onAgentChange,
   onCwdChange,
@@ -101,6 +107,12 @@ export const AgentPicker = ({
   onLaunch,
 }: AgentPickerProps) => {
   const { t } = useI18n();
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+  const promptMention = useTextareaMention({
+    textareaRef: promptRef,
+    value: promptInput,
+    onChange: onPromptChange,
+  });
   const [commandStatusByAgent, setCommandStatusByAgent] = useState<Record<string, CommandStatus>>(() => {
     return Object.fromEntries(AGENT_REGISTRY.map((agent) => [agent.id, 'checking']));
   });
@@ -177,6 +189,13 @@ export const AgentPicker = ({
 
   return (
     <div className="agent-body-wrap agent-body-wrap--setup">
+      {!isTeamLead && promptMention.pickerOpen && (
+        <NodeMentionPicker
+          nodes={mentionNodes ?? []}
+          onSelect={promptMention.handleSelect}
+          onClose={promptMention.handleClose}
+        />
+      )}
       <div className="agent-card">
         {onBack && (
           <div className="agent-card-back">
@@ -365,10 +384,12 @@ export const AgentPicker = ({
                   <span>Initial Prompt</span>
                 </div>
                 <textarea
+                  ref={promptRef}
                   className="agent-prompt-input"
                   value={promptInput}
                   onChange={(e) => onPromptChange(e.target.value)}
                   onKeyDown={(e) => {
+                    if (promptMention.handleKeyDown(e)) return;
                     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                       e.preventDefault();
                       onLaunch();
