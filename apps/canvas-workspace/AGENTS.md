@@ -115,14 +115,28 @@ Canvas state (node positions, types, data) is saved per workspace as JSON via
 `src/main/canvas/`. File nodes are backed by real files on disk; the file watcher
 pushes external changes into the renderer via IPC.
 
-## Coding Guidance
+## Coding Conventions
 
-- TypeScript strict mode; follow the repo-root conventions (2 spaces, semicolons,
-  single quotes, ESM imports).
-- Keep components focused and single-responsibility — aim for **≤ 300 lines per
-  component**; split large components rather than growing them.
-- Keep main/renderer separation clean: all cross-boundary calls go through
-  `window.canvasWorkspace` + preload, with logic in `src/main/<domain>/`.
-- Keep diffs minimal and preserve existing architecture patterns.
+Detailed, reusable rules live in **[`docs/conventions/`](./docs/conventions/README.md)**.
+Read the relevant doc before writing or reviewing code:
+
+- **[`docs/conventions/README.md`](./docs/conventions/README.md)** — index + baseline rules.
+- **[`docs/conventions/architecture-boundaries.md`](./docs/conventions/architecture-boundaries.md)**
+  — process layers (`shared`/`main`/`preload`/`renderer`), import rules, and
+  file-size governance. **Enforced by tests** (`src/main/__tests__/import-boundaries.test.ts`,
+  `file-size-governance.test.ts`).
+- **[`docs/conventions/frontend.md`](./docs/conventions/frontend.md)** — renderer
+  (React) component/hook/styling/i18n/IPC-consumption conventions.
+- **[`docs/conventions/backend.md`](./docs/conventions/backend.md)** — main
+  process domain modules, IPC, services, and persistence conventions.
+
+Quick reminders (see the docs for the full rules):
+
+- TypeScript strict mode; match local file style (2 spaces, semicolons, ESM
+  imports). Keep diffs minimal and preserve existing patterns.
+- Aim **≤ 300 lines per component/module**; new files must stay **≤ 500**
+  (hard-gated). Split by responsibility rather than growing a file.
+- Renderer reaches the main process **only** through `window.canvasWorkspace`
+  (preload bridge); domain logic lives in `src/main/<domain>/`.
 - Cross-package imports use workspace package names (`pulse-coder-engine`,
   `pulse-coder-agent-teams`).
