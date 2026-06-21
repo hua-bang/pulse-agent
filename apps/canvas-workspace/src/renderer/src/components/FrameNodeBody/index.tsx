@@ -47,28 +47,27 @@ export const FrameNodeBody = ({
 
 /* ---- Color picker (rendered in header) ---- */
 
-// "Soft" palette from design/frame-color.html.
+// Muted frame palette. These are intentionally lower-chroma than the
+// previous presets so large canvas frames read as organization, not alerts.
 //
-// Each preset is one hue around the wheel (terracotta → amber → citron →
-// sage → teal → azure → indigo → plum + a low-chroma graphite slot). All
+// Each preset is one hue around the wheel (coral -> amber -> olive -> sage
+// -> teal -> sky -> indigo -> mauve + a low-chroma graphite slot). All
 // derived tones (pill bg, pill text, body tint, border, dot pattern) are
-// computed in CSS as `oklch(L C var(--frame-hue))` with the design's exact
-// L/C math; see CanvasNodeView/utils.ts for the parse path.
+// computed in CSS as `oklch(L C var(--frame-hue))`; see
+// CanvasNodeView/utils.ts for the parse path.
 //
-// `value` is the saturated identity at L=0.66, C=0.155 — what the picker
-// dot displays and what gets written into `data.color`. The 9th preset uses
-// near-zero chroma so the frame reads as a quiet neutral (like the design's
-// gray frame in the 3×3 grid).
+// `value` is the identity swatch written into `data.color`. The 9th preset
+// uses near-zero chroma so the frame reads as a quiet neutral.
 const COLOR_PRESETS = [
-  { name: "Terracotta", hue: 32,  value: "oklch(0.66 0.155 32)"  },
-  { name: "Amber",      hue: 68,  value: "oklch(0.66 0.155 68)"  },
-  { name: "Citron",     hue: 108, value: "oklch(0.66 0.155 108)" },
-  { name: "Sage",       hue: 152, value: "oklch(0.66 0.155 152)" },
-  { name: "Teal",       hue: 195, value: "oklch(0.66 0.155 195)" },
-  { name: "Azure",      hue: 248, value: "oklch(0.66 0.155 248)" },
-  { name: "Indigo",     hue: 292, value: "oklch(0.66 0.155 292)" },
-  { name: "Plum",       hue: 328, value: "oklch(0.66 0.155 328)" },
-  { name: "Graphite",   hue: 265, value: "oklch(0.66 0.006 265)" }
+  { name: "Coral",    hue: 28,  value: "oklch(0.68 0.108 28)"  },
+  { name: "Amber",    hue: 58,  value: "oklch(0.68 0.108 58)"  },
+  { name: "Olive",    hue: 98,  value: "oklch(0.68 0.108 98)"  },
+  { name: "Sage",     hue: 142, value: "oklch(0.68 0.108 142)" },
+  { name: "Teal",     hue: 184, value: "oklch(0.68 0.108 184)" },
+  { name: "Sky",      hue: 224, value: "oklch(0.68 0.108 224)" },
+  { name: "Indigo",   hue: 264, value: "oklch(0.68 0.108 264)" },
+  { name: "Mauve",    hue: 318, value: "oklch(0.68 0.108 318)" },
+  { name: "Graphite", hue: 265, value: "oklch(0.68 0.006 265)" }
 ];
 
 interface ColorPickerProps {
