@@ -14,6 +14,7 @@ import type {
   CanvasPluginsStatus,
 } from '../../types/settings-config';
 import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../constants/canvasPlugins';
+import { TERMINAL_TAB_ID, useRightDock, useRightDockState } from '../RightDock';
 
 interface AddNodeUiOptions {
   label?: string;
@@ -164,6 +165,11 @@ export const FloatingToolbar = ({
   onReferenceToggle,
 }: Props) => {
   const { t } = useI18n();
+  const dock = useRightDock();
+  const dockState = useRightDockState();
+  const terminalDockOpen = dockState.expanded
+    && dockState.terminalOpen
+    && dockState.activeTabId === TERMINAL_TAB_ID;
   const pluginMenuRef = useRef<HTMLDivElement | null>(null);
   const pluginPopoverRef = useRef<HTMLDivElement | null>(null);
   const [pluginMenuOpen, setPluginMenuOpen] = useState(false);
@@ -368,11 +374,12 @@ export const FloatingToolbar = ({
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.web')}</span>
         </button>
-        {/* <button
-          className="toolbar-btn toolbar-btn--create"
-          onClick={() => onAddNode("terminal")}
+        <button
+          className={`toolbar-btn toolbar-btn--create${terminalDockOpen ? " toolbar-btn--active" : ""}`}
+          onClick={dock.toggleTerminal}
           aria-label={t('canvas.toolbar.addTerminal')}
           data-tooltip={t('canvas.toolbar.terminal')}
+          aria-pressed={terminalDockOpen}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <rect
@@ -385,7 +392,7 @@ export const FloatingToolbar = ({
             />
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.terminal')}</span>
-        </button> */}
+        </button>
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("mindmap")}

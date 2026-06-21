@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, DockStore, artifactTabId, linkTabId } from '../dock-store';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId } from '../dock-store';
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -9,6 +9,7 @@ describe('DockStore', () => {
       activeTabId: CHAT_TAB_ID,
       expanded: false,
       chatUnread: false,
+      terminalOpen: false,
     });
   });
 
@@ -122,6 +123,34 @@ describe('DockStore', () => {
     dock.openArtifact('ws1', 'a1');
     dock.toggleChat();
     expect(dock.getSnapshot()).toMatchObject({ expanded: true, activeTabId: CHAT_TAB_ID });
+  });
+
+  it('opens and closes the workspace terminal as a pinned dock tab', () => {
+    const dock = new DockStore();
+    dock.openTerminal();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: TERMINAL_TAB_ID,
+      expanded: true,
+      terminalOpen: true,
+    });
+    dock.closeTerminal();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: CHAT_TAB_ID,
+      expanded: false,
+      terminalOpen: false,
+    });
+  });
+
+  it('closing the active terminal falls forward to a preview when present', () => {
+    const dock = new DockStore();
+    dock.openArtifact('ws1', 'a1');
+    dock.openTerminal();
+    dock.closeTerminal();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: artifactTabId('ws1', 'a1'),
+      expanded: true,
+      terminalOpen: false,
+    });
   });
 
   it('chat activity sets unread only while chat is not the visible tab', () => {

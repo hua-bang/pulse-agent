@@ -9,6 +9,7 @@ import {
   rectOf,
   rectsOverlap,
 } from './layout';
+import { planRegionGrid } from './layout-region';
 
 function node(
   id: string,
@@ -115,5 +116,54 @@ describe('canvas layout helpers', () => {
     expect(snapshot.overlaps).toEqual([
       { a: 'overlap-a', b: 'overlap-b', area: 4000 },
     ]);
+  });
+
+  it('arranges only the requested region nodes while keeping outside nodes fixed', () => {
+    const nodes = [
+      node('a', 400, 400, 100, 80),
+      node('b', 520, 400, 100, 80),
+      node('outside', 900, 900, 140, 90),
+    ];
+
+    const beforeOutside = { ...nodes[2] };
+    const plan = planRegionGrid(nodes, {
+      nodeIds: ['a', 'b'],
+      columns: 1,
+      startX: 0,
+      startY: 0,
+      gap: 20,
+    });
+    applyLayoutMutations(nodes, plan.mutations);
+
+    expect(plan.arrangedNodeIds).toEqual(['a', 'b']);
+    expect(nodes.find((n) => n.id === 'a')).toMatchObject({ x: 0, y: 0 });
+    expect(nodes.find((n) => n.id === 'b')).toMatchObject({ x: 0, y: 120 });
+    expect(nodes.find((n) => n.id === 'outside')).toMatchObject(beforeOutside);
+  });
+
+  it('moves frame descendants with the frame during region layout', () => {
+    const nodes = [
+      node('frame', 0, 0, 240, 180, 'frame'),
+      node('child', 24, 24, 100, 80),
+      node('loose', 360, 0, 120, 80),
+    ];
+
+    const childBefore = { ...nodes[1] };
+    const plan = planRegionGrid(nodes, {
+      nodeIds: ['frame', 'child', 'loose'],
+      columns: 1,
+      startX: 500,
+      startY: 500,
+      gap: 48,
+    });
+    applyLayoutMutations(nodes, plan.mutations);
+
+    const frame = nodes.find((n) => n.id === 'frame');
+    const child = nodes.find((n) => n.id === 'child');
+    if (!frame || !child) throw new Error('missing test nodes');
+
+    expect(plan.arrangedNodeIds).toEqual(['frame', 'loose']);
+    expect(child.x).toBe(childBefore.x + frame.x);
+    expect(child.y).toBe(childBefore.y + frame.y);
   });
 });

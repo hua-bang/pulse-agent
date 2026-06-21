@@ -2,7 +2,12 @@ import { z } from 'zod';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
-import { autoPlace, DEFAULT_DIMENSIONS } from './_shared/placement';
+import {
+  DEFAULT_DIMENSIONS,
+  placementIntentSchema,
+  resolvePlacement,
+  type PlacementIntent,
+} from './_shared/placement';
 
 export function createShapeTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -24,6 +29,9 @@ export function createShapeTools(workspaceId: string): Record<string, CanvasTool
         title: z.string().optional().describe('Node title (used in the layers panel). Defaults to "Shape".'),
         x: z.number().optional().describe('X position (canvas coords). Auto-placed if omitted.'),
         y: z.number().optional().describe('Y position (canvas coords). Auto-placed if omitted.'),
+        placement: placementIntentSchema.optional().describe(
+          'Semantic insertion strategy. Use near_node or inside_frame instead of hand-calculating coordinates when possible.',
+        ),
         width: z.number().optional().describe('Width in canvas-px. Default 200.'),
         height: z.number().optional().describe('Height in canvas-px. Default 140.'),
         fill: z.string().optional().describe('Fill color (hex or "transparent"). Default "#E8EEF7".'),
@@ -43,9 +51,17 @@ export function createShapeTools(workspaceId: string): Record<string, CanvasTool
         const height = (input.height as number | undefined) ?? DEFAULT_DIMENSIONS.shape.height;
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-        const pos = (input.x != null && input.y != null)
-          ? { x: input.x as number, y: input.y as number }
-          : autoPlace(canvas.nodes);
+        let pos: { x: number; y: number };
+        try {
+          pos = resolvePlacement(
+            canvas.nodes,
+            { width, height },
+            { x: input.x as number | undefined, y: input.y as number | undefined },
+            input.placement as PlacementIntent | undefined,
+          );
+        } catch (err) {
+          return `Error: ${err instanceof Error ? err.message : String(err)}`;
+        }
 
         const newNode: CanvasNode = {
           id: nodeId,

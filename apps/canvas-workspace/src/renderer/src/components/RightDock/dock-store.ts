@@ -25,13 +25,15 @@ export type DockPreviewTab =
 export interface DockState {
   /** Preview tabs only — chat is pinned and implicit. */
   tabs: DockPreviewTab[];
-  /** `CHAT_TAB_ID` or a preview tab id. */
+  /** `CHAT_TAB_ID`, `TERMINAL_TAB_ID`, or a preview tab id. */
   activeTabId: string;
   expanded: boolean;
   chatUnread: boolean;
+  terminalOpen: boolean;
 }
 
 export const CHAT_TAB_ID = 'chat';
+export const TERMINAL_TAB_ID = 'terminal';
 export const LINK_TAB_ID = 'link';
 
 export const artifactTabId = (workspaceId: string, artifactId: string): string =>
@@ -51,6 +53,7 @@ const INITIAL: DockState = {
   activeTabId: CHAT_TAB_ID,
   expanded: false,
   chatUnread: false,
+  terminalOpen: false,
 };
 
 export class DockStore {
@@ -105,11 +108,18 @@ export class DockStore {
     this.commit({ tabs: [...this.state.tabs, tab], activeTabId: tab.id, expanded: true });
   }
 
-  /** Switch to an existing tab (chat or preview). Viewing chat clears unread. */
+  /** Switch to an existing tab (chat, workspace terminal, or preview). Viewing chat clears unread. */
   activate(id: string): void {
-    if (id !== CHAT_TAB_ID && !this.state.tabs.some((tab) => tab.id === id)) return;
+    if (
+      id !== CHAT_TAB_ID
+      && !(id === TERMINAL_TAB_ID && this.state.terminalOpen)
+      && !this.state.tabs.some((tab) => tab.id === id)
+    ) {
+      return;
+    }
     if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) return;
     this.commit({
+      expanded: true,
       activeTabId: id,
       ...(id === CHAT_TAB_ID ? { chatUnread: false } : {}),
     });
@@ -127,6 +137,33 @@ export class DockStore {
       return;
     }
     this.openChat();
+  }
+
+  openTerminal(): void {
+    if (this.state.expanded && this.state.activeTabId === TERMINAL_TAB_ID && this.state.terminalOpen) return;
+    this.commit({ expanded: true, activeTabId: TERMINAL_TAB_ID, terminalOpen: true });
+  }
+
+  toggleTerminal(): void {
+    if (this.state.expanded && this.state.activeTabId === TERMINAL_TAB_ID && this.state.terminalOpen) {
+      this.closeTerminal();
+      return;
+    }
+    this.openTerminal();
+  }
+
+  closeTerminal(): void {
+    if (!this.state.terminalOpen) return;
+    const closingActiveTerminal = this.state.activeTabId === TERMINAL_TAB_ID;
+    const activeTabId = closingActiveTerminal
+      ? (this.state.tabs[0]?.id ?? CHAT_TAB_ID)
+      : this.state.activeTabId;
+    this.commit({
+      terminalOpen: false,
+      activeTabId,
+      expanded: closingActiveTerminal && this.state.tabs.length === 0 ? false : this.state.expanded,
+      ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
+    });
   }
 
   /** Hide the dock; all tabs (and the active pointer) survive. */

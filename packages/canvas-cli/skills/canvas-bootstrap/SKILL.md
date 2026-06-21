@@ -1,242 +1,222 @@
 ---
 name: canvas-bootstrap
-description: Deep-research a topic and build a structured canvas workspace with spatially organized frames, content, and connections
-version: 4.0.0
+description: Deep-research a topic and build a structured Pulse Canvas workspace with approved research depth, source-backed findings, progressive or final canvas creation, spatially organized frames, content nodes, and connections. Use when the user asks to bootstrap, generate, research, organize, or build an AI-created canvas.
 ---
 
 # Canvas Bootstrap
 
-Given a topic or task, deeply research it, then build a structured canvas workspace where frames group related content nodes spatially.
+Turn a topic into a source-backed Pulse Canvas workspace. This skill is an orchestrator: use a user-approved research skill or the bundled `canvas-deep-research` protocol for evidence gathering, then use canvas layout tools for geometry.
 
-## Workflow
+## Core Contract
 
-### Phase 1: Deep Research (most important phase)
+- Ask for research depth first unless the user already provided it.
+- After depth is chosen, show a research plan and wait for user modification or approval.
+- Do not start substantial research before the plan is approved.
+- Do not create canvas nodes before approval. Optional live-board creation also requires approval.
+- If the user explicitly names a different Deep Research skill, tool, or workflow, use that approved research capability for evidence gathering.
+- Otherwise use `canvas-deep-research` when available. If it is unavailable, follow the same source-backed protocol directly.
+- Keep content and layout separate: research determines what belongs on the canvas; layout tools determine where it goes.
+- Use the user's language for user-facing questions, plans, summaries, and node content unless the user requests otherwise.
+- If the user asks to expand, enrich, verify, or research inside an existing frame, use `canvas-frame-research` instead of this whole-canvas bootstrap flow.
 
-Do NOT create any nodes yet. Research thoroughly first:
+## Phase 0: Depth Gate
 
-1. **Clarify scope** — What exactly does the user want? What's the boundary?
-2. **Multi-angle search** — Search 3-5 different aspects of the topic
-3. **Cross-reference** — Compare sources, note conflicts and consensus
-4. **Read local context** — Check related project files if applicable
-5. **Synthesize** — Organize findings into a structured outline:
-   - What are the natural **categories** of information? (these become frames)
-   - Within each category, what **distinct pieces** of content exist? (these become file nodes)
-   - What requires **execution/interaction**? (these become terminal nodes)
+If the user did not explicitly choose a depth, ask a short question and stop:
 
-### Phase 2: Plan Dynamic Layout
+```text
+请选择这次调研深度：
+1. Quick - 快速扫一遍，适合方向判断
+2. Standard - 标准调研，适合生成一张可靠画布
+3. Deep - 深度调研，适合高质量信息源、交叉验证和风险判断
 
-Based on research, determine the structure organically. Do NOT use a fixed template.
+如果有范围限制，比如地区、时间、竞品、技术栈，也可以一起补充。
+```
 
-**Planning rules:**
-- Each frame = one logical **category** of your research findings
-- Each file node = one **distinct document** within that category
-- A frame should have **2-4 file nodes** (if only 1, merge into another frame; if more than 4, split the frame)
-- Total: aim for 3-6 frames with 2-4 nodes each
-- **Connections**: identify relationships between frames — flows, dependencies, cross-references
+Depth behavior:
 
-**Think through your plan like this:**
+- `quick`: fewer passes, concise canvas, usually 2-4 frames.
+- `standard`: default for most canvas bootstraps, usually 3-6 frames.
+- `deep`: multiple passes with stronger source checks, contradictions, risks, and open questions.
 
-> Research found 4 major areas:
-> 1. "Historical Context" — 3 aspects: timeline, key figures, turning points → 1 frame, 3 files
-> 2. "Core Concepts" — 2 aspects: fundamentals, advanced topics → 1 frame, 2 files  
-> 3. "Current State" — 3 aspects: landscape, key players, trends → 1 frame, 3 files
-> 4. "Action Items" — 2 aspects: short-term tasks, long-term goals → 1 frame, 2 files
-> Total: 4 frames, 10 files → good balance
->
-> Connections:
-> - Historical Context → Core Concepts (label: "established", kind: flow)
-> - Core Concepts → Current State (label: "applied in", kind: flow)
-> - Current State → Action Items (label: "informs", kind: dependency)
+## Phase 1: Plan Approval Gate
 
-### Phase 3: Create Workspace
+After the user chooses depth, draft the overall plan and ask for approval before research.
+
+The plan must include:
+
+- research objective and boundary
+- research questions
+- source strategy and expected source types
+- planned research passes
+- planned information layers, such as overview, structure, details, sources, and open questions
+- likely canvas structure, such as provisional frame names
+- proposed output mode:
+  - `plan-first`: research fully first, then create the final canvas
+  - `live-board`: after approval, create a draft research board and update it during research
+- what will count as "done"
+
+End the plan with a clear approval request, for example:
+
+```text
+你可以直接回复“批准开始”，也可以修改调研问题、范围、深度或画布模式。
+```
+
+Do not browse, run long local scans, or create nodes while waiting for approval.
+
+## Phase 2: Deep Research Execution
+
+After approval, use the research capability chosen in the approved plan.
+
+Research skill selection order:
+
+1. User-explicit research skill, tool, or workflow, if named and available.
+2. Bundled `canvas-deep-research`.
+3. The source-backed protocol below, followed directly.
+
+If the runtime does not auto-load the bundled skill, load the `canvas-deep-research` skill by name before researching.
+
+Research requirements:
+
+- Prefer primary and official sources for facts, APIs, specs, company claims, pricing, policies, and current product behavior.
+- Use credible secondary sources to understand interpretation, market context, criticism, or adoption.
+- Browse for current or unstable facts.
+- Record a source ledger with source id, title, publisher, date, URL or path, source type, and relevance.
+- Cross-check important claims before turning them into canvas content.
+- Label inference, weak evidence, conflicts, and unresolved questions.
+- Produce a `research_brief` compatible with the chosen research skill's output contract, or with `canvas-deep-research` when using the bundled protocol.
+
+For `deep`, run multiple passes, for example:
+
+1. primary source pass
+2. landscape and current-state pass
+3. technical or operational detail pass
+4. risks, contradictions, and counterexamples pass
+5. synthesis and canvas handoff pass
+
+## Phase 3: Optional Live Research Board
+
+Use this only when the approved plan chooses `live-board`.
+
+Create a draft workspace or draft area after approval, then update it during research. Recommended draft frames:
+
+- `Research Plan`
+- `Source Queue`
+- `Sources Read`
+- `Findings Drafts`
+- `Open Questions`
+- `Final Synthesis`
+
+Live-board rules:
+
+- Mark draft nodes clearly.
+- Add source nodes or source summaries as they are reviewed.
+- Move findings from draft to synthesis only after cross-checking.
+- Keep live updates compact; do not flood the canvas with every search result.
+- Use `region_grid` to tidy the active draft area without moving unrelated nodes.
+- Run final layout after synthesis, not after every small update.
+
+If canvas tools are unavailable, report progress conversationally and create the canvas only when tools become available.
+
+## Phase 4: Synthesize Canvas Plan
+
+Convert the research brief into a canvas plan.
+
+Planning rules:
+
+- Each frame is one logical category from the research, not a fixed template.
+- Aim for 3-6 frames for most topics.
+- Each frame should have 2-4 substantial content nodes.
+- Merge frames with only one weak node.
+- Split frames with more than four substantial nodes.
+- Each content node should contain real synthesized content, not placeholders.
+- Put source ids inside node content so claims remain traceable.
+- Build the canvas as layered information, moving from overview to structure to details.
+- Do not create action, task, terminal, or agent nodes by default. Only add them when the user explicitly asks for execution or follow-up work to be placed on the canvas.
+- Create 2-5 meaningful edges between frames or major nodes.
+
+If research materially changes the approved plan, show the changed structure and ask for a quick confirmation before final creation.
+
+Node type strategy:
+
+- Overview layer: use summary-style note nodes for the research question, key conclusions, reading path, and strongest takeaways.
+- Structure layer: use frames, shapes, and edges to show categories, comparisons, timelines, dependencies, tensions, and hierarchy.
+- Detail layer: use note or file nodes for deeper explanations, evidence, assumptions, and per-topic analysis.
+- Source layer: use source or web nodes when available; otherwise use source-summary note nodes. Keep source ids visible.
+- Open-question layer: use note nodes for unresolved questions, conflicts, weak evidence, and areas that need future human judgment.
+- Action layer: omit by default. Leave follow-up tasks for the user to add later unless explicitly requested.
+
+## Phase 5: Create Canvas Content
+
+Preferred path inside Canvas Agent runtime:
+
+1. Call `canvas_read_layout` before creating or arranging content in an existing workspace.
+2. Create frames and nodes with canvas creation tools.
+3. For single semantic insertions, use `placement` instead of raw coordinates:
+   - `append_canvas` for a new top-level cluster
+   - `near_node` for a finding derived from a source or existing node
+   - `inside_frame` for content that belongs in a known frame
+   - `at` only when the user gave a precise location
+4. Create sparse edges with `canvas_create_edge`.
+
+Fallback path outside Canvas Agent runtime:
 
 ```bash
 pulse-canvas workspace create "<topic>" --format json
+pulse-canvas node create --type frame --title "<frame>" --format json
+pulse-canvas node create --type file --title "<node>" --data '{"content":"..."}' --format json
+pulse-canvas edge create --from <nodeId> --to <nodeId> --label "<label>" --kind flow --format json
 ```
 
-### Phase 4: Create Nodes with Dynamic Layout
+Use fallback coordinates only when no layout tool is available.
 
-If you are running inside Pulse Canvas with Canvas Agent tools available, do **not**
-hand-calculate every coordinate. Create the semantic nodes/frames, then call:
+## Phase 6: Apply Layout
 
-- `canvas_apply_layout({ mode: "frame_grid", frameId, nodeIds })` for each frame
-- `canvas_apply_layout({ mode: "canvas_grid", nodeIds: frameIds })` for the top-level frame arrangement
-- `canvas_read_layout` / `canvas_apply_layout({ mode: "validate" })` to verify bounds and overlaps
+Preferred layout path:
 
-Use the manual CLI layout algorithm below only when those tools are unavailable
-(for example, from an external terminal agent that can only call `pulse-canvas`).
+1. For each final frame, arrange its children:
 
-#### Layout algorithm
-
-Frames are arranged in a grid. Each frame is sized to fit its children.
-
-**Important:** Frame titles float 34px ABOVE the frame top edge. Use a large enough GAP between frame rows so that file cards from the row above don't cover the next row's frame title.
-
-**Constants:**
-- `FRAME_PAD = 24` — padding inside frame edges (all sides)
-- `GAP = 100` — gap between frames (must be ≥80 to avoid title overlap)
-- `FILE_W = 300` — file node width
-- `FILE_H = 360` — file node height
-- `COL_GAP = 24` — gap between file nodes inside a frame
-
-**For each frame, calculate dimensions based on child count:**
-- Frame width = `FRAME_PAD*2 + N_COLS * FILE_W + (N_COLS-1) * COL_GAP`
-  - 1 file → 1 col, width = 348
-  - 2 files → 2 cols, width = 672
-  - 3 files → 3 cols, width = 996
-  - 4 files → 2 cols × 2 rows, width = 672
-- Frame height = `FRAME_PAD*2 + N_ROWS * FILE_H + (N_ROWS-1) * COL_GAP`
-  - 1 row → height = 408
-  - 2 rows → height = 792
-
-**Arrange frames left-to-right, wrapping to a new row when exceeding ~1500px:**
-
-```
-Row 1:  Frame_A (at x:50)          Frame_B (at x:50 + wA + GAP)     Frame_C (if fits)
-Row 2:  Frame_D (at x:50, y: ...)  Frame_E ...
+```text
+canvas_apply_layout({ mode: "frame_grid", frameId: "<frame-id>", fitFrame: true })
 ```
 
-Row 2 y = row1_y + max_frame_height + GAP (e.g. 50 + 408 + 100 = 558)
+2. Arrange top-level frames and standalone nodes:
 
-**Place file nodes inside each frame:**
-```
-Frame top-left = (fx, fy)
-File[0]: x = fx + FRAME_PAD,                        y = fy + FRAME_PAD
-File[1]: x = fx + FRAME_PAD + FILE_W + COL_GAP,     y = fy + FRAME_PAD
-File[2]: x = fx + FRAME_PAD,                        y = fy + FRAME_PAD + FILE_H + COL_GAP  (row 2)
-...
+```text
+canvas_apply_layout({ mode: "canvas_grid", nodeIds: ["<frame-id>", "..."], respectLayoutLocked: true })
 ```
 
-#### Example: 4 frames with varying child counts
+3. For a selected area or live-board draft area:
 
-```bash
-# Frame 1: "Historical Context" — 3 files (3 cols)
-# Frame: x=50, y=50, w=996, h=408
-pulse-canvas node create --type frame --title "Historical Context" \
-  --x 50 --y 50 --width 996 --height 408 \
-  --data '{"label":"Background and timeline","color":"#9575d4"}' --format json
-
-# Files inside Frame 1 (y = fy + FRAME_PAD = 50 + 24 = 74)
-pulse-canvas node create --type file --title "Timeline" \
-  --x 74 --y 74 --width 300 --height 360 \
-  --data '{"content":"# Timeline\n\n..."}' --format json
-
-pulse-canvas node create --type file --title "Key Figures" \
-  --x 398 --y 74 --width 300 --height 360 \
-  --data '{"content":"# Key Figures\n\n..."}' --format json
-
-pulse-canvas node create --type file --title "Turning Points" \
-  --x 722 --y 74 --width 300 --height 360 \
-  --data '{"content":"# Turning Points\n\n..."}' --format json
-
-# Frame 2: "Core Concepts" — 2 files (2 cols)
-# Frame: x=1146, y=50, w=672, h=408
-pulse-canvas node create --type frame --title "Core Concepts" \
-  --x 1146 --y 50 --width 672 --height 408 \
-  --data '{"label":"Fundamentals","color":"#4a90d9"}' --format json
-
-# Files inside Frame 2
-pulse-canvas node create --type file --title "Fundamentals" \
-  --x 1170 --y 74 --width 300 --height 360 \
-  --data '{"content":"# Fundamentals\n\n..."}' --format json
-
-pulse-canvas node create --type file --title "Advanced Topics" \
-  --x 1494 --y 74 --width 300 --height 360 \
-  --data '{"content":"# Advanced Topics\n\n..."}' --format json
-
-# Frame 3: "Current Landscape" — 3 files, Row 2
-# Row 2 y = 50 + 408 + 100 = 558
-# Frame: x=50, y=558, w=996, h=408
-pulse-canvas node create --type frame --title "Current Landscape" \
-  --x 50 --y 558 --width 996 --height 408 \
-  --data '{"label":"Where things stand","color":"#4ad97a"}' --format json
-
-# Files inside Frame 3 (y = 558 + 24 = 582)
-pulse-canvas node create --type file --title "Key Players" \
-  --x 74 --y 582 --width 300 --height 360 \
-  --data '{"content":"# Key Players\n\n..."}' --format json
-
-pulse-canvas node create --type file --title "Trends" \
-  --x 398 --y 582 --width 300 --height 360 \
-  --data '{"content":"# Trends\n\n..."}' --format json
-
-pulse-canvas node create --type file --title "Challenges" \
-  --x 722 --y 582 --width 300 --height 360 \
-  --data '{"content":"# Challenges\n\n..."}' --format json
-
-# Frame 4: "Action Plan" — 2 files, Row 2
-# Frame: x=1146, y=558, w=672, h=408
-pulse-canvas node create --type frame --title "Action Plan" \
-  --x 1146 --y 558 --width 672 --height 408 \
-  --data '{"label":"Next steps","color":"#d94a4a"}' --format json
-
-pulse-canvas node create --type file --title "Short-term Tasks" \
-  --x 1170 --y 582 --width 300 --height 360 \
-  --data '{"content":"# Short-term Tasks\n\n- [ ] ..."}' --format json
-
-pulse-canvas node create --type file --title "Long-term Goals" \
-  --x 1494 --y 582 --width 300 --height 360 \
-  --data '{"content":"# Long-term Goals\n\n..."}' --format json
+```text
+canvas_apply_layout({ mode: "region_grid", nodeIds: ["<node-id>", "..."] })
 ```
 
-### Phase 5: Create Connections
+4. Validate the result:
 
-After all nodes are created, draw edges between frames (or individual nodes) to show relationships. Use the node IDs from `--format json` output of the create commands.
-
-**Connection types (use `--kind` to tag):**
-- `flow` — sequential relationship ("A leads to B")
-- `dependency` — B depends on A
-- `reference` — cross-reference between content
-- `contrast` — A and B present opposing views
-
-**Rules:**
-- Connect **frames** to show high-level relationships (2-5 edges total)
-- Use `--label` to describe the relationship in 1-3 words
-- Keep connections sparse — only draw meaningful relationships, not everything-to-everything
-- Use `--style dashed` for weaker/optional relationships
-- Use `--color` to match the source frame's color for visual coherence
-
-#### Example: connecting 4 frames
-
-```bash
-# Historical Context → Core Concepts
-pulse-canvas edge create --from <frame1-id> --to <frame2-id> \
-  --label "established" --kind flow --format json
-
-# Core Concepts → Current Landscape
-pulse-canvas edge create --from <frame2-id> --to <frame3-id> \
-  --label "applied in" --kind flow --format json
-
-# Current Landscape → Action Plan
-pulse-canvas edge create --from <frame3-id> --to <frame4-id> \
-  --label "informs" --kind dependency --format json
+```text
+canvas_apply_layout({ mode: "validate" })
 ```
 
-#### Edge command reference
+If validation reports overlaps or out-of-frame nodes, fix the relevant frame or region with `frame_grid` or `region_grid`, then validate again.
 
-```bash
-# Create an edge
-pulse-canvas edge create --from <nodeId> --to <nodeId> \
-  [--label <text>] [--kind <tag>] \
-  [--arrow-head triangle|arrow|dot|bar|none] \
-  [--arrow-tail none|triangle|arrow|dot|bar] \
-  [--color <hex>] [--width <px>] [--style solid|dashed|dotted] \
-  [--bend <px>] --format json
+Manual fallback layout:
 
-# List all edges
-pulse-canvas edge list --format json
+- Start at `(50, 50)`.
+- Use frame padding `24`.
+- Use frame gap `100` or more so floating frame titles remain visible.
+- Use file node size around `300 x 360`.
+- Put 1-3 child nodes in one row, 4 child nodes as a `2 x 2` grid.
+- Wrap frames to a new row when the row would exceed roughly `1500px`.
 
-# Delete an edge
-pulse-canvas edge delete <edgeId> --format json
-```
+## Phase 7: Verify and Summarize
 
-### Phase 6: Verify and Summarize
+Before final response:
 
-```bash
-pulse-canvas context --format json
-```
-
-Tell the user: what frames were created, what each contains, and key findings from your research.
+- Read or validate the final canvas layout.
+- Confirm every final frame has useful content.
+- Confirm important findings have source ids.
+- Confirm edges are sparse and meaningful.
+- Summarize the created frames, key findings, source quality, unresolved questions, and any layout caveats.
 
 ## Frame Colors
 
@@ -244,17 +224,21 @@ Tell the user: what frames were created, what each contains, and key findings fr
 |---------|-----|
 | Overview / Summary | `#5594e8` |
 | Research / Analysis | `#9575d4` |
-| Tasks / Actions | `#e8615a` |
+| Contrasts / Tradeoffs | `#e8615a` |
 | Implementation | `#3eb889` |
 | Notes / Decisions | `#e89545` |
 | Data / Metrics | `#35aec2` |
+| Risks / Open Questions | `#d66aa3` |
 
 ## Quality Rules
 
-1. **Every frame has 2-4 file nodes** — if only 1, merge; if 5+, split
-2. **Every file node has real content** — synthesized, not placeholder
-3. **File nodes are inside their frame** — check coordinates match
-4. **Research before creating** — no canvas without deep understanding first
-5. **Content is actionable** — someone should be able to act on what they read
-6. **Connections show relationships** — 2-5 edges between frames, each with a label
-7. **Edges use frame node IDs** — connect frames (not file nodes) for high-level flow
+1. Approval comes before research execution and canvas mutation.
+2. Research findings cite source ids.
+3. Draft live-board content is clearly marked as draft.
+4. Final content is synthesized and actionable, not copied source fragments.
+5. Frames contain 2-4 substantial nodes unless the topic strongly justifies otherwise.
+6. Layout tools are the default for geometry; manual coordinates are fallback only.
+7. Existing unrelated nodes are not moved unless the user approved an organizing action.
+8. Edges explain relationships with short labels and meaningful kinds.
+9. Uncertainty, conflicts, and open questions remain visible in the canvas.
+10. The final canvas focuses on information organization. Action-oriented nodes are opt-in, not default.

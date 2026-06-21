@@ -79,7 +79,7 @@ pulse-canvas install-skills               # Install to all global skill dirs
 pulse-canvas install-skills --dir <path>  # Install to a specific directory
 ```
 
-Copies bundled `SKILL.md` files (`canvas`, `canvas-bootstrap`) into global skill directories so that agents (Claude Code, Codex, etc.) discover canvas capabilities automatically. Target directories:
+Copies bundled `SKILL.md` files (`canvas`, `canvas-deep-research`, `canvas-frame-research`, `canvas-bootstrap`) into global skill directories so that agents (Claude Code, Codex, etc.) discover canvas capabilities automatically. Target directories:
 
 - `~/.pulse-coder/skills/`
 - `~/.claude/skills/`

@@ -18,17 +18,25 @@ interface SkillEntry {
 
 const SKILLS: SkillEntry[] = [
   { name: 'canvas', subdir: 'canvas' },
+  { name: 'canvas-deep-research', subdir: 'canvas-deep-research' },
+  { name: 'canvas-frame-research', subdir: 'canvas-frame-research' },
   { name: 'canvas-bootstrap', subdir: 'canvas-bootstrap' },
 ];
 
 async function readSkillContent(skill: SkillEntry): Promise<string | null> {
-  const skillSource = join(__dirname, '..', 'skills', skill.subdir, 'SKILL.md');
-  try {
-    return await fs.readFile(skillSource, 'utf-8');
-  } catch {
-    if (skill.name === 'canvas') return getInlineCanvasSkillContent();
-    return null;
+  const candidates = [
+    join(__dirname, '..', 'skills', skill.subdir, 'SKILL.md'),
+    join(__dirname, '..', '..', 'skills', skill.subdir, 'SKILL.md'),
+  ];
+  for (const skillSource of candidates) {
+    try {
+      return await fs.readFile(skillSource, 'utf-8');
+    } catch {
+      // Try the next packaged/source-tree location.
+    }
   }
+  if (skill.name === 'canvas') return getInlineCanvasSkillContent();
+  return null;
 }
 
 export async function installSkills(targetBaseDir?: string): Promise<{ ok: boolean; paths: string[]; error?: string }> {

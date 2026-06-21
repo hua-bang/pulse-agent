@@ -5,6 +5,7 @@ import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
 import { useClickOutside } from "../../hooks/useClickOutside";
 import { useI18n } from "../../i18n";
 import type { CreatableCanvasNodeType } from "../../utils/nodeFactory";
+import { useRightDock } from "../RightDock";
 
 interface Props {
   x: number;
@@ -112,6 +113,7 @@ const CreateMenuItem = ({
 
 export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage, onClose }: Props) => {
   const { t } = useI18n();
+  const dock = useRightDock();
   const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
 
   // Arrow-key navigation + Escape; replaces the old window Escape
@@ -150,7 +152,22 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           <CreateMenuItem type="file" title={t('canvas.menu.note')} description={t('canvas.menu.noteDesc')} onCreate={onCreate} />
           <CreateMenuItem type="frame" title={t('canvas.menu.frame')} description={t('canvas.menu.frameDesc')} onCreate={onCreate} />
           <CreateMenuItem type="iframe" title={t('canvas.menu.web')} description={t('canvas.menu.webDesc')} onCreate={onCreate} />
-          <CreateMenuItem type="terminal" title={t('canvas.menu.terminal')} description={t('canvas.menu.terminalDesc')} onCreate={onCreate} />
+          <button
+            className="context-menu-item"
+            role="menuitem"
+            onClick={() => {
+              dock.openTerminal();
+              onClose();
+            }}
+          >
+            <span className="context-menu-icon context-menu-icon--terminal">
+              <ContextMenuIcon kind="terminal" />
+            </span>
+            <span className="context-menu-label">
+              <strong>{t('canvas.menu.terminal')}</strong>
+              <small>{t('canvas.menu.terminalDesc')}</small>
+            </span>
+          </button>
           <CreateMenuItem type="agent" title={t('canvas.menu.agent')} description={t('canvas.menu.agentDesc')} onCreate={onCreate} />
           <CreateMenuItem type="mindmap" title={t('canvas.menu.mindmap')} description={t('canvas.menu.mindmapDesc')} onCreate={onCreate} />
         </>

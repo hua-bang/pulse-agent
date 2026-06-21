@@ -1,18 +1,17 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import {
-  buildWorkspaceSummary,
-  buildDetailedContext,
-  readNodeDetail,
-  formatSummaryForPrompt,
-} from '../context-builder';
 import { generateHTML } from '../../generation/html-generator';
 import type { CanvasNode, CanvasTool, NodeType, RawMindmapTopic } from './types';
 import { STORE_DIR, loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
-import { autoPlace, DEFAULT_DIMENSIONS, INLINE_PROMPT_THRESHOLD } from './_shared/placement';
+import {
+  DEFAULT_DIMENSIONS,
+  INLINE_PROMPT_THRESHOLD,
+  placementIntentSchema,
+  resolvePlacement,
+  type PlacementIntent,
+} from './_shared/placement';
 import { genTopicId, normalizeMindmapTopic } from './_shared/mindmap';
 import { normalizeIframeUrl, shouldCreateIframeForHtml } from './_shared/iframe';
 import {
@@ -22,94 +21,11 @@ import {
   MOCK_TODO_LIST_DEFAULT_PAYLOAD,
   MOCK_TODO_LIST_NODE_TYPE,
 } from '../../../plugins/mock-node/constants';
+import { createNodeReadTools } from './node-read-tools';
 
 export function createNodeTools(workspaceId: string): Record<string, CanvasTool> {
   return {
-    canvas_ask_user: {
-      name: 'canvas_ask_user',
-      description:
-        'Ask the user a clarifying question and wait for their reply. Use this whenever you need more information, a choice between options, or confirmation before proceeding. Do NOT guess — ask.',
-      inputSchema: z.object({
-        question: z.string().describe('The question to ask the user. Be concise and specific.'),
-        context: z.string().optional().describe('Optional extra context to help the user answer.'),
-      }),
-      execute: async (input, ctx) => {
-        const ask = ctx?.onClarificationRequest;
-        if (!ask) {
-          return 'Clarification is not supported in this context. Proceed with best judgement.';
-        }
-        const signal = ctx?.abortSignal;
-        const requestId = randomUUID();
-        const askPromise = ask({
-          id: requestId,
-          question: input.question,
-          context: input.context,
-          timeout: 0,
-        });
-        if (!signal) return askPromise;
-        return await new Promise<string>((resolve, reject) => {
-          if (signal.aborted) {
-            reject(new Error('Aborted'));
-            return;
-          }
-          const onAbort = () => reject(new Error('Aborted'));
-          signal.addEventListener('abort', onAbort, { once: true });
-          askPromise.then(
-            (answer) => {
-              signal.removeEventListener('abort', onAbort);
-              resolve(answer);
-            },
-            (err) => {
-              signal.removeEventListener('abort', onAbort);
-              reject(err);
-            },
-          );
-        });
-      },
-    },
-
-    canvas_read_context: {
-      name: 'canvas_read_context',
-      description:
-        'Read a workspace context. Defaults to the current workspace; pass `workspaceId` to read a different canvas the user has `@`-mentioned. ' +
-        'Use detail="summary" (default) for a quick overview of all nodes, or detail="full" to include file contents and terminal scrollback.',
-      inputSchema: z.object({
-        detail: z.enum(['summary', 'full']).optional().describe('Level of detail. "summary" returns node list with metadata. "full" includes file contents and terminal scrollback.'),
-        workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace. Use this to read another canvas the user @-mentioned.'),
-      }),
-      execute: async (input) => {
-        const detail = input.detail ?? 'summary';
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        if (detail === 'full') {
-          const ctx = await buildDetailedContext(targetWorkspaceId);
-          if (!ctx) return `Error: workspace not found: ${targetWorkspaceId}`;
-          return JSON.stringify(ctx, null, 2);
-        }
-        const summary = await buildWorkspaceSummary(targetWorkspaceId);
-        if (!summary) return `Error: workspace not found: ${targetWorkspaceId}`;
-        return formatSummaryForPrompt(summary);
-      },
-    },
-
-    canvas_read_node: {
-      name: 'canvas_read_node',
-      description:
-        'Read the full content of a specific canvas node. For file nodes, returns the file content. For terminal/agent nodes, returns scrollback output. ' +
-        'For iframe/link nodes, fetches the URL and returns the page text (HTML stripped, capped at ~200KB). ' +
-        'For reference nodes (shells that mirror a node from another canvas), follows the reference and returns the SOURCE node\'s content, with `refNodeId`/`refWorkspaceId` pointing at the original. ' +
-        'Defaults to the current workspace; pass `workspaceId` to read a node from another canvas the user `@`-mentioned.',
-      inputSchema: z.object({
-        nodeId: z.string().describe('The ID of the node to read.'),
-        workspaceId: z.string().optional().describe('Target workspace ID. Defaults to the current workspace.'),
-      }),
-      execute: async (input) => {
-        const nodeId = input.nodeId as string;
-        const targetWorkspaceId = (input.workspaceId as string) || workspaceId;
-        const detail = await readNodeDetail(targetWorkspaceId, nodeId);
-        if (!detail) return `Error: node not found: ${nodeId} (workspace: ${targetWorkspaceId})`;
-        return JSON.stringify(detail, null, 2);
-      },
-    },
+    ...createNodeReadTools(workspaceId),
 
     canvas_create_node: {
       name: 'canvas_create_node',
@@ -144,6 +60,9 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         y: z.number().optional().describe('Y position (auto-placed if omitted).'),
         width: z.number().min(40).optional().describe('Node width in canvas px. Defaults by type if omitted.'),
         height: z.number().min(40).optional().describe('Node height in canvas px. Defaults by type if omitted.'),
+        placement: placementIntentSchema.optional().describe(
+          'Semantic insertion strategy for the agent. Use near_node for derived notes, inside_frame for adding to an existing frame, at for a preferred canvas point, or omit to append to the canvas without moving existing nodes.',
+        ),
         data: z.record(z.string(), z.unknown()).optional().describe(
           'Additional node data. Keys vary by type:\n' +
           '- terminal: { cwd?: string }\n' +
@@ -175,9 +94,19 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
         const def = DEFAULT_DIMENSIONS[nodeType];
         if (!def) return `Error: unsupported node type: ${nodeType}`;
 
-        const pos = (input.x != null && input.y != null)
-          ? { x: input.x as number, y: input.y as number }
-          : autoPlace(canvas.nodes);
+        const width = (input.width as number | undefined) ?? def.width;
+        const height = (input.height as number | undefined) ?? def.height;
+        let pos: { x: number; y: number };
+        try {
+          pos = resolvePlacement(
+            canvas.nodes,
+            { width, height },
+            { x: input.x as number | undefined, y: input.y as number | undefined },
+            input.placement as PlacementIntent | undefined,
+          );
+        } catch (err) {
+          return `Error: ${err instanceof Error ? err.message : String(err)}`;
+        }
 
         let nodeData: Record<string, unknown>;
         switch (nodeType) {
@@ -344,8 +273,8 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           title,
           x: pos.x,
           y: pos.y,
-          width: (input.width as number | undefined) ?? def.width,
-          height: (input.height as number | undefined) ?? def.height,
+          width,
+          height,
           data: nodeData,
           updatedAt: Date.now(),
         };
@@ -361,6 +290,10 @@ export function createNodeTools(workspaceId: string): Record<string, CanvasTool>
           nodeId,
           type: nodeType,
           title,
+          x: pos.x,
+          y: pos.y,
+          width,
+          height,
         });
       },
     },

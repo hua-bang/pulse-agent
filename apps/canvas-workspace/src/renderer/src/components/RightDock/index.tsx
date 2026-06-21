@@ -47,10 +47,12 @@ import {
 import { ArtifactTabView } from '../artifacts/ArtifactTabView';
 import { useI18n } from '../../i18n';
 import { LinkTabView } from '../LinkDrawer';
-import { CHAT_TAB_ID, DockStore, type DockState } from './dock-store';
+import { AppLogoIcon, NodeTypeIcon } from '../icons';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, type DockState } from './dock-store';
 import './index.css';
+import './terminal-tab.css';
 
-export { CHAT_TAB_ID } from './dock-store';
+export { CHAT_TAB_ID, TERMINAL_TAB_ID } from './dock-store';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const DEFAULT_WIDTH = 480;
@@ -62,6 +64,8 @@ interface RightDockContextValue {
   store: DockStore;
   chatHost: HTMLDivElement | null;
   setChatHost: (el: HTMLDivElement | null) => void;
+  terminalHost: HTMLDivElement | null;
+  setTerminalHost: (el: HTMLDivElement | null) => void;
 }
 
 const RightDockContext = createContext<RightDockContextValue | null>(null);
@@ -69,9 +73,10 @@ const RightDockContext = createContext<RightDockContextValue | null>(null);
 export const RightDockProvider = ({ children }: { children: ReactNode }) => {
   const store = useMemo(() => new DockStore(), []);
   const [chatHost, setChatHost] = useState<HTMLDivElement | null>(null);
+  const [terminalHost, setTerminalHost] = useState<HTMLDivElement | null>(null);
   const value = useMemo<RightDockContextValue>(
-    () => ({ store, chatHost, setChatHost }),
-    [store, chatHost],
+    () => ({ store, chatHost, setChatHost, terminalHost, setTerminalHost }),
+    [store, chatHost, terminalHost],
   );
   return (
     <RightDockContext.Provider value={value}>
@@ -94,6 +99,9 @@ export function useRightDock(): {
   openLink: (url: string) => void;
   openChat: () => void;
   toggleChat: () => void;
+  openTerminal: () => void;
+  toggleTerminal: () => void;
+  closeTerminal: () => void;
   collapse: () => void;
   notifyChatActivity: () => void;
 } {
@@ -104,6 +112,9 @@ export function useRightDock(): {
       openLink: (url: string) => store.openLink(url),
       openChat: () => store.openChat(),
       toggleChat: () => store.toggleChat(),
+      openTerminal: () => store.openTerminal(),
+      toggleTerminal: () => store.toggleTerminal(),
+      closeTerminal: () => store.closeTerminal(),
       collapse: () => store.collapse(),
       notifyChatActivity: () => store.notifyChatActivity(),
     }),
@@ -120,6 +131,11 @@ export function useRightDockState(): DockState {
 /** DOM element of the dock's chat pane; Workbench portals ChatPanels into it. */
 export function useRightDockChatHost(): HTMLDivElement | null {
   return useDockContext().chatHost;
+}
+
+/** DOM element of the dock's terminal pane; Workbench portals workspace terminals into it. */
+export function useRightDockTerminalHost(): HTMLDivElement | null {
+  return useDockContext().terminalHost;
 }
 
 function readStoredWidth(): number | null {
@@ -155,7 +171,7 @@ interface TabIndicatorState {
 }
 
 export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps) => {
-  const { store, setChatHost } = useDockContext();
+  const { store, setChatHost, setTerminalHost } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();
 
@@ -169,16 +185,28 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
   // empty pane.
   useEffect(() => {
     if (chatTabEnabled) return;
-    if (state.activeTabId === CHAT_TAB_ID && state.tabs.length > 0) {
+    if (
+      (state.activeTabId === CHAT_TAB_ID || state.activeTabId === TERMINAL_TAB_ID)
+      && state.tabs.length > 0
+    ) {
       store.activate(state.tabs[0].id);
+      return;
+    }
+    if (state.activeTabId === CHAT_TAB_ID || state.activeTabId === TERMINAL_TAB_ID) {
+      store.collapse();
     }
   }, [chatTabEnabled, state.activeTabId, state.tabs, store]);
 
   const hasPreviews = state.tabs.length > 0;
+  const terminalTabVisible = chatTabEnabled && state.terminalOpen;
+  const tabStripVisible = hasPreviews || terminalTabVisible;
   const visible = state.expanded && (chatTabEnabled || hasPreviews);
   // While the chat tab is unavailable a transient 'chat' active pointer
   // (route guard hasn't run yet) should highlight nothing.
-  const activePaneId = !chatTabEnabled && state.activeTabId === CHAT_TAB_ID ? null : state.activeTabId;
+  const activePaneId = !chatTabEnabled
+    && (state.activeTabId === CHAT_TAB_ID || state.activeTabId === TERMINAL_TAB_ID)
+    ? null
+    : state.activeTabId;
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
   const widthRef = useRef(width);
@@ -202,13 +230,16 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
 
   const updateTabIndicator = useCallback(() => {
     const activeTab = activePaneId ? tabRefs.current.get(activePaneId) : null;
-    if (!hasPreviews || !activeTab) {
+    const tabScroll = tabsRef.current;
+    if (!tabStripVisible || !activeTab || !tabScroll) {
       setTabIndicator((prev) => (prev.visible ? { ...prev, visible: false } : prev));
       return;
     }
+    const tabRect = activeTab.getBoundingClientRect();
+    const scrollRect = tabScroll.getBoundingClientRect();
     const next = {
-      left: activeTab.offsetLeft,
-      width: activeTab.offsetWidth,
+      left: tabRect.left - scrollRect.left + tabScroll.scrollLeft,
+      width: tabRect.width,
       visible: true,
     };
     setTabIndicator((prev) => (
@@ -216,17 +247,17 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
         ? prev
         : next
     ));
-  }, [activePaneId, hasPreviews]);
+  }, [activePaneId, tabStripVisible]);
 
   useLayoutEffect(() => {
     updateTabIndicator();
-  }, [updateTabIndicator, state.tabs, chatTabEnabled, width]);
+  }, [updateTabIndicator, state.tabs, state.terminalOpen, chatTabEnabled, width]);
 
   useEffect(() => {
-    if (!hasPreviews || !activePaneId) return;
+    if (!tabStripVisible || !activePaneId) return;
     const activeTab = tabRefs.current.get(activePaneId);
     activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-  }, [activePaneId, hasPreviews, state.tabs]);
+  }, [activePaneId, tabStripVisible, state.tabs, state.terminalOpen]);
 
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
@@ -237,7 +268,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
       observer.observe(tabElement);
     }
     return () => observer.disconnect();
-  }, [updateTabIndicator, state.tabs, chatTabEnabled]);
+  }, [updateTabIndicator, state.tabs, state.terminalOpen, chatTabEnabled]);
 
   // Re-clamp on viewport resize so a stored width wider than the new
   // viewport doesn't push the dock off-screen.
@@ -265,6 +296,10 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       const { activeTabId } = store.getSnapshot();
+      if (activeTabId === TERMINAL_TAB_ID) {
+        store.closeTerminal();
+        return;
+      }
       if (activeTabId !== CHAT_TAB_ID) store.close(activeTabId);
     };
     window.addEventListener('keydown', onKey);
@@ -322,8 +357,14 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
       />
       {/* Always in the DOM so its appearance/disappearance can animate;
           hidden (and out of the tab order) while chat is alone. */}
-      <div className="right-dock__tabs" data-visible={hasPreviews}>
-        <div ref={tabsRef} className="right-dock__tab-scroll" role="tablist" aria-label={t('rightDock.tabs')}>
+      <div className="right-dock__tabs" data-visible={tabStripVisible}>
+        <div
+          ref={tabsRef}
+          className="right-dock__tab-scroll"
+          role="tablist"
+          aria-label={t('rightDock.tabs')}
+          onScroll={updateTabIndicator}
+        >
           <span
             className="right-dock__tab-glider"
             aria-hidden="true"
@@ -344,10 +385,42 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
               title={t('rightDock.chat')}
               onClick={() => store.activate(CHAT_TAB_ID)}
             >
-              <span className="right-dock__tab-dot right-dock__tab-dot--chat" />
+              <span className="right-dock__tab-icon right-dock__tab-icon--chat">
+                <AppLogoIcon size={14} />
+              </span>
               <span className="right-dock__tab-title">{t('rightDock.chat')}</span>
               <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
+          )}
+          {terminalTabVisible && (
+            <span className="right-dock__tab-shell">
+              <button
+                ref={(element) => registerTab(TERMINAL_TAB_ID, element)}
+                type="button"
+                role="tab"
+                aria-selected={activePaneId === TERMINAL_TAB_ID}
+                className={`right-dock__tab right-dock__tab--with-close${activePaneId === TERMINAL_TAB_ID ? ' right-dock__tab--active' : ''}`}
+                title={t('rightDock.terminal')}
+                onClick={() => store.activate(TERMINAL_TAB_ID)}
+              >
+                <span className="right-dock__tab-icon right-dock__tab-icon--terminal">
+                  <NodeTypeIcon type="terminal" size={14} />
+                </span>
+                <span className="right-dock__tab-title">{t('rightDock.terminal')}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={t('rightDock.closeTab', { title: t('rightDock.terminal') })}
+                title={t('rightDock.closeTab', { title: t('rightDock.terminal') })}
+                className="right-dock__tab-close"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  store.closeTerminal();
+                }}
+              >
+                ×
+              </button>
+            </span>
           )}
           {state.tabs.map((tab) => {
             const active = tab.id === activePaneId;
@@ -362,7 +435,13 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
                   title={tab.title}
                   onClick={() => store.activate(tab.id)}
                 >
-                  <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
+                  {tab.kind === 'link' ? (
+                    <span className="right-dock__tab-icon right-dock__tab-icon--link">
+                      <NodeTypeIcon type="iframe" size={14} />
+                    </span>
+                  ) : (
+                    <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
+                  )}
                   <span className="right-dock__tab-title">{tab.title}</span>
                 </button>
                 <button
@@ -398,6 +477,13 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
           ref={setChatHost}
           className={`right-dock__pane right-dock__pane--chat${activePaneId === CHAT_TAB_ID ? ' right-dock__pane--active' : ''}`}
         />
+        {terminalTabVisible && (
+          <div
+            className={`right-dock__pane right-dock__pane--terminal${activePaneId === TERMINAL_TAB_ID ? ' right-dock__pane--active' : ''}`}
+          >
+            <div ref={setTerminalHost} className="right-dock__terminal-host" />
+          </div>
+        )}
         {state.tabs.map((tab) => (
           <div
             key={tab.id}

@@ -19,6 +19,8 @@
   box-shadow: -20px 0 54px rgba(55, 53, 47, 0.18);
   display: flex;
   flex-direction: column;
+  max-width: 100vw;
+  min-width: 0;
   animation: settings-drawer-in 0.16s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
@@ -35,6 +37,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.settings-drawer-header > div {
+  min-width: 0;
 }
 
 .settings-drawer-kicker {

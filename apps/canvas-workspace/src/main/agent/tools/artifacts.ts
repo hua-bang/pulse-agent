@@ -6,6 +6,12 @@ import {
 } from '../../artifacts/store';
 import { pinArtifactToCanvas } from '../../artifacts/ipc';
 import type { CanvasTool } from './types';
+import { loadCanvas } from './_shared/canvas-io';
+import {
+  placementIntentSchema,
+  resolvePlacement,
+  type PlacementIntent,
+} from './_shared/placement';
 
 export function createArtifactTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -99,15 +105,39 @@ export function createArtifactTools(workspaceId: string): Record<string, CanvasT
         y: z.number().optional().describe('Top-left y (auto-placed if omitted).'),
         width: z.number().optional().describe('Width in px (default 520).'),
         height: z.number().optional().describe('Height in px (default 400).'),
+        placement: placementIntentSchema.optional().describe(
+          'Semantic insertion strategy for the pinned artifact node. Use near_node for derived visuals, inside_frame for dashboards inside a frame, or omit to append.',
+        ),
         title: z.string().optional().describe('Override the on-canvas node title (defaults to the artifact title).'),
       }),
       execute: async (input) => {
         const artifactId = input.artifactId as string;
+        const width = (input.width as number | undefined) ?? 520;
+        const height = (input.height as number | undefined) ?? 400;
+        let x = input.x as number | undefined;
+        let y = input.y as number | undefined;
+        if (x == null || y == null) {
+          const canvas = await loadCanvas(workspaceId);
+          if (canvas) {
+            try {
+              const pos = resolvePlacement(
+                canvas.nodes,
+                { width, height },
+                { x, y },
+                input.placement as PlacementIntent | undefined,
+              );
+              x = pos.x;
+              y = pos.y;
+            } catch (err) {
+              return JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) });
+            }
+          }
+        }
         const result = await pinArtifactToCanvas(workspaceId, artifactId, {
-          x: input.x as number | undefined,
-          y: input.y as number | undefined,
-          width: input.width as number | undefined,
-          height: input.height as number | undefined,
+          x,
+          y,
+          width,
+          height,
           title: input.title as string | undefined,
         });
         if ('error' in result) {

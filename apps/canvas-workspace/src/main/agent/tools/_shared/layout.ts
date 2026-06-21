@@ -362,7 +362,7 @@ export function planPlaceNear(
   return { mutations };
 }
 
-function collectFrameDescendantIds(frame: CanvasNode, nodes: CanvasNode[]): Set<string> {
+export function collectFrameDescendantIds(frame: CanvasNode, nodes: CanvasNode[]): Set<string> {
   const descendants = new Set<string>();
   const frameRect = rectOf(frame);
   for (const node of nodes) {

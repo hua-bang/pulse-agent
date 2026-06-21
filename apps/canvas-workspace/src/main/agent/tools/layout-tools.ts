@@ -12,6 +12,7 @@ import {
   planFrameGrid,
   planPlaceNear,
 } from './_shared/layout';
+import { planRegionGrid } from './_shared/layout-region';
 
 const layoutDirectionSchema = z.enum(['right', 'below', 'left', 'above']);
 
@@ -45,13 +46,20 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
         'Apply deterministic layout algorithms instead of hand-calculating x/y coordinates. ' +
         'Use mode="place_near" to place existing nodes near an anchor while avoiding collisions; ' +
         'mode="frame_grid" to arrange nodes inside a frame and auto-fit the frame; ' +
+        'mode="region_grid" to arrange selected nodes or nodes inside a rectangular region while leaving outside nodes fixed; ' +
         'mode="canvas_grid" to arrange top-level nodes/frames on the canvas. ' +
         'This is preferred whenever the user asks to organize, tidy, lay out, or generate a structured canvas.',
       inputSchema: z.object({
-        mode: z.enum(['place_near', 'frame_grid', 'canvas_grid', 'validate']).describe('Layout operation to run. validate returns a layout snapshot without writing.'),
-        nodeIds: z.array(z.string()).optional().describe('Nodes to place/layout. For frame_grid, omitted means current spatial children of the frame. For canvas_grid, omitted means top-level nodes.'),
+        mode: z.enum(['place_near', 'frame_grid', 'region_grid', 'canvas_grid', 'validate']).describe('Layout operation to run. validate returns a layout snapshot without writing.'),
+        nodeIds: z.array(z.string()).optional().describe('Nodes to place/layout. For frame_grid, omitted means current spatial children of the frame. For region_grid, pass selected nodes or omit and provide region. For canvas_grid, omitted means top-level nodes.'),
         anchorNodeId: z.string().optional().describe('Anchor node for place_near. If omitted, placement starts at the canvas bounds.'),
         frameId: z.string().optional().describe('Frame node for frame_grid.'),
+        region: z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number().min(1),
+          height: z.number().min(1),
+        }).optional().describe('Canvas rectangle for region_grid. Nodes whose centers are inside the rectangle are arranged.'),
         direction: layoutDirectionSchema.optional().describe('Preferred direction for place_near. Default right.'),
         columns: z.number().int().min(1).max(12).optional().describe('Preferred grid column count.'),
         gap: z.number().min(0).max(500).optional().describe(`Gap between nodes. Default ${DEFAULT_LAYOUT_GAP}.`),
@@ -66,7 +74,7 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
         const canvas = await loadCanvas(workspaceId);
         if (!canvas) return 'Error: workspace not found';
 
-        const mode = input.mode as 'place_near' | 'frame_grid' | 'canvas_grid' | 'validate';
+        const mode = input.mode as 'place_near' | 'frame_grid' | 'region_grid' | 'canvas_grid' | 'validate';
         if (mode === 'validate') {
           return JSON.stringify({
             ok: true,
@@ -99,6 +107,24 @@ export function createLayoutTools(workspaceId: string): Record<string, CanvasToo
             });
             mutations = plan.mutations;
             meta = { frameId, childIds: plan.childIds, contentBounds: plan.bounds };
+          } else if (mode === 'region_grid') {
+            const region = input.region as { x: number; y: number; width: number; height: number } | undefined;
+            const nodeIds = input.nodeIds as string[] | undefined;
+            if ((!nodeIds || nodeIds.length === 0) && !region) {
+              return 'Error: nodeIds or region is required for region_grid';
+            }
+            const plan = planRegionGrid(canvas.nodes, {
+              nodeIds,
+              region,
+              columns: input.columns as number | undefined,
+              gap: input.gap as number | undefined,
+              startX: input.startX as number | undefined,
+              startY: input.startY as number | undefined,
+              lockedNodeIds: input.lockedNodeIds as string[] | undefined,
+              respectLayoutLocked: input.respectLayoutLocked as boolean | undefined,
+            });
+            mutations = plan.mutations;
+            meta = { arrangedNodeIds: plan.arrangedNodeIds, skippedNodeIds: plan.skippedNodeIds, contentBounds: plan.bounds };
           } else {
             const plan = planCanvasGrid(canvas.nodes, {
               nodeIds: input.nodeIds as string[] | undefined,

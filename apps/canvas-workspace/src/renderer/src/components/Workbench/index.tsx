@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanel } from '../chat';
-import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
 import {
   createReferenceNodeDataSnapshot,
   ReferenceDrawer,
@@ -20,6 +20,7 @@ import type { CanvasClipboard, CanvasNodePatchRequest } from '../../types/ui-int
 import { isReferenceableNode, isReferenceableNodeType } from '../../utils/referenceNodes';
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
+import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
 
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
@@ -68,6 +69,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const dockState = useRightDockState();
   const chatHost = useRightDockChatHost();
   const chatPanelOpen = dockState.expanded && dockState.activeTabId === CHAT_TAB_ID;
+  const terminalDockOpen = dockState.expanded
+    && dockState.terminalOpen
+    && dockState.activeTabId === TERMINAL_TAB_ID;
 
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
@@ -414,43 +418,45 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                 className="canvas-host"
                 style={isActive ? undefined : { display: 'none' }}
               >
-                <Canvas
-                  canvasId={ws.id}
-                  canvasName={ws.name}
-                  rootFolder={ws.rootFolder}
-                  isActive={isActive}
-                  onNodesChange={handleNodesChange}
-                  onSelectionChange={handleSelectionChange}
-                  focusNodeId={ws.id === focusRequest?.workspaceId ? focusRequest.nodeId : undefined}
-                  onFocusComplete={clearFocusRequest}
-                  deleteNodeId={ws.id === deleteRequest?.workspaceId ? deleteRequest.nodeId : undefined}
-                  onDeleteComplete={clearDeleteRequest}
-                  renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
-                  onRenameComplete={clearRenameRequest}
-                  chatPanelOpen={chatPanelOpen}
-                  onChatOpen={dock.openChat}
-                  onChatToggle={dock.toggleChat}
-                  referenceDrawerOpen={referenceDrawerOpen}
-                  onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
-                  onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
-                  onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
-                  onAddDomSelectionToChat={(selection) => handleAddDomSelectionToChat(ws.id, selection)}
-                  resolveReferenceNode={resolveReferenceNode}
-                  onOpenReferenceSource={handleOpenReferenceSource}
-                  onUpdateReferenceSource={updateReferenceSourceNode}
-                  referencePlacementRequest={isActive ? referencePlacementRequest : null}
-                  onReferencePlacementComplete={consumeReferencePlacementRequest}
-                  createReferenceNode={createReferenceNodeFromEntry}
-                  clipboard={canvasClipboard}
-                  onClipboardChange={setCanvasClipboard}
-                  onPasteReferences={pasteReferencesIntoCanvas}
-                  nodePatchRequest={nodePatchRequest?.workspaceId === ws.id ? nodePatchRequest : undefined}
-                  onNodePatchComplete={(requestId) => {
-                    if (nodePatchRequest?.requestId === requestId) setNodePatchRequest(undefined);
-                  }}
-                  onOpenAppSettings={onOpenAppSettings}
-                  onSetRootFolder={onSetActiveRootFolder}
-                />
+                <div className="canvas-host__main">
+                  <Canvas
+                    canvasId={ws.id}
+                    canvasName={ws.name}
+                    rootFolder={ws.rootFolder}
+                    isActive={isActive}
+                    onNodesChange={handleNodesChange}
+                    onSelectionChange={handleSelectionChange}
+                    focusNodeId={ws.id === focusRequest?.workspaceId ? focusRequest.nodeId : undefined}
+                    onFocusComplete={clearFocusRequest}
+                    deleteNodeId={ws.id === deleteRequest?.workspaceId ? deleteRequest.nodeId : undefined}
+                    onDeleteComplete={clearDeleteRequest}
+                    renameRequest={ws.id === renameRequest?.workspaceId ? renameRequest : undefined}
+                    onRenameComplete={clearRenameRequest}
+                    chatPanelOpen={chatPanelOpen}
+                    onChatOpen={dock.openChat}
+                    onChatToggle={dock.toggleChat}
+                    referenceDrawerOpen={referenceDrawerOpen}
+                    onReferenceToggle={() => setReferenceDrawerOpen((prev) => !prev)}
+                    onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
+                    onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
+                    onAddDomSelectionToChat={(selection) => handleAddDomSelectionToChat(ws.id, selection)}
+                    resolveReferenceNode={resolveReferenceNode}
+                    onOpenReferenceSource={handleOpenReferenceSource}
+                    onUpdateReferenceSource={updateReferenceSourceNode}
+                    referencePlacementRequest={isActive ? referencePlacementRequest : null}
+                    onReferencePlacementComplete={consumeReferencePlacementRequest}
+                    createReferenceNode={createReferenceNodeFromEntry}
+                    clipboard={canvasClipboard}
+                    onClipboardChange={setCanvasClipboard}
+                    onPasteReferences={pasteReferencesIntoCanvas}
+                    nodePatchRequest={nodePatchRequest?.workspaceId === ws.id ? nodePatchRequest : undefined}
+                    onNodePatchComplete={(requestId) => {
+                      if (nodePatchRequest?.requestId === requestId) setNodePatchRequest(undefined);
+                    }}
+                    onOpenAppSettings={onOpenAppSettings}
+                    onSetRootFolder={onSetActiveRootFolder}
+                  />
+                </div>
               </div>
             );
           })}
@@ -483,6 +489,14 @@ export const Workbench: React.FC<WorkbenchProps> = ({
           )),
           chatHost,
         )}
+        <WorkspaceTerminalPortal
+          activeWorkspaceId={activeWorkspaceId}
+          workspaces={workspaces}
+          mountedWorkspaceIds={mountedWorkspaceIds}
+          allNodes={allNodes}
+          open={terminalDockOpen}
+          onClose={dock.closeTerminal}
+        />
       </FileNodeEditorRegistryProvider>
     </>
   );

@@ -6,7 +6,13 @@ import { readWorkspaceMeta } from '../workspace-meta';
 import type { CanvasNode, CanvasTool } from './types';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import { broadcastUpdate } from './_shared/broadcast';
-import { autoPlace, DEFAULT_DIMENSIONS, INLINE_PROMPT_THRESHOLD } from './_shared/placement';
+import {
+  DEFAULT_DIMENSIONS,
+  INLINE_PROMPT_THRESHOLD,
+  placementIntentSchema,
+  resolvePlacement,
+  type PlacementIntent,
+} from './_shared/placement';
 
 export function createAgentTools(workspaceId: string): Record<string, CanvasTool> {
   return {
@@ -31,6 +37,9 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
           .describe('Override the auto-generated CLI arguments. Rarely needed when using prompt.'),
         x: z.number().optional().describe('X position (auto-placed if omitted).'),
         y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+        placement: placementIntentSchema.optional().describe(
+          'Semantic insertion strategy. Use near_node when delegating from a source node, inside_frame to place into a frame, or omit to append without moving existing nodes.',
+        ),
       }),
       execute: async (input) => {
         const canvas = await loadCanvas(workspaceId);
@@ -59,9 +68,17 @@ export function createAgentTools(workspaceId: string): Record<string, CanvasTool
 
         const nodeId = `node-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const def = DEFAULT_DIMENSIONS.agent;
-        const pos = (input.x != null && input.y != null)
-          ? { x: input.x as number, y: input.y as number }
-          : autoPlace(canvas.nodes);
+        let pos: { x: number; y: number };
+        try {
+          pos = resolvePlacement(
+            canvas.nodes,
+            { width: def.width, height: def.height },
+            { x: input.x as number | undefined, y: input.y as number | undefined },
+            input.placement as PlacementIntent | undefined,
+          );
+        } catch (err) {
+          return `Error: ${err instanceof Error ? err.message : String(err)}`;
+        }
 
         const newNode: CanvasNode = {
           id: nodeId,

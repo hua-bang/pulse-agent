@@ -190,6 +190,45 @@ describe('canvas_search_nodes', () => {
   });
 });
 
+describe('canvas_create_node placement', () => {
+  it('places a new node inside a target frame without moving existing nodes', async () => {
+    await setupCanvas({
+      nodes: [
+        { id: 'frame', type: 'frame', title: 'Frame', x: 0, y: 0, width: 360, height: 260, data: {} },
+        { id: 'child', type: 'text', title: 'Child', x: 32, y: 32, width: 120, height: 80, data: { content: 'existing' } },
+      ],
+    });
+    const tools = createCanvasTools(wsId);
+
+    const result = JSON.parse(await tools.canvas_create_node.execute({
+      type: 'text',
+      title: 'New note',
+      content: 'hello',
+      width: 120,
+      height: 80,
+      placement: { mode: 'inside_frame', frameId: 'frame', padding: 32, gap: 20 },
+    }));
+
+    expect(result.ok).toBe(true);
+    expect(result.x).toBeGreaterThanOrEqual(32);
+    expect(result.y).toBeGreaterThanOrEqual(32);
+
+    const { data } = await readCanvasFull(wsId);
+    const nodes = data?.nodes ?? [];
+    const existing = nodes.find((node) => node.id === 'child');
+    const created = nodes.find((node) => node.id === result.nodeId);
+    expect(existing).toMatchObject({ x: 32, y: 32 });
+    expect(created).toMatchObject({
+      type: 'text',
+      title: 'New note',
+      x: result.x,
+      y: result.y,
+      width: 120,
+      height: 80,
+    });
+  });
+});
+
 describe('createGlobalCanvasTools', () => {
   it('exposes read/search tools, the knowledge index, and the tag-write tool — no layout mutations', async () => {
     const tools = createGlobalCanvasTools();

@@ -4,6 +4,7 @@ import type { CreatableCanvasNodeType } from '../../../utils/nodeFactory';
 import type { PaletteCommand } from '../../CommandPalette';
 import type { AddNodeOptions } from '../../../hooks/useNodes';
 import { useI18n } from '../../../i18n';
+import { useRightDock } from '../../RightDock';
 
 interface Options {
   selectedNodeIds: string[];
@@ -64,6 +65,7 @@ export const useCanvasPaletteCommands = ({
   toggleFocusMode,
 }: Options): PaletteCommand[] => {
   const { t } = useI18n();
+  const dock = useRightDock();
 
   return useMemo<PaletteCommand[]>(() => {
     const selectionCount = selectedNodeIds.length;
@@ -204,7 +206,7 @@ export const useCanvasPaletteCommands = ({
         title: t('canvas.palette.command.newTerminal'),
         hint: t('canvas.palette.command.newTerminalHint'),
         aliases: ['shell', 'pty', 'command', 'run'],
-        run: () => handleToolbarAddNode('terminal'),
+        run: () => dock.toggleTerminal(),
       },
       {
         id: 'create-mindmap',
@@ -274,6 +276,7 @@ export const useCanvasPaletteCommands = ({
     resetTransform,
     chatPanelOpen,
     onChatToggle,
+    dock,
     referenceDrawerOpen,
     onReferenceToggle,
     onPinReferenceNode,

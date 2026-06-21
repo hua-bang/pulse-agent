@@ -258,6 +258,7 @@
 }
 
 .right-dock__tab-dot--chat { background: #1f7a4d; border-radius: 50%; }
+.right-dock__tab-dot--terminal { background: #0f766e; }
 .right-dock__tab-dot--artifact { background: #a594e0; }
 .right-dock__tab-dot--link { background: #2383e2; }
 
@@ -266,6 +267,41 @@
     inset 0 0 0 1px rgba(255, 255, 255, 0.58),
     0 0 0 3px rgba(35, 131, 226, 0.1);
   transform: scale(1.08);
+}
+
+.right-dock__tab-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #73716c;
+  transition:
+    color 0.18s ease,
+    transform 0.2s var(--tab-ease);
+}
+
+.right-dock__tab-icon--chat img {
+  width: 14px;
+  height: 14px;
+}
+
+.right-dock__tab-icon--terminal {
+  color: #0f766e;
+}
+
+.right-dock__tab-icon--link {
+  color: #2383e2;
+}
+
+.right-dock__tab--active .right-dock__tab-icon {
+  color: #0f766e;
+  transform: scale(1.06);
+}
+
+.right-dock__tab--active .right-dock__tab-icon--link {
+  color: #2383e2;
 }
 
 .right-dock__tab-title {
@@ -399,6 +435,7 @@
   .right-dock__tab,
   .right-dock__tab::before,
   .right-dock__tab-dot,
+  .right-dock__tab-icon,
   .right-dock__tab-close,
   .right-dock__collapse {
     transition: none;

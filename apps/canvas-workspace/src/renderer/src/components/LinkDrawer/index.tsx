@@ -13,6 +13,7 @@
  */
 
 import { useCallback, useLayoutEffect, useRef } from "react";
+import { useI18n } from "../../i18n";
 import "./index.css";
 
 interface WebviewTag extends HTMLElement {
@@ -30,6 +31,7 @@ interface LinkTabViewProps {
 }
 
 export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onRequestClose }: LinkTabViewProps) => {
+  const { t } = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
   const onTitleChangeRef = useRef(onTitleChange);
@@ -95,7 +97,7 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onRequestCl
           type="button"
           className="link-drawer__icon-btn"
           onClick={handleReload}
-          title="Reload"
+          title={t('linkDrawer.reload')}
         >
           <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
             <path
@@ -116,16 +118,16 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onRequestCl
           className="link-drawer__btn"
           onClick={handleOpenInBrowser}
         >
-          用系统浏览器打开
+          {t('linkDrawer.openInBrowser')}
         </button>
         <button
           type="button"
           className="link-drawer__btn link-drawer__btn--primary"
           onClick={handleAddToCanvas}
           disabled={!activeWorkspaceId}
-          title={activeWorkspaceId ? undefined : "No active canvas"}
+          title={activeWorkspaceId ? undefined : t('linkDrawer.noActiveCanvas')}
         >
-          加入当前画布
+          {t('linkDrawer.addToCanvas')}
         </button>
       </footer>
     </>

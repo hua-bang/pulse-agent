@@ -70,3 +70,43 @@
   min-width: 0;
   overflow: hidden;
 }
+
+@media (max-width: 760px) {
+  .settings-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .settings-rail {
+    border-right: none;
+    border-bottom: 1px solid rgba(55, 53, 47, 0.07);
+    padding: 8px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .settings-rail-item {
+    flex: 0 0 auto;
+    width: 148px;
+    padding: 7px 9px;
+  }
+
+  .settings-rail-desc {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-rail-item {
+    width: auto;
+    max-width: 132px;
+  }
+
+  .settings-rail-desc {
+    display: none;
+  }
+}
