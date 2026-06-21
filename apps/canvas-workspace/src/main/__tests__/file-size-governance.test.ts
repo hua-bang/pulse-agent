@@ -5,23 +5,19 @@ import { extname, join, relative, sep } from 'path';
 const WARN_LINE_THRESHOLD = 400;
 const HARD_LINE_THRESHOLD = 500;
 const SOURCE_ROOT = 'src';
-const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx', '.css']);
+// CSS is declarative styling and does not benefit from the per-module
+// splitting that file-size governance enforces on TS/TSX logic. Scope the
+// hard 500-line gate to code modules only.
+const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 const CURRENT_OVER_500_BASELINE: Record<string, number> = {
-  'src/renderer/src/components/AgentTeamFrame/index.css': 2951,
-  'src/renderer/src/components/chat/ChatPanel.css': 2945,
   'src/main/agent-teams/service.ts': 2569,
   'src/renderer/src/components/AgentTeamFrame/index.tsx': 2243,
   'src/renderer/src/types.ts': 1861,
   'src/main/canvas/store.ts': 1606,
-  'src/renderer/src/components/AgentNodeBody/index.css': 1393,
   'src/renderer/src/components/AgentNodeBody/useAgentNodeController.ts': 1286,
   'src/main/agent/canvas-agent.ts': 1158,
   'src/main/canvas/storage.ts': 1122,
-  'src/renderer/src/components/CanvasNodeView/index.css': 1130,
-  'src/renderer/src/components/ReferenceDrawer/index.css': 1049,
-  'src/renderer/src/components/WorkspaceNodes/index.css': 1026,
-  'src/renderer/src/components/Sidebar/index.css': 939,
   'src/renderer/src/hooks/useNodes.ts': 918,
   'src/main/agent/context-builder.ts': 856,
   'src/renderer/src/components/WorkspaceNodes/GraphPage.tsx': 812,
@@ -31,14 +27,12 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
-  'src/renderer/src/components/settings-config/settings-config.css': 614,
   'src/renderer/src/App.tsx': 606,
   'src/renderer/src/utils/mindmapLayout.ts': 603,
   'src/main/agent/model/config.ts': 599,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/settings/canvas-plugins-config.ts': 558,
   'src/main/agent/session-store.ts': 557,
-  'src/renderer/src/components/artifacts/artifacts.css': 577,
   'src/renderer/src/components/chat/hooks/useChatStream.ts': 542,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,

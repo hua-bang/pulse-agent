@@ -382,6 +382,9 @@ const en = {
   'canvas.textStyle.backgroundColorOption': 'Use {name} background color',
   'canvas.frameStyle.color': 'Frame color',
   'canvas.frameStyle.colorOption': 'Use {name} frame color',
+  'canvas.frameChildren.collapsedList': 'Collapsed frame children',
+  'canvas.frameChildren.untitled': 'Untitled',
+  'canvas.frameChildren.collapsedMore': '+{count} more',
 
   'node.type.file': 'Note',
   'node.type.terminal': 'Terminal',
@@ -1533,6 +1536,9 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.textStyle.backgroundColorOption': '使用{name}背景颜色',
   'canvas.frameStyle.color': '框架颜色',
   'canvas.frameStyle.colorOption': '使用{name}框架颜色',
+  'canvas.frameChildren.collapsedList': '已收起的框架子节点',
+  'canvas.frameChildren.untitled': '未命名',
+  'canvas.frameChildren.collapsedMore': '+{count} 项',
 
   'node.type.file': '笔记',
   'node.type.terminal': '终端',

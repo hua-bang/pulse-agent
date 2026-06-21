@@ -47,6 +47,7 @@ export const getNodeClasses = ({
 }) => [
   'canvas-node',
   `canvas-node--${node.type}`,
+  node.type === 'frame' && (node.data as FrameNodeData).childrenCollapsed === true && 'canvas-node--frame-collapsed',
   isDragging && 'canvas-node--dragging',
   isResizing && 'canvas-node--resizing',
   isSelected && 'canvas-node--selected',
