@@ -1,39 +1,39 @@
 /* ---------------------------------------------------------------------------
- * Frame node styling — port of design/frame-color.html "Soft" palette.
+ * Frame node styling — soft canvas palette.
  *
- * Color math: every tone is `oklch(L C var(--frame-hue))` with the design's
- * fixed L values and C derived from `--frame-chroma` (0.072 for the regular
- * 8 hues; 0.006 for the low-chroma graphite preset). The picker writes the
- * stored swatch identity at L=0.66, C=0.155; CanvasNodeView/utils.ts parses
- * the hue/chroma out of `data.color` and exposes them as CSS custom props.
+ * Color math: every tone is `oklch(L C var(--frame-hue))` with fixed L/C
+ * values and C derived from `--frame-chroma` (0.052 for the regular 8 hues;
+ * 0.006 for the low-chroma graphite preset). The picker writes a muted
+ * swatch identity; CanvasNodeView/utils.ts parses the hue/chroma out of
+ * `data.color` and exposes them as CSS custom props.
  *
- *   pillBg        → L 0.935  C×0.55
- *   pillText      → L 0.46   C×1.10   (also drives icon strokes)
- *   countBg       → L 0.865  C×0.715  (≈ pillL − 0.07, design's countBg)
- *   bodyTint      → L 0.986  C×0.10
- *   bodyTintFocus → L 0.978  C×0.13
- *   border        → L 0.90   C×0.40
- *   borderHover   → L 0.85   C×0.55
- *   borderFocus   → L 0.85   C×0.45
- *   identity      → L 0.66   C×1.10  (selection ring, focus mode border)
- *   dotPattern    → L 0.90   C×0.16
+ *   pillBg        -> L 0.945  Cx0.34
+ *   pillText      -> L 0.42   Cx0.95   (also drives icon strokes)
+ *   countBg       -> L 0.90   Cx0.46
+ *   bodyTint      -> L 0.984  Cx0.10
+ *   bodyTintFocus -> L 0.976  Cx0.14
+ *   border        -> L 0.88   Cx0.30
+ *   borderHover   -> L 0.80   Cx0.42
+ *   borderFocus   -> L 0.80   Cx0.38
+ *   identity      -> L 0.62   Cx0.95  (selection ring, focus mode border)
+ *   dotPattern    -> L 0.88   Cx0.12
  *
  * --frame-color is kept as the picker dot's display value (sRGB color from
  * the stored string, used in one place); everything else goes via hue.
  * ------------------------------------------------------------------------- */
 
 .canvas-node--frame {
-  --_c: var(--frame-chroma, 0.072);
+  --_c: var(--frame-chroma, 0.052);
   --_h: var(--frame-hue, 250);
   /* Tunable opacity. The design reference uses an almost-solid pale tint;
    * keeping this as a variable lets focus/experiments still tune it. */
-  --_a: var(--frame-bg-alpha, 1);
+  --_a: var(--frame-bg-alpha, 0.86);
 
-  background: oklch(0.986 calc(var(--_c) * 0.10) var(--_h) / var(--_a));
-  border: 1.5px dashed oklch(0.90 calc(var(--_c) * 0.40) var(--_h));
-  border-radius: 30px;
+  background: oklch(0.984 calc(var(--_c) * 0.10) var(--_h) / var(--_a));
+  border: 1px solid oklch(0.88 calc(var(--_c) * 0.30) var(--_h));
+  border-radius: 8px;
   box-shadow: none;
-  /* Header pill floats above the body via top:-21px, so we mustn't clip it. */
+  /* Header pill floats above the body, so we mustn't clip it. */
   overflow: visible;
 }
 
@@ -47,10 +47,10 @@
   border-radius: inherit;
   pointer-events: none;
   background-image: radial-gradient(circle,
-      oklch(0.90 calc(var(--_c) * 0.16) var(--_h)) 1px,
+      oklch(0.88 calc(var(--_c) * 0.12) var(--_h)) 1px,
       transparent 1px);
   background-size: 30px 30px;
-  opacity: 0.4;
+  opacity: 0.26;
   z-index: 0;
 }
 
@@ -60,22 +60,22 @@
 }
 
 .canvas-node--frame:hover {
-  border-color: oklch(0.85 calc(var(--_c) * 0.55) var(--_h));
+  border-color: oklch(0.80 calc(var(--_c) * 0.42) var(--_h));
   box-shadow: none;
 }
 
 .canvas-node--frame.canvas-node--selected {
   border-style: solid;
-  border-color: oklch(0.66 calc(var(--_c) * 1.10) var(--_h));
-  box-shadow: 0 0 0 3px oklch(0.66 calc(var(--_c) * 1.10) var(--_h) / 0.22);
+  border-color: oklch(0.62 calc(var(--_c) * 0.95) var(--_h));
+  box-shadow: 0 0 0 3px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.20);
 }
 
 .canvas-node--frame.canvas-node--focus-mode-focused,
 .canvas-node--frame.canvas-node--focus-mode-focused.canvas-node--selected {
-  background: oklch(0.978 calc(var(--_c) * 0.13) var(--_h) / 0.88);
+  background: oklch(0.976 calc(var(--_c) * 0.14) var(--_h) / 0.88);
   border-style: solid;
-  border-color: oklch(0.85 calc(var(--_c) * 0.45) var(--_h));
-  box-shadow: 0 0 0 2px oklch(0.66 calc(var(--_c) * 1.10) var(--_h) / 0.30);
+  border-color: oklch(0.80 calc(var(--_c) * 0.38) var(--_h));
+  box-shadow: 0 0 0 2px oklch(0.62 calc(var(--_c) * 0.95) var(--_h) / 0.28);
 }
 
 .canvas-node--frame.canvas-node--frame-title-overlay,
@@ -100,56 +100,57 @@
 }
 
 /* ---- Header pill ----
- * Floating chip above the frame body, inset from the top-left corner. The
- * body's 30px radius keeps the corner clear so the bottom of the pill can
- * sit slightly inside the body. */
+ * Floating chip above the frame body, inset from the top-left corner.
+ * It is bottom-anchored to the body's top edge and scales from its bottom
+ * edge, so zoomed-out readable labels grow upward instead of overlapping the
+ * frame body. */
 
 .canvas-node--frame .node-header {
-  --_c: var(--frame-chroma, 0.072);
+  --_c: var(--frame-chroma, 0.052);
   --_h: var(--frame-hue, 250);
 
   position: absolute;
-  top: -21px;
-  left: 34px;
+  top: auto;
+  bottom: calc(100% + var(--frame-title-gap, 10px));
+  /* left: 28px; */
   height: auto;
   /* Override the generic .node-header min-height: 32px so the pill renders
    * at its intended height. */
   min-height: 0;
   width: auto;
-  max-width: calc(100% - 68px);
-  padding: 9px 14px 9px 12px;
-  gap: 9px;
+  max-width: min(560px, calc(100% - 56px));
+  padding: 7px 12px 7px 10px;
+  gap: 8px;
 
-  background: oklch(0.935 calc(var(--_c) * 0.55) var(--_h));
+  background: oklch(0.945 calc(var(--_c) * 0.34) var(--_h));
   border: none;
-  border-radius: 13px;
-  color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
+  border-radius: 8px;
+  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
 
   /* Soft tinted shadow — pill reads as floating, not glued to the body. */
   box-shadow:
-    0 2px 8px oklch(0.46 calc(var(--_c) * 1.10) var(--_h) / 0.10),
-    0 0 0 1px oklch(0.46 calc(var(--_c) * 1.10) var(--_h) / 0.06);
+    0 2px 8px oklch(0.42 calc(var(--_c) * 0.95) var(--_h) / 0.08),
+    0 0 0 1px oklch(0.42 calc(var(--_c) * 0.95) var(--_h) / 0.07);
 
   /* Header lives inside .canvas-transform; same scale-clamping logic as
    * before so the pill stays readable at deep zoom-out without going
-   * larger than CSS-native at zoom-in. transform-origin moves to left top
-   * so the pill grows downward into the body, not upward off the frame. */
+   * larger than CSS-native at zoom-in. */
   transform: scale(calc(clamp(0.6, var(--canvas-scale, 1), 1) / var(--canvas-scale, 1)));
-  transform-origin: left top;
+  transform-origin: left bottom;
   z-index: 120;
 }
 
 .canvas-node--frame .node-header .node-type-badge--frame {
-  color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
+  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
   width: 15px;
   height: 15px;
 }
 
 .canvas-node--frame .node-header .node-title {
   flex: 0 1 auto;
-  color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
+  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
   font-weight: 700;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.2;
   letter-spacing: 0;
 }
@@ -166,7 +167,7 @@
  * like the reference's simple count badge. */
 
 .frame-children-toggle {
-  --_c: var(--frame-chroma, 0.072);
+  --_c: var(--frame-chroma, 0.052);
   --_h: var(--frame-hue, 250);
 
   display: inline-flex;
@@ -179,8 +180,8 @@
   padding: 0 6px;
   border: 0;
   border-radius: 7px;
-  background: oklch(0.865 calc(var(--_c) * 0.715) var(--_h));
-  color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
+  background: oklch(0.90 calc(var(--_c) * 0.46) var(--_h));
+  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
   cursor: pointer;
   transition:
     background 0.14s ease,
@@ -228,8 +229,8 @@
 }
 
 .frame-children-toggle:hover {
-  background: oklch(0.82 calc(var(--_c) * 0.85) var(--_h));
-  color: oklch(0.40 calc(var(--_c) * 1.20) var(--_h));
+  background: oklch(0.84 calc(var(--_c) * 0.62) var(--_h));
+  color: oklch(0.36 calc(var(--_c) * 1.05) var(--_h));
   transform: translateY(-0.5px);
 }
 
@@ -243,8 +244,8 @@
 }
 
 .frame-children-toggle:disabled:hover {
-  background: oklch(0.865 calc(var(--_c) * 0.715) var(--_h));
-  color: oklch(0.46 calc(var(--_c) * 1.10) var(--_h));
+  background: oklch(0.90 calc(var(--_c) * 0.46) var(--_h));
+  color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
   transform: none;
 }
 
@@ -270,12 +271,12 @@
 
 .canvas-node--frame .node-header .node-focus,
 .canvas-node--frame .node-header .node-close {
-  color: oklch(0.55 calc(var(--_c) * 0.80) var(--_h));
+  color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
 }
 
 .canvas-node--frame .node-header .node-focus:hover {
-  background: oklch(0.85 calc(var(--_c) * 0.85) var(--_h));
-  color: oklch(0.40 calc(var(--_c) * 1.20) var(--_h));
+  background: oklch(0.88 calc(var(--_c) * 0.46) var(--_h));
+  color: oklch(0.36 calc(var(--_c) * 1.05) var(--_h));
 }
 
 .canvas-node--frame .node-header .node-close:hover {
@@ -310,7 +311,7 @@
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  color: oklch(0.55 calc(var(--_c) * 0.80) var(--_h));
+  color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
 }
 
 .canvas-node--frame .node-header .node-header__actions .node-reference svg,
@@ -357,7 +358,7 @@
  * Reserve a fixed 16px slot so the pill width doesn't jump when the dot
  * fades in on hover or selection. */
 .frame-color-trigger {
-  --_c: var(--frame-chroma, 0.072);
+  --_c: var(--frame-chroma, 0.052);
   --_h: var(--frame-hue, 250);
 
   position: relative;
@@ -387,10 +388,10 @@
   height: 12px;
   padding: 0;
   border-radius: 50%;
-  /* Border uses the saturated identity so the dot reads as a colored ring
+  /* Border uses the frame identity so the dot reads as a colored ring
    * even before hover. The fill stays transparent — the *hue picker
    * trigger* shouldn't masquerade as the active swatch. */
-  border: 1.5px solid oklch(0.66 calc(var(--_c) * 1.10) var(--_h));
+  border: 1.5px solid oklch(0.62 calc(var(--_c) * 0.95) var(--_h));
   background: transparent;
   cursor: pointer;
   transition: border-color 0.15s ease, transform 0.1s ease;
@@ -402,7 +403,7 @@
 }
 
 .frame-color-trigger:hover .frame-color-dot {
-  border-color: oklch(0.50 calc(var(--_c) * 1.20) var(--_h));
+  border-color: oklch(0.46 calc(var(--_c) * 1.05) var(--_h));
   transform: scale(1.15);
 }
 

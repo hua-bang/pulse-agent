@@ -72,7 +72,7 @@ export const getNodeClasses = ({
  *
  * Storage compatibility:
  *  - New presets (`COLOR_PRESETS` in FrameNodeBody/index.tsx) write
- *    `oklch(0.66 0.155 <hue>)`; we extract <hue> directly.
+ *    `oklch(0.68 0.108 <hue>)`; we extract <hue> directly.
  *  - Legacy hex values (FigJam-era presets, demo workspaces) are converted
  *    via HSL — for the warm pastel range these were drawn from, HSL hue is
  *    within ~5–10° of oklch hue, which is good enough for the design's
@@ -80,7 +80,7 @@ export const getNodeClasses = ({
  *  - Anything unparseable falls back to hue 250 (a neutral indigo).
  */
 const DEFAULT_FRAME_HUE = 250;
-const DEFAULT_FRAME_CHROMA = 0.072;
+const DEFAULT_FRAME_CHROMA = 0.052;
 
 const parseOklchTriple = (color: string): { hue: number; chroma: number } | null => {
   const m = color.match(/oklch\(\s*[\d.]+\s+([\d.]+)\s+([\d.]+)/i);
@@ -116,8 +116,8 @@ const hexToHue = (color: string): number | null => {
 const resolveFrameHue = (color: string): { hue: number; chroma: number } => {
   const parsed = parseOklchTriple(color);
   if (parsed) {
-    // Stored chroma is the *saturated identity* (~0.155); we want the
-    // palette's working chroma (0.072) for derived tones, except when the
+    // Stored chroma is the identity swatch (~0.108); we want the palette's
+    // working chroma (0.052) for derived tones, except when the
     // preset is intentionally low-chroma (graphite, ~0.006).
     return {
       hue: parsed.hue,
