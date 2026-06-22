@@ -206,7 +206,7 @@ export const useCanvasPaletteCommands = ({
         title: t('canvas.palette.command.newTerminal'),
         hint: t('canvas.palette.command.newTerminalHint'),
         aliases: ['shell', 'pty', 'command', 'run'],
-        run: () => dock.toggleTerminal(),
+        run: () => dock.newTerminal(),
       },
       {
         id: 'create-mindmap',

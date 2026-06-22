@@ -7,9 +7,9 @@ export const LANGUAGE_OPTIONS: Array<{
   label: string;
   nativeLabel: string;
 }> = [
-  { code: 'en', label: 'English', nativeLabel: 'English' },
-  { code: 'zh', label: 'Chinese', nativeLabel: '中文' },
-];
+    { code: 'en', label: 'English', nativeLabel: 'English' },
+    { code: 'zh', label: 'Chinese', nativeLabel: '中文' },
+  ];
 
 const en = {
   'app.untitledWorkspace': 'Untitled',
@@ -280,6 +280,9 @@ const en = {
   'canvas.toolbar.addWeb': 'Add Web Page',
   'canvas.toolbar.web': 'Web',
   'canvas.toolbar.addTerminal': 'Add Terminal',
+  'canvas.toolbar.showTerminal': 'Show Terminal',
+  'canvas.toolbar.hideTerminal': 'Hide Terminal',
+  'canvas.toolbar.newTerminal': 'New Terminal',
   'canvas.toolbar.terminal': 'Terminal',
   'canvas.toolbar.addCodingAgent': 'Add Coding Agent',
   'canvas.toolbar.coding': 'Coding',
@@ -425,8 +428,11 @@ const en = {
   'rightDock.ariaLabel': 'Chat and preview panel',
   'rightDock.resizePanel': 'Resize panel',
   'rightDock.tabs': 'Dock tabs',
-  'rightDock.chat': 'Chat',
+  'rightDock.chat': 'Pulse AI',
   'rightDock.terminal': 'Terminal',
+  'rightDock.terminalNumber': 'Terminal {number}',
+  'rightDock.renameTerminalHint': 'Double-click or press F2 to rename',
+  'rightDock.terminalNameInput': 'Terminal name',
   'rightDock.terminalDockHint': 'Open below the canvas as this workspace terminal.',
   'rightDock.closeTerminal': 'Close',
   'rightDock.closeTab': 'Close {title}',
@@ -1435,6 +1441,9 @@ const zh: Record<keyof typeof en, string> = {
   'canvas.toolbar.addWeb': '添加网页',
   'canvas.toolbar.web': '网页',
   'canvas.toolbar.addTerminal': '添加终端',
+  'canvas.toolbar.showTerminal': '显示终端',
+  'canvas.toolbar.hideTerminal': '隐藏终端',
+  'canvas.toolbar.newTerminal': '新建终端',
   'canvas.toolbar.terminal': '终端',
   'canvas.toolbar.addCodingAgent': '添加编码 Agent',
   'canvas.toolbar.coding': '编码',
@@ -1580,8 +1589,11 @@ const zh: Record<keyof typeof en, string> = {
   'rightDock.ariaLabel': '聊天与预览面板',
   'rightDock.resizePanel': '调整面板宽度',
   'rightDock.tabs': 'Dock 标签页',
-  'rightDock.chat': '聊天',
+  'rightDock.chat': 'Pulse AI',
   'rightDock.terminal': '终端',
+  'rightDock.terminalNumber': '终端 {number}',
+  'rightDock.renameTerminalHint': '双击或按 F2 重命名',
+  'rightDock.terminalNameInput': '终端名称',
   'rightDock.terminalDockHint': '已在画布下方作为当前工作区终端打开。',
   'rightDock.closeTerminal': '关闭',
   'rightDock.closeTab': '关闭 {title}',

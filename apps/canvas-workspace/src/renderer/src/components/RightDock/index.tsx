@@ -47,13 +47,15 @@ import {
 import { ArtifactTabView } from '../artifacts/ArtifactTabView';
 import { useI18n } from '../../i18n';
 import { LinkTabView } from '../LinkDrawer';
-import { AppLogoIcon, NodeTypeIcon } from '../icons';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, type DockState } from './dock-store';
+import { AppLogoIcon } from '../icons';
+import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
+import { TerminalDockTab } from './TerminalDockTab';
 import './index.css';
 import './terminal-tab.css';
 
-export { CHAT_TAB_ID, TERMINAL_TAB_ID } from './dock-store';
+export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId } from './dock-store';
+export type { DockTerminalTab, DockTerminalWorkspaceState } from './dock-store';
 
 const WIDTH_STORAGE_KEY = 'canvas-workspace:right-dock-width';
 const DEFAULT_WIDTH = 480;
@@ -101,8 +103,9 @@ export function useRightDock(): {
   openChat: () => void;
   toggleChat: () => void;
   openTerminal: () => void;
+  newTerminal: () => void;
   toggleTerminal: () => void;
-  closeTerminal: () => void;
+  closeTerminal: (id?: string) => void;
   collapse: () => void;
   notifyChatActivity: () => void;
 } {
@@ -114,8 +117,9 @@ export function useRightDock(): {
       openChat: () => store.openChat(),
       toggleChat: () => store.toggleChat(),
       openTerminal: () => store.openTerminal(),
+      newTerminal: () => store.newTerminal(),
       toggleTerminal: () => store.toggleTerminal(),
-      closeTerminal: () => store.closeTerminal(),
+      closeTerminal: (id?: string) => store.closeTerminal(id),
       collapse: () => store.collapse(),
       notifyChatActivity: () => store.notifyChatActivity(),
     }),
@@ -176,38 +180,41 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
   const state = useRightDockState();
   const { t } = useI18n();
 
-  // External links intercepted by the main process land in link preview tabs.
+  useLayoutEffect(() => {
+    store.setActiveWorkspace(activeWorkspaceId);
+  }, [activeWorkspaceId, store]);
+
   useEffect(() => {
     return window.canvasWorkspace.link.onOpen(({ url }) => store.openLink(url));
   }, [store]);
 
-  // Route guard: while the chat tab is unavailable, an active 'chat'
-  // pointer falls forward to the first preview so the dock never shows an
-  // empty pane.
   useEffect(() => {
     if (chatTabEnabled) return;
     if (
-      (state.activeTabId === CHAT_TAB_ID || state.activeTabId === TERMINAL_TAB_ID)
+      (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
       && state.tabs.length > 0
     ) {
       store.activate(state.tabs[0].id);
       return;
     }
-    if (state.activeTabId === CHAT_TAB_ID || state.activeTabId === TERMINAL_TAB_ID) {
+    if (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId)) {
       store.collapse();
     }
   }, [chatTabEnabled, state.activeTabId, state.tabs, store]);
 
   const hasPreviews = state.tabs.length > 0;
-  const terminalTabVisible = chatTabEnabled && state.terminalOpen;
-  const tabStripVisible = hasPreviews || terminalTabVisible;
+  const terminalTabsVisible = chatTabEnabled && state.terminalTabs.length > 0;
+  const terminalHostMounted = chatTabEnabled
+    && Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
+  const tabStripVisible = hasPreviews || terminalTabsVisible;
   const visible = state.expanded && (chatTabEnabled || hasPreviews);
   // While the chat tab is unavailable a transient 'chat' active pointer
   // (route guard hasn't run yet) should highlight nothing.
   const activePaneId = !chatTabEnabled
-    && (state.activeTabId === CHAT_TAB_ID || state.activeTabId === TERMINAL_TAB_ID)
+    && (state.activeTabId === CHAT_TAB_ID || isTerminalTabId(state.activeTabId))
     ? null
     : state.activeTabId;
+  const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
   const widthRef = useRef(width);
@@ -252,13 +259,13 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
 
   useLayoutEffect(() => {
     updateTabIndicator();
-  }, [updateTabIndicator, state.tabs, state.terminalOpen, chatTabEnabled, width]);
+  }, [updateTabIndicator, state.tabs, state.terminalTabs, chatTabEnabled, width]);
 
   useEffect(() => {
     if (!tabStripVisible || !activePaneId) return;
     const activeTab = tabRefs.current.get(activePaneId);
     activeTab?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
-  }, [activePaneId, tabStripVisible, state.tabs, state.terminalOpen]);
+  }, [activePaneId, tabStripVisible, state.tabs, state.terminalTabs]);
 
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
@@ -269,7 +276,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
       observer.observe(tabElement);
     }
     return () => observer.disconnect();
-  }, [updateTabIndicator, state.tabs, state.terminalOpen, chatTabEnabled]);
+  }, [updateTabIndicator, state.tabs, state.terminalTabs, chatTabEnabled]);
 
   // Re-clamp on viewport resize so a stored width wider than the new
   // viewport doesn't push the dock off-screen.
@@ -296,9 +303,9 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     if (!visible) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      const { activeTabId } = store.getSnapshot();
-      if (activeTabId === TERMINAL_TAB_ID) {
-        store.closeTerminal();
+      const { activeTabId, terminalTabs } = store.getSnapshot();
+      if (terminalTabs.some((tab) => tab.id === activeTabId)) {
+        store.closeTerminal(activeTabId);
         return;
       }
       if (activeTabId !== CHAT_TAB_ID) store.close(activeTabId);
@@ -356,8 +363,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
         aria-orientation="vertical"
         aria-label={t('rightDock.resizePanel')}
       />
-      {/* Always in the DOM so its appearance/disappearance can animate;
-          hidden (and out of the tab order) while chat is alone. */}
       <div className="right-dock__tabs" data-visible={tabStripVisible}>
         <div
           ref={tabsRef}
@@ -393,36 +398,17 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
               <span className="right-dock__tab-unread" aria-hidden="true" />
             </button>
           )}
-          {terminalTabVisible && (
-            <span className="right-dock__tab-shell">
-              <button
-                ref={(element) => registerTab(TERMINAL_TAB_ID, element)}
-                type="button"
-                role="tab"
-                aria-selected={activePaneId === TERMINAL_TAB_ID}
-                className={`right-dock__tab right-dock__tab--with-close${activePaneId === TERMINAL_TAB_ID ? ' right-dock__tab--active' : ''}`}
-                title={t('rightDock.terminal')}
-                onClick={() => store.activate(TERMINAL_TAB_ID)}
-              >
-                <span className="right-dock__tab-icon right-dock__tab-icon--terminal">
-                  <NodeTypeIcon type="terminal" size={14} />
-                </span>
-                <span className="right-dock__tab-title">{t('rightDock.terminal')}</span>
-              </button>
-              <button
-                type="button"
-                aria-label={t('rightDock.closeTab', { title: t('rightDock.terminal') })}
-                title={t('rightDock.closeTab', { title: t('rightDock.terminal') })}
-                className="right-dock__tab-close"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  store.closeTerminal();
-                }}
-              >
-                ×
-              </button>
-            </span>
-          )}
+          {terminalTabsVisible && state.terminalTabs.map((tab) => (
+            <TerminalDockTab
+              key={tab.id}
+              tab={tab}
+              active={tab.id === activePaneId}
+              registerTab={registerTab}
+              onActivate={(id) => store.activate(id)}
+              onClose={(id) => store.closeTerminal(id)}
+              onRename={(id, title) => store.renameTerminal(id, title)}
+            />
+          ))}
           {state.tabs.map((tab) => {
             const active = tab.id === activePaneId;
             return (
@@ -472,15 +458,13 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
         </button>
       </div>
       <div className="right-dock__panes">
-        {/* Chat pane: portal outlet — always mounted so chat keeps its
-            state across collapse, tab switches and route changes. */}
         <div
           ref={setChatHost}
           className={`right-dock__pane right-dock__pane--chat${activePaneId === CHAT_TAB_ID ? ' right-dock__pane--active' : ''}`}
         />
-        {terminalTabVisible && (
+        {terminalHostMounted && (
           <div
-            className={`right-dock__pane right-dock__pane--terminal${activePaneId === TERMINAL_TAB_ID ? ' right-dock__pane--active' : ''}`}
+            className={`right-dock__pane right-dock__pane--terminal${terminalPaneActive ? ' right-dock__pane--active' : ''}`}
           >
             <div ref={setTerminalHost} className="right-dock__terminal-host" />
           </div>

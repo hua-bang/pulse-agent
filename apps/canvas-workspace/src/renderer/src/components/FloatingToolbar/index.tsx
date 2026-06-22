@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './index.css';
 import { inferPluginIcon, PluginNodeIcon } from './PluginNodeIcon';
 import { ShapeToolButton } from './ShapeToolButton';
+import { TerminalToolSplitButton } from './TerminalToolSplitButton';
 import { AppLogoIcon, CodingAgentIcon } from '../icons';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
@@ -14,7 +15,7 @@ import type {
   CanvasPluginsStatus,
 } from '../../types/settings-config';
 import { CANVAS_PLUGINS_CHANGED_EVENT } from '../../constants/canvasPlugins';
-import { TERMINAL_TAB_ID, useRightDock, useRightDockState } from '../RightDock';
+import { useRightDock, useRightDockState } from '../RightDock';
 
 interface AddNodeUiOptions {
   label?: string;
@@ -168,8 +169,7 @@ export const FloatingToolbar = ({
   const dock = useRightDock();
   const dockState = useRightDockState();
   const terminalDockOpen = dockState.expanded
-    && dockState.terminalOpen
-    && dockState.activeTabId === TERMINAL_TAB_ID;
+    && dockState.terminalTabs.some((tab) => tab.id === dockState.activeTabId);
   const pluginMenuRef = useRef<HTMLDivElement | null>(null);
   const pluginPopoverRef = useRef<HTMLDivElement | null>(null);
   const [pluginMenuOpen, setPluginMenuOpen] = useState(false);
@@ -374,25 +374,12 @@ export const FloatingToolbar = ({
           </svg>
           <span className="toolbar-btn-label">{t('canvas.toolbar.web')}</span>
         </button>
-        <button
-          className={`toolbar-btn toolbar-btn--create${terminalDockOpen ? " toolbar-btn--active" : ""}`}
-          onClick={dock.toggleTerminal}
-          aria-label={t('canvas.toolbar.addTerminal')}
-          data-tooltip={t('canvas.toolbar.terminal')}
-          aria-pressed={terminalDockOpen}
-        >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <rect
-              x="2.5" y="3" width="13" height="12" rx="2"
-              stroke="currentColor" strokeWidth="1.3"
-            />
-            <path
-              d="M5.5 8l2 1.5-2 1.5M9 11h3.5"
-              stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"
-            />
-          </svg>
-          <span className="toolbar-btn-label">{t('canvas.toolbar.terminal')}</span>
-        </button>
+        <TerminalToolSplitButton
+          open={terminalDockOpen}
+          showAdd={dockState.terminalTabs.length > 0}
+          onToggle={dock.toggleTerminal}
+          onNewTerminal={dock.newTerminal}
+        />
         <button
           className="toolbar-btn toolbar-btn--create"
           onClick={() => onAddNode("mindmap")}

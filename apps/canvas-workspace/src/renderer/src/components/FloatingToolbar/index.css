@@ -206,6 +206,52 @@
   color: var(--accent);
 }
 
+/* ---- Terminal split-button ---- */
+
+.terminal-tool-split {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+}
+
+.terminal-tool-split--with-add .terminal-tool-main {
+  padding-right: 6px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.terminal-tool-split .terminal-tool-add {
+  position: relative;
+  min-width: 22px;
+  width: 22px;
+  padding: 0 4px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  margin-left: 0;
+}
+
+.terminal-tool-split .terminal-tool-add::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.terminal-tool-split--active .terminal-tool-add {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.terminal-tool-split--active .terminal-tool-add:hover,
+.terminal-tool-split--active .terminal-tool-add:focus-visible {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
 /* ---- Plugin node menu ---- */
 
 .plugin-tool-menu {

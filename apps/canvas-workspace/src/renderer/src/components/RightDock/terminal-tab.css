@@ -10,3 +10,34 @@
   min-width: 0;
   min-height: 0;
 }
+
+.right-dock__tab-title--editing {
+  visibility: hidden;
+}
+
+.right-dock__tab-rename-input {
+  position: absolute;
+  z-index: 3;
+  top: 4px;
+  left: 33px;
+  right: 29px;
+  height: 22px;
+  min-width: 54px;
+  border: 1px solid rgba(35, 131, 226, 0.45);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #37352f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  padding: 0 5px;
+  outline: none;
+  box-shadow:
+    0 0 0 2px rgba(35, 131, 226, 0.12),
+    0 4px 10px rgba(15, 15, 15, 0.08);
+}
+
+.right-dock__tab-rename-input::selection {
+  background: rgba(35, 131, 226, 0.22);
+}
