@@ -22,19 +22,45 @@ export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
   | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string };
 
+export interface DockTerminalTab {
+  id: string;
+  title?: string;
+  ordinal: number;
+}
+
+export interface DockTerminalWorkspaceState {
+  tabs: DockTerminalTab[];
+  activeTabId?: string;
+  nextOrdinal: number;
+}
+
 export interface DockState {
   /** Preview tabs only — chat is pinned and implicit. */
   tabs: DockPreviewTab[];
-  /** `CHAT_TAB_ID`, `TERMINAL_TAB_ID`, or a preview tab id. */
+  /** `CHAT_TAB_ID`, a terminal tab id, or a preview tab id. */
   activeTabId: string;
   expanded: boolean;
   chatUnread: boolean;
+  terminalTabsByWorkspace: Record<string, DockTerminalWorkspaceState>;
+  activeTerminalWorkspaceId: string;
+  terminalTabs: DockTerminalTab[];
+  activeTerminalTabId?: string;
+  nextTerminalOrdinal: number;
+  /** Compatibility flag for callers that only need to know whether any terminal exists. */
   terminalOpen: boolean;
 }
 
 export const CHAT_TAB_ID = 'chat';
 export const TERMINAL_TAB_ID = 'terminal';
 export const LINK_TAB_ID = 'link';
+const DEFAULT_TERMINAL_WORKSPACE_ID = '__default__';
+const EMPTY_TERMINAL_TABS: DockTerminalTab[] = [];
+
+export const terminalTabId = (ordinal: number): string =>
+  ordinal === 1 ? TERMINAL_TAB_ID : `${TERMINAL_TAB_ID}:${ordinal}`;
+
+export const isTerminalTabId = (id: string): boolean =>
+  id === TERMINAL_TAB_ID || id.startsWith(`${TERMINAL_TAB_ID}:`);
 
 export const artifactTabId = (workspaceId: string, artifactId: string): string =>
   `artifact:${workspaceId}:${artifactId}`;
@@ -53,6 +79,11 @@ const INITIAL: DockState = {
   activeTabId: CHAT_TAB_ID,
   expanded: false,
   chatUnread: false,
+  terminalTabsByWorkspace: {},
+  activeTerminalWorkspaceId: DEFAULT_TERMINAL_WORKSPACE_ID,
+  terminalTabs: [],
+  activeTerminalTabId: undefined,
+  nextTerminalOrdinal: 1,
   terminalOpen: false,
 };
 
@@ -72,6 +103,48 @@ export class DockStore {
   private commit(next: Partial<DockState>): void {
     this.state = { ...this.state, ...next };
     for (const listener of [...this.listeners]) listener();
+  }
+
+  private getTerminalWorkspace(workspaceId = this.state.activeTerminalWorkspaceId): DockTerminalWorkspaceState {
+    return this.state.terminalTabsByWorkspace[workspaceId] ?? {
+      tabs: EMPTY_TERMINAL_TABS,
+      activeTabId: undefined,
+      nextOrdinal: 1,
+    };
+  }
+
+  private projectTerminalWorkspace(
+    workspaceId = this.state.activeTerminalWorkspaceId,
+    workspaces = this.state.terminalTabsByWorkspace,
+  ): Pick<DockState, 'terminalTabs' | 'activeTerminalTabId' | 'nextTerminalOrdinal' | 'terminalOpen'> {
+    const workspace = workspaces[workspaceId];
+    const tabs = workspace?.tabs ?? EMPTY_TERMINAL_TABS;
+    const activeTerminalTabId = workspace?.activeTabId && tabs.some((tab) => tab.id === workspace.activeTabId)
+      ? workspace.activeTabId
+      : tabs[0]?.id;
+    return {
+      terminalTabs: tabs,
+      activeTerminalTabId,
+      nextTerminalOrdinal: workspace?.nextOrdinal ?? 1,
+      terminalOpen: tabs.length > 0,
+    };
+  }
+
+  private commitTerminalWorkspace(
+    workspaceId: string,
+    workspace: DockTerminalWorkspaceState,
+    next: Partial<DockState> = {},
+  ): void {
+    const terminalTabsByWorkspace = { ...this.state.terminalTabsByWorkspace };
+    if (workspace.tabs.length > 0) {
+      terminalTabsByWorkspace[workspaceId] = workspace;
+    } else {
+      delete terminalTabsByWorkspace[workspaceId];
+    }
+    const projection = workspaceId === this.state.activeTerminalWorkspaceId
+      ? this.projectTerminalWorkspace(workspaceId, terminalTabsByWorkspace)
+      : {};
+    this.commit({ terminalTabsByWorkspace, ...projection, ...next });
   }
 
   openArtifact(workspaceId: string, artifactId: string): void {
@@ -110,14 +183,24 @@ export class DockStore {
 
   /** Switch to an existing tab (chat, workspace terminal, or preview). Viewing chat clears unread. */
   activate(id: string): void {
+    const activatingTerminal = this.state.terminalTabs.some((tab) => tab.id === id);
     if (
       id !== CHAT_TAB_ID
-      && !(id === TERMINAL_TAB_ID && this.state.terminalOpen)
+      && !activatingTerminal
       && !this.state.tabs.some((tab) => tab.id === id)
     ) {
       return;
     }
     if (this.state.activeTabId === id && (id !== CHAT_TAB_ID || !this.state.chatUnread)) return;
+    if (activatingTerminal) {
+      const workspaceId = this.state.activeTerminalWorkspaceId;
+      const workspace = this.getTerminalWorkspace(workspaceId);
+      this.commitTerminalWorkspace(workspaceId, { ...workspace, activeTabId: id }, {
+        expanded: true,
+        activeTabId: id,
+      });
+      return;
+    }
     this.commit({
       expanded: true,
       activeTabId: id,
@@ -139,30 +222,117 @@ export class DockStore {
     this.openChat();
   }
 
+  setActiveWorkspace(workspaceId: string): void {
+    if (!workspaceId || workspaceId === this.state.activeTerminalWorkspaceId) return;
+    const projection = this.projectTerminalWorkspace(workspaceId);
+    const switchingFromTerminal = isTerminalTabId(this.state.activeTabId);
+    const activeTabId = switchingFromTerminal
+      ? (projection.activeTerminalTabId ?? this.state.tabs[0]?.id ?? CHAT_TAB_ID)
+      : this.state.activeTabId;
+    this.commit({
+      activeTerminalWorkspaceId: workspaceId,
+      ...projection,
+      activeTabId,
+      expanded: this.state.expanded,
+      ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
+    });
+  }
+
+  private createTerminalTab(workspace: DockTerminalWorkspaceState): DockTerminalTab {
+    const ordinal = workspace.nextOrdinal;
+    return {
+      id: terminalTabId(ordinal),
+      ordinal,
+    };
+  }
+
   openTerminal(): void {
-    if (this.state.expanded && this.state.activeTabId === TERMINAL_TAB_ID && this.state.terminalOpen) return;
-    this.commit({ expanded: true, activeTabId: TERMINAL_TAB_ID, terminalOpen: true });
+    const workspaceId = this.state.activeTerminalWorkspaceId;
+    const workspace = this.getTerminalWorkspace(workspaceId);
+    const currentTerminalId = workspace.activeTabId
+      && workspace.tabs.some((tab) => tab.id === workspace.activeTabId)
+      ? workspace.activeTabId
+      : workspace.tabs[0]?.id;
+
+    if (currentTerminalId) {
+      if (this.state.expanded && this.state.activeTabId === currentTerminalId) return;
+      this.commitTerminalWorkspace(workspaceId, { ...workspace, activeTabId: currentTerminalId }, {
+        expanded: true,
+        activeTabId: currentTerminalId,
+      });
+      return;
+    }
+
+    const tab = this.createTerminalTab(workspace);
+    this.commitTerminalWorkspace(workspaceId, {
+      tabs: [tab],
+      activeTabId: tab.id,
+      nextOrdinal: workspace.nextOrdinal + 1,
+    }, {
+      activeTabId: tab.id,
+      expanded: true,
+    });
+  }
+
+  newTerminal(): void {
+    const workspaceId = this.state.activeTerminalWorkspaceId;
+    const workspace = this.getTerminalWorkspace(workspaceId);
+    const tab = this.createTerminalTab(workspace);
+    this.commitTerminalWorkspace(workspaceId, {
+      tabs: [...workspace.tabs, tab],
+      activeTabId: tab.id,
+      nextOrdinal: workspace.nextOrdinal + 1,
+    }, {
+      activeTabId: tab.id,
+      expanded: true,
+    });
   }
 
   toggleTerminal(): void {
-    if (this.state.expanded && this.state.activeTabId === TERMINAL_TAB_ID && this.state.terminalOpen) {
-      this.closeTerminal();
+    if (this.state.expanded && this.state.terminalTabs.some((tab) => tab.id === this.state.activeTabId)) {
+      this.collapse();
       return;
     }
     this.openTerminal();
   }
 
-  closeTerminal(): void {
-    if (!this.state.terminalOpen) return;
-    const closingActiveTerminal = this.state.activeTabId === TERMINAL_TAB_ID;
+  closeTerminal(id = this.state.activeTerminalTabId): void {
+    if (!id) return;
+    const workspaceId = this.state.activeTerminalWorkspaceId;
+    const workspace = this.getTerminalWorkspace(workspaceId);
+    const index = workspace.tabs.findIndex((tab) => tab.id === id);
+    if (index === -1) return;
+    const terminalTabs = workspace.tabs.filter((tab) => tab.id !== id);
+    const closingActiveTerminal = this.state.activeTabId === id;
+    const activeTerminalTabId = terminalTabs[Math.min(index, terminalTabs.length - 1)]?.id
+      ?? terminalTabs[terminalTabs.length - 1]?.id;
     const activeTabId = closingActiveTerminal
-      ? (this.state.tabs[0]?.id ?? CHAT_TAB_ID)
+      ? (activeTerminalTabId ?? this.state.tabs[0]?.id ?? CHAT_TAB_ID)
       : this.state.activeTabId;
-    this.commit({
-      terminalOpen: false,
+    this.commitTerminalWorkspace(workspaceId, {
+      tabs: terminalTabs,
+      activeTabId: activeTerminalTabId,
+      nextOrdinal: workspace.nextOrdinal,
+    }, {
       activeTabId,
-      expanded: closingActiveTerminal && this.state.tabs.length === 0 ? false : this.state.expanded,
+      expanded: closingActiveTerminal && terminalTabs.length === 0 && this.state.tabs.length === 0
+        ? false
+        : this.state.expanded,
       ...(activeTabId === CHAT_TAB_ID ? { chatUnread: false } : {}),
+    });
+  }
+
+  renameTerminal(id: string, title: string): void {
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    const workspaceId = this.state.activeTerminalWorkspaceId;
+    const workspace = this.getTerminalWorkspace(workspaceId);
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (!tab || tab.title === trimmed) return;
+    this.commitTerminalWorkspace(workspaceId, {
+      ...workspace,
+      tabs: workspace.tabs.map((item) =>
+        (item.id === id ? { ...item, title: trimmed } : item)),
     });
   }
 

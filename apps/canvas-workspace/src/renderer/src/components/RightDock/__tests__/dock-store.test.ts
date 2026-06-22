@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId } from '../dock-store';
+import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, artifactTabId, linkTabId, terminalTabId } from '../dock-store';
 
 describe('DockStore', () => {
   it('starts collapsed on the pinned chat tab with no previews', () => {
@@ -9,6 +9,11 @@ describe('DockStore', () => {
       activeTabId: CHAT_TAB_ID,
       expanded: false,
       chatUnread: false,
+      terminalTabsByWorkspace: {},
+      activeTerminalWorkspaceId: '__default__',
+      terminalTabs: [],
+      activeTerminalTabId: undefined,
+      nextTerminalOrdinal: 1,
       terminalOpen: false,
     });
   });
@@ -130,8 +135,13 @@ describe('DockStore', () => {
     dock.openTerminal();
     expect(dock.getSnapshot()).toMatchObject({
       activeTabId: TERMINAL_TAB_ID,
+      activeTerminalTabId: TERMINAL_TAB_ID,
       expanded: true,
       terminalOpen: true,
+    });
+    expect(dock.getSnapshot().terminalTabs[0]).toMatchObject({
+      id: TERMINAL_TAB_ID,
+      ordinal: 1,
     });
     dock.closeTerminal();
     expect(dock.getSnapshot()).toMatchObject({
@@ -151,6 +161,110 @@ describe('DockStore', () => {
       expanded: true,
       terminalOpen: false,
     });
+  });
+
+  it('toggleTerminal hides and restores the active terminal without closing it', () => {
+    const dock = new DockStore();
+    dock.openTerminal();
+    dock.toggleTerminal();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: TERMINAL_TAB_ID,
+      activeTerminalTabId: TERMINAL_TAB_ID,
+      expanded: false,
+      terminalOpen: true,
+    });
+    expect(dock.getSnapshot().terminalTabs).toHaveLength(1);
+    dock.toggleTerminal();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: TERMINAL_TAB_ID,
+      expanded: true,
+      terminalOpen: true,
+    });
+  });
+
+  it('creates multiple terminal tabs and closes only the requested one', () => {
+    const dock = new DockStore();
+    dock.openTerminal();
+    dock.newTerminal();
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: terminalTabId(2),
+      activeTerminalTabId: terminalTabId(2),
+      expanded: true,
+      terminalOpen: true,
+    });
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.id)).toEqual([
+      TERMINAL_TAB_ID,
+      terminalTabId(2),
+    ]);
+    dock.closeTerminal(terminalTabId(2));
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: TERMINAL_TAB_ID,
+      activeTerminalTabId: TERMINAL_TAB_ID,
+      terminalOpen: true,
+    });
+    dock.closeTerminal(TERMINAL_TAB_ID);
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTabId: CHAT_TAB_ID,
+      activeTerminalTabId: undefined,
+      expanded: false,
+      terminalOpen: false,
+    });
+  });
+
+  it('keeps terminal tabs scoped to the active workspace', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    dock.openTerminal();
+    dock.renameTerminal(TERMINAL_TAB_ID, 'Claude');
+    dock.newTerminal();
+    dock.renameTerminal(terminalTabId(2), 'Codex');
+
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTerminalWorkspaceId: 'ws-a',
+      activeTabId: terminalTabId(2),
+      activeTerminalTabId: terminalTabId(2),
+      terminalOpen: true,
+    });
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.title)).toEqual(['Claude', 'Codex']);
+
+    dock.setActiveWorkspace('ws-b');
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTerminalWorkspaceId: 'ws-b',
+      activeTabId: CHAT_TAB_ID,
+      activeTerminalTabId: undefined,
+      expanded: true,
+      terminalOpen: false,
+      terminalTabs: [],
+      nextTerminalOrdinal: 1,
+    });
+
+    dock.openTerminal();
+    expect(dock.getSnapshot().terminalTabs).toEqual([{ id: TERMINAL_TAB_ID, ordinal: 1 }]);
+
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot()).toMatchObject({
+      activeTerminalWorkspaceId: 'ws-a',
+      activeTabId: terminalTabId(2),
+      activeTerminalTabId: terminalTabId(2),
+      terminalOpen: true,
+    });
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.title)).toEqual(['Claude', 'Codex']);
+  });
+
+  it('renames terminal tabs and ignores blanks or non-terminal ids', () => {
+    const dock = new DockStore();
+    dock.openTerminal();
+    dock.renameTerminal(TERMINAL_TAB_ID, ' server ');
+    expect(dock.getSnapshot().terminalTabs[0]).toMatchObject({
+      id: TERMINAL_TAB_ID,
+      title: 'server',
+      ordinal: 1,
+    });
+    dock.renameTerminal(TERMINAL_TAB_ID, '   ');
+    expect(dock.getSnapshot().terminalTabs[0].title).toBe('server');
+    dock.openArtifact('ws1', 'a1');
+    dock.renameTerminal(artifactTabId('ws1', 'a1'), 'artifact title');
+    expect(dock.getSnapshot().tabs[0].title).toBe('Artifact');
   });
 
   it('chat activity sets unread only while chat is not the visible tab', () => {

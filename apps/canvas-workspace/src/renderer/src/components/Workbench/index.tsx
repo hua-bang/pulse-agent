@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
 import { ChatPanel } from '../chat';
-import { CHAT_TAB_ID, TERMINAL_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
+import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
 import {
   createReferenceNodeDataSnapshot,
   ReferenceDrawer,
@@ -70,8 +70,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const chatHost = useRightDockChatHost();
   const chatPanelOpen = dockState.expanded && dockState.activeTabId === CHAT_TAB_ID;
   const terminalDockOpen = dockState.expanded
-    && dockState.terminalOpen
-    && dockState.activeTabId === TERMINAL_TAB_ID;
+    && dockState.terminalTabs.some((tab) => tab.id === dockState.activeTabId);
 
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
@@ -489,14 +488,16 @@ export const Workbench: React.FC<WorkbenchProps> = ({
           )),
           chatHost,
         )}
-        <WorkspaceTerminalPortal
-          activeWorkspaceId={activeWorkspaceId}
-          workspaces={workspaces}
-          mountedWorkspaceIds={mountedWorkspaceIds}
-          allNodes={allNodes}
-          open={terminalDockOpen}
-          onClose={dock.closeTerminal}
-        />
+      <WorkspaceTerminalPortal
+        activeWorkspaceId={activeWorkspaceId}
+        workspaces={workspaces}
+        mountedWorkspaceIds={mountedWorkspaceIds}
+        allNodes={allNodes}
+        terminalTabsByWorkspace={dockState.terminalTabsByWorkspace}
+        activeTerminalTabId={dockState.activeTerminalTabId}
+        open={terminalDockOpen}
+        onClose={dock.closeTerminal}
+      />
       </FileNodeEditorRegistryProvider>
     </>
   );

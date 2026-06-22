@@ -7,10 +7,13 @@ import type { CanvasNode, FileNodeData } from '../../types';
 import { AI_TOOL_PATTERN, writeCanvasContext } from '../../utils/canvasContextWriter';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import { useI18n } from '../../i18n';
+import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
 import './index.css';
 
 interface WorkspaceTerminalDockProps {
   workspaceId: string;
+  terminalId?: string;
+  terminalTitle?: string;
   workspaceName?: string;
   rootFolder?: string;
   nodes: CanvasNode[];
@@ -53,6 +56,8 @@ function compactPath(value: string): string {
 
 export const WorkspaceTerminalDock = ({
   workspaceId,
+  terminalId = TERMINAL_TAB_ID,
+  terminalTitle,
   workspaceName,
   rootFolder,
   nodes,
@@ -81,7 +86,12 @@ export const WorkspaceTerminalDock = ({
   workspaceNameRef.current = workspaceName;
   heightRef.current = height;
 
-  const sessionId = useMemo(() => `workspace-terminal:${workspaceId}`, [workspaceId]);
+  const sessionId = useMemo(
+    () => terminalId === TERMINAL_TAB_ID
+      ? `workspace-terminal:${workspaceId}`
+      : `workspace-terminal:${workspaceId}:${terminalId}`,
+    [terminalId, workspaceId],
+  );
 
   const fitTerminal = useCallback(() => {
     const term = termRef.current;
@@ -292,7 +302,7 @@ export const WorkspaceTerminalDock = ({
 
   const displayedCwd = compactPath(cwd || '~');
   const title = placement === 'pane'
-    ? (workspaceName || t('workspaceTerminal.title'))
+    ? (terminalTitle || workspaceName || t('workspaceTerminal.title'))
     : t('workspaceTerminal.title');
 
   return (
