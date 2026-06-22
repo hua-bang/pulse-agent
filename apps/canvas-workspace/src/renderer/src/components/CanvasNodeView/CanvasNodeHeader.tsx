@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
 import { FrameChildrenToggle, FrameColorPicker } from '../FrameNodeBody';
@@ -38,6 +39,31 @@ interface CanvasNodeHeaderProps {
   titleRef: RefObject<HTMLSpanElement>;
 }
 
+/**
+ * Leading glyph in a node header. Web (iframe) nodes show their page favicon —
+ * it identifies the site better than the generic globe badge and avoids drawing
+ * two near-identical "web" glyphs stacked over the address bar. Falls back to
+ * the type badge when there's no favicon or it fails to load.
+ */
+const NodeLeadingGlyph = ({ node, faviconUrl }: { node: CanvasNode; faviconUrl?: string }) => {
+  const [faviconFailed, setFaviconFailed] = useState(false);
+  // A fresh favicon (e.g. after navigating the embed) gets another chance.
+  useEffect(() => setFaviconFailed(false), [faviconUrl]);
+
+  if (node.type === 'iframe' && faviconUrl && !faviconFailed) {
+    return (
+      <img
+        className="node-favicon"
+        src={faviconUrl}
+        alt=""
+        aria-hidden="true"
+        onError={() => setFaviconFailed(true)}
+      />
+    );
+  }
+  return <NodeTypeBadge type={node.type} />;
+};
+
 export const CanvasNodeHeader = ({
   fullscreenButton,
   containerDescendantCount,
@@ -76,18 +102,7 @@ export const CanvasNodeHeader = ({
       className="node-header"
       onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
     >
-      <NodeTypeBadge type={node.type} />
-      {faviconUrl ? (
-        <img
-          className="node-favicon"
-          src={faviconUrl}
-          alt=""
-          aria-hidden="true"
-          onError={(event) => {
-            event.currentTarget.style.display = 'none';
-          }}
-        />
-      ) : null}
+      <NodeLeadingGlyph node={node} faviconUrl={faviconUrl} />
       <span
         ref={titleRef}
         className="node-title"
