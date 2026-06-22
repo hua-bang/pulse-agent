@@ -16,13 +16,17 @@ describe('installSkills', () => {
         '<target>/canvas-bootstrap/SKILL.md',
         '<target>/canvas-deep-research/SKILL.md',
         '<target>/canvas-frame-research/SKILL.md',
-        '<target>/canvas/SKILL.md',
+        '<target>/pulse-canvas/SKILL.md',
       ]);
 
       const bootstrap = await fs.readFile(join(target, 'canvas-bootstrap', 'SKILL.md'), 'utf-8');
+      const canvas = await fs.readFile(join(target, 'pulse-canvas', 'SKILL.md'), 'utf-8');
       const deepResearch = await fs.readFile(join(target, 'canvas-deep-research', 'SKILL.md'), 'utf-8');
       const frameResearch = await fs.readFile(join(target, 'canvas-frame-research', 'SKILL.md'), 'utf-8');
 
+      expect(canvas).toContain('name: pulse-canvas');
+      expect(canvas).toContain('Whenever `$PULSE_CANVAS_WORKSPACE_ID` is set');
+      expect(canvas).toContain('pulse-canvas context --format json');
       expect(bootstrap).toContain('Phase 0: Depth Gate');
       expect(bootstrap).toContain('Plan Approval Gate');
       expect(bootstrap).toContain('User-explicit research skill');

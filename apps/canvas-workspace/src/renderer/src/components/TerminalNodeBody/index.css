@@ -42,6 +42,72 @@
   height: 100%;
 }
 
+.terminal-mention-hint {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 20px);
+  padding: 6px 8px;
+  border: 1px solid rgba(15, 118, 110, 0.14);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(250, 253, 251, 0.96), rgba(244, 248, 246, 0.94)),
+    #f8fbf9;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.74),
+    0 10px 28px rgba(31, 41, 35, 0.08);
+  color: #4c5a55;
+  font-size: 11px;
+  line-height: 1.2;
+  pointer-events: auto;
+  animation: terminal-mention-hint-in 0.16s ease-out;
+}
+
+.terminal-mention-hint kbd {
+  flex: 0 0 auto;
+  padding: 2px 5px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-bottom-color: rgba(15, 118, 110, 0.3);
+  border-radius: 4px;
+  background: rgba(236, 253, 245, 0.76);
+  color: #0f766e;
+  font: inherit;
+  font-weight: 650;
+}
+
+.terminal-mention-hint__close {
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #789087;
+  cursor: pointer;
+  font: inherit;
+  line-height: 18px;
+  padding: 0;
+}
+
+.terminal-mention-hint__close:hover {
+  background: rgba(15, 118, 110, 0.09);
+  color: #0f766e;
+}
+
+@keyframes terminal-mention-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* No horizontal padding here: FitAddon can't see padding on inner rows, so it
    overflowed the right edge and clipped the last column (see WorkspaceTerminalDock).
    The container padding is the gutter. */

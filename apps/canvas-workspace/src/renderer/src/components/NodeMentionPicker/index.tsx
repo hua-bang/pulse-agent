@@ -4,6 +4,7 @@ import type { CanvasNode, FileNodeData } from '../../types';
 import { isImeComposing } from '../../utils/ime';
 import { useI18n } from '../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
+import { useEscapeClose } from '../../hooks/useEscapeClose';
 
 interface Props {
   nodes: CanvasNode[];
@@ -20,6 +21,8 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const listId = 'node-mention-results';
+
+  useEscapeClose(true, onClose);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -58,6 +61,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
       if (isImeComposing(e)) return;
       if (e.key === 'Escape') {
         e.preventDefault();
+        e.stopPropagation();
         onClose();
         return;
       }

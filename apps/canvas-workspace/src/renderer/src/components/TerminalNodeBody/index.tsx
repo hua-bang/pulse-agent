@@ -4,10 +4,15 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import type { CanvasNode, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
-import { AI_TOOL_PATTERN, writeCanvasContext } from '../../utils/canvasContextWriter';
-import { buildNodeMention } from '../../utils/nodeMention';
+import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import { fitTerminalWithCanvasScale, syncTerminalFontSizeToCanvas } from '../AgentNodeBody/utils/terminal';
+import { useI18n } from '../../i18n';
+import {
+  appendTerminalOutputTail,
+  hasLikelyReturnedToShellPrompt,
+  isCodingAgentCommand,
+} from '../../utils/codingAgentCommand';
 
 interface Props {
   node: CanvasNode;
@@ -36,14 +41,19 @@ const serializeBuffer = (term: Terminal): string => {
   return text;
 };
 
-export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, workspaceName, onUpdate, readOnly = false }: Props) => {
+export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, onUpdate, readOnly = false }: Props) => {
+  const { t } = useI18n();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [mentionHintVisible, setMentionHintVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const codingAgentActiveRef = useRef(false);
+  const commandInputRef = useRef('');
+  const terminalOutputTailRef = useRef('');
   const data = node.data as TerminalNodeData;
   const sessionId = data.sessionId || node.id;
   const nodeIdRef = useRef(node.id);
@@ -56,8 +66,6 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
   getAllNodesRef.current = getAllNodes;
   const workspaceIdRef = useRef(workspaceId);
   workspaceIdRef.current = workspaceId;
-  const workspaceNameRef = useRef(workspaceName);
-  workspaceNameRef.current = workspaceName;
   const initialScrollback = useRef(data.scrollback ?? '');
   const initialCwd = useRef(data.cwd ?? '');
   const initialCommand = useRef(data.initialCommand ?? '');
@@ -69,6 +77,47 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
       data: { sessionId: dataRef.current.sessionId, scrollback, cwd: dataRef.current.cwd },
     });
   }, []);
+
+  const dismissMentionHint = useCallback(() => {
+    setMentionHintVisible(false);
+  }, []);
+
+  const finishCodingAgentHint = useCallback(() => {
+    codingAgentActiveRef.current = false;
+    terminalOutputTailRef.current = '';
+    setMentionHintVisible(false);
+  }, []);
+
+  const startCodingAgentHint = useCallback(() => {
+    if (readOnly || codingAgentActiveRef.current) return;
+    codingAgentActiveRef.current = true;
+    terminalOutputTailRef.current = '';
+    setMentionHintVisible(true);
+  }, [readOnly]);
+
+  const captureTerminalOutput = useCallback((data: string) => {
+    if (!codingAgentActiveRef.current) return;
+    terminalOutputTailRef.current = appendTerminalOutputTail(terminalOutputTailRef.current, data);
+    if (hasLikelyReturnedToShellPrompt(terminalOutputTailRef.current)) {
+      finishCodingAgentHint();
+    }
+  }, [finishCodingAgentHint]);
+
+  const captureTerminalInput = useCallback((data: string) => {
+    for (const ch of data) {
+      if (ch === '\r' || ch === '\n') {
+        const command = commandInputRef.current;
+        commandInputRef.current = '';
+        if (isCodingAgentCommand(command)) startCodingAgentHint();
+      } else if (ch === '\x7f' || ch === '\b') {
+        commandInputRef.current = commandInputRef.current.slice(0, -1);
+      } else if (ch === '\x15') {
+        commandInputRef.current = '';
+      } else if (ch >= ' ') {
+        commandInputRef.current += ch;
+      }
+    }
+  }, [startCodingAgentHint]);
 
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
@@ -155,35 +204,29 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
           prompted = true;
           promptRemove();
           removePrompt = null;
-          removeData = api.onData(sessionId, (d2: string) => { term.write(d2); });
-          setTimeout(() => api.write(sessionId, `${cmdToRun}\n`), 100);
+          removeData = api.onData(sessionId, (d2: string) => {
+            term.write(d2);
+            captureTerminalOutput(d2);
+          });
+          setTimeout(() => {
+            api.write(sessionId, `${cmdToRun}\n`);
+            if (isCodingAgentCommand(cmdToRun)) startCodingAgentHint();
+          }, 100);
           // Clear so it doesn't re-run on session restore
           initialCommand.current = '';
         }
       });
       removePrompt = promptRemove;
     } else {
-      removeData = api.onData(sessionId, (d: string) => { term.write(d); });
+      removeData = api.onData(sessionId, (d: string) => {
+        term.write(d);
+        captureTerminalOutput(d);
+      });
     }
 
-    let inputBuf = '';
     term.onData((d: string) => {
       api.write(sessionId, d);
-      if (d === '\r' || d === '\n') {
-        const cmd = inputBuf.trim();
-        inputBuf = '';
-        const contextNodes = getAllNodesRef.current?.() ?? [];
-        if (AI_TOOL_PATTERN.test(cmd) && contextNodes.length > 0) {
-          void api.getCwd(sessionId).then((r) => {
-            const cwd = r.ok && r.cwd ? r.cwd : spawnCwd;
-            if (cwd) void writeCanvasContext(contextNodes, cwd, workspaceIdRef.current, workspaceNameRef.current, term);
-          });
-        }
-      } else if (d === '\x7f') {
-        inputBuf = inputBuf.slice(0, -1);
-      } else if (d.length === 1 && d >= ' ') {
-        inputBuf += d;
-      }
+      captureTerminalInput(d);
     });
 
     term.onResize(({ cols, rows }) => { api.resize(sessionId, cols, rows); });
@@ -205,7 +248,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
       removeExit();
       api.kill(sessionId);
     };
-  }, [sessionId, rootFolder, persistState, readOnly]);
+  }, [sessionId, rootFolder, persistState, readOnly, captureTerminalInput, captureTerminalOutput, startCodingAgentHint]);
 
   useEffect(() => {
     void initTerminal();
@@ -254,7 +297,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
     setPickerOpen(false);
     const api = window.canvasWorkspace?.pty;
     if (api) {
-      void api.write(sessionId, buildNodeMention(selected));
+      void api.write(sessionId, buildNodeMentionInsertion(selected));
     }
     termRef.current?.focus();
   }, [sessionId, readOnly]);
@@ -272,6 +315,21 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, w
           onSelect={handleMentionSelect}
           onClose={handleMentionClose}
         />
+      )}
+      {!readOnly && mentionHintVisible && !pickerOpen && (
+        <div className="terminal-mention-hint" role="status">
+          <span>{t('terminal.mentionHint.prefix')}</span>
+          <kbd>Ctrl/⌘+2</kbd>
+          <span>{t('terminal.mentionHint.suffix')}</span>
+          <button
+            type="button"
+            className="terminal-mention-hint__close"
+            aria-label={t('terminal.mentionHint.dismiss')}
+            onClick={dismissMentionHint}
+          >
+            ×
+          </button>
+        </div>
       )}
       <div
         ref={containerRef}

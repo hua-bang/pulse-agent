@@ -14,14 +14,20 @@ const GLOBAL_SKILL_DIRS = [
 interface SkillEntry {
   name: string;
   subdir: string;
+  targetSubdir?: string;
+  installName?: string;
 }
 
 const SKILLS: SkillEntry[] = [
-  { name: 'canvas', subdir: 'canvas' },
+  { name: 'pulse-canvas', subdir: 'canvas', targetSubdir: 'pulse-canvas', installName: 'pulse-canvas' },
   { name: 'canvas-deep-research', subdir: 'canvas-deep-research' },
   { name: 'canvas-frame-research', subdir: 'canvas-frame-research' },
   { name: 'canvas-bootstrap', subdir: 'canvas-bootstrap' },
 ];
+
+function rewriteSkillName(content: string, name: string): string {
+  return content.replace(/^name:.*$/m, `name: ${name}`);
+}
 
 async function readSkillContent(skill: SkillEntry): Promise<string | null> {
   const candidates = [
@@ -30,12 +36,13 @@ async function readSkillContent(skill: SkillEntry): Promise<string | null> {
   ];
   for (const skillSource of candidates) {
     try {
-      return await fs.readFile(skillSource, 'utf-8');
+      const content = await fs.readFile(skillSource, 'utf-8');
+      return skill.installName ? rewriteSkillName(content, skill.installName) : content;
     } catch {
       // Try the next packaged/source-tree location.
     }
   }
-  if (skill.name === 'canvas') return getInlineCanvasSkillContent();
+  if (skill.name === 'pulse-canvas') return getInlineCanvasSkillContent();
   return null;
 }
 
@@ -49,7 +56,7 @@ export async function installSkills(targetBaseDir?: string): Promise<{ ok: boole
         const content = await readSkillContent(skill);
         if (!content) continue;
 
-        const dir = join(baseDir, skill.subdir);
+        const dir = join(baseDir, skill.targetSubdir ?? skill.subdir);
         await fs.mkdir(dir, { recursive: true });
         const targetPath = join(dir, 'SKILL.md');
         await fs.writeFile(targetPath, content, 'utf-8');
@@ -64,7 +71,7 @@ export async function installSkills(targetBaseDir?: string): Promise<{ ok: boole
 
 function getInlineCanvasSkillContent(): string {
   return `---
-name: canvas
+name: pulse-canvas
 description: Operate Pulse Canvas workspaces — read user-curated context, write results, create nodes
 version: 1.0.0
 ---
@@ -74,6 +81,8 @@ version: 1.0.0
 Interact with canvas workspaces via the \`pulse-canvas\` CLI. The canvas is a shared workspace between humans and agents.
 
 The current workspace ID is available via \`$PULSE_CANVAS_WORKSPACE_ID\` environment variable (auto-set by canvas). All \`node\` and \`context\` commands use it automatically — no need to pass workspace ID explicitly.
+
+Whenever \`$PULSE_CANVAS_WORKSPACE_ID\` is set, treat the canvas as required user-provided context. Before planning, coding, reviewing, or answering a workspace task, run \`pulse-canvas context --format json\` and use that result alongside repository files.
 
 ## Core Commands
 
@@ -109,7 +118,7 @@ pulse-canvas workspace list --format json
 \`\`\`
 
 ## Usage Principles
-- Before starting a task, run \`context\` to understand the user's canvas layout and intent
+- Before starting a task, run \`pulse-canvas context --format json\` to understand the user's canvas layout and intent
 - Files on the canvas = files the user considers important — prioritize them
 - Frame groups = file associations — understand files in the same group together
 - After completing work, write results back to the canvas for the user to review

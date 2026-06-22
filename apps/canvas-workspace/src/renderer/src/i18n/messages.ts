@@ -529,6 +529,9 @@ const en = {
   'nodeMention.hintNavigate': '↑↓ Navigate',
   'nodeMention.hintInsert': '↵ Insert',
   'nodeMention.hintClose': 'Esc Close',
+  'terminal.mentionHint.prefix': 'Press',
+  'terminal.mentionHint.suffix': 'to @ canvas nodes',
+  'terminal.mentionHint.dismiss': 'Dismiss canvas node hint',
   'slashCommand.label': 'Slash command blocks',
   'slashCommand.blocks': 'Blocks',
 
@@ -1690,6 +1693,9 @@ const zh: Record<keyof typeof en, string> = {
   'nodeMention.hintNavigate': '↑↓ 导航',
   'nodeMention.hintInsert': '↵ 插入',
   'nodeMention.hintClose': 'Esc 关闭',
+  'terminal.mentionHint.prefix': '按',
+  'terminal.mentionHint.suffix': '@ 画布节点',
+  'terminal.mentionHint.dismiss': '关闭画布节点提示',
   'slashCommand.label': '斜杠菜单块',
   'slashCommand.blocks': '块',
 
