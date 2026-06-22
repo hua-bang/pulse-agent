@@ -220,6 +220,44 @@
   height: 100%;
 }
 
-.workspace-terminal-dock__xterm .xterm-rows {
-  padding: 0 4px;
+/* No horizontal padding on .xterm-rows. FitAddon derives the column count
+   from the .xterm element (which already honours the container padding above)
+   and can't see padding applied to inner rows — that extra inset pushed the
+   last column past the right edge, where overflow:hidden clipped it. It showed
+   up as cut-off text in full-width TUIs like claude / codex. The container
+   padding is the gutter. */
+
+/* Boot overlay: masks the empty terminal while the shell sources its rc files
+   and prints its first prompt, so startup reads as "starting" instead of a
+   blank white panel. Removed on the first byte of PTY output. */
+.workspace-terminal-dock__booting {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fafaf9;
+  color: #8a8780;
+  font-size: 12px;
+  pointer-events: none;
+  animation: workspace-terminal-fade-in 0.18s ease-out;
+}
+
+.workspace-terminal-dock__spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(55, 53, 47, 0.16);
+  border-top-color: #5f5d58;
+  animation: workspace-terminal-spin 0.7s linear infinite;
+}
+
+@keyframes workspace-terminal-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes workspace-terminal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

@@ -65,6 +65,9 @@ export const WorkspaceTerminalDock = ({
   const heightRef = useRef(height);
   const [cwd, setCwd] = useState(rootFolder ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
+  // True from the moment the dock opens until the shell prints its first
+  // byte — drives the boot overlay so init doesn't read as a blank white panel.
+  const [booting, setBooting] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -117,6 +120,10 @@ export const WorkspaceTerminalDock = ({
     term.open(containerRef.current);
     termRef.current = term;
     fitRef.current = fitAddon;
+    // Size to the real container before spawning so the shell starts at the
+    // correct cols/rows, rather than the 80×24 default that then reflows on the
+    // first scheduled fit.
+    try { fitAddon.fit(); } catch { /* container may be mid-layout */ }
     scheduleFit();
 
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -129,6 +136,7 @@ export const WorkspaceTerminalDock = ({
 
     const api = window.canvasWorkspace?.pty;
     if (!api) {
+      setBooting(false);
       term.writeln('\x1b[31mError: pty API not available\x1b[0m');
       return;
     }
@@ -137,14 +145,18 @@ export const WorkspaceTerminalDock = ({
     if (spawnCwd) setCwd(spawnCwd);
     const result = await api.spawn(sessionId, term.cols, term.rows, spawnCwd, workspaceId);
     if (!result.ok) {
+      setBooting(false);
       term.writeln(`\x1b[31mFailed to spawn shell: ${result.error}\x1b[0m`);
       return;
     }
 
     const removeData = api.onData(sessionId, (data) => {
+      // First byte means the shell is alive — drop the boot overlay.
+      setBooting(false);
       term.write(data);
     });
     const removeExit = api.onExit(sessionId, (code) => {
+      setBooting(false);
       term.writeln(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`);
     });
 
@@ -191,6 +203,9 @@ export const WorkspaceTerminalDock = ({
 
   useEffect(() => {
     if (!open) return;
+    // Show the boot overlay right away on the first open (before the async
+    // spawn); once the terminal exists this is a no-op.
+    if (!termRef.current) setBooting(true);
     void initTerminal();
     scheduleFit();
   }, [initTerminal, open, scheduleFit]);
@@ -324,6 +339,12 @@ export const WorkspaceTerminalDock = ({
           />
         )}
         <div ref={containerRef} className="workspace-terminal-dock__xterm" />
+        {booting && (
+          <div className="workspace-terminal-dock__booting" aria-hidden="true">
+            <span className="workspace-terminal-dock__spinner" />
+            <span>{t('workspaceTerminal.starting')}</span>
+          </div>
+        )}
       </div>
     </section>
   );
