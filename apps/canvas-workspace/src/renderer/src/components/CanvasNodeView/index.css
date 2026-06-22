@@ -755,10 +755,12 @@
   opacity: 0.5;
 }
 
-/* Left / top edges and the remaining three corners. These are currently only
- * rendered for frames (see NodeResizeHandles + showAllEdges), whose floating
- * header leaves every body edge free; the geometry mirrors the right/bottom/
- * corner handles above so the whole frame is resizable from any side. */
+/* Left / top edges and the remaining three corners (see NodeResizeHandles).
+ *   - left + bottom-left render for any resizable body: nodes resize from
+ *     left / right / bottom, keeping the top edge free for drag-to-move.
+ *   - top + top-left + top-right are frame-only — a frame's header floats
+ *     above the body, so its top edge is free too (full 8-direction resize).
+ * Geometry mirrors the right / bottom / corner handles above. */
 .resize-handle--left {
   top: 34px;
   left: -3px;
