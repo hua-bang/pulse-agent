@@ -191,6 +191,24 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().tabs[0].title).toBe('进店意图 SQL 加工逻辑');
   });
 
+  it('setFavicon stores a link icon, ignores blanks, and skips non-link tabs', () => {
+    const dock = new DockStore();
+    dock.openLink('https://a.example');
+    const id = linkTabId('https://a.example');
+    dock.setFavicon(id, 'https://a.example/favicon.ico');
+    const tab = dock.getSnapshot().tabs[0];
+    expect(tab.kind === 'link' && tab.faviconUrl).toBe('https://a.example/favicon.ico');
+    // Blank favicons are ignored.
+    dock.setFavicon(id, '   ');
+    const afterBlank = dock.getSnapshot().tabs[0];
+    expect(afterBlank.kind === 'link' && afterBlank.faviconUrl).toBe('https://a.example/favicon.ico');
+    // Non-link tabs never gain a favicon.
+    dock.openArtifact('ws1', 'a1');
+    const artifactId = artifactTabId('ws1', 'a1');
+    dock.setFavicon(artifactId, 'https://x.example/icon.png');
+    expect(dock.getSnapshot().tabs.find((t) => t.id === artifactId)).not.toHaveProperty('faviconUrl');
+  });
+
   it('notifies subscribers on change, skips no-ops, and stops after unsubscribe', () => {
     const dock = new DockStore();
     const listener = vi.fn();

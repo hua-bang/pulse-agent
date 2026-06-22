@@ -126,34 +126,10 @@ export function extractMentionedWorkspaceIds(
   return Array.from(ids);
 }
 
-export function serializeEditable(element: HTMLElement): string {
-  let text = '';
-
-  for (const child of element.childNodes) {
-    if (child.nodeType === Node.TEXT_NODE) {
-      text += child.textContent ?? '';
-      continue;
-    }
-
-    if (!(child instanceof HTMLElement)) {
-      continue;
-    }
-
-    if (child.dataset.mention) {
-      text += `@[${child.dataset.mention}]`;
-      continue;
-    }
-
-    if (child.tagName === 'BR') {
-      text += '\n';
-      continue;
-    }
-
-    text += serializeEditable(child);
-  }
-
-  return text;
-}
+// serializeEditable lives in its own module (keeps this file under the
+// 500-line governance gate); re-exported here so existing importers are
+// unaffected.
+export { serializeEditable } from './serializeEditable';
 
 export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]): HTMLSpanElement {
   const isWorkspace = item.type === 'workspace';

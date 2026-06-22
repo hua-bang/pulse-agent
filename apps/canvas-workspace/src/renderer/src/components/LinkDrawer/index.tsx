@@ -14,6 +14,7 @@
 
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { useI18n } from "../../i18n";
+import { pickFaviconUrl } from "../IframeNodeBody/utils";
 import "./index.css";
 
 interface WebviewTag extends HTMLElement {
@@ -26,16 +27,21 @@ interface LinkTabViewProps {
   /** Active workspace id, used as the target for "add to current canvas". */
   activeWorkspaceId: string;
   onTitleChange?: (title: string) => void;
+  /** Page favicon, reported once the webview resolves it, so the tab icon
+   *  follows the site instead of a hardcoded globe. */
+  onFaviconChange?: (faviconUrl: string) => void;
   /** Asks the dock to close this tab (after "add to current canvas"). */
   onRequestClose: () => void;
 }
 
-export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onRequestClose }: LinkTabViewProps) => {
+export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconChange, onRequestClose }: LinkTabViewProps) => {
   const { t } = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
   const onTitleChangeRef = useRef(onTitleChange);
   onTitleChangeRef.current = onTitleChange;
+  const onFaviconChangeRef = useRef(onFaviconChange);
+  onFaviconChangeRef.current = onFaviconChange;
 
   // Imperatively mount a fresh `<webview>` whenever the URL changes. The
   // element has to be created off-DOM with `allowpopups` already set,
@@ -55,12 +61,18 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onRequestCl
       const title = (event as Event & { title?: string }).title;
       if (title) onTitleChangeRef.current?.(title);
     };
+    const onPageFaviconUpdated = (event: Event) => {
+      const favicon = pickFaviconUrl((event as Event & { favicons?: string[] }).favicons);
+      if (favicon) onFaviconChangeRef.current?.(favicon);
+    };
     webview.addEventListener("page-title-updated", onPageTitleUpdated);
+    webview.addEventListener("page-favicon-updated", onPageFaviconUpdated);
     host.appendChild(webview);
     webviewRef.current = webview;
 
     return () => {
       webview.removeEventListener("page-title-updated", onPageTitleUpdated);
+      webview.removeEventListener("page-favicon-updated", onPageFaviconUpdated);
       webview.remove();
       if (webviewRef.current === webview) {
         webviewRef.current = null;

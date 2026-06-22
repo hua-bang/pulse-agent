@@ -2,6 +2,11 @@ import hljs from 'highlight.js/lib/common';
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
 
+// Minimum highlight.js auto-detection relevance before its guessed language is
+// trusted as the code-block header label. Below this, syntax coloring is still
+// applied but the block is labeled neutrally (`text`) rather than mislabeled.
+const AUTO_DETECT_LABEL_MIN_RELEVANCE = 5;
+
 function escapeAttr(value: string): string {
   return value
     .replace(/&/g, '&amp;')
@@ -20,10 +25,15 @@ function highlightCode(code: string, lang: string): { html: string; lang: string
       // fall through to plain rendering
     }
   }
-  // No language hint (or unsupported) — render plain, but auto-detect for display.
+  // No language hint (or unsupported) — auto-detect for syntax coloring. The
+  // detected name only becomes the header label when highlight.js is reasonably
+  // confident; otherwise we keep the coloring but fall back to a neutral label,
+  // since a low-relevance guess is often wrong (e.g. brace/colon-heavy JSON
+  // mislabeled as "css").
   try {
     const auto = hljs.highlightAuto(code);
-    return { html: auto.value, lang: auto.language ?? '' };
+    const confident = auto.relevance >= AUTO_DETECT_LABEL_MIN_RELEVANCE;
+    return { html: auto.value, lang: confident ? (auto.language ?? '') : '' };
   } catch {
     return { html: '', lang: '' };
   }

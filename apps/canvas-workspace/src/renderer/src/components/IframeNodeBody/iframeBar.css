@@ -122,12 +122,3 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.iframe-bar-favicon {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-  margin-right: 6px;
-  border-radius: 3px;
-  object-fit: contain;
-}

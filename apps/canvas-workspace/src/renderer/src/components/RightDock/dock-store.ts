@@ -20,7 +20,7 @@
 
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
-  | { id: string; kind: 'link'; title: string; url: string };
+  | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string };
 
 export interface DockState {
   /** Preview tabs only — chat is pinned and implicit. */
@@ -180,6 +180,19 @@ export class DockStore {
     if (!tab || tab.title === trimmed) return;
     this.commit({
       tabs: this.state.tabs.map((t) => (t.id === id ? { ...t, title: trimmed } : t)),
+    });
+  }
+
+  /** Live favicon update once a link's webview reports the page icon, so the
+   *  tab tracks the site instead of the generic globe. */
+  setFavicon(id: string, faviconUrl: string): void {
+    const trimmed = faviconUrl.trim();
+    if (!trimmed) return;
+    const tab = this.state.tabs.find((t) => t.id === id);
+    if (!tab || tab.kind !== 'link' || tab.faviconUrl === trimmed) return;
+    this.commit({
+      tabs: this.state.tabs.map((t) =>
+        (t.id === id && t.kind === 'link' ? { ...t, faviconUrl: trimmed } : t)),
     });
   }
 

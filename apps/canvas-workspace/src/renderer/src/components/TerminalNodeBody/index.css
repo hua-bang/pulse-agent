@@ -42,6 +42,6 @@
   height: 100%;
 }
 
-.terminal-xterm-container .xterm-rows {
-  padding: 0 4px;
-}
+/* No horizontal padding here: FitAddon can't see padding on inner rows, so it
+   overflowed the right edge and clipped the last column (see WorkspaceTerminalDock).
+   The container padding is the gutter. */

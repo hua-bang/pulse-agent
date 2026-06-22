@@ -17,7 +17,6 @@ interface IframeRenderedViewProps {
   handleRegenerate: () => Promise<void> | void;
   handleReload: () => void;
   html: string;
-  faviconUrl?: string;
   isArtifactMode: boolean;
   isResizing?: boolean;
   loadError: string | null;
@@ -51,7 +50,6 @@ export const IframeRenderedView = ({
   handleRegenerate,
   handleReload,
   html,
-  faviconUrl,
   isArtifactMode,
   isResizing,
   loadError,
@@ -102,7 +100,6 @@ export const IframeRenderedView = ({
           setDraftUrl={setDraftUrl}
           setEditing={setEditing}
           url={url}
-          faviconUrl={faviconUrl}
           workspaceId={workspaceId}
         />
 
@@ -214,7 +211,6 @@ const IframeAddressButton = ({
   setDraftUrl,
   setEditing,
   url,
-  faviconUrl,
   workspaceId,
 }: Pick<IframeRenderedViewProps,
   | 'artifact'
@@ -233,7 +229,6 @@ const IframeAddressButton = ({
   | 'setDraftUrl'
   | 'setEditing'
   | 'url'
-  | 'faviconUrl'
   | 'workspaceId'
 >) => {
   if (isArtifactMode) {
@@ -259,17 +254,6 @@ const IframeAddressButton = ({
         className={`iframe-bar-url iframe-bar-url--editable${readOnly ? ' iframe-bar-url--readonly' : ''}`}
         title={readOnly ? url : 'Edit URL'}
       >
-        {faviconUrl ? (
-          <img
-            className="iframe-bar-favicon"
-            src={faviconUrl}
-            alt=""
-            aria-hidden="true"
-            onError={(event) => {
-              event.currentTarget.style.display = 'none';
-            }}
-          />
-        ) : null}
         <input
           className="iframe-bar-url-input"
           type="url"

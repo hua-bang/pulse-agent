@@ -1071,9 +1071,9 @@
   height: 100%;
 }
 
-.agent-xterm-container .xterm-rows {
-  padding: 0 6px;
-}
+/* No horizontal padding here: FitAddon can't see padding on inner rows, so it
+   overflowed the right edge and clipped the last column (see WorkspaceTerminalDock).
+   The container padding is the gutter. */
 
 /* ── Loading overlay shown over the terminal while CLI bootstraps ─ */
 
