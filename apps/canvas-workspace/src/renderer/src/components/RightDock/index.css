@@ -287,6 +287,13 @@
   height: 14px;
 }
 
+.right-dock__tab-favicon {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
 .right-dock__tab-icon--terminal {
   color: #0f766e;
 }

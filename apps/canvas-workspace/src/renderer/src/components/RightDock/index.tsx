@@ -49,6 +49,7 @@ import { useI18n } from '../../i18n';
 import { LinkTabView } from '../LinkDrawer';
 import { AppLogoIcon, NodeTypeIcon } from '../icons';
 import { CHAT_TAB_ID, TERMINAL_TAB_ID, DockStore, type DockState } from './dock-store';
+import { LinkTabIcon } from './LinkTabIcon';
 import './index.css';
 import './terminal-tab.css';
 
@@ -437,7 +438,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
                 >
                   {tab.kind === 'link' ? (
                     <span className="right-dock__tab-icon right-dock__tab-icon--link">
-                      <NodeTypeIcon type="iframe" size={14} />
+                      <LinkTabIcon faviconUrl={tab.faviconUrl} />
                     </span>
                   ) : (
                     <span className={`right-dock__tab-dot right-dock__tab-dot--${tab.kind}`} />
@@ -500,6 +501,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
                 url={tab.url}
                 activeWorkspaceId={activeWorkspaceId}
                 onTitleChange={(title) => store.setTitle(tab.id, title)}
+                onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
                 onRequestClose={() => store.close(tab.id)}
               />
             )}
