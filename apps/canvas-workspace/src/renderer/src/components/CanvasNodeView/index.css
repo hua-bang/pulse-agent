@@ -755,6 +755,50 @@
   opacity: 0.5;
 }
 
+/* Left / top edges and the remaining three corners. These are currently only
+ * rendered for frames (see NodeResizeHandles + showAllEdges), whose floating
+ * header leaves every body edge free; the geometry mirrors the right/bottom/
+ * corner handles above so the whole frame is resizable from any side. */
+.resize-handle--left {
+  top: 34px;
+  left: -3px;
+  bottom: 8px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.resize-handle--top {
+  top: -3px;
+  left: 8px;
+  right: 8px;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.resize-handle--top-left {
+  top: -3px;
+  left: -3px;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+}
+
+.resize-handle--top-right {
+  top: -3px;
+  right: -3px;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+}
+
+.resize-handle--bottom-left {
+  bottom: -3px;
+  left: -3px;
+  width: 16px;
+  height: 16px;
+  cursor: nesw-resize;
+}
+
 /* ---- Frame resize handles ----
  * Frames render with `overflow: visible` and a header pill that floats ABOVE
  * the body (it is not anchored to the top edge), so the hit zones can:
@@ -793,6 +837,42 @@
   bottom: -6px;
   width: 26px;
   height: 26px;
+}
+
+.canvas-node--frame .resize-handle--left {
+  top: 12px;
+  left: -6px;
+  bottom: 18px;
+  width: 13px;
+}
+
+.canvas-node--frame .resize-handle--top {
+  top: -6px;
+  left: 18px;
+  right: 18px;
+  height: 13px;
+}
+
+.canvas-node--frame .resize-handle--top-left,
+.canvas-node--frame .resize-handle--top-right,
+.canvas-node--frame .resize-handle--bottom-left {
+  width: 26px;
+  height: 26px;
+}
+
+.canvas-node--frame .resize-handle--top-left {
+  top: -6px;
+  left: -6px;
+}
+
+.canvas-node--frame .resize-handle--top-right {
+  top: -6px;
+  right: -6px;
+}
+
+.canvas-node--frame .resize-handle--bottom-left {
+  bottom: -6px;
+  left: -6px;
 }
 
 /* Image nodes render chromeless — no border, no background, no shadow —

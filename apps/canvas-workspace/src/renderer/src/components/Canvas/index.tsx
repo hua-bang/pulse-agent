@@ -616,7 +616,7 @@ export const Canvas = ({
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds,
   );
   const { resizingId, resizePreview, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel } =
-    useNodeResize(resizeNode, transform.scale);
+    useNodeResize(resizeNode, transform.scale, nodes);
 
   const { sortedNodes, renderGroups } = useCanvasRenderOrder(visibleNodes);
 

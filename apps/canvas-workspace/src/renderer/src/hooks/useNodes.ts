@@ -607,9 +607,9 @@ export const useNodes = (
   );
 
   const resizeNode = useCallback(
-    (id: string, width: number, height: number) => {
+    (id: string, width: number, height: number, x?: number, y?: number) => {
       const resizedNodes = nodesRef.current.map((n) =>
-        n.id === id ? { ...n, width, height, updatedAt: Date.now() } : n,
+        n.id === id ? { ...n, width, height, x: x ?? n.x, y: y ?? n.y, updatedAt: Date.now() } : n,
       );
       applyNodes(resizeGroupsToChildren(resizedNodes), false);
     },
