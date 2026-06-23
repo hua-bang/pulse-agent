@@ -502,12 +502,20 @@ describe('migrateToV2', () => {
   });
 
   it('refuses to migrate when any v1 id already has a per-node file', async () => {
-    await seedV1();
-    // The pollution signature: a per-node file exists for an id that's
-    // about to appear in incoming v1 nodes. detectV1Pollution is strict
-    // id-overlap — we don't try to inspect data-meaningfulness on either
-    // side because the overlap alone shouldn't happen for any legitimate
-    // v1 workspace (no v1-aware code path writes per-node files).
+    // Real v1-unaware-writer aftermath: canvas.json on disk now looks
+    // v1 but with empty `data` per node (because the writer read it
+    // from a v2 store that strips data into per-node files). The
+    // per-node file still holds the real content. detectV1Pollution
+    // catches this two-part signature and aborts before migration can
+    // overwrite the per-node data.
+    await seedV1({
+      nodes: [
+        { id: 'n1', type: 'text', title: 'Hello', x: 0, y: 0, width: 200, height: 80, data: {} },
+        { id: 'n2', type: 'file', title: 'README', x: 300, y: 0, width: 320, height: 240, data: {} },
+      ],
+      edges: [{ id: 'e1', source: { kind: 'node', nodeId: 'n1' }, target: { kind: 'node', nodeId: 'n2' } }],
+      transform: { x: 0, y: 0, scale: 1 },
+    });
     await writeNodeFile(
       wsId,
       {
@@ -529,6 +537,35 @@ describe('migrateToV2', () => {
     // Per-node file is untouched — migration aborted before any writes.
     const n1 = await readNodeFile(wsId, 'n1', root);
     expect(n1?.data.content).toBe('EXISTING');
+  });
+
+  it('still migrates when v1 still carries inline data, even if a per-node tag-only record exists', async () => {
+    // The canvas_tag_node case: a healthy v1 workspace with real inline
+    // data plus a per-node file written by the tagging tool that only
+    // carries `properties.tags`. Migration should proceed normally —
+    // there is nothing at risk on the per-node side, and treating this
+    // as pollution is exactly the false positive we are fixing.
+    await seedV1();
+    await writeNodeFile(
+      wsId,
+      {
+        schemaVersion: PER_NODE_SCHEMA_VERSION,
+        id: 'n1',
+        type: 'text',
+        title: 'Hello',
+        data: {}, // tagging tool wrote empty data
+        properties: { tags: ['philosophy'] },
+        updatedAt: 1729000000000,
+        createdAt: 1729000000000,
+      },
+      root,
+    );
+
+    await migrateToV2(wsId, { root });
+    const n1 = await readNodeFile(wsId, 'n1', root);
+    expect(n1?.data.content).toBe('**hi**');
+    // Tags are preserved (per-node `properties` wins when v1 has none).
+    expect(n1?.properties?.tags).toEqual(['philosophy']);
   });
 
   it('after migrate: readCanvasFull returns v1-shape with assembled data', async () => {
@@ -1077,6 +1114,71 @@ describe('detectV1Pollution', () => {
     await seedV2Workspace();
     expect(await detectV1Pollution(wsId, [], root)).toEqual([]);
     expect(await detectV1Pollution(wsId, undefined, root)).toEqual([]);
+  });
+
+  it('does NOT flag pollution when on-disk per-node file only holds metadata (e.g. tags)', async () => {
+    // Repro of the canvas_tag_node false-positive: a v1 canvas.json with
+    // real inline data, plus per-node files written by the tagging tool
+    // that carry ONLY properties.tags (data is empty {}). The real
+    // canvas content is intact and there is nothing to lose; this must
+    // not surface as a pollution alert.
+    await fs.mkdir(getNodesDir(wsId, root), { recursive: true });
+    await writeNodeFile(
+      wsId,
+      {
+        schemaVersion: PER_NODE_SCHEMA_VERSION,
+        id: 'n1',
+        type: 'file',
+        title: 'A',
+        data: {}, // tagging tool writes empty data
+        properties: { tags: ['philosophy'] },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      root,
+    );
+
+    const result = await detectV1Pollution(
+      wsId,
+      [
+        // incoming v1 node still carries real inline data — clearly not
+        // the "v1-unaware writer stripped data" signature.
+        { id: 'n1', type: 'file', title: 'A', data: { content: 'real-A', filePath: '/tmp/a.md' } },
+      ],
+      root,
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('does NOT flag pollution when incoming v1 node still carries real inline data', async () => {
+    // Even if the on-disk per-node file has real data, an incoming v1
+    // node with non-empty data means whoever wrote canvas.json was NOT
+    // v1-unaware (they preserved inline data). updatedAt arbitration
+    // will reconcile; nothing is at risk.
+    await seedV2Workspace();
+    const result = await detectV1Pollution(
+      wsId,
+      [
+        { id: 'n1', type: 'text', title: 'A', data: { content: 'fresh inline content' } },
+      ],
+      root,
+    );
+    expect(result).toEqual([]);
+  });
+
+  it('still flags pollution when incoming data is empty AND on-disk per-node file has real content', async () => {
+    // The canonical v1-unaware-writer signature, restated to keep the
+    // positive case anchored next to the new negative cases.
+    await seedV2Workspace();
+    const result = await detectV1Pollution(
+      wsId,
+      [
+        { id: 'n1', type: 'text', title: 'A' }, // no data ≡ empty data
+        { id: 'n2', type: 'text', title: 'B', data: {} },
+      ],
+      root,
+    );
+    expect(result.sort()).toEqual(['n1', 'n2']);
   });
 });
 
