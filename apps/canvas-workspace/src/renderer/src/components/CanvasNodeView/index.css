@@ -90,9 +90,12 @@
   box-shadow: none;
 }
 
+/* The source pill overlays the top-right corner of the preview (sits "on
+ * top" of the card) rather than poking out above its top edge — a detached
+ * tab above the card reads as misplaced, especially when the body is empty. */
 .canvas-node--reference > .node-header {
   position: absolute;
-  top: -11px;
+  top: 8px;
   right: 8px;
   z-index: 5;
   min-height: 0;
