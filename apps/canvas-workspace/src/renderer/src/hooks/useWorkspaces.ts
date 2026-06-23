@@ -16,6 +16,15 @@ export interface FolderEntry {
 export interface WorkspaceDeleteResult {
   ok: boolean;
   error?: string;
+  /** True when the deleted workspace was active and we switched away from it. */
+  switchedActive?: boolean;
+  /** The workspace that became active (only set when `switchedActive`). */
+  newActiveId?: string;
+  /**
+   * True when the workspace we switched to has no saved nodes, so the canvas
+   * would only show the empty welcome hint. Callers may route to chat instead.
+   */
+  switchedToEmpty?: boolean;
 }
 
 export interface WorkspaceImportResult {
@@ -33,6 +42,27 @@ interface WorkspaceManifest {
 
 const MANIFEST_ID = '__workspaces__';
 const DEFAULT_WORKSPACE: WorkspaceEntry = { id: 'default', name: 'Workspace' };
+
+/**
+ * Choose which workspace becomes active after `deletedId` is removed. When the
+ * deleted workspace was the active one we move to the entry that now occupies
+ * its slot — its next sibling — and fall back to the new last entry when the
+ * last workspace was deleted. This mirrors tab-close behaviour instead of
+ * always jumping back to the first workspace.
+ */
+export const selectActiveAfterDeletion = (
+  workspaces: WorkspaceEntry[],
+  deletedId: string,
+  currentActiveId: string,
+): { newActiveId: string; switchedActive: boolean } => {
+  const remaining = workspaces.filter((w) => w.id !== deletedId);
+  if (currentActiveId !== deletedId || remaining.length === 0) {
+    return { newActiveId: currentActiveId, switchedActive: false };
+  }
+  const deletedIndex = workspaces.findIndex((w) => w.id === deletedId);
+  const adjacentIndex = Math.min(Math.max(deletedIndex, 0), remaining.length - 1);
+  return { newActiveId: remaining[adjacentIndex].id, switchedActive: true };
+};
 
 export const useWorkspaces = () => {
   const [workspaces, setWorkspaces] = useState<WorkspaceEntry[]>([DEFAULT_WORKSPACE]);
@@ -140,14 +170,27 @@ export const useWorkspaces = () => {
       }
 
       const next = current.filter((w) => w.id !== id);
-      const newActiveId =
-        activeIdRef.current === id ? next[0].id : activeIdRef.current;
+      const { newActiveId, switchedActive } = selectActiveAfterDeletion(
+        current,
+        id,
+        activeIdRef.current,
+      );
 
       setWorkspaces(next);
       saveManifest(next, newActiveId);
-      if (activeIdRef.current === id) setActiveId(newActiveId);
+      if (switchedActive) setActiveId(newActiveId);
 
-      return { ok: true };
+      // When the workspace we switched to has no saved nodes the canvas would
+      // only show the empty welcome hint, so report it back and let the caller
+      // route to AI chat instead of stranding the user on a blank canvas.
+      let switchedToEmpty = false;
+      if (switchedActive && api) {
+        const snapshot = await api.load(newActiveId);
+        const nodes = snapshot.ok ? snapshot.data?.nodes : undefined;
+        switchedToEmpty = !(Array.isArray(nodes) && nodes.length > 0);
+      }
+
+      return { ok: true, switchedActive, newActiveId, switchedToEmpty };
     },
     [saveManifest]
   );

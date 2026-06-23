@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
 
@@ -9,6 +9,7 @@ interface WorkbenchNodeRequest {
 
 interface UseWorkbenchStateOptions {
   activeWorkspaceId: string;
+  workspaces: ReadonlyArray<{ id: string }>;
 }
 
 export interface WorkbenchController {
@@ -43,6 +44,7 @@ const hasWorkspaceSnapshot = (
 
 export function useWorkbenchState({
   activeWorkspaceId,
+  workspaces,
 }: UseWorkbenchStateOptions): WorkbenchController {
   const [allNodes, setAllNodes] = useState<Record<string, CanvasNode[]>>({});
   const [selectedNodeIdsByWorkspace, setSelectedNodeIdsByWorkspace] = useState<Record<string, string[]>>({});
@@ -52,6 +54,26 @@ export function useWorkbenchState({
 
   const allNodesRef = useRef(allNodes);
   allNodesRef.current = allNodes;
+
+  // Drop cached state for workspaces that no longer exist (e.g. after a
+  // deletion) so their node snapshots and selections don't linger in memory.
+  useEffect(() => {
+    const valid = new Set(workspaces.map((w) => w.id));
+    setAllNodes((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.every((key) => valid.has(key))) return prev;
+      const next: Record<string, CanvasNode[]> = {};
+      for (const key of keys) if (valid.has(key)) next[key] = prev[key];
+      return next;
+    });
+    setSelectedNodeIdsByWorkspace((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.every((key) => valid.has(key))) return prev;
+      const next: Record<string, string[]> = {};
+      for (const key of keys) if (valid.has(key)) next[key] = prev[key];
+      return next;
+    });
+  }, [workspaces]);
 
   const ensureWorkspaceNodesLoaded = useCallback((workspaceId: string) => {
     if (hasWorkspaceSnapshot(allNodesRef.current, workspaceId)) return;

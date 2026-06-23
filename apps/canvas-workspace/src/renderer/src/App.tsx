@@ -136,7 +136,7 @@ const AppContent = () => {
     reorderFolder,
   } = useWorkspaces();
 
-  const workbench = useWorkbenchState({ activeWorkspaceId: activeId });
+  const workbench = useWorkbenchState({ activeWorkspaceId: activeId, workspaces });
   const {
     activeNodes,
     selectedNodeIdsByWorkspace,
@@ -272,8 +272,8 @@ const AppContent = () => {
       description: workspace.name,
       autoCloseMs: 2400,
     });
-  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, t]);
-
+    if (result.switchedToEmpty) enterChatView();
+  }, [workspaces, confirm, notify, updateToast, deleteWorkspace, enterChatView, t]);
 
   const handleExportWorkspace = useCallback(async (id: string) => {
     const workspace = workspaces.find((item) => item.id === id);
