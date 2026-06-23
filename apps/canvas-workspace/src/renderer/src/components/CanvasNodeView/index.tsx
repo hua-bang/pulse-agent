@@ -135,7 +135,6 @@ const CanvasNodeViewComponent = ({
         renderReferenceSource={(sourceNode, workspaceLabel) => (
           <ReferenceSourcePreview
             CanvasNodeViewComponent={CanvasNodeView}
-            embedded={embedded}
             handleReferenceSourceUpdate={viewModel.handleReferenceSourceUpdate}
             isSelected={isSelected}
             node={node}
