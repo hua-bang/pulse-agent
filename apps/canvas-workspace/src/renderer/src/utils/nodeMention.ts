@@ -12,3 +12,15 @@ export function buildNodeMention(node: CanvasNode): string {
   const label = filePath ? filePath.split('/').pop() : node.title;
   return `@[${label}](canvas:${node.id})`;
 }
+
+export function buildNodeMentionInsertion(
+  node: CanvasNode,
+  context?: { before?: string; after?: string },
+): string {
+  const mention = buildNodeMention(node);
+  const needsLeading = context ? Boolean(context.before && !/\s$/.test(context.before)) : true;
+  const needsTrailing = context ? !context.after || !/^\s/.test(context.after) : true;
+  const leading = needsLeading ? ' ' : '';
+  const trailing = needsTrailing ? ' ' : '';
+  return `${leading}${mention}${trailing}`;
+}

@@ -1,6 +1,6 @@
 import { useCallback, useState, type KeyboardEvent, type RefObject } from 'react';
 import type { CanvasNode } from '../types';
-import { buildNodeMention } from '../utils/nodeMention';
+import { buildNodeMentionInsertion } from '../utils/nodeMention';
 
 interface Options {
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -38,10 +38,13 @@ export function useTextareaMention({ textareaRef, value, onChange, disabled }: O
     (node: CanvasNode) => {
       setPickerOpen(false);
       if (disabled) return;
-      const mention = buildNodeMention(node);
       const textarea = textareaRef.current;
       const start = textarea?.selectionStart ?? value.length;
       const end = textarea?.selectionEnd ?? value.length;
+      const mention = buildNodeMentionInsertion(node, {
+        before: value.slice(0, start),
+        after: value.slice(end),
+      });
       const next = `${value.slice(0, start)}${mention}${value.slice(end)}`;
       onChange(next);
       const caret = start + mention.length;

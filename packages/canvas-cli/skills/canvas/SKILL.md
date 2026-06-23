@@ -10,6 +10,8 @@ Interact with canvas workspaces via the `pulse-canvas` CLI. The canvas is a shar
 
 The current workspace ID is available via `$PULSE_CANVAS_WORKSPACE_ID` environment variable (auto-set by canvas). All `node` and `context` commands use it automatically — no need to pass workspace ID explicitly.
 
+Whenever `$PULSE_CANVAS_WORKSPACE_ID` is set, treat the canvas as required user-provided context. Before planning, coding, reviewing, or answering a workspace task, run `pulse-canvas context --format json` and use that result alongside repository files.
+
 ## Core Commands
 
 ### Read workspace context (start here)
@@ -98,7 +100,7 @@ Requirements:
 Do NOT use `node write` for agent nodes — `node write` only modifies file/frame/group content. `agent send` delivers live input to the PTY session and is the only correct channel for talking to a running agent.
 
 ## Usage Principles
-- Before starting a task, run `context` to understand the user's canvas layout and intent
+- Before starting a task, run `pulse-canvas context --format json` to understand the user's canvas layout and intent
 - Files on the canvas = files the user considers important — prioritize them
 - Frame groups = file associations — understand files in the same group together
 - Edges = relationships — understand how frames and nodes connect to each other

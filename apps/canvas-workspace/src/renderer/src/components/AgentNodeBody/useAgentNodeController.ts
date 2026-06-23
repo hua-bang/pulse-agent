@@ -4,7 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import type { AgentNodeData, CanvasNode } from '../../types';
 import { getAgentCommand } from '../../config/agentRegistry';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
-import { buildNodeMention } from '../../utils/nodeMention';
+import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
@@ -1112,11 +1112,15 @@ export const useAgentNodeController = ({
     if (!command) return true;
     const api = window.canvasWorkspace?.pty;
     if (!api?.checkCommand) return true;
-    const result = await api.checkCommand(command);
-    if (result.ok && result.available) return true;
-    setLaunchErrorCommand(command);
-    return false;
-  }, []);
+    const commands = workspaceId && command !== 'pulse-canvas' ? [command, 'pulse-canvas'] : [command];
+    for (const requiredCommand of commands) {
+      const result = await api.checkCommand(requiredCommand);
+      if (result.ok && result.available) continue;
+      setLaunchErrorCommand(requiredCommand);
+      return false;
+    }
+    return true;
+  }, [workspaceId]);
 
   const handleLaunch = useCallback(async (options?: { skipPreflight?: boolean }) => {
     if (readOnly || isMirrorTerminal) return;
@@ -1162,7 +1166,7 @@ export const useAgentNodeController = ({
     const api = window.canvasWorkspace?.pty;
     if (api) {
       const activeSessionId = dataRef.current.sessionId || nodeIdRef.current;
-      void api.write(activeSessionId, buildNodeMention(selected));
+      void api.write(activeSessionId, buildNodeMentionInsertion(selected));
     }
     termRef.current?.focus();
   }, [readOnly]);

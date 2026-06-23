@@ -41,6 +41,8 @@ Interact with canvas workspaces via the \`pulse-canvas\` CLI. The canvas is a sh
 
 The current workspace ID is available via \`$PULSE_CANVAS_WORKSPACE_ID\` environment variable (auto-set by canvas). All \`node\` and \`context\` commands use it automatically — no need to pass workspace ID explicitly.
 
+Whenever \`$PULSE_CANVAS_WORKSPACE_ID\` is set, treat the canvas as required user-provided context. Before planning, coding, reviewing, or answering a workspace task, run \`pulse-canvas context --format json\` and use that result alongside repository files.
+
 ## Core Commands
 
 ### Read workspace context (start here)
@@ -64,7 +66,7 @@ pulse-canvas node write <nodeId> --content "..."
 \`\`\`
 
 ## Usage Principles
-- Before starting a task, run \`context\` to understand the user's canvas layout and intent
+- Before starting a task, run \`pulse-canvas context --format json\` to understand the user's canvas layout and intent
 - After completing work, write results back to the canvas for the user to review
 `;
 

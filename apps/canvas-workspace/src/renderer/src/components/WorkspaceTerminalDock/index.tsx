@@ -3,11 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
-import type { CanvasNode, FileNodeData } from '../../types';
-import { AI_TOOL_PATTERN, writeCanvasContext } from '../../utils/canvasContextWriter';
+import type { CanvasNode } from '../../types';
+import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import { useI18n } from '../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
+import {
+  appendTerminalOutputTail,
+  hasLikelyReturnedToShellPrompt,
+  isCodingAgentCommand,
+} from '../../utils/codingAgentCommand';
 import './index.css';
 
 interface WorkspaceTerminalDockProps {
@@ -70,6 +75,7 @@ export const WorkspaceTerminalDock = ({
   const heightRef = useRef(height);
   const [cwd, setCwd] = useState(rootFolder ?? '');
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [mentionHintVisible, setMentionHintVisible] = useState(false);
   // True from the moment the dock opens until the shell prints its first
   // byte — drives the boot overlay so init doesn't read as a blank white panel.
   const [booting, setBooting] = useState(false);
@@ -78,12 +84,13 @@ export const WorkspaceTerminalDock = ({
   const fitRef = useRef<FitAddon | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
+  const codingAgentActiveRef = useRef(false);
+  const commandInputRef = useRef('');
+  const terminalOutputTailRef = useRef('');
   const nodesRef = useRef(nodes);
   const rootFolderRef = useRef(rootFolder);
-  const workspaceNameRef = useRef(workspaceName);
   nodesRef.current = nodes;
   rootFolderRef.current = rootFolder;
-  workspaceNameRef.current = workspaceName;
   heightRef.current = height;
 
   const sessionId = useMemo(
@@ -119,6 +126,47 @@ export const WorkspaceTerminalDock = ({
       if (result.ok && result.cwd) setCwd(result.cwd);
     });
   }, [sessionId]);
+
+  const dismissMentionHint = useCallback(() => {
+    setMentionHintVisible(false);
+  }, []);
+
+  const finishCodingAgentHint = useCallback(() => {
+    codingAgentActiveRef.current = false;
+    terminalOutputTailRef.current = '';
+    setMentionHintVisible(false);
+  }, []);
+
+  const startCodingAgentHint = useCallback(() => {
+    if (codingAgentActiveRef.current) return;
+    codingAgentActiveRef.current = true;
+    terminalOutputTailRef.current = '';
+    setMentionHintVisible(true);
+  }, []);
+
+  const captureTerminalOutput = useCallback((data: string) => {
+    if (!codingAgentActiveRef.current) return;
+    terminalOutputTailRef.current = appendTerminalOutputTail(terminalOutputTailRef.current, data);
+    if (hasLikelyReturnedToShellPrompt(terminalOutputTailRef.current)) {
+      finishCodingAgentHint();
+    }
+  }, [finishCodingAgentHint]);
+
+  const captureTerminalInput = useCallback((data: string) => {
+    for (const ch of data) {
+      if (ch === '\r' || ch === '\n') {
+        const command = commandInputRef.current;
+        commandInputRef.current = '';
+        if (isCodingAgentCommand(command)) startCodingAgentHint();
+      } else if (ch === '\x7f' || ch === '\b') {
+        commandInputRef.current = commandInputRef.current.slice(0, -1);
+      } else if (ch === '\x15') {
+        commandInputRef.current = '';
+      } else if (ch >= ' ') {
+        commandInputRef.current += ch;
+      }
+    }
+  }, [startCodingAgentHint]);
 
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
@@ -164,38 +212,18 @@ export const WorkspaceTerminalDock = ({
       // First byte means the shell is alive — drop the boot overlay.
       setBooting(false);
       term.write(data);
+      captureTerminalOutput(data);
     });
     const removeExit = api.onExit(sessionId, (code) => {
       setBooting(false);
       term.writeln(`\r\n\x1b[2m[Process exited with code ${code}]\x1b[0m`);
     });
 
-    let inputBuf = '';
     const inputDisposable = term.onData((data) => {
       api.write(sessionId, data);
+      captureTerminalInput(data);
       if (data === '\r' || data === '\n') {
-        const command = inputBuf.trim();
-        inputBuf = '';
         refreshCwd();
-        const contextNodes = nodesRef.current;
-        if (AI_TOOL_PATTERN.test(command) && contextNodes.length > 0) {
-          void api.getCwd(sessionId).then((result) => {
-            const nextCwd = result.ok && result.cwd ? result.cwd : rootFolderRef.current;
-            if (nextCwd) {
-              void writeCanvasContext(
-                contextNodes,
-                nextCwd,
-                workspaceId,
-                workspaceNameRef.current,
-                term,
-              );
-            }
-          });
-        }
-      } else if (data === '\x7f') {
-        inputBuf = inputBuf.slice(0, -1);
-      } else if (data.length === 1 && data >= ' ') {
-        inputBuf += data;
       }
     });
     const resizeDisposable = term.onResize(({ cols, rows }) => {
@@ -209,7 +237,7 @@ export const WorkspaceTerminalDock = ({
       resizeDisposable.dispose();
       api.kill(sessionId);
     };
-  }, [refreshCwd, scheduleFit, sessionId, workspaceId]);
+  }, [captureTerminalInput, captureTerminalOutput, refreshCwd, scheduleFit, sessionId, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
@@ -286,11 +314,7 @@ export const WorkspaceTerminalDock = ({
     setPickerOpen(false);
     const api = window.canvasWorkspace?.pty;
     if (api) {
-      const filePath = selected.type === 'file'
-        ? (selected.data as FileNodeData).filePath
-        : undefined;
-      const label = filePath ? filePath.split('/').pop() : selected.title;
-      api.write(sessionId, `@[${label}](canvas:${selected.id})`);
+      api.write(sessionId, buildNodeMentionInsertion(selected));
     }
     termRef.current?.focus();
   }, [sessionId]);
@@ -349,6 +373,21 @@ export const WorkspaceTerminalDock = ({
           />
         )}
         <div ref={containerRef} className="workspace-terminal-dock__xterm" />
+        {mentionHintVisible && !pickerOpen && (
+          <div className="workspace-terminal-dock__mention-hint" role="status">
+            <span>{t('terminal.mentionHint.prefix')}</span>
+            <kbd>Ctrl/⌘+2</kbd>
+            <span>{t('terminal.mentionHint.suffix')}</span>
+            <button
+              type="button"
+              className="workspace-terminal-dock__mention-hint-close"
+              aria-label={t('terminal.mentionHint.dismiss')}
+              onClick={dismissMentionHint}
+            >
+              ×
+            </button>
+          </div>
+        )}
         {booting && (
           <div className="workspace-terminal-dock__booting" aria-hidden="true">
             <span className="workspace-terminal-dock__spinner" />

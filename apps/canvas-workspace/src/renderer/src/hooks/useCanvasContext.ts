@@ -11,11 +11,10 @@ export const useCanvasContext = (rootFolder: string | undefined, nodes: CanvasNo
   // surprising — the user did not opt in to "Pulse Canvas writes to my
   // project's docs."
   //
-  // The intentional Claude Code / Codex bridge in
-  // `canvasContextWriter.writeCanvasContext` is left untouched — it
-  // fires only when the user actually types `claude` / `codex` /
-  // `pulse-coder` in a terminal node, which is an explicit signal that
-  // an external coding agent is about to read the project.
+  // Coding agents now read Pulse Canvas through the installed `pulse-canvas`
+  // skill + CLI instead of repository instruction-file bridges. Terminals are
+  // spawned with PULSE_CANVAS_WORKSPACE_ID, so `pulse-canvas context --format json`
+  // resolves the active canvas without modifying project files.
   //
   // The hook + signature are kept so re-enabling later (e.g. behind a
   // workspace setting) is one effect away.
