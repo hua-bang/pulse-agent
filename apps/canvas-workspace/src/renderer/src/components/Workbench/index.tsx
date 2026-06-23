@@ -78,7 +78,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const patchRequestIdRef = useRef(0);
-  const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId);
+  const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId, workspaces);
 
   useEffect(() => {
     for (const node of activeNodes) {
