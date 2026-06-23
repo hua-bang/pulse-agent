@@ -5,7 +5,8 @@ import { FitAddon } from '@xterm/addon-fit';
 import type { CanvasNode, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
-import { NodeMentionPicker } from '../NodeMentionPicker';
+import { NodeMentionPicker, NODE_MENTION_SHORTCUT } from '../NodeMentionPicker';
+import { MentionTriggerButton } from '../NodeMentionPicker/MentionTriggerButton';
 import { fitTerminalWithCanvasScale, syncTerminalFontSizeToCanvas } from '../AgentNodeBody/utils/terminal';
 import { useI18n } from '../../i18n';
 import {
@@ -319,7 +320,7 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
       {!readOnly && mentionHintVisible && !pickerOpen && (
         <div className="terminal-mention-hint" role="status">
           <span>{t('terminal.mentionHint.prefix')}</span>
-          <kbd>Ctrl/⌘+2</kbd>
+          <kbd>{NODE_MENTION_SHORTCUT}</kbd>
           <span>{t('terminal.mentionHint.suffix')}</span>
           <button
             type="button"
@@ -330,6 +331,13 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
             ×
           </button>
         </div>
+      )}
+      {!readOnly && !pickerOpen && !mentionHintVisible && (
+        <MentionTriggerButton
+          label={t('nodeMention.triggerLabel')}
+          title={`${t('nodeMention.title')} · ${NODE_MENTION_SHORTCUT}`}
+          onClick={() => setPickerOpen(true)}
+        />
       )}
       <div
         ref={containerRef}
