@@ -3,7 +3,6 @@ import type { CanvasNodeViewProps } from './types';
 
 interface ReferenceSourcePreviewProps {
   CanvasNodeViewComponent: React.ComponentType<CanvasNodeViewProps>;
-  embedded: boolean;
   handleReferenceSourceUpdate: (sourceId: string, patch: Partial<CanvasNode>) => void;
   isSelected: boolean;
   node: CanvasNode;
@@ -16,9 +15,20 @@ interface ReferenceSourcePreviewProps {
   workspaceLabel: string;
 }
 
+/**
+ * Renders the referenced node as a preview inside the reference card.
+ *
+ * The inner node is ALWAYS `embedded`: the reference card owns the header
+ * chrome (badge, source label, open-source, close), so the preview must not
+ * draw its own close/fullscreen/resize controls. When the source is editable
+ * (`onUpdateReferenceSource` provided) the inner node would otherwise render
+ * as a normal node and float those controls over the content — duplicating
+ * the card's close button and covering the preview. `embedded` hides that
+ * chrome via CSS, fills the card, and picks up the reference's selected ring
+ * while keeping the body editable.
+ */
 export const ReferenceSourcePreview = ({
   CanvasNodeViewComponent,
-  embedded,
   handleReferenceSourceUpdate,
   isSelected,
   node,
@@ -55,6 +65,6 @@ export const ReferenceSourcePreview = ({
     onSelect={() => onSelect(node.id)}
     onFocus={() => undefined}
     readOnly={readOnly || !onUpdateReferenceSource}
-    embedded={embedded}
+    embedded
   />
 );
