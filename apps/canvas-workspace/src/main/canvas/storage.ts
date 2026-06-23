@@ -383,12 +383,12 @@ export class CanvasPollutionDetectedError extends Error {
         : '';
     super(
       `[canvas-storage] refusing v1-shape write/migration for workspace ` +
-        `"${workspaceId}": ${conflictingNodeIds.length} node id(s) already ` +
-        `have v2 per-node files on disk (${sample}${more}). This is the ` +
-        `signature of a v1-unaware writer (old binary or external script) ` +
-        `having clobbered canvas.json. The real data is still in the ` +
-        `nodes/<id>.json files — do NOT migrate, restore canvas.json ` +
-        `instead (see docs).`,
+      `"${workspaceId}": ${conflictingNodeIds.length} node id(s) already ` +
+      `have v2 per-node files on disk (${sample}${more}). This is the ` +
+      `signature of a v1-unaware writer (old binary or external script) ` +
+      `having clobbered canvas.json. The real data is still in the ` +
+      `nodes/<id>.json files — do NOT migrate, restore canvas.json ` +
+      `instead (see docs).`,
     );
     this.name = 'CanvasPollutionDetectedError';
     this.workspaceId = workspaceId;
@@ -397,9 +397,8 @@ export class CanvasPollutionDetectedError extends Error {
 }
 
 /**
- * For each node id mentioned in the incoming v1-shape canvas, check whether
- * a `nodes/<id>.json` file already exists on disk. Returns the subset of
- * ids that overlap.
+ * For each node id mentioned in the incoming v1-shape canvas, return the
+ * subset whose on-disk state matches the v1-pollution signature.
  *
  * The signature we're catching: a v1-unaware writer reads v2 canvas.json
  * (layout-only, no `data` per node) and writes it back verbatim. The
@@ -408,23 +407,30 @@ export class CanvasPollutionDetectedError extends Error {
  * arbitration overwrite each per-node file with the incoming v1 layout
  * and permanently destroy the user's data.
  *
- * Detection is strictly id-overlap: if even one incoming v1 node id has
- * a corresponding per-node file, we refuse. We deliberately do NOT try
- * to inspect data-meaningfulness on either side — the "id overlap"
- * signature alone is enough, because no legitimate code path produces
- * a v1-shape canvas.json with ids that match existing per-node files.
- * (The one synthetic scenario that conflicts with this — a CLI writing
- * a per-node file ahead of a fresh v1 → v2 migration — is unreachable
- * in practice: canvas-cli's `writeMatchingSchema` never writes per-node
- * files for v1 workspaces.)
+ * We require BOTH conditions per node to call it pollution:
  *
- * After the workspace-node-store refactor `nodes/<id>.json` is also
- * used as a workspace-scoped atom store independent of any canvas
- * view, so "nodes/ is non-empty" by itself isn't a useful signal —
- * but the *id intersection* is, because those ids being in the
- * incoming v1 layout means they came from reading a v2 canvas.json.
+ *   1. The on-disk `nodes/<id>.json` actually carries v2 *content* — a
+ *      non-empty `data` object or non-empty `links`. A per-node file
+ *      that only holds `properties` (e.g. tags written by
+ *      `canvas_tag_node` against an otherwise-v1 workspace) is
+ *      metadata side-data that legitimately coexists with a v1
+ *      canvas.json and must NOT be treated as pollution — that path
+ *      was producing false positives that masked the real signal.
  *
- * Cheap: stats files in parallel, no large reads.
+ *   2. The incoming v1 canvas node has empty or missing `data` — the
+ *      smoking gun of a v1-unaware writer that read the stripped v2
+ *      layout and wrote it back as v1. A v1 node that still carries
+ *      real inline `data` is just a normal v1 workspace (or an export
+ *      from a v2 reader that re-inlined data), and nothing was lost.
+ *
+ * Either condition alone is insufficient: condition 1 alone misfires on
+ * workspaces where the agent wrote tags but the canvas itself is still
+ * a healthy v1 (the bug this comment replaces); condition 2 alone
+ * misfires on legitimate v1 workspaces that happen to have empty `data`
+ * for layout-only node types (frames, groupings).
+ *
+ * Reads the per-node files (not just fs.access). That's still cheap —
+ * each file is small JSON and only conflicting *candidates* are read.
  */
 export async function detectV1Pollution(
   workspaceId: string,
@@ -432,20 +438,36 @@ export async function detectV1Pollution(
   root: string = STORE_DIR,
 ): Promise<string[]> {
   if (!Array.isArray(incomingNodes) || incomingNodes.length === 0) return [];
-  const ids = incomingNodes
-    .map((n) => n.id)
-    .filter((id): id is string => typeof id === 'string' && isSafeNodeId(id));
-  if (ids.length === 0) return [];
+
+  const byId = new Map<string, CanvasNode>();
+  for (const n of incomingNodes) {
+    if (typeof n.id === 'string' && isSafeNodeId(n.id)) byId.set(n.id, n);
+  }
+  if (byId.size === 0) return [];
+
+  const dataNonEmpty = (d: unknown): boolean =>
+    !!d && typeof d === 'object' && !Array.isArray(d) && Object.keys(d as object).length > 0;
 
   const conflicts: string[] = [];
   await Promise.all(
-    ids.map(async (id) => {
+    [...byId.entries()].map(async ([id, incoming]) => {
+      // Condition 2 first — cheap, no I/O. If the incoming v1 node still
+      // carries real inline `data`, no data is at risk: bail.
+      if (dataNonEmpty((incoming as { data?: unknown }).data)) return;
+
+      // Condition 1 — read the per-node file. Missing/unreadable is
+      // not pollution (matches the legacy fs.access semantics).
+      let onDisk: WorkspaceNodeRecord;
       try {
-        await fs.access(getNodeFilePath(workspaceId, id, root));
-        conflicts.push(id);
+        const raw = await fs.readFile(getNodeFilePath(workspaceId, id, root), 'utf-8');
+        onDisk = JSON.parse(raw) as WorkspaceNodeRecord;
       } catch {
-        // ENOENT or any other error → not a conflict.
+        return;
       }
+      const linksNonEmpty = Array.isArray(onDisk.links) && onDisk.links.length > 0;
+      if (!dataNonEmpty(onDisk.data) && !linksNonEmpty) return;
+
+      conflicts.push(id);
     }),
   );
   return conflicts;
