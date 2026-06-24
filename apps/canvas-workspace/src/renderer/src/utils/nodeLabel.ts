@@ -9,8 +9,8 @@ const MINDMAP_LABEL_MAX_CHARS = 16;
  * Text nodes don't carry an editable title — their header sits empty and the
  * actual prose lives in `data.content`. Showing "Text" everywhere is useless
  * when several text nodes coexist, so we derive a short preview from the
- * content (first ~10 chars of the first non-empty line, stripped of common
- * markdown prefixes). Falls back to "Text" when the node is still empty.
+ * content (first ~10 chars of the first non-empty line, stripped of HTML markup
+ * and common markdown prefixes). Falls back to "Text" when the node is empty.
  *
  * Non-text nodes pass through untouched so this stays a single lookup at all
  * call sites (sidebar, mention picker, etc.).
@@ -47,16 +47,38 @@ export function getNodeDisplayLabel(node: CanvasNode): string {
 }
 
 /**
- * Pull a short plaintext-ish preview out of a markdown body.
+ * Tiptap persists text-node content as HTML (`editor.getHTML()`), so the raw
+ * value looks like `<p>如何理解 Harness</p>`. A sidebar/mention label wants the
+ * prose, not the markup: turn block boundaries and `<br>` into line breaks (so
+ * the first-line logic still works and words don't run together), drop the
+ * remaining tags, then decode the handful of entities Tiptap emits. Legacy
+ * plain-markdown content has no tags, so it passes through unchanged.
+ */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|li|h[1-6]|blockquote|pre|tr)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#0*39;|&apos;/gi, "'")
+    // Decode &amp; last so an escaped entity like `&amp;lt;` survives as text.
+    .replace(/&amp;/gi, "&");
+}
+
+/**
+ * Pull a short plaintext-ish preview out of a text-node body.
  *
- * Strips leading heading/list/quote markers (`# `, `- `, `* `, `> `, etc.)
- * so the user sees the actual first words instead of the formatting glyph,
- * then keeps the first N chars with an ellipsis if we cut.
+ * Strips HTML markup (Tiptap output) and leading markdown markers (`# `, `- `,
+ * `* `, `> `, etc.) so the user sees the actual first words instead of a tag or
+ * formatting glyph, then keeps the first N chars with an ellipsis if we cut.
  */
 function textContentPreview(content: string | undefined): string {
   if (!content) return "";
 
-  const firstLine = content
+  const firstLine = htmlToPlainText(content)
     .split(/\r?\n/)
     .map(line => line.trim())
     .find(line => line.length > 0);
