@@ -2,6 +2,40 @@ import { useEffect } from 'react';
 import type { CanvasNode, FileNodeData } from '../types';
 import type { CanvasClipboard } from '../types/ui-interaction';
 
+interface KeyboardShortcutLike {
+  ctrlKey: boolean;
+  defaultPrevented?: boolean;
+  key: string;
+  metaKey: boolean;
+  shiftKey: boolean;
+}
+
+interface ActiveElementLike {
+  tagName?: string;
+  isContentEditable?: boolean;
+  closest?: (selector: string) => Element | ActiveElementLike | null;
+}
+
+const isEditableElement = (active: ActiveElementLike | null): boolean => !!active && (
+  active.tagName === 'INPUT' ||
+  active.tagName === 'TEXTAREA' ||
+  active.isContentEditable === true
+);
+
+const isInsideNoteCard = (active: ActiveElementLike | null): boolean =>
+  !!active?.closest?.('.note-card');
+
+export const shouldHandleCanvasFindShortcut = (
+  event: KeyboardShortcutLike,
+  active: ActiveElementLike | null,
+): boolean => {
+  if (event.defaultPrevented) return false;
+  if (!(event.metaKey || event.ctrlKey)) return false;
+  if (event.shiftKey) return false;
+  if (event.key.toLowerCase() !== 'f') return false;
+  return !isInsideNoteCard(active);
+};
+
 interface Options {
   canvasId: string;
   undo: () => void;
@@ -78,21 +112,16 @@ export const useCanvasKeyboard = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (keyboardLocked) return;
+      if (e.defaultPrevented) return;
 
       const active = document.activeElement;
-      const isEditable = active && (
-        active.tagName === 'INPUT' ||
-        active.tagName === 'TEXTAREA' ||
-        (active as HTMLElement).isContentEditable
-      );
+      const isEditable = isEditableElement(active);
       const isMod = e.metaKey || e.ctrlKey;
 
-      // Ctrl/Cmd+F — find in canvas. Intentionally works *even when*
-      // an editable element has focus: users frequently want to
-      // search from inside a file node without first clicking out.
-      // The bar's own input grabs focus on mount; we just preventDefault
-      // so the browser's native find UI doesn't compete.
-      if (isMod && !e.shiftKey && (e.key === 'f' || e.key === 'F')) {
+      // Ctrl/Cmd+F — find in canvas. Note cards own their own local find
+      // flow, so don't let the canvas-level search steal focus from note
+      // editing, note panels, or note toolbar controls.
+      if (shouldHandleCanvasFindShortcut(e, active)) {
         e.preventDefault();
         toggleFindBar();
         return;
@@ -253,14 +282,11 @@ export const useCanvasKeyboard = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (keyboardLocked) return;
+      if (e.defaultPrevented) return;
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'Tab') {
         const activeEl = document.activeElement;
-        const isEditable = activeEl && (
-          activeEl.tagName === 'INPUT' ||
-          activeEl.tagName === 'TEXTAREA' ||
-          (activeEl as HTMLElement).isContentEditable
-        );
+        const isEditable = isEditableElement(activeEl);
         if (!isEditable && nodes.length > 0) {
           e.preventDefault();
           const currentIndex = nodes.findIndex((n) => n.id === selectedNodeIds[0]);

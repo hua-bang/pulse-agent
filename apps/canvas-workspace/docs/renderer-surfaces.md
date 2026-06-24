@@ -90,6 +90,7 @@ Defined in `src/renderer/src/styles.css` (`:root`), low → high:
 | `--layer-fullscreen-chrome` | 1010 | fullscreen chip |
 | `--layer-dock` | 1100 | RightDock (artifact / link previews) |
 | `--layer-search` | 1500 | find-in-canvas bar |
+| `--layer-note-popover` | 1550 | note slash / mention / selection bubble menus |
 | `--layer-interaction-shield` | 1800 | drag shield over webviews |
 | `--layer-modal` | 1900 | settings drawers |
 | `--layer-palette` | 2000 | command palette |
@@ -97,8 +98,8 @@ Defined in `src/renderer/src/styles.css` (`:root`), low → high:
 | `--layer-toast` | 2100 | app-shell toasts |
 
 Known stragglers not yet on the scale (anchored popovers, lower risk):
-`NodeContextMenu` (1000), `FileNodeBubbleMenu` (9000), and various
-chat-internal overlays. Migrate them opportunistically when touched.
+`NodeContextMenu` (1000) and various chat-internal overlays. Migrate them
+opportunistically when touched.
 
 ## History
 

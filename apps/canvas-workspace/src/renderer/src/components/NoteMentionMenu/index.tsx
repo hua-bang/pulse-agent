@@ -36,7 +36,7 @@ export const NoteMentionMenu = ({ x, y, items, selectedIndex, onSelect, onClose 
       className="note-mention-menu"
       role="listbox"
       aria-label={t('nodeMention.title')}
-      style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 9000 }}
+      style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 'var(--layer-note-popover)' }}
     >
       {items.map((node, i) => (
         <button

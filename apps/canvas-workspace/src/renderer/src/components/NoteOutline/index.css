@@ -2,7 +2,7 @@
   position: absolute;
   top: 8px;
   left: 8px;
-  z-index: 50;
+  z-index: var(--note-layer-panel, 50);
   background: var(--surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);

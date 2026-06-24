@@ -1,6 +1,6 @@
 .note-bubble-menu {
   position: fixed;
-  z-index: 9000;
+  z-index: var(--layer-note-popover);
   /* transform (above vs below the selection) is set inline by the
      component, which clamps the menu into the viewport. */
   display: flex;

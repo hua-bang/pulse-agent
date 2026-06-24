@@ -4,6 +4,7 @@
   height: 100%;
   position: relative;
   background: var(--note-paper, #fdfcf9);
+  --note-layer-panel: 50;
 }
 
 /* The filename used to live in its own bar; in the Notion/Heptabase

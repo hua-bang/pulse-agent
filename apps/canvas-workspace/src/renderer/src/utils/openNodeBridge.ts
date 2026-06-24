@@ -17,16 +17,51 @@ export interface OpenNodeDetail {
   nodeId: string;
 }
 
+export interface NodeLinkTarget {
+  workspaceId?: string;
+  nodeId: string;
+}
+
+const safeDecode = (value: string): string | null => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+};
+
 export const dispatchOpenNode = (detail: OpenNodeDetail): void => {
   window.dispatchEvent(new CustomEvent<OpenNodeDetail>(OPEN_NODE_EVENT, { detail }));
 };
 
 /** Build the href stored on a mention link for the given node id. */
-export const nodeLinkHref = (nodeId: string): string => `${NODE_LINK_PREFIX}${nodeId}`;
+export const nodeLinkHref = (nodeId: string, workspaceId?: string): string => {
+  const href = `${NODE_LINK_PREFIX}${encodeURIComponent(nodeId)}`;
+  if (!workspaceId) return href;
+  return `${href}?workspace=${encodeURIComponent(workspaceId)}`;
+};
+
+/** Extract the canvas-node target from a mention href. */
+export const parseNodeLinkHref = (href: string | null | undefined): NodeLinkTarget | null => {
+  if (!href || !href.startsWith(NODE_LINK_PREFIX)) return null;
+  const raw = href.slice(NODE_LINK_PREFIX.length).trim();
+  if (!raw) return null;
+
+  const queryStart = raw.indexOf('?');
+  const rawNodeId = queryStart >= 0 ? raw.slice(0, queryStart) : raw;
+  const rawQuery = queryStart >= 0 ? raw.slice(queryStart + 1) : '';
+  const nodeId = safeDecode(rawNodeId ?? '')?.trim() ?? '';
+  if (!nodeId) return null;
+
+  const params = new URLSearchParams(rawQuery);
+  const workspace = params.get('workspace')?.trim();
+  return {
+    nodeId,
+    workspaceId: workspace || undefined,
+  };
+};
 
 /** Extract a node id from a mention href, or null when it isn't one. */
 export const nodeIdFromHref = (href: string | null | undefined): string | null => {
-  if (!href || !href.startsWith(NODE_LINK_PREFIX)) return null;
-  const id = href.slice(NODE_LINK_PREFIX.length).trim();
-  return id.length > 0 ? id : null;
+  return parseNodeLinkHref(href)?.nodeId ?? null;
 };

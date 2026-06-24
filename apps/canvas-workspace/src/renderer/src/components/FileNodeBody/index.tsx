@@ -6,7 +6,7 @@ import { useFileNodeEditor, getMarkdown } from '../../hooks/useFileNodeEditor';
 import { useFileNodeEditorRegistry } from '../../hooks/useFileNodeEditorRegistry';
 import { useNoteMentions } from '../../hooks/useNoteMentions';
 import { filterCmds } from '../../editor/slashCommands';
-import { dispatchOpenNode, nodeIdFromHref } from '../../utils/openNodeBridge';
+import { dispatchOpenNode, parseNodeLinkHref } from '../../utils/openNodeBridge';
 import { FileNodeToolbar } from '../FileNodeToolbar';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
 import { SlashCommandMenu } from '../SlashCommandMenu';
@@ -30,7 +30,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
-  const [outlineOpen, setOutlineOpen] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
   const nodeIdRef = useRef(node.id);
@@ -62,8 +62,8 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
 
   const {
     editor,
+    interactions,
     slashMenu,
-    setSlashMenu,
     bubble,
     handleSlashSelect,
     linkPrompt,
@@ -76,6 +76,9 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     findBarOpen,
     openFindBar,
     closeFindBar,
+    outlineOpen,
+    toggleOutline,
+    closeOutline,
   } = useFileNodeEditor({
     data,
     nodeIdRef,
@@ -93,7 +96,46 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
     editor,
     candidates: mentionCandidates,
     readOnly,
+    workspaceId,
+    interactions,
   });
+
+  useEffect(() => {
+    if (
+      readOnly ||
+      !outlineOpen ||
+      slashMenu ||
+      mentionMenu ||
+      linkPrompt ||
+      findBarOpen
+    ) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target instanceof Node ? event.target : null;
+      const eventBelongsToThisNote =
+        (target && cardRef.current?.contains(target)) || editor?.isFocused;
+      if (!eventBelongsToThisNote) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      closeOutline();
+    };
+
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [
+    editor,
+    findBarOpen,
+    linkPrompt,
+    mentionMenu,
+    outlineOpen,
+    readOnly,
+    slashMenu,
+    closeOutline,
+  ]);
 
   // Publish this node's editor to the canvas-level registry so the
   // Ctrl/Cmd+F find bar can push its query into our NoteSearchExtension
@@ -181,11 +223,17 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       const href = anchor?.getAttribute('href')?.trim();
       if (!href) return;
       // A node mention focuses its target node instead of opening a URL.
-      const mentionedNodeId = nodeIdFromHref(href);
-      if (mentionedNodeId) {
+      const nodeLink = parseNodeLinkHref(href);
+      if (nodeLink) {
         e.preventDefault();
         e.stopPropagation();
-        dispatchOpenNode({ workspaceId: workspaceId ?? '', nodeId: mentionedNodeId });
+        const targetWorkspaceId = nodeLink.workspaceId ?? workspaceId ?? '';
+        const targetNodeKnown = !getAllNodes || getAllNodes().some((item) => item.id === nodeLink.nodeId);
+        if (!targetNodeKnown && targetWorkspaceId === (workspaceId ?? '')) {
+          showStatus('Missing node');
+          return;
+        }
+        dispatchOpenNode({ workspaceId: targetWorkspaceId, nodeId: nodeLink.nodeId });
         return;
       }
       if (!/^https?:\/\//i.test(href)) return;
@@ -193,14 +241,14 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       e.stopPropagation();
       openLink(href);
     },
-    [openLink, workspaceId],
+    [getAllNodes, openLink, showStatus, workspaceId],
   );
 
   const filePath = data.filePath;
   const fileName = filePath ? filePath.split('/').pop() : null;
 
   return (
-    <div className="note-card">
+    <div ref={cardRef} className="note-card">
       {!readOnly && (
         <FileNodeToolbar
           onOpenFile={handleOpenFile}
@@ -208,7 +256,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
           onSaveAs={handleSaveAs}
           onInsertImage={openImagePicker}
           onOpenFind={openFindBar}
-          onToggleOutline={() => setOutlineOpen((v) => !v)}
+          onToggleOutline={toggleOutline}
           outlineOpen={outlineOpen}
           statusText={statusText}
           modified={modified}
@@ -220,7 +268,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
       {!readOnly && findBarOpen && editor && <NoteFindBar editor={editor} onClose={closeFindBar} />}
 
       {!readOnly && outlineOpen && editor && (
-        <NoteOutline editor={editor} onClose={() => setOutlineOpen(false)} />
+        <NoteOutline editor={editor} onClose={closeOutline} />
       )}
 
       {!readOnly && linkPrompt && (
@@ -259,7 +307,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnl
           selectedIndex={slashMenu.index}
           items={filterCmds(slashMenu.query)}
           onSelect={handleSlashSelect}
-          onClose={() => setSlashMenu(null)}
+          onClose={interactions.closeSlashMenu}
         />
       )}
 
