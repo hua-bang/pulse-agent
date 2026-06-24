@@ -195,7 +195,7 @@
   padding: 8px 10px;
   border-radius: 6px;
   word-break: break-all;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font);
 }
 
 .agent-section-results {

@@ -1011,7 +1011,7 @@
 }
 
 .chat-md code {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font);
   font-size: 0.9em;
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 4px;
@@ -1098,7 +1098,7 @@
   border-radius: 8px;
   background: #fafaf8;
   overflow: hidden;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font);
 }
 
 .chat-code-block-header {
@@ -1392,7 +1392,7 @@
 }
 
 .chat-mermaid-error-detail {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font);
   font-size: 11px;
   color: rgba(139, 47, 42, 0.85);
   white-space: pre-wrap;
@@ -1584,7 +1584,7 @@
 }
 
 .chat-tool-call-sig {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 11.5px;
   color: rgba(55, 53, 47, 0.55);
   overflow: hidden;
@@ -1634,7 +1634,7 @@
 
 .chat-tool-call-result pre {
   margin: 0;
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 11px;
   line-height: 1.5;
   color: rgba(55, 53, 47, 0.6);
@@ -1649,7 +1649,7 @@
 }
 
 .chat-tool-call-section-label {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2750,7 +2750,7 @@
 }
 
 .chat-model-field .chat-model-protocol-sub {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 11px;
   color: rgba(55, 53, 47, 0.5);
   font-weight: 500;

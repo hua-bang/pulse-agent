@@ -40,7 +40,7 @@
 }
 
 .migration-spinner__count {
-  font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  font-family: var(--font);
   font-size: 11.5px;
   color: #6b7280;
 }
