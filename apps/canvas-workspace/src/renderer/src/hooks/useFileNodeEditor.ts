@@ -220,6 +220,8 @@ export const useFileNodeEditor = ({
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
+        // Allow the internal node-mention scheme so `@` links aren't stripped.
+        protocols: ['pulse-canvas'],
         HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
       }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),

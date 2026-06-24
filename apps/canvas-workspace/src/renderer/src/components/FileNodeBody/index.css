@@ -33,6 +33,23 @@
   flex-direction: column;
 }
 
+/* Node-mention chips: `@`-links to other canvas nodes, rendered inline. */
+.note-tiptap-editor a[href^='pulse-canvas://node/'] {
+  padding: 1px 5px;
+  margin: 0 1px;
+  border-radius: 5px;
+  background: var(--accent-soft, rgba(59, 130, 246, 0.12));
+  color: var(--accent, #2f6df6);
+  text-decoration: none;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.note-tiptap-editor a[href^='pulse-canvas://node/']:hover {
+  background: var(--accent-soft-strong, rgba(59, 130, 246, 0.22));
+}
+
 .note-tiptap-editor {
   flex: 1;
   overflow-y: auto;

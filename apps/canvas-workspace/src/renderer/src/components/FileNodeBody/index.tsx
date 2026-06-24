@@ -4,10 +4,13 @@ import { EditorContent } from '@tiptap/react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { useFileNodeEditor, getMarkdown } from '../../hooks/useFileNodeEditor';
 import { useFileNodeEditorRegistry } from '../../hooks/useFileNodeEditorRegistry';
+import { useNoteMentions } from '../../hooks/useNoteMentions';
 import { filterCmds } from '../../editor/slashCommands';
+import { dispatchOpenNode, nodeIdFromHref } from '../../utils/openNodeBridge';
 import { FileNodeToolbar } from '../FileNodeToolbar';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
 import { SlashCommandMenu } from '../SlashCommandMenu';
+import { NoteMentionMenu } from '../NoteMentionMenu';
 import { NoteFindBar } from '../NoteFindBar';
 import { NoteOutline } from '../NoteOutline';
 import { NoteLinkPrompt } from '../NoteLinkPrompt';
@@ -17,10 +20,12 @@ interface Props {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   workspaceId?: string;
+  /** Snapshot accessor for the workspace's nodes, used to populate @-mentions. */
+  getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false }: Props) => {
   const data = node.data as FileNodeData;
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
@@ -80,6 +85,13 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
     setModified,
     persistToFile,
     onUpdate,
+    readOnly,
+  });
+
+  const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
+  const { mentionMenu, filteredMentions, insertMention, closeMention } = useNoteMentions({
+    editor,
+    candidates: mentionCandidates,
     readOnly,
   });
 
@@ -167,12 +179,21 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
     (e: React.MouseEvent<HTMLDivElement>) => {
       const anchor = (e.target as HTMLElement).closest?.('a');
       const href = anchor?.getAttribute('href')?.trim();
-      if (!href || !/^https?:\/\//i.test(href)) return;
+      if (!href) return;
+      // A node mention focuses its target node instead of opening a URL.
+      const mentionedNodeId = nodeIdFromHref(href);
+      if (mentionedNodeId) {
+        e.preventDefault();
+        e.stopPropagation();
+        dispatchOpenNode({ workspaceId: workspaceId ?? '', nodeId: mentionedNodeId });
+        return;
+      }
+      if (!/^https?:\/\//i.test(href)) return;
       e.preventDefault();
       e.stopPropagation();
       openLink(href);
     },
-    [openLink],
+    [openLink, workspaceId],
   );
 
   const filePath = data.filePath;
@@ -239,6 +260,17 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
           items={filterCmds(slashMenu.query)}
           onSelect={handleSlashSelect}
           onClose={() => setSlashMenu(null)}
+        />
+      )}
+
+      {!readOnly && mentionMenu && (
+        <NoteMentionMenu
+          x={mentionMenu.x}
+          y={mentionMenu.y}
+          items={filteredMentions}
+          selectedIndex={mentionMenu.index}
+          onSelect={insertMention}
+          onClose={closeMention}
         />
       )}
     </div>

@@ -1,0 +1,50 @@
+.note-mention-menu {
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card-hover);
+  padding: 4px;
+  width: 240px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.note-mention-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.note-mention-menu-item:hover,
+.note-mention-menu-item--active {
+  background: var(--accent-soft, rgba(59, 130, 246, 0.1));
+}
+
+.note-mention-menu-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-alt, rgba(0, 0, 0, 0.05));
+  color: var(--text-secondary);
+}
+
+.note-mention-menu-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
