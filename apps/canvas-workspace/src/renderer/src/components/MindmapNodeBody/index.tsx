@@ -67,6 +67,7 @@ export const MindmapNodeBody = ({
               isDragSource={controller.reorder?.sourceId === topic.id}
               dropHint={controller.getDropHint(topic.id)}
               onBeginReorder={(e) => controller.beginReorder(topic.id, e)}
+              onAddChild={() => controller.addChild(topic.id)}
               onSelect={() => controller.selectTopic(topic.id)}
               onEnterEdit={() => controller.enterTopicEdit(topic.id)}
               onCommitText={(text) => controller.renameTopic(topic.id, text)}
