@@ -9,6 +9,7 @@ import { FileNodeToolbar } from '../FileNodeToolbar';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
 import { SlashCommandMenu } from '../SlashCommandMenu';
 import { NoteFindBar } from '../NoteFindBar';
+import { NoteOutline } from '../NoteOutline';
 import { NoteLinkPrompt } from '../NoteLinkPrompt';
 import { useRightDock } from '../RightDock';
 
@@ -24,6 +25,7 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const [outlineOpen, setOutlineOpen] = useState(false);
   const dataRef = useRef(data);
   dataRef.current = data;
   const nodeIdRef = useRef(node.id);
@@ -185,6 +187,8 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
           onSaveAs={handleSaveAs}
           onInsertImage={openImagePicker}
           onOpenFind={openFindBar}
+          onToggleOutline={() => setOutlineOpen((v) => !v)}
+          outlineOpen={outlineOpen}
           statusText={statusText}
           modified={modified}
           fileName={fileName}
@@ -193,6 +197,10 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
       )}
 
       {!readOnly && findBarOpen && editor && <NoteFindBar editor={editor} onClose={closeFindBar} />}
+
+      {!readOnly && outlineOpen && editor && (
+        <NoteOutline editor={editor} onClose={() => setOutlineOpen(false)} />
+      )}
 
       {!readOnly && linkPrompt && (
         <NoteLinkPrompt
