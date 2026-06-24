@@ -184,34 +184,90 @@ export const useMindmapController = ({
       const threshold = 5;
       let started = false;
       const dragRoot = root;
+      const contentEl = startEvent.currentTarget.closest('.mindmap-content') as HTMLElement | null;
+      const topicById = new Map(layout.topics.map((topic) => [topic.id, topic]));
+
+      const resolveTopicElement = (el: Element): HTMLElement | null => {
+        const topicEl = el.closest('.mindmap-topic');
+        return topicEl instanceof HTMLElement ? topicEl : null;
+      };
+
+      const isValidTarget = (targetId: string | null): targetId is string => (
+        !!targetId
+        && targetId !== sourceId
+        && topicById.has(targetId)
+        && !isDescendant(dragRoot, sourceId, targetId)
+      );
+
+      const targetFromTopicRect = (
+        targetId: string,
+        rect: DOMRect,
+        clientX: number,
+        clientY: number,
+      ): DropTarget | null => {
+        if (!isValidTarget(targetId)) return null;
+        const relX = (clientX - rect.left) / Math.max(1, rect.width);
+        const relY = (clientY - rect.top) / Math.max(1, rect.height);
+        if (targetId === dragRoot.id) return { kind: 'child', parentId: targetId };
+        if (relX > 0.66 || clientX > rect.right + 18) return { kind: 'child', parentId: targetId };
+        if (relY < 0.5) return { kind: 'before', anchorId: targetId };
+        return { kind: 'after', anchorId: targetId };
+      };
 
       const hitTest = (clientX: number, clientY: number): DropTarget | null => {
         const stack = document.elementsFromPoint(clientX, clientY);
         let pillEl: HTMLElement | null = null;
         for (const el of stack) {
-          if (el instanceof HTMLElement && el.classList.contains('mindmap-topic')) {
-            pillEl = el;
+          if (el instanceof Element) {
+            pillEl = resolveTopicElement(el);
+          }
+          if (pillEl) {
             break;
           }
         }
-        if (!pillEl) return null;
-        const targetId = pillEl.getAttribute('data-topic-id');
-        if (!targetId || targetId === sourceId) return null;
-        if (isDescendant(dragRoot, sourceId, targetId)) return null;
+        if (pillEl) {
+          const targetId = pillEl.getAttribute('data-topic-id');
+          const preciseTarget = targetId
+            ? targetFromTopicRect(targetId, pillEl.getBoundingClientRect(), clientX, clientY)
+            : null;
+          if (preciseTarget) return preciseTarget;
+        }
 
-        const rect = pillEl.getBoundingClientRect();
-        const relX = (clientX - rect.left) / Math.max(1, rect.width);
-        const relY = (clientY - rect.top) / Math.max(1, rect.height);
-        if (targetId === dragRoot.id) return { kind: 'child', parentId: targetId };
-        if (relX > 0.66) return { kind: 'child', parentId: targetId };
-        if (relY < 0.5) return { kind: 'before', anchorId: targetId };
-        return { kind: 'after', anchorId: targetId };
+        if (!contentEl) return null;
+        const contentRect = contentEl.getBoundingClientRect();
+        const withinLooseMindmap =
+          clientX >= contentRect.left - 72
+          && clientX <= contentRect.right + 128
+          && clientY >= contentRect.top - 48
+          && clientY <= contentRect.bottom + 48;
+        if (!withinLooseMindmap) return null;
+
+        let best: { id: string; rect: DOMRect; score: number } | null = null;
+        const topicEls = contentEl.querySelectorAll<HTMLElement>('.mindmap-topic');
+        for (const candidateEl of topicEls) {
+          const targetId = candidateEl.getAttribute('data-topic-id');
+          if (!isValidTarget(targetId)) continue;
+          const rect = candidateEl.getBoundingClientRect();
+          const clampedX = Math.max(rect.left, Math.min(clientX, rect.right));
+          const clampedY = Math.max(rect.top, Math.min(clientY, rect.bottom));
+          const dx = clientX - clampedX;
+          const dy = clientY - clampedY;
+          const rowBias = Math.abs(clientY - (rect.top + rect.height / 2)) * 0.4;
+          const score = Math.hypot(dx, dy) + rowBias;
+          if (!best || score < best.score) {
+            best = { id: targetId, rect, score };
+          }
+        }
+
+        if (!best || best.score > 180) return null;
+        return targetFromTopicRect(best.id, best.rect, clientX, clientY);
       };
 
       const onMove = (e: MouseEvent) => {
         if (!started) {
           if (Math.hypot(e.clientX - startX, e.clientY - startY) < threshold) return;
           started = true;
+          window.getSelection()?.removeAllRanges();
           setReorder({ sourceId, target: null });
         }
         const target = hitTest(e.clientX, e.clientY);
@@ -248,7 +304,7 @@ export const useMindmapController = ({
       window.addEventListener('mouseup', onUp);
       window.addEventListener('keydown', onKey);
     },
-    [applyRoot, root],
+    [applyRoot, layout.topics, root],
   );
 
   useLayoutEffect(() => {
@@ -344,6 +400,7 @@ export const useMindmapController = ({
   }, [reorder]);
 
   return {
+    addChild,
     beginReorder,
     editingId,
     enterTopicEdit,

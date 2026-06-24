@@ -9,6 +9,7 @@ import {
 import type { LaidOutTopic } from '../../utils/mindmapLayout';
 import type { DropHint, KeyAction } from './types';
 import { isImeComposing } from '../../utils/ime';
+import { useI18n } from '../../i18n';
 
 interface TopicPillProps {
   topic: LaidOutTopic;
@@ -18,6 +19,7 @@ interface TopicPillProps {
   isDragSource: boolean;
   dropHint: DropHint;
   onBeginReorder: (e: MouseEvent) => void;
+  onAddChild: () => void;
   onSelect: () => void;
   onEnterEdit: () => void;
   onCommitText: (text: string) => void;
@@ -34,6 +36,7 @@ export const TopicPill = ({
   isDragSource,
   dropHint,
   onBeginReorder,
+  onAddChild,
   onSelect,
   onEnterEdit,
   onCommitText,
@@ -41,6 +44,7 @@ export const TopicPill = ({
   onKeyAction,
   readOnly = false,
 }: TopicPillProps) => {
+  const { t } = useI18n();
   const editorRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +124,10 @@ export const TopicPill = ({
       switch (e.key) {
         case 'Enter':
           consume();
+          if (e.shiftKey && (e.metaKey || e.altKey) && topic.hasChildren) {
+            onKeyAction({ kind: 'toggle' });
+            return;
+          }
           onKeyAction({ kind: 'addSibling' });
           return;
         case 'Tab':
@@ -214,7 +222,11 @@ export const TopicPill = ({
         if (isPanGesture) return;
         e.stopPropagation();
         onSelect();
-        if (e.button === 0 && !isEditing) onBeginReorder(e);
+        if (e.button === 0 && !isEditing) {
+          e.preventDefault();
+          window.getSelection()?.removeAllRanges();
+          onBeginReorder(e);
+        }
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -243,24 +255,48 @@ export const TopicPill = ({
       >
         {topic.text}
       </div>
-      {!readOnly && !isRoot && topic.hasChildren && (
-        <button
-          type="button"
-          className={[
-            'mindmap-topic-toggle',
-            topic.collapsed && 'mindmap-topic-toggle--collapsed',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          style={{ ['--mindmap-topic-toggle-color' as string]: topic.color }}
-          aria-label={topic.collapsed ? 'Expand subtree' : 'Collapse subtree'}
-          onMouseDown={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCollapsed();
-          }}
-        />
+      {!readOnly && !isEditing && (
+        <span className="mindmap-topic-actions" aria-hidden={false}>
+          <button
+            type="button"
+            className="mindmap-topic-action mindmap-topic-action--add"
+            aria-label={t('mindmap.topic.addChild')}
+            title={t('mindmap.topic.addChild')}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+              onAddChild();
+            }}
+          >
+            +
+          </button>
+          {!isRoot && topic.hasChildren ? (
+            <button
+              type="button"
+              className={[
+                'mindmap-topic-action',
+                'mindmap-topic-action--fold',
+                topic.collapsed && 'mindmap-topic-action--unfold',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              style={{ ['--mindmap-topic-toggle-color' as string]: topic.color }}
+              aria-label={topic.collapsed ? t('mindmap.topic.unfold') : t('mindmap.topic.fold')}
+              title={topic.collapsed ? t('mindmap.topic.unfold') : t('mindmap.topic.fold')}
+              onMouseDown={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelect();
+                onToggleCollapsed();
+              }}
+            >
+              {topic.collapsed ? t('mindmap.topic.unfoldShort') : t('mindmap.topic.foldShort')}
+            </button>
+          ) : null}
+        </span>
       )}
     </div>
   );
