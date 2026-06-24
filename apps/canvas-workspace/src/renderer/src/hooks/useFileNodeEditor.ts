@@ -20,6 +20,7 @@ import type { CanvasNode, FileNodeData } from '../types';
 import type { SlashCommandDef } from '../components/SlashCommandMenu';
 import { ALL_SLASH_COMMANDS, filterCmds, type SlashCmdContext } from '../editor/slashCommands';
 import { NoteSearchExtension } from '../editor/noteSearchExtension';
+import { Callout } from '../editor/calloutNode';
 import { toFileUrl } from '../utils/fileUrl';
 import { isImeComposing } from '../utils/ime';
 import { useNoteKeyboard } from './useNoteKeyboard';
@@ -207,6 +208,7 @@ export const useFileNodeEditor = ({
       }),
       EmptyLinePreservingParagraph,
       MarkdownSafeImage.configure({ inline: false }),
+      Callout,
       Placeholder.configure({ placeholder: "Type '/' for blocks, or just start writing…" }),
       TaskList,
       TaskItem.configure({ nested: true }),

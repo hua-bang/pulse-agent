@@ -45,8 +45,12 @@ export const ALL_SLASH_COMMANDS: SlashCmd[] = [
     run: (e, f, t) => deleteSlash(e, f, t).toggleTaskList().run(),
   },
   {
-    id: 'quote', label: 'Blockquote', desc: 'Quote / callout block', icon: '"',
+    id: 'quote', label: 'Blockquote', desc: 'Quote block', icon: '"',
     run: (e, f, t) => deleteSlash(e, f, t).toggleBlockquote().run(),
+  },
+  {
+    id: 'callout', label: 'Callout', desc: 'Highlighted note box', icon: '💡',
+    run: (e, f, t) => deleteSlash(e, f, t).wrapIn('callout', { icon: '💡' }).run(),
   },
   {
     id: 'code', label: 'Code Block', desc: 'Code snippet with syntax highlight', icon: '</>',
@@ -98,6 +102,11 @@ export const ALL_SLASH_COMMANDS: SlashCmd[] = [
   {
     id: 'hr', label: 'Divider', desc: 'Horizontal line', icon: '—',
     run: (e, f, t) => deleteSlash(e, f, t).setHorizontalRule().run(),
+  },
+  {
+    id: 'date', label: 'Date', desc: "Insert today's date", icon: '📅',
+    run: (e, f, t) =>
+      deleteSlash(e, f, t).insertContent(new Date().toLocaleDateString()).run(),
   },
 ];
 

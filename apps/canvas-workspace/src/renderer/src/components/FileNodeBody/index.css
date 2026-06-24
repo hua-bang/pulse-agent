@@ -50,6 +50,34 @@
   background: var(--accent-soft-strong, rgba(59, 130, 246, 0.22));
 }
 
+/* Callout block: an emoji badge (the data-callout attr) + quoted content. */
+.note-callout {
+  position: relative;
+  margin: 10px 0;
+  padding: 10px 14px 10px 40px;
+  border-radius: 6px;
+  background: var(--accent-soft, rgba(59, 130, 246, 0.08));
+  border: 1px solid var(--border-light);
+}
+
+.note-callout::before {
+  content: attr(data-callout);
+  position: absolute;
+  left: 13px;
+  top: 9px;
+  font-size: 16px;
+  line-height: 1.5;
+  user-select: none;
+}
+
+.note-callout > :first-child {
+  margin-top: 0;
+}
+
+.note-callout > :last-child {
+  margin-bottom: 0;
+}
+
 .note-tiptap-editor {
   flex: 1;
   overflow-y: auto;
