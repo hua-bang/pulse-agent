@@ -1,6 +1,7 @@
 import * as lark from '@larksuiteoapi/node-sdk';
-import { readFile } from 'fs/promises';
-import { basename } from 'path';
+import { mkdir, readFile, writeFile } from 'fs/promises';
+import { tmpdir } from 'os';
+import { basename, join } from 'path';
 
 // Self-contained Feishu (Lark) client helpers for the canvas channel plugin.
 // Logic mirrors the remote-server adapter but is copied here so the canvas
@@ -112,6 +113,60 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
     throw new Error(`Failed to upload image to Feishu: ${payload.msg || 'unknown error'}`);
   }
   return imageKey;
+}
+
+const INBOUND_IMAGE_DIR = join(tmpdir(), 'pulse-feishu-inbound');
+
+/** Map a download's Content-Type to an extension the vision tool recognizes. */
+function imageExtFromContentType(contentType: string | null): string {
+  switch ((contentType ?? '').split(';')[0].trim().toLowerCase()) {
+    case 'image/jpeg':
+    case 'image/jpg':
+      return '.jpg';
+    case 'image/webp':
+      return '.webp';
+    case 'image/gif':
+      return '.gif';
+    case 'image/bmp':
+      return '.bmp';
+    default:
+      return '.png';
+  }
+}
+
+/**
+ * Download an image a user sent the bot — an `image` message, or an `img`
+ * element inside a `post` — to a local temp file and return its path. Uses the
+ * message-resource endpoint, which needs the owning `message_id` plus the
+ * image's `image_key` (here passed as `fileKey`). The saved file gets a real
+ * image extension (from the response Content-Type) so the vision tool can infer
+ * its MIME type.
+ */
+export async function downloadMessageImage(messageId: string, fileKey: string): Promise<string> {
+  const token = await getTenantAccessToken();
+  const url =
+    `${getFeishuBaseUrl()}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}` +
+    `/resources/${encodeURIComponent(fileKey)}?type=image`;
+
+  const response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(
+      `Failed to download Feishu image: ${response.status} ${response.statusText} - ${body}`,
+    );
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length === 0) {
+    throw new Error(`Feishu image download was empty: ${fileKey}`);
+  }
+
+  await mkdir(INBOUND_IMAGE_DIR, { recursive: true });
+  const safeKey = fileKey.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64) || 'image';
+  const ext = imageExtFromContentType(response.headers.get('content-type'));
+  const filePath = join(INBOUND_IMAGE_DIR, `${Date.now()}-${safeKey}${ext}`);
+  await writeFile(filePath, buffer);
+  return filePath;
 }
 
 /**

@@ -6,7 +6,7 @@ import type {
   CanvasAgentServiceRef,
   PluginStore,
 } from '../../../types';
-import { ChannelBridge } from '../core/bridge';
+import { buildAgentPrompt, ChannelBridge } from '../core/bridge';
 import type {
   Channel,
   ChannelStream,
@@ -505,5 +505,39 @@ describe('ChannelBridge', () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+});
+
+describe('buildAgentPrompt', () => {
+  const withImages = (text: string, imagePaths?: string[]): InboundMessage => ({
+    channelId: 'feishu',
+    conversationId: 'c1',
+    userId: 'u1',
+    messageId: 'm1',
+    text,
+    isMention: false,
+    isDirect: true,
+    reply: {},
+    imagePaths,
+  });
+
+  it('returns the plain text when there are no images', () => {
+    expect(buildAgentPrompt(withImages('hello'))).toBe('hello');
+    expect(buildAgentPrompt(withImages('hello', []))).toBe('hello');
+  });
+
+  it('appends an image note with the local paths and tool hint', () => {
+    const prompt = buildAgentPrompt(withImages('what is this?', ['/tmp/a.png', '/tmp/b.jpg']));
+    expect(prompt).toContain('what is this?');
+    expect(prompt).toContain('canvas_analyze_image');
+    expect(prompt).toContain('/tmp/a.png');
+    expect(prompt).toContain('/tmp/b.jpg');
+    expect(prompt).toContain('2 image(s)');
+  });
+
+  it('uses only the note for an image-only message', () => {
+    const prompt = buildAgentPrompt(withImages('', ['/tmp/a.png']));
+    expect(prompt.startsWith('[The user attached 1 image(s)')).toBe(true);
+    expect(prompt).toContain('/tmp/a.png');
   });
 });

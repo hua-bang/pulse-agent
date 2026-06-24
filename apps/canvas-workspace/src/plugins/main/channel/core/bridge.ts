@@ -124,7 +124,7 @@ export class ChannelBridge {
       return;
     }
 
-    if (!msg.text.trim()) return;
+    if (!msg.text.trim() && !msg.imagePaths?.length) return;
 
     const boundWorkspaceId = await this.bindings.getBound(msg.channelId, msg.conversationId);
     if (!boundWorkspaceId && !msg.isDirect) {
@@ -330,7 +330,7 @@ export class ChannelBridge {
     try {
       const chat = this.service.chatWithScope(
         scope,
-        msg.text,
+        buildAgentPrompt(msg),
         (delta) => {
           if (finished) return;
           markAgentActivity();
@@ -428,6 +428,23 @@ export class ChannelBridge {
 
 function agentScopeKey(scope: AgentScope): string {
   return scope.kind === 'global' ? 'global' : `workspace:${scope.workspaceId}`;
+}
+
+/**
+ * Build the prompt handed to the agent. When the inbound message carried
+ * images, append a note with their local paths so the agent reads them with
+ * `canvas_analyze_image` (the vision tool accepts local `imagePaths`). An
+ * image-only message becomes just the note.
+ */
+export function buildAgentPrompt(msg: InboundMessage): string {
+  const text = msg.text.trim();
+  if (!msg.imagePaths?.length) return text;
+
+  const list = msg.imagePaths.map((path) => `- ${path}`).join('\n');
+  const note =
+    `[The user attached ${msg.imagePaths.length} image(s), saved locally at the path(s) below. ` +
+    `To view or analyze them, call canvas_analyze_image with these imagePaths:\n${list}]`;
+  return text ? `${text}\n\n${note}` : note;
 }
 
 function readPositiveIntegerEnv(name: string): number | undefined {

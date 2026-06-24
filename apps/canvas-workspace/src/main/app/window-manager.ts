@@ -27,6 +27,17 @@ function liveWindow(): BrowserWindow | null {
   return BrowserWindow.getAllWindows().find((w) => !w.isDestroyed()) ?? null;
 }
 
+/**
+ * The live canvas window, or null if none is open. Used by capture tools
+ * (e.g. `canvas_screenshot`) that need to grab this app's own window. Prefers
+ * the focused window so a multi-window setup screenshots the one in front.
+ */
+export function getCanvasWindow(): BrowserWindow | null {
+  const focused = BrowserWindow.getFocusedWindow();
+  if (focused && !focused.isDestroyed()) return focused;
+  return liveWindow();
+}
+
 function getOrCreateWindow(): BrowserWindow | null {
   return liveWindow() ?? windowFactory?.() ?? null;
 }

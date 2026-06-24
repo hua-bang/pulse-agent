@@ -24,8 +24,17 @@ export function extractGeneratedImageResult(toolResult: {
   const mimeType = asString(payload.mimeType) ?? undefined;
 
   // Accept known image tools; otherwise require the payload to look like a
-  // generated-image result (model + image/* mime + outputPath).
-  const KNOWN_IMAGE_TOOLS = new Set(['generate_image', 'gemini_pro_image']);
+  // generated-image result (model + image/* mime + outputPath). The canvas_*
+  // names are the tools that actually run in this app (the bare engine names
+  // cover direct engine use); listing them makes relay independent of the
+  // mimeType fallback so a payload with a missing/odd mime still gets sent.
+  const KNOWN_IMAGE_TOOLS = new Set([
+    'generate_image',
+    'gemini_pro_image',
+    'canvas_generate_image',
+    'canvas_generate_mindmap_image',
+    'canvas_screenshot',
+  ]);
   if (toolName && !KNOWN_IMAGE_TOOLS.has(toolName) && !looksLikeImagePayload(payload)) {
     return null;
   }
