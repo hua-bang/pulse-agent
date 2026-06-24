@@ -32,6 +32,12 @@ export interface InboundMessage {
    * interpreting it.
    */
   reply: unknown;
+  /**
+   * Local filesystem paths of images the user attached (already downloaded by
+   * the channel). The bridge surfaces these to the agent so it can read them
+   * with a vision tool. Empty/absent when the message carried no images.
+   */
+  imagePaths?: string[];
 }
 
 /** Where to send output back. Carries the inbound conversation's reply routing. */

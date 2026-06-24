@@ -23,7 +23,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/components/WorkspaceNodes/GraphPage.tsx': 812,
   'src/renderer/src/components/settings-config/McpManager.tsx': 786,
   'src/renderer/src/components/Canvas/index.tsx': 770,
-  'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 762,
+  'src/plugins/main/channel/channels/feishu/feishu-channel.ts': 777,
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,

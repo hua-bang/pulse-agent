@@ -25,6 +25,7 @@ import {
   formatToolLabel,
   WORKSPACE_PICKER_SELECT_NAME,
 } from './card';
+import { downloadInboundImages, extractInboundImageKeys } from './inbound-image';
 
 const CHANNEL_ID = 'feishu';
 const PROGRESS_THROTTLE_MS = 800;
@@ -64,7 +65,14 @@ export class FeishuChannel implements Channel {
           }
         }
         const msg = parseInbound(data);
-        if (msg) onInbound(msg);
+        if (!msg) return;
+        // Download any attached images to local temp files so the agent can
+        // read them with a vision tool. Best-effort: failures are logged.
+        const imageKeys = extractInboundImageKeys(data);
+        if (imageKeys.length > 0) {
+          msg.imagePaths = await downloadInboundImages(msg.messageId, imageKeys);
+        }
+        onInbound(msg);
       },
       'card.action.trigger': async (data: unknown) => {
         logRawCardAction(data);
@@ -624,7 +632,7 @@ interface FeishuCardActionEvent {
 export function parseInbound(data: unknown): InboundMessage | null {
   const event = data as FeishuMessageEvent;
   const message = event?.message;
-  if (!message || !['text', 'post'].includes(message.message_type ?? '')) return null;
+  if (!message || !['text', 'post', 'image'].includes(message.message_type ?? '')) return null;
 
   const messageId = message.message_id ?? '';
   const chatId = message.chat_id ?? '';
@@ -633,7 +641,12 @@ export function parseInbound(data: unknown): InboundMessage | null {
   const userId = event.sender?.sender_id?.open_id ?? '';
   if (!chatId) return null;
 
-  const text = extractMessageText(message.content, message.message_type);
+  // Image messages carry no text body; post/text messages may still embed
+  // images, so attachments are tracked separately from the text.
+  const imageKeys = extractInboundImageKeys(data);
+  const text = message.message_type === 'image'
+    ? ''
+    : extractMessageText(message.content, message.message_type);
   if (text === null) return null;
 
   const isGroup = message.chat_type === 'group' || message.chat_type === 'topic_group';
@@ -645,7 +658,9 @@ export function parseInbound(data: unknown): InboundMessage | null {
     cleanText = stripMentionText(cleanText, mentions);
   }
 
-  if (!cleanText) return null;
+  // Keep the message if it has text OR attached images (an image-only DM is
+  // valid). A group message still has to clear the @-mention gate above.
+  if (!cleanText && imageKeys.length === 0) return null;
 
   // Each topic in a topic group is its own conversation — and thus its own
   // session. A threaded message carries thread_id (the topic) and/or root_id

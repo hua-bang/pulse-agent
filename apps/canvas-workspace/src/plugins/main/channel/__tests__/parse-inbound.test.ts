@@ -167,8 +167,49 @@ describe('parseInbound', () => {
     expect(plain!.conversationId).toBe('gT');
   });
 
-  it('non-text messages are ignored', () => {
-    const out = parseInbound(event({ messageType: 'image' }));
+  it('direct image message is accepted with empty text (carries the image)', () => {
+    const out = parseInbound(event({ messageType: 'image', content: { image_key: 'img_x' } }));
+    expect(out).not.toBeNull();
+    expect(out!.text).toBe('');
+    expect(out!.isDirect).toBe(true);
+    expect(out!.conversationId).toBe('chat1');
+  });
+
+  it('image message without an image_key is ignored', () => {
+    const out = parseInbound(event({ messageType: 'image', content: {} }));
+    expect(out).toBeNull();
+  });
+
+  it('group image-only message without an @-mention is ignored', () => {
+    const out = parseInbound(
+      event({
+        chatType: 'group',
+        chatId: 'gA',
+        messageType: 'image',
+        content: { image_key: 'img_x' },
+        mentions: [],
+      }),
+    );
+    expect(out).toBeNull();
+  });
+
+  it('post message with an embedded image keeps its text and is accepted', () => {
+    const out = parseInbound(
+      event({
+        chatType: 'p2p',
+        messageType: 'post',
+        content: {
+          title: '',
+          content: [[{ tag: 'text', text: 'look at this' }, { tag: 'img', image_key: 'img_p' }]],
+        },
+      }),
+    );
+    expect(out).not.toBeNull();
+    expect(out!.text).toBe('look at this');
+  });
+
+  it('truly unsupported message types (audio) are ignored', () => {
+    const out = parseInbound(event({ messageType: 'audio', content: {} }));
     expect(out).toBeNull();
   });
 });
