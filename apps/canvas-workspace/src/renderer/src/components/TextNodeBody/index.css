@@ -133,7 +133,7 @@
   overflow-wrap: anywhere;
   line-height: 1.4;
   font-weight: 500;
-  letter-spacing: -0.005em;
+  letter-spacing: 0;
   cursor: move;
   box-sizing: border-box;
   /* color + background-color + font-size are applied via inline style so
@@ -212,7 +212,7 @@
 .text-node-body h3 {
   margin: 0;
   font-weight: 700;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
@@ -282,6 +282,136 @@
   border: none;
   border-top: 1px solid rgba(0, 0, 0, 0.12);
   margin: 0.5em 0;
+}
+
+.text-node-body mark {
+  border-radius: 3px;
+  padding: 0 0.08em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* --- Selection bubble: appears only while editing selected text ---------- */
+.text-selection-bubble-shell {
+  z-index: var(--layer-note-popover, 1550);
+}
+
+.text-selection-bubble {
+  position: relative;
+  z-index: var(--layer-note-popover, 1550);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: min(720px, calc(100vw - 16px));
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
+  border-radius: 8px;
+  box-shadow: var(--shadow-float, 0 8px 24px rgba(0, 0, 0, 0.16));
+  pointer-events: auto;
+  user-select: none;
+}
+
+.text-selection-bubble__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.text-selection-bubble__divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border, rgba(0, 0, 0, 0.12));
+  margin: 0 1px;
+  flex: 0 0 auto;
+}
+
+.text-selection-bubble__button,
+.text-selection-bubble__swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease, transform 0.1s ease, color 0.1s ease;
+}
+
+.text-selection-bubble__button {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  padding: 0;
+  color: var(--text-secondary, #6b7280);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.text-selection-bubble__button:hover,
+.text-selection-bubble__button--active {
+  background: var(--accent-light, rgba(35, 131, 226, 0.12));
+  color: var(--accent, #2383e2);
+}
+
+.text-selection-bubble__button:focus-visible,
+.text-selection-bubble__swatch:focus-visible {
+  outline: 2px solid var(--accent, #2383e2);
+  outline-offset: 2px;
+}
+
+.text-selection-bubble__underline {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.text-selection-bubble__button--clear {
+  width: 30px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.text-selection-bubble__swatch {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.text-selection-bubble__swatch:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 0, 0, 0.22);
+}
+
+.text-selection-bubble__swatch--text {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.text-selection-bubble__swatch--highlight {
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.text-selection-bubble__swatch--active {
+  border-color: var(--accent, #2383e2);
+  box-shadow: 0 0 0 1px var(--accent, #2383e2);
+}
+
+.text-selection-bubble__swatch--clear {
+  border-color: rgba(0, 0, 0, 0.12);
+  background:
+    linear-gradient(
+      to top right,
+      transparent calc(50% - 1px),
+      #e03131 calc(50% - 0.5px),
+      #e03131 calc(50% + 0.5px),
+      transparent calc(50% + 1px)
+    ),
+    #fff;
 }
 
 /* --- Resize handles: visible on hover/selected -------------------------- *

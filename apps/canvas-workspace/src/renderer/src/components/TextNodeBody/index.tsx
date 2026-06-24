@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import Placeholder from "@tiptap/extension-placeholder";
-import { Markdown } from "tiptap-markdown";
 import "./index.css";
+import { TextSelectionBubble } from "./TextSelectionBubble";
+import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "./colorPresets";
+import { createTextNodeExtensions } from "./textNodeExtensions";
 import type { CanvasNode, TextNodeData } from "../../types";
 import { isImeComposing } from "../../utils/ime";
 import { useClickOutside } from "../../hooks/useClickOutside";
@@ -28,9 +27,9 @@ interface Props {
  *    keyboard shortcuts for free. Content is stored as HTML in
  *    node.data.content so that line breaks, paragraphs, and formatting
  *    survive a save/reload cycle without lossy markdown round-trips.
- *  - The tiptap-markdown extension is still loaded so keyboard shortcuts
- *    (e.g. `# ` for heading) and paste-as-markdown keep working — we
- *    just bypass its serializer for persistence.
+ *  - The tiptap-markdown extension is still loaded for a small Markdown
+ *    subset (`#`, lists, quote, inline marks, paste-as-markdown). Heavier
+ *    document blocks like code fences and dividers belong in Note cards.
  *  - Idle state: editor is non-editable. Clicks hit our outer wrapper and
  *    start a drag; the node feels like a label.
  *  - Editing: double-click flips the editor to editable and focuses it.
@@ -51,6 +50,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   const autoSize = data.autoSize !== false;
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [editing, setEditing] = useState(false);
+  const [, rerenderStyleControls] = useState(0);
 
   // Refs that onUpdate / editor callbacks need without re-registering on every
   // keystroke. This is the same pattern useFileNodeEditor uses for the note
@@ -64,27 +64,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   onUpdateRef.current = onUpdate;
 
   const editor = useEditor({
-    extensions: [
-      // StarterKit bundles an inline Underline; we swap it for the explicit
-      // extension so keyboard shortcuts (Cmd+U) and serialization behave the
-      // same as the rest of the app.
-      StarterKit.configure({ underline: false }),
-      Underline,
-      // `showOnlyWhenEditable: false` — an empty text node is otherwise
-      // invisible on the canvas (transparent bg, no chrome). The placeholder
-      // doubles as a "there's a node here" marker at rest.
-      // The placeholder string is captured at editor creation; a language
-      // switch updates it on the next mount, which is acceptable here.
-      Placeholder.configure({
-        placeholder: t('canvas.textPlaceholder'),
-        showOnlyWhenEditable: false,
-      }),
-      // Markdown extension kept for keyboard shortcuts (`# `, `- `, etc.)
-      // and paste-as-markdown. We persist via getHTML() instead of
-      // getMarkdown() to avoid lossy round-trips.  `html: true` lets the
-      // parser handle both saved HTML and legacy markdown content.
-      Markdown.configure({ html: true, transformPastedText: true, breaks: true }),
-    ],
+    extensions: createTextNodeExtensions(t('canvas.textPlaceholder')),
     content: data.content || "",
     editable: false,
     onUpdate: ({ editor }) => {
@@ -102,6 +82,17 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
       if (!readOnly) setEditing(false);
     },
   });
+
+  useEffect(() => {
+    if (!editor) return;
+    const refresh = () => rerenderStyleControls((value) => value + 1);
+    editor.on("selectionUpdate", refresh);
+    editor.on("transaction", refresh);
+    return () => {
+      editor.off("selectionUpdate", refresh);
+      editor.off("transaction", refresh);
+    };
+  }, [editor]);
 
   // Sync the editable flag with our `editing` state. Tiptap's options are
   // captured once, so we toggle imperatively.
@@ -246,36 +237,13 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
         fontSize: data.fontSize ?? 18,
       }}
     >
+      {editor && !readOnly && <TextSelectionBubble editor={editor} editing={editing} />}
       <EditorContent editor={editor} />
     </div>
   );
 };
 
 /* ---- Color pickers (rendered in the hover/selected header) ---- */
-
-const TEXT_COLOR_PRESETS: Array<{ name: string; value: string }> = [
-  { name: "Black", value: "#1f2328" },
-  { name: "Gray", value: "#6b7280" },
-  { name: "Red", value: "#e03131" },
-  { name: "Orange", value: "#f08c00" },
-  { name: "Yellow", value: "#e8b800" },
-  { name: "Green", value: "#2f9e44" },
-  { name: "Blue", value: "#1c7ed6" },
-  { name: "Purple", value: "#7048e8" },
-  { name: "White", value: "#ffffff" },
-];
-
-const BG_COLOR_PRESETS: Array<{ name: string; value: string }> = [
-  { name: "None", value: "transparent" },
-  { name: "White", value: "#ffffff" },
-  { name: "Gray", value: "#e9ecef" },
-  { name: "Red", value: "#ffe3e3" },
-  { name: "Orange", value: "#ffe8cc" },
-  { name: "Yellow", value: "#fff3bf" },
-  { name: "Green", value: "#d3f9d8" },
-  { name: "Blue", value: "#d0ebff" },
-  { name: "Purple", value: "#e5dbff" },
-];
 
 type PickerKind = "text" | "bg";
 
