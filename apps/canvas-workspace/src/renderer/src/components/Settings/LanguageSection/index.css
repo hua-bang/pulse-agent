@@ -63,7 +63,7 @@
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.86);
-  color: #37352f;
+  color: var(--text);
   padding: 12px;
   text-align: left;
   cursor: pointer;

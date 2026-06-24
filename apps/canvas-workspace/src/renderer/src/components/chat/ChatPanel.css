@@ -38,7 +38,7 @@
   max-width: 280px;
   font-size: 14px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
   border: none;
   background: transparent;
   border-radius: 6px;
@@ -122,7 +122,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
-  color: #37352f;
+  color: var(--text);
   transition: background 0.1s;
 }
 
@@ -176,7 +176,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
-  color: #37352f;
+  color: var(--text);
   transition: background 0.1s;
   text-align: left;
 }
@@ -243,7 +243,7 @@
 
 .chat-panel-action-btn:hover {
   background: rgba(55, 53, 47, 0.08);
-  color: #37352f;
+  color: var(--text);
 }
 
 /* ─── Empty state ──────────────────────────────────────────── */
@@ -268,7 +268,7 @@
   border: 1px solid rgba(55, 53, 47, 0.1);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.74);
-  color: #37352f;
+  color: var(--text);
   text-align: left;
   cursor: pointer;
   font: inherit;
@@ -286,7 +286,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #2383e2;
+  background: var(--accent);
   box-shadow: 0 0 0 4px rgba(35, 131, 226, 0.08);
   flex-shrink: 0;
 }
@@ -305,14 +305,14 @@
 .chat-empty-configure-text strong {
   font-weight: 650;
   font-size: 12.5px;
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-empty-configure-cta {
   flex-shrink: 0;
   font-size: 12px;
   font-weight: 650;
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .chat-empty-icon {
@@ -333,7 +333,7 @@
   font-size: 20px;
   line-height: 1.25;
   font-weight: 700;
-  color: #37352f;
+  color: var(--text);
   margin-bottom: 22px;
   letter-spacing: 0;
 }
@@ -357,7 +357,7 @@
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--text);
   text-align: left;
   transition: background 0.1s;
 }
@@ -400,7 +400,7 @@
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 999px;
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
@@ -463,7 +463,7 @@
 .chat-message-content {
   font-size: 14px;
   line-height: 1.6;
-  color: #37352f;
+  color: var(--text);
   white-space: pre-wrap;
   word-break: break-word;
   max-width: 85%;
@@ -594,7 +594,7 @@
   overflow-y: auto;
   outline: none;
   background: transparent;
-  color: #37352f;
+  color: var(--text);
   box-sizing: border-box;
   white-space: pre-wrap;
   word-break: break-word;
@@ -641,7 +641,7 @@
 
 .chat-input-icon-btn:hover {
   background: rgba(55, 53, 47, 0.06);
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-execution-mode-btn {
@@ -660,7 +660,7 @@
 
 .chat-execution-mode-btn:hover {
   background: rgba(55, 53, 47, 0.06);
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-execution-mode-btn:focus-visible {
@@ -683,7 +683,7 @@
 }
 
 .chat-send-btn--active {
-  background: #37352f;
+  background: var(--text);
   color: #fff;
 }
 
@@ -696,7 +696,7 @@
 }
 
 .chat-send-btn--stop {
-  background: #37352f;
+  background: var(--text);
   color: #fff;
 }
 
@@ -816,7 +816,7 @@
 }
 .chat-context-chip-remove:hover {
   background: rgba(55, 53, 47, 0.1);
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-context-chip--count {
@@ -840,7 +840,7 @@
 
 .chat-panel .chat-input-box:focus-within,
 .chat-page-body .chat-input-box:focus-within {
-  border-color: #2383e2;
+  border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.18), 0 18px 48px rgba(55, 53, 47, 0.1);
 }
 
@@ -871,7 +871,7 @@
 
 .chat-panel .chat-send-btn--active,
 .chat-page-body .chat-send-btn--active {
-  background: #2383e2;
+  background: var(--accent);
 }
 
 .chat-panel .chat-send-btn--stop,
@@ -911,7 +911,7 @@
 
 .chat-clarify-question {
   font-size: 14px;
-  color: #37352f;
+  color: var(--text);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -938,7 +938,7 @@
   padding: 7px 10px;
   font-size: 13px;
   font-family: inherit;
-  color: #37352f;
+  color: var(--text);
   background: #fff;
   border: 1px solid rgba(55, 53, 47, 0.16);
   border-radius: 6px;
@@ -956,7 +956,7 @@
   font-size: 13px;
   font-weight: 500;
   color: #fff;
-  background: #37352f;
+  background: var(--text);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -1011,7 +1011,7 @@
 }
 
 .chat-md code {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font);
   font-size: 0.9em;
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 4px;
@@ -1098,7 +1098,7 @@
   border-radius: 8px;
   background: #fafaf8;
   overflow: hidden;
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font);
 }
 
 .chat-code-block-header {
@@ -1133,7 +1133,7 @@
 
 .chat-code-block-copy:hover {
   background: rgba(55, 53, 47, 0.08);
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-code-block-copy[data-state="copied"] {
@@ -1268,7 +1268,7 @@
 
 .chat-message-toolbar-btn:hover {
   background: rgba(55, 53, 47, 0.05);
-  color: #37352f;
+  color: var(--text);
   border-color: rgba(55, 53, 47, 0.18);
 }
 
@@ -1291,8 +1291,8 @@
 }
 
 .chat-message-toolbar-btn--primary {
-  background: #2383e2;
-  border-color: #2383e2;
+  background: var(--accent);
+  border-color: var(--accent);
   color: #fff;
 }
 
@@ -1335,7 +1335,7 @@
   font: inherit;
   font-size: 14px;
   line-height: 1.5;
-  color: #37352f;
+  color: var(--text);
   padding: 0;
 }
 
@@ -1392,7 +1392,7 @@
 }
 
 .chat-mermaid-error-detail {
-  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-family: var(--font);
   font-size: 11px;
   color: rgba(139, 47, 42, 0.85);
   white-space: pre-wrap;
@@ -1415,7 +1415,7 @@
   flex-shrink: 0;
   width: 13px;
   height: 13px;
-  accent-color: #2383e2;
+  accent-color: var(--accent);
   cursor: default;
 }
 
@@ -1584,7 +1584,7 @@
 }
 
 .chat-tool-call-sig {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 11.5px;
   color: rgba(55, 53, 47, 0.55);
   overflow: hidden;
@@ -1634,7 +1634,7 @@
 
 .chat-tool-call-result pre {
   margin: 0;
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 11px;
   line-height: 1.5;
   color: rgba(55, 53, 47, 0.6);
@@ -1649,7 +1649,7 @@
 }
 
 .chat-tool-call-section-label {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2172,7 +2172,7 @@
 }
 
 .chat-image-clickable:focus-visible {
-  outline: 2px solid #2383e2;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -2317,7 +2317,7 @@
 .chat-model-switcher-btn:hover {
   background: rgba(35, 131, 226, 0.07);
   border-color: rgba(35, 131, 226, 0.2);
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .chat-model-switcher-btn--warning {
@@ -2334,7 +2334,7 @@
 }
 
 .chat-model-switcher-btn--warning .chat-model-switcher-dot {
-  background: #2383e2;
+  background: var(--accent);
   opacity: 0.9;
 }
 
@@ -2414,7 +2414,7 @@
   gap: 7px;
   padding: 7px 8px;
   text-align: left;
-  color: #37352f;
+  color: var(--text);
   cursor: pointer;
   transition: background 0.1s;
 }
@@ -2434,7 +2434,7 @@
 
 .chat-model-menu-check {
   width: 16px;
-  color: #2383e2;
+  color: var(--accent);
   display: inline-flex;
   justify-content: center;
   flex-shrink: 0;
@@ -2482,7 +2482,7 @@
   justify-content: center;
   font-size: 12px;
   font-weight: 650;
-  color: #2383e2;
+  color: var(--accent);
 }
 
 /* Chat ModelSettings & PromptSettings drawer body/form styles.
@@ -2524,7 +2524,7 @@
 .chat-model-provider-tab:hover,
 .chat-model-provider-tab--active {
   background: rgba(35, 131, 226, 0.08);
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-model-provider-status {
@@ -2589,7 +2589,7 @@
 
 .chat-model-settings-card strong {
   font-size: 13px;
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-model-settings-card p {
@@ -2625,7 +2625,7 @@
   border: 1px solid rgba(55, 53, 47, 0.1);
   border-radius: 10px;
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   cursor: pointer;
   text-align: left;
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
@@ -2637,7 +2637,7 @@
 }
 
 .chat-model-preset--active {
-  border-color: #2383e2;
+  border-color: var(--accent);
   background: rgba(35, 131, 226, 0.08);
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
 }
@@ -2671,7 +2671,7 @@
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 8px;
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   padding: 0 10px;
@@ -2703,7 +2703,7 @@
 }
 
 .chat-model-field .chat-model-field-hint--info {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .chat-model-protocol-toggle {
@@ -2732,7 +2732,7 @@
 }
 
 .chat-model-protocol-option--active {
-  border-color: #2383e2;
+  border-color: var(--accent);
   background: rgba(35, 131, 226, 0.08);
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.12);
 }
@@ -2744,13 +2744,13 @@
 .chat-model-field .chat-model-protocol-title {
   font-size: 13px;
   font-weight: 650;
-  color: #37352f;
+  color: var(--text);
   letter-spacing: 0;
   text-transform: none;
 }
 
 .chat-model-field .chat-model-protocol-sub {
-  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, monospace;
+  font-family: var(--font);
   font-size: 11px;
   color: rgba(55, 53, 47, 0.5);
   font-weight: 500;
@@ -2783,7 +2783,7 @@
   border-radius: 8px;
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   padding: 0 11px;
   font-size: 12px;
   font-weight: 650;
@@ -2800,8 +2800,8 @@
 }
 
 .chat-model-primary-btn {
-  border-color: #2383e2;
-  background: #2383e2;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -2876,7 +2876,7 @@
 
 .chat-model-chip button:hover {
   background: rgba(55, 53, 47, 0.1);
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-model-settings-empty {
@@ -2954,7 +2954,7 @@
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 8px;
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   line-height: 1.55;
@@ -3016,7 +3016,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-size: 13px;
-  color: #37352f;
+  color: var(--text);
   text-align: left;
   line-height: 1.4;
   transition: background 0.1s;

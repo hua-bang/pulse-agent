@@ -78,7 +78,7 @@
   flex: 0 0 auto;
   border-radius: 8px;
   background: rgba(35, 131, 226, 0.09);
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .updates-section-status--error .updates-section-status-icon {
@@ -99,7 +99,7 @@
 }
 
 .updates-section-status-title {
-  color: #37352f;
+  color: var(--text);
   font-size: 13.5px;
   font-weight: 700;
   line-height: 1.35;
@@ -137,7 +137,7 @@
 .updates-section-primary-btn {
   height: 32px;
   border: none;
-  background: #2383e2;
+  background: var(--accent);
   color: #fff;
   padding: 0 12px;
 }
@@ -150,7 +150,7 @@
   height: 30px;
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   padding: 0 10px;
 }
 

@@ -56,7 +56,7 @@
 
 .sidebar-footer-btn:hover {
   background: rgba(55, 53, 47, 0.05);
-  color: var(--text, #37352f);
+  color: var(--text);
 }
 
 /* ---- Top-level view nav (Canvas / AI Chat) ---- */
@@ -865,7 +865,7 @@
   left: 4px;
   right: 4px;
   height: 2px;
-  background: var(--accent, #2383e2);
+  background: var(--accent);
   border-radius: 1px;
   pointer-events: none;
   z-index: 1;
@@ -924,12 +924,12 @@
 }
 
 .sidebar-layer-context-menu-item--danger {
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-item--danger:hover {
   background: rgba(192, 57, 43, 0.08);
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-separator {

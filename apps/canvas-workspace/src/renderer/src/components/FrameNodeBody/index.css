@@ -473,7 +473,7 @@
 }
 
 .frame-color-dot:focus-visible {
-  outline: 2px solid var(--accent, #2383e2);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 

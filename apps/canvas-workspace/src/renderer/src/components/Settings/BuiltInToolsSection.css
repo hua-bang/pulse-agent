@@ -32,7 +32,7 @@
 .built-in-tools-title {
   font-size: 14px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -114,7 +114,7 @@
 .built-in-tool-name {
   font-size: 13.5px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
 }
 
 .built-in-tool-description {
@@ -165,7 +165,7 @@
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 11px;
-  color: #37352f;
+  color: var(--text);
 }
 
 .built-in-tool-meta-note {
@@ -209,7 +209,7 @@
   padding: 7px 10px;
   font-size: 12.5px;
   line-height: 1.4;
-  color: #37352f;
+  color: var(--text);
   outline: none;
   box-shadow: inset 0 1px 0 rgba(55, 53, 47, 0.025);
   transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
@@ -249,7 +249,7 @@
 
 .built-in-tool-primary-btn {
   border: none;
-  background: #2383e2;
+  background: var(--accent);
   color: #fff;
   box-shadow: 0 1px 2px rgba(35, 131, 226, 0.18);
 }
@@ -266,7 +266,7 @@
 .built-in-tool-secondary-btn {
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
-  color: #37352f;
+  color: var(--text);
 }
 
 .built-in-tool-actions .built-in-tool-secondary-btn {
@@ -283,7 +283,7 @@
 
 .built-in-tool-actions .built-in-tool-secondary-btn:hover {
   background: rgba(55, 53, 47, 0.055);
-  color: #37352f;
+  color: var(--text);
 }
 
 .built-in-tool-secondary-btn:disabled {

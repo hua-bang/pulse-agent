@@ -248,7 +248,7 @@
 }
 
 .text-node-body code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font);
   font-size: 0.9em;
   padding: 0.08em 0.35em;
   border-radius: 4px;
@@ -260,7 +260,7 @@
   padding: 8px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.05);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: var(--font);
   font-size: 0.9em;
   overflow-x: auto;
 }
@@ -463,7 +463,7 @@
 }
 
 .text-color-dot:focus-visible {
-  outline: 2px solid var(--accent, #2383e2);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
