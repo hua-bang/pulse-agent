@@ -22,6 +22,7 @@ import { ALL_SLASH_COMMANDS, filterCmds, type SlashCmdContext } from '../editor/
 import { NoteSearchExtension } from '../editor/noteSearchExtension';
 import { toFileUrl } from '../utils/fileUrl';
 import { isImeComposing } from '../utils/ime';
+import { useNoteKeyboard } from './useNoteKeyboard';
 
 const lowlight = createLowlight(common);
 
@@ -347,20 +348,6 @@ export const useFileNodeEditor = ({
     }
   }, [editor, readOnly]);
 
-  // Cmd+S / Ctrl+S
-  useEffect(() => {
-    if (!editor || readOnly) return;
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        const fp = dataRef.current.filePath;
-        if (fp) void persistToFile(getMarkdown(editor), fp);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [editor, persistToFile, dataRef, readOnly]);
-
   // Slash menu keyboard navigation — capture phase so we intercept before ProseMirror
   useEffect(() => {
     if (!editor || readOnly) return;
@@ -478,18 +465,16 @@ export const useFileNodeEditor = ({
   }, [readOnly]);
   const closeFindBar = useCallback(() => setFindBarOpen(false), []);
 
-  // Cmd/Ctrl+F to open find bar — only when this editor is focused
-  useEffect(() => {
-    if (!editor || readOnly) return;
-    const handler = (e: KeyboardEvent) => {
-      if (!((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f')) return;
-      if (!editor.isFocused) return;
-      e.preventDefault();
-      setFindBarOpen(true);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [editor, readOnly]);
+  // Window-level note shortcuts (Cmd+S save, Cmd+F find), scoped to the focused
+  // editor so they don't fire across every mounted note.
+  useNoteKeyboard({
+    editor,
+    readOnly,
+    dataRef,
+    persistToFile,
+    getMarkdown,
+    onOpenFind: openFindBar,
+  });
 
   return {
     editor,
