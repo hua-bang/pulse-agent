@@ -94,11 +94,20 @@ export const ReferenceCanvasNode = ({
         className="node-body node-body--reference"
         onMouseDown={handleNodeBodyMouseDown}
       >
-        {isFullscreen || isSelected ? null : (
+        {/* Keep the drag surface present even when the card is selected. A
+            reference is a compact card whose only other drag handle is the
+            small header pill, so without this a selected card can't be moved
+            by its body the way every other node can. The preview is therefore
+            view-only on the canvas — double-click (or the pill's open-source
+            button) jumps to the real node to interact with / edit it. Only
+            fullscreen drops the overlay, where interacting with the full-size
+            node is the whole point. */}
+        {isFullscreen ? null : (
           <div
             className="reference-drag-overlay"
             onMouseDown={handleHeaderMouseDown}
             onClick={handleNodeClick}
+            onDoubleClick={handleOpenReferenceSource}
           />
         )}
         {sourceNode ? (

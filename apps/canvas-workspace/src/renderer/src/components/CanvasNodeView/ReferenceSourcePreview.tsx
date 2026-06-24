@@ -3,6 +3,7 @@ import type { CanvasNodeViewProps } from './types';
 
 interface ReferenceSourcePreviewProps {
   CanvasNodeViewComponent: React.ComponentType<CanvasNodeViewProps>;
+  embedded: boolean;
   handleReferenceSourceUpdate: (sourceId: string, patch: Partial<CanvasNode>) => void;
   isSelected: boolean;
   node: CanvasNode;
@@ -18,17 +19,22 @@ interface ReferenceSourcePreviewProps {
 /**
  * Renders the referenced node as a preview inside the reference card.
  *
- * The inner node is ALWAYS `embedded`: the reference card owns the header
- * chrome (badge, source label, open-source, close), so the preview must not
- * draw its own close/fullscreen/resize controls. When the source is editable
- * (`onUpdateReferenceSource` provided) the inner node would otherwise render
- * as a normal node and float those controls over the content — duplicating
- * the card's close button and covering the preview. `embedded` hides that
- * chrome via CSS, fills the card, and picks up the reference's selected ring
- * while keeping the body editable.
+ * The inner node is intentionally NOT forced `embedded`: it keeps its own
+ * transform-based stacking context, which the `.reference-drag-overlay`
+ * depends on to stay above the preview and intercept the drag mousedown.
+ * Forcing `embedded` sets `transform: none`, dropping that context — webview /
+ * iframe content then composites above the overlay and the card can no longer
+ * be dragged.
+ *
+ * The reference card owns the header chrome (badge, source label, open-source,
+ * close), so the preview's own close / fullscreen / resize controls are
+ * suppressed via CSS (`.node-body--reference …` in index.css) instead —
+ * otherwise an editable source floats those controls over the content and
+ * duplicates the card's close button.
  */
 export const ReferenceSourcePreview = ({
   CanvasNodeViewComponent,
+  embedded,
   handleReferenceSourceUpdate,
   isSelected,
   node,
@@ -65,6 +71,6 @@ export const ReferenceSourcePreview = ({
     onSelect={() => onSelect(node.id)}
     onFocus={() => undefined}
     readOnly={readOnly || !onUpdateReferenceSource}
-    embedded
+    embedded={embedded}
   />
 );

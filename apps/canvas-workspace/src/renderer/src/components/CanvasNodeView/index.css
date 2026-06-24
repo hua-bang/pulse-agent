@@ -90,9 +90,12 @@
   box-shadow: none;
 }
 
+/* The source pill overlays the top-right corner of the preview (sits "on
+ * top" of the card) rather than poking out above its top edge — a detached
+ * tab above the card reads as misplaced, especially when the body is empty. */
 .canvas-node--reference > .node-header {
   position: absolute;
-  top: -11px;
+  top: 8px;
   right: 8px;
   z-index: 5;
   min-height: 0;
@@ -346,6 +349,26 @@
 .node-body--reference > .canvas-node--readonly,
 .node-body--reference > .canvas-node--embedded {
   height: 100% !important;
+}
+
+/* The reference card supplies its own header (badge / source / open-source /
+ * close), so the inner source preview must not also draw its own node chrome.
+ * An editable source (readOnly === false) would otherwise render floating
+ * close / fullscreen / resize controls that cover the content and duplicate
+ * the card's close button. We suppress them here — rather than rendering the
+ * inner node `embedded` — so the preview keeps its transform-based stacking
+ * context, which `.reference-drag-overlay` relies on to stay above the content
+ * and keep the card draggable. The card's own header/handles are siblings of
+ * `.node-body--reference`, so they are unaffected. */
+.node-body--reference .node-focus,
+.node-body--reference .node-close,
+.node-body--reference .node-reference,
+.node-body--reference .node-add-to-chat,
+.node-body--reference .node-plugin-select,
+.node-body--reference .node-fullscreen,
+.node-body--reference .resize-handle,
+.node-body--reference .node-time-label {
+  display: none;
 }
 
 .reference-node-missing {
