@@ -11,6 +11,7 @@ import {
   ReferenceButton,
 } from './NodeButtons';
 import { NodeTypeBadge } from './NodeTypeBadge';
+import { isReferenceableNode } from '../../utils/referenceNodes';
 
 interface CanvasNodeHeaderProps {
   fullscreenButton: ReactNode;
@@ -158,7 +159,7 @@ export const CanvasNodeHeader = ({
         <TextColorPicker node={node} onUpdate={onUpdate} />
       )}
       <div className="node-header__actions">
-        {!readOnly && onReference ? (
+        {!readOnly && onReference && isReferenceableNode(node) ? (
           <ReferenceButton nodeTitle={node.title} onClick={handleReference} />
         ) : null}
         {!readOnly && onAddToChat ? (
