@@ -8,7 +8,7 @@
   --nodes-surface-active: var(--accent-light);
   --nodes-border: rgba(55, 53, 47, 0.12);
   --nodes-border-strong: rgba(55, 53, 47, 0.2);
-  --nodes-text: #37352f;
+  --nodes-text: var(--text);
   --nodes-muted: rgba(55, 53, 47, 0.62);
   --nodes-faint: rgba(55, 53, 47, 0.42);
   --nodes-dot: var(--accent);

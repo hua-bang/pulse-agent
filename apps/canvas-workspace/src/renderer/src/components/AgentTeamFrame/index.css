@@ -365,7 +365,7 @@
 
 .agent-team-command--lead textarea:focus {
   outline: none;
-  border-color: var(--agent-accent, #2383e2);
+  border-color: var(--agent-accent, var(--accent));
   box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.14);
 }
 

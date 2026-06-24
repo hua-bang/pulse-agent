@@ -31,7 +31,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  color: #37352f;
+  color: var(--text);
 }
 
 .settings-rail-item:hover {
@@ -60,7 +60,7 @@
 }
 
 .settings-rail-item--active .settings-rail-label {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .settings-content {

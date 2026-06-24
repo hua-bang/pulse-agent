@@ -36,7 +36,7 @@
 .agent-section-card-title {
   font-size: 14px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -56,7 +56,7 @@
 
 .agent-section-primary-btn {
   border: none;
-  background: #2383e2;
+  background: var(--accent);
   color: #fff;
   font-size: 12.5px;
   font-weight: 600;
@@ -78,7 +78,7 @@
 .agent-section-secondary-btn {
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font-size: 12.5px;
   font-weight: 500;
   border-radius: 6px;
@@ -244,7 +244,7 @@
 
 .agent-section-result-path {
   font-size: 11.5px;
-  color: #37352f;
+  color: var(--text);
   word-break: break-all;
   background: transparent;
   padding: 0;

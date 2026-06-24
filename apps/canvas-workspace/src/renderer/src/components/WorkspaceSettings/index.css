@@ -68,7 +68,7 @@
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 5px;
   border-radius: 4px;
-  color: #37352f;
+  color: var(--text);
 }
 
 .workspace-settings-input {
@@ -77,7 +77,7 @@
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 8px;
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   outline: none;
@@ -106,7 +106,7 @@
   background: rgba(55, 53, 47, 0.022);
   font-family: var(--font-mono);
   font-size: 12px;
-  color: #37352f;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -140,7 +140,7 @@
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 8px;
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font-family: var(--font-mono);
   font-size: 12.5px;
   line-height: 1.55;
@@ -179,7 +179,7 @@
   border-radius: 8px;
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   padding: 0 12px;
   font-size: 12px;
   font-weight: 650;
@@ -196,8 +196,8 @@
 }
 
 .workspace-settings-primary-btn {
-  border-color: #2383e2;
-  background: #2383e2;
+  border-color: var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 

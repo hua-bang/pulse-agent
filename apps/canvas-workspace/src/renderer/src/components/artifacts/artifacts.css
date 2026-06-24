@@ -180,7 +180,7 @@
 
 .chat-inline-visual__btn:hover:not(:disabled) {
   background: rgba(55, 53, 47, 0.07);
-  color: #37352f;
+  color: var(--text);
 }
 
 .chat-inline-visual__btn:disabled {
@@ -189,7 +189,7 @@
 }
 
 .chat-inline-visual__btn--primary {
-  color: #37352f;
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -219,7 +219,7 @@
 .chat-inline-visual__title {
   text-transform: none;
   letter-spacing: 0;
-  color: #37352f;
+  color: var(--text);
   font-weight: 500;
   margin-left: 6px;
 }
@@ -227,7 +227,7 @@
 .chat-inline-visual__action {
   font-size: 11px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--text);
   background: transparent;
   border: 1px solid rgba(55, 53, 47, 0.16);
   border-radius: 5px;
@@ -248,9 +248,9 @@
 }
 
 .chat-inline-visual__action--primary {
-  background: #37352f;
+  background: var(--text);
   color: #fff;
-  border-color: #37352f;
+  border-color: var(--text);
 }
 
 .chat-inline-visual__action--primary:hover:not(:disabled) {
@@ -388,7 +388,7 @@
   display: block;
   font-size: 13px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -413,7 +413,7 @@
 .chat-artifact-card__action {
   font-size: 11px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--text);
   background: transparent;
   border: 1px solid rgba(55, 53, 47, 0.16);
   border-radius: 5px;
@@ -464,7 +464,7 @@
 .artifact-drawer__action {
   font-size: 12px;
   font-weight: 500;
-  color: #37352f;
+  color: var(--text);
   background: transparent;
   border: 1px solid rgba(55, 53, 47, 0.16);
   border-radius: 5px;
@@ -480,9 +480,9 @@
 }
 
 .artifact-drawer__action--primary {
-  background: #37352f;
+  background: var(--text);
   color: #fff;
-  border-color: #37352f;
+  border-color: var(--text);
 }
 
 .artifact-drawer__action--primary:hover:not(:disabled) {

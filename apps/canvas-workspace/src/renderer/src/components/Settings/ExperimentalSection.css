@@ -17,7 +17,7 @@
 .experimental-section-intro-title {
   font-size: 14px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
   margin-bottom: 4px;
 }
 
@@ -107,7 +107,7 @@
 .experimental-section-item-label {
   font-size: 13.5px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
   margin-bottom: 3px;
 }
 
@@ -174,7 +174,7 @@
 }
 
 .experimental-section-switch--on .experimental-section-switch-track {
-  background: #2383e2;
+  background: var(--accent);
 }
 
 .experimental-section-switch--on .experimental-section-switch-thumb {
@@ -192,7 +192,7 @@
 
 .experimental-section-primary-btn {
   border: none;
-  background: #2383e2;
+  background: var(--accent);
   color: #fff;
   font-size: 12.5px;
   font-weight: 600;
@@ -214,7 +214,7 @@
 .experimental-section-secondary-btn {
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font-size: 12.5px;
   font-weight: 500;
   border-radius: 6px;
