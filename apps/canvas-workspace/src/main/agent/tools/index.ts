@@ -12,6 +12,7 @@ import { createTerminalTools } from './terminals';
 import { createShapeTools } from './shapes';
 import { createEdgeTools } from './edges-tools';
 import { createImageTools } from './images';
+import { createScreenshotTools } from './screenshot';
 import { createVisualTools } from './visual';
 import { createArtifactTools } from './artifacts';
 import { createWebpageTools } from './webpage';
@@ -78,6 +79,9 @@ export function createGlobalCanvasTools(): Record<string, CanvasTool> {
     // Chat-session history (检索/总结). Inherently cross-workspace (workspaceId
     // is optional), so not wrapped with requireWorkspaceId.
     ...createSessionTools(),
+    // Screen / window capture is workspace-independent (it grabs the OS screen,
+    // another app window, or this canvas window), so it works in global chat too.
+    ...createScreenshotTools(''),
   };
 }
 
@@ -94,6 +98,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createShapeTools(workspaceId),
     ...createEdgeTools(workspaceId),
     ...createImageTools(workspaceId),
+    ...createScreenshotTools(workspaceId),
     ...createVisualTools(workspaceId),
     ...createArtifactTools(workspaceId),
     ...createWebpageTools(workspaceId),

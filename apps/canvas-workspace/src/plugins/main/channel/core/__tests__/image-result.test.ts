@@ -29,6 +29,24 @@ describe('extractGeneratedImageResult', () => {
     });
   });
 
+  it('relays a canvas_screenshot result so the bot sends the capture', () => {
+    const image = extractGeneratedImageResult({
+      name: 'canvas_screenshot',
+      result: JSON.stringify({
+        ok: true,
+        type: 'screenshot',
+        target: 'screen',
+        title: 'Entire Screen',
+        outputPath: '/tmp/canvas/_global/screenshots/screen-1.png',
+        mimeType: 'image/png',
+      }),
+    });
+    expect(image).toEqual({
+      outputPath: '/tmp/canvas/_global/screenshots/screen-1.png',
+      mimeType: 'image/png',
+    });
+  });
+
   it('relays canvas_generate_mindmap_image', () => {
     const image = extractGeneratedImageResult({
       name: 'canvas_generate_mindmap_image',

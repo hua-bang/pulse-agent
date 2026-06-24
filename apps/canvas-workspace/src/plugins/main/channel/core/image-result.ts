@@ -33,6 +33,7 @@ export function extractGeneratedImageResult(toolResult: {
     'gemini_pro_image',
     'canvas_generate_image',
     'canvas_generate_mindmap_image',
+    'canvas_screenshot',
   ]);
   if (toolName && !KNOWN_IMAGE_TOOLS.has(toolName) && !looksLikeImagePayload(payload)) {
     return null;
