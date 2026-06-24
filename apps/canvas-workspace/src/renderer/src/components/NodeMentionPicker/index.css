@@ -155,3 +155,39 @@
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Persistent launcher pinned to a terminal corner (MentionTriggerButton). */
+.node-mention-trigger {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgba(31, 41, 35, 0.1);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: var(--font);
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.node-mention-trigger:hover,
+.node-mention-trigger:focus-visible {
+  opacity: 1;
+  color: var(--text);
+  border-color: var(--accent, #0f766e);
+  outline: none;
+}
+
+.node-mention-trigger__glyph {
+  font-weight: 700;
+  color: var(--accent, #0f766e);
+}

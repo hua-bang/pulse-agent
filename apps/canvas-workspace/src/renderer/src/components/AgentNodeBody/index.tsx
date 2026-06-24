@@ -147,6 +147,7 @@ export const AgentNodeBody = ({
         agentType={controller.selectedAgent || 'claude-code'}
         cwd={controller.data.cwd}
         loading={controller.loading || controller.teamAutoResumePending}
+        onMention={readOnly ? undefined : controller.openMentionPicker}
       />
     </>
   );

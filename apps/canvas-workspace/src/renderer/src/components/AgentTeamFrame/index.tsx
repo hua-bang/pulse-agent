@@ -1392,6 +1392,7 @@ export const AgentTeamFrame = ({
           nodes={getAllNodes?.() ?? []}
           onSelect={commandMention.handleSelect}
           onClose={commandMention.handleClose}
+          triggerHint="@"
         />
       )}
       <div className="agent-team-command__copy">

@@ -194,6 +194,7 @@ export const AgentPicker = ({
           nodes={mentionNodes ?? []}
           onSelect={promptMention.handleSelect}
           onClose={promptMention.handleClose}
+          triggerHint="@"
         />
       )}
       <div className="agent-card">

@@ -10,11 +10,20 @@ interface Props {
   nodes: CanvasNode[];
   onSelect: (node: CanvasNode) => void;
   onClose: () => void;
+  /**
+   * How this picker was opened, shown as the trigger hint in the header.
+   * Textarea surfaces pass `'@'` (inline trigger); terminals keep the
+   * keyboard shortcut. Defaults to {@link NODE_MENTION_SHORTCUT}.
+   */
+  triggerHint?: string;
 }
 
 const MAX_RESULTS = 20;
 
-export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
+/** Keyboard shortcut that opens the node mention picker in terminal surfaces. */
+export const NODE_MENTION_SHORTCUT = 'Ctrl/⌘+2';
+
+export const NodeMentionPicker = ({ nodes, onSelect, onClose, triggerHint = NODE_MENTION_SHORTCUT }: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -89,7 +98,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
       <div className="node-mention-picker" role="dialog" aria-label={t('nodeMention.title')} onClick={(e) => e.stopPropagation()}>
         <div className="node-mention-header">
           <span className="node-mention-label">{t('nodeMention.title')}</span>
-          <kbd className="node-mention-kbd">Ctrl/⌘+2</kbd>
+          <kbd className="node-mention-kbd">{triggerHint}</kbd>
         </div>
         <div className="node-mention-search">
           <input
