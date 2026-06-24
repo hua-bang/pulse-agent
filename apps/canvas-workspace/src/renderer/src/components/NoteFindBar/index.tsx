@@ -3,11 +3,13 @@ import './index.css';
 import type { Editor } from '@tiptap/react';
 import {
   clearNoteSearch,
+  DEFAULT_SEARCH_OPTIONS,
   getNoteSearchState,
   navigateNoteSearch,
   replaceAllMatches,
   replaceCurrentMatch,
   setNoteSearch,
+  type NoteSearchOptions,
 } from '../../editor/noteSearchExtension';
 import { isImeComposing } from '../../utils/ime';
 
@@ -20,10 +22,12 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
   const [query, setQuery] = useState('');
   const [replacement, setReplacement] = useState('');
   const [showReplace, setShowReplace] = useState(false);
+  const [options, setOptions] = useState<NoteSearchOptions>(DEFAULT_SEARCH_OPTIONS);
   const inputRef = useRef<HTMLInputElement>(null);
   const state = getNoteSearchState(editor.state);
   const total = state?.matches.length ?? 0;
   const current = state?.matches.length ? state.current + 1 : 0;
+  const invalid = state?.invalid ?? false;
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -37,7 +41,13 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
 
   const runSearch = (q: string) => {
     setQuery(q);
-    setNoteSearch(editor.view, q);
+    setNoteSearch(editor.view, q, options);
+  };
+
+  const toggleOption = (key: keyof NoteSearchOptions) => {
+    const next = { ...options, [key]: !options[key] };
+    setOptions(next);
+    setNoteSearch(editor.view, query, next);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -64,14 +74,52 @@ export const NoteFindBar = ({ editor, onClose }: Props) => {
         </button>
         <input
           ref={inputRef}
-          className="note-find-input"
+          className={`note-find-input${invalid ? ' note-find-input--invalid' : ''}`}
           placeholder="Find"
           value={query}
           onChange={(e) => runSearch(e.target.value)}
           onKeyDown={handleKeyDown}
         />
-        <span className="note-find-count">
-          {total > 0 ? `${current}/${total}` : query ? '0/0' : ''}
+        <div className="note-find-toggles" role="group" aria-label="Search options">
+          <button
+            type="button"
+            className={`note-find-opt${options.caseSensitive ? ' note-find-opt--on' : ''}`}
+            aria-pressed={options.caseSensitive}
+            aria-label="Match case"
+            title="Match case"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => toggleOption('caseSensitive')}
+          >
+            Aa
+          </button>
+          <button
+            type="button"
+            className={`note-find-opt${options.wholeWord ? ' note-find-opt--on' : ''}`}
+            aria-pressed={options.wholeWord}
+            aria-label="Whole word"
+            title="Whole word"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => toggleOption('wholeWord')}
+          >
+            W
+          </button>
+          <button
+            type="button"
+            className={`note-find-opt${options.regex ? ' note-find-opt--on' : ''}`}
+            aria-pressed={options.regex}
+            aria-label="Use regular expression"
+            title="Regular expression"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => toggleOption('regex')}
+          >
+            .*
+          </button>
+        </div>
+        <span
+          className="note-find-count"
+          title={invalid ? 'Invalid regular expression' : undefined}
+        >
+          {invalid ? '!' : total > 0 ? `${current}/${total}` : query ? '0/0' : ''}
         </span>
         <button
           className="note-find-nav"

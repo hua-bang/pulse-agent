@@ -6,6 +6,8 @@ interface Props {
   onSaveAs: () => void;
   onInsertImage: () => void;
   onOpenFind: () => void;
+  onToggleOutline: () => void;
+  outlineOpen: boolean;
   statusText: string;
   modified: boolean;
   fileName?: string | null;
@@ -18,6 +20,8 @@ export const FileNodeToolbar = ({
   onSaveAs,
   onInsertImage,
   onOpenFind,
+  onToggleOutline,
+  outlineOpen,
   statusText,
   modified,
   fileName,
@@ -73,6 +77,18 @@ export const FileNodeToolbar = ({
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
           <circle cx="7" cy="7" r="4" stroke="currentColor" strokeWidth="1.3" />
           <path d="M10 10l3.5 3.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button
+        className={`note-tool-btn${outlineOpen ? ' note-tool-btn--active' : ''}`}
+        onClick={onToggleOutline}
+        title="Outline"
+        aria-label="Toggle outline"
+        aria-pressed={outlineOpen}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M3 4h2M3 8h2M3 12h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+          <path d="M7 4h6M7 8h6M7 12h4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
         </svg>
       </button>
     </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -20,8 +20,18 @@ import type { CanvasNode, FileNodeData } from '../types';
 import type { SlashCommandDef } from '../components/SlashCommandMenu';
 import { ALL_SLASH_COMMANDS, filterCmds, type SlashCmdContext } from '../editor/slashCommands';
 import { NoteSearchExtension } from '../editor/noteSearchExtension';
+import { Callout } from '../editor/calloutNode';
 import { toFileUrl } from '../utils/fileUrl';
 import { isImeComposing } from '../utils/ime';
+import { useNoteKeyboard } from './useNoteKeyboard';
+import { useNoteInteractionController } from './useNoteInteractionController';
+import {
+  insertImageAtPos,
+  insertImageAtSelection,
+  isImageUrl,
+  resolveWorkspaceId,
+  saveImageBlob,
+} from '../utils/noteImageInsert';
 
 const lowlight = createLowlight(common);
 
@@ -132,22 +142,6 @@ const MarkdownSafeImage = Image.extend({
   },
 });
 
-interface SlashMenuState {
-  x: number;
-  y: number;
-  query: string;
-  index: number;
-  slashFrom: number;
-}
-
-export interface BubbleState {
-  x: number;
-  y: number;
-  /** Bottom edge of the selection rect — anchor for flipping the bubble
-   *  below the selection when there's no room above it. */
-  bottom: number;
-}
-
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const getMarkdown = (editor: any): string =>
   (editor?.storage?.markdown?.getMarkdown() as string | undefined) ?? '';
@@ -166,17 +160,6 @@ interface Options {
 
 const AUTO_SAVE_MS = 1500;
 
-const imageExtensionFromMime = (mimeType: string | undefined): string => {
-  const normalized = (mimeType ?? '')
-    .toLowerCase()
-    .replace(/^image\//, '')
-    .replace(/[^a-z0-9]/g, '');
-
-  if (!normalized) return 'png';
-  if (normalized === 'jpeg') return 'jpg';
-  return normalized;
-};
-
 export const useFileNodeEditor = ({
   data,
   nodeIdRef,
@@ -188,14 +171,29 @@ export const useFileNodeEditor = ({
   onUpdate,
   readOnly = false,
 }: Options) => {
-  const [bubble, setBubble] = useState<BubbleState | null>(null);
-  const [slashMenu, setSlashMenu] = useState<SlashMenuState | null>(null);
-  const slashMenuRef = useRef<SlashMenuState | null>(null);
-  slashMenuRef.current = slashMenu;
+  const interactions = useNoteInteractionController();
+  const {
+    slashMenu,
+    slashMenuRef,
+    openSlashMenu,
+    closeSlashMenu,
+    moveSlashSelection,
+    bubble,
+    openBubble,
+    closeBubble,
+    linkPrompt,
+    openLinkPrompt: openControlledLinkPrompt,
+    closeLinkPrompt,
+    findBarOpen,
+    openFindBar,
+    closeFindBar,
+    outlineOpen,
+    toggleOutline,
+    closeOutline,
+    resetForReadOnly,
+  } = interactions;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [linkPrompt, setLinkPrompt] = useState<{ initial: string } | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const [findBarOpen, setFindBarOpen] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -210,6 +208,7 @@ export const useFileNodeEditor = ({
       }),
       EmptyLinePreservingParagraph,
       MarkdownSafeImage.configure({ inline: false }),
+      Callout,
       Placeholder.configure({ placeholder: "Type '/' for blocks, or just start writing…" }),
       TaskList,
       TaskItem.configure({ nested: true }),
@@ -219,6 +218,8 @@ export const useFileNodeEditor = ({
         openOnClick: false,
         autolink: true,
         linkOnPaste: true,
+        // Allow the internal node-mention scheme so `@` links aren't stripped.
+        protocols: ['pulse-canvas'],
         HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
       }),
       CodeBlockLowlight.configure({ lowlight, defaultLanguage: null }),
@@ -236,32 +237,39 @@ export const useFileNodeEditor = ({
         if (readOnly) return false;
         const items = Array.from(event.clipboardData?.items ?? []);
         const imageItem = items.find((i) => i.type.startsWith('image/'));
-        if (!imageItem) return false;
+        if (imageItem) {
+          const blob = imageItem.getAsFile();
+          if (!blob) return false;
+          event.preventDefault();
+          const wsId = resolveWorkspaceId(workspaceIdRef.current, dataRef.current.filePath);
+          void saveImageBlob(blob, wsId).then((src) => {
+            if (src) insertImageAtSelection(view, src);
+          });
+          return true;
+        }
+        // Paste a bare image URL → embed it directly.
+        const text = event.clipboardData?.getData('text/plain') ?? '';
+        if (isImageUrl(text)) {
+          event.preventDefault();
+          insertImageAtSelection(view, text.trim());
+          return true;
+        }
+        return false;
+      },
+      handleDrop: (view, event) => {
+        if (readOnly) return false;
+        const image = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+          f.type.startsWith('image/'),
+        );
+        if (!image) return false;
         event.preventDefault();
-        const blob = imageItem.getAsFile();
-        if (!blob) return false;
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const dataUrl = reader.result as string;
-          const base64 = dataUrl.split(',')[1];
-          if (!base64) return;
-          const ext = imageExtensionFromMime(imageItem.type);
-          const api = window.canvasWorkspace?.file;
-          if (!api) return;
-          const wsId =
-            workspaceIdRef.current ??
-            dataRef.current.filePath.match(/canvas[/\\]([^/\\]+)[/\\]/)?.[1] ??
-            'default';
-          const res = await api.saveImage(wsId, base64, ext);
-          if (!res.ok || !res.filePath) return;
-          const src = toFileUrl(res.filePath);
-          const { state, dispatch } = view;
-          const imageNode = state.schema.nodes['image']?.create({ src });
-          if (imageNode) {
-            dispatch(state.tr.replaceSelectionWith(imageNode));
-          }
-        };
-        reader.readAsDataURL(blob);
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        const wsId = resolveWorkspaceId(workspaceIdRef.current, dataRef.current.filePath);
+        void saveImageBlob(image, wsId).then((src) => {
+          if (!src) return;
+          if (typeof pos === 'number') insertImageAtPos(view, src, pos);
+          else insertImageAtSelection(view, src);
+        });
         return true;
       },
     },
@@ -296,7 +304,7 @@ export const useFileNodeEditor = ({
         const query = slashMatch[1] ?? '';
         const slashDocPos = from - query.length - 1;
         const coords = editor.view.coordsAtPos(slashDocPos);
-        setSlashMenu((prev) => ({
+        openSlashMenu((prev) => ({
           x: coords.left,
           y: coords.bottom,
           query,
@@ -304,29 +312,29 @@ export const useFileNodeEditor = ({
           slashFrom: slashDocPos,
         }));
       } else {
-        if (slashMenuRef.current) setSlashMenu(null);
+        if (slashMenuRef.current) closeSlashMenu();
       }
     },
     onSelectionUpdate: ({ editor }) => {
       if (readOnly || editor.state.selection.empty) {
-        setBubble(null);
+        closeBubble();
         return;
       }
       requestAnimationFrame(() => {
         const domSel = window.getSelection();
         if (!domSel || domSel.rangeCount === 0) {
-          setBubble(null);
+          closeBubble();
           return;
         }
         const selRect = domSel.getRangeAt(0).getBoundingClientRect();
-        setBubble({
+        openBubble({
           x: selRect.left + selRect.width / 2,
           y: selRect.top,
           bottom: selRect.bottom,
         });
       });
     },
-    onBlur: () => setBubble(null),
+    onBlur: closeBubble,
   });
 
   // Sync content when file opens externally
@@ -341,25 +349,9 @@ export const useFileNodeEditor = ({
     if (!editor) return;
     editor.setEditable(!readOnly);
     if (readOnly) {
-      setBubble(null);
-      setSlashMenu(null);
-      setFindBarOpen(false);
+      resetForReadOnly();
     }
-  }, [editor, readOnly]);
-
-  // Cmd+S / Ctrl+S
-  useEffect(() => {
-    if (!editor || readOnly) return;
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        const fp = dataRef.current.filePath;
-        if (fp) void persistToFile(getMarkdown(editor), fp);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [editor, persistToFile, dataRef, readOnly]);
+  }, [editor, readOnly, resetForReadOnly]);
 
   // Slash menu keyboard navigation — capture phase so we intercept before ProseMirror
   useEffect(() => {
@@ -374,30 +366,30 @@ export const useFileNodeEditor = ({
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        setSlashMenu((prev) => prev ? { ...prev, index: Math.min(prev.index + 1, items.length - 1) } : null);
+        moveSlashSelection(1, items.length);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        setSlashMenu((prev) => prev ? { ...prev, index: Math.max(prev.index - 1, 0) } : null);
+        moveSlashSelection(-1, items.length);
       } else if (e.key === 'Enter') {
         const item = items[menu.index] ?? items[0];
         if (item) {
           e.preventDefault();
           e.stopImmediatePropagation();
           item.run(editor, menu.slashFrom, editor.state.selection.from, slashCtxRef.current);
-          setSlashMenu(null);
+          closeSlashMenu();
         }
       } else if (e.key === 'Escape') {
-        setSlashMenu(null);
+        closeSlashMenu();
       }
     };
     window.addEventListener('keydown', handler, true);
     return () => window.removeEventListener('keydown', handler, true);
-  }, [editor, readOnly]);
+  }, [editor, readOnly, closeSlashMenu, moveSlashSelection]);
 
   const slashCtx: SlashCmdContext = {
     requestLink: (initial: string) => {
-      if (!readOnly) setLinkPrompt({ initial });
+      if (!readOnly) openControlledLinkPrompt(initial);
     },
     requestImage: () => {
       if (!readOnly) imageInputRef.current?.click();
@@ -411,14 +403,14 @@ export const useFileNodeEditor = ({
     const { slashFrom } = slashMenuRef.current;
     const fullCmd = ALL_SLASH_COMMANDS.find((c) => c.id === cmd.id);
     fullCmd?.run(editor, slashFrom, editor.state.selection.from, slashCtxRef.current);
-    setSlashMenu(null);
-  }, [editor, readOnly]);
+    closeSlashMenu();
+  }, [editor, readOnly, closeSlashMenu, slashMenuRef]);
 
   const openLinkPrompt = useCallback(() => {
     if (readOnly || !editor) return;
     const initial = (editor.getAttributes('link')?.href as string | undefined) ?? '';
-    setLinkPrompt({ initial });
-  }, [editor, readOnly]);
+    openControlledLinkPrompt(initial);
+  }, [editor, readOnly, openControlledLinkPrompt]);
 
   const applyLink = useCallback(
     (url: string) => {
@@ -434,37 +426,19 @@ export const useFileNodeEditor = ({
           .setLink({ href: trimmed })
           .run();
       }
-      setLinkPrompt(null);
+      closeLinkPrompt();
     },
-    [editor, readOnly],
+    [editor, readOnly, closeLinkPrompt],
   );
 
-  const cancelLink = useCallback(() => setLinkPrompt(null), []);
+  const cancelLink = closeLinkPrompt;
 
   const insertImageFromFile = useCallback(
     async (file: File) => {
       if (readOnly || !editor) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(',')[1];
-        if (!base64) return;
-        const ext = imageExtensionFromMime(file.type);
-        const api = window.canvasWorkspace?.file;
-        if (!api) return;
-        const wsId =
-          workspaceIdRef.current ??
-          dataRef.current.filePath.match(/canvas[/\\]([^/\\]+)[/\\]/)?.[1] ??
-          'default';
-        const res = await api.saveImage(wsId, base64, ext);
-        if (!res.ok || !res.filePath) return;
-        editor
-          .chain()
-          .focus()
-          .setImage({ src: toFileUrl(res.filePath) })
-          .run();
-      };
-      reader.readAsDataURL(file);
+      const wsId = resolveWorkspaceId(workspaceIdRef.current, dataRef.current.filePath);
+      const src = await saveImageBlob(file, wsId);
+      if (src) editor.chain().focus().setImage({ src }).run();
     },
     [editor, dataRef, workspaceIdRef, readOnly],
   );
@@ -473,28 +447,25 @@ export const useFileNodeEditor = ({
     if (!readOnly) imageInputRef.current?.click();
   }, [readOnly]);
 
-  const openFindBar = useCallback(() => {
-    if (!readOnly) setFindBarOpen(true);
-  }, [readOnly]);
-  const closeFindBar = useCallback(() => setFindBarOpen(false), []);
+  const openNoteFindBar = useCallback(() => {
+    if (!readOnly) openFindBar();
+  }, [readOnly, openFindBar]);
 
-  // Cmd/Ctrl+F to open find bar — only when this editor is focused
-  useEffect(() => {
-    if (!editor || readOnly) return;
-    const handler = (e: KeyboardEvent) => {
-      if (!((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f')) return;
-      if (!editor.isFocused) return;
-      e.preventDefault();
-      setFindBarOpen(true);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [editor, readOnly]);
+  // Window-level note shortcuts (Cmd+S save, Cmd+F find), scoped to the focused
+  // editor so they don't fire across every mounted note.
+  useNoteKeyboard({
+    editor,
+    readOnly,
+    dataRef,
+    persistToFile,
+    getMarkdown,
+    onOpenFind: openNoteFindBar,
+  });
 
   return {
     editor,
+    interactions,
     slashMenu,
-    setSlashMenu,
     bubble,
     handleSlashSelect,
     linkPrompt,
@@ -505,7 +476,10 @@ export const useFileNodeEditor = ({
     openImagePicker,
     insertImageFromFile,
     findBarOpen,
-    openFindBar,
+    openFindBar: openNoteFindBar,
     closeFindBar,
+    outlineOpen,
+    toggleOutline,
+    closeOutline,
   };
 };

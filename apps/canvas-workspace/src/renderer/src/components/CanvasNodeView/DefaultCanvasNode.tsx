@@ -220,7 +220,7 @@ export const DefaultCanvasNode = ({
       {!frameBodyOnly && header}
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
         {node.type === 'file' ? (
-          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} readOnly={readOnly} />
+          <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} />
         ) : node.type === 'terminal' ? (
           <TerminalNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         ) : node.type === 'frame' || node.type === 'group' ? (

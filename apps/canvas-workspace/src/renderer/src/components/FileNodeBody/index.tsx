@@ -4,11 +4,15 @@ import { EditorContent } from '@tiptap/react';
 import type { CanvasNode, FileNodeData } from '../../types';
 import { useFileNodeEditor, getMarkdown } from '../../hooks/useFileNodeEditor';
 import { useFileNodeEditorRegistry } from '../../hooks/useFileNodeEditorRegistry';
+import { useNoteMentions } from '../../hooks/useNoteMentions';
 import { filterCmds } from '../../editor/slashCommands';
+import { dispatchOpenNode, parseNodeLinkHref } from '../../utils/openNodeBridge';
 import { FileNodeToolbar } from '../FileNodeToolbar';
 import { FileNodeBubbleMenu } from '../FileNodeBubbleMenu';
 import { SlashCommandMenu } from '../SlashCommandMenu';
+import { NoteMentionMenu } from '../NoteMentionMenu';
 import { NoteFindBar } from '../NoteFindBar';
+import { NoteOutline } from '../NoteOutline';
 import { NoteLinkPrompt } from '../NoteLinkPrompt';
 import { useRightDock } from '../RightDock';
 
@@ -16,14 +20,17 @@ interface Props {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   workspaceId?: string;
+  /** Snapshot accessor for the workspace's nodes, used to populate @-mentions. */
+  getAllNodes?: () => CanvasNode[];
   readOnly?: boolean;
 }
 
-export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: Props) => {
+export const FileNodeBody = ({ node, onUpdate, workspaceId, getAllNodes, readOnly = false }: Props) => {
   const data = node.data as FileNodeData;
   const { openLink } = useRightDock();
   const [modified, setModified] = useState(false);
   const [statusText, setStatusText] = useState('');
+  const cardRef = useRef<HTMLDivElement>(null);
   const dataRef = useRef(data);
   dataRef.current = data;
   const nodeIdRef = useRef(node.id);
@@ -55,8 +62,8 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
 
   const {
     editor,
+    interactions,
     slashMenu,
-    setSlashMenu,
     bubble,
     handleSlashSelect,
     linkPrompt,
@@ -69,6 +76,9 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
     findBarOpen,
     openFindBar,
     closeFindBar,
+    outlineOpen,
+    toggleOutline,
+    closeOutline,
   } = useFileNodeEditor({
     data,
     nodeIdRef,
@@ -80,6 +90,52 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
     onUpdate,
     readOnly,
   });
+
+  const mentionCandidates = getAllNodes ? getAllNodes().filter((n) => n.id !== node.id) : [];
+  const { mentionMenu, filteredMentions, insertMention, closeMention } = useNoteMentions({
+    editor,
+    candidates: mentionCandidates,
+    readOnly,
+    workspaceId,
+    interactions,
+  });
+
+  useEffect(() => {
+    if (
+      readOnly ||
+      !outlineOpen ||
+      slashMenu ||
+      mentionMenu ||
+      linkPrompt ||
+      findBarOpen
+    ) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target instanceof Node ? event.target : null;
+      const eventBelongsToThisNote =
+        (target && cardRef.current?.contains(target)) || editor?.isFocused;
+      if (!eventBelongsToThisNote) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      closeOutline();
+    };
+
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [
+    editor,
+    findBarOpen,
+    linkPrompt,
+    mentionMenu,
+    outlineOpen,
+    readOnly,
+    slashMenu,
+    closeOutline,
+  ]);
 
   // Publish this node's editor to the canvas-level registry so the
   // Ctrl/Cmd+F find bar can push its query into our NoteSearchExtension
@@ -165,19 +221,34 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
     (e: React.MouseEvent<HTMLDivElement>) => {
       const anchor = (e.target as HTMLElement).closest?.('a');
       const href = anchor?.getAttribute('href')?.trim();
-      if (!href || !/^https?:\/\//i.test(href)) return;
+      if (!href) return;
+      // A node mention focuses its target node instead of opening a URL.
+      const nodeLink = parseNodeLinkHref(href);
+      if (nodeLink) {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetWorkspaceId = nodeLink.workspaceId ?? workspaceId ?? '';
+        const targetNodeKnown = !getAllNodes || getAllNodes().some((item) => item.id === nodeLink.nodeId);
+        if (!targetNodeKnown && targetWorkspaceId === (workspaceId ?? '')) {
+          showStatus('Missing node');
+          return;
+        }
+        dispatchOpenNode({ workspaceId: targetWorkspaceId, nodeId: nodeLink.nodeId });
+        return;
+      }
+      if (!/^https?:\/\//i.test(href)) return;
       e.preventDefault();
       e.stopPropagation();
       openLink(href);
     },
-    [openLink],
+    [getAllNodes, openLink, showStatus, workspaceId],
   );
 
   const filePath = data.filePath;
   const fileName = filePath ? filePath.split('/').pop() : null;
 
   return (
-    <div className="note-card">
+    <div ref={cardRef} className="note-card">
       {!readOnly && (
         <FileNodeToolbar
           onOpenFile={handleOpenFile}
@@ -185,6 +256,8 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
           onSaveAs={handleSaveAs}
           onInsertImage={openImagePicker}
           onOpenFind={openFindBar}
+          onToggleOutline={toggleOutline}
+          outlineOpen={outlineOpen}
           statusText={statusText}
           modified={modified}
           fileName={fileName}
@@ -193,6 +266,10 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
       )}
 
       {!readOnly && findBarOpen && editor && <NoteFindBar editor={editor} onClose={closeFindBar} />}
+
+      {!readOnly && outlineOpen && editor && (
+        <NoteOutline editor={editor} onClose={closeOutline} />
+      )}
 
       {!readOnly && linkPrompt && (
         <NoteLinkPrompt
@@ -230,7 +307,18 @@ export const FileNodeBody = ({ node, onUpdate, workspaceId, readOnly = false }: 
           selectedIndex={slashMenu.index}
           items={filterCmds(slashMenu.query)}
           onSelect={handleSlashSelect}
-          onClose={() => setSlashMenu(null)}
+          onClose={interactions.closeSlashMenu}
+        />
+      )}
+
+      {!readOnly && mentionMenu && (
+        <NoteMentionMenu
+          x={mentionMenu.x}
+          y={mentionMenu.y}
+          items={filteredMentions}
+          selectedIndex={mentionMenu.index}
+          onSelect={insertMention}
+          onClose={closeMention}
         />
       )}
     </div>

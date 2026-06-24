@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode } from '../../types';
 import type { CanvasNodeRenameRequest } from '../../types/ui-interaction';
+import { OPEN_NODE_EVENT, type OpenNodeDetail } from '../../utils/openNodeBridge';
 
 interface WorkbenchNodeRequest {
   workspaceId: string;
@@ -135,6 +136,18 @@ export function useWorkbenchState({
     ensureWorkspaceNodesLoaded(workspaceId);
     setFocusRequest({ workspaceId, nodeId });
   }, [ensureWorkspaceNodesLoaded]);
+
+  // Note mentions (and other deep node links) dispatch OPEN_NODE_EVENT on the
+  // window; focus the referenced node through the same request pipeline.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<OpenNodeDetail>).detail;
+      if (!detail?.nodeId) return;
+      requestNodeFocus(detail.workspaceId || activeWorkspaceId, detail.nodeId);
+    };
+    window.addEventListener(OPEN_NODE_EVENT, handler);
+    return () => window.removeEventListener(OPEN_NODE_EVENT, handler);
+  }, [activeWorkspaceId, requestNodeFocus]);
 
   const requestActiveNodeFocus = useCallback((nodeId: string) => {
     requestNodeFocus(activeWorkspaceId, nodeId);

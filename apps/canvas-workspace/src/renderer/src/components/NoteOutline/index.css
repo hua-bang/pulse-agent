@@ -1,0 +1,113 @@
+.note-outline {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: var(--note-layer-panel, 50);
+  background: var(--surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card-hover);
+  width: 200px;
+  max-height: calc(100% - 16px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.note-outline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-light);
+  flex-shrink: 0;
+}
+
+.note-outline-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.note-outline-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+}
+
+.note-outline-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.note-outline-empty {
+  padding: 12px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.note-outline-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+}
+
+.note-outline-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-outline-item:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.note-outline-item--active {
+  background: var(--accent-soft, rgba(59, 130, 246, 0.12));
+  color: var(--accent, var(--text));
+}
+
+.note-outline-item--h1 {
+  padding-left: 6px;
+  font-weight: 600;
+}
+.note-outline-item--h2 {
+  padding-left: 16px;
+}
+.note-outline-item--h3 {
+  padding-left: 26px;
+  font-size: 11px;
+}
+.note-outline-item--h4 {
+  padding-left: 34px;
+  font-size: 11px;
+}
+.note-outline-item--h5 {
+  padding-left: 40px;
+  font-size: 11px;
+}
+.note-outline-item--h6 {
+  padding-left: 46px;
+  font-size: 11px;
+}

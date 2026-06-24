@@ -52,6 +52,7 @@
   --layer-fullscreen-chrome: 1010;   /* fullscreen chip */
   --layer-dock: 1100;                /* right dock: artifact / link previews */
   --layer-search: 1500;              /* find-in-canvas bar */
+  --layer-note-popover: 1550;        /* note slash, mention, and bubble menus */
   --layer-interaction-shield: 1800;  /* drag shield over webviews */
   --layer-modal: 1900;               /* settings drawers (with backdrop) */
   --layer-palette: 2000;             /* command palette */

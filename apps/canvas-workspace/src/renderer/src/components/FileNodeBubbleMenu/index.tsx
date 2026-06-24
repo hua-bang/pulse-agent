@@ -2,11 +2,11 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './index.css';
 import type { Editor } from '@tiptap/react';
-import type { BubbleState } from '../../hooks/useFileNodeEditor';
+import type { NoteBubbleState } from '../../hooks/useNoteInteractionController';
 
 interface Props {
   editor: Editor;
-  bubble: BubbleState;
+  bubble: NoteBubbleState;
   onOpenLinkPrompt: () => void;
 }
 

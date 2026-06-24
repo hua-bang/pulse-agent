@@ -59,7 +59,7 @@ export const SlashCommandMenu = ({
       role="listbox"
       aria-label={t('slashCommand.label')}
       aria-activedescendant={activeItem ? `${listboxId}-${activeItem.id}` : undefined}
-      style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 9000 }}
+      style={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 'var(--layer-note-popover)' }}
     >
       <div className="slash-menu-header">{t('slashCommand.blocks')}</div>
       {items.map((item, i) => (

@@ -4,6 +4,15 @@ import type { EditorState } from '@tiptap/pm/state';
 import type { EditorView } from '@tiptap/pm/view';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PMNode } from '@tiptap/pm/model';
+import {
+  buildSearchRegex,
+  collectMatches,
+  DEFAULT_SEARCH_OPTIONS,
+  type NoteSearchOptions,
+} from './noteSearchMatching';
+
+export { DEFAULT_SEARCH_OPTIONS } from './noteSearchMatching';
+export type { NoteSearchOptions } from './noteSearchMatching';
 
 export interface NoteSearchMatch {
   from: number;
@@ -12,6 +21,9 @@ export interface NoteSearchMatch {
 
 export interface NoteSearchState {
   query: string;
+  options: NoteSearchOptions;
+  /** True when `regex` is on and the query fails to compile. */
+  invalid: boolean;
   current: number;
   matches: NoteSearchMatch[];
   decorations: DecorationSet;
@@ -19,17 +31,18 @@ export interface NoteSearchState {
 
 export const noteSearchPluginKey = new PluginKey<NoteSearchState>('noteSearch');
 
-const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const findMatches = (doc: PMNode, query: string): NoteSearchMatch[] => {
-  if (!query) return [];
+const findMatches = (
+  doc: PMNode,
+  query: string,
+  options: NoteSearchOptions,
+): NoteSearchMatch[] => {
+  const re = buildSearchRegex(query, options);
+  if (!re) return [];
   const matches: NoteSearchMatch[] = [];
-  const re = new RegExp(escapeRegex(query), 'gi');
   doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(node.text)) !== null) {
-      matches.push({ from: pos + m.index, to: pos + m.index + m[0].length });
+    for (const { index, length } of collectMatches(node.text, re)) {
+      matches.push({ from: pos + index, to: pos + index + length });
     }
   });
   return matches;
@@ -47,6 +60,8 @@ const buildDecorations = (matches: NoteSearchMatch[], current: number, doc: PMNo
 
 const emptyState = (): NoteSearchState => ({
   query: '',
+  options: DEFAULT_SEARCH_OPTIONS,
+  invalid: false,
   current: 0,
   matches: [],
   decorations: DecorationSet.empty,
@@ -62,7 +77,7 @@ export const NoteSearchExtension = Extension.create({
           init: () => emptyState(),
           apply(tr, old) {
             const meta = tr.getMeta(noteSearchPluginKey) as
-              | { type: 'set'; query: string }
+              | { type: 'set'; query: string; options: NoteSearchOptions }
               | { type: 'navigate'; direction: 1 | -1 }
               | { type: 'setCurrent'; current: number }
               | { type: 'clear' }
@@ -70,10 +85,14 @@ export const NoteSearchExtension = Extension.create({
             if (meta) {
               if (meta.type === 'clear') return emptyState();
               if (meta.type === 'set') {
-                const matches = findMatches(tr.doc, meta.query);
-                const current = matches.length === 0 ? 0 : 0;
+                const invalid =
+                  meta.options.regex && !!meta.query && buildSearchRegex(meta.query, meta.options) === null;
+                const matches = findMatches(tr.doc, meta.query, meta.options);
+                const current = 0;
                 return {
                   query: meta.query,
+                  options: meta.options,
+                  invalid,
                   current,
                   matches,
                   decorations: buildDecorations(matches, current, tr.doc),
@@ -92,10 +111,10 @@ export const NoteSearchExtension = Extension.create({
               }
             }
             if (tr.docChanged && old.query) {
-              const matches = findMatches(tr.doc, old.query);
+              const matches = findMatches(tr.doc, old.query, old.options);
               const current = matches.length === 0 ? 0 : Math.min(old.current, matches.length - 1);
               return {
-                query: old.query,
+                ...old,
                 current,
                 matches,
                 decorations: buildDecorations(matches, current, tr.doc),
@@ -117,8 +136,12 @@ export const NoteSearchExtension = Extension.create({
 export const getNoteSearchState = (state: EditorState): NoteSearchState | null =>
   noteSearchPluginKey.getState(state) ?? null;
 
-export const setNoteSearch = (view: EditorView, query: string) => {
-  view.dispatch(view.state.tr.setMeta(noteSearchPluginKey, { type: 'set', query }));
+export const setNoteSearch = (
+  view: EditorView,
+  query: string,
+  options: NoteSearchOptions = DEFAULT_SEARCH_OPTIONS,
+) => {
+  view.dispatch(view.state.tr.setMeta(noteSearchPluginKey, { type: 'set', query, options }));
 };
 
 export const clearNoteSearch = (view: EditorView) => {
@@ -157,7 +180,7 @@ export const replaceCurrentMatch = (view: EditorView, replacement: string): bool
   const target = s.matches[s.current];
   if (!target) return false;
   const tr = view.state.tr.insertText(replacement, target.from, target.to);
-  tr.setMeta(noteSearchPluginKey, { type: 'set', query: s.query });
+  tr.setMeta(noteSearchPluginKey, { type: 'set', query: s.query, options: s.options });
   view.dispatch(tr);
   return true;
 };
@@ -171,7 +194,7 @@ export const replaceAllMatches = (view: EditorView, replacement: string): number
     const m = s.matches[i];
     tr = tr.insertText(replacement, m.from, m.to);
   }
-  tr.setMeta(noteSearchPluginKey, { type: 'set', query: s.query });
+  tr.setMeta(noteSearchPluginKey, { type: 'set', query: s.query, options: s.options });
   view.dispatch(tr);
   return s.matches.length;
 };

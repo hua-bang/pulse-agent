@@ -2,7 +2,7 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 50;
+  z-index: var(--note-layer-panel, 50);
   background: var(--surface);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
@@ -49,6 +49,47 @@
 
 .note-find-input:focus {
   border-color: var(--accent-border, var(--accent));
+}
+
+.note-find-input--invalid,
+.note-find-input--invalid:focus {
+  border-color: var(--danger, #e5484d);
+}
+
+.note-find-toggles {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.note-find-opt {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.note-find-opt:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text);
+}
+
+.note-find-opt--on {
+  background: var(--accent-soft, rgba(59, 130, 246, 0.14));
+  border-color: var(--accent-border, var(--accent));
+  color: var(--accent, var(--text));
 }
 
 .note-find-count {
