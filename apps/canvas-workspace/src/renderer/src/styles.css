@@ -21,9 +21,10 @@
   --accent-border: rgba(35, 131, 226, 0.45);
   --accent-file: #d9730d;
   --accent-term: #0f7b6c;
-  --accent-frame: #A594E0;
+  --accent-frame: #a594e0;
   --success: #1f7a4d;
   --error: #c0392b;
+  --text-warning: #b45309;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);

@@ -375,7 +375,7 @@
   height: 100%;
   min-height: 90px;
   border: 1px dashed rgba(74, 95, 148, 0.25);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.68);
   color: var(--text-secondary);
   display: flex;
@@ -441,7 +441,7 @@
 }
 
 .node-status-dot--running {
-  background: #10b981;
+  background: var(--agent-success);
   animation: nodeStatusPulse 1.8s ease-in-out infinite;
 }
 
@@ -450,7 +450,7 @@
 }
 
 .node-status-dot--error {
-  background: #e03e3e;
+  background: var(--agent-danger);
 }
 
 @keyframes nodeStatusPulse {
@@ -539,7 +539,7 @@
 }
 
 .node-status-label--running {
-  background: rgba(16, 185, 129, 0.12);
+  background: var(--agent-success-soft);
   color: #059669;
 }
 
@@ -550,7 +550,7 @@
 
 .node-status-label--error {
   background: rgba(224, 62, 62, 0.1);
-  color: #e03e3e;
+  color: var(--agent-danger);
 }
 
 /* Last active time label */
