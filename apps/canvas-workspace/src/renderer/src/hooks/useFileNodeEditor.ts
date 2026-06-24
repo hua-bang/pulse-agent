@@ -23,6 +23,13 @@ import { NoteSearchExtension } from '../editor/noteSearchExtension';
 import { toFileUrl } from '../utils/fileUrl';
 import { isImeComposing } from '../utils/ime';
 import { useNoteKeyboard } from './useNoteKeyboard';
+import {
+  insertImageAtPos,
+  insertImageAtSelection,
+  isImageUrl,
+  resolveWorkspaceId,
+  saveImageBlob,
+} from '../utils/noteImageInsert';
 
 const lowlight = createLowlight(common);
 
@@ -167,17 +174,6 @@ interface Options {
 
 const AUTO_SAVE_MS = 1500;
 
-const imageExtensionFromMime = (mimeType: string | undefined): string => {
-  const normalized = (mimeType ?? '')
-    .toLowerCase()
-    .replace(/^image\//, '')
-    .replace(/[^a-z0-9]/g, '');
-
-  if (!normalized) return 'png';
-  if (normalized === 'jpeg') return 'jpg';
-  return normalized;
-};
-
 export const useFileNodeEditor = ({
   data,
   nodeIdRef,
@@ -239,32 +235,39 @@ export const useFileNodeEditor = ({
         if (readOnly) return false;
         const items = Array.from(event.clipboardData?.items ?? []);
         const imageItem = items.find((i) => i.type.startsWith('image/'));
-        if (!imageItem) return false;
+        if (imageItem) {
+          const blob = imageItem.getAsFile();
+          if (!blob) return false;
+          event.preventDefault();
+          const wsId = resolveWorkspaceId(workspaceIdRef.current, dataRef.current.filePath);
+          void saveImageBlob(blob, wsId).then((src) => {
+            if (src) insertImageAtSelection(view, src);
+          });
+          return true;
+        }
+        // Paste a bare image URL → embed it directly.
+        const text = event.clipboardData?.getData('text/plain') ?? '';
+        if (isImageUrl(text)) {
+          event.preventDefault();
+          insertImageAtSelection(view, text.trim());
+          return true;
+        }
+        return false;
+      },
+      handleDrop: (view, event) => {
+        if (readOnly) return false;
+        const image = Array.from(event.dataTransfer?.files ?? []).find((f) =>
+          f.type.startsWith('image/'),
+        );
+        if (!image) return false;
         event.preventDefault();
-        const blob = imageItem.getAsFile();
-        if (!blob) return false;
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const dataUrl = reader.result as string;
-          const base64 = dataUrl.split(',')[1];
-          if (!base64) return;
-          const ext = imageExtensionFromMime(imageItem.type);
-          const api = window.canvasWorkspace?.file;
-          if (!api) return;
-          const wsId =
-            workspaceIdRef.current ??
-            dataRef.current.filePath.match(/canvas[/\\]([^/\\]+)[/\\]/)?.[1] ??
-            'default';
-          const res = await api.saveImage(wsId, base64, ext);
-          if (!res.ok || !res.filePath) return;
-          const src = toFileUrl(res.filePath);
-          const { state, dispatch } = view;
-          const imageNode = state.schema.nodes['image']?.create({ src });
-          if (imageNode) {
-            dispatch(state.tr.replaceSelectionWith(imageNode));
-          }
-        };
-        reader.readAsDataURL(blob);
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        const wsId = resolveWorkspaceId(workspaceIdRef.current, dataRef.current.filePath);
+        void saveImageBlob(image, wsId).then((src) => {
+          if (!src) return;
+          if (typeof pos === 'number') insertImageAtPos(view, src, pos);
+          else insertImageAtSelection(view, src);
+        });
         return true;
       },
     },
@@ -433,27 +436,9 @@ export const useFileNodeEditor = ({
   const insertImageFromFile = useCallback(
     async (file: File) => {
       if (readOnly || !editor) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const dataUrl = reader.result as string;
-        const base64 = dataUrl.split(',')[1];
-        if (!base64) return;
-        const ext = imageExtensionFromMime(file.type);
-        const api = window.canvasWorkspace?.file;
-        if (!api) return;
-        const wsId =
-          workspaceIdRef.current ??
-          dataRef.current.filePath.match(/canvas[/\\]([^/\\]+)[/\\]/)?.[1] ??
-          'default';
-        const res = await api.saveImage(wsId, base64, ext);
-        if (!res.ok || !res.filePath) return;
-        editor
-          .chain()
-          .focus()
-          .setImage({ src: toFileUrl(res.filePath) })
-          .run();
-      };
-      reader.readAsDataURL(file);
+      const wsId = resolveWorkspaceId(workspaceIdRef.current, dataRef.current.filePath);
+      const src = await saveImageBlob(file, wsId);
+      if (src) editor.chain().focus().setImage({ src }).run();
     },
     [editor, dataRef, workspaceIdRef, readOnly],
   );
