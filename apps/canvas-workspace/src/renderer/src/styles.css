@@ -31,6 +31,7 @@
   --shadow-drag: 0 8px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   --radius: 8px;
+  --radius-md: 8px;
   --radius-lg: 10px;
   --radius-sm: 6px;
   --font: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;

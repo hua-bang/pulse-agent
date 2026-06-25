@@ -10,7 +10,7 @@
   max-width: calc(100% - 32px);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md, 10px);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float), 0 6px 24px rgba(0, 0, 0, 0.10);
   z-index: var(--layer-search);
   font-family: var(--font);
