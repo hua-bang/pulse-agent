@@ -112,7 +112,7 @@
    * editor grows past a fixed-height frame. Height follows content. */
   height: auto;
   overflow: visible;
-  border-radius: var(--radius-md, 6px);
+  border-radius: var(--radius-sm);
   flex: none;
 }
 
@@ -127,7 +127,7 @@
   min-width: 32px;
   min-height: 28px;
   padding: 6px 10px;
-  border-radius: var(--radius-md, 6px);
+  border-radius: var(--radius-sm);
   outline: none;
   word-break: break-word;
   overflow-wrap: anywhere;
