@@ -91,14 +91,35 @@ const isPasteFromTypingContext = (event: ClipboardEvent): boolean => {
   return event.composedPath().some((target) => isTypingContext(target));
 };
 
+// A text node is a tiptap editor too, so it matches TYPING_CONTEXT_SELECTOR —
+// but, unlike note cards, it has no image support. We single it out so an image
+// pasted while a text node is focused (or while a stale selection still sits
+// inside one after clicking away) drops onto the canvas instead of vanishing.
+const TEXT_NODE_SELECTOR = '.text-node-body';
+
+const isInsideTextNode = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Node)) return false;
+  const element = target instanceof HTMLElement ? target : target.parentElement;
+  return Boolean(element?.closest(TEXT_NODE_SELECTOR));
+};
+
+const isTextNodePaste = (event: ClipboardEvent): boolean => {
+  if (isInsideTextNode(event.target)) return true;
+  if (isInsideTextNode(document.activeElement)) return true;
+  if (isInsideTextNode(document.getSelection()?.anchorNode ?? null)) return true;
+  return event.composedPath().some((target) => isInsideTextNode(target));
+};
+
 /**
  * Listens for `paste` events on the document and, when the clipboard
- * carries an image and the focus is NOT inside an editable field, saves
- * the image to disk and drops it onto the canvas as a new image node.
+ * carries an image and the focus is NOT inside an image-capable editor,
+ * saves the image to disk and drops it onto the canvas as a new image node.
  *
- * We deliberately skip typing contexts (tiptap editors, inputs) so that
- * pasting an image into a note still lands inside the note's editor via
- * its own `handlePaste` (see `useFileNodeEditor`).
+ * We deliberately skip typing contexts (note editors, inputs) for images so
+ * pasting an image into a note still lands inside the note's editor via its own
+ * `handlePaste` (see `useFileNodeEditor`). Text nodes are the exception — they
+ * can't hold images — so an image pasted there still becomes a canvas image
+ * node. Non-image clipboard (text / url) always skips every typing context.
  */
 export const useCanvasImagePaste = ({
   canvasId,
@@ -114,11 +135,13 @@ export const useCanvasImagePaste = ({
     if (!active) return;
 
     const handler = (e: ClipboardEvent) => {
-      if (isPasteFromTypingContext(e)) return;
       const items = e.clipboardData?.items;
       if (!items) return;
       const imageItem = Array.from(items).find((i) => i.type.startsWith('image/'));
+
       if (!imageItem) {
+        // Non-image clipboard → text / url node, but never hijack real typing.
+        if (isPasteFromTypingContext(e)) return;
         const text = getClipboardText(e).trim();
         if (!text) return;
         const normalizedUrl = normalizeReferenceUrl(text);
@@ -138,6 +161,11 @@ export const useCanvasImagePaste = ({
         onCreated?.({ ...node, ...patch });
         return;
       }
+
+      // Image clipboard → drop a new image node, unless an image-capable editor
+      // (note card, chat input, …) should absorb it. A focused text node can't
+      // hold an image, so we let the paste fall through to the canvas there.
+      if (isPasteFromTypingContext(e) && !isTextNodePaste(e)) return;
       const blob = imageItem.getAsFile();
       if (!blob) return;
       e.preventDefault();

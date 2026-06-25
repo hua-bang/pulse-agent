@@ -94,15 +94,15 @@ export const ReferenceCanvasNode = ({
         className="node-body node-body--reference"
         onMouseDown={handleNodeBodyMouseDown}
       >
-        {/* Keep the drag surface present even when the card is selected. A
-            reference is a compact card whose only other drag handle is the
-            small header pill, so without this a selected card can't be moved
-            by its body the way every other node can. The preview is therefore
-            view-only on the canvas — double-click (or the pill's open-source
-            button) jumps to the real node to interact with / edit it. Only
-            fullscreen drops the overlay, where interacting with the full-size
-            node is the whole point. */}
-        {isFullscreen ? null : (
+        {/* The transparent drag surface lets the whole card be moved by its
+            body and stops the embedded webview / iframe from swallowing the
+            mousedown (or stealing scroll / clicks while you pan the canvas).
+            We drop it once the card is selected: selecting signals intent to
+            use the content, so the preview turns interactive (scroll / click)
+            and the card is moved by its header pill instead. Deselecting
+            restores the overlay. Fullscreen drops it for the same reason —
+            interacting with the full-size node is the whole point. */}
+        {isFullscreen || isSelected ? null : (
           <div
             className="reference-drag-overlay"
             onMouseDown={handleHeaderMouseDown}
