@@ -101,13 +101,22 @@ export const ReferenceCanvasNode = ({
             use the content, so the preview turns interactive (scroll / click)
             and the card is moved by its header pill instead. Deselecting
             restores the overlay. Fullscreen drops it for the same reason —
-            interacting with the full-size node is the whole point. */}
+            interacting with the full-size node is the whole point. The selected
+            card keeps a small drag handle so movement stays available without
+            covering the preview. */}
         {isFullscreen || isSelected ? null : (
           <div
             className="reference-drag-overlay"
             onMouseDown={handleHeaderMouseDown}
             onClick={handleNodeClick}
             onDoubleClick={handleOpenReferenceSource}
+          />
+        )}
+        {isFullscreen || readOnly ? null : (
+          <div
+            className="reference-drag-handle"
+            onMouseDown={handleHeaderMouseDown}
+            aria-hidden="true"
           />
         )}
         {sourceNode ? (
