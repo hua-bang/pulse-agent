@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { useI18n } from "../../i18n";
@@ -11,6 +11,25 @@ export const TextSelectionBubble = ({ editor, editing }: { editor: Editor; editi
     e.preventDefault();
     e.stopPropagation();
   }, []);
+
+  const appendBubbleToBody = useCallback(() => document.body, []);
+
+  const bubbleOptions = useMemo(
+    () => ({
+      strategy: "fixed" as const,
+      placement: "top" as const,
+      offset: 8,
+      flip: true,
+      shift: { padding: 8 },
+    }),
+    []
+  );
+
+  const shouldShowBubble = useCallback(
+    ({ editor: currentEditor, state }: Parameters<NonNullable<React.ComponentProps<typeof BubbleMenu>["shouldShow"]>>[0]) =>
+      editing && currentEditor.isFocused && !state.selection.empty,
+    [editing]
+  );
 
   const applyTextColor = useCallback(
     (color: string) => {
@@ -42,16 +61,10 @@ export const TextSelectionBubble = ({ editor, editing }: { editor: Editor; editi
     <BubbleMenu
       className="text-selection-bubble-shell"
       editor={editor}
-      shouldShow={({ editor: currentEditor, state }) => editing && currentEditor.isFocused && !state.selection.empty}
-      appendTo={() => document.body}
+      shouldShow={shouldShowBubble}
+      appendTo={appendBubbleToBody}
       updateDelay={0}
-      options={{
-        strategy: "fixed",
-        placement: "top",
-        offset: 8,
-        flip: true,
-        shift: { padding: 8 },
-      }}
+      options={bubbleOptions}
     >
       <div
         className="text-selection-bubble"
