@@ -94,6 +94,20 @@ pnpm --filter canvas-workspace package:linux    # Linux AppImage + deb x64
 `typecheck` runs two tsconfigs (`tsconfig.json` for renderer, `tsconfig.node.json`
 for main). `dev:temp-home` runs against a throwaway `$HOME` sandbox.
 
+## Validation Policy
+
+Use judgment when choosing validation depth.
+
+For small renderer-only changes, prefer targeted tests and typecheck.
+
+For canvas interaction changes that affect drag/drop, selection, resize,
+keyboard shortcuts, zoom/pan, webview/iframe shielding, or multi-node behavior,
+consider running the harness when the changed behavior is hard to cover with a
+unit test or likely to regress visually.
+
+When skipping the harness for an interaction change, briefly state why in the
+final response and list the validation that was run instead.
+
 ## Canvas Agent & Model Config
 
 The AI chat feature is powered by `CanvasAgentService` (`src/main/agent/`), which
