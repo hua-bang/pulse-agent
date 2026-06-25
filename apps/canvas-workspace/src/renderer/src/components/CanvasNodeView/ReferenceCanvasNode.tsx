@@ -94,18 +94,17 @@ export const ReferenceCanvasNode = ({
         className="node-body node-body--reference"
         onMouseDown={handleNodeBodyMouseDown}
       >
-        {/* The transparent drag surface lets the whole card be moved by its
-            body and stops the embedded webview / iframe from swallowing the
-            mousedown (or stealing scroll / clicks while you pan the canvas).
-            We drop it once the card is selected: selecting signals intent to
-            use the content, so the preview turns interactive (scroll / click)
-            and the card is moved by its header pill instead. Deselecting
-            restores the overlay. Fullscreen drops it for the same reason —
-            interacting with the full-size node is the whole point. */}
+        {/* While the card is unselected this transparent shield sits above the
+            preview so the embedded webview / iframe can't swallow the click (or
+            steal scroll while you pan the canvas) — a single click just selects
+            the card. Selecting drops the shield so the preview turns interactive
+            (scroll / click); the card is then moved by its header, never by
+            dragging the body, so interacting with the content can't turn into an
+            accidental card drag. Fullscreen drops it for the same reason. */}
         {isFullscreen || isSelected ? null : (
           <div
-            className="reference-drag-overlay"
-            onMouseDown={handleHeaderMouseDown}
+            className="reference-select-overlay"
+            onMouseDown={handleNodeBodyMouseDown}
             onClick={handleNodeClick}
             onDoubleClick={handleOpenReferenceSource}
           />

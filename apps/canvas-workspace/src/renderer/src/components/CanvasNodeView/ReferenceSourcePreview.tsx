@@ -20,11 +20,11 @@ interface ReferenceSourcePreviewProps {
  * Renders the referenced node as a preview inside the reference card.
  *
  * The inner node is intentionally NOT forced `embedded`: it keeps its own
- * transform-based stacking context, which the `.reference-drag-overlay`
- * depends on to stay above the preview and intercept the drag mousedown.
- * Forcing `embedded` sets `transform: none`, dropping that context — webview /
- * iframe content then composites above the overlay and the card can no longer
- * be dragged.
+ * transform-based stacking context, which the `.reference-select-overlay`
+ * depends on to stay above the preview while the card is unselected. Forcing
+ * `embedded` sets `transform: none`, dropping that context — webview / iframe
+ * content then composites above the overlay, so the selecting click would fall
+ * through to the guest and the card could never be selected from its preview.
  *
  * The reference card owns the header chrome (badge, source label, open-source,
  * close), so the preview's own close / fullscreen / resize controls are

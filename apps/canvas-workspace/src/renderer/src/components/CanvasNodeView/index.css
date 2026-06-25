@@ -331,19 +331,16 @@
   height: 100%;
 }
 
-/* Sits above the embedded readonly node so iframes / webviews / terminals
- * can't swallow the mousedown. Cursor mirrors the regular header so users
- * know the whole surface is grabbable. */
-.reference-drag-overlay {
+/* Sits above the embedded readonly node while the card is unselected so
+ * iframes / webviews / terminals can't swallow the selecting click. A single
+ * click selects the card, which drops this shield and makes the preview
+ * interactive; the card itself is moved by its header, not by the body. */
+.reference-select-overlay {
   position: absolute;
   inset: 0;
   z-index: 4;
-  cursor: grab;
+  cursor: pointer;
   background: transparent;
-}
-
-.reference-drag-overlay:active {
-  cursor: grabbing;
 }
 
 .node-body--reference > .canvas-node--readonly,
@@ -357,9 +354,9 @@
  * close / fullscreen / resize controls that cover the content and duplicate
  * the card's close button. We suppress them here — rather than rendering the
  * inner node `embedded` — so the preview keeps its transform-based stacking
- * context, which `.reference-drag-overlay` relies on to stay above the content
- * and keep the card draggable. The card's own header/handles are siblings of
- * `.node-body--reference`, so they are unaffected. */
+ * context, which `.reference-select-overlay` relies on to stay above the
+ * content while the card is unselected. The card's own header/handles are
+ * siblings of `.node-body--reference`, so they are unaffected. */
 .node-body--reference .node-focus,
 .node-body--reference .node-close,
 .node-body--reference .node-reference,
