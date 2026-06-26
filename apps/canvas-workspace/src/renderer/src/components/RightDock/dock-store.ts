@@ -18,6 +18,8 @@
  *    cleared the moment chat becomes the active visible tab.
  */
 
+import type { CodingAgent } from '../../utils/codingAgentCommand';
+
 export type DockPreviewTab =
   | { id: string; kind: 'artifact'; title: string; workspaceId: string; artifactId: string }
   | { id: string; kind: 'link'; title: string; url: string; faviconUrl?: string };
@@ -26,6 +28,8 @@ export interface DockTerminalTab {
   id: string;
   title?: string;
   ordinal: number;
+  /** Coding agent currently running in the terminal, if any — drives the tab icon. */
+  runningAgent?: CodingAgent;
 }
 
 export interface DockTerminalWorkspaceState {
@@ -333,6 +337,26 @@ export class DockStore {
       ...workspace,
       tabs: workspace.tabs.map((item) =>
         (item.id === id ? { ...item, title: trimmed } : item)),
+    });
+  }
+
+  /**
+   * Live update of the coding agent running in a terminal so the tab can swap
+   * its icon (e.g. to the Claude/Codex glyph). Pass `null` once the agent exits
+   * and the shell prompt returns. Targets a workspace explicitly because a
+   * background workspace's terminal can report independently of the active one.
+   */
+  setTerminalAgent(workspaceId: string, id: string, agent: CodingAgent | null): void {
+    const workspace = this.state.terminalTabsByWorkspace[workspaceId];
+    if (!workspace) return;
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (!tab) return;
+    const nextAgent = agent ?? undefined;
+    if (tab.runningAgent === nextAgent) return;
+    this.commitTerminalWorkspace(workspaceId, {
+      ...workspace,
+      tabs: workspace.tabs.map((item) =>
+        (item.id === id ? { ...item, runningAgent: nextAgent } : item)),
     });
   }
 

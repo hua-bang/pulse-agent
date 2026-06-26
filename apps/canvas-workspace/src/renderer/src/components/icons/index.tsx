@@ -48,6 +48,33 @@ export const CodingAgentIcon = ({ size = 18, className, strokeWidth = 1.35 }: Ic
   </svg>
 );
 
+/**
+ * Anthropic / Claude mark — a radiating burst, rendered in the brand orange so
+ * it reads as "Claude is running" regardless of the surrounding tab text colour.
+ */
+export const ClaudeIcon = ({ size = 14, className }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <g stroke="#D97757" strokeWidth="1.3" strokeLinecap="round">
+      <path d="M8 1.8v12.4M1.8 8h12.4M3.6 3.6l8.8 8.8M12.4 3.6l-8.8 8.8" />
+    </g>
+  </svg>
+);
+
+/**
+ * OpenAI / Codex mark — a hexagonal knot with a hollow core, in the brand green.
+ */
+export const CodexIcon = ({ size = 14, className }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
+    <path
+      d="M8 1.9l5 2.85v5.7L8 13.3 3 10.45v-5.7L8 1.9z"
+      stroke="#10A37F"
+      strokeWidth="1.25"
+      strokeLinejoin="round"
+    />
+    <circle cx="8" cy="7.6" r="1.7" stroke="#10A37F" strokeWidth="1.2" />
+  </svg>
+);
+
 export const SettingsIcon = ({ size = 16, className, strokeWidth = 1.35 }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" className={className}>
     <path

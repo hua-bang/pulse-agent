@@ -267,6 +267,26 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().tabs[0].title).toBe('Artifact');
   });
 
+  it('tracks the running coding agent on a terminal tab and clears it', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    dock.openTerminal();
+
+    dock.setTerminalAgent('ws-a', TERMINAL_TAB_ID, 'claude');
+    expect(dock.getSnapshot().terminalTabs[0].runningAgent).toBe('claude');
+
+    dock.setTerminalAgent('ws-a', TERMINAL_TAB_ID, 'codex');
+    expect(dock.getSnapshot().terminalTabs[0].runningAgent).toBe('codex');
+
+    dock.setTerminalAgent('ws-a', TERMINAL_TAB_ID, null);
+    expect(dock.getSnapshot().terminalTabs[0].runningAgent).toBeUndefined();
+
+    // Unknown workspace / terminal ids are ignored.
+    dock.setTerminalAgent('ws-missing', TERMINAL_TAB_ID, 'claude');
+    dock.setTerminalAgent('ws-a', terminalTabId(9), 'claude');
+    expect(dock.getSnapshot().terminalTabs[0].runningAgent).toBeUndefined();
+  });
+
   it('chat activity sets unread only while chat is not the visible tab', () => {
     const dock = new DockStore();
     dock.openChat();

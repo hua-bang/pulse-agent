@@ -49,6 +49,7 @@ import { useI18n } from '../../i18n';
 import { LinkTabView } from '../LinkDrawer';
 import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
+import type { CodingAgent } from '../../utils/codingAgentCommand';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
 import './index.css';
@@ -106,6 +107,7 @@ export function useRightDock(): {
   newTerminal: () => void;
   toggleTerminal: () => void;
   closeTerminal: (id?: string) => void;
+  setTerminalAgent: (workspaceId: string, terminalId: string, agent: CodingAgent | null) => void;
   collapse: () => void;
   notifyChatActivity: () => void;
 } {
@@ -120,6 +122,8 @@ export function useRightDock(): {
       newTerminal: () => store.newTerminal(),
       toggleTerminal: () => store.toggleTerminal(),
       closeTerminal: (id?: string) => store.closeTerminal(id),
+      setTerminalAgent: (workspaceId: string, terminalId: string, agent: CodingAgent | null) =>
+        store.setTerminalAgent(workspaceId, terminalId, agent),
       collapse: () => store.collapse(),
       notifyChatActivity: () => store.notifyChatActivity(),
     }),

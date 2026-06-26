@@ -17,8 +17,9 @@ import { useI18n } from '../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
 import {
   appendTerminalOutputTail,
+  detectCodingAgent,
   hasLikelyReturnedToShellPrompt,
-  isCodingAgentCommand,
+  type CodingAgent,
 } from '../../utils/codingAgentCommand';
 import './index.css';
 
@@ -31,6 +32,8 @@ interface WorkspaceTerminalDockProps {
   nodes: CanvasNode[];
   open: boolean;
   onClose: () => void;
+  /** Fired when a coding agent (claude/codex) starts or exits in this terminal. */
+  onAgentChange?: (agent: CodingAgent | null) => void;
   placement?: 'bottom' | 'pane';
 }
 
@@ -75,6 +78,7 @@ export const WorkspaceTerminalDock = ({
   nodes,
   open,
   onClose,
+  onAgentChange,
   placement = 'bottom',
 }: WorkspaceTerminalDockProps) => {
   const { t } = useI18n();
@@ -97,8 +101,10 @@ export const WorkspaceTerminalDock = ({
   const terminalOutputTailRef = useRef('');
   const nodesRef = useRef(nodes);
   const rootFolderRef = useRef(rootFolder);
+  const onAgentChangeRef = useRef(onAgentChange);
   nodesRef.current = nodes;
   rootFolderRef.current = rootFolder;
+  onAgentChangeRef.current = onAgentChange;
   heightRef.current = height;
 
   const sessionId = useMemo(
@@ -153,16 +159,19 @@ export const WorkspaceTerminalDock = ({
   }, []);
 
   const finishCodingAgentHint = useCallback(() => {
+    if (!codingAgentActiveRef.current) return;
     codingAgentActiveRef.current = false;
     terminalOutputTailRef.current = '';
     setMentionHintVisible(false);
+    onAgentChangeRef.current?.(null);
   }, []);
 
-  const startCodingAgentHint = useCallback(() => {
+  const startCodingAgentHint = useCallback((agent: CodingAgent) => {
     if (codingAgentActiveRef.current) return;
     codingAgentActiveRef.current = true;
     terminalOutputTailRef.current = '';
     setMentionHintVisible(true);
+    onAgentChangeRef.current?.(agent);
   }, []);
 
   const captureTerminalOutput = useCallback((data: string) => {
@@ -178,7 +187,8 @@ export const WorkspaceTerminalDock = ({
       if (ch === '\r' || ch === '\n') {
         const command = commandInputRef.current;
         commandInputRef.current = '';
-        if (isCodingAgentCommand(command)) startCodingAgentHint();
+        const agent = detectCodingAgent(command);
+        if (agent) startCodingAgentHint(agent);
       } else if (ch === '\x7f' || ch === '\b') {
         commandInputRef.current = commandInputRef.current.slice(0, -1);
       } else if (ch === '\x15') {
@@ -312,6 +322,7 @@ export const WorkspaceTerminalDock = ({
       fitRef.current = null;
       spawnedRef.current = false;
       cleanupRef.current = null;
+      if (codingAgentActiveRef.current) onAgentChangeRef.current?.(null);
     };
   }, []);
 

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useI18n } from '../../i18n';
-import { NodeTypeIcon } from '../icons';
+import { ClaudeIcon, CodexIcon, NodeTypeIcon } from '../icons';
 import type { DockTerminalTab } from './dock-store';
 
 interface TerminalDockTabProps {
@@ -91,7 +91,13 @@ export const TerminalDockTab = ({
         }}
       >
         <span className="right-dock__tab-icon right-dock__tab-icon--terminal">
-          <NodeTypeIcon type="terminal" size={14} />
+          {tab.runningAgent === 'claude' ? (
+            <ClaudeIcon size={14} />
+          ) : tab.runningAgent === 'codex' ? (
+            <CodexIcon size={14} />
+          ) : (
+            <NodeTypeIcon type="terminal" size={14} />
+          )}
         </span>
         <span className={`right-dock__tab-title${editing ? ' right-dock__tab-title--editing' : ''}`}>
           {title}

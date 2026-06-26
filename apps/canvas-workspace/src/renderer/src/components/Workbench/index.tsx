@@ -497,6 +497,8 @@ export const Workbench: React.FC<WorkbenchProps> = ({
         activeTerminalTabId={dockState.activeTerminalTabId}
         open={terminalDockOpen}
         onClose={dock.closeTerminal}
+        onAgentChange={(workspaceId, terminalId, agent) =>
+          dock.setTerminalAgent(workspaceId, terminalId, agent)}
       />
       </FileNodeEditorRegistryProvider>
     </>

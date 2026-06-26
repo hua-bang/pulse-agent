@@ -4,6 +4,7 @@ import { WorkspaceTerminalDock } from '../WorkspaceTerminalDock';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import type { CanvasNode } from '../../types';
 import type { DockTerminalWorkspaceState } from '../RightDock';
+import type { CodingAgent } from '../../utils/codingAgentCommand';
 
 interface WorkspaceTerminalPortalProps {
   activeWorkspaceId: string;
@@ -14,6 +15,7 @@ interface WorkspaceTerminalPortalProps {
   activeTerminalTabId?: string;
   open: boolean;
   onClose: (id?: string) => void;
+  onAgentChange: (workspaceId: string, terminalId: string, agent: CodingAgent | null) => void;
 }
 
 export const WorkspaceTerminalPortal = ({
@@ -25,6 +27,7 @@ export const WorkspaceTerminalPortal = ({
   activeTerminalTabId,
   open,
   onClose,
+  onAgentChange,
 }: WorkspaceTerminalPortalProps) => {
   const terminalHost = useRightDockTerminalHost();
   if (!terminalHost) return null;
@@ -49,6 +52,7 @@ export const WorkspaceTerminalPortal = ({
               nodes={allNodes[ws.id] || []}
               open={visible && open}
               onClose={() => onClose(tab.id)}
+              onAgentChange={(agent) => onAgentChange(ws.id, tab.id, agent)}
               placement="pane"
             />
           </div>
