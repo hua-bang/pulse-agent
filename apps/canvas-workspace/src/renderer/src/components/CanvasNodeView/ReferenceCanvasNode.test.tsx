@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { createRef } from 'react';
+import { createRef, type MouseEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -54,19 +54,38 @@ afterEach(() => {
 });
 
 describe('ReferenceCanvasNode', () => {
-  it('keeps a drag target available while the reference preview is selected', () => {
+  it('keeps clicks in selected reference content away from the drag target', () => {
+    const handleHeaderMouseDown = vi.fn();
+    const handleNodeBodyMouseDown = vi.fn((e: MouseEvent) => e.stopPropagation());
+
+    renderReferenceNode({
+      handleHeaderMouseDown,
+      handleNodeBodyMouseDown,
+      isSelected: true,
+    });
+
+    const source = host?.querySelector('[data-testid="reference-source"]');
+    expect(source).toBeInstanceOf(HTMLElement);
+    expect(host?.querySelector('.node-body--reference > .reference-drag-handle')).toBeNull();
+
+    source?.dispatchEvent(new globalThis.MouseEvent('mousedown', { bubbles: true, button: 0 }));
+
+    expect(handleNodeBodyMouseDown).toHaveBeenCalledTimes(1);
+    expect(handleHeaderMouseDown).not.toHaveBeenCalled();
+  });
+
+  it('keeps the drag handle active even before selection', () => {
     const handleHeaderMouseDown = vi.fn();
 
     renderReferenceNode({
       handleHeaderMouseDown,
-      isSelected: true,
+      isSelected: false,
     });
 
     const dragHandle = host?.querySelector('.reference-drag-handle');
     expect(dragHandle).toBeInstanceOf(HTMLElement);
-    expect(host?.querySelector('.reference-drag-overlay')).toBeNull();
 
-    dragHandle?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+    dragHandle?.dispatchEvent(new globalThis.MouseEvent('mousedown', { bubbles: true, button: 0 }));
 
     expect(handleHeaderMouseDown).toHaveBeenCalledTimes(1);
   });

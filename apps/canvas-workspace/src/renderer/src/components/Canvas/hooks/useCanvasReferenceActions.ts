@@ -64,6 +64,15 @@ export const useCanvasReferenceActions = ({
         offsetX = viewportCenter.x - (bounds.minX + bounds.maxX) / 2;
         offsetY = viewportCenter.y - (bounds.minY + bounds.maxY) / 2;
       }
+      if (container && templates.length === 1 && templates[0]?.data && 'typeSnapshot' in templates[0].data && templates[0].data.typeSnapshot === 'iframe') {
+        const viewportWidth = container.clientWidth;
+        const minVisibleLeft = 24;
+        const maxVisibleRight = Math.max(minVisibleLeft + templates[0].width, viewportWidth - 24);
+        offsetX = Math.min(
+          Math.max(templates[0].x + offsetX, minVisibleLeft),
+          maxVisibleRight - templates[0].width,
+        ) - templates[0].x;
+      }
       const created: CanvasNode[] = [];
       for (const template of templates) {
         const node = addNode('reference', template.x + offsetX, template.y + offsetY);
@@ -94,7 +103,12 @@ export const useCanvasReferenceActions = ({
     );
     const next = createReferenceNode(referencePlacementRequest, center.x, center.y);
     if (!next) return;
-    const node = addNode('reference', center.x - next.width / 2, center.y - next.height / 2);
+    const nodeX = center.x - next.width / 2;
+    const isIframeReference = next.data && 'typeSnapshot' in next.data && next.data.typeSnapshot === 'iframe';
+    const nextX = isIframeReference
+      ? Math.max(nodeX, screenToCanvas(rect.left + 24, rect.top, container).x)
+      : nodeX;
+    const node = addNode('reference', nextX, center.y - next.height / 2);
     updateNode(node.id, {
       title: next.title,
       ref: next.ref,

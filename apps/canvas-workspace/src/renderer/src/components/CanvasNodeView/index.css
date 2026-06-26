@@ -106,7 +106,12 @@
   background: var(--accent-light);
   color: var(--accent);
   box-shadow: 0 1px 3px rgba(55, 53, 47, 0.08);
+  cursor: default;
   font-size: 10px;
+}
+
+.canvas-node--reference > .node-header:active {
+  cursor: default;
 }
 
 .canvas-node--reference > .node-header .node-title {
@@ -331,19 +336,47 @@
   height: 100%;
 }
 
-/* Sits above the embedded readonly node so iframes / webviews / terminals
- * can't swallow the mousedown. Cursor mirrors the regular header so users
- * know the whole surface is grabbable. */
+/* Invisible click/double-click layer above the embedded source. It deliberately
+ * does not handle mousedown: reference movement is handle-only, so iframe /
+ * webview pointer capture can never turn content interaction into node drag. */
 .reference-drag-overlay {
   position: absolute;
   inset: 0;
   z-index: 4;
-  cursor: grab;
+  cursor: default;
   background: transparent;
+  pointer-events: none;
 }
 
 .reference-drag-overlay:active {
-  cursor: grabbing;
+  cursor: default;
+}
+
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-header,
+.canvas-node--reference.canvas-node--selected .node-body--reference .text-node-body,
+.canvas-node--reference.canvas-node--selected .node-body--reference .image-node-body,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--shape,
+.canvas-node--reference.canvas-node--selected .node-body--reference .shape-node-body,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--mindmap,
+.canvas-node--reference.canvas-node--selected .node-body--reference .mindmap-node-body {
+  cursor: default;
+}
+
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-header:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .text-node-body:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .image-node-body:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--shape:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .shape-node-body:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-body--mindmap:active,
+.canvas-node--reference.canvas-node--selected .node-body--reference .mindmap-node-body:active {
+  cursor: default;
+}
+
+/* Selected references expose the source preview as real content. Keep the
+ * inner preview's native drag affordances from advertising drag — dragging the
+ * reference is handled by the outer source chip or the unselected overlay. */
+.canvas-node--reference.canvas-node--selected .node-body--reference .node-title {
+  cursor: default;
 }
 
 .node-body--reference > .canvas-node--readonly,
@@ -355,11 +388,8 @@
  * close), so the inner source preview must not also draw its own node chrome.
  * An editable source (readOnly === false) would otherwise render floating
  * close / fullscreen / resize controls that cover the content and duplicate
- * the card's close button. We suppress them here — rather than rendering the
- * inner node `embedded` — so the preview keeps its transform-based stacking
- * context, which `.reference-drag-overlay` relies on to stay above the content
- * and keep the card draggable. The card's own header/handles are siblings of
- * `.node-body--reference`, so they are unaffected. */
+ * the card's close button. We suppress them here. The card's own header/handles
+ * are siblings of `.node-body--reference`, so they are unaffected. */
 .node-body--reference .node-focus,
 .node-body--reference .node-close,
 .node-body--reference .node-reference,

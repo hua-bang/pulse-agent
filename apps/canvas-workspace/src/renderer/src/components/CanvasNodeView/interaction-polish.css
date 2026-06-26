@@ -38,6 +38,7 @@
   cursor: grab;
   display: grid;
   opacity: 0;
+  pointer-events: none;
   place-items: center;
   transition: opacity 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
@@ -56,9 +57,9 @@
   cursor: grabbing;
 }
 
-.canvas-node--reference:hover .reference-drag-handle,
-.canvas-node--reference.canvas-node--selected .reference-drag-handle {
+.canvas-node--reference .reference-drag-handle {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .reference-drag-handle:hover {
