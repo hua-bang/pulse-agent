@@ -50,8 +50,8 @@ export const BashTool: Tool<
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
-      let stdout = '';
-      let stderr = '';
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
       let stdoutBytes = 0;
       let stderrBytes = 0;
       let outputTruncated = false;
@@ -62,19 +62,24 @@ export const BashTool: Tool<
 
       const collect = (chunk: Buffer, isStderr: boolean): void => {
         // Keep reading (draining the pipe) even past the cap so the child never
-        // blocks on a full stdout/stderr buffer; just stop accumulating.
+        // blocks on a full stdout/stderr buffer; just stop accumulating. Buffers
+        // are concatenated and decoded once at the end so a multi-byte UTF-8
+        // character split across chunk boundaries is never corrupted.
         if (isStderr) {
           if (stderrBytes >= MAX_OUTPUT_BYTES) return;
-          stderr += chunk.toString('utf-8');
+          stderrChunks.push(chunk);
           stderrBytes += chunk.length;
           if (stderrBytes >= MAX_OUTPUT_BYTES) outputTruncated = true;
           return;
         }
         if (stdoutBytes >= MAX_OUTPUT_BYTES) return;
-        stdout += chunk.toString('utf-8');
+        stdoutChunks.push(chunk);
         stdoutBytes += chunk.length;
         if (stdoutBytes >= MAX_OUTPUT_BYTES) outputTruncated = true;
       };
+
+      const decodeStdout = (): string => Buffer.concat(stdoutChunks).toString('utf-8');
+      const decodeStderr = (): string => Buffer.concat(stderrChunks).toString('utf-8');
 
       const killChild = (signal: NodeJS.Signals): void => {
         try {
@@ -113,14 +118,18 @@ export const BashTool: Tool<
       child.stderr?.on('data', (chunk: Buffer) => collect(chunk, true));
 
       child.on('error', (err: Error) => {
+        const stderr = decodeStderr();
         finish({
-          output: truncateOutput(stdout),
+          output: truncateOutput(decodeStdout()),
           error: truncateOutput(stderr || err.message || String(err)),
           exitCode: 1,
         });
       });
 
       child.on('close', (code: number | null) => {
+        const stdout = decodeStdout();
+        const stderr = decodeStderr();
+
         if (timedOut) {
           finish({
             output: truncateOutput(stdout),
