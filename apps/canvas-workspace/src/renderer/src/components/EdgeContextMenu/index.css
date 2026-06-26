@@ -1,7 +1,7 @@
 .context-menu-item--danger .context-menu-label strong {
-  color: #d3382c;
+  color: var(--error);
 }
 
 .context-menu-item--danger:hover {
-  background: rgba(211, 56, 44, 0.08);
+  background: rgba(192, 57, 43, 0.08);
 }

@@ -56,8 +56,8 @@
 
 .selection-toolbar__btn--danger:hover,
 .selection-toolbar__btn--danger:focus-visible {
-  background: rgba(224, 62, 62, 0.08);
-  color: #e03e3e;
+  background: rgba(192, 57, 43, 0.08);
+  color: var(--error);
 }
 
 .selection-toolbar__btn:disabled {
