@@ -9,12 +9,6 @@ import { delimiter, dirname, join, resolve } from "path";
 const sessions = new Map<string, pty.IPty>();
 const nodeRequire = createRequire(import.meta.url);
 
-// PTY output coalescing: flush buffered output to the renderer at most every
-// ~16ms (~60fps), or immediately once it grows past the size cap. This bounds
-// IPC message volume during bursty output without adding perceptible latency.
-const PTY_FLUSH_INTERVAL_MS = 16;
-const PTY_MAX_PENDING_CHARS = 64 * 1024;
-
 /**
  * Main-process observers of PTY session lifecycle. Data and exit events are
  * forwarded only to the renderer webContents that spawned a session, so
@@ -284,42 +278,15 @@ export const setupPtyIpc = () => {
         sessionInfos.set(id, info);
         notifyObservers((observer) => observer.onSpawn?.(info));
 
-        // Coalesce PTY output before forwarding to the renderer. node-pty emits
-        // many tiny chunks for fast/large output (e.g. `yes`, build logs); sending
-        // each one as its own IPC message floods the main↔renderer channel and
-        // freezes the app. Buffer chunks and flush on a short cadence (or when a
-        // size cap is hit) so a burst becomes a handful of larger messages.
-        // Main-process observers still receive the raw stream immediately so
-        // marker/exit detection stays real-time.
-        let pending = '';
-        let flushTimer: ReturnType<typeof setTimeout> | null = null;
-
-        const flushPending = (): void => {
-          if (flushTimer) {
-            clearTimeout(flushTimer);
-            flushTimer = null;
-          }
-          if (!pending) return;
-          const data = pending;
-          pending = '';
+        proc.onData((data: string) => {
           const win = _event.sender;
           if (!win.isDestroyed()) {
             win.send(`pty:data:${id}`, data);
           }
-        };
-
-        proc.onData((data: string) => {
           notifyObservers((observer) => observer.onData?.(info, data));
-          pending += data;
-          if (pending.length >= PTY_MAX_PENDING_CHARS) {
-            flushPending();
-          } else if (!flushTimer) {
-            flushTimer = setTimeout(flushPending, PTY_FLUSH_INTERVAL_MS);
-          }
         });
 
         proc.onExit(({ exitCode }) => {
-          flushPending();
           sessions.delete(id);
           sessionInfos.delete(id);
           const win = _event.sender;
