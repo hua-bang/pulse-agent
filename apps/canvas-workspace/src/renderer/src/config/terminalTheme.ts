@@ -2,6 +2,42 @@ import type { ITerminalOptions } from '@xterm/xterm';
 
 export const BASE_TERMINAL_FONT_SIZE = 12;
 
+/** Bounds and step for user-driven terminal zoom (Ctrl +/-). */
+export const MIN_TERMINAL_FONT_SIZE = 8;
+export const MAX_TERMINAL_FONT_SIZE = 32;
+export const TERMINAL_FONT_SIZE_STEP = 1;
+
+/** localStorage key for the user's preferred sidebar terminal font size. */
+export const TERMINAL_FONT_SIZE_STORAGE_KEY = 'canvas-workspace:terminal-font-size';
+
+/** Clamp a font size into the supported zoom range. */
+export const clampTerminalFontSize = (value: number): number => {
+  if (!Number.isFinite(value)) return BASE_TERMINAL_FONT_SIZE;
+  return Math.min(MAX_TERMINAL_FONT_SIZE, Math.max(MIN_TERMINAL_FONT_SIZE, Math.round(value)));
+};
+
+/** Read the persisted terminal font size, falling back to the base size. */
+export const readStoredTerminalFontSize = (): number => {
+  if (typeof window === 'undefined') return BASE_TERMINAL_FONT_SIZE;
+  try {
+    const raw = window.localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY);
+    if (!raw) return BASE_TERMINAL_FONT_SIZE;
+    return clampTerminalFontSize(Number(raw));
+  } catch {
+    return BASE_TERMINAL_FONT_SIZE;
+  }
+};
+
+/** Persist the user's preferred terminal font size (best-effort). */
+export const storeTerminalFontSize = (size: number): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(TERMINAL_FONT_SIZE_STORAGE_KEY, String(clampTerminalFontSize(size)));
+  } catch {
+    /* font size preference is best-effort */
+  }
+};
+
 export const TERMINAL_OPTIONS: ITerminalOptions = {
   fontSize: BASE_TERMINAL_FONT_SIZE,
   lineHeight: 1.4,

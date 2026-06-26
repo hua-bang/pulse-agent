@@ -2,7 +2,14 @@ import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
+import {
+  BASE_TERMINAL_FONT_SIZE,
+  TERMINAL_FONT_SIZE_STEP,
+  TERMINAL_OPTIONS,
+  clampTerminalFontSize,
+  readStoredTerminalFontSize,
+  storeTerminalFontSize,
+} from '../../config/terminalTheme';
 import type { CanvasNode } from '../../types';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
@@ -82,6 +89,7 @@ export const WorkspaceTerminalDock = ({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const fontSizeRef = useRef<number>(readStoredTerminalFontSize());
   const cleanupRef = useRef<(() => void) | null>(null);
   const spawnedRef = useRef(false);
   const codingAgentActiveRef = useRef(false);
@@ -117,6 +125,19 @@ export const WorkspaceTerminalDock = ({
     requestAnimationFrame(fitTerminal);
     setTimeout(fitTerminal, 80);
     setTimeout(fitTerminal, 240);
+  }, [fitTerminal]);
+
+  // Apply a new font size (Ctrl +/- zoom), then re-fit so cols/rows track the
+  // new glyph metrics, and persist the preference for the next session.
+  const applyFontSize = useCallback((next: number) => {
+    const term = termRef.current;
+    if (!term) return;
+    const clamped = clampTerminalFontSize(next);
+    if (term.options.fontSize === clamped) return;
+    fontSizeRef.current = clamped;
+    term.options.fontSize = clamped;
+    storeTerminalFontSize(clamped);
+    fitTerminal();
   }, [fitTerminal]);
 
   const refreshCwd = useCallback(() => {
@@ -172,7 +193,7 @@ export const WorkspaceTerminalDock = ({
     if (!containerRef.current || termRef.current || spawnedRef.current) return;
     spawnedRef.current = true;
 
-    const term = new Terminal(TERMINAL_OPTIONS);
+    const term = new Terminal({ ...TERMINAL_OPTIONS, fontSize: fontSizeRef.current });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
     term.open(containerRef.current);
@@ -185,9 +206,26 @@ export const WorkspaceTerminalDock = ({
     scheduleFit();
 
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      if (event.type === 'keydown' && event.key === '2' && (event.ctrlKey || event.metaKey) && !event.altKey) {
+      if (event.type !== 'keydown') return true;
+      const withModifier = (event.ctrlKey || event.metaKey) && !event.altKey;
+      if (event.key === '2' && withModifier) {
         setPickerOpen(true);
         return false;
+      }
+      // Ctrl/Cmd +/- to zoom the terminal font, Ctrl/Cmd+0 to reset.
+      if (withModifier) {
+        if (event.key === '=' || event.key === '+') {
+          applyFontSize(fontSizeRef.current + TERMINAL_FONT_SIZE_STEP);
+          return false;
+        }
+        if (event.key === '-' || event.key === '_') {
+          applyFontSize(fontSizeRef.current - TERMINAL_FONT_SIZE_STEP);
+          return false;
+        }
+        if (event.key === '0') {
+          applyFontSize(BASE_TERMINAL_FONT_SIZE);
+          return false;
+        }
       }
       return true;
     });
@@ -237,7 +275,7 @@ export const WorkspaceTerminalDock = ({
       resizeDisposable.dispose();
       api.kill(sessionId);
     };
-  }, [captureTerminalInput, captureTerminalOutput, refreshCwd, scheduleFit, sessionId, workspaceId]);
+  }, [applyFontSize, captureTerminalInput, captureTerminalOutput, refreshCwd, scheduleFit, sessionId, workspaceId]);
 
   useEffect(() => {
     if (!open) return;
