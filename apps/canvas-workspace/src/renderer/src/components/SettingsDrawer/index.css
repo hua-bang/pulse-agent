@@ -55,7 +55,7 @@
   margin: 3px 0 0;
   font-size: 16px;
   line-height: 1.2;
-  color: #37352f;
+  color: var(--text);
   word-break: break-word;
 }
 
@@ -63,7 +63,7 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: #9b9a97;
   font-size: 21px;
@@ -74,5 +74,5 @@
 
 .settings-drawer-close:hover {
   background: rgba(55, 53, 47, 0.07);
-  color: #37352f;
+  color: var(--text);
 }

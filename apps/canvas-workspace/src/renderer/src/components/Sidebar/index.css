@@ -894,7 +894,7 @@
 
 .sidebar-layer-context-menu {
   position: fixed;
-  z-index: 1000;
+  z-index: var(--layer-note-popover);
   min-width: 168px;
   padding: 4px;
   background: var(--surface);
@@ -924,12 +924,12 @@
 }
 
 .sidebar-layer-context-menu-item--danger {
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-item--danger:hover {
   background: rgba(192, 57, 43, 0.08);
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-separator {
