@@ -339,7 +339,7 @@
 
 .plugin-tool-empty {
   padding: 7px 9px 6px;
-  color: var(--text-tertiary);
+  color: var(--text-muted);
   font-size: 11px;
   line-height: 1.35;
 }

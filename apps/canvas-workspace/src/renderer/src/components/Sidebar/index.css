@@ -22,20 +22,20 @@
 
 .sidebar-install-message {
   font-size: 11px;
-  color: var(--text-secondary, #666);
+  color: var(--text-secondary);
   padding: 4px 12px 4px 32px;
   white-space: pre-wrap;
   line-height: 1.4;
 }
 
 .sidebar-install-message--warn {
-  color: var(--text-warning, #b45309);
+  color: var(--text-warning);
 }
 
 .sidebar-footer {
   margin-top: auto;
   padding: 8px 8px 12px;
-  border-top: 1px solid var(--border-light, rgba(55, 53, 47, 0.07));
+  border-top: 1px solid var(--border-light);
 }
 
 .sidebar-footer-btn {
@@ -47,7 +47,7 @@
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-secondary, rgba(55, 53, 47, 0.65));
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -56,7 +56,7 @@
 
 .sidebar-footer-btn:hover {
   background: rgba(55, 53, 47, 0.05);
-  color: var(--text, #37352f);
+  color: var(--text);
 }
 
 /* ---- Top-level view nav (Canvas / AI Chat) ---- */
@@ -698,8 +698,8 @@
   height: 26px;
   padding: 0 8px;
   border: 1.5px solid var(--accent-border);
-  border-radius: 8px;
-  background: #ffffff;
+  border-radius: var(--radius);
+  background: var(--surface);
   font-size: 12px;
   color: var(--text);
   outline: none;
@@ -897,9 +897,9 @@
   z-index: 1000;
   min-width: 168px;
   padding: 4px;
-  background: var(--bg, #ffffff);
+  background: var(--surface);
   border: 1px solid var(--border-light);
-  border-radius: var(--radius-md, 6px);
+  border-radius: var(--radius-sm);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.06);
 }
 
