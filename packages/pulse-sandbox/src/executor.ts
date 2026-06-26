@@ -16,7 +16,6 @@ interface RunnerRequest {
   code: string;
   input: unknown;
   maxOutputChars: number;
-  timeoutMs: number;
 }
 
 interface RunnerSuccessMessage {
@@ -39,12 +38,6 @@ interface RunnerErrorMessage {
 type RunnerMessage = RunnerSuccessMessage | RunnerErrorMessage;
 
 const DEFAULT_TIMEOUT_MS = 2_000;
-// Grace window added on top of the requested timeout before the parent
-// force-kills the child. The runner enforces the real deadline in-process via
-// the VM `timeout`, so this only matters for hangs the VM can't interrupt
-// (e.g. a promise that never resolves); it gives the runner a moment to report
-// its own timeout error first.
-const KILL_GRACE_MS = 500;
 const DEFAULT_MEMORY_LIMIT_MB = 64;
 const DEFAULT_MAX_OUTPUT_CHARS = 20_000;
 const DEFAULT_MAX_CODE_LENGTH = 20_000;
@@ -240,7 +233,7 @@ export function createJsExecutor(options: JsExecutorOptions = {}): JsExecutor {
 
           timedOut = true;
           child?.kill('SIGKILL');
-        }, effectiveTimeoutMs + KILL_GRACE_MS);
+        }, effectiveTimeoutMs);
 
         const collectStreamChunk = (source: 'stdout' | 'stderr', chunk: string): void => {
           const currentBuffer = source === 'stdout' ? stdoutBuffer : stderrBuffer;
@@ -361,8 +354,7 @@ export function createJsExecutor(options: JsExecutorOptions = {}): JsExecutor {
         const payload: RunnerRequest = {
           code: request.code,
           input: request.input,
-          maxOutputChars,
-          timeoutMs: effectiveTimeoutMs
+          maxOutputChars
         };
 
         try {

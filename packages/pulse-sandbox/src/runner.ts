@@ -5,7 +5,6 @@ interface RunnerRequest {
   code: string;
   input: unknown;
   maxOutputChars: number;
-  timeoutMs?: number;
 }
 
 interface RunnerSuccessMessage {
@@ -154,14 +153,7 @@ async function executeInSandbox(payload: RunnerRequest): Promise<RunnerMessage> 
     const context = buildSandbox(payload.input, consoleProxy);
     const wrappedCode = `'use strict';\n(async () => {\n${payload.code}\n})()`;
     const script = new vm.Script(wrappedCode, { filename: 'pulse-sandbox-user-code.js' });
-    // Interrupt synchronous runaway code (e.g. `while (true) {}`) inside the VM
-    // at the deadline instead of pinning a CPU core until the parent's SIGKILL
-    // backstop fires. `timeout` only bounds the synchronous portion of the run;
-    // async hangs (a promise that never resolves) are still caught by the
-    // parent process timeout.
-    const runOptions =
-      payload.timeoutMs && payload.timeoutMs > 0 ? { timeout: payload.timeoutMs } : undefined;
-    const result = await script.runInContext(context, runOptions);
+    const result = await script.runInContext(context);
 
     return {
       type: 'success',
