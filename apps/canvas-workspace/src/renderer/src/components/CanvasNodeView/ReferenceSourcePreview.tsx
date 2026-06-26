@@ -60,7 +60,10 @@ export const ReferenceSourcePreview = ({
     workspaceName={workspaceLabel}
     isDragging={false}
     isResizing={false}
-    isSelected={isSelected}
+    // The outer reference card owns selection and drag affordances. Treat the
+    // inner preview as unselected content so iframe/webview selection chrome
+    // does not enable hover-time pointer behavior inside the embedded page.
+    isSelected={false}
     isHighlighted={false}
     onDragStart={() => undefined}
     onResizeStart={() => undefined}

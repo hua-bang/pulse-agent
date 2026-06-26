@@ -187,10 +187,9 @@ export const useCanvasMouseHandlers = ({
 
   const handleSurfaceDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
-      if (e.button === 0 && !e.altKey) {
-        isDraggingRef.current = true;
-      }
+      const shouldTrackDrag = e.button === 0 && !e.altKey;
       onDragStart(e, node);
+      isDraggingRef.current = shouldTrackDrag && e.defaultPrevented;
     },
     [onDragStart],
   );
@@ -304,9 +303,9 @@ export const useCanvasMouseHandlers = ({
   const cursorClass = activeTool === 'hand'
     ? ' canvas-container--hand'
     : shapeToolActive ? ' canvas-container--shape'
-    : resizingId ? ' canvas-container--resizing'
-    : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
-    : '';
+      : resizingId ? ' canvas-container--resizing'
+        : (marquee.active || isDraggingRef.current || isEdgeDragging(edgeInteractionState)) ? ' canvas-container--selecting'
+          : '';
 
   const edgeDragging = isEdgeDragging(edgeInteractionState);
   const interactionShieldActive =

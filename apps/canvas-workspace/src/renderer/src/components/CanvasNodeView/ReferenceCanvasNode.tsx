@@ -56,7 +56,7 @@ export const ReferenceCanvasNode = ({
     <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
       <div
         className="node-header"
-        onMouseDown={isFullscreen ? undefined : handleHeaderMouseDown}
+        onMouseDown={(e) => e.stopPropagation()}
       >
         <NodeTypeBadge type="reference" />
         <span
@@ -90,33 +90,24 @@ export const ReferenceCanvasNode = ({
           </button>
         )}
       </div>
+      {isFullscreen || readOnly ? null : (
+        <div
+          className="reference-drag-handle"
+          onMouseDown={handleHeaderMouseDown}
+          aria-hidden="true"
+        />
+      )}
       <div
         className="node-body node-body--reference"
         onMouseDown={handleNodeBodyMouseDown}
       >
-        {/* The transparent drag surface lets the whole card be moved by its
-            body and stops the embedded webview / iframe from swallowing the
-            mousedown (or stealing scroll / clicks while you pan the canvas).
-            We drop it once the card is selected: selecting signals intent to
-            use the content, so the preview turns interactive (scroll / click)
-            and the card is moved by its header pill instead. Deselecting
-            restores the overlay. Fullscreen drops it for the same reason —
-            interacting with the full-size node is the whole point. The selected
-            card keeps a small drag handle so movement stays available without
-            covering the preview. */}
-        {isFullscreen || isSelected ? null : (
+        {/* Reference cards use exactly one drag affordance: the floating handle
+            at the top-left. The embedded source stays interactive at every
+            selection state, so iframe/webview mouse capture cannot leave the
+            card in a sticky drag. */}
+        {isFullscreen ? null : (
           <div
             className="reference-drag-overlay"
-            onMouseDown={handleHeaderMouseDown}
-            onClick={handleNodeClick}
-            onDoubleClick={handleOpenReferenceSource}
-          />
-        )}
-        {isFullscreen || readOnly ? null : (
-          <div
-            className="reference-drag-handle"
-            onMouseDown={handleHeaderMouseDown}
-            aria-hidden="true"
           />
         )}
         {sourceNode ? (
