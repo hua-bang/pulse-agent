@@ -1,5 +1,6 @@
 import { startCommand } from './launch.mjs';
 import { screenshotCommand } from './screenshot.mjs';
+import { perfRuntimeCommand } from './perf.mjs';
 import { HarnessError } from './errors.mjs';
 import {
   clickCommand,
@@ -29,6 +30,7 @@ Usage:
   pnpm --filter canvas-workspace harness fill --selector <css> <text>
   pnpm --filter canvas-workspace harness press <key-or-combo>
   pnpm --filter canvas-workspace harness logs [--lines 80]
+  pnpm --filter canvas-workspace harness perf-runtime [--scenario all|idle|pan-zoom] [--duration 4000] [--json]
   pnpm --filter canvas-workspace harness close [--cleanup]
 
 Start options:
@@ -85,6 +87,9 @@ export async function main(args) {
         break;
       case 'logs':
         await logsCommand(rawArgs);
+        break;
+      case 'perf-runtime':
+        await perfRuntimeCommand(rawArgs);
         break;
       case 'close':
       case 'stop':

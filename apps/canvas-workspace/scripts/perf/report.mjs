@@ -56,13 +56,18 @@ steps.push(
   ]),
 );
 
-// L3/L4 — runtime (harness). Not yet wired; record as skipped unless present.
+// L4 — runtime (harness). Requires a live harness session; record as skipped
+// unless --with-runtime is passed. L3 startup is surfaced in-app via the perf
+// panel + core PULSE_PERF marks, not as a CI script.
 if (args.has('--with-runtime')) {
-  steps.push(runStep('L3 startup', 'node', ['./harness/cli.mjs', 'perf-startup', '--runs', '5']));
   steps.push(runStep('L4 runtime', 'node', ['./harness/cli.mjs', 'perf-runtime', '--scenario', 'all']));
 } else {
-  steps.push({ label: 'L3 startup', status: 'skipped', durationMs: 0, note: 'pass --with-runtime' });
-  steps.push({ label: 'L4 runtime', status: 'skipped', durationMs: 0, note: 'pass --with-runtime' });
+  steps.push({
+    label: 'L4 runtime',
+    status: 'skipped',
+    durationMs: 0,
+    note: 'pass --with-runtime (needs harness start)',
+  });
 }
 
 // ── Aggregate ──────────────────────────────────────────────────────────────
@@ -129,10 +134,30 @@ if (benches.length) {
 }
 
 md += '## L3 · 启动 / time-to-window\n\n';
-md += startup ? `${'```json\n'}${JSON.stringify(startup, null, 2)}\n${'```'}\n\n` : '_未运行(需 `--with-runtime` + harness 打点,见设计文档 L3)。_\n\n';
+md += '> 启动相位在应用内的 Perf 面板查看(以 `PULSE_PERF=1` 启动)。核心打点见 `src/main/app/perf-marks.ts`。\n\n';
+md += startup ? `${'```json\n'}${JSON.stringify(startup, null, 2)}\n${'```'}\n\n` : '_无 startup.json(此层为应用内/核心打点,非 CI 脚本)。_\n\n';
 
 md += '## L4 · 运行时 profiling\n\n';
-md += runtime ? `${'```json\n'}${JSON.stringify(runtime, null, 2)}\n${'```'}\n\n` : '_未运行(需 `--with-runtime` + harness 场景,见设计文档 L4)。_\n\n';
+if (runtime?.scenarios?.length) {
+  md += `> profile: \`${runtime.profile}\` · duration ${runtime.durationMs}ms · 经 \`harness perf-runtime\` 采集。\n\n`;
+  md += `${mdTable(
+    ['scenario', 'fps', 'frame p95 (ms)', 'frame max (ms)', 'long tasks', 'heap Δ (MB)'],
+    runtime.scenarios.map((s) => [
+      s.scenario,
+      String(s.fps ?? '—'),
+      String(s.frameMsP95 ?? '—'),
+      String(s.frameMsMax ?? '—'),
+      String(s.longTasks ?? '—'),
+      s.heapStartMB != null && s.heapEndMB != null ? (s.heapEndMB - s.heapStartMB).toFixed(1) : '—',
+    ]),
+  )}\n\n`;
+  const procs = runtime.scenarios.find((s) => s.processMetrics)?.processMetrics;
+  if (procs) {
+    md += `进程:${procs.processCount} 个 · 总内存 ${formatBytes((procs.totalMemoryKB ?? 0) * 1024)} · CPU ${Number(procs.totalCpu ?? 0).toFixed(1)}%\n\n`;
+  }
+} else {
+  md += '_未运行(需 `--with-runtime` + `harness start`,见设计文档 L4)。_\n\n';
+}
 
 md += '---\n\n';
 md += '将以上实测值回填到 `performance-analysis-consolidated.md` 的"估算"列,即可把静态推断升级为实测并据此重排优先级。\n';

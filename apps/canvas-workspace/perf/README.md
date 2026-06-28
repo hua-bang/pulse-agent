@@ -30,10 +30,22 @@ pnpm --filter canvas-workspace perf:bundle --update   # refresh baselines/bundle
 |---|---|---|---|---|
 | **L1 bundle** | `perf:bundle` | `out/bundle.json` | C1–C9, D3/D4 | 构建,非运行 |
 | **L2 bench** | `bench` | `out/bench.json` | A3 等算法类 | 否(纯 TS) |
-| **L3 startup** | `perf:report --with-runtime` | `out/startup.json` | D1/D2, E1 | 是(harness) |
-| **L4 runtime** | `perf:report --with-runtime` | `out/runtime.json` | A1/A2, H1/H2 等 | 是(harness) |
+| **L3 startup** | 应用内 Perf 面板(`PULSE_PERF=1`) | 核心打点 | D1/D2, E1 | 是 |
+| **L4 runtime** | `harness perf-runtime` | `out/runtime.json` | A1/A2, H1/H2 等 | 是(harness) |
 
-> L1/L2 已实现且 CI 友好。L3/L4 的 harness 打点与场景脚本见设计文档,尚未接线——`--with-runtime` 当前会优雅跳过/标记失败,不影响快照产出。
+> L1/L2 已实现且 CI 友好。L3 启动相位由核心 `PULSE_PERF` 打点 + 可拆卸 Perf 面板展示(`src/main/app/perf-marks.ts`)。L4 经 harness 在真实窗口里采集运行时指标。
+
+## L4 运行时 profiling(harness)
+
+```bash
+pnpm --filter canvas-workspace build
+pnpm --filter canvas-workspace harness start --profile demo   # 打开一个有代表性的工作区
+pnpm --filter canvas-workspace harness perf-runtime --scenario all --duration 4000
+# → perf/out/runtime.json:各场景 fps / 帧 p95·max / long tasks / 堆增量 / 进程指标
+pnpm --filter canvas-workspace perf:report --with-runtime      # 把 runtime.json 并入快照
+```
+
+场景:`idle`(稳态帧时长+堆)、`pan-zoom`(合成 ctrl+wheel 缩放下的帧 jank)。每个场景须在 CDP 调用超时(~15s)内完成,故 `--duration` 上限 10s。进程指标(含 guest webview 数,验证 D1/H2)经 Perf 插件的 `metrics` 通道取得。
 
 ## Files
 
