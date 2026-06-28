@@ -1,0 +1,10 @@
+{
+  "entryChunkGzipBytes": { "max": 1200000, "warn": 900000 },
+  "heavyDepInEntry": {
+    "_note": "Set a dep to false to FAIL the build if it is bundled into the entry chunk. Left empty until the React.lazy/manualChunks work (P1) lands; then tighten one dep at a time, e.g. \"react-force-graph-2d\": false.",
+    "react-force-graph-2d": null,
+    "xterm": null,
+    "lowlight-common": null,
+    "@module-federation/runtime": null
+  }
+}

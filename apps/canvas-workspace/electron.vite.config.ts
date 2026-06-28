@@ -1,5 +1,6 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
+import { visualizer } from "rollup-plugin-visualizer";
 import { existsSync, readdirSync, readFileSync } from "fs";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
@@ -111,7 +112,23 @@ export default defineConfig({
   renderer: {
     root: "src/renderer",
     build: {
-      outDir: "dist/renderer"
+      outDir: "dist/renderer",
+      // Bundle analysis is opt-in (PULSE_PERF_BUNDLE=1) so the normal build
+      // path is unaffected. Emits a treemap consumed by scripts/perf/bundle.mjs.
+      ...(process.env.PULSE_PERF_BUNDLE
+        ? {
+            rollupOptions: {
+              plugins: [
+                visualizer({
+                  filename: "perf/out/bundle-treemap.html",
+                  template: "treemap",
+                  gzipSize: true,
+                  brotliSize: true
+                })
+              ]
+            }
+          }
+        : {})
     },
     plugins: [react(), localPluginRendererAssetsPlugin()]
   }

@@ -15,6 +15,9 @@
     "typecheck:renderer": "tsc --noEmit -p tsconfig.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
+    "bench": "vitest bench --run --config vitest.bench.config.ts",
+    "perf:bundle": "node ./scripts/perf/bundle.mjs",
+    "perf:report": "node ./scripts/perf/report.mjs",
     "harness": "node ./harness/cli.mjs",
     "package": "electron-vite build && electron-builder",
     "package:mac": "electron-vite build && electron-builder --mac",
@@ -140,6 +143,7 @@
     "electron-vite": "^2.3.0",
     "happy-dom": "^20.10.6",
     "picocolors": "^1.1.1",
+    "rollup-plugin-visualizer": "^5.12.0",
     "typescript": "^5.6.3",
     "vitest": "^1.0.0"
   }
