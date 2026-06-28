@@ -397,6 +397,12 @@ export const useNodes = (
   );
 
   const resizeGroupsToChildren = useCallback((nextNodes: CanvasNode[]): CanvasNode[] => {
+    // Fast path: with no group nodes there is nothing to resize, so skip the
+    // per-pass Map build + full array map. This runs on every move/resize tick
+    // (rAF frequency), so the wasted O(n) allocations add up on group-free
+    // canvases.
+    if (!nextNodes.some((node) => node.type === 'group')) return nextNodes;
+
     const PADDING = 18;
     let current = nextNodes;
 
