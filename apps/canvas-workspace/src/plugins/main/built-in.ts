@@ -4,6 +4,7 @@ import { DevtoolsMainPlugin } from './devtools';
 import { WebviewPageControlPlugin } from './webview-page-control';
 import { ChannelMainPlugin } from './channel';
 import { MockNodeMainPlugin } from '../mock-node/main';
+import { PerfMainPlugin } from './perf';
 
 // Main-side halves of built-in Canvas plugins.
 export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
@@ -12,4 +13,5 @@ export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
   DynamicAppPlugin,
   ChannelMainPlugin,
   MockNodeMainPlugin,
+  PerfMainPlugin,
 ];
