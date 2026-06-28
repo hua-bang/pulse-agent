@@ -2,9 +2,13 @@ import { ipcMain } from "electron";
 import * as pty from "node-pty";
 import { createRequire } from "module";
 import { platform, homedir } from "os";
-import { execFileSync, execSync } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { chmodSync, existsSync } from "fs";
+import { readlink } from "fs/promises";
 import { delimiter, dirname, join, resolve } from "path";
+import { promisify } from "util";
+
+const execFileAsync = promisify(execFile);
 
 const sessions = new Map<string, pty.IPty>();
 const nodeRequire = createRequire(import.meta.url);
@@ -204,21 +208,25 @@ const checkCommand = (command: string): { ok: boolean; available: boolean; path?
   };
 };
 
-const getCwd = (pid: number): string | null => {
+// Resolve a session's cwd without ever blocking the main-process event loop.
+// On Linux we read the /proc symlink directly (no child process at all); on
+// macOS we shell out to lsof via the async, non-blocking execFile. The old
+// implementation used execSync, which froze every other IPC (PTY data, file
+// writes, canvas saves) for the duration of each call and was invoked every
+// 2s per terminal/agent node.
+const getCwd = async (pid: number): Promise<string | null> => {
   try {
     if (platform() === "darwin") {
-      const out = execSync(`lsof -a -d cwd -p ${pid} -Fn 2>/dev/null`, {
-        encoding: "utf-8",
-        timeout: 2000
-      });
-      const match = out.match(/\nn(.+)/);
+      const { stdout } = await execFileAsync(
+        "lsof",
+        ["-a", "-d", "cwd", "-p", String(pid), "-Fn"],
+        { encoding: "utf-8", timeout: 2000 }
+      );
+      const match = stdout.match(/\nn(.+)/);
       return match ? match[1] : null;
     }
     if (platform() === "linux") {
-      const out = execSync(`readlink /proc/${pid}/cwd 2>/dev/null`, {
-        encoding: "utf-8",
-        timeout: 2000
-      });
+      const out = await readlink(`/proc/${pid}/cwd`);
       return out.trim() || null;
     }
     return null;
@@ -303,10 +311,10 @@ export const setupPtyIpc = () => {
     }
   );
 
-  ipcMain.handle("pty:getCwd", (_event, payload: { id: string }) => {
+  ipcMain.handle("pty:getCwd", async (_event, payload: { id: string }) => {
     const proc = sessions.get(payload.id);
     if (!proc) return { ok: false, error: "session not found" };
-    const cwd = getCwd(proc.pid);
+    const cwd = await getCwd(proc.pid);
     return { ok: true, cwd };
   });
 
