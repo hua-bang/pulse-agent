@@ -394,6 +394,10 @@ export function execInSession(
     let output = '';
     let capturing = false;
     let resolved = false;
+    // Cursor into `output` from which the next end-marker search starts, so
+    // each chunk scans only newly-arrived data instead of re-scanning the whole
+    // (growing) buffer on every chunk — turns an O(n^2) capture into O(n).
+    let endSearchFrom = 0;
 
     const cleanup = () => {
       disposable.dispose();
@@ -430,21 +434,27 @@ export function execInSession(
         output += data;
       }
 
-      // Check for end marker
-      if (capturing && output.includes(endMarker)) {
-        const endIdx = output.indexOf(endMarker);
-        // Get output before the echo command for end marker
-        // The end marker echo command itself shows up, so trim it
-        let finalOutput = output.slice(0, endIdx);
-        // Remove the trailing echo command line (e.g. "echo __HARNESS_END_...__\r\n")
-        const lastNewline = finalOutput.lastIndexOf('\n');
-        if (lastNewline !== -1) {
-          const lastLine = finalOutput.slice(lastNewline + 1);
-          if (lastLine.includes('echo') && lastLine.includes(endMarker.slice(0, 20))) {
-            finalOutput = finalOutput.slice(0, lastNewline);
+      // Check for end marker. Scan only from endSearchFrom so each chunk costs
+      // O(newData) rather than O(output). The cursor keeps an endMarker-length
+      // overlap so a marker split across two chunks is still matched.
+      if (capturing) {
+        const endIdx = output.indexOf(endMarker, endSearchFrom);
+        if (endIdx !== -1) {
+          // Get output before the echo command for end marker
+          // The end marker echo command itself shows up, so trim it
+          let finalOutput = output.slice(0, endIdx);
+          // Remove the trailing echo command line (e.g. "echo __HARNESS_END_...__\r\n")
+          const lastNewline = finalOutput.lastIndexOf('\n');
+          if (lastNewline !== -1) {
+            const lastLine = finalOutput.slice(lastNewline + 1);
+            if (lastLine.includes('echo') && lastLine.includes(endMarker.slice(0, 20))) {
+              finalOutput = finalOutput.slice(0, lastNewline);
+            }
           }
+          finish({ ok: true, output: finalOutput.trim() });
+        } else {
+          endSearchFrom = Math.max(0, output.length - (endMarker.length - 1));
         }
-        finish({ ok: true, output: finalOutput.trim() });
       }
     });
 
