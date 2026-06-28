@@ -10,6 +10,10 @@ In-app performance observability panel, built on the Canvas plugin mechanism.
 - **Per-process CPU / memory** and process-type counts via the main half
   (`app.getAppMetrics()`) — `Tab` rows are guest webview renderers (validates
   findings D1 / H2).
+- **Startup (time-to-window)**: main-process bootstrap phase breakdown
+  (whenReady → seeded → toolsEnv → plugins → openWindow → windowLoaded) plus
+  the renderer start → first-render delta. Main-process marks require
+  launching with `PULSE_PERF=1`; renderer marks are always recorded.
 - **Latest CI snapshot** (`perf/out/perf-snapshot.json`, produced by
   `pnpm --filter canvas-workspace perf:report`).
 
@@ -32,9 +36,10 @@ flag values at renderer bootstrap).
 - **L1 bundle / L2 bench** are build/CI-time scripts (`pnpm perf:bundle`,
   `pnpm bench`); a runtime plugin cannot measure its own build. The panel only
   *reads* their snapshot output.
-- **Startup marks (L3)** must live in core `bootstrap.ts` / `main.tsx` (the
-  plugin activates too late to time window-open). The panel can display them
-  once that gated instrumentation exists.
+- **Startup marks (L3)** live in core `bootstrap.ts` / `main.tsx` (the plugin
+  activates too late to time window-open), gated by `PULSE_PERF`. The plugin
+  only *reads* them via `getStartupReport()` — core never depends on the plugin,
+  so removing the plugin leaves the (inert, gated) marks harmlessly in place.
 
 ## Removing it completely
 

@@ -66,6 +66,7 @@ import {
 import { configureApplicationMenu } from "./menu";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
+import { recordMark } from "./perf-marks";
 import { setupLinkPolicy } from "./link-policy";
 
 export interface BootstrapOptions {
@@ -90,6 +91,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   setupLinkPolicy();
 
   app.whenReady().then(async () => {
+    recordMark("whenReady");
     spoofUserAgentFallback();
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);
@@ -107,6 +109,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     } catch (err) {
       await writeLog("main", "ensureWelcomeWorkspaceSeeded failed", String(err));
     }
+    recordMark("seeded");
     // Audit pollution-shaped workspaces in the background; surfaces a log
     // entry per finding. The renderer's MigrationSpinner separately
     // surfaces user-visible sticky alerts via canvas:listPollutedWorkspaces
@@ -133,6 +136,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     setupBuiltInToolsConfigIpc();
     setupCanvasPluginsConfigIpc();
     await applyStoredBuiltInToolsConfigToEnv();
+    recordMark("toolsEnv");
     // Seed the meta-skills (save-as-skill, promote-skill) into the global
     // scope on first start. Idempotent — user edits are preserved.
     void ensureDefaultSkillsSeeded().catch((err) => {
@@ -161,7 +165,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // renderer first calls into canvas-agent IPC). Await so the registry
     // is fully populated by the time the window comes up.
     await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
+    recordMark("pluginsBuiltIn");
     await reloadConfiguredExternalMainPlugins();
+    recordMark("pluginsExternal");
     void ensureRuntimeControlServer((message, detail) => {
       void writeLog("main", message, detail);
     }).then((ok) => {
@@ -188,7 +194,9 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // Let on-demand activation (e.g. the channel plugin's /open) recreate the
     // window if it was closed.
     setWindowFactory(openWindow);
-    openWindow();
+    recordMark("openWindow");
+    const initialWindow = openWindow();
+    initialWindow.webContents.once("did-finish-load", () => recordMark("windowLoaded"));
 
     app.on("activate", () => {
       // Reopening the window after a close must restore the live channel too —

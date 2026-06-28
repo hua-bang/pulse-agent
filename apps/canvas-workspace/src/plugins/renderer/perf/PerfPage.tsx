@@ -20,6 +20,15 @@ interface PerfSnapshot {
   path: string;
   data: unknown;
 }
+interface StartupMark {
+  name: string;
+  t: number;
+}
+interface StartupReport {
+  enabled: boolean;
+  marks: StartupMark[];
+  phases: { name: string; ms: number }[];
+}
 
 const fmtMB = (kb: number) => `${(kb / 1024).toFixed(1)} MB`;
 
@@ -34,6 +43,8 @@ export const PerfPage = ({ invoke, onBack }: PerfPageProps) => {
   const [longTasks, setLongTasks] = useState(0);
   const [metrics, setMetrics] = useState<PerfMetrics | null>(null);
   const [snapshot, setSnapshot] = useState<PerfSnapshot | null>(null);
+  const [startup, setStartup] = useState<StartupReport | null>(null);
+  const [rendererMarks, setRendererMarks] = useState<StartupMark[]>([]);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const frames = useRef(0);
 
@@ -105,6 +116,29 @@ export const PerfPage = ({ invoke, onBack }: PerfPageProps) => {
     };
   }, [invoke]);
 
+  // Startup marks: main-process phases via the plugin, renderer marks via the
+  // Performance API.
+  useEffect(() => {
+    let cancelled = false;
+    void invoke<StartupReport>('startup')
+      .then((s) => {
+        if (!cancelled) setStartup(s);
+      })
+      .catch(() => undefined);
+    try {
+      const entries = performance
+        .getEntriesByType('mark')
+        .filter((e) => e.name.startsWith('renderer:'))
+        .map((e) => ({ name: e.name, t: Math.round(e.startTime * 10) / 10 }));
+      setRendererMarks(entries);
+    } catch {
+      // Performance API unavailable — skip renderer marks
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [invoke]);
+
   const snapshotBundle = (snapshot?.data as { bundle?: Record<string, unknown> } | undefined)?.bundle;
 
   return (
@@ -168,6 +202,38 @@ export const PerfPage = ({ invoke, onBack }: PerfPageProps) => {
           </table>
         ) : (
           <p className="perf-muted">collecting…</p>
+        )}
+      </section>
+
+      <section className="perf-section">
+        <h2>Startup (time-to-window)</h2>
+        {startup?.enabled ? (
+          <table className="perf-table">
+            <thead>
+              <tr>
+                <th>phase</th>
+                <th>ms</th>
+              </tr>
+            </thead>
+            <tbody>
+              {startup.phases.map((p) => (
+                <tr key={p.name}>
+                  <td>{p.name}</td>
+                  <td>{p.ms.toFixed(1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="perf-muted">
+            main-process marks need <code>PULSE_PERF=1</code> at launch.
+          </p>
+        )}
+        {rendererMarks.length >= 2 && (
+          <p className="perf-muted">
+            renderer {rendererMarks[0].name} → {rendererMarks[rendererMarks.length - 1].name}:{' '}
+            <strong>{(rendererMarks[rendererMarks.length - 1].t - rendererMarks[0].t).toFixed(1)} ms</strong>
+          </p>
         )}
       </section>
 

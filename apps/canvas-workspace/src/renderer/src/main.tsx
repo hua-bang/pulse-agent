@@ -10,6 +10,9 @@ import {
   BUILT_IN_RENDERER_PLUGINS,
 } from "../../plugins/renderer";
 
+// Startup marks (L3) — cheap, read by the perf panel via the Performance API.
+performance.mark("renderer:start");
+
 const root = document.getElementById("root");
 console.log("Renderer bootstrap", { rootFound: Boolean(root) });
 
@@ -30,3 +33,5 @@ createRoot(root).render(
     <App />
   </Router>,
 );
+
+performance.mark("renderer:firstRender");

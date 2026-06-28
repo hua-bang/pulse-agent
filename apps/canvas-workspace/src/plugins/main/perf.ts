@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { getStartupReport, type StartupReport } from '../../main/app/perf-marks';
 import type { MainCanvasPlugin } from '../types';
 
 // ── Detachable performance plugin (main half) ───────────────────────────────
@@ -62,6 +63,10 @@ export const PerfMainPlugin: MainCanvasPlugin = {
         processes,
       };
     });
+
+    // Main-process bootstrap phase timings (L3). Empty/disabled unless the
+    // app was launched with PULSE_PERF=1.
+    ctx.handle('startup', async (): Promise<StartupReport> => getStartupReport());
 
     // The latest CI snapshot produced by `pnpm perf:report`, if present on
     // disk. Returns null when it has not been generated (e.g. packaged app).
