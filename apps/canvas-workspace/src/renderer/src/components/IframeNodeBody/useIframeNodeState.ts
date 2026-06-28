@@ -80,6 +80,10 @@ export const useIframeNodeState = ({
   const [genError, setGenError] = useState<string | null>(null);
   const [streamingActive, setStreamingActive] = useState(false);
   const [webviewKey, setWebviewKey] = useState(0);
+  // Gate creation of the live <webview> until after the first paint so a
+  // URL node that is in view on initial canvas mount does not block the
+  // first usable frame with a guest-process spawn + external navigation.
+  const [shouldMountWebview, setShouldMountWebview] = useState(false);
   const [loadState, setLoadState] = useState<LoadState>('idle');
   const [loadError, setLoadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,8 +102,44 @@ export const useIframeNodeState = ({
     latestDataRef.current = data;
   }, [data]);
 
+  // Defer the guest-process spawn off the first-paint critical path: create
+  // the webview only once the node has intersected the viewport, or an idle
+  // callback fires after paint (whichever comes first). The host div renders
+  // immediately so the IntersectionObserver has something to observe.
+  useEffect(() => {
+    if (mode !== 'url' || shouldMountWebview) return;
+    const host = webviewHostRef.current;
+    if (!host) return;
+
+    let triggered = false;
+    const trigger = () => {
+      if (triggered) return;
+      triggered = true;
+      setShouldMountWebview(true);
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) trigger();
+    });
+    observer.observe(host);
+
+    const supportsIdle = typeof window.requestIdleCallback === 'function';
+    const idleId = supportsIdle
+      ? window.requestIdleCallback(trigger, { timeout: 2000 })
+      : window.setTimeout(trigger, 200);
+
+    return () => {
+      observer.disconnect();
+      if (supportsIdle && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleId as number);
+      } else {
+        window.clearTimeout(idleId as number);
+      }
+    };
+  }, [mode, shouldMountWebview]);
+
   useLayoutEffect(() => {
-    if (mode !== 'url') return;
+    if (mode !== 'url' || !shouldMountWebview) return;
     const host = webviewHostRef.current;
     if (!host) return;
 
@@ -115,13 +155,13 @@ export const useIframeNodeState = ({
       if (webviewRef.current === webview) webviewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, webviewKey]);
+  }, [mode, webviewKey, shouldMountWebview]);
 
   useEffect(() => {
     const el = webviewRef.current;
     if (!el || mode !== 'url') return;
     if (el.getAttribute('src') !== url) el.setAttribute('src', url);
-  }, [url, mode]);
+  }, [url, mode, shouldMountWebview]);
 
   useEffect(() => { setDraftUrl(url); }, [url]);
   useEffect(() => { setDraftHtml(html); }, [html]);
@@ -195,7 +235,7 @@ export const useIframeNodeState = ({
       el.removeEventListener('did-stop-loading', handleDidStopLoading);
       el.removeEventListener('did-fail-load', handleDidFailLoad);
     };
-  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
+  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey, shouldMountWebview]);
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -264,7 +304,7 @@ export const useIframeNodeState = ({
       el.removeEventListener('dom-ready', tryRegister);
       if (registered) void api.unregisterWebview(workspaceId, node.id);
     };
-  }, [workspaceId, node.id, editing, url, mode, webviewKey]);
+  }, [workspaceId, node.id, editing, url, mode, webviewKey, shouldMountWebview]);
 
   // Drop the webview's paint frame rate when the node is parked outside the
   // canvas viewport long enough. Disabled during editing (no live webview to
