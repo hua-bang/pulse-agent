@@ -559,8 +559,12 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 svg { width:100%; height:100%; display:block; }
 .edge { stroke:#596373; stroke-width:1.1; opacity:.38; }
 .edge.high { stroke:var(--blue); opacity:.62; }
-.node circle { stroke:#090b0e; stroke-width:2; cursor:pointer; }
-.node text { fill:var(--text); font-size:10px; paint-order:stroke; stroke:#0b0e13; stroke-width:4px; pointer-events:none; }
+.node { cursor:pointer; }
+.node .hit { fill:transparent; stroke:transparent; pointer-events:all; }
+.node .node-dot { stroke:#090b0e; stroke-width:2; }
+.node text { fill:var(--text); font-size:10px; paint-order:stroke; stroke:#0b0e13; stroke-width:4px; pointer-events:all; cursor:pointer; }
+.node.selected .node-dot { stroke:var(--text); stroke-width:3; }
+.node.selected text { fill:var(--blue); }
 .empty { color:var(--muted); border:1px dashed var(--line); border-radius:8px; padding:16px; }
 @media (max-width: 1180px) {
   .shell, .grid-2, .graph-layout { grid-template-columns:1fr; }
@@ -729,7 +733,7 @@ const messages = {
   },
 };
 const savedLang = localStorage.getItem('harness-dashboard-lang');
-const state = { selected: reports[0]?.path || '', filter: 'all', query: '', nodeFilter: 'all', lang: savedLang === 'en' ? 'en' : 'zh' };
+const state = { selected: reports[0]?.path || '', selectedNodeId: '', filter: 'all', query: '', nodeFilter: 'all', lang: savedLang === 'en' ? 'en' : 'zh' };
 let running = true;
 
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -899,8 +903,27 @@ function showTab(tab){
 function applyNodeFilter(){
   for (const node of nodes) node.visible = state.nodeFilter === 'all' || node.type === state.nodeFilter || (state.nodeFilter === 'validation' && node.type === 'profile');
 }
+function graphPointFromEvent(event){
+  const rect = svg.getBoundingClientRect();
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+function nearestVisibleNode(point){
+  let best = null;
+  let bestDistance = Infinity;
+  for (const node of nodes) {
+    if (!node.visible) continue;
+    const distance = Math.hypot(node.x - point.x, node.y - point.y);
+    const hitRadius = Math.max(32, radius(node) + 18);
+    if (distance <= hitRadius && distance < bestDistance) {
+      best = node;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
 function selectGraphNode(id){
   const n = byId.get(id); if(!n) return;
+  state.selectedNodeId = n.id;
   document.getElementById('graph-title').textContent = n.label;
   const related = graph.edges.filter(e => e.from===n.id || e.to===n.id).map(e => e.type+' '+e.confidence+'\\n  '+e.from+'\\n  -> '+e.to).join('\\n\\n');
   document.getElementById('graph-detail').innerHTML = '<pre>'+escapeHtml(JSON.stringify(n.meta, null, 2))+'</pre><h3>'+bi('连接边', 'Edges')+'</h3><pre>'+escapeHtml(related || bi('无连接边', 'No connected edges'))+'</pre>';
@@ -908,6 +931,7 @@ function selectGraphNode(id){
     const report = byWorkspace.get(n.label);
     if (report) { state.selected = report.path; renderDetail(); renderWorkspaces(); }
   }
+  render();
 }
 function init(){
   renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail(); applyNodeFilter();
@@ -963,14 +987,23 @@ function render(){
   }
   for(const n of nodes){
     if(!n.visible) continue;
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','node'); g.dataset.id=n.id; g.setAttribute('transform','translate('+n.x+','+n.y+')');
-    const c = document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('r',radius(n)); c.setAttribute('fill',colors[n.type]||'#ddd');
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','node '+(state.selectedNodeId === n.id ? 'selected' : '')); g.dataset.id=n.id; g.setAttribute('transform','translate('+n.x+','+n.y+')');
+    const hit = document.createElementNS('http://www.w3.org/2000/svg','circle'); hit.setAttribute('class','hit'); hit.setAttribute('r',Math.max(22, radius(n) + 12));
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('class','node-dot'); c.setAttribute('r',radius(n)); c.setAttribute('fill',colors[n.type]||'#ddd');
     const t = document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',radius(n)+5); t.setAttribute('y',4); t.textContent=n.label;
-    g.appendChild(c); g.appendChild(t); frag.appendChild(g);
+    g.appendChild(hit); g.appendChild(c); g.appendChild(t); frag.appendChild(g);
   }
   svg.appendChild(frag);
 }
-svg.addEventListener('click', e => { const g=e.target.closest('.node'); if(g) selectGraphNode(g.dataset.id); });
+svg.addEventListener('click', e => {
+  const g = e.target.closest?.('.node');
+  if(g) {
+    selectGraphNode(g.dataset.id);
+    return;
+  }
+  const nearest = nearestVisibleNode(graphPointFromEvent(e));
+  if(nearest) selectGraphNode(nearest.id);
+});
 init(); tick();
 </script>
 </body>
