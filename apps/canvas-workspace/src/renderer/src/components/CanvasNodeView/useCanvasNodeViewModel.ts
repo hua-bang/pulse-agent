@@ -78,11 +78,17 @@ export const useCanvasNodeViewModel = ({
   const [, setTick] = useState(0);
   const titleRef = useRef<HTMLSpanElement>(null);
 
+  // Tick every 30s to advance the relative "updated Xm ago" label. Gate on
+  // whether updatedAt exists (a boolean), NOT its value, so a move/resize that
+  // bumps updatedAt does not tear down and recreate the interval every gesture
+  // tick. The value change still re-renders the node (props changed), so the
+  // label stays accurate; the interval just keeps a steady cadence.
+  const hasUpdatedAt = node.updatedAt != null;
   useEffect(() => {
-    if (!node.updatedAt) return;
+    if (!hasUpdatedAt) return;
     const id = setInterval(() => setTick((t) => t + 1), 30_000);
     return () => clearInterval(id);
-  }, [node.updatedAt]);
+  }, [hasUpdatedAt]);
 
   const handleHeaderMouseDown = useCallback(
     (e: MouseEvent) => {

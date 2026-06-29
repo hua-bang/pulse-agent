@@ -887,9 +887,11 @@ export const useAgentNodeController = ({
         const scrollback = serializeBuffer(term);
         const cwdResult = await api.getCwd(sessionId);
         const curCwd = cwdResult.ok && cwdResult.cwd ? cwdResult.cwd : dataRef.current.cwd;
-        onUpdateRef.current(nodeIdRef.current, {
-          data: { ...dataRef.current, scrollback, cwd: curCwd },
-        });
+        onUpdateRef.current(
+          nodeIdRef.current,
+          { data: { ...dataRef.current, scrollback, cwd: curCwd } },
+          false, // scrollback/cwd autosave must not pollute the undo stack
+        );
       }, SCROLLBACK_SAVE_INTERVAL);
 
       cleanupRef.current = () => {

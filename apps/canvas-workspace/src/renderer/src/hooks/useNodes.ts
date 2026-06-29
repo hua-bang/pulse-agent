@@ -458,11 +458,15 @@ export const useNodes = (
   }, []);
 
   const updateNode = useCallback(
-    (id: string, patch: Partial<CanvasNode>) => {
+    (id: string, patch: Partial<CanvasNode>, addToHistory = true) => {
       const updatedNodes = nodesRef.current.map((n) =>
         n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n,
       );
-      applyNodes(resizeGroupsToChildren(updatedNodes));
+      // Terminal/agent scrollback+cwd autosaves pass addToHistory=false: they
+      // must not push undo snapshots (otherwise Ctrl+Z replays terminal output
+      // instead of real edits) and never change geometry, so the group-resize
+      // pass is skipped too. All other callers keep the default (history on).
+      applyNodes(addToHistory ? resizeGroupsToChildren(updatedNodes) : updatedNodes, addToHistory);
     },
     [applyNodes, nodesRef, resizeGroupsToChildren]
   );

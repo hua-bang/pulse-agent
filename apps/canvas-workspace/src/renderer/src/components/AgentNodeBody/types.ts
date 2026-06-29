@@ -9,7 +9,7 @@ export interface AgentNodeBodyProps {
   workspaceName?: string;
   teamLeadBriefSlot?: ReactNode;
   agentTeamStatus?: AgentTeamStatus;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, addToHistory?: boolean) => void;
   readOnly?: boolean;
   terminalMode?: 'owner' | 'mirror';
   forceTeamWarmup?: boolean;

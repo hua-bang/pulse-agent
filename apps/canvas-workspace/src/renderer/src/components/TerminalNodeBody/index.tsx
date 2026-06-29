@@ -20,7 +20,7 @@ interface Props {
   rootFolder?: string;
   workspaceId?: string;
   workspaceName?: string;
-  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+  onUpdate: (id: string, patch: Partial<CanvasNode>, addToHistory?: boolean) => void;
   readOnly?: boolean;
 }
 
@@ -235,9 +235,11 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
       const scrollback = serializeBuffer(term);
       const cwdResult = await api.getCwd(sessionId);
       const cwd = cwdResult.ok && cwdResult.cwd ? cwdResult.cwd : dataRef.current.cwd;
-      onUpdateRef.current(nodeIdRef.current, {
-        data: { sessionId: dataRef.current.sessionId, scrollback, cwd },
-      });
+      onUpdateRef.current(
+        nodeIdRef.current,
+        { data: { sessionId: dataRef.current.sessionId, scrollback, cwd } },
+        false, // scrollback/cwd autosave must not pollute the undo stack
+      );
     }, SCROLLBACK_SAVE_INTERVAL);
 
     cleanupRef.current = () => {
