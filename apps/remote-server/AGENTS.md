@@ -1,49 +1,69 @@
-# Repository Guidelines
+# AGENTS.md - apps/remote-server
 
-## Project Structure & Module Organization
-This is a `pnpm` monorepo with workspaces under `packages/*` and `apps/*`. Source code lives in each workspace’s `src/` directory and build output is emitted to `dist/`. Key areas:
-- `packages/engine`: core agent engine, built-in tools, plugin loading, runtime loop.
-- `packages/cli`: interactive terminal CLI built on `pulse-coder-engine`.
-- `packages/pulse-sandbox`: sandboxed JS execution runtime and `run_js` tool adapter.
-- `packages/memory-plugin`: memory integration/service package.
-- `apps/remote-server`: optional HTTP service wrapper around the engine.
-- `apps/coder-demo`: legacy experimental app.
+> Local entry for `apps/remote-server`.
+> Repository harness entry: `../../harness/README.md`.
+> Claude Code specific local guidance also exists in `CLAUDE.md`.
 
-## Build, Test, and Development Commands
-- `pnpm install`: install all workspace dependencies.
-- `pnpm run build`: build all workspaces recursively.
-- `pnpm run dev`: watch mode for packages.
-- `pnpm start`: run the CLI (`pulse-coder-cli`).
-- `pnpm test`: run package tests (`packages/*`).
-- `pnpm run test:apps`: run app tests (`apps/*`). Note: `apps/coder-demo` has a placeholder test script and may fail.
-- `pnpm --filter @pulse-coder/remote-server dev`: run the remote server in dev mode.
-- `pnpm --filter @pulse-coder/remote-server build`: build only the remote server.
-- `pnpm --filter pulse-coder-engine typecheck`: strict TS typecheck for the engine.
+## Module Positioning
 
-Useful package targets:
-- `pnpm --filter pulse-coder-engine test`
-- `pnpm --filter pulse-coder-cli test`
-- `pnpm --filter pulse-sandbox test`
-- `pnpm --filter pulse-coder-memory-plugin test`
+`@pulse-coder/remote-server` is the optional HTTP runtime around `pulse-coder-engine`. It owns platform webhook ingress, internal automation routes, adapter streaming, shared engine/plugin wiring, remote session persistence, memory/worktree/vault context, Discord gateway startup, and local devtools observability.
 
-## Coding Style & Naming Conventions
-Use TypeScript in strict mode. Prefer 2-space indentation, semicolons, and single quotes. Naming: `PascalCase` for classes/types, `camelCase` for functions/vars, `kebab-case` for multi-word filenames, and `UPPER_SNAKE_CASE` for exported constants. No repo-wide formatter is enforced, so keep diffs minimal and follow nearby patterns.
+Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Discord webhooks, `/internal/*`, `/api/devtools/*`, and static `/devtools/*`. Telegram and the generic Web chat/SSE API have source files but are not mounted by default.
 
-## Remote Server Notes (`apps/remote-server`)
-- Entry point: `apps/remote-server/src/index.ts` bootstraps session store, memory integration, worktree binding, and engine.
-- HTTP server: `apps/remote-server/src/server.ts` mounts `/health`, webhook routes, and `/internal/*` routes.
-- Dispatcher: `apps/remote-server/src/core/dispatcher.ts` owns signature verification, fast ack, command parsing, and streaming.
-- Sessions: stored in `~/.pulse-coder/remote-sessions` with `index.json` + `sessions/*.json`.
-- Memory logs: stored in `~/.pulse-coder/remote-memory` via `pulse-coder-memory-plugin`.
-- Worktree binding: stored in `~/.pulse-coder/worktree-state` via `pulse-coder-plugin-kit`.
-- Internal API: `/internal/agent/run` is loopback-only and requires `INTERNAL_API_SECRET`.
-- Platform adapters: Feishu and Discord are mounted; Telegram/Web adapters exist but are not enabled by default.
+## Progressive Reading Path
 
-## Testing Guidelines
-Vitest is the primary test runner. Name tests `*.test.ts` or `*.spec.ts` and keep them near the related source. Add tests for changes to loop control, plugin hooks, CLI workflows, and memory integration boundaries.
+| Task | Read |
+|---|---|
+| Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Local runtime overview | `README.md`, `CLAUDE.md`, `docs/runbook.md`, `docs/validation.md` |
+| Package scripts and build shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
+| Bootstrap and mounted routes | `src/index.ts`, `src/server.ts` |
+| Webhook lifecycle | `src/core/dispatcher.ts`, `src/core/types.ts`, `src/core/active-run-store.ts`, `src/core/clarification-queue.ts` |
+| Agent execution and run context | `src/core/agent-runner.ts`, `src/core/engine-singleton.ts` |
+| Persistence and integrations | `src/core/session-store.ts`, `src/core/memory-integration.ts`, `src/core/worktree/integration.ts`, `src/core/vault/integration.ts`, `src/core/devtools.ts` |
+| Slash commands | `src/core/chat-commands.ts`, `src/core/chat-commands/command-defs.ts`, `src/core/chat-commands/handlers/*` |
+| Internal automation | `src/routes/internal.ts` |
+| Platform behavior | `src/adapters/feishu/*`, `src/adapters/discord/*`, `src/routes/feishu.ts`, `src/routes/discord.ts` |
+| Devtools API | `src/routes/devtools.ts`; static UI is built outside this workspace in `../devtools-web` |
+| Focused helper tests | `src/core/model-config.test.ts`, `src/core/attachments.test.ts`, `src/core/tools/analyze-image.test.ts` |
 
-## Commit & Pull Request Guidelines
-Use Conventional Commits (scope optional), e.g. `feat(engine): add plugin hook` or `fix(cli): handle empty input`. PRs should include a clear summary, affected packages, linked issue (if any), and test evidence (commands + results). Provide screenshots for CLI UX changes when relevant.
+## Local Constraints
 
-## Security & Configuration Tips
-Store secrets in local `.env` files only (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `GEMINI_API_KEY`). Do not commit local session or memory data under `.pulse-coder/*`. The internal API route `/internal/agent/run` is loopback-only and requires `INTERNAL_API_SECRET`.
+- Keep route handlers thin; delegate lifecycle work to dispatcher, runner, adapter, or service modules.
+- Do not bypass platform signature verification, loopback checks, bearer-token checks, or the per-`platformKey` active-run guard.
+- Internal routes must remain loopback-only and protected by `INTERNAL_API_SECRET` in production.
+- Stream user-visible output only through adapter `StreamHandle` callbacks; adapters own platform send/edit behavior.
+- Keep mounted routes in `src/server.ts` and documented endpoints in sync. If a source route remains commented out, document it as implemented-but-not-mounted.
+- Session, memory, worktree, vault, and devtools state live under user-level `~/.pulse-coder/*` paths. Do not treat `.pulse-coder/` repository config as harness source of truth.
+- Runtime/API behavior changes should update `README.md`, `docs/runbook.md`, or `docs/validation.md` when they change operator expectations.
+- Never commit secrets or local runtime state.
+
+## Common Commands
+
+Run from the repository root unless noted.
+
+```bash
+pnpm --filter @pulse-coder/remote-server dev
+pnpm --filter @pulse-coder/remote-server build
+pnpm --filter @pulse-coder/remote-server start
+```
+
+`start` runs `dist/index.cjs`, so build first after source changes. PM2 helpers in `package.json` are operational commands, not default validation.
+
+For docs-only changes, `docs/validation.md` says no build is required; check referenced paths and command names instead. The package currently has no workspace-local `test` script. There are Vitest files under `src/`, but the ad hoc root-level targeted run is not a clean default check until existing helper-test failures are fixed.
+
+## Validation Notes
+
+- Default code check: `pnpm --filter @pulse-coder/remote-server build`.
+- Runtime smoke, when changing routes/dispatcher/runner/adapters and credentials are available: start `dev`, then call `/health`; for internal automation, also smoke `/internal/agent/run` from loopback with `INTERNAL_API_SECRET`.
+- Escalate to engine, memory-plugin, plugin-kit, ACP, or langfuse checks when changes cross those integration boundaries.
+
+## Key Files
+
+- `src/index.ts`: initializes session, memory, worktree, vault, devtools, engine, Discord gateway, app server, and Discord commands.
+- `src/server.ts`: Hono app factory and the source of truth for mounted HTTP routes.
+- `src/core/dispatcher.ts`: signature-verified webhook flow, fast ack, slash-command handling, active-run guard, and streaming callbacks.
+- `src/core/agent-runner.ts`: session lookup, attachment context, model override resolution, ACP fallback, engine run, compaction capture, and memory logging.
+- `src/core/engine-singleton.ts`: shared engine plugins and remote custom tools.
+- `src/routes/internal.ts`: loopback-only automation and Discord gateway internal endpoints.
+- `src/routes/devtools.ts`: local devtools JSON API consumed by the optional `../devtools-web` UI.

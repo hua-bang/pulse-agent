@@ -1,24 +1,59 @@
 # Repository Guidelines
 
+## Repository Harness
+
+The active repository-level harness source of truth is `harness/`. Use it as a progressive map, not as a document dump:
+
+```text
+AGENTS.md / CLAUDE.md
+-> harness/README.md
+-> harness/profile.yaml
+-> affected workspace entry
+-> workspace contracts/spec/runbook/validation as needed
+```
+
+`.pulse-coder/` is product/runtime configuration and test surface for Pulse Coder itself; do not treat it as the source of truth for this repository harness pilot.
+
 ## Project Structure & Module Organization
-This repo is a `pnpm` monorepo with workspaces in `packages/*` and `apps/*`.
+This repo is a `pnpm` monorepo with all `packages/*` workspaces plus selected app workspaces listed in `pnpm-workspace.yaml`.
 
-- `packages/engine`: core agent engine, built-in tools, plugin loading, and runtime loop.
-- `packages/cli`: interactive terminal CLI built on `pulse-coder-engine`.
-- `packages/pulse-sandbox`: sandboxed JS execution runtime and `run_js` tool adapter.
-- `packages/memory-plugin`: memory integration/service package.
-- `apps/remote-server`: optional HTTP service wrapper around the engine.
-- `apps/coder-demo`: legacy experimental app.
+Root-level guidance should route work to the right local entry, then the local `AGENTS.md` should carry the package-specific map, boundaries, and validation notes. Primary source code lives under each package/app `src/` directory; build output goes to `dist/`.
 
-Primary source code lives under each package/app `src/` directory; build output goes to `dist/`.
+## Workspace Entry Index
+
+| Workspace | Local entry | Start there when the change touches |
+|---|---|---|
+| `packages/engine` | `packages/engine/AGENTS.md` | engine loop, providers, prompts, tools, hooks, plugins, context, or public runtime API |
+| `packages/cli` | `packages/cli/AGENTS.md` | terminal UX, sessions, slash commands, ACP/team/memory wiring, or CLI sandbox registration |
+| `packages/acp` | `packages/acp/AGENTS.md` | ACP JSON-RPC clients, child processes, external agent sessions, permissions, or file handlers |
+| `packages/pulse-sandbox` | `packages/pulse-sandbox/AGENTS.md` | sandboxed JavaScript execution or the `run_js` tool adapter |
+| `packages/agent-teams` | `packages/agent-teams/AGENTS.md` | team runtime, task state, review gates, verification metadata, handoffs, or team protocol APIs |
+| `packages/orchestrator` | `packages/orchestrator/AGENTS.md` | generic DAG planning, routing, scheduling, agent runners, artifacts, or aggregation |
+| `packages/plugin-kit` | `packages/plugin-kit/AGENTS.md` | worktree binding, vault binding, devtools timelines, or reusable plugin infrastructure |
+| `packages/memory-plugin` | `packages/memory-plugin/AGENTS.md` | memory services, recall/write policy, embeddings, daily logs, layered storage, or memory tools |
+| `packages/langfuse-plugin` | `packages/langfuse-plugin/AGENTS.md` | Langfuse traces, generations, tool spans, compaction events, or observability hooks |
+| `packages/canvas-cli` | `packages/canvas-cli/AGENTS.md` | `pulse-canvas` CLI commands, canvas store inspection/mutation, or runtime-control helpers |
+| `packages/canvas-nodes` | `packages/canvas-nodes/AGENTS.md` | external Canvas node plugins, manifests, capability providers, renderers, or webview node apps |
+| `apps/remote-server` | `apps/remote-server/AGENTS.md` | HTTP/webhook runtime, platform adapters, internal routes, devtools, or remote session wiring |
+| `apps/teams-cli` | `apps/teams-cli/AGENTS.md` | terminal host behavior for agent teams run/plan/interactive workflows |
+| `apps/canvas-workspace` | `apps/canvas-workspace/AGENTS.md` | Electron workbench, canvas persistence, Canvas Agent, teams UI, plugins, webviews, PTYs, or app harness |
+
+## Auxiliary App Directories
+
+These directories are useful context, but they are not active pnpm workspaces in the repository harness unless `pnpm-workspace.yaml` is expanded:
+
+- `apps/coder-demo`: legacy standalone experimental app; its placeholder test script is expected to fail.
+- `apps/devtools-web`: auxiliary Vite devtools UI that can be served by `apps/remote-server` when built.
+- `apps/canvas-plugin-react-mf-note-demo`: standalone Canvas external plugin demo with its own package flow.
 
 ## Build, Test, and Development Commands
 - `pnpm install`: install workspace dependencies.
-- `pnpm run build`: build all workspaces recursively.
+- `pnpm run build`: build core workspaces recursively.
 - `pnpm run dev`: watch mode for packages.
 - `pnpm start`: run the CLI (`pulse-coder-cli`).
 - `pnpm test`: run package tests (`./packages/*`).
-- `pnpm run test:apps`: run app tests (`./apps/*`).
+- `pnpm run test:apps`: run tests for app workspaces matched by pnpm filters.
+- `node harness/tools/graph-viewer/server.mjs --once`: validate the harness data behind the dashboard once.
 - `pnpm --filter pulse-coder-engine typecheck`: strict TS typecheck for engine.
 
 Useful package targets:
@@ -29,17 +64,7 @@ Useful package targets:
 - `pnpm --filter @pulse-coder/remote-server build`
 - `pnpm --filter @pulse-coder/remote-server dev`
 
-Note: `apps/coder-demo` uses a placeholder test script, so app-level test runs may fail until it is replaced.
-
-## Remote server notes (`apps/remote-server`)
-- Entry point: `apps/remote-server/src/index.ts` bootstraps session store, memory integration, worktree binding, and engine.
-- HTTP server: `apps/remote-server/src/server.ts` mounts `/health`, webhook routes, and `/internal/*` routes.
-- Dispatcher: `apps/remote-server/src/core/dispatcher.ts` owns signature verification, fast ack, command parsing, and streaming.
-- Sessions: stored in `~/.pulse-coder/remote-sessions` with `index.json` + `sessions/*.json`.
-- Memory logs: stored in `~/.pulse-coder/remote-memory` via `pulse-coder-memory-plugin`.
-- Worktree binding: stored in `~/.pulse-coder/worktree-state` via `pulse-coder-plugin-kit`.
-- Internal API: `/internal/agent/run` is loopback-only and requires `INTERNAL_API_SECRET`.
-- Platform adapters: Feishu and Discord are mounted; Telegram/Web adapters exist but are not enabled by default.
+Use the affected workspace entry and `harness/validation.yaml` before picking checks. Some local entries document package commands that are intentionally absent or currently red; do not promote those commands to root-level defaults until the package itself is cleaned up.
 
 ## Coding Style & Naming Conventions
 Use TypeScript with strict mode and keep style consistent with neighboring files:

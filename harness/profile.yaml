@@ -1,0 +1,166 @@
+# Machine-readable repository map for the Coder harness pilot.
+# Keep this file structural. Put prose in AGENTS.md, workspace docs, or harness/*.md.
+# Validation commands belong in harness/validation.yaml or workspace docs/validation.md.
+
+version: 1
+sourceOfTruth: harness/profile.yaml
+runtimeConfigNote: ".pulse-coder/ is product/runtime configuration, not the source of truth for this repository harness pilot."
+profileScope:
+  mode: pilot
+  note: "The workspaces map lists curated high-touch entries, not every package directory. Unlisted pnpm workspaces use workspaceTypeDefaults plus package.json scripts."
+activeWorkspaceGlobs:
+  - packages/*
+  - apps/remote-server
+  - apps/teams-cli
+  - apps/canvas-workspace
+
+readingPath:
+  - AGENTS.md
+  - CLAUDE.md
+  - harness/README.md
+  - harness/profile.yaml
+  - affected workspace entry
+  - workspace contracts/spec/runbook/validation
+
+workspaces:
+  packages/engine:
+    type: package
+    packageName: pulse-coder-engine
+    role: core-runtime
+    entry: packages/engine/AGENTS.md
+    knowledge:
+      contracts: packages/engine/docs/contracts.md
+      validation: packages/engine/docs/validation.md
+      readme: packages/engine/README.md
+
+  packages/cli:
+    type: package
+    packageName: pulse-coder-cli
+    role: interactive-terminal-cli
+    entry: packages/cli/AGENTS.md
+    knowledge:
+      readme: packages/cli/README.md
+
+  packages/orchestrator:
+    type: package
+    packageName: pulse-coder-orchestrator
+    role: generic-multi-agent-orchestrator
+    entry: packages/orchestrator/AGENTS.md
+    knowledge:
+      readme: packages/orchestrator/README.md
+      roadmap: docs/05-orchestrator-plan.md
+
+  packages/agent-teams:
+    type: package
+    packageName: pulse-coder-agent-teams
+    role: agent-team-runtime
+    entry: packages/agent-teams/AGENTS.md
+    knowledge:
+      contracts: packages/agent-teams/docs/contracts.md
+      validation: packages/agent-teams/docs/validation.md
+      roadmap: docs/07-agent-teams-maturity-roadmap.md
+
+  packages/memory-plugin:
+    type: package
+    packageName: pulse-coder-memory-plugin
+    role: memory-service-integration
+    entry: packages/memory-plugin/AGENTS.md
+    knowledge:
+      readme: packages/memory-plugin/README.md
+      design: docs/memory-plugin/technical-design.md
+
+  packages/plugin-kit:
+    type: package
+    packageName: pulse-coder-plugin-kit
+    role: plugin-runtime-toolkit
+    entry: packages/plugin-kit/AGENTS.md
+    knowledge:
+      readme: packages/plugin-kit/README.md
+
+  packages/acp:
+    type: package
+    packageName: pulse-coder-acp
+    role: acp-client-runner
+    entry: packages/acp/AGENTS.md
+    knowledge:
+      readme: packages/acp/README.md
+
+  packages/canvas-cli:
+    type: package
+    packageName: "@pulse-coder/canvas-cli"
+    role: canvas-agent-cli
+    entry: packages/canvas-cli/AGENTS.md
+    knowledge:
+      readme: packages/canvas-cli/README.md
+
+  packages/canvas-nodes:
+    type: package
+    packageName: "@pulse-canvas/nodes"
+    role: canvas-external-node-plugins
+    entry: packages/canvas-nodes/AGENTS.md
+    knowledge:
+      readme: packages/canvas-nodes/README.md
+      manifest: packages/canvas-nodes/manifest.json
+
+  packages/langfuse-plugin:
+    type: package
+    packageName: pulse-coder-langfuse-plugin
+    role: langfuse-observability-plugin
+    entry: packages/langfuse-plugin/AGENTS.md
+    knowledge:
+      source: packages/langfuse-plugin/src/index.ts
+
+  packages/pulse-sandbox:
+    type: package
+    packageName: pulse-sandbox
+    role: sandboxed-js-runtime
+    entry: packages/pulse-sandbox/AGENTS.md
+    knowledge:
+      readme: packages/pulse-sandbox/README.md
+
+  apps/remote-server:
+    type: app
+    packageName: "@pulse-coder/remote-server"
+    role: remote-http-runtime
+    entry: apps/remote-server/AGENTS.md
+    existingClaudeEntry: apps/remote-server/CLAUDE.md
+    knowledge:
+      runbook: apps/remote-server/docs/runbook.md
+      validation: apps/remote-server/docs/validation.md
+
+  apps/teams-cli:
+    type: app
+    packageName: "@pulse-coder/teams-cli"
+    role: agent-teams-cli-host
+    entry: apps/teams-cli/AGENTS.md
+    knowledge:
+      agentTeamsEntry: packages/agent-teams/AGENTS.md
+      roadmap: docs/07-agent-teams-maturity-roadmap.md
+
+  apps/canvas-workspace:
+    type: app
+    packageName: canvas-workspace
+    role: electron-canvas-workbench
+    entry: apps/canvas-workspace/AGENTS.md
+    existingClaudeEntry: apps/canvas-workspace/CLAUDE.md
+    knowledge:
+      conventions: apps/canvas-workspace/docs/conventions/README.md
+      runtimeHarness: apps/canvas-workspace/harness/README.md
+      harnessRoadmap: docs/06-harness-engineering-roadmap.md
+
+workspaceTypeDefaults:
+  package:
+    longTermKnowledge:
+      - AGENTS.md
+      - README.md
+      - docs/contracts.md
+      - docs/validation.md
+      - TypeScript types
+      - tests
+  app:
+    longTermKnowledge:
+      - AGENTS.md or CLAUDE.md
+      - docs/spec/ when product behavior needs a durable SSOT
+      - docs/history/ for delivery decisions
+      - docs/runbook.md
+      - docs/validation.md

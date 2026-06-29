@@ -90,6 +90,7 @@ release/
 
 # Pulse Canvas harness runtime artifacts
 apps/canvas-workspace/.harness/
+*.harness-bak
 
 # Gatsby files
 .cache/
