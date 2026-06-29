@@ -27,9 +27,20 @@ beyond two registrations and one flag entry:
 | renderer | `src/plugins/renderer/perf/` | `RendererCtx.registerRoute` + `registerNavItem` + `invoke` |
 | main | `src/plugins/main/perf.ts` | `MainCtx.handle('metrics' \| 'snapshot')` (pull-based, inert until invoked) |
 
-Gated by the `perf-panel` experimental flag — enable in **Settings →
-Experimental** (requires a window reload, since plugin activation snapshots
-flag values at renderer bootstrap).
+**Two gates:**
+
+1. **Build-time** — `__PERF_TOOLS__` (injected by `electron.vite.config.ts`).
+   `false` for production builds, so the renderer half is behind a
+   `__PERF_TOOLS__`-guarded dynamic `import()` in `main.tsx` (dead-code
+   eliminated → PerfPage + CSS never bundled) and the main half is dropped from
+   `BUILT_IN_MAIN_PLUGINS` via a `__PERF_TOOLS__ ?` spread (tree-shaken).
+   Included in dev; force into a build with `PULSE_PERF_TOOLS=1`.
+2. **Runtime** — the `perf-panel` experimental flag (Settings → Experimental,
+   needs a window reload). Even in a dev build the panel stays hidden until the
+   flag is on.
+
+So a packaged app ships **none** of this code; a dev build ships it but inert
+until you flip the flag.
 
 ## Boundaries (what stays out of the plugin)
 
@@ -44,9 +55,11 @@ flag values at renderer bootstrap).
 ## Removing it completely
 
 1. Delete `src/plugins/renderer/perf/` and `src/plugins/main/perf.ts`.
-2. Remove `PerfRendererPlugin` from `src/plugins/renderer/built-in.ts` and
-   `PerfMainPlugin` from `src/plugins/main/built-in.ts`.
+2. Remove the `__PERF_TOOLS__`-guarded perf import block in
+   `src/renderer/src/main.tsx` and the `PerfMainPlugin` spread in
+   `src/plugins/main/built-in.ts`.
 3. Remove `EXPERIMENTAL_FLAG_PERF_PANEL` (constant + descriptor) from
    `src/shared/experimental-features.ts`.
 
-Nothing else references it.
+Nothing else references it. (The `__PERF_TOOLS__` define and `perf-marks.ts`
+can stay — they are independently useful and already stripped from production.)

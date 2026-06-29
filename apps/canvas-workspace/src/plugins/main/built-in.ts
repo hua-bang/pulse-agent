@@ -6,12 +6,13 @@ import { ChannelMainPlugin } from './channel';
 import { MockNodeMainPlugin } from '../mock-node/main';
 import { PerfMainPlugin } from './perf';
 
-// Main-side halves of built-in Canvas plugins.
+// Main-side halves of built-in Canvas plugins. PerfMainPlugin is gated on the
+// build-time __PERF_TOOLS__ constant so production builds tree-shake it out.
 export const BUILT_IN_MAIN_PLUGINS: MainCanvasPlugin[] = [
   DevtoolsMainPlugin,
   WebviewPageControlPlugin,
   DynamicAppPlugin,
   ChannelMainPlugin,
   MockNodeMainPlugin,
-  PerfMainPlugin,
+  ...(__PERF_TOOLS__ ? [PerfMainPlugin] : []),
 ];

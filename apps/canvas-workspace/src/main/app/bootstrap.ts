@@ -66,7 +66,11 @@ import {
 import { configureApplicationMenu } from "./menu";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
-import { recordMark } from "./perf-marks";
+import { recordMark as recordMarkImpl } from "./perf-marks";
+
+// Compiled out of production builds: when __PERF_TOOLS__ is the literal false,
+// this collapses to a no-op and perf-marks.ts is tree-shaken away.
+const recordMark = __PERF_TOOLS__ ? recordMarkImpl : (_name: string) => {};
 import { setupLinkPolicy } from "./link-policy";
 
 export interface BootstrapOptions {

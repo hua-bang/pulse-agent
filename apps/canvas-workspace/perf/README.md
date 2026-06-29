@@ -11,9 +11,15 @@ Findings these numbers validate: [`../docs/performance-analysis-consolidated.md`
 
 ```bash
 pnpm install                                   # deps must be installed
-pnpm --filter canvas-workspace perf:report     # build + bench → perf/out/perf-snapshot.md
+pnpm --filter canvas-workspace perf:report     # build + bench → perf/out/perf-snapshot.{md,html}
 pnpm --filter canvas-workspace perf:report --no-build   # reuse existing dist/
 ```
+
+`perf:report` writes three artifacts to `perf/out/`: `perf-snapshot.md`
+(diff-friendly), `perf-snapshot.json` (machine-readable), and
+**`perf-snapshot.html`** — a self-contained dashboard (chunk bars, bench growth
+exponents, runtime tables) to open in a browser. All three are dev artifacts,
+never shipped in the app.
 
 Individual layers:
 

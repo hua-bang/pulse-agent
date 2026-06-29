@@ -16,14 +16,17 @@ import { makeNodes } from '../../__perf_fixtures__/nodes';
  */
 for (const n of [100, 500, 2000]) {
   const nodes = makeNodes(n, { seed: 7 });
+  // n is embedded in each bench name so the value survives in the JSON output
+  // regardless of how the reporter nests describe() groups — the dashboard
+  // parses "<fn> @ n=<count>" to plot the growth curve.
   describe(`n=${n}`, () => {
-    bench('computeParentContainerMap', () => {
+    bench(`computeParentContainerMap @ n=${n}`, () => {
       computeParentContainerMap(nodes);
     });
-    bench('computeContainerDepths', () => {
+    bench(`computeContainerDepths @ n=${n}`, () => {
       computeContainerDepths(nodes);
     });
-    bench('filterCollapsedFrameDescendants', () => {
+    bench(`filterCollapsedFrameDescendants @ n=${n}`, () => {
       filterCollapsedFrameDescendants(nodes);
     });
   });
@@ -39,7 +42,7 @@ for (const n of [500, 2000]) {
   const containerId =
     nodes.find((node) => node.type === 'frame' || node.type === 'group')?.id ?? nodes[0].id;
   describe(`collectContainerDescendants n=${n}`, () => {
-    bench('current', () => {
+    bench(`collectContainerDescendants @ n=${n}`, () => {
       collectContainerDescendants(containerId, nodes);
     });
   });

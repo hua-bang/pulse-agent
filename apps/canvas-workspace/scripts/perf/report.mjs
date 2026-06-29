@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { formatBytes, readJsonSafe, writeJson, writeText, mdTable, ensureDir } from './lib/format.mjs';
+import { renderDashboard } from './dashboard.mjs';
 
 const APP_ROOT = resolve(fileURLToPath(new URL('../../', import.meta.url)));
 const OUT_DIR = join(APP_ROOT, 'perf', 'out');
@@ -162,16 +163,18 @@ if (runtime?.scenarios?.length) {
 md += '---\n\n';
 md += '将以上实测值回填到 `performance-analysis-consolidated.md` 的"估算"列,即可把静态推断升级为实测并据此重排优先级。\n';
 
-writeText(join(OUT_DIR, 'perf-snapshot.md'), md);
-writeJson(join(OUT_DIR, 'perf-snapshot.json'), {
+const snapshot = {
   generatedAt: new Date().toISOString(),
   steps,
   bundle,
   benches,
   startup,
   runtime,
-});
+};
+writeText(join(OUT_DIR, 'perf-snapshot.md'), md);
+writeJson(join(OUT_DIR, 'perf-snapshot.json'), snapshot);
+writeText(join(OUT_DIR, 'perf-snapshot.html'), renderDashboard(snapshot));
 
-process.stderr.write(`\n✓ snapshot → perf/out/perf-snapshot.md\n`);
+process.stderr.write(`\n✓ snapshot → perf/out/perf-snapshot.md · perf-snapshot.html (open in a browser)\n`);
 const hardFailed = steps.some((s) => s.status === 'failed' || s.status === 'error');
 process.exit(hardFailed ? 1 : 0);

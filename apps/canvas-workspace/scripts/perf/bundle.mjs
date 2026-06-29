@@ -27,14 +27,18 @@ const args = new Set(process.argv.slice(2));
 
 // Sentinel substrings that betray a heavy dependency living inside a chunk.
 // Heuristic but deterministic; good enough to flag "is xterm in the entry?".
+// NB: mermaid is intentionally omitted — it is already lazy-loaded via
+// chat/utils/mermaid.ts (its library + diagram renderers live in async chunks),
+// so a substring check would false-positive on the `import('mermaid')` call
+// site that legitimately remains in the entry chunk. These are the deps that
+// are genuinely eager and worth splitting (findings C1–C9).
 const HEAVY_DEPS = {
-  xterm: ['xterm', 'AltClickEnable', 'BufferLine'],
-  'react-force-graph-2d': ['forceSimulation', 'd3-force', 'ForceGraph'],
-  'lowlight-common': ['highlightAuto', 'hljs', 'lowlight'],
-  '@tiptap/ProseMirror': ['ProseMirror', 'prosemirror', 'tiptap'],
-  'markdown-it': ['markdown-it', 'MarkdownIt'],
-  '@module-federation/runtime': ['module-federation', '__FEDERATION__'],
-  mermaid: ['mermaid'],
+  xterm: ['AltClickEnable', 'BufferLine'],
+  'react-force-graph-2d': ['forceSimulation', 'd3-force'],
+  'lowlight-common': ['highlightAuto', 'createLowlight'],
+  '@tiptap/ProseMirror': ['ProseMirror', 'prosemirror'],
+  'markdown-it': ['MarkdownIt'],
+  '@module-federation/runtime': ['__FEDERATION__', 'module-federation'],
 };
 
 const build = () => {

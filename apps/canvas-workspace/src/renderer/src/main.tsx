@@ -28,6 +28,16 @@ void activateConfiguredFederatedRendererPlugins().catch((err) => {
   console.error('[canvas-plugins] federated renderer bootstrap failed', err);
 });
 
+// Optional perf debug panel. The __PERF_TOOLS__ guard is a build-time literal,
+// so production builds dead-code-eliminate this block and never bundle the
+// perf plugin (PerfPage + its CSS). Late async registration is fine — the
+// /perf route is not on the first-paint path.
+if (__PERF_TOOLS__) {
+  void import('../../plugins/renderer/perf')
+    .then(({ PerfRendererPlugin }) => activateCanvasPlugins([PerfRendererPlugin]))
+    .catch((err) => console.error('[canvas-plugins] perf panel bootstrap failed', err));
+}
+
 createRoot(root).render(
   <Router hook={useHashLocation}>
     <App />

@@ -87,9 +87,18 @@ function localPluginRendererAssetsPlugin() {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => {
+  // Perf debug tooling (the /perf panel + startup marks) is compiled in for
+  // dev and stripped from production builds via the __PERF_TOOLS__ constant.
+  // Override with PULSE_PERF_TOOLS=1 to include it in a build (e.g. to run L4
+  // runtime profiling against a packaged app).
+  const includePerfTools = process.env.PULSE_PERF_TOOLS === "1" || command !== "build";
+  const perfDefine = { __PERF_TOOLS__: JSON.stringify(includePerfTools) };
+
+  return {
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: perfDefine,
     build: {
       outDir: "dist/main"
     }
@@ -111,6 +120,7 @@ export default defineConfig({
   },
   renderer: {
     root: "src/renderer",
+    define: perfDefine,
     build: {
       outDir: "dist/renderer",
       // Bundle analysis is opt-in (PULSE_PERF_BUNDLE=1) so the normal build
@@ -132,4 +142,5 @@ export default defineConfig({
     },
     plugins: [react(), localPluginRendererAssetsPlugin()]
   }
+  };
 });
