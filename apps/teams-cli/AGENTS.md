@@ -29,12 +29,13 @@ Team protocol behavior belongs in `packages/agent-teams`; this app should stay f
 
 ```bash
 pnpm --filter @pulse-coder/teams-cli test
-pnpm --filter @pulse-coder/teams-cli typecheck
 pnpm --filter @pulse-coder/teams-cli build
 pnpm preview:teams
 pnpm preview:teams:run
 pnpm preview:teams:plan
 ```
+
+`typecheck` currently hits TS6059 because the app imports workspace source from `packages/agent-teams`, `packages/engine`, and `packages/orchestrator` outside this app's `rootDir`; prefer `build` until that TypeScript boundary is fixed.
 
 ## Key Files
 
