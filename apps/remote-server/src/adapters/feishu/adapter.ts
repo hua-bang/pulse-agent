@@ -127,7 +127,7 @@ export class FeishuAdapter implements PlatformAdapter {
         clarificationQueue.submitAnswer(activeStreamId, pending.request.id, text);
         const sendTo = chatId ?? openId;
         const idType: 'chat_id' | 'open_id' = chatId ? 'chat_id' : 'open_id';
-        await sendTextMessage(this.larkClient, sendTo, idType, `✅ Got it: "${text}"`).catch(console.error);
+        await sendTextMessage(this.larkClient, sendTo, idType, `✅ Got it: "${text}"`, messageId ? { replyToMessageId: messageId } : undefined).catch(console.error);
       }
       return null;
     }
@@ -152,6 +152,7 @@ export class FeishuAdapter implements PlatformAdapter {
     const chatId = meta?.chatId ?? incoming.platformKey.replace('feishu:', '');
     const idType = meta?.chatIdType ?? 'open_id';
     const sourceMessageId = meta?.sourceMessageId;
+    const replyOptions = sourceMessageId ? { replyToMessageId: sourceMessageId } : undefined;
     const { larkClient } = this;
 
     // Clean up chatMeta after reading — it's only needed to bridge parseIncoming → createStreamHandle
@@ -270,7 +271,7 @@ export class FeishuAdapter implements PlatformAdapter {
 
     // Send initial "thinking" card
     try {
-      cardMessageId = await sendCardMessage(larkClient, chatId, idType, buildThinkingCard());
+      cardMessageId = await sendCardMessage(larkClient, chatId, idType, buildThinkingCard(), replyOptions);
       lastProgressUpdateAt = Date.now();
       startHeartbeat();
     } catch (err) {
@@ -304,7 +305,7 @@ export class FeishuAdapter implements PlatformAdapter {
         sentImagePaths.add(imageResult.outputPath);
 
         try {
-          await sendImageMessage(chatId, idType, imageResult.outputPath, imageResult.mimeType);
+          await sendImageMessage(chatId, idType, imageResult.outputPath, imageResult.mimeType, replyOptions);
           latestToolHint = '🖼️ Image generated and sent to Feishu';
           scheduleProgressUpdate(true);
         } catch (err) {
@@ -319,7 +320,7 @@ export class FeishuAdapter implements PlatformAdapter {
         const question = req.context
           ? `${req.question}\n\n_Context: ${req.context}_`
           : req.question;
-        await sendTextMessage(larkClient, chatId, idType, `❓ ${question}`).catch(console.error);
+        await sendTextMessage(larkClient, chatId, idType, `❓ ${question}`, replyOptions).catch(console.error);
       },
 
       async onDone(result) {
@@ -335,11 +336,11 @@ export class FeishuAdapter implements PlatformAdapter {
             }
           }
 
-          await sendCardMessage(larkClient, chatId, idType, buildDoneCard(result)).catch((err) => {
+          await sendCardMessage(larkClient, chatId, idType, buildDoneCard(result), replyOptions).catch((err) => {
             console.error('[feishu] Failed to send done card fallback:', err);
           });
         } else {
-          await sendTextMessage(larkClient, chatId, idType, result || '✅ Done').catch(console.error);
+          await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch(console.error);
         }
 
         if (sourceMessageId) {
@@ -362,11 +363,11 @@ export class FeishuAdapter implements PlatformAdapter {
             }
           }
 
-          await sendCardMessage(larkClient, chatId, idType, buildErrorCard(err.message)).catch((sendErr) => {
+          await sendCardMessage(larkClient, chatId, idType, buildErrorCard(err.message), replyOptions).catch((sendErr) => {
             console.error('[feishu] Failed to send error card fallback:', sendErr);
           });
         } else {
-          await sendTextMessage(larkClient, chatId, idType, `❌ ${err.message}`).catch(console.error);
+          await sendTextMessage(larkClient, chatId, idType, `❌ ${err.message}`, replyOptions).catch(console.error);
         }
       },
     };
