@@ -54,6 +54,16 @@ export const EXPERIMENTAL_FLAG_CHANNELS = 'chat-channels';
 export const EXPERIMENTAL_FLAG_AGENT_TEAMS = 'agent-teams';
 export const EXPERIMENTAL_FLAG_PERF_PANEL = 'perf-panel';
 
+// The Perf panel toggle only appears when the perf tooling is compiled in
+// (dev builds / PULSE_PERF_TOOLS=1). The `typeof` guard keeps this safe in
+// every context: production/dev builds replace __PERF_TOOLS__ with a literal
+// (so this is `typeof false/true` → 'boolean'), while vitest and any context
+// without the build-time define see an undeclared identifier — `typeof`
+// returns 'undefined' rather than throwing, so the descriptor is simply
+// omitted. Result: a packaged app shows no "Performance panel" toggle at all.
+const PERF_PANEL_AVAILABLE =
+  typeof __PERF_TOOLS__ !== 'undefined' && __PERF_TOOLS__ === true;
+
 export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
   {
     id: EXPERIMENTAL_FLAG_AGENT_DEBUG_TRACE,
@@ -104,13 +114,17 @@ export const EXPERIMENTAL_FEATURES: ExperimentalFeatureDef[] = [
       'Shows the Agent Team canvas entry for experimental multi-agent planning and execution. Existing Agent Team frames can still be opened from saved canvases.',
     defaultEnabled: false,
   },
-  {
-    id: EXPERIMENTAL_FLAG_PERF_PANEL,
-    label: 'Performance panel',
-    description:
-      'Adds a "Perf" route that surfaces live runtime metrics (FPS, JS heap, long tasks), per-process CPU/memory and guest webview counts, plus the latest CI bundle/bench snapshot (perf/out/perf-snapshot.json). A fully detachable observability plugin — off by default, zero cost when off.',
-    defaultEnabled: false,
-  },
+  ...(PERF_PANEL_AVAILABLE
+    ? [
+        {
+          id: EXPERIMENTAL_FLAG_PERF_PANEL,
+          label: 'Performance panel',
+          description:
+            'Adds a "Perf" route that surfaces live runtime metrics (FPS, JS heap, long tasks), per-process CPU/memory and guest webview counts, plus the latest CI bundle/bench snapshot (perf/out/perf-snapshot.json). A fully detachable observability plugin — off by default, zero cost when off.',
+          defaultEnabled: false,
+        },
+      ]
+    : []),
 ];
 
 /**
