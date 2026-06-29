@@ -545,15 +545,19 @@ main { min-width:0; padding:22px 24px 36px; }
 .gap-groups { display:grid; gap:14px; }
 .gap-group { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#141922; }
 .gap-group-header { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; padding:12px 14px; background:var(--panel-2); border-bottom:1px solid var(--line); }
-.gap-group-header.actionable { cursor:pointer; }
-.gap-group-header.actionable:hover, .gap-group-header.actionable:focus { background:#202938; outline:0; }
+.gap-group-header { cursor:pointer; }
+.gap-group-header:hover, .gap-group-header:focus { background:#202938; outline:0; }
 .gap-group-title { display:grid; gap:4px; min-width:0; }
 .gap-group-title strong { font-size:15px; }
+.gap-group-actions { display:grid; justify-items:end; gap:8px; }
+.gap-group-buttons { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
 .gap-group-body { padding:10px 12px 2px; }
+.gap-group.collapsed .gap-group-body { display:none; }
 .gap-group-body .gap-row { background:#171d26; }
 .gap-row { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:12px; margin-bottom:10px; }
 .gap-row.actionable { cursor:pointer; }
 .gap-row.actionable:hover, .gap-row.actionable:focus { border-color:var(--blue); background:#202938; outline:0; }
+.gap-row-path { display:flex; flex-wrap:wrap; gap:6px; align-items:baseline; margin-top:2px; }
 .severity { font-weight:700; }
 .severity.high { color:var(--red); }
 .severity.medium { color:var(--yellow); }
@@ -581,6 +585,8 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
   .topbar, main, .detail { padding-left:14px; padding-right:14px; }
   .metrics { grid-template-columns:1fr; }
   .gap-group-header { display:grid; }
+  .gap-group-actions { justify-items:start; }
+  .gap-group-buttons { justify-content:flex-start; }
   .gap-row, .mini-row { grid-template-columns:1fr; }
 }
 </style>
@@ -674,6 +680,11 @@ const messages = {
     currentMissing: '当前 Harness 缺失项',
     workspaceDetail: '工作区详情',
     selectWorkspace: '选择一个工作区查看入口、验证命令、阅读路径和缺失项。',
+    viewWorkspace: '查看工作区',
+    collapse: '收起',
+    expand: '展开',
+    fixLocation: '修复位置',
+    workspaceScope: '工作区',
   },
   en: {
     title: 'Harness Dashboard',
@@ -693,10 +704,15 @@ const messages = {
     currentMissing: 'Current Harness Missing Items',
     workspaceDetail: 'Workspace Detail',
     selectWorkspace: 'Select a workspace to inspect entry, validation commands, reading path, and missing items.',
+    viewWorkspace: 'View Workspace',
+    collapse: 'Collapse',
+    expand: 'Expand',
+    fixLocation: 'Fix Location',
+    workspaceScope: 'Workspace',
   },
 };
 const savedLang = localStorage.getItem('harness-dashboard-lang');
-const state = { selected: '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh' };
+const state = { selected: '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh', collapsedGapGroups: new Set() };
 
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function radius(n){ return n.type==='workspace'?10:n.type==='gap'?9:6; }
@@ -822,12 +838,13 @@ function renderWorkspaces(){
 }
 function renderGapRow(gap, options = {}){
   const showWorkspace = options.showWorkspace !== false;
-  const canOpen = gap.workspace && byWorkspace.has(gap.workspace);
+  const canOpen = options.drillIn !== false && gap.workspace && byWorkspace.has(gap.workspace);
   const workspaceAttr = canOpen ? ' data-workspace="'+escapeHtml(gap.workspace)+'" tabindex="0"' : '';
   const pathLabel = showWorkspace ? (gap.workspace || gap.path) : (gap.path || gap.workspace);
+  const pathCaption = showWorkspace ? t('workspaceScope') : t('fixLocation');
   return '<div class="gap-row '+(canOpen ? 'actionable' : '')+'"'+workspaceAttr+'>'+
     '<div><span class="severity '+escapeHtml(gap.severity)+'">'+escapeHtml(severityLabel(gap.severity))+'</span><div class="muted">'+escapeHtml(typeLabel(gap.type))+'</div></div>'+
-    '<div><strong>'+escapeHtml(gapLabel(gap))+'</strong><div class="path">'+escapeHtml(pathLabel)+'</div><div class="muted">'+escapeHtml(gapDetail(gap))+'</div></div>'+
+    '<div><strong>'+escapeHtml(gapLabel(gap))+'</strong><div class="gap-row-path"><span class="muted">'+escapeHtml(pathCaption)+'</span><span class="path">'+escapeHtml(pathLabel)+'</span></div><div class="muted">'+escapeHtml(gapDetail(gap))+'</div></div>'+
   '</div>';
 }
 function gapGroups(){
@@ -844,17 +861,19 @@ function renderGapGroup(group){
   const mediumCount = group.items.filter(gap => gap.severity === 'medium').length;
   const typeBadges = [...new Set(group.items.map(gap => typeLabel(gap.type)))].map(type => '<span class="badge">'+escapeHtml(type)+'</span>').join('');
   const canOpen = group.workspace && byWorkspace.has(group.workspace);
-  const workspaceAttr = canOpen ? ' data-workspace="'+escapeHtml(group.workspace)+'" tabindex="0"' : '';
+  const collapsed = state.collapsedGapGroups.has(group.workspace);
+  const toggleAttr = ' data-toggle-gap-group="'+escapeHtml(group.workspace)+'"';
+  const workspaceAction = canOpen ? '<button data-open-workspace="'+escapeHtml(group.workspace)+'">'+t('viewWorkspace')+'</button>' : '';
   const severityBadges = [
     highCount ? '<span class="badge missing">'+escapeHtml(countLabel(highCount, ' 个高优先级', 'high priority item', 'high priority items'))+'</span>' : '',
     mediumCount ? '<span class="badge partial">'+escapeHtml(countLabel(mediumCount, ' 个中优先级', 'medium priority item', 'medium priority items'))+'</span>' : '',
   ].join('');
-  return '<section class="gap-group">'+
-    '<div class="gap-group-header '+(canOpen ? 'actionable' : '')+'"'+workspaceAttr+'>'+
+  return '<section class="gap-group '+(collapsed ? 'collapsed' : '')+'">'+
+    '<div class="gap-group-header"'+toggleAttr+' tabindex="0">'+
       '<div class="gap-group-title"><strong class="path">'+escapeHtml(group.workspace)+'</strong><div class="muted">'+escapeHtml(countLabel(group.items.length, ' 个缺失项', 'missing item', 'missing items'))+'</div></div>'+
-      '<div class="badges">'+severityBadges+typeBadges+'</div>'+
+      '<div class="gap-group-actions"><div class="badges">'+severityBadges+typeBadges+'</div><div class="gap-group-buttons">'+workspaceAction+'<button data-toggle-gap-group="'+escapeHtml(group.workspace)+'">'+(collapsed ? t('expand') : t('collapse'))+'</button></div></div>'+
     '</div>'+
-    '<div class="gap-group-body">'+group.items.map(gap => renderGapRow(gap, { showWorkspace: false })).join('')+'</div>'+
+    '<div class="gap-group-body">'+group.items.map(gap => renderGapRow(gap, { showWorkspace: false, drillIn: false })).join('')+'</div>'+
   '</section>';
 }
 function renderGaps(){
@@ -903,6 +922,11 @@ function openWorkspace(path){
     document.querySelector('.detail')?.scrollTo({ top: 0 });
   });
 }
+function toggleGapGroup(workspace){
+  if (state.collapsedGapGroups.has(workspace)) state.collapsedGapGroups.delete(workspace);
+  else state.collapsedGapGroups.add(workspace);
+  renderGaps();
+}
 function init(){
   renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail();
   document.querySelector('.language-switch').addEventListener('click', e => {
@@ -930,13 +954,23 @@ function init(){
     openWorkspace(card.dataset.workspace);
   });
   document.body.addEventListener('click', e => {
-    const gap = e.target.closest('.gap-row[data-workspace], .gap-group-header[data-workspace]');
+    const workspaceAction = e.target.closest('[data-open-workspace]');
+    if (workspaceAction) { openWorkspace(workspaceAction.dataset.openWorkspace); return; }
+    const gapToggle = e.target.closest('[data-toggle-gap-group]');
+    if (gapToggle) { toggleGapGroup(gapToggle.dataset.toggleGapGroup); return; }
+    const gap = e.target.closest('.gap-row[data-workspace]');
     if (gap) { openWorkspace(gap.dataset.workspace); return; }
     const copy = e.target.closest('button[data-copy]'); if(!copy) return;
     navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = bi('已复制', 'Copied'); setTimeout(() => { copy.textContent = bi('复制', 'Copy'); }, 1100); });
   });
   document.body.addEventListener('keydown', e => {
-    const gap = e.target.closest?.('.gap-row[data-workspace], .gap-group-header[data-workspace]');
+    const gapToggle = e.target.closest?.('[data-toggle-gap-group]');
+    if (gapToggle && gapToggle.tagName !== 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      toggleGapGroup(gapToggle.dataset.toggleGapGroup);
+      return;
+    }
+    const gap = e.target.closest?.('.gap-row[data-workspace]');
     if (!gap || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
     openWorkspace(gap.dataset.workspace);
