@@ -28,6 +28,7 @@ Then open the printed local URL. The dashboard includes:
 - current missing harness items
 - resolved validation commands
 - a graph view for relationship debugging
+- bilingual Chinese/English labels for easier shared review
 
 For a non-server smoke check:
 

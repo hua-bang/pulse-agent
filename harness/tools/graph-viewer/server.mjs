@@ -451,11 +451,11 @@ function buildGraph() {
 function html(graph) {
   const graphJson = JSON.stringify(graph).replaceAll('<', '\\u003c');
   return `<!doctype html>
-<html lang="en">
+<html lang="zh-Hans">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Harness Dashboard</title>
+<title>Harness 看板 / Harness Dashboard</title>
 <style>
 :root {
   color-scheme: dark;
@@ -577,16 +577,16 @@ svg { width:100%; height:100%; display:block; }
 <header class="topbar">
   <div class="topline">
     <div>
-      <h1>Repository Harness Dashboard</h1>
-      <div class="sub">Operational view of harness coverage, workspace guidance, validation commands, and missing pieces.</div>
+      <h1>仓库 Harness 看板 / Repository Harness Dashboard</h1>
+      <div class="sub">快速查看 harness 覆盖、工作区指引、验证命令和当前缺失项。Operational view of harness coverage, workspace guidance, validation commands, and missing pieces.</div>
     </div>
     <div class="meta" id="meta"></div>
   </div>
-  <nav class="tabs" aria-label="Harness views">
-    <button class="active" data-tab="overview">Overview</button>
-    <button data-tab="workspaces">Workspaces</button>
-    <button data-tab="gaps">Missing</button>
-    <button data-tab="graph">Graph</button>
+  <nav class="tabs" aria-label="Harness 视图 / Harness views">
+    <button class="active" data-tab="overview">总览 / Overview</button>
+    <button data-tab="workspaces">工作区 / Workspaces</button>
+    <button data-tab="gaps">缺失 / Missing</button>
+    <button data-tab="graph">关系图 / Graph</button>
   </nav>
 </header>
 <div class="shell">
@@ -595,34 +595,34 @@ svg { width:100%; height:100%; display:block; }
       <div class="metrics" id="metrics"></div>
       <div class="grid-2">
         <section class="panel">
-          <h2>Harness Health</h2>
+          <h2>Harness 健康度 / Harness Health</h2>
           <div id="health"></div>
         </section>
         <section class="panel">
-          <h2>Priority Missing Items</h2>
+          <h2>优先缺失项 / Priority Missing Items</h2>
           <div id="priority-gaps"></div>
         </section>
       </div>
       <section class="panel">
-        <h2>Progressive Reading Loop</h2>
+        <h2>渐进阅读路径 / Progressive Reading Loop</h2>
         <div class="compact-list" id="reading-loop"></div>
       </section>
     </section>
 
     <section id="workspaces" class="view">
       <div class="filters">
-        <input id="workspace-search" class="search" type="search" placeholder="Search workspace, package, role, or command" />
-        <button class="active" data-filter="all">All</button>
-        <button data-filter="ready">Ready</button>
-        <button data-filter="partial">Partial</button>
-        <button data-filter="missing">Missing</button>
+        <input id="workspace-search" class="search" type="search" placeholder="搜索工作区、包、角色或命令 / Search workspace, package, role, or command" />
+        <button class="active" data-filter="all">全部 / All</button>
+        <button data-filter="ready">就绪 / Ready</button>
+        <button data-filter="partial">部分 / Partial</button>
+        <button data-filter="missing">缺失 / Missing</button>
       </div>
       <div class="workspace-grid" id="workspace-grid"></div>
     </section>
 
     <section id="gaps" class="view">
       <section class="panel">
-        <h2>Current Harness Missing Items</h2>
+        <h2>当前 Harness 缺失项 / Current Harness Missing Items</h2>
         <div id="gap-list"></div>
       </section>
     </section>
@@ -631,23 +631,23 @@ svg { width:100%; height:100%; display:block; }
       <div class="graph-layout">
         <div>
           <div class="filters">
-            <button id="toggle-graph">Pause graph</button>
-            <button class="active" data-node-filter="all">All nodes</button>
-            <button data-node-filter="workspace">Workspaces</button>
-            <button data-node-filter="validation">Validation</button>
-            <button data-node-filter="gap">Gaps</button>
+            <button id="toggle-graph">暂停图 / Pause graph</button>
+            <button class="active" data-node-filter="all">全部节点 / All nodes</button>
+            <button data-node-filter="workspace">工作区 / Workspaces</button>
+            <button data-node-filter="validation">验证 / Validation</button>
+            <button data-node-filter="gap">缺口 / Gaps</button>
           </div>
           <div class="graph-box"><svg id="graph-svg" role="img" aria-label="Harness graph"></svg></div>
         </div>
         <section class="panel">
-          <h2 id="graph-title">Graph Selection</h2>
-          <div id="graph-detail" class="muted">Select a node to inspect connected edges.</div>
+          <h2 id="graph-title">图节点选择 / Graph Selection</h2>
+          <div id="graph-detail" class="muted">选择一个节点查看关联边。Select a node to inspect connected edges.</div>
         </section>
       </div>
     </section>
   </main>
   <aside class="detail">
-    <h2 id="detail-title">Workspace Detail</h2>
+    <h2 id="detail-title">工作区详情 / Workspace Detail</h2>
     <div id="detail-body"></div>
   </aside>
 </div>
@@ -667,45 +667,85 @@ let running = true;
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function radius(n){ return n.type==='workspace'?10:n.type==='gap'?9:6; }
 function pct(part, total){ return total ? Math.round(part / total * 100) : 100; }
-function statusLabel(status){ return status === 'ready' ? 'Ready' : status === 'missing' ? 'Missing' : 'Partial'; }
+function bi(zh, en){ return zh + ' / ' + en; }
+function countLabel(count, zhUnit, enSingular, enPlural){ return count + zhUnit + ' / ' + count + ' ' + (count === 1 ? enSingular : enPlural); }
+function statusLabel(status){ return status === 'ready' ? bi('就绪', 'Ready') : status === 'missing' ? bi('缺失', 'Missing') : bi('部分', 'Partial'); }
 function statusBadge(status){ return '<span class="badge '+status+'">'+statusLabel(status)+'</span>'; }
+function severityLabel(severity){ return severity === 'high' ? bi('高', 'HIGH') : severity === 'medium' ? bi('中', 'MEDIUM') : String(severity ?? '').toUpperCase(); }
+function typeLabel(type){
+  const labels = {
+    profile: bi('Profile', 'profile'),
+    entry: bi('入口', 'entry'),
+    knowledge: bi('知识', 'knowledge'),
+    validation: bi('验证', 'validation'),
+  };
+  return labels[type] ?? type;
+}
+function gapLabel(gap){
+  if (gap.label === 'No explicit profile entry') return bi('未显式配置 profile 条目', 'No explicit profile entry');
+  if (gap.label === 'Missing local AGENTS entry') return bi('缺少本地 AGENTS 入口', 'Missing local AGENTS entry');
+  if (gap.label === 'No path-specific validation rule') return bi('缺少路径级验证规则', 'No path-specific validation rule');
+  if (String(gap.label).startsWith('Missing ')) return bi('缺少 ' + String(gap.label).replace(/^Missing\s+/, ''), gap.label);
+  return gap.label;
+}
+function gapDetail(gap){
+  if (gap.detail === 'This workspace falls back to workspaceTypeDefaults instead of a curated entry.') {
+    return bi('该工作区会退回 workspaceTypeDefaults，没有单独精修条目。', gap.detail);
+  }
+  if (gap.detail === 'Workspace has no local harness entry for progressive reading.') {
+    return bi('该工作区缺少用于渐进阅读的本地 harness 入口。', gap.detail);
+  }
+  if (gap.detail === 'Profile points to a file that does not exist.') {
+    return bi('profile 指向了不存在的文件。', gap.detail);
+  }
+  if (gap.detail === 'Validation falls back to workspace scripts instead of a named path rule.') {
+    return bi('验证会退回 workspace 脚本，而不是命名路径规则。', gap.detail);
+  }
+  return gap.detail || '';
+}
+function missingText(){ return bi('未发现 harness 缺失项', 'No missing harness items detected'); }
 function metric(label, value, sub, tone){
   return '<div class="metric '+(tone || '')+'"><b>'+escapeHtml(value)+'</b><span>'+escapeHtml(label)+'</span><div class="muted">'+escapeHtml(sub || '')+'</div></div>';
 }
 function renderMeta(){
-  const scope = graph.profileScope?.mode ? graph.profileScope.mode + ' scope' : 'profile';
+  const scope = graph.profileScope?.mode ? graph.profileScope.mode + ' scope / ' + graph.profileScope.mode + ' 范围' : bi('profile', 'profile');
   document.getElementById('meta').innerHTML = escapeHtml(scope)+'<br><span>'+escapeHtml(new Date(graph.generatedAt).toLocaleString())+'</span>';
 }
 function renderMetrics(){
   const total = graph.summary.activeWorkspaces || reports.length;
   const entryPct = pct(graph.summary.entryCoverage, total);
   const validationPct = pct(graph.summary.validationCoverage, total);
-  const explicitPct = pct(graph.summary.explicitWorkspaces, total);
   document.getElementById('metrics').innerHTML = [
-    metric('Active workspaces', total, graph.summary.explicitWorkspaces + ' curated entries', 'good'),
-    metric('Entry coverage', entryPct + '%', graph.summary.entryCoverage + ' have local entries', entryPct === 100 ? 'good' : 'warn'),
-    metric('Validation coverage', validationPct + '%', graph.summary.validationCoverage + ' have path rules', validationPct === 100 ? 'good' : 'warn'),
-    metric('Missing items', graph.summary.harnessGaps, graph.summary.highSeverityGaps + ' high severity', graph.summary.highSeverityGaps ? 'bad' : graph.summary.harnessGaps ? 'warn' : 'good'),
+    metric(bi('活跃工作区', 'Active workspaces'), total, countLabel(graph.summary.explicitWorkspaces, ' 个精修条目', 'curated entry', 'curated entries'), 'good'),
+    metric(bi('入口覆盖', 'Entry coverage'), entryPct + '%', countLabel(graph.summary.entryCoverage, ' 个有本地入口', 'has local entry', 'have local entries'), entryPct === 100 ? 'good' : 'warn'),
+    metric(bi('验证覆盖', 'Validation coverage'), validationPct + '%', countLabel(graph.summary.validationCoverage, ' 个有路径规则', 'has path rule', 'have path rules'), validationPct === 100 ? 'good' : 'warn'),
+    metric(bi('缺失项', 'Missing items'), graph.summary.harnessGaps, countLabel(graph.summary.highSeverityGaps, ' 个高优先级', 'high severity', 'high severity'), graph.summary.highSeverityGaps ? 'bad' : graph.summary.harnessGaps ? 'warn' : 'good'),
   ].join('');
 }
 function renderHealth(){
   const total = graph.summary.activeWorkspaces || reports.length;
   const rows = [
-    ['Profile entries', graph.summary.explicitWorkspaces, total],
-    ['Local entries', graph.summary.entryCoverage, total],
-    ['Validation rules', graph.summary.validationCoverage, total],
+    [bi('Profile 条目', 'Profile entries'), graph.summary.explicitWorkspaces, total],
+    [bi('本地入口', 'Local entries'), graph.summary.entryCoverage, total],
+    [bi('验证规则', 'Validation rules'), graph.summary.validationCoverage, total],
   ];
   document.getElementById('health').innerHTML = rows.map(([label, count, max]) => {
     const value = pct(count, max);
-    return '<div class="compact-row"><div class="row-title"><strong>'+escapeHtml(label)+'</strong><span class="score">'+value+'%</span></div><div class="coverage-bar" aria-label="'+escapeHtml(label)+' coverage"><span style="width:'+value+'%"></span></div><div class="muted">'+count+' of '+max+'</div></div>';
+    return '<div class="compact-row"><div class="row-title"><strong>'+escapeHtml(label)+'</strong><span class="score">'+value+'%</span></div><div class="coverage-bar" aria-label="'+escapeHtml(label)+' coverage"><span style="width:'+value+'%"></span></div><div class="muted">'+count+' / '+max+'</div></div>';
   }).join('');
 }
 function renderPriorityGaps(){
   const priority = gaps.filter(g => g.severity === 'high').slice(0, 4).concat(gaps.filter(g => g.severity !== 'high').slice(0, Math.max(0, 4 - gaps.filter(g => g.severity === 'high').length)));
-  document.getElementById('priority-gaps').innerHTML = priority.length ? priority.map(renderGapRow).join('') : '<div class="empty">No missing harness items detected.</div>';
+  document.getElementById('priority-gaps').innerHTML = priority.length ? priority.map(renderGapRow).join('') : '<div class="empty">'+missingText()+'</div>';
 }
 function renderReadingLoop(){
-  const loop = ['AGENTS.md / CLAUDE.md', 'harness/README.md', 'harness/profile.yaml', 'affected workspace AGENTS.md', 'workspace contracts, runbook, or validation docs'];
+  const loop = [
+    bi('根入口：AGENTS.md / CLAUDE.md', 'Root entry: AGENTS.md / CLAUDE.md'),
+    bi('Harness 总览：harness/README.md', 'Harness overview: harness/README.md'),
+    bi('机器可读地图：harness/profile.yaml', 'Machine-readable map: harness/profile.yaml'),
+    bi('受影响工作区入口：workspace AGENTS.md', 'Affected workspace entry: workspace AGENTS.md'),
+    bi('按需阅读 contracts、runbook 或 validation 文档', 'Read contracts, runbook, or validation docs as needed'),
+  ];
   document.getElementById('reading-loop').innerHTML = loop.map((item, i) => '<div class="compact-row"><strong>'+(i + 1)+'. '+escapeHtml(item)+'</strong></div>').join('');
 }
 function filteredReports(){
@@ -713,13 +753,13 @@ function filteredReports(){
   return reports.filter(report => {
     if (state.filter !== 'all' && report.status !== state.filter) return false;
     if (!query) return true;
-    const haystack = [report.path, report.packageName, report.role, report.type, ...report.commands, ...report.scripts].join(' ').toLowerCase();
+    const haystack = [report.path, report.packageName, report.role, report.type, statusLabel(report.status), ...report.commands, ...report.scripts, ...report.gaps.map(gapLabel)].join(' ').toLowerCase();
     return haystack.includes(query);
   });
 }
 function renderWorkspaceCard(report){
-  const gapText = report.gaps.length === 0 ? 'No missing items' : report.gaps.length + ' missing item' + (report.gaps.length === 1 ? '' : 's');
-  const commandCount = report.commands.length + ' command' + (report.commands.length === 1 ? '' : 's');
+  const gapText = report.gaps.length === 0 ? bi('无缺失项', 'No missing items') : countLabel(report.gaps.length, ' 个缺失项', 'missing item', 'missing items');
+  const commandCount = countLabel(report.commands.length, ' 条命令', 'command', 'commands');
   return '<article class="workspace-card '+(state.selected === report.path ? 'active' : '')+'" data-workspace="'+escapeHtml(report.path)+'">'+
     '<div class="row-title"><strong class="path">'+escapeHtml(report.path)+'</strong><span class="score">'+report.score+'</span></div>'+
     '<div class="muted">'+escapeHtml(report.role)+' / '+escapeHtml(report.packageName)+'</div>'+
@@ -729,43 +769,43 @@ function renderWorkspaceCard(report){
 }
 function renderWorkspaces(){
   const items = filteredReports();
-  document.getElementById('workspace-grid').innerHTML = items.length ? items.map(renderWorkspaceCard).join('') : '<div class="empty">No workspaces match the current filter.</div>';
+  document.getElementById('workspace-grid').innerHTML = items.length ? items.map(renderWorkspaceCard).join('') : '<div class="empty">'+bi('当前筛选无匹配工作区', 'No workspaces match the current filter')+'</div>';
 }
 function renderGapRow(gap){
   return '<div class="gap-row">'+
-    '<div><span class="severity '+escapeHtml(gap.severity)+'">'+escapeHtml(gap.severity.toUpperCase())+'</span><div class="muted">'+escapeHtml(gap.type)+'</div></div>'+
-    '<div><strong>'+escapeHtml(gap.label)+'</strong><div class="path">'+escapeHtml(gap.workspace || gap.path)+'</div><div class="muted">'+escapeHtml(gap.detail || '')+'</div></div>'+
+    '<div><span class="severity '+escapeHtml(gap.severity)+'">'+escapeHtml(severityLabel(gap.severity))+'</span><div class="muted">'+escapeHtml(typeLabel(gap.type))+'</div></div>'+
+    '<div><strong>'+escapeHtml(gapLabel(gap))+'</strong><div class="path">'+escapeHtml(gap.workspace || gap.path)+'</div><div class="muted">'+escapeHtml(gapDetail(gap))+'</div></div>'+
   '</div>';
 }
 function renderGaps(){
-  document.getElementById('gap-list').innerHTML = gaps.length ? gaps.map(renderGapRow).join('') : '<div class="empty">No missing harness items detected.</div>';
+  document.getElementById('gap-list').innerHTML = gaps.length ? gaps.map(renderGapRow).join('') : '<div class="empty">'+missingText()+'</div>';
 }
 function renderCommands(commands){
-  if (!commands.length) return '<div class="empty">No validation commands resolved.</div>';
-  return commands.map(command => '<div class="command"><code>'+escapeHtml(command)+'</code><button data-copy="'+escapeHtml(command)+'">Copy</button></div>').join('');
+  if (!commands.length) return '<div class="empty">'+bi('未解析到验证命令', 'No validation commands resolved')+'</div>';
+  return commands.map(command => '<div class="command"><code>'+escapeHtml(command)+'</code><button data-copy="'+escapeHtml(command)+'">'+bi('复制', 'Copy')+'</button></div>').join('');
 }
 function renderDetail(){
   const report = byWorkspace.get(state.selected) || reports[0];
   if (!report) {
-    document.getElementById('detail-title').textContent = 'Workspace Detail';
-    document.getElementById('detail-body').innerHTML = '<div class="empty">No workspace data found.</div>';
+    document.getElementById('detail-title').textContent = bi('工作区详情', 'Workspace Detail');
+    document.getElementById('detail-body').innerHTML = '<div class="empty">'+bi('未找到工作区数据', 'No workspace data found')+'</div>';
     return;
   }
   document.getElementById('detail-title').textContent = report.path;
-  const knowledge = report.knowledge.length ? report.knowledge.map(item => '<div class="mini-row"><div>'+escapeHtml(item.kind)+'</div><div class="path">'+escapeHtml(item.path)+' '+(item.exists ? '' : '<span class="severity high">missing</span>')+'</div></div>').join('') : '<div class="empty">No curated knowledge refs.</div>';
-  const missing = report.gaps.length ? report.gaps.map(renderGapRow).join('') : '<div class="empty">No missing items for this workspace.</div>';
+  const knowledge = report.knowledge.length ? report.knowledge.map(item => '<div class="mini-row"><div>'+escapeHtml(item.kind)+'</div><div class="path">'+escapeHtml(item.path)+' '+(item.exists ? '' : '<span class="severity high">'+bi('缺失', 'missing')+'</span>')+'</div></div>').join('') : '<div class="empty">'+bi('无已配置知识引用', 'No curated knowledge refs')+'</div>';
+  const missing = report.gaps.length ? report.gaps.map(renderGapRow).join('') : '<div class="empty">'+bi('该工作区无缺失项', 'No missing items for this workspace')+'</div>';
   document.getElementById('detail-body').innerHTML =
-    '<div class="badges">'+statusBadge(report.status)+'<span class="badge info">'+escapeHtml(report.type)+'</span><span class="badge">'+report.score+' score</span></div>'+
-    '<section class="panel"><h3>Identity</h3><div class="mini-table">'+
-      '<div class="mini-row"><div>Package</div><div>'+escapeHtml(report.packageName)+'</div></div>'+
-      '<div class="mini-row"><div>Role</div><div>'+escapeHtml(report.role)+'</div></div>'+
-      '<div class="mini-row"><div>Entry</div><div class="path">'+escapeHtml(report.entry.path)+' '+(report.entry.exists ? '' : '<span class="severity high">missing</span>')+'</div></div>'+
-      '<div class="mini-row"><div>Profile</div><div>'+escapeHtml(report.profileListed ? 'curated' : 'default fallback')+'</div></div>'+
+    '<div class="badges">'+statusBadge(report.status)+'<span class="badge info">'+escapeHtml(report.type)+'</span><span class="badge">'+report.score+' 分 / '+report.score+' score</span></div>'+
+    '<section class="panel"><h3>'+bi('身份信息', 'Identity')+'</h3><div class="mini-table">'+
+      '<div class="mini-row"><div>'+bi('包', 'Package')+'</div><div>'+escapeHtml(report.packageName)+'</div></div>'+
+      '<div class="mini-row"><div>'+bi('角色', 'Role')+'</div><div>'+escapeHtml(report.role)+'</div></div>'+
+      '<div class="mini-row"><div>'+bi('入口', 'Entry')+'</div><div class="path">'+escapeHtml(report.entry.path)+' '+(report.entry.exists ? '' : '<span class="severity high">'+bi('缺失', 'missing')+'</span>')+'</div></div>'+
+      '<div class="mini-row"><div>Profile</div><div>'+escapeHtml(report.profileListed ? bi('已精修', 'curated') : bi('默认兜底', 'default fallback'))+'</div></div>'+
     '</div></section>'+
-    '<section class="panel"><h3>Validation</h3>'+renderCommands(report.commands)+'</section>'+
-    '<section class="panel"><h3>Reading Path</h3><div class="reading">'+report.readingPath.map(item => '<div class="path">'+escapeHtml(item)+'</div>').join('')+'</div></section>'+
-    '<section class="panel"><h3>Knowledge</h3>'+knowledge+'</section>'+
-    '<section class="panel"><h3>Missing</h3>'+missing+'</section>';
+    '<section class="panel"><h3>'+bi('验证', 'Validation')+'</h3>'+renderCommands(report.commands)+'</section>'+
+    '<section class="panel"><h3>'+bi('阅读路径', 'Reading Path')+'</h3><div class="reading">'+report.readingPath.map(item => '<div class="path">'+escapeHtml(item)+'</div>').join('')+'</div></section>'+
+    '<section class="panel"><h3>'+bi('知识引用', 'Knowledge')+'</h3>'+knowledge+'</section>'+
+    '<section class="panel"><h3>'+bi('缺失项', 'Missing')+'</h3>'+missing+'</section>';
 }
 function showTab(tab){
   document.querySelectorAll('.tabs button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
@@ -778,7 +818,7 @@ function selectGraphNode(id){
   const n = byId.get(id); if(!n) return;
   document.getElementById('graph-title').textContent = n.label;
   const related = graph.edges.filter(e => e.from===n.id || e.to===n.id).map(e => e.type+' '+e.confidence+'\\n  '+e.from+'\\n  -> '+e.to).join('\\n\\n');
-  document.getElementById('graph-detail').innerHTML = '<pre>'+escapeHtml(JSON.stringify(n.meta, null, 2))+'</pre><h3>Edges</h3><pre>'+escapeHtml(related || 'No connected edges')+'</pre>';
+  document.getElementById('graph-detail').innerHTML = '<pre>'+escapeHtml(JSON.stringify(n.meta, null, 2))+'</pre><h3>'+bi('连接边', 'Edges')+'</h3><pre>'+escapeHtml(related || bi('无连接边', 'No connected edges'))+'</pre>';
   if (n.type === 'workspace') {
     const report = byWorkspace.get(n.label);
     if (report) { state.selected = report.path; renderDetail(); renderWorkspaces(); }
@@ -800,9 +840,9 @@ function init(){
   });
   document.body.addEventListener('click', e => {
     const copy = e.target.closest('button[data-copy]'); if(!copy) return;
-    navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy'; }, 1100); });
+    navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = bi('已复制', 'Copied'); setTimeout(() => { copy.textContent = bi('复制', 'Copy'); }, 1100); });
   });
-  document.getElementById('toggle-graph').onclick = () => { running = !running; document.getElementById('toggle-graph').textContent = running ? 'Pause graph' : 'Resume graph'; };
+  document.getElementById('toggle-graph').onclick = () => { running = !running; document.getElementById('toggle-graph').textContent = running ? bi('暂停图', 'Pause graph') : bi('继续图', 'Resume graph'); };
   document.querySelector('#graph .filters').addEventListener('click', e => {
     const button = e.target.closest('button[data-node-filter]'); if(!button) return;
     state.nodeFilter = button.dataset.nodeFilter;
