@@ -480,6 +480,7 @@ body {
   color:var(--text);
   font:14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+body.modal-open { overflow:hidden; }
 button, input { font:inherit; }
 .topbar { border-bottom:1px solid var(--line); background:#12151a; padding:18px 24px; }
 .topline { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
@@ -572,6 +573,38 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 .reading div { border:1px solid var(--line); background:var(--panel-2); border-radius:6px; padding:8px; }
 .reading div::before { counter-increment:readstep; content:counter(readstep) ". "; color:var(--blue); font-weight:700; }
 .empty { color:var(--muted); border:1px dashed var(--line); border-radius:8px; padding:16px; }
+.modal-backdrop {
+  position:fixed;
+  inset:0;
+  z-index:30;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  background:rgba(5, 8, 13, 0.72);
+}
+.modal-backdrop[hidden] { display:none; }
+.modal-panel {
+  width:min(920px, 100%);
+  max-height:min(86vh, 920px);
+  overflow:auto;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--panel);
+  box-shadow:0 24px 80px rgba(0, 0, 0, 0.45);
+}
+.modal-header {
+  position:sticky;
+  top:0;
+  z-index:1;
+  display:flex;
+  justify-content:space-between;
+  gap:14px;
+  align-items:flex-start;
+  padding:16px;
+  border-bottom:1px solid var(--line);
+  background:var(--panel);
+}
+.modal-body { padding:16px; }
 @media (max-width: 1180px) {
   .shell, .shell.workspace-mode, .grid-2 { grid-template-columns:1fr; }
   .detail { border-left:0; border-top:1px solid var(--line); }
@@ -583,6 +616,8 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 }
 @media (max-width: 620px) {
   .topbar, main, .detail { padding-left:14px; padding-right:14px; }
+  .modal-backdrop { padding:12px; }
+  .modal-header, .modal-body { padding:14px; }
   .metrics { grid-template-columns:1fr; }
   .gap-group-header { display:grid; }
   .gap-group-actions { justify-items:start; }
@@ -656,6 +691,15 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
     <div id="detail-body"></div>
   </aside>
 </div>
+<div id="workspace-modal" class="modal-backdrop" hidden>
+  <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <h2 id="modal-title">工作区详情</h2>
+      <button data-close-modal data-i18n="closeModal">关闭</button>
+    </div>
+    <div id="modal-body" class="modal-body"></div>
+  </section>
+</div>
 <script>
 const graph = ${graphJson};
 const reports = graph.workspaceReports || [];
@@ -681,6 +725,7 @@ const messages = {
     workspaceDetail: '工作区详情',
     selectWorkspace: '选择一个工作区查看入口、验证命令、阅读路径和缺失项。',
     viewWorkspace: '查看工作区',
+    closeModal: '关闭',
     collapse: '收起',
     expand: '展开',
     fixLocation: '修复位置',
@@ -705,6 +750,7 @@ const messages = {
     workspaceDetail: 'Workspace Detail',
     selectWorkspace: 'Select a workspace to inspect entry, validation commands, reading path, and missing items.',
     viewWorkspace: 'View Workspace',
+    closeModal: 'Close',
     collapse: 'Collapse',
     expand: 'Expand',
     fixLocation: 'Fix Location',
@@ -712,7 +758,7 @@ const messages = {
   },
 };
 const savedLang = localStorage.getItem('harness-dashboard-lang');
-const state = { selected: '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh', collapsedGapGroups: new Set() };
+const state = { selected: '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh', collapsedGapGroups: new Set(), modalWorkspace: '' };
 
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function radius(n){ return n.type==='workspace'?10:n.type==='gap'?9:6; }
@@ -883,18 +929,10 @@ function renderCommands(commands){
   if (!commands.length) return '<div class="empty">'+bi('未解析到验证命令', 'No validation commands resolved')+'</div>';
   return commands.map(command => '<div class="command"><code>'+escapeHtml(command)+'</code><button data-copy="'+escapeHtml(command)+'">'+bi('复制', 'Copy')+'</button></div>').join('');
 }
-function renderDetail(){
-  const report = byWorkspace.get(state.selected);
-  if (!report) {
-    document.getElementById('detail-title').textContent = t('workspaceDetail');
-    document.getElementById('detail-body').innerHTML = '<div class="empty">'+t('selectWorkspace')+'</div>';
-    return;
-  }
-  document.getElementById('detail-title').textContent = report.path;
+function workspaceDetailHtml(report){
   const knowledge = report.knowledge.length ? report.knowledge.map(item => '<div class="mini-row"><div>'+escapeHtml(item.kind)+'</div><div class="path">'+escapeHtml(item.path)+' '+(item.exists ? '' : '<span class="severity high">'+bi('缺失', 'missing')+'</span>')+'</div></div>').join('') : '<div class="empty">'+bi('无已配置知识引用', 'No curated knowledge refs')+'</div>';
-  const missing = report.gaps.length ? report.gaps.map(renderGapRow).join('') : '<div class="empty">'+bi('该工作区无缺失项', 'No missing items for this workspace')+'</div>';
-  document.getElementById('detail-body').innerHTML =
-    '<div class="badges">'+statusBadge(report.status)+'<span class="badge info">'+escapeHtml(report.type)+'</span><span class="badge">'+escapeHtml(state.lang === 'en' ? report.score + ' score' : report.score + ' 分')+'</span></div>'+
+  const missing = report.gaps.length ? report.gaps.map(gap => renderGapRow(gap, { drillIn: false })).join('') : '<div class="empty">'+bi('该工作区无缺失项', 'No missing items for this workspace')+'</div>';
+  return '<div class="badges">'+statusBadge(report.status)+'<span class="badge info">'+escapeHtml(report.type)+'</span><span class="badge">'+escapeHtml(state.lang === 'en' ? report.score + ' score' : report.score + ' 分')+'</span></div>'+
     '<section class="panel"><h3>'+bi('身份信息', 'Identity')+'</h3><div class="mini-table">'+
       '<div class="mini-row"><div>'+bi('包', 'Package')+'</div><div>'+escapeHtml(report.packageName)+'</div></div>'+
       '<div class="mini-row"><div>'+bi('角色', 'Role')+'</div><div>'+escapeHtml(report.role)+'</div></div>'+
@@ -905,6 +943,16 @@ function renderDetail(){
     '<section class="panel"><h3>'+bi('阅读路径', 'Reading Path')+'</h3><div class="reading">'+report.readingPath.map(item => '<div class="path">'+escapeHtml(item)+'</div>').join('')+'</div></section>'+
     '<section class="panel"><h3>'+bi('知识引用', 'Knowledge')+'</h3>'+knowledge+'</section>'+
     '<section class="panel"><h3>'+bi('缺失项', 'Missing')+'</h3>'+missing+'</section>';
+}
+function renderDetail(){
+  const report = byWorkspace.get(state.selected);
+  if (!report) {
+    document.getElementById('detail-title').textContent = t('workspaceDetail');
+    document.getElementById('detail-body').innerHTML = '<div class="empty">'+t('selectWorkspace')+'</div>';
+    return;
+  }
+  document.getElementById('detail-title').textContent = report.path;
+  document.getElementById('detail-body').innerHTML = workspaceDetailHtml(report);
 }
 function showTab(tab){
   document.querySelectorAll('.tabs button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
@@ -922,6 +970,29 @@ function openWorkspace(path){
     document.querySelector('.detail')?.scrollTo({ top: 0 });
   });
 }
+function renderModal(){
+  const report = byWorkspace.get(state.modalWorkspace);
+  const modal = document.getElementById('workspace-modal');
+  if (!report) {
+    modal.hidden = true;
+    document.body.classList.remove('modal-open');
+    return;
+  }
+  document.getElementById('modal-title').textContent = report.path;
+  document.getElementById('modal-body').innerHTML = workspaceDetailHtml(report);
+  modal.hidden = false;
+  document.body.classList.add('modal-open');
+}
+function openWorkspaceModal(path){
+  if (!byWorkspace.has(path)) return;
+  state.modalWorkspace = path;
+  renderModal();
+  requestAnimationFrame(() => document.querySelector('[data-close-modal]')?.focus());
+}
+function closeWorkspaceModal(){
+  state.modalWorkspace = '';
+  renderModal();
+}
 function toggleGapGroup(workspace){
   if (state.collapsedGapGroups.has(workspace)) state.collapsedGapGroups.delete(workspace);
   else state.collapsedGapGroups.add(workspace);
@@ -933,7 +1004,7 @@ function init(){
     const button = e.target.closest('button[data-lang]'); if(!button) return;
     state.lang = button.dataset.lang === 'en' ? 'en' : 'zh';
     localStorage.setItem('harness-dashboard-lang', state.lang);
-    renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail();
+    renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail(); renderModal();
   });
   document.querySelector('.tabs').addEventListener('click', e => { const button = e.target.closest('button[data-tab]'); if(button) showTab(button.dataset.tab); });
   document.querySelector('.filters').addEventListener('click', e => {
@@ -955,15 +1026,20 @@ function init(){
   });
   document.body.addEventListener('click', e => {
     const workspaceAction = e.target.closest('[data-open-workspace]');
-    if (workspaceAction) { openWorkspace(workspaceAction.dataset.openWorkspace); return; }
+    if (workspaceAction) { openWorkspaceModal(workspaceAction.dataset.openWorkspace); return; }
+    if (e.target.closest('[data-close-modal]') || e.target.id === 'workspace-modal') { closeWorkspaceModal(); return; }
     const gapToggle = e.target.closest('[data-toggle-gap-group]');
     if (gapToggle) { toggleGapGroup(gapToggle.dataset.toggleGapGroup); return; }
     const gap = e.target.closest('.gap-row[data-workspace]');
-    if (gap) { openWorkspace(gap.dataset.workspace); return; }
+    if (gap) { openWorkspaceModal(gap.dataset.workspace); return; }
     const copy = e.target.closest('button[data-copy]'); if(!copy) return;
     navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = bi('已复制', 'Copied'); setTimeout(() => { copy.textContent = bi('复制', 'Copy'); }, 1100); });
   });
   document.body.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && state.modalWorkspace) {
+      closeWorkspaceModal();
+      return;
+    }
     const gapToggle = e.target.closest?.('[data-toggle-gap-group]');
     if (gapToggle && gapToggle.tagName !== 'BUTTON' && (e.key === 'Enter' || e.key === ' ')) {
       e.preventDefault();
@@ -973,7 +1049,7 @@ function init(){
     const gap = e.target.closest?.('.gap-row[data-workspace]');
     if (!gap || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
-    openWorkspace(gap.dataset.workspace);
+    openWorkspaceModal(gap.dataset.workspace);
   });
 }
 init();

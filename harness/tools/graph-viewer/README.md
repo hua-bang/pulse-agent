@@ -25,7 +25,7 @@ Then open the printed local URL. The dashboard includes:
 
 - overall harness health and coverage, without forcing a workspace selection
 - per-workspace harness detail with a dedicated detail rail
-- current missing harness items grouped by affected workspace, with collapsible groups and explicit workspace drill-in
+- current missing harness items grouped by affected workspace, with collapsible groups and modal workspace detail
 - resolved validation commands
 - Chinese/English language switcher for easier shared review
 
