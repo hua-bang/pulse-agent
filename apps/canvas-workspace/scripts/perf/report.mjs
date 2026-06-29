@@ -176,5 +176,20 @@ writeJson(join(OUT_DIR, 'perf-snapshot.json'), snapshot);
 writeText(join(OUT_DIR, 'perf-snapshot.html'), renderDashboard(snapshot));
 
 process.stderr.write(`\n✓ snapshot → perf/out/perf-snapshot.md · perf-snapshot.html (open in a browser)\n`);
-const hardFailed = steps.some((s) => s.status === 'failed' || s.status === 'error');
-process.exit(hardFailed ? 1 : 0);
+
+// Only the deterministic, always-runnable layers (L1/L2) gate the exit code.
+// L4 runtime needs an external precondition (a live harness session), so its
+// failure/absence must NOT fail a report that otherwise produced a snapshot.
+const REQUIRED_LAYERS = new Set(['L1 bundle', 'L2 bench']);
+const failedRequired = steps.filter(
+  (s) => REQUIRED_LAYERS.has(s.label) && (s.status === 'failed' || s.status === 'error'),
+);
+const failedOptional = steps.filter(
+  (s) => !REQUIRED_LAYERS.has(s.label) && (s.status === 'failed' || s.status === 'error'),
+);
+if (failedOptional.length) {
+  process.stderr.write(
+    `  note: optional layer(s) not run — ${failedOptional.map((s) => s.label).join(', ')} (e.g. L4 needs \`harness start\` first)\n`,
+  );
+}
+process.exit(failedRequired.length ? 1 : 0);
