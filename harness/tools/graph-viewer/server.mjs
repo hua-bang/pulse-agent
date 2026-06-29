@@ -502,9 +502,11 @@ button {
   min-height:34px;
 }
 button:hover, button.active { border-color:var(--blue); color:var(--blue); }
-.shell { display:grid; grid-template-columns:minmax(0, 1fr) minmax(360px, 420px); gap:0; min-height:calc(100vh - 115px); }
+.shell { display:grid; grid-template-columns:1fr; gap:0; min-height:calc(100vh - 115px); }
+.shell.workspace-mode { grid-template-columns:minmax(0, 1fr) minmax(360px, 420px); }
 main { min-width:0; padding:22px 24px 36px; }
-.detail { border-left:1px solid var(--line); background:var(--panel); padding:22px; overflow:auto; }
+.detail { display:none; border-left:1px solid var(--line); background:var(--panel); padding:22px; overflow:auto; }
+.shell.workspace-mode .detail { display:block; }
 .view { display:none; }
 .view.active { display:block; }
 .metrics { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:12px; margin-bottom:18px; }
@@ -526,7 +528,7 @@ main { min-width:0; padding:22px 24px 36px; }
   padding:12px;
 }
 .workspace-card { cursor:pointer; min-height:158px; display:grid; gap:10px; align-content:start; }
-.workspace-card:hover, .workspace-card.active { border-color:var(--blue); }
+.workspace-card:hover, .workspace-card:focus, .workspace-card.active { border-color:var(--blue); outline:0; }
 .workspace-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
 .filters { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
 .search { flex:1; min-width:240px; border:1px solid var(--line); background:#101319; color:var(--text); border-radius:6px; padding:9px 10px; min-height:38px; }
@@ -541,6 +543,8 @@ main { min-width:0; padding:22px 24px 36px; }
 .row-title { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
 .score { font-weight:700; color:var(--teal); }
 .gap-row { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:12px; margin-bottom:10px; }
+.gap-row.actionable { cursor:pointer; }
+.gap-row.actionable:hover, .gap-row.actionable:focus { border-color:var(--blue); background:#202938; outline:0; }
 .severity { font-weight:700; }
 .severity.high { color:var(--red); }
 .severity.medium { color:var(--yellow); }
@@ -556,7 +560,7 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 .reading div::before { counter-increment:readstep; content:counter(readstep) ". "; color:var(--blue); font-weight:700; }
 .empty { color:var(--muted); border:1px dashed var(--line); border-radius:8px; padding:16px; }
 @media (max-width: 1180px) {
-  .shell, .grid-2 { grid-template-columns:1fr; }
+  .shell, .shell.workspace-mode, .grid-2 { grid-template-columns:1fr; }
   .detail { border-left:0; border-top:1px solid var(--line); }
   .metrics { grid-template-columns:repeat(2, minmax(150px, 1fr)); }
   .meta { text-align:left; white-space:normal; }
@@ -659,6 +663,7 @@ const messages = {
     filterMissing: '缺失',
     currentMissing: '当前 Harness 缺失项',
     workspaceDetail: '工作区详情',
+    selectWorkspace: '选择一个工作区查看入口、验证命令、阅读路径和缺失项。',
   },
   en: {
     title: 'Harness Dashboard',
@@ -677,10 +682,11 @@ const messages = {
     filterMissing: 'Missing',
     currentMissing: 'Current Harness Missing Items',
     workspaceDetail: 'Workspace Detail',
+    selectWorkspace: 'Select a workspace to inspect entry, validation commands, reading path, and missing items.',
   },
 };
 const savedLang = localStorage.getItem('harness-dashboard-lang');
-const state = { selected: reports[0]?.path || '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh' };
+const state = { selected: '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh' };
 
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function radius(n){ return n.type==='workspace'?10:n.type==='gap'?9:6; }
@@ -793,7 +799,7 @@ function filteredReports(){
 function renderWorkspaceCard(report){
   const gapText = report.gaps.length === 0 ? bi('无缺失项', 'No missing items') : countLabel(report.gaps.length, ' 个缺失项', 'missing item', 'missing items');
   const commandCount = countLabel(report.commands.length, ' 条命令', 'command', 'commands');
-  return '<article class="workspace-card '+(state.selected === report.path ? 'active' : '')+'" data-workspace="'+escapeHtml(report.path)+'">'+
+  return '<article class="workspace-card '+(state.selected === report.path ? 'active' : '')+'" data-workspace="'+escapeHtml(report.path)+'" tabindex="0">'+
     '<div class="row-title"><strong class="path">'+escapeHtml(report.path)+'</strong><span class="score">'+report.score+'</span></div>'+
     '<div class="muted">'+escapeHtml(report.role)+' / '+escapeHtml(report.packageName)+'</div>'+
     '<div class="badges">'+statusBadge(report.status)+'<span class="badge info">'+escapeHtml(report.type)+'</span><span class="badge">'+commandCount+'</span></div>'+
@@ -805,7 +811,9 @@ function renderWorkspaces(){
   document.getElementById('workspace-grid').innerHTML = items.length ? items.map(renderWorkspaceCard).join('') : '<div class="empty">'+bi('当前筛选无匹配工作区', 'No workspaces match the current filter')+'</div>';
 }
 function renderGapRow(gap){
-  return '<div class="gap-row">'+
+  const canOpen = gap.workspace && byWorkspace.has(gap.workspace);
+  const workspaceAttr = canOpen ? ' data-workspace="'+escapeHtml(gap.workspace)+'" tabindex="0"' : '';
+  return '<div class="gap-row '+(canOpen ? 'actionable' : '')+'"'+workspaceAttr+'>'+
     '<div><span class="severity '+escapeHtml(gap.severity)+'">'+escapeHtml(severityLabel(gap.severity))+'</span><div class="muted">'+escapeHtml(typeLabel(gap.type))+'</div></div>'+
     '<div><strong>'+escapeHtml(gapLabel(gap))+'</strong><div class="path">'+escapeHtml(gap.workspace || gap.path)+'</div><div class="muted">'+escapeHtml(gapDetail(gap))+'</div></div>'+
   '</div>';
@@ -818,10 +826,10 @@ function renderCommands(commands){
   return commands.map(command => '<div class="command"><code>'+escapeHtml(command)+'</code><button data-copy="'+escapeHtml(command)+'">'+bi('复制', 'Copy')+'</button></div>').join('');
 }
 function renderDetail(){
-  const report = byWorkspace.get(state.selected) || reports[0];
+  const report = byWorkspace.get(state.selected);
   if (!report) {
-    document.getElementById('detail-title').textContent = bi('工作区详情', 'Workspace Detail');
-    document.getElementById('detail-body').innerHTML = '<div class="empty">'+bi('未找到工作区数据', 'No workspace data found')+'</div>';
+    document.getElementById('detail-title').textContent = t('workspaceDetail');
+    document.getElementById('detail-body').innerHTML = '<div class="empty">'+t('selectWorkspace')+'</div>';
     return;
   }
   document.getElementById('detail-title').textContent = report.path;
@@ -843,6 +851,18 @@ function renderDetail(){
 function showTab(tab){
   document.querySelectorAll('.tabs button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === tab));
+  document.querySelector('.shell').classList.toggle('workspace-mode', tab === 'workspaces');
+}
+function openWorkspace(path){
+  if (!byWorkspace.has(path)) return;
+  state.selected = path;
+  showTab('workspaces');
+  renderWorkspaces();
+  renderDetail();
+  requestAnimationFrame(() => {
+    document.querySelector('.workspace-card.active')?.scrollIntoView({ block: 'nearest' });
+    document.querySelector('.detail')?.scrollTo({ top: 0 });
+  });
 }
 function init(){
   renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail();
@@ -862,11 +882,25 @@ function init(){
   document.getElementById('workspace-search').addEventListener('input', e => { state.query = e.target.value; renderWorkspaces(); });
   document.getElementById('workspace-grid').addEventListener('click', e => {
     const card = e.target.closest('[data-workspace]'); if(!card) return;
-    state.selected = card.dataset.workspace; renderWorkspaces(); renderDetail();
+    openWorkspace(card.dataset.workspace);
+  });
+  document.getElementById('workspace-grid').addEventListener('keydown', e => {
+    const card = e.target.closest('[data-workspace]');
+    if (!card || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    openWorkspace(card.dataset.workspace);
   });
   document.body.addEventListener('click', e => {
+    const gap = e.target.closest('.gap-row[data-workspace]');
+    if (gap) { openWorkspace(gap.dataset.workspace); return; }
     const copy = e.target.closest('button[data-copy]'); if(!copy) return;
     navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = bi('已复制', 'Copied'); setTimeout(() => { copy.textContent = bi('复制', 'Copy'); }, 1100); });
+  });
+  document.body.addEventListener('keydown', e => {
+    const gap = e.target.closest?.('.gap-row[data-workspace]');
+    if (!gap || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    openWorkspace(gap.dataset.workspace);
   });
 }
 init();

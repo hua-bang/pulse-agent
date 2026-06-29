@@ -23,9 +23,9 @@ node harness/tools/graph-viewer/server.mjs
 
 Then open the printed local URL. The dashboard includes:
 
-- overall harness health and coverage
-- per-workspace harness detail
-- current missing harness items
+- overall harness health and coverage, without forcing a workspace selection
+- per-workspace harness detail with a dedicated detail rail
+- current missing harness items that drill into the affected workspace
 - resolved validation commands
 - Chinese/English language switcher for easier shared review
 
