@@ -503,8 +503,6 @@ button {
 }
 button:hover, button.active { border-color:var(--blue); color:var(--blue); }
 .shell { display:grid; grid-template-columns:minmax(0, 1fr) minmax(360px, 420px); gap:0; min-height:calc(100vh - 115px); }
-.shell.graph-mode { grid-template-columns:1fr; }
-.shell.graph-mode .detail { display:none; }
 main { min-width:0; padding:22px 24px 36px; }
 .detail { border-left:1px solid var(--line); background:var(--panel); padding:22px; overflow:auto; }
 .view { display:none; }
@@ -556,20 +554,9 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 .reading { display:grid; gap:8px; counter-reset:readstep; }
 .reading div { border:1px solid var(--line); background:var(--panel-2); border-radius:6px; padding:8px; }
 .reading div::before { counter-increment:readstep; content:counter(readstep) ". "; color:var(--blue); font-weight:700; }
-.graph-layout { display:grid; grid-template-columns:minmax(0, 1fr) 320px; gap:14px; }
-.graph-box { height:560px; border:1px solid var(--line); border-radius:8px; background:#0b0e13; position:relative; overflow:hidden; }
-.shell.graph-mode .graph-box { min-height:560px; height:min(680px, calc(100vh - 260px)); }
-svg { width:100%; height:100%; display:block; }
-.edge { stroke:#596373; stroke-width:1.1; opacity:.38; pointer-events:none; }
-.edge.high { stroke:var(--blue); opacity:.62; }
-.node { cursor:pointer; }
-.node .node-dot { stroke:#090b0e; stroke-width:2; }
-.node-label { fill:var(--text); font-size:10px; paint-order:stroke; stroke:#0b0e13; stroke-width:4px; pointer-events:all; cursor:pointer; }
-.node.selected .node-dot { stroke:var(--text); stroke-width:3; }
-.node-label.selected { fill:var(--blue); }
 .empty { color:var(--muted); border:1px dashed var(--line); border-radius:8px; padding:16px; }
 @media (max-width: 1180px) {
-  .shell, .grid-2, .graph-layout { grid-template-columns:1fr; }
+  .shell, .grid-2 { grid-template-columns:1fr; }
   .detail { border-left:0; border-top:1px solid var(--line); }
   .metrics { grid-template-columns:repeat(2, minmax(150px, 1fr)); }
   .meta { text-align:left; white-space:normal; }
@@ -603,7 +590,6 @@ svg { width:100%; height:100%; display:block; }
     <button class="active" data-tab="overview" data-i18n="tabOverview">总览</button>
     <button data-tab="workspaces" data-i18n="tabWorkspaces">工作区</button>
     <button data-tab="gaps" data-i18n="tabMissing">缺失</button>
-    <button data-tab="graph" data-i18n="tabGraph">关系图</button>
   </nav>
 </header>
 <div class="shell">
@@ -644,24 +630,6 @@ svg { width:100%; height:100%; display:block; }
       </section>
     </section>
 
-    <section id="graph" class="view">
-      <div class="graph-layout">
-        <div>
-          <div class="filters">
-            <button id="toggle-graph" data-i18n="pauseGraph">暂停图</button>
-            <button class="active" data-node-filter="all" data-i18n="nodeAll">全部节点</button>
-            <button data-node-filter="workspace" data-i18n="nodeWorkspaces">工作区</button>
-            <button data-node-filter="validation" data-i18n="nodeValidation">验证</button>
-            <button data-node-filter="gap" data-i18n="nodeGaps">缺口</button>
-          </div>
-          <div class="graph-box"><svg id="graph-svg" role="img" aria-label="Harness graph"></svg></div>
-        </div>
-        <section class="panel">
-          <h2 id="graph-title" data-i18n="graphSelection">图节点选择</h2>
-          <div id="graph-detail" class="muted" data-i18n="graphHint">选择一个节点查看关联边。</div>
-        </section>
-      </div>
-    </section>
   </main>
   <aside class="detail">
     <h2 id="detail-title" data-i18n="workspaceDetail">工作区详情</h2>
@@ -672,12 +640,7 @@ svg { width:100%; height:100%; display:block; }
 const graph = ${graphJson};
 const reports = graph.workspaceReports || [];
 const gaps = graph.harnessGaps || [];
-const colors = { root:'#f3cd6b', harness:'#7ee4df', profile:'#7ee4df', validation:'#ff8fbd', workspace:'#7db7ff', entry:'#7ee2a8', knowledge:'#9ad581', skill:'#f3cd6b', tool:'#c8a2ff', gap:'#ff7a70' };
-const nodes = graph.nodes.map((n, i) => ({...n, x: 520 + Math.cos(i)*180, y: 260 + Math.sin(i)*155, vx:0, vy:0, visible:true}));
-const byId = new Map(nodes.map(n => [n.id, n]));
-const edges = graph.edges.map(e => ({...e, source: byId.get(e.from), target: byId.get(e.to)})).filter(e => e.source && e.target);
 const byWorkspace = new Map(reports.map(r => [r.path, r]));
-const svg = document.getElementById('graph-svg');
 const messages = {
   zh: {
     title: 'Harness 看板',
@@ -686,7 +649,6 @@ const messages = {
     tabOverview: '总览',
     tabWorkspaces: '工作区',
     tabMissing: '缺失',
-    tabGraph: '关系图',
     harnessHealth: 'Harness 健康度',
     priorityMissing: '优先缺失项',
     readingLoop: '渐进阅读路径',
@@ -696,14 +658,6 @@ const messages = {
     filterPartial: '部分',
     filterMissing: '缺失',
     currentMissing: '当前 Harness 缺失项',
-    pauseGraph: '暂停图',
-    resumeGraph: '继续图',
-    nodeAll: '全部节点',
-    nodeWorkspaces: '工作区',
-    nodeValidation: '验证',
-    nodeGaps: '缺口',
-    graphSelection: '图节点选择',
-    graphHint: '选择一个节点查看关联边。',
     workspaceDetail: '工作区详情',
   },
   en: {
@@ -713,7 +667,6 @@ const messages = {
     tabOverview: 'Overview',
     tabWorkspaces: 'Workspaces',
     tabMissing: 'Missing',
-    tabGraph: 'Graph',
     harnessHealth: 'Harness Health',
     priorityMissing: 'Priority Missing Items',
     readingLoop: 'Progressive Reading Loop',
@@ -723,20 +676,11 @@ const messages = {
     filterPartial: 'Partial',
     filterMissing: 'Missing',
     currentMissing: 'Current Harness Missing Items',
-    pauseGraph: 'Pause graph',
-    resumeGraph: 'Resume graph',
-    nodeAll: 'All nodes',
-    nodeWorkspaces: 'Workspaces',
-    nodeValidation: 'Validation',
-    nodeGaps: 'Gaps',
-    graphSelection: 'Graph Selection',
-    graphHint: 'Select a node to inspect connected edges.',
     workspaceDetail: 'Workspace Detail',
   },
 };
 const savedLang = localStorage.getItem('harness-dashboard-lang');
-const state = { selected: reports[0]?.path || '', selectedNodeId: '', filter: 'all', query: '', nodeFilter: 'all', lang: savedLang === 'en' ? 'en' : 'zh' };
-let running = true;
+const state = { selected: reports[0]?.path || '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh' };
 
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function radius(n){ return n.type==='workspace'?10:n.type==='gap'?9:6; }
@@ -794,8 +738,6 @@ function renderStaticText(){
   document.querySelectorAll('[data-lang]').forEach(button => {
     button.classList.toggle('active', button.dataset.lang === state.lang);
   });
-  const toggle = document.getElementById('toggle-graph');
-  if (toggle) toggle.textContent = running ? t('pauseGraph') : t('resumeGraph');
 }
 function renderMeta(){
   const scope = graph.profileScope?.mode ? (state.lang === 'en' ? graph.profileScope.mode + ' scope' : graph.profileScope.mode + ' 范围') : 'profile';
@@ -901,43 +843,9 @@ function renderDetail(){
 function showTab(tab){
   document.querySelectorAll('.tabs button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === tab));
-  document.querySelector('.shell').classList.toggle('graph-mode', tab === 'graph');
-}
-function applyNodeFilter(){
-  for (const node of nodes) node.visible = state.nodeFilter === 'all' || node.type === state.nodeFilter || (state.nodeFilter === 'validation' && node.type === 'profile');
-}
-function graphPointFromEvent(event){
-  const rect = svg.getBoundingClientRect();
-  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-}
-function nearestVisibleNode(point){
-  let best = null;
-  let bestDistance = Infinity;
-  for (const node of nodes) {
-    if (!node.visible) continue;
-    const distance = Math.hypot(node.x - point.x, node.y - point.y);
-    const hitRadius = Math.max(32, radius(node) + 18);
-    if (distance <= hitRadius && distance < bestDistance) {
-      best = node;
-      bestDistance = distance;
-    }
-  }
-  return best;
-}
-function selectGraphNode(id){
-  const n = byId.get(id); if(!n) return;
-  state.selectedNodeId = n.id;
-  document.getElementById('graph-title').textContent = n.label;
-  const related = graph.edges.filter(e => e.from===n.id || e.to===n.id).map(e => e.type+' '+e.confidence+'\\n  '+e.from+'\\n  -> '+e.to).join('\\n\\n');
-  document.getElementById('graph-detail').innerHTML = '<pre>'+escapeHtml(JSON.stringify(n.meta, null, 2))+'</pre><h3>'+bi('连接边', 'Edges')+'</h3><pre>'+escapeHtml(related || bi('无连接边', 'No connected edges'))+'</pre>';
-  if (n.type === 'workspace') {
-    const report = byWorkspace.get(n.label);
-    if (report) { state.selected = report.path; renderDetail(); renderWorkspaces(); }
-  }
-  render();
 }
 function init(){
-  renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail(); applyNodeFilter();
+  renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail();
   document.querySelector('.language-switch').addEventListener('click', e => {
     const button = e.target.closest('button[data-lang]'); if(!button) return;
     state.lang = button.dataset.lang === 'en' ? 'en' : 'zh';
@@ -960,57 +868,8 @@ function init(){
     const copy = e.target.closest('button[data-copy]'); if(!copy) return;
     navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = bi('已复制', 'Copied'); setTimeout(() => { copy.textContent = bi('复制', 'Copy'); }, 1100); });
   });
-  document.getElementById('toggle-graph').onclick = () => { running = !running; document.getElementById('toggle-graph').textContent = running ? t('pauseGraph') : t('resumeGraph'); };
-  document.querySelector('#graph .filters').addEventListener('click', e => {
-    const button = e.target.closest('button[data-node-filter]'); if(!button) return;
-    state.nodeFilter = button.dataset.nodeFilter;
-    document.querySelectorAll('button[data-node-filter]').forEach(item => item.classList.toggle('active', item === button));
-    applyNodeFilter(); render();
-  });
 }
-function tick(){
-  if(running && svg){
-    const width = svg.clientWidth || 800, height = svg.clientHeight || 360;
-    for(const n of nodes){ n.vx += (width/2 - n.x)*0.0007; n.vy += (height/2 - n.y)*0.0007; }
-    for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
-      const a=nodes[i], b=nodes[j]; let dx=a.x-b.x, dy=a.y-b.y, d=Math.max(24, Math.hypot(dx,dy)); const f=1200/(d*d); a.vx+=dx/d*f; a.vy+=dy/d*f; b.vx-=dx/d*f; b.vy-=dy/d*f;
-    }
-    for(const e of edges){ const a=e.source,b=e.target; let dx=b.x-a.x, dy=b.y-a.y, d=Math.max(1, Math.hypot(dx,dy)); const f=(d-120)*0.005; a.vx+=dx/d*f; a.vy+=dy/d*f; b.vx-=dx/d*f; b.vy-=dy/d*f; }
-    for(const n of nodes){ n.vx*=.82; n.vy*=.82; n.x=Math.max(20,Math.min(width-20,n.x+n.vx)); n.y=Math.max(20,Math.min(height-20,n.y+n.vy)); }
-  }
-  render(); requestAnimationFrame(tick);
-}
-function render(){
-  if(!svg) return;
-  while(svg.firstChild) svg.removeChild(svg.firstChild);
-  const frag = document.createDocumentFragment();
-  for(const e of edges){
-    if(!e.source.visible || !e.target.visible) continue;
-    const line = document.createElementNS('http://www.w3.org/2000/svg','line'); line.setAttribute('class','edge '+e.confidence); line.setAttribute('x1',e.source.x); line.setAttribute('y1',e.source.y); line.setAttribute('x2',e.target.x); line.setAttribute('y2',e.target.y); frag.appendChild(line);
-  }
-  for(const n of nodes){
-    if(!n.visible) continue;
-    const t = document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('class','node-label '+(state.selectedNodeId === n.id ? 'selected' : '')); t.dataset.nodeId=n.id; t.setAttribute('x',n.x+radius(n)+5); t.setAttribute('y',n.y+4); t.textContent=n.label;
-    frag.appendChild(t);
-  }
-  for(const n of nodes){
-    if(!n.visible) continue;
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','node '+(state.selectedNodeId === n.id ? 'selected' : '')); g.dataset.nodeId=n.id; g.setAttribute('transform','translate('+n.x+','+n.y+')');
-    const c = document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('class','node-dot'); c.setAttribute('r',radius(n)); c.setAttribute('fill',colors[n.type]||'#ddd');
-    g.appendChild(c); frag.appendChild(g);
-  }
-  svg.appendChild(frag);
-}
-svg.addEventListener('click', e => {
-  const target = e.target.closest?.('[data-node-id]');
-  if(target) {
-    selectGraphNode(target.dataset.nodeId);
-    return;
-  }
-  const nearest = nearestVisibleNode(graphPointFromEvent(e));
-  if(nearest) selectGraphNode(nearest.id);
-});
-init(); tick();
+init();
 </script>
 </body>
 </html>`;
@@ -1051,13 +910,13 @@ const server = http.createServer((req, res) => {
   res.end(html(graph));
 });
 server.listen(preferredPort, '127.0.0.1', () => {
-  console.log(`Harness graph viewer: http://127.0.0.1:${preferredPort}`);
+  console.log(`Harness dashboard: http://127.0.0.1:${preferredPort}`);
 });
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
-      console.log(`Harness graph viewer: http://127.0.0.1:${address.port}`);
+      console.log(`Harness dashboard: http://127.0.0.1:${address.port}`);
     });
     return;
   }

@@ -4,7 +4,7 @@
 
 Expose the repository harness as a local dashboard that is easy to scan before changing code or docs.
 
-The dashboard derives coverage, missing items, workspace guidance, validation commands, and graph edges from existing harness files:
+The dashboard derives coverage, missing items, workspace guidance, validation commands, and relationship metadata from existing harness files:
 
 - `harness/profile.yaml`
 - `harness/validation.yaml`
@@ -27,8 +27,9 @@ Then open the printed local URL. The dashboard includes:
 - per-workspace harness detail
 - current missing harness items
 - resolved validation commands
-- a graph view for relationship debugging
 - Chinese/English language switcher for easier shared review
+
+Relationship metadata remains available at `/graph.json` for debugging, but it is not part of the main dashboard surface.
 
 For a non-server smoke check:
 
@@ -41,7 +42,7 @@ node harness/tools/graph-viewer/server.mjs --once
 The smoke check prints:
 
 - workspace coverage summary
-- graph node/edge counts
+- relationship node/edge counts
 - missing referenced files and harness gaps
 
 ## Non-goals
