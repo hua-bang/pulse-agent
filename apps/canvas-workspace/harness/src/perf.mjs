@@ -4,7 +4,9 @@ import { parseArgs } from './args.mjs';
 import { APP_DIR } from './config.mjs';
 import { evaluateRenderer } from './renderer.mjs';
 import { printResult } from './output.mjs';
-import { requireLiveSession } from './session.mjs';
+import { startCommand } from './launch.mjs';
+import { clearCurrentSession, readSession, requireLiveSession, stopSession } from './session.mjs';
+import { isPidAlive } from './utils.mjs';
 
 // ── L4 runtime profiling ────────────────────────────────────────────────────
 //
@@ -116,34 +118,58 @@ const SCENARIOS = ['idle', 'pan-zoom'];
 
 export async function perfRuntimeCommand(rawArgs) {
   const { opts } = parseArgs(rawArgs);
-  const session = await requireLiveSession();
   const durationMs = Math.min(Math.max(Number(opts.duration ?? 4000), 500), 10_000);
   const which =
     opts.scenario && opts.scenario !== 'all' ? [String(opts.scenario)] : SCENARIOS;
 
-  const scenarios = [];
-  for (const scenario of which) {
-    const expr = `(${RUNTIME_PROBE})(${JSON.stringify({ scenario, durationMs })})`;
-    // eslint-disable-next-line no-await-in-loop
-    const result = await evaluateRenderer(session, expr);
-    scenarios.push(result);
+  // Session management: reuse a live session if one exists; otherwise spin up an
+  // ephemeral one, profile against it, and tear it down — so a single command
+  // does the whole thing. `--start` forces a fresh session even if one is live;
+  // `--keep` leaves a self-started session running.
+  const existing = await readSession().catch(() => null);
+  const haveLive = existing && isPidAlive(existing.pid);
+  let startedHere = false;
+
+  if (opts.start || !haveLive) {
+    const startArgs = ['--profile', String(opts.profile ?? 'demo'), '--force'];
+    if (opts.build) startArgs.push('--build');
+    process.stderr.write('› no live harness session — launching an ephemeral one…\n');
+    await startCommand(startArgs);
+    startedHere = true;
   }
 
-  const out = {
-    generatedAt: new Date().toISOString(),
-    profile: session.profile,
-    durationMs,
-    scenarios,
-  };
-  const outPath = join(APP_DIR, 'perf', 'out', 'runtime.json');
-  await fs.mkdir(dirname(outPath), { recursive: true });
-  await fs.writeFile(outPath, `${JSON.stringify(out, null, 2)}\n`);
+  const session = await requireLiveSession();
+  try {
+    const scenarios = [];
+    for (const scenario of which) {
+      const expr = `(${RUNTIME_PROBE})(${JSON.stringify({ scenario, durationMs })})`;
+      // eslint-disable-next-line no-await-in-loop
+      const result = await evaluateRenderer(session, expr);
+      scenarios.push(result);
+    }
 
-  printResult(opts.json, out, [
-    `Runtime profile (${session.profile}) → perf/out/runtime.json`,
-    ...scenarios.map(
-      (r) =>
-        `  ${r.scenario}: ${r.fps} fps · frame p95 ${r.frameMsP95}ms · max ${r.frameMsMax}ms · longTasks ${r.longTasks} · heap ${r.heapStartMB}→${r.heapEndMB}MB`,
-    ),
-  ]);
+    const out = {
+      generatedAt: new Date().toISOString(),
+      profile: session.profile,
+      durationMs,
+      scenarios,
+    };
+    const outPath = join(APP_DIR, 'perf', 'out', 'runtime.json');
+    await fs.mkdir(dirname(outPath), { recursive: true });
+    await fs.writeFile(outPath, `${JSON.stringify(out, null, 2)}\n`);
+
+    printResult(opts.json, out, [
+      `Runtime profile (${session.profile}) → perf/out/runtime.json`,
+      ...scenarios.map(
+        (r) =>
+          `  ${r.scenario}: ${r.fps} fps · frame p95 ${r.frameMsP95}ms · max ${r.frameMsMax}ms · longTasks ${r.longTasks} · heap ${r.heapStartMB}→${r.heapEndMB}MB`,
+      ),
+    ]);
+  } finally {
+    if (startedHere && !opts.keep) {
+      await stopSession(session, { cleanup: session.cleanupHome }).catch(() => {});
+      await clearCurrentSession().catch(() => {});
+      process.stderr.write('› ephemeral harness session closed.\n');
+    }
+  }
 }

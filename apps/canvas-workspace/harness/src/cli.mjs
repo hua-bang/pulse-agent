@@ -30,7 +30,8 @@ Usage:
   pnpm --filter canvas-workspace harness fill --selector <css> <text>
   pnpm --filter canvas-workspace harness press <key-or-combo>
   pnpm --filter canvas-workspace harness logs [--lines 80]
-  pnpm --filter canvas-workspace harness perf-runtime [--scenario all|idle|pan-zoom] [--duration 4000] [--json]
+  pnpm --filter canvas-workspace harness perf-runtime [--scenario all|idle|pan-zoom] [--duration 4000]
+                                [--start] [--keep] [--build] [--profile demo] [--json]
   pnpm --filter canvas-workspace harness close [--cleanup]
 
 Start options:

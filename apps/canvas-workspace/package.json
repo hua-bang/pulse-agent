@@ -18,6 +18,7 @@
     "bench": "vitest bench --run --config vitest.bench.config.ts",
     "perf:bundle": "node ./scripts/perf/bundle.mjs",
     "perf:report": "node ./scripts/perf/report.mjs",
+    "perf:runtime": "node ./harness/cli.mjs perf-runtime --scenario all",
     "harness": "node ./harness/cli.mjs",
     "package": "electron-vite build && electron-builder",
     "package:mac": "electron-vite build && electron-builder --mac",

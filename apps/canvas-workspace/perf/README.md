@@ -43,15 +43,35 @@ pnpm --filter canvas-workspace perf:bundle --update   # refresh baselines/bundle
 
 ## L4 运行时 profiling(harness)
 
+**一条命令**(自动起一个临时会话 → profile → 拆掉):
+
 ```bash
-pnpm --filter canvas-workspace build
-pnpm --filter canvas-workspace harness start --profile demo   # 打开一个有代表性的工作区
-pnpm --filter canvas-workspace harness perf-runtime --scenario all --duration 4000
-# → perf/out/runtime.json:各场景 fps / 帧 p95·max / long tasks / 堆增量 / 进程指标
-pnpm --filter canvas-workspace perf:report --with-runtime      # 把 runtime.json 并入快照
+pnpm --filter canvas-workspace build          # 需要先有构建产物(dist/)
+pnpm --filter canvas-workspace perf:runtime    # = harness perf-runtime --scenario all
 ```
 
-场景:`idle`(稳态帧时长+堆)、`pan-zoom`(合成 ctrl+wheel 缩放下的帧 jank)。每个场景须在 CDP 调用超时(~15s)内完成,故 `--duration` 上限 10s。进程指标(含 guest webview 数,验证 D1/H2)经 Perf 插件的 `metrics` 通道取得。
+或并入完整快照(`perf:report` 在 L1 已构建,L4 会自动起会话):
+
+```bash
+pnpm --filter canvas-workspace perf:report --with-runtime
+```
+
+`perf-runtime` 的会话管理:**有活会话就复用,没有就起一个临时的、跑完自动关**。相关 flag:
+
+| flag | 作用 |
+|---|---|
+| (默认) | 无活会话时自动起临时会话,profile 后拆除 |
+| `--start` | 即便有活会话也强制起一个新的(可复现) |
+| `--keep` | 自起的会话跑完不关(留着继续看) |
+| `--build` | 起会话前先 `pnpm build` |
+| `--profile demo` | 临时会话用哪个 profile(默认 demo) |
+| `--scenario all\|idle\|pan-zoom` · `--duration 4000` | 场景与时长 |
+
+如果你想用自己已开的、装了特定节点的工作区,先 `harness start`,再 `perf:runtime` 就会复用它。
+
+场景:`idle`(稳态帧时长+堆)、`pan-zoom`(合成 ctrl+wheel 缩放下的帧 jank)。每场景须在 CDP 超时(~15s)内完成,故 `--duration` 上限 10s。进程指标(含 guest webview 数,验证 D1/H2)经 Perf 插件 `metrics` 通道取得。
+
+> 注:自动起的临时会话需要 perf 插件在构建里(dev 构建默认有;若用 production 构建跑 L4,需 `PULSE_PERF_TOOLS=1 pnpm build`)。
 
 ## Files
 
