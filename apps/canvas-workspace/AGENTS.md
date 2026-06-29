@@ -4,175 +4,137 @@
 > Repository harness entry: `../../harness/README.md`.
 > Claude Code specific guidance lives in `CLAUDE.md`.
 
-## How To Use This File
+## Module Positioning
 
-This file is the tool-agnostic local entry. It intentionally stays light and routes to the existing, more detailed local guidance.
+`canvas-workspace` owns the Pulse Canvas Electron workbench: the desktop shell,
+React renderer, preload bridge, canvas persistence and migration, Canvas Agent
+chat, agent-team flows, plugin loading, embedded webviews, terminal/agent PTYs,
+artifacts, settings, local runtime-control server, and app-specific harness.
+
+This is an active pnpm app workspace. It consumes `pulse-coder-engine` and
+`pulse-coder-agent-teams`, interoperates with `@pulse-coder/canvas-cli` through
+the canvas store and runtime-control server, and hosts external node plugins
+such as `@pulse-canvas/nodes` through manifests and plugin registries.
+
+Keep this file as the local router. Put durable implementation detail in
+`CLAUDE.md`, existing workspace docs, or tests. Add new workspace docs only
+when a behavior or operating runbook needs a durable source of truth.
+
+## Knowledge Navigation
 
 | Task | Read |
 |---|---|
-| Claude Code guidance and app overview | `CLAUDE.md` |
-| Runtime harness commands | `harness/README.md` |
-| Main/renderer conventions | `docs/conventions/README.md` |
-| Main process boundaries | `docs/conventions/architecture-boundaries.md` |
+| Repository routing and validation matrix | `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| App overview and Claude-specific notes | `README.md`, `CLAUDE.md` |
+| Runtime harness | `harness/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
+| Main/renderer/preload boundaries | `docs/conventions/README.md`, `docs/conventions/architecture-boundaries.md` |
 | Renderer conventions | `docs/conventions/frontend.md` |
-| Main process conventions | `docs/conventions/backend.md` |
-| Repository harness map | `../../harness/profile.yaml` |
+| Main-process conventions | `docs/conventions/backend.md` |
+| Main domain map | `docs/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
+| Renderer routes and full-app surfaces | `docs/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
+| Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
+| Canvas node/edge schema | `src/shared/canvas.ts` |
+| Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` |
+| Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
+| Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |
+| Runtime-control server | `src/main/runtime/control-server.ts` |
+| Plugin node contract | `docs/plugin-node-mf2.md`, `src/plugins/types.ts`, `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/mock-node/` |
+| Channel plugin | `src/plugins/main/channel/README.md`, `src/plugins/main/channel/` |
+| Boundary and file-size gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts` |
+| Storage/plugin/runtime tests | `src/main/__tests__/canvas-storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
+| Documentation routing | `../../harness/skills/doc-governance.md` |
+| Validation planning | `../../harness/skills/quality-workflow.md` |
+| Contract changes | `../../harness/skills/contract-coding.md` |
 
 ## Local Constraints
 
-- Renderer reaches the main process only through `window.canvasWorkspace` exposed by preload.
-- Domain logic lives in `src/main/<domain>/`; renderer code should not reach into Electron/Node APIs directly.
-- For interaction-heavy changes, consider the app runtime harness in `harness/README.md`.
-- Keep this file as a router. Do not duplicate the detailed guidance already in `CLAUDE.md` or `docs/conventions/`.
+- Renderer code reaches privileged behavior only through the typed
+  `window.canvasWorkspace` preload API. Do not import Electron, Node, `src/main`,
+  or `src/preload` from renderer code.
+- Cross-process contracts should move toward `src/shared/`. Existing preload
+  imports from `src/renderer/src/types.ts` are allowlisted migration debt; do
+  not add new preload-to-renderer imports.
+- Keep main-process code in domain folders under `src/main/`; preserve
+  IPC channel names and preload API shape when refactoring.
+- Follow file-size governance: new production `.ts`/`.tsx` files must stay at
+  or below 500 lines, and existing over-500 baseline files must not grow.
+- Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
+  `~/.pulse-coder/canvas-runtime/`, and model/settings files. Do not write user
+  runtime state into the repository.
+- `harness/` launches the real Electron app. Use `temp`, `demo`, or `clone`
+  profiles by default; use `real --allow-real-writes` only after explicit user
+  intent because it can mutate real Pulse Canvas data.
+- The app owns v2 canvas storage migration, PTY sessions, runtime-control
+  endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
+  those contracts but does not own them.
+- Canvas node and edge shapes are sourced from `src/shared/canvas.ts`, not the
+  shorter README node table. Current host node types include `file`,
+  `terminal`, `frame`, `group`, `agent`, `text`, `iframe`, `image`, `shape`,
+  `mindmap`, `reference`, `dynamic-app`, and `plugin`.
+- Plugin nodes use stable host type `plugin` with plugin-owned
+  `data.payload`. Host behavior should go through renderer/main plugin
+  registries and declared capabilities.
+- The channel plugin is inert unless the experimental flag and channel config
+  are enabled; keep channel credentials in local settings/env, not source.
 
-## Overview
-
-**Pulse Canvas** (`canvas-workspace`) is an Electron desktop app that provides a
-free-form, infinite canvas workspace for AI-assisted coding. Users arrange
-**nodes** on a canvas and interact with an embedded AI agent powered by
-`pulse-coder-engine`.
-
-## Tech Stack
-
-- **Electron** (v30) + **electron-vite** — desktop shell and build pipeline
-- **React** (v18) + **wouter** — renderer UI and routing
-- **Tiptap** (v3) — rich-text editor for file nodes
-- **xterm.js** + **node-pty** — terminal emulation in terminal/agent nodes
-- **pulse-coder-engine** + **pulse-coder-agent-teams** (`workspace:*`) — power the
-  in-app AI agent and multi-agent flows
-- **zod**, **markdown-it**, **mermaid**, **react-force-graph-2d** — schema,
-  markdown, diagrams, and graph rendering
-
-## Node Types
-
-| Type | Description |
-|------|-------------|
-| `file` | Tiptap-based rich-text/markdown editor backed by a real file path |
-| `terminal` | Full PTY terminal session |
-| `agent` | Runs an external AI agent CLI (e.g. `claude`) in a PTY; accepts inline prompts or prompt files |
-| `frame` | Visual grouping rectangle with a label/color |
-
-## Views & Shortcuts
-
-- **Canvas view** (`/`) — free-form canvas with sidebar, node editing, optional right-side chat panel.
-- **Chat view** (`/chat`) — full-screen AI chat page backed by `pulse-coder-engine`.
-
-| Shortcut | Action |
-|----------|--------|
-| `Cmd/Ctrl+Shift+A` | Toggle right-side chat panel (canvas view only) |
-| `Cmd/Ctrl+Shift+L` | Toggle full-screen chat view |
-| `Esc` | Return to canvas from chat view |
-
-## Project Structure
-
-```
-src/
-  main/             # Electron main process (domain-based modules)
-    app/            # Electron bootstrap, window, protocol, logging, link policy
-    agent/          # CanvasAgent + CanvasAgentService (engine-backed AI chat)
-    agent-teams/    # Multi-agent teams integration (pulse-coder-agent-teams)
-    artifacts/      # Artifact persistence and artifact IPC
-    canvas/         # Canvas persistence, storage migration, nodes, tags, broadcast
-    files/          # File read/write/dialog IPC and filesystem watcher
-    generation/     # HTML generation and streaming IPC
-    runtime/        # Runtime control server and MCP helpers
-    settings/       # App/model settings persistence and IPC
-    terminal/       # node-pty session management
-    webview/        # Webview registry, CDP helpers, page reader
-    index.ts        # Main entry
-  preload/          # Context bridge (exposes window.canvasWorkspace API)
-  renderer/src/
-    components/     # Canvas, Sidebar, AgentNodeBody, FileNodeBody, chat/, …
-    hooks/          # useWorkspaces, canvas interaction hooks
-    editor/         # Tiptap editor setup
-    config/ constants/ i18n/ utils/
-    types.ts        # Shared types (CanvasNode, CanvasWorkspaceApi, …)
-```
-
-The renderer communicates with the main process **exclusively** through
-`window.canvasWorkspace` (typed in `types.ts`), bridged via `src/preload/`.
-Never reach into Electron/Node APIs directly from the renderer — add an IPC
-channel in the relevant `src/main/<domain>/` module and expose it through preload.
-
-See `docs/main-domain-modules.md` for the `src/main` module layout and migration
-plan, and `docs/renderer-surfaces.md` for renderer surface breakdown.
-
-## Dev & Build Commands
+## Common Commands
 
 ```bash
-pnpm install                              # also runs electron-rebuild for node-pty
-pnpm --filter canvas-workspace dev        # development (hot reload)
-pnpm --filter canvas-workspace build      # production build
-pnpm --filter canvas-workspace typecheck  # tsc --noEmit (renderer + main)
-pnpm --filter canvas-workspace test       # vitest run
-
-# Packaging (output → release/, appId com.pulse-coder.canvas-workspace)
-pnpm --filter canvas-workspace package          # current platform
-pnpm --filter canvas-workspace package:mac      # macOS dmg (arm64 + x64)
-pnpm --filter canvas-workspace package:win      # Windows nsis x64
-pnpm --filter canvas-workspace package:linux    # Linux AppImage + deb x64
+pnpm --filter canvas-workspace typecheck
+pnpm --filter canvas-workspace test
+pnpm --filter canvas-workspace build
+pnpm --filter canvas-workspace dev
+pnpm --filter canvas-workspace dev:temp-home
 ```
 
-`typecheck` runs two tsconfigs (`tsconfig.json` for renderer, `tsconfig.node.json`
-for main). `dev:temp-home` runs against a throwaway `$HOME` sandbox.
+Harness commands for interaction-heavy or visual changes:
 
-## Validation Policy
+```bash
+pnpm --filter canvas-workspace harness start --profile demo --build
+pnpm --filter canvas-workspace harness status
+pnpm --filter canvas-workspace harness snapshot-ui
+pnpm --filter canvas-workspace harness screenshot
+pnpm --filter canvas-workspace harness logs --lines 120
+pnpm --filter canvas-workspace harness close --cleanup
+```
 
-Use judgment when choosing validation depth.
+Packaging commands exist, but are slower and platform-dependent:
 
-For small renderer-only changes, prefer targeted tests and typecheck.
+```bash
+pnpm --filter canvas-workspace package
+pnpm --filter canvas-workspace package:mac
+pnpm --filter canvas-workspace package:mac:arm64
+pnpm --filter canvas-workspace package:win
+pnpm --filter canvas-workspace package:linux
+```
 
-For canvas interaction changes that affect drag/drop, selection, resize,
-keyboard shortcuts, zoom/pan, webview/iframe shielding, or multi-node behavior,
-consider running the harness when the changed behavior is hard to cover with a
-unit test or likely to regress visually.
+## Key Files
 
-When skipping the harness for an interaction change, briefly state why in the
-final response and list the validation that was run instead.
-
-## Canvas Agent & Model Config
-
-The AI chat feature is powered by `CanvasAgentService` (`src/main/agent/`), which
-wraps `pulse-coder-engine`. Each workspace keeps its own agent session, persisted
-under the workspace data directory, and receives a workspace/node summary as
-context on every turn.
-
-Model settings are read from `~/.pulse-coder/canvas/model-config.json` by default
-(override with `PULSE_CANVAS_MODEL_CONFIG`). The config supports OpenAI-compatible
-and Anthropic-compatible providers and stores only **env var names** for API keys,
-never secret values. The renderer manages the same config through
-`window.canvasWorkspace.model` (`status`, `saveConfig`, `upsertOption`,
-`setCurrent`, `removeOption`, `reset`); changes apply to new agent turns and HTML
-generation without restarting the app.
-
-## Data Persistence
-
-Canvas state (node positions, types, data) is saved per workspace as JSON via
-`src/main/canvas/`. File nodes are backed by real files on disk; the file watcher
-pushes external changes into the renderer via IPC.
-
-## Coding Conventions
-
-Detailed, reusable rules live in **[`docs/conventions/`](./docs/conventions/README.md)**.
-Read the relevant doc before writing or reviewing code:
-
-- **[`docs/conventions/README.md`](./docs/conventions/README.md)** — index + baseline rules.
-- **[`docs/conventions/architecture-boundaries.md`](./docs/conventions/architecture-boundaries.md)**
-  — process layers (`shared`/`main`/`preload`/`renderer`), import rules, and
-  file-size governance. **Enforced by tests** (`src/main/__tests__/import-boundaries.test.ts`,
-  `file-size-governance.test.ts`).
-- **[`docs/conventions/frontend.md`](./docs/conventions/frontend.md)** — renderer
-  (React) component/hook/styling/i18n/IPC-consumption conventions.
-- **[`docs/conventions/backend.md`](./docs/conventions/backend.md)** — main
-  process domain modules, IPC, services, and persistence conventions.
-
-Quick reminders (see the docs for the full rules):
-
-- TypeScript strict mode; match local file style (2 spaces, semicolons, ESM
-  imports). Keep diffs minimal and preserve existing patterns.
-- Aim **≤ 300 lines per component/module**; new files must stay **≤ 500**
-  (hard-gated). Split by responsibility rather than growing a file.
-- Renderer reaches the main process **only** through `window.canvasWorkspace`
-  (preload bridge); domain logic lives in `src/main/<domain>/`.
-- Cross-package imports use workspace package names (`pulse-coder-engine`,
-  `pulse-coder-agent-teams`).
+- `src/main/index.ts`: thin Electron main entrypoint.
+- `src/main/app/bootstrap.ts`: startup wiring for IPC, canvas storage, agent,
+  teams, plugins, runtime-control, window creation, and teardown.
+- `src/preload/index.ts`: exposes `window.canvasWorkspace` and assembles bridge
+  APIs.
+- `src/renderer/src/App.tsx`: top-level renderer routes, shell, settings, and
+  plugin route/nav integration.
+- `src/renderer/src/components/Canvas/`: canvas surface and interaction wiring.
+- `src/renderer/src/components/Workbench/`: mounted workspace state and chat
+  portal ownership.
+- `src/renderer/src/components/RightDock/`: tabbed right dock for chat and
+  previews.
+- `src/shared/canvas.ts`: canonical canvas node, edge, reference, and workspace
+  node contracts.
+- `src/main/canvas/store.ts`: workspace manifest/store IPC, watchers, export,
+  import, and migration hooks.
+- `src/main/canvas/storage.ts`: atomic JSON I/O, v2 split storage, migration,
+  recovery, and pollution detection.
+- `src/main/agent/`: Canvas Agent service, session store, prompt/model config,
+  tools, and chat IPC.
+- `src/main/agent-teams/`: agent-team service, store, IPC, PTY bridge, and
+  canvas node integration.
+- `src/main/runtime/control-server.ts`: loopback runtime server used by live
+  `pulse-canvas` commands.
+- `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/types.ts`: Canvas
+  plugin registries and shared plugin contracts.
+- `harness/`: app-specific Electron launch, CDP, screenshot, input, logs, and
+  cleanup harness.

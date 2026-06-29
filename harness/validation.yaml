@@ -30,6 +30,15 @@ pathRules:
         - pnpm --filter @pulse-coder/teams-cli build
         - pnpm --filter canvas-workspace typecheck
 
+  - name: teams-cli
+    paths:
+      - apps/teams-cli/**
+    required:
+      - pnpm --filter @pulse-coder/teams-cli test
+      - pnpm --filter @pulse-coder/teams-cli build
+    manual:
+      - Promote `pnpm --filter @pulse-coder/teams-cli typecheck` after the app tsconfig no longer pulls agent-teams/engine/orchestrator source files outside its rootDir.
+
   - name: cli
     paths:
       - packages/cli/**
@@ -66,6 +75,28 @@ pathRules:
     required:
       - pnpm --filter pulse-coder-acp test
       - pnpm --filter pulse-coder-acp typecheck
+
+  - name: canvas-cli
+    paths:
+      - packages/canvas-cli/**
+    required:
+      - pnpm --filter @pulse-coder/canvas-cli test
+      - pnpm --filter @pulse-coder/canvas-cli typecheck
+
+  - name: canvas-nodes
+    paths:
+      - packages/canvas-nodes/**
+    required:
+      - pnpm --filter @pulse-canvas/nodes test
+      - pnpm --filter @pulse-canvas/nodes typecheck
+
+  - name: langfuse-plugin
+    paths:
+      - packages/langfuse-plugin/**
+    required:
+      - pnpm --filter pulse-coder-langfuse-plugin build
+    manual:
+      - Promote `pnpm --filter pulse-coder-langfuse-plugin typecheck` after the package tsconfig no longer pulls engine/orchestrator source files outside its rootDir.
 
   - name: pulse-sandbox
     paths:

@@ -85,6 +85,39 @@ workspaces:
     knowledge:
       readme: packages/acp/README.md
 
+  packages/canvas-cli:
+    type: package
+    packageName: "@pulse-coder/canvas-cli"
+    role: canvas-agent-cli
+    entry: packages/canvas-cli/AGENTS.md
+    knowledge:
+      readme: packages/canvas-cli/README.md
+
+  packages/canvas-nodes:
+    type: package
+    packageName: "@pulse-canvas/nodes"
+    role: canvas-external-node-plugins
+    entry: packages/canvas-nodes/AGENTS.md
+    knowledge:
+      readme: packages/canvas-nodes/README.md
+      manifest: packages/canvas-nodes/manifest.json
+
+  packages/langfuse-plugin:
+    type: package
+    packageName: pulse-coder-langfuse-plugin
+    role: langfuse-observability-plugin
+    entry: packages/langfuse-plugin/AGENTS.md
+    knowledge:
+      source: packages/langfuse-plugin/src/index.ts
+
+  packages/pulse-sandbox:
+    type: package
+    packageName: pulse-sandbox
+    role: sandboxed-js-runtime
+    entry: packages/pulse-sandbox/AGENTS.md
+    knowledge:
+      readme: packages/pulse-sandbox/README.md
+
   apps/remote-server:
     type: app
     packageName: "@pulse-coder/remote-server"
