@@ -115,6 +115,49 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
 
 type ReceiveIdType = 'open_id' | 'chat_id' | 'user_id' | 'union_id' | 'email';
 
+interface SendMessageOptions {
+  replyToMessageId?: string;
+}
+
+function normalizeReplyToMessageId(options?: SendMessageOptions): string | undefined {
+  const replyToMessageId = options?.replyToMessageId?.trim();
+  return replyToMessageId || undefined;
+}
+
+async function replyMessage(
+  messageId: string,
+  msgType: 'text' | 'interactive' | 'image',
+  content: string,
+): Promise<string> {
+  const token = await getTenantAccessToken();
+  const response = await fetch(
+    `${getFeishuBaseUrl()}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reply`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        msg_type: msgType,
+        content,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Failed to reply message in Feishu: ${response.status} ${response.statusText} - ${body}`);
+  }
+
+  const payload = (await response.json()) as FeishuApiResponse<{ message_id?: string }>;
+  if (payload.code !== 0) {
+    throw new Error(`Failed to reply message in Feishu: ${payload.msg || 'unknown error'}`);
+  }
+
+  return payload.data?.message_id ?? '';
+}
+
 /**
  * Upload a local image and send it as a Feishu image message.
  * Returns the message_id of the sent message.
@@ -124,9 +167,19 @@ export async function sendImageMessage(
   receiveIdType: ReceiveIdType,
   imagePath: string,
   mimeType?: string,
+  options?: SendMessageOptions,
 ): Promise<string> {
   const imageKey = await uploadImageToFeishu(imagePath, mimeType);
   const token = await getTenantAccessToken();
+  const replyToMessageId = normalizeReplyToMessageId(options);
+  const content = JSON.stringify({ image_key: imageKey });
+  if (replyToMessageId) {
+    try {
+      return await replyMessage(replyToMessageId, 'image', content);
+    } catch (err) {
+      console.error('[feishu] Failed to reply image message, falling back to create:', err);
+    }
+  }
 
   const response = await fetch(
     `${getFeishuBaseUrl()}/open-apis/im/v1/messages?receive_id_type=${encodeURIComponent(receiveIdType)}`,
@@ -139,7 +192,7 @@ export async function sendImageMessage(
       body: JSON.stringify({
         receive_id: receiveId,
         msg_type: 'image',
-        content: JSON.stringify({ image_key: imageKey }),
+        content,
       }),
     },
   );
@@ -201,13 +254,24 @@ export async function sendTextMessage(
   receiveId: string,
   receiveIdType: ReceiveIdType,
   text: string,
+  options?: SendMessageOptions,
 ): Promise<string> {
+  const replyToMessageId = normalizeReplyToMessageId(options);
+  const content = JSON.stringify({ text });
+  if (replyToMessageId) {
+    try {
+      return await replyMessage(replyToMessageId, 'text', content);
+    } catch (err) {
+      console.error('[feishu] Failed to reply text message, falling back to create:', err);
+    }
+  }
+
   const res = await client.im.message.create({
     params: { receive_id_type: receiveIdType },
     data: {
       receive_id: receiveId,
       msg_type: 'text',
-      content: JSON.stringify({ text }),
+      content,
     },
   });
   if (typeof res.code === 'number' && res.code !== 0) {
@@ -224,13 +288,24 @@ export async function sendCardMessage(
   receiveId: string,
   receiveIdType: ReceiveIdType,
   card: object,
+  options?: SendMessageOptions,
 ): Promise<string> {
+  const replyToMessageId = normalizeReplyToMessageId(options);
+  const content = JSON.stringify(card);
+  if (replyToMessageId) {
+    try {
+      return await replyMessage(replyToMessageId, 'interactive', content);
+    } catch (err) {
+      console.error('[feishu] Failed to reply card message, falling back to create:', err);
+    }
+  }
+
   const res = await client.im.message.create({
     params: { receive_id_type: receiveIdType },
     data: {
       receive_id: receiveId,
       msg_type: 'interactive',
-      content: JSON.stringify(card),
+      content,
     },
   });
   if (typeof res.code === 'number' && res.code !== 0) {
