@@ -12,7 +12,11 @@ export const isCodingAgentCommand = (command: string): boolean => (
 );
 
 export const appendTerminalOutputTail = (tail: string, data: string): string => {
-  const text = data.replace(ANSI_PATTERN, '').replace(/\r/g, '\n');
+  // ANSI_PATTERN only matches sequences starting with the ESC byte (\x1B), so a
+  // chunk without one cannot contain any match — skip the global regex scan
+  // (the expensive part) for plain-text chunks, which are the common case.
+  const stripped = data.indexOf('\x1B') === -1 ? data : data.replace(ANSI_PATTERN, '');
+  const text = stripped.replace(/\r/g, '\n');
   return `${tail}${text}`.slice(-TERMINAL_OUTPUT_TAIL_LIMIT);
 };
 

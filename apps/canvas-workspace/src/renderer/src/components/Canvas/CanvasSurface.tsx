@@ -275,7 +275,7 @@ export const CanvasSurface = ({
       {(dragPreview || resizePreview) && (
         <CanvasGestureHud
           dragPreview={dragPreview}
-          nodes={nodes}
+          resizeNode={resizePreview ? nodes.find((node) => node.id === resizePreview.id) ?? null : null}
           resizePreview={resizePreview}
           scale={transform.scale}
         />
@@ -354,13 +354,14 @@ const ShapeDraftPreview = ({ draft, scale }: { draft: ShapeDraft; scale: number 
 interface GestureHudProps {
   dragPreview?: NodeDragPreview | null;
   resizePreview?: NodeResizePreview | null;
-  nodes: CanvasNode[];
+  // Resolved by the parent (which already holds the node list) so the HUD does
+  // not take the whole nodes array as a prop nor run an O(n) find per tick.
+  resizeNode: CanvasNode | null;
   scale: number;
 }
 
-const CanvasGestureHud = ({ dragPreview, resizePreview, nodes, scale }: GestureHudProps) => {
+const CanvasGestureHud = ({ dragPreview, resizePreview, resizeNode, scale }: GestureHudProps) => {
   const { t } = useI18n();
-  const resizeNode = resizePreview ? nodes.find((node) => node.id === resizePreview.id) : null;
   const preview = dragPreview
     ? {
         x: dragPreview.x,

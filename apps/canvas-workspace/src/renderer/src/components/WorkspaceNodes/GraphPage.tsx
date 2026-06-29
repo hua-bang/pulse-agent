@@ -281,6 +281,14 @@ export const GraphPage = ({
     [nodes, showOffCanvas],
   );
 
+  // O(1) tag-name lookup, built once per tags change — avoids tagName()'s
+  // linear scan being run for every node x every tag on each keystroke.
+  const tagNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const tag of tags) map.set(tag.id, tag.name);
+    return map;
+  }, [tags]);
+
   const searchSuggestions = useMemo<GraphSearchResult[]>(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
@@ -294,7 +302,7 @@ export const GraphPage = ({
         for (const token of node.tags) {
           if (seen.has(token)) continue;
           seen.add(token);
-          const label = tagName(token, tags);
+          const label = tagNameById.get(token) ?? token;
           if (label.toLowerCase().includes(q) || token.toLowerCase().includes(q)) {
             tagResults.push({ kind: 'tag', graphId: `tag:${token}`, label });
           }
@@ -309,13 +317,13 @@ export const GraphPage = ({
         node.workspaceName ?? '',
         getNodeTitle(node, ''),
         node.summary ?? '',
-        ...node.tags.map((tagId) => tagName(tagId, tags)),
+        ...node.tags.map((tagId) => tagNameById.get(tagId) ?? tagId),
       ].some((value) => value.toLowerCase().includes(q)))
       .map((node) => ({ kind: 'node', node } as GraphSearchResult));
 
     // Tags first (a few), then nodes, capped.
     return [...tagResults.slice(0, 6), ...nodeResults].slice(0, 12);
-  }, [visibleNodes, query, tags, showTags]);
+  }, [visibleNodes, query, tagNameById, showTags]);
 
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   useEffect(() => { setSuggestionIndex(0); }, [query]);
@@ -376,13 +384,20 @@ export const GraphPage = ({
     return { nodeIds, linkIds };
   }, [activeNodeId, hoverNodeId, neighbors]);
 
+  // O(1) graphId → node lookup, so focusNode does not linear-scan every node.
+  const nodeByGraphId = useMemo(() => {
+    const map = new Map<string, (typeof graphData.nodes)[number]>();
+    for (const node of graphData.nodes) map.set(getGraphId(node.id), node);
+    return map;
+  }, [graphData.nodes]);
+
   const focusNode = useCallback((nodeId: string, zoom = 2.8) => {
     const graph = graphRef.current;
-    const node = graphData.nodes.find((item) => getGraphId(item.id) === nodeId);
+    const node = nodeByGraphId.get(nodeId);
     if (!graph || !node || node.x === undefined || node.y === undefined) return;
     graph.centerAt(node.x, node.y, 520);
     graph.zoom(zoom, 520);
-  }, [graphData.nodes]);
+  }, [nodeByGraphId]);
 
   useEffect(() => {
     const el = containerRef.current;
