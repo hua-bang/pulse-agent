@@ -542,6 +542,15 @@ main { min-width:0; padding:22px 24px 36px; }
 .muted { color:var(--muted); }
 .row-title { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
 .score { font-weight:700; color:var(--teal); }
+.gap-groups { display:grid; gap:14px; }
+.gap-group { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#141922; }
+.gap-group-header { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; padding:12px 14px; background:var(--panel-2); border-bottom:1px solid var(--line); }
+.gap-group-header.actionable { cursor:pointer; }
+.gap-group-header.actionable:hover, .gap-group-header.actionable:focus { background:#202938; outline:0; }
+.gap-group-title { display:grid; gap:4px; min-width:0; }
+.gap-group-title strong { font-size:15px; }
+.gap-group-body { padding:10px 12px 2px; }
+.gap-group-body .gap-row { background:#171d26; }
 .gap-row { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:12px; margin-bottom:10px; }
 .gap-row.actionable { cursor:pointer; }
 .gap-row.actionable:hover, .gap-row.actionable:focus { border-color:var(--blue); background:#202938; outline:0; }
@@ -571,6 +580,7 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 @media (max-width: 620px) {
   .topbar, main, .detail { padding-left:14px; padding-right:14px; }
   .metrics { grid-template-columns:1fr; }
+  .gap-group-header { display:grid; }
   .gap-row, .mini-row { grid-template-columns:1fr; }
 }
 </style>
@@ -810,16 +820,45 @@ function renderWorkspaces(){
   const items = filteredReports();
   document.getElementById('workspace-grid').innerHTML = items.length ? items.map(renderWorkspaceCard).join('') : '<div class="empty">'+bi('当前筛选无匹配工作区', 'No workspaces match the current filter')+'</div>';
 }
-function renderGapRow(gap){
+function renderGapRow(gap, options = {}){
+  const showWorkspace = options.showWorkspace !== false;
   const canOpen = gap.workspace && byWorkspace.has(gap.workspace);
   const workspaceAttr = canOpen ? ' data-workspace="'+escapeHtml(gap.workspace)+'" tabindex="0"' : '';
+  const pathLabel = showWorkspace ? (gap.workspace || gap.path) : (gap.path || gap.workspace);
   return '<div class="gap-row '+(canOpen ? 'actionable' : '')+'"'+workspaceAttr+'>'+
     '<div><span class="severity '+escapeHtml(gap.severity)+'">'+escapeHtml(severityLabel(gap.severity))+'</span><div class="muted">'+escapeHtml(typeLabel(gap.type))+'</div></div>'+
-    '<div><strong>'+escapeHtml(gapLabel(gap))+'</strong><div class="path">'+escapeHtml(gap.workspace || gap.path)+'</div><div class="muted">'+escapeHtml(gapDetail(gap))+'</div></div>'+
+    '<div><strong>'+escapeHtml(gapLabel(gap))+'</strong><div class="path">'+escapeHtml(pathLabel)+'</div><div class="muted">'+escapeHtml(gapDetail(gap))+'</div></div>'+
   '</div>';
 }
+function gapGroups(){
+  const groups = new Map();
+  for (const gap of gaps) {
+    const workspace = gap.workspace || gap.path || bi('仓库级', 'Repository-level');
+    if (!groups.has(workspace)) groups.set(workspace, { workspace, items: [] });
+    groups.get(workspace).items.push(gap);
+  }
+  return [...groups.values()];
+}
+function renderGapGroup(group){
+  const highCount = group.items.filter(gap => gap.severity === 'high').length;
+  const mediumCount = group.items.filter(gap => gap.severity === 'medium').length;
+  const typeBadges = [...new Set(group.items.map(gap => typeLabel(gap.type)))].map(type => '<span class="badge">'+escapeHtml(type)+'</span>').join('');
+  const canOpen = group.workspace && byWorkspace.has(group.workspace);
+  const workspaceAttr = canOpen ? ' data-workspace="'+escapeHtml(group.workspace)+'" tabindex="0"' : '';
+  const severityBadges = [
+    highCount ? '<span class="badge missing">'+escapeHtml(countLabel(highCount, ' 个高优先级', 'high priority item', 'high priority items'))+'</span>' : '',
+    mediumCount ? '<span class="badge partial">'+escapeHtml(countLabel(mediumCount, ' 个中优先级', 'medium priority item', 'medium priority items'))+'</span>' : '',
+  ].join('');
+  return '<section class="gap-group">'+
+    '<div class="gap-group-header '+(canOpen ? 'actionable' : '')+'"'+workspaceAttr+'>'+
+      '<div class="gap-group-title"><strong class="path">'+escapeHtml(group.workspace)+'</strong><div class="muted">'+escapeHtml(countLabel(group.items.length, ' 个缺失项', 'missing item', 'missing items'))+'</div></div>'+
+      '<div class="badges">'+severityBadges+typeBadges+'</div>'+
+    '</div>'+
+    '<div class="gap-group-body">'+group.items.map(gap => renderGapRow(gap, { showWorkspace: false })).join('')+'</div>'+
+  '</section>';
+}
 function renderGaps(){
-  document.getElementById('gap-list').innerHTML = gaps.length ? gaps.map(renderGapRow).join('') : '<div class="empty">'+missingText()+'</div>';
+  document.getElementById('gap-list').innerHTML = gaps.length ? '<div class="gap-groups">'+gapGroups().map(renderGapGroup).join('')+'</div>' : '<div class="empty">'+missingText()+'</div>';
 }
 function renderCommands(commands){
   if (!commands.length) return '<div class="empty">'+bi('未解析到验证命令', 'No validation commands resolved')+'</div>';
@@ -891,13 +930,13 @@ function init(){
     openWorkspace(card.dataset.workspace);
   });
   document.body.addEventListener('click', e => {
-    const gap = e.target.closest('.gap-row[data-workspace]');
+    const gap = e.target.closest('.gap-row[data-workspace], .gap-group-header[data-workspace]');
     if (gap) { openWorkspace(gap.dataset.workspace); return; }
     const copy = e.target.closest('button[data-copy]'); if(!copy) return;
     navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = bi('已复制', 'Copied'); setTimeout(() => { copy.textContent = bi('复制', 'Copy'); }, 1100); });
   });
   document.body.addEventListener('keydown', e => {
-    const gap = e.target.closest?.('.gap-row[data-workspace]');
+    const gap = e.target.closest?.('.gap-row[data-workspace], .gap-group-header[data-workspace]');
     if (!gap || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
     openWorkspace(gap.dataset.workspace);
