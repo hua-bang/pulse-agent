@@ -128,6 +128,194 @@ function nodeId(type, id) {
   return `${type}:${id}`;
 }
 
+function readJson(relativePath) {
+  try {
+    return JSON.parse(readText(relativePath));
+  } catch {
+    return null;
+  }
+}
+
+function normalizePath(value) {
+  return value.replaceAll('\\', '/').replace(/\/+$/, '');
+}
+
+function expandWorkspaceGlobs(globs) {
+  const workspacePaths = new Set();
+
+  for (const raw of globs ?? []) {
+    if (typeof raw !== 'string') continue;
+    const pattern = normalizePath(raw.trim());
+    if (!pattern) continue;
+
+    if (pattern.endsWith('/*')) {
+      const base = pattern.slice(0, -2);
+      for (const dir of listDirs(base)) {
+        if (exists(path.join(dir, 'package.json'))) workspacePaths.add(normalizePath(dir));
+      }
+      continue;
+    }
+
+    if (exists(path.join(pattern, 'package.json'))) workspacePaths.add(pattern);
+  }
+
+  return [...workspacePaths].sort();
+}
+
+function readWorkspaceGlobs(profile) {
+  if (Array.isArray(profile.activeWorkspaceGlobs) && profile.activeWorkspaceGlobs.length > 0) {
+    return profile.activeWorkspaceGlobs;
+  }
+
+  if (exists('pnpm-workspace.yaml')) {
+    const workspaceConfig = parseSimpleYaml(readText('pnpm-workspace.yaml'));
+    if (Array.isArray(workspaceConfig.packages)) return workspaceConfig.packages;
+  }
+
+  return Object.keys(profile.workspaces ?? {});
+}
+
+function ruleMatchesWorkspace(rule, workspacePath) {
+  return (rule.paths ?? []).some((pattern) => {
+    if (typeof pattern !== 'string') return false;
+    const normalized = normalizePath(pattern);
+    if (normalized === workspacePath) return true;
+    if (normalized.startsWith(`${workspacePath}/`)) return true;
+    if (normalized.startsWith(`${workspacePath}/*`)) return true;
+    if (normalized.startsWith(`${workspacePath}/**`)) return true;
+    return false;
+  });
+}
+
+function workspaceKind(workspacePath) {
+  if (workspacePath.startsWith('apps/')) return 'app';
+  return 'package';
+}
+
+function packageScripts(manifest) {
+  return Object.keys(manifest?.scripts ?? {}).sort();
+}
+
+function recommendedFallbackCommands(workspacePath, manifest, kind) {
+  const name = manifest?.name;
+  if (!name) return [];
+  const scripts = packageScripts(manifest);
+  const preferred = kind === 'app' ? ['typecheck', 'test', 'build'] : ['test', 'typecheck'];
+  return preferred
+    .filter((script) => scripts.includes(script))
+    .map((script) => `pnpm --filter ${name} ${script}`);
+}
+
+function classifyWorkspaceReport(report) {
+  const high = report.gaps.filter((gap) => gap.severity === 'high').length;
+  const medium = report.gaps.filter((gap) => gap.severity === 'medium').length;
+  if (high > 0) return 'missing';
+  if (medium > 0 || !report.profileListed) return 'partial';
+  return 'ready';
+}
+
+function buildWorkspaceReports(profile, validation) {
+  const workspaceGlobs = readWorkspaceGlobs(profile);
+  const activeWorkspaces = expandWorkspaceGlobs(workspaceGlobs);
+  const profileWorkspaces = profile.workspaces ?? {};
+  const validationRules = validation.pathRules ?? [];
+  const reports = [];
+
+  for (const workspacePath of activeWorkspaces) {
+    const profileEntry = profileWorkspaces[workspacePath];
+    const manifest = readJson(path.join(workspacePath, 'package.json'));
+    const kind = profileEntry?.type ?? workspaceKind(workspacePath);
+    const entryPath = profileEntry?.entry ?? path.join(workspacePath, 'AGENTS.md');
+    const entry = { path: entryPath, exists: exists(entryPath) };
+    const knowledge = Object.entries(profileEntry?.knowledge ?? {})
+      .filter(([, target]) => typeof target === 'string')
+      .map(([kindName, target]) => ({
+        kind: kindName,
+        path: target,
+        exists: exists(target),
+      }));
+    const rules = validationRules.filter((rule) => ruleMatchesWorkspace(rule, workspacePath));
+    const commands = [
+      ...new Set(rules.flatMap((rule) => Array.isArray(rule.required) ? rule.required : [])),
+    ];
+    const fallbackCommands = recommendedFallbackCommands(workspacePath, manifest, kind);
+    const gaps = [];
+
+    if (!profileEntry) {
+      gaps.push({
+        severity: 'medium',
+        type: 'profile',
+        label: 'No explicit profile entry',
+        path: 'harness/profile.yaml',
+        detail: 'This workspace falls back to workspaceTypeDefaults instead of a curated entry.',
+      });
+    }
+    if (!entry.exists) {
+      gaps.push({
+        severity: 'high',
+        type: 'entry',
+        label: 'Missing local AGENTS entry',
+        path: entry.path,
+        detail: 'Workspace has no local harness entry for progressive reading.',
+      });
+    }
+    for (const item of knowledge) {
+      if (!item.exists) {
+        gaps.push({
+          severity: 'high',
+          type: 'knowledge',
+          label: `Missing ${item.kind}`,
+          path: item.path,
+          detail: 'Profile points to a file that does not exist.',
+        });
+      }
+    }
+    if (rules.length === 0) {
+      gaps.push({
+        severity: 'medium',
+        type: 'validation',
+        label: 'No path-specific validation rule',
+        path: 'harness/validation.yaml',
+        detail: 'Validation falls back to workspace scripts instead of a named path rule.',
+      });
+    }
+
+    const report = {
+      path: workspacePath,
+      type: kind,
+      packageName: profileEntry?.packageName ?? manifest?.name ?? path.basename(workspacePath),
+      role: profileEntry?.role ?? 'default-workspace',
+      profileListed: Boolean(profileEntry),
+      entry,
+      knowledge,
+      validationRules: rules.map((rule) => ({
+        name: rule.name,
+        paths: rule.paths ?? [],
+        required: rule.required ?? [],
+        manual: rule.manual ?? [],
+        optional: rule.optional ?? [],
+        escalateWhen: rule.escalateWhen ?? {},
+      })),
+      commands: commands.length > 0 ? commands : fallbackCommands,
+      fallbackCommands,
+      scripts: packageScripts(manifest),
+      gaps,
+      readingPath: [
+        'AGENTS.md',
+        'harness/README.md',
+        'harness/profile.yaml',
+        entry.path,
+        ...knowledge.filter((item) => item.exists).map((item) => item.path),
+      ],
+    };
+    report.status = classifyWorkspaceReport(report);
+    report.score = Math.max(0, 100 - report.gaps.reduce((sum, gap) => sum + (gap.severity === 'high' ? 35 : 18), 0));
+    reports.push(report);
+  }
+
+  return reports.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 function buildGraph() {
   const nodes = new Map();
   const edges = [];
@@ -154,6 +342,7 @@ function buildGraph() {
 
   const profile = parseSimpleYaml(readText('harness/profile.yaml'));
   const validation = parseSimpleYaml(readText('harness/validation.yaml'));
+  const workspaceReports = buildWorkspaceReports(profile, validation);
 
   for (const [workspacePath, workspace] of Object.entries(profile.workspaces ?? {})) {
     const wid = nodeId('workspace', workspacePath);
@@ -224,16 +413,36 @@ function buildGraph() {
 
   const nodeList = [...nodes.values()];
   const gapCount = nodeList.filter((node) => node.type === 'gap').length;
+  const harnessGaps = workspaceReports.flatMap((report) =>
+    report.gaps.map((gap) => ({
+      workspace: report.path,
+      packageName: report.packageName,
+      ...gap,
+    })),
+  );
+  const explicitWorkspaceCount = workspaceReports.filter((report) => report.profileListed).length;
+  const validationCoverageCount = workspaceReports.filter((report) => report.validationRules.length > 0).length;
+  const entryCoverageCount = workspaceReports.filter((report) => report.entry.exists).length;
   return {
     generatedAt: new Date().toISOString(),
     summary: {
       nodes: nodeList.length,
       edges: edges.length,
       workspaces: nodeList.filter((node) => node.type === 'workspace').length,
+      activeWorkspaces: workspaceReports.length,
+      explicitWorkspaces: explicitWorkspaceCount,
+      entryCoverage: entryCoverageCount,
+      validationCoverage: validationCoverageCount,
       skills: nodeList.filter((node) => node.type === 'skill').length,
       tools: nodeList.filter((node) => node.type === 'tool').length,
-      gaps: gapCount,
+      graphGaps: gapCount,
+      harnessGaps: harnessGaps.length,
+      highSeverityGaps: harnessGaps.filter((gap) => gap.severity === 'high').length,
     },
+    profileScope: profile.profileScope ?? {},
+    activeWorkspaceGlobs: readWorkspaceGlobs(profile),
+    workspaceReports,
+    harnessGaps,
     nodes: nodeList,
     edges,
   };
@@ -246,128 +455,363 @@ function html(graph) {
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Harness Map</title>
+<title>Harness Dashboard</title>
 <style>
-:root { color-scheme: dark; --bg:#10120f; --panel:#181c15; --panel2:#20251b; --line:#35402f; --text:#eef6df; --muted:#a9b69a; --accent:#d7ff5f; --blue:#7cc7ff; --green:#79e08e; --yellow:#f3d36b; --purple:#c796ff; --red:#ff6d61; }
+:root {
+  color-scheme: dark;
+  --bg:#0f1115;
+  --panel:#171a20;
+  --panel-2:#1e232b;
+  --panel-3:#242a33;
+  --line:#343b47;
+  --text:#eef2f7;
+  --muted:#9ea9b8;
+  --blue:#7db7ff;
+  --green:#7ee2a8;
+  --yellow:#f3cd6b;
+  --red:#ff7a70;
+  --purple:#c8a2ff;
+  --teal:#7ee4df;
+}
 * { box-sizing: border-box; }
-body { margin:0; background:var(--bg); color:var(--text); font:14px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-.app { min-height:100vh; display:grid; grid-template-columns: 380px 1fr 340px; }
-aside, main { border-right:1px solid var(--line); }
-aside { padding:18px; overflow:auto; background:var(--panel); }
-main { padding:18px; overflow:auto; background:radial-gradient(circle at 15% 5%, #26311d 0 12%, transparent 30%), #11140f; }
-h1 { margin:0 0 4px; font-size:26px; letter-spacing:.02em; }
-h2 { margin:18px 0 10px; color:var(--accent); font-size:15px; }
-.sub { color:var(--muted); margin-bottom:16px; }
-.stats { display:grid; grid-template-columns: repeat(2, 1fr); gap:8px; }
-.stat { background:var(--panel2); border:1px solid var(--line); padding:10px; }
-.stat b { display:block; color:var(--accent); font-size:20px; }
-.row { display:grid; grid-template-columns: 1fr auto; gap:10px; align-items:center; padding:9px; border:1px solid var(--line); background:#141812; margin-bottom:7px; cursor:pointer; }
-.row:hover, .row.active { border-color:var(--accent); }
-.row small { color:var(--muted); display:block; margin-top:3px; }
-.badges { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
-.badge { border:1px solid var(--line); padding:2px 5px; color:var(--muted); font-size:11px; }
-.badge.ok { color:var(--green); border-color:#406b48; }
-.badge.warn { color:var(--red); border-color:#7a4039; }
-.flow { display:grid; gap:12px; max-width:920px; }
-.step { border:1px solid var(--line); background:rgba(24,28,21,.86); padding:14px; position:relative; }
-.step:not(:last-child)::after { content:'↓'; position:absolute; left:20px; bottom:-22px; color:var(--accent); font-size:20px; }
-.step-title { color:var(--accent); font-weight:700; margin-bottom:4px; }
-.cards { display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:10px; margin-top:12px; }
-.card { border:1px solid var(--line); background:var(--panel2); padding:12px; }
-.card strong { color:var(--yellow); }
-.graph-box { height:380px; margin-top:16px; border:1px solid var(--line); background:#0d100c; position:relative; overflow:hidden; }
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font:14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+button, input { font:inherit; }
+.topbar { border-bottom:1px solid var(--line); background:#12151a; padding:18px 24px; }
+.topline { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+h1 { margin:0; font-size:24px; line-height:1.15; letter-spacing:0; }
+h2 { margin:0 0 12px; font-size:15px; letter-spacing:0; }
+h3 { margin:0 0 8px; font-size:13px; color:var(--muted); letter-spacing:0; text-transform:uppercase; }
+.sub { color:var(--muted); margin-top:6px; max-width:880px; }
+.meta { color:var(--muted); font-size:12px; text-align:right; white-space:nowrap; }
+.tabs { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+button {
+  border:1px solid var(--line);
+  background:var(--panel);
+  color:var(--text);
+  padding:8px 10px;
+  border-radius:6px;
+  cursor:pointer;
+  min-height:34px;
+}
+button:hover, button.active { border-color:var(--blue); color:var(--blue); }
+.shell { display:grid; grid-template-columns:minmax(0, 1fr) minmax(360px, 420px); gap:0; min-height:calc(100vh - 115px); }
+main { min-width:0; padding:22px 24px 36px; }
+.detail { border-left:1px solid var(--line); background:var(--panel); padding:22px; overflow:auto; }
+.view { display:none; }
+.view.active { display:block; }
+.metrics { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:12px; margin-bottom:18px; }
+.metric { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; min-height:88px; }
+.metric b { display:block; font-size:25px; line-height:1.1; margin-bottom:7px; }
+.metric span { color:var(--muted); font-size:12px; }
+.metric.good b { color:var(--green); }
+.metric.warn b { color:var(--yellow); }
+.metric.bad b { color:var(--red); }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:16px; margin-bottom:14px; }
+.coverage-bar { height:10px; background:#0c0f13; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.coverage-bar span { display:block; height:100%; background:linear-gradient(90deg, var(--green), var(--blue)); }
+.compact-list { display:grid; gap:8px; }
+.compact-row, .workspace-card, .gap-row {
+  border:1px solid var(--line);
+  background:var(--panel-2);
+  border-radius:8px;
+  padding:12px;
+}
+.workspace-card { cursor:pointer; min-height:158px; display:grid; gap:10px; align-content:start; }
+.workspace-card:hover, .workspace-card.active { border-color:var(--blue); }
+.workspace-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:12px; }
+.filters { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.search { flex:1; min-width:240px; border:1px solid var(--line); background:#101319; color:var(--text); border-radius:6px; padding:9px 10px; min-height:38px; }
+.badges { display:flex; flex-wrap:wrap; gap:6px; }
+.badge { border:1px solid var(--line); border-radius:999px; padding:3px 7px; color:var(--muted); font-size:12px; line-height:1.2; }
+.badge.ready { color:var(--green); border-color:#35634b; }
+.badge.partial { color:var(--yellow); border-color:#6a5730; }
+.badge.missing { color:var(--red); border-color:#703c38; }
+.badge.info { color:var(--blue); border-color:#355475; }
+.path { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; word-break:break-word; }
+.muted { color:var(--muted); }
+.row-title { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.score { font-weight:700; color:var(--teal); }
+.gap-row { display:grid; grid-template-columns:120px minmax(0, 1fr); gap:12px; margin-bottom:10px; }
+.severity { font-weight:700; }
+.severity.high { color:var(--red); }
+.severity.medium { color:var(--yellow); }
+.command { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:8px; align-items:center; margin-bottom:8px; }
+.command code, code, pre { font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.command code { display:block; background:#0c0f13; border:1px solid var(--line); border-radius:6px; padding:8px; overflow:auto; white-space:pre-wrap; word-break:break-word; }
+pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1px solid var(--line); border-radius:6px; padding:10px; color:#dce5ef; margin:0; }
+.mini-table { display:grid; gap:8px; }
+.mini-row { display:grid; grid-template-columns:110px minmax(0, 1fr); gap:10px; padding:8px 0; border-bottom:1px solid var(--line); }
+.mini-row:last-child { border-bottom:0; }
+.reading { display:grid; gap:8px; counter-reset:readstep; }
+.reading div { border:1px solid var(--line); background:var(--panel-2); border-radius:6px; padding:8px; }
+.reading div::before { counter-increment:readstep; content:counter(readstep) ". "; color:var(--blue); font-weight:700; }
+.graph-layout { display:grid; grid-template-columns:minmax(0, 1fr) 320px; gap:14px; }
+.graph-box { height:520px; border:1px solid var(--line); border-radius:8px; background:#0b0e13; position:relative; overflow:hidden; }
 svg { width:100%; height:100%; display:block; }
-.edge { stroke:#59614f; stroke-width:1.1; opacity:.45; }
-.edge.high { stroke:var(--accent); opacity:.65; }
-.node circle { stroke:#0a0c09; stroke-width:2; }
-.node text { fill:var(--text); font-size:10px; paint-order:stroke; stroke:#0d100c; stroke-width:4px; }
-pre { white-space:pre-wrap; word-break:break-word; background:#0d100c; border:1px solid var(--line); padding:10px; color:#dce8cf; }
-.kv { color:var(--muted); }
-button { border:1px solid var(--line); background:#141812; color:var(--text); padding:7px 9px; font:inherit; cursor:pointer; }
-button.active { color:var(--accent); border-color:var(--accent); }
+.edge { stroke:#596373; stroke-width:1.1; opacity:.38; }
+.edge.high { stroke:var(--blue); opacity:.62; }
+.node circle { stroke:#090b0e; stroke-width:2; cursor:pointer; }
+.node text { fill:var(--text); font-size:10px; paint-order:stroke; stroke:#0b0e13; stroke-width:4px; pointer-events:none; }
+.empty { color:var(--muted); border:1px dashed var(--line); border-radius:8px; padding:16px; }
+@media (max-width: 1180px) {
+  .shell, .grid-2, .graph-layout { grid-template-columns:1fr; }
+  .detail { border-left:0; border-top:1px solid var(--line); }
+  .metrics { grid-template-columns:repeat(2, minmax(150px, 1fr)); }
+  .meta { text-align:left; white-space:normal; }
+  .topline { flex-direction:column; }
+}
+@media (max-width: 620px) {
+  .topbar, main, .detail { padding-left:14px; padding-right:14px; }
+  .metrics { grid-template-columns:1fr; }
+  .gap-row, .mini-row { grid-template-columns:1fr; }
+}
 </style>
 </head>
 <body>
-<div class="app">
-  <aside>
-    <h1>Harness Map</h1>
-    <div class="sub">Readable view of repository harness coverage and routing.</div>
-    <div class="stats" id="stats"></div>
-    <h2>Workspaces</h2>
-    <div id="workspace-list"></div>
-  </aside>
+<header class="topbar">
+  <div class="topline">
+    <div>
+      <h1>Repository Harness Dashboard</h1>
+      <div class="sub">Operational view of harness coverage, workspace guidance, validation commands, and missing pieces.</div>
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+  <nav class="tabs" aria-label="Harness views">
+    <button class="active" data-tab="overview">Overview</button>
+    <button data-tab="workspaces">Workspaces</button>
+    <button data-tab="gaps">Missing</button>
+    <button data-tab="graph">Graph</button>
+  </nav>
+</header>
+<div class="shell">
   <main>
-    <h2>Main Loop</h2>
-    <section class="flow">
-      <div class="step"><div class="step-title">1. Route</div><div>Root entries route to <code>harness/profile.yaml</code>, then to the affected workspace entry.</div></div>
-      <div class="step"><div class="step-title">2. Read Knowledge</div><div>Workspace entries point to README, contracts, runbook, validation, or product docs as needed.</div></div>
-      <div class="step"><div class="step-title">3. Act</div><div>Common action protocols live in <code>harness/skills</code>; reusable atomic capabilities live in <code>harness/tools</code>.</div></div>
-      <div class="step"><div class="step-title">4. Validate</div><div><code>harness/validation.yaml</code> maps paths to validation rules and escalation points.</div></div>
-      <div class="step"><div class="step-title">5. Feed Back</div><div>Feedback starts in <code>harness/feedback</code>, then accepted facts move to the right long-term target.</div></div>
+    <section id="overview" class="view active">
+      <div class="metrics" id="metrics"></div>
+      <div class="grid-2">
+        <section class="panel">
+          <h2>Harness Health</h2>
+          <div id="health"></div>
+        </section>
+        <section class="panel">
+          <h2>Priority Missing Items</h2>
+          <div id="priority-gaps"></div>
+        </section>
+      </div>
+      <section class="panel">
+        <h2>Progressive Reading Loop</h2>
+        <div class="compact-list" id="reading-loop"></div>
+      </section>
     </section>
-    <h2>Action Surface</h2>
-    <div class="cards" id="surface"></div>
-    <h2>Graph Preview</h2>
-    <div><button id="toggle-graph">Pause graph</button></div>
-    <div class="graph-box"><svg id="graph" role="img" aria-label="Harness graph preview"></svg></div>
+
+    <section id="workspaces" class="view">
+      <div class="filters">
+        <input id="workspace-search" class="search" type="search" placeholder="Search workspace, package, role, or command" />
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="ready">Ready</button>
+        <button data-filter="partial">Partial</button>
+        <button data-filter="missing">Missing</button>
+      </div>
+      <div class="workspace-grid" id="workspace-grid"></div>
+    </section>
+
+    <section id="gaps" class="view">
+      <section class="panel">
+        <h2>Current Harness Missing Items</h2>
+        <div id="gap-list"></div>
+      </section>
+    </section>
+
+    <section id="graph" class="view">
+      <div class="graph-layout">
+        <div>
+          <div class="filters">
+            <button id="toggle-graph">Pause graph</button>
+            <button class="active" data-node-filter="all">All nodes</button>
+            <button data-node-filter="workspace">Workspaces</button>
+            <button data-node-filter="validation">Validation</button>
+            <button data-node-filter="gap">Gaps</button>
+          </div>
+          <div class="graph-box"><svg id="graph-svg" role="img" aria-label="Harness graph"></svg></div>
+        </div>
+        <section class="panel">
+          <h2 id="graph-title">Graph Selection</h2>
+          <div id="graph-detail" class="muted">Select a node to inspect connected edges.</div>
+        </section>
+      </div>
+    </section>
   </main>
-  <aside>
-    <h2 id="detail-title">Select a workspace</h2>
-    <div id="detail-body" class="kv">Click a workspace on the left or a node in the graph.</div>
-    <h2>Connected Edges</h2>
-    <pre id="edge-list">No selection</pre>
+  <aside class="detail">
+    <h2 id="detail-title">Workspace Detail</h2>
+    <div id="detail-body"></div>
   </aside>
 </div>
 <script>
 const graph = ${graphJson};
-const colors = { root:'#d7ff5f', harness:'#ffad57', profile:'#ffad57', validation:'#ff7ab6', workspace:'#7cc7ff', entry:'#79e08e', knowledge:'#b5d98d', skill:'#f3d36b', tool:'#c796ff', gap:'#ff6d61' };
-const nodes = graph.nodes.map((n, i) => ({...n, x: 420 + Math.cos(i)*160, y: 190 + Math.sin(i)*130, vx:0, vy:0}));
+const reports = graph.workspaceReports || [];
+const gaps = graph.harnessGaps || [];
+const colors = { root:'#f3cd6b', harness:'#7ee4df', profile:'#7ee4df', validation:'#ff8fbd', workspace:'#7db7ff', entry:'#7ee2a8', knowledge:'#9ad581', skill:'#f3cd6b', tool:'#c8a2ff', gap:'#ff7a70' };
+const nodes = graph.nodes.map((n, i) => ({...n, x: 520 + Math.cos(i)*180, y: 260 + Math.sin(i)*155, vx:0, vy:0, visible:true}));
 const byId = new Map(nodes.map(n => [n.id, n]));
 const edges = graph.edges.map(e => ({...e, source: byId.get(e.from), target: byId.get(e.to)})).filter(e => e.source && e.target);
-const svg = document.getElementById('graph');
+const byWorkspace = new Map(reports.map(r => [r.path, r]));
+const svg = document.getElementById('graph-svg');
+const state = { selected: reports[0]?.path || '', filter: 'all', query: '', nodeFilter: 'all' };
 let running = true;
 
-function escapeHtml(s){ return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function radius(n){ return n.type==='workspace'?10:n.type==='gap'?9:6; }
-function workspaceStatus(w){
-  const outgoing = graph.edges.filter(e => e.from === w.id);
-  const hasEntry = outgoing.some(e => e.type === 'has_entry');
-  const hasValidation = outgoing.some(e => e.meta?.kind === 'validation');
-  const hasContract = outgoing.some(e => e.meta?.kind === 'contracts' || e.meta?.kind === 'runbook');
-  return { hasEntry, hasValidation, hasContract };
+function pct(part, total){ return total ? Math.round(part / total * 100) : 100; }
+function statusLabel(status){ return status === 'ready' ? 'Ready' : status === 'missing' ? 'Missing' : 'Partial'; }
+function statusBadge(status){ return '<span class="badge '+status+'">'+statusLabel(status)+'</span>'; }
+function metric(label, value, sub, tone){
+  return '<div class="metric '+(tone || '')+'"><b>'+escapeHtml(value)+'</b><span>'+escapeHtml(label)+'</span><div class="muted">'+escapeHtml(sub || '')+'</div></div>';
+}
+function renderMeta(){
+  const scope = graph.profileScope?.mode ? graph.profileScope.mode + ' scope' : 'profile';
+  document.getElementById('meta').innerHTML = escapeHtml(scope)+'<br><span>'+escapeHtml(new Date(graph.generatedAt).toLocaleString())+'</span>';
+}
+function renderMetrics(){
+  const total = graph.summary.activeWorkspaces || reports.length;
+  const entryPct = pct(graph.summary.entryCoverage, total);
+  const validationPct = pct(graph.summary.validationCoverage, total);
+  const explicitPct = pct(graph.summary.explicitWorkspaces, total);
+  document.getElementById('metrics').innerHTML = [
+    metric('Active workspaces', total, graph.summary.explicitWorkspaces + ' curated entries', 'good'),
+    metric('Entry coverage', entryPct + '%', graph.summary.entryCoverage + ' have local entries', entryPct === 100 ? 'good' : 'warn'),
+    metric('Validation coverage', validationPct + '%', graph.summary.validationCoverage + ' have path rules', validationPct === 100 ? 'good' : 'warn'),
+    metric('Missing items', graph.summary.harnessGaps, graph.summary.highSeverityGaps + ' high severity', graph.summary.highSeverityGaps ? 'bad' : graph.summary.harnessGaps ? 'warn' : 'good'),
+  ].join('');
+}
+function renderHealth(){
+  const total = graph.summary.activeWorkspaces || reports.length;
+  const rows = [
+    ['Profile entries', graph.summary.explicitWorkspaces, total],
+    ['Local entries', graph.summary.entryCoverage, total],
+    ['Validation rules', graph.summary.validationCoverage, total],
+  ];
+  document.getElementById('health').innerHTML = rows.map(([label, count, max]) => {
+    const value = pct(count, max);
+    return '<div class="compact-row"><div class="row-title"><strong>'+escapeHtml(label)+'</strong><span class="score">'+value+'%</span></div><div class="coverage-bar" aria-label="'+escapeHtml(label)+' coverage"><span style="width:'+value+'%"></span></div><div class="muted">'+count+' of '+max+'</div></div>';
+  }).join('');
+}
+function renderPriorityGaps(){
+  const priority = gaps.filter(g => g.severity === 'high').slice(0, 4).concat(gaps.filter(g => g.severity !== 'high').slice(0, Math.max(0, 4 - gaps.filter(g => g.severity === 'high').length)));
+  document.getElementById('priority-gaps').innerHTML = priority.length ? priority.map(renderGapRow).join('') : '<div class="empty">No missing harness items detected.</div>';
+}
+function renderReadingLoop(){
+  const loop = ['AGENTS.md / CLAUDE.md', 'harness/README.md', 'harness/profile.yaml', 'affected workspace AGENTS.md', 'workspace contracts, runbook, or validation docs'];
+  document.getElementById('reading-loop').innerHTML = loop.map((item, i) => '<div class="compact-row"><strong>'+(i + 1)+'. '+escapeHtml(item)+'</strong></div>').join('');
+}
+function filteredReports(){
+  const query = state.query.trim().toLowerCase();
+  return reports.filter(report => {
+    if (state.filter !== 'all' && report.status !== state.filter) return false;
+    if (!query) return true;
+    const haystack = [report.path, report.packageName, report.role, report.type, ...report.commands, ...report.scripts].join(' ').toLowerCase();
+    return haystack.includes(query);
+  });
+}
+function renderWorkspaceCard(report){
+  const gapText = report.gaps.length === 0 ? 'No missing items' : report.gaps.length + ' missing item' + (report.gaps.length === 1 ? '' : 's');
+  const commandCount = report.commands.length + ' command' + (report.commands.length === 1 ? '' : 's');
+  return '<article class="workspace-card '+(state.selected === report.path ? 'active' : '')+'" data-workspace="'+escapeHtml(report.path)+'">'+
+    '<div class="row-title"><strong class="path">'+escapeHtml(report.path)+'</strong><span class="score">'+report.score+'</span></div>'+
+    '<div class="muted">'+escapeHtml(report.role)+' / '+escapeHtml(report.packageName)+'</div>'+
+    '<div class="badges">'+statusBadge(report.status)+'<span class="badge info">'+escapeHtml(report.type)+'</span><span class="badge">'+commandCount+'</span></div>'+
+    '<div class="muted">'+escapeHtml(gapText)+'</div>'+
+  '</article>';
+}
+function renderWorkspaces(){
+  const items = filteredReports();
+  document.getElementById('workspace-grid').innerHTML = items.length ? items.map(renderWorkspaceCard).join('') : '<div class="empty">No workspaces match the current filter.</div>';
+}
+function renderGapRow(gap){
+  return '<div class="gap-row">'+
+    '<div><span class="severity '+escapeHtml(gap.severity)+'">'+escapeHtml(gap.severity.toUpperCase())+'</span><div class="muted">'+escapeHtml(gap.type)+'</div></div>'+
+    '<div><strong>'+escapeHtml(gap.label)+'</strong><div class="path">'+escapeHtml(gap.workspace || gap.path)+'</div><div class="muted">'+escapeHtml(gap.detail || '')+'</div></div>'+
+  '</div>';
+}
+function renderGaps(){
+  document.getElementById('gap-list').innerHTML = gaps.length ? gaps.map(renderGapRow).join('') : '<div class="empty">No missing harness items detected.</div>';
+}
+function renderCommands(commands){
+  if (!commands.length) return '<div class="empty">No validation commands resolved.</div>';
+  return commands.map(command => '<div class="command"><code>'+escapeHtml(command)+'</code><button data-copy="'+escapeHtml(command)+'">Copy</button></div>').join('');
+}
+function renderDetail(){
+  const report = byWorkspace.get(state.selected) || reports[0];
+  if (!report) {
+    document.getElementById('detail-title').textContent = 'Workspace Detail';
+    document.getElementById('detail-body').innerHTML = '<div class="empty">No workspace data found.</div>';
+    return;
+  }
+  document.getElementById('detail-title').textContent = report.path;
+  const knowledge = report.knowledge.length ? report.knowledge.map(item => '<div class="mini-row"><div>'+escapeHtml(item.kind)+'</div><div class="path">'+escapeHtml(item.path)+' '+(item.exists ? '' : '<span class="severity high">missing</span>')+'</div></div>').join('') : '<div class="empty">No curated knowledge refs.</div>';
+  const missing = report.gaps.length ? report.gaps.map(renderGapRow).join('') : '<div class="empty">No missing items for this workspace.</div>';
+  document.getElementById('detail-body').innerHTML =
+    '<div class="badges">'+statusBadge(report.status)+'<span class="badge info">'+escapeHtml(report.type)+'</span><span class="badge">'+report.score+' score</span></div>'+
+    '<section class="panel"><h3>Identity</h3><div class="mini-table">'+
+      '<div class="mini-row"><div>Package</div><div>'+escapeHtml(report.packageName)+'</div></div>'+
+      '<div class="mini-row"><div>Role</div><div>'+escapeHtml(report.role)+'</div></div>'+
+      '<div class="mini-row"><div>Entry</div><div class="path">'+escapeHtml(report.entry.path)+' '+(report.entry.exists ? '' : '<span class="severity high">missing</span>')+'</div></div>'+
+      '<div class="mini-row"><div>Profile</div><div>'+escapeHtml(report.profileListed ? 'curated' : 'default fallback')+'</div></div>'+
+    '</div></section>'+
+    '<section class="panel"><h3>Validation</h3>'+renderCommands(report.commands)+'</section>'+
+    '<section class="panel"><h3>Reading Path</h3><div class="reading">'+report.readingPath.map(item => '<div class="path">'+escapeHtml(item)+'</div>').join('')+'</div></section>'+
+    '<section class="panel"><h3>Knowledge</h3>'+knowledge+'</section>'+
+    '<section class="panel"><h3>Missing</h3>'+missing+'</section>';
+}
+function showTab(tab){
+  document.querySelectorAll('.tabs button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
+  document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === tab));
+}
+function applyNodeFilter(){
+  for (const node of nodes) node.visible = state.nodeFilter === 'all' || node.type === state.nodeFilter || (state.nodeFilter === 'validation' && node.type === 'profile');
+}
+function selectGraphNode(id){
+  const n = byId.get(id); if(!n) return;
+  document.getElementById('graph-title').textContent = n.label;
+  const related = graph.edges.filter(e => e.from===n.id || e.to===n.id).map(e => e.type+' '+e.confidence+'\\n  '+e.from+'\\n  -> '+e.to).join('\\n\\n');
+  document.getElementById('graph-detail').innerHTML = '<pre>'+escapeHtml(JSON.stringify(n.meta, null, 2))+'</pre><h3>Edges</h3><pre>'+escapeHtml(related || 'No connected edges')+'</pre>';
+  if (n.type === 'workspace') {
+    const report = byWorkspace.get(n.label);
+    if (report) { state.selected = report.path; renderDetail(); renderWorkspaces(); }
+  }
 }
 function init(){
-  document.getElementById('stats').innerHTML = [['Workspaces',graph.summary.workspaces],['Skills',graph.summary.skills],['Tools',graph.summary.tools],['Gaps',graph.summary.gaps]].map(([k,v]) => '<div class="stat"><b>'+v+'</b>'+k+'</div>').join('');
-  const workspaces = graph.nodes.filter(n => n.type === 'workspace');
-  document.getElementById('workspace-list').innerHTML = workspaces.map(w => {
-    const s = workspaceStatus(w);
-    return '<div class="row" data-id="'+w.id+'"><div>'+escapeHtml(w.label)+'<small>'+escapeHtml(w.meta.role || '')+'</small></div><div class="badges">'+
-      '<span class="badge '+(s.hasEntry?'ok':'warn')+'">entry</span>'+
-      '<span class="badge '+(s.hasValidation?'ok':'')+'">validation</span>'+
-      '<span class="badge '+(s.hasContract?'ok':'')+'">contract/runbook</span>'+
-    '</div></div>';
-  }).join('');
-  document.getElementById('workspace-list').addEventListener('click', e => {
-    const row = e.target.closest('.row'); if(!row) return;
-    selectNode(row.dataset.id);
-    document.querySelectorAll('.row').forEach(r => r.classList.toggle('active', r === row));
+  renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail(); applyNodeFilter();
+  document.querySelector('.tabs').addEventListener('click', e => { const button = e.target.closest('button[data-tab]'); if(button) showTab(button.dataset.tab); });
+  document.querySelector('.filters').addEventListener('click', e => {
+    const button = e.target.closest('button[data-filter]'); if(!button) return;
+    state.filter = button.dataset.filter;
+    document.querySelectorAll('button[data-filter]').forEach(item => item.classList.toggle('active', item === button));
+    renderWorkspaces();
   });
-  document.getElementById('surface').innerHTML = [
-    ['Skills', graph.nodes.filter(n=>n.type==='skill').map(n=>n.label)],
-    ['Tools', graph.nodes.filter(n=>n.type==='tool').map(n=>n.label)],
-    ['Validation rules', graph.nodes.filter(n=>n.type==='validation').map(n=>n.label)]
-  ].map(([title, items]) => '<div class="card"><strong>'+title+'</strong><br>'+items.map(escapeHtml).join('<br>')+'</div>').join('');
+  document.getElementById('workspace-search').addEventListener('input', e => { state.query = e.target.value; renderWorkspaces(); });
+  document.getElementById('workspace-grid').addEventListener('click', e => {
+    const card = e.target.closest('[data-workspace]'); if(!card) return;
+    state.selected = card.dataset.workspace; renderWorkspaces(); renderDetail();
+  });
+  document.body.addEventListener('click', e => {
+    const copy = e.target.closest('button[data-copy]'); if(!copy) return;
+    navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = 'Copied'; setTimeout(() => { copy.textContent = 'Copy'; }, 1100); });
+  });
   document.getElementById('toggle-graph').onclick = () => { running = !running; document.getElementById('toggle-graph').textContent = running ? 'Pause graph' : 'Resume graph'; };
-}
-function selectNode(id){
-  const n = byId.get(id) || graph.nodes.find(x => x.id === id); if(!n) return;
-  document.getElementById('detail-title').textContent = n.label;
-  document.getElementById('detail-body').innerHTML = '<pre>'+escapeHtml(JSON.stringify(n.meta, null, 2))+'</pre>';
-  const related = graph.edges.filter(e => e.from===n.id || e.to===n.id).map(e => e.type+' '+e.confidence+'\\n  '+e.from+'\\n  -> '+e.to).join('\\n\\n');
-  document.getElementById('edge-list').textContent = related || 'No connected edges';
+  document.querySelector('#graph .filters').addEventListener('click', e => {
+    const button = e.target.closest('button[data-node-filter]'); if(!button) return;
+    state.nodeFilter = button.dataset.nodeFilter;
+    document.querySelectorAll('button[data-node-filter]').forEach(item => item.classList.toggle('active', item === button));
+    applyNodeFilter(); render();
+  });
 }
 function tick(){
-  if(running){
+  if(running && svg){
     const width = svg.clientWidth || 800, height = svg.clientHeight || 360;
     for(const n of nodes){ n.vx += (width/2 - n.x)*0.0007; n.vy += (height/2 - n.y)*0.0007; }
     for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
@@ -379,12 +823,15 @@ function tick(){
   render(); requestAnimationFrame(tick);
 }
 function render(){
+  if(!svg) return;
   while(svg.firstChild) svg.removeChild(svg.firstChild);
   const frag = document.createDocumentFragment();
   for(const e of edges){
+    if(!e.source.visible || !e.target.visible) continue;
     const line = document.createElementNS('http://www.w3.org/2000/svg','line'); line.setAttribute('class','edge '+e.confidence); line.setAttribute('x1',e.source.x); line.setAttribute('y1',e.source.y); line.setAttribute('x2',e.target.x); line.setAttribute('y2',e.target.y); frag.appendChild(line);
   }
   for(const n of nodes){
+    if(!n.visible) continue;
     const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','node'); g.dataset.id=n.id; g.setAttribute('transform','translate('+n.x+','+n.y+')');
     const c = document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('r',radius(n)); c.setAttribute('fill',colors[n.type]||'#ddd');
     const t = document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',radius(n)+5); t.setAttribute('y',4); t.textContent=n.label;
@@ -392,7 +839,7 @@ function render(){
   }
   svg.appendChild(frag);
 }
-svg.addEventListener('click', e => { const g=e.target.closest('.node'); if(g) selectNode(g.dataset.id); });
+svg.addEventListener('click', e => { const g=e.target.closest('.node'); if(g) selectGraphNode(g.dataset.id); });
 init(); tick();
 </script>
 </body>
@@ -407,10 +854,16 @@ function printSummary(graph) {
     console.log('\nGaps:');
     for (const gap of gaps) console.log(`- ${gap.meta?.path ?? gap.id}`);
   }
+  if (graph.harnessGaps?.length) {
+    console.log('\nHarness gaps:');
+    for (const gap of graph.harnessGaps) {
+      console.log(`- [${gap.severity}] ${gap.workspace}: ${gap.label} (${gap.path})`);
+    }
+  }
 }
 
-const graph = buildGraph();
 if (process.argv.includes('--once')) {
+  const graph = buildGraph();
   printSummary(graph);
   process.exit(0);
 }
@@ -418,6 +871,7 @@ if (process.argv.includes('--once')) {
 const portArg = process.argv.find((arg) => arg.startsWith('--port='));
 const preferredPort = portArg ? Number(portArg.split('=')[1]) : 4177;
 const server = http.createServer((req, res) => {
+  const graph = buildGraph();
   if (req.url === '/graph.json') {
     res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(graph, null, 2));

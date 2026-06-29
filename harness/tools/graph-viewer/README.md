@@ -1,15 +1,16 @@
-# Graph Viewer Tool
+# Harness Dashboard Tool
 
 ## Purpose
 
-Visualize the repository harness as a local graph without adding manual dependency annotations.
+Expose the repository harness as a local dashboard that is easy to scan before changing code or docs.
 
-The viewer derives nodes and edges from existing harness files:
+The dashboard derives coverage, missing items, workspace guidance, validation commands, and graph edges from existing harness files:
 
 - `harness/profile.yaml`
 - `harness/validation.yaml`
 - `harness/skills/*.md`
 - `harness/tools/*/README.md`
+- `pnpm-workspace.yaml`
 - workspace `AGENTS.md` and docs referenced by the profile
 
 ## Usage
@@ -20,7 +21,13 @@ From the repository root:
 node harness/tools/graph-viewer/server.mjs
 ```
 
-Then open the printed local URL.
+Then open the printed local URL. The dashboard includes:
+
+- overall harness health and coverage
+- per-workspace harness detail
+- current missing harness items
+- resolved validation commands
+- a graph view for relationship debugging
 
 For a non-server smoke check:
 
@@ -30,13 +37,11 @@ node harness/tools/graph-viewer/server.mjs --once
 
 ## Output
 
-The UI shows:
+The smoke check prints:
 
-- workspace coverage
-- skills and tools
-- validation rules
-- missing referenced files
-- semantic edges with confidence levels
+- workspace coverage summary
+- graph node/edge counts
+- missing referenced files and harness gaps
 
 ## Non-goals
 
