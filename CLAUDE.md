@@ -2,6 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Repository Harness
+
+The active repository-level harness source of truth is `harness/`. Use it as a progressive map when deciding what to read, where knowledge should live, and which validation to run:
+
+```text
+CLAUDE.md / AGENTS.md
+-> harness/README.md
+-> harness/profile.yaml
+-> affected workspace entry
+-> workspace contracts/spec/runbook/validation as needed
+```
+
+`.pulse-coder/` remains Pulse Coder runtime/product configuration (`mcp`, runtime `skills`, agents, model config examples, and compatibility paths). Do not use it as the source of truth for this repository harness pilot.
+
 ## Project Overview
 
 Pulse Coder is a plugin-first AI coding assistant built as a TypeScript monorepo.
@@ -14,7 +28,7 @@ Core capabilities include:
 
 ## Monorepo Structure
 
-This repo uses `pnpm` workspaces (`packages/*`, `apps/*`).
+This repo uses `pnpm` workspaces for all `packages/*` plus selected apps listed in `pnpm-workspace.yaml`.
 
 Primary packages:
 - `packages/engine` (`pulse-coder-engine`): core engine loop, tools, plugin manager, built-in plugins.
@@ -30,20 +44,21 @@ Apps:
 - `apps/remote-server`: HTTP wrapper around engine runtime (Feishu/Discord/Telegram adapters).
 - `apps/teams-cli`: CLI for multi-agent teams workflows.
 - `apps/canvas-workspace`: canvas-based workspace app.
-- `apps/coder-demo`: legacy experimental app.
+
+Other `apps/*` directories may be legacy, standalone, or auxiliary projects; do not treat them as active pnpm workspaces unless `pnpm-workspace.yaml` includes them.
 
 ## Build, Dev, and Test Commands
 
 ```bash
 pnpm install
 pnpm run build          # builds packages/* + remote-server + teams-cli (SKIP_DTS=1)
-pnpm run build:all      # builds everything including apps
+pnpm run build:all      # builds all declared pnpm workspaces
 pnpm run dev
 pnpm start              # starts pulse-coder-cli
 pnpm start:debug        # starts CLI with debug logging
 pnpm test               # alias for test:core (packages/* + remote-server + teams-cli)
 pnpm run test:packages  # packages/* only
-pnpm run test:apps      # apps/* only (may fail in coder-demo)
+pnpm run test:apps      # app workspaces matched by pnpm filters
 pnpm run test:all       # all packages and apps
 ```
 
@@ -66,7 +81,7 @@ All packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for type
 
 Notes:
 - `pnpm test` (`test:core`) covers `packages/*`, `@pulse-coder/remote-server`, and `@pulse-coder/teams-cli`.
-- `pnpm run test:apps` includes app tests and may fail due to placeholder scripts in `apps/coder-demo`.
+- `pnpm run test:apps` covers declared app workspaces matched by pnpm filters.
 
 ## Architecture Notes
 
