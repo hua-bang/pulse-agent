@@ -7,6 +7,13 @@ import { extractGeneratedImageResult } from '../adapters/feishu/image-result.js'
 import { getDiscordGatewayStatus, restartDiscordGateway } from '../adapters/discord/gateway-manager.js';
 import { DiscordClient } from '../adapters/discord/client.js';
 import { executeAgentTurn, formatCompactionEvents, type CompactionSnapshot } from '../core/agent-runner.js';
+import {
+  createOrRegisterWorktree,
+  getManagedWorktree,
+  listManagedWorktrees,
+  removeManagedWorktree,
+} from '../core/worktree/manager.js';
+import { runWorktreeCommand, type WorktreeRunBackend } from '../core/worktree/runner.js';
 import type { ClarificationRequest } from '../core/types.js';
 
 type ReceiveIdType = 'open_id' | 'chat_id' | 'user_id' | 'union_id' | 'email';
@@ -39,6 +46,38 @@ interface AgentRunBody {
   caller?: string;
   callerSelectors?: string[];
   notify?: NotifyConfig;
+}
+
+interface WorktreeCreateBody {
+  id?: string;
+  repoRoot?: string;
+  worktreePath?: string;
+  branch?: string;
+  baseRef?: string;
+  bind?: {
+    runtimeKey?: string;
+    scopeKey?: string;
+  };
+}
+
+interface WorktreeRunBody {
+  backend?: WorktreeRunBackend;
+  command?: string;
+  args?: string[];
+  shell?: string;
+  timeoutMs?: number;
+  env?: Record<string, string>;
+  docker?: {
+    image?: string;
+    user?: string;
+    network?: string;
+    env?: Record<string, string>;
+    extraArgs?: string[];
+  };
+}
+
+interface WorktreeRemoveBody {
+  removeDirectory?: boolean;
 }
 
 interface NotifyResult {
@@ -93,6 +132,117 @@ internalRouter.post('/discord/gateway/restart', (c) => {
 
   const status = restartDiscordGateway();
   return c.json({ ok: true, restarted: true, gateway: status }, 200);
+});
+
+internalRouter.get('/worktrees', async (c) => {
+  if (!isAuthorizedInternal(c)) {
+    return c.json({ ok: false, error: 'Unauthorized' }, 401);
+  }
+
+  const worktrees = await listManagedWorktrees();
+  return c.json({ ok: true, worktrees }, 200);
+});
+
+internalRouter.get('/worktrees/:id', async (c) => {
+  if (!isAuthorizedInternal(c)) {
+    return c.json({ ok: false, error: 'Unauthorized' }, 401);
+  }
+
+  const id = c.req.param('id');
+  const worktree = await getManagedWorktree(id);
+  if (!worktree) {
+    return c.json({ ok: false, error: `worktree not found: ${id}` }, 404);
+  }
+
+  return c.json({ ok: true, worktree }, 200);
+});
+
+internalRouter.post('/worktrees', async (c) => {
+  if (!isAuthorizedInternal(c)) {
+    return c.json({ ok: false, error: 'Unauthorized' }, 401);
+  }
+
+  let body: WorktreeCreateBody;
+  try {
+    body = await c.req.json<WorktreeCreateBody>();
+  } catch {
+    return c.json({ ok: false, error: 'Invalid JSON body' }, 400);
+  }
+
+  if (!body.id?.trim()) {
+    return c.json({ ok: false, error: 'id is required' }, 400);
+  }
+
+  const bind = body.bind?.runtimeKey?.trim() && body.bind.scopeKey?.trim()
+    ? {
+      runtimeKey: body.bind.runtimeKey.trim(),
+      scopeKey: body.bind.scopeKey.trim(),
+    }
+    : undefined;
+
+  const result = await createOrRegisterWorktree({
+    id: body.id,
+    repoRoot: body.repoRoot,
+    worktreePath: body.worktreePath,
+    branch: body.branch,
+    baseRef: body.baseRef,
+    bind,
+  });
+
+  if (!result.ok) {
+    return c.json({ ok: false, error: result.reason }, 400);
+  }
+
+  return c.json({ ok: true, created: result.created, worktree: result.worktree, binding: result.binding }, 201);
+});
+
+internalRouter.post('/worktrees/:id/run', async (c) => {
+  if (!isAuthorizedInternal(c)) {
+    return c.json({ ok: false, error: 'Unauthorized' }, 401);
+  }
+
+  let body: WorktreeRunBody;
+  try {
+    body = await c.req.json<WorktreeRunBody>();
+  } catch {
+    return c.json({ ok: false, error: 'Invalid JSON body' }, 400);
+  }
+
+  const id = c.req.param('id');
+  const worktree = await getManagedWorktree(id);
+  if (!worktree) {
+    return c.json({ ok: false, error: `worktree not found: ${id}` }, 404);
+  }
+
+  const hasCommand = typeof body.command === 'string' && body.command.trim().length > 0;
+  const hasShell = typeof body.shell === 'string' && body.shell.trim().length > 0;
+  if (!hasCommand && !hasShell) {
+    return c.json({ ok: false, error: 'command or shell is required' }, 400);
+  }
+
+  const result = await runWorktreeCommand(worktree, body);
+  return c.json({ ok: result.ok, worktree, result }, result.ok ? 200 : 500);
+});
+
+internalRouter.delete('/worktrees/:id', async (c) => {
+  if (!isAuthorizedInternal(c)) {
+    return c.json({ ok: false, error: 'Unauthorized' }, 401);
+  }
+
+  let body: WorktreeRemoveBody = {};
+  try {
+    body = await c.req.json<WorktreeRemoveBody>();
+  } catch {
+    body = {};
+  }
+
+  const id = c.req.param('id');
+  const result = await removeManagedWorktree(id, { removeDirectory: body.removeDirectory ?? false });
+  if (!result.ok) {
+    return c.json({ ok: false, error: result.reason }, 400);
+  }
+
+  return c.json({ ok: true, removed: result.removed }, 200);
 });
 
 internalRouter.post('/agent/run', async (c) => {
@@ -262,6 +412,10 @@ function isLoopbackAddress(address?: string): boolean {
 
   const normalized = address.trim().toLowerCase();
   return normalized === '127.0.0.1' || normalized === '::1' || normalized === '::ffff:127.0.0.1';
+}
+
+function isAuthorizedInternal(c: Context): boolean {
+  return verifyInternalAuth(c.req.header('authorization'), c.req.header('x-internal-api-key'));
 }
 
 function verifyInternalAuth(authHeader?: string, internalApiKey?: string): boolean {

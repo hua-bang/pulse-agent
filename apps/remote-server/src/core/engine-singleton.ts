@@ -9,6 +9,7 @@ import { jinaAiReadTool } from './tools/jina-ai.js';
 import { readLinkedSessionTool } from './tools/read-linked-session.js';
 import { sessionSummaryTool } from './tools/session-summary.js';
 import { twitterListTweetsTool } from './tools/twitter-list-tweets.js';
+import { worktreeTools } from './tools/worktree-tools.js';
 import { ptcDemoTools } from './tools/ptc-demo.js';
 import { larkCliTool } from './tools/lark-cli.js';
 import { devtoolsPlugin } from './devtools.js';
@@ -37,6 +38,7 @@ export const engine = new Engine({
     read_linked_session: readLinkedSessionTool,
     session_summary: sessionSummaryTool,
     twitter_list_tweets: twitterListTweetsTool,
+    ...worktreeTools,
     lark_cli: larkCliTool,
     ...ptcDemoTools,
   },

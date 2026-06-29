@@ -262,6 +262,17 @@ function formatLinkedAt(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
+function buildRemoteCodingWorkflowPrompt(): string {
+  return [
+    '## Remote Coding Workflow',
+    'For coding-change requests, prepare an isolated worktree before editing by calling `worktree_prepare` unless a worktree is already clearly bound.',
+    'Make code changes in the managed worktree path returned by the tool.',
+    'After implementation, validate in the same worktree with `worktree_run`; use `backend: "host"` first for trusted lightweight package-level build/test commands.',
+    'Escalate to `backend: "docker"` when the user asks for Docker, when running install/unknown scripts, when dependency/build configuration changes, when the request is untrusted, or when a clean final validation is important.',
+    'Report the worktree id/path, validation backend, command, and result summary to the user.',
+  ].join('\n');
+}
+
 function buildLinkedSessionsIndex(links: SessionLink[]): string | null {
   if (links.length === 0) {
     return null;
@@ -375,7 +386,7 @@ export async function executeAgentTurn(input: ExecuteAgentTurnInput): Promise<Ex
         systemPrompt: (() => {
           const channelPrompt = buildChannelSystemPrompt(input.platformKey);
           const linkedPrompt = buildLinkedSessionsIndex(linkedSessions);
-          const parts = [channelPrompt, attachmentPrompt, linkedPrompt].filter(Boolean) as string[];
+          const parts = [channelPrompt, attachmentPrompt, linkedPrompt, buildRemoteCodingWorkflowPrompt()].filter(Boolean) as string[];
           if (parts.length === 0) {
             return undefined;
           }
