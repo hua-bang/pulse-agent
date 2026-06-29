@@ -1,13 +1,12 @@
-import { execFile } from 'child_process';
-import { promises as fs } from 'fs';
-import { join, resolve as resolvePath } from 'path';
-import { promisify } from 'util';
 import { worktreeService } from './integration.js';
+import {
+  createOrRegisterWorktree,
+  getManagedWorktree,
+  normalizeWorktreeId,
+} from './manager.js';
 
 const COMMAND_PREFIX = '/wt';
 const MAX_PATH_LENGTH = 400;
-const BRANCH_PREFIXES = ['feat', 'fix', 'docs', 'chore', 'refactor', 'test', 'hotfix'];
-const execFileAsync = promisify(execFile);
 
 export interface WorktreeCommandResult {
   handled: boolean;
@@ -104,32 +103,25 @@ export async function processWorktreeCommand(input: {
           };
         }
 
-        const existing = await findExistingWorktree(rawId, normalizedId);
+        const existing = await getManagedWorktree(rawId);
         if (!existing) {
-          const created = await createWorktreeIfMissing(normalizedId);
-          if (!created.ok) {
-            return {
-              handled: true,
-              message: created.reason,
-            };
-          }
-
-          const binding = await worktreeService.upsertAndBind(
-            {
+          const created = await createOrRegisterWorktree({
+            id: normalizedId,
+            bind: {
               runtimeKey: input.runtimeKey,
               scopeKey: input.scopeKey,
             },
-            {
-              id: created.value.id,
-              repoRoot: created.value.repoRoot,
-              worktreePath: created.value.worktreePath,
-              branch: created.value.branch,
-            },
-          );
+          });
+          if (!created.ok) {
+            return {
+              handled: true,
+              message: `❌ 创建 worktree 失败：${created.reason}`,
+            };
+          }
 
           return {
             handled: true,
-            message: buildBindingMessage(binding, true),
+            message: buildBindingMessage({ worktree: created.worktree }, created.created),
           };
         }
 
@@ -296,171 +288,6 @@ function buildHelpMessage(): string {
     '/wt use <id> <repoRoot> <worktreePath> [branch] - 绑定/更新当前会话 worktree',
     '/wt clear - 清除当前会话 worktree 绑定',
   ].join('\n');
-}
-
-async function findExistingWorktree(rawId: string, normalizedId: string) {
-  const direct = await worktreeService.getWorktree(rawId);
-  if (direct) {
-    return direct;
-  }
-
-  if (normalizedId !== rawId) {
-    return worktreeService.getWorktree(normalizedId);
-  }
-
-  return undefined;
-}
-
-async function createWorktreeIfMissing(id: string): Promise<
-  | { ok: true; value: { id: string; repoRoot: string; worktreePath: string; branch: string } }
-  | { ok: false; reason: string }
-> {
-  const repoRoot = await resolveRepoRoot();
-  if (!repoRoot) {
-    return {
-      ok: false,
-      reason: '❌ 无法解析仓库根目录，请设置 PULSE_CODER_REPO_ROOT 或使用完整参数。',
-    };
-  }
-
-  const worktreeRoot = resolveWorktreeRoot(repoRoot);
-  const worktreePath = join(worktreeRoot, `wt-${id}`);
-  if (worktreePath.length > MAX_PATH_LENGTH) {
-    return {
-      ok: false,
-      reason: '❌ 路径过长，请缩短后重试。',
-    };
-  }
-
-  const pathExists = await exists(worktreePath);
-  if (pathExists) {
-    return {
-      ok: false,
-      reason: `❌ worktree 目录已存在：${worktreePath}\n请更换 id 或手动清理。`,
-    };
-  }
-
-  const branch = resolveBranchName(id);
-  try {
-    await fs.mkdir(worktreeRoot, { recursive: true });
-    await runGit(repoRoot, ['fetch', 'origin'], true);
-
-    const branchExists = await gitRefExists(repoRoot, `refs/heads/${branch}`);
-    if (branchExists) {
-      await runGit(repoRoot, ['worktree', 'add', worktreePath, branch]);
-    } else {
-      const baseRef = await resolveBaseRef(repoRoot);
-      if (!baseRef) {
-        return {
-          ok: false,
-          reason: '❌ 无法找到 base 分支（origin/main/master 或 main/master）。',
-        };
-      }
-      await runGit(repoRoot, ['worktree', 'add', worktreePath, '-b', branch, baseRef]);
-    }
-  } catch (err) {
-    return {
-      ok: false,
-      reason: `❌ 创建 worktree 失败：${formatError(err)}`,
-    };
-  }
-
-  return {
-    ok: true,
-    value: {
-      id,
-      repoRoot,
-      worktreePath,
-      branch,
-    },
-  };
-}
-
-async function resolveRepoRoot(): Promise<string | null> {
-  const fromEnv = process.env.PULSE_CODER_REPO_ROOT?.trim();
-  if (fromEnv) {
-    return fromEnv;
-  }
-
-  try {
-    const { stdout } = await execFileAsync('git', ['-C', process.cwd(), 'rev-parse', '--show-toplevel']);
-    const root = stdout.trim();
-    return root || null;
-  } catch {
-    return null;
-  }
-}
-
-function resolveWorktreeRoot(repoRoot: string): string {
-  const fromEnv = process.env.PULSE_CODER_WORKTREE_ROOT?.trim();
-  if (fromEnv) {
-    return resolvePath(repoRoot, fromEnv);
-  }
-
-  return join(repoRoot, 'worktrees');
-}
-
-async function resolveBaseRef(repoRoot: string): Promise<string | null> {
-  const candidates = ['refs/remotes/origin/main', 'refs/remotes/origin/master', 'refs/heads/main', 'refs/heads/master'];
-  for (const ref of candidates) {
-    if (await gitRefExists(repoRoot, ref)) {
-      return ref.replace(/^refs\//, '');
-    }
-  }
-  return null;
-}
-
-function resolveBranchName(slug: string): string {
-  if (BRANCH_PREFIXES.some((prefix) => slug.startsWith(`${prefix}-`))) {
-    return slug.replace(/^([a-z0-9]+)-/, '$1/');
-  }
-  return `feat/${slug}`;
-}
-
-function normalizeWorktreeId(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .replace(/-+/g, '-');
-}
-
-async function gitRefExists(repoRoot: string, ref: string): Promise<boolean> {
-  try {
-    await execFileAsync('git', ['-C', repoRoot, 'show-ref', '--verify', '--quiet', ref]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function runGit(repoRoot: string, args: string[], ignoreFailure = false): Promise<string> {
-  try {
-    const { stdout } = await execFileAsync('git', ['-C', repoRoot, ...args]);
-    return stdout.trim();
-  } catch (err) {
-    if (ignoreFailure) {
-      return '';
-    }
-    throw err;
-  }
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await fs.stat(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function formatError(err: unknown): string {
-  if (err instanceof Error) {
-    return err.message;
-  }
-  return String(err);
 }
 
 function buildBindingMessage(

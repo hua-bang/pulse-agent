@@ -118,7 +118,9 @@ Key components:
 - Clarification: `apps/remote-server/src/core/clarification-queue.ts` — routes clarification prompts/answers for webhook and gateway flows.
 - Sessions: stored in `~/.pulse-coder/remote-sessions` (`index.json` + `sessions/*.json`).
 - Memory: `pulse-coder-memory-plugin` writes daily logs to `~/.pulse-coder/remote-memory`.
-- Worktrees: binding state in `~/.pulse-coder/worktree-state`.
+- Worktrees: binding state in `~/.pulse-coder/worktree-state`; default code checkouts in `~/.pulse-coder/worktrees/<project>/wt-<id>`.
+- Worktree command runner: `POST /internal/worktrees/:id/run` runs commands in a managed worktree with `backend: "host"` or `backend: "docker"` (default Docker image: `node:22-bookworm`, override with `PULSE_CODER_DOCKER_IMAGE`).
+- Conversational coding: remote agent runs can call `worktree_prepare` and `worktree_run`, so requests like “help me implement X” can create/bind a worktree, edit there, validate with host package-level commands first, and escalate to Docker for risky or clean-environment validation.
 - Model overrides: `.pulse-coder/config.json` or `$PULSE_CODER_MODEL_CONFIG` (`apps/remote-server/src/core/model-config.ts`).
 - Adapters: Feishu (`adapters/feishu/*`), Discord webhooks (`adapters/discord/adapter.ts`) and DM gateway (`adapters/discord/gateway.ts`).
 - Internal API: `POST /internal/agent/run`, `GET /internal/discord/gateway/status`, `POST /internal/discord/gateway/restart` — loopback-only, gated by `INTERNAL_API_SECRET`.
