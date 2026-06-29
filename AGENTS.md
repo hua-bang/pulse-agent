@@ -1,24 +1,41 @@
 # Repository Guidelines
 
+## Repository Harness
+
+The active repository-level harness source of truth is `harness/`. Use it as a progressive map, not as a document dump:
+
+```text
+AGENTS.md / CLAUDE.md
+-> harness/README.md
+-> harness/profile.yaml
+-> affected workspace entry
+-> workspace contracts/spec/runbook/validation as needed
+```
+
+`.pulse-coder/` is product/runtime configuration and test surface for Pulse Coder itself; do not treat it as the source of truth for this repository harness pilot.
+
 ## Project Structure & Module Organization
-This repo is a `pnpm` monorepo with workspaces in `packages/*` and `apps/*`.
+This repo is a `pnpm` monorepo with all `packages/*` workspaces plus selected app workspaces listed in `pnpm-workspace.yaml`.
 
 - `packages/engine`: core agent engine, built-in tools, plugin loading, and runtime loop.
 - `packages/cli`: interactive terminal CLI built on `pulse-coder-engine`.
 - `packages/pulse-sandbox`: sandboxed JS execution runtime and `run_js` tool adapter.
 - `packages/memory-plugin`: memory integration/service package.
 - `apps/remote-server`: optional HTTP service wrapper around the engine.
-- `apps/coder-demo`: legacy experimental app.
+- `apps/teams-cli`: CLI host for agent teams workflows.
+- `apps/canvas-workspace`: Electron canvas workbench.
+
+Other `apps/*` directories may be legacy, standalone, or auxiliary projects; do not treat them as active pnpm workspaces unless `pnpm-workspace.yaml` includes them.
 
 Primary source code lives under each package/app `src/` directory; build output goes to `dist/`.
 
 ## Build, Test, and Development Commands
 - `pnpm install`: install workspace dependencies.
-- `pnpm run build`: build all workspaces recursively.
+- `pnpm run build`: build core workspaces recursively.
 - `pnpm run dev`: watch mode for packages.
 - `pnpm start`: run the CLI (`pulse-coder-cli`).
 - `pnpm test`: run package tests (`./packages/*`).
-- `pnpm run test:apps`: run app tests (`./apps/*`).
+- `pnpm run test:apps`: run tests for app workspaces matched by pnpm filters.
 - `pnpm --filter pulse-coder-engine typecheck`: strict TS typecheck for engine.
 
 Useful package targets:
@@ -29,7 +46,7 @@ Useful package targets:
 - `pnpm --filter @pulse-coder/remote-server build`
 - `pnpm --filter @pulse-coder/remote-server dev`
 
-Note: `apps/coder-demo` uses a placeholder test script, so app-level test runs may fail until it is replaced.
+Note: legacy or standalone app directories are outside the active pnpm workspace set unless listed in `pnpm-workspace.yaml`.
 
 ## Remote server notes (`apps/remote-server`)
 - Entry point: `apps/remote-server/src/index.ts` bootstraps session store, memory integration, worktree binding, and engine.

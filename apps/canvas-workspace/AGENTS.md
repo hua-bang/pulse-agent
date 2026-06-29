@@ -1,7 +1,29 @@
-# CLAUDE.md
+# AGENTS.md - apps/canvas-workspace
 
-This file provides guidance to Claude Code (claude.ai/code) when working in
-`apps/canvas-workspace`. It complements the repo-root `CLAUDE.md`.
+> Local entry for `apps/canvas-workspace`.
+> Repository harness entry: `../../harness/README.md`.
+> Claude Code specific guidance lives in `CLAUDE.md`.
+
+## How To Use This File
+
+This file is the tool-agnostic local entry. It intentionally stays light and routes to the existing, more detailed local guidance.
+
+| Task | Read |
+|---|---|
+| Claude Code guidance and app overview | `CLAUDE.md` |
+| Runtime harness commands | `harness/README.md` |
+| Main/renderer conventions | `docs/conventions/README.md` |
+| Main process boundaries | `docs/conventions/architecture-boundaries.md` |
+| Renderer conventions | `docs/conventions/frontend.md` |
+| Main process conventions | `docs/conventions/backend.md` |
+| Repository harness map | `../../harness/profile.yaml` |
+
+## Local Constraints
+
+- Renderer reaches the main process only through `window.canvasWorkspace` exposed by preload.
+- Domain logic lives in `src/main/<domain>/`; renderer code should not reach into Electron/Node APIs directly.
+- For interaction-heavy changes, consider the app runtime harness in `harness/README.md`.
+- Keep this file as a router. Do not duplicate the detailed guidance already in `CLAUDE.md` or `docs/conventions/`.
 
 ## Overview
 
