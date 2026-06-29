@@ -503,6 +503,8 @@ button {
 }
 button:hover, button.active { border-color:var(--blue); color:var(--blue); }
 .shell { display:grid; grid-template-columns:minmax(0, 1fr) minmax(360px, 420px); gap:0; min-height:calc(100vh - 115px); }
+.shell.graph-mode { grid-template-columns:1fr; }
+.shell.graph-mode .detail { display:none; }
 main { min-width:0; padding:22px 24px 36px; }
 .detail { border-left:1px solid var(--line); background:var(--panel); padding:22px; overflow:auto; }
 .view { display:none; }
@@ -555,16 +557,16 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 .reading div { border:1px solid var(--line); background:var(--panel-2); border-radius:6px; padding:8px; }
 .reading div::before { counter-increment:readstep; content:counter(readstep) ". "; color:var(--blue); font-weight:700; }
 .graph-layout { display:grid; grid-template-columns:minmax(0, 1fr) 320px; gap:14px; }
-.graph-box { height:520px; border:1px solid var(--line); border-radius:8px; background:#0b0e13; position:relative; overflow:hidden; }
+.graph-box { height:560px; border:1px solid var(--line); border-radius:8px; background:#0b0e13; position:relative; overflow:hidden; }
+.shell.graph-mode .graph-box { min-height:560px; height:min(680px, calc(100vh - 260px)); }
 svg { width:100%; height:100%; display:block; }
-.edge { stroke:#596373; stroke-width:1.1; opacity:.38; }
+.edge { stroke:#596373; stroke-width:1.1; opacity:.38; pointer-events:none; }
 .edge.high { stroke:var(--blue); opacity:.62; }
 .node { cursor:pointer; }
-.node .hit { fill:transparent; stroke:transparent; pointer-events:all; }
 .node .node-dot { stroke:#090b0e; stroke-width:2; }
-.node text { fill:var(--text); font-size:10px; paint-order:stroke; stroke:#0b0e13; stroke-width:4px; pointer-events:all; cursor:pointer; }
+.node-label { fill:var(--text); font-size:10px; paint-order:stroke; stroke:#0b0e13; stroke-width:4px; pointer-events:all; cursor:pointer; }
 .node.selected .node-dot { stroke:var(--text); stroke-width:3; }
-.node.selected text { fill:var(--blue); }
+.node-label.selected { fill:var(--blue); }
 .empty { color:var(--muted); border:1px dashed var(--line); border-radius:8px; padding:16px; }
 @media (max-width: 1180px) {
   .shell, .grid-2, .graph-layout { grid-template-columns:1fr; }
@@ -899,6 +901,7 @@ function renderDetail(){
 function showTab(tab){
   document.querySelectorAll('.tabs button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === tab));
+  document.querySelector('.shell').classList.toggle('graph-mode', tab === 'graph');
 }
 function applyNodeFilter(){
   for (const node of nodes) node.visible = state.nodeFilter === 'all' || node.type === state.nodeFilter || (state.nodeFilter === 'validation' && node.type === 'profile');
@@ -987,18 +990,21 @@ function render(){
   }
   for(const n of nodes){
     if(!n.visible) continue;
-    const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','node '+(state.selectedNodeId === n.id ? 'selected' : '')); g.dataset.id=n.id; g.setAttribute('transform','translate('+n.x+','+n.y+')');
-    const hit = document.createElementNS('http://www.w3.org/2000/svg','circle'); hit.setAttribute('class','hit'); hit.setAttribute('r',Math.max(22, radius(n) + 12));
+    const t = document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('class','node-label '+(state.selectedNodeId === n.id ? 'selected' : '')); t.dataset.nodeId=n.id; t.setAttribute('x',n.x+radius(n)+5); t.setAttribute('y',n.y+4); t.textContent=n.label;
+    frag.appendChild(t);
+  }
+  for(const n of nodes){
+    if(!n.visible) continue;
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g'); g.setAttribute('class','node '+(state.selectedNodeId === n.id ? 'selected' : '')); g.dataset.nodeId=n.id; g.setAttribute('transform','translate('+n.x+','+n.y+')');
     const c = document.createElementNS('http://www.w3.org/2000/svg','circle'); c.setAttribute('class','node-dot'); c.setAttribute('r',radius(n)); c.setAttribute('fill',colors[n.type]||'#ddd');
-    const t = document.createElementNS('http://www.w3.org/2000/svg','text'); t.setAttribute('x',radius(n)+5); t.setAttribute('y',4); t.textContent=n.label;
-    g.appendChild(hit); g.appendChild(c); g.appendChild(t); frag.appendChild(g);
+    g.appendChild(c); frag.appendChild(g);
   }
   svg.appendChild(frag);
 }
 svg.addEventListener('click', e => {
-  const g = e.target.closest?.('.node');
-  if(g) {
-    selectGraphNode(g.dataset.id);
+  const target = e.target.closest?.('[data-node-id]');
+  if(target) {
+    selectGraphNode(target.dataset.nodeId);
     return;
   }
   const nearest = nearestVisibleNode(graphPointFromEvent(e));
