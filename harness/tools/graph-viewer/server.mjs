@@ -480,7 +480,7 @@ body {
   color:var(--text);
   font:14px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-body.modal-open { overflow:hidden; }
+body.drawer-open { overflow:hidden; }
 button, input { font:inherit; }
 .topbar { border-bottom:1px solid var(--line); background:#12151a; padding:18px 24px; }
 .topline { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
@@ -504,10 +504,7 @@ button {
 }
 button:hover, button.active { border-color:var(--blue); color:var(--blue); }
 .shell { display:grid; grid-template-columns:1fr; gap:0; min-height:calc(100vh - 115px); }
-.shell.workspace-mode { grid-template-columns:minmax(0, 1fr) minmax(360px, 420px); }
 main { min-width:0; padding:22px 24px 36px; }
-.detail { display:none; border-left:1px solid var(--line); background:var(--panel); padding:22px; overflow:auto; }
-.shell.workspace-mode .detail { display:block; }
 .view { display:none; }
 .view.active { display:block; }
 .metrics { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:12px; margin-bottom:18px; }
@@ -573,26 +570,24 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
 .reading div { border:1px solid var(--line); background:var(--panel-2); border-radius:6px; padding:8px; }
 .reading div::before { counter-increment:readstep; content:counter(readstep) ". "; color:var(--blue); font-weight:700; }
 .empty { color:var(--muted); border:1px dashed var(--line); border-radius:8px; padding:16px; }
-.modal-backdrop {
+.drawer-backdrop {
   position:fixed;
   inset:0;
   z-index:30;
-  display:grid;
-  place-items:center;
-  padding:24px;
+  display:flex;
+  justify-content:flex-end;
   background:rgba(5, 8, 13, 0.72);
 }
-.modal-backdrop[hidden] { display:none; }
-.modal-panel {
-  width:min(920px, 100%);
-  max-height:min(86vh, 920px);
+.drawer-backdrop[hidden] { display:none; }
+.drawer-panel {
+  width:min(640px, 100%);
+  height:100%;
   overflow:auto;
-  border:1px solid var(--line);
-  border-radius:8px;
+  border-left:1px solid var(--line);
   background:var(--panel);
-  box-shadow:0 24px 80px rgba(0, 0, 0, 0.45);
+  box-shadow:-24px 0 80px rgba(0, 0, 0, 0.45);
 }
-.modal-header {
+.drawer-header {
   position:sticky;
   top:0;
   z-index:1;
@@ -604,10 +599,9 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
   border-bottom:1px solid var(--line);
   background:var(--panel);
 }
-.modal-body { padding:16px; }
+.drawer-body { padding:16px; }
 @media (max-width: 1180px) {
-  .shell, .shell.workspace-mode, .grid-2 { grid-template-columns:1fr; }
-  .detail { border-left:0; border-top:1px solid var(--line); }
+  .shell, .grid-2 { grid-template-columns:1fr; }
   .metrics { grid-template-columns:repeat(2, minmax(150px, 1fr)); }
   .meta { text-align:left; white-space:normal; }
   .meta-panel { justify-items:start; }
@@ -615,9 +609,8 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
   .topline { flex-direction:column; }
 }
 @media (max-width: 620px) {
-  .topbar, main, .detail { padding-left:14px; padding-right:14px; }
-  .modal-backdrop { padding:12px; }
-  .modal-header, .modal-body { padding:14px; }
+  .topbar, main { padding-left:14px; padding-right:14px; }
+  .drawer-header, .drawer-body { padding:14px; }
   .metrics { grid-template-columns:1fr; }
   .gap-group-header { display:grid; }
   .gap-group-actions { justify-items:start; }
@@ -686,18 +679,14 @@ pre { white-space:pre-wrap; word-break:break-word; background:#0c0f13; border:1p
     </section>
 
   </main>
-  <aside class="detail">
-    <h2 id="detail-title" data-i18n="workspaceDetail">工作区详情</h2>
-    <div id="detail-body"></div>
-  </aside>
 </div>
-<div id="workspace-modal" class="modal-backdrop" hidden>
-  <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-header">
-      <h2 id="modal-title">工作区详情</h2>
-      <button data-close-modal data-i18n="closeModal">关闭</button>
+<div id="workspace-drawer" class="drawer-backdrop" hidden>
+  <section class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
+    <div class="drawer-header">
+      <h2 id="drawer-title">工作区详情</h2>
+      <button data-close-drawer data-i18n="closeDrawer">关闭</button>
     </div>
-    <div id="modal-body" class="modal-body"></div>
+    <div id="drawer-body" class="drawer-body"></div>
   </section>
 </div>
 <script>
@@ -725,7 +714,7 @@ const messages = {
     workspaceDetail: '工作区详情',
     selectWorkspace: '选择一个工作区查看入口、验证命令、阅读路径和缺失项。',
     viewWorkspace: '查看工作区',
-    closeModal: '关闭',
+    closeDrawer: '关闭',
     collapse: '收起',
     expand: '展开',
     fixLocation: '修复位置',
@@ -750,7 +739,7 @@ const messages = {
     workspaceDetail: 'Workspace Detail',
     selectWorkspace: 'Select a workspace to inspect entry, validation commands, reading path, and missing items.',
     viewWorkspace: 'View Workspace',
-    closeModal: 'Close',
+    closeDrawer: 'Close',
     collapse: 'Collapse',
     expand: 'Expand',
     fixLocation: 'Fix Location',
@@ -758,7 +747,7 @@ const messages = {
   },
 };
 const savedLang = localStorage.getItem('harness-dashboard-lang');
-const state = { selected: '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh', collapsedGapGroups: new Set(), modalWorkspace: '' };
+const state = { selected: '', filter: 'all', query: '', lang: savedLang === 'en' ? 'en' : 'zh', collapsedGapGroups: new Set(), drawerWorkspace: '' };
 
 function escapeHtml(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function radius(n){ return n.type==='workspace'?10:n.type==='gap'?9:6; }
@@ -944,54 +933,34 @@ function workspaceDetailHtml(report){
     '<section class="panel"><h3>'+bi('知识引用', 'Knowledge')+'</h3>'+knowledge+'</section>'+
     '<section class="panel"><h3>'+bi('缺失项', 'Missing')+'</h3>'+missing+'</section>';
 }
-function renderDetail(){
-  const report = byWorkspace.get(state.selected);
-  if (!report) {
-    document.getElementById('detail-title').textContent = t('workspaceDetail');
-    document.getElementById('detail-body').innerHTML = '<div class="empty">'+t('selectWorkspace')+'</div>';
-    return;
-  }
-  document.getElementById('detail-title').textContent = report.path;
-  document.getElementById('detail-body').innerHTML = workspaceDetailHtml(report);
-}
 function showTab(tab){
   document.querySelectorAll('.tabs button').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === tab));
-  document.querySelector('.shell').classList.toggle('workspace-mode', tab === 'workspaces');
 }
-function openWorkspace(path){
-  if (!byWorkspace.has(path)) return;
-  state.selected = path;
-  showTab('workspaces');
-  renderWorkspaces();
-  renderDetail();
-  requestAnimationFrame(() => {
-    document.querySelector('.workspace-card.active')?.scrollIntoView({ block: 'nearest' });
-    document.querySelector('.detail')?.scrollTo({ top: 0 });
-  });
-}
-function renderModal(){
-  const report = byWorkspace.get(state.modalWorkspace);
-  const modal = document.getElementById('workspace-modal');
+function renderDrawer(){
+  const report = byWorkspace.get(state.drawerWorkspace);
+  const drawer = document.getElementById('workspace-drawer');
   if (!report) {
-    modal.hidden = true;
-    document.body.classList.remove('modal-open');
+    drawer.hidden = true;
+    document.body.classList.remove('drawer-open');
     return;
   }
-  document.getElementById('modal-title').textContent = report.path;
-  document.getElementById('modal-body').innerHTML = workspaceDetailHtml(report);
-  modal.hidden = false;
-  document.body.classList.add('modal-open');
+  document.getElementById('drawer-title').textContent = report.path;
+  document.getElementById('drawer-body').innerHTML = workspaceDetailHtml(report);
+  drawer.hidden = false;
+  document.body.classList.add('drawer-open');
 }
-function openWorkspaceModal(path){
+function openWorkspaceDrawer(path){
   if (!byWorkspace.has(path)) return;
-  state.modalWorkspace = path;
-  renderModal();
-  requestAnimationFrame(() => document.querySelector('[data-close-modal]')?.focus());
+  state.selected = path;
+  state.drawerWorkspace = path;
+  renderWorkspaces();
+  renderDrawer();
+  requestAnimationFrame(() => document.querySelector('[data-close-drawer]')?.focus());
 }
-function closeWorkspaceModal(){
-  state.modalWorkspace = '';
-  renderModal();
+function closeWorkspaceDrawer(){
+  state.drawerWorkspace = '';
+  renderDrawer();
 }
 function toggleGapGroup(workspace){
   if (state.collapsedGapGroups.has(workspace)) state.collapsedGapGroups.delete(workspace);
@@ -999,12 +968,12 @@ function toggleGapGroup(workspace){
   renderGaps();
 }
 function init(){
-  renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail();
+  renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDrawer();
   document.querySelector('.language-switch').addEventListener('click', e => {
     const button = e.target.closest('button[data-lang]'); if(!button) return;
     state.lang = button.dataset.lang === 'en' ? 'en' : 'zh';
     localStorage.setItem('harness-dashboard-lang', state.lang);
-    renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDetail(); renderModal();
+    renderStaticText(); renderMeta(); renderMetrics(); renderHealth(); renderPriorityGaps(); renderReadingLoop(); renderWorkspaces(); renderGaps(); renderDrawer();
   });
   document.querySelector('.tabs').addEventListener('click', e => { const button = e.target.closest('button[data-tab]'); if(button) showTab(button.dataset.tab); });
   document.querySelector('.filters').addEventListener('click', e => {
@@ -1016,28 +985,28 @@ function init(){
   document.getElementById('workspace-search').addEventListener('input', e => { state.query = e.target.value; renderWorkspaces(); });
   document.getElementById('workspace-grid').addEventListener('click', e => {
     const card = e.target.closest('[data-workspace]'); if(!card) return;
-    openWorkspace(card.dataset.workspace);
+    openWorkspaceDrawer(card.dataset.workspace);
   });
   document.getElementById('workspace-grid').addEventListener('keydown', e => {
     const card = e.target.closest('[data-workspace]');
     if (!card || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
-    openWorkspace(card.dataset.workspace);
+    openWorkspaceDrawer(card.dataset.workspace);
   });
   document.body.addEventListener('click', e => {
     const workspaceAction = e.target.closest('[data-open-workspace]');
-    if (workspaceAction) { openWorkspaceModal(workspaceAction.dataset.openWorkspace); return; }
-    if (e.target.closest('[data-close-modal]') || e.target.id === 'workspace-modal') { closeWorkspaceModal(); return; }
+    if (workspaceAction) { openWorkspaceDrawer(workspaceAction.dataset.openWorkspace); return; }
+    if (e.target.closest('[data-close-drawer]') || e.target.id === 'workspace-drawer') { closeWorkspaceDrawer(); return; }
     const gapToggle = e.target.closest('[data-toggle-gap-group]');
     if (gapToggle) { toggleGapGroup(gapToggle.dataset.toggleGapGroup); return; }
     const gap = e.target.closest('.gap-row[data-workspace]');
-    if (gap) { openWorkspaceModal(gap.dataset.workspace); return; }
+    if (gap) { openWorkspaceDrawer(gap.dataset.workspace); return; }
     const copy = e.target.closest('button[data-copy]'); if(!copy) return;
     navigator.clipboard?.writeText(copy.dataset.copy).then(() => { copy.textContent = bi('已复制', 'Copied'); setTimeout(() => { copy.textContent = bi('复制', 'Copy'); }, 1100); });
   });
   document.body.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && state.modalWorkspace) {
-      closeWorkspaceModal();
+    if (e.key === 'Escape' && state.drawerWorkspace) {
+      closeWorkspaceDrawer();
       return;
     }
     const gapToggle = e.target.closest?.('[data-toggle-gap-group]');
@@ -1049,7 +1018,7 @@ function init(){
     const gap = e.target.closest?.('.gap-row[data-workspace]');
     if (!gap || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
-    openWorkspaceModal(gap.dataset.workspace);
+    openWorkspaceDrawer(gap.dataset.workspace);
   });
 }
 init();
