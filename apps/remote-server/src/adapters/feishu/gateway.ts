@@ -56,6 +56,12 @@ export function startFeishuLongConnection(): void {
 
       dispatchIncoming(feishuAdapter, incoming);
     },
+    'card.action.trigger': async (data) => {
+      await feishuAdapter.handleCardActionBody(data as Record<string, unknown>);
+    },
+    'interactive_card.action.trigger': async (data) => {
+      await feishuAdapter.handleCardActionBody(data as Record<string, unknown>);
+    },
   });
 
   wsClient = new lark.WSClient({

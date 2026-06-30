@@ -119,8 +119,21 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
 
 type ReceiveIdType = 'open_id' | 'chat_id' | 'user_id' | 'union_id' | 'email';
 
+interface RunCardContext {
+  platformKey: string;
+  memoryKey?: string;
+  streamId: string;
+  runId?: string;
+  prompt?: string;
+  elapsed?: string;
+  detailText?: string;
+  latestToolHint?: string;
+  toolCalls?: string[];
+}
+
 interface DoneCardOptions {
   toolCalls?: string[];
+  context?: RunCardContext;
 }
 
 interface SendMessageOptions {
@@ -453,28 +466,129 @@ function getErrorMessage(err: unknown): string {
 
 // ─── Card builders ────────────────────────────────────────────────────────────
 
-export function buildThinkingCard(): object {
+const MAX_CARD_TEXT_LENGTH = 7000;
+const FEISHU_RUN_CARD_ACTION = 'pulse.run_card';
+
+function clampCardText(text: string, maxLength = MAX_CARD_TEXT_LENGTH): string {
+  if (text.length <= maxLength) return text;
+  return `...${text.slice(text.length - maxLength)}`;
+}
+
+function md(content: string): object {
+  return { tag: 'markdown', content };
+}
+
+function plainText(content: string): object {
+  return { tag: 'plain_text', content };
+}
+
+function buildCard(title: string, template: string, elements: object[], enableForward: boolean): object {
   return {
     schema: '2.0',
-    config: { enable_forward: false },
-    body: {
-      elements: [{ tag: 'markdown', content: 'Pulse is thinking...' }],
+    config: { enable_forward: enableForward, wide_screen_mode: true },
+    header: {
+      template,
+      title: plainText(title),
     },
+    body: { elements },
   };
 }
 
-export function buildProgressCard(text: string): object {
-  return {
-    schema: '2.0',
-    config: { enable_forward: false },
-    body: {
-      elements: [{ tag: 'markdown', content: text || 'Pulse is thinking...' }],
-    },
+function runActionButton(
+  command: 'status' | 'stop' | 'retry' | 'new' | 'runId',
+  text: string,
+  context: RunCardContext,
+  type: 'default' | 'primary' | 'danger' = 'default',
+): object {
+  const value = {
+    action: FEISHU_RUN_CARD_ACTION,
+    command,
+    platformKey: context.platformKey,
+    memoryKey: context.memoryKey,
+    streamId: context.streamId,
+    runId: context.runId,
+    prompt: context.prompt,
   };
+  return {
+    tag: 'button',
+    text: plainText(text),
+    type,
+    width: 'fill',
+    value,
+    behaviors: [{ type: 'callback', value }],
+  };
+}
+
+function buttonRow(buttons: object[]): object {
+  return {
+    tag: 'column_set',
+    flex_mode: 'bisect',
+    horizontal_spacing: '8px',
+    columns: buttons.map((button) => ({
+      tag: 'column',
+      width: 'weighted',
+      weight: 1,
+      elements: [button],
+    })),
+  };
+}
+
+function buildRunMeta(context: RunCardContext, status: string): string {
+  const lines = [`**状态**: ${status}`];
+  if (context.elapsed) lines.push(`**耗时**: ${context.elapsed}`);
+  if (context.runId) lines.push(`**runId**: \`${context.runId}\``);
+  lines.push(`**streamId**: \`${context.streamId}\``);
+  if (context.prompt) lines.push(`**请求**: ${clampCardText(context.prompt, 300)}`);
+  return lines.join('\n');
+}
+
+function buildProgressElements(context: RunCardContext): object[] {
+  const elements: object[] = [md(buildRunMeta(context, '运行中'))];
+  const detailParts = [context.latestToolHint, context.detailText].filter(Boolean) as string[];
+  if (detailParts.length > 0) {
+    elements.push(md(clampCardText(detailParts.join('\n\n'))));
+  }
+  elements.push(buttonRow([
+    runActionButton('status', '状态', context, 'primary'),
+    runActionButton('stop', '停止', context, 'danger'),
+  ]));
+  elements.push(buttonRow([
+    runActionButton('runId', '查看 runId', context),
+    runActionButton('new', '新会话', context),
+  ]));
+  return elements;
+}
+
+function buildCompletionActionElements(context: RunCardContext): object[] {
+  return [
+    buttonRow([
+      runActionButton('retry', '重试', context, 'primary'),
+      runActionButton('new', '新会话', context),
+    ]),
+    buttonRow([
+      runActionButton('status', '状态', context),
+      runActionButton('runId', '查看 runId', context),
+    ]),
+  ];
+}
+
+export function buildThinkingCard(context: RunCardContext): object {
+  return buildCard('Pulse 正在处理', 'blue', buildProgressElements({
+    ...context,
+    detailText: '已收到请求，正在准备运行环境...',
+  }), false);
+}
+
+export function buildProgressCard(context: RunCardContext): object {
+  return buildCard('Pulse 正在处理', 'blue', buildProgressElements(context), false);
 }
 
 export function buildDoneCard(text: string, options: DoneCardOptions = {}): object {
-  const elements: object[] = [{ tag: 'markdown', content: text || '✅ Done' }];
+  const context = options.context;
+  const elements: object[] = [md(clampCardText(text || '✅ Done'))];
+  if (context) {
+    elements.unshift(md(buildRunMeta(context, '已完成')));
+  }
   const toolCalls = options.toolCalls?.filter(Boolean) ?? [];
 
   if (toolCalls.length > 0) {
@@ -482,35 +596,27 @@ export function buildDoneCard(text: string, options: DoneCardOptions = {}): obje
       tag: 'collapsible_panel',
       expanded: false,
       header: {
-        title: {
-          tag: 'plain_text',
-          content: `工具调用明细 (${toolCalls.length})`,
-        },
+        title: plainText(`工具调用明细 (${toolCalls.length})`),
       },
-      elements: [
-        {
-          tag: 'markdown',
-          content: toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'),
-        },
-      ],
+      elements: [md(toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'))],
     });
   }
 
-  return {
-    schema: '2.0',
-    config: { enable_forward: true },
-    body: {
-      elements,
-    },
-  };
+  if (context) {
+    elements.push(...buildCompletionActionElements(context));
+  }
+
+  return buildCard('Pulse 已完成', 'green', elements, true);
 }
 
-export function buildErrorCard(message: string): object {
-  return {
-    schema: '2.0',
-    config: { enable_forward: false },
-    body: {
-      elements: [{ tag: 'markdown', content: `❌ Error: ${message}` }],
-    },
-  };
+export function buildErrorCard(message: string, context?: RunCardContext): object {
+  const elements: object[] = [];
+  if (context) {
+    elements.push(md(buildRunMeta(context, '出错')));
+  }
+  elements.push(md(`❌ Error: ${clampCardText(message || 'unknown error', 3000)}`));
+  if (context) {
+    elements.push(...buildCompletionActionElements(context));
+  }
+  return buildCard('Pulse 运行出错', 'red', elements, false);
 }

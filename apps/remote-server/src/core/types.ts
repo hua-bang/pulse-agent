@@ -99,6 +99,7 @@ export interface PlatformAdapter {
 
 export interface ActiveRun {
   streamId: string;
+  runId?: string;
   ac: AbortController;
   startedAt: number;
 }

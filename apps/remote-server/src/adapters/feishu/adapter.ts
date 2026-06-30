@@ -3,7 +3,10 @@ import { existsSync } from 'fs';
 import type { PlatformAdapter, IncomingMessage, StreamHandle } from '../../core/types.js';
 import type { ClarificationRequest } from '../../core/types.js';
 import { clarificationQueue } from '../../core/clarification-queue.js';
-import { getActiveStreamId } from '../../core/active-run-store.js';
+import { getActiveRun, getActiveStreamId } from '../../core/active-run-store.js';
+import { dispatchIncoming } from '../../core/dispatcher.js';
+import { processIncomingCommand } from '../../core/chat-commands.js';
+import type { CommandResult } from '../../core/chat-commands/types.js';
 import { extractGeneratedImageResult } from './image-result.js';
 import {
   createLarkClient,
@@ -58,6 +61,69 @@ export class FeishuAdapter implements PlatformAdapter {
     }
 
     return this.parseEventBody(body);
+  }
+
+  async handleCardActionBody(body: Record<string, unknown>): Promise<boolean> {
+    const action = parseRunCardAction(body);
+    if (!action) return false;
+
+    const text = textForRunCardAction(action);
+    if (!text) return true;
+
+    if (action.command === 'runId') {
+      await this.sendCardActionText(action, text);
+      return true;
+    }
+
+    const incoming: IncomingMessage = {
+      platformKey: action.platformKey,
+      memoryKey: action.memoryKey,
+      text,
+      streamId: action.syntheticStreamId,
+    };
+
+    this.chatMetaByPlatformKey.set(action.platformKey, {
+      chatId: action.replyTarget.chatId,
+      chatIdType: action.replyTarget.chatIdType,
+      allowReaction: false,
+    });
+
+    if (action.command === 'retry') {
+      dispatchIncoming(this, incoming);
+      return true;
+    }
+
+    const result = await processIncomingCommand(incoming);
+    await this.sendCardActionResult(action, result);
+    return true;
+  }
+
+  private async sendCardActionText(action: RunCardAction, text: string): Promise<void> {
+    const target = action.replyTarget;
+    await sendTextMessage(
+      this.larkClient,
+      target.chatId,
+      target.chatIdType,
+      text,
+    ).catch((err) => {
+      console.error('[feishu] Failed to send card action text:', getErrorMessage(err));
+    });
+  }
+
+  private async sendCardActionResult(action: RunCardAction, result: CommandResult): Promise<void> {
+    if (result.type !== 'handled') {
+      return;
+    }
+
+    const target = action.replyTarget;
+    await sendTextMessage(
+      this.larkClient,
+      target.chatId,
+      target.chatIdType,
+      result.message,
+    ).catch((err) => {
+      console.error('[feishu] Failed to send card action result:', getErrorMessage(err));
+    });
   }
 
   async parseEventBody(body: Record<string, unknown>): Promise<IncomingMessage | null> {
@@ -183,6 +249,7 @@ export class FeishuAdapter implements PlatformAdapter {
     const allowReaction = meta?.allowReaction ?? false;
     const replyOptions = idType === 'chat_id' && sourceMessageId ? { replyToMessageId: sourceMessageId } : undefined;
     const { larkClient } = this;
+    const activeRun = getActiveRun(incoming.platformKey);
 
     // Clean up chatMeta after reading — it's only needed to bridge parseIncoming → createStreamHandle
     this.chatMetaByStreamId.delete(_streamId);
@@ -200,7 +267,6 @@ export class FeishuAdapter implements PlatformAdapter {
 
     const PROGRESS_UPDATE_INTERVAL_MS = 800;
     const HEARTBEAT_INTERVAL_MS = 12000;
-    const DOT_ANIMATION_STEP_MS = 4000;
     const runStartedAt = Date.now();
 
     let throttleHandle: ReturnType<typeof setTimeout> | null = null;
@@ -258,17 +324,23 @@ export class FeishuAdapter implements PlatformAdapter {
       return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
     };
 
-    const renderProgressText = (): string => {
-      const dotCount = 2 + Math.floor((Date.now() - runStartedAt) / DOT_ANIMATION_STEP_MS) % 3;
-      const loadingTitle = `Pulse 努力生成中${'.'.repeat(dotCount)}`;
-      const detailText = accumulatedText
-        ? (latestToolHint ? `${latestToolHint}\n\n${accumulatedText}` : accumulatedText)
-        : latestToolHint;
-
-      return detailText
-        ? `${loadingTitle}\n\n${detailText}\n\n⏱️ Elapsed: ${formatElapsed()}`
-        : `${loadingTitle}\n\n⏱️ Elapsed: ${formatElapsed()}`;
-    };
+    const buildRunCardContext = (overrides: Partial<{
+      elapsed: string;
+      detailText: string;
+      latestToolHint: string;
+      toolCalls: string[];
+    }> = {}) => ({
+      platformKey: incoming.platformKey,
+      memoryKey: incoming.memoryKey,
+      streamId: _streamId,
+      runId: activeRun?.runId,
+      prompt: incoming.text,
+      elapsed: formatElapsed(),
+      detailText: accumulatedText,
+      latestToolHint,
+      toolCalls: toolCallSummaries,
+      ...overrides,
+    });
 
     const clearScheduledProgress = () => {
       if (throttleHandle) {
@@ -300,7 +372,7 @@ export class FeishuAdapter implements PlatformAdapter {
       }
 
       lastProgressUpdateAt = now;
-      queueCardUpdate(() => buildProgressCard(renderProgressText()), 'progress');
+      queueCardUpdate(() => buildProgressCard(buildRunCardContext()), 'progress');
     };
 
     const startHeartbeat = () => {
@@ -316,7 +388,7 @@ export class FeishuAdapter implements PlatformAdapter {
     };
 
     // Send the initial progress card without blocking model startup.
-    updateChain = sendCardMessage(larkClient, chatId, idType, buildThinkingCard(), replyOptions)
+    updateChain = sendCardMessage(larkClient, chatId, idType, buildThinkingCard(buildRunCardContext()), replyOptions)
       .then((messageId) => {
         cardMessageId = messageId;
         lastProgressUpdateAt = Date.now();
@@ -382,7 +454,7 @@ export class FeishuAdapter implements PlatformAdapter {
         finalized = true;
         await updateChain;
 
-        const doneCard = () => buildDoneCard(result, { toolCalls: toolCallSummaries });
+        const doneCard = () => buildDoneCard(result, { toolCalls: toolCallSummaries, context: buildRunCardContext() });
 
         if (cardMessageId) {
           if (!isCardUpdateDisabled()) {
@@ -413,13 +485,13 @@ export class FeishuAdapter implements PlatformAdapter {
 
         if (cardMessageId) {
           if (!isCardUpdateDisabled()) {
-            const ok = await tryUpdateCard(() => buildErrorCard(err.message), 'error', { allowFinal: true });
+            const ok = await tryUpdateCard(() => buildErrorCard(err.message, buildRunCardContext()), 'error', { allowFinal: true });
             if (ok) {
               return;
             }
           }
 
-          await sendCardMessage(larkClient, chatId, idType, buildErrorCard(err.message), replyOptions).catch((sendErr) => {
+          await sendCardMessage(larkClient, chatId, idType, buildErrorCard(err.message, buildRunCardContext()), replyOptions).catch((sendErr) => {
             console.error('[feishu] Failed to send error card fallback:', sendErr);
           });
         } else {
@@ -598,6 +670,156 @@ function trimFeishuToolInput(value: string): string {
   }
 
   return `${singleLine.slice(0, maxLength - 3)}...`;
+}
+type RunCardCommand = 'status' | 'stop' | 'retry' | 'new' | 'runId';
+
+interface RunCardAction {
+  command: RunCardCommand;
+  platformKey: string;
+  memoryKey?: string;
+  streamId?: string;
+  runId?: string;
+  prompt?: string;
+  syntheticStreamId: string;
+  replyTarget: {
+    chatId: string;
+    chatIdType: 'open_id' | 'chat_id';
+  };
+}
+
+interface FeishuCardActionEvent {
+  open_id?: string;
+  user_id?: string;
+  open_message_id?: string;
+  message_id?: string;
+  operator?: {
+    open_id?: string;
+    user_id?: string;
+    operator_id?: {
+      open_id?: string;
+      user_id?: string;
+    };
+  };
+  context?: {
+    open_message_id?: string;
+    message_id?: string;
+    open_chat_id?: string;
+    chat_id?: string;
+  };
+  action?: {
+    value?: Record<string, unknown>;
+    form_value?: Record<string, unknown>;
+    behaviors?: Array<{ value?: Record<string, unknown> }>;
+  };
+  event?: FeishuCardActionEvent;
+}
+
+function parseRunCardAction(data: unknown): RunCardAction | null {
+  const event = unwrapCardActionEvent(data);
+  const value = cardActionValue(event);
+  if (!value || value.action !== 'pulse.run_card') {
+    return null;
+  }
+
+  const command = asRunCardCommand(value.command);
+  const platformKey = asNonEmptyString(value.platformKey);
+  if (!command || !platformKey) {
+    return null;
+  }
+
+  const openId = event.open_id
+    ?? event.user_id
+    ?? event.operator?.open_id
+    ?? event.operator?.user_id
+    ?? event.operator?.operator_id?.open_id
+    ?? event.operator?.operator_id?.user_id;
+  const actorId = asNonEmptyString(openId);
+  if (actorId && !isRunCardActorAllowed(platformKey, actorId)) {
+    return null;
+  }
+  const chatId = asNonEmptyString(event.context?.open_chat_id)
+    ?? asNonEmptyString(event.context?.chat_id);
+  const replyTarget = platformKey.startsWith('feishu:group:')
+    ? { chatId: chatId ?? parseFeishuGroupChatId(platformKey) ?? '', chatIdType: 'chat_id' as const }
+    : { chatId: asNonEmptyString(openId) ?? parseFeishuOpenId(platformKey) ?? '', chatIdType: 'open_id' as const };
+
+  if (!replyTarget.chatId) {
+    return null;
+  }
+
+  const cardMessageId = event.open_message_id
+    ?? event.message_id
+    ?? event.context?.open_message_id
+    ?? event.context?.message_id
+    ?? 'card';
+  const streamId = asNonEmptyString(value.streamId);
+  const runId = asNonEmptyString(value.runId);
+
+  return {
+    command,
+    platformKey,
+    memoryKey: asNonEmptyString(value.memoryKey) ?? undefined,
+    streamId: streamId ?? undefined,
+    runId: runId ?? undefined,
+    prompt: asNonEmptyString(value.prompt) ?? undefined,
+    syntheticStreamId: `feishu-card:${cardMessageId}:${actorId ?? 'unknown'}:${command}:${streamId ?? runId ?? Date.now()}`,
+    replyTarget,
+  };
+}
+
+function textForRunCardAction(action: RunCardAction): string | null {
+  switch (action.command) {
+    case 'status':
+      return '/status';
+    case 'stop':
+      return '/stop';
+    case 'new':
+      return '/new';
+    case 'retry':
+      return action.prompt?.trim() || null;
+    case 'runId':
+      return action.runId
+        ? `Run ID: ${action.runId}\nStream ID: ${action.streamId ?? '-'}`
+        : `Stream ID: ${action.streamId ?? '-'}`;
+  }
+}
+
+function unwrapCardActionEvent(data: unknown): FeishuCardActionEvent {
+  const event = data as FeishuCardActionEvent;
+  return event.event ?? event;
+}
+
+function cardActionValue(event: FeishuCardActionEvent): Record<string, unknown> | null {
+  const direct = event.action?.value;
+  if (direct && typeof direct === 'object') return direct;
+  const behaviorValue = event.action?.behaviors?.find((behavior) => behavior.value)?.value;
+  return behaviorValue && typeof behaviorValue === 'object' ? behaviorValue : null;
+}
+
+function asRunCardCommand(value: unknown): RunCardCommand | null {
+  if (value === 'status' || value === 'stop' || value === 'retry' || value === 'new' || value === 'runId') {
+    return value;
+  }
+  return null;
+}
+
+function isRunCardActorAllowed(platformKey: string, actorOpenId: string): boolean {
+  const groupMatch = /^feishu:group:[^:]+:([^:]+)$/.exec(platformKey);
+  if (groupMatch) {
+    return groupMatch[1] === actorOpenId;
+  }
+  const dmMatch = /^feishu:([^:]+)$/.exec(platformKey);
+  return !dmMatch || dmMatch[1] === actorOpenId;
+}
+
+function parseFeishuGroupChatId(platformKey: string): string | null {
+  const match = /^feishu:group:([^:]+):/.exec(platformKey);
+  return match?.[1] ?? null;
+}
+
+function parseFeishuOpenId(platformKey: string): string | null {
+  const match = /^feishu:([^:]+)$/.exec(platformKey);
+  return match?.[1] ?? null;
 }
 
 
