@@ -24,6 +24,7 @@ import type {
 import { useI18n } from '../../i18n';
 import { useAppShell } from '../AppShellProvider';
 import { Select } from '../Select';
+import { HealthBadge, ToolsList } from './McpManagerParts';
 import './settings-config.css';
 
 interface Props {
@@ -142,74 +143,6 @@ function authDraftForTransport(transport: CanvasMcpTransport, draft: Draft): Can
   return transport === 'stdio' ? 'none' : draft.auth;
 }
 
-interface HealthBadgeProps {
-  health: CanvasMcpServerHealth | undefined;
-  t: (key: any, params?: any) => string;
-}
-
-const HealthBadge = ({ health, t }: HealthBadgeProps) => {
-  if (!health) {
-    return <span className="cfg-health cfg-health--unknown">{t('mcpConfig.healthUnknown')}</span>;
-  }
-  if (health.ok) {
-    // When some tools are disabled, surface "enabled/total" so the count
-    // doesn't look like the server simply exposes fewer tools.
-    const total = health.tools?.length ?? health.toolCount;
-    const label =
-      health.tools && total !== health.toolCount
-        ? t('mcpConfig.healthOkPartial', { enabled: health.toolCount, total })
-        : t('mcpConfig.healthOk', { count: health.toolCount });
-    return <span className="cfg-health cfg-health--ok">✓ {label}</span>;
-  }
-  return (
-    <span className="cfg-health cfg-health--err" title={health.error}>
-      ⚠ {health.error.length > 40 ? `${health.error.slice(0, 40)}…` : health.error}
-    </span>
-  );
-};
-
-interface ToolsListProps {
-  health: CanvasMcpServerHealth | undefined;
-  /** Read-only (inherited/global) rows show tools but cannot toggle them here. */
-  readOnly?: boolean;
-  /** Returns true while the given tool is mid-toggle (awaiting engine reload). */
-  isBusy?: (toolName: string) => boolean;
-  onToggle?: (toolName: string, enabled: boolean) => void;
-  t: (key: any, params?: any) => string;
-}
-
-const ToolsList = ({ health, readOnly, isBusy, onToggle, t }: ToolsListProps) => {
-  if (!health || !health.ok || !health.tools) {
-    // No snapshot yet (server not loaded) or it failed to connect — nothing to list.
-    return <div className="cfg-tools-empty">{t('mcpConfig.toolsUnavailable')}</div>;
-  }
-  if (health.tools.length === 0) {
-    return <div className="cfg-tools-empty">{t('mcpConfig.toolsNone')}</div>;
-  }
-  return (
-    <ul className="cfg-tools-list">
-      {health.tools.map((tool) => (
-        <li key={tool.name} className={`cfg-tool${tool.enabled ? '' : ' cfg-tool--off'}`}>
-          <label className="cfg-tool-toggle">
-            <input
-              type="checkbox"
-              checked={tool.enabled}
-              disabled={readOnly || isBusy?.(tool.name)}
-              onChange={(e) => onToggle?.(tool.name, e.target.checked)}
-            />
-            <span className="cfg-tool-name">{tool.name}</span>
-          </label>
-          {tool.description && (
-            <span className="cfg-tool-desc" title={tool.description}>
-              {tool.description}
-            </span>
-          )}
-        </li>
-      ))}
-    </ul>
-  );
-};
-
 export const McpManager = ({ scope, showInherited = false }: Props) => {
   const { t } = useI18n();
   const { notify, confirm } = useAppShell();
@@ -229,6 +162,7 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [busyTool, setBusyTool] = useState<string | null>(null);
   const [busyOAuth, setBusyOAuth] = useState<string | null>(null);
+  const [busyReload, setBusyReload] = useState<'all' | string | null>(null);
   const scopeKey = scope.level === 'workspace' ? scope.workspaceId : 'global';
   const inheritedEnabled = showInherited && scope.level === 'workspace';
 
@@ -266,6 +200,32 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
     setJsonText(null);
     void load();
   }, [load]);
+
+  const reloadTools = useCallback(
+    async (serverName?: string) => {
+      const busyKey = serverName ?? 'all';
+      setBusyReload(busyKey);
+      try {
+        const res = await window.canvasWorkspace.canvasMcp.reload(scope);
+        if (res.ok && res.status) {
+          applyStatus(res.status);
+          const health = serverName ? res.status.statuses?.[serverName] : undefined;
+          if (serverName && health?.ok) {
+            notify({ tone: 'success', title: t('mcpConfig.connectOk', { name: serverName, count: health.toolCount }) });
+          } else if (serverName && health && !health.ok) {
+            notify({ tone: 'error', title: t('mcpConfig.connectFailed', { name: serverName }), description: health.error });
+          } else if (!serverName) {
+            notify({ tone: 'success', title: t('mcpConfig.reloadOk') });
+          }
+        } else {
+          notify({ tone: 'error', title: res.error ?? t('mcpConfig.loadFailed') });
+        }
+      } finally {
+        setBusyReload(null);
+      }
+    },
+    [scope, applyStatus, notify, t],
+  );
 
   const save = useCallback(async () => {
     if (!draft) return;
@@ -337,7 +297,14 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         const res = await window.canvasWorkspace.canvasMcp.oauthConnect(scope, name);
         if (res.ok && res.status) {
           applyStatus(res.status);
-          notify({ tone: 'success', title: t('mcpConfig.oauthConnectOk', { name }) });
+          const health = res.status.statuses?.[name];
+          if (health?.ok) {
+            notify({ tone: 'success', title: t('mcpConfig.oauthConnectOkWithTools', { name, count: health.toolCount }) });
+          } else if (health && !health.ok) {
+            notify({ tone: 'error', title: t('mcpConfig.oauthConnectToolsFailed', { name }), description: health.error });
+          } else {
+            notify({ tone: 'success', title: t('mcpConfig.oauthConnectOk', { name }) });
+          }
         } else {
           notify({ tone: 'error', title: res.error ?? t('mcpConfig.oauthConnectFailed') });
         }
@@ -415,6 +382,14 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         {servers.length > 0 && (
           <span className="cfg-toolbar-hint">{t('mcpConfig.reloadHint')}</span>
         )}
+        <button
+          type="button"
+          className="cfg-secondary-btn"
+          onClick={() => void reloadTools()}
+          disabled={draft !== null || jsonText !== null || busyReload !== null || servers.length === 0}
+        >
+          {busyReload === 'all' ? t('mcpConfig.reloadingTools') : t('mcpConfig.reloadTools')}
+        </button>
         <button
           type="button"
           className="cfg-secondary-btn"
@@ -636,6 +611,14 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         <ul className="cfg-list">
           {servers.map((server) => {
             const isOpen = !!expanded[server.name];
+            const health = statuses[server.name];
+            const connectLabel = busyReload === server.name
+              ? t('mcpConfig.connecting')
+              : health?.ok
+                ? t('mcpConfig.reconnect')
+                : health && !health.ok
+                  ? t('mcpConfig.retry')
+                  : t('mcpConfig.connect');
             return (
               <li key={server.name} className="cfg-list-entry">
                 <div className="cfg-list-item">
@@ -663,27 +646,49 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                             : t('mcpConfig.oauthNotConnected')}
                         </span>
                       )}
-                      <HealthBadge health={statuses[server.name]} t={t} />
+                      <HealthBadge health={health} t={t} />
                     </div>
                     <div className="cfg-list-desc">{server.transport === 'stdio' ? server.command : server.url}</div>
                   </div>
-                  <div className={`cfg-list-actions${server.auth === 'oauth' ? ' cfg-list-actions--pinned' : ''}`}>
-                    {server.auth === 'oauth' && (
+                  <div className={`cfg-list-actions${server.auth === 'oauth' || busyReload === server.name ? ' cfg-list-actions--pinned' : ''}`}>
+                    {server.auth !== 'oauth' && (
                       <button
                         type="button"
                         className="cfg-secondary-btn"
-                        onClick={() => {
-                          const connected = oauthStatuses[server.name]?.connected;
-                          void (connected ? disconnectOAuth(server.name) : connectOAuth(server.name));
-                        }}
-                        disabled={busyOAuth === server.name}
+                        onClick={() => void reloadTools(server.name)}
+                        disabled={busyReload !== null || busyOAuth !== null}
                       >
-                        {busyOAuth === server.name
-                          ? t('mcpConfig.oauthConnecting')
-                          : oauthStatuses[server.name]?.connected
-                            ? t('mcpConfig.oauthDisconnect')
-                            : t('mcpConfig.oauthConnect')}
+                        {connectLabel}
                       </button>
+                    )}
+                    {server.auth === 'oauth' && (
+                      <>
+                        <button
+                          type="button"
+                          className="cfg-secondary-btn"
+                          onClick={() => {
+                            const connected = oauthStatuses[server.name]?.connected;
+                            void (connected ? reloadTools(server.name) : connectOAuth(server.name));
+                          }}
+                          disabled={busyReload !== null || busyOAuth !== null}
+                        >
+                          {busyOAuth === server.name
+                            ? t('mcpConfig.oauthConnecting')
+                            : oauthStatuses[server.name]?.connected
+                              ? connectLabel
+                              : t('mcpConfig.oauthConnect')}
+                        </button>
+                        {oauthStatuses[server.name]?.connected && (
+                          <button
+                            type="button"
+                            className="cfg-secondary-btn"
+                            onClick={() => void disconnectOAuth(server.name)}
+                            disabled={busyReload !== null || busyOAuth !== null}
+                          >
+                            {busyOAuth === server.name ? t('mcpConfig.oauthConnecting') : t('mcpConfig.oauthDisconnect')}
+                          </button>
+                        )}
+                      </>
                     )}
                     <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(serverToDraft(server))}>
                       {t('mcpConfig.edit')}

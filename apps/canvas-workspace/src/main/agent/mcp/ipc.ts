@@ -5,6 +5,7 @@
  *   canvas-mcp:list    { scope }                        → status
  *   canvas-mcp:upsert  { scope, server, originalName? } → status
  *   canvas-mcp:remove  { scope, name }                  → status
+ *   canvas-mcp:reload  { scope }                        → status
  *
  * MCP tools are registered statically at Engine init, so after a write we
  * rebuild the Engine for affected active agents (global edits → all agents,
@@ -104,6 +105,16 @@ export function setupCanvasMcpIpc(): void {
       }
     },
   );
+
+  ipcMain.handle('canvas-mcp:reload', async (_event, payload: { scope?: unknown }) => {
+    try {
+      const scope = parseScopePayload(payload?.scope);
+      await reloadAgents(scope);
+      return { ok: true, status: await withStatuses(await getCanvasMcpStatus(scope), scope) };
+    } catch (err) {
+      return { ok: false, error: String(err) };
+    }
+  });
 
   ipcMain.handle(
     'canvas-mcp:import-json',
