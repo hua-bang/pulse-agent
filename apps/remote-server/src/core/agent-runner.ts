@@ -10,6 +10,7 @@ import { memoryIntegration, recordDailyLogFromSuccessPath } from './memory-integ
 import { buildRemoteWorktreeRunContext, worktreeIntegration } from './worktree/integration.js';
 import { buildRemoteVaultRunContext, vaultIntegration } from './vault/integration.js';
 import { resolveModelForRun } from './model-config.js';
+import { parseFeishuPlatformKey } from '../adapters/feishu/platform-key.js';
 const ACP_CLIENT_INFO = {
   name: 'pulse-remote-server',
   title: 'Pulse Remote Server',
@@ -23,6 +24,7 @@ interface RunChannelInfo {
   kind?: 'group' | 'dm' | 'thread' | 'channel' | 'chat' | 'user' | 'internal';
   channelId?: string;
   userId?: string;
+  topicId?: string;
   isThread?: boolean;
 }
 
@@ -131,23 +133,23 @@ function parseChannelInfo(platformKey: string): RunChannelInfo | undefined {
     return undefined;
   }
 
-  const feishuGroup = /^feishu:group:([^:]+):([^:]+)$/.exec(normalized);
-  if (feishuGroup) {
-    return {
-      platform: 'feishu',
-      kind: 'group',
-      channelId: feishuGroup[1],
-      userId: feishuGroup[2],
-    };
-  }
+  const feishu = parseFeishuPlatformKey(normalized);
+  if (feishu) {
+    if (feishu.kind === 'group') {
+      return {
+        platform: 'feishu',
+        kind: 'group',
+        channelId: feishu.chatId,
+        userId: feishu.openId,
+        topicId: feishu.topicId,
+      };
+    }
 
-  const feishuDm = /^feishu:([^:]+)$/.exec(normalized);
-  if (feishuDm) {
     return {
       platform: 'feishu',
       kind: 'dm',
-      channelId: feishuDm[1],
-      userId: feishuDm[1],
+      channelId: feishu.openId,
+      userId: feishu.openId,
     };
   }
 
@@ -222,6 +224,7 @@ function buildChannelSystemPrompt(platformKey: string): string | null {
     `platform=${channel.platform}`,
     channel.kind ? `kind=${channel.kind}` : '',
     channel.channelId ? `channelId=${channel.channelId}` : '',
+    channel.topicId ? `topicId=${channel.topicId}` : '',
   ].filter(Boolean);
 
   if (lines.length <= 1) {

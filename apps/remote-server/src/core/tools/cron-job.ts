@@ -5,6 +5,7 @@ import path from 'path';
 import z from 'zod';
 import type { Tool, ToolExecutionContext } from 'pulse-coder-engine';
 import { createLarkClient, sendTextMessage } from '../../adapters/feishu/client.js';
+import { parseFeishuPlatformKey } from '../../adapters/feishu/platform-key.js';
 import { DiscordClient } from '../../adapters/discord/client.js';
 
 const execFileAsync = promisify(execFile);
@@ -322,21 +323,20 @@ function isNotifyRequested(prompt?: string): boolean {
 }
 
 function inferNotifyFromPlatformKey(platformKey: string): NotifyTarget | undefined {
-  const feishuGroup = /^feishu:group:([^:]+):[^:]+$/.exec(platformKey);
-  if (feishuGroup) {
+  const feishuKey = parseFeishuPlatformKey(platformKey);
+  if (feishuKey?.kind === 'group') {
     return {
       feishu: {
-        receiveId: feishuGroup[1],
+        receiveId: feishuKey.chatId,
         receiveIdType: 'chat_id',
       },
     };
   }
 
-  const feishuDm = /^feishu:([^:]+)$/.exec(platformKey);
-  if (feishuDm) {
+  if (feishuKey?.kind === 'direct') {
     return {
       feishu: {
-        receiveId: feishuDm[1],
+        receiveId: feishuKey.openId,
         receiveIdType: 'open_id',
       },
     };

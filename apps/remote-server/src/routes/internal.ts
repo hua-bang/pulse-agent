@@ -4,6 +4,7 @@ import { Hono, type Context } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { createLarkClient, sendImageMessage, sendTextMessage } from '../adapters/feishu/client.js';
 import { extractGeneratedImageResult } from '../adapters/feishu/image-result.js';
+import { parseFeishuPlatformKey } from '../adapters/feishu/platform-key.js';
 import { getDiscordGatewayStatus, restartDiscordGateway } from '../adapters/discord/gateway-manager.js';
 import { DiscordClient } from '../adapters/discord/client.js';
 import { executeAgentTurn, formatCompactionEvents, type CompactionSnapshot } from '../core/agent-runner.js';
@@ -634,18 +635,17 @@ function resolveFeishuTarget(feishu: FeishuNotifyConfig | undefined, platformKey
     };
   }
 
-  const groupMatch = /^feishu:group:([^:]+):[^:]+$/.exec(platformKey);
-  if (groupMatch) {
+  const feishuKey = parseFeishuPlatformKey(platformKey);
+  if (feishuKey?.kind === 'group') {
     return {
-      receiveId: groupMatch[1],
+      receiveId: feishuKey.chatId,
       receiveIdType: 'chat_id',
     };
   }
 
-  const directMatch = /^feishu:([^:]+)$/.exec(platformKey);
-  if (directMatch) {
+  if (feishuKey?.kind === 'direct') {
     return {
-      receiveId: directMatch[1],
+      receiveId: feishuKey.openId,
       receiveIdType: 'open_id',
     };
   }

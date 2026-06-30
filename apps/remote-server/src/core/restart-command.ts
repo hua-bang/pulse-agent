@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import type { IncomingMessage } from './types.js';
 import type { CommandResult } from './chat-commands/types.js';
+import { parseFeishuPlatformKey } from '../adapters/feishu/platform-key.js';
 
 interface RestartNotifyTarget {
   platform: 'discord' | 'telegram' | 'feishu';
@@ -525,20 +526,19 @@ function resolveRestartNotifyTarget(platformKey: string): RestartNotifyTarget | 
     }
   }
 
-  const feishuGroupMatch = /^feishu:group:([^:]+):[^:]+$/.exec(platformKey);
-  if (feishuGroupMatch) {
+  const feishuKey = parseFeishuPlatformKey(platformKey);
+  if (feishuKey?.kind === 'group') {
     return {
       platform: 'feishu',
-      receiveId: feishuGroupMatch[1],
+      receiveId: feishuKey.chatId,
       receiveIdType: 'chat_id',
     };
   }
 
-  const feishuUserMatch = /^feishu:([^:]+)$/.exec(platformKey);
-  if (feishuUserMatch) {
+  if (feishuKey?.kind === 'direct') {
     return {
       platform: 'feishu',
-      receiveId: feishuUserMatch[1],
+      receiveId: feishuKey.openId,
       receiveIdType: 'open_id',
     };
   }
