@@ -145,8 +145,21 @@
   max-width: 600px;
 }
 
-.text-node-body--editing {
+.text-node-body--editing,
+.canvas-node--readonly .text-node-body,
+.canvas-node--fullscreen .text-node-body {
   cursor: text;
+}
+
+.text-node-body--editing .ProseMirror,
+.canvas-node--readonly .text-node-body .ProseMirror,
+.canvas-node--fullscreen .text-node-body .ProseMirror {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.text-node-body--editing {
   /* Subtle inset ring so the user can tell they're editing even when the
    * background is transparent. */
   box-shadow: 0 0 0 1px rgba(35, 131, 226, 0.35) inset;

@@ -2049,6 +2049,19 @@
   background: rgba(255, 255, 255, 0.86);
   font-size: 12px;
   color: #4b5563;
+  cursor: zoom-in;
+  transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.chat-attachment-chip:hover {
+  border-color: rgba(35, 131, 226, 0.28);
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.chat-attachment-chip:focus-visible {
+  outline: 2px solid #2383e2;
+  outline-offset: 2px;
 }
 
 .chat-attachment-chip img {
