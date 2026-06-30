@@ -1,4 +1,4 @@
-import type { ClipboardEventHandler, KeyboardEventHandler, ReactNode, RefObject } from 'react';
+import { useMemo, useState, type ClipboardEventHandler, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react';
 import type { CanvasModelStatus, ChatImageAttachment } from '../../types';
 import { ImageIcon, PlusIcon } from '../icons';
 import { toFileUrl } from '../../utils/fileUrl';
@@ -6,6 +6,7 @@ import { MentionNodeIcon } from './utils/mentions';
 import { ModelSwitcher } from './ModelSettings';
 import type { SelectedContextChip } from './types';
 import { useI18n } from '../../i18n';
+import { ChatImageLightbox, type LightboxImage } from './ChatImageLightbox';
 
 interface ChatInputProps {
   loading: boolean;
@@ -68,6 +69,11 @@ export const ChatInput = ({
     ? selectedContext
     : [];
   const showContextChips = showContextChipsProp && contextComposer && contextChips.length > 0 && !loading;
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const lightboxImages = useMemo<LightboxImage[]>(() => attachments.map(attachment => ({
+    src: toFileUrl(attachment.path),
+    caption: attachment.fileName,
+  })), [attachments]);
 
   return (
     <div className="chat-input-container">
@@ -108,11 +114,34 @@ export const ChatInput = ({
         )}
         {attachments.length > 0 && (
           <div className="chat-attachment-strip" aria-label={t('chat.pendingImages')}>
-            {attachments.map(attachment => (
-              <div key={attachment.id} className="chat-attachment-chip">
+            {attachments.map((attachment, attachmentIndex) => (
+              <div
+                key={attachment.id}
+                className="chat-attachment-chip"
+                role="button"
+                tabIndex={0}
+                title={attachment.fileName ?? t('chat.imageViewer')}
+                onClick={() => setLightboxIndex(attachmentIndex)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setLightboxIndex(attachmentIndex);
+                  }
+                }}
+              >
                 <img src={toFileUrl(attachment.path)} alt={attachment.fileName ?? t('chat.attachmentAlt')} />
                 <span>{attachment.fileName ?? t('chat.imageFallback')}</span>
-                <button type="button" onClick={() => onRemoveAttachment?.(attachment.id)} aria-label={t('chat.removeImage')}>×</button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemoveAttachment?.(attachment.id);
+                  }}
+                  onKeyDown={(event) => event.stopPropagation()}
+                  aria-label={t('chat.removeImage')}
+                >
+                  ×
+                </button>
               </div>
             ))}
           </div>
@@ -220,6 +249,13 @@ export const ChatInput = ({
           </div>
         </div>
       </div>
+      {lightboxIndex !== null && lightboxImages[lightboxIndex] && (
+        <ChatImageLightbox
+          images={lightboxImages}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </div>
   );
 };
