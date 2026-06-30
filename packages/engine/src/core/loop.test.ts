@@ -336,6 +336,58 @@ describe('loop', () => {
     );
   });
 
+  it('reports active tool execution when a total timeout fires during tool execution', async () => {
+    vi.useFakeTimers();
+
+    const context: Context = {
+      messages: [{ role: 'user', content: 'run hung tool' }],
+    };
+    const hungTool: Tool = {
+      name: 'hung',
+      description: 'hung',
+      inputSchema: {} as any,
+      execute: vi.fn(() => new Promise(() => undefined)),
+    };
+    const afterLLMCall = vi.fn(async () => undefined);
+
+    streamTextAIMock.mockImplementation((_messages: any, tools: Record<string, Tool>, options: any) => {
+      options.onChunk?.({ chunk: { type: 'text-delta', text: 'starting' } });
+      const text = tools.hung.execute({ command: 'git rebase --continue' }, options.toolExecutionContext);
+      return {
+        text,
+        steps: new Promise(() => undefined),
+        finishReason: new Promise(() => undefined),
+      };
+    });
+
+    const runPromise = loop(context, {
+      tools: {
+        hung: hungTool,
+      },
+      hooks: {
+        afterLLMCall: [afterLLMCall],
+      },
+    });
+
+    await vi.advanceTimersByTimeAsync(600_000);
+
+    const result = await runPromise;
+
+    expect(result).toContain('工具执行超时');
+    expect(result).toContain('`hung`');
+    expect(result).toContain('git rebase --continue');
+    expect(afterLLMCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          activeTool: expect.objectContaining({
+            name: 'hung',
+            inputPreview: expect.stringContaining('git rebase --continue'),
+          }),
+        }),
+      }),
+    );
+  });
+
   it('returns promptly when the caller aborts a pending LLM call', async () => {
     vi.useFakeTimers();
 
