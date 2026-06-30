@@ -97,6 +97,77 @@ describe('loop', () => {
     expect(onResponse).toHaveBeenCalledWith([{ role: 'assistant', content: 'step response' }]);
   });
 
+  it('prunes trailing incomplete tool-call history before calling the LLM', async () => {
+    const context: Context = {
+      messages: [
+        { role: 'user', content: 'first' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'I will inspect this.' },
+            { type: 'tool-call', toolCallId: 'call_missing', toolName: 'read', input: { filePath: 'a.ts' } },
+          ],
+        } as any,
+        { role: 'user', content: 'next turn' },
+      ],
+    };
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    streamTextAIMock.mockReturnValue({
+      text: Promise.resolve('recovered'),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve('stop'),
+    });
+
+    try {
+      const result = await loop(context);
+
+      expect(result).toBe('recovered');
+      expect(context.messages).toEqual([{ role: 'user', content: 'first' }]);
+      expect(streamTextAIMock).toHaveBeenCalledWith(
+        [{ role: 'user', content: 'first' }],
+        expect.any(Object),
+        expect.any(Object),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[loop] Pruned 2 trailing message(s) with incomplete tool-call history before LLM call',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('keeps complete tool-call history intact before calling the LLM', async () => {
+    const messages = [
+      { role: 'user', content: 'first' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool-call', toolCallId: 'call_done', toolName: 'read', input: { filePath: 'a.ts' } },
+          { type: 'tool-result', toolCallId: 'call_done', toolName: 'read', output: 'ok' },
+        ],
+      } as any,
+      { role: 'user', content: 'next turn' },
+    ];
+    const context: Context = { messages };
+
+    streamTextAIMock.mockReturnValue({
+      text: Promise.resolve('ok'),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve('stop'),
+    });
+
+    const result = await loop(context);
+
+    expect(result).toBe('ok');
+    expect(context.messages).toBe(messages);
+    expect(streamTextAIMock).toHaveBeenCalledWith(
+      messages,
+      expect.any(Object),
+      expect.any(Object),
+    );
+  });
+
   it('retries retryable errors with backoff and eventually succeeds', async () => {
     vi.useFakeTimers();
 
