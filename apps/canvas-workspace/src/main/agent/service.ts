@@ -449,27 +449,31 @@ export class CanvasAgentService {
 
   /**
    * Rebuild the Engine for active agents after an MCP config change.
-   * Global-scope edits affect every workspace; pass a workspaceId to reload
-   * just that one. No-op for workspaces without an active agent (they pick up
-   * the new config on next activation).
+   * Global-scope edits affect every active agent and ensure the global agent is
+   * available for status probing. Workspace edits activate and reload just that
+   * workspace so an explicit Connect/Load Tools click always tests the server.
    */
   async reloadMcp(workspaceId?: string): Promise<void> {
+    const targetScope: AgentScope = workspaceId ? workspaceScope(workspaceId) : { kind: 'global' };
+    await this.activateScope(targetScope);
     const agents = workspaceId
-      ? [this.getAgent(workspaceScope(workspaceId))].filter((a): a is CanvasAgent => Boolean(a))
+      ? [this.getAgent(targetScope)].filter((a): a is CanvasAgent => Boolean(a))
       : Array.from(this.agents.values());
     await Promise.all(agents.map((agent) => agent.reloadEngine()));
   }
 
   /**
    * MCP per-server connection health for a given workspace's agent. Returns
-   * an empty record if no agent is active for that workspace — the UI can
-   * fall back to "saved, not tested" copy in that case. For global edits we
-   * grab whichever active agent exists since global servers are shared.
+   * an empty record if no agent is active for that workspace. For global edits,
+   * prefer the global agent's status; fall back to any active workspace so older
+   * status reads still have best-effort data before an explicit reload.
    */
   getMcpStatuses(workspaceId?: string): Record<string, MCPServerStatus> {
     if (workspaceId) {
       return this.getAgent(workspaceScope(workspaceId))?.getMcpStatuses() ?? {};
     }
+    const global = this.getAgent({ kind: 'global' });
+    if (global) return global.getMcpStatuses();
     const first = this.agents.values().next().value as CanvasAgent | undefined;
     return first?.getMcpStatuses() ?? {};
   }
