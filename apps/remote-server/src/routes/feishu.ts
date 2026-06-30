@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { dispatch } from '../core/dispatcher.js';
 import { feishuAdapter } from '../adapters/feishu/adapter.js';
+import { getFeishuEventSource } from '../adapters/feishu/gateway.js';
 
 export const feishuRouter = new Hono();
 
@@ -12,4 +13,11 @@ export const feishuRouter = new Hono();
  *   Event subscription URL: https://your-server/webhooks/feishu
  *   Events to subscribe: im.message.receive_v1
  */
-feishuRouter.post('/', (c) => dispatch(feishuAdapter, c));
+feishuRouter.post('/', (c) => {
+  const source = getFeishuEventSource();
+  if (source === 'long_connection') {
+    return c.json({}, 200);
+  }
+
+  return dispatch(feishuAdapter, c);
+});

@@ -14,7 +14,7 @@ HTTP server that wraps `pulse-coder-engine` and exposes it to messaging platform
 | Method | Path | Access |
 |--------|------|--------|
 | `GET` | `/health` | Public |
-| `POST` | `/webhooks/feishu` | Public (HMAC-verified) |
+| `POST` | `/webhooks/feishu` | Public Feishu event webhook |
 | `POST` | `/webhooks/discord` | Public (ED25519-verified) |
 | `POST` | `/internal/agent/run` | Loopback + Bearer token |
 | `GET` | `/internal/discord/gateway/status` | Loopback + Bearer token |
@@ -56,6 +56,8 @@ FEISHU_APP_ID=
 FEISHU_APP_SECRET=
 FEISHU_ENCRYPT_KEY=
 FEISHU_VERIFICATION_TOKEN=
+FEISHU_EVENT_SOURCE=webhook  # webhook (default), long_connection, or both
+FEISHU_ENABLE_REACTIONS=     # Optional: true, false, or group; default false
 
 # === Discord ===
 DISCORD_PUBLIC_KEY=
@@ -98,14 +100,16 @@ Users can type these in any connected channel:
 ## Feishu Setup
 
 1. In the Feishu Developer Console, create an app and note `App ID` / `App Secret`.
-2. Enable **Encrypt Key** and **Verification Token** (Event Subscription → Security Settings).
-3. Set the webhook URL:
+2. Subscribe to the event `im.message.receive_v1`.
+3. Grant bot permissions: `im:message:send_as_bot`, `im:message.group_at_msg` (for group chats). Message reactions are optional; set `FEISHU_ENABLE_REACTIONS=true` or `group` only after granting reaction permissions.
+4. Set `FEISHU_APP_ID` and `FEISHU_APP_SECRET` in `.env`.
+5. Pick the event receiver:
+   - `FEISHU_EVENT_SOURCE=long_connection`: use Feishu's persistent WebSocket connection. In the Feishu Developer Console, set event subscription mode to **Receive events through persistent connection**. The webhook route remains mounted but only returns an empty 200 response.
+   - `FEISHU_EVENT_SOURCE=webhook`: use the public webhook endpoint. Set `FEISHU_ENCRYPT_KEY` and `FEISHU_VERIFICATION_TOKEN`, enable them in Event Subscription security settings, then set the webhook URL:
    ```
    https://your-server/webhooks/feishu
    ```
-4. Subscribe to the event `im.message.receive_v1`.
-5. Grant bot permissions: `im:message:send_as_bot`, `im:message.group_at_msg` (for group chats).
-6. Set `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_ENCRYPT_KEY`, `FEISHU_VERIFICATION_TOKEN` in `.env`.
+   - `FEISHU_EVENT_SOURCE=both`: start the long-connection client while keeping webhook ingestion active for migration. Duplicate events with the same `message_id` are ignored in-process.
 
 ## Discord Setup
 

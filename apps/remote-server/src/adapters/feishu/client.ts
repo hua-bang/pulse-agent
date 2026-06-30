@@ -90,12 +90,16 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
   formData.append('image_type', 'message');
   formData.append('image', new Blob([imageBuffer], { type: mimeType || 'image/png' }), filename);
 
-  const response = await fetch(`${getFeishuBaseUrl()}/open-apis/im/v1/images`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${token}`,
+  const response = await fetchFeishuWithRetry({
+    url: `${getFeishuBaseUrl()}/open-apis/im/v1/images`,
+    init: {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+      body: formData,
     },
-    body: formData,
+    action: 'upload image',
   });
 
   if (!response.ok) {
@@ -123,6 +127,8 @@ interface SendMessageOptions {
   replyToMessageId?: string;
 }
 
+const FEISHU_API_MAX_ATTEMPTS = 3;
+
 function normalizeReplyToMessageId(options?: SendMessageOptions): string | undefined {
   const replyToMessageId = options?.replyToMessageId?.trim();
   return replyToMessageId || undefined;
@@ -134,9 +140,9 @@ async function replyMessage(
   content: string,
 ): Promise<string> {
   const token = await getTenantAccessToken();
-  const response = await fetch(
-    `${getFeishuBaseUrl()}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reply`,
-    {
+  const response = await fetchFeishuWithRetry({
+    url: `${getFeishuBaseUrl()}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reply`,
+    init: {
       method: 'POST',
       headers: {
         authorization: `Bearer ${token}`,
@@ -147,7 +153,8 @@ async function replyMessage(
         content,
       }),
     },
-  );
+    action: 'reply message',
+  });
 
   if (!response.ok) {
     const body = await response.text();
@@ -185,9 +192,9 @@ export async function sendImageMessage(
     }
   }
 
-  const response = await fetch(
-    `${getFeishuBaseUrl()}/open-apis/im/v1/messages?receive_id_type=${encodeURIComponent(receiveIdType)}`,
-    {
+  const response = await fetchFeishuWithRetry({
+    url: `${getFeishuBaseUrl()}/open-apis/im/v1/messages?receive_id_type=${encodeURIComponent(receiveIdType)}`,
+    init: {
       method: 'POST',
       headers: {
         authorization: `Bearer ${token}`,
@@ -199,7 +206,8 @@ export async function sendImageMessage(
         content,
       }),
     },
-  );
+    action: 'send image message',
+  });
 
   if (!response.ok) {
     const body = await response.text();
@@ -224,9 +232,9 @@ export async function addMessageReaction(messageId: string, emojiType: string): 
     throw new Error('emojiType is required');
   }
 
-  const response = await fetch(
-    `${getFeishuBaseUrl()}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reactions`,
-    {
+  const response = await fetchFeishuWithRetry({
+    url: `${getFeishuBaseUrl()}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/reactions`,
+    init: {
       method: 'POST',
       headers: {
         authorization: `Bearer ${token}`,
@@ -236,7 +244,8 @@ export async function addMessageReaction(messageId: string, emojiType: string): 
         reaction_type: { emoji_type: normalizedEmojiType },
       }),
     },
-  );
+    action: 'add message reaction',
+  });
 
   if (!response.ok) {
     const body = await response.text();
@@ -270,14 +279,14 @@ export async function sendTextMessage(
     }
   }
 
-  const res = await client.im.message.create({
+  const res = await retryFeishuOperation('send text message', () => client.im.message.create({
     params: { receive_id_type: receiveIdType },
     data: {
       receive_id: receiveId,
       msg_type: 'text',
       content,
     },
-  });
+  }));
   if (typeof res.code === 'number' && res.code !== 0) {
     throw new Error(`Feishu send text failed: ${res.code} ${res.msg ?? 'unknown error'}`);
   }
@@ -305,14 +314,14 @@ export async function sendCardMessage(
     }
   }
 
-  const res = await client.im.message.create({
+  const res = await retryFeishuOperation('send card message', () => client.im.message.create({
     params: { receive_id_type: receiveIdType },
     data: {
       receive_id: receiveId,
       msg_type: 'interactive',
       content,
     },
-  });
+  }));
   if (typeof res.code === 'number' && res.code !== 0) {
     throw new Error(`Feishu send card failed: ${res.code} ${res.msg ?? 'unknown error'}`);
   }
@@ -327,13 +336,119 @@ export async function updateCardMessage(
   messageId: string,
   card: object,
 ): Promise<void> {
-  const res = await client.im.message.patch({
+  const res = await retryFeishuOperation('update card message', () => client.im.message.patch({
     path: { message_id: messageId },
     data: { content: JSON.stringify(card) },
-  });
+  }));
   if (typeof res.code === 'number' && res.code !== 0) {
     throw new Error(`Feishu update card failed: ${res.code} ${res.msg ?? 'unknown error'}`);
   }
+}
+
+async function fetchFeishuWithRetry(input: {
+  url: string;
+  init: RequestInit;
+  action: string;
+}): Promise<Response> {
+  return retryFeishuOperation(input.action, async () => {
+    const response = await fetch(input.url, input.init);
+    if (isRetriableStatus(response.status)) {
+      throw new RetriableFeishuResponseError(input.action, response.status, response.statusText);
+    }
+    return response;
+  });
+}
+
+async function retryFeishuOperation<T>(action: string, operation: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= FEISHU_API_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt >= FEISHU_API_MAX_ATTEMPTS || !isRetriableFeishuError(err)) {
+        throw err;
+      }
+
+      const delayMs = getRetryDelayMs(attempt);
+      console.warn(
+        `[feishu] ${action} failed transiently; retrying ${attempt + 1}/${FEISHU_API_MAX_ATTEMPTS} in ${delayMs}ms: ${getErrorMessage(err)}`,
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+class RetriableFeishuResponseError extends Error {
+  constructor(
+    action: string,
+    readonly status: number,
+    statusText: string,
+  ) {
+    super(`Feishu ${action} failed transiently: ${status} ${statusText}`);
+  }
+}
+
+function isRetriableFeishuError(err: unknown): boolean {
+  if (err instanceof RetriableFeishuResponseError) {
+    return true;
+  }
+
+  const status = readNumericPath(err, 'response', 'status') ?? readNumericPath(err, 'status');
+  if (typeof status === 'number') {
+    return isRetriableStatus(status);
+  }
+
+  const code = readStringPath(err, 'code');
+  if (code && ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN', 'ENOTFOUND', 'ECONNREFUSED'].includes(code)) {
+    return true;
+  }
+
+  const message = getErrorMessage(err).toLowerCase();
+  return message.includes('socket hang up')
+    || message.includes('fetch failed')
+    || message.includes('network')
+    || message.includes('timeout');
+}
+
+function isRetriableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function getRetryDelayMs(attempt: number): number {
+  return 350 * 2 ** (attempt - 1);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function readNumericPath(value: unknown, ...path: string[]): number | undefined {
+  const found = readPath(value, ...path);
+  return typeof found === 'number' ? found : undefined;
+}
+
+function readStringPath(value: unknown, ...path: string[]): string | undefined {
+  const found = readPath(value, ...path);
+  return typeof found === 'string' ? found : undefined;
+}
+
+function readPath(value: unknown, ...path: string[]): unknown {
+  let current = value;
+  for (const key of path) {
+    if (typeof current !== 'object' || current === null) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 // ─── Card builders ────────────────────────────────────────────────────────────
