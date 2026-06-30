@@ -297,7 +297,14 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
         const res = await window.canvasWorkspace.canvasMcp.oauthConnect(scope, name);
         if (res.ok && res.status) {
           applyStatus(res.status);
-          notify({ tone: 'success', title: t('mcpConfig.oauthConnectOk', { name }) });
+          const health = res.status.statuses?.[name];
+          if (health?.ok) {
+            notify({ tone: 'success', title: t('mcpConfig.oauthConnectOkWithTools', { name, count: health.toolCount }) });
+          } else if (health && !health.ok) {
+            notify({ tone: 'error', title: t('mcpConfig.oauthConnectToolsFailed', { name }), description: health.error });
+          } else {
+            notify({ tone: 'success', title: t('mcpConfig.oauthConnectOk', { name }) });
+          }
         } else {
           notify({ tone: 'error', title: res.error ?? t('mcpConfig.oauthConnectFailed') });
         }
@@ -655,21 +662,33 @@ export const McpManager = ({ scope, showInherited = false }: Props) => {
                       </button>
                     )}
                     {server.auth === 'oauth' && (
-                      <button
-                        type="button"
-                        className="cfg-secondary-btn"
-                        onClick={() => {
-                          const connected = oauthStatuses[server.name]?.connected;
-                          void (connected ? disconnectOAuth(server.name) : connectOAuth(server.name));
-                        }}
-                        disabled={busyOAuth === server.name}
-                      >
-                        {busyOAuth === server.name
-                          ? t('mcpConfig.oauthConnecting')
-                          : oauthStatuses[server.name]?.connected
-                            ? t('mcpConfig.oauthDisconnect')
-                            : t('mcpConfig.oauthConnect')}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="cfg-secondary-btn"
+                          onClick={() => {
+                            const connected = oauthStatuses[server.name]?.connected;
+                            void (connected ? reloadTools(server.name) : connectOAuth(server.name));
+                          }}
+                          disabled={busyReload !== null || busyOAuth !== null}
+                        >
+                          {busyOAuth === server.name
+                            ? t('mcpConfig.oauthConnecting')
+                            : oauthStatuses[server.name]?.connected
+                              ? connectLabel
+                              : t('mcpConfig.oauthConnect')}
+                        </button>
+                        {oauthStatuses[server.name]?.connected && (
+                          <button
+                            type="button"
+                            className="cfg-secondary-btn"
+                            onClick={() => void disconnectOAuth(server.name)}
+                            disabled={busyReload !== null || busyOAuth !== null}
+                          >
+                            {busyOAuth === server.name ? t('mcpConfig.oauthConnecting') : t('mcpConfig.oauthDisconnect')}
+                          </button>
+                        )}
+                      </>
                     )}
                     <button type="button" className="cfg-secondary-btn" onClick={() => setDraft(serverToDraft(server))}>
                       {t('mcpConfig.edit')}
