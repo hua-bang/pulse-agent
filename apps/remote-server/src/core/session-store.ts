@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import type { Context } from './types.js';
 import type { StoredAttachment } from './attachments.js';
+import { parseFeishuPlatformKey } from '../adapters/feishu/platform-key.js';
 // ModelMessage is the Vercel AI SDK type, re-exported via pulse-coder-engine
 // Context.messages is ModelMessage[] so we can use unknown[] as the storage type
 // and cast when needed — avoids adding `ai` as a direct dependency
@@ -685,14 +686,9 @@ class RemoteSessionStore {
       return `discord:user:${discordDm[1]}`;
     }
 
-    const feishuGroup = /^feishu:group:[^:]+:([^:]+)$/.exec(session.platformKey);
-    if (feishuGroup) {
-      return `feishu:user:${feishuGroup[1]}`;
-    }
-
-    const feishuDm = /^feishu:([^:]+)$/.exec(session.platformKey);
-    if (feishuDm) {
-      return `feishu:user:${feishuDm[1]}`;
+    const feishu = parseFeishuPlatformKey(session.platformKey);
+    if (feishu) {
+      return `feishu:user:${feishu.openId}`;
     }
 
     const web = /^web:(.+)$/.exec(session.platformKey);

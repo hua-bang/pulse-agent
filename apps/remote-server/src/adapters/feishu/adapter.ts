@@ -20,6 +20,7 @@ import {
   buildDoneCard,
   buildErrorCard,
 } from './client.js';
+import { buildFeishuPlatformKey, parseFeishuPlatformKey } from './platform-key.js';
 
 
 /**
@@ -177,9 +178,13 @@ export class FeishuAdapter implements PlatformAdapter {
       if (!text) return null;
     }
 
-    const platformKey = isGroupChat && chatId
-      ? `feishu:group:${chatId}:${openId}`
-      : `feishu:${openId}`;
+    const topicId = isGroupChat ? resolveFeishuTopicId(message) : undefined;
+    const platformKey = buildFeishuPlatformKey({
+      chatId,
+      chatType,
+      openId,
+      topicId,
+    });
     const memoryKey = `feishu:user:${openId}`;
 
     if (messageId && shouldAddFeishuReactions(isGroupChat)) {
@@ -194,6 +199,7 @@ export class FeishuAdapter implements PlatformAdapter {
       chatType,
       openId,
       sourceMessageId: messageId,
+      topicId,
     });
     const chatMeta = {
       ...meta,
@@ -243,10 +249,11 @@ export class FeishuAdapter implements PlatformAdapter {
     const meta = this.chatMetaByStreamId.get(_streamId)
       ?? (incoming.streamId ? this.chatMetaByStreamId.get(incoming.streamId) : undefined)
       ?? this.chatMetaByPlatformKey.get(incoming.platformKey);
-    const chatId = meta?.chatId ?? incoming.platformKey.replace('feishu:', '');
-    const idType = meta?.chatIdType ?? 'open_id';
-    const sourceMessageId = meta?.sourceMessageId;
-    const allowReaction = meta?.allowReaction ?? false;
+    const fallbackMeta = meta ?? resolveFeishuChatMetaFromPlatformKey(incoming.platformKey);
+    const chatId = fallbackMeta.chatId;
+    const idType = fallbackMeta.chatIdType;
+    const sourceMessageId = fallbackMeta.sourceMessageId;
+    const allowReaction = fallbackMeta.allowReaction ?? false;
     const replyOptions = idType === 'chat_id' && sourceMessageId ? { replyToMessageId: sourceMessageId } : undefined;
     const { larkClient } = this;
     const activeRun = getActiveRun(incoming.platformKey);
@@ -524,7 +531,15 @@ interface FeishuChatMeta {
   chatId: string;
   chatIdType: 'open_id' | 'chat_id';
   sourceMessageId?: string;
+  topicId?: string;
   allowReaction?: boolean;
+}
+
+function resolveFeishuTopicId(message: Record<string, unknown>): string | undefined {
+  return asNonEmptyString(message.root_id)
+    ?? asNonEmptyString(message.parent_id)
+    ?? asNonEmptyString(message.thread_id)
+    ?? undefined;
 }
 
 function extractFeishuEvent(body: Record<string, unknown>): Record<string, unknown> | null {
@@ -545,12 +560,14 @@ function resolveFeishuChatMeta(input: {
   chatType?: string;
   openId: string;
   sourceMessageId?: string;
+  topicId?: string;
 }): FeishuChatMeta {
   if (input.chatType === 'group' && input.chatId) {
     return {
       chatId: input.chatId,
       chatIdType: 'chat_id',
       sourceMessageId: input.sourceMessageId,
+      topicId: input.topicId,
     };
   }
 
@@ -558,6 +575,22 @@ function resolveFeishuChatMeta(input: {
     chatId: input.openId,
     chatIdType: 'open_id',
     sourceMessageId: input.sourceMessageId,
+  };
+}
+
+function resolveFeishuChatMetaFromPlatformKey(platformKey: string): FeishuChatMeta {
+  const parsed = parseFeishuPlatformKey(platformKey);
+  if (parsed?.kind === 'group') {
+    return {
+      chatId: parsed.chatId,
+      chatIdType: 'chat_id',
+      topicId: parsed.topicId,
+    };
+  }
+
+  return {
+    chatId: parsed?.openId ?? platformKey.replace('feishu:', ''),
+    chatIdType: 'open_id',
   };
 }
 
@@ -739,9 +772,10 @@ function parseRunCardAction(data: unknown): RunCardAction | null {
   }
   const chatId = asNonEmptyString(event.context?.open_chat_id)
     ?? asNonEmptyString(event.context?.chat_id);
-  const replyTarget = platformKey.startsWith('feishu:group:')
-    ? { chatId: chatId ?? parseFeishuGroupChatId(platformKey) ?? '', chatIdType: 'chat_id' as const }
-    : { chatId: asNonEmptyString(openId) ?? parseFeishuOpenId(platformKey) ?? '', chatIdType: 'open_id' as const };
+  const parsedPlatformKey = parseFeishuPlatformKey(platformKey);
+  const replyTarget = parsedPlatformKey?.kind === 'group'
+    ? { chatId: chatId ?? parsedPlatformKey.chatId, chatIdType: 'chat_id' as const }
+    : { chatId: asNonEmptyString(openId) ?? parsedPlatformKey?.openId ?? '', chatIdType: 'open_id' as const };
 
   if (!replyTarget.chatId) {
     return null;
@@ -804,22 +838,12 @@ function asRunCardCommand(value: unknown): RunCardCommand | null {
 }
 
 function isRunCardActorAllowed(platformKey: string, actorOpenId: string): boolean {
-  const groupMatch = /^feishu:group:[^:]+:([^:]+)$/.exec(platformKey);
-  if (groupMatch) {
-    return groupMatch[1] === actorOpenId;
+  const parsed = parseFeishuPlatformKey(platformKey);
+  if (parsed) {
+    return parsed.openId === actorOpenId;
   }
-  const dmMatch = /^feishu:([^:]+)$/.exec(platformKey);
-  return !dmMatch || dmMatch[1] === actorOpenId;
-}
 
-function parseFeishuGroupChatId(platformKey: string): string | null {
-  const match = /^feishu:group:([^:]+):/.exec(platformKey);
-  return match?.[1] ?? null;
-}
-
-function parseFeishuOpenId(platformKey: string): string | null {
-  const match = /^feishu:([^:]+)$/.exec(platformKey);
-  return match?.[1] ?? null;
+  return true;
 }
 
 
