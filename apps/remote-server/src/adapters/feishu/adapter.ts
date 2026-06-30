@@ -1,6 +1,6 @@
 import type { HonoRequest, Context as HonoContext } from 'hono';
 import { existsSync } from 'fs';
-import type { PlatformAdapter, IncomingMessage, StreamHandle } from '../../core/types.js';
+import type { PlatformAdapter, IncomingMessage, IncomingAttachment, StreamHandle } from '../../core/types.js';
 import type { ClarificationRequest } from '../../core/types.js';
 import { clarificationQueue } from '../../core/clarification-queue.js';
 import { getActiveRun, getActiveStreamId } from '../../core/active-run-store.js';
@@ -23,6 +23,16 @@ import {
 import { buildFeishuPlatformKey, parseFeishuPlatformKey } from './platform-key.js';
 import { parseFeishuMessageContent } from './message-content.js';
 
+
+const FEISHU_PENDING_IMAGE_TTL_MS = 5000;
+const FEISHU_TEXT_IMAGE_MERGE_WAIT_MS = 900;
+const FEISHU_PENDING_IMAGE_MAX_KEYS = 500;
+
+interface PendingFeishuImageGroup {
+  attachments: IncomingAttachment[];
+  messageIds: string[];
+  expiresAt: number;
+}
 
 /**
  * Feishu (Lark) adapter.
@@ -49,6 +59,9 @@ export class FeishuAdapter implements PlatformAdapter {
 
   // Dedup cache — prevent processing the same message_id twice
   private seenMessageIds = new Set<string>();
+
+  // Feishu may split a single composed post into separate text and image events.
+  private pendingImagesByConversation = new Map<string, PendingFeishuImageGroup>();
 
   verifyRequest(_req: HonoRequest): boolean {
     return true;
@@ -168,16 +181,30 @@ export class FeishuAdapter implements PlatformAdapter {
     const chatId = message['chat_id'] as string | undefined;
     const chatType = message['chat_type'] as string | undefined; // 'p2p' | 'group'
     const isGroupChat = chatType === 'group';
+    const topicId = isGroupChat ? resolveFeishuTopicId(message) : undefined;
+    const pendingImageKey = buildFeishuPendingImageKey({ chatId, chatType, openId });
 
-    // Group chats: only respond when @mentioned
+    // Group chats: only respond when @mentioned. If Feishu split an image out of
+    // an @mentioned composed message, keep it briefly so the text event can merge it.
     if (isGroupChat) {
       const mentions = (message['mentions'] as unknown[] | undefined) ?? [];
-      if (mentions.length === 0) return null;
+      if (mentions.length === 0) {
+        if (hasAttachments && pendingImageKey) {
+          this.storePendingFeishuImages(pendingImageKey, attachments, messageId);
+        }
+        return null;
+      }
+      if (hasAttachments && pendingImageKey) {
+        attachments.push(...this.takePendingFeishuImages(pendingImageKey));
+      } else if (pendingImageKey) {
+        await sleep(FEISHU_TEXT_IMAGE_MERGE_WAIT_MS);
+        attachments.push(...this.takePendingFeishuImages(pendingImageKey));
+      }
       text = removeFeishuMentions(text, mentions);
-      if (!text && !hasAttachments) return null;
+      if (!text && attachments.length === 0) return null;
     }
 
-    const topicId = isGroupChat ? resolveFeishuTopicId(message) : undefined;
+    const hasMergedAttachments = attachments.length > 0;
     const platformKey = buildFeishuPlatformKey({
       chatId,
       chatType,
@@ -229,7 +256,41 @@ export class FeishuAdapter implements PlatformAdapter {
       return null;
     }
 
-    return { platformKey, memoryKey, text, attachments: hasAttachments ? attachments : undefined, streamId: messageId };
+    return { platformKey, memoryKey, text, attachments: hasMergedAttachments ? attachments : undefined, streamId: messageId };
+  }
+
+  private storePendingFeishuImages(key: string, attachments: IncomingAttachment[], messageId?: string): void {
+    this.pruneExpiredPendingFeishuImages();
+    const existing = this.pendingImagesByConversation.get(key);
+    const messageIds = existing?.messageIds ?? [];
+    if (messageId && !messageIds.includes(messageId)) {
+      messageIds.push(messageId);
+    }
+    this.pendingImagesByConversation.set(key, {
+      attachments: dedupeIncomingAttachments([...(existing?.attachments ?? []), ...attachments]),
+      messageIds,
+      expiresAt: Date.now() + FEISHU_PENDING_IMAGE_TTL_MS,
+    });
+    pruneMap(this.pendingImagesByConversation, FEISHU_PENDING_IMAGE_MAX_KEYS);
+  }
+
+  private takePendingFeishuImages(key: string): IncomingAttachment[] {
+    this.pruneExpiredPendingFeishuImages();
+    const pending = this.pendingImagesByConversation.get(key);
+    if (!pending) {
+      return [];
+    }
+    this.pendingImagesByConversation.delete(key);
+    return pending.attachments;
+  }
+
+  private pruneExpiredPendingFeishuImages(): void {
+    const now = Date.now();
+    for (const [key, pending] of this.pendingImagesByConversation) {
+      if (pending.expiresAt <= now) {
+        this.pendingImagesByConversation.delete(key);
+      }
+    }
   }
 
   // URL verification challenge to return in ackRequest
@@ -591,6 +652,39 @@ function resolveFeishuChatMetaFromPlatformKey(platformKey: string): FeishuChatMe
     chatId: parsed?.openId ?? platformKey.replace('feishu:', ''),
     chatIdType: 'open_id',
   };
+}
+
+function buildFeishuPendingImageKey(input: {
+  chatId?: string;
+  chatType?: string;
+  openId: string;
+}): string | null {
+  if (input.chatType === 'group') {
+    if (!input.chatId) {
+      return null;
+    }
+    return ['group', input.chatId, input.openId].join(':');
+  }
+
+  return ['direct', input.openId].join(':');
+}
+
+function dedupeIncomingAttachments(attachments: IncomingAttachment[]): IncomingAttachment[] {
+  const seen = new Set<string>();
+  const unique: IncomingAttachment[] = [];
+  for (const attachment of attachments) {
+    const key = `${attachment.messageId ?? ''}:${attachment.id ?? attachment.url}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(attachment);
+  }
+  return unique;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function shouldAddFeishuReactions(isGroupChat: boolean): boolean {
