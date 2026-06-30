@@ -524,6 +524,13 @@ function clampCardText(text: string, maxLength = MAX_CARD_TEXT_LENGTH): string {
   return `...${text.slice(text.length - maxLength)}`;
 }
 
+function formatCardDetailText(...parts: Array<string | undefined>): string {
+  const normalizedParts = parts
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+  return clampCardText(normalizedParts.join('\n\n'));
+}
+
 function md(content: string): object {
   return { tag: 'markdown', content };
 }
@@ -594,9 +601,9 @@ function buildRunMeta(context: RunCardContext, status: string): string {
 
 function buildProgressElements(context: RunCardContext): object[] {
   const elements: object[] = [md(buildRunMeta(context, '运行中'))];
-  const detailParts = [context.latestToolHint, context.detailText].filter(Boolean) as string[];
-  if (detailParts.length > 0) {
-    elements.push(md(clampCardText(detailParts.join('\n\n'))));
+  const detailText = formatCardDetailText(context.latestToolHint, context.detailText);
+  if (detailText) {
+    elements.push(md(detailText));
   }
   elements.push(buttonRow([
     runActionButton('status', '状态', context, 'primary'),
@@ -635,7 +642,7 @@ export function buildProgressCard(context: RunCardContext): object {
 
 export function buildDoneCard(text: string, options: DoneCardOptions = {}): object {
   const context = options.context;
-  const elements: object[] = [md(clampCardText(text || '✅ Done'))];
+  const elements: object[] = [md(formatCardDetailText(text) || '✅ Done')];
   if (context) {
     elements.unshift(md(buildRunMeta(context, '已完成')));
   }
