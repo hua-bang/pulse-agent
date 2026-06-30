@@ -23,6 +23,11 @@ import {
 const MODEL_CONTEXT_BUDGET_OVERRIDE = Number(process.env.MODEL_CONTEXT_BUDGET ?? 0) || undefined;
 const LLM_TIMEOUT_CODE = 'LLM_TIMEOUT';
 type LLMTimeoutReason = 'first-chunk' | 'total';
+type ActiveToolExecution = {
+  name: string;
+  startedAt: number;
+  inputPreview?: string;
+};
 
 function resolveModelContextBudget(model?: string, modelType?: ModelType): number {
   if (MODEL_CONTEXT_BUDGET_OVERRIDE && MODEL_CONTEXT_BUDGET_OVERRIDE > 0) {
@@ -50,13 +55,20 @@ function normalizeTimeoutMs(value: number): number | undefined {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
-function createLLMTimeoutError(reason: LLMTimeoutReason, timeoutMs: number): Error {
+function createLLMTimeoutError(
+  reason: LLMTimeoutReason,
+  timeoutMs: number,
+  activeTool?: ActiveToolExecution,
+): Error {
   const label = reason === 'first-chunk' ? 'first response chunk' : 'total request duration';
   const error = new Error(`LLM ${label} timed out after ${timeoutMs}ms`);
   error.name = 'LLMTimeoutError';
   (error as any).code = LLM_TIMEOUT_CODE;
   (error as any).timeoutReason = reason;
   (error as any).timeoutMs = timeoutMs;
+  if (activeTool) {
+    (error as any).activeTool = activeTool;
+  }
   return error;
 }
 
@@ -78,6 +90,14 @@ function formatDurationMs(ms: number): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.round(seconds % 60);
   return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+}
+
+function previewToolInput(input: unknown): string | undefined {
+  const value = safeStringify(input).replace(/\s+/g, ' ').trim();
+  if (!value) {
+    return undefined;
+  }
+  return value.length > 180 ? `${value.slice(0, 180)}…` : value;
 }
 
 /**
@@ -186,9 +206,16 @@ function wrapToolsWithHooks(
   beforeHooks: Array<EngineHookMap['beforeToolCall']>,
   afterHooks: Array<EngineHookMap['afterToolCall']>,
   context: Context,
+  onToolExecutionStart?: (tool: ActiveToolExecution) => symbol,
+  onToolExecutionEnd?: (token: symbol) => void,
 ): Record<string, Tool> {
   const wrapped: Record<string, Tool> = {};
   for (const [name, t] of Object.entries(tools)) {
+    if (typeof t.execute !== 'function') {
+      wrapped[name] = t;
+      continue;
+    }
+
     wrapped[name] = {
       ...t,
       execute: async (input: any, ctx: any) => {
@@ -201,18 +228,30 @@ function wrapToolsWithHooks(
           }
         }
 
-        const output = await t.execute(finalInput, ctx);
+        const executionToken = onToolExecutionStart?.({
+          name,
+          startedAt: Date.now(),
+          inputPreview: previewToolInput(finalInput),
+        });
 
-        // Run all afterToolCall hooks sequentially
-        let finalOutput = output;
-        for (const hook of afterHooks) {
-          const result = await hook({ context, name, input: finalInput, output: finalOutput });
-          if (result && 'output' in result) {
-            finalOutput = result.output;
+        try {
+          const output = await t.execute(finalInput, ctx);
+
+          // Run all afterToolCall hooks sequentially
+          let finalOutput = output;
+          for (const hook of afterHooks) {
+            const result = await hook({ context, name, input: finalInput, output: finalOutput });
+            if (result && 'output' in result) {
+              finalOutput = result.output;
+            }
+          }
+
+          return finalOutput;
+        } finally {
+          if (executionToken) {
+            onToolExecutionEnd?.(executionToken);
           }
         }
-
-        return finalOutput;
       },
     };
   }
@@ -360,12 +399,36 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       // Inject read/ls deduplication warnings
       tools = wrapToolsWithReadDedup(tools, seenPaths);
 
-      // Wrap tools with beforeToolCall / afterToolCall hooks
+      const activeToolExecutions = new Map<symbol, ActiveToolExecution>();
+      const getActiveToolExecution = (): ActiveToolExecution | undefined => {
+        let oldest: ActiveToolExecution | undefined;
+        for (const tool of activeToolExecutions.values()) {
+          if (!oldest || tool.startedAt < oldest.startedAt) {
+            oldest = tool;
+          }
+        }
+        return oldest;
+      };
+      const onToolExecutionStart = (tool: ActiveToolExecution): symbol => {
+        const token = Symbol(tool.name);
+        activeToolExecutions.set(token, tool);
+        return token;
+      };
+      const onToolExecutionEnd = (token: symbol) => {
+        activeToolExecutions.delete(token);
+      };
+
+      // Wrap tools with execution tracking and beforeToolCall / afterToolCall hooks
       const beforeToolHooks = loopHooks.beforeToolCall ?? [];
       const afterToolHooks = loopHooks.afterToolCall ?? [];
-      if (beforeToolHooks.length || afterToolHooks.length) {
-        tools = wrapToolsWithHooks(tools, beforeToolHooks, afterToolHooks, context);
-      }
+      tools = wrapToolsWithHooks(
+        tools,
+        beforeToolHooks,
+        afterToolHooks,
+        context,
+        onToolExecutionStart,
+        onToolExecutionEnd,
+      );
 
       // Prepare tool execution context
       const toolExecutionContext = {
@@ -406,7 +469,7 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       };
 
       const handleTimeout = (reason: LLMTimeoutReason, timeoutMs: number) => {
-        const error = timeoutError ?? createLLMTimeoutError(reason, timeoutMs);
+        const error = timeoutError ?? createLLMTimeoutError(reason, timeoutMs, getActiveToolExecution());
         timeoutError = error;
         abortLLM(error);
         rejectLLMWaitOnce(error);
@@ -721,6 +784,26 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
 function formatUpstreamError(error: any): string | null {
   if (isLLMTimeoutError(error)) {
     const timeoutMs = Number(error?.timeoutMs);
+    const activeTool = error?.activeTool as ActiveToolExecution | undefined;
+    if (activeTool) {
+      const elapsedMs = Date.now() - activeTool.startedAt;
+      const details = [
+        `工具：\`${activeTool.name}\``,
+        `已执行：${formatDurationMs(elapsedMs)}`,
+      ];
+      if (activeTool.inputPreview) {
+        details.push(`输入预览：\`${activeTool.inputPreview}\``);
+      }
+      return [
+        '⚠️ 工具执行超时。',
+        '',
+        `本次工具调用在 ${formatDurationMs(timeoutMs)} 内没有完成，已主动中止以释放 remote-server 的运行锁。`,
+        details.join('\n'),
+        '',
+        '这通常不是上游模型首包慢，而是 shell/git/网络/API 等工具执行挂住或等待交互。建议检查命令是否需要非交互参数、是否卡在编辑器/凭据/网络等待；如确实需要等待更久，可调整 `LLM_CALL_TIMEOUT_MS`。',
+      ].join('\n');
+    }
+
     const timeoutReason = error?.timeoutReason === 'total' ? '完整响应' : '首个响应块';
     return [
       '⚠️ 上游模型请求超时。',
