@@ -51,6 +51,8 @@ export const createCanvasMcpApi = (ipcRenderer: IpcRenderer): CanvasMcpApi => ({
   remove: (scope, name) =>
     ipcRenderer.invoke("canvas-mcp:remove", { scope, name }),
 
+  reload: (scope) => ipcRenderer.invoke("canvas-mcp:reload", { scope }),
+
   importJson: (scope, json) =>
     ipcRenderer.invoke("canvas-mcp:import-json", { scope, json }),
 

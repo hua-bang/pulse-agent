@@ -89,6 +89,7 @@ export interface CanvasMcpApi {
     scope: CanvasConfigScope,
     name: string,
   ) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
+  reload: (scope: CanvasConfigScope) => Promise<{ ok: boolean; status?: CanvasMcpStatus; error?: string }>;
   importJson: (
     scope: CanvasConfigScope,
     json: string,
