@@ -21,6 +21,7 @@ import {
   buildErrorCard,
 } from './client.js';
 import { buildFeishuPlatformKey, parseFeishuPlatformKey } from './platform-key.js';
+import { parseFeishuMessageContent } from './message-content.js';
 
 
 /**
@@ -155,16 +156,14 @@ export class FeishuAdapter implements PlatformAdapter {
 
     const openId = (sender['sender_id'] as Record<string, unknown> | undefined)?.['open_id'] as string | undefined;
     if (!openId) return null;
-    if (message['message_type'] !== 'text') return null;
+    const messageType = asNonEmptyString(message['message_type']);
+    const parsedContent = parseFeishuMessageContent(messageType, message['content'], messageId);
+    if (!parsedContent) return null;
 
-    let text: string;
-    try {
-      const content = JSON.parse(message['content'] as string ?? '{}') as { text?: string };
-      text = content.text?.trim() ?? '';
-    } catch {
-      return null;
-    }
-    if (!text) return null;
+    let text = parsedContent.text;
+    const attachments = parsedContent.attachments;
+    const hasAttachments = attachments.length > 0;
+    if (!text && !hasAttachments) return null;
 
     const chatId = message['chat_id'] as string | undefined;
     const chatType = message['chat_type'] as string | undefined; // 'p2p' | 'group'
@@ -175,7 +174,7 @@ export class FeishuAdapter implements PlatformAdapter {
       const mentions = (message['mentions'] as unknown[] | undefined) ?? [];
       if (mentions.length === 0) return null;
       text = removeFeishuMentions(text, mentions);
-      if (!text) return null;
+      if (!text && !hasAttachments) return null;
     }
 
     const topicId = isGroupChat ? resolveFeishuTopicId(message) : undefined;
@@ -230,7 +229,7 @@ export class FeishuAdapter implements PlatformAdapter {
       return null;
     }
 
-    return { platformKey, memoryKey, text, streamId: messageId };
+    return { platformKey, memoryKey, text, attachments: hasAttachments ? attachments : undefined, streamId: messageId };
   }
 
   // URL verification challenge to return in ackRequest

@@ -117,6 +117,44 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
   return imageKey;
 }
 
+export async function downloadImageFromFeishu(imageKey: string): Promise<{ buffer: Buffer; mimeType?: string; size?: number }> {
+  const normalizedImageKey = imageKey.trim();
+  if (!normalizedImageKey) {
+    throw new Error('imageKey is required');
+  }
+
+  const token = await getTenantAccessToken();
+  const response = await fetchFeishuWithRetry({
+    url: `${getFeishuBaseUrl()}/open-apis/im/v1/images/${encodeURIComponent(normalizedImageKey)}?image_type=message`,
+    init: {
+      method: 'GET',
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+    },
+    action: 'download image',
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Failed to download image from Feishu: ${response.status} ${response.statusText} - ${body}`);
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length === 0) {
+    throw new Error(`Downloaded Feishu image is empty: ${normalizedImageKey}`);
+  }
+
+  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() || undefined;
+  const contentLength = Number(response.headers.get('content-length') ?? '0');
+
+  return {
+    buffer,
+    mimeType: contentType,
+    size: Number.isFinite(contentLength) && contentLength > 0 ? contentLength : buffer.length,
+  };
+}
+
 type ReceiveIdType = 'open_id' | 'chat_id' | 'user_id' | 'union_id' | 'email';
 
 interface RunCardContext {
