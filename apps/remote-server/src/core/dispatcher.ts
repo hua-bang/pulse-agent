@@ -126,7 +126,7 @@ async function runAgentAsync(adapter: PlatformAdapter, incoming: IncomingMessage
   const streamId = incoming.streamId ?? randomUUID();
   const runId = randomUUID();
   const ac = new AbortController();
-  setActiveRun(platformKey, { streamId, ac, startedAt: Date.now() });
+  setActiveRun(platformKey, { streamId, runId, ac, startedAt: Date.now() });
 
   let handle: StreamHandle | null = null;
 

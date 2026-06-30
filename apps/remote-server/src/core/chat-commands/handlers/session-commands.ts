@@ -144,6 +144,9 @@ export async function handleStatusCommand(platformKey: string): Promise<CommandR
 
   if (activeRun) {
     lines.push(`- 运行状态：处理中（已运行 ${formatDuration(Date.now() - activeRun.startedAt)}）`);
+    if (activeRun.runId) {
+      lines.push(`- Run ID: ${activeRun.runId}`);
+    }
     lines.push(`- Stream ID: ${activeRun.streamId}`);
   } else {
     lines.push('- 运行状态：空闲');
