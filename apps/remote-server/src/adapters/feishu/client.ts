@@ -115,6 +115,10 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
 
 type ReceiveIdType = 'open_id' | 'chat_id' | 'user_id' | 'union_id' | 'email';
 
+interface DoneCardOptions {
+  toolCalls?: string[];
+}
+
 interface SendMessageOptions {
   replyToMessageId?: string;
 }
@@ -279,6 +283,7 @@ export async function sendTextMessage(
   }
   return res.data?.message_id ?? '';
 }
+
 /**
  * Send an interactive card message.
  * Returns the message_id of the sent message.
@@ -353,12 +358,34 @@ export function buildProgressCard(text: string): object {
   };
 }
 
-export function buildDoneCard(text: string): object {
+export function buildDoneCard(text: string, options: DoneCardOptions = {}): object {
+  const elements: object[] = [{ tag: 'markdown', content: text || '✅ Done' }];
+  const toolCalls = options.toolCalls?.filter(Boolean) ?? [];
+
+  if (toolCalls.length > 0) {
+    elements.push({
+      tag: 'collapsible_panel',
+      expanded: false,
+      header: {
+        title: {
+          tag: 'plain_text',
+          content: `工具调用明细 (${toolCalls.length})`,
+        },
+      },
+      elements: [
+        {
+          tag: 'markdown',
+          content: toolCalls.map((toolCall, index) => `${index + 1}. ${toolCall}`).join('\n'),
+        },
+      ],
+    });
+  }
+
   return {
     schema: '2.0',
     config: { enable_forward: true },
     body: {
-      elements: [{ tag: 'markdown', content: text || '✅ Done' }],
+      elements,
     },
   };
 }

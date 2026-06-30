@@ -161,6 +161,7 @@ export class FeishuAdapter implements PlatformAdapter {
     let cardMessageId: string | null = null;
     let accumulatedText = '';
     let latestToolHint = '';
+    const toolCallSummaries: string[] = [];
 
     const PROGRESS_UPDATE_INTERVAL_MS = 800;
     const HEARTBEAT_INTERVAL_MS = 12000;
@@ -172,13 +173,22 @@ export class FeishuAdapter implements PlatformAdapter {
     let lastProgressUpdateAt = 0;
     let updateChain: Promise<void> = Promise.resolve();
     let finalized = false;
-    let cardUpdateFailed = false;
+    let consecutiveCardUpdateFailures = 0;
 
-    const markCardFailed = (reason: string, err: unknown) => {
-      if (!cardMessageId || cardUpdateFailed) return;
-      console.error(`[feishu] Card update failed (${reason}):`, err);
-      cardUpdateFailed = true;
-      clearProgressState();
+    const MAX_CONSECUTIVE_CARD_UPDATE_FAILURES = 3;
+
+    const isCardUpdateDisabled = (): boolean => consecutiveCardUpdateFailures >= MAX_CONSECUTIVE_CARD_UPDATE_FAILURES;
+
+    const recordCardUpdateFailure = (reason: string, err: unknown) => {
+      if (!cardMessageId || isCardUpdateDisabled()) return;
+      consecutiveCardUpdateFailures += 1;
+      console.error(
+        `[feishu] Card update failed (${reason}) ${consecutiveCardUpdateFailures}/${MAX_CONSECUTIVE_CARD_UPDATE_FAILURES}:`,
+        err,
+      );
+      if (isCardUpdateDisabled()) {
+        clearProgressState();
+      }
     };
 
     const tryUpdateCard = async (
@@ -186,21 +196,22 @@ export class FeishuAdapter implements PlatformAdapter {
       reason: string,
       options?: { allowFinal?: boolean },
     ): Promise<boolean> => {
-      if (!cardMessageId || cardUpdateFailed) return false;
+      if (!cardMessageId || isCardUpdateDisabled()) return false;
       if (finalized && !options?.allowFinal) return false;
       try {
         await updateCardMessage(larkClient, cardMessageId, cardFactory());
+        consecutiveCardUpdateFailures = 0;
         return true;
       } catch (err) {
-        markCardFailed(reason, err);
+        recordCardUpdateFailure(reason, err);
         return false;
       }
     };
 
     const queueCardUpdate = (cardFactory: () => object, reason = 'progress') => {
-      if (!cardMessageId || finalized || cardUpdateFailed) return;
+      if (!cardMessageId || finalized || isCardUpdateDisabled()) return;
       updateChain = updateChain.then(async () => {
-        if (!cardMessageId || finalized || cardUpdateFailed) return;
+        if (!cardMessageId || finalized || isCardUpdateDisabled()) return;
         await tryUpdateCard(cardFactory, reason);
       });
     };
@@ -239,7 +250,7 @@ export class FeishuAdapter implements PlatformAdapter {
     };
 
     const scheduleProgressUpdate = (force = false) => {
-      if (!cardMessageId || finalized || cardUpdateFailed) return;
+      if (!cardMessageId || finalized || isCardUpdateDisabled()) return;
 
       const now = Date.now();
       const elapsed = now - lastProgressUpdateAt;
@@ -258,7 +269,7 @@ export class FeishuAdapter implements PlatformAdapter {
     };
 
     const startHeartbeat = () => {
-      if (!cardMessageId || finalized || cardUpdateFailed || heartbeatHandle) return;
+      if (!cardMessageId || finalized || isCardUpdateDisabled() || heartbeatHandle) return;
       heartbeatHandle = setInterval(() => {
         scheduleProgressUpdate(true);
       }, HEARTBEAT_INTERVAL_MS);
@@ -289,6 +300,7 @@ export class FeishuAdapter implements PlatformAdapter {
 
       async onToolCall(name, input) {
         latestToolHint = formatFeishuToolHint(name, input);
+        rememberToolCall(toolCallSummaries, latestToolHint);
         scheduleProgressUpdate();
       },
 
@@ -328,15 +340,17 @@ export class FeishuAdapter implements PlatformAdapter {
         finalized = true;
         await updateChain;
 
+        const doneCard = () => buildDoneCard(result, { toolCalls: toolCallSummaries });
+
         if (cardMessageId) {
-          if (!cardUpdateFailed) {
-            const ok = await tryUpdateCard(() => buildDoneCard(result), 'done', { allowFinal: true });
+          if (!isCardUpdateDisabled()) {
+            const ok = await tryUpdateCard(doneCard, 'done', { allowFinal: true });
             if (ok) {
               return;
             }
           }
 
-          await sendCardMessage(larkClient, chatId, idType, buildDoneCard(result), replyOptions).catch((err) => {
+          await sendCardMessage(larkClient, chatId, idType, doneCard(), replyOptions).catch((err) => {
             console.error('[feishu] Failed to send done card fallback:', err);
           });
         } else {
@@ -356,7 +370,7 @@ export class FeishuAdapter implements PlatformAdapter {
         await updateChain;
 
         if (cardMessageId) {
-          if (!cardUpdateFailed) {
+          if (!isCardUpdateDisabled()) {
             const ok = await tryUpdateCard(() => buildErrorCard(err.message), 'error', { allowFinal: true });
             if (ok) {
               return;
@@ -373,6 +387,19 @@ export class FeishuAdapter implements PlatformAdapter {
     };
   }
 }
+function rememberToolCall(toolCallSummaries: string[], summary: string): void {
+  const normalized = summary.replace(/\s+/g, ' ').trim();
+  if (!normalized || toolCallSummaries[toolCallSummaries.length - 1] === normalized) {
+    return;
+  }
+
+  const maxToolCalls = 30;
+  toolCallSummaries.push(trimFeishuToolInput(normalized));
+  if (toolCallSummaries.length > maxToolCalls) {
+    toolCallSummaries.splice(0, toolCallSummaries.length - maxToolCalls);
+  }
+}
+
 function formatFeishuToolHint(name: string, input: unknown): string {
   const toolName = name.trim() || 'unknown';
   const serializedInput = serializeToolInputForFeishu(input);
