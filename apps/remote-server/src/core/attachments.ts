@@ -4,7 +4,7 @@ import { homedir } from 'os';
 import { basename, extname, join } from 'path';
 import { fetch } from 'undici';
 import { getDiscordProxyDispatcher } from '../adapters/discord/proxy.js';
-import { downloadImageFromFeishu } from '../adapters/feishu/client.js';
+import { downloadMessageImageResourceFromFeishu } from '../adapters/feishu/client.js';
 import type { IncomingAttachment } from './types.js';
 import { vaultIntegration, buildRemoteVaultRunContext } from './vault/integration.js';
 
@@ -160,9 +160,15 @@ async function downloadAttachmentBuffer(
   timeoutMs: number,
   maxBytes: number,
 ): Promise<{ buffer: Buffer; mimeType?: string }> {
-  const feishuImageKey = parseFeishuImageUrl(url);
-  if (feishuImageKey) {
-    const downloaded = await downloadImageFromFeishu(feishuImageKey);
+  const feishuFileKey = parseFeishuImageUrl(url);
+  if (feishuFileKey) {
+    if (!attachment.messageId) {
+      throw new Error(`Feishu message id is required to download image resource: ${feishuFileKey}`);
+    }
+    const downloaded = await downloadMessageImageResourceFromFeishu({
+      messageId: attachment.messageId,
+      fileKey: feishuFileKey,
+    });
     if (downloaded.buffer.length > maxBytes) {
       throw new Error(`Attachment exceeds size limit (${downloaded.buffer.length} > ${maxBytes})`);
     }
