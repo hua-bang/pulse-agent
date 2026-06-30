@@ -117,35 +117,47 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
   return imageKey;
 }
 
-export async function downloadImageFromFeishu(imageKey: string): Promise<{ buffer: Buffer; mimeType?: string; size?: number }> {
-  const normalizedImageKey = imageKey.trim();
-  if (!normalizedImageKey) {
-    throw new Error('imageKey is required');
+export async function downloadMessageImageResourceFromFeishu(input: {
+  messageId: string;
+  fileKey: string;
+}): Promise<{ buffer: Buffer; mimeType?: string; size?: number }> {
+  const messageId = input.messageId.trim();
+  const fileKey = input.fileKey.trim();
+  if (!messageId) {
+    throw new Error('messageId is required to download a Feishu message image resource');
+  }
+  if (!fileKey) {
+    throw new Error('fileKey is required to download a Feishu message image resource');
   }
 
   const token = await getTenantAccessToken();
   const response = await fetchFeishuWithRetry({
-    url: `${getFeishuBaseUrl()}/open-apis/im/v1/images/${encodeURIComponent(normalizedImageKey)}?image_type=message`,
+    url: `${getFeishuBaseUrl()}/open-apis/im/v1/messages/${encodeURIComponent(messageId)}/resources/${encodeURIComponent(fileKey)}?type=image`,
     init: {
       method: 'GET',
       headers: {
         authorization: `Bearer ${token}`,
       },
     },
-    action: 'download image',
+    action: 'download message image resource',
   });
 
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`Failed to download image from Feishu: ${response.status} ${response.statusText} - ${body}`);
+    throw new Error(`Failed to download Feishu message image resource: ${response.status} ${response.statusText} - ${body}`);
+  }
+
+  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() || undefined;
+  if (contentType === 'application/json') {
+    const body = await response.text();
+    throw new Error(`Failed to download Feishu message image resource: ${body}`);
   }
 
   const buffer = Buffer.from(await response.arrayBuffer());
   if (buffer.length === 0) {
-    throw new Error(`Downloaded Feishu image is empty: ${normalizedImageKey}`);
+    throw new Error(`Downloaded Feishu message image resource is empty: ${messageId}/${fileKey}`);
   }
 
-  const contentType = response.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() || undefined;
   const contentLength = Number(response.headers.get('content-length') ?? '0');
 
   return {
