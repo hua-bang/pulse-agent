@@ -29,6 +29,50 @@ type ActiveToolExecution = {
   inputPreview?: string;
 };
 
+function getToolCallId(part: unknown): string | undefined {
+  if (!part || typeof part !== 'object') return undefined;
+  const toolCallId = (part as { toolCallId?: unknown }).toolCallId;
+  return typeof toolCallId === 'string' && toolCallId.length > 0 ? toolCallId : undefined;
+}
+
+function findFirstIncompleteToolExchangeIndex(messages: ModelMessage[]): number | undefined {
+  const pendingToolCalls = new Map<string, number>();
+
+  messages.forEach((message, index) => {
+    const content = (message as { content?: unknown }).content;
+    if (!Array.isArray(content)) return;
+
+    for (const part of content) {
+      const type = part && typeof part === 'object' ? (part as { type?: unknown }).type : undefined;
+      const toolCallId = getToolCallId(part);
+      if (!toolCallId) continue;
+
+      if (type === 'tool-call') {
+        pendingToolCalls.set(toolCallId, index);
+      } else if (type === 'tool-result') {
+        pendingToolCalls.delete(toolCallId);
+      }
+    }
+  });
+
+  let firstIndex: number | undefined;
+  for (const index of pendingToolCalls.values()) {
+    firstIndex = firstIndex === undefined ? index : Math.min(firstIndex, index);
+  }
+  return firstIndex;
+}
+
+function pruneIncompleteToolExchanges(messages: ModelMessage[]): ModelMessage[] {
+  const firstIncompleteIndex = findFirstIncompleteToolExchangeIndex(messages);
+  if (firstIncompleteIndex === undefined) return messages;
+
+  const pruned = messages.slice(0, firstIncompleteIndex);
+  console.warn(
+    `[loop] Pruned ${messages.length - pruned.length} trailing message(s) with incomplete tool-call history before LLM call`,
+  );
+  return pruned;
+}
+
 function resolveModelContextBudget(model?: string, modelType?: ModelType): number {
   if (MODEL_CONTEXT_BUDGET_OVERRIDE && MODEL_CONTEXT_BUDGET_OVERRIDE > 0) {
     return MODEL_CONTEXT_BUDGET_OVERRIDE;
@@ -525,7 +569,12 @@ export async function loop(context: Context, options?: LoopOptions): Promise<str
       let usage: any;
 
       try {
-        const result = streamTextAI(context.messages, tools, {
+        const messagesForLLM = pruneIncompleteToolExchanges(context.messages);
+        if (messagesForLLM !== context.messages) {
+          context.messages = messagesForLLM;
+        }
+
+        const result = streamTextAI(messagesForLLM, tools, {
           abortSignal: llmAbortController.signal,
           toolExecutionContext: {
             ...toolExecutionContext,
