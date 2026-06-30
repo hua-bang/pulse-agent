@@ -4,6 +4,7 @@ import { homedir } from 'os';
 import { basename, extname, join } from 'path';
 import { fetch } from 'undici';
 import { getDiscordProxyDispatcher } from '../adapters/discord/proxy.js';
+import { downloadImageFromFeishu } from '../adapters/feishu/client.js';
 import type { IncomingAttachment } from './types.js';
 import { vaultIntegration, buildRemoteVaultRunContext } from './vault/integration.js';
 
@@ -129,6 +130,48 @@ async function downloadAttachment(attachment: IncomingAttachment, targetDir: str
     return null;
   }
 
+  const downloaded = await downloadAttachmentBuffer(attachment, url, timeoutMs, maxBytes);
+
+  const resolvedMime = normalizeMimeType(attachment.mimeType || downloaded.mimeType);
+  const extension = resolveExtension(attachment.name, resolvedMime, url);
+  const displayName = attachment.name ? sanitizeFileName(attachment.name) : undefined;
+  const fileNameBase = displayName || `${attachment.id ?? randomUUID()}${extension}`;
+  const fileName = `${Date.now()}-${fileNameBase}`;
+  const outputPath = join(targetDir, fileName);
+
+  await fs.writeFile(outputPath, downloaded.buffer);
+
+  return {
+    id: attachment.id ?? randomUUID(),
+    path: outputPath,
+    mimeType: resolvedMime ?? undefined,
+    name: displayName ?? basename(outputPath),
+    size: downloaded.buffer.length,
+    source: attachment.source,
+    messageId: attachment.messageId,
+    createdAt: Date.now(),
+    originalUrl: attachment.url,
+  };
+}
+
+async function downloadAttachmentBuffer(
+  attachment: IncomingAttachment,
+  url: string,
+  timeoutMs: number,
+  maxBytes: number,
+): Promise<{ buffer: Buffer; mimeType?: string }> {
+  const feishuImageKey = parseFeishuImageUrl(url);
+  if (feishuImageKey) {
+    const downloaded = await downloadImageFromFeishu(feishuImageKey);
+    if (downloaded.buffer.length > maxBytes) {
+      throw new Error(`Attachment exceeds size limit (${downloaded.buffer.length} > ${maxBytes})`);
+    }
+    return {
+      buffer: downloaded.buffer,
+      mimeType: downloaded.mimeType,
+    };
+  }
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -164,26 +207,19 @@ async function downloadAttachment(attachment: IncomingAttachment, targetDir: str
     throw new Error(`Attachment exceeds size limit (${buffer.length} > ${maxBytes})`);
   }
 
-  const resolvedMime = normalizeMimeType(attachment.mimeType || response.headers.get('content-type'));
-  const extension = resolveExtension(attachment.name, resolvedMime, url);
-  const displayName = attachment.name ? sanitizeFileName(attachment.name) : undefined;
-  const fileNameBase = displayName || `${attachment.id ?? randomUUID()}${extension}`;
-  const fileName = `${Date.now()}-${fileNameBase}`;
-  const outputPath = join(targetDir, fileName);
-
-  await fs.writeFile(outputPath, buffer);
-
   return {
-    id: attachment.id ?? randomUUID(),
-    path: outputPath,
-    mimeType: resolvedMime ?? undefined,
-    name: displayName ?? basename(outputPath),
-    size: buffer.length,
-    source: attachment.source,
-    messageId: attachment.messageId,
-    createdAt: Date.now(),
-    originalUrl: attachment.url,
+    buffer,
+    mimeType: response.headers.get('content-type') ?? undefined,
   };
+}
+
+function parseFeishuImageUrl(url: string): string | null {
+  if (!url.startsWith('feishu://image/')) {
+    return null;
+  }
+
+  const imageKey = decodeURIComponent(url.slice('feishu://image/'.length)).trim();
+  return imageKey || null;
 }
 
 export function resolveAttachmentDispatcher(attachment: IncomingAttachment) {
