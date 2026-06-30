@@ -34,9 +34,13 @@ export class FeishuAdapter implements PlatformAdapter {
   // SDK Client — handles token refresh, retries, domain routing
   private larkClient = createLarkClient();
 
-  // Map from platformKey -> { chatId, chatIdType }
+  // Map from stream/message id -> message target metadata.
+  // Set during parseIncoming, read in createStreamHandle.
+  private chatMetaByStreamId = new Map<string, FeishuChatMeta>();
+
+  // Fallback map for payloads without message_id.
   // Set during parseIncoming, read in createStreamHandle
-  private chatMeta = new Map<string, { chatId: string; chatIdType: 'open_id' | 'chat_id'; sourceMessageId?: string }>();
+  private chatMetaByPlatformKey = new Map<string, FeishuChatMeta>();
 
   // Dedup cache — prevent processing the same message_id twice
   private seenMessageIds = new Set<string>();
@@ -53,14 +57,19 @@ export class FeishuAdapter implements PlatformAdapter {
       return null;
     }
 
+    return this.parseEventBody(body);
+  }
+
+  async parseEventBody(body: Record<string, unknown>): Promise<IncomingMessage | null> {
     // URL verification
     if (body['type'] === 'url_verification') {
       this.pendingChallenge = body['challenge'] as string;
       return null;
     }
 
-    // Extract event — supports both v1 (type: "event_callback") and v2 (schema: "2.0")
-    const event = body['event'] as Record<string, unknown> | undefined;
+    // Extract event. Webhook payloads wrap it in `event`; SDK long-connection
+    // handlers receive the event object directly after EventDispatcher parsing.
+    const event = extractFeishuEvent(body);
     if (!event) return null;
 
     const message = event['message'] as Record<string, unknown> | undefined;
@@ -92,32 +101,43 @@ export class FeishuAdapter implements PlatformAdapter {
 
     const chatId = message['chat_id'] as string | undefined;
     const chatType = message['chat_type'] as string | undefined; // 'p2p' | 'group'
+    const isGroupChat = chatType === 'group';
 
     // Group chats: only respond when @mentioned
-    if (chatType === 'group') {
+    if (isGroupChat) {
       const mentions = (message['mentions'] as unknown[] | undefined) ?? [];
       if (mentions.length === 0) return null;
-      text = text.replace(/@\S+/g, '').trim();
+      text = removeFeishuMentions(text, mentions);
       if (!text) return null;
     }
 
-    const platformKey = chatType === 'group' && chatId
+    const platformKey = isGroupChat && chatId
       ? `feishu:group:${chatId}:${openId}`
       : `feishu:${openId}`;
     const memoryKey = `feishu:user:${openId}`;
 
-    if (messageId) {
+    if (messageId && shouldAddFeishuReactions(isGroupChat)) {
       // Best-effort acknowledgement reaction for accepted user messages.
       addMessageReaction(messageId, 'Get').catch((err) => {
-        console.error('[feishu] Failed to add Get reaction:', err);
+        console.warn('[feishu] Failed to add Get reaction:', getErrorMessage(err));
       });
     }
 
-    this.chatMeta.set(platformKey, {
-      chatId: chatId ?? openId,
-      chatIdType: chatId ? 'chat_id' : 'open_id',
+    const meta = resolveFeishuChatMeta({
+      chatId,
+      chatType,
+      openId,
       sourceMessageId: messageId,
     });
+    const chatMeta = {
+      ...meta,
+      allowReaction: shouldAddFeishuReactions(isGroupChat),
+    };
+    this.chatMetaByPlatformKey.set(platformKey, chatMeta);
+    if (messageId) {
+      this.chatMetaByStreamId.set(messageId, chatMeta);
+      pruneMap(this.chatMetaByStreamId, 500);
+    }
 
     // Route to pending clarification if one is waiting
     const activeStreamId = getActiveStreamId(platformKey);
@@ -125,14 +145,20 @@ export class FeishuAdapter implements PlatformAdapter {
       const pending = clarificationQueue.getPending(activeStreamId);
       if (pending) {
         clarificationQueue.submitAnswer(activeStreamId, pending.request.id, text);
-        const sendTo = chatId ?? openId;
-        const idType: 'chat_id' | 'open_id' = chatId ? 'chat_id' : 'open_id';
-        await sendTextMessage(this.larkClient, sendTo, idType, `✅ Got it: "${text}"`, messageId ? { replyToMessageId: messageId } : undefined).catch(console.error);
+        await sendTextMessage(
+          this.larkClient,
+          meta.chatId,
+          meta.chatIdType,
+          `✅ Got it: "${text}"`,
+          meta.chatIdType === 'chat_id' && messageId ? { replyToMessageId: messageId } : undefined,
+        ).catch((err) => {
+          console.error('[feishu] Failed to send clarification ack:', getErrorMessage(err));
+        });
       }
       return null;
     }
 
-    return { platformKey, memoryKey, text };
+    return { platformKey, memoryKey, text, streamId: messageId };
   }
 
   // URL verification challenge to return in ackRequest
@@ -148,15 +174,24 @@ export class FeishuAdapter implements PlatformAdapter {
   }
 
   async createStreamHandle(incoming: IncomingMessage, _streamId: string): Promise<StreamHandle> {
-    const meta = this.chatMeta.get(incoming.platformKey);
+    const meta = this.chatMetaByStreamId.get(_streamId)
+      ?? (incoming.streamId ? this.chatMetaByStreamId.get(incoming.streamId) : undefined)
+      ?? this.chatMetaByPlatformKey.get(incoming.platformKey);
     const chatId = meta?.chatId ?? incoming.platformKey.replace('feishu:', '');
     const idType = meta?.chatIdType ?? 'open_id';
     const sourceMessageId = meta?.sourceMessageId;
-    const replyOptions = sourceMessageId ? { replyToMessageId: sourceMessageId } : undefined;
+    const allowReaction = meta?.allowReaction ?? false;
+    const replyOptions = idType === 'chat_id' && sourceMessageId ? { replyToMessageId: sourceMessageId } : undefined;
     const { larkClient } = this;
 
     // Clean up chatMeta after reading — it's only needed to bridge parseIncoming → createStreamHandle
-    this.chatMeta.delete(incoming.platformKey);
+    this.chatMetaByStreamId.delete(_streamId);
+    if (incoming.streamId && incoming.streamId !== _streamId) {
+      this.chatMetaByStreamId.delete(incoming.streamId);
+    }
+    if (meta && this.chatMetaByPlatformKey.get(incoming.platformKey) === meta) {
+      this.chatMetaByPlatformKey.delete(incoming.platformKey);
+    }
 
     let cardMessageId: string | null = null;
     let accumulatedText = '';
@@ -280,14 +315,21 @@ export class FeishuAdapter implements PlatformAdapter {
       clearHeartbeat();
     };
 
-    // Send initial "thinking" card
-    try {
-      cardMessageId = await sendCardMessage(larkClient, chatId, idType, buildThinkingCard(), replyOptions);
-      lastProgressUpdateAt = Date.now();
-      startHeartbeat();
-    } catch (err) {
-      console.error('[feishu] Failed to send thinking card:', err);
-    }
+    // Send the initial progress card without blocking model startup.
+    updateChain = sendCardMessage(larkClient, chatId, idType, buildThinkingCard(), replyOptions)
+      .then((messageId) => {
+        cardMessageId = messageId;
+        lastProgressUpdateAt = Date.now();
+        if (!finalized) {
+          startHeartbeat();
+          if (accumulatedText || latestToolHint) {
+            scheduleProgressUpdate(true);
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('[feishu] Failed to send thinking card:', getErrorMessage(err));
+      });
 
 
     const sentImagePaths = new Set<string>();
@@ -357,9 +399,9 @@ export class FeishuAdapter implements PlatformAdapter {
           await sendTextMessage(larkClient, chatId, idType, result || '✅ Done', replyOptions).catch(console.error);
         }
 
-        if (sourceMessageId) {
+        if (sourceMessageId && allowReaction) {
           addMessageReaction(sourceMessageId, 'DONE').catch((reactionErr) => {
-            console.error('[feishu] Failed to add DONE reaction:', reactionErr);
+            console.warn('[feishu] Failed to add DONE reaction:', getErrorMessage(reactionErr));
           });
         }
       },
@@ -398,6 +440,122 @@ function rememberToolCall(toolCallSummaries: string[], summary: string): void {
   if (toolCallSummaries.length > maxToolCalls) {
     toolCallSummaries.splice(0, toolCallSummaries.length - maxToolCalls);
   }
+}
+
+function pruneMap<K, V>(map: Map<K, V>, maxSize: number): void {
+  while (map.size > maxSize) {
+    map.delete(map.keys().next().value!);
+  }
+}
+
+interface FeishuChatMeta {
+  chatId: string;
+  chatIdType: 'open_id' | 'chat_id';
+  sourceMessageId?: string;
+  allowReaction?: boolean;
+}
+
+function extractFeishuEvent(body: Record<string, unknown>): Record<string, unknown> | null {
+  const wrappedEvent = body['event'];
+  if (isRecord(wrappedEvent)) {
+    return wrappedEvent;
+  }
+
+  if (isRecord(body['message']) && isRecord(body['sender'])) {
+    return body;
+  }
+
+  return null;
+}
+
+function resolveFeishuChatMeta(input: {
+  chatId?: string;
+  chatType?: string;
+  openId: string;
+  sourceMessageId?: string;
+}): FeishuChatMeta {
+  if (input.chatType === 'group' && input.chatId) {
+    return {
+      chatId: input.chatId,
+      chatIdType: 'chat_id',
+      sourceMessageId: input.sourceMessageId,
+    };
+  }
+
+  return {
+    chatId: input.openId,
+    chatIdType: 'open_id',
+    sourceMessageId: input.sourceMessageId,
+  };
+}
+
+function shouldAddFeishuReactions(isGroupChat: boolean): boolean {
+  const value = process.env.FEISHU_ENABLE_REACTIONS?.trim().toLowerCase();
+  if (value === 'true' || value === '1' || value === 'yes') {
+    return true;
+  }
+  if (value === 'group' || value === 'groups') {
+    return isGroupChat;
+  }
+  if (value === 'false' || value === '0' || value === 'no') {
+    return false;
+  }
+
+  return false;
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function removeFeishuMentions(text: string, mentions: unknown[]): string {
+  const mentionTexts = collectFeishuMentionTexts(mentions);
+  let normalized = text;
+
+  for (const mentionText of mentionTexts) {
+    normalized = normalized.replace(new RegExp(escapeRegExp(mentionText), 'g'), ' ');
+  }
+
+  return normalized.replace(/\s+/g, ' ').trim();
+}
+
+function collectFeishuMentionTexts(mentions: unknown[]): string[] {
+  const values = new Set<string>();
+
+  for (const mention of mentions) {
+    if (!isRecord(mention)) {
+      continue;
+    }
+
+    const key = asNonEmptyString(mention.key);
+    if (key) {
+      values.add(key);
+    }
+
+    const name = asNonEmptyString(mention.name);
+    if (name) {
+      values.add(name.startsWith('@') ? name : `@${name}`);
+    }
+  }
+
+  return [...values].sort((a, b) => b.length - a.length);
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function formatFeishuToolHint(name: string, input: unknown): string {

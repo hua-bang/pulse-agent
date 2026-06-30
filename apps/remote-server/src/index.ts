@@ -10,6 +10,7 @@ import { vaultIntegration } from './core/vault/integration.js';
 import { devtoolsStore } from './core/devtools.js';
 import { startDiscordGateway } from './adapters/discord/gateway-manager.js';
 import { registerDiscordApplicationCommands } from './adapters/discord/application-commands.js';
+import { getFeishuEventSource, startFeishuLongConnection } from './adapters/feishu/gateway.js';
 
 async function main() {
   // Initialize session store (creates directories if needed, loads index)
@@ -28,6 +29,7 @@ async function main() {
 
   await engine.initialize();
 
+  startFeishuLongConnection();
   startDiscordGateway();
 
   const app = createApp();
@@ -54,7 +56,7 @@ async function main() {
   // console.log(`  POST /api/chat`);
   // console.log(`  GET  /api/stream/:streamId`);
   // console.log(`  POST /api/clarify/:streamId`);
-  console.log(`  POST /webhooks/feishu`);
+  console.log(`  POST /webhooks/feishu (FEISHU_EVENT_SOURCE=${getFeishuEventSource()})`);
   console.log(`  POST /webhooks/discord`);
   console.log(`  GET  /internal/discord/gateway/status`);
   console.log(`  POST /internal/discord/gateway/restart`);

@@ -29,6 +29,7 @@ module.exports = {
         NO_PROXY: '127.0.0.1,localhost,::1,156.238.254.16',
         ACP_RETRY_MAX: '3',
         ACP_RETRY_BASE_DELAY_MS: '1000',
+        FEISHU_EVENT_SOURCE: 'long_connection',
       },
     },
   ],
