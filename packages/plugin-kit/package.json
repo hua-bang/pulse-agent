@@ -60,7 +60,7 @@
   ],
   "dependencies": {
     "pulse-coder-engine": "workspace:*",
-    "zod": "^3.25.76"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",
