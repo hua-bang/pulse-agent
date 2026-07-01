@@ -313,7 +313,7 @@
 }
 
 .sidebar-item-folder:hover {
-  background: rgba(15, 123, 108, 0.08);
+  background: var(--accent-term-light);
   color: var(--accent-term);
 }
 
@@ -450,7 +450,7 @@
 }
 
 .sidebar-folder--drop-target {
-  background: rgba(35, 131, 226, 0.04);
+  background: var(--accent-subtle);
 }
 
 .sidebar-folder-header {
@@ -657,7 +657,7 @@
 }
 
 .sidebar-layer-item--selected:hover {
-  background: rgba(35, 131, 226, 0.12);
+  background: var(--accent-hover);
 }
 
 .sidebar-layer-item--primary-selected {
@@ -671,7 +671,7 @@
 
 .sidebar-layer-item--editing {
   cursor: default;
-  background: rgba(35, 131, 226, 0.08);
+  background: var(--accent-light);
 }
 
 .sidebar-layer-icon {
@@ -924,12 +924,12 @@
 }
 
 .sidebar-layer-context-menu-item--danger {
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-item--danger:hover {
-  background: rgba(192, 57, 43, 0.08);
-  color: #c0392b;
+  background: var(--error-light);
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-separator {

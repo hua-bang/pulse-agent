@@ -17,13 +17,17 @@
   --text-secondary: #787774;
   --text-muted: #b4b0a8;
   --accent: #2383e2;
+  --accent-subtle: rgba(35, 131, 226, 0.04);
   --accent-light: rgba(35, 131, 226, 0.08);
+  --accent-hover: rgba(35, 131, 226, 0.12);
   --accent-border: rgba(35, 131, 226, 0.45);
   --accent-file: #d9730d;
   --accent-term: #0f7b6c;
+  --accent-term-light: rgba(15, 123, 108, 0.08);
   --accent-frame: #a594e0;
   --success: #1f7a4d;
   --error: #c0392b;
+  --error-light: rgba(192, 57, 43, 0.08);
   --text-warning: #b45309;
   --overlay-backdrop: rgba(32, 34, 37, 0.22);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
