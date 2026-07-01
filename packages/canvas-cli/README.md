@@ -1,8 +1,8 @@
 # @pulse-coder/canvas-cli
 
-CLI for Pulse Canvas — lets external agents (Claude Code, Codex, etc.) read from and write to canvas workspaces without the Electron app being involved.
+CLI for Pulse Canvas — lets external agents (Claude Code, Codex, etc.) read from and write to canvas workspaces.
 
-The CLI operates directly on the JSON store at `~/.pulse-coder/canvas/` (default). When the Electron app is running, its `fs.watch` picks up changes automatically — no IPC required.
+Most commands operate directly on the JSON store at `~/.pulse-coder/canvas/` (default) without the Electron app being involved. When the app is running, its `fs.watch` picks up store changes automatically — no IPC required. The `agent` and `team` command families are the exception: they require a running `apps/canvas-workspace` instance (documented under those commands below).
 
 ## Install
 
@@ -10,8 +10,8 @@ The CLI operates directly on the JSON store at `~/.pulse-coder/canvas/` (default
 # From the monorepo
 pnpm --filter @pulse-coder/canvas-cli build
 
-# Or link globally
-cd packages/canvas-cli && npm link
+# Or link globally (pnpm only — never npm/yarn)
+cd packages/canvas-cli && pnpm link --global
 ```
 
 Binary name: `pulse-canvas`.
@@ -20,7 +20,7 @@ Binary name: `pulse-canvas`.
 
 | Flag | Description |
 |------|-------------|
-| `--format <json\|text>` | Output format (default: `text`) |
+| `--format <json\|text>` | Output format: `json` or `text` (default: `text`) |
 | `--store-dir <path>` | Canvas store directory (default: `~/.pulse-coder/canvas/`) |
 | `-w, --workspace <id>` | Workspace ID (default: `$PULSE_CANVAS_WORKSPACE_ID`) |
 
@@ -51,17 +51,40 @@ pulse-canvas node write <nodeId> --content "..."        # interprets \n, \t esca
 pulse-canvas node write <nodeId> --content "..." --raw  # verbatim, no unescaping
 pulse-canvas node write <nodeId> --file ./result.md     # read content from file
 echo "hello" | pulse-canvas node write <nodeId>         # read from stdin
+pulse-canvas node write <frameId> --content '{"label":"New title","color":"#9575d4"}'  # frame/group: JSON patch
 pulse-canvas node delete <nodeId>
 ```
 
-Node types and capabilities:
+Node types and capabilities (the capability map reported by `node list`):
 
 | Type | Capabilities | Notes |
 |------|-------------|-------|
 | `file` | read, write | Backed by a real file; content is markdown |
 | `terminal` | read, exec | PTY session (read-only from CLI — no active PTY) |
-| `frame` | read | Visual grouping rectangle with label/color |
-| `agent` | read, exec | Agent PTY node (read-only from CLI) |
+| `frame` | read, write | Visual grouping rectangle; `node write` expects JSON `{label?,color?}` |
+| `group` | read, write | Container of child nodes; `node write` expects JSON `{label?,color?,childIds?}` |
+| `agent` | read, exec | Agent PTY node (read-only from CLI; use `agent send` for live input) |
+| `mindmap` | read, write | Topic tree; initialize via `--data '{"root":{"text":"...","children":[...]}}'` |
+
+`node create` accepts `file`, `terminal`, `frame`, `group`, `agent`, and `mindmap`. `reference` is a read-only node shape in core types but is not a CLI creation type. `node write` currently supports `file`, `frame`, and `group`; `terminal`/`agent` require a live PTY.
+
+### Edge
+
+All `edge` commands require a workspace (via `-w` or `$PULSE_CANVAS_WORKSPACE_ID`).
+
+```bash
+pulse-canvas edge list                                   # List all edges
+pulse-canvas edge create --from <nodeId> --to <nodeId> \
+  [--label <text>] [--kind <kind>] \
+  [--from-anchor top|right|bottom|left|auto] \
+  [--to-anchor top|right|bottom|left|auto] \
+  [--arrow-head none|triangle|arrow|dot|bar] \
+  [--arrow-tail none|triangle|arrow|dot|bar] \
+  [--color <hex>] [--width <n>] [--style solid|dashed|dotted] [--bend <n>]
+pulse-canvas edge delete <edgeId>
+```
+
+`--width` and `--bend` are pixel values (numbers); `--bend 0` draws a straight line. `--kind` is a free-form semantic tag (e.g. `dependency`, `flow`).
 
 ### Context
 
@@ -72,6 +95,57 @@ pulse-canvas context --format json  # Machine-readable for agent consumption
 
 Returns workspace metadata plus a per-node summary: file paths, frame labels, terminal cwds, agent statuses. This is the recommended entry point for agents — run it first to understand the canvas layout.
 
+> **Runtime requirement — `agent` and `team`.** These two families do not read the JSON store. They require a running `apps/canvas-workspace` instance and authenticate to its loopback runtime-control server using the bearer secret in `~/.pulse-coder/canvas-runtime/canvas-workspace.json`. Without it they fail with `No active canvas-workspace runtime found.` — open the workspace in Pulse Canvas first. All other command families (`workspace`, `node`, `edge`, `context`, `restore`, `install-skills`) operate directly on the store and need no runtime.
+
+### Agent
+
+Send follow-up input to a running agent node (an Enter is appended automatically). Requires the live runtime (see above).
+
+```bash
+pulse-canvas agent send <nodeId> --input <text>
+```
+
+### Team
+
+Agent Teams surface — drive team planning, task lifecycle, and inter-agent messaging through the live runtime (see above). Team ID defaults to `$PULSE_CANVAS_TEAM_ID`; the acting agent defaults to `$PULSE_CANVAS_TEAM_AGENT_ID`.
+
+```bash
+pulse-canvas team propose-plan --team <id> --plan-file ./plan.json [--source-agent <id>]
+pulse-canvas team propose-plan --team <id> --plan-json '<json>'
+
+pulse-canvas team create-task --team <id> --title "Title" --description "..." \
+  [--owner <agent>] [--dep <task>...] [--scope <path>...] [--verify <cmd>] [--dispatch]   # Team Lead only
+
+pulse-canvas team dispatch --team <id>
+
+pulse-canvas team complete-task --team <id> [--task <id>] [--summary "..."]   # summary also accepted as trailing args
+pulse-canvas team block-task --team <id> [--task <id>] [--reason "..."]
+pulse-canvas team cancel-task --team <id> --task <id> [--reason "..."]        # Team Lead / human only
+
+pulse-canvas team status [--team <id>]   # omit --team to list all teams in the workspace
+
+pulse-canvas team request-human-input --team <id> [--task <id>] [--reason "..."] --prompt "..."
+pulse-canvas team publish-artifact --team <id> --title "Title" [--kind other] [--uri <uri>] [--summary "..."]
+pulse-canvas team complete-team --team <id> --summary "..."                    # Team Lead only
+
+pulse-canvas team send --team <id> --to <agent> [--task <id>] --message "..."
+```
+
+`--dep` and `--scope` are repeatable. `create-task`, `complete-task`, `block-task`, `cancel-task`, `request-human-input`, `publish-artifact`, and `complete-team` accept an optional `--source-agent` (default `$PULSE_CANVAS_TEAM_AGENT_ID`).
+
+### Restore
+
+Recover a workspace from a v1-shape `canvas.json` snapshot — for the case where a v1-unaware writer clobbered a v2 workspace's `canvas.json` and the app's pollution guard refuses to migrate it. `restore` only accepts v1-shape full-data backups (the `canvas.json.v1.*.bak` files); it does not migrate `nodes/<id>.json` contents (that is the v2 app's job).
+
+```bash
+pulse-canvas restore list [workspaceId]                            # List available v1 snapshots
+pulse-canvas restore apply [workspaceId] --from <path>             # Replace canvas.json with the snapshot
+pulse-canvas restore apply [workspaceId] --from <path> --dry-run   # Print the plan without writing
+pulse-canvas restore apply [workspaceId] --from <path> --yes       # Skip the confirmation prompt
+```
+
+`apply` always writes a pre-restore backup of the current `canvas.json` and archives the live `nodes/` directory out of the way so the app's lazy migration runs cleanly on next open.
+
 ### Install Skills
 
 ```bash
@@ -79,7 +153,14 @@ pulse-canvas install-skills               # Install to all global skill dirs
 pulse-canvas install-skills --dir <path>  # Install to a specific directory
 ```
 
-Copies bundled `SKILL.md` files (`canvas`, `canvas-deep-research`, `canvas-frame-research`, `canvas-bootstrap`) into global skill directories so that agents (Claude Code, Codex, etc.) discover canvas capabilities automatically. Target directories:
+Copies bundled `SKILL.md` files into global skill directories so that agents (Claude Code, Codex, etc.) discover canvas capabilities automatically. Installed skill names:
+
+- `pulse-canvas` (sourced from `skills/canvas/`, frontmatter `name:` rewritten to `pulse-canvas`)
+- `canvas-deep-research`
+- `canvas-frame-research`
+- `canvas-bootstrap`
+
+Target directories (when run without `--dir`):
 
 - `~/.pulse-coder/skills/`
 - `~/.claude/skills/`
@@ -87,15 +168,15 @@ Copies bundled `SKILL.md` files (`canvas`, `canvas-deep-research`, `canvas-frame
 
 ## Programmatic API
 
-The `core` subpath export provides store and node operations without the CLI layer:
+The `./core` subpath export provides store and node operations without the CLI layer. This package is CommonJS (`"type": "commonjs"`, built as `cjs` only); the `./core` export exposes a `require` condition:
 
-```typescript
-import {
+```js
+const {
   loadCanvas,
   saveCanvas,
   listWorkspaceIds,
   createWorkspace,
-} from '@pulse-coder/canvas-cli/core';
+} = require('@pulse-coder/canvas-cli/core');
 ```
 
 ## Agent Integration Flow

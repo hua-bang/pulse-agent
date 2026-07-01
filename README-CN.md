@@ -15,15 +15,16 @@
 | 路径 | npm 名 | 作用 |
 | --- | --- | --- |
 | `packages/engine` | `pulse-coder-engine` | 核心运行时：循环、hooks、内置工具、插件管理 |
-| `packages/cli` | `pulse-coder-cli` | 终端交互应用 |
-| `packages/pulse-sandbox` | `pulse-sandbox` | 沙箱 JavaScript 执行器与 `run_js` 适配 |
-| `packages/memory-plugin` | `pulse-coder-memory-plugin` | memory 插件 / 集成服务 |
-| `packages/plugin-kit` | `pulse-coder-plugin-kit` | 插件公共工具：worktree 辅助、密钥 vault、devtools 等 |
+| `packages/cli` | `pulse-coder-cli` | 终端交互应用，构建于引擎之上 |
+| `packages/pulse-sandbox` | `pulse-sandbox` | 沙箱 JavaScript 执行器与 `run_js` 工具适配 |
+| `packages/memory-plugin` | `pulse-coder-memory-plugin` | host 侧 memory 插件与集成辅助 |
+| `packages/plugin-kit` | `pulse-coder-plugin-kit` | 插件公共工具（worktree 辅助、vault、devtools） |
 | `packages/orchestrator` | `pulse-coder-orchestrator` | 多 Agent 编排（TaskGraph、planner、scheduler、runner、aggregator） |
 | `packages/agent-teams` | `pulse-coder-agent-teams` | 基于 orchestrator 的多 Agent 协作层 |
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol：typed client、runner、state store |
 | `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | 可选的 Langfuse 链路追踪插件 |
-| `packages/canvas-cli` | `pulse-coder-canvas-cli` | canvas 相关 CLI 辅助 |
+| `packages/canvas-cli` | `@pulse-coder/canvas-cli` | canvas 相关 CLI 辅助 |
+| `packages/canvas-nodes` | `@pulse-canvas/nodes` | 外部 Pulse Canvas 节点插件（运行时可加载的插件目录） |
 
 ### Apps
 
@@ -31,17 +32,18 @@
 | --- | --- |
 | `apps/remote-server` | 引擎的 HTTP 封装（飞书 / Discord / Telegram 适配器） |
 | `apps/teams-cli` | 多 Agent 团队工作流 CLI |
-| `apps/canvas-workspace` | canvas 工作区应用 |
+| `apps/canvas-workspace` | canvas 工作区应用（Electron） |
 | `apps/coder-demo` | 早期实验 app |
 | `apps/devtools-web` | 实验性 devtools Web UI |
+| `apps/canvas-plugin-react-mf-note-demo` | 实验性 Pulse Canvas note 插件 demo |
 
-> 实验 app（`apps/coder-demo`、`apps/devtools-web`）保留在仓库中，但默认不参与 workspace 安装 / 构建，详见 `apps/EXPERIMENTAL.md`。
+> 实验 app（`apps/coder-demo`、`apps/devtools-web`、`apps/canvas-plugin-react-mf-note-demo`）保留在仓库中，但默认不参与 workspace 安装 / 构建。生效的 workspace 集合以 `pnpm-workspace.yaml` 为准（SSOT）。
 
 其他目录：`docs/`、`architecture/`、`examples/`、`scripts/`。
 
 ---
 
-## 当前架构
+## 架构
 
 ### 1）Engine 初始化
 `Engine.initialize()`（`packages/engine/src/Engine.ts`）会创建 `PluginManager`，默认加载内置插件，按以下优先级合并工具：
@@ -72,21 +74,22 @@ Engine 插件扫描路径：
 - 文本 / 工具事件流式回调
 - LLM hooks（`beforeLLMCall` / `afterLLMCall`）
 - 工具 hooks（`beforeToolCall` / `afterToolCall` / `onToolCall`）
-- Run 级 hooks（`beforeRun` / `afterRun`）；`beforeRun` 可改写 `systemPrompt` 与 `tools`
 - 可重试错误的指数退避（`429/5xx`）
 - 中断信号处理
 - 自动上下文压缩（`onCompacted`）
 
-### 4）内置插件（默认自动加载）
-来自 `packages/engine/src/built-in/index.ts`：
+Run 级 hooks（`beforeRun` / `afterRun`）在 `Engine.run()`（`packages/engine/src/Engine.ts`）中触发；`beforeRun` 可改写 `systemPrompt` 与 `tools`。
+
+### 4）内置插件
+来自 `packages/engine/src/built-in/index.ts`（按加载顺序）：
 - `built-in-mcp`：读取 `.pulse-coder/mcp.json`（兼容 `.coder/mcp.json`），工具命名为 `mcp_<server>_<tool>`
 - `built-in-skills`：扫描 `SKILL.md` 并暴露 `skill` 工具
+- `tool-search`：延迟工具发现（按需加载工具 schema）
 - `built-in-plan-mode`：planning / executing 模式管理
 - `built-in-task-tracking`：`task_create/task_get/task_list/task_update`，本地持久化
 - `SubAgentPlugin`：加载 `.pulse-coder/agents/*.md`，注册 `<name>_agent` 工具
-- `tool-search`：延迟工具发现（按需加载工具 schema）
-- `role-soul`：persona / system prompt 注入
 - `agent-teams`：把 orchestrator 的多 Agent 协作以 engine 工具暴露
+- `role-soul`：persona / system prompt 注入
 - `ptc`：PTC 工作流集成
 
 ### 5）CLI 运行模型
@@ -118,18 +121,25 @@ Engine 插件扫描路径：
 - Clarification：`apps/remote-server/src/core/clarification-queue.ts` —— webhook / gateway 的追问路由
 - Sessions：`~/.pulse-coder/remote-sessions`（`index.json` + `sessions/*.json`）
 - Memory：`pulse-coder-memory-plugin` 写入 `~/.pulse-coder/remote-memory`
-- Worktrees：`~/.pulse-coder/worktree-state`
+- Worktrees：绑定状态在 `~/.pulse-coder/worktree-state`；默认代码检出在 `~/.pulse-coder/worktrees/<project>/wt-<id>`
+- Worktree 命令执行：`POST /internal/worktrees/:id/run` 在受管 worktree 中执行命令，支持 `backend: "host"` 或 `backend: "docker"`（默认 Docker 镜像 `node:22-bookworm`，可用 `PULSE_CODER_DOCKER_IMAGE` 覆盖）
+- 对话式编程：远程 agent 运行可调用 `worktree_prepare` 与 `worktree_run`，因此“帮我实现 X”类请求可以创建 / 绑定 worktree、在其中编辑，先用 host 的包级命令校验，再升级到 Docker 做风险或干净环境的校验
 - 模型覆盖：`.pulse-coder/config.json` 或 `$PULSE_CODER_MODEL_CONFIG`（`apps/remote-server/src/core/model-config.ts`）
 - 适配器：飞书（`adapters/feishu/*`）、Discord webhook（`adapters/discord/adapter.ts`）和 DM gateway（`adapters/discord/gateway.ts`）
 - 内部 API：`POST /internal/agent/run`、`GET /internal/discord/gateway/status`、`POST /internal/discord/gateway/restart` —— 仅 loopback，需 `INTERNAL_API_SECRET`
-- 工具：在 `apps/remote-server/src/core/engine-singleton.ts` 注册（cron、deferred demo、Twitter list fetcher、session summary、PTC demo），部分使用 `defer_loading: true`，由 tool-search 触发后再加载
+- 工具：在 `apps/remote-server/src/core/engine-singleton.ts` 注册，包括 `analyze_image`、`cron_job`、`jina_ai_read`、`read_linked_session`、`session_summary`、`twitter_list_tweets`、`lark_cli`、`worktree_prepare` / `worktree_run` 工具，以及 `ptc_demo_*` 工具。部分为 `defer_loading: true`，仅由 `tool-search` 发现后加载
 
 ---
 
 ## 内置工具
 
-Engine 默认工具：
-- `read`、`write`、`edit`、`grep`、`ls`、`bash`、`tavily`、`gemini_pro_image`、`clarify`
+Engine 内置工具（在 `packages/engine/src/tools/index.ts` 中通过 `BuiltinToolsMap` 注册）：
+- `read`、`write`、`edit`、`grep`、`ls`、`bash`、`clarify`
+- `tavily`、`tavily_extract`、`tavily_crawl`、`tavily_map`（Tavily 搜索 / 抽取 / 爬取 / map）
+- `generate_image`（默认 GPT/OpenAI，可选 Gemini）
+- `deferred_demo`（延迟加载示例工具）
+
+标记为 `defer_loading: true` 的工具（如 `generate_image`、`tavily_*` 变体、`deferred_demo`）仅由 `tool-search` 发现后加载。
 
 任务跟踪插件附加：
 - `task_create`、`task_get`、`task_list`、`task_update`
@@ -143,7 +153,7 @@ CLI 额外注入：
 
 ### 前置要求
 - Node.js `>=18`
-- `pnpm`（`package.json` 中 pin 在 `pnpm@10.28.0`）
+- `pnpm`（workspace 管理器 —— `package.json` 中 pin 在 `pnpm@10.28.0`）
 
 ### 1）安装依赖
 ```bash
@@ -194,11 +204,18 @@ pnpm preview:teams:run    # run 模式预览
 pnpm preview:teams:plan   # plan 模式预览
 ```
 
+### 7）Canvas 工作区（可选，Electron）
+```bash
+pnpm --filter canvas-workspace dev        # electron-vite dev（热重载）
+pnpm --filter canvas-workspace build      # 生产构建
+pnpm --filter canvas-workspace test       # vitest run（仓库中最大的测试套件）
+```
+
 ---
 
 ## CLI 命令
 
-进入 CLI 后可用：
+进入 CLI 后可用（运行 `/help` 获取最新完整列表）：
 
 - `/help`
 - `/new [title]`
@@ -214,6 +231,7 @@ pnpm preview:teams:plan   # plan 模式预览
 - `/mode`
 - `/plan`
 - `/execute`
+- `/solo`
 - `/save`
 - `/exit`
 
@@ -281,7 +299,7 @@ description: 专用代码审查助手
 System prompt content here.
 ```
 
-> 兼容旧路径 `.coder/...`。
+> 兼容旧路径 `.coder/...`（多数 loader 支持）。
 
 ---
 
@@ -291,7 +309,7 @@ System prompt content here.
 - `OPENAI_API_KEY`、`OPENAI_API_URL`、`OPENAI_MODEL`
 - Anthropic 路径：`USE_ANTHROPIC`、`ANTHROPIC_API_KEY`、`ANTHROPIC_API_URL`、`ANTHROPIC_MODEL`
 - 可选工具：`TAVILY_API_KEY`、`GEMINI_API_KEY`
-- 默认模型：`novita/deepseek/deepseek_v3`（用 `OPENAI_MODEL` / `ANTHROPIC_MODEL` 覆盖）
+- 默认模型：`novita/deepseek/deepseek_v3`（用 `OPENAI_MODEL` 或 `ANTHROPIC_MODEL` 覆盖）
 
 上下文压缩：
 - `CONTEXT_WINDOW_TOKENS`（默认 `64000`）
@@ -322,7 +340,7 @@ pnpm start:debug       # 带 debug 日志的 CLI
 pnpm test              # 等价于 test:core
 pnpm run test:core     # packages/* + remote-server + teams-cli
 pnpm run test:packages # 仅 packages/*
-pnpm run test:apps     # apps/*（coder-demo 占位脚本可能失败）
+pnpm run test:apps     # apps/* workspace 成员（canvas-workspace、remote-server、teams-cli）
 pnpm run test:all      # 全量
 ```
 
@@ -340,10 +358,10 @@ pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
-所有包使用 **vitest**（`vitest run`）跑测试，`tsc --noEmit` 做类型检查。
+所有包使用 **vitest**（`vitest run`）跑测试，`tsc --noEmit` 做类型检查（仅存在于有该脚本的包）。已知缺口：`apps/remote-server` 没有 `test` / `typecheck` 脚本（运行时 app —— 通过 `curl` 打 `/internal/agent/run` 手测）；`packages/cli` 没有 `typecheck` 脚本。
 
 说明：
-- `pnpm-workspace.yaml` 当前仅纳入核心集合：`packages/*`、`apps/remote-server`、`apps/teams-cli`、`apps/canvas-workspace`。实验 app（`apps/coder-demo`、`apps/devtools-web`）保留在仓库但默认不参与安装 / 构建。
+- `pnpm-workspace.yaml` 当前仅纳入核心集合：`packages/*`、`apps/remote-server`、`apps/teams-cli`、`apps/canvas-workspace`。实验 app（`apps/coder-demo`、`apps/devtools-web`、`apps/canvas-plugin-react-mf-note-demo`）保留在仓库但默认不参与安装 / 构建。
 - 需要全量执行时使用 `build:all` / `dev:all` / `test:all`。
 
 ---

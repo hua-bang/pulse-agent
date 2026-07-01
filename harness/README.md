@@ -1,6 +1,6 @@
 # Repository Harness
 
-This directory is the source of truth for the repository-level harness pilot. It is separate from `.pulse-coder/`, which remains product/runtime configuration and test data for Pulse Coder itself.
+This directory is the source of truth for the repository-level harness pilot. It is separate from `.pulse-coder/`, which remains product/runtime configuration (MCP servers, sub-agents, runtime skills) for Pulse Coder itself.
 
 The target harness shape is one always-on control surface plus three expandable surfaces:
 
@@ -27,10 +27,11 @@ AGENTS.md / CLAUDE.md
 | Area | Path | Purpose |
 |---|---|---|
 | Harness design | `DESIGN.md` | Target shape for AGENTS.md + Know / Tool / Verify across global and module scopes. |
+| Pilot status | `ROADMAP.md` | Current pilot status, honest gaps (no CI / no git hooks / no executable checks), and the keystone rollout plan. |
 | Repository map | `profile.yaml` | Machine-readable workspace routing table. |
 | Validation matrix | `validation.yaml` | Machine-readable validation matrix and escalation rules. |
-| Action protocols | `skills/` | Tool-agnostic agent skills for recurring work. |
-| Atomic tools | `tools/` | Reusable small capabilities used by skills, checks, reports, or humans. |
+| Action protocols | `skills/` | Repo-level action protocols (not runtime skills) for recurring work. |
+| Atomic tools | `tools/` | Atomic tool protocols; only `graph-viewer` is a wired executable, the rest are spec-only. |
 | Feedback flow | `feedback/` | Admission, routing, proposals, and temporary inbox. |
 | Checks | `checks/` | Future mechanical gates to prevent drift. |
 | Templates | `templates/` | Starting points for new local entries and proposals. |
@@ -61,11 +62,8 @@ Keep source-of-truth routing lightweight and human-readable. Do not maintain a s
 - Add mechanical checks only after a rule proves stable enough to enforce.
 - Package-local harness directories are optional extension points, not required boilerplate.
 
-## First Pilot Workspaces
+## Pilot Coverage
 
-This pilot starts with representative workspaces:
+The pilot is no longer limited to an initial representative set. `harness/profile.yaml` now routes 14 active workspaces across `packages/*` plus `apps/remote-server`, `apps/teams-cli`, and `apps/canvas-workspace`, each with a type, package name, role, entry, and knowledge pointer. `harness/validation.yaml` binds a `pnpm --filter` check set to each workspace's paths.
 
-- `packages/engine`: core runtime package, contract-heavy.
-- `packages/agent-teams`: coordination runtime, quality/autonomy-heavy.
-- `apps/remote-server`: operational HTTP runtime.
-- `apps/canvas-workspace`: existing app guidance and runtime harness are referenced instead of duplicated.
+`harness/profile.yaml` is the SSOT for the active workspace set — do not re-list workspaces here. See `harness/ROADMAP.md` for pilot status and known gaps.

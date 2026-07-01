@@ -2,7 +2,12 @@
 
 Multi-session collaborative agent coordination layer for Pulse Coder. Each teammate gets its own independent `Engine` instance (and thus its own context window, model, and toolset) while sharing a common task queue and mailbox.
 
-## Architecture
+The package exposes two coordination surfaces (see `AGENTS.md`):
+
+- **Classic in-process coordination** — `Team` / `TeamLead` / `Teammate` / `TaskList` / `Mailbox`, an LLM planner, and a terminal display helper. The package owns the `Engine` instances and the execution loop. Documented below in *Architecture* through *Plan Approval*.
+- **Protocol runtime coordination** — `TeamRuntime` (the `./runtime` entrypoint), a host-driven runtime that holds team/agent/task/artifact/gate state in a store and drives external agent sessions through an adapter, with explicit review gates, round checkpoints, and verification evidence. Documented in *Protocol Runtime (`./runtime`)*.
+
+## Architecture (classic surface)
 
 ```
 TeamLead
@@ -19,7 +24,7 @@ TeamLead
 | `Team` | Lifecycle manager — spawns teammates, owns the TaskList and Mailbox, drives the execution loop |
 | `TeamLead` | High-level orchestrator — adds LLM-driven planning, result synthesis, and follow-up flows |
 | `Teammate` | Wraps a single `Engine` instance; claims tasks, executes them, communicates via mailbox |
-| `TaskList` | Shared in-memory + file-backed task queue with dependency resolution and work-stealing guard |
+| `TaskList` | Shared file-backed task queue with dependency resolution and work-stealing guard |
 | `Mailbox` | Typed message bus (`message`, `broadcast`, `shutdown_request`, `plan_approval_request`, …) |
 
 State is persisted to `~/.pulse-coder/teams/<name>/` (configurable via `TeamConfig.stateDir`).
@@ -92,7 +97,7 @@ await team.createTasks([
 
 // Run — teammates claim tasks in parallel until all are done
 const { results, stats } = await team.run({ timeoutMs: 10 * 60 * 1000 });
-console.log(stats); // { total, completed, failed, skipped }
+console.log(stats); // { total, pending, in_progress, completed, failed }
 
 await team.cleanup();
 ```
@@ -115,10 +120,12 @@ interface Task {
   title: string;
   description: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  deps: string[];       // IDs of tasks that must complete first
+  deps: string[];        // IDs of tasks that must complete first
   assignee: string | null;
   createdBy: string;
-  result?: string;      // populated on completion
+  createdAt: number;     // ms epoch, set on creation
+  updatedAt: number;     // ms epoch, updated on every status change
+  result?: string;       // populated on completion
 }
 ```
 
@@ -126,15 +133,18 @@ Tasks without pending deps are immediately claimable. When a task completes its 
 
 ## Teammate Tools
 
-Every teammate is automatically equipped with team-aware tools:
+Every teammate is automatically equipped with team-aware tools (7 by default; `team_submit_plan` is added when `requirePlanApproval: true`):
 
 | Tool | Description |
 |------|-------------|
-| `team_complete_task` | Mark the current task as done with a result summary |
-| `team_send_message` | Send a message to a specific teammate |
+| `team_send_message` | Send a message to a specific teammate by ID |
+| `team_read_messages` | Read unread messages from the team mailbox |
+| `team_list_tasks` | List all tasks with their status and assignee |
+| `team_claim_task` | Claim a pending task — specific ID, or auto-claim the next available one |
+| `team_complete_task` | Mark a task as completed with an optional result summary |
+| `team_create_task` | Create a new task in the shared task list |
 | `team_notify_lead` | Send a message to the team lead |
-| `team_list_tasks` | List tasks filtered by status or assignee |
-| `team_get_messages` | Read unread mailbox messages |
+| `team_submit_plan` | _(plan mode only)_ Submit a plan to the lead for approval before executing |
 
 If a teammate finishes its `Engine.run()` without calling `team_complete_task`, the task is auto-completed with the run output.
 
@@ -168,11 +178,66 @@ const off = team.on((event) => {
 // Later: off() to unsubscribe
 ```
 
-Event types: `teammate:spawned`, `teammate:idle`, `teammate:stopped`, `teammate:status`, `teammate:output`, `teammate:run_start`, `teammate:run_end`, `task:created`, `task:claimed`, `task:completed`, `task:failed`, `message:sent`, `message:received`, `team:phase`, `team:started`, `team:completed`, `team:cleanup`.
+Events emitted by the classic `Team`/`TeamLead`: `teammate:spawned`, `teammate:idle`, `teammate:stopped`, `teammate:status`, `teammate:output`, `teammate:run_start`, `teammate:run_end`, `task:created`, `task:claimed`, `task:completed`, `task:failed`, `team:phase`, `team:started`, `team:completed`, `team:cleanup`.
+
+> Note: `message:sent` and `message:received` are declared in the `TeamEventType` union (`src/types.ts`) but are **not emitted** by the classic `Team`/`TeamLead`/`Teammate`/`Mailbox` surface. Do not rely on them firing.
 
 ## Plan Approval
 
-Set `requirePlanApproval: true` on a `TeammateOptions` to put that teammate in plan mode. The teammate submits its plan via mailbox before executing; the lead (or a hook) sends a `plan_approval_response` to approve or reject with feedback.
+Set `requirePlanApproval: true` on a `TeammateOptions` to put that teammate in plan mode. The teammate submits its plan via `team_submit_plan` (a `plan_approval_request` mailbox message) before executing; the lead (or a hook) sends a `plan_approval_response` to approve or reject with feedback.
+
+## Public Exports (root entrypoint)
+
+`src/index.ts` re-exports the classic surface plus the planner and display helpers:
+
+- Classes: `Team`, `TeamLead`, `Teammate`, `TaskList`, `Mailbox`
+- Planner: `planTeam(taskDescription, options?)`, `buildTeammateOptionsFromPlan(plan, baseEngineOptions?, logger?)`, and types `TeamPlan`, `PlannerOptions`
+- Display: `InProcessDisplay` — a terminal renderer that subscribes to a `Team`'s event stream (`start()` / `stop()`, optional `{ showOutput }`). Use it to render live progress for the classic `Team`:
+
+```typescript
+import { Team, InProcessDisplay } from 'pulse-coder-agent-teams';
+
+const team = new Team({ name: 'my-team', cwd: '/path/to/project' });
+const display = new InProcessDisplay(team, { showOutput: false });
+display.start();
+// ... spawn, create tasks, team.run() ...
+display.stop();
+```
+
+- Types: `EngineOptions`, `TeamConfig`, `TeamStatus`, `TeamMemberInfo`, `PersistedTeamConfig`, `TeammateOptions`, `TeammateStatus`, `Task`, `CreateTaskInput`, `TaskStatus`, `TeamMessage`, `MessageType`, `TeamHooks`, `TeamEvent`, `TeamEventType`, `TeamEventHandler`, `DisplayMode`
+
+## Protocol Runtime (`./runtime`)
+
+The `./runtime` subpath export is a second, host-driven coordination surface. Unlike the classic `Team` (which owns `Engine` instances and the execution loop in-process), `TeamRuntime` is a stateful protocol runtime: it persists teams, agents, tasks, artifacts, human gates, mailbox messages, and events in a `TeamRuntimeStore`, and drives actual agent sessions through a host-supplied `AgentSessionAdapter`. The runtime itself has **no process or filesystem access** — hosts run verification commands, enforce handoff-file presence, and own PTY/session behavior.
+
+Import:
+
+```typescript
+import { TeamRuntime, InMemoryTeamRuntimeStore } from 'pulse-coder-agent-teams/runtime';
+import type { AgentSessionAdapter, TeamRuntimeStore } from 'pulse-coder-agent-teams/runtime';
+```
+
+`new TeamRuntime(options?: TeamRuntimeOptions)` — options: `store?` (defaults to `InMemoryTeamRuntimeStore`), `agentSessions?` (the `AgentSessionAdapter`), `now?`, `idFactory?`, and `taskHandoffPath?` (resolves a task's handoff file path; enforcing its existence is the host's job).
+
+Key `TeamRuntime` methods (grouped by concern; see `src/runtime/team-runtime.ts` for full signatures):
+
+- **Team lifecycle / snapshot**: `createTeam`, `deleteTeam`, `setTeamStatus`, `completeTeam`, `snapshot` (returns a `RuntimeSnapshot` of the whole team)
+- **Agents / sessions**: `addAgent`, `createAgentSession`, `sendToAgent`, `interruptAgent`
+- **Tasks**: `createTask`, `dispatchReadyTasks` (returns `DispatchResult` of assigned tasks + idle agents), `submitTaskCompletion` (accepts a host-produced `TaskVerificationResult`), `completeTask`, `requestTaskReview`, `failTask`, `cancelTask`, `blockTask`, `updateTaskDescription`
+- **Rounds / checkpoints / pause**: `initializeRound`, `advanceRound`, `finalizeFromCheckpoint`, `repairCurrentRound`, `pauseTeam` / `resumeTeam`, `pauseDispatch` / `resumeDispatch`
+- **Human gates**: `openHumanGate`, `answerHumanGate`, `notifyLeadPendingGates`
+- **Artifacts**: `createArtifact`
+- **Lead notifications**: `notifyLeadPendingTaskReviews`, `notifyLeadAttention`, `notifyLeadPlanApproved`, `notifyLeadReviewIfStalled`
+
+Contracts and record types (`src/runtime/types.ts`):
+
+- `TeamRuntimeStore` — persistence interface: teams use `save`/`get`/`delete`; agents, tasks, and human gates use `save`/`get`/`list`; artifacts use `save`/`list`; events and mailbox messages use `append`/`list`. `InMemoryTeamRuntimeStore` is the default and is used by tests and lightweight hosts.
+- `AgentSessionAdapter` — host bridge: `createSession`, `sendInput`, `interrupt` (`'soft' | 'ctrl-c' | 'abort'`), `getStatus`, optional `persistLaunchPrompt` and `onEvent`.
+- Records: `AgentTeamRecord`, `TeamAgentRecord`, `TeamTaskRecord`, `TeamArtifactRecord`, `HumanGateRecord`, `MailboxMessage`, `TeamEvent`, plus `RuntimeSnapshot`, `DispatchResult`, `TaskVerificationResult`, and the status unions (`TeamStatus`, `AgentStatus`, `TaskStatus`, `HumanGateStatus`, `ArtifactKind`, `MailboxMessageType`, `TeamEventType`).
+- Task metadata helpers (shared with hosts): `TASK_METADATA_KEYS` (`round`, `scope`, `verify`, `lastVerify`, `blockedByFailedDep`), `readCurrentRound`, `readTaskRound`, `readTaskScope`, `readTaskVerification`, `readTaskVerifyCommand`.
+- DAG helpers: `assertTaskGraphAcyclic`, `findTaskGraphCycle` (`src/runtime/task-graph.ts`).
+
+Contract intent, invariants, and consumers (`apps/teams-cli`, `apps/canvas-workspace`, the engine built-in agent-teams integration) live in `docs/contracts.md`. Public runtime exports are contracts — route changes through `harness/skills/contract-coding.md`.
 
 ## Build & Test
 
