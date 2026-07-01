@@ -1,104 +1,116 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Repository Harness
+This file orients agents working in the Coder repository. It is a thin routing + boundary layer; substantive knowledge lives downstream in `harness/`, per-workspace `AGENTS.md`, and `docs/`.
 
-The active repository-level harness source of truth is `harness/`. Use it as a progressive map, not as a document dump:
+## 0. Meta rules (precedence + SSOT)
 
-```text
-AGENTS.md / CLAUDE.md
--> harness/README.md
--> harness/profile.yaml
--> affected workspace entry
--> workspace contracts/spec/runbook/validation as needed
-```
+1. **Precedence**: this file > affected workspace's `AGENTS.md` > `harness/profile.yaml` (routing) + `harness/validation.yaml` (checks) > `harness/skills/*` (action protocols) > package-level `docs/`. Lower layers refine, never contradict, the upper.
+2. **SSOT, no copies**: the active workspace set lives in `pnpm-workspace.yaml` + `harness/profile.yaml` — do not re-list it here. Package metadata lives in each `package.json`. Skill content is NOT duplicated across `.pulse-coder/skills/` (runtime task skills) and `harness/skills/` (repo action protocols) — they are different layers; do not merge or copy between them.
+3. **Mechanism over doc, stated honestly**: prefer extending plugin/hook/tool boundaries over hardcoding into `packages/engine/src/core/loop.ts`. There is currently NO automated gate layer (see §4); validation commands must be run by hand. Where a spec says "enforce," verify a runner exists before relying on it.
+4. **First principles before solutions**: confirm the real problem, goal, constraints, and evidence (from current repo or reproducible behavior) before acting. Do not reverse-engineer a conclusion from an existing MR, neighboring code, or a candidate solution. If you cannot state what real problem a change solves and where the evidence is, do not implement.
+5. **Occam / reuse-first**: reuse existing entries, modules, scripts, skills, and docs before adding new ones. Add a new skill, doc, abstraction, or process only when the current system cannot carry the work AND the new asset reduces real complexity or provides an executable constraint. "Could be updated to latest" is not a reason to add.
 
-`.pulse-coder/` is product/runtime configuration and test surface for Pulse Coder itself; do not treat it as the source of truth for this repository harness pilot.
+**Pre-implementation self-check** (run mentally before coding):
+1. Is the problem real, with evidence from this repo or a reproducible case?
+2. Can an existing entry / module / skill / script carry this — if not, why?
+3. What is the minimal change that avoids parallel entries and duplicate rules?
+4. Where is the SSOT for any rule I'm touching, and how do引用方 stay in sync?
+5. Can this be a mechanism (type / lint / test / hook / script) rather than a doc line? If only doc, is the reason stated?
 
-## Project Structure & Module Organization
-This repo is a `pnpm` monorepo with all `packages/*` workspaces plus selected app workspaces listed in `pnpm-workspace.yaml`.
+## 1. Routing
 
-Root-level guidance should route work to the right local entry, then the local `AGENTS.md` should carry the package-specific map, boundaries, and validation notes. Primary source code lives under each package/app `src/` directory; build output goes to `dist/`.
+**Reading chain**: `AGENTS.md` → `harness/README.md` → `harness/profile.yaml` → affected workspace entry + its `AGENTS.md`/`docs/` → `harness/validation.yaml`.
 
-## Workspace Entry Index
+**Doc taxonomy:**
+- **L0 root entries**: `AGENTS.md` (this file), `CLAUDE.md`, `README.md` — routing, harness pilot, project intro.
+- **L1 mid-level index**: `harness/README.md`, `harness/profile.yaml` (workspace routing), `harness/validation.yaml` (path→check mapping), root `docs/` topic dirs (`harness/`, `mcp-plugin/`, `memory-plugin/`, `plan-mode/`, `plugin-system/`).
+- **L2 module entries**: each workspace's `AGENTS.md` (14 active), `harness/skills/*` (repo action protocols), `harness/templates/*`.
 
-| Workspace | Local entry | Start there when the change touches |
-|---|---|---|
-| `packages/engine` | `packages/engine/AGENTS.md` | engine loop, providers, prompts, tools, hooks, plugins, context, or public runtime API |
-| `packages/cli` | `packages/cli/AGENTS.md` | terminal UX, sessions, slash commands, ACP/team/memory wiring, or CLI sandbox registration |
-| `packages/acp` | `packages/acp/AGENTS.md` | ACP JSON-RPC clients, child processes, external agent sessions, permissions, or file handlers |
-| `packages/pulse-sandbox` | `packages/pulse-sandbox/AGENTS.md` | sandboxed JavaScript execution or the `run_js` tool adapter |
-| `packages/agent-teams` | `packages/agent-teams/AGENTS.md` | team runtime, task state, review gates, verification metadata, handoffs, or team protocol APIs |
-| `packages/orchestrator` | `packages/orchestrator/AGENTS.md` | generic DAG planning, routing, scheduling, agent runners, artifacts, or aggregation |
-| `packages/plugin-kit` | `packages/plugin-kit/AGENTS.md` | worktree binding, vault binding, devtools timelines, or reusable plugin infrastructure |
-| `packages/memory-plugin` | `packages/memory-plugin/AGENTS.md` | memory services, recall/write policy, embeddings, daily logs, layered storage, or memory tools |
-| `packages/langfuse-plugin` | `packages/langfuse-plugin/AGENTS.md` | Langfuse traces, generations, tool spans, compaction events, or observability hooks |
-| `packages/canvas-cli` | `packages/canvas-cli/AGENTS.md` | `pulse-canvas` CLI commands, canvas store inspection/mutation, or runtime-control helpers |
-| `packages/canvas-nodes` | `packages/canvas-nodes/AGENTS.md` | external Canvas node plugins, manifests, capability providers, renderers, or webview node apps |
-| `apps/remote-server` | `apps/remote-server/AGENTS.md` | HTTP/webhook runtime, platform adapters, internal routes, devtools, or remote session wiring |
-| `apps/teams-cli` | `apps/teams-cli/AGENTS.md` | terminal host behavior for agent teams run/plan/interactive workflows |
-| `apps/canvas-workspace` | `apps/canvas-workspace/AGENTS.md` | Electron workbench, canvas persistence, Canvas Agent, teams UI, plugins, webviews, PTYs, or app harness |
+**Intent navigation** (find the entry point; then read the workspace's own `AGENTS.md`):
 
-## Auxiliary App Directories
+| Intent | First file / dir |
+|---|---|
+| Add a built-in plugin | `packages/engine/src/built-in/index.ts` + new subdir |
+| Register a tool | `packages/engine/src/tools/` (built-in) or `ctx.registerTool` in a plugin |
+| Change the core loop / hooks | `packages/engine/src/core/loop.ts` |
+| Add/fix an MCP server config | `.pulse-coder/mcp.json` + `packages/engine/src/built-in/mcp-plugin/` |
+| Tune context compaction | `packages/engine/src/core/loop.ts` + env (`CONTEXT_WINDOW_TOKENS`, `COMPACT_*`, `KEEP_LAST_TURNS`) |
+| Add a runtime skill | `.pulse-coder/skills/<name>/SKILL.md` |
+| Add a sub-agent | `.pulse-coder/agents/*.md` |
+| Change an orchestration role | `packages/orchestrator/` |
+| Change a remote-server adapter | `apps/remote-server/src/adapters/` + `core/dispatcher.ts` |
+| Add a canvas node plugin | `packages/canvas-nodes/` |
+| Add/remove a workspace | `pnpm-workspace.yaml` + `harness/profile.yaml` + `harness/validation.yaml` |
+| Update what to run for a path | `harness/validation.yaml` |
+| Review changes (repo-aware) | `harness/skills/code-review.md` |
+| Inspect harness coverage | `node harness/tools/graph-viewer/server.mjs --once` |
 
-These directories are useful context, but they are not active pnpm workspaces in the repository harness unless `pnpm-workspace.yaml` is expanded:
+## 2. Hard boundaries (real values)
 
-- `apps/coder-demo`: legacy standalone experimental app; its placeholder test script is expected to fail.
-- `apps/devtools-web`: auxiliary Vite devtools UI that can be served by `apps/remote-server` when built.
-- `apps/canvas-plugin-react-mf-note-demo`: standalone Canvas external plugin demo with its own package flow.
+- **Package manager**: `pnpm@10.28.0` (`packageManager`). Never npm/yarn.
+- **Node**: unpinned (no `.nvmrc`/`engines`). Do not assume a version; adding a pin is an open gap.
+- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/teams-cli` + `apps/canvas-workspace` use standalone tsconfigs — root changes do not reach them. `plugin-kit`/`memory-plugin`/`langfuse-plugin`/`teams-cli` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there.
+- **Module format**: ESM repo-wide (`"type":"module"`). CommonJS holdouts: `packages/cli`, `packages/canvas-cli`, `apps/teams-cli` — match each package's `"type"`.
+- **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit` + `langfuse-plugin` declare `vitest run` with ZERO test files and NO `--passWithNoTests` → they fail under the default command. `orchestrator`/`teams-cli` use `--passWithNoTests` with no real specs → green ≠ coverage. `remote-server` has NO test/typecheck (runtime app). `cli` has NO typecheck.
+- **Build**: `tsup`; root `build` uses `SKIP_DTS=1`.
+- **Path aliases**: only `pulse-coder-engine`, `pulse-coder-orchestrator`, `pulse-coder-plugin-kit`, `pulse-coder-acp`, `pulse-coder-agent-teams` (root `tsconfig.json`). Use `workspace:*` deps for the rest; do not invent aliases.
+- **Lint/format**: ABSENT (no eslint/prettier/biome). Self-enforce; match surrounding files (2 spaces, semicolons, single quotes).
 
-## Build, Test, and Development Commands
-- `pnpm install`: install workspace dependencies.
-- `pnpm run build`: build core workspaces recursively.
-- `pnpm run dev`: watch mode for packages.
-- `pnpm start`: run the CLI (`pulse-coder-cli`).
-- `pnpm test`: run package tests (`./packages/*`).
-- `pnpm run test:apps`: run tests for app workspaces matched by pnpm filters.
-- `node harness/tools/graph-viewer/server.mjs --once`: validate the harness data behind the dashboard once.
-- `pnpm --filter pulse-coder-engine typecheck`: strict TS typecheck for engine.
+## 3. Auxiliary-workspace boundary
 
-Useful package targets:
-- `pnpm --filter pulse-coder-engine test`
-- `pnpm --filter pulse-coder-cli test`
-- `pnpm --filter pulse-sandbox test`
-- `pnpm --filter pulse-coder-memory-plugin test`
-- `pnpm --filter @pulse-coder/remote-server build`
-- `pnpm --filter @pulse-coder/remote-server dev`
+Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` + `apps/canvas-workspace`. `apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo` are real but excluded (no AGENTS.md — excluded by policy). `packages/demo` is empty. Five app dirs (`canvas-plugin-figma-webview`, `frontend`, `pulse-agent-test`, `react-framework`, `todo-test-app`) are untracked stubs with no `package.json` — do not edit them expecting wiring. `apps/EXPERIMENTAL.md` is stale (claims `canvas-workspace` excluded) — trust `pnpm-workspace.yaml`, not that file.
 
-Use the affected workspace entry and `harness/validation.yaml` before picking checks. Some local entries document package commands that are intentionally absent or currently red; do not promote those commands to root-level defaults until the package itself is cleaned up.
+## 4. Prerequisite gates (honest: none are mechanical)
 
-## Coding Style & Naming Conventions
-Use TypeScript with strict mode and keep style consistent with neighboring files:
-- 2-space indentation, semicolons, and single quotes in most TS code.
-- `PascalCase` for classes/types (`Engine`, `PluginManager`).
-- `camelCase` for variables/functions.
-- `kebab-case` for multi-word file names (`session-commands.ts`).
-- `UPPER_SNAKE_CASE` for exported constants.
+There is NO CI, NO git hooks, NO husky/lint-staged/commitlint, and NO executable checks under `harness/checks/` (placeholder only). `harness/validation.yaml` is a declarative spec — nothing runs it for you. `harness/tools/*` (except `graph-viewer`) are protocol specs, not executables; `scripts/harness/` does not exist.
 
-No repository-wide ESLint/Prettier enforcement is guaranteed; keep diffs minimal and focused.
+**Skill taxonomy (two tiers — do not merge):**
 
-## Testing Guidelines
-Vitest is used across core packages. Name tests `*.test.ts` or `*.spec.ts` and keep them near related source files.
+| Tier | Location | Role | Loaded how |
+|---|---|---|---|
+| Runtime task skills | `.pulse-coder/skills/*/SKILL.md` (10) | On-demand task knowledge/procedures (git-workflow, mr-generator, refactor, …) | engine skills plugin → `skill` tool |
+| Repo action protocols | `harness/skills/*.md` (5) | Binding behavior-norm protocols | NOT loaded at runtime — carried by you |
 
-Add tests for behavior changes in:
-- loop control and compaction behavior,
-- plugin/tool registration and hook behavior,
-- CLI command handling and session workflows,
-- memory integration boundaries.
+**Action → required pre-read** (repo action protocols; manual, no runtime enforcement):
 
+| Action | Read first |
+|---|---|
+| Touch a workspace's code | that workspace's `AGENTS.md` + matching `harness/profile.yaml` entry |
+| Change crossing package contracts | `harness/skills/contract-coding.md` + relevant `docs/contracts.md` |
+| Add/adjust repo or workspace docs | `harness/skills/doc-governance.md` |
+| Propose a process / governance change | `harness/skills/feedback-governance.md` |
+| Review a diff (repo-aware) | `harness/skills/code-review.md` |
+| Quality self-check / acceptance gate | `harness/skills/quality-workflow.md` |
 
-## Commit & Pull Request Guidelines
-Follow Conventional Commits (scope optional):
-- `feat(engine): ...`
-- `fix(cli): ...`
-- `chore: ...`
+`harness/skills/*` are behavior-norm protocols, NOT runtime skills (no engine loader) — the binding rules must be carried by you, not enforced at runtime.
 
-PRs should include:
-- clear summary and affected package(s),
-- linked issue (if applicable),
-- test evidence (commands and results),
-- terminal evidence/screenshots for CLI UX changes when relevant.
+**Gap to close (aspirational, not present):** wire `harness/validation.yaml` to a real runner (CI on changed paths, or a husky pre-push) and implement the candidate checks in `harness/checks/README.md`. Do not claim these exist today.
 
-## Security & Configuration Tips
-- Keep secrets in local `.env` files only (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `GEMINI_API_KEY`, etc.).
-- Never commit credentials, local session data, or private memory databases.
-- Prefer `.pulse-coder/*` config paths; legacy `.coder/*` paths exist for compatibility.
+## 5. Acceptance (reproducible + verifiable)
+
+Run the commands `harness/validation.yaml` binds to your changed path:
+- Package change → `pnpm --filter <pkg-name> test` and `pnpm --filter <pkg-name> typecheck` (where they exist).
+- Cross-package / contract change → also apply the escalation rules in `harness/validation.yaml`.
+- Full local sweep → `pnpm run build` (SKIP_DTS=1), then `pnpm run test:core`.
+- `canvas-workspace` is in `test:all`/`build:all` but NOT `build:core`/`test:core` — include it explicitly when you touch it (it has the largest test suite: 97 files).
+- Harness data change → `node harness/tools/graph-viewer/server.mjs --once` must report `harnessGaps:0`.
+
+**Red command — do not promote:** `pnpm run test:apps` can exit 1 because `apps/coder-demo`'s test script is `echo Error && exit 1`. Use targeted `pnpm --filter <pkg> test`; do not treat a bare `test:apps` failure as a regression unless you've filtered out excluded apps. Likewise a green `pnpm test` is not proof for `plugin-kit`/`langfuse-plugin`/`orchestrator`/`teams-cli` (no real specs).
+
+## 6. Failure capture (named failure → guard)
+
+- **Over-pruning tool-call history dropped later user turns**: first fix sliced messages at the first incomplete tool-call, losing legitimate later user turns. Guard: `pruneIncompleteToolExchanges()` surgically filters only the incomplete part; regression tests in `packages/engine/src/core/loop.test.ts` assert later user turns survive. Any new message-history cleanup in `loop.ts` MUST add a parallel regression test.
+- **Blocking I/O froze the Electron host**: `bash` tool used `execSync`, blocking the event loop and freezing `canvas-workspace` UI. Guard: `bash.ts` now uses async `spawn` with `SIGTERM`→`SIGKILL`. Rule: never `execSync`/blocking I/O in `packages/engine/src/tools/*` — the engine runs on GUI main threads. (Two wrong-root-cause fixes — pulse-sandbox interrupt, PTY coalescing — were reverted; confirm the actual blocking call before patching adjacent paths.)
+- **UTF-8 chunk-split corruption**: async rewrite decoded each pipe chunk independently, corrupting multi-byte CJK. Guard: collect raw `Buffer`s and decode once.
+- **MCP reload stale/empty state**: reload didn't activate the target scope first. Guard: `activateScope` before reload, force fresh probe.
+- **Stale doc claimed canvas-workspace excluded**: `apps/EXPERIMENTAL.md` contradicts `pnpm-workspace.yaml:5`. Guard: `pnpm-workspace.yaml` + `harness/profile.yaml` are SSOT; run `graph-viewer --once` to detect coverage drift; do not trust prose workspace lists.
+
+Failures are captured in fix commits + regression tests (TODO/FIXME density is zero across `packages/*/src`; `harness/feedback/inbox.md` is an empty template) — debug via `git log -- <file>` and `loop.test.ts` cases, not by grepping for TODOs.
+
+## 7. Security / secrets
+
+Do not commit API keys or tokens. Runtime keys (`OPENAI_API_KEY`/`PULSE_OPENAI_API_KEY`, `ANTHROPIC_API_KEY`/`PULSE_ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `GEMINI_API_KEY`, `INTERNAL_API_SECRET`, `CLARIFICATION_*`) are env-only. Default model precedence (code at `packages/engine/src/config/index.ts`): `ANTHROPIC_MODEL` → `OPENAI_MODEL` → `PULSE_ANTHROPIC_MODEL` → `PULSE_OPENAI_MODEL` → `novita/deepseek/deepseek_v3`. `PULSE_`-prefixed fallbacks exist for every provider var. Remote-server internal routes are loopback-only and require `INTERNAL_API_SECRET`. Plugin secret storage uses the vault helpers in `pulse-coder-plugin-kit`.
+
+## 8. `.pulse-coder/` vs `.coder/`
+
+`.pulse-coder/` is the active runtime/product config root. On disk it holds `mcp.json` (3 servers: `eido_mind`, `deepwiki`, `twitter` — all `deferTools:true`), `agents/` (8 sub-agents), `skills/` (10 runtime knowledge skills). `config.json`, `engine-plugins/`, and `skills/remote.json` are ABSENT on disk but their loaders are wired in source. Legacy `.coder/*` paths remain compatible in the MCP/skills/sub-agent/engine-plugins loaders but are not preferred — write new config under `.pulse-coder/`. Runtime skills (`.pulse-coder/skills`) and repo action protocols (`harness/skills`) are different layers; the `code-review` name appears in both by design (runtime generic checklist vs repo-aware protocol) — do not merge them.
