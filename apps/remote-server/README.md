@@ -7,7 +7,7 @@ HTTP server that wraps `pulse-coder-engine` and exposes it to messaging platform
 - **Hono** + **@hono/node-server** — HTTP framework
 - **tsup** — bundles to `dist/index.cjs`
 - **tsx** — TypeScript watch mode for development
-- `pulse-coder-engine`, `pulse-coder-memory-plugin`, `pulse-coder-plugin-kit`, `pulse-coder-acp` — workspace deps
+- `pulse-coder-engine`, `pulse-coder-memory-plugin`, `pulse-coder-plugin-kit`, `pulse-coder-acp`, `pulse-coder-langfuse-plugin` — workspace deps
 
 ## Endpoints
 
@@ -17,11 +17,16 @@ HTTP server that wraps `pulse-coder-engine` and exposes it to messaging platform
 | `POST` | `/webhooks/feishu` | Public Feishu event webhook |
 | `POST` | `/webhooks/discord` | Public (ED25519-verified) |
 | `POST` | `/internal/agent/run` | Loopback + Bearer token |
+| `GET` | `/internal/worktrees` | Loopback + Bearer token |
+| `POST` | `/internal/worktrees` | Loopback + Bearer token |
+| `GET` | `/internal/worktrees/:id` | Loopback + Bearer token |
+| `POST` | `/internal/worktrees/:id/run` | Loopback + Bearer token |
+| `DELETE` | `/internal/worktrees/:id` | Loopback + Bearer token |
 | `GET` | `/internal/discord/gateway/status` | Loopback + Bearer token |
 | `POST` | `/internal/discord/gateway/restart` | Loopback + Bearer token |
 | `GET` | `/api/devtools/runs` | Local dev |
 
-> Telegram and Web API adapters exist in code but are not mounted by default.
+> Telegram and Web API adapters exist in code but are not mounted by default. `/internal/*` routes are loopback-only and require `INTERNAL_API_SECRET` in production.
 
 ## Dev & Build
 
@@ -66,34 +71,49 @@ DISCORD_BOT_TOKEN=            # Required for DM / gateway mode
 
 See `.env.example` for the full list including memory plugin, Gemini, Telegram, ACP, and compaction tuning.
 
-Model overrides per-channel can be set in `.pulse-coder/config.json` (cwd) or via `$PULSE_CODER_MODEL_CONFIG`.
+### Model config
+
+The active model is a single global `current_model` (not per-channel). It is resolved from the first existing config path, in order: `$PULSE_CODER_MODEL_CONFIG`, `.pulse-coder/config.json` in the cwd, or `~/.pulse-coder/config.json` in the home directory (`src/core/model-config.ts`). Use `/model <name>` to set it, `/model reset` to clear it, or `/model status` to inspect it.
+
+### Langfuse observability
+
+The `langfusePlugin` (`src/core/langfuse.ts`) is always mounted and auto-activates only when both keys are present; otherwise it disables itself safely. Runs are tagged `remote-server`.
+
+```bash
+LANGFUSE_PUBLIC_KEY=          # required to activate
+LANGFUSE_SECRET_KEY=          # required to activate
+# LANGFUSE_HOST=              # optional, defaults to Langfuse Cloud
+# LANGFUSE_RELEASE=           # optional, git sha / version tag
+```
 
 ## Slash Commands
 
-Users can type these in any connected channel:
+Users can type these as in-channel text in any connected channel:
 
 | Command | Description |
 |---------|-------------|
-| `/new` | Start a new session (clear history) |
-| `/clear` | Alias for `/new` |
-| `/resume [id]` | List recent sessions or resume a specific one |
-| `/fork` | Fork current session into a new branch |
-| `/merge` | Merge a linked session |
-| `/status` | Show current run status |
-| `/current` | Show active session ID |
-| `/stop` | Abort the running agent turn |
-| `/compact` | Manually trigger context compaction |
-| `/memory [show\|clear]` | View or clear memory logs |
-| `/model <name>` | Override LLM model for this channel |
-| `/mode <plan\|act>` | Switch agent mode |
-| `/soul [name]` | Set or clear persona injection |
-| `/skills [list\|install]` | Manage skills |
-| `/wt <bind\|unbind\|status>` | Git worktree binding |
-| `/acp on <claude\|codex>` | Switch to ACP agent mode |
-| `/acp off` | Return to engine mode |
-| `/restart` | Rebuild and restart (PM2 only) |
+| `/help` (`/start`, `/h`, `/?`) | Show command list |
 | `/ping` | Health check reply |
-| `/help` | Show command list |
+| `/new` | Start a new session |
+| `/clear` (`/reset`) | Clear current session context |
+| `/compact` | Force context compaction |
+| `/mode [status\|planning\|executing]` | View or switch agent mode |
+| `/model [status\|reset\|<name>]` | View or switch the global LLM model |
+| `/memory [on\|off\|pin <id>\|forget <id>]` | View or manage memory logs |
+| `/current` (`/session`) | Show active session ID |
+| `/detach` | Detach current session binding (keeps history) |
+| `/resume` (`/sessions`, `/ls`) | List recent sessions or resume a specific one |
+| `/fork <session-id>` (`/clone`) | Fork a session into a new branch |
+| `/merge <session-id> [label]` (`/link`, `/unlink`) | Link or manage linked sessions |
+| `/status` | Show current run status and session info |
+| `/stop` (`/cancel`, `/halt`) | Abort the running agent turn |
+| `/insight [days]` | Summarize recent session insights (default 7 days) |
+| `/skills [list\|<name\|index> <message>]` | List or invoke a skill |
+| `/soul [list\|status\|use <id>\|add <id>\|remove <id>\|clear]` | Manage persona injection |
+| `/wt <status\|use\|clear>` | Git worktree binding |
+| `/acp on <claude\|codex> [cwd]` | Switch to ACP agent mode |
+| `/acp off` | Return to engine mode |
+| `/restart [status\|update [branch]]` | Rebuild and restart (PM2 only) |
 
 `//command` (double slash) forwards the command directly to a running ACP agent.
 
@@ -117,7 +137,7 @@ Users can type these in any connected channel:
 
 1. Copy the **Public Key** from your application settings.
 2. Optional (requires HTTPS): set **Interactions Endpoint URL** to `https://your-server/webhooks/discord`.
-3. In **Bot** settings, enable intents: `Direct Messages`, `Server Messages`, `Message Content Intent`.
+3. In **Bot** settings, enable the **Message Content Intent** (privileged — required to read message text). The gateway also requests `GUILDS`, `GUILD_MESSAGES`, `GUILD_MESSAGE_REACTIONS`, `DIRECT_MESSAGES`, and `DIRECT_MESSAGE_REACTIONS` (non-privileged, granted by default); the two REACTIONS intents power the ❌-reaction cancel feature (`src/adapters/discord/gateway.ts`).
 
 ### 2) Environment Variables
 
@@ -139,7 +159,7 @@ DISCORD_BOT_TOKEN=your_discord_bot_token
 
 - **Guild channels** — mention the bot: `@YourBot explain this stack trace`. Set `DISCORD_GUILD_REQUIRE_MENTION=false` to allow plain text.
 - **DMs** — send text directly; `/ask`, `/chat`, `/prompt` prefixes are normalized and stripped.
-- **Slash commands** — `/ask <text>` and management commands (`/restart`, `/new`, etc.) are auto-registered on startup.
+- **Application commands** — `/restart`, `/wt`, `/skills`, `/stop`, and the right-click message command **Ask Pulse** are auto-registered on startup (toggle with `DISCORD_COMMAND_REGISTER_ENABLED`). Other commands like `/new`, `/detach`, `/insight` work as in-channel text but are not registered as Discord application commands.
 
 ### 4) Gateway Internal Ops
 
@@ -155,7 +175,7 @@ curl -sS -X POST \
   http://127.0.0.1:3000/internal/discord/gateway/restart
 ```
 
-The included `scripts/discord-gateway-watchdog.sh` polls this endpoint every ~90 s and triggers a restart after consecutive unhealthy checks.
+The included `scripts/discord-gateway-watchdog.sh` is a single health check meant to be run on a recurring schedule (e.g. cron). It queries the status endpoint, and after consecutive unhealthy checks (`DISCORD_GATEWAY_FAIL_THRESHOLD`, default 2) triggers a gateway restart; after repeated escalation cycles (`DISCORD_GATEWAY_MAX_ESCALATIONS`, default 3) it falls back to a full `pm2:restart` (`DISCORD_GATEWAY_ESCALATION_RESTART_COMMAND`).
 
 ## Internal Agent API
 
@@ -177,6 +197,7 @@ Key body fields:
 | `skill` | Invoke a named skill (`[use skill](name)` shorthand) |
 | `platformKey` | Session namespace key (default: `internal:agent-run`) |
 | `forceNewSession` | Start a fresh session (default: `true`) |
+| `askPolicy` | Clarification behavior: `'never'` (default, auto-skip) or `'default'` (error if no default answer) |
 | `caller` | Caller identity for PTC tool filtering |
 | `callerSelectors` | Allowed caller tool names |
 | `notify.feishu` | `{ receiveId, receiveIdType }` — post result to Feishu |
@@ -184,20 +205,41 @@ Key body fields:
 
 Response includes `result`, `toolCalls`, `compactions`, and `notify` fields.
 
+## Worktree Internal API
+
+Loopback-only, requires `Authorization: Bearer $INTERNAL_API_SECRET` (or `X-Internal-Api-Key`). Mounted at `/internal/worktrees*` via `src/routes/internal.ts`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/internal/worktrees` | List managed worktrees |
+| `POST` | `/internal/worktrees` | Create or register a worktree |
+| `GET` | `/internal/worktrees/:id` | Get a worktree by id |
+| `POST` | `/internal/worktrees/:id/run` | Run a command inside a worktree |
+| `DELETE` | `/internal/worktrees/:id` | Remove a worktree record (optionally its directory) |
+
+Create body (`WorktreeCreateBody`): `id` (required), `repoRoot`, `worktreePath`, `branch`, `baseRef`, and optional `bind: { runtimeKey, scopeKey }`.
+
+Run body (`WorktreeRunBody`): `backend` (`'host'` | `'docker'`, default `'host'`), `command` + `args` or `shell`, `timeoutMs`, `env`, and a `docker: { image, user, network, env, extraArgs }` block for the docker backend (image defaults to `PULSE_CODER_DOCKER_IMAGE` or `node:22-bookworm`).
+
 ## Custom Tools
 
 Registered in `src/core/engine-singleton.ts`:
 
 | Tool | Notes |
 |------|-------|
-| `cron_job` | Schedules recurring internal agent runs |
-| `twitter_list_tweets` | Fetches X/Twitter list via Nitter RSS with fallback instances |
-| `jina_ai_read` | Web page reader via Jina AI |
-| `session_summary` | Summarizes a stored session |
-| `deferred_demo` | `defer_loading: true` demo — discovered only via tool search |
-| `ptc_demo_*` | PTC `allowed_callers` demos |
+| `analyze_image` | Analyze local images via OpenAI/GPT vision or Gemini (defer-loaded) |
+| `cron_job` | Create/update a cron runner that calls `/internal/agent/run` (defer-loaded) |
+| `deferred_demo` | Demo deferred tool that echoes a short message (defer-loaded) |
+| `jina_ai_read` | Fetch readable page text via r.jina.ai, incl. login-walled pages (defer-loaded) |
+| `lark_cli` | Run LarkSuite CLI for Feishu/Lark Open Platform operations (defer-loaded) |
+| `read_linked_session` | Read messages from a session linked to the current one (defer-loaded) |
+| `session_summary` | Summarize recent sessions by reading stored session messages (defer-loaded) |
+| `twitter_list_tweets` | Fetch latest tweets from an X list via Nitter-compatible RSS feeds (defer-loaded) |
+| `worktree_prepare` | Create or bind an isolated git worktree for the conversation |
+| `worktree_run` | Run validation commands in the bound worktree (host or docker backend) |
+| `ptc_demo_*` | PTC `allowed_callers` demos (`ptc_demo_caller_probe` is defer-loaded) |
 
-`defer_loading: true` tools are not sent to the LLM until the `tool_search_tool_bm25` tool discovers them.
+Tools registered with `defer_loading: true` are not sent to the LLM until the `tool_search_tool_bm25` tool discovers them. `worktree_prepare`, `worktree_run`, and the restricted `ptc_demo_*` tools (except `ptc_demo_caller_probe`) are loaded eagerly.
 
 ## PTC `allowed_callers`
 

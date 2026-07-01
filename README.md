@@ -23,7 +23,8 @@ This repo is a `pnpm` workspace monorepo (`packages/*`, `apps/*`).
 | `packages/agent-teams` | `pulse-coder-agent-teams` | Agent teams coordination built on the orchestrator |
 | `packages/acp` | `pulse-coder-acp` | Agent Context Protocol — typed client, runner, and state store |
 | `packages/langfuse-plugin` | `pulse-coder-langfuse-plugin` | Optional Langfuse tracing plugin |
-| `packages/canvas-cli` | `pulse-coder-canvas-cli` | Canvas-related CLI helpers |
+| `packages/canvas-cli` | `@pulse-coder/canvas-cli` | Canvas-related CLI helpers |
+| `packages/canvas-nodes` | `@pulse-canvas/nodes` | External Pulse Canvas node plugins (runtime-loadable plugin directories) |
 
 ### Apps
 
@@ -31,11 +32,12 @@ This repo is a `pnpm` workspace monorepo (`packages/*`, `apps/*`).
 | --- | --- |
 | `apps/remote-server` | HTTP service wrapping the engine (Feishu/Discord/Telegram adapters) |
 | `apps/teams-cli` | CLI for multi-agent teams workflows |
-| `apps/canvas-workspace` | Canvas-based workspace app |
+| `apps/canvas-workspace` | Canvas-based workspace app (Electron) |
 | `apps/coder-demo` | Legacy experimental app |
 | `apps/devtools-web` | Experimental devtools web UI |
+| `apps/canvas-plugin-react-mf-note-demo` | Experimental Pulse Canvas note-plugin demo |
 
-> Experimental apps (`apps/coder-demo`, `apps/devtools-web`) live in the repo but are excluded from the default workspace install/build. See `apps/EXPERIMENTAL.md`.
+> Experimental apps (`apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo`) live in the repo but are excluded from the default workspace install/build. The active workspace set is defined in `pnpm-workspace.yaml` (SSOT).
 
 Other notable folders: `docs/`, `architecture/`, `examples/`, `scripts/`.
 
@@ -72,21 +74,22 @@ Core loop (`packages/engine/src/core/loop.ts`) provides:
 - streaming text/tool events,
 - LLM hooks (`beforeLLMCall`, `afterLLMCall`),
 - tool hooks (`beforeToolCall`, `afterToolCall`, `onToolCall`),
-- run-level hooks (`beforeRun`, `afterRun`) — `beforeRun` can mutate `systemPrompt` and `tools`,
 - retry with exponential backoff for retryable failures (`429/5xx`),
 - abort handling,
 - automatic context compaction (`onCompacted`).
 
+Run-level hooks (`beforeRun`, `afterRun`) fire in `Engine.run()` (`packages/engine/src/Engine.ts`); `beforeRun` can mutate `systemPrompt` and `tools`.
+
 ### 4) Built-in plugins
-Registered from `packages/engine/src/built-in/index.ts`:
+Registered from `packages/engine/src/built-in/index.ts` (in load order):
 - `built-in-mcp`: loads MCP servers from `.pulse-coder/mcp.json` (or legacy `.coder/mcp.json`) and exposes tools as `mcp_<server>_<tool>`.
 - `built-in-skills`: scans `SKILL.md` files and exposes the `skill` tool.
+- `tool-search`: deferred tool discovery (loads tool schemas on demand).
 - `built-in-plan-mode`: planning/executing mode management.
 - `built-in-task-tracking`: `task_create/task_get/task_list/task_update` with local persistence.
 - `SubAgentPlugin`: loads Markdown agent definitions from `.pulse-coder/agents/*.md` and registers `<name>_agent` tools.
-- `tool-search`: deferred tool discovery (loads tool schemas on demand).
-- `role-soul`: persona / system-prompt injection.
 - `agent-teams`: exposes orchestrator-driven multi-agent coordination as engine tools.
+- `role-soul`: persona / system-prompt injection.
 - `ptc`: PTC workflow integration.
 
 ### 5) CLI runtime model
@@ -124,14 +127,19 @@ Key components:
 - Model overrides: `.pulse-coder/config.json` or `$PULSE_CODER_MODEL_CONFIG` (`apps/remote-server/src/core/model-config.ts`).
 - Adapters: Feishu (`adapters/feishu/*`), Discord webhooks (`adapters/discord/adapter.ts`) and DM gateway (`adapters/discord/gateway.ts`).
 - Internal API: `POST /internal/agent/run`, `GET /internal/discord/gateway/status`, `POST /internal/discord/gateway/restart` — loopback-only, gated by `INTERNAL_API_SECRET`.
-- Tools: registered in `apps/remote-server/src/core/engine-singleton.ts` (cron scheduler, deferred demo, Twitter list fetcher, session summary, PTC demo). Some are `defer_loading: true` and only load after tool-search discovery.
+- Tools: registered in `apps/remote-server/src/core/engine-singleton.ts`, including `analyze_image`, `cron_job`, `jina_ai_read`, `read_linked_session`, `session_summary`, `twitter_list_tweets`, `lark_cli`, the `worktree_prepare`/`worktree_run` tools, and the `ptc_demo_*` tools. Some are `defer_loading: true` and only load after `tool-search` discovery.
 
 ---
 
 ## Built-in tools
 
-Engine built-ins:
-- `read`, `write`, `edit`, `grep`, `ls`, `bash`, `tavily`, `gemini_pro_image`, `clarify`
+Engine built-ins (registered in `packages/engine/src/tools/index.ts` via `BuiltinToolsMap`):
+- `read`, `write`, `edit`, `grep`, `ls`, `bash`, `clarify`
+- `tavily`, `tavily_extract`, `tavily_crawl`, `tavily_map` (Tavily search/extract/crawl/map)
+- `generate_image` (GPT/OpenAI by default, Gemini optional)
+- `deferred_demo` (deferred-loading demo tool)
+
+Tools marked `defer_loading: true` (e.g. `generate_image`, the `tavily_*` variants, `deferred_demo`) only load after `tool-search` discovery.
 
 Task tracking plugin adds:
 - `task_create`, `task_get`, `task_list`, `task_update`
@@ -196,11 +204,18 @@ pnpm preview:teams:run    # preview "run" mode
 pnpm preview:teams:plan   # preview "plan" mode
 ```
 
+### 7) Canvas workspace (optional, Electron)
+```bash
+pnpm --filter canvas-workspace dev        # electron-vite dev (hot reload)
+pnpm --filter canvas-workspace build      # production build
+pnpm --filter canvas-workspace test       # vitest run (largest test suite in the repo)
+```
+
 ---
 
 ## CLI commands
 
-Inside the CLI:
+Inside the CLI (run `/help` for the full, current list):
 
 - `/help`
 - `/new [title]`
@@ -216,6 +231,7 @@ Inside the CLI:
 - `/mode`
 - `/plan`
 - `/execute`
+- `/solo`
 - `/save`
 - `/exit`
 
@@ -324,7 +340,7 @@ pnpm start:debug       # CLI with debug logging
 pnpm test              # alias for test:core
 pnpm run test:core     # packages/* + remote-server + teams-cli
 pnpm run test:packages # packages/* only
-pnpm run test:apps     # apps/* (may fail due to placeholder scripts in coder-demo)
+pnpm run test:apps     # apps/* workspace members (canvas-workspace, remote-server, teams-cli)
 pnpm run test:all      # all packages and apps
 ```
 
@@ -342,10 +358,10 @@ pnpm --filter @pulse-coder/remote-server build
 pnpm --filter @pulse-coder/remote-server dev
 ```
 
-All packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for typechecking.
+Packages use **vitest** (`vitest run`) for tests and `tsc --noEmit` for typechecking where those scripts exist. Notable gaps: `apps/remote-server` has no `test` or `typecheck` script (runtime app — manual testing via `curl` against `/internal/agent/run`); `packages/cli` has no `typecheck` script.
 
 Notes:
-- `pnpm-workspace.yaml` only includes the core set: all `packages/*`, `apps/remote-server`, `apps/teams-cli`, `apps/canvas-workspace`. Experimental apps (`apps/coder-demo`, `apps/devtools-web`) stay in the repo but are excluded from default install/build.
+- `pnpm-workspace.yaml` only includes the core set: all `packages/*`, `apps/remote-server`, `apps/teams-cli`, `apps/canvas-workspace`. Experimental apps (`apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo`) stay in the repo but are excluded from default install/build.
 - Use `build:all` / `dev:all` / `test:all` for full-workspace runs.
 
 ---
