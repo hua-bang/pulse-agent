@@ -2,13 +2,13 @@
 
 This directory is the source of truth for the repository-level harness pilot. It is separate from `.pulse-coder/`, which remains product/runtime configuration and test data for Pulse Coder itself.
 
-The harness has four main loops:
+The target harness shape is one always-on control surface plus three expandable surfaces:
 
 ```text
-knowledge -> action -> validation -> feedback
+AGENTS.md -> Know / Tool / Verify
 ```
 
-`tools` are shared atomic capabilities that can be used by any loop.
+See `harness/DESIGN.md` for the full model. In short: `AGENTS.md` carries persistent routing, constraints, gates, acceptance standards, and failure guards; Know / Tool / Verify carry the expandable facts, mechanisms, and validation evidence.
 
 ## Reading Path
 
@@ -26,6 +26,7 @@ AGENTS.md / CLAUDE.md
 
 | Area | Path | Purpose |
 |---|---|---|
+| Harness design | `DESIGN.md` | Target shape for AGENTS.md + Know / Tool / Verify across global and module scopes. |
 | Repository map | `profile.yaml` | Machine-readable workspace routing table. |
 | Validation matrix | `validation.yaml` | Machine-readable validation matrix and escalation rules. |
 | Action protocols | `skills/` | Tool-agnostic agent skills for recurring work. |
