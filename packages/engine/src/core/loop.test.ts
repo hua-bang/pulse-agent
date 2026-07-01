@@ -97,7 +97,17 @@ describe('loop', () => {
     expect(onResponse).toHaveBeenCalledWith([{ role: 'assistant', content: 'step response' }]);
   });
 
-  it('prunes trailing incomplete tool-call history before calling the LLM', async () => {
+  it('prunes incomplete tool-call parts before calling the LLM without dropping later user turns', async () => {
+    const cleanedMessages = [
+      { role: 'user', content: 'first' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'I will inspect this.' },
+        ],
+      } as any,
+      { role: 'user', content: 'next turn' },
+    ];
     const context: Context = {
       messages: [
         { role: 'user', content: 'first' },
@@ -123,14 +133,57 @@ describe('loop', () => {
       const result = await loop(context);
 
       expect(result).toBe('recovered');
-      expect(context.messages).toEqual([{ role: 'user', content: 'first' }]);
+      expect(context.messages).toEqual(cleanedMessages);
       expect(streamTextAIMock).toHaveBeenCalledWith(
-        [{ role: 'user', content: 'first' }],
+        cleanedMessages,
         expect.any(Object),
         expect.any(Object),
       );
       expect(warnSpy).toHaveBeenCalledWith(
-        '[loop] Pruned 2 trailing message(s) with incomplete tool-call history before LLM call',
+        '[loop] Pruned 1 incomplete tool-call part(s) before LLM call',
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('removes assistant messages that only contain incomplete tool-call parts', async () => {
+    const cleanedMessages = [
+      { role: 'user', content: 'first' },
+      { role: 'user', content: 'next turn' },
+    ];
+    const context: Context = {
+      messages: [
+        { role: 'user', content: 'first' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool-call', toolCallId: 'call_missing', toolName: 'read', input: { filePath: 'a.ts' } },
+          ],
+        } as any,
+        { role: 'user', content: 'next turn' },
+      ],
+    };
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    streamTextAIMock.mockReturnValue({
+      text: Promise.resolve('recovered'),
+      steps: Promise.resolve([]),
+      finishReason: Promise.resolve('stop'),
+    });
+
+    try {
+      const result = await loop(context);
+
+      expect(result).toBe('recovered');
+      expect(context.messages).toEqual(cleanedMessages);
+      expect(streamTextAIMock).toHaveBeenCalledWith(
+        cleanedMessages,
+        expect.any(Object),
+        expect.any(Object),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[loop] Pruned 1 incomplete tool-call part(s) before LLM call',
       );
     } finally {
       warnSpy.mockRestore();

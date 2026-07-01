@@ -35,10 +35,10 @@ function getToolCallId(part: unknown): string | undefined {
   return typeof toolCallId === 'string' && toolCallId.length > 0 ? toolCallId : undefined;
 }
 
-function findFirstIncompleteToolExchangeIndex(messages: ModelMessage[]): number | undefined {
-  const pendingToolCalls = new Map<string, number>();
+function findIncompleteToolCallIds(messages: ModelMessage[]): Set<string> {
+  const pendingToolCalls = new Set<string>();
 
-  messages.forEach((message, index) => {
+  messages.forEach((message) => {
     const content = (message as { content?: unknown }).content;
     if (!Array.isArray(content)) return;
 
@@ -48,27 +48,40 @@ function findFirstIncompleteToolExchangeIndex(messages: ModelMessage[]): number 
       if (!toolCallId) continue;
 
       if (type === 'tool-call') {
-        pendingToolCalls.set(toolCallId, index);
+        pendingToolCalls.add(toolCallId);
       } else if (type === 'tool-result') {
         pendingToolCalls.delete(toolCallId);
       }
     }
   });
 
-  let firstIndex: number | undefined;
-  for (const index of pendingToolCalls.values()) {
-    firstIndex = firstIndex === undefined ? index : Math.min(firstIndex, index);
-  }
-  return firstIndex;
+  return pendingToolCalls;
 }
 
 function pruneIncompleteToolExchanges(messages: ModelMessage[]): ModelMessage[] {
-  const firstIncompleteIndex = findFirstIncompleteToolExchangeIndex(messages);
-  if (firstIncompleteIndex === undefined) return messages;
+  const incompleteToolCallIds = findIncompleteToolCallIds(messages);
+  if (incompleteToolCallIds.size === 0) return messages;
 
-  const pruned = messages.slice(0, firstIncompleteIndex);
+  let removedParts = 0;
+  const pruned = messages.flatMap((message) => {
+    const content = (message as { content?: unknown }).content;
+    if (!Array.isArray(content)) return [message];
+
+    const nextContent = content.filter((part) => {
+      const type = part && typeof part === 'object' ? (part as { type?: unknown }).type : undefined;
+      const toolCallId = getToolCallId(part);
+      const shouldRemove = type === 'tool-call' && toolCallId !== undefined && incompleteToolCallIds.has(toolCallId);
+      if (shouldRemove) removedParts += 1;
+      return !shouldRemove;
+    });
+
+    if (nextContent.length === content.length) return [message];
+    if (nextContent.length === 0) return [];
+    return [{ ...message, content: nextContent } as ModelMessage];
+  });
+
   console.warn(
-    `[loop] Pruned ${messages.length - pruned.length} trailing message(s) with incomplete tool-call history before LLM call`,
+    `[loop] Pruned ${removedParts} incomplete tool-call part(s) before LLM call`,
   );
   return pruned;
 }
