@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
+import { copyTextToClipboard } from '../../utils/clipboard';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions } from './utils/mentions';
@@ -40,6 +41,34 @@ const CopyMessageButton = memo(({ content }: { content: string }) => {
   );
 });
 CopyMessageButton.displayName = 'CopyMessageButton';
+
+const CopyGeneratedImageButton = memo(({ imagePath }: { imagePath: string }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(async () => {
+    try {
+      const result = await window.canvasWorkspace.file.copyImage(imagePath);
+      if (!result.ok) {
+        await copyTextToClipboard(toFileUrl(imagePath));
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable — ignore */
+    }
+  }, [imagePath]);
+  return (
+    <button
+      type="button"
+      className="chat-generated-image-card__action"
+      onClick={() => void handleCopy()}
+      title={copied ? 'Copied!' : 'Copy image'}
+      aria-label="Copy image"
+    >
+      {copied ? 'Copied' : 'Copy'}
+    </button>
+  );
+});
+CopyGeneratedImageButton.displayName = 'CopyGeneratedImageButton';
 
 interface GeneratedImagePayload {
   ok?: boolean;
@@ -209,9 +238,14 @@ export const ChatMessage = ({
   const lightboxImages = useMemo<LightboxImage[]>(() => [
     ...(message.attachments ?? []).map(attachment => ({
       src: toFileUrl(attachment.path),
+      filePath: attachment.path,
       caption: attachment.fileName,
     })),
-    ...generatedImages.map(image => ({ src: image.src, caption: image.title })),
+    ...generatedImages.map(image => ({
+      src: image.src,
+      filePath: image.outputPath,
+      caption: image.title,
+    })),
   ], [message.attachments, generatedImages]);
 
   const handleImageKeyOpen = useCallback(
@@ -292,12 +326,16 @@ export const ChatMessage = ({
                     />
                     <figcaption>
                       <span>{image.title ?? 'Generated image'}</span>
-                      <button
-                        type="button"
-                        onClick={() => void onAddImageToCanvas?.(image.outputPath, image.title)}
-                      >
-                        Add to canvas
-                      </button>
+                      <span className="chat-generated-image-card__actions">
+                        <CopyGeneratedImageButton imagePath={image.outputPath} />
+                        <button
+                          type="button"
+                          className="chat-generated-image-card__action chat-generated-image-card__action--primary"
+                          onClick={() => void onAddImageToCanvas?.(image.outputPath, image.title)}
+                        >
+                          Add to canvas
+                        </button>
+                      </span>
                     </figcaption>
                   </figure>
                 );

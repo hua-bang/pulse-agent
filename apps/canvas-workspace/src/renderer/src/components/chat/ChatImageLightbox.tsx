@@ -9,11 +9,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CloseIcon } from '../icons';
+import { CheckIcon, CloseIcon, CopyIcon } from '../icons';
 import { useI18n } from '../../i18n';
+import { copyTextToClipboard } from '../../utils/clipboard';
+import { toFileUrl } from '../../utils/fileUrl';
 
 export interface LightboxImage {
   src: string;
+  filePath?: string;
   caption?: string;
 }
 
@@ -26,6 +29,7 @@ interface ChatImageLightboxProps {
 export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLightboxProps) => {
   const { t } = useI18n();
   const [index, setIndex] = useState(startIndex);
+  const [copied, setCopied] = useState(false);
   const count = images.length;
 
   // Re-sync when the caller opens a different image without unmounting (e.g.
@@ -40,6 +44,26 @@ export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLigh
   const goNext = useCallback(() => {
     setIndex(prev => (prev + 1) % count);
   }, [count]);
+
+  const handleCopy = useCallback(async () => {
+    const image = images[Math.min(Math.max(index, 0), Math.max(count - 1, 0))];
+    if (!image) return;
+    try {
+      if (image.filePath) {
+        const result = await window.canvasWorkspace.file.copyImage(image.filePath);
+        if (result.ok) {
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1200);
+          return;
+        }
+      }
+      await copyTextToClipboard(image.filePath ? toFileUrl(image.filePath) : image.src);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable — keep viewer open */
+    }
+  }, [count, images, index]);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -64,6 +88,10 @@ export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLigh
     };
   }, [count, goPrev, goNext, onClose]);
 
+  useEffect(() => {
+    setCopied(false);
+  }, [index]);
+
   const safeIndex = Math.min(Math.max(index, 0), Math.max(count - 1, 0));
   const current = images[safeIndex];
   if (!current) return null;
@@ -82,7 +110,17 @@ export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLigh
     >
       <button
         type="button"
-        className="chat-image-lightbox-close"
+        className="chat-image-lightbox-action chat-image-lightbox-copy"
+        onClick={() => void handleCopy()}
+        aria-label="Copy image"
+        title={copied ? 'Copied!' : 'Copy image'}
+      >
+        {copied ? <CheckIcon size={18} strokeWidth={1.8} /> : <CopyIcon size={18} />}
+      </button>
+
+      <button
+        type="button"
+        className="chat-image-lightbox-action chat-image-lightbox-close"
         onClick={onClose}
         aria-label={t('chat.closeImage')}
         title={t('chat.closeImage')}
