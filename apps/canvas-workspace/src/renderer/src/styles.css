@@ -58,6 +58,7 @@
   --layer-modal: 1900;               /* settings drawers (with backdrop) */
   --layer-palette: 2000;             /* command palette */
   --layer-dialog: 2050;              /* app-shell confirm dialogs */
+  --layer-context-menu: 2075;        /* node/edge/sidebar context menus */
   --layer-toast: 2100;               /* app-shell toasts */
 }
 
