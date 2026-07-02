@@ -46,6 +46,9 @@ export interface FileApi {
     data: string,
     ext?: string,
   ) => Promise<{ ok: boolean; canceled?: boolean; filePath?: string; fileName?: string; error?: string }>;
+  copyImage: (
+    filePath: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
   onChanged: (callback: (filePath: string, content: string) => void) => () => void;
 }
 

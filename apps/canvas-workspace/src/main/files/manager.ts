@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from "electron";
+import { ipcMain, dialog, BrowserWindow, clipboard, nativeImage } from "electron";
 import { promises as fs } from "fs";
 import { join, basename } from "path";
 import { homedir } from "os";
@@ -204,6 +204,27 @@ export const setupFileManagerIpc = () => {
         const buffer = Buffer.from(payload.data, "base64");
         await fs.writeFile(result.filePath, buffer);
         return { ok: true, filePath: result.filePath, fileName: basename(result.filePath) };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    }
+  );
+
+  // Copy an image file to the system clipboard as image data.
+  ipcMain.handle(
+    "file:copyImage",
+    async (_event, payload: { filePath: string }) => {
+      try {
+        if (!payload.filePath) {
+          return { ok: false, error: "Missing image path" };
+        }
+        await fs.access(payload.filePath);
+        const image = nativeImage.createFromPath(payload.filePath);
+        if (image.isEmpty()) {
+          return { ok: false, error: "Unsupported or unreadable image" };
+        }
+        clipboard.writeImage(image);
+        return { ok: true };
       } catch (err) {
         return { ok: false, error: String(err) };
       }

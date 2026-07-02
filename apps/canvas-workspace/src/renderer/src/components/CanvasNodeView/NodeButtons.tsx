@@ -28,6 +28,23 @@ export const FullscreenButton = ({ floating, isFullscreen, onClick }: Fullscreen
   </button>
 );
 
+export const CopyImageButton = ({ onClick }: { onClick: (e: MouseEvent) => void }) => (
+  <button
+    className="node-copy-image node-copy-image--floating"
+    type="button"
+    onClick={onClick}
+    onMouseDown={(e) => e.stopPropagation()}
+    title="Copy image"
+    aria-label="Copy image"
+  >
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <rect x="2" y="2" width="8" height="8" rx="1.4" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M3.5 8l2-2 1.5 1.5 1-1 2 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8" cy="4" r=".75" fill="currentColor" />
+    </svg>
+  </button>
+);
+
 interface CloseButtonProps {
   floating?: boolean;
   onClick: (e: MouseEvent) => void;

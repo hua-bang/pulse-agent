@@ -395,6 +395,7 @@
 .node-body--reference .node-reference,
 .node-body--reference .node-add-to-chat,
 .node-body--reference .node-plugin-select,
+.node-body--reference .node-copy-image,
 .node-body--reference .node-fullscreen,
 .node-body--reference .resize-handle,
 .node-body--reference .node-time-label {
@@ -601,6 +602,7 @@
 .node-add-to-chat,
 .node-plugin-select,
 .node-focus,
+.node-copy-image,
 .node-fullscreen,
 .node-close {
   height: 20px;
@@ -625,6 +627,7 @@
 .node-add-to-chat,
 .node-plugin-select,
 .node-focus,
+.node-copy-image,
 .node-fullscreen,
 .node-close {
   width: 20px;
@@ -634,6 +637,7 @@
 .canvas-node:hover .node-add-to-chat,
 .canvas-node:hover .node-plugin-select,
 .canvas-node:hover .node-focus,
+.canvas-node:hover .node-copy-image,
 .canvas-node:hover .node-fullscreen,
 .canvas-node:hover .node-close {
   opacity: 1;
@@ -648,6 +652,11 @@
 }
 
 .node-focus:hover {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+.node-copy-image:hover {
   background: var(--accent-light);
   color: var(--accent);
 }
@@ -1265,6 +1274,15 @@
   position: absolute;
   top: 4px;
   right: 30px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  z-index: 5;
+}
+
+.node-copy-image--floating {
+  position: absolute;
+  top: 4px;
+  right: 56px;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   z-index: 5;
