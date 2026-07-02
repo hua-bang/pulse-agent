@@ -20,7 +20,7 @@ import {
   buildDoneCard,
   buildErrorCard,
 } from './client.js';
-import { buildFeishuPlatformKey, parseFeishuPlatformKey } from './platform-key.js';
+import { buildFeishuPlatformKey, parseFeishuPlatformKey, resolveFeishuTopicId } from './platform-key.js';
 import { parseFeishuMessageContent } from './message-content.js';
 
 
@@ -532,13 +532,6 @@ interface FeishuChatMeta {
   sourceMessageId?: string;
   topicId?: string;
   allowReaction?: boolean;
-}
-
-function resolveFeishuTopicId(message: Record<string, unknown>): string | undefined {
-  return asNonEmptyString(message.root_id)
-    ?? asNonEmptyString(message.parent_id)
-    ?? asNonEmptyString(message.thread_id)
-    ?? undefined;
 }
 
 function extractFeishuEvent(body: Record<string, unknown>): Record<string, unknown> | null {
