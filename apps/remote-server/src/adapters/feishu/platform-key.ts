@@ -56,6 +56,14 @@ export function parseFeishuPlatformKey(platformKey: string): ParsedFeishuPlatfor
   return undefined;
 }
 
+export function resolveFeishuTopicId(message: Record<string, unknown>): string | undefined {
+  return asNonEmptyString(message.root_id)
+    ?? asNonEmptyString(message.parent_id)
+    ?? asNonEmptyString(message.thread_id)
+    ?? asNonEmptyString(message.message_id)
+    ?? undefined;
+}
+
 function sanitizeFeishuPlatformSegment(value?: string): string | undefined {
   const trimmed = value?.trim();
   if (!trimmed) {
@@ -63,4 +71,13 @@ function sanitizeFeishuPlatformSegment(value?: string): string | undefined {
   }
 
   return trimmed.replace(/:/g, '_');
+}
+
+function asNonEmptyString(value: unknown): string | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
