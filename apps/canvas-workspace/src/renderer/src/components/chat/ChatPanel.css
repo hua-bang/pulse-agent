@@ -487,6 +487,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+  gap: 8px;
   max-width: min(92%, 560px);
 }
 
@@ -2170,10 +2171,12 @@
 .chat-message-user .chat-message-images {
   order: 1;
   width: 100%;
+  margin-bottom: 0;
   justify-items: end;
 }
 
-.chat-message-user .chat-message-content {
+.chat-message-user .chat-message-content,
+.chat-message-user .chat-message-edit {
   order: 2;
   margin-bottom: 0;
 }
