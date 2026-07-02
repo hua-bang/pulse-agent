@@ -13,6 +13,7 @@ import type {
   TextNodeData,
 } from '../types';
 import { cloneMindmapTopic, createDefaultNode, createNodeData, genId } from '../utils/nodeFactory';
+import { resizeGroupsToChildren } from '../utils/resizeGroupsToChildren';
 import { degradeEndpointsForDeletedNode } from '../utils/edgeFactory';
 import { useNodeHistory } from './useNodeHistory';
 
@@ -396,61 +397,6 @@ export const useNodes = (
     [applyNodes, scheduleSave, canvasId, setNodes, nodesRef]
   );
 
-  const resizeGroupsToChildren = useCallback((nextNodes: CanvasNode[]): CanvasNode[] => {
-    const PADDING = 18;
-    let current = nextNodes;
-
-    for (let pass = 0; pass < 4; pass += 1) {
-      const byId = new Map(current.map((node) => [node.id, node] as const));
-      let changed = false;
-
-      const resized = current.map((node) => {
-        if (node.type !== 'group') return node;
-        const data = node.data as GroupNodeData;
-        const childIds = Array.isArray(data.childIds) ? data.childIds : [];
-        const children = childIds
-          .map((id) => byId.get(id))
-          .filter((child): child is CanvasNode => !!child && child.id !== node.id);
-        if (children.length === 0) return node;
-
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        for (const child of children) {
-          minX = Math.min(minX, child.x);
-          minY = Math.min(minY, child.y);
-          maxX = Math.max(maxX, child.x + child.width);
-          maxY = Math.max(maxY, child.y + child.height);
-        }
-
-        const next = {
-          ...node,
-          x: minX - PADDING,
-          y: minY - PADDING,
-          width: maxX - minX + PADDING * 2,
-          height: maxY - minY + PADDING * 2,
-          updatedAt: Date.now(),
-        };
-        if (
-          next.x === node.x &&
-          next.y === node.y &&
-          next.width === node.width &&
-          next.height === node.height
-        ) {
-          return node;
-        }
-        changed = true;
-        return next;
-      });
-
-      if (!changed) return current;
-      current = resized;
-    }
-
-    return current;
-  }, []);
-
   const updateNode = useCallback(
     (id: string, patch: Partial<CanvasNode>) => {
       const updatedNodes = nodesRef.current.map((n) =>
@@ -458,7 +404,7 @@ export const useNodes = (
       );
       applyNodes(resizeGroupsToChildren(updatedNodes));
     },
-    [applyNodes, nodesRef, resizeGroupsToChildren]
+    [applyNodes, nodesRef]
   );
 
   const removeNode = useCallback(
@@ -475,7 +421,7 @@ export const useNodes = (
         : edgesRef.current;
       applyState({ nodes: resizeGroupsToChildren(nextNodes), edges: nextEdges });
     },
-    [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
+    [applyState, edgesRef, nodesRef]
   );
 
   const removeNodes = useCallback(
@@ -490,7 +436,7 @@ export const useNodes = (
       }
       applyState({ nodes: resizeGroupsToChildren(nextNodes), edges: nextEdges });
     },
-    [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
+    [applyState, edgesRef, nodesRef]
   );
 
   const syncDeletedNodes = useCallback(
@@ -510,7 +456,7 @@ export const useNodes = (
       setNodes(nodesRef.current);
       setEdges(nextEdges);
     },
-    [edgesRef, nodesRef, resizeGroupsToChildren, setEdges, setNodes],
+    [edgesRef, nodesRef, setEdges, setNodes],
   );
 
   const ungroupNodes = useCallback(
@@ -580,7 +526,7 @@ export const useNodes = (
       applyState({ nodes: resizeGroupsToChildren(nextNodes), edges: nextEdges });
       return Array.from(promotedIds);
     },
-    [applyState, edgesRef, nodesRef, resizeGroupsToChildren]
+    [applyState, edgesRef, nodesRef]
   );
 
   const moveNode = useCallback(
@@ -590,7 +536,7 @@ export const useNodes = (
       );
       applyNodes(resizeGroupsToChildren(movedNodes), false);
     },
-    [applyNodes, nodesRef, resizeGroupsToChildren]
+    [applyNodes, nodesRef]
   );
 
   const moveNodes = useCallback(
@@ -603,7 +549,7 @@ export const useNodes = (
       });
       applyNodes(resizeGroupsToChildren(movedNodes), false);
     },
-    [applyNodes, nodesRef, resizeGroupsToChildren]
+    [applyNodes, nodesRef]
   );
 
   const resizeNode = useCallback(
@@ -613,7 +559,7 @@ export const useNodes = (
       );
       applyNodes(resizeGroupsToChildren(resizedNodes), false);
     },
-    [applyNodes, nodesRef, resizeGroupsToChildren]
+    [applyNodes, nodesRef]
   );
 
   const duplicateNode = useCallback(
@@ -683,7 +629,7 @@ export const useNodes = (
       applyNodes(resizeGroupsToChildren([...nodesRef.current, newNode]));
       return newNode;
     },
-    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef, resizeGroupsToChildren]
+    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef]
   );
 
   const pasteNodes = useCallback(
@@ -762,7 +708,7 @@ export const useNodes = (
       applyNodes(resizeGroupsToChildren([...nodesRef.current, ...newNodes]));
       return newNodes;
     },
-    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef, resizeGroupsToChildren]
+    [applyNodes, scheduleSave, canvasId, setNodes, nodesRef]
   );
 
   /**
@@ -806,7 +752,7 @@ export const useNodes = (
       applyNodes(resizeGroupsToChildren([...nodesRef.current, group]));
       return group;
     },
-    [applyNodes, nodesRef, resizeGroupsToChildren]
+    [applyNodes, nodesRef]
   );
 
   /**
@@ -848,7 +794,7 @@ export const useNodes = (
       applyNodes(resizeGroupsToChildren([...nodesRef.current, frame]));
       return frame;
     },
-    [applyNodes, nodesRef, resizeGroupsToChildren],
+    [applyNodes, nodesRef],
   );
 
   const addEdge = useCallback(

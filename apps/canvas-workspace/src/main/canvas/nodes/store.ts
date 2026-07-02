@@ -127,7 +127,13 @@ export async function writeWorkspaceNode(
 ): Promise<void> {
   assertSafeNodeId(record.id);
   const path = getNodeFilePath(workspaceId, record.id, root);
-  await atomicWriteJson(path, JSON.stringify(record, null, 2));
+  const serialized = JSON.stringify(record, null, 2);
+  // Whole-canvas saves funnel every node through here even when only one
+  // changed — skip the atomic write (temp file + rename + watcher echo)
+  // when the on-disk record is already byte-identical.
+  const current = await fs.readFile(path, 'utf-8').catch(() => undefined);
+  if (current === serialized) return;
+  await atomicWriteJson(path, serialized);
 }
 
 export async function deleteWorkspaceNode(

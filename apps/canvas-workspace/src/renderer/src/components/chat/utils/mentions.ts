@@ -2,7 +2,7 @@ import { createElement, type ReactNode } from 'react';
 import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, CanvasNode } from '../../../types';
 import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
-import { renderMarkdown } from './markdown';
+import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
 import { readDomSelectionDataset, writeDomSelectionDataset } from './domMentionData';
 
 const MENTION_RE = /@\[([^\]]+)\]/g;
@@ -414,8 +414,12 @@ export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactN
   return parts.length > 0 ? parts : content;
 }
 
-export function renderMdWithMentions(content: string, nodes?: CanvasNode[]): string {
-  const html = renderMarkdown(content);
+export function renderMdWithMentions(
+  content: string,
+  nodes?: CanvasNode[],
+  options?: RenderMarkdownOptions,
+): string {
+  const html = renderMarkdown(content, options);
 
   return html.replace(MENTION_RE, (_match, rawLabel: string) => {
     if (rawLabel.startsWith(CANVAS_MENTION_PREFIX)) {
