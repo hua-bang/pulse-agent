@@ -31,6 +31,9 @@ export const createFileApi = (ipcRenderer: IpcRenderer): FileApi => ({
   exportImage: (defaultName, data, ext) =>
     ipcRenderer.invoke("file:exportImage", { defaultName, data, ext }),
 
+  copyImage: (filePath) =>
+    ipcRenderer.invoke("file:copyImage", { filePath }),
+
   onChanged: (callback) =>
     subscribe<FileChangedPayload>(ipcRenderer, "canvas:file-changed", (payload) => {
       callback(payload.filePath, payload.content);
