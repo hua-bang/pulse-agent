@@ -38,12 +38,12 @@ interface DynamicAppInspectorProps {
   onUrlChanged(url: string): void;
 }
 
-export function DynamicAppInspector({
+export const DynamicAppInspector = ({
   workspaceId,
   dynamicAppId,
   apiUrl,
   onUrlChanged,
-}: DynamicAppInspectorProps) {
+}: DynamicAppInspectorProps) => {
   const [tab, setTab] = useState<Tab>("spec");
   const [spec, setSpec] = useState<GetSpecOk | null>(null);
   const [specError, setSpecError] = useState<string | null>(null);
@@ -114,11 +114,11 @@ export function DynamicAppInspector({
       </div>
     </div>
   );
-}
+};
 
 // ─── Payload tab ──────────────────────────────────────────────────
 
-function PayloadTab({ apiUrl }: { apiUrl: string }) {
+const PayloadTab = ({ apiUrl }: { apiUrl: string }) => {
   const [latest, setLatest] = useState<unknown>(undefined);
   const [streamError, setStreamError] = useState<string | null>(null);
 
@@ -163,11 +163,11 @@ function PayloadTab({ apiUrl }: { apiUrl: string }) {
       {JSON.stringify(latest, null, 2)}
     </pre>
   );
-}
+};
 
 // ─── Actions tab ──────────────────────────────────────────────────
 
-function ActionsTab({
+const ActionsTab = ({
   workspaceId,
   dynamicAppId,
   kind,
@@ -177,7 +177,7 @@ function ActionsTab({
   dynamicAppId: string;
   kind: "polling" | "stateful" | undefined;
   onUrlChanged(url: string): void;
-}) {
+}) => {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -260,4 +260,4 @@ function ActionsTab({
       )}
     </div>
   );
-}
+};

@@ -253,7 +253,7 @@ export const BuiltInToolsSection = ({ onClose }: BuiltInToolsSectionProps) => {
   );
 };
 
-function CredentialBadge({ credential }: { credential: BuiltInToolCredentialStatus }) {
+const CredentialBadge = ({ credential }: { credential: BuiltInToolCredentialStatus }) => {
   const { t } = useI18n();
   const label = credential.source === 'stored'
     ? t('toolsConfig.sourceStored')
@@ -269,7 +269,7 @@ function CredentialBadge({ credential }: { credential: BuiltInToolCredentialStat
       {label}{length ? ` · ${length}` : ''}
     </span>
   );
-}
+};
 
 function formatBaseUrlSource(
   credential: BuiltInToolCredentialStatus,
