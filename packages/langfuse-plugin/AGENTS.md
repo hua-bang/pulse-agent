@@ -18,7 +18,7 @@ This package should remain an optional observability plugin. Core engine hook co
 | Build/typecheck shape | `tsup.config.ts`, `tsconfig.json` |
 | Engine plugin contracts | `../engine/AGENTS.md`, `../engine/src/plugin/` |
 | Engine runtime hooks | `../engine/src/core/loop.ts` |
-| Validation matrix | `../../harness/validation.yaml` |
+| Validation matrix | `../../harness/validate/validation.yaml` |
 
 This package currently has no local `README.md`, `docs/`, or test files; use `src/index.ts` as the package-local source of truth until those exist.
 

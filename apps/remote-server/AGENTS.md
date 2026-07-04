@@ -14,7 +14,7 @@ Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Dis
 
 | Task | Read |
 |---|---|
-| Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | Local runtime overview | `README.md`, `CLAUDE.md`, `docs/runbook.md`, `docs/validation.md` |
 | Package scripts and build shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
 | Bootstrap and mounted routes | `src/index.ts`, `src/server.ts` |

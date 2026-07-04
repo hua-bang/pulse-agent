@@ -131,11 +131,11 @@ Build uses `tsup` (ESM + CJS, DTS unless `SKIP_DTS=1`). `langfuse` and `pulse-co
 Honest gaps (per repo `AGENTS.md`):
 
 - `test` (`vitest run`) has **no test files** and exits non-zero — there is no `--passWithNoTests`. Do not treat a green `test` as coverage.
-- `typecheck` (`tsc --noEmit`) currently hits TS6059 because the package imports workspace source from `packages/engine` outside its `rootDir`. Prefer `build` as the smoke check. `harness/validation.yaml` lists `build` as the required check for this path.
+- `typecheck` (`tsc --noEmit`) currently hits TS6059 because the package imports workspace source from `packages/engine` outside its `rootDir`. Prefer `build` as the smoke check. `harness/validate/validation.yaml` lists `build` as the required check for this path.
 - There is no CI, no git hooks, and no executable harness checks — these commands must be run by hand.
 
 ## Relationship to neighbors
 
 - **`packages/engine`** — defines the `EnginePlugin` interface, `EnginePluginContext` (`registerHook`, `registerService`, `logger`, …), and the hook input shapes (`BeforeRunInput`, `AfterLLMCallInput`, `OnCompactedInput`, etc.) this plugin consumes. Engine hook contracts live there; this package only registers handlers.
 - **`apps/remote-server`** — the in-repo host that mounts this plugin. Treats it as an optional observability plugin: policy (which fields to save, which tags to attach) belongs to the host, not this package.
-- **`harness/profile.yaml` / `harness/validation.yaml`** — workspace routing and the path-to-check mapping (`build` is the required check for `packages/langfuse-plugin/**`).
+- **`harness/README.md` / `harness/validate/validation.yaml`** — repository harness routing and the path-to-check mapping (`build` is the required check for `packages/langfuse-plugin/**`).

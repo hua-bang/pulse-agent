@@ -9,8 +9,8 @@ This directory is an index, not a copy. Knowledge in this repo is distributed ac
 | Knowledge | Default SSOT |
 |---|---|
 | Repository navigation, meta-rules, precedence | Root `AGENTS.md` / `CLAUDE.md` (§0–§3) |
-| Auxiliary-workspace boundary, active workspace set | Root `AGENTS.md` §3 + `harness/profile.yaml` |
-| Workspace routing (type / packageName / role / entry / knowledge) | `harness/profile.yaml` |
+| Auxiliary-workspace boundary, active workspace set | Root `AGENTS.md` §3 + `pnpm-workspace.yaml` |
+| Workspace role, routing, and curated knowledge pointers | Workspace `AGENTS.md` and local `docs/` |
 | Security / secrets / runtime key precedence | Root `AGENTS.md` §7 |
 | Named failure captures and their guards | Root `AGENTS.md` §6 |
 | Package contracts, module boundaries | Workspace `AGENTS.md` + `docs/contracts.md` + types + tests |
@@ -21,7 +21,7 @@ This directory is an index, not a copy. Knowledge in this repo is distributed ac
 ## What does not belong here
 
 - Feedback that is not yet evidenced: route to `harness/feedback/` first.
-- Validation rules: route to `harness/verify/` or `harness/validation.yaml`.
+- Validation rules: route to `harness/validate/` or `harness/validate/validation.yaml`.
 - Agent action protocols: route to `harness/skills/`.
 - Mechanical tool specs: route to `harness/tools/`.
 - Module-local facts: keep near the module (workspace `docs/` or `AGENTS.md`).

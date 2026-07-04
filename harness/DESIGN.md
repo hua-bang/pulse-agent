@@ -1,141 +1,172 @@
 # Harness Design
 
-This document defines the target shape for the repository harness. It is a design layer, not an implementation log. For current gaps and rollout order, see `harness/ROADMAP.md`.
+This document defines the target shape for the repository harness. It is a design layer, not an implementation log. For current status, gaps, and rollout order, see `harness/README.md` and `harness/ROADMAP.md`.
 
-## Core Shape
+## Formula
 
-A harness module has one always-on control surface plus three expandable surfaces:
-
-```text
-AGENTS.md
-  navigation / routing
-  hard boundaries / constraints
-  prerequisite gates
-  acceptance standards
-  failure capture
-
-Know
-  facts, structure, contracts, risks, and impact relationships
-
-Tool
-  runners, graphs, scripts, detectors, generators, and other mechanisms
-
-Verify
-  validation matrix, quality gates, known gaps, and delivery evidence
-```
-
-`AGENTS.md` should stay small enough to remain active context. It tells agents what must always be true, when to load more context, and how to finish honestly. Know / Tool / Verify hold the details that are loaded only when the task needs them.
-
-## Monorepo Layering
-
-Monorepos need the same shape at two scopes:
+The harness is intentionally small:
 
 ```text
-Root AGENTS.md
-  -> Global Know / Tool / Verify
-  -> affected Module AGENTS.md
-  -> Module Know / Tool / Verify
+Harness = AGENTS.md + Knowledge + Tool + Validate + Skills
 ```
 
-Global and module entries are intentionally similar. The difference is emphasis:
+`AGENTS.md` is the always-on control surface. The other four surfaces are expandable context that should be loaded only when the task needs them.
+
+## Surfaces
+
+| Surface | Role | Default shape |
+|---|---|---|
+| `AGENTS.md` | Routing, boundaries, prerequisite gates, acceptance standards, and failure guards that must stay in active context. | Root and workspace entry files. |
+| Knowledge | Facts the agent is facing: workspace membership, module responsibility, contracts, risk areas, runtime/config boundaries, and impact relationships. | Lightweight index in `AGENTS.md`; details live in workspace docs, root docs, and `pnpm-workspace.yaml`. |
+| Tool | Mechanisms the agent can run or inspect: graph viewers, detectors, runners, generators, debug helpers. | Lightweight index in `AGENTS.md`; executable tools and local scripts document themselves. |
+| Validate | How the agent chooses checks and reports evidence. | Lightweight index in `AGENTS.md`; workspace-local validation first; optional root impact rules in `harness/validate/`. |
+| Skills | Reusable action protocols for recurring repository work. | Repo-level or workspace-level protocol docs when the workflow is stable enough to name. |
+
+The surfaces are not equal-weight boilerplate. A workspace does not need a local Knowledge, Tool, Validate, or Skills directory until local detail is too dense for its `AGENTS.md` or existing docs.
+
+## Surface README Rule
+
+Do not create a README for a surface by default. The formula is a mental model, not a directory template.
+
+Use `AGENTS.md` as the lightweight index for Knowledge, Tool, Validate, and Skills until a surface has real navigation cost. Add a dedicated surface README only when at least one of these is true:
+
+- The surface has many entries, roughly 15 or more files or subtopics.
+- The surface has multiple entry types and readers need help choosing the right one.
+- The surface is consumed by a script or tool and needs a stable input/output contract.
+- The directory is likely to be opened directly without first reading `AGENTS.md`.
+
+If none of those is true, keep the route in `AGENTS.md` or the nearest existing doc. A thin README that merely restates the surface name is noise.
+
+## Root / Workspace Split
+
+The root harness is a router and coordination layer. It owns repository-wide invariants and cross-workspace impact, not package-local detail.
 
 | Layer | Owns | Does not own |
 |---|---|---|
-| Global | Cross-module consistency, repository-wide principles, shared constraints, global tools, global verification routing. | Detailed package architecture or local runbooks. |
-| Module | Local responsibilities, public contracts, directory boundaries, module tools, module verification reality, local failure guards. | Rules that contradict global constraints. |
+| Root | Precedence, global constraints, active workspace source, shared reading path, global tools, optional validation overlay, known cross-package impact rules. | Package architecture, local runbooks, local command nuance, local product behavior. |
+| Workspace | Local role, boundaries, contracts, scripts, tests, validation details, runbooks, local failure guards. | Rules that contradict root constraints or silently redefine repository-wide behavior. |
 
-Module rules may refine global rules, but they must not contradict them.
+Module rules may refine root rules, but they must not contradict them. If a fact is only true for one workspace, it belongs in that workspace's `AGENTS.md`, docs, or local validation file.
+
+## Knowledge Ownership
+
+Do not maintain a separate workspace profile table. The sources of truth are:
+
+| Fact | Source of truth |
+|---|---|
+| Active workspace membership | `pnpm-workspace.yaml` |
+| Package name and package scripts | Workspace `package.json` |
+| Workspace role and navigation | Workspace `AGENTS.md` |
+| Local contracts and architecture | Workspace `docs/`, `README.md`, source types, and tests |
+| Repository-level harness routing | Root `AGENTS.md`, `CLAUDE.md`, `harness/README.md` |
+
+This avoids a second root-owned map that drifts from package reality. Root files should route to the local owner instead of copying local facts.
+
+## Validate Ownership
+
+Validation has two different jobs:
+
+| Scope | Job | Default location |
+|---|---|---|
+| Workspace-local validation | Local commands, known red commands, local smoke checks, package-specific caveats. | Workspace `validation.yaml` if machine-readable detail is useful; otherwise workspace `docs/validation.md` or `AGENTS.md`. |
+| Root validation overlay | Root config changes, shared dependency changes, cross-workspace public API impact, migration-era routing while local validation files are introduced. | `harness/validate/validation.yaml` |
+
+The root validation file is optional by design. It should exist only where the root can say something useful that a single workspace cannot know, such as "this root config change affects every package" or "this public API change must check downstream consumers."
+
+Run evidence does not belong in YAML. Put evidence in the final response, PR/MR description, or CI logs once CI exists.
 
 ## What Belongs In `AGENTS.md`
 
-Both root and module `AGENTS.md` files use the same categories:
+Both root and workspace `AGENTS.md` files use the same categories:
 
 | Category | Purpose |
 |---|---|
 | Navigation / routing | Where to read next for the current scope. |
-| Hard boundaries / constraints | Stable rules that should remain in the agent's active context. |
-| Prerequisite gates | Conditions that require reading a contract, loading a protocol, running a detector, or stopping to gather evidence. |
+| Hard boundaries / constraints | Stable rules that should remain in active context. |
+| Prerequisite gates | Conditions that require reading a contract, loading a protocol, running a detector, or gathering evidence first. |
 | Acceptance standards | What evidence must be collected before claiming the work is done. |
 | Failure capture | Named guardrails from past failures, stated as concise rules. |
 
-`AGENTS.md` should not become the full knowledge base. If a section starts accumulating detailed facts, move those facts into Know, Tool, or Verify and keep only the trigger or summary in `AGENTS.md`.
+`AGENTS.md` should not become the full knowledge base. If a section starts accumulating detailed facts, move those facts into Knowledge, Tool, Validate, or Skills and keep only the trigger or summary in `AGENTS.md`.
 
-## Know / Tool / Verify
-
-Use these surfaces consistently at global and module scope:
-
-| Surface | Question | Examples |
-|---|---|---|
-| Know | What is the agent facing? | Repository map, module responsibilities, contracts, risk zones, impact relationships, runtime/config boundaries. |
-| Tool | What mechanisms can the agent use? | Harness runner, graph viewer, affected-workspace detector, local scripts, generators, debug entry points. |
-| Verify | How does the agent prove the result? | Path-to-check matrix, package commands, quality gates, known red commands, skipped-validation reporting. |
-
-Tools do not make final decisions. They provide mechanisms. Routing and gates decide when a tool should be used.
-
-## Agent Runtime Loop
+## Agent Loop
 
 The expected agent behavior is:
 
 ```text
-1. Start from the nearest relevant AGENTS.md.
-2. Identify the affected scope and module.
-3. Load Know only as needed to understand facts, contracts, risks, and impact.
+1. Start from root AGENTS.md / CLAUDE.md, then harness/README.md when harness context is relevant.
+2. Identify the affected workspace from the changed path and pnpm workspace membership.
+3. Read the affected workspace AGENTS.md and only the local docs needed for the task.
 4. Use Tool only when a mechanism is needed to inspect, transform, or check something.
-5. Use Verify before finishing to select checks and report evidence.
-6. Feed durable discoveries back into the right surface:
-   - new fact or failure guard -> Know or AGENTS.md
+5. Select validation from the workspace first, then apply root Validate overlay for root or cross-workspace impact.
+6. Report the commands run, commands skipped, and why.
+7. Feed durable discoveries back into the right surface:
+   - new fact or local rule -> workspace Knowledge or AGENTS.md
    - new mechanism -> Tool
-   - new acceptance rule or known gap -> Verify
+   - new acceptance rule or known validation gap -> Validate
+   - new recurring workflow -> Skills
 ```
 
 ## Current Repository Projection
 
-The current pilot already maps onto this design:
+The current pilot maps onto this design as follows:
 
 | Design surface | Current repository location |
 |---|---|
-| Global control surface | `AGENTS.md` and `CLAUDE.md` |
-| Global Know | `harness/profile.yaml`, `harness/README.md`, workspace entries, selected `docs/` |
-| Global Tool | `harness/tools/`, especially `harness/tools/graph-viewer/server.mjs` |
-| Global Verify | `harness/validation.yaml`, `harness/checks/README.md`, known validation notes in root entries |
-| Action protocols | `harness/skills/*.md`; these are invoked by `AGENTS.md` gates and triggers |
-| Module control surface | each workspace `AGENTS.md` |
-| Module Know / Tool / Verify | module `docs/`, scripts, tests, contracts, and optional module-local harness files |
+| Root control surface | `AGENTS.md` and `CLAUDE.md` |
+| Root Knowledge | Root `AGENTS.md`, `CLAUDE.md`, `harness/README.md`, `pnpm-workspace.yaml`, workspace entries, selected `docs/` |
+| Root Tool | Root `AGENTS.md`, `harness/README.md`, executable tools such as `harness/tools/graph-viewer/server.mjs`, and self-documenting tool directories when needed |
+| Root Validate | Root `AGENTS.md`, `harness/README.md`, optional root overlay in `harness/validate/validation.yaml`, and workspace-local validation docs |
+| Skills | Protocol docs when present; runtime task skills under `.pulse-coder/skills/` are a separate product layer and must not be merged with repo harness protocols. |
+| Workspace control surface | Each workspace `AGENTS.md` |
+| Workspace Knowledge / Tool / Validate | Workspace `README.md`, `docs/`, scripts, tests, contracts, and optional workspace-local validation files |
 
-Do not rename directories just to match this design. The first goal is conceptual consistency and routing clarity. Rename or split files only when the current names create real confusion.
+Do not add or keep a file solely because the model has a named surface. Add a file only when it removes duplication, gives the agent a clearer route, or creates an executable constraint.
 
-## Minimal Module Entry Template
+## Minimal Workspace Entry Template
 
-Use this shape when adding or refreshing a module `AGENTS.md`:
+Use this shape when adding or refreshing a workspace `AGENTS.md`:
 
 ```text
 # AGENTS.md
 
 ## Role
-What this module owns and when an agent should use this entry.
+What this workspace owns and when an agent should use this entry.
 
 ## Navigation / Routing
-Where local Know, Tool, and Verify details live.
+Where local Knowledge, Tool, Validate, and Skills details live.
 
 ## Hard Boundaries / Constraints
 Stable local rules, public contracts, and files that need special care.
 
 ## Prerequisite Gates
-When to load local contracts, docs, action protocols, tools, or verification rules.
+When to load local contracts, docs, action protocols, tools, or validation rules.
 
 ## Acceptance Standards
 Which local checks or evidence are expected before finishing.
 
 ## Failure Capture
-Short named guards from past module failures.
+Short named guards from past workspace failures.
 ```
 
-Keep module entries local and differential. Do not copy root principles or global validation prose into every module.
+Keep workspace entries local and differential. Do not copy root principles or root validation prose into every workspace.
+
+## Anti-Patterns
+
+- Recreating a root `profile.yaml` for workspace roles or knowledge pointers.
+- Putting workspace-local facts in root harness files.
+- Treating root `harness/validate/validation.yaml` as mandatory for every workspace.
+- Creating `knowledge/README.md`, `tools/README.md`, `validate/README.md`, or `skills/README.md` just because the surface exists.
+- Storing run evidence in YAML.
+- Claiming CI, hooks, or a validation runner exists before it is implemented.
+- Duplicating the same command matrix in root and workspace docs without a clear owner.
+- Merging repo harness Skills with `.pulse-coder/skills/` runtime task skills.
 
 ## Rollout Order
 
 1. Keep root `AGENTS.md` as the global control surface.
-2. Align `harness/README.md` with this design and route details to existing files.
-3. Refresh high-impact module entries first: core runtime, CLI, remote runtime, and canvas workspace.
-4. Add module Know / Tool / Verify files only when the module entry becomes too dense.
-5. Make Verify executable by adding a runner for `harness/validation.yaml`.
+2. Keep workspace membership in `pnpm-workspace.yaml` and workspace facts near each workspace.
+3. Keep surface routing in `AGENTS.md` until a surface reaches the README threshold.
+4. Keep root Validate minimal while migrating detailed validation into workspace-local `validation.yaml` or `docs/validation.md`.
+5. Teach tools such as `graph-viewer` to consume workspace-local validation when those files exist.
+6. Make Validate executable by adding a runner for `harness/validate/validation.yaml` plus workspace-local validation files.

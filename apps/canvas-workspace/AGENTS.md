@@ -24,7 +24,7 @@ when a behavior or operating runbook needs a durable source of truth.
 
 | Task | Read |
 |---|---|
-| Repository routing and validation matrix | `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | App overview and Claude-specific notes | `README.md`, `CLAUDE.md` |
 | Runtime harness | `harness/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
 | Main/renderer/preload boundaries | `docs/conventions/README.md`, `docs/conventions/architecture-boundaries.md` |

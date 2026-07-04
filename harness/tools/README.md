@@ -8,7 +8,7 @@ A tool should have stable inputs and outputs, but it does not own final decision
 
 | Tool | Purpose |
 |---|---|
-| `repo-profiler` | Build or refresh the repository map used by `harness/profile.yaml`. |
+| `repo-profiler` | Inspect active workspaces and suggest workspace `AGENTS.md` navigation updates. |
 | `affected-workspace-detector` | Map changed paths or a user request to affected workspaces. |
 | `ssot-resolver` | Pick the correct long-term source of truth for a fact or rule. |
 | `feedback-router` | Route feedback to a proposal target based on evidence and scope. |

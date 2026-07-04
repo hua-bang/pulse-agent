@@ -25,7 +25,7 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 
 | Task | Read |
 |---|---|
-| Repository routing and validation matrix | `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | Package overview and install flow | `README.md` |
 | Current CLI command index | `src/cli.ts` |
 | Executable entrypoint | `src/index.ts` |

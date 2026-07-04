@@ -6,12 +6,11 @@ Expose the repository harness as a local dashboard that is easy to scan before c
 
 The dashboard derives coverage, missing items, workspace guidance, validation commands, and relationship metadata from existing harness files:
 
-- `harness/profile.yaml`
-- `harness/validation.yaml`
+- `pnpm-workspace.yaml`
+- `harness/validate/validation.yaml`
 - `harness/skills/*.md`
 - `harness/tools/*/README.md`
-- `pnpm-workspace.yaml`
-- workspace `AGENTS.md` and docs referenced by the profile
+- workspace `AGENTS.md`, `README.md`, and common docs such as `docs/contracts.md`, `docs/validation.md`, and `docs/runbook.md`
 
 ## Usage
 

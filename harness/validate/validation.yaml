@@ -1,8 +1,4 @@
-# Machine-readable validation matrix for the repository harness pilot.
-# Workspace docs may explain why; this file decides what to run.
-
 version: 1
-sourceOfTruth: harness/validation.yaml
 
 pathRules:
   - name: engine
@@ -15,6 +11,7 @@ pathRules:
       publicApiChange:
         - pnpm --filter pulse-coder-cli test
         - pnpm --filter @pulse-coder/remote-server build
+        - pnpm --filter canvas-workspace build
       builtInPluginChange:
         - pnpm --filter pulse-coder-engine test
         - pnpm --filter pulse-coder-cli test
@@ -36,8 +33,6 @@ pathRules:
     required:
       - pnpm --filter @pulse-coder/teams-cli test
       - pnpm --filter @pulse-coder/teams-cli build
-    manual:
-      - Promote `pnpm --filter @pulse-coder/teams-cli typecheck` after the app tsconfig no longer pulls agent-teams/engine/orchestrator source files outside its rootDir.
 
   - name: cli
     paths:
@@ -57,13 +52,13 @@ pathRules:
       - packages/memory-plugin/**
     required:
       - pnpm --filter pulse-coder-memory-plugin test
-      - pnpm --filter pulse-coder-memory-plugin typecheck
+      - pnpm --filter pulse-coder-memory-plugin build
 
   - name: plugin-kit
     paths:
       - packages/plugin-kit/**
     required:
-      - pnpm --filter pulse-coder-plugin-kit typecheck
+      - pnpm --filter pulse-coder-plugin-kit build:js
     escalateWhen:
       publicApiChange:
         - pnpm --filter pulse-coder-engine typecheck
@@ -95,8 +90,6 @@ pathRules:
       - packages/langfuse-plugin/**
     required:
       - pnpm --filter pulse-coder-langfuse-plugin build
-    manual:
-      - Promote `pnpm --filter pulse-coder-langfuse-plugin typecheck` after the package tsconfig no longer pulls engine/orchestrator source files outside its rootDir.
 
   - name: pulse-sandbox
     paths:
@@ -110,8 +103,6 @@ pathRules:
       - apps/remote-server/**
     required:
       - pnpm --filter @pulse-coder/remote-server build
-    manual:
-      - If internal routes or dispatcher behavior changes, smoke with loopback `/internal/agent/run` when secrets and local runtime are available.
 
   - name: canvas-workspace
     paths:
@@ -119,21 +110,6 @@ pathRules:
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
-    manual:
-      - Use `pnpm --filter canvas-workspace harness start --profile demo --build` for interaction-heavy changes.
-      - Use `pnpm --filter canvas-workspace harness screenshot` or `snapshot-ui` when visual evidence matters.
-
-  - name: harness-docs
-    paths:
-      - harness/**
-      - AGENTS.md
-      - CLAUDE.md
-      - "**/AGENTS.md"
-      - "**/docs/**"
-    required:
-      - path existence check for referenced files
-    optional:
-      - YAML syntax check for harness/*.yaml
 
 escalationRules:
   rootWorkspaceConfigChange:
@@ -144,32 +120,3 @@ escalationRules:
     required:
       - pnpm run build
       - pnpm test
-
-  crossPackageContractChange:
-    required:
-      - producer workspace typecheck/test
-      - affected consumer build/typecheck
-
-  docsOnlyChange:
-    required:
-      - referenced path check
-    notRequired:
-      - pnpm test
-      - pnpm run build
-
-  runtimeHarnessChange:
-    paths:
-      - apps/canvas-workspace/harness/**
-    required:
-      - pnpm --filter canvas-workspace harness start --profile demo --build
-      - pnpm --filter canvas-workspace harness status
-      - pnpm --filter canvas-workspace harness close
-
-fallbackWorkspaceRule:
-  package:
-    required:
-      - Run the workspace-local `test` script when it exists and is not a placeholder.
-      - Run the workspace-local `typecheck` script when it exists.
-  app:
-    required:
-      - Run the workspace-local `typecheck`, `test`, or `build` script that best matches the changed surface.

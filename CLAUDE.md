@@ -4,8 +4,8 @@ This file orients agents working in the Coder repository. It is a thin routing +
 
 ## 0. Meta rules (precedence + SSOT)
 
-1. **Precedence**: this file > affected workspace's `AGENTS.md` > `harness/profile.yaml` (routing) + `harness/validation.yaml` (checks) > `harness/skills/*` (action protocols) > package-level `docs/`. Lower layers refine, never contradict, the upper.
-2. **SSOT, no copies**: the active workspace set lives in `pnpm-workspace.yaml` + `harness/profile.yaml` — do not re-list it here. Package metadata lives in each `package.json`. Skill content is NOT duplicated across `.pulse-coder/skills/` (runtime task skills) and `harness/skills/` (repo action protocols) — they are different layers; do not merge or copy between them.
+1. **Precedence**: this file > affected workspace's `AGENTS.md` > `harness/validate/validation.yaml` (root validation overlay) > `harness/skills/*` (action protocols) > package-level `docs/`. Lower layers refine, never contradict, the upper.
+2. **SSOT, no copies**: the active workspace set lives in `pnpm-workspace.yaml`; package metadata lives in each `package.json`; workspace role/navigation/knowledge lives in each workspace's `AGENTS.md` and docs. Skill content is NOT duplicated across `.pulse-coder/skills/` (runtime task skills) and `harness/skills/` (repo action protocols) — they are different layers; do not merge or copy between them.
 3. **Mechanism over doc, stated honestly**: prefer extending plugin/hook/tool boundaries over hardcoding into `packages/engine/src/core/loop.ts`. There is currently NO automated gate layer (see §4); validation commands must be run by hand. Where a spec says "enforce," verify a runner exists before relying on it.
 4. **First principles before solutions**: confirm the real problem, goal, constraints, and evidence (from current repo or reproducible behavior) before acting. Do not reverse-engineer a conclusion from an existing MR, neighboring code, or a candidate solution. If you cannot state what real problem a change solves and where the evidence is, do not implement.
 5. **Occam / reuse-first**: reuse existing entries, modules, scripts, skills, and docs before adding new ones. Add a new skill, doc, abstraction, or process only when the current system cannot carry the work AND the new asset reduces real complexity or provides an executable constraint. "Could be updated to latest" is not a reason to add.
@@ -19,11 +19,11 @@ This file orients agents working in the Coder repository. It is a thin routing +
 
 ## 1. Routing
 
-**Reading chain**: `AGENTS.md` → `harness/README.md` → `harness/profile.yaml` → affected workspace entry + its `AGENTS.md`/`docs/` → `harness/validation.yaml`.
+**Reading chain**: `AGENTS.md` → `harness/README.md` → affected workspace `AGENTS.md`/`docs/` → `harness/validate/validation.yaml`.
 
 **Doc taxonomy:**
 - **L0 root entries**: `AGENTS.md` (this file), `CLAUDE.md`, `README.md` — routing, harness pilot, project intro.
-- **L1 mid-level index**: `harness/README.md`, `harness/profile.yaml` (workspace routing), `harness/validation.yaml` (path→check mapping), root `docs/` topic dirs (`harness/`, `mcp-plugin/`, `memory-plugin/`, `plan-mode/`, `plugin-system/`).
+- **L1 mid-level index**: `harness/README.md`, `harness/validate/validation.yaml` (root validation overlay), root `docs/` topic dirs (`harness/`, `mcp-plugin/`, `memory-plugin/`, `plan-mode/`, `plugin-system/`).
 - **L2 module entries**: each workspace's `AGENTS.md` (14 active), `harness/skills/*` (repo action protocols), `harness/templates/*`.
 
 **Intent navigation** (find the entry point; then read the workspace's own `AGENTS.md`):
@@ -40,8 +40,8 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Change an orchestration role | `packages/orchestrator/` |
 | Change a remote-server adapter | `apps/remote-server/src/adapters/` + `core/dispatcher.ts` |
 | Add a canvas node plugin | `packages/canvas-nodes/` |
-| Add/remove a workspace | `pnpm-workspace.yaml` + `harness/profile.yaml` + `harness/validation.yaml` |
-| Update what to run for a path | `harness/validation.yaml` |
+| Add/remove a workspace | `pnpm-workspace.yaml` + workspace `AGENTS.md` + `harness/validate/validation.yaml` |
+| Update what to run for a path | `harness/validate/validation.yaml` |
 | Review changes (repo-aware) | `harness/skills/code-review.md` |
 | Inspect harness coverage | `node harness/tools/graph-viewer/server.mjs --once` |
 
@@ -62,7 +62,7 @@ Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` 
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
-There is NO CI, NO git hooks, NO husky/lint-staged/commitlint, and NO executable checks under `harness/checks/` (placeholder only). `harness/validation.yaml` is a declarative spec — nothing runs it for you. `harness/tools/*` (except `graph-viewer`) are protocol specs, not executables; `scripts/harness/` does not exist.
+There is NO CI, NO git hooks, NO husky/lint-staged/commitlint, and NO executable harness checks yet. `harness/validate/validation.yaml` is a declarative spec — nothing runs it for you. `harness/tools/*` (except `graph-viewer`) are protocol specs, not executables; `scripts/harness/` does not exist.
 
 **Skill taxonomy (two tiers — do not merge):**
 
@@ -75,7 +75,7 @@ There is NO CI, NO git hooks, NO husky/lint-staged/commitlint, and NO executable
 
 | Action | Read first |
 |---|---|
-| Touch a workspace's code | that workspace's `AGENTS.md` + matching `harness/profile.yaml` entry |
+| Touch a workspace's code | that workspace's `AGENTS.md` |
 | Change crossing package contracts | `harness/skills/contract-coding.md` + relevant `docs/contracts.md` |
 | Add/adjust repo or workspace docs | `harness/skills/doc-governance.md` |
 | Propose a process / governance change | `harness/skills/feedback-governance.md` |
@@ -84,13 +84,13 @@ There is NO CI, NO git hooks, NO husky/lint-staged/commitlint, and NO executable
 
 `harness/skills/*` are behavior-norm protocols, NOT runtime skills (no engine loader) — the binding rules must be carried by you, not enforced at runtime.
 
-**Gap to close (aspirational, not present):** wire `harness/validation.yaml` to a real runner (CI on changed paths, or a husky pre-push) and implement the candidate checks in `harness/checks/README.md`. Do not claim these exist today.
+**Gap to close (aspirational, not present):** wire `harness/validate/validation.yaml` to a real runner (CI on changed paths, or a husky pre-push) and add candidate harness checks only when their rules are stable enough to mechanize. Do not claim these exist today.
 
 ## 5. Acceptance (reproducible + verifiable)
 
-Run the commands `harness/validation.yaml` binds to your changed path:
+Run the commands `harness/validate/validation.yaml` binds to your changed path:
 - Package change → `pnpm --filter <pkg-name> test` and `pnpm --filter <pkg-name> typecheck` (where they exist).
-- Cross-package / contract change → also apply the escalation rules in `harness/validation.yaml`.
+- Cross-package / contract change → also apply the escalation rules in `harness/validate/validation.yaml`.
 - Full local sweep → `pnpm run build` (SKIP_DTS=1), then `pnpm run test:core`.
 - `canvas-workspace` is in `test:all`/`build:all` but NOT `build:core`/`test:core` — include it explicitly when you touch it (it has the largest test suite: 97 files).
 - Harness data change → `node harness/tools/graph-viewer/server.mjs --once` must report `harnessGaps:0`.
@@ -103,7 +103,7 @@ Run the commands `harness/validation.yaml` binds to your changed path:
 - **Blocking I/O froze the Electron host**: `bash` tool used `execSync`, blocking the event loop and freezing `canvas-workspace` UI. Guard: `bash.ts` now uses async `spawn` with `SIGTERM`→`SIGKILL`. Rule: never `execSync`/blocking I/O in `packages/engine/src/tools/*` — the engine runs on GUI main threads. (Two wrong-root-cause fixes — pulse-sandbox interrupt, PTY coalescing — were reverted; confirm the actual blocking call before patching adjacent paths.)
 - **UTF-8 chunk-split corruption**: async rewrite decoded each pipe chunk independently, corrupting multi-byte CJK. Guard: collect raw `Buffer`s and decode once.
 - **MCP reload stale/empty state**: reload didn't activate the target scope first. Guard: `activateScope` before reload, force fresh probe.
-- **Stale doc claimed canvas-workspace excluded**: `apps/EXPERIMENTAL.md` contradicts `pnpm-workspace.yaml:5`. Guard: `pnpm-workspace.yaml` + `harness/profile.yaml` are SSOT; run `graph-viewer --once` to detect coverage drift; do not trust prose workspace lists.
+- **Stale doc claimed canvas-workspace excluded**: `apps/EXPERIMENTAL.md` contradicts `pnpm-workspace.yaml:5`. Guard: `pnpm-workspace.yaml` owns workspace membership; run `graph-viewer --once` to detect coverage drift; do not trust prose workspace lists.
 
 Failures are captured in fix commits + regression tests (TODO/FIXME density is zero across `packages/*/src`; `harness/feedback/inbox.md` is an empty template) — debug via `git log -- <file>` and `loop.test.ts` cases, not by grepping for TODOs.
 

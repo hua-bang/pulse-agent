@@ -40,7 +40,7 @@ Known consumers include:
 - `packages/agent-teams`
 - `packages/orchestrator`
 
-Contract changes should consider affected consumers and validation escalation in `../../harness/validation.yaml`.
+Contract changes should consider affected consumers and validation escalation in `../../harness/validate/validation.yaml`.
 
 ## Validation
 

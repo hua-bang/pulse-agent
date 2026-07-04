@@ -17,7 +17,7 @@ Team protocol behavior, task state, review gates, verification semantics, and pu
 
 | Task | Read |
 |---|---|
-| Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | Package scripts and build shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
 | CLI modes and arguments | `src/index.ts` |
 | Terminal event rendering | `src/display/in-process.ts` |

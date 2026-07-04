@@ -23,7 +23,7 @@ package internals directly.
 
 | Task | Read |
 |---|---|
-| Repository routing and validation matrix | `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | Package overview and install flow | `README.md` |
 | Plugin manifest and public contract | `manifest.json` |
 | Build outputs and MF settings | `vite.config.ts`, `vite.webview.config.ts`, `vite.main.config.ts` |
