@@ -1,0 +1,13 @@
+version: 1
+
+pathRules:
+  - name: default
+    paths:
+      - src/**
+      - package.json
+      - tsconfig.json
+      - tsconfig.node.json
+      - electron.vite.config.ts
+    required:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test

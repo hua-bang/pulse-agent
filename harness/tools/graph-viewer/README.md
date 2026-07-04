@@ -6,12 +6,10 @@ Expose the repository harness as a local dashboard that is easy to scan before c
 
 The dashboard derives coverage, missing items, workspace guidance, validation commands, and relationship metadata from existing harness files:
 
-- `harness/profile.yaml`
-- `harness/validation.yaml`
-- `harness/skills/*.md`
-- `harness/tools/*/README.md`
 - `pnpm-workspace.yaml`
-- workspace `AGENTS.md` and docs referenced by the profile
+- `harness/validate/validation.yaml`
+- `harness/tools/*/README.md`
+- workspace `AGENTS.md`, `README.md`, workspace-local `harness/knowledge/`, workspace-local `harness/validate/`, and common docs such as `docs/contracts.md`, `docs/validation.md`, and `docs/runbook.md`
 
 ## Usage
 
@@ -50,3 +48,4 @@ The smoke check prints:
 - No LLM inference in the first version.
 - No edits to existing harness files.
 - No package script or CI integration yet.
+- No full broken-link guarantee yet; `harnessGaps:0` is a coverage smoke check, not proof that every Markdown path reference exists.

@@ -38,7 +38,7 @@ Team UX, review gates, checkpoints, human handoffs, and host session policy belo
 - Keep `runner.ts` as the execution boundary. New execution backends should implement `AgentRunner` instead of importing engine/runtime host code into the core flow.
 - `route="plan"` and `aggregate="llm"` require an injected `llmCall`; do not add hidden model/provider dependencies.
 - The default `LocalArtifactStore` writes under `.pulse-coder/agent-teams`; be careful not to treat these runtime artifacts as repository source of truth.
-- Route public contract changes through `harness/skills/contract-coding.md`.
+- Treat public contract changes as cross-workspace impact; use local validation plus the root impact overlay.
 
 ## Common Commands
 

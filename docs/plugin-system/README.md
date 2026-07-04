@@ -463,5 +463,5 @@ describe('PluginManager', () => {
 双轨插件系统已实现并接入 `Engine`（`Engine.ts:130-181` 构造 `PluginManager`、合并插件工具、收集钩子注入循环），9 个内置插件已随引擎发布。诚实的未完成项：
 
 - 用户配置的 `tools` / `mcp.servers` / `subAgents` 落地尚未完成（见上文「错误处理与隔离」末尾的「未实现的子能力」）。
-- 无 CI / git hook / 可执行 harness 校验（根 `AGENTS.md` §4），`harness/validation.yaml` 是声明式规格，无自动运行。
+- 无 CI / git hook / 可执行 harness 校验（根 `AGENTS.md` §4），`harness/validate/validation.yaml` 是声明式规格，无自动运行。
 - 同目录 `API-REFERENCE.md` / `EXAMPLES.md` / `ARCHITECTURE.md` 为早期设计草稿，内容已漂移，待清理或重写——以源码为准。

@@ -37,7 +37,7 @@ Memory behavior should preserve the boundary between user/profile memory, hidden
 - Semantic recall must degrade safely to keyword/recency behavior when embeddings or SQLite vector storage are disabled or unavailable.
 - Layered storage lives under `baseDir/{platformKey}/user`, `soul`, and `daily`; legacy `state.json` migration/backups are part of the compatibility contract.
 - Changes to recall/write/compaction behavior should include tests or explicit manual evidence.
-- Feedback about repository rules should route through `harness/skills/feedback-governance.md`, not silently into memory.
+- Repository-rule changes belong in the root harness, not silently in memory docs or prompts.
 
 ## Common Commands
 

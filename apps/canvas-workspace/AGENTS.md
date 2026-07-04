@@ -24,7 +24,7 @@ when a behavior or operating runbook needs a durable source of truth.
 
 | Task | Read |
 |---|---|
-| Repository routing and validation matrix | `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | App overview and Claude-specific notes | `README.md`, `CLAUDE.md` |
 | Runtime harness | `harness/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
 | Main/renderer/preload boundaries | `docs/conventions/README.md`, `docs/conventions/architecture-boundaries.md` |
@@ -42,9 +42,7 @@ when a behavior or operating runbook needs a durable source of truth.
 | Channel plugin | `src/plugins/main/channel/README.md`, `src/plugins/main/channel/` |
 | Boundary and file-size gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts` |
 | Storage/plugin/runtime tests | `src/main/__tests__/canvas-storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
-| Documentation routing | `../../harness/skills/doc-governance.md` |
-| Validation planning | `../../harness/skills/quality-workflow.md` |
-| Contract changes | `../../harness/skills/contract-coding.md` |
+| Local validation | `harness/validate/validation.yaml` |
 
 ## Local Constraints
 

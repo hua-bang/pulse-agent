@@ -35,7 +35,7 @@ CLI behavior should remain a host layer over the engine. Engine runtime behavior
 - Slash command changes should preserve session persistence, queued input, abort handling, clarification flow, and ACP passthrough behavior.
 - This package currently has no `typecheck` script; do not document or rely on `pnpm --filter pulse-coder-cli typecheck` until `package.json` adds it.
 - Current `run_js` registration imports `pulse-sandbox/src`; `src/sandbox-runner.ts` is not imported by the active CLI paths.
-- Contract changes with engine, ACP, teams, sandbox, or memory packages should follow `../../harness/skills/contract-coding.md`.
+- Contract changes with engine, ACP, teams, sandbox, or memory packages should use the affected workspace contracts/validation plus the root impact overlay.
 
 ## Common Commands
 

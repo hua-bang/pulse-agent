@@ -1,0 +1,33 @@
+version: 1
+
+pathRules:
+  - name: root-workspace-config
+    paths:
+      - package.json
+      - pnpm-workspace.yaml
+      - tsconfig.json
+    required:
+      - pnpm run build
+      - pnpm test
+
+escalationRules:
+  enginePublicApiChange:
+    required:
+      - pnpm --filter pulse-coder-cli test
+      - pnpm --filter @pulse-coder/remote-server build
+      - pnpm --filter canvas-workspace build
+
+  engineBuiltInPluginChange:
+    required:
+      - pnpm --filter pulse-coder-engine test
+      - pnpm --filter pulse-coder-cli test
+
+  agentTeamsRuntimeProtocolChange:
+    required:
+      - pnpm --filter @pulse-coder/teams-cli build
+      - pnpm --filter canvas-workspace typecheck
+
+  pluginKitPublicApiChange:
+    required:
+      - pnpm --filter pulse-coder-engine typecheck
+      - pnpm --filter @pulse-coder/remote-server build

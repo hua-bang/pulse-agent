@@ -17,12 +17,12 @@ Team protocol behavior, task state, review gates, verification semantics, and pu
 
 | Task | Read |
 |---|---|
-| Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/profile.yaml`, `../../harness/validation.yaml` |
+| Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | Package scripts and build shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
 | CLI modes and arguments | `src/index.ts` |
 | Terminal event rendering | `src/display/in-process.ts` |
 | Team runtime entry and contracts | `../../packages/agent-teams/AGENTS.md`, `../../packages/agent-teams/docs/contracts.md` |
-| Team runtime validation | `../../packages/agent-teams/docs/validation.md` |
+| Team runtime validation | `../../packages/agent-teams/harness/validate/validation.yaml`, `../../packages/agent-teams/docs/validation.md` |
 | Maturity roadmap | `../../docs/07-agent-teams-maturity-roadmap.md` |
 
 There are no local `README.md`, `docs/`, or `*.test.ts`/`*.spec.ts` files in this app at the time of writing.
@@ -58,7 +58,7 @@ pnpm --filter @pulse-coder/teams-cli preview:run -- "Run a small repo maintenanc
 ## Validation Notes
 
 - Harness-required checks for app changes: `pnpm --filter @pulse-coder/teams-cli test` and `pnpm --filter @pulse-coder/teams-cli build`.
-- If a change alters team protocol, exported APIs, task lifecycle, or review/verification semantics, also run the relevant `packages/agent-teams` checks and consumer escalation from `../../packages/agent-teams/docs/validation.md`.
+- If a change alters team protocol, exported APIs, task lifecycle, or review/verification semantics, also run the relevant `packages/agent-teams` checks and apply root consumer escalation when needed.
 - For terminal UX changes, include a short manual preview note when a preview was run, or state why it was skipped.
 
 ## Key Files
