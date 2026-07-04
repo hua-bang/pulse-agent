@@ -16,8 +16,10 @@ import {
   parseVisualToolResult,
 } from '../artifacts';
 import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
+import { useI18n } from '../../i18n';
 
 const CopyMessageButton = memo(({ content }: { content: string }) => {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(async () => {
     try {
@@ -32,8 +34,8 @@ const CopyMessageButton = memo(({ content }: { content: string }) => {
     <button
       type="button"
       className={`chat-message-toolbar-btn chat-message-toolbar-btn--icon${copied ? ' chat-message-toolbar-btn--copied' : ''}`}
-      title={copied ? 'Copied!' : 'Copy message (markdown source)'}
-      aria-label="Copy message"
+      title={copied ? t('chat.copied') : t('chat.copyMessageTooltip')}
+      aria-label={t('chat.copyMessageAria')}
       onClick={handleCopy}
     >
       {copied ? <CheckIcon size={12} strokeWidth={1.8} /> : <CopyIcon size={12} />}
@@ -42,7 +44,7 @@ const CopyMessageButton = memo(({ content }: { content: string }) => {
 });
 CopyMessageButton.displayName = 'CopyMessageButton';
 
-interface ChatMessageProps {
+interface Props {
   message: AgentChatMessage;
   /** Index in the parent's `messages` array — used by edit / regenerate. */
   index: number;
@@ -91,7 +93,8 @@ export const ChatMessage = ({
   onEditUserMessage,
   onRegenerate,
   onSessionJump,
-}: ChatMessageProps) => {
+}: Props) => {
+  const { t } = useI18n();
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
       ? renderMdWithMentions(message.content, nodes)
@@ -427,8 +430,8 @@ export const ChatMessage = ({
             <button
               type="button"
               className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-              title="Edit & resend"
-              aria-label="Edit and resend"
+              title={t('chat.editResend')}
+              aria-label={t('chat.editResendAria')}
               onClick={handleStartEdit}
             >
               <PencilIcon size={12} />
@@ -438,8 +441,8 @@ export const ChatMessage = ({
             <button
               type="button"
               className="chat-message-toolbar-btn chat-message-toolbar-btn--icon"
-              title="Regenerate response"
-              aria-label="Regenerate response"
+              title={t('chat.regenerateResponse')}
+              aria-label={t('chat.regenerateResponse')}
               onClick={handleRegenerate}
             >
               <RefreshIcon size={12} />

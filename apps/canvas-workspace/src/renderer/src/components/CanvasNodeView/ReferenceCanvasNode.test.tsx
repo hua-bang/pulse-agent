@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasNode } from '../../types';
 import { ReferenceCanvasNode } from './ReferenceCanvasNode';
+import { I18nProvider } from '../../i18n';
 
 const referenceNode: CanvasNode = {
   id: 'ref-1',
@@ -98,28 +99,30 @@ function renderReferenceNode(overrides: Partial<Parameters<typeof ReferenceCanva
 
   flushSync(() => {
     root?.render(
-      <ReferenceCanvasNode
-        classes="canvas-node canvas-node--reference"
-        handleClose={vi.fn()}
-        handleHeaderMouseDown={vi.fn()}
-        handleNodeBodyMouseDown={vi.fn()}
-        handleNodeClick={vi.fn()}
-        handleOpenReferenceSource={vi.fn()}
-        handleTitleBlur={vi.fn()}
-        handleTitleDoubleClick={vi.fn()}
-        handleTitleKeyDown={vi.fn()}
-        isEditingTitle={false}
-        isFullscreen={false}
-        isSelected={false}
-        makeResizeHandler={() => vi.fn()}
-        node={referenceNode}
-        readOnly={false}
-        renderReferenceSource={() => <div data-testid="reference-source">Source</div>}
-        resolved={{ node: sourceNode, workspaceName: 'Research' }}
-        titleRef={createRef<HTMLSpanElement>()}
-        wrapperStyle={{}}
-        {...overrides}
-      />,
+      <I18nProvider>
+        <ReferenceCanvasNode
+          classes="canvas-node canvas-node--reference"
+          handleClose={vi.fn()}
+          handleHeaderMouseDown={vi.fn()}
+          handleNodeBodyMouseDown={vi.fn()}
+          handleNodeClick={vi.fn()}
+          handleOpenReferenceSource={vi.fn()}
+          handleTitleBlur={vi.fn()}
+          handleTitleDoubleClick={vi.fn()}
+          handleTitleKeyDown={vi.fn()}
+          isEditingTitle={false}
+          isFullscreen={false}
+          isSelected={false}
+          makeResizeHandler={() => vi.fn()}
+          node={referenceNode}
+          readOnly={false}
+          renderReferenceSource={() => <div data-testid="reference-source">Source</div>}
+          resolved={{ node: sourceNode, workspaceName: 'Research' }}
+          titleRef={createRef<HTMLSpanElement>()}
+          wrapperStyle={{}}
+          {...overrides}
+        />
+      </I18nProvider>,
     );
   });
 }

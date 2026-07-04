@@ -20,13 +20,13 @@ export interface LightboxImage {
   caption?: string;
 }
 
-interface ChatImageLightboxProps {
+interface Props {
   images: LightboxImage[];
   startIndex: number;
   onClose: () => void;
 }
 
-export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLightboxProps) => {
+export const ChatImageLightbox = ({ images, startIndex, onClose }: Props) => {
   const { t } = useI18n();
   const [index, setIndex] = useState(startIndex);
   const [copied, setCopied] = useState(false);
@@ -112,8 +112,8 @@ export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLigh
         type="button"
         className="chat-image-lightbox-action chat-image-lightbox-copy"
         onClick={() => void handleCopy()}
-        aria-label="Copy image"
-        title={copied ? 'Copied!' : 'Copy image'}
+        aria-label={t('chat.copyImageAria')}
+        title={copied ? t('chat.copied') : t('chat.copyImage')}
       >
         {copied ? <CheckIcon size={18} strokeWidth={1.8} /> : <CopyIcon size={18} />}
       </button>

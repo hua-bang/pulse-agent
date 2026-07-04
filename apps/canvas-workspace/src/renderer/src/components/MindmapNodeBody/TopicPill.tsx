@@ -11,7 +11,7 @@ import type { DropHint, KeyAction } from './types';
 import { isImeComposing } from '../../utils/ime';
 import { useI18n } from '../../i18n';
 
-interface TopicPillProps {
+interface Props {
   topic: LaidOutTopic;
   isSelected: boolean;
   isEditing: boolean;
@@ -43,7 +43,7 @@ export const TopicPill = ({
   onToggleCollapsed,
   onKeyAction,
   readOnly = false,
-}: TopicPillProps) => {
+}: Props) => {
   const { t } = useI18n();
   const editorRef = useRef<HTMLDivElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);
@@ -245,7 +245,7 @@ export const TopicPill = ({
         contentEditable={!readOnly && isEditing}
         suppressContentEditableWarning
         spellCheck={false}
-        data-placeholder="Untitled"
+        data-placeholder={t('mindmap.topic.untitled')}
         onBlur={() => {
           if (isEditing && !readOnly) {
             commit();

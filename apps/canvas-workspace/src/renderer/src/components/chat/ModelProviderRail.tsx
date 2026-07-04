@@ -2,7 +2,7 @@ import type { CanvasModelProviderStatus } from '../../types';
 import { PlusIcon } from '../icons';
 import { useI18n } from '../../i18n';
 
-interface ProviderRailProps {
+interface Props {
   activeProviderId: string;
   providers: CanvasModelProviderStatus[];
   onSelect: (providerId: string) => void;
@@ -12,7 +12,7 @@ export const ModelProviderRail = ({
   activeProviderId,
   providers,
   onSelect,
-}: ProviderRailProps) => {
+}: Props) => {
   const { t } = useI18n();
 
   return (

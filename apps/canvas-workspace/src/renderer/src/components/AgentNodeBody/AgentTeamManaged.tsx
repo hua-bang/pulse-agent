@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
+import { useI18n } from '../../i18n';
+import type { I18nKey } from '../../i18n/messages';
 
 interface AgentTeamManagedProps {
   agentType: string;
@@ -13,22 +15,19 @@ interface AgentTeamManagedProps {
   onOpenTerminal?: () => void;
 }
 
-const leaderTitle = (status?: string): string => {
-  if (status === 'running') return 'Coordinating team work';
-  if (status === 'done') return 'Leader run finished';
-  if (status === 'error') return 'Leader needs attention';
-  return 'Waiting for a brief';
+const leaderTitleKey = (status?: string): I18nKey => {
+  if (status === 'running') return 'agentTeamManaged.leaderTitleRunning';
+  if (status === 'done') return 'agentTeamManaged.leaderTitleDone';
+  if (status === 'error') return 'agentTeamManaged.leaderTitleError';
+  return 'agentTeamManaged.leaderTitleIdle';
 };
 
-const statusLabel = (status?: string): string => {
-  if (status === 'running') return 'Running';
-  if (status === 'done') return 'Done';
-  if (status === 'error') return 'Error';
-  return 'Idle';
+const statusLabelKey = (status?: string): I18nKey => {
+  if (status === 'running') return 'agentTeamManaged.statusRunning';
+  if (status === 'done') return 'agentTeamManaged.statusDone';
+  if (status === 'error') return 'agentTeamManaged.statusError';
+  return 'agentTeamManaged.statusIdle';
 };
-
-const summarizePrompt = (prompt?: string): string =>
-  prompt?.trim().replace(/\s+/g, ' ').slice(0, 160) || 'Waiting for the next team command.';
 
 export const AgentTeamManaged = ({
   agentType,
@@ -39,11 +38,14 @@ export const AgentTeamManaged = ({
   commandSlot,
   onOpenTerminal,
 }: AgentTeamManagedProps) => {
+  const { t } = useI18n();
   const agentDef = AGENT_REGISTRY.find((agent) => agent.id === agentType);
-  const displayCwd = cwd ? truncatePath(cwd, 40) : 'workspace root';
+  const displayCwd = cwd ? truncatePath(cwd, 40) : t('agentTeamManaged.workspaceRootFallback');
+  const summarizedPrompt =
+    lastPrompt?.trim().replace(/\s+/g, ' ').slice(0, 160) || t('agentTeamManaged.waitingForCommand');
   const actionItems = (recentActions && recentActions.length > 0
     ? recentActions
-    : ['Waiting for team updates.']
+    : [t('agentTeamManaged.waitingForUpdates')]
   ).slice(0, 3);
   const latestAction = actionItems[0];
 
@@ -57,21 +59,21 @@ export const AgentTeamManaged = ({
             <div className="agent-team-managed__icon">
               <AgentIcon id={agentType} size={20} />
             </div>
-            <div className="agent-team-managed__title">{leaderTitle(status)}</div>
-            <span className="agent-team-managed__status">{statusLabel(status)}</span>
+            <div className="agent-team-managed__title">{t(leaderTitleKey(status))}</div>
+            <span className="agent-team-managed__status">{t(statusLabelKey(status))}</span>
           </div>
 
           <div className="agent-team-managed__facts">
             <div className="agent-team-managed__fact agent-team-managed__fact--decision">
-              <span>Decision</span>
-              <strong title={lastPrompt?.trim() || undefined}>{summarizePrompt(lastPrompt)}</strong>
+              <span>{t('agentTeamManaged.decision')}</span>
+              <strong title={lastPrompt?.trim() || undefined}>{summarizedPrompt}</strong>
             </div>
             <div className="agent-team-managed__fact">
-              <span>Activity</span>
+              <span>{t('agentTeamManaged.activity')}</span>
               <strong title={latestAction}>{latestAction}</strong>
             </div>
             <div className="agent-team-managed__fact">
-              <span>Agent</span>
+              <span>{t('agentTeamManaged.agent')}</span>
               <strong title={cwd}>{agentDef?.label ?? agentType} · {displayCwd}</strong>
             </div>
           </div>
@@ -84,7 +86,7 @@ export const AgentTeamManaged = ({
 
           {onOpenTerminal && (
             <button type="button" className="agent-team-managed__terminal-button" onClick={onOpenTerminal}>
-              Advanced terminal
+              {t('agentTeamManaged.advancedTerminal')}
             </button>
           )}
         </div>
