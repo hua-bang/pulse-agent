@@ -24,6 +24,43 @@ Harness = AGENTS.md + Knowledge + Tool + Validate + Skills
 
 The surfaces are not equal-weight boilerplate. A workspace does not need a local Knowledge, Tool, Validate, or Skills directory until local detail is too dense for its `AGENTS.md` or existing docs.
 
+## Spec Artifacts
+
+`Spec` is not a sixth default surface in the harness formula. It is an optional specification artifact for cases where a feature, protocol, migration, or architectural boundary needs an explicit normative design.
+
+Use this distinction:
+
+| Artifact | Answers | Meaning |
+|---|---|---|
+| Knowledge | What is true now? | Current implemented facts, architecture, contracts, risks, and runtime boundaries. |
+| Spec | What should be true? | Normative design for intended behavior, protocols, feature shape, or migration target. |
+| Spec history | Why did the spec become this? | Decision trail, rejected options, tradeoffs, migration notes, and dated context. |
+
+Prefer this shape when a spec is needed:
+
+```text
+harness/spec/<feature>/README.md
+harness/spec/<feature>/history/YYYY-MM-DD-topic.md
+```
+
+`README.md` is the current active specification. Keep history out of it except for short links. Put decision records, prior approaches, and migration notes under `history/`.
+
+Default placement is workspace-local:
+
+```text
+workspace/
+  harness/
+    spec/
+      <feature>/
+        README.md
+        history/
+          YYYY-MM-DD-topic.md
+```
+
+Use root `harness/spec/<feature>/` only for cross-workspace specifications that the root can legitimately own, such as a repo-wide runtime protocol or multi-package migration. Package-local behavior belongs in that workspace's harness.
+
+Do not create a spec for facts that are already implemented and only need to be understood. Those belong in Knowledge. Do not create a spec because a directory template says so; create one only when a normative design needs a durable source of truth.
+
 ## Surface README Rule
 
 Do not create a README for a surface by default. The formula is a mental model, not a directory template.
@@ -46,12 +83,13 @@ workspace/
   AGENTS.md
   harness/
     knowledge/
+    spec/
     tools/
     validate/
     skills/
 ```
 
-This is a future-friendly home for local Knowledge, Tool, Validate, and Skills assets. It does not mean every workspace should immediately create every subdirectory.
+This is a future-friendly home for local Knowledge, Spec, Tool, Validate, and Skills assets. It does not mean every workspace should immediately create every subdirectory.
 
 Use these defaults:
 
@@ -59,6 +97,7 @@ Use these defaults:
 - Add `harness/validate/` when validation needs machine-readable rules, local scenarios, or command selection beyond a short `AGENTS.md` note.
 - Add `harness/tools/` when the workspace has executable mechanisms or scripts that need a stable home.
 - Add `harness/knowledge/` only when local facts outgrow existing `README.md`, `docs/`, contracts, or source types.
+- Add `harness/spec/` only when normative design is needed for a feature, protocol, migration, or architectural boundary.
 - Add `harness/skills/` only for stable local action protocols that are not runtime task skills.
 
 If a workspace already has `harness/` for a specific mechanism, treat that existing directory as the relevant surface until there is enough pressure to split it. For example, `apps/canvas-workspace/harness/` is currently a real Electron operation tool; do not mix unrelated Knowledge or Skills files into it casually. If it later needs a full workspace harness container, migrate deliberately instead of overloading the existing tool layout.
@@ -130,6 +169,8 @@ The expected agent behavior is:
 6. Report the commands run, commands skipped, and why.
 7. Feed durable discoveries back into the right surface:
    - new fact or local rule -> workspace Knowledge or AGENTS.md
+   - new intended behavior or normative design -> workspace Spec
+   - new design decision or rejected option -> workspace Spec history
    - new mechanism -> Tool
    - new acceptance rule or known validation gap -> Validate
    - new recurring workflow -> Skills
@@ -148,6 +189,7 @@ The current pilot maps onto this design as follows:
 | Skills | Protocol docs when present; runtime task skills under `.pulse-coder/skills/` are a separate product layer and must not be merged with repo harness protocols. |
 | Workspace control surface | Each workspace `AGENTS.md` |
 | Workspace Knowledge / Tool / Validate | Workspace-local `harness/`, `README.md`, docs, scripts, tests, and contracts |
+| Workspace Spec | Optional workspace-local `harness/spec/<feature>/` when a normative design needs a durable home |
 
 Do not add or keep a file solely because the model has a named surface. Add a file only when it removes duplication, gives the agent a clearer route, or creates an executable constraint.
 
@@ -187,6 +229,8 @@ Keep workspace entries local and differential. Do not copy root principles or ro
 - Creating `knowledge/README.md`, `tools/README.md`, `validate/README.md`, or `skills/README.md` just because the surface exists.
 - Mixing generated `.harness/` run artifacts with durable harness knowledge.
 - Dumping unrelated Knowledge, Validate, or Skills files into an existing tool-specific `harness/` directory without an explicit migration.
+- Using Spec as a second Knowledge store for current implemented facts.
+- Letting `spec/<feature>/README.md` become a decision log; move history and alternatives into `spec/<feature>/history/`.
 - Storing run evidence in YAML.
 - Claiming CI, hooks, or a validation runner exists before it is implemented.
 - Duplicating the same command matrix in root and workspace docs without a clear owner.
@@ -201,3 +245,4 @@ Keep workspace entries local and differential. Do not copy root principles or ro
 5. Keep root Validate minimal while migrating detailed validation into workspace-local `harness/validate/`.
 6. Teach tools such as `graph-viewer` to consume workspace-local validation when those files exist.
 7. Make Validate executable by adding a runner for `harness/validate/validation.yaml` plus workspace-local validation files.
+8. Add Spec only when a concrete feature, protocol, or migration needs normative design and history.
