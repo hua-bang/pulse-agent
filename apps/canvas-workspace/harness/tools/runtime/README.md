@@ -9,6 +9,9 @@ This is the runtime Tool surface under `apps/canvas-workspace/harness/`. It is
 not a full e2e suite yet. It is the foundation for smoke checks, debugging,
 screenshots, and later e2e scenarios.
 
+Here, `runtime` means "operate the Electron app at runtime." Product runtime
+protocols and servers live under `src/main/runtime/`.
+
 ## Quick Start
 
 Build once, then start a demo session:
@@ -19,6 +22,12 @@ pnpm --filter canvas-workspace harness start --profile demo
 pnpm --filter canvas-workspace harness screenshot
 pnpm --filter canvas-workspace harness snapshot-ui
 pnpm --filter canvas-workspace harness close
+```
+
+For a static tool health check that does not launch Electron:
+
+```bash
+node apps/canvas-workspace/harness/tools/runtime/cli.mjs self-check
 ```
 
 You can also let the harness build before launch:
@@ -85,6 +94,7 @@ pnpm --filter canvas-workspace harness fill --selector "input[name=q]" "hello"
 pnpm --filter canvas-workspace harness press "Meta+K"
 pnpm --filter canvas-workspace harness eval-renderer "location.href"
 pnpm --filter canvas-workspace harness logs
+pnpm --filter canvas-workspace harness self-check
 pnpm --filter canvas-workspace harness close
 ```
 
@@ -146,3 +156,7 @@ fixture web servers, scenario scripts, and CI-friendly smoke runners.
 
 `src/screenshot.mjs`
 : External screenshot strategies.
+
+`src/self-check.mjs`
+: Static harness health checks for path derivation, package script routing,
+  command registration, and generated artifact ignore rules.

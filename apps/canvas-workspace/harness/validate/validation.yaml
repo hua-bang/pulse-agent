@@ -1,13 +1,49 @@
 version: 1
 
 pathRules:
-  - name: default
+  - name: source-default
     paths:
       - src/**
-      - package.json
       - tsconfig.json
       - tsconfig.node.json
-      - electron.vite.config.ts
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
+
+  - name: build-config
+    paths:
+      - package.json
+      - electron.vite.config.ts
+    required:
+      - pnpm --filter canvas-workspace build
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace test
+
+  - name: ui-consistency
+    paths:
+      - harness/spec/ui/**
+      - harness/tools/ui-audit/**
+      - docs/conventions/frontend.md
+      - docs/renderer-surfaces.md
+      - src/renderer/src/**/*.css
+      - src/renderer/src/**/*.tsx
+    required:
+      - node apps/canvas-workspace/harness/tools/ui-audit/cli.mjs
+
+  - name: runtime-harness
+    paths:
+      - harness/tools/runtime/**
+      - skills/canvas-harness/**
+      - skills/canvas-onboard-harness/**
+    required:
+      - node apps/canvas-workspace/harness/tools/runtime/cli.mjs self-check
+
+  - name: harness-routing
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - README.md
+      - harness/README.md
+      - harness/validate/**
+    required:
+      - node harness/tools/graph-viewer/server.mjs --once

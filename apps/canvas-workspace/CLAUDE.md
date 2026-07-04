@@ -37,9 +37,13 @@ free-form, infinite canvas workspace for AI-assisted coding. Users arrange
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd/Ctrl+Shift+A` | Toggle right-side chat panel (canvas view only) |
 | `Cmd/Ctrl+Shift+L` | Toggle full-screen chat view |
 | `Esc` | Return to canvas from chat view |
+| `?` | Open the keyboard shortcuts overlay |
+
+The right-side chat panel is toggled from the canvas toolbar or command palette
+(`toggle-chat`). Any `Cmd/Ctrl+Shift+A` label is display text only unless the
+renderer wires a real keydown handler.
 
 ## Project Structure
 

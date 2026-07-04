@@ -29,6 +29,7 @@ when a behavior or operating runbook needs a durable source of truth.
 | Runtime harness | `harness/README.md`, `harness/tools/runtime/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
 | Main/renderer/preload boundaries | `docs/conventions/README.md`, `docs/conventions/architecture-boundaries.md` |
 | Renderer conventions | `docs/conventions/frontend.md` |
+| UI consistency and component reuse | `harness/spec/ui/README.md`, `docs/conventions/frontend.md`, `docs/renderer-surfaces.md`, `src/renderer/src/styles.css` |
 | Main-process conventions | `docs/conventions/backend.md` |
 | Main domain map | `docs/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
 | Renderer routes and full-app surfaces | `docs/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
@@ -42,7 +43,7 @@ when a behavior or operating runbook needs a durable source of truth.
 | Channel plugin | `src/plugins/main/channel/README.md`, `src/plugins/main/channel/` |
 | Boundary and file-size gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts` |
 | Storage/plugin/runtime tests | `src/main/__tests__/canvas-storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
-| Local validation | `harness/validate/validation.yaml` |
+| Local validation | `harness/validate/README.md`, `harness/validate/validation.yaml` |
 
 ## Local Constraints
 
@@ -56,12 +57,18 @@ when a behavior or operating runbook needs a durable source of truth.
   IPC channel names and preload API shape when refactoring.
 - Follow file-size governance: new production `.ts`/`.tsx` files must stay at
   or below 500 lines, and existing over-500 baseline files must not grow.
+- For UI-facing work, read `harness/spec/ui/README.md` first. Reuse existing
+  workbench surfaces and semantic tokens before adding new containers, colors,
+  shadows, radii, or layer values.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
   `~/.pulse-coder/canvas-runtime/`, and model/settings files. Do not write user
   runtime state into the repository.
 - `harness/tools/runtime/` launches the real Electron app. Use `temp`, `demo`, or `clone`
   profiles by default; use `real --allow-real-writes` only after explicit user
   intent because it can mutate real Pulse Canvas data.
+- `skills/canvas-harness/` and `skills/canvas-onboard-harness/` are local
+  Markdown workflow docs linked from this router; they are not the repo-level
+  harness Skills registry.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.
@@ -94,6 +101,12 @@ pnpm --filter canvas-workspace harness snapshot-ui
 pnpm --filter canvas-workspace harness screenshot
 pnpm --filter canvas-workspace harness logs --lines 120
 pnpm --filter canvas-workspace harness close --cleanup
+```
+
+Lightweight UI consistency inventory:
+
+```bash
+node apps/canvas-workspace/harness/tools/ui-audit/cli.mjs
 ```
 
 Packaging commands exist, but are slower and platform-dependent:
@@ -135,5 +148,8 @@ pnpm --filter canvas-workspace package:linux
 - `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/types.ts`: Canvas
   plugin registries and shared plugin contracts.
 - `harness/`: workspace harness container for local tools and validation.
+- `harness/spec/ui/`: workspace-local UI consistency and component reuse spec.
+- `harness/validate/`: local validation guidance and path-to-command rules.
+- `harness/tools/ui-audit/`: lightweight renderer UI drift inventory.
 - `harness/tools/runtime/`: app-specific Electron launch, CDP, screenshot,
   input, logs, and cleanup harness.
