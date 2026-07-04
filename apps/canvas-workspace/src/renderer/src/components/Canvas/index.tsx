@@ -25,14 +25,14 @@ import { useCanvasRenderOrder } from './hooks/useCanvasRenderOrder';
 import { useCanvasReferenceActions } from './hooks/useCanvasReferenceActions';
 import { useCanvasExternalNodeEvents } from './hooks/useCanvasExternalNodeEvents';
 import { useCanvasVisibility } from './hooks/useCanvasVisibility';
+import { useCanvasDemoCanvas } from './hooks/useCanvasDemoCanvas';
 import { CanvasRootView } from './CanvasRootView';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
-import { genTopicId, getNodeDefaultSize } from '../../utils/nodeFactory';
+import { getNodeDefaultSize } from '../../utils/nodeFactory';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
-import { createDefaultEdge } from '../../utils/edgeFactory';
 import { getUrlHostname, normalizeReferenceUrl } from '../ReferenceDrawer/utils';
-import type { AgentNodeData, CanvasNode, FrameNodeData, IframeNodeData, MindmapNodeData, TextNodeData } from '../../types';
+import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../shared/experimental-features';
 
@@ -399,171 +399,7 @@ export const Canvas = ({
     return { ...node, ...patch };
   }, [addNode, getViewportCenter, setHighlightedId, setSelectedNodeIds, updateNode]);
 
-  const handleCreateDemoCanvas = useCallback(() => {
-    const center = getViewportCenter();
-    if (!center) return;
-
-    // Three scenario frames in a row, centered on the viewport. Frame
-    // membership is spatial, so each scenario's nodes only need their center
-    // to fall inside the matching frame box.
-    const FRAME_W = 700;
-    const FRAME_H = 540;
-    const GAP = 80;
-    const top = center.y - FRAME_H / 2;
-    const leftA = center.x - (FRAME_W * 1.5 + GAP);
-    const leftB = leftA + FRAME_W + GAP;
-    const leftC = leftB + FRAME_W + GAP;
-
-    const makeFrame = (x: number, title: string, color: string) => {
-      const frame = addNode('frame', x, top);
-      updateNode(frame.id, {
-        title,
-        width: FRAME_W,
-        height: FRAME_H,
-        data: { color } satisfies FrameNodeData,
-      });
-      return frame;
-    };
-
-    // Scenario 1 — code with an agent.
-    makeFrame(leftA, t('canvas.demo.frameCodeTitle'), '#2383e2');
-    const goal = addNode('text', leftA + 34, top + 60);
-    updateNode(goal.id, {
-      title: t('canvas.demo.introTitle'),
-      width: 300,
-      height: 184,
-      data: {
-        content: t('canvas.demo.introContent'),
-        textColor: '#1f2328',
-        backgroundColor: '#ffffff',
-        fontSize: 14,
-        autoSize: false,
-      } satisfies TextNodeData,
-    });
-    const repo = addNode('iframe', leftA + 366, top + 60);
-    updateNode(repo.id, {
-      title: t('canvas.demo.webTitle'),
-      width: 300,
-      height: 184,
-      data: {
-        url: 'https://github.com/hua-bang/pulse-agent',
-        html: '',
-        mode: 'url',
-        prompt: '',
-      } satisfies IframeNodeData,
-    });
-    // Sits lower so the two inbound edges have room. `auto` targets let the
-    // brief/context lines fan out to either side of the agent's top edge
-    // instead of stacking on the same center point.
-    const agent = addNode('agent', leftA + 34, top + 320);
-    updateNode(agent.id, {
-      title: t('canvas.demo.agentTitle'),
-      width: 632,
-      height: 196,
-      data: {
-        sessionId: '',
-        ...(rootFolder ? { cwd: rootFolder } : {}),
-        agentType: 'claude-code',
-        status: 'idle',
-        viewMode: 'setup',
-        lastInitPrompt: t('canvas.demo.agentPrompt'),
-      } satisfies AgentNodeData,
-    });
-    addEdge(createDefaultEdge(
-      { kind: 'node', nodeId: goal.id, anchor: 'bottom' },
-      { kind: 'node', nodeId: agent.id, anchor: 'auto' },
-      { label: t('canvas.demo.edgeBrief'), stroke: { color: '#2383e2', width: 2.4, style: 'solid' } },
-    ));
-    addEdge(createDefaultEdge(
-      { kind: 'node', nodeId: repo.id, anchor: 'bottom' },
-      { kind: 'node', nodeId: agent.id, anchor: 'auto' },
-      { label: t('canvas.demo.edgeContext'), stroke: { color: '#10b981', width: 2.4, style: 'solid' } },
-    ));
-
-    // Scenario 2 — research the web.
-    makeFrame(leftB, t('canvas.demo.frameResearchTitle'), '#f59e0b');
-    const source = addNode('iframe', leftB + 34, top + 92);
-    updateNode(source.id, {
-      title: t('canvas.demo.researchWebTitle'),
-      width: 300,
-      height: 388,
-      data: {
-        url: 'https://github.com/hua-bang/pulse-agent/issues',
-        html: '',
-        mode: 'url',
-        prompt: '',
-      } satisfies IframeNodeData,
-    });
-    const takeaways = addNode('text', leftB + 366, top + 92);
-    updateNode(takeaways.id, {
-      title: t('canvas.demo.researchNoteTitle'),
-      width: 300,
-      height: 388,
-      data: {
-        content: t('canvas.demo.researchNoteContent'),
-        textColor: '#1f2328',
-        backgroundColor: '#ffffff',
-        fontSize: 14,
-        autoSize: false,
-      } satisfies TextNodeData,
-    });
-    addEdge(createDefaultEdge(
-      { kind: 'node', nodeId: source.id, anchor: 'right' },
-      { kind: 'node', nodeId: takeaways.id, anchor: 'left' },
-      { label: t('canvas.demo.edgeCapture'), stroke: { color: '#f59e0b', width: 2.4, style: 'solid' } },
-    ));
-
-    // Scenario 3 — brainstorm a plan.
-    makeFrame(leftC, t('canvas.demo.frameBrainstormTitle'), '#9575d4');
-    // Centered horizontally so the auto-sized map fills the frame instead of
-    // hugging the left edge, with the plan note centered right below it.
-    const ideas = addNode('mindmap', leftC + 150, top + 80);
-    updateNode(ideas.id, {
-      title: t('canvas.demo.brainstormMapTitle'),
-      width: 400,
-      height: 220,
-      data: {
-        root: {
-          id: genTopicId(),
-          text: t('canvas.demo.mapTopicRoot'),
-          children: [
-            { id: genTopicId(), text: t('canvas.demo.mapTopicA'), children: [] },
-            { id: genTopicId(), text: t('canvas.demo.mapTopicB'), children: [] },
-            { id: genTopicId(), text: t('canvas.demo.mapTopicC'), children: [] },
-          ],
-        },
-        layout: 'right',
-        rev: 0,
-      } satisfies MindmapNodeData,
-    });
-    const plan = addNode('text', leftC + 170, top + 352);
-    updateNode(plan.id, {
-      title: t('canvas.demo.planNoteTitle'),
-      width: 360,
-      height: 162,
-      data: {
-        content: t('canvas.demo.planNoteContent'),
-        textColor: '#1f2328',
-        backgroundColor: '#ffffff',
-        fontSize: 14,
-        autoSize: false,
-      } satisfies TextNodeData,
-    });
-    addEdge(createDefaultEdge(
-      { kind: 'node', nodeId: ideas.id, anchor: 'bottom' },
-      { kind: 'node', nodeId: plan.id, anchor: 'top' },
-      { label: t('canvas.demo.edgePrioritize'), stroke: { color: '#9575d4', width: 2.4, style: 'solid' } },
-    ));
-
-    setSelectedNodeIds([goal.id]);
-    setHighlightedId(goal.id);
-    notify({
-      tone: 'success',
-      title: t('canvas.demo.createdTitle'),
-      description: t('canvas.demo.createdDescription'),
-      autoCloseMs: 2600,
-    });
-  }, [
+  const handleCreateDemoCanvas = useCanvasDemoCanvas({
     addEdge,
     addNode,
     getViewportCenter,
@@ -573,7 +409,7 @@ export const Canvas = ({
     setSelectedNodeIds,
     t,
     updateNode,
-  ]);
+  });
 
   // Zoom-chip companions: reframe around everything / the selection.
   const handleFitAll = useCallback(() => {

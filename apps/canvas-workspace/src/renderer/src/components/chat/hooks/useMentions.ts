@@ -15,25 +15,7 @@ import {
 } from '../utils/mentions';
 import { appendMentionChipToEditable } from '../utils/editableMentions';
 import { getNodeDisplayLabel } from '../../../utils/nodeLabel';
-
-/**
- * Browsers label every pasted clipboard image `image.png`, so each pasted
- * screenshot lands in the transcript under the same meaningless name. Give
- * those a readable, timestamped label (Obsidian-style) while keeping real
- * names from the file picker untouched. `fileName` is display-only metadata —
- * attachments are always referenced on disk by `path` — so a friendly,
- * human-facing label is safe to synthesize here.
- */
-const GENERIC_CLIPBOARD_NAME = /^image\.[a-z0-9]+$/i;
-
-const buildAttachmentFileName = (file: File, ext: string): string => {
-  if (file.name && !GENERIC_CLIPBOARD_NAME.test(file.name)) return file.name;
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, '0');
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-    + ` ${pad(now.getHours())}.${pad(now.getMinutes())}.${pad(now.getSeconds())}`;
-  return `Pasted image ${stamp}.${ext}`;
-};
+import { buildAttachmentFileName } from './attachmentFileName';
 
 interface UseMentionsOptions {
   allWorkspaces?: WorkspaceOption[];
