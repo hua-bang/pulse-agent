@@ -184,6 +184,59 @@ export interface AgentContextDomSelectionRef {
   };
   text?: string;
   html?: string;
+  /** Short capped raw HTML preview kept for backwards-compatible context. */
+  htmlPreview?: string;
+  /** Bounded semantic snapshot of the selected element and its descendants. */
+  tree?: AgentContextDomNodeSnapshot;
+  /** Actionable descendants such as links, buttons, inputs, and form controls. */
+  controls?: AgentContextDomControlSnapshot[];
+  accessibility?: AgentContextDomAccessibilitySnapshot;
+  snapshot?: AgentContextDomSnapshotMeta;
+}
+
+export interface AgentContextDomNodeSnapshot {
+  tagName: string;
+  selector?: string;
+  role?: string;
+  text?: string;
+  attrs?: Record<string, string>;
+  rect?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  children?: AgentContextDomNodeSnapshot[];
+  truncated?: boolean;
+}
+
+export interface AgentContextDomControlSnapshot {
+  selector: string;
+  tagName: string;
+  label: string;
+  role?: string;
+  text?: string;
+  attrs?: Record<string, string>;
+  rect?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface AgentContextDomAccessibilitySnapshot {
+  role?: string;
+  name?: string;
+}
+
+export interface AgentContextDomSnapshotMeta {
+  nodeCount: number;
+  controlCount: number;
+  truncated: boolean;
+  maxDepth: number;
+  maxChildrenPerNode: number;
+  maxTotalNodes: number;
 }
 
 export interface AgentRequestContext {

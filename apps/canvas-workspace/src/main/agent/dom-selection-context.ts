@@ -1,15 +1,6 @@
-export interface CanvasAgentDomSelection {
-  id: string;
-  label: string;
-  workspaceId?: string;
-  nodeId: string;
-  nodeTitle?: string;
-  url?: string;
-  selector: string;
-  tagName?: string;
-  text?: string;
-  html?: string;
-}
+import type { AgentContextDomSelectionRef } from '../../shared/agent-chat';
+
+export type CanvasAgentDomSelection = AgentContextDomSelectionRef;
 
 function promptInline(value: string | undefined): string {
   return (value ?? '').replace(/`/g, '\\`').trim();
@@ -18,6 +9,16 @@ function promptInline(value: string | undefined): string {
 function promptExcerpt(value: string | undefined, maxChars = 900): string {
   const text = (value ?? '').replace(/\s+/g, ' ').trim();
   return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
+}
+
+function promptJsonExcerpt(value: unknown, maxChars = 1500): string {
+  if (value === undefined || value === null) return '';
+  try {
+    const text = JSON.stringify(value);
+    return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
+  } catch {
+    return '';
+  }
 }
 
 export function formatDomSelectionFocusBlock(
@@ -44,6 +45,16 @@ export function formatDomSelectionFocusBlock(
     if (item.url) lines.push(`  url: ${item.url}`);
     const excerpt = promptExcerpt(item.text);
     if (excerpt) lines.push(`  text excerpt: ${excerpt}`);
+    if (item.snapshot) {
+      lines.push(
+        `  snapshot: ${item.snapshot.nodeCount} nodes, ${item.snapshot.controlCount} controls${item.snapshot.truncated ? ', truncated' : ''}`,
+      );
+    }
+    const controls = item.controls?.slice(0, 12);
+    const controlsExcerpt = controls && controls.length > 0 ? promptJsonExcerpt(controls, 1200) : '';
+    if (controlsExcerpt) lines.push(`  controls: ${controlsExcerpt}`);
+    const treeExcerpt = item.tree ? promptJsonExcerpt(item.tree, 1600) : '';
+    if (treeExcerpt) lines.push(`  structured tree excerpt: ${treeExcerpt}`);
   }
   lines.push('');
   lines.push(

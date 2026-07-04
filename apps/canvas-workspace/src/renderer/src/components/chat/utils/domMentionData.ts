@@ -15,7 +15,21 @@ export function writeDomSelectionDataset(
   if (ref.tagName) chip.dataset.domTagName = ref.tagName;
   if (ref.text) chip.dataset.domText = ref.text;
   if (ref.html) chip.dataset.domHtml = ref.html;
+  if (ref.htmlPreview) chip.dataset.domHtmlPreview = ref.htmlPreview;
+  if (ref.tree) chip.dataset.domTree = JSON.stringify(ref.tree);
+  if (ref.controls) chip.dataset.domControls = JSON.stringify(ref.controls);
+  if (ref.accessibility) chip.dataset.domAccessibility = JSON.stringify(ref.accessibility);
+  if (ref.snapshot) chip.dataset.domSnapshot = JSON.stringify(ref.snapshot);
   if (ref.rect) chip.dataset.domRect = JSON.stringify(ref.rect);
+}
+
+function parseDatasetJson<T>(value: string | undefined): T | undefined {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return undefined;
+  }
 }
 
 export function readDomSelectionDataset(
@@ -24,14 +38,7 @@ export function readDomSelectionDataset(
   index: number,
 ): AgentContextDomSelectionRef | null {
   if (!chip.dataset.nodeId || !chip.dataset.domSelector) return null;
-  let rect: AgentContextDomSelectionRef['rect'] | undefined;
-  if (chip.dataset.domRect) {
-    try {
-      rect = JSON.parse(chip.dataset.domRect) as AgentContextDomSelectionRef['rect'];
-    } catch {
-      rect = undefined;
-    }
-  }
+  const rect = parseDatasetJson<AgentContextDomSelectionRef['rect']>(chip.dataset.domRect);
   return {
     id: chip.dataset.domId || `dom-${chip.dataset.nodeId}-${index}`,
     label: chip.dataset.domLabel || label || 'DOM selection',
@@ -44,5 +51,10 @@ export function readDomSelectionDataset(
     rect,
     text: chip.dataset.domText || undefined,
     html: chip.dataset.domHtml || undefined,
+    htmlPreview: chip.dataset.domHtmlPreview || undefined,
+    tree: parseDatasetJson<AgentContextDomSelectionRef['tree']>(chip.dataset.domTree),
+    controls: parseDatasetJson<AgentContextDomSelectionRef['controls']>(chip.dataset.domControls),
+    accessibility: parseDatasetJson<AgentContextDomSelectionRef['accessibility']>(chip.dataset.domAccessibility),
+    snapshot: parseDatasetJson<AgentContextDomSelectionRef['snapshot']>(chip.dataset.domSnapshot),
   };
 }
