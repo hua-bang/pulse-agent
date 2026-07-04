@@ -2,6 +2,9 @@
 
 Ratchet-gated performance checks for canvas-workspace. Guards derive from the
 findings in `../docs/performance-analysis-consolidated.md` (+ round 3).
+System design — the six aspects, the full metric dictionary (IDs, definitions,
+gate levels), recording schema, and roadmap — lives in **`program.md`** (SSOT);
+this file only covers how to run things.
 
 ## Bundle (no app launch needed)
 
