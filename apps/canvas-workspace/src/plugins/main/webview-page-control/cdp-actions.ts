@@ -74,6 +74,15 @@ async function runWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+async function bringPageTargetToFront(send: CdpSender): Promise<void> {
+  try {
+    await send('Page.bringToFront');
+  } catch {
+    // Older/embedded targets can reject this. `wc.focus()` above remains the
+    // primary route; this CDP activation is a best-effort extra guard.
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Selector → coordinate resolution (JS-side, fast, no debugger needed)
 // ---------------------------------------------------------------------------
@@ -262,6 +271,7 @@ export async function cdpPressKey(
   try {
     return await runWithTimeout(
       withCdp(wc, async (send: CdpSender) => {
+        await bringPageTargetToFront(send);
         const baseInit: Record<string, unknown> = {
           key: spec.key,
           code: spec.code,
@@ -378,6 +388,7 @@ export async function cdpFillSelector(
   try {
     return await runWithTimeout(
       withCdp(wc, async (send: CdpSender) => {
+        await bringPageTargetToFront(send);
         await send('Input.insertText', { text: value });
         return {
           ok: true,
