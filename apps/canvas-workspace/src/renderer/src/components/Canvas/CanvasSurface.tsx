@@ -13,6 +13,7 @@ import type { SnapLine } from '../../utils/canvasSnapping';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { useI18n } from '../../i18n';
 import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
+import { markOnce } from '../../perf/monitor';
 
 interface NodeRenderGroup {
   containers: CanvasNode[];
@@ -171,6 +172,8 @@ export const CanvasSurface = ({
   onEdgeBodyContextMenu,
   getAllNodes,
 }: CanvasSurfaceProps) => {
+  // Startup metric: first canvas render (idempotent, Map lookup after that).
+  markOnce('canvas:first-render');
   const renderNode = (node: CanvasNode, renderMode: CanvasNodeRenderMode = 'full') => (
     <CanvasNodeView
       key={`${node.id}:${renderMode}`}

@@ -1,0 +1,8 @@
+{
+  "note": "Performance ratchet baselines. Gates fail when current > baseline * (1 + tolerancePct/100). When a fix lands that meaningfully lowers a metric, lower its baseline in the same PR to lock the win in. Initial values measured 2026-07-04 (pnpm --filter canvas-workspace build, includes perf instrumentation).",
+  "bundle": {
+    "entryRawKB": { "baseline": 4618, "tolerancePct": 5 },
+    "entryGzipKB": { "baseline": 1015, "tolerancePct": 5 },
+    "totalJsKB": { "baseline": 10580, "tolerancePct": 10 }
+  }
+}

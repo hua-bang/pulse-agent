@@ -1,6 +1,7 @@
 import hljs from 'highlight.js/lib/common';
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
+import { count } from '../../../perf/counters';
 
 // Minimum highlight.js auto-detection relevance before its guessed language is
 // trusted as the code-block header label. Below this, syntax coloring is still
@@ -169,11 +170,13 @@ export function renderMarkdown(content: string, options?: RenderMarkdownOptions)
   }
   const cached = settledRenderCache.get(content);
   if (cached !== undefined) {
+    count('chat-md-cache-hit');
     // Re-insert to keep recently used entries away from eviction.
     settledRenderCache.delete(content);
     settledRenderCache.set(content, cached);
     return cached;
   }
+  count('chat-md-render');
   const html = markdown.render(content);
   settledRenderCache.set(content, html);
   if (settledRenderCache.size > SETTLED_RENDER_CACHE_MAX) {

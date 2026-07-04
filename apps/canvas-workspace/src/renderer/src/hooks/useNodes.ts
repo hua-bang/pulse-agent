@@ -14,6 +14,7 @@ import type {
 } from '../types';
 import { cloneMindmapTopic, createDefaultNode, createNodeData, genId } from '../utils/nodeFactory';
 import { resizeGroupsToChildren } from '../utils/resizeGroupsToChildren';
+import { count } from '../perf/counters';
 import { degradeEndpointsForDeletedNode } from '../utils/edgeFactory';
 import { useNodeHistory } from './useNodeHistory';
 
@@ -90,6 +91,7 @@ export const useNodes = (
     console.debug(
       `[canvas] saving ${canvasId}: ${payload.nodes.length} nodes, ${edgeSnapshot.length} edges`,
     );
+    count('canvas-save-ipc');
     void api.save(canvasId, payload).then((res) => {
       if (!res.ok) {
         console.warn('[canvas] save failed:', res.error);

@@ -64,6 +64,7 @@ import {
   registerPulseCanvasSchemesAsPrivileged,
 } from "./protocol";
 import { configureApplicationMenu } from "./menu";
+import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
@@ -90,6 +91,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
   setupLinkPolicy();
 
   app.whenReady().then(async () => {
+    startupMark("whenReady");
     spoofUserAgentFallback();
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);
@@ -107,6 +109,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     } catch (err) {
       await writeLog("main", "ensureWelcomeWorkspaceSeeded failed", String(err));
     }
+    startupMark("welcomeSeeded");
     // Audit pollution-shaped workspaces in the background; surfaces a log
     // entry per finding. The renderer's MigrationSpinner separately
     // surfaces user-visible sticky alerts via canvas:listPollutedWorkspaces
@@ -160,8 +163,10 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // BEFORE any canvas-agent is constructed (which happens when the
     // renderer first calls into canvas-agent IPC). Await so the registry
     // is fully populated by the time the window comes up.
+    startupMark("ipcWired");
     await setupCanvasPlugins(BUILT_IN_MAIN_PLUGINS);
     await reloadConfiguredExternalMainPlugins();
+    startupMark("pluginsActivated");
     void ensureRuntimeControlServer((message, detail) => {
       void writeLog("main", message, detail);
     }).then((ok) => {
@@ -188,6 +193,15 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
     // Let on-demand activation (e.g. the channel plugin's /open) recreate the
     // window if it was closed.
     setWindowFactory(openWindow);
+    // Startup metrics: dom-ready on the first window closes the boot
+    // critical path (whenReady → seeding → IPC → plugins → window → renderer).
+    app.on("browser-window-created", (_event, win) => {
+      win.webContents.once("dom-ready", () => {
+        startupMark("rendererDomReady");
+        logStartupSummaryOnce(writeLog);
+      });
+    });
+    startupMark("openWindow");
     openWindow();
 
     app.on("activate", () => {
