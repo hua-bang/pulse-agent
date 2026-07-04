@@ -2,13 +2,13 @@
 
 This directory is the source of truth for the repository-level harness pilot. It is separate from `.pulse-coder/`, which remains product/runtime configuration (MCP servers, sub-agents, runtime skills) for Pulse Coder itself.
 
-The target harness shape is one always-on control surface plus three expandable surfaces:
+The target harness shape is one always-on control surface plus four expandable surfaces:
 
 ```text
-AGENTS.md -> Know / Tool / Verify
+AGENTS.md -> Knowledge / Tool / Verify / Skills
 ```
 
-See `harness/DESIGN.md` for the full model. In short: `AGENTS.md` carries persistent routing, constraints, gates, acceptance standards, and failure guards; Know / Tool / Verify carry the expandable facts, mechanisms, and validation evidence.
+See `harness/DESIGN.md` for the full model. In short: `AGENTS.md` carries persistent routing, constraints, gates, acceptance standards, and failure guards; Knowledge / Tool / Verify / Skills carry the expandable facts, mechanisms, validation evidence, and action protocols.
 
 ## Reading Path
 
@@ -26,10 +26,12 @@ AGENTS.md / CLAUDE.md
 
 | Area | Path | Purpose |
 |---|---|---|
-| Harness design | `DESIGN.md` | Target shape for AGENTS.md + Know / Tool / Verify across global and module scopes. |
+| Harness design | `DESIGN.md` | Target shape for AGENTS.md + Knowledge / Tool / Verify / Skills across global and module scopes. |
 | Pilot status | `ROADMAP.md` | Current pilot status, honest gaps (no CI / no git hooks / no executable checks), and the keystone rollout plan. |
 | Repository map | `profile.yaml` | Machine-readable workspace routing table. |
 | Validation matrix | `validation.yaml` | Machine-readable validation matrix and escalation rules. |
+| Knowledge index | `knowledge/` | Index for the Knowledge surface — routes to existing knowledge SSOTs (profile, root AGENTS, workspace docs/contracts). |
+| Verify index | `verify/` | Index for the Verify surface — routes to `validation.yaml`, `checks/`, acceptance and failure-capture notes. |
 | Action protocols | `skills/` | Repo-level action protocols (not runtime skills) for recurring work. |
 | Atomic tools | `tools/` | Atomic tool protocols; only `graph-viewer` is a wired executable, the rest are spec-only. |
 | Feedback flow | `feedback/` | Admission, routing, proposals, and temporary inbox. |
@@ -42,6 +44,8 @@ Keep source-of-truth routing lightweight and human-readable. Do not maintain a s
 
 | Knowledge | Default target |
 |---|---|
+| Knowledge surface index (what the agent faces) | `harness/knowledge/README.md` |
+| Verify surface index (how the agent proves) | `harness/verify/README.md` |
 | Repository navigation | `AGENTS.md` |
 | Claude Code specifics | `CLAUDE.md` |
 | Workspace routing | `harness/profile.yaml` |

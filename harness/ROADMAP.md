@@ -57,3 +57,4 @@ The comparison against the reference sample (B / `ec_channel_lynx_x`) surfaced i
 - Honest test-reality in hard boundaries (root `AGENTS.md` §2).
 - Named failure-capture with guards (root `AGENTS.md` §6).
 - `harness/validation.yaml` and `harness/profile.yaml` already SSOT-complete.
+- Knowledge/Verify surface alignment with the finalized `Harness = AGENTS.md + Knowledge + Tool + Verify + Skills` model: elevated Skills to an explicit fourth surface, renamed Know → Knowledge in `harness/DESIGN.md` and `harness/README.md`, and added `harness/knowledge/README.md` + `harness/verify/README.md` as routing indexes (no content duplicated; `harness/` name retained per `DESIGN.md` no-rename rule).
