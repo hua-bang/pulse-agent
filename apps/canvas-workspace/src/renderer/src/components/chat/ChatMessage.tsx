@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from 'react';
 import type { AgentChatMessage, CanvasNode } from '../../types';
 import { toFileUrl } from '../../utils/fileUrl';
-import { copyTextToClipboard } from '../../utils/clipboard';
 import { BotAvatarIcon, CheckIcon, CopyIcon, PencilIcon, RefreshIcon } from '../icons';
 import type { ToolCallStatus } from './types';
 import { renderMdWithMentions } from './utils/mentions';
@@ -16,6 +15,7 @@ import {
   ChatInlineVisual,
   parseVisualToolResult,
 } from '../artifacts';
+import { CopyGeneratedImageButton, parseGeneratedImage } from './GeneratedImageActions';
 
 const CopyMessageButton = memo(({ content }: { content: string }) => {
   const [copied, setCopied] = useState(false);
@@ -41,53 +41,6 @@ const CopyMessageButton = memo(({ content }: { content: string }) => {
   );
 });
 CopyMessageButton.displayName = 'CopyMessageButton';
-
-const CopyGeneratedImageButton = memo(({ imagePath }: { imagePath: string }) => {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(async () => {
-    try {
-      const result = await window.canvasWorkspace.file.copyImage(imagePath);
-      if (!result.ok) {
-        await copyTextToClipboard(toFileUrl(imagePath));
-      }
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      /* clipboard unavailable — ignore */
-    }
-  }, [imagePath]);
-  return (
-    <button
-      type="button"
-      className="chat-generated-image-card__action"
-      onClick={() => void handleCopy()}
-      title={copied ? 'Copied!' : 'Copy image'}
-      aria-label="Copy image"
-    >
-      {copied ? 'Copied' : 'Copy'}
-    </button>
-  );
-});
-CopyGeneratedImageButton.displayName = 'CopyGeneratedImageButton';
-
-interface GeneratedImagePayload {
-  ok?: boolean;
-  type?: string;
-  title?: string;
-  outputPath?: string;
-  mimeType?: string;
-  addToCanvasAction?: { workspaceId?: string; imagePath?: string };
-}
-
-const parseGeneratedImage = (result?: string): GeneratedImagePayload | null => {
-  if (!result) return null;
-  try {
-    const parsed = JSON.parse(result) as GeneratedImagePayload;
-    return parsed?.ok && parsed?.type === 'generated_image' && parsed.outputPath ? parsed : null;
-  } catch {
-    return null;
-  }
-};
 
 interface ChatMessageProps {
   message: AgentChatMessage;

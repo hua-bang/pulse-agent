@@ -56,9 +56,7 @@ interface GraphLink {
 }
 
 /** A graph search hit — either a knowledge node or a tag node currently in the graph. */
-type GraphSearchResult =
-  | { kind: 'node'; node: WorkspaceNodeListItem }
-  | { kind: 'tag'; graphId: string; label: string };
+type GraphSearchResult = { kind: 'node'; node: WorkspaceNodeListItem } | { kind: 'tag'; graphId: string; label: string };
 
 const GRAPH_COLORS = {
   node: '#2383e2',
