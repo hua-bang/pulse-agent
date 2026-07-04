@@ -18,8 +18,9 @@ runs with the normal test suite and keeps mermaid dynamic-only.
 ## Runtime scenarios (drives the real app)
 
 ```bash
+pnpm --filter canvas-workspace setup:electron    # only if the binary download was skipped/blocked
 pnpm --filter canvas-workspace build
-node harness/cli.mjs start --profile temp        # headless: xvfb-run / DISPLAY=:99 + ELECTRON_DISABLE_SANDBOX=1
+node harness/cli.mjs start --profile temp        # headless Linux: Xvfb auto-managed (see harness/README.md)
 pnpm --filter canvas-workspace perf:scenarios -- --seed-nodes 100
 node harness/cli.mjs close --cleanup
 ```

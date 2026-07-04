@@ -15,6 +15,7 @@ import { HarnessError } from './errors.mjs';
 import { printResult } from './output.mjs';
 import { applyStartupNavigation } from './navigation.mjs';
 import { readSession, stopSession, writeSession } from './session.mjs';
+import { ensureHeadlessDisplay, shouldRunHeadless } from './headless.mjs';
 import { collectFlags, prepareProfile, writeExperimentalFlags } from './profiles.mjs';
 import { getFreePort, isPidAlive } from './utils.mjs';
 import { waitForPageTarget } from './cdp.mjs';
@@ -56,10 +57,18 @@ export async function startCommand(rawArgs) {
   const stderrPath = join(artifactsDir, 'electron.stderr.log');
   const stdoutFd = openSync(stdoutPath, 'a');
   const stderrFd = openSync(stderrPath, 'a');
+  // Headless Linux (CI/containers): own an Xvfb display and disable the
+  // Electron sandbox for the child. Forced via --headless; automatic when
+  // Linux has no DISPLAY.
+  const headless = shouldRunHeadless(opts);
+  const headlessDisplay = headless ? await ensureHeadlessDisplay() : null;
   const env = {
     ...process.env,
     HOME: profileInfo.home,
     ...(flagsPath ? { PULSE_CANVAS_EXPERIMENTAL_FEATURES: flagsPath } : {}),
+    ...(headlessDisplay
+      ? { DISPLAY: headlessDisplay.display, ELECTRON_DISABLE_SANDBOX: '1' }
+      : {}),
   };
   delete env.ELECTRON_RENDERER_URL;
   delete env.VITE_DEV_SERVER_URL;
@@ -96,6 +105,9 @@ export async function startCommand(rawArgs) {
     target: opts.target ?? undefined,
     route: opts.route ?? undefined,
     logFiles: { stdout: stdoutPath, stderr: stderrPath },
+    ...(headlessDisplay
+      ? { headless: true, display: headlessDisplay.display, xvfbPid: headlessDisplay.xvfbPid }
+      : {}),
   };
 
   try {

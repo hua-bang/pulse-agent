@@ -34,6 +34,10 @@ export async function stopSession(session, { cleanup }) {
       if (isPidAlive(session.pid)) process.kill(session.pid, 'SIGKILL');
     });
   }
+  // Reap the Xvfb we spawned for a headless session (never an external DISPLAY).
+  if (session.xvfbPid && isPidAlive(session.xvfbPid)) {
+    try { process.kill(session.xvfbPid, 'SIGTERM'); } catch { /* already gone */ }
+  }
   if (cleanup && session.cleanupHome && session.home && session.home.includes('pulse-canvas-harness-')) {
     await fs.rm(session.home, { recursive: true, force: true });
   }
