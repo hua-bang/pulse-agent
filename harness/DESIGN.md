@@ -37,6 +37,34 @@ Use `AGENTS.md` as the lightweight index for Knowledge, Tool, Validate, and Skil
 
 If none of those is true, keep the route in `AGENTS.md` or the nearest existing doc. A thin README that merely restates the surface name is noise.
 
+## Workspace Harness Directory
+
+When a workspace needs local harness assets, prefer a workspace-local `harness/` directory as the container:
+
+```text
+workspace/
+  AGENTS.md
+  harness/
+    knowledge/
+    tools/
+    validate/
+    skills/
+```
+
+This is a future-friendly home for local Knowledge, Tool, Validate, and Skills assets. It does not mean every workspace should immediately create every subdirectory.
+
+Use these defaults:
+
+- Keep lightweight routing in the workspace `AGENTS.md`.
+- Add `harness/validate/` when validation needs machine-readable rules, local scenarios, or command selection beyond a short `AGENTS.md` note.
+- Add `harness/tools/` when the workspace has executable mechanisms or scripts that need a stable home.
+- Add `harness/knowledge/` only when local facts outgrow existing `README.md`, `docs/`, contracts, or source types.
+- Add `harness/skills/` only for stable local action protocols that are not runtime task skills.
+
+If a workspace already has `harness/` for a specific mechanism, treat that existing directory as the relevant surface until there is enough pressure to split it. For example, `apps/canvas-workspace/harness/` is currently a real Electron operation tool; do not mix unrelated Knowledge or Skills files into it casually. If it later needs a full workspace harness container, migrate deliberately instead of overloading the existing tool layout.
+
+Runtime artifact directories such as `.harness/` are not harness knowledge. They hold generated state, screenshots, logs, or temporary homes and should not become documentation or validation sources of truth.
+
 ## Root / Workspace Split
 
 The root harness is a router and coordination layer. It owns repository-wide invariants and cross-workspace impact, not package-local detail.
@@ -68,7 +96,7 @@ Validation has two different jobs:
 
 | Scope | Job | Default location |
 |---|---|---|
-| Workspace-local validation | Local commands, known red commands, local smoke checks, package-specific caveats. | Workspace `validation.yaml` if machine-readable detail is useful; otherwise workspace `docs/validation.md` or `AGENTS.md`. |
+| Workspace-local validation | Local commands, known red commands, local smoke checks, package-specific caveats. | Workspace `harness/validate/validation.yaml` for machine-readable rules; `harness/validate/README.md`, docs, or `AGENTS.md` for human guidance. |
 | Root validation overlay | Root config changes, shared dependency changes, cross-workspace public API impact, migration-era routing while local validation files are introduced. | `harness/validate/validation.yaml` |
 
 The root validation file is optional by design. It should exist only where the root can say something useful that a single workspace cannot know, such as "this root config change affects every package" or "this public API change must check downstream consumers."
@@ -119,7 +147,7 @@ The current pilot maps onto this design as follows:
 | Root Validate | Root `AGENTS.md`, `harness/README.md`, optional root overlay in `harness/validate/validation.yaml`, and workspace-local validation docs |
 | Skills | Protocol docs when present; runtime task skills under `.pulse-coder/skills/` are a separate product layer and must not be merged with repo harness protocols. |
 | Workspace control surface | Each workspace `AGENTS.md` |
-| Workspace Knowledge / Tool / Validate | Workspace `README.md`, `docs/`, scripts, tests, contracts, and optional workspace-local validation files |
+| Workspace Knowledge / Tool / Validate | Workspace-local `harness/`, `README.md`, docs, scripts, tests, and contracts |
 
 Do not add or keep a file solely because the model has a named surface. Add a file only when it removes duplication, gives the agent a clearer route, or creates an executable constraint.
 
@@ -157,6 +185,8 @@ Keep workspace entries local and differential. Do not copy root principles or ro
 - Putting workspace-local facts in root harness files.
 - Treating root `harness/validate/validation.yaml` as mandatory for every workspace.
 - Creating `knowledge/README.md`, `tools/README.md`, `validate/README.md`, or `skills/README.md` just because the surface exists.
+- Mixing generated `.harness/` run artifacts with durable harness knowledge.
+- Dumping unrelated Knowledge, Validate, or Skills files into an existing tool-specific `harness/` directory without an explicit migration.
 - Storing run evidence in YAML.
 - Claiming CI, hooks, or a validation runner exists before it is implemented.
 - Duplicating the same command matrix in root and workspace docs without a clear owner.
@@ -167,6 +197,7 @@ Keep workspace entries local and differential. Do not copy root principles or ro
 1. Keep root `AGENTS.md` as the global control surface.
 2. Keep workspace membership in `pnpm-workspace.yaml` and workspace facts near each workspace.
 3. Keep surface routing in `AGENTS.md` until a surface reaches the README threshold.
-4. Keep root Validate minimal while migrating detailed validation into workspace-local `validation.yaml` or `docs/validation.md`.
-5. Teach tools such as `graph-viewer` to consume workspace-local validation when those files exist.
-6. Make Validate executable by adding a runner for `harness/validate/validation.yaml` plus workspace-local validation files.
+4. Use workspace-local `harness/` as the preferred container when local Knowledge, Tool, Validate, or Skills assets need a home.
+5. Keep root Validate minimal while migrating detailed validation into workspace-local `harness/validate/`.
+6. Teach tools such as `graph-viewer` to consume workspace-local validation when those files exist.
+7. Make Validate executable by adding a runner for `harness/validate/validation.yaml` plus workspace-local validation files.

@@ -37,12 +37,10 @@ in `apps/canvas-workspace`; runtime-loadable plugin node behavior belongs in
 | Node and edge behavior | `src/core/nodes.ts`, `src/core/edges.ts` |
 | Bundled agent skills | `skills/`, `src/commands/install-skills.ts` |
 | Tests | `src/core/__tests__/`, `src/commands/__tests__/` |
-| Documentation routing | `../../harness/skills/doc-governance.md` |
-| Validation planning | `../../harness/skills/quality-workflow.md` |
-| Contract changes | `../../harness/skills/contract-coding.md` |
+| Local validation | `harness/validate/validation.yaml` |
 
-There is no package-local documentation or harness directory here. Use the
-root harness files above, then the package source/tests.
+There is no package-local documentation beyond the local validation file. Use
+the root harness files above, then the package source/tests.
 
 ## Local Constraints
 
@@ -65,7 +63,8 @@ root harness files above, then the package source/tests.
   auth. Do not bypass runtime authentication or reach into Electron memory from
   this package.
 - Changes to command payloads, core exports, node/edge schemas, runtime routes,
-  or storage shape are contract changes; use `../../harness/skills/contract-coding.md`.
+  or storage shape are contract changes; use local validation plus the root
+  impact overlay when hosts are affected.
 
 ## Common Commands
 

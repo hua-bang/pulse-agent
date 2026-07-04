@@ -37,12 +37,10 @@ package internals directly.
 | Tests | `src/__tests__/main.test.ts`, `src/__tests__/scene.test.ts` |
 | Agent-facing node guidance | `skills/excalidraw-node/SKILL.md` |
 | Canvas host plugin contract | `../../apps/canvas-workspace/docs/plugin-node-mf2.md`, `../../apps/canvas-workspace/AGENTS.md` |
-| Documentation routing | `../../harness/skills/doc-governance.md` |
-| Validation planning | `../../harness/skills/quality-workflow.md` |
-| Contract changes | `../../harness/skills/contract-coding.md` |
+| Local validation | `harness/validate/validation.yaml` |
 
-There is no package-local documentation or harness directory here. Use the
-root harness files and the Canvas host docs when behavior crosses into the app.
+There is no package-local documentation beyond the local validation file. Use
+the root harness files and the Canvas host docs when behavior crosses into the app.
 
 ## Local Constraints
 
@@ -65,7 +63,7 @@ root harness files and the Canvas host docs when behavior crosses into the app.
   Module Federation. Be cautious changing shared dependency settings.
 - Contract changes to manifest shape, node actions, tool schemas, renderer
   plugin props, or payload shape should route through
-  `../../harness/skills/contract-coding.md` and usually require host-side checks.
+  local validation and usually require host-side checks.
 
 ## Common Commands
 

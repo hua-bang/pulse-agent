@@ -13,16 +13,15 @@ This directory is an index, not a copy. Knowledge in this repo is distributed ac
 | Workspace role, routing, and curated knowledge pointers | Workspace `AGENTS.md` and local `docs/` |
 | Security / secrets / runtime key precedence | Root `AGENTS.md` §7 |
 | Named failure captures and their guards | Root `AGENTS.md` §6 |
-| Package contracts, module boundaries | Workspace `AGENTS.md` + `docs/contracts.md` + types + tests |
+| Package contracts, module boundaries | Workspace `AGENTS.md` + `harness/knowledge/contracts.md` if present, otherwise local docs/types/tests |
 | App behavior spec | Workspace `AGENTS.md` or `CLAUDE.md`; `docs/spec/` only when behavior needs durable product-level SSOT |
 | Runtime operation | Workspace `docs/runbook.md` or local entry file |
 | Topic deep-dives (harness, mcp-plugin, memory-plugin, plan-mode, plugin-system) | Root `docs/<topic>/` |
 
 ## What does not belong here
 
-- Feedback that is not yet evidenced: route to `harness/feedback/` first.
 - Validation rules: route to `harness/validate/` or `harness/validate/validation.yaml`.
-- Agent action protocols: route to `harness/skills/`.
+- Agent action protocols: add `harness/skills/` only when a stable recurring workflow justifies it.
 - Mechanical tool specs: route to `harness/tools/`.
 - Module-local facts: keep near the module (workspace `docs/` or `AGENTS.md`).
 

@@ -1,10 +1,18 @@
 # Harness Tools
 
-`harness/tools` describes horizontal atomic capabilities. Tools can be used by skills, checks, feedback, reports, or humans.
+`harness/tools` describes horizontal atomic capabilities. Tools can be used by checks, reports, humans, or future skills.
 
-A tool should have stable inputs and outputs, but it does not own final decisions. Skills compose tools and make workflow decisions.
+A tool should have stable inputs and outputs, but it does not own final decisions.
 
-## Current Tool Specs
+## Current Executable Tools
+
+| Tool | Purpose |
+|---|---|
+| `graph-viewer` | Inspect harness coverage and validation routing. |
+
+## Candidate Tool Ideas
+
+These are ideas, not on-disk tool directories or executable protocols.
 
 | Tool | Purpose |
 |---|---|

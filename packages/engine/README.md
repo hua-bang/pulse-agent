@@ -163,7 +163,7 @@ Image and Tavily tools expose additional per-tool env knobs (e.g. `OPENAI_IMAGE_
 
 ## Contracts & Validation
 
-Package contracts and validation commands are the source of truth in [`docs/contracts.md`](docs/contracts.md) and [`docs/validation.md`](docs/validation.md). Public exports, `EngineOptions`, hook signatures, service names, built-in tool schemas, and built-in plugin behavior are contracts — route changes through them.
+Package contracts and validation commands are the source of truth in [`harness/knowledge/contracts.md`](harness/knowledge/contracts.md), [`harness/knowledge/architecture.md`](harness/knowledge/architecture.md), and [`harness/validate/README.md`](harness/validate/README.md). Public exports, `EngineOptions`, hook signatures, service names, built-in tool schemas, and built-in plugin behavior are contracts.
 
 ## Build & Test
 

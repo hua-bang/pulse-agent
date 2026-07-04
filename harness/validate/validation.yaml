@@ -1,118 +1,7 @@
 version: 1
 
 pathRules:
-  - name: engine
-    paths:
-      - packages/engine/**
-    required:
-      - pnpm --filter pulse-coder-engine test
-      - pnpm --filter pulse-coder-engine typecheck
-    escalateWhen:
-      publicApiChange:
-        - pnpm --filter pulse-coder-cli test
-        - pnpm --filter @pulse-coder/remote-server build
-        - pnpm --filter canvas-workspace build
-      builtInPluginChange:
-        - pnpm --filter pulse-coder-engine test
-        - pnpm --filter pulse-coder-cli test
-
-  - name: agent-teams
-    paths:
-      - packages/agent-teams/**
-    required:
-      - pnpm --filter pulse-coder-agent-teams test
-      - pnpm --filter pulse-coder-agent-teams typecheck
-    escalateWhen:
-      runtimeProtocolChange:
-        - pnpm --filter @pulse-coder/teams-cli build
-        - pnpm --filter canvas-workspace typecheck
-
-  - name: teams-cli
-    paths:
-      - apps/teams-cli/**
-    required:
-      - pnpm --filter @pulse-coder/teams-cli test
-      - pnpm --filter @pulse-coder/teams-cli build
-
-  - name: cli
-    paths:
-      - packages/cli/**
-    required:
-      - pnpm --filter pulse-coder-cli test
-
-  - name: orchestrator
-    paths:
-      - packages/orchestrator/**
-    required:
-      - pnpm --filter pulse-coder-orchestrator test
-      - pnpm --filter pulse-coder-orchestrator typecheck
-
-  - name: memory-plugin
-    paths:
-      - packages/memory-plugin/**
-    required:
-      - pnpm --filter pulse-coder-memory-plugin test
-      - pnpm --filter pulse-coder-memory-plugin build
-
-  - name: plugin-kit
-    paths:
-      - packages/plugin-kit/**
-    required:
-      - pnpm --filter pulse-coder-plugin-kit build:js
-    escalateWhen:
-      publicApiChange:
-        - pnpm --filter pulse-coder-engine typecheck
-        - pnpm --filter @pulse-coder/remote-server build
-
-  - name: acp
-    paths:
-      - packages/acp/**
-    required:
-      - pnpm --filter pulse-coder-acp test
-      - pnpm --filter pulse-coder-acp typecheck
-
-  - name: canvas-cli
-    paths:
-      - packages/canvas-cli/**
-    required:
-      - pnpm --filter @pulse-coder/canvas-cli test
-      - pnpm --filter @pulse-coder/canvas-cli typecheck
-
-  - name: canvas-nodes
-    paths:
-      - packages/canvas-nodes/**
-    required:
-      - pnpm --filter @pulse-canvas/nodes test
-      - pnpm --filter @pulse-canvas/nodes typecheck
-
-  - name: langfuse-plugin
-    paths:
-      - packages/langfuse-plugin/**
-    required:
-      - pnpm --filter pulse-coder-langfuse-plugin build
-
-  - name: pulse-sandbox
-    paths:
-      - packages/pulse-sandbox/**
-    required:
-      - pnpm --filter pulse-sandbox test
-      - pnpm --filter pulse-sandbox typecheck
-
-  - name: remote-server
-    paths:
-      - apps/remote-server/**
-    required:
-      - pnpm --filter @pulse-coder/remote-server build
-
-  - name: canvas-workspace
-    paths:
-      - apps/canvas-workspace/**
-    required:
-      - pnpm --filter canvas-workspace typecheck
-      - pnpm --filter canvas-workspace test
-
-escalationRules:
-  rootWorkspaceConfigChange:
+  - name: root-workspace-config
     paths:
       - package.json
       - pnpm-workspace.yaml
@@ -120,3 +9,25 @@ escalationRules:
     required:
       - pnpm run build
       - pnpm test
+
+escalationRules:
+  enginePublicApiChange:
+    required:
+      - pnpm --filter pulse-coder-cli test
+      - pnpm --filter @pulse-coder/remote-server build
+      - pnpm --filter canvas-workspace build
+
+  engineBuiltInPluginChange:
+    required:
+      - pnpm --filter pulse-coder-engine test
+      - pnpm --filter pulse-coder-cli test
+
+  agentTeamsRuntimeProtocolChange:
+    required:
+      - pnpm --filter @pulse-coder/teams-cli build
+      - pnpm --filter canvas-workspace typecheck
+
+  pluginKitPublicApiChange:
+    required:
+      - pnpm --filter pulse-coder-engine typecheck
+      - pnpm --filter @pulse-coder/remote-server build

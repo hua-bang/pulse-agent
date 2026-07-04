@@ -14,7 +14,9 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 | Task | Read |
 |---|---|
 | Package overview and scripts | `README.md`, `package.json` |
-| Public contracts and validation | `docs/contracts.md`, `docs/validation.md` |
+| Public contracts | `harness/knowledge/contracts.md` |
+| Architecture map | `harness/knowledge/architecture.md` |
+| Validation | `harness/validate/README.md`, `harness/validate/validation.yaml` |
 | Public exports | `src/index.ts` |
 | Engine bootstrap and options | `src/Engine.ts` |
 | Execution loop, streaming, retry, abort, compaction | `src/core/loop.ts`, `src/context/` |
@@ -30,9 +32,9 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 - Preserve tool merge order: built-in tools, then plugin tools, then `EngineOptions.tools` as the highest-priority override layer.
 - Built-in plugins are loaded automatically unless `disableBuiltInPlugins` is set; adding, removing, or reordering them can affect CLI, remote server, canvas, and agent teams consumers.
 - Keep source imports ESM-style and follow package-local TypeScript strictness.
-- Public exports, `EngineOptions`, hook signatures, service names, built-in tool schemas, and built-in plugin behavior are contracts; route changes through `../../harness/skills/contract-coding.md`.
+- Public exports, `EngineOptions`, hook signatures, service names, built-in tool schemas, and built-in plugin behavior are contracts; read `harness/knowledge/contracts.md` before changing them.
 - Preserve `.pulse-coder/*` paths and legacy `.coder/*` compatibility unless there is an explicit migration plan.
-- Runtime feedback that changes engine guidance should route through `../../harness/skills/feedback-governance.md`.
+- Durable engine guidance changes should update this file or the local `harness/` files instead of adding parallel notes.
 
 ## Common Commands
 
@@ -44,7 +46,7 @@ pnpm --filter pulse-coder-cli test
 pnpm --filter @pulse-coder/remote-server build
 ```
 
-Default checks are `test` and `typecheck`. Use `build` for public exports or package configuration changes. The CLI and remote-server commands are escalation checks for public API, built-in plugin, or tool contract changes. Docs-only changes only need referenced path/command checks per `docs/validation.md`.
+Default checks are `test` and `typecheck`. Use `build` for public exports or package configuration changes. Cross-consumer checks are selected from the root impact overlay when public API, built-in plugin, runtime-loop, or tool contracts change. Docs-only changes only need referenced path/command checks per `harness/validate/README.md`.
 
 ## Key Files
 
@@ -54,4 +56,4 @@ Default checks are `test` and `typecheck`. Use `build` for public exports or pac
 - `src/plugin/`: plugin manager, hook map, service/config APIs, dependency ordering, and user config plugin loading.
 - `src/built-in/index.ts`: built-in plugin registration order and public built-in plugin exports.
 - `src/tools/index.ts`: built-in tool registry for file, shell, Tavily, image generation, clarification, and deferred demo tools.
-- `docs/contracts.md`, `docs/validation.md`: package contract and validation source of truth.
+- `harness/knowledge/`, `harness/validate/`: package contract, architecture, and validation source of truth.

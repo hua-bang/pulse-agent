@@ -31,11 +31,7 @@ AGENTS.md / CLAUDE.md
 | Root validation rules | `validate/validation.yaml` | Machine-readable root validation routing and escalation rules. |
 | Knowledge index | `knowledge/` | Index for the Knowledge surface — routes to existing knowledge SSOTs (root AGENTS, workspace AGENTS, workspace docs/contracts). |
 | Validate index | `validate/` | Index for the Validate surface — routes to root validation rules, workspace validation, checks, and run evidence. |
-| Action protocols | `skills/` | Repo-level action protocols (not runtime skills) for recurring work. |
-| Atomic tools | `tools/` | Atomic tool protocols; only `graph-viewer` is a wired executable, the rest are spec-only. |
-| Feedback flow | `feedback/` | Admission, routing, proposals, and temporary inbox. |
-| Checks | `checks/` | Future mechanical gates to prevent drift. |
-| Templates | `templates/` | Starting points for new local entries and proposals. |
+| Tools | `tools/` | Harness tool index; only `graph-viewer` is a wired executable today. |
 
 ## Knowledge Routing
 
@@ -48,25 +44,23 @@ Keep source-of-truth routing lightweight and human-readable. Do not maintain a s
 | Repository navigation | `AGENTS.md` |
 | Claude Code specifics | `CLAUDE.md` |
 | Workspace routing | `pnpm-workspace.yaml` + workspace `AGENTS.md` |
-| Validation rules | workspace `validation.yaml` / `docs/validation.md`, plus optional root impact rules in `harness/validate/validation.yaml` |
-| Package contract | Workspace `AGENTS.md`, `README.md`, `docs/contracts.md`, types, and tests as needed |
+| Validation rules | workspace `harness/validate/validation.yaml`, plus optional root impact rules in `harness/validate/validation.yaml` |
+| Package contract | Workspace `AGENTS.md`, `README.md`, `harness/knowledge/contracts.md` if present, otherwise local docs/types/tests |
 | App behavior | Workspace `AGENTS.md` or `CLAUDE.md`; add `docs/spec/` only when behavior needs durable product-level SSOT |
 | Runtime operation | Workspace `docs/runbook.md` or local entry file |
-| Agent action protocol | `harness/skills/*.md` |
-| Atomic tool protocol | `harness/tools/*/README.md` |
-| Feedback proposal | `harness/feedback/`, then route accepted facts to the real target |
+| Future action protocol | Add `harness/skills/*.md` only after a recurring workflow is stable enough to justify a file |
+| Tool documentation | `harness/tools/README.md` and executable tool README files |
 
 ## Principles
 
 - Root entry files route; they do not duplicate workspace knowledge.
-- `pnpm-workspace.yaml` maps workspaces; `validate/validation.yaml` maps root validation checks. Keep other routing in Markdown until it proves stable enough to mechanize.
+- `pnpm-workspace.yaml` maps workspaces; workspace-local `harness/validate/validation.yaml` maps local checks; root `validate/validation.yaml` maps root config and cross-workspace impact. Keep other routing in Markdown until it proves stable enough to mechanize.
 - Workspace facts live near the workspace.
-- Feedback is not the final knowledge store. Route accepted feedback back to the right long-term target.
 - Add mechanical checks only after a rule proves stable enough to enforce.
 - Package-local harness directories are optional extension points, not required boilerplate.
 
 ## Pilot Coverage
 
-The pilot is no longer limited to an initial representative set. `pnpm-workspace.yaml` defines the active workspace set, and workspace `AGENTS.md` files own local role, navigation, and knowledge pointers. `harness/validate/validation.yaml` currently binds root validation routing and will shrink toward optional impact rules as workspace-local validation files are introduced.
+The pilot is no longer limited to an initial representative set. `pnpm-workspace.yaml` defines the active workspace set, workspace `AGENTS.md` files own local role/navigation, and every active workspace has a local `harness/validate/validation.yaml`. Root `harness/validate/validation.yaml` is now reserved for root config checks and cross-workspace impact rules.
 
 `pnpm-workspace.yaml` is the SSOT for the active workspace set. See `harness/ROADMAP.md` for pilot status and known gaps.

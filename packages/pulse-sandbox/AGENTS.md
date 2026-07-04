@@ -22,8 +22,7 @@ This package should stay focused on sandbox execution and tool wrapping. CLI-spe
 | Tests | `src/tool.test.ts` |
 | CLI integration points | `../cli/src/index.ts`, `../cli/src/ink-controller.ts` |
 | Engine tool contracts | `../engine/AGENTS.md`, `../engine/src/tools/index.ts` |
-| Documentation routing | `../../harness/skills/doc-governance.md` |
-| Validation planning | `../../harness/skills/quality-workflow.md` |
+| Local validation | `harness/validate/validation.yaml` |
 
 ## Local Constraints
 
@@ -32,7 +31,7 @@ This package should stay focused on sandbox execution and tool wrapping. CLI-spe
 - Current VM globals expose `input`, a captured `console`, standard JavaScript globals, `globalThis`/`global` bound to the sandbox object, and timer functions. Do not document timers as blocked unless the runner changes.
 - Keep user code execution free of direct filesystem and network capabilities unless an explicit contract change is approved and tested.
 - Keep runner resolution compatible with built `dist/` output and package consumers.
-- Public result types and `run_js` input schema are contracts; route changes through `../../harness/skills/contract-coding.md`.
+- Public result types and `run_js` input schema are contracts; use local validation plus the root impact overlay when engine or CLI consumers are affected.
 - The CLI imports `createJsExecutor` and `createRunJsTool` from `pulse-sandbox/src`; coordinate CLI and sandbox changes when changing public exports or tool behavior.
 - Add or update tests for changes to policy blocking, timeout/OOM handling, output truncation, VM globals, runner path resolution, or tool schema behavior.
 

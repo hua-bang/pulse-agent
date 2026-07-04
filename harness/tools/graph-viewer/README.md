@@ -8,9 +8,8 @@ The dashboard derives coverage, missing items, workspace guidance, validation co
 
 - `pnpm-workspace.yaml`
 - `harness/validate/validation.yaml`
-- `harness/skills/*.md`
 - `harness/tools/*/README.md`
-- workspace `AGENTS.md`, `README.md`, and common docs such as `docs/contracts.md`, `docs/validation.md`, and `docs/runbook.md`
+- workspace `AGENTS.md`, `README.md`, workspace-local `harness/knowledge/`, workspace-local `harness/validate/`, and common docs such as `docs/contracts.md`, `docs/validation.md`, and `docs/runbook.md`
 
 ## Usage
 
@@ -49,3 +48,4 @@ The smoke check prints:
 - No LLM inference in the first version.
 - No edits to existing harness files.
 - No package script or CI integration yet.
+- No full broken-link guarantee yet; `harnessGaps:0` is a coverage smoke check, not proof that every Markdown path reference exists.

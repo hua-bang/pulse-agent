@@ -1,0 +1,12 @@
+version: 1
+
+pathRules:
+  - name: default
+    paths:
+      - src/**
+      - package.json
+      - tsconfig.json
+      - tsup.config.ts
+    required:
+      - pnpm --filter pulse-coder-engine test
+      - pnpm --filter pulse-coder-engine typecheck

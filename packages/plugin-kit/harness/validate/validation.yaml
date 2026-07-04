@@ -1,0 +1,12 @@
+version: 1
+
+pathRules:
+  - name: default
+    paths:
+      - src/**
+      - package.json
+      - tsconfig.json
+      - tsconfig.types.json
+      - tsup.config.ts
+    required:
+      - pnpm --filter pulse-coder-plugin-kit build:js

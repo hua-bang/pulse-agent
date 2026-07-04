@@ -15,7 +15,7 @@ Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Dis
 | Task | Read |
 |---|---|
 | Repository and harness context | `../../AGENTS.md`, `../../harness/README.md`, `../../harness/validate/validation.yaml` |
-| Local runtime overview | `README.md`, `CLAUDE.md`, `docs/runbook.md`, `docs/validation.md` |
+| Local runtime overview | `README.md`, `CLAUDE.md`, `docs/runbook.md`, `docs/validation.md`, `harness/validate/validation.yaml` |
 | Package scripts and build shape | `package.json`, `tsup.config.ts`, `tsconfig.json` |
 | Bootstrap and mounted routes | `src/index.ts`, `src/server.ts` |
 | Webhook lifecycle | `src/core/dispatcher.ts`, `src/core/types.ts`, `src/core/active-run-store.ts`, `src/core/clarification-queue.ts` |
@@ -35,7 +35,7 @@ Default mounted surface is defined in `src/server.ts`: `/health`, Feishu and Dis
 - Stream user-visible output only through adapter `StreamHandle` callbacks; adapters own platform send/edit behavior.
 - Keep mounted routes in `src/server.ts` and documented endpoints in sync. If a source route remains commented out, document it as implemented-but-not-mounted.
 - Session, memory, worktree, vault, and devtools state live under user-level `~/.pulse-coder/*` paths. Do not treat `.pulse-coder/` repository config as harness source of truth.
-- Runtime/API behavior changes should update `README.md`, `docs/runbook.md`, or `docs/validation.md` when they change operator expectations.
+- Runtime/API behavior changes should update `README.md`, `docs/runbook.md`, or validation docs when they change operator expectations.
 - Never commit secrets or local runtime state.
 
 ## Common Commands
@@ -50,7 +50,7 @@ pnpm --filter @pulse-coder/remote-server start
 
 `start` runs `dist/index.cjs`, so build first after source changes. PM2 helpers in `package.json` are operational commands, not default validation.
 
-For docs-only changes, `docs/validation.md` says no build is required; check referenced paths and command names instead. The package currently has no workspace-local `test` script. There are Vitest files under `src/`, but the ad hoc root-level targeted run is not a clean default check until existing helper-test failures are fixed.
+For docs-only changes, no build is required; check referenced paths and command names instead. The package currently has no workspace-local `test` script. There are Vitest files under `src/`, but the ad hoc root-level targeted run is not a clean default check until existing helper-test failures are fixed.
 
 ## Validation Notes
 

@@ -213,6 +213,10 @@ function classifyWorkspaceReport(report) {
 function commonKnowledgeRefs(workspacePath) {
   const candidates = [
     ['readme', path.join(workspacePath, 'README.md')],
+    ['contracts', path.join(workspacePath, 'harness/knowledge/contracts.md')],
+    ['architecture', path.join(workspacePath, 'harness/knowledge/architecture.md')],
+    ['validation', path.join(workspacePath, 'harness/validate/README.md')],
+    ['validation-config', path.join(workspacePath, 'harness/validate/validation.yaml')],
     ['contracts', path.join(workspacePath, 'docs/contracts.md')],
     ['validation', path.join(workspacePath, 'docs/validation.md')],
     ['runbook', path.join(workspacePath, 'docs/runbook.md')],
@@ -220,6 +224,21 @@ function commonKnowledgeRefs(workspacePath) {
   return candidates
     .filter(([, target]) => exists(target))
     .map(([kind, target]) => ({ kind, path: target, exists: true }));
+}
+
+function workspaceLocalValidationRules(workspacePath) {
+  const validationPath = path.join(workspacePath, 'harness/validate/validation.yaml');
+  if (!exists(validationPath)) return [];
+
+  const validation = parseSimpleYaml(readText(validationPath));
+  return (validation.pathRules ?? []).map((rule) => ({
+    ...rule,
+    source: validationPath,
+    scope: 'workspace',
+    paths: (rule.paths ?? []).map((rulePath) => (
+      rulePath.startsWith(workspacePath) ? rulePath : path.join(workspacePath, rulePath)
+    )),
+  }));
 }
 
 function buildWorkspaceReports(validation) {
@@ -234,7 +253,13 @@ function buildWorkspaceReports(validation) {
     const entryPath = path.join(workspacePath, 'AGENTS.md');
     const entry = { path: entryPath, exists: exists(entryPath) };
     const knowledge = commonKnowledgeRefs(workspacePath);
-    const rules = validationRules.filter((rule) => ruleMatchesWorkspace(rule, workspacePath));
+    const rootRules = validationRules
+      .filter((rule) => ruleMatchesWorkspace(rule, workspacePath))
+      .map((rule) => ({ ...rule, source: 'harness/validate/validation.yaml', scope: 'root' }));
+    const rules = [
+      ...rootRules,
+      ...workspaceLocalValidationRules(workspacePath),
+    ];
     const commands = [
       ...new Set(rules.flatMap((rule) => Array.isArray(rule.required) ? rule.required : [])),
     ];
@@ -274,6 +299,8 @@ function buildWorkspaceReports(validation) {
         manual: rule.manual ?? [],
         optional: rule.optional ?? [],
         escalateWhen: rule.escalateWhen ?? {},
+        source: rule.source,
+        scope: rule.scope,
       })),
       commands: commands.length > 0 ? commands : fallbackCommands,
       fallbackCommands,
@@ -335,7 +362,8 @@ function buildGraph() {
 
     for (const item of report.knowledge) {
       const kid = nodeId('knowledge', item.path);
-      addNode(kid, 'knowledge', `${item.kind}: ${path.basename(item.path)}`, { path: item.path, kind: item.kind, exists: item.exists });
+      const type = item.kind.includes('validation') ? 'validation' : 'knowledge';
+      addNode(kid, type, `${item.kind}: ${path.basename(item.path)}`, { path: item.path, kind: item.kind, exists: item.exists });
       addEdge(wid, kid, 'has_knowledge', 'high', { kind: item.kind });
     }
   }
@@ -349,6 +377,20 @@ function buildGraph() {
     if (workspace) addEdge(rid, nodeId('workspace', workspace.path), 'validates');
   }
 
+  for (const report of workspaceReports) {
+    for (const rule of report.validationRules.filter((item) => item.scope === 'workspace')) {
+      if (!rule?.name || !rule.source) continue;
+      const rid = nodeId('validation-rule', `${rule.source}:${rule.name}`);
+      addNode(rid, 'validation', `${path.basename(report.path)}:${rule.name}`, {
+        paths: rule.paths ?? [],
+        required: rule.required ?? [],
+        source: rule.source,
+      });
+      addEdge(nodeId('knowledge', rule.source), rid, 'defines_validation');
+      addEdge(rid, nodeId('workspace', report.path), 'validates');
+    }
+  }
+
   for (const file of listFiles('harness/skills', (f) => f.endsWith('.md') && !f.endsWith('/README.md'))) {
     const text = readText(file);
     const fm = parseFrontmatter(text);
@@ -359,7 +401,6 @@ function buildGraph() {
 
   for (const dir of listDirs('harness/tools')) {
     const readme = path.join(dir, 'README.md');
-    if (readme.endsWith('graph-viewer/README.md')) continue;
     if (!exists(readme)) continue;
     const text = readText(readme);
     const tid = nodeId('tool', dir);

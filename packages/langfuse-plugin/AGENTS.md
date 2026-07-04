@@ -31,7 +31,7 @@ This package currently has no local `README.md`, `docs/`, or test files; use `sr
 - `disabled` defaults to true when keys are missing. Keep that dev-safe behavior.
 - Run IDs are shared through `runContext.runId` and `WeakMap<Context, RunState>`; keep cleanup in `afterRun`/`destroy` defensive so spans do not leak across runs.
 - Usage normalization currently handles AI SDK Anthropic cache token shapes and OpenAI-compatible token numbers; preserve cache read/write details.
-- Changes to hook usage, exported options, metadata shape, trace fields, or service registration should route through `../../harness/skills/contract-coding.md`.
+- Changes to hook usage, exported options, metadata shape, trace fields, or service registration are contract changes; use local validation plus the root impact overlay.
 
 ## Common Commands
 
