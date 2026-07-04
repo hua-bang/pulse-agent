@@ -28,7 +28,7 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
       description:
         'Read one DOM element inside a canvas iframe/webview node using a CSS selector. ' +
         'Use this when the user picked a DOM region in an iframe node and the current request is about that specific region. ' +
-        'The selector usually comes from the domSelections block in the request context. Returns text, capped HTML, rect, title, and URL.',
+        'The selector usually comes from the domSelections block in the request context. Returns text, capped HTML, rect, structured descendant tree, controls, title, and URL.',
       inputSchema: z.object({
         nodeId: z.string().describe('ID of the iframe canvas node.'),
         selector: z.string().describe('CSS selector for the selected DOM element.'),
@@ -69,6 +69,11 @@ export function createWebpageTools(workspaceId: string): Record<string, CanvasTo
               rect: r.rect,
               text: r.text,
               html: r.html,
+              htmlPreview: r.htmlPreview,
+              tree: r.tree,
+              controls: r.controls,
+              accessibility: r.accessibility,
+              snapshot: r.snapshot,
               textLength: r.text.trim().length,
               hint: READINESS_HINT,
             }
