@@ -62,6 +62,8 @@ export interface ChatPanelProps {
   onNodeFocus?: (nodeId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  /** Opens per-workspace settings when the chat scope is workspace-bound. */
+  onOpenWorkspaceSettings?: (workspaceId: string) => void;
   /** Called once the insert-mention function is ready; returns a cleanup fn. */
   onRegisterInsertMention?: (fn: (node: CanvasNode) => void) => () => void;
   /** Called once the DOM-selection mention inserter is ready; returns a cleanup fn. */

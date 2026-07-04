@@ -517,6 +517,7 @@ const AppContent = () => {
               controller={workbench}
               onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
+              onOpenWorkspaceSettings={setSettingsWorkspaceId}
               onSetActiveRootFolder={handleSetActiveRootFolder}
             />
           </PulseRouterView>
@@ -529,6 +530,7 @@ const AppContent = () => {
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
               onOpenAppSettings={openAppSettings}
+              onOpenWorkspaceSettings={setSettingsWorkspaceId}
             />
           </PulseRouterView>
           {NODES_ENABLED && (
