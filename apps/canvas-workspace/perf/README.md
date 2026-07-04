@@ -28,6 +28,18 @@ pnpm --filter canvas-workspace perf:scenarios -- --seed-nodes 100
 node harness/cli.mjs close --cleanup
 ```
 
+## Dashboard (from real data)
+
+```bash
+pnpm --filter canvas-workspace perf:dashboard
+```
+
+Normalizes whatever reports exist in `out/` into the recording schema
+(`out/metrics-latest.json`, plus an append to `history/` for per-machine
+trends), then renders the six-aspect tabbed dashboard to `out/dashboard.html`.
+Metric definitions come from `metrics.json`; metrics without values render as
+未建/已埋待采 so coverage gaps stay visible.
+
 Scenarios drive input via CDP and read `window.__pulsePerf`:
 
 | Scenario | What it does | Gate |

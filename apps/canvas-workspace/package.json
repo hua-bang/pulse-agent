@@ -23,7 +23,8 @@
     "package:linux": "electron-vite build && electron-builder --linux",
     "perf:bundle": "node scripts/perf/bundle-report.mjs",
     "perf:scenarios": "node scripts/perf/run-scenarios.mjs",
-    "setup:electron": "node scripts/setup/ensure-electron.mjs"
+    "setup:electron": "node scripts/setup/ensure-electron.mjs",
+    "perf:dashboard": "node scripts/perf/dashboard.mjs"
   },
   "build": {
     "appId": "com.pulse-coder.canvas-workspace",
