@@ -33,6 +33,8 @@ interface WorkbenchProps {
   onSelectWorkspace: (workspaceId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  /** Opens the settings drawer for a specific workspace. */
+  onOpenWorkspaceSettings: (workspaceId: string) => void;
   onSetActiveRootFolder: () => void;
 }
 
@@ -42,6 +44,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   controller,
   onSelectWorkspace,
   onOpenAppSettings,
+  onOpenWorkspaceSettings,
   onSetActiveRootFolder,
 }) => {
   const {
@@ -480,6 +483,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                 onClose={dock.collapse}
                 onNodeFocus={(nodeId) => requestNodeFocus(ws.id, nodeId)}
                 onOpenAppSettings={onOpenAppSettings}
+                onOpenWorkspaceSettings={onOpenWorkspaceSettings}
                 onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
                 onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
                 onTurnComplete={dock.notifyChatActivity}

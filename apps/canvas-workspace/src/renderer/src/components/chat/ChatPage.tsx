@@ -15,6 +15,8 @@ interface ChatPageProps {
   onNodeFocus?: (workspaceId: string, nodeId: string) => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  /** Opens per-workspace settings when the chat scope is workspace-bound. */
+  onOpenWorkspaceSettings?: (workspaceId: string) => void;
 }
 
 /**
@@ -40,6 +42,7 @@ export const ChatPage = ({
   onExit,
   onNodeFocus,
   onOpenAppSettings,
+  onOpenWorkspaceSettings,
 }: ChatPageProps) => {
   const [agentScope, setAgentScope] = useState<AgentScope>({ kind: 'global' });
   const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
@@ -133,6 +136,7 @@ export const ChatPage = ({
       railCollapsed={railCollapsed}
       onToggleRail={handleToggleRail}
       onOpenAppSettings={onOpenAppSettings}
+      onOpenWorkspaceSettings={onOpenWorkspaceSettings}
     />
   );
 };
