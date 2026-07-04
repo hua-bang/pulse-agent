@@ -26,7 +26,7 @@ when a behavior or operating runbook needs a durable source of truth.
 |---|---|
 | Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | App overview and Claude-specific notes | `README.md`, `CLAUDE.md` |
-| Runtime harness | `harness/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
+| Runtime harness | `harness/README.md`, `harness/tools/runtime/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
 | Main/renderer/preload boundaries | `docs/conventions/README.md`, `docs/conventions/architecture-boundaries.md` |
 | Renderer conventions | `docs/conventions/frontend.md` |
 | Main-process conventions | `docs/conventions/backend.md` |
@@ -59,7 +59,7 @@ when a behavior or operating runbook needs a durable source of truth.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
   `~/.pulse-coder/canvas-runtime/`, and model/settings files. Do not write user
   runtime state into the repository.
-- `harness/` launches the real Electron app. Use `temp`, `demo`, or `clone`
+- `harness/tools/runtime/` launches the real Electron app. Use `temp`, `demo`, or `clone`
   profiles by default; use `real --allow-real-writes` only after explicit user
   intent because it can mutate real Pulse Canvas data.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
@@ -134,5 +134,6 @@ pnpm --filter canvas-workspace package:linux
   `pulse-canvas` commands.
 - `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/types.ts`: Canvas
   plugin registries and shared plugin contracts.
-- `harness/`: app-specific Electron launch, CDP, screenshot, input, logs, and
-  cleanup harness.
+- `harness/`: workspace harness container for local tools and validation.
+- `harness/tools/runtime/`: app-specific Electron launch, CDP, screenshot,
+  input, logs, and cleanup harness.

@@ -100,7 +100,7 @@ Use these defaults:
 - Add `harness/spec/` only when normative design is needed for a feature, protocol, migration, or architectural boundary.
 - Add `harness/skills/` only for stable local action protocols that are not runtime task skills.
 
-If a workspace already has `harness/` for a specific mechanism, treat that existing directory as the relevant surface until there is enough pressure to split it. For example, `apps/canvas-workspace/harness/` is currently a real Electron operation tool; do not mix unrelated Knowledge or Skills files into it casually. If it later needs a full workspace harness container, migrate deliberately instead of overloading the existing tool layout.
+If a workspace already has `harness/` for a specific mechanism, treat that existing directory as the relevant surface until there is enough pressure to split it. When a workspace needs both a full harness container and a tool-specific implementation, put the implementation under the matching surface. For example, `apps/canvas-workspace/harness/tools/runtime/` is the real Electron operation tool, while `apps/canvas-workspace/harness/` remains the local harness container.
 
 Runtime artifact directories such as `.harness/` are not harness knowledge. They hold generated state, screenshots, logs, or temporary homes and should not become documentation or validation sources of truth.
 

@@ -2,7 +2,7 @@
 
 An Electron desktop app that provides a free-form canvas workspace for AI-assisted coding. Users arrange **nodes** on an infinite canvas and interact with an embedded AI agent.
 
-> Deeper detail lives downstream: [`AGENTS.md`](./AGENTS.md) (local router + constraints), [`docs/`](./docs/) (architecture, conventions, renderer surfaces), and [`harness/README.md`](./harness/README.md) (Electron launch harness). Repository-level routing is in [`../../harness/README.md`](../../harness/README.md).
+> Deeper detail lives downstream: [`AGENTS.md`](./AGENTS.md) (local router + constraints), [`docs/`](./docs/) (architecture, conventions, renderer surfaces), and [`harness/README.md`](./harness/README.md) (local harness routing). Repository-level routing is in [`../../harness/README.md`](../../harness/README.md).
 
 ## Tech Stack
 
@@ -115,7 +115,7 @@ pnpm --filter canvas-workspace harness logs --lines 120
 pnpm --filter canvas-workspace harness close --cleanup
 ```
 
-Use `temp`, `demo`, or `clone` profiles by default; `real --allow-real-writes` can mutate real Pulse Canvas data. See [`harness/README.md`](./harness/README.md) and [`AGENTS.md`](./AGENTS.md) for the full command set and profile semantics.
+Use `temp`, `demo`, or `clone` profiles by default; `real --allow-real-writes` can mutate real Pulse Canvas data. See [`harness/tools/runtime/README.md`](./harness/tools/runtime/README.md) and [`AGENTS.md`](./AGENTS.md) for the full command set and profile semantics.
 
 ## Canvas Agent
 
