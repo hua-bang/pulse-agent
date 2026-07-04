@@ -15,7 +15,7 @@ import { HarnessError } from './errors.mjs';
 import { printResult } from './output.mjs';
 import { applyStartupNavigation } from './navigation.mjs';
 import { readSession, stopSession, writeSession } from './session.mjs';
-import { ensureHeadlessDisplay, shouldRunHeadless } from './headless.mjs';
+import { assertDisplayAvailable, ensureHeadlessDisplay, shouldRunHeadless } from './headless.mjs';
 import { collectFlags, prepareProfile, writeExperimentalFlags } from './profiles.mjs';
 import { getFreePort, isPidAlive } from './utils.mjs';
 import { waitForPageTarget } from './cdp.mjs';
@@ -58,9 +58,11 @@ export async function startCommand(rawArgs) {
   const stdoutFd = openSync(stdoutPath, 'a');
   const stderrFd = openSync(stderrPath, 'a');
   // Headless Linux (CI/containers): own an Xvfb display and disable the
-  // Electron sandbox for the child. Forced via --headless; automatic when
-  // Linux has no DISPLAY.
+  // Electron sandbox for the child — opt-in only, via --headless. Without
+  // the flag a display-less host fails fast with the fix instead of a
+  // cryptic Electron crash.
   const headless = shouldRunHeadless(opts);
+  if (!headless) assertDisplayAvailable();
   const headlessDisplay = headless ? await ensureHeadlessDisplay() : null;
   const env = {
     ...process.env,

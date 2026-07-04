@@ -64,9 +64,11 @@ pnpm --filter canvas-workspace harness start --profile real --workspace ws-123 -
 
 ## Headless Linux (CI / containers / cloud sandboxes)
 
-On Linux without a DISPLAY the harness automatically spawns its own Xvfb
-(force with `--headless`), sets `ELECTRON_DISABLE_SANDBOX=1` for the child,
-and reaps the Xvfb process on `close`. Requirements on the host:
+Opt-in with `--headless`: the harness then spawns its own Xvfb, sets
+`ELECTRON_DISABLE_SANDBOX=1` for the child, and reaps the Xvfb process on
+`close`. This never happens implicitly — on a display-less Linux host,
+`start` without the flag fails fast with a hint instead of spawning an X
+server behind your back. Requirements on the host:
 
 - `Xvfb` installed (debian/ubuntu: `apt-get install -y xvfb`)
 - the Electron binary present — if the postinstall download was skipped or
@@ -75,7 +77,7 @@ and reaps the Xvfb process on `close`. Requirements on the host:
 ```bash
 pnpm --filter canvas-workspace setup:electron   # falls back to the npmmirror CDN
 pnpm --filter canvas-workspace build
-pnpm --filter canvas-workspace harness start --profile temp   # DISPLAY auto-managed
+pnpm --filter canvas-workspace harness start --profile temp --headless
 ```
 
 ## Session Commands

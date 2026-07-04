@@ -7,11 +7,11 @@ import { waitFor } from './utils.mjs';
  * Headless-Linux display management.
  *
  * On a display-less Linux host (CI, containers, cloud sandboxes) the harness
- * can own a virtual X server: `--headless` forces it, and a missing DISPLAY
- * on Linux falls back to it automatically. The spawned Xvfb pid is recorded
- * in the session so `close` reaps it. Electron additionally needs its own
- * sandbox disabled in typical rootful containers — the caller sets
- * ELECTRON_DISABLE_SANDBOX for the child when we run headless.
+ * can own a virtual X server — but ONLY when the user opts in with
+ * `--headless`; spawning an X server (and disabling the Electron sandbox)
+ * is never something to do implicitly. Without the flag, a missing DISPLAY
+ * fails fast with a hint instead of a cryptic Electron crash. The spawned
+ * Xvfb pid is recorded in the session so `close` reaps it.
  */
 
 const displaySocket = (n) => `/tmp/.X11-unix/X${n}`;
@@ -24,9 +24,16 @@ const pickFreeDisplay = () => {
   throw new HarnessError('No free X display number between :99 and :139.');
 };
 
-export const shouldRunHeadless = (opts) => {
-  if (opts.headless) return true;
-  return process.platform === 'linux' && !process.env.DISPLAY;
+export const shouldRunHeadless = (opts) => opts.headless === true;
+
+/** Fail fast (with the fix) when a launch cannot possibly show a window. */
+export const assertDisplayAvailable = () => {
+  if (process.platform === 'linux' && !process.env.DISPLAY) {
+    throw new HarnessError(
+      'No DISPLAY on this Linux host. Pass --headless to let the harness manage an Xvfb display '
+      + '(requires xvfb; debian/ubuntu: `apt-get install -y xvfb`).',
+    );
+  }
 };
 
 /**
