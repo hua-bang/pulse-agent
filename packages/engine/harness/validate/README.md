@@ -19,7 +19,7 @@ pnpm --filter pulse-coder-engine build
 
 ## Impact Checks
 
-For public API, built-in plugin, tool contract, or runtime-loop changes, apply the root impact overlay in `../../../harness/validate/validation.yaml` and pick relevant consumer checks such as CLI, remote-server, or canvas-workspace.
+For public API, built-in plugin, tool contract, or runtime-loop changes, apply the root impact overlay in `../../../../harness/validate/validation.yaml` and pick relevant consumer checks such as CLI, remote-server, or canvas-workspace.
 
 Keep those impact decisions out of the local YAML until a runner exists and the semantics are stable.
 

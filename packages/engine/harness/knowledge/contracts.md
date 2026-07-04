@@ -44,4 +44,4 @@ Use these before editing the loop:
 - `packages/acp`
 - `packages/agent-teams`
 
-Contract changes should consider local validation in `../validate/` and any root impact overlay in `../../../harness/validate/validation.yaml`.
+Contract changes should consider local validation in `../validate/` and any root impact overlay in `../../../../harness/validate/validation.yaml`.
