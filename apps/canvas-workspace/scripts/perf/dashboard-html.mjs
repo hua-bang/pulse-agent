@@ -1,8 +1,8 @@
 /**
- * Renderer for the six-aspect performance dashboard. Pure function of
- * (dictionary, snapshot, bundleReport) → self-contained HTML with light/dark
- * themes and tabbed navigation. Chart styling follows the repo-neutral
- * dataviz conventions (single-hue bars, ink-token text, status color + icon).
+ * Renderer for the six-aspect performance dashboard, Rsdoctor/Lighthouse
+ * style: a machine-generated verdict + actionable alerts form the conclusion
+ * layer; raw metrics are the evidence layer below. Pure function of
+ * (dictionary, snapshot, bundleReport, rules output) → self-contained HTML.
  */
 
 const esc = (value) =>
@@ -12,58 +12,72 @@ const esc = (value) =>
 
 const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('en-US') : String(n));
 
-const aspectHealth = (aspect, metricsOf, valueOf) => {
-  const defs = metricsOf(aspect.id);
+const LEVEL_LABEL = { gate: '门禁', warn: '观测', record: '记录' };
+const SEV_LABEL = { high: 'HIGH', medium: 'MED', info: 'INFO' };
+
+const aspectHealth = (aspect, defs, valueOf) => {
   const measured = defs.filter((d) => valueOf(d.id) !== undefined);
   if (measured.length === 0) return 'muted';
-  const gatesFail = measured.some((d) => valueOf(d.id)?.pass === false);
-  if (gatesFail) return 'critical';
+  if (measured.some((d) => valueOf(d.id)?.pass === false)) return 'critical';
   return measured.length === defs.length ? 'good' : 'warn';
 };
 
-const valueCell = (def, entry) => {
-  if (!entry) {
-    return `<span class="muted">${def.instrumented ? '已埋待采' : '未建'}</span>`;
-  }
+const statusCell = (def, entry) => {
+  if (!entry) return '<span class="muted">—</span>';
   if (def.unit === 'bool') {
     return entry.value
       ? '<span class="status-good">✓ 保持</span>'
       : '<span class="status-critical">✗ 被破坏</span>';
   }
-  return `<b>${fmt(entry.value)}</b><span class="unit"> ${esc(def.unit)}</span>`;
-};
-
-const gateCell = (def, entry) => {
-  if (def.level !== 'gate') return `<span class="muted">${esc(def.level)}</span>`;
-  if (!entry || entry.pass === undefined) return '<span class="muted">gate · 待数据</span>';
+  if (entry.pass === undefined) return '<span class="muted">—</span>';
   const limit = entry.limit !== undefined ? ` ≤ ${fmt(entry.limit)}` : '';
   return entry.pass
     ? `<span class="status-good">✓ PASS${limit}</span>`
     : `<span class="status-critical">✗ FAIL${limit}</span>`;
 };
 
-export const renderDashboardHtml = (dictionary, snapshot, bundleReport) => {
+const valueCell = (def, entry, prevValue) => {
+  if (!entry) return `<span class="muted">${def.instrumented ? '已埋待采' : '未建'}</span>`;
+  if (def.unit === 'bool') return entry.value ? '<b>✓</b>' : '<b>✗</b>';
+  const delta = typeof prevValue === 'number' && prevValue !== entry.value
+    ? `<div class="prev">上次 ${fmt(prevValue)}</div>`
+    : '';
+  return `<b>${fmt(entry.value)}</b><span class="unit"> ${esc(def.unit)}</span>${delta}`;
+};
+
+const alertCard = (alert, aspectName) => `
+  <div class="alert alert-${alert.severity}">
+    <div class="alert-head">
+      <span class="sev sev-${alert.severity}">${SEV_LABEL[alert.severity]}</span>
+      <span class="alert-title">${esc(alert.title)}</span>
+      ${aspectName ? `<span class="alert-aspect">${esc(aspectName)}</span>` : ''}
+    </div>
+    <div class="alert-evidence">${esc(alert.evidence)}</div>
+    <div class="alert-fix">→ ${esc(alert.suggestion)}<span class="ref"> · ${esc(alert.ref)}</span></div>
+  </div>`;
+
+export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts, previous }, verdict) => {
   const byId = new Map(snapshot.metrics.map((m) => [m.id, m]));
   const valueOf = (id) => byId.get(id);
+  const prevOf = (id) => previous?.metrics.find((m) => m.id === id)?.value;
   const metricsOf = (aspectId) => dictionary.metrics.filter((m) => m.aspect === aspectId);
+  const aspectName = (id) => dictionary.aspects.find((a) => a.id === id)?.name ?? id;
 
-  const gated = dictionary.metrics.filter((m) => m.level === 'gate');
-  const gatedMeasured = gated.map((m) => valueOf(m.id)).filter((e) => e && e.pass !== undefined);
-  const gatesPass = gatedMeasured.filter((e) => e.pass).length;
   const measuredCount = dictionary.metrics.filter((m) => valueOf(m.id) !== undefined).length;
 
   const tabs = dictionary.aspects.map((a) => {
-    const health = aspectHealth(a, metricsOf, valueOf);
-    return `<button class="tab" role="tab" id="tab-${a.id}" aria-selected="false" data-panel="${a.id}"><span class="dot dot-${health}"></span>${esc(a.name)}</button>`;
+    const health = aspectHealth(a, metricsOf(a.id), valueOf);
+    const count = alerts.filter((x) => x.aspect === a.id && x.severity !== 'info').length;
+    return `<button class="tab" role="tab" id="tab-${a.id}" aria-selected="false" data-panel="${a.id}">
+      <span class="dot dot-${health}"></span>${esc(a.name)}${count ? `<span class="tab-badge">${count}</span>` : ''}</button>`;
   }).join('');
 
   const healthTiles = dictionary.aspects.map((a) => {
-    const health = aspectHealth(a, metricsOf, valueOf);
+    const health = aspectHealth(a, metricsOf(a.id), valueOf);
     const star = dictionary.metrics.find((m) => m.id === a.northStar);
     const entry = star ? valueOf(star.id) : undefined;
     const value = entry
-      ? (star.unit === 'bool'
-        ? (entry.value ? '✓' : '✗')
+      ? (star.unit === 'bool' ? (entry.value ? '✓' : '✗')
         : `${fmt(entry.value)}<span class="unit"> ${esc(star.unit)}</span>`)
       : `<span class="empty">${star?.instrumented ? '已埋待采' : '未建'}</span>`;
     return `<button class="h-tile" data-goto="${a.id}">
@@ -73,29 +87,53 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport) => {
     </button>`;
   }).join('');
 
+  const overviewAlerts = alerts.map((a) => alertCard(a, aspectName(a.aspect))).join('')
+    || '<div class="muted" style="padding:6px 0">本次运行未触发任何告警。</div>';
+
+  const scenarioConditions = snapshot.env.seedNodes
+    ? `场景条件:@${snapshot.env.seedNodes} 节点画布 · 打字 120 字符(25ms 间隔)· 拖拽 90 步 · n=1(时间类指标单样本,结论以多轮中位数为准)`
+    : '场景条件:默认画布 · n=1';
+
   const aspectPanels = dictionary.aspects.map((a) => {
-    const rows = metricsOf(a.id).map((def) => {
+    const defs = metricsOf(a.id);
+    const measured = defs.filter((d) => valueOf(d.id) !== undefined);
+    const unmeasured = defs.filter((d) => valueOf(d.id) === undefined);
+    const aspectAlerts = alerts.filter((x) => x.aspect === a.id);
+
+    const row = (def) => {
       const entry = valueOf(def.id);
       const star = def.id === a.northStar ? '<span class="star" title="北极星指标">★</span> ' : '';
       const detail = entry?.detail ? `<div class="detail">${esc(entry.detail)}</div>` : '';
       return `<tr>
-        <td>${star}${esc(def.label)}<div class="mid">${esc(def.id)} · ${esc(def.comparability)}</div>${detail}</td>
-        <td class="num">${valueCell(def, entry)}</td>
-        <td>${gateCell(def, entry)}</td>
+        <td>${star}${esc(def.label)} <span class="lvl">${LEVEL_LABEL[def.level] ?? esc(def.level)}</span>
+          <div class="mid">${esc(def.id)} · ${esc(def.comparability)}</div>${detail}</td>
+        <td class="num">${valueCell(def, entry, prevOf(def.id))}</td>
+        <td>${statusCell(def, entry)}</td>
       </tr>`;
-    }).join('');
+    };
 
-    const bundleExtra = a.id === 'bundle' && bundleReport ? renderChunkBars(bundleReport) : '';
+    const measuredTable = measured.length
+      ? `<div class="table-scroll"><table>
+          <thead><tr><th>指标</th><th class="num">当前值</th><th>状态</th></tr></thead>
+          <tbody>${measured.map(row).join('')}</tbody>
+        </table></div>`
+      : '<div class="muted">该专项尚无实测数据。</div>';
+
+    const unmeasuredBlock = unmeasured.length
+      ? `<details class="unbuilt"><summary>未建 / 待采 ${unmeasured.length} 项</summary>
+          <div class="table-scroll"><table><tbody>${unmeasured.map(row).join('')}</tbody></table></div>
+        </details>`
+      : '';
 
     return `<section class="panel" id="panel-${a.id}" role="tabpanel" aria-labelledby="tab-${a.id}">
       <div class="q">${esc(a.question)}<span class="muted">(${esc(a.findings)})</span></div>
+      ${aspectAlerts.map((x) => alertCard(x)).join('')}
       <div class="card">
-        <div class="table-scroll"><table>
-          <thead><tr><th>指标</th><th class="num">当前值</th><th>等级 / 门禁</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table></div>
+        ${a.id === 'interact' ? `<div class="cond">${esc(scenarioConditions)}</div>` : ''}
+        ${measuredTable}
+        ${unmeasuredBlock}
       </div>
-      ${bundleExtra}
+      ${a.id === 'bundle' && bundleReport ? renderChunkBars(bundleReport) : ''}
       <div class="card"><div class="next"><b>下一步</b>:${esc(a.next)}</div></div>
     </section>`;
   }).join('');
@@ -105,21 +143,18 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport) => {
 <div class="app">
   <div class="topbar">
     <h1>Pulse Canvas 性能看板</h1>
-    <span class="meta">commit ${esc(snapshot.commit)} · ${esc(snapshot.timestamp.slice(0, 16).replace('T', ' '))} · machine ${esc(snapshot.machineId)} · ${esc(String(snapshot.env.cores))} 核 ${esc(snapshot.env.os)}</span>
+    <span class="meta">commit ${esc(snapshot.commit)} · ${esc(snapshot.timestamp.slice(0, 16).replace('T', ' '))} · machine ${esc(snapshot.machineId)} · ${esc(String(snapshot.env.cores))} 核 ${esc(snapshot.env.os)}${previous ? ' · 对比上次 ' + esc(previous.timestamp.slice(5, 16).replace('T', ' ')) : ''}</span>
   </div>
   <nav class="tabs" role="tablist" aria-label="性能专项">
-    <button class="tab" role="tab" id="tab-overview" aria-selected="true" data-panel="overview">总览</button>
+    <button class="tab" role="tab" id="tab-overview" aria-selected="true" data-panel="overview">总览${alerts.filter((a) => a.severity === 'high').length ? `<span class="tab-badge bad">${alerts.filter((a) => a.severity === 'high').length}</span>` : ''}</button>
     ${tabs}
   </nav>
   <section class="panel active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
-    <div class="card"><div class="kpis">
-      <div class="kpi"><span class="kpi-v">${gatesPass}/${gatedMeasured.length}</span><span class="kpi-l">已上数据的门禁 PASS(字典共 ${gated.length} 个 gate 级)</span></div>
-      <div class="kpi"><span class="kpi-v">${measuredCount}/${dictionary.metrics.length}</span><span class="kpi-l">指标已有实测值</span></div>
-      <div class="kpi"><span class="kpi-v">87</span><span class="kpi-l">三轮扫描发现 · 已修 4</span></div>
-    </div></div>
+    <div class="verdict card">${esc(verdict)}<span class="verdict-sub">${measuredCount}/${dictionary.metrics.length} 指标有实测值 · 87 条发现已修 4</span></div>
     <div class="health">${healthTiles}</div>
+    <div class="card"><h2>告警(规则引擎,按严重度)</h2>${overviewAlerts}</div>
     <div class="card foot">
-      <b>口径</b>:计数类指标机器无关、全局可比;时间类按 machineId 分基线,只比同机趋势。指标定义 SSOT:<code>perf/metrics.json</code> + <code>perf/program.md</code>。
+      <b>口径</b>:计数类指标机器无关、全局可比;时间类按 machineId 分基线,只比同机趋势。定义 SSOT:<code>perf/metrics.json</code> + <code>perf/program.md</code>。
       <b>刷新</b>:<code>perf:bundle</code> → <code>harness start --headless</code> + <code>perf:scenarios</code> → <code>perf:dashboard</code>。
     </div>
   </section>
@@ -149,26 +184,30 @@ const css = () => `
   :root {
     --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
     --grid:#e1e0d9; --border:rgba(11,11,11,0.10); --bar:#86b6ef; --bar-strong:#2a78d6; --accent:#2a78d6;
-    --good:#0ca30c; --good-text:#006300; --warning:#b97f00; --critical:#d03b3b;
+    --good:#0ca30c; --good-text:#006300; --warning:#b97f00; --serious:#b45309; --critical:#d03b3b;
     --chip-muted-bg:rgba(137,135,129,0.12); --tab-active:#ffffff;
+    --sev-high-bg:rgba(208,59,59,0.08); --sev-med-bg:rgba(236,131,90,0.10); --sev-info-bg:rgba(137,135,129,0.08);
   }
   @media (prefers-color-scheme: dark) { :root {
     --page:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --border:rgba(255,255,255,0.10); --bar:#184f95; --bar-strong:#3987e5; --accent:#3987e5;
-    --good:#0ca30c; --good-text:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+    --good:#0ca30c; --good-text:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
     --chip-muted-bg:rgba(137,135,129,0.16); --tab-active:#242423;
+    --sev-high-bg:rgba(208,59,59,0.14); --sev-med-bg:rgba(236,131,90,0.12); --sev-info-bg:rgba(137,135,129,0.10);
   } }
   :root[data-theme="dark"] {
     --page:#0d0d0d; --surface:#1a1a19; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --border:rgba(255,255,255,0.10); --bar:#184f95; --bar-strong:#3987e5; --accent:#3987e5;
-    --good:#0ca30c; --good-text:#0ca30c; --warning:#fab219; --critical:#d03b3b;
+    --good:#0ca30c; --good-text:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
     --chip-muted-bg:rgba(137,135,129,0.16); --tab-active:#242423;
+    --sev-high-bg:rgba(208,59,59,0.14); --sev-med-bg:rgba(236,131,90,0.12); --sev-info-bg:rgba(137,135,129,0.10);
   }
   :root[data-theme="light"] {
     --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
     --grid:#e1e0d9; --border:rgba(11,11,11,0.10); --bar:#86b6ef; --bar-strong:#2a78d6; --accent:#2a78d6;
-    --good:#0ca30c; --good-text:#006300; --warning:#b97f00; --critical:#d03b3b;
+    --good:#0ca30c; --good-text:#006300; --warning:#b97f00; --serious:#b45309; --critical:#d03b3b;
     --chip-muted-bg:rgba(137,135,129,0.12); --tab-active:#ffffff;
+    --sev-high-bg:rgba(208,59,59,0.08); --sev-med-bg:rgba(236,131,90,0.10); --sev-info-bg:rgba(137,135,129,0.08);
   }
   * { box-sizing:border-box; margin:0; }
   html { background:var(--page); }
@@ -183,18 +222,18 @@ const css = () => `
   .tab:hover { color:var(--ink); }
   .tab:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
   .tab[aria-selected="true"] { background:var(--tab-active); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,0.08); }
+  .tab-badge { font-size:10.5px; background:var(--sev-med-bg); color:var(--serious); border-radius:999px; padding:1px 6px; font-variant-numeric:tabular-nums; }
+  .tab-badge.bad { background:var(--sev-high-bg); color:var(--critical); }
   .dot { width:7px; height:7px; border-radius:50%; flex:none; }
   .dot-good { background:var(--good); } .dot-warn { background:var(--warning); }
   .dot-muted { background:var(--muted); opacity:0.5; } .dot-critical { background:var(--critical); }
-  .panel { display:none; flex-direction:column; gap:14px; padding-top:16px; }
+  .panel { display:none; flex-direction:column; gap:12px; padding-top:16px; }
   .panel.active { display:flex; }
   .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px 18px; }
   .card h2 { font-size:13px; color:var(--ink-2); font-weight:600; margin-bottom:10px; }
   .q { font-size:14px; color:var(--ink-2); border-left:3px solid var(--accent); padding:2px 0 2px 12px; }
-  .kpis { display:flex; gap:24px; flex-wrap:wrap; }
-  .kpi { display:flex; flex-direction:column; gap:1px; }
-  .kpi-v { font-size:22px; font-weight:650; font-variant-numeric:tabular-nums; }
-  .kpi-l { font-size:11.5px; color:var(--muted); }
+  .verdict { font-size:15px; font-weight:600; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:baseline; }
+  .verdict-sub { font-size:12px; font-weight:500; color:var(--muted); }
   .health { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:10px; }
   .h-tile { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:13px 14px; display:flex; flex-direction:column; gap:5px; cursor:pointer; text-align:left; font-family:inherit; color:var(--ink); }
   .h-tile:hover { border-color:var(--accent); }
@@ -204,6 +243,21 @@ const css = () => `
   .h-value .empty { color:var(--muted); font-weight:500; font-size:14px; }
   .h-value .unit, .unit { font-size:12px; font-weight:500; color:var(--ink-2); }
   .h-sub { font-size:11px; color:var(--muted); }
+  .alert { border-radius:8px; padding:10px 14px; margin-bottom:8px; }
+  .alert-high { background:var(--sev-high-bg); }
+  .alert-medium { background:var(--sev-med-bg); }
+  .alert-info { background:var(--sev-info-bg); }
+  .alert-head { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .sev { font-size:10px; font-weight:700; letter-spacing:0.06em; border-radius:4px; padding:1px 6px; }
+  .sev-high { color:#fff; background:var(--critical); }
+  .sev-medium { color:#fff; background:var(--serious); }
+  .sev-info { color:var(--ink-2); background:var(--chip-muted-bg); }
+  .alert-title { font-weight:600; font-size:13.5px; }
+  .alert-aspect { margin-left:auto; font-size:11px; color:var(--muted); }
+  .alert-evidence { font-size:12.5px; color:var(--ink-2); margin-top:3px; font-variant-numeric:tabular-nums; }
+  .alert-fix { font-size:12.5px; color:var(--ink-2); margin-top:2px; }
+  .alert-fix .ref { color:var(--muted); font-size:11px; }
+  .cond { font-size:12px; color:var(--muted); margin-bottom:10px; }
   .table-scroll { overflow-x:auto; }
   table { width:100%; border-collapse:collapse; font-size:13px; min-width:480px; }
   th { text-align:left; color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:0 12px 7px 0; border-bottom:1px solid var(--grid); }
@@ -213,11 +267,16 @@ const css = () => `
   .muted { color:var(--muted); }
   .mid { font-size:11px; color:var(--muted); font-family:ui-monospace,monospace; margin-top:1px; }
   .detail { font-size:11.5px; color:var(--muted); margin-top:2px; }
+  .prev { font-size:11px; color:var(--muted); font-weight:400; }
+  .lvl { font-size:10px; color:var(--muted); border:1px solid var(--grid); border-radius:4px; padding:0 5px; vertical-align:1px; }
   .star { color:var(--warning); }
   .status-good { color:var(--good-text); font-weight:600; white-space:nowrap; }
   .status-critical { color:var(--critical); font-weight:600; white-space:nowrap; }
   .next { font-size:12.5px; color:var(--ink-2); }
   .next b { color:var(--ink); font-weight:600; }
+  .unbuilt { margin-top:10px; }
+  .unbuilt summary { font-size:12.5px; color:var(--muted); cursor:pointer; padding:4px 0; }
+  .unbuilt summary:hover { color:var(--ink-2); }
   .mini-bars { display:flex; flex-direction:column; gap:5px; }
   .mb-row { display:grid; grid-template-columns:minmax(120px,210px) 1fr 64px; gap:10px; align-items:center; }
   .mb-name { font-size:12px; color:var(--ink-2); text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

@@ -15,7 +15,6 @@ import { fileURLToPath } from 'node:url';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const outDir = join(appRoot, 'perf/out');
-const historyDir = join(appRoot, 'perf/history');
 
 const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf-8')) : null);
 
@@ -88,13 +87,12 @@ export const collectMetrics = () => {
   };
 };
 
+// History appending lives in dashboard.mjs (the main entry) so standalone
+// collect runs don't create duplicate history entries for the same data.
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const snapshot = collectMetrics();
   mkdirSync(outDir, { recursive: true });
-  mkdirSync(historyDir, { recursive: true });
   writeFileSync(join(outDir, 'metrics-latest.json'), JSON.stringify(snapshot, null, 2));
-  const day = snapshot.timestamp.slice(0, 10);
-  writeFileSync(join(historyDir, `${day}-${snapshot.commit}.json`), JSON.stringify(snapshot, null, 2));
-  console.log(`[perf:collect] ${snapshot.metrics.length} metrics → perf/out/metrics-latest.json (+history)`);
+  console.log(`[perf:collect] ${snapshot.metrics.length} metrics → perf/out/metrics-latest.json`);
 }
