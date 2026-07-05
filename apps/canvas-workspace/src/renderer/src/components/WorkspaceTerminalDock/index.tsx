@@ -12,7 +12,8 @@ import {
 } from '../../config/terminalTheme';
 import type { CanvasNode } from '../../types';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
-import { NodeMentionPicker } from '../NodeMentionPicker';
+import { NodeMentionPicker, NODE_MENTION_SHORTCUT } from '../NodeMentionPicker';
+import { MentionTriggerButton } from '../NodeMentionPicker/MentionTriggerButton';
 import { useI18n } from '../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
 import {
@@ -414,7 +415,7 @@ export const WorkspaceTerminalDock = ({
         {mentionHintVisible && !pickerOpen && (
           <div className="workspace-terminal-dock__mention-hint" role="status">
             <span>{t('terminal.mentionHint.prefix')}</span>
-            <kbd>Ctrl/⌘+2</kbd>
+            <kbd>{NODE_MENTION_SHORTCUT}</kbd>
             <span>{t('terminal.mentionHint.suffix')}</span>
             <button
               type="button"
@@ -425,6 +426,13 @@ export const WorkspaceTerminalDock = ({
               ×
             </button>
           </div>
+        )}
+        {!pickerOpen && !mentionHintVisible && (
+          <MentionTriggerButton
+            label={t('nodeMention.triggerLabel')}
+            title={`${t('nodeMention.title')} · ${NODE_MENTION_SHORTCUT}`}
+            onClick={() => setPickerOpen(true)}
+          />
         )}
         {booting && (
           <div className="workspace-terminal-dock__booting" aria-hidden="true">

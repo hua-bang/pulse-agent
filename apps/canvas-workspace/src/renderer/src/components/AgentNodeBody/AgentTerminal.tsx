@@ -3,6 +3,8 @@ import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { AgentIcon } from './AgentIcon';
 import { truncatePath } from './utils/terminal';
 import { useI18n, type I18nKey } from '../../i18n';
+import { MentionTriggerButton } from '../NodeMentionPicker/MentionTriggerButton';
+import { NODE_MENTION_SHORTCUT } from '../NodeMentionPicker';
 
 interface AgentTerminalProps {
   containerRef: React.RefObject<HTMLDivElement>;
@@ -14,6 +16,8 @@ interface AgentTerminalProps {
    *  doesn't stare at a black panel during the 1–3s Claude / Codex
    *  startup window. */
   loading?: boolean;
+  /** Opens the canvas node mention picker; omit to hide the trigger button. */
+  onMention?: () => void;
 }
 
 const FolderGlyph = () => (
@@ -39,6 +43,7 @@ export const AgentTerminal = ({
   agentType,
   cwd,
   loading = false,
+  onMention,
 }: AgentTerminalProps) => {
   const { t } = useI18n();
   const agentDef = AGENT_REGISTRY.find((a) => a.id === agentType);
@@ -93,6 +98,13 @@ export const AgentTerminal = ({
                 </span>
               </div>
             </div>
+          )}
+          {onMention && !loading && (
+            <MentionTriggerButton
+              label={t('nodeMention.triggerLabel')}
+              title={`${t('nodeMention.title')} · ${NODE_MENTION_SHORTCUT}`}
+              onClick={onMention}
+            />
           )}
         </div>
       </div>

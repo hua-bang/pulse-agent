@@ -1176,6 +1176,11 @@ export const useAgentNodeController = ({
     termRef.current?.focus();
   }, []);
 
+  const openMentionPicker = useCallback(() => {
+    if (readOnly) return;
+    setPickerOpen(true);
+  }, [readOnly]);
+
   const handleRestartSession = useCallback(async (options?: { skipPreflight?: boolean }) => {
     if (readOnly || isMirrorTerminal) return;
     const savedAgent = data.agentType || selectedAgent;
@@ -1253,6 +1258,7 @@ export const useAgentNodeController = ({
     handleLaunch,
     handleMentionClose,
     handleMentionSelect,
+    openMentionPicker,
     handlePickFolder,
     handleRestartSession,
     launchErrorCommand,
