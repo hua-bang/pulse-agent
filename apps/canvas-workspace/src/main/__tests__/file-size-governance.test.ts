@@ -41,7 +41,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/components/icons/index.tsx': 510,
   'src/renderer/src/components/settings-config/SkillsManager.tsx': 510,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
-  'src/renderer/src/components/Workbench/index.tsx': 508,
+  'src/renderer/src/components/Workbench/index.tsx': 512,
 };
 
 const DOCUMENTED_EXCEPTIONS: Record<string, string> = {

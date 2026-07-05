@@ -27,8 +27,10 @@
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
-已完成任务:A1、A2、A3、A6、B1、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、C1、D1、V1。
-未动任务:A4、A5、B2、B3、B4、B8、C2、D2、D3、D4、D5、D6。
+已完成任务:A1、A2、A3、A6、B1、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
+未动任务:A4、A5、B2、B3、B4、C2、D2、D3、D4、D5、D6。
+
+**B8 完成记录(2026-07-05,用户已确认终端豁免策略)**:`useMountedWorkspaceIds.ts` 从"只增不减"改为 LRU——维护一个按最近访问排序的 recency 列表,超出 active+3 个后台 workspace 的最久未访问者会被逐出挂载集合(触发其 `<Canvas>` 卸载,连带 tiptap 编辑器/undo 历史/chat 面板一并释放)。**用户明确要求**:有活跃终端 tab 的 workspace **无条件豁免驱逐**——因为 `WorkspaceTerminalDock` 的卸载 effect 会调用 `api.kill(sessionId)` 真杀 pty 进程,不豁免会静默杀掉用户后台跑着的 `npm run dev` 之类进程。`dockState.terminalTabsByWorkspace` 从 Workbench 传入作为豁免判据。实测(A1 的 ws-cycle 场景,5 workspace 循环):堆曲线从单调上升 `[41.8→109]`(slope 14.5MB/ws)变为先升后平/回落 `[36→85.5→59.5→59.5]`(slope 3.3-3.4MB/ws,两轮验证稳定)——4 个之后不再净增长,证明驱逐生效。额外手工验证(真实 CDP 会话):挂载数在访问 6 个不同 workspace 后稳定在 4(active+3)而非 6;被驱逐 workspace 重新进入后其内容(测试用 marker 节点)正确从磁盘重新加载,无数据丢失。`memory.ws_cycle.heap_slope` 当前不是门禁项(只是 record 级指标),按程序 program.md 铁律 2(需≥5 次同机历史)暂不升级门禁等级,留给后续任务在积累历史后判断是否满足升级条件。
 
 当前看板告警(B7 落地后连续两轮 `perf:report --repeat 3` 验证):0×medium,仅剩 2×info(拖拽帧超率近零值波动 + AI 流式无数据,均为噪声/专项性质,非真实回归)。
 
@@ -46,7 +48,7 @@
 
 **P1 · 修复轨(收益已实测,卡片就绪)**
 3. ~~**B7 · 拖拽 ephemeral**~~:见上方「B7 完成记录」。91→2,baseline 已锁定。
-4. **B8 · H1 LRU 驱逐**:堆斜率已实测 **12.8MB/workspace**(A1 场景);验收 slope≈0 且升 warn 门禁。
+4. ~~**B8 · H1 LRU 驱逐**~~:见上方「B8 完成记录」。14.5→3.3-3.4 MB/ws,有活跃终端的 workspace 豁免驱逐(用户已确认)。
 5. **B3 · 隐藏工作区轮询门控**:S 级快赢;A2 的 loop-delay + snapshot IPC 计数已可做前后对比。
 6. **B4 · 会话持久化队列+原子写**:`main.session_persist.bytes_per_turn` 已上线(c296930),修复收益可直接证明。
 7. **B2 · 图片解码/缩略图**:先 S 步(decoding=async+宽高),M 步缩略图连同 `memory.image.decoded_mb` 指标一起建。
