@@ -29,7 +29,7 @@
   height: auto;
   border-top-width: 0;
   box-shadow: none;
-  background: #fafaf9;
+  background: var(--surface-hover);
 }
 
 .workspace-terminal-dock--pane[data-open="true"] {

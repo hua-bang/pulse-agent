@@ -203,7 +203,7 @@ export const AgentPicker = ({
               type="button"
               className="agent-text-link"
               onClick={onBack}
-              title="Back to saved configuration"
+              title={t('agent.backToSavedConfig')}
             >
               ← {t('agent.back')}
             </button>
@@ -211,7 +211,7 @@ export const AgentPicker = ({
         )}
 
         <div className="agent-card-body">
-          <div className="agent-tabs" role="tablist" aria-label="Coding agent">
+          <div className="agent-tabs" role="tablist" aria-label={t('agent.tabsAriaLabel')}>
             {AGENT_REGISTRY.map((a: AgentDef) => {
               const commandStatus = commandStatusByAgent[a.id] ?? 'checking';
               const isMissing = commandStatus === 'missing';
@@ -354,8 +354,8 @@ export const AgentPicker = ({
                     type="button"
                     className="agent-dir-icon"
                     onClick={onPickFolder}
-                    title="Browse…"
-                    aria-label="Browse for folder"
+                    title={t('agent.browseFolder')}
+                    aria-label={t('agent.browseFolderAria')}
                   >
                     <FolderGlyph />
                   </button>

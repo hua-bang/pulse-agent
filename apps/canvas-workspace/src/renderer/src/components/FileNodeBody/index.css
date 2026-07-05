@@ -229,7 +229,7 @@
   background: rgba(55, 53, 47, 0.07);
   padding: 1px 5px;
   border-radius: 3px;
-  color: #c0392b;
+  color: var(--error);
   letter-spacing: 0;
 }
 

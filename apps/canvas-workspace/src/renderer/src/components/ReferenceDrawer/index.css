@@ -493,7 +493,7 @@
 }
 
 .reference-url-error {
-  color: #c0392b;
+  color: var(--error);
   font-size: 11px;
 }
 

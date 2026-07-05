@@ -118,7 +118,7 @@
 }
 
 .agent-team-lead-runtime__hide-terminal:hover {
-  background: #fff;
+  background: var(--surface);
   color: var(--agent-text);
 }
 

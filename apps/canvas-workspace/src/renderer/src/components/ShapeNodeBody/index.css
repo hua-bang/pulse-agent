@@ -162,7 +162,7 @@
   padding: 0;
   border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 4px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   display: flex;
   align-items: center;

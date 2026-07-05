@@ -14,6 +14,7 @@
  * becomes a real problem.
  */
 
+import './index.css';
 import { useEffect, useState } from 'react';
 import { SettingsDrawer } from '../SettingsDrawer';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
@@ -27,7 +28,6 @@ import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { PluginsManager } from '../settings-config/PluginsManager';
 import { useI18n, type I18nKey } from '../../i18n';
-import './index.css';
 
 export type SettingsSection = 'models' | 'built-in-tools' | 'reply-style' | 'agent' | 'skills' | 'mcp' | 'plugins' | 'experimental' | 'updates' | 'language';
 

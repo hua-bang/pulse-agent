@@ -924,7 +924,7 @@
 }
 
 .sidebar-layer-context-menu-item--danger {
-  color: #c0392b;
+  color: var(--error);
 }
 
 .sidebar-layer-context-menu-item--danger:hover {

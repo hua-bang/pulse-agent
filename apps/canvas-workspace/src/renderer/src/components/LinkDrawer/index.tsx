@@ -12,10 +12,10 @@
  * the resolved page title is reported up via `onTitleChange`.
  */
 
+import "./index.css";
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { useI18n } from "../../i18n";
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
-import "./index.css";
 
 interface WebviewTag extends HTMLElement {
   getWebContentsId(): number;
