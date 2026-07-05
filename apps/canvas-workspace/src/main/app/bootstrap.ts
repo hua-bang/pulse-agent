@@ -65,6 +65,7 @@ import {
 } from "./protocol";
 import { configureApplicationMenu } from "./menu";
 import { logStartupSummaryOnce, startupMark } from "./startup-metrics";
+import { startLoopDelaySampler } from "../perf/loop-delay";
 import { createWindow } from "./window";
 import { setWindowFactory } from "./window-manager";
 import { setupLinkPolicy } from "./link-policy";
@@ -92,6 +93,7 @@ export function bootstrap({ mainDir }: BootstrapOptions): void {
 
   app.whenReady().then(async () => {
     startupMark("whenReady");
+    startLoopDelaySampler(writeLog);
     spoofUserAgentFallback();
     registerPulseCanvasProtocol(writeLog);
     configureAppChrome(paths.iconPath, writeLog);

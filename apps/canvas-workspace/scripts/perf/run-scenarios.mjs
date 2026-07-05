@@ -337,6 +337,18 @@ const main = async () => {
     if (only.includes('ws-cycle')) scenarios['ws-cycle'] = await wsCycleScenario(cdp);
   });
 
+  // Aggregate main-process event-loop delay from the sampler's log lines
+  // (active only when the app was launched with PULSE_CANVAS_PERF=1).
+  const stdout = await fs.readFile(session.logFiles.stdout, 'utf-8').catch(() => '');
+  const loopDelays = [...stdout.matchAll(/\[perf\] loop-delay (\{.*\})/g)].map((m) => JSON.parse(m[1]));
+  if (loopDelays.length) {
+    scenarios.main = {
+      windows: loopDelays.length,
+      loopDelayP99Ms: Math.max(...loopDelays.map((d) => d.p99)),
+      loopDelayMaxMs: Math.max(...loopDelays.map((d) => d.max)),
+    };
+  }
+
   const gateResults = compareCounterGates(baselines, scenarios);
   const report = {
     generatedAt: new Date().toISOString(),
@@ -366,6 +378,12 @@ const main = async () => {
     console.log(
       `[perf:scenarios] ws-cycle: ${wsc.workspaces} workspaces, heap ${JSON.stringify(wsc.heapsMB)} MB, `
       + `slope=${wsc.heapSlopeMB} MB/ws, peak=${wsc.peakHeapMB} MB`,
+    );
+  }
+  if (scenarios.main) {
+    console.log(
+      `[perf:scenarios] main: loop-delay p99=${scenarios.main.loopDelayP99Ms}ms `
+      + `max=${scenarios.main.loopDelayMaxMs}ms over ${scenarios.main.windows} windows`,
     );
   }
   for (const gate of gateResults) {

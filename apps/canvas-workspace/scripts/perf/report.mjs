@@ -37,8 +37,12 @@ const distExists = existsSync(join(appRoot, 'dist/renderer'));
 const step = (label) => console.log(`\n\x1b[1m▸ ${label}\x1b[0m`);
 const node = (script, scriptArgs = []) =>
   spawnSync(process.execPath, [join(appRoot, script), ...scriptArgs], { cwd: appRoot, stdio: 'inherit' });
-const harness = (harnessArgs) =>
-  spawnSync(process.execPath, [join(appRoot, 'harness/cli.mjs'), ...harnessArgs], { cwd: appRoot, stdio: 'inherit' });
+const harness = (harnessArgs, extraEnv = {}) =>
+  spawnSync(process.execPath, [join(appRoot, 'harness/cli.mjs'), ...harnessArgs], {
+    cwd: appRoot,
+    stdio: 'inherit',
+    env: { ...process.env, ...extraEnv },
+  });
 
 let gatesFailed = false;
 let scenariosRan = false;
@@ -60,7 +64,8 @@ if (node('scripts/perf/bundle-report.mjs').status !== 0) gatesFailed = true;
 // 3. Runtime scenarios via a self-managed headless harness session.
 if (!bundleOnly) {
   step('启动应用(harness, headless)');
-  const started = harness(['start', '--profile', 'temp', '--headless', '--force']);
+  // PULSE_CANVAS_PERF activates the main-process loop-delay sampler for this run.
+  const started = harness(['start', '--profile', 'temp', '--headless', '--force'], { PULSE_CANVAS_PERF: '1' });
   if (started.status !== 0) {
     console.warn(
       '\n[perf:report] 应用启动失败,跳过运行时场景,仅出体积报告。\n'

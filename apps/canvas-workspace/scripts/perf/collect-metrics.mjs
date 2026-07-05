@@ -59,6 +59,14 @@ export const collectMetrics = () => {
     push('startup.renderer.fcp_ms', Math.round(paint['first-contentful-paint']));
   }
 
+  const mainProc = scenarios?.scenarios?.main;
+  if (mainProc) {
+    push('main.loop_delay_p99_ms', mainProc.loopDelayP99Ms, {
+      detail: `${mainProc.windows} 个 2s 窗口的最差 p99`,
+    });
+    push('main.loop_delay_max_ms', mainProc.loopDelayMaxMs);
+  }
+
   const wsc = scenarios?.scenarios?.['ws-cycle'];
   if (wsc) {
     push('memory.ws_cycle.heap_slope', wsc.heapSlopeMB, {
