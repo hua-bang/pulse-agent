@@ -30,13 +30,6 @@ interface FeishuApiResponse<T> {
 let cachedTenantAccessToken: string | null = null;
 let tenantAccessTokenExpiresAt = 0;
 
-export interface FeishuBotInfo {
-  appName?: string;
-  openId?: string;
-}
-
-let cachedBotInfo: FeishuBotInfo | null = null;
-
 function getFeishuBaseUrl(): string {
   const envBaseUrl = process.env.FEISHU_API_BASE_URL?.trim();
   return (envBaseUrl || 'https://open.feishu.cn').replace(/\/$/, '');
@@ -122,44 +115,6 @@ async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promis
   }
 
   return imageKey;
-}
-
-export async function getCurrentFeishuBotInfo(): Promise<FeishuBotInfo | null> {
-  if (cachedBotInfo) {
-    return cachedBotInfo;
-  }
-
-  const token = await getTenantAccessToken();
-  const response = await fetchFeishuWithRetry({
-    url: `${getFeishuBaseUrl()}/open-apis/bot/v3/info`,
-    init: {
-      method: 'GET',
-      headers: {
-        authorization: `Bearer ${token}`,
-      },
-    },
-    action: 'get bot info',
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Failed to get Feishu bot info: ${response.status} ${response.statusText} - ${body}`);
-  }
-
-  const payload = (await response.json()) as FeishuApiResponse<{
-    app_name?: string;
-    open_id?: string;
-  }>;
-
-  if (payload.code !== 0) {
-    throw new Error(`Failed to get Feishu bot info: ${payload.msg || 'unknown error'}`);
-  }
-
-  cachedBotInfo = {
-    appName: payload.data?.app_name?.trim() || undefined,
-    openId: payload.data?.open_id?.trim() || undefined,
-  };
-  return cachedBotInfo;
 }
 
 export async function downloadMessageImageResourceFromFeishu(input: {
