@@ -63,11 +63,6 @@ FEISHU_ENCRYPT_KEY=
 FEISHU_VERIFICATION_TOKEN=
 FEISHU_EVENT_SOURCE=webhook  # webhook (default), long_connection, or both
 FEISHU_ENABLE_REACTIONS=     # Optional: true, false, or group; default false
-FEISHU_BOT_OPEN_ID=          # Optional fallback for group @bot filtering
-FEISHU_BOT_USER_ID=          # Optional fallback for group @bot filtering
-FEISHU_BOT_UNION_ID=         # Optional fallback for group @bot filtering
-FEISHU_BOT_NAME=             # Optional fallback for group @bot filtering
-FEISHU_BOT_MENTION_ALIASES=  # Optional comma-separated aliases for group @bot filtering
 
 # === Discord ===
 DISCORD_PUBLIC_KEY=
@@ -127,7 +122,7 @@ Users can type these as in-channel text in any connected channel:
 1. In the Feishu Developer Console, create an app and note `App ID` / `App Secret`.
 2. Subscribe to the event `im.message.receive_v1`.
 3. Grant bot permissions: `im:message:send_as_bot`, `im:message.group_at_msg` (for group chats). Message reactions are optional; set `FEISHU_ENABLE_REACTIONS=true` or `group` only after granting reaction permissions.
-4. Set `FEISHU_APP_ID` and `FEISHU_APP_SECRET` in `.env`. Group chats only trigger when the event mention is verified as the current bot. The server resolves bot identity through `/open-apis/bot/v3/info`; set `FEISHU_BOT_OPEN_ID`, `FEISHU_BOT_USER_ID`, `FEISHU_BOT_UNION_ID`, `FEISHU_BOT_NAME`, or `FEISHU_BOT_MENTION_ALIASES` as explicit fallbacks when needed.
+4. Set `FEISHU_APP_ID` and `FEISHU_APP_SECRET` in `.env`.
 5. Pick the event receiver:
    - `FEISHU_EVENT_SOURCE=long_connection`: use Feishu's persistent WebSocket connection. In the Feishu Developer Console, set event subscription mode to **Receive events through persistent connection**. The webhook route remains mounted but only returns an empty 200 response.
    - `FEISHU_EVENT_SOURCE=webhook`: use the public webhook endpoint. Set `FEISHU_ENCRYPT_KEY` and `FEISHU_VERIFICATION_TOKEN`, enable them in Event Subscription security settings, then set the webhook URL:
