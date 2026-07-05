@@ -24,7 +24,11 @@ const pickFreeDisplay = () => {
   throw new HarnessError('No free X display number between :99 and :139.');
 };
 
-export const shouldRunHeadless = (opts) => opts.headless === true;
+// Xvfb-backed headless is a Linux-only facility: a virtual X server for
+// display-less Linux hosts (CI/containers — see README). macOS/Windows always
+// have a real display, so --headless is a no-op there and the harness launches
+// against the real display instead of dying on a missing Xvfb binary.
+export const shouldRunHeadless = (opts) => opts.headless === true && process.platform === 'linux';
 
 /** Fail fast (with the fix) when a launch cannot possibly show a window. */
 export const assertDisplayAvailable = () => {
