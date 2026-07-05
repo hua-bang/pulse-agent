@@ -46,6 +46,13 @@ jobs:
       - name: Ensure Electron binary
         run: pnpm --filter canvas-workspace setup:electron
 
+      # canvas-workspace externalizes pulse-coder-engine + agent-teams
+      # (workspace:* deps) — its main process requires their dist/ at runtime,
+      # which a fresh checkout doesn't have. Without this the app throws
+      # ERR_MODULE_NOT_FOUND on launch and perf:report degrades to bundle-only.
+      - name: Build workspace dependencies
+        run: pnpm run build:core
+
       # perf:report builds, runs the bundle gate, launches the app headless
       # (self-managed Xvfb), runs the runtime scenarios, and assembles the
       # report. Exit 1 on any gate failure → this job goes red.
