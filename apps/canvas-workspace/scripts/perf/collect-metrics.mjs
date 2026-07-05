@@ -76,6 +76,12 @@ export const collectMetrics = () => {
   if (paint?.['first-contentful-paint']) {
     push('startup.renderer.fcp_ms', Math.round(paint['first-contentful-paint']));
   }
+  const rendererMarks = scenarios?.scenarios?.startup?.rendererMarks;
+  if (rendererMarks?.['renderer:main-start'] != null) {
+    // performance.now() at main.tsx's first statement ≈ entry chunk V8
+    // compile + eval up to that point (the mark is set at module load).
+    push('startup.renderer.entry_eval_ms', Math.round(rendererMarks['renderer:main-start']));
+  }
 
   const mainProc = scenarios?.scenarios?.main;
   if (mainProc) {
@@ -83,6 +89,15 @@ export const collectMetrics = () => {
       detail: `${mainProc.windows} 个 2s 窗口的最差 p99`,
     });
     push('main.loop_delay_max_ms', mainProc.loopDelayMaxMs);
+    push('main.canvas_save.files_written', mainProc.canvasSaveFilesWritten);
+    if (mainProc.sessionPersistBytes != null) {
+      push('main.session_persist.bytes_per_turn', Math.round(mainProc.sessionPersistBytes / 1024));
+    }
+    if (mainProc.peakRssKb != null) {
+      push('memory.n100.total_rss_mb', Math.round(mainProc.peakRssKb / 1024), {
+        detail: 'run-peak across loop-delay windows (incl ws-cycle; 100-node isolation TODO)',
+      });
+    }
   }
 
   const wsc = scenarios?.scenarios?.['ws-cycle'];

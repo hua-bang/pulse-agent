@@ -8,6 +8,7 @@ import {
   type CanvasSaveData,
 } from './storage';
 import { broadcastCanvasUpdate } from './broadcast';
+import { peekSaveFileWriteCount, resetSaveFileWriteCount } from './nodes/store';
 
 export { STORE_DIR };
 
@@ -62,7 +63,11 @@ export async function saveCanvas(
     }
   }
 
+  resetSaveFileWriteCount();
   await writeCanvasFull(workspaceId, data, options.root);
+  if (process.env.PULSE_CANVAS_PERF) {
+    console.log(`[perf] canvas-save ${JSON.stringify({ filesWritten: peekSaveFileWriteCount() })}`);
+  }
 }
 
 export interface AppendImageNodeInput extends CanvasServiceOptions {

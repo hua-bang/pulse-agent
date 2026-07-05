@@ -337,16 +337,30 @@ const main = async () => {
     if (only.includes('ws-cycle')) scenarios['ws-cycle'] = await wsCycleScenario(cdp);
   });
 
-  // Aggregate main-process event-loop delay from the sampler's log lines
-  // (active only when the app was launched with PULSE_CANVAS_PERF=1).
+  // Aggregate main-process event-loop delay + canvas-save file-write counts
+  // from the sampler's log lines (active only when PULSE_CANVAS_PERF=1).
   const stdout = await fs.readFile(session.logFiles.stdout, 'utf-8').catch(() => '');
   const loopDelays = [...stdout.matchAll(/\[perf\] loop-delay (\{.*\})/g)].map((m) => JSON.parse(m[1]));
-  if (loopDelays.length) {
-    scenarios.main = {
-      windows: loopDelays.length,
-      loopDelayP99Ms: Math.max(...loopDelays.map((d) => d.p99)),
-      loopDelayMaxMs: Math.max(...loopDelays.map((d) => d.max)),
-    };
+  const canvasSaves = [...stdout.matchAll(/\[perf\] canvas-save (\{.*\})/g)].map((m) => JSON.parse(m[1]));
+  const sessionPersists = [...stdout.matchAll(/\[perf\] session-persist (\{.*\})/g)].map((m) => JSON.parse(m[1]));
+  if (loopDelays.length || canvasSaves.length || sessionPersists.length) {
+    const main = { windows: loopDelays.length };
+    if (loopDelays.length) {
+      main.loopDelayP99Ms = Math.max(...loopDelays.map((d) => d.p99));
+      main.loopDelayMaxMs = Math.max(...loopDelays.map((d) => d.max));
+      main.peakRssKb = Math.max(...loopDelays.map((d) => d.rssKb ?? 0));
+    }
+    if (canvasSaves.length) {
+      // Max files-written across saves in this run (B3 gate: most saves skip
+      // byte-identical per-node writes, so this should stay low).
+      main.canvasSaveFilesWritten = Math.max(...canvasSaves.map((s) => s.filesWritten ?? 0));
+    }
+    if (sessionPersists.length) {
+      // Max bytes per persist call (J-1 gate: each call today rewrites the
+      // full session; an incremental fix drops this toward O(delta)).
+      main.sessionPersistBytes = Math.max(...sessionPersists.map((s) => s.bytes ?? 0));
+    }
+    scenarios.main = main;
   }
 
   const gateResults = compareCounterGates(baselines, scenarios);

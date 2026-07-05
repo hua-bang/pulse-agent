@@ -10,6 +10,7 @@
  * Off by default — only active when PULSE_CANVAS_PERF is set (the perf harness
  * launch sets it), so normal runs pay nothing.
  */
+import { app } from 'electron';
 import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
 
 const SAMPLE_WINDOW_MS = 2000;
@@ -30,6 +31,10 @@ export const startLoopDelaySampler = (
       p99: Math.round((histogram.percentile(99) / NS_PER_MS) * 10) / 10,
       max: Math.round((histogram.max / NS_PER_MS) * 10) / 10,
       mean: Math.round((histogram.mean / NS_PER_MS) * 10) / 10,
+      // App-wide RSS (sum across all Electron processes) for the memory
+      // aspect. Run-peak over all windows — an upper bound; a clean 100-node
+      // single-workspace sample needs scenario-level isolation (TODO).
+      rssKb: app.getAppMetrics().reduce((sum, m) => sum + (m.memory?.workingSetSize ?? 0), 0),
     };
     histogram.reset();
     // Each window is independent; the harness aggregates across the run.

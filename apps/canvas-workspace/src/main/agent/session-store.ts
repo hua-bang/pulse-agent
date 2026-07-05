@@ -511,7 +511,11 @@ export class SessionStore {
   private async persist(): Promise<void> {
     if (!this.session) return;
     try {
-      await fs.writeFile(this.currentPath, JSON.stringify(this.session, null, 2), 'utf-8');
+      const serialized = JSON.stringify(this.session, null, 2);
+      await fs.writeFile(this.currentPath, serialized, 'utf-8');
+      if (process.env.PULSE_CANVAS_PERF) {
+        console.log(`[perf] session-persist ${JSON.stringify({ bytes: Buffer.byteLength(serialized, 'utf-8') })}`);
+      }
     } catch (err) {
       console.error('[session-store] Failed to persist session:', err);
     }

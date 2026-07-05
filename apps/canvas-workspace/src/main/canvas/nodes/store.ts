@@ -86,6 +86,15 @@ function isEnoent(err: unknown): boolean {
   return !!err && typeof err === 'object' && (err as { code?: string }).code === 'ENOENT';
 }
 
+// Perf: count node files actually written (not byte-identical-skipped) per
+// saveCanvas, so the harness can gate B3 (whole-canvas saves skip unchanged
+// per-node writes). Gated by PULSE_CANVAS_PERF; a no-op in normal runs.
+let saveFileWriteCount = 0;
+export const resetSaveFileWriteCount = (): void => {
+  saveFileWriteCount = 0;
+};
+export const peekSaveFileWriteCount = (): number => saveFileWriteCount;
+
 /**
  * Atomically write JSON to disk via tmp + rename.
  * Kept local to avoid coupling the node store back to canvas-storage.
@@ -96,6 +105,7 @@ async function atomicWriteJson(finalPath: string, serialized: string): Promise<v
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(tmpPath, serialized, 'utf-8');
   await fs.rename(tmpPath, finalPath);
+  if (process.env.PULSE_CANVAS_PERF) saveFileWriteCount++;
 }
 
 /**
