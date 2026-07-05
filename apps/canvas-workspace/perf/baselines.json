@@ -5,11 +5,11 @@
     "entryGzipKB": { "baseline": 1015, "tolerancePct": 5 },
     "totalJsKB": { "baseline": 10580, "tolerancePct": 10 }
   },
-  "runtimeNote": "Counter gates for perf:scenarios (deterministic, node-count independent). Current maxima document today's known amplifiers: typing produces ~1 whole nodes-array replacement per keystroke (finding I-1) and drag ~1 per pointer-move (A2). When those fixes land, lower the maxima to lock the win (typing: expect <20; drag: expect <10). Timing metrics (INP/frames/LoAF) stay informational — measured 2026-07-04 in-sandbox under xvfb: typing@100nodes INPp95 48ms, 42.9% frames >20ms; drag@100nodes INPp95 136ms.",
+  "runtimeNote": "Counter gates for perf:scenarios (deterministic, node-count independent). typing.nodes-array-replace ratcheted 132 → 10 after B1 fixed I-1 (200ms editor writeback debounce): measured 3 replacements for 120 keys (was 121), frames>20ms 43% → 1.2%, INP p95 48 → 32ms. drag still ~1 replacement per pointer-move (A2, fix is B7 in Sprint 3). Timing metrics (INP/frames/LoAF) stay informational — per-machine.",
   "runtime": {
     "typing": {
       "counters": {
-        "nodes-array-replace": { "max": 132 },
+        "nodes-array-replace": { "max": 10 },
         "canvas-save-ipc": { "max": 3 }
       }
     },
