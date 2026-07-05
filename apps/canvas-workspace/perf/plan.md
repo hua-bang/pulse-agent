@@ -28,7 +28,10 @@
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
 已完成任务:A1、A2、A3、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
-未动任务:A4、A5、B2、C2、D2、D3、D4、D5、D6。
+部分完成:B2(仅 S 步)。
+未动任务:A4、A5、C2、D2、D3、D4、D5、D6。
+
+**B2 完成记录(2026-07-05,仅 S 步,M 步有意延后)**:`ImageNodeBody` 的 `<img>` 补了 `decoding="async"`(避免大图解码阻塞主线程)+ `loading="lazy"`(画布节点靠 CSS transform 定位而非虚拟滚动,`getBoundingClientRect` 会正确反映 pan 后的真实屏幕位置,浏览器原生的视口判定对此有效——不需要自建视口裁剪就能让离屏图片延后加载)。真实 CDP 会话验证:图片正常渲染(`complete:true`,natural 尺寸正确,无 error 状态),截图确认视觉无异常。**M 步(生成缩略图 sidecar、放大才读原图)有意没做**——原因:临近本轮收尾/合并,M 步要动主进程新写文件管道(`nativeImage.resize` + sidecar 生命周期:创建、图片替换时失效、sidecar 缺失兜底),属于更大的改动面和更高的正确性风险(错了会有陈旧缩略图/竞态问题),不适合在准备合并的节点仓促下手。研究阶段已确认技术可行(`nativeImage` 已被 `file.copyImage` 用过,全屏/lightbox 入口已存在),留给下一轮任务,`memory.image.decoded_mb` 指标待那时一起建。
 
 **B4 完成记录(2026-07-05)**:`session-store.ts` 的 `persist()` 之前直接 `writeFile(currentPath, ...)`——非原子(无 tmp+rename)、多次调用互相竞态(尤其 `loadCrossWorkspaceSession` 循环对每条历史消息都调一次 `addMessage`→`persist()`,N 条消息 = N 个几乎同时的整文件写并发抢占同一路径)。参照仓库已有的 `agent-teams/store.ts` persistQueue 模式:加 `persistQueue: Promise<void>` 串行链(`writeSessionFile` 用 `${path}.${pid}.${uuid}.tmp` 唯一临时名 + `rename` 原子提交);`archiveCurrentIfExists`(被 `startSession`/`archiveSession` 调用)现在会先 `await` 这个队列再读/删 current.json,避免旧 session 的迟到写入在归档后把文件复活。`loadCrossWorkspaceSession` 循环里的 N 次 `addMessage` 改成新增的 `setMessages()` 批量赋值+单次 persist,N 次整文件写降为 1 次。**顺手做的可测试性改进**:`STORE_DIR` 从模块顶层 const(基于 `homedir()`,导入时就固定,没法 mock)改成读环境变量 `PULSE_CANVAS_SESSION_STORE_DIR` 的惰性函数——之前这个文件零测试覆盖,改完直接可以用临时目录跑真实文件系统测试,不用引入新的 mock 基建。新增 `src/main/agent/__tests__/session-store.test.ts`(3 个用例,覆盖并发 addMessage 不丢消息/无残留 tmp 文件、setMessages 单次持久化、以及归档时序不被迟到写入破坏),全部通过。`main.session_persist.bytes_per_turn` 这个指标本身仍未取得稳定实测值(需要真实 agent turn,当前沙箱没有可用的模型 API key,超出本次修复范围)。674 测试全过(baseline `session-store.ts` 561→605 行)。
 
@@ -55,7 +58,7 @@
 4. ~~**B8 · H1 LRU 驱逐**~~:见上方「B8 完成记录」。14.5→3.3-3.4 MB/ws,有活跃终端的 workspace 豁免驱逐(用户已确认)。
 5. ~~**B3 · 隐藏工作区轮询门控**~~:见上方「B3 完成记录」。隐藏时轮询计数器归零,已用真实 CDP 会话验证。
 6. ~~**B4 · 会话持久化队列+原子写**~~:见上方「B4 完成记录」。tmp+rename 原子写 + persistQueue 串行 + `loadCrossWorkspaceSession` 批量化,3 个新单测覆盖并发/归档时序。
-7. **B2 · 图片解码/缩略图**:先 S 步(decoding=async+宽高),M 步缩略图连同 `memory.image.decoded_mb` 指标一起建。
+7. **B2 · 图片解码/缩略图** — S 步已完成(见上方「B2 完成记录」),**M 步(缩略图 sidecar)待认领**:生成节点尺寸缩略图 + 全屏才读原图 + `memory.image.decoded_mb` 指标,预估收益一个数量级(round3 估算),需要新写主进程文件管道,建议单独一个 PR 做,不要和临近合并的改动混在一起。
 
 **P2 · 测量补全(填剩余 6 个未建指标中的 4 个)**
 8. **A4 · pan/zoom 场景** → `interact.panzoom.inp_p95_ms`。
