@@ -57,10 +57,20 @@ export async function startCommand(rawArgs) {
   const stderrPath = join(artifactsDir, 'electron.stderr.log');
   const stdoutFd = openSync(stdoutPath, 'a');
   const stderrFd = openSync(stderrPath, 'a');
-  // Headless Linux (CI/containers): own an Xvfb display and disable the
-  // Electron sandbox for the child — opt-in only, via --headless. Without
-  // the flag a display-less host fails fast with the fix instead of a
-  // cryptic Electron crash.
+  // Headless Linux (CI/containers): own an Xvfb display and pass Chromium
+  // flags so the renderer actually comes up — opt-in only, via --headless.
+  //   --no-sandbox            CI runners lack the setuid helper / user
+  //                           namespaces the Chromium sandbox needs; without
+  //                           it the renderer crashes on launch and CDP never
+  //                           sees a page target ("No renderer page target
+  //                           found"). ELECTRON_DISABLE_SANDBOX is NOT a real
+  //                           Electron env var, so the flag is required.
+  //   --disable-gpu           no GPU device on CI; a GPU-process crash
+  //                           destabilizes the renderer.
+  //   --disable-dev-shm-usage CI runners ship a tiny /dev/shm; without this
+  //                           the renderer crashes on shared-memory alloc.
+  // Without --headless a display-less host fails fast with the fix instead
+  // of a cryptic Electron crash.
   const headless = shouldRunHeadless(opts);
   if (!headless) assertDisplayAvailable();
   const headlessDisplay = headless ? await ensureHeadlessDisplay() : null;
@@ -68,15 +78,14 @@ export async function startCommand(rawArgs) {
     ...process.env,
     HOME: profileInfo.home,
     ...(flagsPath ? { PULSE_CANVAS_EXPERIMENTAL_FEATURES: flagsPath } : {}),
-    ...(headlessDisplay
-      ? { DISPLAY: headlessDisplay.display, ELECTRON_DISABLE_SANDBOX: '1' }
-      : {}),
+    ...(headlessDisplay ? { DISPLAY: headlessDisplay.display } : {}),
   };
   delete env.ELECTRON_RENDERER_URL;
   delete env.VITE_DEV_SERVER_URL;
   const child = spawn(electronPath, [
     `--remote-debugging-port=${cdpPort}`,
     `--user-data-dir=${electronUserDataDir}`,
+    ...(headless ? ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] : []),
     APP_DIR,
   ], {
     cwd: APP_DIR,
