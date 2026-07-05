@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
 import './components/artifacts/artifacts.css';
-import { ChatPage } from './components/chat';
+import { ChatPageLazy as ChatPage } from './components/chat/lazy';
 import { MigrationSpinner } from './components/MigrationSpinner';
 import { RightDock, RightDockProvider } from './components/RightDock';
 import { Settings, type SettingsSection } from './components/Settings';

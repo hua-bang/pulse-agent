@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
-import { ChatPanel } from '../chat';
+import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
 import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
 import {
   createReferenceNodeDataSnapshot,

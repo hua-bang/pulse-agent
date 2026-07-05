@@ -1,9 +1,9 @@
 {
-  "note": "Performance ratchet baselines. Gates fail when current > baseline * (1 + tolerancePct/100). When a fix lands that meaningfully lowers a metric, lower its baseline in the same PR to lock the win in. Bundle baselines ratcheted 2026-07-05: B6 lazy-loaded the experimental graph view (react-force-graph-2d + d3 out of entry): entry 4618 → 4223 KB. C1/C6 React.lazy'd the 5 heavy node bodies (text/file/agent/frame/terminal) + extracted tiptap-free TextColorPicker and xterm-free FrameHeaderControls, evicting @tiptap/starter-kit + the extension pack + lowlight (35 hljs grammars) + tiptap-markdown from entry: entry 4223 → 3219 KB raw / 928 → 706 KB gzip. Still in entry (follow-ups): @tiptap/react + @tiptap/pm (chain B — noteSearchExtension via useCanvasSearch), @xterm/xterm (WorkspaceTerminalDock, C2), highlight.js (chat markdown.ts, C3), module-federation runtime (C7). Target for the C-dimension work is entry ≤1500 KB.",
+  "note": "Performance ratchet baselines. Gates fail when current > baseline * (1 + tolerancePct/100). When a fix lands that meaningfully lowers a metric, lower its baseline in the same PR to lock the win in. Bundle baselines ratcheted 2026-07-05 (three waves): B6 lazy-loaded the experimental graph view (react-force-graph-2d + d3 out of entry): entry 4618 → 4223 KB. C1/C6 React.lazy'd the 5 heavy node bodies, evicting @tiptap/starter-kit + extension pack + lowlight + tiptap-markdown: 4223 → 3219 KB raw / 928 → 706 KB gzip. C2/C3/C7/chain-B lazied WorkspaceTerminalDock (@xterm/xterm), ChatPage+ChatPanel (highlight.js + markdown-it + chat tree), @module-federation/runtime, and noteSearchExtension (@tiptap/react + @tiptap/pm): 3219 → 1329 KB raw / 706 → 270 KB gzip — under the ≤1500 KB C-dimension target. Remaining entry is react/react-dom + app code + i18n messages (C8 candidate).",
   "bundle": {
-    "entryRawKB": { "baseline": 3219, "tolerancePct": 5 },
-    "entryGzipKB": { "baseline": 706, "tolerancePct": 5 },
-    "totalJsKB": { "baseline": 10564, "tolerancePct": 10 }
+    "entryRawKB": { "baseline": 1329, "tolerancePct": 5 },
+    "entryGzipKB": { "baseline": 270, "tolerancePct": 5 },
+    "totalJsKB": { "baseline": 10556, "tolerancePct": 10 }
   },
   "runtimeNote": "Counter gates for perf:scenarios (deterministic, node-count independent). typing.nodes-array-replace ratcheted 132 → 10 after B1 fixed I-1 (200ms editor writeback debounce): measured 3 replacements for 120 keys (was 121), frames>20ms 43% → 1.2%, INP p95 48 → 32ms. drag still ~1 replacement per pointer-move (A2, fix is B7 in Sprint 3). Timing metrics (INP/frames/LoAF) stay informational — per-machine.",
   "runtime": {

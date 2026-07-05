@@ -26,7 +26,10 @@ const outDir = join(appRoot, 'perf/out');
 // are the size ratchets + the static import-graph test (bundle-boundaries).
 const ENTRY_PROBES = [
   { lib: 'xterm', probe: 'xterm-helper-textarea' },
-  { lib: 'tiptap/prosemirror', probe: 'ProseMirror' },
+  // 'prosemirror-view' survives minification (package-name string inside the
+  // lib); a bare 'ProseMirror' probe false-positives on the DOM-selector
+  // string '.ProseMirror' that entry-resident canvas handlers use.
+  { lib: 'tiptap/prosemirror', probe: 'prosemirror-view' },
   { lib: 'highlight.js', probe: 'did you forget to load/include a language module' },
   { lib: 'force-graph (d3-force)', probe: 'velocityDecay' },
   { lib: 'module-federation runtime', probe: '__FEDERATION__' },

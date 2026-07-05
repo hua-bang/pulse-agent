@@ -1,7 +1,16 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasNode, FileNodeData, TextNodeData } from '../types';
-import { setNoteSearch, clearNoteSearch, noteSearchPluginKey } from '../editor/noteSearchExtension';
 import { useFileNodeEditorRegistry } from './useFileNodeEditorRegistry';
+
+// noteSearchExtension pulls @tiptap/react + @tiptap/pm; a static import here
+// would drag prosemirror into the entry chunk via Canvas → useCanvasSearch
+// (chain B). Inline highlighting only makes sense once a file-node editor is
+// mounted — and mounting one loads the file-node chunk that already contains
+// this module — so the dynamic import below resolves from cache in practice.
+type NoteSearchModule = typeof import('../editor/noteSearchExtension');
+let noteSearchModule: NoteSearchModule | null = null;
+const loadNoteSearch = (): Promise<NoteSearchModule> =>
+  import('../editor/noteSearchExtension').then((m) => (noteSearchModule = m));
 
 /**
  * A single hit found by the Ctrl+F search.
@@ -145,35 +154,51 @@ export const useCanvasSearch = ({ nodes }: Args) => {
       }
     }
 
-    // Apply to newly-included editors.
-    for (const id of shouldHighlight) {
-      const editor = registry.get(id);
-      if (!editor) continue;
-      const view = editor.view;
-      if (!view) continue;
-      const current = noteSearchPluginKey.getState(view.state);
-      // Skip dispatch if the editor already shows this exact query —
-      // avoids resetting the user's per-note find state when canvas
-      // find converges on the same string.
-      if (current?.query === q) continue;
-      setNoteSearch(view, q);
-    }
-
-    // Clear editors that previously had our highlight but no longer do.
-    for (const id of highlightedRef.current) {
-      if (shouldHighlight.has(id)) continue;
-      const editor = registry.get(id);
-      if (!editor?.view) continue;
-      const current = noteSearchPluginKey.getState(editor.view.state);
-      // Only clear if the highlight still matches our pushed query —
-      // protects an active per-note find session if the user opened
-      // one after we set ours.
-      if (current && current.query === deferredQuery) {
-        clearNoteSearch(editor.view);
+    const apply = (ns: NoteSearchModule) => {
+      // Apply to newly-included editors.
+      for (const id of shouldHighlight) {
+        const editor = registry.get(id);
+        if (!editor) continue;
+        const view = editor.view;
+        if (!view) continue;
+        const current = ns.noteSearchPluginKey.getState(view.state);
+        // Skip dispatch if the editor already shows this exact query —
+        // avoids resetting the user's per-note find state when canvas
+        // find converges on the same string.
+        if (current?.query === q) continue;
+        ns.setNoteSearch(view, q);
       }
-    }
 
-    highlightedRef.current = shouldHighlight;
+      // Clear editors that previously had our highlight but no longer do.
+      for (const id of highlightedRef.current) {
+        if (shouldHighlight.has(id)) continue;
+        const editor = registry.get(id);
+        if (!editor?.view) continue;
+        const current = ns.noteSearchPluginKey.getState(editor.view.state);
+        // Only clear if the highlight still matches our pushed query —
+        // protects an active per-note find session if the user opened
+        // one after we set ours.
+        if (current && current.query === deferredQuery) {
+          ns.clearNoteSearch(editor.view);
+        }
+      }
+
+      highlightedRef.current = shouldHighlight;
+    };
+
+    if (noteSearchModule) {
+      apply(noteSearchModule);
+      return;
+    }
+    // Nothing to clear before the module ever loaded (highlights can only
+    // have been set through `apply`), so a skipped stale run is harmless.
+    let cancelled = false;
+    void loadNoteSearch().then((ns) => {
+      if (!cancelled) apply(ns);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [open, deferredQuery, matches, registry]);
 
   // Capture the focused element when the bar opens so Esc can hand
@@ -193,12 +218,14 @@ export const useCanvasSearch = ({ nodes }: Args) => {
     setActiveIndex(0);
     // Belt-and-suspenders: the effect above also reacts to `open`
     // flipping to false, but call clear directly so the visual state
-    // updates in the same frame as the bar dismissing.
-    if (registry) {
+    // updates in the same frame as the bar dismissing. If the module
+    // never loaded, no highlight was ever set — nothing to clear.
+    if (registry && noteSearchModule) {
+      const ns = noteSearchModule;
       for (const id of highlightedRef.current) {
         const editor = registry.get(id);
         if (!editor?.view) continue;
-        clearNoteSearch(editor.view);
+        ns.clearNoteSearch(editor.view);
       }
       highlightedRef.current = new Set();
     }

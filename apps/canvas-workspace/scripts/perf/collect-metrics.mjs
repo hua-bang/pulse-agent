@@ -42,13 +42,18 @@ export const collectMetrics = () => {
       detail: bundle.probes.filter((p) => p.inEntry).map((p) => p.lib).join(' · '),
     });
     // bundle.lazy_boundary_watchlist: passes iff EVERY watched lib is out of
-    // the entry chunk. mermaid (chat/utils/mermaid.ts) and force-graph
-    // (GraphPageLazy, B6) are the lazied libs with verified entry probes.
-    // lowlight + @tiptap/starter-kit (C1/C6) are gated by the static-import
-    // graph test (bundle-boundaries.test.ts WATCHLIST) — their entry probes
-    // are not wired here. @tiptap/prosemirror stays inEntry via chain B
-    // (noteSearchExtension), so it is NOT watched at this layer.
-    const WATCHED_LIBS = ['mermaid', 'force-graph (d3-force)'];
+    // the entry chunk. All six probe libs are lazied as of C2/C3/C7/chain-B
+    // (2026-07-05); the static-import graph test (bundle-boundaries.test.ts
+    // WATCHLIST) gates the same boundaries at source level, this probe gates
+    // them at built-output level.
+    const WATCHED_LIBS = [
+      'mermaid',
+      'force-graph (d3-force)',
+      'xterm',
+      'highlight.js',
+      'module-federation runtime',
+      'tiptap/prosemirror',
+    ];
     const watched = WATCHED_LIBS.map((lib) => bundle.probes.find((p) => p.lib.startsWith(lib)));
     const watchlistPass = watched.every((p) => p && !p.inEntry);
     const regressed = watched.filter((p) => p && p.inEntry).map((p) => p.lib);

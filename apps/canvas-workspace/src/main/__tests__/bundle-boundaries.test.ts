@@ -14,36 +14,37 @@ import { fileURLToPath } from 'url';
  *  - GraphPageLazy (B6) React.lazy-loads react-force-graph-2d + d3-force.
  *  - DefaultCanvasNode (C1/C6) React.lazy-loads the 5 heavy node bodies
  *    (text/file/agent/frame/terminal), evicting @tiptap/starter-kit +
- *    lowlight from the entry. @tiptap/react + @tiptap/pm remain via the
- *    noteSearchExtension chain (Canvas -> useCanvasSearch); @xterm/xterm
- *    remains via WorkspaceTerminalDock (C2 follow-up).
+ *    lowlight from the entry.
+ *  - chat/lazy.tsx (C3) React.lazy-loads ChatPage + ChatPanel, evicting
+ *    highlight.js + markdown-it + the chat tree.
+ *  - WorkspaceTerminalPortal (C2) React.lazy-loads WorkspaceTerminalDock,
+ *    evicting @xterm/xterm (main.tsx keeps only its CSS, which vite extracts
+ *    to a stylesheet — no JS cost).
+ *  - federation.ts (C7) dynamic-imports @module-federation/runtime.
+ *  - useCanvasSearch (chain B) dynamic-imports noteSearchExtension, evicting
+ *    @tiptap/react + @tiptap/pm.
  *
- * As more C-dimension fixes land (chain-B refactor, dock lazy, manualChunks),
- * move packages from EXPECTED_STATIC into WATCHLIST to ratchet the gate.
+ * When a new heavy dep lands statically, either lazy it and add it here, or
+ * consciously accept the entry-size ratchet hit (perf/baselines.json).
  */
 
 /** Packages that must NEVER be statically imported from the entry graph. */
 const WATCHLIST = [
   'mermaid',
   'react-force-graph-2d',
-  // C1/C6: evicted from the entry by React.lazy-ing the 5 heavy node bodies.
-  // @tiptap/react and @tiptap/pm are NOT here — they remain statically
-  // reachable via noteSearchExtension (Canvas -> useCanvasSearch, chain B),
-  // so watchlisting them would fail the gate. @tiptap/starter-kit + lowlight
-  // leave cleanly (only importers are the lazied text/file bodies).
+  // C1/C6: evicted by React.lazy-ing the 5 heavy node bodies.
   '@tiptap/starter-kit',
   'lowlight',
-];
-
-/**
- * Heavy packages that ARE statically reachable today (C1-C9 findings).
- * Documented so the day one moves behind a lazy boundary, it gets promoted
- * to WATCHLIST instead of silently regressing later.
- */
-const EXPECTED_STATIC = [
+  // Chain B: noteSearchExtension is dynamic-imported from useCanvasSearch.
+  '@tiptap/react',
+  '@tiptap/pm',
+  // C2: WorkspaceTerminalDock behind React.lazy (JS only — CSS is exempt).
   '@xterm/xterm',
+  // C3: chat surfaces behind React.lazy (chat/lazy.tsx).
   'highlight.js',
   'markdown-it',
+  // C7: federation runtime dynamic-imported on first plugin activation.
+  '@module-federation/runtime',
 ];
 
 const testDir = dirname(fileURLToPath(import.meta.url));
@@ -81,6 +82,9 @@ const collectStaticPackages = (): { packages: Set<string>; files: number } => {
     const source = readFileSync(file, 'utf-8');
     for (const match of source.matchAll(IMPORT_RE)) {
       const spec = match[1];
+      // Style imports extract to CSS assets, not the entry JS chunk — a bare
+      // `import '@xterm/xterm/css/xterm.css'` must not trip the JS watchlist.
+      if (spec.endsWith('.css')) continue;
       if (spec.startsWith('.')) {
         const resolved = resolveRelative(file, spec);
         if (resolved) queue.push(resolved);
@@ -115,12 +119,4 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
     expect(mermaidUtil).toMatch(/import\(\s*['"]mermaid['"]\s*\)/);
   });
 
-  it('documents today\'s heavy static deps (promote to WATCHLIST when made lazy)', () => {
-    for (const pkg of EXPECTED_STATIC) {
-      expect(
-        packages.has(pkg),
-        `${pkg} is no longer statically reachable — great! Move it from EXPECTED_STATIC to WATCHLIST in this test to lock the improvement in.`,
-      ).toBe(true);
-    }
-  });
 });
