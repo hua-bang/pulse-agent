@@ -57,9 +57,9 @@ export function parseFeishuPlatformKey(platformKey: string): ParsedFeishuPlatfor
 }
 
 export function resolveFeishuTopicId(message: Record<string, unknown>): string | undefined {
-  return asNonEmptyString(message.root_id)
+  return asNonEmptyString(message.thread_id)
+    ?? asNonEmptyString(message.root_id)
     ?? asNonEmptyString(message.parent_id)
-    ?? asNonEmptyString(message.thread_id)
     ?? asNonEmptyString(message.message_id)
     ?? undefined;
 }
