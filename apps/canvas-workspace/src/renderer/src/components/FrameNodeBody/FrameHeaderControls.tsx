@@ -15,9 +15,6 @@ import { useI18n } from "../../i18n";
  * now behind a React.lazy boundary.
  */
 
-/** Maximum direct-child rows shown in a collapsed frame before "+N more". */
-const COLLAPSED_SUMMARY_MAX = 6;
-
 // Muted frame palette. These are intentionally lower-chroma than the
 // previous presets so large canvas frames read as organization, not alerts.
 //
