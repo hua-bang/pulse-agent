@@ -23,6 +23,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireLiveSession } from '../../harness/src/session.mjs';
 import { withPage } from '../../harness/src/cdp.mjs';
+import { waitFor } from '../../harness/src/utils.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const baselinesPath = join(appRoot, 'perf/baselines.json');
@@ -144,6 +145,13 @@ const startupScenario = async (cdp, session) => {
 
 const typingScenario = async (cdp) => {
   const editorSel = '.canvas-node--file .ProseMirror';
+  // C1/C6 made FileNodeBody React.lazy — wait for the lazy chunk to load +
+  // ProseMirror to mount before targeting it. On CI the chunk lands slower
+  // than on dev macOS, so a one-shot query races the lazy boundary.
+  await waitFor(
+    () => evaluate(cdp, `!!document.querySelector(${JSON.stringify(editorSel)})`),
+    10_000,
+  );
   const point = await hittablePointIn(cdp, editorSel);
   if (!point) throw new Error(`no unobstructed editor found (${editorSel}) — file nodes missing or fully covered`);
   await waitForCalmFrames(cdp);
