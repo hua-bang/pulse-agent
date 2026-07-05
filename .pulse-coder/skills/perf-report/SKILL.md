@@ -18,35 +18,27 @@ in `apps/canvas-workspace/perf/program.md` + `perf/metrics.json`; thresholds in
 
 ## Workflow
 
-All commands run from the repository root.
-
-### 1. Collect (choose the depth the user asked for)
-
-**Bundle only** (fast, no app launch — default when unspecified):
+### 1. Run one command (from the repository root)
 
 ```bash
-pnpm --filter canvas-workspace build          # skip if dist/ is fresh
-pnpm --filter canvas-workspace perf:bundle
+pnpm --filter canvas-workspace perf:report
 ```
 
-**Bundle + runtime scenarios** (launches the real app; ~2 min):
+That is the whole pipeline: build → bundle gate → launch the app headless →
+runtime scenarios → close → assemble the report. It prints the verdict and
+writes `perf/out/dashboard.html` + `perf/out/report.json`. Exit code is 1 if
+any gate failed (usable directly in CI).
 
-```bash
-node apps/canvas-workspace/harness/cli.mjs start --profile temp --headless
-node apps/canvas-workspace/scripts/perf/run-scenarios.mjs --seed-nodes 100
-node apps/canvas-workspace/harness/cli.mjs close --cleanup
-```
+Variants:
+- `--bundle-only` — fast, skips the app launch (bundle metrics only)
+- `--no-build` — reuse an existing `dist/`
+- `--seed-nodes 300` — larger canvas for the interaction scenarios
 
-Headless notes: `--headless` needs Xvfb (`apt-get install -y xvfb`); if the
-Electron binary is missing run `pnpm --filter canvas-workspace setup:electron`.
+If the app can't launch, it degrades to a bundle-only report and tells the
+user to install Xvfb (`apt-get install -y xvfb`) and, if the Electron binary
+is missing, run `pnpm --filter canvas-workspace setup:electron`.
 
-### 2. Generate the report
-
-```bash
-pnpm --filter canvas-workspace perf:dashboard
-```
-
-### 3. Read the machine contract
+### 2. Read the machine contract
 
 Read `apps/canvas-workspace/perf/out/report.json`:
 

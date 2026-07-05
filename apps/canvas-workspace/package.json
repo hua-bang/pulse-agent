@@ -24,7 +24,8 @@
     "perf:bundle": "node scripts/perf/bundle-report.mjs",
     "perf:scenarios": "node scripts/perf/run-scenarios.mjs",
     "setup:electron": "node scripts/setup/ensure-electron.mjs",
-    "perf:dashboard": "node scripts/perf/dashboard.mjs"
+    "perf:dashboard": "node scripts/perf/dashboard.mjs",
+    "perf:report": "node scripts/perf/report.mjs"
   },
   "build": {
     "appId": "com.pulse-coder.canvas-workspace",

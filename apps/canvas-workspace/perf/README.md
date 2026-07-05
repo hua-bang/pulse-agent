@@ -6,6 +6,27 @@ System design — the six aspects, the full metric dictionary (IDs, definitions,
 gate levels), recording schema, and roadmap — lives in **`program.md`** (SSOT);
 this file only covers how to run things.
 
+## One command (start here)
+
+```bash
+pnpm --filter canvas-workspace perf:report
+```
+
+Runs the whole pipeline — build → bundle gate → launch the app headless →
+runtime scenarios → close → assemble the report — prints the verdict, and
+writes `out/dashboard.html` (open in a browser) + `out/report.json` (verdict +
+alerts + metrics, for agents/CI). Exit 1 if any gate failed.
+
+Variants: `--bundle-only` (fast, no app launch), `--no-build` (reuse `dist/`),
+`--seed-nodes 300` (larger canvas). Degrades to a bundle-only report if the app
+can't launch. First run on a display-less host needs `apt-get install -y xvfb`
+and, if the Electron binary is missing, `pnpm --filter canvas-workspace setup:electron`.
+
+Agents use the same command via the `perf-report` skill
+(`.pulse-coder/skills/perf-report/SKILL.md`).
+
+The individual steps below are exposed for debugging / partial runs.
+
 ## Bundle (no app launch needed)
 
 ```bash
