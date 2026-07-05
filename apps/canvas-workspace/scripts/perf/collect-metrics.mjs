@@ -41,8 +41,21 @@ export const collectMetrics = () => {
     push('bundle.heavy_in_entry_count', bundle.probes.filter((p) => p.inEntry).length, {
       detail: bundle.probes.filter((p) => p.inEntry).map((p) => p.lib).join(' · '),
     });
-    const mermaid = bundle.probes.find((p) => p.lib.startsWith('mermaid'));
-    if (mermaid) push('bundle.lazy_boundary_watchlist', !mermaid.inEntry, { pass: !mermaid.inEntry });
+    // bundle.lazy_boundary_watchlist: passes iff EVERY watched lib is out of
+    // the entry chunk. mermaid (chat/utils/mermaid.ts) and force-graph
+    // (GraphPageLazy, B6) are the lazied libs with verified entry probes.
+    // lowlight + @tiptap/starter-kit (C1/C6) are gated by the static-import
+    // graph test (bundle-boundaries.test.ts WATCHLIST) — their entry probes
+    // are not wired here. @tiptap/prosemirror stays inEntry via chain B
+    // (noteSearchExtension), so it is NOT watched at this layer.
+    const WATCHED_LIBS = ['mermaid', 'force-graph (d3-force)'];
+    const watched = WATCHED_LIBS.map((lib) => bundle.probes.find((p) => p.lib.startsWith(lib)));
+    const watchlistPass = watched.every((p) => p && !p.inEntry);
+    const regressed = watched.filter((p) => p && p.inEntry).map((p) => p.lib);
+    push('bundle.lazy_boundary_watchlist', watchlistPass, {
+      pass: watchlistPass,
+      ...(regressed.length ? { detail: regressed.join(' · ') } : {}),
+    });
   }
 
   const phases = scenarios?.scenarios?.startup?.mainPhases;

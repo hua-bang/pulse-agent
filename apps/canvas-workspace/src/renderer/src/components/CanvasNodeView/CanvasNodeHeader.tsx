@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode, RefObject } from 'react';
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
-import { FrameChildrenToggle, FrameColorPicker } from '../FrameNodeBody';
-import { TextColorPicker } from '../TextNodeBody';
+import { FrameChildrenToggle, FrameColorPicker } from '../FrameNodeBody/FrameHeaderControls';
+import { TextColorPicker } from '../TextNodeBody/TextColorPicker';
 import {
   AddToChatButton,
   CloseButton,

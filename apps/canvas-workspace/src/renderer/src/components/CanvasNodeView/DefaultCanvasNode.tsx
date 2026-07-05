@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useState,
   type CSSProperties,
@@ -9,18 +11,24 @@ import {
   type RefObject,
 } from 'react';
 import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
-import { AgentNodeBody } from '../AgentNodeBody';
 import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
-import { FileNodeBody } from '../FileNodeBody';
-import { FrameNodeBody } from '../FrameNodeBody';
 import { IframeNodeBody } from '../IframeNodeBody';
 import { PluginNodeBody } from '../PluginNodeBody';
-import { TerminalNodeBody } from '../TerminalNodeBody';
-import { TextNodeBody } from '../TextNodeBody';
 import { useAppShell } from '../AppShellProvider';
 import { CanvasNodeHeader } from './CanvasNodeHeader';
 import { NodeResizeHandles } from './NodeResizeHandles';
 import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
+
+// Heavy node bodies are React.lazy so xterm (terminal/agent bodies) and
+// tiptap/prosemirror + lowlight (text/file bodies) stay out of the eagerly-
+// parsed entry chunk (C1/C6). Each chunk loads on first mount of its node
+// type; the canvas is keepAlive, so subsequent same-type nodes render
+// synchronously. Light bodies (iframe/dynamic-app/plugin) stay static.
+const AgentNodeBody = lazy(() => import('../AgentNodeBody').then((m) => ({ default: m.AgentNodeBody })));
+const FileNodeBody = lazy(() => import('../FileNodeBody').then((m) => ({ default: m.FileNodeBody })));
+const FrameNodeBody = lazy(() => import('../FrameNodeBody').then((m) => ({ default: m.FrameNodeBody })));
+const TerminalNodeBody = lazy(() => import('../TerminalNodeBody').then((m) => ({ default: m.TerminalNodeBody })));
+const TextNodeBody = lazy(() => import('../TextNodeBody').then((m) => ({ default: m.TextNodeBody })));
 
 interface DefaultCanvasNodeProps {
   classes: string;
@@ -219,6 +227,7 @@ export const DefaultCanvasNode = ({
     <div className={nodeClasses} style={wrapperStyle} onClick={handleNodeClick}>
       {!frameBodyOnly && header}
       <div className="node-body" onMouseDown={handleNodeBodyMouseDown}>
+        <Suspense fallback={null}>
         {node.type === 'file' ? (
           <FileNodeBody node={node} onUpdate={onUpdate} workspaceId={workspaceId} getAllNodes={getAllNodes} readOnly={readOnly} />
         ) : node.type === 'terminal' ? (
@@ -259,6 +268,7 @@ export const DefaultCanvasNode = ({
         ) : (
           <AgentNodeBody node={node} getAllNodes={getAllNodes} rootFolder={rootFolder} workspaceId={workspaceId} workspaceName={workspaceName} onUpdate={onUpdate} readOnly={readOnly} />
         )}
+        </Suspense>
       </div>
       <NodeResizeHandles
         isFullscreen={isFullscreen}

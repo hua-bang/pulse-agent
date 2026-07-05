@@ -6,20 +6,34 @@ import { fileURLToPath } from 'url';
 /**
  * Bundle boundary gate.
  *
- * The renderer has exactly one maintained lazy-loading boundary today:
- * `chat/utils/mermaid.ts` does `import('mermaid')`, which keeps mermaid and
- * its ~5 MB of diagram sub-chunks out of the eagerly-parsed entry chunk
- * (measured: entry 4.6 MB raw / 1.0 MB gzip WITHOUT mermaid — see
- * perf/baselines.json). This test walks the STATIC import graph from the
- * renderer entry and fails if any watch-listed package becomes statically
- * reachable, which would silently fold it back into the startup chunk.
+ * Walks the STATIC import graph from the renderer entry (main.tsx) and fails
+ * if any watch-listed package becomes statically reachable, which would
+ * silently fold it back into the startup chunk. Maintained lazy boundaries:
+ *  - chat/utils/mermaid.ts does `import('mermaid')` (keeps mermaid + its
+ *    diagram sub-chunks out of the entry).
+ *  - GraphPageLazy (B6) React.lazy-loads react-force-graph-2d + d3-force.
+ *  - DefaultCanvasNode (C1/C6) React.lazy-loads the 5 heavy node bodies
+ *    (text/file/agent/frame/terminal), evicting @tiptap/starter-kit +
+ *    lowlight from the entry. @tiptap/react + @tiptap/pm remain via the
+ *    noteSearchExtension chain (Canvas -> useCanvasSearch); @xterm/xterm
+ *    remains via WorkspaceTerminalDock (C2 follow-up).
  *
- * As C-dimension fixes land (React.lazy for node bodies, manualChunks),
+ * As more C-dimension fixes land (chain-B refactor, dock lazy, manualChunks),
  * move packages from EXPECTED_STATIC into WATCHLIST to ratchet the gate.
  */
 
 /** Packages that must NEVER be statically imported from the entry graph. */
-const WATCHLIST = ['mermaid', 'react-force-graph-2d'];
+const WATCHLIST = [
+  'mermaid',
+  'react-force-graph-2d',
+  // C1/C6: evicted from the entry by React.lazy-ing the 5 heavy node bodies.
+  // @tiptap/react and @tiptap/pm are NOT here — they remain statically
+  // reachable via noteSearchExtension (Canvas -> useCanvasSearch, chain B),
+  // so watchlisting them would fail the gate. @tiptap/starter-kit + lowlight
+  // leave cleanly (only importers are the lazied text/file bodies).
+  '@tiptap/starter-kit',
+  'lowlight',
+];
 
 /**
  * Heavy packages that ARE statically reachable today (C1-C9 findings).
