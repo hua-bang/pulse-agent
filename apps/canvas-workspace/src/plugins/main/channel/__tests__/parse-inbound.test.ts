@@ -39,6 +39,17 @@ function reply(out: ReturnType<typeof parseInbound>) {
   };
 }
 
+const BOT = {
+  appId: 'cli_bot',
+  openId: 'ou_bot',
+  userId: 'bot_user',
+  unionId: 'on_bot',
+  name: 'Pulse',
+};
+
+const BOT_MENTION = { key: '@_user_bot', id: { open_id: 'ou_bot' }, name: 'Pulse' };
+const OTHER_MENTION = { key: '@_user_other', id: { open_id: 'ou_other' }, name: 'Pulse' };
+
 describe('parseInbound', () => {
   it('direct chat keys on chat_id', () => {
     const out = parseInbound(event({ chatType: 'p2p', chatId: 'dmA' }));
@@ -50,8 +61,8 @@ describe('parseInbound', () => {
   });
 
   it('different groups produce different conversation ids', () => {
-    const a = parseInbound(event({ chatType: 'group', chatId: 'gA', mentions: [{}] }));
-    const b = parseInbound(event({ chatType: 'group', chatId: 'gB', mentions: [{}] }));
+    const a = parseInbound(event({ chatType: 'group', chatId: 'gA', mentions: [BOT_MENTION] }), BOT);
+    const b = parseInbound(event({ chatType: 'group', chatId: 'gB', mentions: [BOT_MENTION] }), BOT);
     expect(a!.conversationId).toBe('gA');
     expect(b!.conversationId).toBe('gB');
     expect(a!.conversationId).not.toBe(b!.conversationId);
@@ -62,9 +73,18 @@ describe('parseInbound', () => {
     expect(out).toBeNull();
   });
 
+  it('group message mentioning another user with the bot display name is ignored', () => {
+    const out = parseInbound(
+      event({ chatType: 'group', chatId: 'gA', mentions: [OTHER_MENTION], text: '@someone do it' }),
+      BOT,
+    );
+    expect(out).toBeNull();
+  });
+
   it('group @-mention strips the mention and marks isMention', () => {
     const out = parseInbound(
-      event({ chatType: 'group', chatId: 'gA', mentions: [{}], text: '@bot do it' }),
+      event({ chatType: 'group', chatId: 'gA', mentions: [BOT_MENTION], text: '@bot do it' }),
+      BOT,
     );
     expect(out).not.toBeNull();
     expect(out!.text).toBe('do it');
@@ -88,12 +108,27 @@ describe('parseInbound', () => {
         chatId: 'gT',
         threadId: 'th1',
         mentions: undefined,
-        text: '<at user_id="bot">Pulse</at> 晚上好',
+        text: '<at user_id="bot_user">Pulse</at> 晚上好',
       }),
+      BOT,
     );
     expect(out).not.toBeNull();
     expect(out!.conversationId).toBe('gT:th1');
     expect(out!.text).toBe('晚上好');
+  });
+
+  it('topic group text with another user at tag using the bot display name is ignored when mentions are omitted', () => {
+    const out = parseInbound(
+      event({
+        chatType: 'topic_group',
+        chatId: 'gT',
+        threadId: 'th1',
+        mentions: undefined,
+        text: '<at user_id="other_user">Pulse</at> 晚上好',
+      }),
+      BOT,
+    );
+    expect(out).toBeNull();
   });
 
   it('topic group post messages are accepted and flattened', () => {
@@ -103,7 +138,7 @@ describe('parseInbound', () => {
         chatId: 'gT',
         threadId: 'th1',
         messageType: 'post',
-        mentions: [{ name: 'Pulse' }],
+        mentions: [BOT_MENTION],
         content: {
           title: '晚上好',
           content: [
@@ -114,6 +149,7 @@ describe('parseInbound', () => {
           ],
         },
       }),
+      BOT,
     );
     expect(out).not.toBeNull();
     expect(out!.conversationId).toBe('gT:th1');
@@ -123,10 +159,12 @@ describe('parseInbound', () => {
 
   it('topic group: each thread is its own conversation, replies route in-thread', () => {
     const t1 = parseInbound(
-      event({ chatType: 'group', chatId: 'gT', threadId: 'th1', mentions: [{}], messageId: 'mA' }),
+      event({ chatType: 'group', chatId: 'gT', threadId: 'th1', mentions: [BOT_MENTION], messageId: 'mA' }),
+      BOT,
     );
     const t2 = parseInbound(
-      event({ chatType: 'group', chatId: 'gT', threadId: 'th2', mentions: [{}], messageId: 'mB' }),
+      event({ chatType: 'group', chatId: 'gT', threadId: 'th2', mentions: [BOT_MENTION], messageId: 'mB' }),
+      BOT,
     );
     expect(t1!.conversationId).toBe('gT:th1');
     expect(t2!.conversationId).toBe('gT:th2');
@@ -146,11 +184,13 @@ describe('parseInbound', () => {
   it('falls back to root_id so a topic root and its replies stay one conversation', () => {
     // Topic root: no thread_id yet, but it is the thread root (root_id = its id).
     const root = parseInbound(
-      event({ chatType: 'group', chatId: 'gT', rootId: 'rA', messageId: 'rA', mentions: [{}] }),
+      event({ chatType: 'group', chatId: 'gT', rootId: 'rA', messageId: 'rA', mentions: [BOT_MENTION] }),
+      BOT,
     );
     // A later reply in the same topic: carries thread_id == root_id.
     const followUp = parseInbound(
-      event({ chatType: 'group', chatId: 'gT', threadId: 'rA', messageId: 'mC', mentions: [{}] }),
+      event({ chatType: 'group', chatId: 'gT', threadId: 'rA', messageId: 'mC', mentions: [BOT_MENTION] }),
+      BOT,
     );
     expect(root!.conversationId).toBe('gT:rA');
     expect(followUp!.conversationId).toBe('gT:rA');
@@ -160,9 +200,10 @@ describe('parseInbound', () => {
 
   it('a topic-group conversation differs from the same group’s non-topic id', () => {
     const topic = parseInbound(
-      event({ chatType: 'group', chatId: 'gT', threadId: 'th1', mentions: [{}] }),
+      event({ chatType: 'group', chatId: 'gT', threadId: 'th1', mentions: [BOT_MENTION] }),
+      BOT,
     );
-    const plain = parseInbound(event({ chatType: 'group', chatId: 'gT', mentions: [{}] }));
+    const plain = parseInbound(event({ chatType: 'group', chatId: 'gT', mentions: [BOT_MENTION] }), BOT);
     expect(topic!.conversationId).toBe('gT:th1');
     expect(plain!.conversationId).toBe('gT');
   });
