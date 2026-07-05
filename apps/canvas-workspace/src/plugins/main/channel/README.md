@@ -51,6 +51,9 @@ relaunch (the flag is read at plugin registration time).
      export CANVAS_FEISHU_DEFAULT_WORKSPACE=<workspaceId>
      # optional: override the API host
      export FEISHU_API_BASE_URL=https://open.feishu.cn
+     # optional fallback if /open-apis/bot/v3/info cannot be reached
+     export FEISHU_BOT_OPEN_ID=ou_xxx
+     export FEISHU_BOT_NAME=Pulse
      ```
 
    Env vars take precedence over UI-stored values.
@@ -60,8 +63,9 @@ relaunch (the flag is read at plugin registration time).
    panel offers a "Relaunch now" button after saving.
 
 In a **direct chat** the bot replies to every message. In a **group chat**
-it only responds when @-mentioned — a *structured* Feishu mention (the
-`mentions` array or an `<at …>` marker), not bare "@word" text a user typed,
+it only responds when the message structurally @-mentions this bot — the
+Feishu `mentions` array or `<at …>` marker must match the bot identity loaded
+from `/open-apis/bot/v3/info` (or the optional `FEISHU_BOT_*` fallback env),
 so mentioning another person never wakes the bot.
 
 > Availability: the bridge runs inside the desktop app, so it responds while

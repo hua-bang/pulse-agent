@@ -26,6 +26,7 @@ import {
   WORKSPACE_PICKER_SELECT_NAME,
 } from './card';
 import { downloadInboundImages, extractInboundImageKeys } from './inbound-image';
+import { loadBotIdentity, messageMentionsBot, type FeishuBotIdentity } from './bot-mention';
 
 const CHANNEL_ID = 'feishu';
 const PROGRESS_THROTTLE_MS = 800;
@@ -53,6 +54,7 @@ export class FeishuChannel implements Channel {
     this.client = createLarkClient();
     const appId = process.env.FEISHU_APP_ID!;
     const appSecret = process.env.FEISHU_APP_SECRET!;
+    const botIdentity = await loadBotIdentity(appId);
     this.wsClient = new lark.WSClient({ appId, appSecret, domain: lark.Domain.Feishu });
 
     const eventDispatcher = new lark.EventDispatcher({}).register({
@@ -64,7 +66,7 @@ export class FeishuChannel implements Channel {
             /* ignore serialization issues */
           }
         }
-        const msg = parseInbound(data);
+        const msg = parseInbound(data, botIdentity);
         if (!msg) return;
         // Download any attached images to local temp files so the agent can
         // read them with a vision tool. Best-effort: failures are logged.
@@ -535,14 +537,6 @@ function mentionString(mention: unknown, key: 'key' | 'name'): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function hasMentionMarker(text: string): boolean {
-  // Feishu text events normally include `mentions`, but topic groups can omit
-  // it while still leaving the structured `<at …>` marker in content. We match
-  // ONLY that marker — a bare "@word" is just literal text a user typed (e.g.
-  // "@someone-else") and must not make the bot respond in a group.
-  return /<at\b/i.test(text);
-}
-
 function stripMentionText(text: string, mentions: unknown[]): string {
   let out = text;
   for (const mention of mentions) {
@@ -629,7 +623,7 @@ interface FeishuCardActionEvent {
 }
 
 /** Normalize a Feishu im.message.receive_v1 payload, or null to ignore it. */
-export function parseInbound(data: unknown): InboundMessage | null {
+export function parseInbound(data: unknown, botIdentity?: FeishuBotIdentity): InboundMessage | null {
   const event = data as FeishuMessageEvent;
   const message = event?.message;
   if (!message || !['text', 'post', 'image'].includes(message.message_type ?? '')) return null;
@@ -652,9 +646,11 @@ export function parseInbound(data: unknown): InboundMessage | null {
   const isGroup = message.chat_type === 'group' || message.chat_type === 'topic_group';
   const mentions = asMentionList(message.mentions);
   let cleanText = text;
+  let isBotMention = false;
   if (isGroup) {
-    // In group chats (incl. topic groups), only respond when @-mentioned.
-    if (mentions.length === 0 && !hasMentionMarker(cleanText)) return null;
+    // In group chats (incl. topic groups), only respond when this bot is @-mentioned.
+    isBotMention = messageMentionsBot(mentions, cleanText, botIdentity);
+    if (!isBotMention) return null;
     cleanText = stripMentionText(cleanText, mentions);
   }
 
@@ -691,7 +687,7 @@ export function parseInbound(data: unknown): InboundMessage | null {
     userId,
     messageId,
     text: cleanText,
-    isMention: isGroup && mentions.length > 0,
+    isMention: isBotMention,
     isDirect: !isGroup,
     reply,
   };

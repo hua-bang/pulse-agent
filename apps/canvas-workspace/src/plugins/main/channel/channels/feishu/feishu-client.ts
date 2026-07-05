@@ -26,6 +26,11 @@ export function createLarkClient(): lark.Client {
   });
 }
 
+export interface FeishuBotInfo {
+  openId?: string;
+  appName?: string;
+}
+
 interface FeishuApiResponse<T> {
   code: number;
   msg: string;
@@ -79,6 +84,34 @@ async function getTenantAccessToken(): Promise<string> {
   cachedTenantAccessToken = payload.tenant_access_token;
   tenantAccessTokenExpiresAt = Date.now() + (payload.expire ?? 7200) * 1000;
   return cachedTenantAccessToken;
+}
+
+export async function getFeishuBotInfo(): Promise<FeishuBotInfo> {
+  const token = await getTenantAccessToken();
+  const response = await fetch(`${getFeishuBaseUrl()}/open-apis/bot/v3/info`, {
+    method: 'GET',
+    headers: { authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(
+      `Failed to get Feishu bot info: ${response.status} ${response.statusText} - ${body}`,
+    );
+  }
+
+  const payload = (await response.json()) as FeishuApiResponse<{
+    open_id?: string;
+    app_name?: string;
+  }>;
+  if (payload.code !== 0) {
+    throw new Error(`Failed to get Feishu bot info: ${payload.msg || 'unknown error'}`);
+  }
+
+  return {
+    openId: payload.data?.open_id,
+    appName: payload.data?.app_name,
+  };
 }
 
 async function uploadImageToFeishu(imagePath: string, mimeType?: string): Promise<string> {
