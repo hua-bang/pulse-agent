@@ -125,6 +125,15 @@ export async function startCommand(rawArgs) {
     await waitForPageTarget(session, DEFAULT_TIMEOUT_MS);
     await applyStartupNavigation(session, opts);
   } catch (err) {
+    // Surface the Electron stderr so CI shows the real launch failure
+    // (missing system libs, sandbox crash, renderer JS error, etc.) instead
+    // of just "No renderer page target found" — the raw error is otherwise
+    // only in .harness/runs/<id>/electron.stderr.log, which CI doesn't upload.
+    try {
+      const stderr = await fs.readFile(session.logFiles.stderr, 'utf-8');
+      const tail = stderr.trim().slice(-4000);
+      if (tail) console.error(`[harness] electron stderr (tail):\n${tail}`);
+    } catch { /* stderr file unreadable */ }
     await stopSession(session, { cleanup: profileInfo.cleanupHome });
     throw err;
   }
