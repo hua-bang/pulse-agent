@@ -56,7 +56,36 @@ const alertCard = (alert, aspectName) => `
     <div class="alert-fix">→ ${esc(alert.suggestion)}<span class="ref"> · ${esc(alert.ref)}</span></div>
   </div>`;
 
-export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts, previous }, verdict) => {
+// Inline SVG sparkline (self-contained, theme-aware via currentColor). Marks
+// the last point; direction color is applied by the caller via a wrapper class.
+const sparkline = (values, w = 96, h = 22) => {
+  if (values.length < 2) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const stepX = w / (values.length - 1);
+  const pts = values.map((v, i) => `${(i * stepX).toFixed(1)},${(h - 2 - ((v - min) / span) * (h - 4)).toFixed(1)}`);
+  const [lx, ly] = pts[pts.length - 1].split(',');
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">`
+    + `<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="${pts.join(' ')}"/>`
+    + `<circle cx="${lx}" cy="${ly}" r="2" fill="currentColor"/></svg>`;
+};
+
+const trendRow = (label, unit, values, lowerIsBetter) => {
+  const first = values[0];
+  const last = values[values.length - 1];
+  const changed = first !== last;
+  const improved = lowerIsBetter ? last < first : last > first;
+  const dir = !changed ? 'flat' : improved ? 'good' : 'bad';
+  const arrow = !changed ? '→' : last > first ? '↑' : '↓';
+  return `<div class="trend-row">
+    <div class="trend-label">${esc(label)}</div>
+    <div class="trend-spark trend-${dir}">${sparkline(values)}</div>
+    <div class="trend-delta trend-${dir}">${fmt(first)} ${arrow} <b>${fmt(last)}</b><span class="unit"> ${esc(unit)}</span></div>
+  </div>`;
+};
+
+export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts, previous }, verdict, series = []) => {
   const byId = new Map(snapshot.metrics.map((m) => [m.id, m]));
   const valueOf = (id) => byId.get(id);
   const prevOf = (id) => previous?.metrics.find((m) => m.id === id)?.value;
@@ -89,6 +118,25 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
 
   const overviewAlerts = alerts.map((a) => alertCard(a, aspectName(a.aspect))).join('')
     || '<div class="muted" style="padding:6px 0">本次运行未触发任何告警。</div>';
+
+  // Trend sparklines (same-machine series). All headline metrics are
+  // lower-is-better, so a downward line = improvement (e.g. B1's typing fix).
+  const HEADLINE = [
+    ['interact.typing.counter.nodes_array_replace', '打字 整数组替换'],
+    ['interact.typing.inp_p95_ms', '打字 INP p95'],
+    ['bundle.entry_raw_kb', '入口 chunk raw'],
+    ['memory.ws_cycle.heap_slope', 'workspace 堆斜率'],
+    ['main.loop_delay_p99_ms', '主进程 loop-delay p99'],
+  ];
+  const seriesOf = (id) => series.map((s) => s.metrics.find((m) => m.id === id)?.value).filter((v) => typeof v === 'number');
+  const trendRows = HEADLINE.map(([id, label]) => {
+    const def = dictionary.metrics.find((m) => m.id === id);
+    const values = seriesOf(id);
+    return values.length >= 2 ? trendRow(label, def?.unit ?? '', values, true) : '';
+  }).filter(Boolean).join('');
+  const trendCard = trendRows
+    ? `<div class="card"><h2>关键指标趋势(同机 · ${series.length} 次运行,越低越好)</h2>${trendRows}</div>`
+    : '';
 
   const scenarioConditions = snapshot.env.seedNodes
     ? `场景条件:@${snapshot.env.seedNodes} 节点画布 · 打字 120 字符(25ms 间隔)· 拖拽 90 步 · n=1(时间类指标单样本,结论以多轮中位数为准)`
@@ -153,6 +201,7 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
     <div class="verdict card">${esc(verdict)}<span class="verdict-sub">${measuredCount}/${dictionary.metrics.length} 指标有实测值 · 87 条发现已修 4</span></div>
     <div class="health">${healthTiles}</div>
     <div class="card"><h2>告警(规则引擎,按严重度)</h2>${overviewAlerts}</div>
+    ${trendCard}
     <div class="card foot">
       <b>口径</b>:计数类指标机器无关、全局可比;时间类按 machineId 分基线,只比同机趋势。定义 SSOT:<code>perf/metrics.json</code> + <code>perf/program.md</code>。
       <b>刷新</b>:<code>perf:bundle</code> → <code>harness start --headless</code> + <code>perf:scenarios</code> → <code>perf:dashboard</code>。
@@ -287,7 +336,18 @@ const css = () => `
   .mb-val { font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums; }
   .foot { font-size:12px; color:var(--muted); line-height:1.7; }
   .foot code { background:var(--chip-muted-bg); border-radius:4px; padding:1px 6px; font-size:11.5px; }
-  @media (max-width:560px) { .app { padding:14px 12px 40px; } .mb-row { grid-template-columns:minmax(90px,130px) 1fr 56px; } }
+  .trend-row { display:grid; grid-template-columns:1fr 104px 168px; gap:12px; align-items:center; padding:6px 0; border-bottom:1px solid var(--grid); }
+  .trend-row:last-child { border-bottom:none; }
+  .trend-label { font-size:12.5px; color:var(--ink-2); }
+  .trend-spark { display:flex; justify-content:flex-end; }
+  .spark { display:block; }
+  .trend-delta { font-size:12.5px; text-align:right; font-variant-numeric:tabular-nums; color:var(--ink-2); }
+  .trend-good, .trend-good .spark { color:var(--good); }
+  .trend-bad, .trend-bad .spark { color:var(--critical); }
+  .trend-flat, .trend-flat .spark { color:var(--muted); }
+  .trend-delta.trend-good b { color:var(--good-text); }
+  .trend-delta.trend-bad b { color:var(--critical); }
+  @media (max-width:560px) { .app { padding:14px 12px 40px; } .mb-row { grid-template-columns:minmax(90px,130px) 1fr 56px; } .trend-row { grid-template-columns:1fr 70px 120px; } }
 `;
 
 const js = () => `

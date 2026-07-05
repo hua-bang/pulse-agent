@@ -45,9 +45,12 @@ writeFileSync(
   join(historyDir, `${snapshot.timestamp.slice(0, 10)}-${snapshot.commit}-${snapshot.timestamp.slice(11, 19).replaceAll(':', '')}.json`),
   JSON.stringify(snapshot, null, 2),
 );
+// Chronological same-machine series (history + the just-collected snapshot)
+// for the trend sparklines.
+const series = [...history, snapshot].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
 writeFileSync(
   join(outDir, 'dashboard.html'),
-  renderDashboardHtml(dictionary, snapshot, bundleReport, ruleResult, verdict),
+  renderDashboardHtml(dictionary, snapshot, bundleReport, ruleResult, verdict, series),
 );
 
 // Machine-consumable contract (agents/skills read this single file):
