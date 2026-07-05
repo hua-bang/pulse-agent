@@ -85,14 +85,20 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
 
       function cleanText(value, max) {
         value = String(value || '').replace(/\s+/g, ' ').trim();
-        return value.length > max ? value.slice(0, max) + '\n\n[...truncated]' : value;
+        return value.length > max ? value.slice(0, max) + '\\n\\n[...truncated]' : value;
       }
+
+      function errorMessage(err) { return err && err.message ? String(err.message) : String(err); }
+
+      function elementText(el, max) { try { return cleanText(el.innerText || el.textContent || '', max); } catch (_) { return ''; } }
+
+      function outerHtml(el, max) { try { return cleanText(el.outerHTML || '', max); } catch (_) { return ''; } }
 
       function escapeCss(value) {
         if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
         return String(value).replace(/[^a-zA-Z0-9_-]/g, function (ch) {
           var hex = ch.charCodeAt(0).toString(16);
-          return '\\' + hex + ' ';
+          return '\\\\' + hex + ' ';
         });
       }
 
@@ -194,7 +200,7 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
           || el.getAttribute('data-testid')
           || el.getAttribute('name')
           || '';
-        var text = cleanText(attr || el.innerText || el.textContent || '', 96);
+        var text = attr ? cleanText(attr, 96) : elementText(el, 96);
         var tag = el.tagName ? el.tagName.toLowerCase() : 'element';
         if (text) return tag + ': ' + text;
         if (el.id) return tag + '#' + el.id;
@@ -205,7 +211,8 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
       }
 
       function rectFor(el, includeScroll) {
-        var rect = el.getBoundingClientRect();
+        var rect;
+        try { rect = el.getBoundingClientRect(); } catch (_) { rect = { left: 0, top: 0, width: 0, height: 0 }; }
         var value = {
           x: Math.round(rect.left),
           y: Math.round(rect.top),
@@ -263,7 +270,7 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
           if (role) out.role = role;
           var attrs = attrMap(el);
           if (attrs) out.attrs = attrs;
-          var text = cleanText(el.innerText || el.textContent || '', CONFIG.maxTextPerNode);
+          var text = elementText(el, CONFIG.maxTextPerNode);
           if (text) out.text = text;
           out.rect = rectFor(el, false);
 
@@ -323,8 +330,8 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
       }
 
       function details(el) {
-        var text = cleanText(el.innerText || el.textContent || '', CONFIG.maxText);
-        var htmlPreview = cleanText(el.outerHTML || '', CONFIG.maxHtml);
+        var text = elementText(el, CONFIG.maxText);
+        var htmlPreview = outerHtml(el, CONFIG.maxHtml);
         var snapshot = buildSnapshot(el);
         return {
           id: 'dom-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8),
@@ -365,55 +372,26 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
         var doc = document;
         var activeElement = null;
         var settled = false;
-        var style = doc.createElement('style');
-        style.textContent = [
-          '.pulse-dom-picker-outline {',
-          '  position: fixed;',
-          '  z-index: 2147483646;',
-          '  pointer-events: none;',
-          '  border: 2px solid #2383e2;',
-          '  background: rgba(35, 131, 226, 0.10);',
-          '  box-shadow: 0 0 0 99999px rgba(15, 23, 42, 0.08);',
-          '  border-radius: 4px;',
-          '}',
-          '.pulse-dom-picker-label {',
-          '  position: fixed;',
-          '  z-index: 2147483647;',
-          '  pointer-events: none;',
-          '  max-width: min(420px, calc(100vw - 24px));',
-          '  padding: 5px 7px;',
-          '  border-radius: 5px;',
-          '  background: #111827;',
-          '  color: #fff;',
-          '  font: 12px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;',
-          '  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.22);',
-          '  white-space: nowrap;',
-          '  overflow: hidden;',
-          '  text-overflow: ellipsis;',
-          '}'
-        ].join('');
-        var outline = doc.createElement('div');
-        outline.className = 'pulse-dom-picker-outline';
-        var label = doc.createElement('div');
-        label.className = 'pulse-dom-picker-label';
-        label.textContent = 'Click an element to add it to AI Chat · Esc to cancel';
-        doc.documentElement.appendChild(style);
-        doc.documentElement.appendChild(outline);
-        doc.documentElement.appendChild(label);
+        var timer = null;
+        var style = null;
+        var outline = null;
+        var label = null;
 
         function setBox(el) {
-          if (!(el instanceof Element)) return;
-          activeElement = el;
-          var r = el.getBoundingClientRect();
-          outline.style.left = Math.max(0, r.left) + 'px';
-          outline.style.top = Math.max(0, r.top) + 'px';
-          outline.style.width = Math.max(1, r.width) + 'px';
-          outline.style.height = Math.max(1, r.height) + 'px';
-          var top = Math.max(8, r.top - 30);
-          if (r.top < 36) top = Math.min(window.innerHeight - 28, r.bottom + 6);
-          label.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 24)) + 'px';
-          label.style.top = top + 'px';
-          label.textContent = labelFor(el);
+          try {
+            if (!(el instanceof Element) || !outline || !label) return;
+            activeElement = el;
+            var r = el.getBoundingClientRect();
+            outline.style.left = Math.max(0, r.left) + 'px';
+            outline.style.top = Math.max(0, r.top) + 'px';
+            outline.style.width = Math.max(1, r.width) + 'px';
+            outline.style.height = Math.max(1, r.height) + 'px';
+            var top = Math.max(8, r.top - 30);
+            if (r.top < 36) top = Math.min(window.innerHeight - 28, r.bottom + 6);
+            label.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 24)) + 'px';
+            label.style.top = top + 'px';
+            label.textContent = labelFor(el);
+          } catch (_) {}
         }
 
         function finish(result) {
@@ -424,16 +402,16 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
         }
 
         function cleanup() {
-          clearTimeout(timer);
+          if (timer !== null) clearTimeout(timer);
           doc.removeEventListener('mousemove', onMove, true);
           doc.removeEventListener('mousedown', onMouseDown, true);
           doc.removeEventListener('mouseup', onMouseUp, true);
           doc.removeEventListener('click', onClick, true);
           doc.removeEventListener('keydown', onKeyDown, true);
           window.removeEventListener('scroll', onScroll, true);
-          try { outline.remove(); } catch (_) {}
-          try { label.remove(); } catch (_) {}
-          try { style.remove(); } catch (_) {}
+          try { if (outline) outline.remove(); } catch (_) {}
+          try { if (label) label.remove(); } catch (_) {}
+          try { if (style) style.remove(); } catch (_) {}
           if (window.__pulseDomPickerCancel === cancel) delete window.__pulseDomPickerCancel;
         }
 
@@ -471,7 +449,11 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
             finish({ ok: false, error: 'No element under pointer' });
             return;
           }
-          finish({ ok: true, selection: details(target) });
+          try {
+            finish({ ok: true, selection: details(target) });
+          } catch (err) {
+            finish({ ok: false, error: 'Could not snapshot selected element: ' + errorMessage(err) });
+          }
         }
 
         function onKeyDown(event) {
@@ -481,17 +463,34 @@ function createDomSnapshotScript(config: DomSnapshotScriptConfig): string {
           }
         }
 
-        var timer = setTimeout(function () {
-          finish({ ok: false, error: 'DOM picker timed out' });
-        }, CONFIG.timeoutMs);
-        window.__pulseDomPickerCancel = cancel;
-        doc.addEventListener('mousemove', onMove, true);
-        doc.addEventListener('mousedown', onMouseDown, true);
-        doc.addEventListener('mouseup', onMouseUp, true);
-        doc.addEventListener('click', onClick, true);
-        doc.addEventListener('keydown', onKeyDown, true);
-        window.addEventListener('scroll', onScroll, true);
-        setBox(doc.body || doc.documentElement);
+        try {
+          if (!doc.documentElement) {
+            finish({ ok: false, error: 'DOM picker cannot start before the document is ready' }); return;
+          }
+          style = doc.createElement('style');
+          style.textContent = '.pulse-dom-picker-outline{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #2383e2;background:rgba(35,131,226,.10);box-shadow:0 0 0 99999px rgba(15,23,42,.08);border-radius:4px}.pulse-dom-picker-label{position:fixed;z-index:2147483647;pointer-events:none;max-width:min(420px,calc(100vw - 24px));padding:5px 7px;border-radius:5px;background:#111827;color:#fff;font:12px/1.3 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;box-shadow:0 8px 24px rgba(15,23,42,.22);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}';
+          outline = doc.createElement('div');
+          outline.className = 'pulse-dom-picker-outline';
+          label = doc.createElement('div');
+          label.className = 'pulse-dom-picker-label';
+          label.textContent = 'Click an element to add it to AI Chat - Esc to cancel';
+          doc.documentElement.appendChild(style);
+          doc.documentElement.appendChild(outline);
+          doc.documentElement.appendChild(label);
+          timer = setTimeout(function () {
+            finish({ ok: false, error: 'DOM picker timed out' });
+          }, CONFIG.timeoutMs);
+          window.__pulseDomPickerCancel = cancel;
+          doc.addEventListener('mousemove', onMove, true);
+          doc.addEventListener('mousedown', onMouseDown, true);
+          doc.addEventListener('mouseup', onMouseUp, true);
+          doc.addEventListener('click', onClick, true);
+          doc.addEventListener('keydown', onKeyDown, true);
+          window.addEventListener('scroll', onScroll, true);
+          setBox(doc.body || doc.documentElement);
+        } catch (err) {
+          finish({ ok: false, error: 'DOM picker failed to start: ' + errorMessage(err) });
+        }
       });
     })();
   `;
