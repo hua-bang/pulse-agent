@@ -122,6 +122,11 @@ pathRules:
     manual:
       - Use `pnpm --filter canvas-workspace harness start --profile demo --build` for interaction-heavy changes.
       - Use `pnpm --filter canvas-workspace harness screenshot` or `snapshot-ui` when visual evidence matters.
+    escalateWhen:
+      performanceSensitiveChange:
+        # Bundle + runtime counter gates. Run by CI (.github/workflows/perf.yml)
+        # on every canvas-workspace PR; runnable locally with the same command.
+        - pnpm --filter canvas-workspace perf:report
 
   - name: harness-docs
     paths:
