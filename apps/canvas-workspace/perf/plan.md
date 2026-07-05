@@ -150,7 +150,8 @@
 1. B7(拖拽 ephemeral)进专项;D3(视口裁剪)出专项单独立项。
 2. I-1 debounce 默认 **200ms trailing + blur/保存 flush**;打字手感由产品验收,时长可调。
 3. CI 采用 GitHub Actions(headless 配方已在无显示环境端到端验证)。
-4. Sprint 切分:S1 = A1-A6 + B1/B3/B5;S2 = B2/B4/B6 + C1;S3 = B7/B8 + C2/C3。
+4. Sprint 切分:S1 = A1-A6 + B1/B3/B5;S2 = B2/B4/B6 + C1;S3 = B7/B8 + C2(后补充 WS-D 后修订为文首 Sprint 表,含 D1-D6 分布)。
+5. 看板界面单列 WS-D 工作流;AI 总结层(D5)为可选增值、默认关闭、永不参与门禁。
 
 ## 交接材料索引
 
