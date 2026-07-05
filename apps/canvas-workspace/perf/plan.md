@@ -27,10 +27,12 @@
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
-已完成任务:A1、A2、A3、A6、B1、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、C1、D1、V1。
-未动任务:A4、A5、B2、B3、B4、B7、B8、C2、D2、D3、D4、D5、D6。
+已完成任务:A1、A2、A3、A6、B1、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、C1、D1、V1。
+未动任务:A4、A5、B2、B3、B4、B8、C2、D2、D3、D4、D5、D6。
 
-当前看板告警(A3 落地后,连续两轮 `perf:report --repeat 3` 验证):1×medium(拖拽放大器,B7 修)+ 1×info(AI 流式无数据,专项性质,非波动噪声)。4 条时间指标波动 info 全部消退。
+当前看板告警(B7 落地后连续两轮 `perf:report --repeat 3` 验证):0×medium,仅剩 2×info(拖拽帧超率近零值波动 + AI 流式无数据,均为噪声/专项性质,非真实回归)。
+
+**B7 完成记录(2026-07-05)**:根因是 `useNodeDrag.ts` 的 `flushDragMove` 每个 pointer-move 都调用 `moveNode`/`moveNodes`,后者 `.map()` 克隆全量 nodes 数组 + 跑 `resizeGroupsToChildren`,触发 `Canvas/index.tsx` 的 `useCanvasRenderOrder` 等 O(n) 派生重算——`CanvasNodeView` 虽已 `React.memo`(按 `node` 引用比较)避免逐节点重渲染,但父级级联仍是每帧 O(n)。修法:手势期只更新一个 ephemeral `dragOffset:{dx,dy}` state(不碰 nodes 数组),`getNodeWrapperStyle(node, dragOffset)` 把偏移叠加到被拖拽节点的 transform 上;`CanvasNodeView` 的 memo 比较器新增 `dragOffset` 字段,使非拖拽节点(dragOffset 恒为 null)继续跳过重渲染,只有当前被拖节点每帧重渲染。`onDragEnd` 时才用最终位置调用一次 `moveNode`/`moveNodes` 提交真实数组;`onDragCancel`(Esc 中断)简化为纯状态清空——数组从未被动过,不需要"复原"。实测:`drag.nodes-array-replace` 91(90 步)→ **2**(3×90 步),连续两轮稳定;真实 CDP 拖拽验证(mid-drag transform 与 drop 后 transform 完全一致,无跳变);671 测试全过;baseline `drag.nodes-array-replace.max` 100→10 锁定收益(该 perf 门禁本身就是这类回归的护栏,未额外造 hook 单测基建)。
 
 **A3 完成记录(2026-07-05)**:两条独立的 repeat 机制——① `report.mjs --repeat N`(默认 3)多次整机启动,仅 startup 阶段做跨启动同机中位数(`mergeStartupMedians`),清掉了 whenReady/openWindow/domReady 的波动告警;② `run-scenarios.mjs --repeat N` 在同一 session 内重跑 typing/drag(计数器取 max,INP p95/frames>20% 取中位数)。`main.loop_delay_max_ms` **未**做重复稳定化——它本质是单次最坏值统计,重复整机启动的收益有限,该告警若复现,遵循规则本身的建议"重跑确认"即可。`main.canvas_save.files_written` / `main.session_persist.bytes_per_turn` 覆盖率仍不稳定(依赖 debounce 计时器是否在 session 关闭前落地),这是 c296930 引入时就有的既存偶发缺口,与本次改动无关,未在本次修复范围内。
 
@@ -43,7 +45,7 @@
 2. ~~**A3 · --repeat 中位数**~~:见上方「A3 完成记录」。4 条波动 info 告警已消退,C2(record→warn)前置条件满足。
 
 **P1 · 修复轨(收益已实测,卡片就绪)**
-3. **B7 · 拖拽 ephemeral**:看板唯一 medium 告警;91 替换/90 步 → <10。
+3. ~~**B7 · 拖拽 ephemeral**~~:见上方「B7 完成记录」。91→2,baseline 已锁定。
 4. **B8 · H1 LRU 驱逐**:堆斜率已实测 **12.8MB/workspace**(A1 场景);验收 slope≈0 且升 warn 门禁。
 5. **B3 · 隐藏工作区轮询门控**:S 级快赢;A2 的 loop-delay + snapshot IPC 计数已可做前后对比。
 6. **B4 · 会话持久化队列+原子写**:`main.session_persist.bytes_per_turn` 已上线(c296930),修复收益可直接证明。

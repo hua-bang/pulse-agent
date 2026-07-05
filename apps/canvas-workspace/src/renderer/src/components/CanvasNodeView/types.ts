@@ -1,6 +1,7 @@
 import type { MouseEvent, ReactNode } from 'react';
 import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
+import type { NodeDragOffset } from '../../hooks/useNodeDrag';
 
 export type CanvasNodeRenderMode = 'full' | 'frame-body' | 'frame-title';
 
@@ -11,6 +12,8 @@ export interface CanvasNodeViewProps {
   workspaceId?: string;
   workspaceName?: string;
   isDragging: boolean;
+  /** Live delta while THIS node is being dragged; null otherwise (B7). */
+  dragOffset?: NodeDragOffset | null;
   isResizing: boolean;
   isSelected: boolean;
   isHighlighted: boolean;

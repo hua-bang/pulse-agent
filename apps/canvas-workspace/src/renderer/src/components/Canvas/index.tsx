@@ -443,6 +443,7 @@ export const Canvas = ({
     draggingId,
     draggingIds,
     dragPreview,
+    dragOffset,
     snapLines,
     onDragStart,
     onDragMove,
@@ -620,6 +621,7 @@ export const Canvas = ({
       draggingId={draggingId}
       draggingIds={draggingIds}
       dragPreview={dragPreview}
+      dragOffset={dragOffset}
       edgeHandlers={edgeHandlers}
       edgeInteractionState={edgeInteractionState}
       edges={visibleEdges}

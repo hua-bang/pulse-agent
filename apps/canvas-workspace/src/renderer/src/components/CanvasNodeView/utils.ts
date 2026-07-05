@@ -1,5 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import type { CanvasNode, FrameNodeData, GroupNodeData, TextNodeData } from '../../types';
+import type { NodeDragOffset } from '../../hooks/useNodeDrag';
 
 export function formatRelativeTime(epochMs: number): string {
   const diffSec = Math.floor((Date.now() - epochMs) / 1000);
@@ -130,18 +131,23 @@ const resolveFrameHue = (color: string): { hue: number; chroma: number } => {
   return { hue: DEFAULT_FRAME_HUE, chroma: DEFAULT_FRAME_CHROMA };
 };
 
-export const getNodeWrapperStyle = (node: CanvasNode): CSSProperties => {
+export const getNodeWrapperStyle = (node: CanvasNode, dragOffset?: NodeDragOffset | null): CSSProperties => {
   const size: CSSProperties = {
     width: node.width,
     height: node.height,
   };
+  // B7: while this node is the one being dragged, its stored x/y stays
+  // untouched (see useNodeDrag) — the live position is this offset applied
+  // on top, so the gesture never triggers a nodes-array replace.
+  const x = node.x + (dragOffset?.dx ?? 0);
+  const y = node.y + (dragOffset?.dy ?? 0);
   if (node.type === 'frame') {
     const color = (node.data as FrameNodeData).color;
     const { hue, chroma } = resolveFrameHue(color);
     return {
       ...size,
-      left: node.x,
-      top: node.y,
+      left: x,
+      top: y,
       '--frame-color': color,
       '--frame-hue': String(hue),
       '--frame-chroma': String(chroma),
@@ -149,7 +155,7 @@ export const getNodeWrapperStyle = (node: CanvasNode): CSSProperties => {
   }
   const base: CSSProperties = {
     ...size,
-    transform: `translate(${node.x}px, ${node.y}px)`,
+    transform: `translate(${x}px, ${y}px)`,
   };
   if (node.type === 'group') {
     return {

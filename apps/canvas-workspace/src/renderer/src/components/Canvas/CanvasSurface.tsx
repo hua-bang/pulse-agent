@@ -5,7 +5,7 @@ import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 import type { NodeResizePreview } from '../../hooks/useNodeResize';
-import type { NodeDragPreview } from '../../hooks/useNodeDrag';
+import type { NodeDragOffset, NodeDragPreview } from '../../hooks/useNodeDrag';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
 import type { MarqueeRect } from '../../hooks/useMarqueeSelect';
@@ -41,6 +41,10 @@ interface CanvasSurfaceProps {
    *  dragged frame so the full group can share the lifted stacking context. */
   draggingIds: Set<string>;
   dragPreview?: NodeDragPreview | null;
+  /** Live delta for the current drag (B7) — every node in draggingIds/
+   *  draggingId renders at `node.x/y + dragOffset` instead of the stored
+   *  x/y, which stays frozen until the gesture commits. */
+  dragOffset?: NodeDragOffset | null;
   resizingId: string | null;
   resizePreview?: NodeResizePreview | null;
   selectedNodeIdSet: Set<string>;
@@ -132,6 +136,7 @@ export const CanvasSurface = ({
   draggingId,
   draggingIds,
   dragPreview,
+  dragOffset,
   resizingId,
   resizePreview,
   selectedNodeIdSet,
@@ -174,7 +179,9 @@ export const CanvasSurface = ({
 }: CanvasSurfaceProps) => {
   // Startup metric: first canvas render (idempotent, Map lookup after that).
   markOnce('canvas:first-render');
-  const renderNode = (node: CanvasNode, renderMode: CanvasNodeRenderMode = 'full') => (
+  const renderNode = (node: CanvasNode, renderMode: CanvasNodeRenderMode = 'full') => {
+    const nodeIsDragging = draggingIds.has(node.id) || draggingId === node.id;
+    return (
     <CanvasNodeView
       key={`${node.id}:${renderMode}`}
       node={node}
@@ -182,7 +189,8 @@ export const CanvasSurface = ({
       rootFolder={rootFolder}
       workspaceId={canvasId}
       workspaceName={canvasName}
-      isDragging={draggingIds.has(node.id) || draggingId === node.id}
+      isDragging={nodeIsDragging}
+      dragOffset={nodeIsDragging ? dragOffset : null}
       isResizing={resizingId === node.id}
       isSelected={selectedNodeIdSet.has(node.id)}
       isHighlighted={highlightedId === node.id}
@@ -212,7 +220,8 @@ export const CanvasSurface = ({
       onToggleFullscreen={onToggleFullscreen}
       renderMode={renderMode}
     />
-  );
+    );
+  };
 
   return (
     <div
