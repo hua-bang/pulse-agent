@@ -1,6 +1,7 @@
 import { startCommand } from './launch.mjs';
 import { screenshotCommand } from './screenshot.mjs';
 import { HarnessError } from './errors.mjs';
+import { selfCheckCommand } from './self-check.mjs';
 import {
   clickCommand,
   closeCommand,
@@ -29,6 +30,7 @@ Usage:
   pnpm --filter canvas-workspace harness fill --selector <css> <text>
   pnpm --filter canvas-workspace harness press <key-or-combo>
   pnpm --filter canvas-workspace harness logs [--lines 80]
+  pnpm --filter canvas-workspace harness self-check [--json]
   pnpm --filter canvas-workspace harness close [--cleanup]
 
 Start options:
@@ -85,6 +87,10 @@ export async function main(args) {
         break;
       case 'logs':
         await logsCommand(rawArgs);
+        break;
+      case 'self-check':
+      case 'check':
+        await selfCheckCommand(rawArgs);
         break;
       case 'close':
       case 'stop':
