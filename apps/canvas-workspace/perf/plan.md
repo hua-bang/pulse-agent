@@ -27,9 +27,11 @@
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
-已完成任务:A1、A2、A3、A4、A5、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
+已完成任务:A1、A2、A3、A4、A5、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、D2、V1。
 部分完成:B2(仅 S 步)。
-未动任务:C2、D2、D3、D4、D5、D6。
+未动任务:C2、D3、D4、D5、D6。
+
+**D2 完成记录(2026-07-05)**:体积 Tab 新增"Entry 依赖归因"卡片,直接读 A5 产出的 `bundle-report.json → entryDepAttribution`。**做法决策**:没有另起一套嵌套矩形 treemap(plan.md 原文写的是"嵌套矩形")——依赖数是个位数(react-dom/wouter/react/scheduler/use-sync-external-store + app 自身代码共 6 行),复用页面已有的 `.mini-bars`/`.mb-row` 横条组件(`renderChunkBars` 同款)比重新画 SVG 嵌套矩形更省代码、视觉语言也和上面的 Chunk 分布卡片保持一致;数据量大了(几十个依赖)再考虑真 treemap。**提交前自查揪出两个问题**:①最初把 app-own-code 行(`{name,kb,self}`)和 `attribution.deps` 的原始形状(`{pkg,rawKB}`)混在同一个数组里,用 `row.name ?? row.pkg` 兜底访问——改成先统一 map 成同一形状再拼数组,去掉兜底逻辑。②最初假设 `rows[0]`(app 自身代码,固定排第一)就是最大值来算条形比例——`attribution.deps` 虽是降序但 app 自身代码不参与排序,理论上某天某个依赖反超时条形会画出 100% 以外;改成 `Math.max(...rows.map(r => r.kb), 1)`。**验证方式**:无头 Chromium(`/opt/pw-browsers/chromium-1194/chrome-linux/chrome --headless --screenshot`,利用看板自身的 `location.hash` 自动切 Tab 逻辑省去脚本点击)截图两轮——第一轮发现"应用自身代码(非 node_modules)"标签被 `.mb-name` 现有的 `overflow:hidden` 截断,缩短成"应用自身代码"后二次截图确认不再截断、六行条形与 KB 数值渲染正确。674 测试全过,`perf:dashboard` 覆盖率仍 28/35(D2 是展示层,不新增/不改变已采集指标)。
 
 **A5 完成记录(2026-07-05)**:没有引入 `rollup-plugin-visualizer` 之类的新依赖——Rollup/Vite 的插件 API 本身就在 `generateBundle` 钩子里暴露了每个 chunk 的 `modules: Record<moduleId, {renderedLength}>`(每个源文件对该 chunk 贡献的字节数,tree-shake 后、压缩前),直接用这个数据自己写了一个 ~40 行的内联插件(`entryDepStatsPlugin`,在 `electron.vite.config.ts`)按 `node_modules/<pkg>` 前缀分组求和,零新依赖、零额外构建开销。`PULSE_CANVAS_PERF_ANALYZE=1` 门控(避免正常 build 也跑这个逻辑/落盘),`report.mjs` 的构建步骤默认带上这个环境变量,所以 `perf:report` 直接就有数据,`perf:bundle` 单独跑且没设这个变量时优雅跳过(不报错)。**口径决策**:没有把每个依赖做成 `bundle.entry_dep_kb.<pkg>` 这种动态命名的标量指标塞进 metrics.json/history 棘轮体系——那套体系是为固定 ID 的基线比较设计的,依赖集合会随拆分工作变化,硬塞进去不合适。改成结构化数据放在 `bundle-report.json` 的 `entryDepAttribution` 字段,体积 Tab(D2)直接读取渲染,不进 rule engine 告警。**实测结果**(1329KB 入口的真实构成):`react-dom` 131KB、`wouter` 13KB、`react` 9KB、`scheduler` 4KB、`use-sync-external-store` 2KB——所有 node_modules 依赖加起来才 ~160KB;**app 自己的代码占了 1090KB**,是压倒性的大头。这个数据直接推翻了"继续挑 node_modules 依赖懒加载"的思路——entry 里已经没剩多少第三方库可拆了,下一刀要往 app own code 内部去看(路由级代码分割),而不是 C8 这种挑单个文件的打法。
 
@@ -184,10 +186,7 @@
 - **做法**:dashboard 读 `perf/history/` 同机序列,每专项北极星画折线(SVG,复用现有调色板;冷/热启动分组两条线);数据点 hover 显示 commit,便于把拐点归因到具体 PR。≥2 点起画,不足显示现有占位。
 - **验收**:总览与各专项 Tab 出现趋势区;B1 合入后打字计数器/帧超率的下降拐点在图上可见并标注 commit。
 
-### D2 · 体积 Tab treemap 归因视图 〔S-M,依赖 A5〕
-- **目标**:回答"4.6MB 里谁最大"并跟踪拆分进度。
-- **做法**:用 A5 产出的 `bundle.entry_dep_kb.<dep>` 渲染占比条/嵌套矩形(自绘 SVG,禁外链脚本——页面需自包含);已拆出的依赖显示为"已迁出 entry"状态。
-- **验收**:体积 Tab 能看到 per-dep KB 与占比;B6 每拆一个依赖,该视图状态同步翻转。
+### ~~D2 · 体积 Tab treemap 归因视图〔S-M,依赖 A5〕~~ → 见上方「D2 完成记录」。
 
 ### D3 · 看板发布与托管 〔S-M,依赖 C1〕
 - **目标**:团队有固定 URL 消费最新看板,不依赖本地跑。

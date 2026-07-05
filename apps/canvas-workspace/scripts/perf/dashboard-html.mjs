@@ -182,6 +182,7 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
         ${unmeasuredBlock}
       </div>
       ${a.id === 'bundle' && bundleReport ? renderChunkBars(bundleReport) : ''}
+      ${a.id === 'bundle' ? renderEntryDepBars(bundleReport) : ''}
       <div class="card"><div class="next"><b>下一步</b>:${esc(a.next)}</div></div>
     </section>`;
   }).join('');
@@ -227,6 +228,32 @@ const renderChunkBars = (bundleReport) => {
       <span class="mb-val">${fmt(row.kb)}</span>
     </div>`).join('');
   return `<div class="card"><h2>Chunk 分布(KB raw)— entry 启动时全量 parse,其余按需</h2><div class="mini-bars">${rows}</div></div>`;
+};
+
+// D2: per-dependency breakdown of the entry chunk (A5's entryDepAttribution).
+// Reuses the same proportional-bar visual language as renderChunkBars above
+// (no external chart lib) rather than a true nested-rectangle treemap —
+// dependency counts here are small (single digits), so a sorted bar list
+// reads just as clearly and stays consistent with the rest of the tab.
+const renderEntryDepBars = (bundleReport) => {
+  const attribution = bundleReport?.entryDepAttribution;
+  if (!attribution) {
+    return `<div class="card"><h2>Entry 依赖归因(A5)</h2>
+      <div class="muted">未建 — 用 <code>PULSE_CANVAS_PERF_ANALYZE=1 pnpm build</code>
+      (或直接 <code>perf:report</code>,已默认带上)重新构建即可采集。</div></div>`;
+  }
+  const rows = [
+    { name: '应用自身代码', kb: attribution.appOwnKB, self: true },
+    ...attribution.deps.map((d) => ({ name: d.pkg, kb: d.rawKB, self: false })),
+  ];
+  const max = Math.max(...rows.map((r) => r.kb), 1);
+  const bars = rows.map((row) => `<div class="mb-row">
+      <span class="mb-name">${esc(row.name)}${row.self ? '<span class="tag">app</span>' : ''}</span>
+      <div class="mb-track"><div class="mb-fill${row.self ? ' strong' : ''}" style="width:${Math.max(1, Math.round((row.kb / max) * 100))}%"></div></div>
+      <span class="mb-val">${fmt(row.kb)}</span>
+    </div>`).join('');
+  return `<div class="card"><h2>Entry 依赖归因(KB,tree-shake 后/压缩前)— ${esc(attribution.chunkFileName)}</h2>
+    <div class="mini-bars">${bars}</div></div>`;
 };
 
 const css = () => `
