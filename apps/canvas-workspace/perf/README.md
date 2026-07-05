@@ -36,9 +36,15 @@ pnpm --filter canvas-workspace perf:dashboard
 
 Normalizes whatever reports exist in `out/` into the recording schema
 (`out/metrics-latest.json`, plus an append to `history/` for per-machine
-trends), then renders the six-aspect tabbed dashboard to `out/dashboard.html`.
+trends), runs the rule engine, and emits two artifacts: `out/dashboard.html`
+for humans and `out/report.json` (verdict + alerts + metrics) for agents.
 Metric definitions come from `metrics.json`; metrics without values render as
 未建/已埋待采 so coverage gaps stay visible.
+
+Coding agents consume this via the `perf-report` runtime skill
+(`.pulse-coder/skills/perf-report/SKILL.md`): run the pipeline, read
+`report.json`, summarize verdict/alerts, and pin the dashboard to the canvas
+with `artifact_create` + `artifact_pin_to_canvas`.
 
 Scenarios drive input via CDP and read `window.__pulsePerf`:
 

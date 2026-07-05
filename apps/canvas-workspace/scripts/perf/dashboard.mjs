@@ -50,5 +50,19 @@ writeFileSync(
   renderDashboardHtml(dictionary, snapshot, bundleReport, ruleResult, verdict),
 );
 
-console.log(`[perf:dashboard] ${snapshot.metrics.length}/${dictionary.metrics.length} metrics, ${ruleResult.alerts.length} alerts → perf/out/dashboard.html`);
+// Machine-consumable contract (agents/skills read this single file):
+// verdict + alerts + metric values, plus where the human-facing HTML lives.
+writeFileSync(join(outDir, 'report.json'), JSON.stringify({
+  verdict,
+  commit: snapshot.commit,
+  timestamp: snapshot.timestamp,
+  machineId: snapshot.machineId,
+  env: snapshot.env,
+  coverage: { measured: snapshot.metrics.length, total: dictionary.metrics.length },
+  alerts: ruleResult.alerts,
+  metrics: snapshot.metrics,
+  dashboardHtml: 'perf/out/dashboard.html',
+}, null, 2));
+
+console.log(`[perf:dashboard] ${snapshot.metrics.length}/${dictionary.metrics.length} metrics, ${ruleResult.alerts.length} alerts → perf/out/dashboard.html + report.json`);
 console.log(`[perf:dashboard] verdict: ${verdict}`);
