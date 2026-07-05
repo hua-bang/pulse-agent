@@ -251,7 +251,8 @@ export async function sendImageMessage(
     try {
       return await replyMessage(replyToMessageId, 'image', content);
     } catch (err) {
-      console.error('[feishu] Failed to reply image message, falling back to create:', err);
+      console.error('[feishu] Failed to reply image message:', err);
+      throw err;
     }
   }
 
@@ -338,7 +339,8 @@ export async function sendTextMessage(
     try {
       return await replyMessage(replyToMessageId, 'text', content);
     } catch (err) {
-      console.error('[feishu] Failed to reply text message, falling back to create:', err);
+      console.error('[feishu] Failed to reply text message:', err);
+      throw err;
     }
   }
 
@@ -373,7 +375,8 @@ export async function sendCardMessage(
     try {
       return await replyMessage(replyToMessageId, 'interactive', content);
     } catch (err) {
-      console.error('[feishu] Failed to reply card message, falling back to create:', err);
+      console.error('[feishu] Failed to reply card message:', err);
+      throw err;
     }
   }
 

@@ -84,11 +84,15 @@ export class FeishuAdapter implements PlatformAdapter {
       streamId: action.syntheticStreamId,
     };
 
-    this.chatMetaByPlatformKey.set(action.platformKey, {
+    const actionMeta: FeishuChatMeta = {
       chatId: action.replyTarget.chatId,
       chatIdType: action.replyTarget.chatIdType,
+      sourceMessageId: action.replyTarget.sourceMessageId,
       allowReaction: false,
-    });
+    };
+    this.chatMetaByPlatformKey.set(action.platformKey, actionMeta);
+    this.chatMetaByStreamId.set(action.syntheticStreamId, actionMeta);
+    pruneMap(this.chatMetaByStreamId, 500);
 
     if (action.command === 'retry') {
       dispatchIncoming(this, incoming);
@@ -107,6 +111,7 @@ export class FeishuAdapter implements PlatformAdapter {
       target.chatId,
       target.chatIdType,
       text,
+      target.chatIdType === 'chat_id' && target.sourceMessageId ? { replyToMessageId: target.sourceMessageId } : undefined,
     ).catch((err) => {
       console.error('[feishu] Failed to send card action text:', getErrorMessage(err));
     });
@@ -123,6 +128,7 @@ export class FeishuAdapter implements PlatformAdapter {
       target.chatId,
       target.chatIdType,
       result.message,
+      target.chatIdType === 'chat_id' && target.sourceMessageId ? { replyToMessageId: target.sourceMessageId } : undefined,
     ).catch((err) => {
       console.error('[feishu] Failed to send card action result:', getErrorMessage(err));
     });
@@ -709,6 +715,7 @@ interface RunCardAction {
   replyTarget: {
     chatId: string;
     chatIdType: 'open_id' | 'chat_id';
+    sourceMessageId?: string;
   };
 }
 
@@ -765,19 +772,19 @@ function parseRunCardAction(data: unknown): RunCardAction | null {
   const chatId = asNonEmptyString(event.context?.open_chat_id)
     ?? asNonEmptyString(event.context?.chat_id);
   const parsedPlatformKey = parseFeishuPlatformKey(platformKey);
+  const cardMessageId = event.open_message_id
+    ?? event.message_id
+    ?? event.context?.open_message_id
+    ?? event.context?.message_id;
   const replyTarget = parsedPlatformKey?.kind === 'group'
-    ? { chatId: chatId ?? parsedPlatformKey.chatId, chatIdType: 'chat_id' as const }
-    : { chatId: asNonEmptyString(openId) ?? parsedPlatformKey?.openId ?? '', chatIdType: 'open_id' as const };
+    ? { chatId: chatId ?? parsedPlatformKey.chatId, chatIdType: 'chat_id' as const, sourceMessageId: cardMessageId }
+    : { chatId: asNonEmptyString(openId) ?? parsedPlatformKey?.openId ?? '', chatIdType: 'open_id' as const, sourceMessageId: cardMessageId };
 
   if (!replyTarget.chatId) {
     return null;
   }
 
-  const cardMessageId = event.open_message_id
-    ?? event.message_id
-    ?? event.context?.open_message_id
-    ?? event.context?.message_id
-    ?? 'card';
+  const actionMessageId = cardMessageId ?? 'card';
   const streamId = asNonEmptyString(value.streamId);
   const runId = asNonEmptyString(value.runId);
 
@@ -788,7 +795,7 @@ function parseRunCardAction(data: unknown): RunCardAction | null {
     streamId: streamId ?? undefined,
     runId: runId ?? undefined,
     prompt: asNonEmptyString(value.prompt) ?? undefined,
-    syntheticStreamId: `feishu-card:${cardMessageId}:${actorId ?? 'unknown'}:${command}:${streamId ?? runId ?? Date.now()}`,
+    syntheticStreamId: `feishu-card:${actionMessageId}:${actorId ?? 'unknown'}:${command}:${streamId ?? runId ?? Date.now()}`,
     replyTarget,
   };
 }

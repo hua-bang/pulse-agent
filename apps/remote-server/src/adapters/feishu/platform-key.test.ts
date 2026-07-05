@@ -26,7 +26,16 @@ describe('Feishu platform keys', () => {
     })).toBe('om_first_prompt');
   });
 
-  it('keeps replies scoped to their root topic', () => {
+  it('prefers Feishu thread ids over root or parent message ids', () => {
+    expect(resolveFeishuTopicId({
+      message_id: 'om_reply',
+      thread_id: 'omt_topic',
+      root_id: 'om_root_prompt',
+      parent_id: 'om_parent_reply',
+    })).toBe('omt_topic');
+  });
+
+  it('keeps classic replies scoped to their root topic', () => {
     expect(resolveFeishuTopicId({
       message_id: 'om_reply',
       root_id: 'om_root_prompt',
