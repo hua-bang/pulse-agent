@@ -67,7 +67,8 @@
     { "id": "interact.drag.frames_over20_pct", "aspect": "interact", "label": "拖拽 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "interact.drag.counter.nodes_array_replace", "aspect": "interact", "label": "拖拽 整数组替换次数(A2 守卫)", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "interact.drag.counter.canvas_save_ipc", "aspect": "interact", "label": "拖拽 保存 IPC 次数", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
-    { "id": "interact.panzoom.inp_p95_ms", "aspect": "interact", "label": "平移/缩放 INP p95", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": false },
+    { "id": "interact.panzoom.inp_p95_ms", "aspect": "interact", "label": "平移/缩放 INP p95(结构性恒为 0,见 A4 说明)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
+    { "id": "interact.panzoom.frames_over20_pct", "aspect": "interact", "label": "平移/缩放 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
 
     { "id": "bundle.entry_raw_kb", "aspect": "bundle", "label": "入口 chunk raw(目标 ≤1,500)", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "bundle.entry_gzip_kb", "aspect": "bundle", "label": "入口 chunk gzip", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true },

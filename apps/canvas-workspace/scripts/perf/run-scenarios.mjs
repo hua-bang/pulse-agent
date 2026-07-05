@@ -43,7 +43,7 @@ const readFlag = (name) => {
   return idx >= 0 ? args[idx + 1] : undefined;
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
-const only = (readFlag('--scenario') ?? 'startup,typing,drag,ws-cycle').split(',');
+const only = (readFlag('--scenario') ?? 'startup,typing,drag,panzoom,ws-cycle').split(',');
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -121,6 +121,36 @@ const hittablePointIn = async (cdp, selector) =>
 
 const mouse = (cdp, type, x, y, extra = {}) =>
   cdp.send('Input.dispatchMouseEvent', { type, x: Math.round(x), y: Math.round(y), ...extra });
+
+// Mirrors useCanvasContextMenu's isBlankCanvasTarget selector list — a wheel
+// dispatched over a node (e.g. a file node's ProseMirror editor) gets
+// consumed by that node's own scroll handling and never reaches the
+// canvas-level pan/zoom handler, so panzoomScenario needs a point that is
+// genuinely NOT covered by any node/chrome (viewport corners, away from the
+// seeded node grid which clusters near center).
+const findBlankCanvasPoint = async (cdp) => {
+  // A fit-to-view layout (e.g. after seedExtraNodes reloads) can zoom out
+  // far enough that a handful of fixed corner guesses all land on some
+  // node — dense grids leave only thin, unpredictable gaps. Scan a real
+  // grid across the viewport (in-page, one round trip) instead of guessing
+  // a few fixed points.
+  const point = await evaluate(cdp, `(() => {
+    const blockedSel = '.canvas-node, .canvas-empty-hint, .canvas-fullscreen-chip, .canvas-bottom-chrome, '
+      + '.floating-toolbar, .zoom-indicator, .context-menu, .canvas-edges, '
+      + '.canvas-connect-overlay, .canvas-shape-overlay, .edge-style-panel, .sidebar';
+    for (let fy = 0.1; fy <= 0.9; fy += 0.08) {
+      for (let fx = 0.1; fx <= 0.9; fx += 0.06) {
+        const x = Math.round(innerWidth * fx);
+        const y = Math.round(innerHeight * fy);
+        const el = document.elementFromPoint(x, y);
+        if (!el?.closest(blockedSel)) return { x, y };
+      }
+    }
+    return null;
+  })()`);
+  if (!point) throw new Error('no blank canvas point found across a full viewport grid scan');
+  return point;
+};
 
 /** Wait until the renderer main thread stops long-stalling (two calm rAF probes). */
 const waitForCalmFrames = async (cdp, timeoutMs = 30_000) => {
@@ -258,6 +288,43 @@ const dragScenario = async (cdp, repeatCount = 1) => {
     }
   }
   return { moves, report: aggregateReports(reports) };
+};
+
+// A4: pan (plain wheel — the app treats unmodified wheel deltas as a direct
+// transform translate, see useCanvas.ts handleWheel) and zoom (ctrl+wheel —
+// modifiers bit 2 = Ctrl in the CDP Input domain) over a genuinely blank
+// canvas point (found via findBlankCanvasPoint — a wheel dispatched over a
+// node gets consumed by that node's own scroll/webview handling and never
+// reaches the canvas-level handler). Guards the interact aspect's panzoom
+// north star; no counter guard (pan/zoom never touch the nodes array).
+// interactions.p95 (INP) structurally reads 0 here — wheel/scroll isn't in
+// the Event Timing API's discrete-interaction set — so frames.over20msPct
+// is the metric that actually carries signal for this scenario.
+const panzoomScenario = async (cdp, repeatCount = 1) => {
+  const point = await findBlankCanvasPoint(cdp);
+  const reports = [];
+  for (let run = 0; run < repeatCount; run++) {
+    await waitForCalmFrames(cdp);
+    await beginPerf(cdp, 'panzoom');
+    for (let i = 0; i < 30; i++) {
+      await cdp.send('Input.dispatchMouseEvent', {
+        type: 'mouseWheel', x: point.x, y: point.y, deltaX: 6, deltaY: 4,
+      });
+      await sleep(16);
+    }
+    // Alternate zoom-in/zoom-out so repeated runs don't drift the scale
+    // into its clamp (which would make later repeats measure less work).
+    for (let i = 0; i < 20; i++) {
+      await cdp.send('Input.dispatchMouseEvent', {
+        type: 'mouseWheel', x: point.x, y: point.y,
+        deltaX: 0, deltaY: i % 2 === 0 ? -20 : 20, modifiers: 2,
+      });
+      await sleep(16);
+    }
+    await sleep(300);
+    reports.push(await endPerf(cdp));
+  }
+  return { report: aggregateReports(reports) };
 };
 
 // Memory-retention scenario (H1 guard): seed K workspaces, visit them one by
@@ -401,8 +468,9 @@ const main = async () => {
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
     if (only.includes('typing')) scenarios.typing = await typingScenario(cdp, repeat);
     if (only.includes('drag')) scenarios.drag = await dragScenario(cdp, repeat);
+    if (only.includes('panzoom')) scenarios.panzoom = await panzoomScenario(cdp, repeat);
     // ws-cycle runs last — it seeds extra workspaces and reloads, so it must
-    // not disturb the single-workspace typing/drag scenarios above.
+    // not disturb the single-workspace typing/drag/panzoom scenarios above.
     if (only.includes('ws-cycle')) scenarios['ws-cycle'] = await wsCycleScenario(cdp);
   });
 
@@ -446,7 +514,7 @@ const main = async () => {
   if (scenarios.startup?.mainPhases) {
     console.log('[perf:scenarios] startup phases (ms):', JSON.stringify(scenarios.startup.mainPhases));
   }
-  for (const name of ['typing', 'drag']) {
+  for (const name of ['typing', 'drag', 'panzoom']) {
     const entry = scenarios[name];
     if (!entry) continue;
     const r = entry.report;

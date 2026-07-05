@@ -75,6 +75,7 @@ Scenarios drive input via CDP and read `window.__pulsePerf`:
 | `startup` | parses the `[perf] startup` main-process phase line + renderer marks | informational |
 | `typing` | types 120 chars into the first file node | `nodes-array-replace` counter (finding I-1) |
 | `drag` | drags the first node header 90 steps | `nodes-array-replace` counter (finding A2) |
+| `panzoom` | pans (plain wheel) + zooms (ctrl+wheel) over blank canvas | informational (no nodes-array touch) |
 
 `--seed-nodes N` grows the welcome canvas to N nodes (text nodes, persisted +
 reload) so timing metrics reflect a loaded canvas.

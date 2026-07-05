@@ -27,9 +27,11 @@
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
-已完成任务:A1、A2、A3、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
+已完成任务:A1、A2、A3、A4、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
 部分完成:B2(仅 S 步)。
-未动任务:A4、A5、C2、D2、D3、D4、D5、D6。
+未动任务:A5、C2、D2、D3、D4、D5、D6。
+
+**A4 完成记录(2026-07-05)**:`run-scenarios.mjs` 新增 `panzoomScenario`——平移用无修饰键的 wheel(app 的 `useCanvas.ts handleWheel` 把无 ctrl/meta 的 wheel delta 直接当 transform 平移量),缩放用 ctrl+wheel(CDP Input 域 modifiers 位 2 = Ctrl)。**踩了一个坑**:100 节点场景下 seed 完会自动 fit-to-view,缩放到能塞下所有节点的比例——此时随手挑的 5 个角落候选点全部踩在某个节点/webview 上,wheel 事件被节点自己的滚动/webview 内部处理"吃掉"、根本到不了画布级 handler(用真实 CDP 会话确认:同样坐标下,直接对 `.canvas-container` 原生 dispatchEvent 能让 transform 变化,但走节点覆盖的坐标就不行)。改用真正的网格扫描(`findBlankCanvasPoint`,一次 evaluate 里扫 viewport 网格找 `elementFromPoint` 不落在任何 `.canvas-node`/webview/sidebar 上的点)才稳定找到空白区。**另一个诚实的发现**:wheel/scroll 事件不在 Event Timing API 的"离散交互"集合里(规范只认 pointerdown/up、click、keydown/up 等),所以 `interactions.p95`(INP)对纯 wheel 手势**结构性恒为 0**——不是 bug,是这个指标定义本身对这类交互不适用。已经把 `interact.panzoom.inp_p95_ms` 降级为 record 级(不再是 warn)并如实写了原因,新增 `interact.panzoom.frames_over20_pct`(warn 级)作为这个场景真正有信号的指标——实测帧超率在首次手势后能稳定捕捉到非零值(受 JIT/首次布局的冷启动影响,首个 repeat 明显更高,和 typing/drag 已有的模式一致)。覆盖率 26→28/35。674 测试全过。
 
 **B2 完成记录(2026-07-05,仅 S 步,M 步有意延后)**:`ImageNodeBody` 的 `<img>` 补了 `decoding="async"`(避免大图解码阻塞主线程)+ `loading="lazy"`(画布节点靠 CSS transform 定位而非虚拟滚动,`getBoundingClientRect` 会正确反映 pan 后的真实屏幕位置,浏览器原生的视口判定对此有效——不需要自建视口裁剪就能让离屏图片延后加载)。真实 CDP 会话验证:图片正常渲染(`complete:true`,natural 尺寸正确,无 error 状态),截图确认视觉无异常。**M 步(生成缩略图 sidecar、放大才读原图)有意没做**——原因:临近本轮收尾/合并,M 步要动主进程新写文件管道(`nativeImage.resize` + sidecar 生命周期:创建、图片替换时失效、sidecar 缺失兜底),属于更大的改动面和更高的正确性风险(错了会有陈旧缩略图/竞态问题),不适合在准备合并的节点仓促下手。研究阶段已确认技术可行(`nativeImage` 已被 `file.copyImage` 用过,全屏/lightbox 入口已存在),留给下一轮任务,`memory.image.decoded_mb` 指标待那时一起建。
 
@@ -61,7 +63,7 @@
 7. **B2 · 图片解码/缩略图** — S 步已完成(见上方「B2 完成记录」),**M 步(缩略图 sidecar)待认领**:生成节点尺寸缩略图 + 全屏才读原图 + `memory.image.decoded_mb` 指标,预估收益一个数量级(round3 估算),需要新写主进程文件管道,建议单独一个 PR 做,不要和临近合并的改动混在一起。
 
 **P2 · 测量补全(填剩余 6 个未建指标中的 4 个)**
-8. **A4 · pan/zoom 场景** → `interact.panzoom.inp_p95_ms`。
+8. ~~**A4 · pan/zoom 场景**~~ → 见下方「A4 完成记录」。
 9. **M1(新)· welcome webview 指标**:B5 修复已上线但 `startup.welcome_webview_ms` 未建;在 useDeferredVisibleMount 挂载点补一个 mark,证明其保持在关键路径外。
 10. **M2(新)· RSS 隔离**:`memory.n100.total_rss_mb` 目前是跨窗口 run-peak(含 ws-cycle 5 workspace,c296930 已注明);把采样窗口限定到 100 节点单 workspace 段,或拆独立场景。
 11. **A5 · treemap 归因**(口径更新):入口目标已达成,用途改为守护剩余 1329KB 的构成 + 支撑 D2;顺带评估 **C8(i18n zh 文案 lazy)** 是否还值得做(预估收益需 A5 数据说话)。

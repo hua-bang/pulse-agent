@@ -142,6 +142,27 @@ export const collectMetrics = () => {
     }
   }
 
+  // A4: panzoom has no nodes-array-replace counter (pan/zoom never touch
+  // the nodes array), so it gets its own small push instead of joining the
+  // typing/drag counter loop above. Honest limitation: wheel/scroll events
+  // are not part of the Event Timing API's discrete-interaction set (per
+  // spec — only pointerdown/up, click, keydown/up, etc. get an
+  // interactionId), so inp_p95_ms structurally reads 0 for a wheel-driven
+  // gesture regardless of real cost — it's recorded (not gated) for that
+  // reason. frames_over20_pct is the metric that actually carries signal
+  // here (rAF frame-delta tracking, independent of interactionId).
+  const panzoomReport = scenarios?.scenarios?.panzoom?.report;
+  if (panzoomReport) {
+    const panzoomExtra = panzoomReport.runs > 1
+      ? { runs: panzoomReport.runs, raw: panzoomReport.raw?.interactionsP95 }
+      : {};
+    const panzoomFrameExtra = panzoomReport.runs > 1
+      ? { runs: panzoomReport.runs, raw: panzoomReport.raw?.framesOver20Pct }
+      : {};
+    push('interact.panzoom.inp_p95_ms', panzoomReport.interactions.p95, panzoomExtra);
+    push('interact.panzoom.frames_over20_pct', panzoomReport.frames.over20msPct, panzoomFrameExtra);
+  }
+
   let commit = 'unknown';
   try {
     commit = execSync('git rev-parse --short HEAD', { cwd: appRoot, encoding: 'utf-8' }).trim();

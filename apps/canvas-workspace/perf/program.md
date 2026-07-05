@@ -34,7 +34,7 @@
 | `startup.renderer.entry_eval_ms` | entry chunk V8 compile+eval(CDP tracing) | ms | 同机 | record | ○ 定期一次 |
 | `startup.welcome_webview_ms` | 开窗 → welcome webview did-finish-load(D1) | ms | 同机 | record | ○ |
 
-### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `drag`✅ `panzoom`○ `mindmap_drag`○)
+### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
 
 | 指标 ID | 定义(口径) | 单位 | 可比性 | 等级 | 状态 |
 |---|---|---|---|---|---|
