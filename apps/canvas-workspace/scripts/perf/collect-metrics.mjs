@@ -59,6 +59,14 @@ export const collectMetrics = () => {
     push('startup.renderer.fcp_ms', Math.round(paint['first-contentful-paint']));
   }
 
+  const wsc = scenarios?.scenarios?.['ws-cycle'];
+  if (wsc) {
+    push('memory.ws_cycle.heap_slope', wsc.heapSlopeMB, {
+      detail: `${wsc.workspaces} workspaces · heap ${wsc.heapsMB?.join(' → ')} MB`,
+    });
+    push('memory.ws_cycle.peak_heap_mb', wsc.peakHeapMB);
+  }
+
   for (const name of ['typing', 'drag']) {
     const report = scenarios?.scenarios?.[name]?.report;
     if (!report) continue;

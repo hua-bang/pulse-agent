@@ -34,7 +34,7 @@ const readFlag = (name) => {
   return idx >= 0 ? args[idx + 1] : undefined;
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
-const only = (readFlag('--scenario') ?? 'startup,typing,drag').split(',');
+const only = (readFlag('--scenario') ?? 'startup,typing,drag,ws-cycle').split(',');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -101,6 +101,32 @@ const clickAt = async (cdp, x, y, clickCount = 1) => {
 const beginPerf = (cdp, name) => evaluate(cdp, `window.__pulsePerf.begin(${JSON.stringify(name)})`);
 const endPerf = (cdp) => evaluate(cdp, `JSON.stringify(window.__pulsePerf.end())`).then(JSON.parse);
 
+// Force GC twice (V8 needs a second pass to reclaim recently-freed graphs),
+// then read the retained JS heap via CDP — Runtime.getHeapUsage is precise,
+// unlike the quantized renderer-side performance.memory. Basis for the slope.
+const sampleHeapMB = async (cdp) => {
+  await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
+  await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
+  await sleep(150);
+  const usage = await cdp.send('Runtime.getHeapUsage').catch(() => null);
+  return usage ? Math.round((usage.usedSize / 1048576) * 10) / 10 : 0;
+};
+
+/** Least-squares slope of ys over x = 0..n-1. */
+const slope = (ys) => {
+  const n = ys.length;
+  if (n < 2) return 0;
+  const xMean = (n - 1) / 2;
+  const yMean = ys.reduce((a, b) => a + b, 0) / n;
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    num += (i - xMean) * (ys[i] - yMean);
+    den += (i - xMean) ** 2;
+  }
+  return den === 0 ? 0 : Math.round((num / den) * 10) / 10;
+};
+
 // ── scenarios ────────────────────────────────────────────────────────────────
 
 const startupScenario = async (cdp, session) => {
@@ -163,6 +189,72 @@ const dragScenario = async (cdp) => {
   await sleep(300);
   const report = await endPerf(cdp);
   return { moves, report };
+};
+
+// Memory-retention scenario (H1 guard): seed K workspaces, visit them one by
+// one, and after each visit force GC and sample the retained JS heap. The
+// slope (MB per additional distinct workspace kept mounted) is the north-star
+// for the memory aspect — with H1 present it is clearly positive; once B8's
+// LRU eviction lands it flattens toward ~0.
+const wsCycleScenario = async (cdp) => {
+  const K = 5;
+  const nodesPer = 30;
+  // Seed K canvases + register them in the manifest, then reload so the
+  // sidebar renders them.
+  await evaluate(cdp, `(async () => {
+    const store = window.canvasWorkspace.store;
+    const now = Date.now();
+    const mk = (wsId) => {
+      const nodes = [];
+      for (let i = 0; i < ${nodesPer}; i++) {
+        nodes.push({
+          id: wsId + '-n' + i, type: 'text', title: 'n' + i,
+          x: (i % 6) * 240, y: Math.floor(i / 6) * 160, width: 200, height: 120,
+          updatedAt: now, data: { text: 'retain probe ' + wsId + ' ' + i },
+        });
+      }
+      return { nodes, edges: [], savedAt: new Date().toISOString() };
+    };
+    const manifest = await store.load('__workspaces__');
+    const data = manifest.data ?? { workspaces: [], folders: [] };
+    for (let k = 1; k <= ${K}; k++) {
+      const wsId = 'ws-perf-' + k;
+      await store.save(wsId, mk(wsId));
+      if (!data.workspaces.some((w) => w.id === wsId)) {
+        data.workspaces.push({ id: wsId, name: 'perf ' + k });
+      }
+    }
+    await store.save('__workspaces__', data);
+  })()`);
+  await evaluate(cdp, 'location.reload()').catch(() => {});
+  for (let i = 0; i < 60; i++) {
+    await sleep(500);
+    const entries = await evaluate(cdp, `window.__pulsePerf && document.querySelectorAll('.sidebar-workspace-entry').length`).catch(() => 0);
+    if (entries >= K + 1) break;
+  }
+  await waitForCalmFrames(cdp);
+
+  const heaps = [await sampleHeapMB(cdp)]; // baseline: only the default workspace mounted
+  const entryCount = await evaluate(cdp, `document.querySelectorAll('.sidebar-workspace-entry').length`);
+  for (let n = 1; n < entryCount; n++) {
+    const point = await evaluate(cdp, `(() => {
+      const el = document.querySelectorAll('.sidebar-workspace-entry')[${n}];
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    })()`);
+    if (!point) break;
+    await clickAt(cdp, point.x, point.y);
+    await waitForCalmFrames(cdp);
+    await sleep(400);
+    heaps.push(await sampleHeapMB(cdp));
+  }
+  return {
+    workspaces: entryCount - 1,
+    heapsMB: heaps,
+    heapSlopeMB: slope(heaps),
+    peakHeapMB: Math.max(...heaps),
+  };
 };
 
 // Seed extra text nodes into the active workspace and reload so the canvas
@@ -240,6 +332,9 @@ const main = async () => {
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
     if (only.includes('typing')) scenarios.typing = await typingScenario(cdp);
     if (only.includes('drag')) scenarios.drag = await dragScenario(cdp);
+    // ws-cycle runs last — it seeds extra workspaces and reloads, so it must
+    // not disturb the single-workspace typing/drag scenarios above.
+    if (only.includes('ws-cycle')) scenarios['ws-cycle'] = await wsCycleScenario(cdp);
   });
 
   const gateResults = compareCounterGates(baselines, scenarios);
@@ -264,6 +359,13 @@ const main = async () => {
       `[perf:scenarios] ${name}: counters=${JSON.stringify(r.counters)} `
       + `INPp95=${r.interactions.p95}ms frames>20ms=${r.frames.over20msPct}% `
       + `LoAF=${r.longAnimationFrames.count}/${r.longAnimationFrames.blockingMs}ms`,
+    );
+  }
+  const wsc = scenarios['ws-cycle'];
+  if (wsc) {
+    console.log(
+      `[perf:scenarios] ws-cycle: ${wsc.workspaces} workspaces, heap ${JSON.stringify(wsc.heapsMB)} MB, `
+      + `slope=${wsc.heapSlopeMB} MB/ws, peak=${wsc.peakHeapMB} MB`,
     );
   }
   for (const gate of gateResults) {
