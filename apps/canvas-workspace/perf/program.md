@@ -56,7 +56,7 @@
 | `bundle.chunk_count` | JS chunk 数 | 个 | 全局 | record | ✅ 51 |
 | `bundle.lazy_boundary_watchlist` | WATCHLIST 包保持动态加载(静态 import-graph) | bool | 全局 | **gate** | ✅ mermaid |
 | `bundle.heavy_in_entry` | 重依赖探针命中集(xterm/tiptap/hljs/d3/MF) | 集合 | 全局 | record | ✅ 5/6 在 entry |
-| `bundle.entry_dep_kb.<dep>` | entry 内各重依赖归因体积(treemap) | KB | 全局 | record | ○ M1 |
+| entry 内依赖归因 | Rollup 每依赖渲染字节(A5,`entryDepStatsPlugin` opt-in via `PULSE_CANVAS_PERF_ANALYZE=1`);非固定 ID 的标量指标,不进 metrics.json/history 棘轮体系——结构化数据在 `bundle-report.json` 的 `entryDepAttribution` 字段,体积 Tab(D2)直接读取渲染 | KB | 全局 | record(展示,不进 rule engine) | ✅ 已建 |
 
 ### ④ 内存驻留(采集:`__pulsePerf` JS 堆 + `app.getAppMetrics()`;核心是斜率不是单点)
 
@@ -114,7 +114,7 @@
 
 ## 4. 路线图
 
-- **M1(填空格)**:④ 切换循环+堆斜率 → ⑤ loop-delay+写字节 → ② repeat+panzoom → ③ treemap → `perf:all` 一键全跑。
+- **M1(填空格)**:④ 切换循环+堆斜率 ✅ → ⑤ loop-delay+写字节 ✅ → ② repeat+panzoom ✅ → ③ treemap ✅ → `perf:all` 一键全跑 ✅(即 `perf:report`)。M1 已全部填完。
 - **M2(门禁化)**:history/趋势上看板 → 时间指标按铁律 2 升级 → CI workflow(补 `harness/validate/validation.yaml` runner 缺口)→ soak 进 nightly。
 - **M3(修复联动)**:修 I-1/J-1/J-2/K-1/H1 并下调基线 → chat 回放入口(评审后)→ 终端流式(解 node-pty Electron ABI)。
 

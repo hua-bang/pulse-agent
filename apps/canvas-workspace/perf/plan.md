@@ -27,9 +27,11 @@
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
-已完成任务:A1、A2、A3、A4、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
+已完成任务:A1、A2、A3、A4、A5、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
 部分完成:B2(仅 S 步)。
-未动任务:A5、C2、D2、D3、D4、D5、D6。
+未动任务:C2、D2、D3、D4、D5、D6。
+
+**A5 完成记录(2026-07-05)**:没有引入 `rollup-plugin-visualizer` 之类的新依赖——Rollup/Vite 的插件 API 本身就在 `generateBundle` 钩子里暴露了每个 chunk 的 `modules: Record<moduleId, {renderedLength}>`(每个源文件对该 chunk 贡献的字节数,tree-shake 后、压缩前),直接用这个数据自己写了一个 ~40 行的内联插件(`entryDepStatsPlugin`,在 `electron.vite.config.ts`)按 `node_modules/<pkg>` 前缀分组求和,零新依赖、零额外构建开销。`PULSE_CANVAS_PERF_ANALYZE=1` 门控(避免正常 build 也跑这个逻辑/落盘),`report.mjs` 的构建步骤默认带上这个环境变量,所以 `perf:report` 直接就有数据,`perf:bundle` 单独跑且没设这个变量时优雅跳过(不报错)。**口径决策**:没有把每个依赖做成 `bundle.entry_dep_kb.<pkg>` 这种动态命名的标量指标塞进 metrics.json/history 棘轮体系——那套体系是为固定 ID 的基线比较设计的,依赖集合会随拆分工作变化,硬塞进去不合适。改成结构化数据放在 `bundle-report.json` 的 `entryDepAttribution` 字段,体积 Tab(D2)直接读取渲染,不进 rule engine 告警。**实测结果**(1329KB 入口的真实构成):`react-dom` 131KB、`wouter` 13KB、`react` 9KB、`scheduler` 4KB、`use-sync-external-store` 2KB——所有 node_modules 依赖加起来才 ~160KB;**app 自己的代码占了 1090KB**,是压倒性的大头。这个数据直接推翻了"继续挑 node_modules 依赖懒加载"的思路——entry 里已经没剩多少第三方库可拆了,下一刀要往 app own code 内部去看(路由级代码分割),而不是 C8 这种挑单个文件的打法。
 
 **A4 完成记录(2026-07-05)**:`run-scenarios.mjs` 新增 `panzoomScenario`——平移用无修饰键的 wheel(app 的 `useCanvas.ts handleWheel` 把无 ctrl/meta 的 wheel delta 直接当 transform 平移量),缩放用 ctrl+wheel(CDP Input 域 modifiers 位 2 = Ctrl)。**踩了一个坑**:100 节点场景下 seed 完会自动 fit-to-view,缩放到能塞下所有节点的比例——此时随手挑的 5 个角落候选点全部踩在某个节点/webview 上,wheel 事件被节点自己的滚动/webview 内部处理"吃掉"、根本到不了画布级 handler(用真实 CDP 会话确认:同样坐标下,直接对 `.canvas-container` 原生 dispatchEvent 能让 transform 变化,但走节点覆盖的坐标就不行)。改用真正的网格扫描(`findBlankCanvasPoint`,一次 evaluate 里扫 viewport 网格找 `elementFromPoint` 不落在任何 `.canvas-node`/webview/sidebar 上的点)才稳定找到空白区。**另一个诚实的发现**:wheel/scroll 事件不在 Event Timing API 的"离散交互"集合里(规范只认 pointerdown/up、click、keydown/up 等),所以 `interactions.p95`(INP)对纯 wheel 手势**结构性恒为 0**——不是 bug,是这个指标定义本身对这类交互不适用。已经把 `interact.panzoom.inp_p95_ms` 降级为 record 级(不再是 warn)并如实写了原因,新增 `interact.panzoom.frames_over20_pct`(warn 级)作为这个场景真正有信号的指标——实测帧超率在首次手势后能稳定捕捉到非零值(受 JIT/首次布局的冷启动影响,首个 repeat 明显更高,和 typing/drag 已有的模式一致)。覆盖率 26→28/35。674 测试全过。
 
@@ -66,7 +68,7 @@
 8. ~~**A4 · pan/zoom 场景**~~ → 见下方「A4 完成记录」。
 9. **M1(新)· welcome webview 指标**:B5 修复已上线但 `startup.welcome_webview_ms` 未建;在 useDeferredVisibleMount 挂载点补一个 mark,证明其保持在关键路径外。
 10. **M2(新)· RSS 隔离**:`memory.n100.total_rss_mb` 目前是跨窗口 run-peak(含 ws-cycle 5 workspace,c296930 已注明);把采样窗口限定到 100 节点单 workspace 段,或拆独立场景。
-11. **A5 · treemap 归因**(口径更新):入口目标已达成,用途改为守护剩余 1329KB 的构成 + 支撑 D2;顺带评估 **C8(i18n zh 文案 lazy)** 是否还值得做(预估收益需 A5 数据说话)。
+11. ~~**A5 · treemap 归因**~~:见下方「A5 完成记录」。**C8 评估**(i18n zh 文案是否值得 lazy):A5 数据显示入口内 app own code 高达 1090KB(远超所有 node_modules 依赖总和 ~160KB),i18n 文案只是这 1090KB 里的一小部分——C8 单独做收益有限,真正的下一刀应该是分析 app own code 内部构成(路由级代码分割),而不是挑 i18n 一个文件下手。
 
 **P3 · 门禁升级与看板消费**
 12. **C2 · record→warn**(依赖 A3 + 同机历史 ≥5 次;注意:GitHub 共享 runner 机器不同机,时间指标升级只对本地/固定自托管机历史生效,CI 上永远 record)。

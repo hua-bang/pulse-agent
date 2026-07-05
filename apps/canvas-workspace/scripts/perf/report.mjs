@@ -111,7 +111,15 @@ let scenariosRan = false;
 // 1. Build (unless reusing a fresh dist).
 if (!noBuild || !distExists) {
   step('构建 renderer(--no-build 可跳过)');
-  const build = spawnSync('pnpm', ['run', 'build'], { cwd: appRoot, stdio: 'inherit' });
+  // A5: PULSE_CANVAS_PERF_ANALYZE=1 turns on entryDepStatsPlugin
+  // (electron.vite.config.ts) — reads Rollup's own per-chunk module stats,
+  // no extra build work, just an extra JSON write bundle-report.mjs picks
+  // up if present.
+  const build = spawnSync('pnpm', ['run', 'build'], {
+    cwd: appRoot,
+    stdio: 'inherit',
+    env: { ...process.env, PULSE_CANVAS_PERF_ANALYZE: '1' },
+  });
   if (build.status !== 0) {
     console.error('[perf:report] build failed — aborting.');
     process.exit(2);

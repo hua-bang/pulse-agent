@@ -40,6 +40,15 @@ compares against `baselines.json → bundle`, writes `out/bundle-report.{json,ht
 Exit 1 on regression. The static companion gate `src/main/__tests__/bundle-boundaries.test.ts`
 runs with the normal test suite and keeps mermaid dynamic-only.
 
+**A5 · per-dependency attribution**: `PULSE_CANVAS_PERF_ANALYZE=1 pnpm build`
+turns on `entryDepStatsPlugin` (electron.vite.config.ts) — reads Rollup's own
+per-chunk module render-size stats (no new dependency, no extra build cost)
+and writes `out/entry-dep-stats.json`. `perf:bundle` picks it up automatically
+if present and adds `entryDepAttribution` (per-package KB + app's own code) to
+`bundle-report.json`; `perf:report` always sets the env var, so a normal
+`perf:report` run has this by default. Missing the file (e.g. `perf:bundle`
+run standalone without the flag) just omits the section — no error.
+
 ## Runtime scenarios (drives the real app)
 
 ```bash
