@@ -7,7 +7,9 @@ import { NodeMentionPicker } from '../NodeMentionPicker';
 import { useAppShell } from '../AppShellProvider';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { useTextareaMention } from '../../hooks/useTextareaMention';
+import { useWorkspaceActive } from '../../hooks/useWorkspaceActive';
 import { isImeComposing } from '../../utils/ime';
+import { count } from '../../perf/counters';
 import type {
   AgentNodeData,
   AgentTeamAgentRecord,
@@ -303,6 +305,7 @@ export const AgentTeamFrame = ({
 }: AgentTeamFrameProps) => {
   const data = node.data as FrameNodeData;
   const teamId = data.agentTeamId;
+  const workspaceActive = useWorkspaceActive();
   const [snapshot, setSnapshot] = useState<AgentTeamSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [teamAction, setTeamAction] = useState<'pause' | 'resume' | 'delete' | 'dispatch' | null>(null);
@@ -880,14 +883,21 @@ export const AgentTeamFrame = ({
   }, [api, workspaceId, teamId]);
 
   useEffect(() => {
+    // B3: pause while this workspace is backgrounded (keep-alive, display:
+    // none) — the main-process heartbeat advances the team independently of
+    // this poll, and onExternalUpdate below is the primary push path anyway.
+    // Re-running on re-show fires an immediate refresh via the call below.
+    if (!workspaceActive) return undefined;
+    count('agent-team-frame-poll');
     void refresh();
     // Push (onExternalUpdate below) is the primary update path; the poll is a
     // fallback only, so it can be slow.
     const timer = setInterval(() => {
+      count('agent-team-frame-poll');
       void refresh();
     }, 15000);
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, workspaceActive]);
 
   // Team activity is pushed from the main process (debounced runtime events
   // broadcast as agent-teams canvas updates); refresh immediately instead of

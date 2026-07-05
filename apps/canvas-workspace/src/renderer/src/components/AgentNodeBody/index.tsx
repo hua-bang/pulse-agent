@@ -8,6 +8,8 @@ import { AgentTerminal } from './AgentTerminal';
 import type { AgentTeamEventRecord, AgentTeamSnapshot } from '../../types';
 import type { AgentNodeBodyProps } from './types';
 import { detectAgentView, useAgentNodeController } from './useAgentNodeController';
+import { useWorkspaceActive } from '../../hooks/useWorkspaceActive';
+import { count } from '../../perf/counters';
 
 export { detectAgentView };
 
@@ -93,6 +95,7 @@ export const AgentNodeBody = ({
     forceTeamWarmup,
   });
   const [leadSnapshot, setLeadSnapshot] = useState<AgentTeamSnapshot | null>(null);
+  const workspaceActive = useWorkspaceActive();
   const isTeamLead = controller.data.agentTeamRole === 'lead';
   const leadRecentActions = useMemo(() => summarizeTeamLeadActions(leadSnapshot), [leadSnapshot]);
   const leadTeamStatus = agentTeamStatus ?? leadSnapshot?.runtime.team.status;
@@ -111,9 +114,15 @@ export const AgentNodeBody = ({
       setLeadSnapshot(null);
       return undefined;
     }
+    // B3: pause while this workspace is backgrounded (keep-alive, display:
+    // none) — the main-process heartbeat still advances the team
+    // independently of this poll, so nothing regresses while hidden; the
+    // effect re-running on re-show below fires an immediate refresh.
+    if (!workspaceActive) return undefined;
 
     let cancelled = false;
     const loadSnapshot = async () => {
+      count('agent-team-lead-poll');
       const result = await window.canvasWorkspace?.agentTeams?.snapshot(workspaceId, teamId);
       if (cancelled) return;
       if (result?.ok && result.snapshot) {
@@ -130,7 +139,7 @@ export const AgentNodeBody = ({
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [controller.data.agentTeamId, isTeamLead, workspaceId]);
+  }, [controller.data.agentTeamId, isTeamLead, workspaceId, workspaceActive]);
 
   const terminalView = (
     <>

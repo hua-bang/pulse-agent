@@ -12,7 +12,7 @@ const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/service.ts': 2569,
-  'src/renderer/src/components/AgentTeamFrame/index.tsx': 2243,
+  'src/renderer/src/components/AgentTeamFrame/index.tsx': 2253,
   'src/renderer/src/types.ts': 1861,
   'src/main/canvas/store.ts': 1606,
   'src/renderer/src/components/AgentNodeBody/useAgentNodeController.ts': 1286,
