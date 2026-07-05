@@ -95,11 +95,11 @@ Defined in `src/renderer/src/styles.css` (`:root`), low → high:
 | `--layer-modal` | 1900 | settings drawers |
 | `--layer-palette` | 2000 | command palette |
 | `--layer-dialog` | 2050 | app-shell confirm dialogs |
+| `--layer-context-menu` | 2075 | `NodeContextMenu` / `EdgeContextMenu`, sidebar layer context menu |
 | `--layer-toast` | 2100 | app-shell toasts |
 
 Known stragglers not yet on the scale (anchored popovers, lower risk):
-`NodeContextMenu` (1000) and various chat-internal overlays. Migrate them
-opportunistically when touched.
+various chat-internal overlays. Migrate them opportunistically when touched.
 
 ## History
 
