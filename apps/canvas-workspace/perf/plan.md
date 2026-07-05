@@ -14,6 +14,57 @@
 
 **统一工作流**(每个任务相同):改动 → 跑 `perf-report` skill 自验 → 对应告警消失/指标达标 → **同 PR 调整 `baselines.json`** → 看板即验收凭证。
 
+---
+
+## 进度对账(2026-07-05,commit `361e7fa`)
+
+对照上方四条完成判据:
+
+| 判据 | 状态 | 证据 |
+|---|---|---|
+| 1. 六专项全有实测 | **5/6** | 仅「AI 流式」全灰(chat.stream.* ×3 未建,需 mock 回放评审);覆盖 26/34 指标 |
+| 2. CI 每 PR 跑门禁 | **已建,待绿灯确认** | perf.yml 在跑;经 4 轮修复(--no-sandbox → stderr 透出 → build:core → lazy 等待)后最新一轮结果未确认 |
+| 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
+| 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
+
+已完成任务:A1、A2、A6、B1、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、C1、D1。
+未动任务:A3、A4、A5、B2、B3、B4、B7、B8、C2、D2、D3、D4、D5、D6。
+
+当前看板告警:1×medium(拖拽放大器,B7 修)+ 4×info(时间指标单样本波动,A3 修)+ 1×info(AI 流式无数据)。
+
+## 第二期任务队列(交接就绪,按优先级)
+
+> 任务卡正文在下方各 WS 节,此处只给顺序、依赖与口径变化。每张卡自包含,单个 Agent 可独立领取;**领取前先 `git fetch` 并跑一遍 `pnpm --filter canvas-workspace perf:report` 确认基线**。
+
+**P0 · 让已建的东西可信**
+1. **V1(新)· CI 绿灯确认**:确认 PR #729 最新 perf.yml 运行产出 runtime 场景(scenarios-report.json 进 artifact、覆盖 ≥26/34、verdict 评论非 bundle-only)。若仍红,沿用 c4dba37 的 stderr-tail 线索继续修 launch 链。这是其余 CI 相关任务(C2/D3)的前置。
+2. **A3 · --repeat 中位数**:消掉 4 条波动 info 告警,是 C2(record→warn)与趋势可信度的硬前置。
+
+**P1 · 修复轨(收益已实测,卡片就绪)**
+3. **B7 · 拖拽 ephemeral**:看板唯一 medium 告警;91 替换/90 步 → <10。
+4. **B8 · H1 LRU 驱逐**:堆斜率已实测 **12.8MB/workspace**(A1 场景);验收 slope≈0 且升 warn 门禁。
+5. **B3 · 隐藏工作区轮询门控**:S 级快赢;A2 的 loop-delay + snapshot IPC 计数已可做前后对比。
+6. **B4 · 会话持久化队列+原子写**:`main.session_persist.bytes_per_turn` 已上线(c296930),修复收益可直接证明。
+7. **B2 · 图片解码/缩略图**:先 S 步(decoding=async+宽高),M 步缩略图连同 `memory.image.decoded_mb` 指标一起建。
+
+**P2 · 测量补全(填剩余 6 个未建指标中的 4 个)**
+8. **A4 · pan/zoom 场景** → `interact.panzoom.inp_p95_ms`。
+9. **M1(新)· welcome webview 指标**:B5 修复已上线但 `startup.welcome_webview_ms` 未建;在 useDeferredVisibleMount 挂载点补一个 mark,证明其保持在关键路径外。
+10. **M2(新)· RSS 隔离**:`memory.n100.total_rss_mb` 目前是跨窗口 run-peak(含 ws-cycle 5 workspace,c296930 已注明);把采样窗口限定到 100 节点单 workspace 段,或拆独立场景。
+11. **A5 · treemap 归因**(口径更新):入口目标已达成,用途改为守护剩余 1329KB 的构成 + 支撑 D2;顺带评估 **C8(i18n zh 文案 lazy)** 是否还值得做(预估收益需 A5 数据说话)。
+
+**P3 · 门禁升级与看板消费**
+12. **C2 · record→warn**(依赖 A3 + 同机历史 ≥5 次;注意:GitHub 共享 runner 机器不同机,时间指标升级只对本地/固定自托管机历史生效,CI 上永远 record)。
+13. **D3 · Pages 固定 URL**(PR 评论部分已在 perf.yml 完成,只剩主干 Pages 发布)。
+14. **D6 · 规模曲线 + 修复进度视图**(依赖 A3/A4)。
+15. **D4 · skill 应用内端到端**。
+16. **D5 · AI 总结层**(可选,默认关,永不进门禁)。
+
+**深水区(先要决策,勿直接开工)**
+- **AI 流式专项**(chat.stream.* ×3):唯一全灰专项;需先评审 mock 流回放的侵入面并取得用户同意。
+- `main.pty.ipc_per_sec`:被 node-pty Electron ABI 阻塞,与终端流式场景一起评估。
+- 视口裁剪完全体:决策 #1 已出专项,不在本期。
+
 ## Sprint 划分
 
 | Sprint | 任务 | 说明 |
