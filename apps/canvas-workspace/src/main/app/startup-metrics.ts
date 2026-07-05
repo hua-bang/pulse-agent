@@ -33,6 +33,11 @@ export const logStartupSummaryOnce = (
 ): void => {
   if (logged) return;
   logged = true;
+  // Only emit the structured log line under the perf harness — keeps normal
+  // dev/build stdout free of [perf] noise. The phase marks themselves are
+  // still collected (cheap, 6× Array.push) so a renderer-side read stays
+  // available; only the log emission is gated.
+  if (!process.env.PULSE_CANVAS_PERF) return;
   const summary = JSON.stringify(startupPhases());
   console.log(`[perf] startup ${summary}`);
   void writeLog('perf', 'startup-phases', summary);
