@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import type { Artifact, IframeNodeData } from '../../types';
+import { useDeferredVisibleMount } from './useDeferredVisibleMount';
 import type { EditMode, IframeNodeBodyProps, LoadState, WebviewTag } from './types';
 import {
   BLANK_PAGE_URL,
@@ -98,8 +99,9 @@ export const useIframeNodeState = ({
     latestDataRef.current = data;
   }, [data]);
 
+  const shouldMountWebview = useDeferredVisibleMount(webviewHostRef);
   useLayoutEffect(() => {
-    if (mode !== 'url') return;
+    if (mode !== 'url' || !shouldMountWebview) return;
     const host = webviewHostRef.current;
     if (!host) return;
 
@@ -115,7 +117,7 @@ export const useIframeNodeState = ({
       if (webviewRef.current === webview) webviewRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, webviewKey]);
+  }, [mode, webviewKey, shouldMountWebview]);
 
   useEffect(() => {
     const el = webviewRef.current;
