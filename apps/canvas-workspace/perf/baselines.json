@@ -1,9 +1,9 @@
 {
-  "note": "Performance ratchet baselines. Gates fail when current > baseline * (1 + tolerancePct/100). When a fix lands that meaningfully lowers a metric, lower its baseline in the same PR to lock the win in. Initial values measured 2026-07-04 (pnpm --filter canvas-workspace build, includes perf instrumentation).",
+  "note": "Performance ratchet baselines. Gates fail when current > baseline * (1 + tolerancePct/100). When a fix lands that meaningfully lowers a metric, lower its baseline in the same PR to lock the win in. Bundle baselines ratcheted 2026-07-05 after B6 lazy-loaded the experimental graph view (react-force-graph-2d + d3 out of entry): entry 4618 → 4223 KB. Target for the C-dimension work is entry ≤1500 KB (React.lazy the node bodies next).",
   "bundle": {
-    "entryRawKB": { "baseline": 4618, "tolerancePct": 5 },
-    "entryGzipKB": { "baseline": 1015, "tolerancePct": 5 },
-    "totalJsKB": { "baseline": 10580, "tolerancePct": 10 }
+    "entryRawKB": { "baseline": 4223, "tolerancePct": 5 },
+    "entryGzipKB": { "baseline": 928, "tolerancePct": 5 },
+    "totalJsKB": { "baseline": 10564, "tolerancePct": 10 }
   },
   "runtimeNote": "Counter gates for perf:scenarios (deterministic, node-count independent). typing.nodes-array-replace ratcheted 132 → 10 after B1 fixed I-1 (200ms editor writeback debounce): measured 3 replacements for 120 keys (was 121), frames>20ms 43% → 1.2%, INP p95 48 → 32ms. drag still ~1 replacement per pointer-move (A2, fix is B7 in Sprint 3). Timing metrics (INP/frames/LoAF) stay informational — per-machine.",
   "runtime": {

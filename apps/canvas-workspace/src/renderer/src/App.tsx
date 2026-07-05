@@ -11,7 +11,7 @@ import { Sidebar } from './components/Sidebar';
 import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
-import { GraphPage } from './components/WorkspaceNodes/GraphPage';
+import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
 import { NodeDetailPage } from './components/WorkspaceNodes/NodeDetailPage';
 import { NodesPage } from './components/WorkspaceNodes/NodesPage';
 import './components/WorkspaceNodes/index.css';

@@ -19,7 +19,7 @@ import { fileURLToPath } from 'url';
  */
 
 /** Packages that must NEVER be statically imported from the entry graph. */
-const WATCHLIST = ['mermaid'];
+const WATCHLIST = ['mermaid', 'react-force-graph-2d'];
 
 /**
  * Heavy packages that ARE statically reachable today (C1-C9 findings).
@@ -30,7 +30,6 @@ const EXPECTED_STATIC = [
   '@xterm/xterm',
   'highlight.js',
   'markdown-it',
-  'react-force-graph-2d',
 ];
 
 const testDir = dirname(fileURLToPath(import.meta.url));
