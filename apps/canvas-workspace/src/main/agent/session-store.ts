@@ -12,6 +12,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
+import { randomUUID } from 'crypto';
 import type {
   AgentScope,
   CanvasAgentDebugRunDetail,
@@ -20,7 +21,10 @@ import type {
   CanvasAgentSession,
 } from './types';
 
-const STORE_DIR = join(homedir(), '.pulse-coder', 'canvas');
+// Read lazily (not a module-level const derived at import time) so tests can
+// point it at an isolated tmpdir via the env var without needing vi.mock.
+const storeDir = (): string =>
+  process.env.PULSE_CANVAS_SESSION_STORE_DIR || join(homedir(), '.pulse-coder', 'canvas');
 export const GLOBAL_CHAT_SESSION_STORE_ID = '__global_chat__';
 export const GLOBAL_CHAT_WORKSPACE_NAME = 'Global Chat';
 
@@ -58,11 +62,18 @@ export class SessionStore {
   private scope: AgentScope;
 
   private session: CanvasAgentSession | null = null;
+  // Serializes all writes to current.json (mirrors agent-teams/store.ts's
+  // persistQueue): addMessage() is fire-and-forget, and
+  // loadCrossWorkspaceSession used to call it once per loaded message —
+  // without a queue, concurrent writeFile calls to the same path race and
+  // the file's final content depends on whichever call's open+truncate+
+  // write happens to land last, not which call was issued last.
+  private persistQueue: Promise<void> = Promise.resolve();
 
   constructor(workspaceId: string, scope: AgentScope = { kind: 'workspace', workspaceId }) {
     this.workspaceId = workspaceId;
     this.scope = scope;
-    this.sessionsDir = join(STORE_DIR, workspaceId, 'agent-sessions');
+    this.sessionsDir = join(storeDir(), workspaceId, 'agent-sessions');
     this.currentPath = join(this.sessionsDir, 'current.json');
     this.archiveDir = join(this.sessionsDir, 'archive');
   }
@@ -96,6 +107,19 @@ export class SessionStore {
     if (!this.session) return;
     this.session.messages.push(message);
     // Fire-and-forget persist
+    void this.persist();
+  }
+
+  /**
+   * Replace all messages in the current session and persist once. Use this
+   * instead of calling `addMessage` in a loop for batch operations (e.g.
+   * loading a cross-workspace session) — one `addMessage` per message means
+   * one full-session-rewrite `persist()` per message, growing O(N) writes
+   * for N loaded messages instead of one.
+   */
+  setMessages(messages: CanvasAgentMessage[]): void {
+    if (!this.session) return;
+    this.session.messages = messages;
     void this.persist();
   }
 
@@ -272,7 +296,7 @@ export class SessionStore {
 
     let dirs: string[];
     try {
-      dirs = await fs.readdir(STORE_DIR);
+      dirs = await fs.readdir(storeDir());
     } catch {
       return results;
     }
@@ -281,7 +305,7 @@ export class SessionStore {
       // Skip manifest/internal entries except the global chat session store.
       if ((dir.startsWith('__') && dir !== GLOBAL_CHAT_SESSION_STORE_ID) || dir.startsWith('.')) continue;
 
-      const sessionsDir = join(STORE_DIR, dir, 'agent-sessions');
+      const sessionsDir = join(storeDir(), dir, 'agent-sessions');
       const archiveDir = join(sessionsDir, 'archive');
       const currentPath = join(sessionsDir, 'current.json');
 
@@ -366,7 +390,7 @@ export class SessionStore {
    */
   static async readCurrentSessionId(storeId: string): Promise<string | null> {
     try {
-      const raw = await fs.readFile(join(STORE_DIR, storeId, 'agent-sessions', 'current.json'), 'utf-8');
+      const raw = await fs.readFile(join(storeDir(), storeId, 'agent-sessions', 'current.json'), 'utf-8');
       const data = JSON.parse(raw) as CanvasAgentSession;
       return data.sessionId ?? null;
     } catch {
@@ -381,7 +405,7 @@ export class SessionStore {
     sourceWorkspaceId: string,
     sessionId: string,
   ): Promise<CanvasAgentSession | null> {
-    const sessionsDir = join(STORE_DIR, sourceWorkspaceId, 'agent-sessions');
+    const sessionsDir = join(storeDir(), sourceWorkspaceId, 'agent-sessions');
     const currentPath = join(sessionsDir, 'current.json');
     const archiveDir = join(sessionsDir, 'archive');
 
@@ -432,7 +456,7 @@ export class SessionStore {
 
     let dirs: string[];
     try {
-      dirs = await fs.readdir(STORE_DIR);
+      dirs = await fs.readdir(storeDir());
     } catch {
       return results;
     }
@@ -442,7 +466,7 @@ export class SessionStore {
       const workspaceName = workspaceId === GLOBAL_CHAT_SESSION_STORE_ID
         ? GLOBAL_CHAT_WORKSPACE_NAME
         : workspaceNames.get(workspaceId) ?? workspaceId;
-      const sessionsDir = join(STORE_DIR, workspaceId, 'agent-sessions');
+      const sessionsDir = join(storeDir(), workspaceId, 'agent-sessions');
       const currentPath = join(sessionsDir, 'current.json');
       const archiveDir = join(sessionsDir, 'archive');
       const seen = new Set<string>();
@@ -508,20 +532,40 @@ export class SessionStore {
     }
   }
 
-  private async persist(): Promise<void> {
+  // Chain every write onto the previous one so temp-file renames never
+  // overlap (see the persistQueue field comment). Each write flushes the
+  // latest in-memory session (a superset of earlier pending mutations), so
+  // serializing is safe and the last write always wins consistently.
+  private persist(): Promise<void> {
+    const run = this.persistQueue.then(() => this.writeSessionFile());
+    // Keep the chain alive even if one write rejects, so later persists run.
+    this.persistQueue = run.catch(() => {});
+    return run;
+  }
+
+  private async writeSessionFile(): Promise<void> {
     if (!this.session) return;
+    const serialized = JSON.stringify(this.session, null, 2);
+    // Unique per-write temp name (pid + random) so two SessionStore
+    // instances for the same workspace never collide on one temp file.
+    const tmp = `${this.currentPath}.${process.pid}.${randomUUID()}.tmp`;
     try {
-      const serialized = JSON.stringify(this.session, null, 2);
-      await fs.writeFile(this.currentPath, serialized, 'utf-8');
+      await fs.writeFile(tmp, serialized, 'utf-8');
+      await fs.rename(tmp, this.currentPath);
       if (process.env.PULSE_CANVAS_PERF) {
         console.log(`[perf] session-persist ${JSON.stringify({ bytes: Buffer.byteLength(serialized, 'utf-8') })}`);
       }
     } catch (err) {
+      await fs.unlink(tmp).catch(() => undefined);
       console.error('[session-store] Failed to persist session:', err);
     }
   }
 
   private async archiveCurrentIfExists(): Promise<void> {
+    // Wait for any in-flight write to land before reading/removing
+    // current.json — otherwise a still-queued write from the outgoing
+    // session could recreate the file right after we archive-and-delete it.
+    await this.persistQueue.catch(() => undefined);
     try {
       const raw = await fs.readFile(this.currentPath, 'utf-8');
       const existing = JSON.parse(raw) as CanvasAgentSession;
@@ -544,7 +588,7 @@ export class SessionStore {
 
 async function loadManifest(): Promise<WorkspaceManifest> {
   try {
-    const raw = await fs.readFile(join(STORE_DIR, '__workspaces__.json'), 'utf-8');
+    const raw = await fs.readFile(join(storeDir(), '__workspaces__.json'), 'utf-8');
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const workspaces = (parsed.workspaces ?? parsed.entries ?? []) as WorkspaceManifest['workspaces'];
     return { workspaces, activeId: parsed.activeId as string | undefined };

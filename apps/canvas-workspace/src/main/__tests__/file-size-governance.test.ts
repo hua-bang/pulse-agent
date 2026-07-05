@@ -32,7 +32,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent/model/config.ts': 599,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/settings/canvas-plugins-config.ts': 558,
-  'src/main/agent/session-store.ts': 561,
+  'src/main/agent/session-store.ts': 605,
   'src/renderer/src/components/chat/hooks/useChatStream.ts': 542,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,

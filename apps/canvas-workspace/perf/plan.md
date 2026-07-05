@@ -27,8 +27,10 @@
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
-已完成任务:A1、A2、A3、A6、B1、B3、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
-未动任务:A4、A5、B2、B4、C2、D2、D3、D4、D5、D6。
+已完成任务:A1、A2、A3、A6、B1、B3、B4、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、B7、B8、C1、D1、V1。
+未动任务:A4、A5、B2、C2、D2、D3、D4、D5、D6。
+
+**B4 完成记录(2026-07-05)**:`session-store.ts` 的 `persist()` 之前直接 `writeFile(currentPath, ...)`——非原子(无 tmp+rename)、多次调用互相竞态(尤其 `loadCrossWorkspaceSession` 循环对每条历史消息都调一次 `addMessage`→`persist()`,N 条消息 = N 个几乎同时的整文件写并发抢占同一路径)。参照仓库已有的 `agent-teams/store.ts` persistQueue 模式:加 `persistQueue: Promise<void>` 串行链(`writeSessionFile` 用 `${path}.${pid}.${uuid}.tmp` 唯一临时名 + `rename` 原子提交);`archiveCurrentIfExists`(被 `startSession`/`archiveSession` 调用)现在会先 `await` 这个队列再读/删 current.json,避免旧 session 的迟到写入在归档后把文件复活。`loadCrossWorkspaceSession` 循环里的 N 次 `addMessage` 改成新增的 `setMessages()` 批量赋值+单次 persist,N 次整文件写降为 1 次。**顺手做的可测试性改进**:`STORE_DIR` 从模块顶层 const(基于 `homedir()`,导入时就固定,没法 mock)改成读环境变量 `PULSE_CANVAS_SESSION_STORE_DIR` 的惰性函数——之前这个文件零测试覆盖,改完直接可以用临时目录跑真实文件系统测试,不用引入新的 mock 基建。新增 `src/main/agent/__tests__/session-store.test.ts`(3 个用例,覆盖并发 addMessage 不丢消息/无残留 tmp 文件、setMessages 单次持久化、以及归档时序不被迟到写入破坏),全部通过。`main.session_persist.bytes_per_turn` 这个指标本身仍未取得稳定实测值(需要真实 agent turn,当前沙箱没有可用的模型 API key,超出本次修复范围)。674 测试全过(baseline `session-store.ts` 561→605 行)。
 
 **B3 完成记录(2026-07-05)**:新增 `useWorkspaceActive`(React Context,仿 `useFileNodeEditorRegistry` 的"避免逐层传 prop"模式,在 `Canvas/index.tsx` 用已有的 `isActive` prop 提供,`AgentNodeBody`/`AgentTeamFrame` 直接消费,不用改 CanvasSurface/CanvasNodeView 等 5 层中间组件)。两处轮询(`AgentNodeBody` 5s、`AgentTeamFrame` 15s)在 `!workspaceActive` 时提前 return 不建 interval,effect 依赖数组加入 `workspaceActive` 使其在可见性翻转时重新跑——隐藏时暂停、重新显示时立即触发一次刷新。新增两个永久 perf 计数器 `agent-team-lead-poll`/`agent-team-frame-poll`(复用仓库已有的 `perf/counters.ts` 机制)。**踩坑记录**:验证时先用 `window.canvasWorkspace.agentTeams.snapshot = wrapper` 猴子补丁想数调用次数,结果 contextBridge 暴露的对象是**冻结的**(`Object.isFrozen===true`),赋值静默失败——改用 `count()`(写在页面自己的世界,不经 contextBridge,不冻结)+ `window.__pulsePerf` 读取,才拿到真实数字。另外第一次拿假数据造 workspace 时用了 `'default'`(欢迎工作区 id),结果 reload 后被 `ensureWelcomeWorkspaceSeeded` 的自愈逻辑覆盖清空——后来改成专门造一个非 default 的假 workspace 才验证通过。实测:workspace 可见时 `agent-team-lead-poll` 每 5s 记 1 次;切到后台的 ~6.5s 窗口内该计数器**完全不出现**(0 次,不是被压低而是真的没调);切回来后立即又记到 1 次。671 测试全过。
 
@@ -52,7 +54,7 @@
 3. ~~**B7 · 拖拽 ephemeral**~~:见上方「B7 完成记录」。91→2,baseline 已锁定。
 4. ~~**B8 · H1 LRU 驱逐**~~:见上方「B8 完成记录」。14.5→3.3-3.4 MB/ws,有活跃终端的 workspace 豁免驱逐(用户已确认)。
 5. ~~**B3 · 隐藏工作区轮询门控**~~:见上方「B3 完成记录」。隐藏时轮询计数器归零,已用真实 CDP 会话验证。
-6. **B4 · 会话持久化队列+原子写**:`main.session_persist.bytes_per_turn` 已上线(c296930),修复收益可直接证明。
+6. ~~**B4 · 会话持久化队列+原子写**~~:见上方「B4 完成记录」。tmp+rename 原子写 + persistQueue 串行 + `loadCrossWorkspaceSession` 批量化,3 个新单测覆盖并发/归档时序。
 7. **B2 · 图片解码/缩略图**:先 S 步(decoding=async+宽高),M 步缩略图连同 `memory.image.decoded_mb` 指标一起建。
 
 **P2 · 测量补全(填剩余 6 个未建指标中的 4 个)**
