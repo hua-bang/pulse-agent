@@ -49,6 +49,8 @@ export interface ChatPageBodyProps {
   onToggleRail: () => void;
   /** Opens the global Settings drawer focused on the given section. */
   onOpenAppSettings: (section: SettingsSection) => void;
+  /** Opens per-workspace settings when the chat scope is workspace-bound. */
+  onOpenWorkspaceSettings?: (workspaceId: string) => void;
 }
 
 export const ChatPageBody = ({
@@ -73,11 +75,22 @@ export const ChatPageBody = ({
   railCollapsed,
   onToggleRail,
   onOpenAppSettings,
+  onOpenWorkspaceSettings,
 }: ChatPageBodyProps) => {
   const { t } = useI18n();
   const { notify } = useAppShell();
   const workspaceId = agentScope.kind === 'workspace' ? agentScope.workspaceId : undefined;
   const anchorScopeId = workspaceId ?? 'global';
+  const settingsButtonLabel = workspaceId && onOpenWorkspaceSettings
+    ? t('workspaceSettings.ariaLabel')
+    : t('chat.modelSettings');
+  const handleOpenScopeSettings = useCallback(() => {
+    if (workspaceId && onOpenWorkspaceSettings) {
+      onOpenWorkspaceSettings(workspaceId);
+      return;
+    }
+    onOpenAppSettings('models');
+  }, [onOpenAppSettings, onOpenWorkspaceSettings, workspaceId]);
   // Snapshot at mount: the caller might change pendingSessionId later (e.g.
   // for a same-workspace click), but on mount we only care about the value
   // we saw when this body was constructed (after a workspace switch).
@@ -393,9 +406,9 @@ export const ChatPageBody = ({
           </button>
           <button
             className="chat-panel-action-btn"
-            onClick={() => onOpenAppSettings('models')}
-            title={t('chat.modelSettings')}
-            aria-label={t('chat.modelSettings')}
+            onClick={handleOpenScopeSettings}
+            title={settingsButtonLabel}
+            aria-label={settingsButtonLabel}
           >
             <SettingsIcon size={16} strokeWidth={1.25} />
           </button>

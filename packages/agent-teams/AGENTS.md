@@ -20,7 +20,7 @@ It should keep team protocol behavior explicit and avoid hiding quality gates in
 |---|---|
 | Package overview and classic API | `README.md` |
 | Understand contracts | `docs/contracts.md` |
-| Pick validation | `docs/validation.md` |
+| Pick validation | `harness/validate/validation.yaml`, `docs/validation.md` |
 | Maturity roadmap | `../../docs/07-agent-teams-maturity-roadmap.md` |
 | Runtime exports | `src/runtime.ts`, `src/runtime/index.ts` |
 | Runtime implementation | `src/runtime/team-runtime.ts`, `src/runtime/types.ts` |
@@ -38,7 +38,7 @@ It should keep team protocol behavior explicit and avoid hiding quality gates in
 - The Team Lead coordinates and verifies; teammate task execution, ownership changes, scope edits, and revision loops must stay explicit in runtime state.
 - `TASK_METADATA_KEYS` is shared with hosts. Changes to `round`, `scope`, `verify`, `lastVerify`, or failed-dependency metadata affect consumers.
 - Classic `Team/TeamLead` state is file-backed under the configured team state directory. Runtime state is store-backed and host adapters own actual process/session behavior.
-- Public runtime exports are contracts; route changes through `harness/skills/contract-coding.md`.
+- Public runtime exports are contracts; use local contracts/validation and the root impact overlay when hosts are affected.
 - Host-specific UI, PTY, or Canvas behavior belongs in host apps, not this package, unless it is a generic team protocol primitive.
 
 ## Common Commands

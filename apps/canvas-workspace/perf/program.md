@@ -115,7 +115,7 @@
 ## 4. 路线图
 
 - **M1(填空格)**:④ 切换循环+堆斜率 → ⑤ loop-delay+写字节 → ② repeat+panzoom → ③ treemap → `perf:all` 一键全跑。
-- **M2(门禁化)**:history/趋势上看板 → 时间指标按铁律 2 升级 → CI workflow(补 `harness/validation.yaml` runner 缺口)→ soak 进 nightly。
+- **M2(门禁化)**:history/趋势上看板 → 时间指标按铁律 2 升级 → CI workflow(补 `harness/validate/validation.yaml` runner 缺口)→ soak 进 nightly。
 - **M3(修复联动)**:修 I-1/J-1/J-2/K-1/H1 并下调基线 → chat 回放入口(评审后)→ 终端流式(解 node-pty Electron ABI)。
 
 **完成态判据**:六专项北极星指标全部 ≥warn 级、计数器全部 gate 级、CI 每 PR 跑体积+计数器、nightly 跑全量、看板趋势区有数据。

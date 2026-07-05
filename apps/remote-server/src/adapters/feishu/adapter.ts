@@ -22,6 +22,7 @@ import {
 } from './client.js';
 import { buildFeishuPlatformKey, parseFeishuPlatformKey, resolveFeishuTopicId } from './platform-key.js';
 import { parseFeishuMessageContent } from './message-content.js';
+import { isFeishuMessageMentioningCurrentBot } from './mention-filter.js';
 
 
 /**
@@ -169,10 +170,10 @@ export class FeishuAdapter implements PlatformAdapter {
     const chatType = message['chat_type'] as string | undefined; // 'p2p' | 'group'
     const isGroupChat = chatType === 'group';
 
-    // Group chats: only respond when @mentioned
+    // Group chats: only respond when this bot is @mentioned.
     if (isGroupChat) {
       const mentions = (message['mentions'] as unknown[] | undefined) ?? [];
-      if (mentions.length === 0) return null;
+      if (!await isFeishuMessageMentioningCurrentBot(mentions)) return null;
       text = removeFeishuMentions(text, mentions);
       if (!text && !hasAttachments) return null;
     }

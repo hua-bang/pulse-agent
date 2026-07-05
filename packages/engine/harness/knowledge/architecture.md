@@ -1,0 +1,70 @@
+# Engine Architecture
+
+This file records current implementation facts for `pulse-coder-engine`. It is a map for changes, not a full design document.
+
+## Module Map
+
+| Area | Files | Owns |
+|---|---|---|
+| Public entry | `src/index.ts` | Package exports and public type surface. |
+| Engine bootstrap | `src/Engine.ts` | Options, plugin initialization, tool merge order, provider/model resolution, run/compact helpers. |
+| Runtime loop | `src/core/loop.ts` | Streaming, tool execution, hooks, retries, aborts, timeouts, compaction events. |
+| Context | `src/context/` | Compaction strategy and message shaping. |
+| AI adapter | `src/ai/` | AI SDK wrapper, provider options, tool context injection. |
+| Config | `src/config/` | Provider construction, env fallback order, runtime constants. |
+| Plugin system | `src/plugin/` | Engine plugins, user config plugins, dependency order, hooks, services. |
+| Built-in plugins | `src/built-in/` | MCP, skills, tool search, plan mode, task tracking, sub-agents, agent teams, role soul, PTC. |
+| Built-in tools | `src/tools/` | File, shell, Tavily, image, clarification, and deferred demo tools. |
+
+## Initialization Flow
+
+1. `new Engine(options)` creates a `PluginManager`.
+2. `initialize()` prepares built-in plugins unless `disableBuiltInPlugins` is true.
+3. Engine plugins are loaded by dependency order.
+4. User config plugins are loaded after engine plugins.
+5. Built-in tools and plugin tools are merged.
+6. `EngineOptions.tools` are merged last and can override earlier tools.
+
+## Run Flow
+
+1. `Engine.run()` collects plugin hooks and legacy tool hooks.
+2. `loop()` may compact context before the LLM call.
+3. `beforeRun` and `beforeLLMCall` hooks can adjust context, tools, and system prompt.
+4. Tools are wrapped so `beforeToolCall` / `afterToolCall` hooks can transform input/output.
+5. The AI adapter forwards `ToolExecutionContext`, including `runContext`, clarification handler, abort signal, and `toolCallId`.
+6. `loop()` handles text/tool chunks, response messages, finish reasons, retries, timeouts, aborts, and compaction callbacks.
+
+## Built-In Plugin Order
+
+Defined in `src/built-in/index.ts`:
+
+1. MCP
+2. Skills
+3. Tool Search
+4. Plan Mode
+5. Task Tracking
+6. SubAgent
+7. Agent Teams
+8. Role Soul
+9. PTC
+
+Order matters because later plugins can observe or filter tools registered earlier.
+
+## Config Roots
+
+Preferred project config lives under `.pulse-coder/*`. Legacy `.coder/*` paths remain supported. Some loaders also support user-level config under the home directory.
+
+Important examples:
+
+- MCP: `.pulse-coder/mcp.json`, `.coder/mcp.json`, and home equivalents.
+- Skills: `.pulse-coder/skills/**/SKILL.md`, plus compatible skill roots.
+- Sub-agents: `.pulse-coder/agents`, `.coder/agents`.
+- Engine plugins/config: `.pulse-coder/engine-plugins`, `.pulse-coder/config`, plus legacy equivalents.
+
+## Risk Areas
+
+- `src/core/loop.ts`: history pruning, retries, aborts, tool streaming, timeouts, and compaction are tightly coupled.
+- `src/tools/bash.ts`: must stay async and decode buffered UTF-8 safely.
+- `src/tools/grep.ts`: currently uses blocking `execSync`; treat as a known risk when changing tools.
+- `src/built-in/index.ts`: plugin order and exports affect hosts.
+- `src/index.ts`: public exports affect downstream package builds.

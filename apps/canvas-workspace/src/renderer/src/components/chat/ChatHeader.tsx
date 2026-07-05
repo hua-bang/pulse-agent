@@ -22,7 +22,8 @@ interface ChatHeaderProps {
   onCloseSessionMenu: () => void;
   onNewSession: () => Promise<void>;
   onLoadSession: (sessionId: string, sourceWorkspaceId?: string) => Promise<void>;
-  onOpenModelSettings: () => void;
+  onOpenSettings: () => void;
+  settingsLabel: string;
   onOpenPromptSettings: () => void;
   onClose: () => void;
   /** Slot for the in-chat anchor / TOC control. */
@@ -46,7 +47,8 @@ export const ChatHeader = ({
   onCloseSessionMenu,
   onNewSession,
   onLoadSession,
-  onOpenModelSettings,
+  onOpenSettings,
+  settingsLabel,
   onOpenPromptSettings,
   onClose,
   anchors,
@@ -198,9 +200,9 @@ export const ChatHeader = ({
         </button>
         <button
           className="chat-panel-action-btn"
-          onClick={onOpenModelSettings}
-          title={t('chat.modelSettings')}
-          aria-label={t('chat.modelSettings')}
+          onClick={onOpenSettings}
+          title={settingsLabel}
+          aria-label={settingsLabel}
         >
           <SettingsIcon size={16} strokeWidth={1.25} />
         </button>

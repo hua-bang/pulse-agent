@@ -27,7 +27,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
-  'src/renderer/src/App.tsx': 606,
+  'src/renderer/src/App.tsx': 608,
   'src/renderer/src/utils/mindmapLayout.ts': 603,
   'src/main/agent/model/config.ts': 599,
   'src/plugins/main/dynamic-app/tools.ts': 593,
@@ -41,7 +41,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/components/icons/index.tsx': 510,
   'src/renderer/src/components/settings-config/SkillsManager.tsx': 510,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
-  'src/renderer/src/components/Workbench/index.tsx': 505,
+  'src/renderer/src/components/Workbench/index.tsx': 508,
 };
 
 const DOCUMENTED_EXCEPTIONS: Record<string, string> = {

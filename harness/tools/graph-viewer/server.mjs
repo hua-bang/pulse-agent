@@ -162,17 +162,13 @@ function expandWorkspaceGlobs(globs) {
   return [...workspacePaths].sort();
 }
 
-function readWorkspaceGlobs(profile) {
-  if (Array.isArray(profile.activeWorkspaceGlobs) && profile.activeWorkspaceGlobs.length > 0) {
-    return profile.activeWorkspaceGlobs;
-  }
-
+function readWorkspaceGlobs() {
   if (exists('pnpm-workspace.yaml')) {
     const workspaceConfig = parseSimpleYaml(readText('pnpm-workspace.yaml'));
     if (Array.isArray(workspaceConfig.packages)) return workspaceConfig.packages;
   }
 
-  return Object.keys(profile.workspaces ?? {});
+  return [];
 }
 
 function ruleMatchesWorkspace(rule, workspacePath) {
@@ -210,46 +206,66 @@ function classifyWorkspaceReport(report) {
   const high = report.gaps.filter((gap) => gap.severity === 'high').length;
   const medium = report.gaps.filter((gap) => gap.severity === 'medium').length;
   if (high > 0) return 'missing';
-  if (medium > 0 || !report.profileListed) return 'partial';
+  if (medium > 0) return 'partial';
   return 'ready';
 }
 
-function buildWorkspaceReports(profile, validation) {
-  const workspaceGlobs = readWorkspaceGlobs(profile);
+function commonKnowledgeRefs(workspacePath) {
+  const candidates = [
+    ['readme', path.join(workspacePath, 'README.md')],
+    ['contracts', path.join(workspacePath, 'harness/knowledge/contracts.md')],
+    ['architecture', path.join(workspacePath, 'harness/knowledge/architecture.md')],
+    ['validation', path.join(workspacePath, 'harness/validate/README.md')],
+    ['validation-config', path.join(workspacePath, 'harness/validate/validation.yaml')],
+    ['contracts', path.join(workspacePath, 'docs/contracts.md')],
+    ['validation', path.join(workspacePath, 'docs/validation.md')],
+    ['runbook', path.join(workspacePath, 'docs/runbook.md')],
+  ];
+  return candidates
+    .filter(([, target]) => exists(target))
+    .map(([kind, target]) => ({ kind, path: target, exists: true }));
+}
+
+function workspaceLocalValidationRules(workspacePath) {
+  const validationPath = path.join(workspacePath, 'harness/validate/validation.yaml');
+  if (!exists(validationPath)) return [];
+
+  const validation = parseSimpleYaml(readText(validationPath));
+  return (validation.pathRules ?? []).map((rule) => ({
+    ...rule,
+    source: validationPath,
+    scope: 'workspace',
+    paths: (rule.paths ?? []).map((rulePath) => (
+      rulePath.startsWith(workspacePath) ? rulePath : path.join(workspacePath, rulePath)
+    )),
+  }));
+}
+
+function buildWorkspaceReports(validation) {
+  const workspaceGlobs = readWorkspaceGlobs();
   const activeWorkspaces = expandWorkspaceGlobs(workspaceGlobs);
-  const profileWorkspaces = profile.workspaces ?? {};
   const validationRules = validation.pathRules ?? [];
   const reports = [];
 
   for (const workspacePath of activeWorkspaces) {
-    const profileEntry = profileWorkspaces[workspacePath];
     const manifest = readJson(path.join(workspacePath, 'package.json'));
-    const kind = profileEntry?.type ?? workspaceKind(workspacePath);
-    const entryPath = profileEntry?.entry ?? path.join(workspacePath, 'AGENTS.md');
+    const kind = workspaceKind(workspacePath);
+    const entryPath = path.join(workspacePath, 'AGENTS.md');
     const entry = { path: entryPath, exists: exists(entryPath) };
-    const knowledge = Object.entries(profileEntry?.knowledge ?? {})
-      .filter(([, target]) => typeof target === 'string')
-      .map(([kindName, target]) => ({
-        kind: kindName,
-        path: target,
-        exists: exists(target),
-      }));
-    const rules = validationRules.filter((rule) => ruleMatchesWorkspace(rule, workspacePath));
+    const knowledge = commonKnowledgeRefs(workspacePath);
+    const rootRules = validationRules
+      .filter((rule) => ruleMatchesWorkspace(rule, workspacePath))
+      .map((rule) => ({ ...rule, source: 'harness/validate/validation.yaml', scope: 'root' }));
+    const rules = [
+      ...rootRules,
+      ...workspaceLocalValidationRules(workspacePath),
+    ];
     const commands = [
       ...new Set(rules.flatMap((rule) => Array.isArray(rule.required) ? rule.required : [])),
     ];
     const fallbackCommands = recommendedFallbackCommands(workspacePath, manifest, kind);
     const gaps = [];
 
-    if (!profileEntry) {
-      gaps.push({
-        severity: 'medium',
-        type: 'profile',
-        label: 'No explicit profile entry',
-        path: 'harness/profile.yaml',
-        detail: 'This workspace falls back to workspaceTypeDefaults instead of a curated entry.',
-      });
-    }
     if (!entry.exists) {
       gaps.push({
         severity: 'high',
@@ -259,23 +275,12 @@ function buildWorkspaceReports(profile, validation) {
         detail: 'Workspace has no local harness entry for progressive reading.',
       });
     }
-    for (const item of knowledge) {
-      if (!item.exists) {
-        gaps.push({
-          severity: 'high',
-          type: 'knowledge',
-          label: `Missing ${item.kind}`,
-          path: item.path,
-          detail: 'Profile points to a file that does not exist.',
-        });
-      }
-    }
     if (rules.length === 0) {
       gaps.push({
         severity: 'medium',
         type: 'validation',
         label: 'No path-specific validation rule',
-        path: 'harness/validation.yaml',
+        path: 'harness/validate/validation.yaml',
         detail: 'Validation falls back to workspace scripts instead of a named path rule.',
       });
     }
@@ -283,9 +288,8 @@ function buildWorkspaceReports(profile, validation) {
     const report = {
       path: workspacePath,
       type: kind,
-      packageName: profileEntry?.packageName ?? manifest?.name ?? path.basename(workspacePath),
-      role: profileEntry?.role ?? 'default-workspace',
-      profileListed: Boolean(profileEntry),
+      packageName: manifest?.name ?? path.basename(workspacePath),
+      role: manifest?.description ?? kind,
       entry,
       knowledge,
       validationRules: rules.map((rule) => ({
@@ -295,6 +299,8 @@ function buildWorkspaceReports(profile, validation) {
         manual: rule.manual ?? [],
         optional: rule.optional ?? [],
         escalateWhen: rule.escalateWhen ?? {},
+        source: rule.source,
+        scope: rule.scope,
       })),
       commands: commands.length > 0 ? commands : fallbackCommands,
       fallbackCommands,
@@ -303,7 +309,6 @@ function buildWorkspaceReports(profile, validation) {
       readingPath: [
         'AGENTS.md',
         'harness/README.md',
-        'harness/profile.yaml',
         entry.path,
         ...knowledge.filter((item) => item.exists).map((item) => item.path),
       ],
@@ -333,33 +338,33 @@ function buildGraph() {
   addNode(nodeId('root', 'AGENTS.md'), 'root', 'AGENTS.md', { path: 'AGENTS.md' });
   addNode(nodeId('root', 'CLAUDE.md'), 'root', 'CLAUDE.md', { path: 'CLAUDE.md' });
   addNode(nodeId('harness', 'README.md'), 'harness', 'harness/README.md', { path: 'harness/README.md' });
-  addNode(nodeId('harness', 'profile.yaml'), 'profile', 'profile.yaml', { path: 'harness/profile.yaml' });
-  addNode(nodeId('harness', 'validation.yaml'), 'validation', 'validation.yaml', { path: 'harness/validation.yaml' });
+  addNode(nodeId('harness', 'validate/README.md'), 'harness', 'harness/validate/README.md', { path: 'harness/validate/README.md' });
+  addNode(nodeId('harness', 'knowledge/README.md'), 'harness', 'harness/knowledge/README.md', { path: 'harness/knowledge/README.md' });
+  addNode(nodeId('harness', 'validate/validation.yaml'), 'validation', 'validate/validation.yaml', { path: 'harness/validate/validation.yaml' });
   addEdge(nodeId('root', 'AGENTS.md'), nodeId('harness', 'README.md'), 'routes_to');
   addEdge(nodeId('root', 'CLAUDE.md'), nodeId('harness', 'README.md'), 'routes_to');
-  addEdge(nodeId('harness', 'README.md'), nodeId('harness', 'profile.yaml'), 'routes_to');
-  addEdge(nodeId('harness', 'README.md'), nodeId('harness', 'validation.yaml'), 'routes_to');
+  addEdge(nodeId('harness', 'README.md'), nodeId('harness', 'validate/README.md'), 'routes_to');
+  addEdge(nodeId('harness', 'README.md'), nodeId('harness', 'knowledge/README.md'), 'routes_to');
+  addEdge(nodeId('harness', 'validate/README.md'), nodeId('harness', 'validate/validation.yaml'), 'routes_to');
 
-  const profile = parseSimpleYaml(readText('harness/profile.yaml'));
-  const validation = parseSimpleYaml(readText('harness/validation.yaml'));
-  const workspaceReports = buildWorkspaceReports(profile, validation);
+  const validation = parseSimpleYaml(readText('harness/validate/validation.yaml'));
+  const workspaceReports = buildWorkspaceReports(validation);
 
-  for (const [workspacePath, workspace] of Object.entries(profile.workspaces ?? {})) {
+  for (const report of workspaceReports) {
+    const workspacePath = report.path;
     const wid = nodeId('workspace', workspacePath);
-    addNode(wid, 'workspace', workspacePath, { path: workspacePath, ...workspace });
-    addEdge(nodeId('harness', 'profile.yaml'), wid, 'maps_workspace');
+    addNode(wid, 'workspace', workspacePath, { path: workspacePath, packageName: report.packageName, role: report.role, type: report.type });
 
-    if (workspace.entry) {
-      const eid = nodeId('entry', workspace.entry);
-      addNode(eid, exists(workspace.entry) ? 'entry' : 'gap', path.basename(workspace.entry), { path: workspace.entry, exists: exists(workspace.entry) });
-      addEdge(wid, eid, exists(workspace.entry) ? 'has_entry' : 'missing', exists(workspace.entry) ? 'high' : 'high');
-    }
+    const entryPath = report.entry.path;
+    const eid = nodeId('entry', entryPath);
+    addNode(eid, exists(entryPath) ? 'entry' : 'gap', path.basename(entryPath), { path: entryPath, exists: exists(entryPath) });
+    addEdge(wid, eid, exists(entryPath) ? 'has_entry' : 'missing', exists(entryPath) ? 'high' : 'high');
 
-    for (const [kind, target] of Object.entries(workspace.knowledge ?? {})) {
-      if (typeof target !== 'string') continue;
-      const kid = nodeId('knowledge', target);
-      addNode(kid, exists(target) ? 'knowledge' : 'gap', `${kind}: ${path.basename(target)}`, { path: target, kind, exists: exists(target) });
-      addEdge(wid, kid, exists(target) ? 'has_knowledge' : 'missing', exists(target) ? 'high' : 'high', { kind });
+    for (const item of report.knowledge) {
+      const kid = nodeId('knowledge', item.path);
+      const type = item.kind.includes('validation') ? 'validation' : 'knowledge';
+      addNode(kid, type, `${item.kind}: ${path.basename(item.path)}`, { path: item.path, kind: item.kind, exists: item.exists });
+      addEdge(wid, kid, 'has_knowledge', 'high', { kind: item.kind });
     }
   }
 
@@ -367,9 +372,23 @@ function buildGraph() {
     if (!rule?.name) continue;
     const rid = nodeId('validation-rule', rule.name);
     addNode(rid, 'validation', rule.name, { paths: rule.paths ?? [], required: rule.required ?? [] });
-    addEdge(nodeId('harness', 'validation.yaml'), rid, 'defines_validation');
-    const workspace = Object.keys(profile.workspaces ?? {}).find((candidate) => (rule.paths ?? []).some((p) => p.startsWith(candidate)));
-    if (workspace) addEdge(rid, nodeId('workspace', workspace), 'validates');
+    addEdge(nodeId('harness', 'validate/validation.yaml'), rid, 'defines_validation');
+    const workspace = workspaceReports.find((report) => (rule.paths ?? []).some((p) => p.startsWith(report.path)));
+    if (workspace) addEdge(rid, nodeId('workspace', workspace.path), 'validates');
+  }
+
+  for (const report of workspaceReports) {
+    for (const rule of report.validationRules.filter((item) => item.scope === 'workspace')) {
+      if (!rule?.name || !rule.source) continue;
+      const rid = nodeId('validation-rule', `${rule.source}:${rule.name}`);
+      addNode(rid, 'validation', `${path.basename(report.path)}:${rule.name}`, {
+        paths: rule.paths ?? [],
+        required: rule.required ?? [],
+        source: rule.source,
+      });
+      addEdge(nodeId('knowledge', rule.source), rid, 'defines_validation');
+      addEdge(rid, nodeId('workspace', report.path), 'validates');
+    }
   }
 
   for (const file of listFiles('harness/skills', (f) => f.endsWith('.md') && !f.endsWith('/README.md'))) {
@@ -382,7 +401,6 @@ function buildGraph() {
 
   for (const dir of listDirs('harness/tools')) {
     const readme = path.join(dir, 'README.md');
-    if (readme.endsWith('graph-viewer/README.md')) continue;
     if (!exists(readme)) continue;
     const text = readText(readme);
     const tid = nodeId('tool', dir);
@@ -392,6 +410,8 @@ function buildGraph() {
 
   const markdownFiles = [
     'harness/README.md',
+    'harness/knowledge/README.md',
+    'harness/validate/README.md',
     ...listFiles('harness/skills', (f) => f.endsWith('.md')),
     ...listDirs('harness/tools').map((dir) => path.join(dir, 'README.md')).filter(exists),
   ];
@@ -420,7 +440,6 @@ function buildGraph() {
       ...gap,
     })),
   );
-  const explicitWorkspaceCount = workspaceReports.filter((report) => report.profileListed).length;
   const validationCoverageCount = workspaceReports.filter((report) => report.validationRules.length > 0).length;
   const entryCoverageCount = workspaceReports.filter((report) => report.entry.exists).length;
   return {
@@ -430,7 +449,6 @@ function buildGraph() {
       edges: edges.length,
       workspaces: nodeList.filter((node) => node.type === 'workspace').length,
       activeWorkspaces: workspaceReports.length,
-      explicitWorkspaces: explicitWorkspaceCount,
       entryCoverage: entryCoverageCount,
       validationCoverage: validationCoverageCount,
       skills: nodeList.filter((node) => node.type === 'skill').length,
@@ -439,8 +457,7 @@ function buildGraph() {
       harnessGaps: harnessGaps.length,
       highSeverityGaps: harnessGaps.filter((gap) => gap.severity === 'high').length,
     },
-    profileScope: profile.profileScope ?? {},
-    activeWorkspaceGlobs: readWorkspaceGlobs(profile),
+    workspaceGlobs: readWorkspaceGlobs(),
     workspaceReports,
     harnessGaps,
     nodes: nodeList,
@@ -803,7 +820,6 @@ function statusBadge(status){ return '<span class="badge '+status+'">'+statusLab
 function severityLabel(severity){ return severity === 'high' ? bi('高', 'HIGH') : severity === 'medium' ? bi('中', 'MEDIUM') : String(severity ?? '').toUpperCase(); }
 function typeLabel(type){
   const labels = {
-    profile: bi('Profile', 'profile'),
     entry: bi('入口', 'entry'),
     knowledge: bi('知识', 'knowledge'),
     validation: bi('验证', 'validation'),
@@ -811,21 +827,14 @@ function typeLabel(type){
   return labels[type] ?? type;
 }
 function gapLabel(gap){
-  if (gap.label === 'No explicit profile entry') return bi('未显式配置 profile 条目', 'No explicit profile entry');
   if (gap.label === 'Missing local AGENTS entry') return bi('缺少本地 AGENTS 入口', 'Missing local AGENTS entry');
   if (gap.label === 'No path-specific validation rule') return bi('缺少路径级验证规则', 'No path-specific validation rule');
   if (String(gap.label).startsWith('Missing ')) return bi('缺少 ' + String(gap.label).replace(/^Missing\s+/, ''), gap.label);
   return gap.label;
 }
 function gapDetail(gap){
-  if (gap.detail === 'This workspace falls back to workspaceTypeDefaults instead of a curated entry.') {
-    return bi('该工作区会退回 workspaceTypeDefaults，没有单独精修条目。', gap.detail);
-  }
   if (gap.detail === 'Workspace has no local harness entry for progressive reading.') {
     return bi('该工作区缺少用于渐进阅读的本地 harness 入口。', gap.detail);
-  }
-  if (gap.detail === 'Profile points to a file that does not exist.') {
-    return bi('profile 指向了不存在的文件。', gap.detail);
   }
   if (gap.detail === 'Validation falls back to workspace scripts instead of a named path rule.') {
     return bi('验证会退回 workspace 脚本，而不是命名路径规则。', gap.detail);
@@ -850,7 +859,7 @@ function renderStaticText(){
   });
 }
 function renderMeta(){
-  const scope = graph.profileScope?.mode ? (state.lang === 'en' ? graph.profileScope.mode + ' scope' : graph.profileScope.mode + ' 范围') : 'profile';
+  const scope = bi('pnpm workspace', 'pnpm workspace');
   document.getElementById('meta').innerHTML = escapeHtml(scope)+'<br><span>'+escapeHtml(new Date(graph.generatedAt).toLocaleString())+'</span>';
 }
 function renderMetrics(){
@@ -858,7 +867,7 @@ function renderMetrics(){
   const entryPct = pct(graph.summary.entryCoverage, total);
   const validationPct = pct(graph.summary.validationCoverage, total);
   document.getElementById('metrics').innerHTML = [
-    metric(bi('活跃工作区', 'Active workspaces'), total, countLabel(graph.summary.explicitWorkspaces, ' 个精修条目', 'curated entry', 'curated entries'), 'good'),
+    metric(bi('活跃工作区', 'Active workspaces'), total, bi('来自 pnpm-workspace.yaml', 'from pnpm-workspace.yaml'), 'good'),
     metric(bi('入口覆盖', 'Entry coverage'), entryPct + '%', countLabel(graph.summary.entryCoverage, ' 个有本地入口', 'has local entry', 'have local entries'), entryPct === 100 ? 'good' : 'warn'),
     metric(bi('验证覆盖', 'Validation coverage'), validationPct + '%', countLabel(graph.summary.validationCoverage, ' 个有路径规则', 'has path rule', 'have path rules'), validationPct === 100 ? 'good' : 'warn'),
     metric(bi('缺失项', 'Missing items'), graph.summary.harnessGaps, countLabel(graph.summary.highSeverityGaps, ' 个高优先级', 'high severity', 'high severity'), graph.summary.highSeverityGaps ? 'bad' : graph.summary.harnessGaps ? 'warn' : 'good'),
@@ -867,7 +876,6 @@ function renderMetrics(){
 function renderHealth(){
   const total = graph.summary.activeWorkspaces || reports.length;
   const rows = [
-    [bi('Profile 条目', 'Profile entries'), graph.summary.explicitWorkspaces, total],
     [bi('本地入口', 'Local entries'), graph.summary.entryCoverage, total],
     [bi('验证规则', 'Validation rules'), graph.summary.validationCoverage, total],
   ];
@@ -884,7 +892,6 @@ function renderReadingLoop(){
   const loop = [
     bi('根入口：AGENTS.md / CLAUDE.md', 'Root entry: AGENTS.md / CLAUDE.md'),
     bi('Harness 总览：harness/README.md', 'Harness overview: harness/README.md'),
-    bi('机器可读地图：harness/profile.yaml', 'Machine-readable map: harness/profile.yaml'),
     bi('受影响工作区入口：workspace AGENTS.md', 'Affected workspace entry: workspace AGENTS.md'),
     bi('按需阅读 contracts、runbook 或 validation 文档', 'Read contracts, runbook, or validation docs as needed'),
   ];
@@ -969,7 +976,6 @@ function workspaceDetailHtml(report){
       '<div class="mini-row"><div>'+bi('包', 'Package')+'</div><div>'+escapeHtml(report.packageName)+'</div></div>'+
       '<div class="mini-row"><div>'+bi('角色', 'Role')+'</div><div>'+escapeHtml(report.role)+'</div></div>'+
       '<div class="mini-row"><div>'+bi('入口', 'Entry')+'</div><div class="path">'+escapeHtml(report.entry.path)+' '+(report.entry.exists ? '' : '<span class="severity high">'+bi('缺失', 'missing')+'</span>')+'</div></div>'+
-      '<div class="mini-row"><div>Profile</div><div>'+escapeHtml(report.profileListed ? bi('已精修', 'curated') : bi('默认兜底', 'default fallback'))+'</div></div>'+
     '</div></section>'+
     '<section class="panel"><h3>'+bi('验证', 'Validation')+'</h3>'+renderCommands(report.commands)+'</section>'+
     '<section class="panel"><h3>'+bi('阅读路径', 'Reading Path')+'</h3><div class="reading">'+report.readingPath.map(item => '<div class="path">'+escapeHtml(item)+'</div>').join('')+'</div></section>'+

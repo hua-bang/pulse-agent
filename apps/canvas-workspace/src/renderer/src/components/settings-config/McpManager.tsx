@@ -1,15 +1,4 @@
-/**
- * McpManager — CRUD UI for MCP servers at a given scope.
- * Reused by the global Settings panel and the per-workspace settings drawer.
- *
- * Health badges per row come from the engine MCP plugin's status snapshot
- * (captured during its last initialize). After a save, the IPC awaits the
- * engine reload before returning, so the statuses we display are accurate.
- *
- * When `showInherited` is true and `scope` is a workspace, also surfaces the
- * agent-loaded global servers as a read-only section — matching what we do
- * for skills, so the user can see (and override) what the agent really has.
- */
+/** MCP server CRUD for global settings and per-workspace settings drawers. */
 
 import { useCallback, useEffect, useState } from 'react';
 import type {

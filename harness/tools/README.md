@@ -1,14 +1,22 @@
 # Harness Tools
 
-`harness/tools` describes horizontal atomic capabilities. Tools can be used by skills, checks, feedback, reports, or humans.
+`harness/tools` describes horizontal atomic capabilities. Tools can be used by checks, reports, humans, or future skills.
 
-A tool should have stable inputs and outputs, but it does not own final decisions. Skills compose tools and make workflow decisions.
+A tool should have stable inputs and outputs, but it does not own final decisions.
 
-## Current Tool Specs
+## Current Executable Tools
 
 | Tool | Purpose |
 |---|---|
-| `repo-profiler` | Build or refresh the repository map used by `harness/profile.yaml`. |
+| `graph-viewer` | Inspect harness coverage and validation routing. |
+
+## Candidate Tool Ideas
+
+These are ideas, not on-disk tool directories or executable protocols.
+
+| Tool | Purpose |
+|---|---|
+| `repo-profiler` | Inspect active workspaces and suggest workspace `AGENTS.md` navigation updates. |
 | `affected-workspace-detector` | Map changed paths or a user request to affected workspaces. |
 | `ssot-resolver` | Pick the correct long-term source of truth for a fact or rule. |
 | `feedback-router` | Route feedback to a proposal target based on evidence and scope. |

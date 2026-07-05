@@ -31,7 +31,7 @@ ACP protocol behavior is contract-heavy. Hosts such as the CLI and remote server
 - Preserve default external command names (`claude-agent-acp`, `codex-acp`) and env overrides (`ACP_CLAUDE_CODE_CMD`, `ACP_CODEX_CMD`) unless host migration is planned.
 - `runAcp` strips `CLAUDECODE` from child env and can strip proxy vars when retrying or when `ACP_DISABLE_PROXY` is set; change env inheritance carefully.
 - The runner advertises fs read/write capability by default and keeps terminal capability false; update client handlers and tests before changing capabilities.
-- Route protocol changes through `../../harness/skills/contract-coding.md`.
+- Treat protocol changes as contract changes; run local validation and apply the root impact overlay when hosts are affected.
 
 ## Common Commands
 

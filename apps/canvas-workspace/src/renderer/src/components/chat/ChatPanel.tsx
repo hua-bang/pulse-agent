@@ -31,6 +31,7 @@ export const ChatPanel = ({
   onResizeStart,
   onNodeFocus,
   onOpenAppSettings,
+  onOpenWorkspaceSettings,
   onRegisterInsertMention,
   onRegisterInsertDomSelectionMention,
   onTurnComplete,
@@ -54,6 +55,16 @@ export const ChatPanel = ({
   // Anchor element ids are namespaced per scope; global chat has no workspace
   // so it falls back to a stable 'global' namespace.
   const anchorScopeId = scopeWorkspaceId ?? 'global';
+  const settingsButtonLabel = scopeWorkspaceId && onOpenWorkspaceSettings
+    ? t('workspaceSettings.ariaLabel')
+    : t('chat.modelSettings');
+  const handleOpenScopeSettings = useCallback(() => {
+    if (scopeWorkspaceId && onOpenWorkspaceSettings) {
+      onOpenWorkspaceSettings(scopeWorkspaceId);
+      return;
+    }
+    onOpenAppSettings('models');
+  }, [onOpenAppSettings, onOpenWorkspaceSettings, scopeWorkspaceId]);
 
   const {
     abort,
@@ -366,7 +377,8 @@ export const ChatPanel = ({
           onToggleSessionMenu={openSessionMenu}
           onCloseSessionMenu={closeSessionMenu}
           onNewSession={handleNewSessionFromMenu}
-          onOpenModelSettings={() => onOpenAppSettings('models')}
+          onOpenSettings={handleOpenScopeSettings}
+          settingsLabel={settingsButtonLabel}
           onOpenPromptSettings={() => onOpenAppSettings('reply-style')}
           onLoadSession={handleLoadSessionFromMenu}
           onClose={onClose}

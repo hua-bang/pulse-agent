@@ -6,7 +6,7 @@ import {
   useState,
   type KeyboardEvent,
 } from 'react';
-import type { Artifact, IframeNodeData } from '../../types';
+import type { IframeNodeData } from '../../types';
 import { useDeferredVisibleMount } from './useDeferredVisibleMount';
 import type { EditMode, IframeNodeBodyProps, LoadState, WebviewTag } from './types';
 import {
@@ -20,6 +20,7 @@ import {
 } from './utils';
 import { isImeComposing } from '../../utils/ime';
 import { useWebviewBackgroundThrottle } from './useWebviewBackgroundThrottle';
+import { useIframeArtifact } from './useIframeArtifact';
 
 export const useIframeNodeState = ({
   node,
@@ -33,43 +34,8 @@ export const useIframeNodeState = ({
   const html = data.html ?? '';
   const savedPrompt = data.prompt ?? '';
   const artifactId = data.artifactId ?? null;
-
-  const [artifact, setArtifact] = useState<Artifact | null>(null);
   const isArtifactMode = mode === 'artifact' && !!artifactId && !!workspaceId;
-
-  useEffect(() => {
-    if (!isArtifactMode || !workspaceId || !artifactId) {
-      setArtifact(null);
-      return;
-    }
-    let cancelled = false;
-    const refresh = async () => {
-      const result = await window.canvasWorkspace.artifacts.get(workspaceId, artifactId);
-      if (cancelled) return;
-      setArtifact((result?.ok ? result.artifact : null) ?? null);
-    };
-    void refresh();
-    const unsubscribe = window.canvasWorkspace.artifacts.onChange((event) => {
-      if (event.workspaceId !== workspaceId) return;
-      if (event.artifactId !== artifactId) return;
-      if (event.kind === 'delete') {
-        setArtifact(null);
-        return;
-      }
-      void refresh();
-    });
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [isArtifactMode, workspaceId, artifactId]);
-
-  const artifactHtml = (() => {
-    if (!artifact) return '';
-    const version = artifact.versions.find((item) => item.id === artifact.currentVersionId)
-      ?? artifact.versions[artifact.versions.length - 1];
-    return version?.content ?? '';
-  })();
+  const { artifact, artifactHtml } = useIframeArtifact({ artifactId, isArtifactMode, workspaceId });
 
   const hasContent = isArtifactMode ? !!artifactHtml : (mode === 'url' ? !!url : !!html);
   const [editing, setEditing] = useState(!readOnly && !isArtifactMode && !hasContent);

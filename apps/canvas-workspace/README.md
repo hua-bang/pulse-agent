@@ -2,7 +2,7 @@
 
 An Electron desktop app that provides a free-form canvas workspace for AI-assisted coding. Users arrange **nodes** on an infinite canvas and interact with an embedded AI agent.
 
-> Deeper detail lives downstream: [`AGENTS.md`](./AGENTS.md) (local router + constraints), [`docs/`](./docs/) (architecture, conventions, renderer surfaces), and [`harness/README.md`](./harness/README.md) (Electron launch harness). Repository-level routing is in [`../../harness/README.md`](../../harness/README.md) + [`../../harness/profile.yaml`](../../harness/profile.yaml).
+> Deeper detail lives downstream: [`AGENTS.md`](./AGENTS.md) (local router + constraints), [`docs/`](./docs/) (architecture, conventions, renderer surfaces), and [`harness/README.md`](./harness/README.md) (Electron launch harness). Repository-level routing is in [`../../harness/README.md`](../../harness/README.md).
 
 ## Tech Stack
 

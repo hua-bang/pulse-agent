@@ -144,23 +144,24 @@ describe('cdpPressKey', () => {
     const host = makeHost();
     const r = await cdpPressKey(host, 'a');
     expect(r.ok).toBe(true);
-    expect(host.cdpCalls).toHaveLength(2);
+    expect(host.cdpCalls).toHaveLength(3);
+    expect(host.cdpCalls[0]).toEqual({ method: 'Page.bringToFront', params: undefined });
     // Letter 'a' uses keyDown (text-producing) — no separate rawKeyDown step.
-    expect(host.cdpCalls[0].params).toMatchObject({
+    expect(host.cdpCalls[1].params).toMatchObject({
       type: 'keyDown',
       key: 'a',
       code: 'KeyA',
       windowsVirtualKeyCode: 65,
       text: 'a',
     });
-    expect(host.cdpCalls[1].params).toMatchObject({ type: 'keyUp', key: 'a' });
+    expect(host.cdpCalls[2].params).toMatchObject({ type: 'keyUp', key: 'a' });
   });
 
   it('uses rawKeyDown (no text) for special keys like Enter when no Ctrl/Meta is held', async () => {
     const host = makeHost();
     await cdpPressKey(host, 'Enter');
     // Enter generates text '\r' on keyDown so it appears as keyDown, not rawKeyDown.
-    expect(host.cdpCalls[0].params).toMatchObject({
+    expect(host.cdpCalls[1].params).toMatchObject({
       type: 'keyDown',
       key: 'Enter',
       code: 'Enter',
@@ -172,12 +173,12 @@ describe('cdpPressKey', () => {
     const host = makeHost();
     await cdpPressKey(host, 'a', { modifiers: ['ctrl'] });
     // ctrl is held → text must be empty so the page doesn\'t see "ctrl+a" AND a typed 'a'.
-    expect(host.cdpCalls[0].params).toMatchObject({
+    expect(host.cdpCalls[1].params).toMatchObject({
       type: 'rawKeyDown',
       key: 'a',
       modifiers: 2,
     });
-    expect(host.cdpCalls[0].params).not.toHaveProperty('text');
+    expect(host.cdpCalls[1].params).not.toHaveProperty('text');
   });
 
   it('focuses the optional selector before pressing', async () => {
@@ -217,6 +218,7 @@ describe('cdpFillSelector', () => {
     expect(r.ok).toBe(true);
     expect(r.data).toMatchObject({ tag: 'input', length: 5, mode: 'insertText' });
     expect(host.cdpCalls).toEqual([
+      { method: 'Page.bringToFront', params: undefined },
       { method: 'Input.insertText', params: { text: 'hello' } },
     ]);
   });
