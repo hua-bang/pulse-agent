@@ -27,18 +27,20 @@
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
 
-已完成任务:A1、A2、A6、B1、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、C1、D1。
-未动任务:A3、A4、A5、B2、B3、B4、B7、B8、C2、D2、D3、D4、D5、D6。
+已完成任务:A1、A2、A3、A6、B1、B5、B6(含 C1-C7+chain-B 全部懒边界,六个重库 probe 全 lazy)、C1、D1、V1。
+未动任务:A4、A5、B2、B3、B4、B7、B8、C2、D2、D3、D4、D5、D6。
 
-当前看板告警:1×medium(拖拽放大器,B7 修)+ 4×info(时间指标单样本波动,A3 修)+ 1×info(AI 流式无数据)。
+当前看板告警(A3 落地后,连续两轮 `perf:report --repeat 3` 验证):1×medium(拖拽放大器,B7 修)+ 1×info(AI 流式无数据,专项性质,非波动噪声)。4 条时间指标波动 info 全部消退。
+
+**A3 完成记录(2026-07-05)**:两条独立的 repeat 机制——① `report.mjs --repeat N`(默认 3)多次整机启动,仅 startup 阶段做跨启动同机中位数(`mergeStartupMedians`),清掉了 whenReady/openWindow/domReady 的波动告警;② `run-scenarios.mjs --repeat N` 在同一 session 内重跑 typing/drag(计数器取 max,INP p95/frames>20% 取中位数)。`main.loop_delay_max_ms` **未**做重复稳定化——它本质是单次最坏值统计,重复整机启动的收益有限,该告警若复现,遵循规则本身的建议"重跑确认"即可。`main.canvas_save.files_written` / `main.session_persist.bytes_per_turn` 覆盖率仍不稳定(依赖 debounce 计时器是否在 session 关闭前落地),这是 c296930 引入时就有的既存偶发缺口,与本次改动无关,未在本次修复范围内。
 
 ## 第二期任务队列(交接就绪,按优先级)
 
 > 任务卡正文在下方各 WS 节,此处只给顺序、依赖与口径变化。每张卡自包含,单个 Agent 可独立领取;**领取前先 `git fetch` 并跑一遍 `pnpm --filter canvas-workspace perf:report` 确认基线**。
 
-**P0 · 让已建的东西可信**
-1. **V1(新)· CI 绿灯确认**:确认 PR #729 最新 perf.yml 运行产出 runtime 场景(scenarios-report.json 进 artifact、覆盖 ≥26/34、verdict 评论非 bundle-only)。若仍红,沿用 c4dba37 的 stderr-tail 线索继续修 launch 链。这是其余 CI 相关任务(C2/D3)的前置。
-2. **A3 · --repeat 中位数**:消掉 4 条波动 info 告警,是 C2(record→warn)与趋势可信度的硬前置。
+**P0 · 让已建的东西可信** ✅ 两项均已完成(2026-07-05)
+1. ~~**V1 · CI 绿灯确认**~~:PR #729 最新 perf.yml 运行(361e7fa)confirmed 绿灯,26/34 覆盖,8/8 门禁,非 bundle-only 退化。
+2. ~~**A3 · --repeat 中位数**~~:见上方「A3 完成记录」。4 条波动 info 告警已消退,C2(record→warn)前置条件满足。
 
 **P1 · 修复轨(收益已实测,卡片就绪)**
 3. **B7 · 拖拽 ephemeral**:看板唯一 medium 告警;91 替换/90 步 → <10。

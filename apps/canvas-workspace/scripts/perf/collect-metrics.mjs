@@ -65,11 +65,22 @@ export const collectMetrics = () => {
 
   const phases = scenarios?.scenarios?.startup?.mainPhases;
   if (phases) {
-    push('startup.when_ready_ms', phases.whenReady);
-    push('startup.open_window_ms', phases.openWindow);
-    push('startup.dom_ready_ms', phases.rendererDomReady);
+    // A3: report.mjs's --repeat boots the app N times and folds the phase
+    // marks into a same-machine median (mergeStartupMedians); runs/raw ride
+    // along when present so history keeps the sample count, not just the
+    // point value. Absent when run-scenarios.mjs is invoked standalone
+    // (single boot) — runs defaults to 1 in that case.
+    const phasesRuns = scenarios.scenarios.startup.mainPhasesRuns;
+    const phasesRaw = scenarios.scenarios.startup.mainPhasesRaw;
+    const extra = (field) => (phasesRuns > 1 ? { runs: phasesRuns, raw: phasesRaw?.[field] } : {});
+    push('startup.when_ready_ms', phases.whenReady, extra('whenReady'));
+    push('startup.open_window_ms', phases.openWindow, extra('openWindow'));
+    push('startup.dom_ready_ms', phases.rendererDomReady, extra('rendererDomReady'));
     if (phases.pluginsActivated !== undefined) {
-      push('startup.serial_chain_ms', phases.pluginsActivated - phases.whenReady);
+      const serialChainExtra = phasesRuns > 1 && phasesRaw?.pluginsActivated && phasesRaw?.whenReady
+        ? { runs: phasesRuns, raw: phasesRaw.pluginsActivated.map((v, i) => v - phasesRaw.whenReady[i]) }
+        : {};
+      push('startup.serial_chain_ms', phases.pluginsActivated - phases.whenReady, serialChainExtra);
     }
   }
   const paint = scenarios?.scenarios?.startup?.paint;
@@ -111,8 +122,17 @@ export const collectMetrics = () => {
   for (const name of ['typing', 'drag']) {
     const report = scenarios?.scenarios?.[name]?.report;
     if (!report) continue;
-    push(`interact.${name}.inp_p95_ms`, report.interactions.p95);
-    push(`interact.${name}.frames_over20_pct`, report.frames.over20msPct);
+    // A3: --repeat N folds multiple in-session runs into a median (see
+    // run-scenarios.mjs aggregateReports); runs/raw follow the schema in
+    // program.md §3 so history entries carry sample counts, not just values.
+    const repeatExtra = report.runs > 1
+      ? { runs: report.runs, raw: report.raw?.interactionsP95 }
+      : {};
+    const frameExtra = report.runs > 1
+      ? { runs: report.runs, raw: report.raw?.framesOver20Pct }
+      : {};
+    push(`interact.${name}.inp_p95_ms`, report.interactions.p95, repeatExtra);
+    push(`interact.${name}.frames_over20_pct`, report.frames.over20msPct, frameExtra);
     for (const [counter, id] of [
       ['nodes-array-replace', `interact.${name}.counter.nodes_array_replace`],
       ['canvas-save-ipc', `interact.${name}.counter.canvas_save_ipc`],

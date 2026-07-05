@@ -17,6 +17,14 @@
  * Counter gates compare against perf/baselines.json → "runtime". Timing
  * metrics (INP p95, frame stats) are recorded as informational until enough
  * runs exist to set tolerances. Exit 1 on counter-gate failure.
+ *
+ * `--repeat N` (A3): typing/drag are re-driven N times against the same live
+ * session (each iteration resets via __pulsePerf.begin/end); the reported
+ * interactions.p95 / frames.over20msPct become the median across runs (raw[]
+ * kept alongside) so a single noisy sample can't misfire the dashboard's
+ * same-machine variance alert. Counters take the max across runs — they're
+ * deterministic, so max is a safety net against a single-run undercount
+ * rather than a smoothing choice.
  */
 import { promises as fs } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -36,8 +44,40 @@ const readFlag = (name) => {
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
 const only = (readFlag('--scenario') ?? 'startup,typing,drag,ws-cycle').split(',');
+const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const median = (nums) => {
+  const sorted = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[mid]
+    : Math.round(((sorted[mid - 1] + sorted[mid]) / 2) * 10) / 10;
+};
+
+/** Fold N per-run interaction reports into one: median for timing leaves
+ *  (the same-machine-comparable fields), max for counters (deterministic —
+ *  max is a safety net, not smoothing), everything else from the last run. */
+const aggregateReports = (reports) => {
+  if (reports.length === 1) return reports[0];
+  const last = reports[reports.length - 1];
+  const p95Raw = reports.map((r) => r.interactions.p95);
+  const over20Raw = reports.map((r) => r.frames.over20msPct);
+  const counterNames = new Set(reports.flatMap((r) => Object.keys(r.counters)));
+  const counters = {};
+  for (const name of counterNames) {
+    counters[name] = Math.max(...reports.map((r) => r.counters[name] ?? 0));
+  }
+  return {
+    ...last,
+    counters,
+    interactions: { ...last.interactions, p95: median(p95Raw) },
+    frames: { ...last.frames, over20msPct: median(over20Raw) },
+    runs: reports.length,
+    raw: { interactionsP95: p95Raw, framesOver20Pct: over20Raw },
+  };
+};
 
 const evaluate = async (cdp, expression) => {
   const result = await cdp.send('Runtime.evaluate', {
@@ -143,7 +183,7 @@ const startupScenario = async (cdp, session) => {
   };
 };
 
-const typingScenario = async (cdp) => {
+const typingScenario = async (cdp, repeatCount = 1) => {
   const editorSel = '.canvas-node--file .ProseMirror';
   // C1/C6 made FileNodeBody React.lazy — wait for the lazy chunk to load +
   // ProseMirror to mount before targeting it. On CI the chunk lands slower
@@ -167,36 +207,57 @@ const typingScenario = async (cdp) => {
   if (!focused) throw new Error('editor did not take focus — typing would measure nothing');
 
   const chars = 'The quick brown fox jumps over the lazy dog while we measure per-keystroke costs on the canvas. '.repeat(2).slice(0, 120);
-  await beginPerf(cdp, 'typing');
-  for (const ch of chars) {
-    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', text: ch, key: ch, unmodifiedText: ch });
-    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch });
-    await sleep(25);
+  const reports = [];
+  for (let run = 0; run < repeatCount; run++) {
+    await beginPerf(cdp, 'typing');
+    for (const ch of chars) {
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', text: ch, key: ch, unmodifiedText: ch });
+      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch });
+      await sleep(25);
+    }
+    await sleep(300); // let trailing work land inside the window
+    reports.push(await endPerf(cdp));
+    if (run < repeatCount - 1) await waitForCalmFrames(cdp);
   }
-  await sleep(300); // let trailing work land inside the window
-  const report = await endPerf(cdp);
-  return { chars: chars.length, report };
+  return { chars: chars.length, report: aggregateReports(reports) };
 };
 
-const dragScenario = async (cdp) => {
+const dragScenario = async (cdp, repeatCount = 1) => {
   const headerSel = '.canvas-node .node-header';
-  const point = await hittablePointIn(cdp, headerSel);
-  if (!point) throw new Error(`no unobstructed node header found (${headerSel})`);
-  await waitForCalmFrames(cdp);
-  const startX = point.x;
-  const startY = point.y;
   const moves = 90;
+  const reports = [];
+  // Anchor to the first run's point and drag the node back there between
+  // repeats (unmeasured) — otherwise each repeat's displacement compounds
+  // and eventually walks the node off the (fixed-size headless) viewport.
+  let anchor = null;
+  for (let run = 0; run < repeatCount; run++) {
+    const point = anchor ?? await hittablePointIn(cdp, headerSel);
+    if (!point) throw new Error(`no unobstructed node header found (${headerSel})`);
+    anchor ??= point;
+    await waitForCalmFrames(cdp);
+    const startX = point.x;
+    const startY = point.y;
 
-  await beginPerf(cdp, 'drag');
-  await mouse(cdp, 'mousePressed', startX, startY, { button: 'left', buttons: 1, clickCount: 1 });
-  for (let i = 1; i <= moves; i++) {
-    await mouse(cdp, 'mouseMoved', startX + i * 3, startY + i * 2, { buttons: 1 });
-    await sleep(16);
+    await beginPerf(cdp, 'drag');
+    await mouse(cdp, 'mousePressed', startX, startY, { button: 'left', buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= moves; i++) {
+      await mouse(cdp, 'mouseMoved', startX + i * 3, startY + i * 2, { buttons: 1 });
+      await sleep(16);
+    }
+    const endX = startX + moves * 3;
+    const endY = startY + moves * 2;
+    await mouse(cdp, 'mouseReleased', endX, endY, { button: 'left', buttons: 0, clickCount: 1 });
+    await sleep(300);
+    reports.push(await endPerf(cdp));
+
+    if (run < repeatCount - 1) {
+      await mouse(cdp, 'mousePressed', endX, endY, { button: 'left', buttons: 1, clickCount: 1 });
+      await mouse(cdp, 'mouseMoved', startX, startY, { buttons: 1 });
+      await mouse(cdp, 'mouseReleased', startX, startY, { button: 'left', buttons: 0, clickCount: 1 });
+      await sleep(200);
+    }
   }
-  await mouse(cdp, 'mouseReleased', startX + moves * 3, startY + moves * 2, { button: 'left', buttons: 0, clickCount: 1 });
-  await sleep(300);
-  const report = await endPerf(cdp);
-  return { moves, report };
+  return { moves, report: aggregateReports(reports) };
 };
 
 // Memory-retention scenario (H1 guard): seed K workspaces, visit them one by
@@ -338,8 +399,8 @@ const main = async () => {
       console.log(`[perf:scenarios] canvas seeded: ${total} nodes`);
     }
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
-    if (only.includes('typing')) scenarios.typing = await typingScenario(cdp);
-    if (only.includes('drag')) scenarios.drag = await dragScenario(cdp);
+    if (only.includes('typing')) scenarios.typing = await typingScenario(cdp, repeat);
+    if (only.includes('drag')) scenarios.drag = await dragScenario(cdp, repeat);
     // ws-cycle runs last — it seeds extra workspaces and reloads, so it must
     // not disturb the single-workspace typing/drag scenarios above.
     if (only.includes('ws-cycle')) scenarios['ws-cycle'] = await wsCycleScenario(cdp);
@@ -389,10 +450,11 @@ const main = async () => {
     const entry = scenarios[name];
     if (!entry) continue;
     const r = entry.report;
+    const runsSuffix = r.runs > 1 ? ` (median of ${r.runs} runs, raw=${JSON.stringify(r.raw)})` : '';
     console.log(
       `[perf:scenarios] ${name}: counters=${JSON.stringify(r.counters)} `
       + `INPp95=${r.interactions.p95}ms frames>20ms=${r.frames.over20msPct}% `
-      + `LoAF=${r.longAnimationFrames.count}/${r.longAnimationFrames.blockingMs}ms`,
+      + `LoAF=${r.longAnimationFrames.count}/${r.longAnimationFrames.blockingMs}ms${runsSuffix}`,
     );
   }
   const wsc = scenarios['ws-cycle'];

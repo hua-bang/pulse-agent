@@ -18,7 +18,8 @@ writes `out/dashboard.html` (open in a browser) + `out/report.json` (verdict +
 alerts + metrics, for agents/CI). Exit 1 if any gate failed.
 
 Variants: `--bundle-only` (fast, no app launch), `--no-build` (reuse `dist/`),
-`--seed-nodes 300` (larger canvas). Degrades to a bundle-only report if the app
+`--seed-nodes 300` (larger canvas), `--repeat 1` (single boot — faster but
+noisier; default is 3, see below). Degrades to a bundle-only report if the app
 can't launch. First run on a display-less host needs `apt-get install -y xvfb`
 and, if the Electron binary is missing, `pnpm --filter canvas-workspace setup:electron`.
 
@@ -78,14 +79,41 @@ Scenarios drive input via CDP and read `window.__pulsePerf`:
 `--seed-nodes N` grows the welcome canvas to N nodes (text nodes, persisted +
 reload) so timing metrics reflect a loaded canvas.
 
+### Repeat / medians (A3)
+
+`perf:report --repeat N` (default 3, min 1) drives two independent repeat
+mechanisms so timing metrics stop being single-sample noise:
+
+- **`report.mjs` boots the app N times** for the `startup` scenario — each of
+  the first N-1 boots launches fresh, reads the `[perf] startup` phase log,
+  and closes; only the Nth stays alive for the interactive scenarios below.
+  Phases are folded into a same-machine median (`mergeStartupMedians`) with
+  `runs`/`raw[]` recorded per program.md §3's schema.
+- **`run-scenarios.mjs --repeat N`** re-drives `typing`/`drag` N times against
+  that one live session (cheap — no relaunch needed) and medians
+  `interactions.p95` / `frames.over20msPct`; counters take the max across runs
+  (they're deterministic, so max is a safety net, not smoothing).
+
+`main.loop_delay_p99_ms` gets a smaller, incidental benefit: repeating
+typing/drag extends the session, giving the loop-delay sampler more 2s
+windows to draw its percentile from. `main.loop_delay_max_ms` is not
+repeat-stabilized — it's inherently a single worst-case reading, and the
+dashboard's variance alert already suggests re-running to confirm outliers on
+that metric specifically.
+
+Call `pnpm --filter canvas-workspace perf:scenarios -- --repeat 3` directly
+when driving a manually-started session (see below).
+
 ## Baseline policy
 
 - Counter gates are deterministic (exact event counts) — tolerance lives in the
   recorded `max`. Today's maxima document the known amplifiers; when a fix
   lands (e.g. debounced editor sync, ephemeral drag geometry), lower the max in
   the same PR to lock the win in.
-- Timing metrics (INP p95, frames >20ms, LoAF) are informational until enough
-  runs establish variance; they are recorded in `out/scenarios-report.json`.
+- Timing metrics (INP p95, frames >20ms, LoAF, startup phases) are median'd
+  across `--repeat` runs (see above) but stay informational until enough
+  same-machine history establishes variance; they are recorded in
+  `out/scenarios-report.json`.
 - Bundle gates fail at `baseline × (1 + tolerancePct/100)`; lower baselines
   when a splitting fix lands.
 
