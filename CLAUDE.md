@@ -58,7 +58,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 
 ## 3. Auxiliary-workspace boundary
 
-Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` + `apps/canvas-workspace`. `apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo` are real but excluded (no AGENTS.md — excluded by policy). `packages/demo` is empty. Five app dirs (`canvas-plugin-figma-webview`, `frontend`, `pulse-agent-test`, `react-framework`, `todo-test-app`) are untracked stubs with no `package.json` — do not edit them expecting wiring. `apps/EXPERIMENTAL.md` is stale (claims `canvas-workspace` excluded) — trust `pnpm-workspace.yaml`, not that file.
+Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` + `apps/canvas-workspace`. `apps/coder-demo`, `apps/devtools-web`, `apps/canvas-plugin-react-mf-note-demo` are real but excluded (no AGENTS.md — excluded by policy). `apps/EXPERIMENTAL.md` is stale (claims `canvas-workspace` excluded) — trust `pnpm-workspace.yaml`, not that file.
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
@@ -105,6 +105,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - **UTF-8 chunk-split corruption**: async rewrite decoded each pipe chunk independently, corrupting multi-byte CJK. Guard: collect raw `Buffer`s and decode once.
 - **MCP reload stale/empty state**: reload didn't activate the target scope first. Guard: `activateScope` before reload, force fresh probe.
 - **Stale doc claimed canvas-workspace excluded**: `apps/EXPERIMENTAL.md` contradicts `pnpm-workspace.yaml:5`. Guard: `pnpm-workspace.yaml` owns workspace membership; run `graph-viewer --once` to detect coverage drift; do not trust prose workspace lists.
+- **Declared-but-unwired tests masked a real bug**: `remote-server` carried 6 Vitest files with no `test` script and no vitest dep; once wired, they exposed a ProxyAgent cache-key bug (cache stored the normalized URL but compared the raw env value — never hit, new agent per download). Guard: suite bound in the app's `harness/validate/validation.yaml` (`pretest` builds plugin-kit); when bootstrapping any workspace, cross-check test files × test script before trusting "no tests here".
 
 Failures are captured in fix commits + regression tests — debug via `git log -- <file>` and focused tests, not by grepping for TODOs.
 
