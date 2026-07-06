@@ -103,13 +103,13 @@ const SECTIONS: SectionDef[] = [
   },
 ];
 
-interface SettingsProps {
+interface Props {
   open: boolean;
   initialSection: SettingsSection;
   onClose: () => void;
 }
 
-export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
+export const Settings = ({ open, initialSection, onClose }: Props) => {
   const { t } = useI18n();
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection);
   const canvasModels = useCanvasModels();

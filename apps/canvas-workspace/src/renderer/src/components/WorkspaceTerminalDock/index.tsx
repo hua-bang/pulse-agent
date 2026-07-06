@@ -22,7 +22,7 @@ import {
 } from '../../utils/codingAgentCommand';
 import './index.css';
 
-interface WorkspaceTerminalDockProps {
+interface Props {
   workspaceId: string;
   terminalId?: string;
   terminalTitle?: string;
@@ -76,7 +76,7 @@ export const WorkspaceTerminalDock = ({
   open,
   onClose,
   placement = 'bottom',
-}: WorkspaceTerminalDockProps) => {
+}: Props) => {
   const { t } = useI18n();
   const [height, setHeight] = useState(() => clampHeight(readStoredHeight() ?? DEFAULT_HEIGHT));
   const heightRef = useRef(height);

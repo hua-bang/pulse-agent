@@ -26,7 +26,7 @@ export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
-interface WorkbenchProps {
+interface Props {
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
   controller: WorkbenchController;
@@ -38,7 +38,7 @@ interface WorkbenchProps {
   onSetActiveRootFolder: () => void;
 }
 
-export const Workbench: React.FC<WorkbenchProps> = ({
+export const Workbench: React.FC<Props> = ({
   activeWorkspaceId,
   workspaces,
   controller,
