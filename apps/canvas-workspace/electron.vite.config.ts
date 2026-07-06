@@ -1,10 +1,16 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
+import { visualizer } from "rollup-plugin-visualizer";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
   version: string;
 };
+
+// Opt-in bundle treemap (rollup-plugin-visualizer). Default off so `dev` /
+// `build` never instantiate it — chunk hashes and output stay byte-identical
+// to the ungated build. Enable via `pnpm perf:analyze`.
+const analyze = process.env.PULSE_CANVAS_ANALYZE === "1";
 
 type LocalPluginRendererAsset = {
   publicPath: string;
@@ -157,8 +163,24 @@ export default defineConfig({
   renderer: {
     root: "src/renderer",
     build: {
-      outDir: "dist/renderer"
+      outDir: "dist/renderer",
+      // Emit Vite's official manifest (entry → static/dynamic imports) only
+      // under PULSE_CANVAS_ANALYZE — standardized data source for perf:treemap.
+      // Chunk output is byte-identical with/without it; only manifest.json differs.
+      // String form forces outDir-root path (electron-vite otherwise nests in .vite/).
+      manifest: analyze ? "manifest.json" : false
     },
-    plugins: [react(), localPluginRendererAssetsPlugin(), entryDepStatsPlugin()]
+    plugins: [
+      react(),
+      localPluginRendererAssetsPlugin(),
+      entryDepStatsPlugin(),
+      analyze &&
+      visualizer({
+        filename: "perf/out/bundle-treemap.html",
+        template: "treemap",
+        gzipSize: true,
+        brotliSize: false,
+      }),
+    ].filter(Boolean),
   }
 });
