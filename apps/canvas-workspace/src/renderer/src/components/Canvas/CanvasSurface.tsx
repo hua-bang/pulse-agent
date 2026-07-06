@@ -22,6 +22,15 @@ interface NodeRenderGroup {
 
 interface CanvasSurfaceProps {
   transform: { x: number; y: number; scale: number };
+  /** Scale as of the last moment the canvas was at rest (useCanvas).
+   *  Drives `--canvas-scale` and the `--small` class INSTEAD of the live
+   *  `transform.scale`: both restyle/repaint content inside the promoted
+   *  compositor layer, and doing that per wheel tick invalidates the
+   *  layer's tiles mid-gesture — the re-raster storm behind "tile memory
+   *  limits exceeded" blank flashes. While a gesture is in flight the
+   *  scale-compensated UI (terminal glyphs, frame headers) stretches with
+   *  the canvas and snaps crisp once the gesture settles. */
+  settledScale: number;
   animating: boolean;
   /** True while the user is actively panning/zooming. Drives conditional
    *  `will-change: transform` so the canvas subtree is only promoted to
@@ -125,6 +134,7 @@ interface CanvasSurfaceProps {
 
 export const CanvasSurface = ({
   transform,
+  settledScale,
   animating,
   moving,
   renderGroups,
@@ -225,10 +235,10 @@ export const CanvasSurface = ({
 
   return (
     <div
-      className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${transform.scale < 0.6 ? ' canvas-transform--small' : ''}`}
+      className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${settledScale < 0.6 ? ' canvas-transform--small' : ''}`}
       style={{
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-        '--canvas-scale': transform.scale,
+        '--canvas-scale': settledScale,
         transition: animating
           ? 'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94), --canvas-scale 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
           : undefined,

@@ -8,6 +8,7 @@ import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import type { AgentNodeBodyProps, ViewMode } from './types';
 import {
   SCROLLBACK_SAVE_INTERVAL,
+  createDebouncedTerminalRefit,
   loadRecentCwds,
   pushRecentCwd,
   serializeBuffer,
@@ -1086,15 +1087,21 @@ export const useAgentNodeController = ({
     // so canvas zoom changes also fire this observer. We update the xterm
     // font size to track the zoom (the inverse-scale wrapper keeps xterm
     // in a net `transform: 1` space, so selection math stays correct).
-    const observer = new ResizeObserver(() => {
+    // Debounced: bursts (canvas fit animation, node drag-resize) settle
+    // to a single refit instead of one per frame per terminal.
+    const refit = createDebouncedTerminalRefit(() => {
       const term = termRef.current;
       const fit = fitRef.current;
       if (!term || !fit) return;
       syncTerminalFontSizeToCanvas(term, containerRef.current);
       try { fit.fit(); } catch { /* ignore */ }
     });
+    const observer = new ResizeObserver(refit.schedule);
     if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      refit.cancel();
+    };
   }, [viewMode]);
 
   useEffect(() => {

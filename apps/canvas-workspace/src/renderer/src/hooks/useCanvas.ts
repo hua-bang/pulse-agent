@@ -35,6 +35,30 @@ export const useCanvas = (isHandTool = false) => {
   const [moving, setMoving] = useState(false);
   const movingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Latest transform, readable from identity-stable callbacks. Assigned
+  // every render so `screenToCanvas` can stay referentially stable — its
+  // old dependency on the `transform` state recreated it (and the large
+  // downstream useCallback/useMemo/effect graph across the canvas hooks)
+  // on EVERY wheel tick of a zoom gesture.
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
+  // Scale as of the last moment the canvas was at rest. While a pan/zoom
+  // gesture is in flight this intentionally lags behind `transform.scale`:
+  // it feeds the inherited `--canvas-scale` custom property and the
+  // `canvas-transform--small` class in CanvasSurface. Updating those on
+  // every wheel tick forced a style recalc of the whole canvas subtree
+  // plus layout/repaint of every scale-compensated element (terminal
+  // containers, frame headers, …), which invalidated the promoted
+  // compositor layer's tiles each tick — the re-raster storm behind the
+  // "tile memory limits exceeded" blank flashes and zoom jank on large
+  // canvases. Freezing them for the duration of the gesture keeps the
+  // zoom a pure compositor-side stretch of already-rastered tiles;
+  // everything re-styles once when the gesture settles (MOVING_IDLE_MS).
+  const settledScaleRef = useRef(transform.scale);
+  if (!moving) settledScaleRef.current = transform.scale;
+  const settledScale = settledScaleRef.current;
+
   const markMoving = useCallback(() => {
     setMoving(true);
     if (movingTimer.current) clearTimeout(movingTimer.current);
@@ -119,15 +143,20 @@ export const useCanvas = (isHandTool = false) => {
     setPanning(false);
   }, []);
 
+  // Identity-stable: reads the live transform from a ref. Every consumer
+  // calls this inside event handlers (never at render time), so reading
+  // the latest value at call time is equivalent — without tearing down
+  // subscriptions/handlers that list it as a dependency on each tick.
   const screenToCanvas = useCallback(
     (screenX: number, screenY: number, container: HTMLElement) => {
       const rect = container.getBoundingClientRect();
+      const { x, y, scale } = transformRef.current;
       return {
-        x: (screenX - rect.left - transform.x) / transform.scale,
-        y: (screenY - rect.top - transform.y) / transform.scale
+        x: (screenX - rect.left - x) / scale,
+        y: (screenY - rect.top - y) / scale
       };
     },
-    [transform]
+    []
   );
 
   const resetTransform = useCallback(() => {
@@ -137,6 +166,7 @@ export const useCanvas = (isHandTool = false) => {
   return {
     transform,
     setTransform,
+    settledScale,
     moving,
     panning,
     handleWheel,
