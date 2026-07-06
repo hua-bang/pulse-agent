@@ -8,4 +8,5 @@ pathRules:
       - tsconfig.json
       - tsup.config.ts
     required:
+      - pnpm --filter @pulse-coder/remote-server test
       - pnpm --filter @pulse-coder/remote-server build
