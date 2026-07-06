@@ -430,3 +430,31 @@
   gap: 6px;
   min-width: 0;
 }
+
+/* ── Level-of-detail (LOD) at deep zoom-out ────────────────────────────
+ *
+ * When the canvas is settled below LOD_SCALE_THRESHOLD (CanvasSurface adds
+ * `.canvas-transform--lod`), a webpage node is an unreadable thumbnail, and
+ * each live `<iframe>` / `<webview>` is its own compositor layer — measured
+ * (isolated trace harness, 40 webpage nodes) at ~500ms of per-gesture
+ * main-thread Layerize, of which the placeholder reclaims ~70%. We hide only
+ * the inner `.iframe-body` (drops the iframe's layer) while the node card +
+ * header stay visible, and fill the area with a cheap static placeholder.
+ * The iframe stays fully mounted — no reload, no lost page state — so
+ * zooming back in past the threshold only pays a one-time re-raster.
+ * Fullscreen is excluded: a fullscreened iframe must stay live regardless of
+ * the underlying canvas zoom. */
+.canvas-transform--lod .canvas-node--iframe:not(.canvas-node--fullscreen) .iframe-body {
+  visibility: hidden;
+}
+
+.canvas-transform--lod .canvas-node--iframe:not(.canvas-node--fullscreen) .iframe-body-host::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 38%, rgba(59, 130, 226, 0.10), transparent 60%),
+    var(--surface, #ffffff);
+}
