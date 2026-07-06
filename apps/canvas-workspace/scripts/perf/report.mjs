@@ -45,6 +45,7 @@ const noBuild = has('--no-build');
 const seedNodes = flagValue('--seed-nodes', '100');
 const repeat = Math.max(1, Number(flagValue('--repeat', '3')));
 const distExists = existsSync(join(appRoot, 'dist/renderer'));
+const startupScreenshotPath = process.env.PULSE_CANVAS_PERF_STARTUP_SCREENSHOT || '';
 
 const step = (label) => console.log(`\n\x1b[1m▸ ${label}\x1b[0m`);
 const node = (script, scriptArgs = []) =>
@@ -156,6 +157,14 @@ if (!bundleOnly) {
     );
   } else {
     try {
+      if (startupScreenshotPath) {
+        step('捕获 Electron 启动截图');
+        const shot = harness(['screenshot', '--method', 'cdp', '--output', startupScreenshotPath]);
+        if (shot.status !== 0) {
+          console.warn(`[perf:report] Electron 启动截图失败,继续运行场景: ${startupScreenshotPath}`);
+        }
+      }
+
       step(`运行时场景(打字 / 拖拽 / 启动,@${seedNodes} 节点,--repeat ${repeat})`);
       if (node('scripts/perf/run-scenarios.mjs', ['--seed-nodes', seedNodes, '--repeat', String(repeat)]).status !== 0) {
         gatesFailed = true;
