@@ -6,7 +6,7 @@ import type { PlatformAdapter, IncomingMessage, StreamHandle } from '../../core/
 import type { ClarificationRequest } from '../../core/types.js';
 import { clarificationQueue } from '../../core/clarification-queue.js';
 import { getActiveStreamId, registerCancelToken } from '../../core/active-run-store.js';
-import { extractGeneratedImageResult } from '../feishu/image-result.js';
+import { extractGeneratedImageResults } from '../feishu/image-result.js';
 import { DiscordClient } from './client.js';
 import { buildDiscordMemoryKey, buildDiscordPlatformKey, isDiscordThreadChannelType } from './platform-key.js';
 import {
@@ -532,28 +532,30 @@ export class DiscordAdapter implements PlatformAdapter {
       },
 
       async onToolResult(toolResult) {
-        const imageResult = extractGeneratedImageResult(toolResult);
-        if (!imageResult) {
+        const imageResults = extractGeneratedImageResults(toolResult);
+        if (imageResults.length === 0) {
           return;
         }
 
-        if (!existsSync(imageResult.outputPath) || sentImagePaths.has(imageResult.outputPath)) {
-          return;
+        for (const imageResult of imageResults) {
+          if (!existsSync(imageResult.outputPath) || sentImagePaths.has(imageResult.outputPath)) {
+            continue;
+          }
+
+          sentImagePaths.add(imageResult.outputPath);
+
+          const fileName = basename(imageResult.outputPath);
+          await io
+            .sendExtraFile(
+              imageResult.outputPath,
+              fileName,
+              imageResult.mimeType,
+              `Generated image: ${fileName}`,
+            )
+            .catch((err) => {
+              console.error('[discord] Failed to send generated image:', err);
+            });
         }
-
-        sentImagePaths.add(imageResult.outputPath);
-
-        const fileName = basename(imageResult.outputPath);
-        await io
-          .sendExtraFile(
-            imageResult.outputPath,
-            fileName,
-            imageResult.mimeType,
-            `Generated image: ${fileName}`,
-          )
-          .catch((err) => {
-            console.error('[discord] Failed to send generated image:', err);
-          });
       },
 
       async onClarification(req: ClarificationRequest) {

@@ -4,32 +4,97 @@ interface GeneratedImageResult {
 }
 
 export function extractGeneratedImageResult(toolResult: unknown): GeneratedImageResult | null {
+  return extractGeneratedImageResults(toolResult)[0] ?? null;
+}
+
+export function extractGeneratedImageResults(toolResult: unknown): GeneratedImageResult[] {
+  const markedPayloads = extractMarkedImagePayloads(toolResult);
+  if (markedPayloads.length > 0) {
+    return markedPayloads;
+  }
+
   const toolName = extractToolName(toolResult);
   const payload = extractToolPayload(toolResult);
 
   if (!payload || !isRecord(payload)) {
-    return null;
+    return [];
   }
 
   const outputPath = asString(payload.outputPath);
   if (!outputPath) {
-    return null;
+    return [];
   }
 
   const mimeType = asString(payload.mimeType) ?? undefined;
 
   if (toolName && toolName !== 'generate_image') {
-    return null;
+    return [];
   }
 
   if (!toolName && !looksLikeGeneratedImagePayload(payload)) {
-    return null;
+    return [];
   }
 
-  return {
+  return [{
     outputPath,
     mimeType,
-  };
+  }];
+}
+
+function extractMarkedImagePayloads(value: unknown, depth = 0): GeneratedImageResult[] {
+  if (depth > 5) {
+    return [];
+  }
+
+  if (typeof value === 'string') {
+    const marker = '__PULSE_IMAGE_RESULT__';
+    const results: GeneratedImageResult[] = [];
+    let searchFrom = 0;
+    while (searchFrom < value.length) {
+      const markerAt = value.indexOf(marker, searchFrom);
+      if (markerAt < 0) break;
+
+      const jsonLine = value.slice(markerAt + marker.length).trimStart().split(/\r?\n/, 1)[0]?.trim();
+      searchFrom = markerAt + marker.length + (jsonLine?.length ?? 0);
+      if (!jsonLine) continue;
+
+      try {
+        const payload = JSON.parse(jsonLine) as unknown;
+        if (!isRecord(payload) || !looksLikeGeneratedImagePayload(payload)) {
+          continue;
+        }
+        results.push({
+          outputPath: asString(payload.outputPath)!,
+          mimeType: asString(payload.mimeType) ?? undefined,
+        });
+      } catch {
+        continue;
+      }
+    }
+    return dedupeImageResults(results);
+  }
+
+  if (Array.isArray(value)) {
+    return dedupeImageResults(value.flatMap((item) => extractMarkedImagePayloads(item, depth + 1)));
+  }
+
+  if (isRecord(value)) {
+    return dedupeImageResults(Object.values(value).flatMap((item) => extractMarkedImagePayloads(item, depth + 1)));
+  }
+
+  return [];
+}
+
+function dedupeImageResults(results: GeneratedImageResult[]): GeneratedImageResult[] {
+  const seen = new Set<string>();
+  const deduped: GeneratedImageResult[] = [];
+  for (const result of results) {
+    const key = `${result.outputPath}\0${result.mimeType ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(result);
+  }
+  return deduped;
 }
 
 function extractToolName(toolResult: unknown): string | null {
