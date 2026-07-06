@@ -57,10 +57,7 @@ jobs:
       # (self-managed Xvfb), runs the runtime scenarios, and assembles the
       # report. Exit 1 on any gate failure → this job goes red.
       - name: Run performance report
-        # TEMPORARY probe (reverted after this comparison round): mix in
-        # webpage/iframe nodes to measure the pan/zoom fix against a more
-        # representative node-type mix, not just plain text nodes.
-        run: pnpm --filter canvas-workspace perf:report -- --seed-webpages 30
+        run: pnpm --filter canvas-workspace perf:report
 
       - name: Upload report
         if: always()
