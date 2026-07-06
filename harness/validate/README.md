@@ -18,7 +18,7 @@ This directory is an index plus optional root impact rules. Package-level valida
 
 ## Honest reality
 
-Validation YAML files are declarative. Nothing runs them today — there is no CI, no git hooks, no husky/lint-staged, and no executable harness checks yet. Validation is currently carried by agent discipline plus manual `pnpm --filter` runs. State this honestly; do not claim a gate exists when it does not.
+Validation YAML files are declarative. Nothing runs them today — apart from `.github/workflows/perf.yml` (canvas-workspace perf gates on PRs touching that app), there is no CI for tests/typecheck, no git hooks, no husky/lint-staged, and no executable harness checks yet. Validation is currently carried by agent discipline plus manual `pnpm --filter` runs. State this honestly; do not claim a gate exists when it does not.
 
 Known red command — do not promote: `pnpm run test:apps` can exit 1 because `apps/coder-demo`'s test script is `echo Error && exit 1`. Use targeted `pnpm --filter <pkg> test` and do not treat a bare `test:apps` failure as a regression unless excluded apps are filtered out.
 

@@ -12,7 +12,7 @@ The harness pilot has a real, populated foundation:
 - `harness/tools/graph-viewer/server.mjs` is the one wired executable — a drift detector (`--once` smoke check, reports `harnessGaps`).
 - Root `AGENTS.md` carries the meta-rules layer (precedence + SSOT-no-copies + mechanism-over-doc + first-principles + Occam + 5-step self-check), the L0/L1/L2 doc taxonomy, the intent navigation table, hard boundaries with honest test-reality, workspace-local validation routing, and named failure-capture with guards.
 
-What is **honestly absent**: there is NO CI, NO git hooks, NO husky/lint-staged/commitlint, and NO executable harness checks yet. Validation YAML files are declarative — nothing runs them. `graph-viewer` is the only wired harness tool. `harness/skills/`, `harness/feedback/`, `harness/templates/`, `harness/checks/`, and `scripts/harness/` do not exist today.
+What is **honestly absent**: apart from `.github/workflows/perf.yml` (canvas-workspace perf gates), there is NO CI for tests/typecheck, NO git hooks, NO husky/lint-staged/commitlint, and NO executable harness checks yet. Validation YAML files are declarative — nothing runs them. `graph-viewer` is the only wired harness tool. `harness/skills/`, `harness/feedback/`, `harness/templates/`, `harness/checks/`, and `scripts/harness/` do not exist today.
 
 ## The keystone gap: turn the declarative SSOT into a runnable mechanism
 

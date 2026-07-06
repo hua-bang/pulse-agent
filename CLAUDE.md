@@ -62,7 +62,7 @@ Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` 
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
-There is NO CI, NO git hooks, NO husky/lint-staged/commitlint, and NO executable harness checks yet. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are declarative specs — nothing runs them for you. `graph-viewer` is the only wired harness executable; other tool ideas are not on-disk tools until implemented. `scripts/harness/` does not exist.
+The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets + runtime counter gates on PRs touching that app. Beyond it there is NO CI for tests/typecheck, NO git hooks, NO husky/lint-staged/commitlint, and NO executable harness checks yet. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are declarative specs — nothing runs them for you. `graph-viewer` is the only wired harness executable; other tool ideas are not on-disk tools until implemented. `scripts/harness/` does not exist.
 
 **Runtime skills are product config, not repo harness protocols:**
 
