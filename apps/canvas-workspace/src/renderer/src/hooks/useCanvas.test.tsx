@@ -224,14 +224,30 @@ describe('useCanvas zoom gesture', () => {
     expect(after.cy).toBeCloseTo(before.cy, 6);
   });
 
-  it('applies trackpad-pinch magnitude deltas directly with no glide tail', () => {
-    // |deltaY| below DISCRETE_ZOOM_DELTA (40) is a pinch stream: the
-    // factor lands immediately and nothing keeps animating afterwards.
+  it('smooths pinch deltas with a tight glide that converges exactly and fast', () => {
+    // |deltaY| below DISCRETE_ZOOM_DELTA (40) is a pinch stream. macOS
+    // delivers those at a rate independent of (often below) the display
+    // refresh — applying them directly left the refresh frames between
+    // events with zero motion (measured 74% stalled frames at a 30Hz
+    // stream: the trackpad staircase). Pinch now takes the tight tween:
+    // partial after one frame, exact convergence within ~150ms.
     wheelZoom(-10);
-    expect(hook.transform.scale).toBeCloseTo(1.05, 10);
-    const settled = hook.transform;
-    act(() => { vi.advanceTimersByTime(100); });
-    expect(hook.transform).toEqual(settled);
+    const afterOneFrame = hook.transform.scale;
+    expect(afterOneFrame).toBeGreaterThan(1);
+    expect(afterOneFrame).toBeLessThan(1.05);
+
+    act(() => { vi.advanceTimersByTime(300); });
+    expect(hook.transform.scale).toBe(1.05);
+  });
+
+  it('compounds a pinch stream to the exact product of its event factors', () => {
+    act(() => {
+      hook.handleWheel(wheelEvent(-10));
+      hook.handleWheel(wheelEvent(-10));
+      hook.handleWheel(wheelEvent(-10));
+    });
+    settleGesture();
+    expect(hook.transform.scale).toBeCloseTo(1.05 ** 3, 10);
   });
 
   it('translates an in-flight glide when a pan arrives instead of snapping back', () => {

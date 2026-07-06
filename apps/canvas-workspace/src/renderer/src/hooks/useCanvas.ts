@@ -10,19 +10,29 @@ const ZOOM_SENSITIVITY = 0.005;
 const MOVING_IDLE_MS = 180;
 /** Wheel deltas at or above this magnitude are discrete mouse-wheel
  *  notches (Chromium reports ~100-120/notch; the ±50 clamp saturates
- *  them to a ×1.25 step). Those get the zoom tween below. Smaller
- *  deltas are a trackpad pinch stream — already continuous, and
- *  tweening them would add a floaty lag between finger and canvas, so
- *  they keep applying directly. */
+ *  them to a ×1.25 step). Smaller deltas are a trackpad pinch stream.
+ *  Both go through the zoom tween — the split only selects the tween
+ *  RATE below. */
 const DISCRETE_ZOOM_DELTA = 40;
-/** Exponential approach rate (per second) for the discrete-wheel zoom
- *  tween: each frame the transform covers `1 - exp(-RATE·dt)` of its
- *  remaining distance to the target (~25%/frame at 60fps, ~90% of a
- *  notch in ~130ms). A wheel notch used to apply its whole ×1.25 step
- *  in a single frame — a staircase no amount of frame-rate work can
- *  make feel smooth. Gliding to the compounded target is what
- *  Heptabase/Figma-style zoom does. */
-const ZOOM_TWEEN_RATE = 18;
+/** Exponential approach rates (per second) for the zoom tween: each
+ *  frame the transform covers `1 - exp(-RATE·dt)` of its remaining
+ *  distance to the target.
+ *
+ *  NOTCH (~25%/frame at 60fps, ~90% of a step in ~130ms): a wheel notch
+ *  used to apply its whole ×1.25 step in a single frame — a staircase no
+ *  amount of frame-rate work can make feel smooth. Gliding to the
+ *  compounded target is what Heptabase/Figma-style zoom does.
+ *
+ *  PINCH (~42%/frame at 60fps, ~30ms behind the fingers): macOS delivers
+ *  pinch (ctrl+wheel) events at a rate independent of — often below —
+ *  the display refresh, so applying each event directly leaves the
+ *  refresh frames BETWEEN events with zero motion (measured: a 30Hz
+ *  pinch stream left 74% of frames stalled — the trackpad staircase/
+ *  jitter). The tight tween interpolates those in-between frames while
+ *  staying close enough to the fingers that the smoothing doesn't read
+ *  as lag. */
+const ZOOM_TWEEN_RATE_NOTCH = 18;
+const ZOOM_TWEEN_RATE_PINCH = 34;
 /** Tween convergence epsilons: snap-to-target once the remaining delta
  *  is imperceptible, so the rAF loop terminates and `moving` (which the
  *  tween keeps alive for will-change) can settle. */
@@ -91,6 +101,7 @@ export const useCanvas = (isHandTool = false) => {
   const zoomTargetRef = useRef(transform);
   const zoomTweenRaf = useRef<number | null>(null);
   const zoomTweenLastTs = useRef(0);
+  const zoomTweenRate = useRef(ZOOM_TWEEN_RATE_NOTCH);
 
   const stopZoomTween = useCallback(() => {
     if (zoomTweenRaf.current != null) {
@@ -172,7 +183,7 @@ export const useCanvas = (isHandTool = false) => {
     zoomTweenLastTs.current = ts;
     // Frame-rate independent easing; clamp dt so a background-tab stall
     // doesn't overshoot numerically.
-    const alpha = 1 - Math.exp(-ZOOM_TWEEN_RATE * Math.min(100, Math.max(1, dtMs)) / 1000);
+    const alpha = 1 - Math.exp(-zoomTweenRate.current * Math.min(100, Math.max(1, dtMs)) / 1000);
     const cur = transformRef.current;
     const tgt = zoomTargetRef.current;
     const dx = tgt.x - cur.x;
@@ -226,25 +237,26 @@ export const useCanvas = (isHandTool = false) => {
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       const clampedDelta = Math.max(-50, Math.min(50, e.deltaY));
-      const isDiscreteNotch = Math.abs(e.deltaY) >= DISCRETE_ZOOM_DELTA;
-      // Discrete notches compound onto the tween TARGET (so rapid
-      // notches stack into one longer glide); a pinch stream applies
-      // straight to the live transform.
-      const prev = isDiscreteNotch ? zoomTargetRef.current : transformRef.current;
+      // Every zoom event compounds onto the tween TARGET (rapid notches
+      // stack into one longer glide; a pinch stream's net zoom is the
+      // exact product of its event factors) and the visible transform
+      // glides toward it. The magnitude split only picks how tightly the
+      // glide tracks: big discrete notches take the longer NOTCH glide,
+      // pinch deltas the ~30ms PINCH smoothing that fills the refresh
+      // frames between input events.
+      const prev = zoomTargetRef.current;
       const factor = 1 - clampedDelta * ZOOM_SENSITIVITY;
       const newScale = clampScale(prev.scale * factor);
       const ratio = newScale / prev.scale;
-      const next = {
+      zoomTargetRef.current = {
         x: safeNum(mx - (mx - prev.x) * ratio),
         y: safeNum(my - (my - prev.y) * ratio),
         scale: newScale
       };
-      zoomTargetRef.current = next;
-      if (isDiscreteNotch) {
-        startZoomTween();
-      } else {
-        commitTransform(next);
-      }
+      zoomTweenRate.current = Math.abs(e.deltaY) >= DISCRETE_ZOOM_DELTA
+        ? ZOOM_TWEEN_RATE_NOTCH
+        : ZOOM_TWEEN_RATE_PINCH;
+      startZoomTween();
     } else {
       const prev = transformRef.current;
       const dx = e.deltaX;
