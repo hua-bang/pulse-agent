@@ -163,7 +163,7 @@ export const useIframeNodeState = ({
       el.removeEventListener('did-stop-loading', handleDidStopLoading);
       el.removeEventListener('did-fail-load', handleDidFailLoad);
     };
-  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
+  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, shouldMountWebview, url, webviewKey]);
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -232,7 +232,7 @@ export const useIframeNodeState = ({
       el.removeEventListener('dom-ready', tryRegister);
       if (registered) void api.unregisterWebview(workspaceId, node.id);
     };
-  }, [workspaceId, node.id, editing, url, mode, webviewKey]);
+  }, [workspaceId, node.id, editing, url, mode, shouldMountWebview, webviewKey]);
 
   // Drop the webview's paint frame rate when the node is parked outside the
   // canvas viewport long enough. Disabled during editing (no live webview to
