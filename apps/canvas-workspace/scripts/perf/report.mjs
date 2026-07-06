@@ -7,6 +7,7 @@
  *   pnpm --filter canvas-workspace perf:report --bundle-only  # fast, no app
  *   pnpm --filter canvas-workspace perf:report --no-build     # reuse dist/
  *   pnpm --filter canvas-workspace perf:report --seed-nodes 300
+ *   pnpm --filter canvas-workspace perf:report --seed-webpages 30  # mix in iframe nodes
  *   pnpm --filter canvas-workspace perf:report --repeat 1     # single boot (faster, noisier)
  *
  * Steps: build → bundle gate → (headless harness → runtime scenarios →
@@ -43,6 +44,7 @@ const flagValue = (name, fallback) => {
 const bundleOnly = has('--bundle-only');
 const noBuild = has('--no-build');
 const seedNodes = flagValue('--seed-nodes', '100');
+const seedWebpages = flagValue('--seed-webpages', '0');
 const repeat = Math.max(1, Number(flagValue('--repeat', '3')));
 const distExists = existsSync(join(appRoot, 'dist/renderer'));
 const startupScreenshotPath = process.env.PULSE_CANVAS_PERF_STARTUP_SCREENSHOT || '';
@@ -165,8 +167,16 @@ if (!bundleOnly) {
         }
       }
 
-      step(`运行时场景(打字 / 拖拽 / 启动,@${seedNodes} 节点,--repeat ${repeat})`);
-      if (node('scripts/perf/run-scenarios.mjs', ['--seed-nodes', seedNodes, '--repeat', String(repeat)]).status !== 0) {
+      step(
+        `运行时场景(打字 / 拖拽 / 启动,@${seedNodes} 节点`
+        + (Number(seedWebpages) > 0 ? `(含 ${seedWebpages} 网页)` : '')
+        + `,--repeat ${repeat})`,
+      );
+      if (node('scripts/perf/run-scenarios.mjs', [
+        '--seed-nodes', seedNodes,
+        '--seed-webpages', seedWebpages,
+        '--repeat', String(repeat),
+      ]).status !== 0) {
         gatesFailed = true;
       }
       scenariosRan = true;

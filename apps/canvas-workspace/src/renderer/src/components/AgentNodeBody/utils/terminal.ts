@@ -98,3 +98,33 @@ export const fitTerminalWithCanvasScale = (
   syncTerminalFontSizeToCanvas(term, containerEl);
   try { fit?.fit(); } catch { /* ignore */ }
 };
+
+/** Trailing debounce for ResizeObserver-driven terminal refits (perf
+ *  finding E2). A refit re-measures glyphs, reallocates xterm's render
+ *  canvases, and can emit a `pty:resize` IPC — running that once per
+ *  animation frame for every terminal while the canvas fit animation
+ *  transitions `--canvas-scale` (or while the user drag-resizes a node)
+ *  froze the renderer. One trailing refit after the burst settles is
+ *  visually equivalent: mid-burst the terminal is stretching anyway. */
+export const TERMINAL_REFIT_DEBOUNCE_MS = 120;
+
+export const createDebouncedTerminalRefit = (
+  refit: () => void,
+): { schedule: () => void; cancel: () => void } => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return {
+    schedule: () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        refit();
+      }, TERMINAL_REFIT_DEBOUNCE_MS);
+    },
+    cancel: () => {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    },
+  };
+};

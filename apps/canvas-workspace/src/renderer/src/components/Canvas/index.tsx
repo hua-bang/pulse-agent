@@ -115,7 +115,7 @@ export const Canvas = ({
   const hasAutoFittedRef = useRef(false);
 
   const {
-    transform, setTransform, moving, panning,
+    transform, setTransform, settledScale, moving, panning,
     handleWheel,
     handleMouseDown: canvasMouseDown,
     handleMouseMove: canvasMouseMove,
@@ -673,6 +673,7 @@ export const Canvas = ({
       selectedEdgeId={selectedEdgeId}
       selectedNodeIdSet={selectedNodeIdSet}
       selectedNodeIds={selectedNodeIds}
+      settledScale={settledScale}
       setActiveTool={setActiveTool}
       setSearchOpen={setSearchOpen}
       setSelectedEdgeId={setSelectedEdgeId}

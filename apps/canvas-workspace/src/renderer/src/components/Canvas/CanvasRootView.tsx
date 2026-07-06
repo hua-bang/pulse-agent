@@ -74,6 +74,8 @@ type CanvasRootViewProps = Pick<
   resizeNode: (id: string, width: number, height: number) => void;
   resizingId: string | null;
   resizePreview: NodeResizePreview | null;
+  /** Gesture-frozen scale for CanvasSurface's `--canvas-scale` (see useCanvas). */
+  settledScale: number;
   search: ReturnType<typeof import('../../hooks/useCanvasSearch').useCanvasSearch>;
   searchOpen: boolean;
   selectedEdgeId: string | null;
@@ -153,6 +155,7 @@ export const CanvasRootView = ({
   resizePreview,
   resolveReferenceNode,
   rootFolder,
+  settledScale,
   search,
   searchOpen,
   selectedEdgeId,
@@ -213,6 +216,7 @@ export const CanvasRootView = ({
 
       <CanvasSurface
         transform={transform}
+        settledScale={settledScale}
         animating={animating}
         moving={moving}
         renderGroups={renderGroups}

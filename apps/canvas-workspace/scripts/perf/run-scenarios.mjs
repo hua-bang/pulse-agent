@@ -5,7 +5,17 @@
  * Prereq: a live harness session (the app already running):
  *   pnpm --filter canvas-workspace build
  *   node harness/cli.mjs start --profile temp        # DISPLAY required (xvfb ok)
- *   pnpm --filter canvas-workspace perf:scenarios [--seed-nodes 100]
+ *   pnpm --filter canvas-workspace perf:scenarios [--seed-nodes 100] [--seed-webpages 30]
+ *
+ * `--seed-webpages N` (opt-in, default 0): N of the `--seed-nodes` total are
+ * seeded as `iframe` (mode: 'html') nodes — real sandboxed `<iframe srcDoc>`
+ * elements, same DOM/paint weight class as a user's actual "Web page" node —
+ * instead of plain `text` nodes. Deterministic, self-contained inline HTML
+ * (no network fetch), so it stays CI-safe. Default stays 0 so existing
+ * baselines/history are unaffected; use this for one-off comparisons that
+ * need a heavier, more representative node-type mix (the tile-memory /
+ * pan-zoom regression scales with painted surface area, which text nodes
+ * barely exercise).
  *
  * Scenarios (all metrics come from window.__pulsePerf + startup log line):
  *   startup  – main-process phase marks + renderer first-frame/canvas marks + FCP
@@ -43,6 +53,7 @@ const readFlag = (name) => {
   return idx >= 0 ? args[idx + 1] : undefined;
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
+const seedWebpages = Number(readFlag('--seed-webpages') ?? 0);
 const only = (readFlag('--scenario') ?? 'startup,typing,drag,panzoom,ws-cycle').split(',');
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
@@ -393,11 +404,35 @@ const wsCycleScenario = async (cdp) => {
   };
 };
 
-// Seed extra text nodes into the active workspace and reload so the canvas
+// Fully self-contained HTML — no network fetch, no external assets — used
+// as the seeded "web page" nodes' content. Real `<iframe srcDoc>` paint/
+// layout weight without the flakiness (or repeated hits to a real site) of
+// pointing seeded nodes at a live URL from CI.
+const PERF_WEBPAGE_HTML = [
+  '<!doctype html><html><body style="margin:0;font:14px system-ui;',
+  'padding:16px;background:#0b1220;color:#e2e8f0">',
+  '<h3>Perf seed page</h3>',
+  '<p>Deterministic inline content for the pan/zoom tile-memory scenario.</p>',
+  '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px">',
+  Array.from({ length: 12 }, (_, i) => `<div style="height:40px;border-radius:6px;background:hsl(${i * 30},70%,45%)"></div>`).join(''),
+  '</div></body></html>',
+].join('');
+
+// Seed extra nodes into the active workspace and reload so the canvas
 // renders them — turns the welcome canvas into an N-node benchmark surface.
-const seedExtraNodes = async (cdp, count) => {
+// `webpageCount` of the `count` total are seeded as `iframe` (mode: 'html')
+// nodes instead of `text` (see PERF_WEBPAGE_HTML above); the grid stride
+// widens to fit the larger default iframe size (520x400 vs 200x120) so
+// nothing overlaps regardless of mix.
+const seedExtraNodes = async (cdp, count, webpageCount = 0) => {
   const nodeCount = await evaluate(cdp, `document.querySelectorAll('.canvas-node').length`);
-  if (nodeCount >= count) return nodeCount;
+  if (nodeCount >= count) {
+    const webpages = await evaluate(cdp, `document.querySelectorAll('.canvas-node--iframe').length`).catch(() => 0);
+    return { total: nodeCount, webpages };
+  }
+  const webpageStride = webpageCount > 0 ? Math.max(1, Math.floor(count / webpageCount)) : 0;
+  const strideX = webpageCount > 0 ? 560 : 240;
+  const strideY = webpageCount > 0 ? 420 : 160;
   await evaluate(cdp, `(async () => {
     const store = window.canvasWorkspace.store;
     const list = await store.list();
@@ -407,15 +442,24 @@ const seedExtraNodes = async (cdp, count) => {
     const nodes = Array.isArray(data.nodes) ? data.nodes : [];
     const existing = new Set(nodes.map((n) => n.id));
     const now = Date.now();
+    const webpageHtml = ${JSON.stringify(PERF_WEBPAGE_HTML)};
     for (let i = 0; nodes.length < ${count}; i++) {
       const id = 'perf-seed-' + i;
       if (existing.has(id)) continue;
-      nodes.push({
-        id, type: 'text', title: 'perf ' + i,
-        x: 1400 + (i % 10) * 240, y: -600 + Math.floor(i / 10) * 160,
-        width: 200, height: 120, updatedAt: now,
-        data: { text: 'perf seed node ' + i },
-      });
+      const x = 1400 + (i % 10) * ${strideX}, y = -600 + Math.floor(i / 10) * ${strideY};
+      if (${webpageStride} > 0 && i % ${webpageStride} === 0) {
+        nodes.push({
+          id, type: 'iframe', title: 'perf web ' + i,
+          x, y, width: 520, height: 400, updatedAt: now,
+          data: { url: '', mode: 'html', html: webpageHtml, prompt: '' },
+        });
+      } else {
+        nodes.push({
+          id, type: 'text', title: 'perf ' + i,
+          x, y, width: 200, height: 120, updatedAt: now,
+          data: { text: 'perf seed node ' + i },
+        });
+      }
     }
     await store.save(wsId, { ...data, nodes });
   })()`);
@@ -428,9 +472,14 @@ const seedExtraNodes = async (cdp, count) => {
     ).catch(() => 0);
     if (ready >= count) {
       // A fresh 100-node mount stalls the main thread for a while (text-node
-      // layout effects + editors) — wait it out before dispatching input.
+      // layout effects + editors, iframe subdocuments) — wait it out before
+      // dispatching input.
       await waitForCalmFrames(cdp);
-      return ready;
+      const webpages = await evaluate(
+        cdp,
+        `document.querySelectorAll('.canvas-node--iframe').length`,
+      ).catch(() => 0);
+      return { total: ready, webpages };
     }
   }
   throw new Error('seeded nodes did not appear after reload');
@@ -462,8 +511,11 @@ const main = async () => {
   await withPage(session, async (cdp) => {
     await cdp.send('Page.bringToFront');
     if (seedNodes > 0) {
-      const total = await seedExtraNodes(cdp, seedNodes);
-      console.log(`[perf:scenarios] canvas seeded: ${total} nodes`);
+      const { total, webpages } = await seedExtraNodes(cdp, seedNodes, seedWebpages);
+      console.log(
+        `[perf:scenarios] canvas seeded: ${total} nodes`
+        + (webpages > 0 ? ` (${webpages} webpage)` : ''),
+      );
     }
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
     if (only.includes('typing')) scenarios.typing = await typingScenario(cdp, repeat);
