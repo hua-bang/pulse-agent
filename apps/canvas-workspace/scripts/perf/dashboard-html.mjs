@@ -187,8 +187,15 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
     </section>`;
   }).join('');
 
-  return `<title>Pulse Canvas 性能看板</title>
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse Canvas 性能看板</title>
 <style>${css()}</style>
+</head>
+<body>
 <div class="app">
   <div class="topbar">
     <h1>Pulse Canvas 性能看板</h1>
@@ -210,7 +217,9 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
   </section>
   ${aspectPanels}
 </div>
-<script>${js()}</script>`;
+<script>${js()}</script>
+</body>
+</html>`;
 };
 
 const renderChunkBars = (bundleReport) => {

@@ -1,44 +1,85 @@
 ---
 name: perf-report
-description: Run the canvas-workspace performance evaluation, read the latest metrics and rule-engine alerts, summarize them, and render the dashboard into the UI so both agents and humans can consume it.
-description_zh: 运行 canvas-workspace 性能评估,读取最新指标与规则引擎告警,总结结论,并把看板渲染到界面上,供 Agent 与人共同消费。
-version: 1.0.0
-author: Pulse Coder Team
+description: Run the canvas-workspace performance evaluation, publish the latest static dashboard through the local nginx/Cloudflare Tunnel route, capture a screenshot, and summarize the report. Use when the user asks to run Pulse Canvas/canvas-workspace perf checks, deploy the performance dashboard, refresh https://jasperhu.art/apps/canvas-perf/, or send a dashboard screenshot from Feishu/remote-server.
 ---
 
 # Perf Report Skill
 
 Drive one round of the canvas-workspace performance evaluation and deliver the
-result twice: a structured summary in your reply (for the human and for your
-own next optimization step), and the HTML dashboard rendered into the UI.
+result three ways: a structured summary, a deployed static dashboard, and PNG
+screenshots that remote-server can send back to Feishu.
 
 The pipeline is fully deterministic (no LLM at report time). Definitions live
 in `apps/canvas-workspace/perf/program.md` + `perf/metrics.json`; thresholds in
 `perf/baselines.json`.
 
-## Workflow
+## One Command
 
-### 1. Run one command (from the repository root)
+From the repository root, prefer the bundled script:
 
 ```bash
-pnpm --filter canvas-workspace perf:report
+node "${CODEX_HOME:-$HOME/.codex}/skills/perf-report/scripts/run-publish-dashboard.mjs"
 ```
 
-That is the whole pipeline: build → bundle gate → launch the app headless →
-runtime scenarios → close → assemble the report. It prints the verdict and
-writes `perf/out/dashboard.html` + `perf/out/report.json`. Exit code is 1 if
-any gate failed (usable directly in CI).
+Default behavior is resource-conscious for this host: build once with
+`NODE_OPTIONS=--max-old-space-size=1024`, run `perf:report --no-build --repeat
+1 --seed-nodes 100`, publish to nginx, then capture a screenshot.
+It also captures the live Electron window right after startup and before the
+interaction scenarios run.
 
 Variants:
-- `--bundle-only` — fast, skips the app launch (bundle metrics only)
-- `--no-build` — reuse an existing `dist/`
-- `--seed-nodes 300` — larger canvas for the interaction scenarios
+- `--repeat 3` — closer to CI median behavior; heavier
+- `--seed-nodes 300` — larger canvas for interaction scenarios
+- `--no-build` — reuse existing `dist/`
+- `--no-screenshot` — skip the dashboard webpage screenshot; the Electron
+  startup screenshot is still captured during `perf:report`
+- `--strict` — exit non-zero when perf gates fail even if publish succeeds
 
-If the app can't launch, it degrades to a bundle-only report and tells the
-user to install Xvfb (`apt-get install -y xvfb`) and, if the Electron binary
-is missing, run `pnpm --filter canvas-workspace setup:electron`.
+The deployed dashboard URL is:
 
-### 2. Read the machine contract
+```text
+https://jasperhu.art/apps/canvas-perf/
+```
+
+Host prerequisites: `xvfb-run`, Electron runtime libraries, and a Chinese font
+such as `google-noto-sans-cjk-sc-fonts` must be installed. Without the font,
+server-side screenshots render Chinese as square boxes.
+
+Override deployment with:
+
+```bash
+PULSE_CANVAS_PERF_DEPLOY_DIR=/path/to/static \
+PULSE_CANVAS_PERF_PUBLIC_URL=https://example.com/perf/ \
+node "${CODEX_HOME:-$HOME/.codex}/skills/perf-report/scripts/run-publish-dashboard.mjs"
+```
+
+## Manual Steps
+
+Use these only when debugging the pipeline:
+
+```bash
+pnpm --filter canvas-workspace build
+pnpm --filter canvas-workspace perf:report --no-build --repeat 1
+node "${CODEX_HOME:-$HOME/.codex}/skills/perf-report/scripts/publish-dashboard.mjs"
+```
+
+`publish-dashboard.mjs` copies:
+
+- `perf/out/dashboard.html` → `/data/www/sites/default/current/canvas-perf/index.html`
+- `report.json`, `scenarios-report.json`, `bundle-report.json`
+- dashboard screenshot → `apps/canvas-workspace/perf/out/dashboard.png`
+- Electron startup screenshot → `apps/canvas-workspace/perf/out/electron-startup.png`
+
+The screenshot script prints:
+
+```text
+__PULSE_IMAGE_RESULT__{"model":"perf-dashboard-screenshot","outputPath":"...","mimeType":"image/png"}
+```
+
+remote-server recognizes one or more of these markers and sends the images
+back to Feishu when the run is triggered from Feishu.
+
+## Read the Machine Contract
 
 Read `apps/canvas-workspace/perf/out/report.json`:
 
@@ -48,27 +89,17 @@ Read `apps/canvas-workspace/perf/out/report.json`:
 - `metrics[]` — metric id → value (+ `pass`/`limit` for gated ones)
 - `coverage` — how many dictionary metrics have values
 
-### 4. Render to the UI
-
-Preferred: publish the dashboard as an artifact and pin it to the canvas —
-
-1. `artifact_create` with the full content of
-   `apps/canvas-workspace/perf/out/dashboard.html` (title: "性能看板").
-2. `artifact_pin_to_canvas` so it lives on the canvas next to the work.
-
-Updating later: use `artifact_update` on the same artifact instead of
-creating a new one. (Alternative when artifacts are unavailable:
-`canvas_create_node` type `iframe` pointing at the dashboard file.)
-
-### 5. Reply with the summary
+## Reply
 
 Report, in this order: the `verdict` verbatim → `high` alerts (if any) →
-`medium` alerts with their `suggestion` and `ref` → coverage. Keep it short;
-the dashboard carries the detail.
+`medium` alerts with their `suggestion` and `ref` → coverage → deployed URL →
+screenshot path. Keep it short; the dashboard carries the detail.
 
 ## Rules
 
 - Never edit `report.json`/`dashboard.html` by hand — regenerate.
+- Never claim the screenshot was sent unless `dashboard.png` exists and the
+  remote-server image markers were printed or uploaded.
 - Timing metrics are per-machine; do not compare absolute values across
   machines or declare regressions from a single run (the variance alert
   exists for this). Counter metrics are deterministic and safe to act on.

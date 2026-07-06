@@ -7,7 +7,7 @@ import { getActiveRun, getActiveStreamId } from '../../core/active-run-store.js'
 import { dispatchIncoming } from '../../core/dispatcher.js';
 import { processIncomingCommand } from '../../core/chat-commands.js';
 import type { CommandResult } from '../../core/chat-commands/types.js';
-import { extractGeneratedImageResult } from './image-result.js';
+import { extractGeneratedImageResults } from './image-result.js';
 import {
   createLarkClient,
   addMessageReaction,
@@ -431,26 +431,28 @@ export class FeishuAdapter implements PlatformAdapter {
       },
 
       async onToolResult(toolResult) {
-        const imageResult = extractGeneratedImageResult(toolResult);
-        if (!imageResult) {
+        const imageResults = extractGeneratedImageResults(toolResult);
+        if (imageResults.length === 0) {
           return;
         }
 
-        if (!existsSync(imageResult.outputPath) || sentImagePaths.has(imageResult.outputPath)) {
-          return;
-        }
+        for (const imageResult of imageResults) {
+          if (!existsSync(imageResult.outputPath) || sentImagePaths.has(imageResult.outputPath)) {
+            continue;
+          }
 
-        sentImagePaths.add(imageResult.outputPath);
+          sentImagePaths.add(imageResult.outputPath);
 
-        try {
-          await sendImageMessage(chatId, idType, imageResult.outputPath, imageResult.mimeType, replyOptions);
-          latestToolHint = '🖼️ Image generated and sent to Feishu';
-          scheduleProgressUpdate(true);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          console.error('[feishu] Failed to send generated image:', message);
-          latestToolHint = `⚠️ Image generated but sending failed: ${message}`;
-          scheduleProgressUpdate(true);
+          try {
+            await sendImageMessage(chatId, idType, imageResult.outputPath, imageResult.mimeType, replyOptions);
+            latestToolHint = '🖼️ Image generated and sent to Feishu';
+            scheduleProgressUpdate(true);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[feishu] Failed to send generated image:', message);
+            latestToolHint = `⚠️ Image generated but sending failed: ${message}`;
+            scheduleProgressUpdate(true);
+          }
         }
       },
 

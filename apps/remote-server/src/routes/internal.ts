@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import { Hono, type Context } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { createLarkClient, sendImageMessage, sendTextMessage } from '../adapters/feishu/client.js';
-import { extractGeneratedImageResult } from '../adapters/feishu/image-result.js';
+import { extractGeneratedImageResults } from '../adapters/feishu/image-result.js';
 import { parseFeishuPlatformKey } from '../adapters/feishu/platform-key.js';
 import { getDiscordGatewayStatus, restartDiscordGateway } from '../adapters/discord/gateway-manager.js';
 import { DiscordClient } from '../adapters/discord/client.js';
@@ -304,28 +304,30 @@ internalRouter.post('/agent/run', async (c) => {
             return;
           }
 
-          const imageResult = extractGeneratedImageResult(toolResult);
-          if (!imageResult) {
+          const imageResults = extractGeneratedImageResults(toolResult);
+          if (imageResults.length === 0) {
             return;
           }
 
-          if (!existsSync(imageResult.outputPath) || sentImagePaths.has(imageResult.outputPath)) {
-            return;
-          }
+          for (const imageResult of imageResults) {
+            if (!existsSync(imageResult.outputPath) || sentImagePaths.has(imageResult.outputPath)) {
+              continue;
+            }
 
-          sentImagePaths.add(imageResult.outputPath);
-          imageNotifyTasks.push(
-            sendImageMessage(
-              feishuTarget.receiveId,
-              feishuTarget.receiveIdType,
-              imageResult.outputPath,
-              imageResult.mimeType,
-            )
-              .then(() => undefined)
-              .catch((err) => {
-                console.error('[internal] Failed to send generated image to Feishu:', err);
-              }),
-          );
+            sentImagePaths.add(imageResult.outputPath);
+            imageNotifyTasks.push(
+              sendImageMessage(
+                feishuTarget.receiveId,
+                feishuTarget.receiveIdType,
+                imageResult.outputPath,
+                imageResult.mimeType,
+              )
+                .then(() => undefined)
+                .catch((err) => {
+                  console.error('[internal] Failed to send generated image to Feishu:', err);
+                }),
+            );
+          }
         },
         onClarificationRequest: async (request: ClarificationRequest) => {
           const answer = resolveClarificationAnswer(request, askPolicy);
