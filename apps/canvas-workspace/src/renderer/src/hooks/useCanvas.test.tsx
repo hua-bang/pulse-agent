@@ -77,9 +77,12 @@ describe('useCanvas zoom gesture', () => {
   };
 
   const settleGesture = () => {
-    // MOVING_IDLE_MS is 180; anything past it settles the gesture.
+    // Discrete-wheel zoom now glides toward its target (~300ms tail at
+    // ZOOM_TWEEN_RATE=18 for a couple of stacked notches), and the tween
+    // keeps `moving` alive per frame; MOVING_IDLE_MS (180) starts after
+    // the glide converges. 900ms covers glide + idle with margin.
     act(() => {
-      vi.advanceTimersByTime(250);
+      vi.advanceTimersByTime(900);
     });
   };
 
@@ -165,5 +168,88 @@ describe('useCanvas zoom gesture', () => {
     });
 
     expect(hook.transform).toEqual({ x: 999, y: 999, scale: 3 });
+  });
+
+  // ── Discrete-wheel zoom tween ────────────────────────────────────────
+  // A mouse-wheel notch used to apply its whole ×1.25 step in a single
+  // frame — a staircase no frame-rate work can make feel smooth. Notches
+  // now glide toward a compounded target (stepZoomTween in useCanvas.ts).
+
+  it('glides a discrete notch toward its target instead of jumping', () => {
+    wheelZoom(-50); // one notch + one animation frame
+    const afterOneFrame = hook.transform.scale;
+    // Strictly between start (1) and the notch target (1.25): a glide,
+    // not the old single-frame jump.
+    expect(afterOneFrame).toBeGreaterThan(1);
+    expect(afterOneFrame).toBeLessThan(1.24);
+
+    // And it keeps moving on subsequent frames without further input.
+    act(() => { vi.advanceTimersByTime(48); });
+    expect(hook.transform.scale).toBeGreaterThan(afterOneFrame);
+
+    // Converges exactly onto the target (epsilon snap), then stops.
+    settleGesture();
+    expect(hook.transform.scale).toBe(1.25);
+    const settled = hook.transform;
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(hook.transform).toEqual(settled);
+  });
+
+  it('compounds rapid notches into one glide toward the stacked target', () => {
+    act(() => {
+      hook.handleWheel(wheelEvent(-50));
+      hook.handleWheel(wheelEvent(-50));
+      hook.handleWheel(wheelEvent(-50));
+    });
+    settleGesture();
+    expect(hook.transform.scale).toBeCloseTo(1.25 ** 3, 10);
+  });
+
+  it('keeps the cursor anchor fixed through the whole glide', () => {
+    // The canvas point under the cursor (mx=100, my=80; happy-dom rects
+    // are all-zero) must stay put at every sampled instant of the glide:
+    // c = (m - t) / scale is constant iff the anchor doesn't drift.
+    const anchorCanvasPoint = () => ({
+      cx: (100 - hook.transform.x) / hook.transform.scale,
+      cy: (80 - hook.transform.y) / hook.transform.scale,
+    });
+    const before = anchorCanvasPoint();
+    wheelZoom(-50);
+    const mid = anchorCanvasPoint();
+    settleGesture();
+    const after = anchorCanvasPoint();
+    expect(mid.cx).toBeCloseTo(before.cx, 6);
+    expect(mid.cy).toBeCloseTo(before.cy, 6);
+    expect(after.cx).toBeCloseTo(before.cx, 6);
+    expect(after.cy).toBeCloseTo(before.cy, 6);
+  });
+
+  it('applies trackpad-pinch magnitude deltas directly with no glide tail', () => {
+    // |deltaY| below DISCRETE_ZOOM_DELTA (40) is a pinch stream: the
+    // factor lands immediately and nothing keeps animating afterwards.
+    wheelZoom(-10);
+    expect(hook.transform.scale).toBeCloseTo(1.05, 10);
+    const settled = hook.transform;
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(hook.transform).toEqual(settled);
+  });
+
+  it('translates an in-flight glide when a pan arrives instead of snapping back', () => {
+    wheelZoom(-50); // glide toward scale 1.25 in progress
+    const scaleMidGlide = hook.transform.scale;
+    act(() => {
+      // Wheel-pan (no ctrl) mid-glide.
+      hook.handleWheel({
+        ctrlKey: false, metaKey: false, deltaY: 30, deltaX: 10,
+        clientX: 100, clientY: 80, currentTarget: host,
+        stopPropagation: () => undefined,
+      } as unknown as React.WheelEvent);
+      vi.advanceTimersByTime(20);
+    });
+    // Zoom keeps progressing (target shifted, not reset)…
+    expect(hook.transform.scale).toBeGreaterThanOrEqual(scaleMidGlide);
+    settleGesture();
+    // …and converges to the notch's scale with the pan folded in.
+    expect(hook.transform.scale).toBe(1.25);
   });
 });
