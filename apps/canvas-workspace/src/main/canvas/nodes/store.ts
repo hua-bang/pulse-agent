@@ -86,6 +86,15 @@ function isEnoent(err: unknown): boolean {
   return !!err && typeof err === 'object' && (err as { code?: string }).code === 'ENOENT';
 }
 
+// Perf: count node files actually written (not byte-identical-skipped) per
+// saveCanvas, so the harness can gate B3 (whole-canvas saves skip unchanged
+// per-node writes). Gated by PULSE_CANVAS_PERF; a no-op in normal runs.
+let saveFileWriteCount = 0;
+export const resetSaveFileWriteCount = (): void => {
+  saveFileWriteCount = 0;
+};
+export const peekSaveFileWriteCount = (): number => saveFileWriteCount;
+
 /**
  * Atomically write JSON to disk via tmp + rename.
  * Kept local to avoid coupling the node store back to canvas-storage.
@@ -96,6 +105,7 @@ async function atomicWriteJson(finalPath: string, serialized: string): Promise<v
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(tmpPath, serialized, 'utf-8');
   await fs.rename(tmpPath, finalPath);
+  if (process.env.PULSE_CANVAS_PERF) saveFileWriteCount++;
 }
 
 /**
@@ -127,7 +137,13 @@ export async function writeWorkspaceNode(
 ): Promise<void> {
   assertSafeNodeId(record.id);
   const path = getNodeFilePath(workspaceId, record.id, root);
-  await atomicWriteJson(path, JSON.stringify(record, null, 2));
+  const serialized = JSON.stringify(record, null, 2);
+  // Whole-canvas saves funnel every node through here even when only one
+  // changed — skip the atomic write (temp file + rename + watcher echo)
+  // when the on-disk record is already byte-identical.
+  const current = await fs.readFile(path, 'utf-8').catch(() => undefined);
+  if (current === serialized) return;
+  await atomicWriteJson(path, serialized);
 }
 
 export async function deleteWorkspaceNode(

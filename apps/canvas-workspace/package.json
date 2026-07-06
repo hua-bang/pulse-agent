@@ -20,7 +20,14 @@
     "package:mac": "electron-vite build && electron-builder --mac",
     "package:mac:arm64": "electron-vite build && electron-builder --mac --arm64",
     "package:win": "electron-vite build && electron-builder --win",
-    "package:linux": "electron-vite build && electron-builder --linux"
+    "package:linux": "electron-vite build && electron-builder --linux",
+    "perf:bundle": "node scripts/perf/bundle-report.mjs",
+    "perf:split": "PULSE_CANVAS_ANALYZE=1 electron-vite build && node scripts/perf/bundle-treemap.mjs && open perf/out/bundle-split.html",
+    "perf:view": "open perf/out/bundle-split.html",
+    "perf:scenarios": "node scripts/perf/run-scenarios.mjs",
+    "setup:electron": "node scripts/setup/ensure-electron.mjs",
+    "perf:dashboard": "node scripts/perf/dashboard.mjs",
+    "perf:report": "node scripts/perf/report.mjs"
   },
   "build": {
     "appId": "com.pulse-coder.canvas-workspace",
@@ -140,6 +147,7 @@
     "electron-vite": "^2.3.0",
     "happy-dom": "^20.10.6",
     "picocolors": "^1.1.1",
+    "rollup-plugin-visualizer": "^7.0.1",
     "typescript": "^5.6.3",
     "vitest": "^1.0.0"
   }

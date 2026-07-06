@@ -5,7 +5,7 @@ import { CanvasOverlays } from './CanvasOverlays';
 import { CanvasFullscreenChip } from './CanvasFullscreenChip';
 import { EdgeContextMenu } from '../EdgeContextMenu';
 import type { CanvasProps } from './types';
-import type { NodeDragPreview } from '../../hooks/useNodeDrag';
+import type { NodeDragOffset, NodeDragPreview } from '../../hooks/useNodeDrag';
 import type { NodeResizePreview } from '../../hooks/useNodeResize';
 
 type CanvasRootViewProps = Pick<
@@ -35,6 +35,7 @@ type CanvasRootViewProps = Pick<
   draggingId: string | null;
   draggingIds: Set<string>;
   dragPreview: NodeDragPreview | null;
+  dragOffset: NodeDragOffset | null;
   edgeHandlers: any;
   edgeInteractionState: any;
   edges: CanvasEdge[];
@@ -104,6 +105,7 @@ export const CanvasRootView = ({
   draggingId,
   draggingIds,
   dragPreview,
+  dragOffset,
   edgeHandlers,
   edgeInteractionState,
   edges,
@@ -222,6 +224,7 @@ export const CanvasRootView = ({
         draggingId={draggingId}
         draggingIds={draggingIds}
         dragPreview={dragPreview}
+        dragOffset={dragOffset}
         resizingId={resizingId}
         resizePreview={resizePreview}
         selectedNodeIdSet={selectedNodeIdSet}

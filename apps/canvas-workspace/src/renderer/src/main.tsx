@@ -9,6 +9,10 @@ import {
   activateCanvasPlugins,
   BUILT_IN_RENDERER_PLUGINS,
 } from "../../plugins/renderer";
+import { installPerfMonitor, markOnce } from "./perf/monitor";
+
+installPerfMonitor();
+markOnce("renderer:main-start");
 
 const root = document.getElementById("root");
 console.log("Renderer bootstrap", { rootFound: Boolean(root) });
@@ -25,8 +29,10 @@ void activateConfiguredFederatedRendererPlugins().catch((err) => {
   console.error('[canvas-plugins] federated renderer bootstrap failed', err);
 });
 
+markOnce("renderer:render-called");
 createRoot(root).render(
   <Router hook={useHashLocation}>
     <App />
   </Router>,
 );
+requestAnimationFrame(() => markOnce("renderer:first-frame"));

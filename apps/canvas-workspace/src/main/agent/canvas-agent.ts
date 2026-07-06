@@ -1118,10 +1118,10 @@ export class CanvasAgent {
   async loadCrossWorkspaceSession(loadedMessages: CanvasAgentMessage[]): Promise<void> {
     await this.sessionStore.startSession();
     this.messages = loadedMessages.map(sessionMessageToModelMessage);
-    // Persist each message into the new current session
-    for (const m of loadedMessages) {
-      this.sessionStore.addMessage(m);
-    }
+    // Batch-assign + persist once (setMessages), not one addMessage() call
+    // per loaded message — the latter fires one full-session-rewrite
+    // persist() per message, growing O(N) writes for N loaded messages.
+    this.sessionStore.setMessages(loadedMessages);
   }
 
   /**

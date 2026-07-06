@@ -35,6 +35,7 @@ import { getUrlHostname, normalizeReferenceUrl } from '../ReferenceDrawer/utils'
 import type { AgentNodeData, CanvasNode, IframeNodeData } from '../../types';
 import type { CanvasProps } from './types';
 import { EXPERIMENTAL_FLAG_AGENT_TEAMS } from '../../../../shared/experimental-features';
+import { WorkspaceActiveProvider } from '../../hooks/useWorkspaceActive';
 
 const PLUGIN_FLAGS =
   (globalThis as { canvasWorkspace?: { pluginFlags?: Record<string, boolean> } })
@@ -443,6 +444,7 @@ export const Canvas = ({
     draggingId,
     draggingIds,
     dragPreview,
+    dragOffset,
     snapLines,
     onDragStart,
     onDragMove,
@@ -608,6 +610,7 @@ export const Canvas = ({
   });
 
   return (
+    <WorkspaceActiveProvider value={isActive}>
     <CanvasRootView
       actions={actions}
       activeTool={effectiveActiveTool}
@@ -620,6 +623,7 @@ export const Canvas = ({
       draggingId={draggingId}
       draggingIds={draggingIds}
       dragPreview={dragPreview}
+      dragOffset={dragOffset}
       edgeHandlers={edgeHandlers}
       edgeInteractionState={edgeInteractionState}
       edges={visibleEdges}
@@ -682,5 +686,6 @@ export const Canvas = ({
       onOpenAppSettings={onOpenAppSettings}
       onSetRootFolder={onSetRootFolder}
     />
+    </WorkspaceActiveProvider>
   );
 };

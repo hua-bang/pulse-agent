@@ -24,6 +24,7 @@ import {
 
 export const useCanvasNodeViewModel = ({
   embedded,
+  dragOffset,
   focusState,
   getAllNodes,
   isAgentEdited,
@@ -73,6 +74,7 @@ export const useCanvasNodeViewModel = ({
   | 'onUngroupSelectedGroups'
   | 'onUpdate'
   | 'onUpdateReferenceSource'
+  | 'dragOffset'
 >) => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [, setTick] = useState(0);
@@ -280,6 +282,9 @@ export const useCanvasNodeViewModel = ({
     makeResizeHandler,
     relativeTime: node.updatedAt ? formatRelativeTime(node.updatedAt) : null,
     titleRef,
-    wrapperStyle: getNodeWrapperStyle(node),
+    // Caller (CanvasSurface) already gates dragOffset to null for any node
+    // that isn't the one currently being dragged — a single source of
+    // truth for that gating, same as `isDragging` itself.
+    wrapperStyle: getNodeWrapperStyle(node, dragOffset),
   };
 };

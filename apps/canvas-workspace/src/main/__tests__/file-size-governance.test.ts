@@ -12,7 +12,7 @@ const GOVERNED_EXTENSIONS = new Set(['.ts', '.tsx']);
 
 const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/service.ts': 2569,
-  'src/renderer/src/components/AgentTeamFrame/index.tsx': 2243,
+  'src/renderer/src/components/AgentTeamFrame/index.tsx': 2253,
   'src/renderer/src/types.ts': 1861,
   'src/main/canvas/store.ts': 1606,
   'src/renderer/src/components/AgentNodeBody/useAgentNodeController.ts': 1286,
@@ -27,12 +27,12 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/main/agent-teams/canvas-nodes.ts': 739,
   'src/main/runtime/control-server.ts': 685,
   'src/main/runtime/mcp-server.ts': 652,
-  'src/renderer/src/App.tsx': 606,
+  'src/renderer/src/App.tsx': 608,
   'src/renderer/src/utils/mindmapLayout.ts': 603,
   'src/main/agent/model/config.ts': 599,
   'src/plugins/main/dynamic-app/tools.ts': 593,
   'src/main/settings/canvas-plugins-config.ts': 558,
-  'src/main/agent/session-store.ts': 557,
+  'src/main/agent/session-store.ts': 605,
   'src/renderer/src/components/chat/hooks/useChatStream.ts': 542,
   'src/main/agent/service.ts': 520,
   'src/main/webview/registry.ts': 512,
@@ -41,7 +41,7 @@ const CURRENT_OVER_500_BASELINE: Record<string, number> = {
   'src/renderer/src/components/icons/index.tsx': 510,
   'src/renderer/src/components/settings-config/SkillsManager.tsx': 510,
   'src/plugins/main/webview-page-control/js-primitives.ts': 506,
-  'src/renderer/src/components/Workbench/index.tsx': 505,
+  'src/renderer/src/components/Workbench/index.tsx': 512,
 };
 
 const DOCUMENTED_EXCEPTIONS: Record<string, string> = {

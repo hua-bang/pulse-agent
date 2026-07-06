@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { CanvasEdge, CanvasNode } from '../types';
+import { count } from '../perf/counters';
 
 const MAX_HISTORY = 100;
 
@@ -46,6 +47,9 @@ export const useNodeHistory = (scheduleSave: () => void) => {
         pushSnapshot({ nodes: nextNodes, edges: nextEdges });
       }
       if (patch.nodes) {
+        // Perf guard: every replacement re-runs the visibility/sort/split
+        // pipeline downstream (perf reports A2/I-1) — scenarios budget this.
+        count('nodes-array-replace');
         nodesRef.current = nextNodes;
         setNodes(nextNodes);
       }

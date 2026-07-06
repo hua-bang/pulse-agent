@@ -1,0 +1,197 @@
+import { useCallback, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import type { CanvasNode, FrameNodeData } from "../../types";
+import { useClickOutside } from "../../hooks/useClickOutside";
+import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
+import { useI18n } from "../../i18n";
+
+/**
+ * Frame header controls (children toggle + color picker).
+ *
+ * Extracted from FrameNodeBody/index.tsx so the always-on CanvasNodeHeader can
+ * import these without dragging the FrameNodeBody module — and through it
+ * AgentTeamFrame -> AgentNodeBody -> @xterm/xterm — into the entry chunk
+ * (C1/C6). This module is deliberately free of AgentTeamFrame and xterm; the
+ * frame body itself (which does need AgentTeamFrame) lives in ./index.tsx,
+ * now behind a React.lazy boundary.
+ */
+
+// Muted frame palette. These are intentionally lower-chroma than the
+// previous presets so large canvas frames read as organization, not alerts.
+//
+// Each preset is one hue around the wheel (coral -> amber -> olive -> sage
+// -> teal -> sky -> indigo -> mauve + a low-chroma graphite slot). All
+// derived tones (pill bg, pill text, body tint, border, dot pattern) are
+// computed in CSS as `oklch(L C var(--frame-hue))`; see
+// CanvasNodeView/utils.ts for the parse path.
+//
+// `value` is the identity swatch written into `data.color`. The 9th preset
+// uses near-zero chroma so the frame reads as a quiet neutral.
+const COLOR_PRESETS = [
+  { name: "Coral",    hue: 28,  value: "oklch(0.68 0.108 28)"  },
+  { name: "Amber",    hue: 58,  value: "oklch(0.68 0.108 58)"  },
+  { name: "Olive",    hue: 98,  value: "oklch(0.68 0.108 98)"  },
+  { name: "Sage",     hue: 142, value: "oklch(0.68 0.108 142)" },
+  { name: "Teal",     hue: 184, value: "oklch(0.68 0.108 184)" },
+  { name: "Sky",      hue: 224, value: "oklch(0.68 0.108 224)" },
+  { name: "Indigo",   hue: 264, value: "oklch(0.68 0.108 264)" },
+  { name: "Mauve",    hue: 318, value: "oklch(0.68 0.108 318)" },
+  { name: "Graphite", hue: 265, value: "oklch(0.68 0.006 265)" }
+];
+
+interface ColorPickerProps {
+  node: CanvasNode;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+}
+
+interface FrameChildrenToggleProps {
+  node: CanvasNode;
+  descendantCount: number;
+  onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
+}
+
+export const FrameChildrenToggle = ({
+  node,
+  descendantCount,
+  onUpdate,
+}: FrameChildrenToggleProps) => {
+  if (node.type !== 'frame') return null;
+  const data = node.data as FrameNodeData;
+  const collapsed = data.childrenCollapsed === true;
+  const hasDescendants = descendantCount > 0;
+
+  const handleToggle = useCallback(
+    (e: ReactMouseEvent) => {
+      e.stopPropagation();
+      onUpdate(node.id, {
+        data: {
+          ...data,
+          childrenCollapsed: !collapsed,
+        },
+      });
+    },
+    [collapsed, data, node.id, onUpdate],
+  );
+
+  return (
+    <button
+      className={`frame-children-toggle${collapsed ? ' frame-children-toggle--collapsed' : ''}`}
+      type="button"
+      onClick={handleToggle}
+      onMouseDown={(e) => e.stopPropagation()}
+      title={
+        !hasDescendants
+          ? 'No frame children'
+          : collapsed ? 'Show frame children' : 'Hide frame children'
+      }
+      aria-label={collapsed ? 'Show frame children' : 'Hide frame children'}
+      aria-pressed={collapsed}
+      disabled={!hasDescendants}
+    >
+      <FrameToggleIcon collapsed={collapsed} />
+      <span className="frame-children-count">{descendantCount}</span>
+    </button>
+  );
+};
+
+const FrameToggleIcon = ({ collapsed }: { collapsed: boolean }) => (
+  <svg
+    className="frame-children-toggle-icon"
+    width="16"
+    height="16"
+    viewBox="0 0 16 16"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path
+      className="frame-children-toggle-icon__rail frame-children-toggle-icon__rail--top"
+      d="M4.25 4.25h7.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <path
+      className="frame-children-toggle-icon__chevron"
+      d="M5 6.75l3 3 3-3"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      className="frame-children-toggle-icon__rail frame-children-toggle-icon__rail--bottom"
+      d="M4.25 11.75h7.5"
+      stroke="currentColor"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+    />
+    <title>{collapsed ? 'Expand frame children' : 'Collapse frame children'}</title>
+  </svg>
+);
+
+export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
+  const { t } = useI18n();
+  const data = node.data as FrameNodeData;
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const handleColorChange = useCallback(
+    (color: string) => {
+      onUpdate(node.id, { data: { ...data, color } });
+      setOpen(false);
+    },
+    [node.id, data, onUpdate]
+  );
+
+  const closePopover = useCallback(() => setOpen(false), []);
+  useClickOutside(triggerRef, closePopover, open);
+  useMenuKeyboardNav(popoverRef, closePopover, open);
+
+  return (
+    <div
+      className={`frame-color-trigger${open ? ' frame-color-trigger--open' : ''}`}
+      ref={triggerRef}
+      title={t('canvas.frameStyle.color')}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="frame-color-dot"
+        style={{ backgroundColor: data.color }}
+        title={t('canvas.frameStyle.color')}
+        aria-label={t('canvas.frameStyle.color')}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      />
+      {open && (
+        <div
+          ref={popoverRef}
+          className="frame-color-popover frame-color-popover--open"
+          role="menu"
+          aria-label={t('canvas.frameStyle.color')}
+        >
+          {COLOR_PRESETS.map((preset) => (
+            <button
+              type="button"
+              key={preset.name}
+              className={`frame-color-swatch${data.color === preset.value ? ' frame-color-swatch--active' : ''}`}
+              style={{ backgroundColor: preset.value }}
+              role="menuitemradio"
+              aria-checked={data.color === preset.value}
+              title={t('canvas.frameStyle.colorOption', { name: preset.name })}
+              aria-label={t('canvas.frameStyle.colorOption', { name: preset.name })}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleColorChange(preset.value);
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};

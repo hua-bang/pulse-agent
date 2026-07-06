@@ -18,6 +18,7 @@ const CanvasNodeViewComponent = ({
   workspaceId,
   workspaceName,
   isDragging,
+  dragOffset,
   isResizing,
   isSelected,
   isHighlighted,
@@ -51,6 +52,7 @@ const CanvasNodeViewComponent = ({
     getAllNodes,
     isAgentEdited,
     isDragging,
+    dragOffset,
     isFullscreen,
     isHighlighted,
     isResizing,
@@ -225,6 +227,7 @@ export const CanvasNodeView = memo(CanvasNodeViewComponent, (prev, next) => (
   prev.workspaceName === next.workspaceName &&
   prev.getAllNodes === next.getAllNodes &&
   prev.isDragging === next.isDragging &&
+  prev.dragOffset === next.dragOffset &&
   prev.isResizing === next.isResizing &&
   prev.isSelected === next.isSelected &&
   prev.isHighlighted === next.isHighlighted &&

@@ -1,6 +1,7 @@
 import hljs from 'highlight.js/lib/common';
 import MarkdownIt from 'markdown-it';
 import taskLists from 'markdown-it-task-lists';
+import { count } from '../../../perf/counters';
 
 // Minimum highlight.js auto-detection relevance before its guessed language is
 // trusted as the code-block header label. Below this, syntax coloring is still
@@ -15,7 +16,11 @@ function escapeAttr(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function highlightCode(code: string, lang: string): { html: string; lang: string } {
+function highlightCode(
+  code: string,
+  lang: string,
+  streaming: boolean,
+): { html: string; lang: string } {
   const trimmedLang = lang.trim().toLowerCase();
   if (trimmedLang && hljs.getLanguage(trimmedLang)) {
     try {
@@ -25,6 +30,11 @@ function highlightCode(code: string, lang: string): { html: string; lang: string
       // fall through to plain rendering
     }
   }
+  // Auto-detection tries every registered grammar, and the whole message is
+  // re-rendered on every streamed token — running it while the block is still
+  // growing is O(tokens × languages × size). Render plain until the stream
+  // settles; the final render does the full pass.
+  if (streaming) return { html: '', lang: '' };
   // No language hint (or unsupported) — auto-detect for syntax coloring. The
   // detected name only becomes the header label when highlight.js is reasonably
   // confident; otherwise we keep the coloring but fall back to a neutral label,
@@ -56,8 +66,8 @@ markdown.use(taskLists, { enabled: false, label: true, labelAfter: false });
  * event delegation in ChatMessages — here we only emit the markup + a
  * stable data attribute so the delegate can locate the source code.
  */
-function renderCodeBlockHtml(rawCode: string, requestedLang: string): string {
-  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang);
+function renderCodeBlockHtml(rawCode: string, requestedLang: string, streaming: boolean): string {
+  const { html: highlighted, lang } = highlightCode(rawCode, requestedLang, streaming);
   const displayLang = requestedLang || lang || 'text';
   const codeHtml = highlighted
     ? highlighted
@@ -73,7 +83,7 @@ function renderCodeBlockHtml(rawCode: string, requestedLang: string): string {
   );
 }
 
-markdown.renderer.rules.fence = (tokens, idx) => {
+markdown.renderer.rules.fence = (tokens, idx, _options, env) => {
   const token = tokens[idx];
   const rawCode = token.content;
   const info = (token.info || '').trim();
@@ -90,14 +100,14 @@ markdown.renderer.rules.fence = (tokens, idx) => {
     );
   }
 
-  return renderCodeBlockHtml(rawCode, requestedLang);
+  return renderCodeBlockHtml(rawCode, requestedLang, env?.streaming === true);
 };
 
 // Indented (4-space) code blocks — common when a user pastes code without
 // fences — get the same polished shell + auto-detected highlighting as a
 // fenced block, instead of a bare monospace `<pre>`.
-markdown.renderer.rules.code_block = (tokens, idx) =>
-  renderCodeBlockHtml(tokens[idx].content.replace(/\n+$/, ''), '');
+markdown.renderer.rules.code_block = (tokens, idx, _options, env) =>
+  renderCodeBlockHtml(tokens[idx].content.replace(/\n+$/, ''), '', env?.streaming === true);
 
 /** Open external links in a new window and never leak referrer. */
 const defaultLinkOpen = markdown.renderer.rules.link_open
@@ -137,6 +147,41 @@ markdown.renderer.rules.image = (tokens, idx, options, env, self) => {
   return defaultImageRenderer(tokens, idx, options, env, self);
 };
 
-export function renderMarkdown(content: string): string {
-  return markdown.render(content);
+export interface RenderMarkdownOptions {
+  /**
+   * True while the source message is still streaming. Skips highlight.js
+   * auto-detection for unhinted code blocks — the caller re-renders without
+   * the flag once the stream settles, which does the full pass.
+   */
+  streaming?: boolean;
+}
+
+// Settled-render cache. renderMarkdown is pure in its input, and chat
+// re-renders the same settled messages many times (e.g. the mention pass
+// upstream re-runs whenever the canvas node list changes identity) — the
+// markdown parse + highlight is the expensive part, so memoize it. Streaming
+// renders are never reused (content grows every token) and skip the cache.
+const settledRenderCache = new Map<string, string>();
+const SETTLED_RENDER_CACHE_MAX = 100;
+
+export function renderMarkdown(content: string, options?: RenderMarkdownOptions): string {
+  if (options?.streaming === true) {
+    return markdown.render(content, { streaming: true });
+  }
+  const cached = settledRenderCache.get(content);
+  if (cached !== undefined) {
+    count('chat-md-cache-hit');
+    // Re-insert to keep recently used entries away from eviction.
+    settledRenderCache.delete(content);
+    settledRenderCache.set(content, cached);
+    return cached;
+  }
+  count('chat-md-render');
+  const html = markdown.render(content);
+  settledRenderCache.set(content, html);
+  if (settledRenderCache.size > SETTLED_RENDER_CACHE_MAX) {
+    const oldest = settledRenderCache.keys().next().value;
+    if (oldest !== undefined) settledRenderCache.delete(oldest);
+  }
+  return html;
 }

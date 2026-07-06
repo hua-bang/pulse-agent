@@ -1,4 +1,3 @@
-import { init, loadRemote, registerRemotes } from '@module-federation/runtime';
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import * as ReactDomClient from 'react-dom/client';
@@ -25,6 +24,15 @@ const ENV_REMOTES_KEY = 'VITE_CANVAS_RENDERER_MF_REMOTES';
 
 let initialized = false;
 const registeredRemoteNames = new Set<string>();
+
+// @module-federation/runtime is only needed once a federated plugin actually
+// activates, so it is imported dynamically to keep the runtime out of the
+// eagerly-parsed entry chunk (C7). The promise is cached so init/loadRemote
+// share one module instance.
+type FederationRuntime = typeof import('@module-federation/runtime');
+let runtimePromise: Promise<FederationRuntime> | null = null;
+const loadFederationRuntime = (): Promise<FederationRuntime> =>
+  (runtimePromise ??= import('@module-federation/runtime'));
 
 type RemotePluginModule = {
   default?: unknown;
@@ -91,7 +99,7 @@ function toRemote(spec: RendererFederatedPluginSpec): RemoteShape {
   };
 }
 
-function ensureFederation(specs: RendererFederatedPluginSpec[]): void {
+async function ensureFederation(specs: RendererFederatedPluginSpec[]): Promise<void> {
   installLocalSmokeRemoteBridge();
   const remotes = specs
     .map(toRemote)
@@ -100,6 +108,7 @@ function ensureFederation(specs: RendererFederatedPluginSpec[]): void {
       registeredRemoteNames.add(remote.name);
       return true;
     });
+  const { init, registerRemotes } = await loadFederationRuntime();
   if (!initialized) {
     init({
       name: HOST_NAME,
@@ -275,7 +284,8 @@ export async function activateFederatedRendererPlugins(
 ): Promise<RendererCanvasPlugin[]> {
   if (specs.length === 0) return [];
 
-  ensureFederation(specs);
+  await ensureFederation(specs);
+  const { loadRemote } = await loadFederationRuntime();
   const activated: RendererCanvasPlugin[] = [];
 
   for (const spec of specs) {

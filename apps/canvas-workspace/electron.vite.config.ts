@@ -1,10 +1,16 @@
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 import react from "@vitejs/plugin-react";
-import { existsSync, readdirSync, readFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
+import { visualizer } from "rollup-plugin-visualizer";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
   version: string;
 };
+
+// Opt-in bundle treemap (rollup-plugin-visualizer). Default off so `dev` /
+// `build` never instantiate it — chunk hashes and output stay byte-identical
+// to the ungated build. Enable via `pnpm perf:analyze`.
+const analyze = process.env.PULSE_CANVAS_ANALYZE === "1";
 
 type LocalPluginRendererAsset = {
   publicPath: string;
@@ -54,6 +60,52 @@ function discoverLocalPluginRendererAssets(): LocalPluginRendererAsset[] {
   }
 
   return assets;
+}
+
+/** First (or first two, if scoped) path segment after the last
+ *  `node_modules/` in a Rollup module id — the same package-name
+ *  extraction bundle-boundaries.test.ts uses for its import-graph gate. */
+function packageNameFromModuleId(id: string): string | null {
+  const marker = "node_modules/";
+  const idx = id.lastIndexOf(marker);
+  if (idx === -1) return null;
+  const parts = id.slice(idx + marker.length).split("/");
+  return parts[0].startsWith("@") ? `${parts[0]}/${parts[1]}` : parts[0];
+}
+
+/**
+ * A5: per-dependency byte attribution inside the entry chunk. Opt-in via
+ * PULSE_CANVAS_PERF_ANALYZE=1 (set by scripts/perf/bundle-report.mjs) —
+ * a normal build pays nothing beyond a no-op hook. Reads Rollup's own
+ * per-chunk module render stats (chunk.modules[id].renderedLength,
+ * pre-minification but post-tree-shake) rather than adding a new
+ * dependency (rollup-plugin-visualizer et al) for what's already exposed
+ * through the plugin API.
+ */
+function entryDepStatsPlugin() {
+  return {
+    name: "pulse-canvas-entry-dep-stats",
+    generateBundle(_options: unknown, bundle: Record<string, { type: string; isEntry?: boolean; fileName: string; modules?: Record<string, { renderedLength: number }> }>) {
+      if (process.env.PULSE_CANVAS_PERF_ANALYZE !== "1") return;
+      for (const chunk of Object.values(bundle)) {
+        if (chunk.type !== "chunk" || !chunk.isEntry) continue;
+        const byPackage: Record<string, number> = {};
+        let appOwnBytes = 0;
+        for (const [moduleId, mod] of Object.entries(chunk.modules ?? {})) {
+          const pkg = packageNameFromModuleId(moduleId);
+          const bytes = mod.renderedLength ?? 0;
+          if (pkg) byPackage[pkg] = (byPackage[pkg] ?? 0) + bytes;
+          else appOwnBytes += bytes;
+        }
+        const outDir = new URL("./perf/out/", import.meta.url);
+        mkdirSync(outDir, { recursive: true });
+        writeFileSync(
+          new URL("entry-dep-stats.json", outDir),
+          JSON.stringify({ chunkFileName: chunk.fileName, byPackage, appOwnBytes }, null, 2),
+        );
+      }
+    },
+  };
 }
 
 function localPluginRendererAssetsPlugin() {
@@ -111,8 +163,24 @@ export default defineConfig({
   renderer: {
     root: "src/renderer",
     build: {
-      outDir: "dist/renderer"
+      outDir: "dist/renderer",
+      // Emit Vite's official manifest (entry → static/dynamic imports) only
+      // under PULSE_CANVAS_ANALYZE — standardized data source for perf:treemap.
+      // Chunk output is byte-identical with/without it; only manifest.json differs.
+      // String form forces outDir-root path (electron-vite otherwise nests in .vite/).
+      manifest: analyze ? "manifest.json" : false
     },
-    plugins: [react(), localPluginRendererAssetsPlugin()]
+    plugins: [
+      react(),
+      localPluginRendererAssetsPlugin(),
+      entryDepStatsPlugin(),
+      analyze &&
+      visualizer({
+        filename: "perf/out/bundle-treemap.html",
+        template: "treemap",
+        gzipSize: true,
+        brotliSize: false,
+      }),
+    ].filter(Boolean),
   }
 });

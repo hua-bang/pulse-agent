@@ -45,6 +45,8 @@ export const ImageNodeBody = ({ node, onSelect, onDragStart, readOnly = false }:
           src={toFileUrl(data.filePath)}
           alt={node.title}
           draggable={false}
+          decoding="async"
+          loading="lazy"
           onError={() => setLoadFailed(true)}
         />
       ) : data.filePath ? (

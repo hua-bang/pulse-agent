@@ -24,6 +24,14 @@ export interface NodeDragPreview {
   snapDisabled: boolean;
 }
 
+/** Ephemeral screen-space delta applied on top of a dragged node's stored
+ *  x/y (see `getNodeWrapperStyle`) — the whole dragged set (primary +
+ *  companions) shares one delta since a drag is a rigid-body move. */
+export interface NodeDragOffset {
+  dx: number;
+  dy: number;
+}
+
 export const useNodeDrag = (
   moveNode: (id: string, x: number, y: number) => void,
   moveNodes: (moves: Array<{ id: string; x: number; y: number }>) => void,
@@ -80,6 +88,16 @@ export const useNodeDrag = (
   // snap in two places.
   const [snapLines, setSnapLines] = useState<SnapLine[]>([]);
   const [dragPreview, setDragPreview] = useState<NodeDragPreview | null>(null);
+  // Ephemeral visual offset for the currently-dragged set (primary + every
+  // companion moves by this same delta — a rigid-body drag). Consumers
+  // (CanvasSurface → getNodeWrapperStyle) render dragged nodes at
+  // `node.x/y + dragOffset` without the underlying `nodes` array ever being
+  // touched mid-gesture — see the `moveNode`/`moveNodes` calls below, which
+  // now only fire once, on commit. This is what B7 removes: previously every
+  // pointer-move called moveNode/moveNodes, cloning the full nodes array and
+  // re-triggering the O(n) render-order/group-resize pipeline every frame
+  // (perf report finding A2, ~1 replacement per pointer-move).
+  const [dragOffset, setDragOffset] = useState<NodeDragOffset | null>(null);
 
   const onDragStart = useCallback(
     (e: React.MouseEvent, node: CanvasNode) => {
@@ -176,7 +194,7 @@ export const useNodeDrag = (
   }, []);
 
   const flushDragMove = useCallback(
-    (e: React.MouseEvent | MouseEvent) => {
+    (e: React.MouseEvent | MouseEvent, commit: boolean) => {
       if (!dragging.current) return;
       const d = dragging.current;
       if (!d.started) return;
@@ -251,6 +269,10 @@ export const useNodeDrag = (
         return nextPreview;
       });
 
+      // Ephemeral during the gesture — always update the visual offset.
+      // Only touch the real nodes array once, on commit (drag end).
+      setDragOffset({ dx: appliedDx, dy: appliedDy });
+      if (!commit) return;
       if (d.companions.length > 0) {
         // Batch move primary + every companion in one applyNodes call so
         // the whole group reflects the same delta in one render.
@@ -278,7 +300,7 @@ export const useNodeDrag = (
       moveFrame.current = requestAnimationFrame(() => {
         moveFrame.current = null;
         const nextEvent = lastMoveEvent.current;
-        if (nextEvent) flushDragMove(nextEvent);
+        if (nextEvent) flushDragMove(nextEvent, false);
       });
       return true;
     },
@@ -292,7 +314,8 @@ export const useNodeDrag = (
     }
     const nextEvent = lastMoveEvent.current;
     if (nextEvent) {
-      flushDragMove(nextEvent);
+      // The one and only nodes-array commit for this whole gesture.
+      flushDragMove(nextEvent, true);
       lastMoveEvent.current = null;
     }
     dragging.current = null;
@@ -300,34 +323,25 @@ export const useNodeDrag = (
     setDraggingIds(new Set());
     setSnapLines([]);
     setDragPreview(null);
+    setDragOffset(null);
   }, [flushDragMove]);
 
-  /** Abort the gesture (Escape): put the primary node and every companion
-   *  back where the drag found them, then drop all drag state. The caller
-   *  is responsible for NOT committing history afterwards. */
+  /** Abort the gesture (Escape): drop all ephemeral drag state without
+   *  committing. Since the real nodes array is never touched mid-gesture,
+   *  there is nothing to restore — the nodes were never moved. */
   const onDragCancel = useCallback(() => {
     if (moveFrame.current !== null) {
       cancelAnimationFrame(moveFrame.current);
       moveFrame.current = null;
     }
     lastMoveEvent.current = null;
-    const d = dragging.current;
-    if (d && d.started) {
-      if (d.companions.length > 0) {
-        moveNodes([
-          { id: d.id, x: d.nodeX, y: d.nodeY },
-          ...d.companions.map((c) => ({ id: c.id, x: c.nodeX, y: c.nodeY })),
-        ]);
-      } else {
-        moveNode(d.id, d.nodeX, d.nodeY);
-      }
-    }
     dragging.current = null;
     setDraggingId(null);
     setDraggingIds(new Set());
     setSnapLines([]);
     setDragPreview(null);
-  }, [moveNode, moveNodes]);
+    setDragOffset(null);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -341,6 +355,7 @@ export const useNodeDrag = (
     draggingId,
     draggingIds,
     dragPreview,
+    dragOffset,
     snapLines,
     onDragStart,
     onDragMove,

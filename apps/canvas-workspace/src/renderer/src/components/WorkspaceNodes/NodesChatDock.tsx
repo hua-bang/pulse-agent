@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { CanvasNode, KnowledgeTagDefinition, WorkspaceNodeListItem } from '../../types';
-import { ChatPanel } from '../chat';
+import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
 import type { AgentScope, WorkspaceOption } from '../chat/types';
 import type { SettingsSection } from '../Settings';
 import { ChatFloatingButton } from '../ChatFloatingButton';

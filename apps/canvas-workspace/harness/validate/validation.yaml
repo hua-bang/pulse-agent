@@ -11,3 +11,15 @@ pathRules:
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
+
+  # Bundle + runtime perf gates (perf/program.md). Run by CI
+  # (.github/workflows/perf.yml) on every canvas-workspace PR; runnable
+  # locally with the same command.
+  - name: performance-sensitive
+    paths:
+      - src/**
+      - electron.vite.config.ts
+      - perf/**
+      - scripts/perf/**
+    required:
+      - pnpm --filter canvas-workspace perf:report

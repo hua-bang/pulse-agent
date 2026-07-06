@@ -94,9 +94,9 @@ export const ChatMessage = ({
 }: ChatMessageProps) => {
   const assistantHtml = useMemo(
     () => (message.role === 'assistant'
-      ? renderMdWithMentions(message.content, nodes)
+      ? renderMdWithMentions(message.content, nodes, { streaming: isStreaming })
       : ''),
-    [message.role, message.content, nodes],
+    [message.role, message.content, nodes, isStreaming],
   );
   const userHtml = useMemo(
     () => (message.role === 'user'

@@ -1,0 +1,125 @@
+/**
+ * Rule engine for the performance dashboard (Rsdoctor/Lighthouse-style).
+ *
+ * Input: metric dictionary + current snapshot + prior history snapshots.
+ * Output: alerts — each with severity, evidence, an actionable suggestion,
+ * and the report finding it traces back to. The dashboard renders alerts
+ * as the conclusion layer; raw metrics become the evidence layer below.
+ *
+ * severity: 'high' (act now / gate broken) · 'medium' (known cost, fix
+ * planned) · 'info' (context: coverage gaps, unstable samples).
+ */
+
+const ENTRY_TARGET_KB = 1500;
+
+export const evaluateRules = (dictionary, snapshot, history) => {
+  const alerts = [];
+  const byId = new Map(snapshot.metrics.map((m) => [m.id, m]));
+  const previous = history
+    .filter((h) => h.timestamp < snapshot.timestamp)
+    .sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))[0] ?? null;
+  const prevOf = (id) => previous?.metrics.find((m) => m.id === id)?.value;
+
+  // 1. Broken gates — always the loudest signal.
+  for (const def of dictionary.metrics) {
+    const entry = byId.get(def.id);
+    if (entry?.pass === false) {
+      alerts.push({
+        severity: 'high', aspect: def.aspect,
+        title: `门禁失败:${def.label}`,
+        evidence: `当前 ${entry.value}${def.unit !== 'bool' ? ` ${def.unit}` : ''},上限 ${entry.limit ?? '—'}`,
+        suggestion: '定位引入回归的提交(对比 perf/history),修复或在有充分理由时同 PR 调整基线。',
+        ref: def.id,
+      });
+    }
+  }
+
+  // 2. Unstable timing samples — protect consumers from single-run noise.
+  for (const def of dictionary.metrics.filter((d) => d.comparability === '同机')) {
+    const entry = byId.get(def.id);
+    const prev = prevOf(def.id);
+    if (!entry || typeof entry.value !== 'number' || typeof prev !== 'number' || prev === 0) continue;
+    const ratio = entry.value / prev;
+    if (ratio > 2 || ratio < 0.5) {
+      alerts.push({
+        severity: 'info', aspect: def.aspect,
+        title: `样本波动大,勿单看:${def.label}`,
+        evidence: `本次 ${entry.value} ${def.unit},上次同机 ${prev} ${def.unit}(${ratio > 1 ? '×' + ratio.toFixed(1) : '÷' + (1 / ratio).toFixed(1)})`,
+        suggestion: '时间类指标单样本方差大;结论以 --repeat N 中位数为准(M1),或重跑确认。',
+        ref: def.id,
+      });
+    }
+  }
+
+  // 3. Entry chunk vs target — the C-dimension headline.
+  const entryKb = byId.get('bundle.entry_raw_kb');
+  if (entryKb && entryKb.value > ENTRY_TARGET_KB) {
+    const heavy = byId.get('bundle.heavy_in_entry_count');
+    alerts.push({
+      severity: 'medium', aspect: 'bundle',
+      title: `入口 chunk ${(entryKb.value / ENTRY_TARGET_KB).toFixed(1)}× 于目标(${ENTRY_TARGET_KB} KB)`,
+      evidence: `${entryKb.value.toLocaleString()} KB 启动时全量 parse;入口内重依赖:${heavy?.detail ?? '见探针'}`,
+      suggestion: '按 C 维方案拆分:节点 body React.lazy + manualChunks;每拆一个依赖升 WATCHLIST 并下调基线。',
+      ref: 'C1-C9',
+    });
+  }
+
+  // 4. Known amplifiers still active — counter ≈ event count.
+  for (const [scenario, events, finding, expect] of [
+    ['typing', 120, 'I-1(每 keystroke 全文序列化 + 整数组替换)', '< 20'],
+    ['drag', 90, 'A2(每 pointer-move 整数组替换)', '< 10'],
+  ]) {
+    const counter = byId.get(`interact.${scenario}.counter.nodes_array_replace`);
+    if (counter && counter.value >= events * 0.9) {
+      alerts.push({
+        severity: 'medium', aspect: 'interact',
+        title: `放大器仍在:${scenario === 'typing' ? '打字' : '拖拽'}每次输入都全量替换 nodes 数组`,
+        evidence: `${counter.value} 次替换 / ${events} 次输入 ≈ 1:1 — 实证 ${finding}`,
+        suggestion: `修复后(debounce / 手势期 ephemeral 几何)预期 ${expect},同 PR 下调计数器 max 锁定收益。`,
+        ref: finding.split('(')[0],
+      });
+    }
+  }
+
+  // 5. Frame budget blown during interaction.
+  for (const scenario of ['typing', 'drag']) {
+    const frames = byId.get(`interact.${scenario}.frames_over20_pct`);
+    if (frames && frames.value > 20) {
+      alerts.push({
+        severity: 'medium', aspect: 'interact',
+        title: `${scenario === 'typing' ? '打字' : '拖拽'}期间 ${frames.value}% 的帧超 20ms`,
+        evidence: `场景条件:${snapshot.env.seedNodes ?? '默认'} 节点画布;同场景 3 节点画布为 ~0%`,
+        suggestion: '规模放大来自 nodes 数组全量替换的下游重渲(见放大器告警);修 I-1/A2 是根因解。',
+        ref: `interact.${scenario}.frames_over20_pct`,
+      });
+    }
+  }
+
+  // 6. Coverage gaps — aspects with no measured metric at all.
+  for (const aspect of dictionary.aspects) {
+    const defs = dictionary.metrics.filter((m) => m.aspect === aspect.id);
+    if (!defs.some((d) => byId.has(d.id))) {
+      alerts.push({
+        severity: 'info', aspect: aspect.id,
+        title: `专项「${aspect.name}」尚无任何实测数据`,
+        evidence: `${defs.length} 个指标全部未采集`,
+        suggestion: aspect.next,
+        ref: aspect.id,
+      });
+    }
+  }
+
+  const order = { high: 0, medium: 1, info: 2 };
+  alerts.sort((a, b) => order[a.severity] - order[b.severity]);
+  return { alerts, previous };
+};
+
+/** One-line machine-generated verdict for the overview header. */
+export const buildVerdict = (dictionary, snapshot, alerts) => {
+  const high = alerts.filter((a) => a.severity === 'high').length;
+  const medium = alerts.filter((a) => a.severity === 'medium').length;
+  const gated = snapshot.metrics.filter((m) => m.pass !== undefined);
+  const passed = gated.filter((m) => m.pass).length;
+  if (high > 0) return `⚠ ${high} 项门禁失败 — 优先处理下方 high 告警。`;
+  return `门禁 ${passed}/${gated.length} 通过,无回归;${medium} 项已知成本待修(medium),详见告警。`;
+};

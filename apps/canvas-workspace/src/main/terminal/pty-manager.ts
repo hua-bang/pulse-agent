@@ -2,8 +2,9 @@ import { ipcMain } from "electron";
 import * as pty from "node-pty";
 import { createRequire } from "module";
 import { platform, homedir } from "os";
-import { execFileSync, execSync } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { chmodSync, existsSync } from "fs";
+import { readlink } from "fs/promises";
 import { delimiter, dirname, join, resolve } from "path";
 
 const sessions = new Map<string, pty.IPty>();
@@ -204,21 +205,25 @@ const checkCommand = (command: string): { ok: boolean; available: boolean; path?
   };
 };
 
-const getCwd = (pid: number): string | null => {
+// Must stay async: this runs every couple of seconds per terminal node on
+// the main-process event loop that serves all IPC — a synchronous child
+// process here stalls the whole app (see docs/performance-analysis-*.md, E1).
+const getCwd = async (pid: number): Promise<string | null> => {
   try {
     if (platform() === "darwin") {
-      const out = execSync(`lsof -a -d cwd -p ${pid} -Fn 2>/dev/null`, {
-        encoding: "utf-8",
-        timeout: 2000
+      const out = await new Promise<string>((resolvePromise, rejectPromise) => {
+        execFile(
+          "lsof",
+          ["-a", "-d", "cwd", "-p", String(pid), "-Fn"],
+          { encoding: "utf-8", timeout: 2000 },
+          (err, stdout) => (err ? rejectPromise(err) : resolvePromise(stdout)),
+        );
       });
       const match = out.match(/\nn(.+)/);
       return match ? match[1] : null;
     }
     if (platform() === "linux") {
-      const out = execSync(`readlink /proc/${pid}/cwd 2>/dev/null`, {
-        encoding: "utf-8",
-        timeout: 2000
-      });
+      const out = await readlink(`/proc/${pid}/cwd`);
       return out.trim() || null;
     }
     return null;
@@ -303,10 +308,10 @@ export const setupPtyIpc = () => {
     }
   );
 
-  ipcMain.handle("pty:getCwd", (_event, payload: { id: string }) => {
+  ipcMain.handle("pty:getCwd", async (_event, payload: { id: string }) => {
     const proc = sessions.get(payload.id);
     if (!proc) return { ok: false, error: "session not found" };
-    const cwd = getCwd(proc.pid);
+    const cwd = await getCwd(proc.pid);
     return { ok: true, cwd };
   });
 

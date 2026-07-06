@@ -159,6 +159,8 @@ interface Options {
 }
 
 const AUTO_SAVE_MS = 1500;
+// Debounce the per-keystroke serialize + nodes-array writeback (I-1).
+const CONTENT_COMMIT_MS = 200;
 
 export const useFileNodeEditor = ({
   data,
@@ -194,6 +196,38 @@ export const useFileNodeEditor = ({
   } = interactions;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const contentCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingEditorRef = useRef<any>(null);
+
+  // Serialize the doc and push it into the central nodes array. Debounced from
+  // onUpdate; `flushPersist` writes the file now (blur/unmount) vs auto-save.
+  const commitContent = useCallback((flushPersist = false) => {
+    if (contentCommitRef.current) {
+      clearTimeout(contentCommitRef.current);
+      contentCommitRef.current = null;
+    }
+    const editor = pendingEditorRef.current;
+    if (!editor) return;
+    const markdown = getMarkdown(editor);
+    const previous = dataRef.current.content ?? '';
+    if (!editor.isFocused && markdown.trim().length === 0 && previous.trim().length > 0) {
+      console.warn(`[file-node-editor] skipped empty initialization update for ${nodeIdRef.current}`);
+      return;
+    }
+    prevContentRef.current = markdown;
+    setModified(true);
+    onUpdate(nodeIdRef.current, {
+      data: { ...dataRef.current, content: markdown, modified: true },
+    });
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    const fp = dataRef.current.filePath;
+    if (!fp) return;
+    if (flushPersist) {
+      void persistToFile(markdown, fp);
+    } else {
+      saveTimerRef.current = setTimeout(() => void persistToFile(markdown, fp), AUTO_SAVE_MS);
+    }
+  }, [dataRef, nodeIdRef, prevContentRef, setModified, onUpdate, persistToFile]);
 
   const editor = useEditor({
     extensions: [
@@ -275,27 +309,12 @@ export const useFileNodeEditor = ({
     },
     onUpdate: ({ editor }) => {
       if (readOnly) return;
-      const markdown = getMarkdown(editor);
-      const previous = dataRef.current.content ?? '';
-      if (
-        !editor.isFocused &&
-        markdown.trim().length === 0 &&
-        previous.trim().length > 0
-      ) {
-        console.warn(`[file-node-editor] skipped empty initialization update for ${nodeIdRef.current}`);
-        return;
-      }
-      prevContentRef.current = markdown;
-      setModified(true);
-      onUpdate(nodeIdRef.current, {
-        data: { ...dataRef.current, content: markdown, modified: true },
-      });
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        const fp = dataRef.current.filePath;
-        if (fp) void persistToFile(markdown, fp);
-      }, AUTO_SAVE_MS);
+      // Coalesce the expensive serialize + nodes-array writeback (I-1).
+      pendingEditorRef.current = editor;
+      if (contentCommitRef.current) clearTimeout(contentCommitRef.current);
+      contentCommitRef.current = setTimeout(() => commitContent(), CONTENT_COMMIT_MS);
 
+      // Slash menu must track the caret on every keystroke — a cheap local read.
       const { from } = editor.state.selection;
       const startPos = Math.max(0, from - 60);
       const textBefore = editor.state.doc.textBetween(startPos, from, '\n', '\0');
@@ -334,8 +353,14 @@ export const useFileNodeEditor = ({
         });
       });
     },
-    onBlur: closeBubble,
+    onBlur: () => {
+      commitContent(true); // flush pending debounced edit before focus leaves
+      closeBubble();
+    },
   });
+
+  // Flush on unmount (node deleted / workspace switched while focused).
+  useEffect(() => () => commitContent(true), [commitContent]);
 
   // Sync content when file opens externally
   useEffect(() => {

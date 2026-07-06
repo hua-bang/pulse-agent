@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Canvas } from '../Canvas';
 import { FileNodeEditorRegistryProvider } from '../../hooks/useFileNodeEditorRegistry';
-import { ChatPanel } from '../chat';
+import { ChatPanelLazy as ChatPanel } from '../chat/lazy';
 import { CHAT_TAB_ID, useRightDock, useRightDockChatHost, useRightDockState } from '../RightDock';
 import {
   createReferenceNodeDataSnapshot,
@@ -81,7 +81,11 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const [canvasClipboard, setCanvasClipboard] = useState<CanvasClipboard | null>(null);
   const [nodePatchRequest, setNodePatchRequest] = useState<CanvasNodePatchRequest | undefined>();
   const patchRequestIdRef = useRef(0);
-  const mountedWorkspaceIds = useMountedWorkspaceIds(activeWorkspaceId, workspaces);
+  const mountedWorkspaceIds = useMountedWorkspaceIds(
+    activeWorkspaceId,
+    workspaces,
+    dockState.terminalTabsByWorkspace,
+  );
 
   useEffect(() => {
     for (const node of activeNodes) {

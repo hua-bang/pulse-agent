@@ -1,0 +1,109 @@
+name: Performance
+
+# Runs the canvas-workspace performance report on every PR touching the app
+# and on pushes to the default branch. Gate = bundle size ratchets + runtime
+# counter gates (both machine-independent); timing metrics (INP/startup) are
+# collected but informational, since CI runners differ from dev machines.
+# Closes the "validation.yaml has no runner" gap noted in the root CLAUDE.md.
+
+on:
+  pull_request:
+    paths: ['apps/canvas-workspace/**']
+  push:
+    branches: [master]
+    paths: ['apps/canvas-workspace/**']
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install Xvfb (headless display for the Electron app)
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary
+        run: pnpm --filter canvas-workspace setup:electron
+
+      # canvas-workspace externalizes pulse-coder-engine + agent-teams
+      # (workspace:* deps) — its main process requires their dist/ at runtime,
+      # which a fresh checkout doesn't have. Without this the app throws
+      # ERR_MODULE_NOT_FOUND on launch and perf:report degrades to bundle-only.
+      - name: Build workspace dependencies
+        run: pnpm run build:core
+
+      # perf:report builds, runs the bundle gate, launches the app headless
+      # (self-managed Xvfb), runs the runtime scenarios, and assembles the
+      # report. Exit 1 on any gate failure → this job goes red.
+      - name: Run performance report
+        run: pnpm --filter canvas-workspace perf:report
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-report
+          path: |
+            apps/canvas-workspace/perf/out/dashboard.html
+            apps/canvas-workspace/perf/out/report.json
+          if-no-files-found: warn
+
+      - name: Comment verdict on the PR
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'apps/canvas-workspace/perf/out/report.json';
+            if (!fs.existsSync(path)) return;
+            const r = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const bySev = (s) => r.alerts.filter((a) => a.severity === s);
+            const line = (a) => `- **${a.severity.toUpperCase()}** ${a.title}\n  - ${a.evidence}\n  - → ${a.suggestion} \`${a.ref}\``;
+            const high = bySev('high');
+            const med = bySev('medium');
+            const body = [
+              '<!-- perf-report -->',
+              '### 🚦 性能报告',
+              '',
+              `**${r.verdict}**`,
+              '',
+              `覆盖 ${r.coverage.measured}/${r.coverage.total} 指标 · commit \`${r.commit}\``,
+              high.length ? '\n#### ⚠ HIGH\n' + high.map(line).join('\n') : '',
+              med.length ? '\n#### MEDIUM\n' + med.map(line).join('\n') : '',
+              '\n<sub>完整看板见本次运行的 `perf-report` artifact(dashboard.html)。</sub>',
+            ].filter(Boolean).join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body.includes('<!-- perf-report -->'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body,
+              });
+            }
