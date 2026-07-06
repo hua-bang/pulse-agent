@@ -14,38 +14,7 @@ import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { useI18n } from '../../i18n';
 import type { CanvasNodeRenderMode } from '../CanvasNodeView/types';
 import { markOnce } from '../../perf/monitor';
-
-const FIT_TRANSITION =
-  'transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94), --canvas-scale 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-const SETTLE_TRANSITION = '--canvas-scale 140ms ease-out';
-
-/**
- * The `.canvas-transform` CSS `transition` for the current
- * animating/moving combination. Extracted as a pure function (rather than
- * inlined in the JSX style object) so the timing-sensitive regimes below
- * have a direct unit-test surface:
- *  1. `animating && !moving` — a fit/focus call (useCanvasFit) is easing
- *     transform+scale toward a target. The `!moving` guard matters:
- *     without it, starting a wheel gesture within the 380ms fit-animation
- *     window kept this transition active, so every subsequent wheel tick
- *     re-eased from wherever the CSS interpolation currently sat instead
- *     of jumping straight to the new value — a rubber-band lag chasing
- *     the pointer. Gesturing cuts the transition immediately; the canvas
- *     snaps to the fit's current value and the gesture takes over clean.
- *  2. `moving` (mid-gesture, not animating) — no transition: transform
- *     must track the pointer/wheel with zero lag.
- *  3. otherwise (a gesture just settled, or fully idle) — glide
- *     `--canvas-scale` only (never `transform`, which isn't changing
- *     here) instead of snapping. Scale-compensated content (terminal
- *     glyphs via the ResizeObserver in TerminalNodeBody/
- *     useAgentNodeController, frame headers, node chrome) eases back to
- *     true size instead of popping the instant the gesture ends.
- */
-export const getCanvasTransformTransition = (animating: boolean, moving: boolean): string | undefined => {
-  if (animating && !moving) return FIT_TRANSITION;
-  if (moving) return undefined;
-  return SETTLE_TRANSITION;
-};
+import { getCanvasTransformClassName, getCanvasTransformTransition } from './canvasTransformStyle';
 
 interface NodeRenderGroup {
   containers: CanvasNode[];
@@ -267,7 +236,7 @@ export const CanvasSurface = ({
 
   return (
     <div
-      className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${settledScale < 0.6 ? ' canvas-transform--small' : ''}`}
+      className={getCanvasTransformClassName(moving, animating, settledScale)}
       style={{
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
         '--canvas-scale': settledScale,
