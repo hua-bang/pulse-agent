@@ -109,6 +109,8 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 
 Failures are captured in fix commits + regression tests — debug via `git log -- <file>` and focused tests, not by grepping for TODOs.
 
+**Task-end write-back**: before finishing a task, route what it taught you — new fact → the nearest owning doc or workspace `AGENTS.md`; new check → the affected workspace's `harness/validate/validation.yaml`; a cross-module rule that cannot become a check → one line appended to this section. No separate feedback store.
+
 ## 7. Security / secrets
 
 Do not commit API keys or tokens. Runtime keys (`OPENAI_API_KEY`/`PULSE_OPENAI_API_KEY`, `ANTHROPIC_API_KEY`/`PULSE_ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `GEMINI_API_KEY`, `INTERNAL_API_SECRET`, `CLARIFICATION_*`) are env-only. Default model precedence (code at `packages/engine/src/config/index.ts`): `ANTHROPIC_MODEL` → `OPENAI_MODEL` → `PULSE_ANTHROPIC_MODEL` → `PULSE_OPENAI_MODEL` → `novita/deepseek/deepseek_v3`. `PULSE_`-prefixed fallbacks exist for every provider var. Remote-server internal routes are loopback-only and require `INTERNAL_API_SECRET`. Plugin secret storage uses the vault helpers in `pulse-coder-plugin-kit`.
