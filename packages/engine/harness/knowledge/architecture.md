@@ -40,6 +40,17 @@ This file records current implementation facts for `pulse-coder-engine`. It is a
 - Plugin `SystemPromptOption.append` values stack on top of whichever base was selected (`resolveSystemPrompt` in `src/ai/index.ts`); a string or function option replaces even that base.
 - Consequence: running any engine host from a directory with a root `AGENTS.md` (this repository included) silently swaps the entire built-in prompt for that file's content.
 
+## Runtime Invariants
+
+Verified against source; each of these has broken (or would silently break) real behavior when violated.
+
+- `maxOutputTokens` is force-set per model family and is a correctness parameter, not a cost knob (`src/ai/index.ts`, `resolveMaxOutputTokens`; Claude 32768 / OpenAI 16384, env-overridable). The AI SDK does not pass it by default, and Anthropic's 4096 fallback can be consumed entirely by reasoning tokens — surfacing as `finishReason='length'` with empty text, historically misdiagnosed as context overflow.
+- `finishReason === 'length'` is ambiguous and MUST stay disambiguated (`src/core/loop.ts` length branch): only `inputTokens >= modelContextBudget * 0.8` counts as true overflow and may compact; an output-cap hit just continues the loop so the model resumes.
+- Compaction attempts share ONE counter across both trigger sites — pre-loop and length-retry (`compactionAttempts` in `src/core/loop.ts`, cap `MAX_COMPACTION_ATTEMPTS`, default 2, env-overridable). A pre-loop compaction consumes an attempt the length branch can no longer use.
+- Compacted message lists must never end on an assistant message: `ensureEndsWithUser` (`src/context/index.ts`) strips trailing assistant messages and appends a placeholder user message if that empties the list — some providers reject assistant-final requests.
+- Tool wrapping order in the loop is fixed: `wrapToolsWithReadDedup` first, `wrapToolsWithHooks` second (`src/core/loop.ts`). Plugin `afterToolCall` hooks therefore observe read/ls output with the dedup note already appended; no hook sees the raw output.
+- Plugin dependency resolution is asymmetric (`src/plugin/PluginManager.ts`): topological sort silently skips a dependency that is not in the plugin list, but initialization throws `Dependency not found`. A misspelled dependency name surfaces only at init time, and only in loading combinations that omit the intended plugin.
+
 ## Built-In Plugin Order
 
 Defined in `src/built-in/index.ts`:
