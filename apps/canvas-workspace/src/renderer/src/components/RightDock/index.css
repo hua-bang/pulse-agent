@@ -257,10 +257,10 @@
     transform 0.2s var(--tab-ease);
 }
 
-.right-dock__tab-dot--chat { background: #1f7a4d; border-radius: 50%; }
+.right-dock__tab-dot--chat { background: var(--success); border-radius: 50%; }
 .right-dock__tab-dot--terminal { background: #0f766e; }
-.right-dock__tab-dot--artifact { background: #a594e0; }
-.right-dock__tab-dot--link { background: #2383e2; }
+.right-dock__tab-dot--artifact { background: var(--accent-frame); }
+.right-dock__tab-dot--link { background: var(--accent); }
 
 .right-dock__tab--active .right-dock__tab-dot {
   box-shadow:

@@ -1,7 +1,7 @@
 import './index.css';
 import { AppLogoIcon } from '../icons';
 
-interface ChatFloatingButtonProps {
+interface Props {
   active?: boolean;
   title: string;
   ariaLabel?: string;
@@ -15,7 +15,7 @@ export const ChatFloatingButton = ({
   ariaLabel,
   className,
   onClick,
-}: ChatFloatingButtonProps) => (
+}: Props) => (
   <button
     type="button"
     className={[

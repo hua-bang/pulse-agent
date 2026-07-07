@@ -112,8 +112,8 @@ export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLigh
         type="button"
         className="chat-image-lightbox-action chat-image-lightbox-copy"
         onClick={() => void handleCopy()}
-        aria-label="Copy image"
-        title={copied ? 'Copied!' : 'Copy image'}
+        aria-label={t('chat.copyImage')}
+        title={copied ? t('chat.imageCopied') : t('chat.copyImage')}
       >
         {copied ? <CheckIcon size={18} strokeWidth={1.8} /> : <CopyIcon size={18} />}
       </button>

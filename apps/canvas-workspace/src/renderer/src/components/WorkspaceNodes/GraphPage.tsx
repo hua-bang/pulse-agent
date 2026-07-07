@@ -26,7 +26,7 @@ import { isImeComposing } from '../../utils/ime';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
 
-interface GraphPageProps {
+interface Props {
   workspaces: WorkspaceEntry[];
   selectedNode?: { workspaceId: string; nodeId: string } | null;
   onSelectNode?: (selection: { workspaceId: string; nodeId: string } | null) => void;
@@ -202,7 +202,7 @@ export const GraphPage = ({
   onSelectNode,
   onOpenNode,
   onOpenAppSettings,
-}: GraphPageProps) => {
+}: Props) => {
   const { t } = useI18n();
   const graphRef = useRef<ForceGraphMethods<GraphNode, GraphLink> | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);

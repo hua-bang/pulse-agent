@@ -29,6 +29,8 @@
  * position and rendered mermaid SVG.
  */
 
+import './index.css';
+import './terminal-tab.css';
 import {
   createContext,
   useCallback,
@@ -51,8 +53,6 @@ import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
-import './index.css';
-import './terminal-tab.css';
 
 export { CHAT_TAB_ID, TERMINAL_TAB_ID, isTerminalTabId } from './dock-store';
 export type { DockTerminalTab, DockTerminalWorkspaceState } from './dock-store';

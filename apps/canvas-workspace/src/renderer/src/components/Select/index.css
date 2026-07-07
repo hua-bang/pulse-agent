@@ -140,5 +140,5 @@
 .ui-select__check {
   display: inline-flex;
   flex: 0 0 auto;
-  color: #2383e2;
+  color: var(--accent);
 }

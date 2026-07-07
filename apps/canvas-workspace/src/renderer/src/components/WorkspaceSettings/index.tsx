@@ -14,6 +14,7 @@
  * chat turn (see canvas-agent/canvas-agent.ts).
  */
 
+import './index.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
 import { SettingsDrawer } from '../SettingsDrawer';
@@ -22,7 +23,6 @@ import { McpManager } from '../settings-config/McpManager';
 import { useAppShell } from '../AppShellProvider';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
-import './index.css';
 
 interface Props {
   workspace: WorkspaceEntry | null;
