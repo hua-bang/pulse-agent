@@ -18,6 +18,8 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 | Architecture map + runtime invariants | `harness/knowledge/architecture.md` |
 | Plugin mechanism and authoring | `harness/knowledge/plugin-system.md` |
 | Loop lifecycle, timeouts, retries | `harness/knowledge/loop-lifecycle.md` |
+| Built-in tools reference | `harness/knowledge/tools-reference.md` |
+| Embedding the engine in a host | `harness/knowledge/host-integration.md` |
 | Validation | `harness/validate/README.md`, `harness/validate/validation.yaml` |
 | Public exports | `src/index.ts` |
 | Engine bootstrap and options | `src/Engine.ts` |
