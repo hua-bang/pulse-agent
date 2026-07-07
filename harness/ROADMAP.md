@@ -38,7 +38,7 @@ Every constraint in this harness is currently carried by agent discipline. The s
 
 ## Other open items (breadth, lower priority than the keystone)
 
-- **Repo action protocols.** `harness/skills/` does not exist today. Add it only when a recurring workflow is stable enough to justify a protocol file.
+- **Repo action protocols.** Root `harness/skills/` does not exist today (add only when a recurring workflow is stable enough). Note: the first WORKSPACE-local surfaces now exist — `packages/engine/harness/tools/describe-engine.mjs` (structure snapshot) and `packages/engine/harness/skills/add-builtin-plugin.md` (safe-change procedure) — covering engine's orient/iterate needs that the repo runner does not.
 - **Candidate harness tools.** `harness/tools/README.md` lists remaining tool ideas (repo-profiler, ssot-resolver, feedback-router). Implement candidates only when they become useful enough to run.
 
 ## Deliberately deferred (not gaps — out of scope for this repo)
