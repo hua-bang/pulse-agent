@@ -66,6 +66,8 @@ Default checks are `test` and `typecheck`. Use `build` for public exports or pac
 - `src/tools/index.ts`: built-in tool registry for file, shell, Tavily, image generation, clarification, and deferred demo tools.
 - `harness/knowledge/`, `harness/validate/`: package contract, architecture, and validation source of truth.
 
+Local harness surfaces present: `knowledge/` and `validate/`. No local `tools/` or `skills/` by design — engine checks run through the repo runner (`scripts/harness/run-harness-check.mjs`), and no engine-specific recurring workflow is stable enough to justify a Skill. Add either only under real pressure (per `harness/DESIGN.md`).
+
 ## Failure Capture
 
 - Engine-origin failures and their guards are recorded in root `AGENTS.md` §6 (history over-pruning, execSync freezing the Electron host, UTF-8 chunk-split corruption); regression tests live in `src/core/loop.test.ts`.
