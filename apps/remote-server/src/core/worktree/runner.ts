@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { cpus } from 'os';
+import { buildSharedDependencyEnv } from './dependency-env.js';
 import type { WorktreeRecordView } from './manager.js';
 
 export type WorktreeRunBackend = 'host' | 'docker';
@@ -116,7 +117,7 @@ function buildCommandSpec(
       command: '/bin/bash',
       args: ['-lc', input.shell.trim()],
       cwd: worktree.worktreePath,
-      env: { ...process.env, ...normalizeEnv(input.env) },
+      env: buildHostEnv(input.env),
     };
   }
 
@@ -240,6 +241,14 @@ function normalizeTimeout(value?: number): number {
     return DEFAULT_TIMEOUT_MS;
   }
   return Math.min(Math.floor(value), MAX_TIMEOUT_MS);
+}
+
+function buildHostEnv(inputEnv?: Record<string, string>): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...buildSharedDependencyEnv(process.env),
+    ...normalizeEnv(inputEnv),
+  };
 }
 
 function normalizeArgs(value?: string[]): string[] {
