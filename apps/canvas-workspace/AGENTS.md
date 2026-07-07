@@ -37,9 +37,10 @@ before that the directory held only the Electron driver):
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app (`canvas-harness`, `canvas-onboard-harness`).
 - `harness/spec/` — decision-pending intent (two entries: sanctioned
-  node-extension path; UI reuse unification — evidence complete, normative
-  decisions pending). Empty is the success state; surface definition lives
-  in `packages/engine/harness/spec/README.md`.
+  node-extension path, undecided; UI reuse unification — DECIDED 2026-07-07,
+  ratchet live in `ui-reuse-governance.test.ts`, entry deleted once
+  `components/ui/` lands). Empty is the success state; surface definition
+  lives in `packages/engine/harness/spec/README.md`.
 - `harness/validate/validation.yaml` — path→check bindings for the repo runner.
 
 **"skills" disambiguation** — `harness/skills/*/SKILL.md` are procedures for
@@ -72,7 +73,7 @@ installs the latter. Do not mix them.
 | Plugin node contract | `harness/knowledge/plugin-node-mf2.md`, `src/plugins/types.ts`, `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/mock-node/` |
 | Project records (perf analyses, roadmaps) | `docs/` |
 | Channel plugin | `src/plugins/main/channel/README.md`, `src/plugins/main/channel/` |
-| Boundary and file-size gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts` |
+| Boundary, file-size, and UI-reuse gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts`, `src/main/__tests__/ui-reuse-governance.test.ts` |
 | Storage/plugin/runtime tests | `src/main/__tests__/canvas-storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
 | Local validation | `harness/validate/validation.yaml` |
 

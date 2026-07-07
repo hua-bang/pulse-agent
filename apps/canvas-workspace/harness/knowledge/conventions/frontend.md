@@ -65,6 +65,26 @@ work goes through the typed bridge `window.canvasWorkspace` (typed by
 - Follow the existing design-token usage (oklch palette, frame styles) seen in
   `design/` and existing component CSS rather than hardcoding ad-hoc colors.
 
+## UI reuse (governed — ratchet-enforced)
+
+Decided in `../../spec/ui-reuse-unification.md` (2026-07-07); the counters are
+enforced by `src/main/__tests__/ui-reuse-governance.test.ts` (runs in
+`pnpm test`; a counter may shrink but never grow):
+
+- **New code uses the blessed basics**: 弹窗/抽屉/消息/按钮 and the basic
+  interaction behaviors. Until `components/ui/` lands, the seeds are
+  `AppShellProvider` (toast + confirm), `SettingsDrawer` (drawer shell),
+  `useEscapeClose` / `useMenuKeyboardNav` (ESC), `useClickOutside`. Do NOT
+  hand-roll a new overlay ESC listener, backdrop, spinner keyframe, or raw
+  CTA `<button>` style pair — the ratchet will fail your PR.
+- **Radius uses tokens**: new CSS writes `var(--radius-sm|--radius|--radius-md|--radius-lg)`,
+  never raw px. (Radius is the first gated token category; colors/shadows are
+  measured but not yet gated.)
+- **Every `var(--x)` must resolve**: referencing an undefined token fails the
+  governance test (13 legacy phantoms are baselined, shrink-only).
+- Reducing a counter? Lower its baseline in the same PR — the test fails on
+  unlocked improvements too.
+
 ## Copy & i18n
 
 - **No hardcoded user-facing strings.** Use `useI18n()` from

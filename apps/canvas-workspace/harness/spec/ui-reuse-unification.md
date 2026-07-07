@@ -7,9 +7,11 @@
 > durable rules graduate to `harness/knowledge/conventions/frontend.md` (+
 > mechanical checks where possible) and this entry is DELETED.
 
-**Status: evidence base complete (two-scan audit, 2026-07-07). Normative
-sections below marked 【待裁决】 are OWNER DECISIONS — this entry is not
-actionable until they are filled in.**
+**Status: DECIDED (owner, 2026-07-07) — implementation pending. The
+acceptance lines are live as a mechanical ratchet:
+`src/main/__tests__/ui-reuse-governance.test.ts` (runs in `pnpm test`).
+This entry is deleted when the blessed `components/ui/` set exists and the
+decided rules have graduated to `conventions/frontend.md`.**
 
 ## Current state (verified)
 
@@ -78,25 +80,38 @@ shared overlay primitive) · `SettingsDrawer` (only reused drawer shell) ·
 **No `components/shared|common|ui` directory exists** — there is no formal
 design-system layer to put a blessed component in today.
 
-## Normative content 【待裁决 — owner decisions】
+## Normative content — DECIDED (owner, 2026-07-07)
 
-1. **复用判据(一句话)**: when MUST a component/hook be reused vs created
-   new? 【待裁决 — e.g. "an interaction pattern with an existing seed must
-   use the seed; creating a parallel implementation requires a recorded
-   reason" — wording and strictness are the owner's call】
-2. **钦定清单与安放处**: which patterns get a blessed implementation first
-   (Button? overlay shell? `useDragResize`? shared spinner? Portal wrapper?),
-   and where do shared pieces live (a new `components/ui/`? promote in
-   place?) 【待裁决】
-3. **Token 执行策略**: hardcode 禁令的范围与节奏 — new-code-only ratchet
-   (like the perf bundle gates) vs. active migration; which category first
-   (colors / radius / shadow / z-index)? Is the oklch frame engine integrated
-   into the palette or deliberately isolated? 【待裁决】
-4. **可验收定义**: what measurable line means "unified"? Candidates the
-   evidence supports: raw-`<button>` count ratchet; `var()` adoption % per
-   category; zero hand-rolled overlay-ESC (mechanically checkable); zero
-   undefined-token references. 【待裁决 — pick the lines; each chosen line
-   should become a check, not a doc sentence】
+1. **复用判据**: the blessed set covers the BASIC capabilities — 弹窗
+   (modal/dialog), 抽屉 (drawer), 消息 (toast), 按钮 (button) — plus the
+   basic interaction behaviors (ESC-close, click-outside, drag-resize). For
+   these patterns, new code MUST use the blessed implementation/hook;
+   creating a parallel implementation requires a recorded reason (and a
+   baseline raise in the governance test, which forces the recording).
+   Patterns outside this set are not governed by this spec.
+2. **安放处**: `components/ui/` — a new directory; blessed pieces are built
+   there (or promoted into it, e.g. `SettingsDrawer`, `AppShellProvider`'s
+   toast/confirm). It does not exist yet; creating it with the four basic
+   capabilities IS the implementation of this spec.
+3. **Token 执行策略**: new-code ratchet (no active migration); **radius
+   first** — new CSS uses `var(--radius*)`, raw-px radius count may only
+   shrink. Other categories (colors/shadows/z-index) stay measured but
+   ungated until radius proves the mechanism. The oklch frame engine stays
+   deliberately isolated for now.
+4. **可验收定义** (delegated; chosen so every line is a CHECK, not a doc
+   sentence — all live in `src/main/__tests__/ui-reuse-governance.test.ts`):
+   - Six ratchet counters, may shrink never grow (both directions enforced —
+     shrinking without lowering the baseline also fails, locking in wins):
+     raw `<button>` (402), non-token `border-radius` (435), spinner
+     keyframes (6), `role="dialog"` (12), `createPortal` files (10),
+     hand-rolled `window keydown` in components (10).
+   - Zero NEW phantom tokens: every `var(--x)` must resolve to a definition.
+     The audit found **14** undefined tokens (even `AppShellProvider`
+     references a nonexistent `--text-primary`); `--radius-md` is now
+     defined (8px, scale midpoint), the remaining 13 are baselined in
+     `KNOWN_UNDEFINED_TOKENS` — shrink-only, stale entries flagged.
+   - "Unified" for a pattern = its counter reaches the level where the only
+     remaining implementations are `components/ui/` + recorded exceptions.
 
 ## Non-goals of this entry
 

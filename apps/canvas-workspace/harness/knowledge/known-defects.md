@@ -9,17 +9,21 @@ test and delete its entry.
 
 ## LIVE (user-visible behavior is degraded today)
 
-### `--radius-md` is referenced 7× but never defined
-Six CSS files reference `var(--radius-md)` (`NoteMentionMenu`, `SearchBar`,
-`TextNodeBody` ×2, `NoteOutline`, `NoteLinkPrompt`, `NoteFindBar`), but
-`src/renderer/src/styles.css` `:root` defines only `--radius` (8px),
-`--radius-sm` (6px), `--radius-lg` (10px). Fallbacks diverge — `10px` in
-SearchBar, `6px` in TextNodeBody, none in the other four (which resolve to
-the property's initial value, i.e. square corners) — so the "same" radius
-renders three different ways today. Fix: define `--radius-md` in `:root`
-(picking its value is a one-line design call) or repoint the 7 references
-at an existing token. Surfaced by the UI-reuse audit
-(`../spec/ui-reuse-unification.md`).
+### 13 phantom design tokens — referenced but defined nowhere
+The renderer references 13 custom properties via `var(--x)` that have no
+definition anywhere (no `--x:` in CSS, no quoted `'--x'` in TS/TSX):
+`--accent-muted`, `--accent-soft`, `--accent-soft-strong`,
+`--border-subtle`, `--frame-bg-alpha`, `--frame-title-gap`, `--note-paper`,
+`--surface-1`, `--surface-2`, `--surface-alt`, `--surface-subtle`,
+`--text-primary`, `--text-tertiary`. Each renders as its fallback where one
+exists, or the property's initial/inherited value where none does — even
+`AppShellProvider` (the shared toast/confirm primitive) colors text via the
+nonexistent `--text-primary`. Guard: the phantom-token check in
+`src/main/__tests__/ui-reuse-governance.test.ts` baselines these 13
+(shrink-only, stale entries flagged) and fails on any NEW phantom. Fix
+shape: define each token in `styles.css` `:root` or repoint references at
+existing tokens. (A 14th, `--radius-md`, was fixed 2026-07-07 — defined as
+8px — with the same check as its regression guard.)
 
 ### File-watcher sync is disabled — external edits to file nodes don't propagate
 `src/renderer/src/hooks/useNodes.ts:275-283`. The `fs.watch`-based watcher
