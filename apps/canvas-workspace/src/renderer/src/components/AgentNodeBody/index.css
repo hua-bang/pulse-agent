@@ -17,10 +17,10 @@
    * brand colors still live in `.agent-loading-overlay--<agent>` for
    * the loading mark, which is the one place the agent's own identity
    * is meaningful. */
-  --agent-accent: #2383e2;
+  --agent-accent: var(--accent);
   --agent-accent-hover: #1c6dbf;
   --agent-accent-soft: rgba(35, 131, 226, 0.1);
-  --agent-accent-border: rgba(35, 131, 226, 0.45);
+  --agent-accent-border: var(--accent-border);
   --agent-warning: #d97706;
   --agent-warning-soft: #fff4e2;
   --agent-warning-border: rgba(217, 119, 6, 0.32);
@@ -1371,6 +1371,6 @@
   line-height: 1;
   background: rgba(55, 53, 47, 0.06);
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font);
   color: rgba(55, 53, 47, 0.7);
 }

@@ -26,7 +26,7 @@
   border: 1px solid rgba(35, 131, 226, 0.45);
   border-radius: 5px;
   background: rgba(255, 255, 255, 0.96);
-  color: #37352f;
+  color: var(--text);
   font: inherit;
   font-size: 12px;
   font-weight: 600;

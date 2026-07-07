@@ -216,7 +216,7 @@
 
 .right-dock__tab:not(.right-dock__tab--active):hover {
   background: rgba(55, 53, 47, 0.06);
-  color: #37352f;
+  color: var(--text);
   transform: translateY(-1px);
 }
 
@@ -229,7 +229,7 @@
 .right-dock__tab--active {
   background: transparent;
   border-color: transparent;
-  color: #37352f;
+  color: var(--text);
   font-weight: 600;
   transform: translateY(-1px);
   animation: right-dock-tab-rise 0.22s var(--tab-ease);
@@ -260,7 +260,7 @@
 .right-dock__tab-dot--chat { background: #1f7a4d; border-radius: 50%; }
 .right-dock__tab-dot--terminal { background: #0f766e; }
 .right-dock__tab-dot--artifact { background: #a594e0; }
-.right-dock__tab-dot--link { background: #2383e2; }
+.right-dock__tab-dot--link { background: var(--accent); }
 
 .right-dock__tab--active .right-dock__tab-dot {
   box-shadow:
@@ -317,7 +317,7 @@
 }
 
 .right-dock__tab-icon--link {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-icon {
@@ -326,7 +326,7 @@
 }
 
 .right-dock__tab--active .right-dock__tab-icon--link {
-  color: #2383e2;
+  color: var(--accent);
 }
 
 .right-dock__tab--active .right-dock__tab-icon--agent-claude-code {
@@ -382,7 +382,7 @@
 
 .right-dock__tab-close:hover {
   background: rgba(55, 53, 47, 0.1);
-  color: #37352f;
+  color: var(--text);
 }
 
 /* Unread dot: a chat turn finished while chat wasn't the visible tab. */
@@ -432,7 +432,7 @@
 .right-dock__collapse:hover {
   background: rgba(55, 53, 47, 0.08);
   box-shadow: 0 0 0 1px rgba(55, 53, 47, 0.05);
-  color: #37352f;
+  color: var(--text);
   transform: translateX(1px);
 }
 

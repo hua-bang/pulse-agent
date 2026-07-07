@@ -125,7 +125,7 @@
   overflow: auto;
   padding: 10px 12px;
   font-size: 11px;
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-family: var(--font);
 }
 
 .dynamic-app-inspector-pre {

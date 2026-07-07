@@ -229,7 +229,7 @@
   background: rgba(55, 53, 47, 0.07);
   padding: 1px 5px;
   border-radius: 3px;
-  color: #c0392b;
+  color: var(--error);
   letter-spacing: 0;
 }
 
@@ -265,7 +265,7 @@
 
 /* Links */
 .note-tiptap-editor .ProseMirror a {
-  color: var(--accent, #2383e2);
+  color: var(--accent);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;

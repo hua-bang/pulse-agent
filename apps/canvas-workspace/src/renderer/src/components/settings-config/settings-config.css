@@ -90,7 +90,7 @@
 .cfg-secondary-btn {
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;
-  color: #37352f;
+  color: var(--text);
 }
 
 .cfg-secondary-btn:hover:not(:disabled) {
@@ -98,8 +98,8 @@
 }
 
 .cfg-primary-btn {
-  border: 1px solid #2383e2;
-  background: #2383e2;
+  border: 1px solid var(--accent);
+  background: var(--accent);
   color: #fff;
 }
 
@@ -162,7 +162,7 @@
   border: 1px solid rgba(55, 53, 47, 0.12);
   border-radius: 8px;
   background: #fff;
-  color: #37352f;
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   outline: none;
@@ -198,13 +198,13 @@ select.cfg-input {
   align-items: center;
   gap: 8px;
   font-size: 12.5px;
-  color: #37352f;
+  color: var(--text);
   cursor: pointer;
   user-select: none;
 }
 
 .cfg-checkbox input {
-  accent-color: #2383e2;
+  accent-color: var(--accent);
 }
 
 .cfg-form-actions {
@@ -279,7 +279,7 @@ select.cfg-input {
 .cfg-list-title {
   font-size: 13px;
   font-weight: 600;
-  color: #37352f;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -394,7 +394,7 @@ select.cfg-input {
 
 .cfg-expander:hover {
   background: rgba(55, 53, 47, 0.07);
-  color: #37352f;
+  color: var(--text);
 }
 
 .cfg-tools {
@@ -433,7 +433,7 @@ select.cfg-input {
 }
 
 .cfg-tool-toggle input {
-  accent-color: #2383e2;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -444,7 +444,7 @@ select.cfg-input {
 .cfg-tool-name {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: #37352f;
+  color: var(--text);
 }
 
 .cfg-tool--off .cfg-tool-name {
