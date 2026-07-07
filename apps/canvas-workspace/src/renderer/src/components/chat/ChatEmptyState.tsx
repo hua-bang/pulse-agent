@@ -4,7 +4,7 @@ import type { QuickAction } from './types';
 import { AppLogoIcon } from '../icons';
 import { useI18n } from '../../i18n';
 
-function QuickActionIcon({ action }: { action: QuickAction }) {
+const QuickActionIcon = ({ action }: { action: QuickAction }) => {
   switch (action.key) {
     case 'summarize_canvas':
       return (
@@ -40,7 +40,7 @@ function QuickActionIcon({ action }: { action: QuickAction }) {
         </svg>
       );
   }
-}
+};
 
 interface ChatEmptyStateProps {
   selectedCount?: number;

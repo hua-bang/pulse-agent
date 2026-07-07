@@ -137,7 +137,7 @@ interface NodesChatDockProps {
  * When collapsed it renders only a floating Pulse launcher. Layout (pushing
  * column in Nodes, overlay in Graph) is driven by page-scoped CSS.
  */
-export function NodesChatDock({
+export const NodesChatDock = ({
   open,
   rendered,
   width,
@@ -148,7 +148,7 @@ export function NodesChatDock({
   nodes,
   tags,
   onOpenAppSettings,
-}: NodesChatDockProps) {
+}: NodesChatDockProps) => {
   const { t } = useI18n();
 
   const knowledgeNodes = useMemo(
@@ -210,4 +210,4 @@ export function NodesChatDock({
       )}
     </>
   );
-}
+};
