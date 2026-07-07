@@ -31,7 +31,7 @@ AGENTS.md / CLAUDE.md
 | Root validation rules | `validate/validation.yaml` | Machine-readable root validation routing and escalation rules. |
 | Knowledge index | `knowledge/` | Index for the Knowledge surface — routes to existing knowledge SSOTs (root AGENTS, workspace AGENTS, workspace docs/contracts). |
 | Validate index | `validate/` | Index for the Validate surface — routes to root validation rules, workspace validation, checks, and run evidence. |
-| Tools | `tools/` | Harness tool index; only `graph-viewer` is a wired executable today. |
+| Tools | `tools/` | Harness tool index; wired executables: `graph-viewer` and `scripts/harness/run-harness-check.mjs`. |
 
 ## Knowledge Routing
 

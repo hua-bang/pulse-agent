@@ -9,12 +9,13 @@ The harness pilot has a real, populated foundation:
 - `pnpm-workspace.yaml` defines the active workspace set; workspace `AGENTS.md` files own local role, navigation, and knowledge pointers.
 - Every active workspace has a local `harness/validate/validation.yaml` for package-local default checks.
 - `harness/validate/validation.yaml` maps root config checks and cross-workspace impact escalation rules.
-- `harness/tools/graph-viewer/server.mjs` is the one wired executable — a drift detector (`--once` smoke check, reports `harnessGaps`).
+- `harness/tools/graph-viewer/server.mjs` is a wired executable — a drift detector (`--once` smoke check, reports `harnessGaps`).
+- `scripts/harness/run-harness-check.mjs` is the validation runner (keystone phase 1, landed 2026-07-07): resolves changed paths (or `--since <ref>` / `--path` / `--all`) to the bound workspace-local + root-overlay commands and executes them with a pass/fail report; escalation rules are printed as reminders, never auto-run.
 - Root `AGENTS.md` carries the meta-rules layer (precedence + SSOT-no-copies + mechanism-over-doc + first-principles + Occam + 5-step self-check), the L0/L1/L2 doc taxonomy, the intent navigation table, hard boundaries with honest test-reality, workspace-local validation routing, and named failure-capture with guards.
 
-What is **honestly absent**: apart from `.github/workflows/perf.yml` (canvas-workspace perf gates), there is NO CI for tests/typecheck, NO git hooks, NO husky/lint-staged/commitlint, and NO executable harness checks yet. Validation YAML files are declarative — nothing runs them. `graph-viewer` is the only wired harness tool. `harness/skills/`, `harness/feedback/`, `harness/templates/`, `harness/checks/`, and `scripts/harness/` do not exist today.
+What is **honestly absent**: apart from `.github/workflows/perf.yml` (canvas-workspace perf gates), there is NO CI for tests/typecheck, NO git hooks, NO husky/lint-staged/commitlint, and NO automatic trigger for the runner — invoking it is still discipline. Candidate mechanical checks (`workspace-coverage`, `routing-links`, …) are not implemented. `harness/skills/`, `harness/feedback/`, `harness/templates/`, and `harness/checks/` do not exist today.
 
-## The keystone gap: turn the declarative SSOT into a runnable mechanism
+## The keystone: turn the declarative SSOT into a runnable mechanism (phase 1 DONE)
 
 Every constraint in this harness is currently carried by agent discipline. The single highest-value next step is to give the existing SSOT an executor.
 
@@ -27,7 +28,8 @@ Every constraint in this harness is currently carried by agent discipline. The s
 
 **Phased rollout (mechanism matures only after the rule proves stable — per `harness/README.md` principles):**
 
-1. **Manual runner first.** `node scripts/harness/run-harness-check.mjs [--path <glob>|--all]`. Reads local and root validation YAML, runs the bound `pnpm --filter` commands, prints a pass/fail report. No git integration yet. This alone makes validation executable and lets agents/humans verify changes without remembering the matrix.
+1. **Manual runner first.** ✅ DONE (2026-07-07, `scripts/harness/run-harness-check.mjs`).
+   Original goal: `node scripts/harness/run-harness-check.mjs [--path <glob>|--all]`. Reads local and root validation YAML, runs the bound `pnpm --filter` commands, prints a pass/fail report. No git integration yet. This alone makes validation executable and lets agents/humans verify changes without remembering the matrix.
 2. **Wire candidate checks** such as `workspace-coverage`, `agents-coverage`, `routing-links`, and `validation-matrix`. Each becomes a function the runner can invoke once the rules are stable, implementation in `scripts/harness/`.
 3. **Optional pre-push hook.** Only after step 1–2 are stable in manual use, add an opt-in `scripts/harness/pre-push.mjs` that runs affected-workspace checks on `git push`. Do not make it mandatory until the false-positive rate is near zero.
 4. **Optional CI.** Only if/when a CI provider is chosen for this repo. Until then the manual runner is the source of truth.
@@ -55,4 +57,5 @@ The comparison against the reference sample (B / `ec_channel_lynx_x`) surfaced i
 - Honest test-reality in hard boundaries (root `AGENTS.md` §2).
 - Named failure-capture with guards (root `AGENTS.md` §6).
 - Workspace-local `harness/validate/validation.yaml` files cover package-local default checks; root `harness/validate/validation.yaml` is now the root/cross-workspace overlay.
+- Keystone phase 1: manual validation runner `scripts/harness/run-harness-check.mjs` (git-status/`--since`/`--path`/`--all` modes, dry-run, escalation reminders; verified against the remote-server change replay and a full `--all --dry-run` plan).
 - Knowledge/Validate surface alignment with the finalized `Harness = AGENTS.md + Knowledge + Tool + Validate + Skills` model: elevated Skills to an explicit fourth surface, renamed Know -> Knowledge, renamed Verify -> Validate, and added `harness/knowledge/README.md` + `harness/validate/README.md` as routing indexes.

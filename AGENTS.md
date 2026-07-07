@@ -44,6 +44,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Update what to run for a workspace path | affected workspace `harness/validate/validation.yaml` |
 | Review changes (repo-aware) | affected workspace `AGENTS.md` + local validation + `node harness/tools/graph-viewer/server.mjs --once` |
 | Inspect harness coverage | `node harness/tools/graph-viewer/server.mjs --once` |
+| Run bound checks for a change | `node scripts/harness/run-harness-check.mjs` |
 
 ## 2. Hard boundaries (real values)
 
@@ -62,7 +63,7 @@ Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` 
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
-The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets + runtime counter gates on PRs touching that app. Beyond it there is NO CI for tests/typecheck, NO git hooks, NO husky/lint-staged/commitlint, and NO executable harness checks yet. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are declarative specs — nothing runs them for you. `graph-viewer` is the only wired harness executable; other tool ideas are not on-disk tools until implemented. `scripts/harness/` does not exist.
+The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets + runtime counter gates on PRs touching that app. Beyond it there is NO CI for tests/typecheck, NO git hooks, and NO husky/lint-staged/commitlint. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are executed by the manual runner `node scripts/harness/run-harness-check.mjs` — nothing triggers it for you; run it yourself. Wired harness executables: `graph-viewer` and the runner. Other tool ideas are not on-disk tools until implemented.
 
 **Runtime skills are product config, not repo harness protocols:**
 
@@ -84,11 +85,11 @@ The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size rat
 
 Do not route required work to nonexistent `harness/skills/*` files. Add a repo action protocol only when the workflow is stable enough and the file removes real ambiguity.
 
-**Gap to close (aspirational, not present):** wire `harness/validate/validation.yaml` to a real runner (CI on changed paths, or a husky pre-push) and add candidate harness checks only when their rules are stable enough to mechanize. Do not claim these exist today.
+**Gap to close (aspirational, not present):** the manual runner exists; still missing are candidate mechanical checks (add only when their rules are stable enough to mechanize) and any automatic trigger (opt-in pre-push, CI) — defer those until the runner's false-positive rate is proven near zero. Do not claim these exist today.
 
 ## 5. Acceptance (reproducible + verifiable)
 
-Run the commands the affected workspace's `harness/validate/validation.yaml` binds to your changed path:
+Run the commands the affected workspace's `harness/validate/validation.yaml` binds to your changed path — `node scripts/harness/run-harness-check.mjs` (default: current git status; `--since <ref>`, `--path <p...>`, `--all`, `--dry-run`) resolves and runs them for you:
 - Package change → start with the affected workspace's local validation commands.
 - Root config change → use root `harness/validate/validation.yaml`.
 - Cross-package / contract change → also apply relevant escalation rules in root `harness/validate/validation.yaml`.
