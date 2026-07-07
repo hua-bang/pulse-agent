@@ -9,6 +9,18 @@ test and delete its entry.
 
 ## LIVE (user-visible behavior is degraded today)
 
+### `--radius-md` is referenced 7× but never defined
+Six CSS files reference `var(--radius-md)` (`NoteMentionMenu`, `SearchBar`,
+`TextNodeBody` ×2, `NoteOutline`, `NoteLinkPrompt`, `NoteFindBar`), but
+`src/renderer/src/styles.css` `:root` defines only `--radius` (8px),
+`--radius-sm` (6px), `--radius-lg` (10px). Fallbacks diverge — `10px` in
+SearchBar, `6px` in TextNodeBody, none in the other four (which resolve to
+the property's initial value, i.e. square corners) — so the "same" radius
+renders three different ways today. Fix: define `--radius-md` in `:root`
+(picking its value is a one-line design call) or repoint the 7 references
+at an existing token. Surfaced by the UI-reuse audit
+(`../spec/ui-reuse-unification.md`).
+
 ### File-watcher sync is disabled — external edits to file nodes don't propagate
 `src/renderer/src/hooks/useNodes.ts:275-283`. The `fs.watch`-based watcher
 that pushed external file changes into open file nodes is commented out,

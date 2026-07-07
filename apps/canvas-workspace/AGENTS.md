@@ -36,8 +36,9 @@ before that the directory held only the Electron driver):
   broken invoke or union/factory drift.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app (`canvas-harness`, `canvas-onboard-harness`).
-- `harness/spec/` — decision-pending intent (currently one entry: sanctioned
-  node-extension path). Empty is the success state; surface definition lives
+- `harness/spec/` — decision-pending intent (two entries: sanctioned
+  node-extension path; UI reuse unification — evidence complete, normative
+  decisions pending). Empty is the success state; surface definition lives
   in `packages/engine/harness/spec/README.md`.
 - `harness/validate/validation.yaml` — path→check bindings for the repo runner.
 
