@@ -68,7 +68,8 @@ Default checks are `test` and `typecheck`. Use `build` for public exports or pac
 
 Local harness surfaces: `knowledge/`, `validate/`, `tools/`, `skills/`.
 - `harness/tools/describe-engine.mjs` — structure snapshot (plugin order + deps, both-barrel asymmetry, full tool registry with defer_loading) from the built package. Run before changing built-in plugins/tools so you edit against ground truth, not drift-prone prose. Reads `dist`, so build first.
-- `harness/skills/add-builtin-plugin.md` — ordered procedure for adding/modifying a built-in plugin (sequence + landmines + pointers, not restated facts). A parallel `add-builtin-tool.md` is a reasonable next skill when a tool is next added.
+- `harness/skills/add-builtin-plugin.md` — ordered procedure for adding/modifying a built-in plugin (sequence + landmines + pointers, not restated facts).
+- `harness/skills/add-builtin-tool.md` — the parallel procedure for adding/modifying a built-in tool (non-blocking/shell-safe rule, defer_loading, registry + escalation).
 Pass/fail checks stay in the repo runner (`scripts/harness/run-harness-check.mjs`); these local surfaces cover orientation (tool) and safe-change sequence (skill), which the runner does not.
 
 ## Failure Capture
