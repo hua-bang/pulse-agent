@@ -67,16 +67,19 @@ work goes through the typed bridge `window.canvasWorkspace` (typed by
 
 ## UI reuse (governed — ratchet-enforced)
 
-Decided in `../../spec/ui-reuse-unification.md` (2026-07-07); the counters are
-enforced by `src/main/__tests__/ui-reuse-governance.test.ts` (runs in
-`pnpm test`; a counter may shrink but never grow):
+Decided 2026-07-07 (the spec entry completed its lifecycle — blessed set
+built, rules graduated here, entry deleted; evidence lives in git history of
+`harness/spec/ui-reuse-unification.md`). The counters are enforced by
+`src/main/__tests__/ui-reuse-governance.test.ts` (runs in `pnpm test`; a
+counter may shrink but never grow):
 
-- **New code uses the blessed basics**: 弹窗/抽屉/消息/按钮 and the basic
-  interaction behaviors. Until `components/ui/` lands, the seeds are
-  `AppShellProvider` (toast + confirm), `SettingsDrawer` (drawer shell),
-  `useEscapeClose` / `useMenuKeyboardNav` (ESC), `useClickOutside`. Do NOT
-  hand-roll a new overlay ESC listener, backdrop, spinner keyframe, or raw
-  CTA `<button>` style pair — the ratchet will fail your PR.
+- **New code uses the blessed basics** from `components/ui/`: `Button`,
+  `Modal` (the one overlay shell), `Drawer`, `Portal` (the one createPortal
+  exit), `useDragResize` — plus `AppShellProvider.notify` for toasts and the
+  canonical hooks `useEscapeClose` / `useMenuKeyboardNav` / `useClickOutside`.
+  Do NOT hand-roll a new overlay ESC listener, backdrop, portal call site,
+  spinner keyframe, or raw CTA `<button>` style pair — the ratchet will fail
+  your PR.
 - **Radius uses tokens**: new CSS writes `var(--radius-sm|--radius|--radius-md|--radius-lg)`,
   never raw px. (Radius is the first gated token category; colors/shadows are
   measured but not yet gated.)

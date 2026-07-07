@@ -36,11 +36,11 @@ before that the directory held only the Electron driver):
   broken invoke or union/factory drift.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app (`canvas-harness`, `canvas-onboard-harness`).
-- `harness/spec/` — decision-pending intent (two entries: sanctioned
-  node-extension path, undecided; UI reuse unification — DECIDED 2026-07-07,
-  ratchet live in `ui-reuse-governance.test.ts`, entry deleted once
-  `components/ui/` lands). Empty is the success state; surface definition
-  lives in `packages/engine/harness/spec/README.md`.
+- `harness/spec/` — decision-pending intent (one entry: sanctioned
+  node-extension path). The UI-reuse entry completed its full lifecycle
+  2026-07-07 (decided → mechanized as `ui-reuse-governance.test.ts` +
+  `components/ui/` → deleted). Empty is the success state; surface
+  definition lives in `packages/engine/harness/spec/README.md`.
 - `harness/validate/validation.yaml` — path→check bindings for the repo runner.
 
 **"skills" disambiguation** — `harness/skills/*/SKILL.md` are procedures for
