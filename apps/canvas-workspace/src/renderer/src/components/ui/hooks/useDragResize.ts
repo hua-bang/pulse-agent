@@ -38,7 +38,9 @@ export const useDragResize = (options: DragResizeOptions): DragResizeHandlers =>
   optionsRef.current = options;
 
   // Live teardown for an in-flight drag, so an unmount mid-drag drops the
-  // window listeners and releases the body lock (without firing onDragEnd).
+  // window listeners, releases the body lock, AND fires onDragEnd — callers
+  // hang side-effect cleanup there (e.g. removing a resizing class from
+  // <html>, which outlives the component), so skipping it would leak.
   const teardownRef = useRef<(() => void) | null>(null);
 
   const onMouseDown = useCallback((event: ReactMouseEvent) => {
@@ -67,12 +69,10 @@ export const useDragResize = (options: DragResizeOptions): DragResizeHandlers =>
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       teardownRef.current = null;
-    };
-
-    const onUp = () => {
-      release();
       optionsRef.current.onDragEnd?.(latest);
     };
+
+    const onUp = () => release();
 
     teardownRef.current = release;
     document.addEventListener('mousemove', onMove);

@@ -11,5 +11,6 @@
 export { Button } from './Button';
 export { Modal } from './Modal';
 export { Drawer } from './Drawer';
+export { Portal } from './Portal';
 export { useDragResize } from './hooks/useDragResize';
 export type { DragResizeOptions, DragResizeHandlers } from './hooks/useDragResize';

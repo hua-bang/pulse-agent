@@ -28,8 +28,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them.
   // 12→11: AppShell Confirm+Shortcuts (-2) now route through ui/Modal (+1).
   dialogRoles: 11,
-  // files calling createPortal directly (no shared wrapper yet).
-  portalFiles: 11, // +1: ui/Modal is the consolidation shell; adoptions remove caller portals over time
+  // files calling createPortal directly. ui/Portal is the one blessed exit;
+  // Modal/Drawer render through it, keeping the count flat at the original
+  // 10 (9 legacy callers + ui/Portal). Falls as legacy callers adopt <Portal>.
+  portalFiles: 10,
   // hand-rolled window keydown listeners inside components/ — overlay ESC
   // belongs in useEscapeClose / the ui/ shells. 10→7: SettingsDrawer→ui/Drawer
   // and both AppShell dialogs dropped their ESC listeners for the shared hooks.

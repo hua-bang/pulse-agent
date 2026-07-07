@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { Portal } from '../Portal';
 import './index.css';
 
 interface Props {
@@ -27,23 +27,24 @@ export const Modal = ({ open, onClose, children, width, labelledBy, className }:
 
   if (!open) return null;
 
-  return createPortal(
-    <div
-      className="ui-modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+  return (
+    <Portal>
       <div
-        className={className ? `ui-modal ${className}` : 'ui-modal'}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={labelledBy}
-        style={width ? { width: `min(${width}px, 100%)` } : undefined}
+        className="ui-modal-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
       >
-        {children}
+        <div
+          className={className ? `ui-modal ${className}` : 'ui-modal'}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={labelledBy}
+          style={width ? { width: `min(${width}px, 100%)` } : undefined}
+        >
+          {children}
+        </div>
       </div>
-    </div>,
-    document.body,
+    </Portal>
   );
 };

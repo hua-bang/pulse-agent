@@ -10,8 +10,9 @@
  */
 
 import { type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import { useEscapeClose } from '../../../hooks/useEscapeClose';
+import { useI18n } from '../../../i18n';
+import { Portal } from '../Portal';
 import './index.css';
 
 interface Props {
@@ -33,38 +34,40 @@ export const Drawer = ({
   title,
   ariaLabel,
   width = 640,
-  closeAriaLabel = 'Close',
+  closeAriaLabel,
   children,
 }: Props) => {
+  const { t } = useI18n();
   useEscapeClose(open, onClose);
 
   if (!open) return null;
 
-  return createPortal(
-    <div className="ui-drawer-backdrop" onMouseDown={onClose}>
-      <aside
-        className="ui-drawer"
-        style={{ width: `min(100vw, ${width}px)` }}
-        onMouseDown={(event) => event.stopPropagation()}
-        aria-label={ariaLabel}
-      >
-        <div className="ui-drawer-header">
-          <div>
-            <div className="ui-drawer-kicker">{kicker}</div>
-            <h2>{title}</h2>
+  return (
+    <Portal>
+      <div className="ui-drawer-backdrop" onMouseDown={onClose}>
+        <aside
+          className="ui-drawer"
+          style={{ width: `min(100vw, ${width}px)` }}
+          onMouseDown={(event) => event.stopPropagation()}
+          aria-label={ariaLabel}
+        >
+          <div className="ui-drawer-header">
+            <div>
+              <div className="ui-drawer-kicker">{kicker}</div>
+              <h2>{title}</h2>
+            </div>
+            <button
+              type="button"
+              className="ui-drawer-close"
+              onClick={onClose}
+              aria-label={closeAriaLabel ?? t('shell.close')}
+            >
+              ×
+            </button>
           </div>
-          <button
-            type="button"
-            className="ui-drawer-close"
-            onClick={onClose}
-            aria-label={closeAriaLabel}
-          >
-            ×
-          </button>
-        </div>
-        {children}
-      </aside>
-    </div>,
-    document.body,
+          {children}
+        </aside>
+      </div>
+    </Portal>
   );
 };
