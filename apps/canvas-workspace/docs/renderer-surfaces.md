@@ -64,11 +64,12 @@ The workbench has exactly two side regions plus a modal tier:
 ## Rules
 
 1. **No new top-level drawer containers.** A new right-side preview
-   surface is a new tab kind: add it to `DockPreviewTab` in
-   `RightDock/dock-store.ts` and render its view from the `RightDock`
-   pane switch — the dock provides positioning, the tab strip, width
-   drag + persistence, ESC, slide transitions and layering. Candidates:
-   terminal output, diff views. Reference-style surfaces extend
+   surface is a new tab kind: add it to `RightDock/dock-store.ts` and
+   render its view from the `RightDock` pane switch — the dock provides
+   positioning, the tab strip, width drag + persistence, ESC, slide
+   transitions and layering. Precedent: the terminal tab already works
+   this way (`DockTerminalTab` in `dock-store.ts` + `TerminalDockTab.tsx`).
+   Remaining candidates: diff views. Reference-style surfaces extend
    `ReferenceDrawer`.
 2. **No hardcoded z-index for full-app surfaces.** Take a `--layer-*`
    token from the layering scale in `styles.css`. Stacking that stays

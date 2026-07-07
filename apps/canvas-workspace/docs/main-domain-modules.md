@@ -1,15 +1,9 @@
 # Main Process Domain Modules
 
-Status: domain move complete; follow-up splits documented below.
-
-This document describes the target shape for `src/main`. The main process has
-grown from a small Electron entrypoint into a set of independent product
-capabilities: canvas persistence, canvas agent, artifacts, embedded webviews,
-terminal sessions, filesystem helpers, generation, and runtime control.
-
-The flat root layout has been moved to domain-owned modules while preserving
-existing behavior. Follow-up work can split the remaining large files inside
-those domains.
+Status: domain move complete (2026-06); `agent/tools.ts` split complete. This
+doc is the CURRENT domain map plus the still-open follow-up splits. The
+original file-by-file migration plan/mapping was completed and removed — see
+git history of this file if you need it.
 
 ## Principles
 
@@ -21,326 +15,133 @@ those domains.
 - Avoid broad `services/`, `utils/`, or top-level `ipc/` folders unless a file
   is genuinely shared across domains.
 
-## Target Structure
+## Current Structure
+
+Verified against the tree on 2026-07-07; if this drifts, `ls src/main/` wins.
 
 ```text
 src/main/
-  index.ts
+  index.ts            # thin entrypoint -> app/bootstrap.ts
+  __tests__/          # cross-domain suites incl. import-boundaries + file-size governance
 
-  app/
-    bootstrap.ts
-    window.ts
-    protocol.ts
-    link-policy.ts
-    logging.ts
-    shell-ipc.ts
-
-  canvas/
-    store.ts
-    storage.ts
-    broadcast.ts
-    nodes/
-      ipc.ts
-      store.ts
-      tags.ts
-
-  agent/
-    ipc.ts
-    session-send.ts
-    canvas-agent.ts
-    service.ts
-    types.ts
-    context/
-    debug/
-    model/
-    sessions/
-    tools/
-    workspace-doc-generator.ts
-    workspace-meta.ts
-
-  artifacts/
-    ipc.ts
-    store.ts
-    pin-to-canvas.ts
-
-  webview/
-    registry.ts
-    reader.ts
-    cdp-session.ts
-
-  terminal/
-    pty-manager.ts
-
-  files/
-    manager.ts
-    watcher.ts
-    skill-installer.ts
-
-  generation/
-    html-generator.ts
-    ipc.ts
-
-  runtime/
-    control-server.ts
-    mcp-server.ts
-    mcp-registration.ts
-
-  settings/
-    experimental-ipc.ts
+  app/                # bootstrap, window(-manager), protocol, link-policy, logging,
+                      # menu, identity, startup-metrics, update-ipc, shell-ipc
+  canvas/             # store, storage (v1/v2 migration), broadcast, workspaces,
+                      # welcome-workspace, workspace-export-*, nodes/ (ipc, store, tags)
+  agent/              # canvas-agent, service, ipc, session-send, session-store,
+                      # context-builder, debug-trace, config-scope, default-skills,
+                      # codex-sessions, prompt-profile(-ipc), workspace-doc-generator,
+                      # workspace-meta, plugin-node-capabilities, dom-selection-context,
+                      # model/, mcp/, skills/, tools/ (20+ split tool modules; the
+                      # sibling tools.ts is a 2-line re-export shim kept for imports)
+  agent-teams/        # service, store, ipc, pty-bridge, canvas-nodes,
+                      # canvas-agent-session-adapter (pulse-coder-agent-teams integration)
+  artifacts/          # store + ipc (pin-to-canvas logic lives inside ipc.ts)
+  webview/            # registry, reader, cdp-session, dom-snapshot-script, ensure-operable
+  terminal/           # pty-manager
+  files/              # manager, watcher, skill-installer
+  generation/         # html-generator + ipc
+  runtime/            # control-server, mcp-server, mcp-registration
+  settings/           # experimental-ipc, canvas-plugins-config/-ipc,
+                      # built-in-tools-config/-ipc, plugin-manifest-icons
+  perf/               # loop-delay (startup/runtime perf counters feed perf/ gates)
 ```
 
-`src/main/index.ts` should stay as the narrow entrypoint. It should import a
-small bootstrap function and avoid owning product behavior directly.
+`src/main/index.ts` stays a narrow entrypoint. It imports a small bootstrap
+function and does not own product behavior directly.
 
 ## Domain Boundaries
 
 ### `app/`
 
-Electron shell ownership:
-
-- app startup and shutdown orchestration
-- `BrowserWindow` creation
-- custom protocol registration
-- link and popup policy
-- main-process logging and fatal error hooks
-- app icon and about panel setup
-
-This folder should not know about canvas storage internals or agent sessions
-beyond calling domain setup/teardown functions.
+Electron shell ownership: startup/shutdown orchestration, `BrowserWindow`
+creation and window manager, custom protocol registration, link/popup policy,
+main-process logging and fatal error hooks, menu, app identity, startup
+metrics, update IPC. This folder should not know about canvas storage
+internals or agent sessions beyond calling domain setup/teardown functions.
 
 ### `canvas/`
 
-Workspace canvas ownership:
-
-- workspace list/load/save IPC
-- canvas JSON layout data
-- v1/v2 storage migration
-- per-node files
-- canvas update broadcasting
-- knowledge node records and tags
-
-IPC for canvas data should live in `canvas/ipc.ts`. Node-specific IPC should
-live in `canvas/nodes/ipc.ts`.
+Workspace canvas ownership: workspace list/load/save IPC, canvas JSON layout
+data, v1/v2 storage migration, per-node files, canvas update broadcasting,
+workspace export (archive + external files), welcome workspace, knowledge
+node records and tags (`nodes/`).
 
 ### `agent/`
 
-Canvas agent ownership:
+Canvas agent ownership: chat/session lifecycle, engine integration, prompt
+profile and model config (`model/`), MCP config (`mcp/`), agent skills
+(`skills/`), workspace context building, agent tools (`tools/` — split into
+per-capability modules; `tools.ts` is a compatibility re-export shim), debug
+trace support, sending prompts into agent terminal nodes, workspace
+documentation generation.
 
-- chat/session lifecycle
-- engine integration
-- prompt profile and model config
-- workspace context building
-- agent tools
-- debug trace support
-- sending prompts into agent terminal nodes
-- workspace documentation generation
+### `agent-teams/`
 
-The current `agent/` folder owns this domain. `tools.ts` is intentionally still
-unsplit after the move; split it once the remaining canvas path churn is
-complete.
+Multi-agent teams ownership: team service and store, team IPC, PTY bridge for
+teammate terminals, canvas node integration, session adapter into the canvas
+agent. Integrates `pulse-coder-agent-teams`. `service.ts` (2,569 lines) is the
+largest baselined file in the app — split opportunities live here.
 
 ### `artifacts/`
 
-Generated and pinned artifact ownership:
-
-- artifact metadata and versions
-- artifact create/update/delete IPC
-- pinning artifacts to canvas nodes
-
-The artifact domain may depend on canvas storage APIs, but canvas should not
-depend on artifact internals.
+Generated and pinned artifact ownership: artifact metadata/versions,
+create/update/delete IPC, pinning artifacts to canvas nodes (inside
+`ipc.ts`). May depend on canvas storage APIs; canvas must not depend on
+artifact internals.
 
 ### `webview/`
 
-Embedded page ownership:
-
-- webview registration
-- CDP session helpers
-- DOM, accessibility tree, and screenshot reads
-
-This domain is intentionally separate from agent tools. The agent can consume
-webview capabilities, but webview code should not know about agent sessions.
+Embedded page ownership: webview registration, CDP session helpers, DOM /
+accessibility-tree / screenshot reads, operability checks. Intentionally
+separate from agent tools: the agent consumes webview capabilities, webview
+code must not know about agent sessions.
 
 ### `terminal/`
 
-PTY ownership:
-
-- node-pty process lifecycle
-- terminal session read/write/kill APIs
-- terminal IPC handlers
-
-Agent terminal nodes can use this module through exported session helpers.
+PTY ownership: node-pty process lifecycle, terminal session
+read/write/kill APIs, terminal IPC handlers. Agent terminal nodes use this
+module through exported session helpers.
 
 ### `files/`
 
-Local file helper ownership:
-
-- open/save dialogs
-- file read/write helpers exposed to renderer
-- file watching
-- skill installation file operations
-
-These are file-oriented product capabilities rather than generic utilities.
+Local file helper ownership: open/save dialogs, renderer-exposed read/write
+helpers, file watching, skill installation file operations.
 
 ### `generation/`
 
-Standalone generation ownership:
-
-- HTML generation
-- HTML streaming IPC
-
-This module can share model resolution with `agent/model`.
+Standalone generation ownership: HTML generation and its streaming IPC. May
+share model resolution with `agent/model`.
 
 ### `runtime/`
 
-Local runtime integration ownership:
-
-- runtime control HTTP server
-- local MCP server
-- MCP registration
-
-This keeps optional local service endpoints out of the Electron app shell.
+Local runtime integration ownership: runtime control HTTP server, local MCP
+server, MCP registration. Keeps optional local service endpoints out of the
+Electron app shell.
 
 ### `settings/`
 
-Settings and feature-flag ownership:
+Settings and feature-flag ownership: experimental flag overrides, canvas
+plugin config + IPC, built-in tools config + IPC, plugin manifest icons. If a
+setting becomes domain-specific, it moves into that domain.
 
-- experimental flag overrides
-- future settings IPC that does not clearly belong to a product domain
+### `perf/`
 
-If a setting becomes domain-specific, it should move into that domain.
+Main-process performance counters (loop delay) feeding the `perf/` gate
+system and `.github/workflows/perf.yml`.
 
-## File Mapping
+## Open Follow-ups
 
-```text
-src/main/index.ts                         -> src/main/index.ts + src/main/app/*
+Phases 1 (domain move) and 4 (agent tools split) of the original plan are
+done. Still open:
 
-src/main/canvas-store.ts                  -> src/main/canvas/store.ts + src/main/canvas/ipc.ts
-src/main/canvas-storage.ts                -> src/main/canvas/storage/index.ts, then split internally
-src/main/canvas-broadcast.ts              -> src/main/canvas/broadcast.ts
-src/main/workspace-node-store.ts          -> src/main/canvas/nodes/store.ts
-src/main/workspace-node-ipc.ts            -> src/main/canvas/nodes/ipc.ts
-src/main/tag-store.ts                     -> src/main/canvas/nodes/tags.ts
-
-src/main/canvas-agent-ipc.ts              -> src/main/agent/ipc.ts
-src/main/canvas-model-ipc.ts              -> src/main/agent/model/ipc.ts
-src/main/canvas-prompt-ipc.ts             -> src/main/agent/prompt-profile-ipc.ts
-src/main/agent-session-send.ts            -> src/main/agent/session-send.ts
-src/main/canvas-agent/*                   -> src/main/agent/*
-
-src/main/artifact-store.ts                -> src/main/artifacts/store.ts
-src/main/artifact-ipc.ts                  -> src/main/artifacts/ipc.ts
-
-src/main/webview-registry.ts              -> src/main/webview/registry.ts
-src/main/webpage-reader-ipc.ts            -> src/main/webview/reader.ts
-src/main/cdp-session.ts                   -> src/main/webview/cdp-session.ts
-
-src/main/pty-manager.ts                   -> src/main/terminal/pty-manager.ts
-
-src/main/file-manager.ts                  -> src/main/files/manager.ts
-src/main/file-watcher.ts                  -> src/main/files/watcher.ts
-src/main/skill-installer.ts               -> src/main/files/skill-installer.ts
-
-src/main/html-generator.ts                -> src/main/generation/html-generator.ts
-src/main/html-generator-ipc.ts            -> src/main/generation/ipc.ts
-
-src/main/runtime-control-server.ts        -> src/main/runtime/control-server.ts
-src/main/mcp-server.ts                    -> src/main/runtime/mcp-server.ts
-src/main/mcp-registration.ts              -> src/main/runtime/mcp-registration.ts
-
-src/main/experimental-ipc.ts              -> src/main/settings/experimental-ipc.ts
-src/main/shell-ipc.ts                     -> src/main/app/shell-ipc.ts
-```
-
-Completed so far:
-
-- `src/main/index.ts` is now a thin entrypoint that calls `app/bootstrap.ts`.
-- `src/main/app/*` owns Electron bootstrap, logging, protocol, window, link
-  policy, and shell IPC.
-- `src/main/terminal/pty-manager.ts` owns PTY sessions.
-- `src/main/files/*` owns file manager, file watcher, and skill installation.
-- `src/main/generation/*` owns HTML generation and its IPC.
-- `src/main/runtime/*` owns runtime control and MCP helpers.
-- `src/main/webview/*` owns webview registry, page reader, and CDP sessions.
-- `src/main/artifacts/*` owns artifact storage and artifact IPC.
-- `src/main/settings/*` owns experimental feature flag IPC.
-- `src/main/agent/*` owns Canvas Agent service, IPC, sessions, model config,
-  prompt profile, tools, and workspace documentation generation.
-- `src/main/canvas/*` owns canvas store IPC, storage migration, node records,
-  tags, and canvas update broadcast helpers.
-
-## Migration Plan
-
-### Phase 1: entrypoint and pure moves
-
-Status: complete.
-
-- Done: extract `app/logging.ts`, `app/protocol.ts`, `app/window.ts`,
-  `app/link-policy.ts`, and `app/shell-ipc.ts`.
-- Done: keep `src/main/index.ts` as a thin import of `bootstrap()`.
-- Done: move `terminal/`, `files/`, `generation/`, and `runtime/`.
-- Done: move `settings/`, `webview/`, and `artifacts/`.
-- Done: move `agent/`.
-- Done: move `canvas/` root files.
-
-Verification:
-
-```bash
-pnpm --filter canvas-workspace typecheck:main
-pnpm --filter canvas-workspace test -- --runInBand
-```
-
-If the test runner does not support `--runInBand`, run:
-
-```bash
-pnpm --filter canvas-workspace test
-```
-
-### Phase 2: canvas storage split
-
-Split `canvas/storage.ts` by responsibility after the path move is stable:
-
-- `paths.ts`: workspace, canvas, node, backup, and sentinel paths
-- `json.ts`: atomic write and read-with-recovery helpers
-- `schema.ts`: schema version detection and shared types
-- `migration.ts`: v1 to v2 migration, sentinel, and recovery logic
-- `node-files.ts`: per-node file read/write/delete/list helpers
-- `index.ts`: public exports used by other domains
-
-Verification should include existing canvas storage and graph tests.
-
-### Phase 3: canvas store split
-
-Split `canvas/store.ts` into:
-
-- IPC registration
-- in-memory workspace state
-- watcher lifecycle
-- migration progress broadcasting
-- startup pollution audit
-
-Keep the public setup/teardown names stable during the split.
-
-### Phase 4: agent tools split
-
-Split `agent/tools.ts` after imports are stable. Suggested shape:
-
-```text
-agent/tools/
-  index.ts
-  canvas-tools.ts
-  file-tools.ts
-  terminal-tools.ts
-  artifact-tools.ts
-  webview-tools.ts
-  graph-tools.ts
-  image-tools.ts
-  schemas.ts
-  types.ts
-```
-
-This phase carries the highest behavioral risk because tool schemas and names
-are part of the agent contract.
+- **Canvas storage split** — `canvas/storage.ts` is still a single file;
+  split by responsibility (paths / atomic JSON / schema / migration /
+  node-files) only when a change forces it.
+- **Canvas store split** — `canvas/store.ts` still owns IPC registration,
+  in-memory workspace state, watcher lifecycle, migration progress
+  broadcasting, and startup pollution audit together. Keep public
+  setup/teardown names stable if splitting.
 
 ## Import Rules
 
@@ -355,9 +156,13 @@ are part of the agent contract.
 - Prefer `index.ts` barrel files only where they hide internal substructure and
   do not create circular dependencies.
 
+These directions are enforced by `src/main/__tests__/import-boundaries.test.ts`
+(run via `pnpm --filter canvas-workspace test` — there is no CI for it; see
+`docs/conventions/architecture-boundaries.md`).
+
 ## Compatibility Rules
 
-The following must not change during the structural migration:
+The following must not change during structural refactors:
 
 - Electron preload API exposed through `window.canvasWorkspace`
 - IPC channel names
@@ -367,5 +172,5 @@ The following must not change during the structural migration:
 - runtime control file path and local HTTP API
 - plugin registration behavior and canvas-agent tool names
 
-Behavioral changes should be separate follow-up commits after the domain move
-has passed typecheck and tests.
+Behavioral changes should be separate follow-up commits after a structural
+move has passed typecheck and tests.

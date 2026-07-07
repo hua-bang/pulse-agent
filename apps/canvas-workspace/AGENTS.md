@@ -2,7 +2,7 @@
 
 > Local entry for `apps/canvas-workspace`.
 > Repository harness entry: `../../harness/README.md`.
-> Claude Code specific guidance lives in `CLAUDE.md`.
+> `CLAUDE.md` is a thin import shell of this file — edit here, never both.
 
 ## Module Positioning
 
@@ -17,15 +17,28 @@ the canvas store and runtime-control server, and hosts external node plugins
 such as `@pulse-canvas/nodes` through manifests and plugin registries.
 
 Keep this file as the local router. Put durable implementation detail in
-`CLAUDE.md`, existing workspace docs, or tests. Add new workspace docs only
-when a behavior or operating runbook needs a durable source of truth.
+existing workspace docs or tests. Add new workspace docs only when a behavior
+or operating runbook needs a durable source of truth.
+
+**Terminology disambiguation (two overloaded words in this workspace):**
+- **"harness"** — `harness/` in this app is the PRODUCT headless-Electron
+  driver (launch profiles, CDP, screenshots, logs; see `harness/README.md`).
+  The REPOSITORY harness (AGENTS.md + Knowledge + Tool + Validate + Skills)
+  maps here as: this file + `docs/` (Knowledge), the product `harness/` CLI
+  itself (Tool — it IS this app's orientation tool), `harness/validate/validation.yaml`
+  (Validate), and `skills/*/SKILL.md` (Skills). Same directory, two meanings —
+  check which one a doc is talking about.
+- **"skills"** — three senses: `skills/*/SKILL.md` are procedures for CODING
+  agents working on this app (repo-harness Skills); `src/main/agent/skills/`
+  is the PRODUCT runtime-skills feature of the in-app Canvas Agent;
+  `files/skill-installer.ts` installs the latter. Do not mix them.
 
 ## Knowledge Navigation
 
 | Task | Read |
 |---|---|
 | Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
-| App overview and Claude-specific notes | `README.md`, `CLAUDE.md` |
+| App overview | `README.md` |
 | Runtime harness | `harness/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
 | Main/renderer/preload boundaries | `docs/conventions/README.md`, `docs/conventions/architecture-boundaries.md` |
 | Renderer conventions | `docs/conventions/frontend.md` |

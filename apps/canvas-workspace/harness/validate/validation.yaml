@@ -12,6 +12,17 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
 
+  # The product harness (headless Electron driver) carries its own vitest
+  # suite (harness/src/__tests__/headless.test.mjs), picked up by the default
+  # vitest include. Without this rule a cdp/launch/session change triggers
+  # nothing.
+  - name: product-harness
+    paths:
+      - harness/src/**
+      - harness/cli.mjs
+    required:
+      - pnpm --filter canvas-workspace test
+
   # Bundle + runtime perf gates (perf/program.md). Run by CI
   # (.github/workflows/perf.yml) on every canvas-workspace PR; runnable
   # locally with the same command.

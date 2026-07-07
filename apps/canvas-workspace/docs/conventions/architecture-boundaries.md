@@ -37,8 +37,9 @@ The app is split into four source surfaces with a strict dependency direction:
 
 ## File-size governance
 
-`file-size-governance.test.ts` measures every production `.ts`/`.tsx`/`.css`
-file (excludes tests, `.d.ts`, generated, and documented data files):
+`file-size-governance.test.ts` measures every production `.ts`/`.tsx` file
+(excludes tests, `.d.ts`, generated, and documented data files; CSS is
+deliberately NOT governed — see the `GOVERNED_EXTENSIONS` comment in the test):
 
 - **> 400 lines** — recorded as a warning (informational only).
 - **> 500 lines** — **hard fail** unless the file is in the `CURRENT_OVER_500_BASELINE`
