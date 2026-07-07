@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import { SettingsDrawer } from '../SettingsDrawer';
+import { Drawer, Button } from '../ui';
 import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { useAppShell } from '../AppShellProvider';
@@ -201,7 +201,7 @@ export const WorkspaceSettingsDrawer = ({
   if (!workspace) return null;
 
   return (
-    <SettingsDrawer
+    <Drawer
       open={open}
       onClose={onClose}
       kicker={t('workspaceSettings.kicker')}
@@ -237,13 +237,12 @@ export const WorkspaceSettingsDrawer = ({
               <div className="workspace-settings-folder-path" title={workspace.rootFolder}>
                 {workspace.rootFolder ?? <em>{t('workspaceSettings.notSet')}</em>}
               </div>
-              <button
-                type="button"
-                className="workspace-settings-secondary-btn"
+              <Button
+                variant="secondary"
                 onClick={() => void handlePickFolder()}
               >
                 {workspace.rootFolder ? t('workspaceSettings.changeFolder') : t('workspaceSettings.setFolder')}
-              </button>
+              </Button>
             </div>
             <div className="workspace-settings-field-hint">
               {t('workspaceSettings.rootFolderHint')}
@@ -275,14 +274,14 @@ export const WorkspaceSettingsDrawer = ({
                   }}
                   disabled={generating}
                 />
-                <button
-                  type="button"
-                  className="workspace-settings-secondary-btn workspace-settings-generate-btn"
+                <Button
+                  variant="secondary"
+                  className="workspace-settings-generate-btn"
                   onClick={() => void handleGenerate()}
                   disabled={!intent.trim() || generating}
                 >
                   {generating ? t('workspaceSettings.generating') : t('workspaceSettings.generate')}
-                </button>
+                </Button>
               </div>
               <textarea
                 className="workspace-settings-textarea"
@@ -313,18 +312,17 @@ export const WorkspaceSettingsDrawer = ({
       </div>
 
       <div className="workspace-settings-footer">
-        <button type="button" className="workspace-settings-secondary-btn" onClick={onClose}>
+        <Button variant="secondary" onClick={onClose}>
           {t('workspaceSettings.close')}
-        </button>
-        <button
-          type="button"
-          className="workspace-settings-primary-btn"
+        </Button>
+        <Button
+          variant="primary"
           disabled={!workspace.rootFolder || savingDoc || !agentsDocLoaded}
           onClick={() => void handleSaveDoc()}
         >
           {savingDoc ? t('workspaceSettings.saving') : savedHint ? t('workspaceSettings.saved') : t('workspaceSettings.saveDoc')}
-        </button>
+        </Button>
       </div>
-    </SettingsDrawer>
+    </Drawer>
   );
 };

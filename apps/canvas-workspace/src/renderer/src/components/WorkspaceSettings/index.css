@@ -1,7 +1,8 @@
 /* Workspace settings drawer — body / sections / fields / footer.
  * The shell (backdrop, aside, header, close button) lives in
- * components/SettingsDrawer/index.css and is shared with the
- * chat ModelSettings / PromptSettings drawers. */
+ * components/ui/Drawer/index.css and is shared with the
+ * chat ModelSettings / PromptSettings drawers. Primary/secondary CTA
+ * buttons now come from components/ui/Button. */
 
 .workspace-settings-body {
   flex: 1;
@@ -171,42 +172,4 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.workspace-settings-secondary-btn,
-.workspace-settings-primary-btn {
-  height: 34px;
-  border-radius: 8px;
-  border: 1px solid rgba(55, 53, 47, 0.12);
-  background: #fff;
-  color: #37352f;
-  padding: 0 12px;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.workspace-settings-secondary-btn:hover:not(:disabled) {
-  background: rgba(55, 53, 47, 0.05);
-}
-
-.workspace-settings-primary-btn {
-  border-color: #2383e2;
-  background: #2383e2;
-  color: #fff;
-}
-
-.workspace-settings-primary-btn:hover:not(:disabled) {
-  background: #1f76cc;
-}
-
-.workspace-settings-primary-btn:disabled,
-.workspace-settings-secondary-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
 }

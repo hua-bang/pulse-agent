@@ -1,7 +1,7 @@
 /**
  * ChatImageLightbox — fullscreen preview for images in the chat transcript.
  *
- * Renders through a portal (matching SettingsDrawer / context menus) so the
+ * Renders through a portal (matching ui/Drawer / context menus) so the
  * overlay escapes the chat panel's stacking + overflow. Supports keyboard
  * (Esc to close, ←/→ to page when a message has several images), backdrop
  * click-to-close, and an on-screen prev/next + counter for galleries.

@@ -1,0 +1,69 @@
+/* ui/Button — blessed CTA button. Base metrics from the dominant existing
+ * cluster (cfg-*-btn / workspace-settings-*-btn); primary is the #2383e2
+ * family. Radius is tokenized (var(--radius)); colors stay literal for now
+ * (color tokens are measured but not yet gated). */
+
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ui-btn--sm {
+  height: 30px;
+}
+
+.ui-btn--md {
+  height: 34px;
+}
+
+.ui-btn--secondary {
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  background: #fff;
+  color: #37352f;
+}
+
+.ui-btn--secondary:hover:not(:disabled) {
+  background: rgba(55, 53, 47, 0.05);
+}
+
+.ui-btn--primary {
+  border: 1px solid #2383e2;
+  background: #2383e2;
+  color: #fff;
+}
+
+.ui-btn--primary:hover:not(:disabled) {
+  background: #1f76cc;
+  border-color: #1f76cc;
+}
+
+.ui-btn--danger {
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  background: #fff;
+  color: rgba(180, 47, 47, 0.85);
+}
+
+.ui-btn--danger:hover:not(:disabled) {
+  background: rgba(180, 47, 47, 0.05);
+  border-color: rgba(180, 47, 47, 0.3);
+}
+
+.ui-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Visible keyboard focus — keyboard-only so mouse presses stay quiet. */
+.ui-btn:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}

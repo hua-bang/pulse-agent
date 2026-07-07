@@ -122,33 +122,10 @@
   animation: shellSpin 0.7s linear infinite;
 }
 
-.shell-dialog-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--layer-dialog);
-  background: var(--overlay-backdrop);
-  backdrop-filter: blur(6px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.shell-dialog {
-  width: min(520px, 100%);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 24px 72px rgba(28, 29, 32, 0.18);
-  animation: shellDialogAppear 0.18s ease;
-}
-
-.shell-dialog--wide {
-  width: min(820px, 100%);
-  max-height: calc(100vh - 48px);
-  display: flex;
-  flex-direction: column;
-}
+/* The centered dialog shell (backdrop, card, sizing, entrance animation)
+ * now lives in components/ui/Modal. The Confirm + Shortcuts dialogs render
+ * their inner markup below (.shell-dialog__* / .shell-shortcuts*) as Modal
+ * children; the shortcuts dialog passes width=820 + `ui-modal--tall`. */
 
 .shell-dialog__header {
   padding: 18px 20px 10px;
@@ -313,17 +290,6 @@
 }
 
 @media (max-width: 720px) {
-  .shell-dialog-backdrop {
-    align-items: flex-end;
-    padding: 12px;
-  }
-
-  .shell-dialog,
-  .shell-dialog--wide {
-    width: 100%;
-    border-radius: 18px 18px 14px 14px;
-  }
-
   .shell-toast-region {
     left: 12px;
     right: 12px;
@@ -348,17 +314,6 @@
   from {
     opacity: 0;
     transform: translateY(-8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes shellDialogAppear {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.98);
   }
   to {
     opacity: 1;

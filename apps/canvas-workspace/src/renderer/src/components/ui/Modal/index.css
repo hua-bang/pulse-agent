@@ -1,0 +1,54 @@
+/* ui/Modal — blessed centered overlay shell. Backdrop + card. Radius is
+ * tokenized (var(--radius-lg)); backdrop uses var(--overlay-backdrop); the
+ * z-index takes the app-shell dialog tier from the --layer-* scale. */
+
+.ui-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-dialog);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--overlay-backdrop);
+  backdrop-filter: blur(6px);
+}
+
+.ui-modal {
+  max-width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 72px rgba(28, 29, 32, 0.18);
+  animation: uiModalAppear 0.18s ease;
+}
+
+/* Scrollable variant — the card caps its height and lets an inner region
+ * (overflow-y: auto) scroll. Used by the shortcuts dialog. */
+.ui-modal--tall {
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+}
+
+@media (max-width: 720px) {
+  .ui-modal-backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+
+  .ui-modal {
+    width: 100%;
+  }
+}
+
+@keyframes uiModalAppear {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

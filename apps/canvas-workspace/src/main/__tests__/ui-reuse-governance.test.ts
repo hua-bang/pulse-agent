@@ -16,20 +16,24 @@ import { extname, join, relative, sep } from 'path';
 const RENDERER_ROOT = join('src', 'renderer', 'src');
 
 const RATCHET_BASELINE: Record<string, number> = {
-  // raw <button> tags in .tsx — falls as components/ui/Button absorbs them
-  rawButtonTags: 402,
+  // raw <button> tags in .tsx — falls as components/ui/Button absorbs them.
+  // 402→399: WorkspaceSettings adopted ui/Button (-4); ui/Button itself (+1).
+  rawButtonTags: 399,
   // border-radius declarations not using var(--radius*) — radius is the
-  // first tokenization target per the spec decision
-  borderRadiusLiterals: 435,
+  // first tokenization target per the spec decision. 435→431: ui/ CSS is
+  // tokenized and the promoted Drawer + deleted CTA rules dropped 4 literals.
+  borderRadiusLiterals: 431,
   // independent 360°-rotate spinner @keyframes (names ending in "spin")
   spinnerKeyframes: 6,
-  // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them
-  dialogRoles: 12,
-  // files calling createPortal directly (no shared wrapper yet)
-  portalFiles: 10,
+  // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them.
+  // 12→11: AppShell Confirm+Shortcuts (-2) now route through ui/Modal (+1).
+  dialogRoles: 11,
+  // files calling createPortal directly (no shared wrapper yet).
+  portalFiles: 11, // +1: ui/Modal is the consolidation shell; adoptions remove caller portals over time
   // hand-rolled window keydown listeners inside components/ — overlay ESC
-  // belongs in useEscapeClose / the ui/ shells
-  componentWindowKeydown: 10,
+  // belongs in useEscapeClose / the ui/ shells. 10→7: SettingsDrawer→ui/Drawer
+  // and both AppShell dialogs dropped their ESC listeners for the shared hooks.
+  componentWindowKeydown: 7,
 };
 
 // Design tokens referenced via var(--x) somewhere in the renderer but

@@ -2535,7 +2535,7 @@
 
 /* Chat ModelSettings & PromptSettings drawer body/form styles.
  * The shell (backdrop, aside, header, close button, slide-in) lives in
- * components/SettingsDrawer/index.css and is shared with WorkspaceSettings. */
+ * components/ui/Drawer/index.css and is shared with WorkspaceSettings. */
 
 .chat-model-settings-body {
   flex: 1;
@@ -2956,9 +2956,9 @@
   font-size: 11px;
 }
 
-/* Prompt settings drawer — same shell as ModelSettings (via SettingsDrawer),
+/* Prompt settings drawer — same shell as ModelSettings (via ui/Drawer),
    but the body is a single column because there's only one user profile.
-   Width override is set via the `width` prop on <SettingsDrawer>. */
+   Width override is set via the `width` prop on <Drawer>. */
 .chat-prompt-settings-body {
   flex: 1;
   min-height: 0;
