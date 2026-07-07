@@ -24,14 +24,21 @@ or operating runbook needs a durable source of truth.
 container, aligned with `packages/engine/harness/` (migrated 2026-07-07;
 before that the directory held only the Electron driver):
 - `harness/knowledge/` — conventions, main domain map, renderer surfaces,
-  plugin node contract (moved from `docs/`; `docs/` now keeps only project
-  records like perf analyses and roadmaps).
+  plugin node contract, security posture, known defects (moved from `docs/`;
+  `docs/` now keeps only project records like perf analyses and roadmaps).
 - `harness/tools/driver/` — the headless-Electron driver (launch profiles,
   CDP, screenshots, logs). It is BOTH the repo-harness Tool face and a
   product-operation CLI; `pnpm --filter canvas-workspace harness <cmd>`
   still points at it.
+- `harness/tools/describe-canvas.mjs` — static structure snapshot: agent-tool
+  registry (45), IPC handle↔invoke contract diff, node-type union↔factory
+  sync. Run before touching any of those registries; exits non-zero on a
+  broken invoke or union/factory drift.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app (`canvas-harness`, `canvas-onboard-harness`).
+- `harness/spec/` — decision-pending intent (currently one entry: sanctioned
+  node-extension path). Empty is the success state; surface definition lives
+  in `packages/engine/harness/spec/README.md`.
 - `harness/validate/validation.yaml` — path→check bindings for the repo runner.
 
 **"skills" disambiguation** — `harness/skills/*/SKILL.md` are procedures for
@@ -45,7 +52,9 @@ installs the latter. Do not mix them.
 |---|---|
 | Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
 | App overview | `README.md` |
-| Drive the real app (launch/CDP/screenshot) | `harness/tools/driver/README.md`, `harness/skills/canvas-harness/SKILL.md`, `harness/skills/canvas-onboard-harness/SKILL.md` |
+| Drive the real app (launch/CDP/screenshot) | `harness/tools/driver/README.md`, `harness/skills/canvas-harness/SKILL.md`, `harness/skills/canvas-onboard-harness/SKILL.md`; what "correct" looks like: `harness/knowledge/renderer-surfaces.md` |
+| Security posture, agent execution reach, disk/config surfaces | `harness/knowledge/security-posture.md` |
+| Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
 | Main/renderer/preload boundaries | `harness/knowledge/conventions/README.md`, `harness/knowledge/conventions/architecture-boundaries.md` |
 | Renderer conventions | `harness/knowledge/conventions/frontend.md` |
 | Main-process conventions | `harness/knowledge/conventions/backend.md` |
@@ -53,7 +62,9 @@ installs the latter. Do not mix them.
 | Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
-| Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` |
+| Add/change a node TYPE (renderer registration points) | FIRST `harness/spec/node-extension-path.md` (host type vs plugin is undecided), then `src/shared/canvas.ts` (type union + data shape), `src/renderer/src/utils/nodeFactory.ts` (creation defaults), `src/renderer/src/components/CanvasNodeView/` (type→body dispatch) |
+| Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
+| Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |
 | Runtime-control server | `src/main/runtime/control-server.ts` |
