@@ -1,8 +1,11 @@
 import z from "zod";
-import { execSync } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { existsSync } from "fs";
 import type { Tool } from "../shared/types";
 import { truncateOutput } from "./utils";
+
+const execFileAsync = promisify(execFile);
 
 export const GrepTool: Tool<
   {
@@ -46,8 +49,11 @@ export const GrepTool: Tool<
     offset = 0,
     multiline = false,
   }) => {
-    // Build ripgrep command
-    const args: string[] = ['rg'];
+    // Build the ripgrep argument list. Arguments are passed directly to `rg`
+    // via execFile (no shell), so pattern/glob/path cannot inject shell
+    // commands, and the call is non-blocking (engine may run on a GUI main
+    // thread — see root AGENTS.md §6).
+    const args: string[] = [];
 
     // Pattern
     args.push(pattern);
@@ -92,56 +98,43 @@ export const GrepTool: Tool<
       args.push(path);
     }
 
-    // Build the command string
-    let command = args.map(arg => {
-      // Quote arguments that contain spaces or special characters
-      if (arg.includes(' ') || arg.includes('$') || arg.includes('*')) {
-        return `'${arg.replace(/'/g, "'\\''")}'`;
-      }
-      return arg;
-    }).join(' ');
-
-    // Add tail/head for offset/limit
-    if (offset > 0) {
-      command += ` | tail -n +${offset + 1}`;
-    }
-    if (headLimit > 0) {
-      command += ` | head -n ${headLimit}`;
-    }
-
+    let stdout: string;
     try {
-      const output = execSync(command, {
+      const result = await execFileAsync('rg', args, {
         encoding: 'utf-8',
         maxBuffer: 1024 * 1024 * 10, // 10MB
-        shell: '/bin/bash',
       });
-
-      // Count matches for count mode
-      let matches: number | undefined;
-      if (outputMode === 'count') {
-        matches = output.split('\n').filter(line => line.trim()).length;
-      } else if (outputMode === 'files_with_matches') {
-        matches = output.split('\n').filter(line => line.trim()).length;
-      }
-
-      return {
-        output: truncateOutput(output || '(no matches found)'),
-        matches,
-      };
+      stdout = result.stdout;
     } catch (error: any) {
-      // Exit code 1 means no matches found (not an error)
-      if (error.status === 1) {
+      // rg exit code 1 means no matches found (not an error).
+      if (error?.code === 1) {
         return {
           output: '(no matches found)',
           matches: 0,
         };
       }
-
-      // Other errors
-      throw new Error(
-        `grep failed: ${error.stderr || error.message}\nCommand: ${command}`
-      );
+      throw new Error(`grep failed: ${error?.stderr || error?.message}`);
     }
+
+    // Apply offset/limit in-process (previously shell `tail`/`head` pipes).
+    if (offset > 0 || headLimit > 0) {
+      const hadTrailingNewline = stdout.endsWith('\n');
+      let lines = stdout.split('\n');
+      if (hadTrailingNewline) lines.pop();
+      if (offset > 0) lines = lines.slice(offset);
+      if (headLimit > 0) lines = lines.slice(0, headLimit);
+      stdout = lines.join('\n') + (lines.length && hadTrailingNewline ? '\n' : '');
+    }
+
+    let matches: number | undefined;
+    if (outputMode === 'count' || outputMode === 'files_with_matches') {
+      matches = stdout.split('\n').filter(line => line.trim()).length;
+    }
+
+    return {
+      output: truncateOutput(stdout || '(no matches found)'),
+      matches,
+    };
   },
 };
 

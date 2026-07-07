@@ -8,6 +8,11 @@ same running window without adding harness code to the Electron main process.
 This is not a full e2e suite yet. It is the foundation for smoke checks,
 debugging, screenshots, and later e2e scenarios.
 
+> Location: this driver lives at `harness/tools/driver/` — it is the Tool face
+> of this workspace's repo-harness container (`harness/` also holds
+> `knowledge/`, `skills/`, `validate/`; see the workspace `AGENTS.md`). The
+> `pnpm --filter canvas-workspace harness <cmd>` alias still points here.
+
 ## Quick Start
 
 Build once, then start a demo session:

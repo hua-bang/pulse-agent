@@ -3,13 +3,19 @@ import { mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-const { mockFetch } = vi.hoisted(() => ({
+const { mockFetch, agentConstructorArgs } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
+  agentConstructorArgs: [] as unknown[],
 }));
 
 vi.mock('undici', () => ({
   fetch: mockFetch,
-  Agent: vi.fn(),
+  // Push into a plain hoisted array: the Agent is constructed once at module
+  // load, before any test runs, and restoreAllMocks() would wipe vi.fn call
+  // history recorded that early.
+  Agent: vi.fn(function (options: unknown) {
+    agentConstructorArgs.push(options);
+  }),
 }));
 
 import { analyzeImageTool } from './analyze-image.js';
@@ -139,7 +145,7 @@ describe('analyzeImageTool', () => {
   });
 
   it('configures loopback requests with a 5 minute headers timeout', () => {
-    expect(vi.mocked(Agent)).toHaveBeenCalledWith(expect.objectContaining({
+    expect(agentConstructorArgs).toContainEqual(expect.objectContaining({
       headersTimeout: 300000,
       bodyTimeout: 0,
     }));

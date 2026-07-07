@@ -100,7 +100,7 @@ Use these defaults:
 - Add `harness/spec/` only when normative design is needed for a feature, protocol, migration, or architectural boundary.
 - Add `harness/skills/` only for stable local action protocols that are not runtime task skills.
 
-If a workspace already has `harness/` for a specific mechanism, treat that existing directory as the relevant surface until there is enough pressure to split it. For example, `apps/canvas-workspace/harness/` is currently a real Electron operation tool; do not mix unrelated Knowledge or Skills files into it casually. If it later needs a full workspace harness container, migrate deliberately instead of overloading the existing tool layout.
+If a workspace already has `harness/` for a specific mechanism, treat that existing directory as the relevant surface until there is enough pressure to split it, then migrate deliberately into the full five-surface layout rather than overloading the existing sub-layout. `apps/canvas-workspace/harness/` did exactly this (2026-07-07): it began as a bare Electron operation tool directly under `harness/`, and once the workspace's Knowledge (conventions and domain maps, previously under the app's docs directory) and Skills (the SKILL.md procedures) were ready to co-locate, the driver was moved down into `harness/tools/driver/` and the other surfaces took their named slots (`harness/knowledge/`, `harness/skills/`, alongside the pre-existing `harness/validate/`). The driver keeps working because it self-locates via `import.meta.url` and is invoked through the `harness` package script, not a hardcoded path.
 
 Runtime artifact directories such as `.harness/` are not harness knowledge. They hold generated state, screenshots, logs, or temporary homes and should not become documentation or validation sources of truth.
 
@@ -184,7 +184,7 @@ The current pilot maps onto this design as follows:
 |---|---|
 | Root control surface | `AGENTS.md` and `CLAUDE.md` |
 | Root Knowledge | Root `AGENTS.md`, `CLAUDE.md`, `harness/README.md`, `pnpm-workspace.yaml`, workspace entries, selected `docs/` |
-| Root Tool | Root `AGENTS.md`, `harness/README.md`, executable tools such as `harness/tools/graph-viewer/server.mjs`, and self-documenting tool directories when needed |
+| Root Tool | Root `AGENTS.md`, `harness/README.md`, executable tools under `scripts/harness/`, and self-documenting tool directories when needed |
 | Root Validate | Root `AGENTS.md`, `harness/README.md`, optional root overlay in `harness/validate/validation.yaml`, and workspace-local validation docs |
 | Skills | Protocol docs when present; runtime task skills under `.pulse-coder/skills/` are a separate product layer and must not be merged with repo harness protocols. |
 | Workspace control surface | Each workspace `AGENTS.md` |
@@ -243,6 +243,6 @@ Keep workspace entries local and differential. Do not copy root principles or ro
 3. Keep surface routing in `AGENTS.md` until a surface reaches the README threshold.
 4. Use workspace-local `harness/` as the preferred container when local Knowledge, Tool, Validate, or Skills assets need a home.
 5. Keep root Validate minimal while migrating detailed validation into workspace-local `harness/validate/`.
-6. Teach tools such as `graph-viewer` to consume workspace-local validation when those files exist.
+6. Keep `scripts/harness/` tools consuming workspace-local validation files as the primary source (done for the runner and drift check).
 7. Make Validate executable by adding a runner for `harness/validate/validation.yaml` plus workspace-local validation files.
 8. Add Spec only when a concrete feature, protocol, or migration needs normative design and history.

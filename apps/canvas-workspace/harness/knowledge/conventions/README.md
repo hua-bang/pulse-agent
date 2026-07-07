@@ -12,8 +12,11 @@ or reviewing code in this app.
 
 ## Why these exist
 
-Two vitest suites in `src/main/__tests__/` turn the most important rules into CI
-gates, so they are not optional style preferences:
+Two vitest suites in `src/main/__tests__/` turn the most important rules into
+mechanical gates, so they are not optional style preferences. Honest scope:
+they run via `pnpm --filter canvas-workspace test` (manually or through the
+repo harness runner) — no CI runs tests today; the only CI is the perf
+workflow (`.github/workflows/perf.yml`):
 
 - `import-boundaries.test.ts` — enforces the layer import rules in
   [`architecture-boundaries.md`](./architecture-boundaries.md).

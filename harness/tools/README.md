@@ -8,7 +8,8 @@ A tool should have stable inputs and outputs, but it does not own final decision
 
 | Tool | Purpose |
 |---|---|
-| `graph-viewer` | Inspect harness coverage and validation routing. |
+| `run-harness-check` (`scripts/harness/run-harness-check.mjs`) | Resolve changed paths to bound validation commands and execute them with a pass/fail report. |
+| `check-harness` (`scripts/harness/check-harness.mjs`) | Drift check: entry/validation coverage per workspace, validation file shape, `--filter` names reference real packages, routing links in harness docs resolve on disk. |
 
 ## Candidate Tool Ideas
 
@@ -17,9 +18,7 @@ These are ideas, not on-disk tool directories or executable protocols.
 | Tool | Purpose |
 |---|---|
 | `repo-profiler` | Inspect active workspaces and suggest workspace `AGENTS.md` navigation updates. |
-| `affected-workspace-detector` | Map changed paths or a user request to affected workspaces. |
 | `ssot-resolver` | Pick the correct long-term source of truth for a fact or rule. |
 | `feedback-router` | Route feedback to a proposal target based on evidence and scope. |
-| `validation-planner` | Produce validation commands from affected workspaces and change type. |
 
 Executable implementations may later live in `scripts/harness/`. Until then, these are protocol specs only.

@@ -2,7 +2,7 @@
 
 > Local entry for `apps/canvas-workspace`.
 > Repository harness entry: `../../harness/README.md`.
-> Claude Code specific guidance lives in `CLAUDE.md`.
+> `CLAUDE.md` is a thin import shell of this file — edit here, never both.
 
 ## Module Positioning
 
@@ -17,28 +17,59 @@ the canvas store and runtime-control server, and hosts external node plugins
 such as `@pulse-canvas/nodes` through manifests and plugin registries.
 
 Keep this file as the local router. Put durable implementation detail in
-`CLAUDE.md`, existing workspace docs, or tests. Add new workspace docs only
-when a behavior or operating runbook needs a durable source of truth.
+existing workspace docs or tests. Add new workspace docs only when a behavior
+or operating runbook needs a durable source of truth.
+
+**Local harness layout** — `harness/` is this workspace's repo-harness
+container, aligned with `packages/engine/harness/` (migrated 2026-07-07;
+before that the directory held only the Electron driver):
+- `harness/knowledge/` — conventions, main domain map, renderer surfaces,
+  plugin node contract, security posture, known defects (moved from `docs/`;
+  `docs/` now keeps only project records like perf analyses and roadmaps).
+- `harness/tools/driver/` — the headless-Electron driver (launch profiles,
+  CDP, screenshots, logs). It is BOTH the repo-harness Tool face and a
+  product-operation CLI; `pnpm --filter canvas-workspace harness <cmd>`
+  still points at it.
+- `harness/tools/describe-canvas.mjs` — static structure snapshot: agent-tool
+  registry (45), IPC handle↔invoke contract diff, node-type union↔factory
+  sync. Run before touching any of those registries; exits non-zero on a
+  broken invoke or union/factory drift.
+- `harness/skills/` — SKILL.md procedures for coding agents operating this
+  app (`canvas-harness`, `canvas-onboard-harness`).
+- `harness/spec/` — decision-pending intent (currently one entry: sanctioned
+  node-extension path). Empty is the success state; surface definition lives
+  in `packages/engine/harness/spec/README.md`.
+- `harness/validate/validation.yaml` — path→check bindings for the repo runner.
+
+**"skills" disambiguation** — `harness/skills/*/SKILL.md` are procedures for
+CODING agents working on this app; `src/main/agent/skills/` is the PRODUCT
+runtime-skills feature of the in-app Canvas Agent; `files/skill-installer.ts`
+installs the latter. Do not mix them.
 
 ## Knowledge Navigation
 
 | Task | Read |
 |---|---|
 | Repository harness and root validation | `../../harness/README.md`, `../../harness/validate/validation.yaml` |
-| App overview and Claude-specific notes | `README.md`, `CLAUDE.md` |
-| Runtime harness | `harness/README.md`, `skills/canvas-harness/SKILL.md`, `skills/canvas-onboard-harness/SKILL.md` |
-| Main/renderer/preload boundaries | `docs/conventions/README.md`, `docs/conventions/architecture-boundaries.md` |
-| Renderer conventions | `docs/conventions/frontend.md` |
-| Main-process conventions | `docs/conventions/backend.md` |
-| Main domain map | `docs/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
-| Renderer routes and full-app surfaces | `docs/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
+| App overview | `README.md` |
+| Drive the real app (launch/CDP/screenshot) | `harness/tools/driver/README.md`, `harness/skills/canvas-harness/SKILL.md`, `harness/skills/canvas-onboard-harness/SKILL.md`; what "correct" looks like: `harness/knowledge/renderer-surfaces.md` |
+| Security posture, agent execution reach, disk/config surfaces | `harness/knowledge/security-posture.md` |
+| Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
+| Main/renderer/preload boundaries | `harness/knowledge/conventions/README.md`, `harness/knowledge/conventions/architecture-boundaries.md` |
+| Renderer conventions | `harness/knowledge/conventions/frontend.md` |
+| Main-process conventions | `harness/knowledge/conventions/backend.md` |
+| Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
+| Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
-| Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` |
+| Add/change a node TYPE (renderer registration points) | FIRST `harness/spec/node-extension-path.md` (host type vs plugin is undecided), then `src/shared/canvas.ts` (type union + data shape), `src/renderer/src/utils/nodeFactory.ts` (creation defaults), `src/renderer/src/components/CanvasNodeView/` (type→body dispatch) |
+| Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
+| Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |
 | Runtime-control server | `src/main/runtime/control-server.ts` |
-| Plugin node contract | `docs/plugin-node-mf2.md`, `src/plugins/types.ts`, `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/mock-node/` |
+| Plugin node contract | `harness/knowledge/plugin-node-mf2.md`, `src/plugins/types.ts`, `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/mock-node/` |
+| Project records (perf analyses, roadmaps) | `docs/` |
 | Channel plugin | `src/plugins/main/channel/README.md`, `src/plugins/main/channel/` |
 | Boundary and file-size gates | `src/main/__tests__/import-boundaries.test.ts`, `src/main/__tests__/file-size-governance.test.ts` |
 | Storage/plugin/runtime tests | `src/main/__tests__/canvas-storage.test.ts`, `src/plugins/main/__tests__/registry.test.ts`, `src/main/runtime/__tests__/control-server.test.ts` |
@@ -59,9 +90,9 @@ when a behavior or operating runbook needs a durable source of truth.
 - Runtime data belongs under user locations such as `~/.pulse-coder/canvas/`,
   `~/.pulse-coder/canvas-runtime/`, and model/settings files. Do not write user
   runtime state into the repository.
-- `harness/` launches the real Electron app. Use `temp`, `demo`, or `clone`
-  profiles by default; use `real --allow-real-writes` only after explicit user
-  intent because it can mutate real Pulse Canvas data.
+- `harness/tools/driver/` launches the real Electron app. Use `temp`, `demo`,
+  or `clone` profiles by default; use `real --allow-real-writes` only after
+  explicit user intent because it can mutate real Pulse Canvas data.
 - The app owns v2 canvas storage migration, PTY sessions, runtime-control
   endpoints, plugin activation, and UI-visible data recovery. The CLI adapts to
   those contracts but does not own them.
@@ -134,5 +165,6 @@ pnpm --filter canvas-workspace package:linux
   `pulse-canvas` commands.
 - `src/plugins/main/`, `src/plugins/renderer/`, `src/plugins/types.ts`: Canvas
   plugin registries and shared plugin contracts.
-- `harness/`: app-specific Electron launch, CDP, screenshot, input, logs, and
-  cleanup harness.
+- `harness/`: workspace harness container — `knowledge/` (conventions + maps),
+  `tools/driver/` (Electron launch, CDP, screenshot, input, logs, cleanup),
+  `skills/` (agent procedures), `validate/` (check bindings).

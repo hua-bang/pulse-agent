@@ -22,7 +22,7 @@ npm run pm2:restart      # Rebuild + restart
 npm run pm2:logs         # Stream logs
 ```
 
-No dedicated test suite — this is a runtime app. Manual testing uses `curl` against `/internal/agent/run`.
+Helper test suites run via `pnpm --filter @pulse-coder/remote-server test` (Vitest; `pretest` builds `pulse-coder-plugin-kit` first). End-to-end behavior is still tested manually with `curl` against `/internal/agent/run`.
 
 ## Architecture
 

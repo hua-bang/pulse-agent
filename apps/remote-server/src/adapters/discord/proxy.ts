@@ -18,8 +18,10 @@ export function getDiscordProxyDispatcher(): ProxyAgent | undefined {
   const parsed = new URL(rawProxyUrl);
   const normalizedProxyUrl = parsed.toString();
 
+  // Cache key must be the raw env value we compare against on the next call;
+  // normalization can add a trailing slash and would make the cache never hit.
   cachedProxyAgent = new ProxyAgent(normalizedProxyUrl);
-  cachedProxyUrl = normalizedProxyUrl;
+  cachedProxyUrl = rawProxyUrl;
 
   if (!hasLoggedProxyConfig) {
     hasLoggedProxyConfig = true;

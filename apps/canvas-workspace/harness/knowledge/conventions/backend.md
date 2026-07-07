@@ -2,7 +2,7 @@
 
 Applies to `src/main/**` (and `src/plugins/main/**`). This is the privileged
 Electron main process. See [`architecture-boundaries.md`](./architecture-boundaries.md)
-for import rules and `docs/main-domain-modules.md` for the full module map.
+for import rules and `harness/knowledge/main-domain-modules.md` for the full module map.
 
 ## Domain modules
 
@@ -18,6 +18,7 @@ src/main/
   canvas/             # Canvas persistence: store, storage, migration, broadcast, welcome workspace
   files/              # File read/write/dialog IPC + filesystem watcher
   generation/         # HTML generation + streaming IPC
+  perf/               # Main-process perf counters (loop delay) feeding the perf gates
   runtime/            # Runtime control server, MCP helpers
   settings/           # App/model/plugin settings persistence + IPC
   terminal/           # node-pty session management
@@ -79,5 +80,6 @@ the renderer-facing API. Bridge modules:
 
 - Domain tests live in `src/main/__tests__/` on **vitest**
   (`pnpm --filter canvas-workspace test`).
-- The boundary and file-size governance suites also live here and gate CI — keep
-  them green.
+- The boundary and file-size governance suites also live here — keep them
+  green. They run via `pnpm --filter canvas-workspace test` (manual / repo
+  harness runner), not in CI: the only CI is the perf workflow.

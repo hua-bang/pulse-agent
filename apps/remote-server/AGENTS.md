@@ -50,11 +50,11 @@ pnpm --filter @pulse-coder/remote-server start
 
 `start` runs `dist/index.cjs`, so build first after source changes. PM2 helpers in `package.json` are operational commands, not default validation.
 
-For docs-only changes, no build is required; check referenced paths and command names instead. The package currently has no workspace-local `test` script. There are Vitest files under `src/`, but the ad hoc root-level targeted run is not a clean default check until existing helper-test failures are fixed.
+For docs-only changes, no build is required; check referenced paths and command names instead. `pnpm --filter @pulse-coder/remote-server test` runs the Vitest helper suites under `src/`; `pretest` builds `pulse-coder-plugin-kit` first so the `pulse-coder-plugin-kit/vault` import resolves.
 
 ## Validation Notes
 
-- Default code check: `pnpm --filter @pulse-coder/remote-server build`.
+- Default code checks: `pnpm --filter @pulse-coder/remote-server test`, then `pnpm --filter @pulse-coder/remote-server build`.
 - Runtime smoke, when changing routes/dispatcher/runner/adapters and credentials are available: start `dev`, then call `/health`; for internal automation, also smoke `/internal/agent/run` from loopback with `INTERNAL_API_SECRET`.
 - Escalate to engine, memory-plugin, plugin-kit, ACP, or langfuse checks when changes cross those integration boundaries.
 

@@ -2,7 +2,7 @@
 
 An Electron desktop app that provides a free-form canvas workspace for AI-assisted coding. Users arrange **nodes** on an infinite canvas and interact with an embedded AI agent.
 
-> Deeper detail lives downstream: [`AGENTS.md`](./AGENTS.md) (local router + constraints), [`docs/`](./docs/) (architecture, conventions, renderer surfaces), and [`harness/README.md`](./harness/README.md) (Electron launch harness). Repository-level routing is in [`../../harness/README.md`](../../harness/README.md).
+> Deeper detail lives downstream: [`AGENTS.md`](./AGENTS.md) (local router + constraints), [`harness/knowledge/`](./harness/knowledge/) (architecture, conventions, renderer surfaces), and [`harness/tools/driver/README.md`](./harness/tools/driver/README.md) (Electron launch harness). [`docs/`](./docs/) keeps project records (perf analyses, roadmaps). Repository-level routing is in [`../../harness/README.md`](../../harness/README.md).
 
 ## Tech Stack
 
@@ -70,7 +70,7 @@ src/
 
 The renderer communicates with the main process exclusively through `window.canvasWorkspace` (typed in `types.ts`), which is bridged via `src/preload/`.
 
-See [`docs/main-domain-modules.md`](./docs/main-domain-modules.md) for the domain-based `src/main` module layout and [`docs/renderer-surfaces.md`](./docs/renderer-surfaces.md) for the renderer surface breakdown. Coding conventions live in [`docs/conventions/`](./docs/conventions/README.md).
+See [`harness/knowledge/main-domain-modules.md`](./harness/knowledge/main-domain-modules.md) for the domain-based `src/main` module layout and [`harness/knowledge/renderer-surfaces.md`](./harness/knowledge/renderer-surfaces.md) for the renderer surface breakdown. Coding conventions live in [`harness/knowledge/conventions/`](./harness/knowledge/conventions/README.md).
 
 ## Dev & Build Commands
 
@@ -115,7 +115,7 @@ pnpm --filter canvas-workspace harness logs --lines 120
 pnpm --filter canvas-workspace harness close --cleanup
 ```
 
-Use `temp`, `demo`, or `clone` profiles by default; `real --allow-real-writes` can mutate real Pulse Canvas data. See [`harness/README.md`](./harness/README.md) and [`AGENTS.md`](./AGENTS.md) for the full command set and profile semantics.
+Use `temp`, `demo`, or `clone` profiles by default; `real --allow-real-writes` can mutate real Pulse Canvas data. See [`harness/tools/driver/README.md`](./harness/tools/driver/README.md) and [`AGENTS.md`](./AGENTS.md) for the full command set and profile semantics.
 
 ## Canvas Agent
 

@@ -15,7 +15,15 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 |---|---|
 | Package overview and scripts | `README.md`, `package.json` |
 | Public contracts | `harness/knowledge/contracts.md` |
-| Architecture map | `harness/knowledge/architecture.md` |
+| Architecture map + runtime invariants | `harness/knowledge/architecture.md` |
+| Plugin mechanism and authoring | `harness/knowledge/plugin-system.md` |
+| Loop lifecycle, timeouts, retries | `harness/knowledge/loop-lifecycle.md` |
+| Built-in tools reference | `harness/knowledge/tools-reference.md` |
+| Embedding the engine in a host | `harness/knowledge/host-integration.md` |
+| Env knobs, defaults, precedence chains | `harness/knowledge/config-reference.md` |
+| Security posture, sandboxing, threat surfaces | `harness/knowledge/security-posture.md` |
+| Confirmed-but-unfixed defects | `harness/knowledge/known-defects.md` |
+| Undecided design/contract intent (decision-pending) | `harness/spec/README.md` |
 | Validation | `harness/validate/README.md`, `harness/validate/validation.yaml` |
 | Public exports | `src/index.ts` |
 | Engine bootstrap and options | `src/Engine.ts` |
@@ -30,10 +38,12 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 
 - Prefer plugin, hook, tool, or service extension points over engine-loop hardcoding.
 - Preserve tool merge order: built-in tools, then plugin tools, then `EngineOptions.tools` as the highest-priority override layer.
-- Built-in plugins are loaded automatically unless `disableBuiltInPlugins` is set; adding, removing, or reordering them can affect CLI, remote server, canvas, and agent teams consumers.
+- Built-in plugins are loaded automatically unless `disableBuiltInPlugins` is set; adding, removing, or reordering them can affect CLI, remote server, canvas, and agent teams consumers. remote-server and canvas disable the defaults and hand-assemble their own ordered lists — new default plugins do NOT propagate to them automatically.
 - Keep source imports ESM-style and follow package-local TypeScript strictness.
 - Public exports, `EngineOptions`, hook signatures, service names, built-in tool schemas, and built-in plugin behavior are contracts; read `harness/knowledge/contracts.md` before changing them.
 - Preserve `.pulse-coder/*` paths and legacy `.coder/*` compatibility unless there is an explicit migration plan.
+- The public surface lives in TWO barrels: `src/index.ts` and `src/built-in/index.ts` (`./built-in` is wider). Export changes must consider both — remote-server and canvas import `./built-in` directly.
+- `tsconfig.json` has no `rootDir` on purpose: the agent-teams built-in imports orchestrator source through the root paths alias, and re-adding `rootDir` breaks `typecheck` with TS6059.
 - Durable engine guidance changes should update this file or the local `harness/` files instead of adding parallel notes.
 
 ## Common Commands
@@ -57,3 +67,15 @@ Default checks are `test` and `typecheck`. Use `build` for public exports or pac
 - `src/built-in/index.ts`: built-in plugin registration order and public built-in plugin exports.
 - `src/tools/index.ts`: built-in tool registry for file, shell, Tavily, image generation, clarification, and deferred demo tools.
 - `harness/knowledge/`, `harness/validate/`: package contract, architecture, and validation source of truth.
+
+Local harness surfaces: `knowledge/`, `spec/`, `validate/`, `tools/`, `skills/`.
+- `harness/tools/describe-engine.mjs` — structure snapshot (plugin order + deps, both-barrel asymmetry, full tool registry with defer_loading) from the built package. Run before changing built-in plugins/tools so you edit against ground truth, not drift-prone prose. Reads `dist`, so build first.
+- `harness/skills/add-builtin-plugin.md` — ordered procedure for adding/modifying a built-in plugin (sequence + landmines + pointers, not restated facts).
+- `harness/skills/add-builtin-tool.md` — the parallel procedure for adding/modifying a built-in tool (non-blocking/shell-safe rule, defer_loading, registry + escalation).
+- `harness/spec/` — decision-pending intent: places where current behavior may not be intended and a maintainer must choose (public-surface accidents, inert user-config, gating posture, dead knobs). Distinct from `knowledge/` (current-state facts, incl. `known-defects.md`) and `skills/` (how-to). An empty `spec/` is the success state.
+Pass/fail checks stay in the repo runner (`scripts/harness/run-harness-check.mjs`); these local surfaces cover orientation (tool) and safe-change sequence (skill), which the runner does not.
+
+## Failure Capture
+
+- Engine-origin failures and their guards are recorded in root `AGENTS.md` §6 (history over-pruning, execSync freezing the Electron host, UTF-8 chunk-split corruption); regression tests live in `src/core/loop.test.ts`.
+- Tools must be non-blocking and shell-safe: pass args as arrays to async `execFile`/`spawn`, never build shell strings (both `bash.ts` and `grep.ts` were fixed after blocking-I/O / injection bugs — see `harness/knowledge/architecture.md` Risk Areas).

@@ -6,6 +6,8 @@
     "prebuild": "pnpm --filter pulse-coder-orchestrator build && pnpm --filter pulse-coder-engine build && SKIP_DTS=1 pnpm --filter pulse-coder-acp --filter pulse-coder-memory-plugin --filter pulse-coder-plugin-kit --filter pulse-coder-langfuse-plugin build",
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
+    "pretest": "SKIP_DTS=1 pnpm --filter pulse-coder-plugin-kit build",
+    "test": "vitest run",
     "start": "node dist/index.cjs",
     "pm2:start": "pnpm run build && pm2 start ecosystem.config.cjs --env production",
     "pm2:restart": "pnpm run build && pm2 startOrRestart ecosystem.config.cjs --env production",
@@ -31,6 +33,7 @@
     "@types/node": "^20.0.0",
     "tsup": "^8.4.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
   }
 }
