@@ -184,7 +184,7 @@ The current pilot maps onto this design as follows:
 |---|---|
 | Root control surface | `AGENTS.md` and `CLAUDE.md` |
 | Root Knowledge | Root `AGENTS.md`, `CLAUDE.md`, `harness/README.md`, `pnpm-workspace.yaml`, workspace entries, selected `docs/` |
-| Root Tool | Root `AGENTS.md`, `harness/README.md`, executable tools such as `harness/tools/graph-viewer/server.mjs`, and self-documenting tool directories when needed |
+| Root Tool | Root `AGENTS.md`, `harness/README.md`, executable tools under `scripts/harness/`, and self-documenting tool directories when needed |
 | Root Validate | Root `AGENTS.md`, `harness/README.md`, optional root overlay in `harness/validate/validation.yaml`, and workspace-local validation docs |
 | Skills | Protocol docs when present; runtime task skills under `.pulse-coder/skills/` are a separate product layer and must not be merged with repo harness protocols. |
 | Workspace control surface | Each workspace `AGENTS.md` |
@@ -243,6 +243,6 @@ Keep workspace entries local and differential. Do not copy root principles or ro
 3. Keep surface routing in `AGENTS.md` until a surface reaches the README threshold.
 4. Use workspace-local `harness/` as the preferred container when local Knowledge, Tool, Validate, or Skills assets need a home.
 5. Keep root Validate minimal while migrating detailed validation into workspace-local `harness/validate/`.
-6. Teach tools such as `graph-viewer` to consume workspace-local validation when those files exist.
+6. Keep `scripts/harness/` tools consuming workspace-local validation files as the primary source (done for the runner and drift check).
 7. Make Validate executable by adding a runner for `harness/validate/validation.yaml` plus workspace-local validation files.
 8. Add Spec only when a concrete feature, protocol, or migration needs normative design and history.

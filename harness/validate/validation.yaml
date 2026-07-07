@@ -1,6 +1,19 @@
 version: 1
 
 pathRules:
+  # Overlay rules see every changed path repo-wide (the runner matches them
+  # against repo-relative paths regardless of workspace ownership).
+  - name: harness-data
+    paths:
+      - harness/**
+      - AGENTS.md
+      - CLAUDE.md
+      - "**/AGENTS.md"
+      - "**/harness/**"
+      - pnpm-workspace.yaml
+    required:
+      - node scripts/harness/check-harness.mjs
+
   - name: root-workspace-config
     paths:
       - package.json

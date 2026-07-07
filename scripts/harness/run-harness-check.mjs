@@ -18,74 +18,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { parseSimpleYaml } from './simple-yaml.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-
-// --- YAML subset parser (mirrors parseSimpleYaml in harness/tools/graph-viewer/server.mjs) ---
-
-function parseScalar(value) {
-  const trimmed = value.trim();
-  if (!trimmed) return '';
-  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
-    return trimmed.slice(1, -1);
-  }
-  if (trimmed === 'true') return true;
-  if (trimmed === 'false') return false;
-  if (/^-?\d+(?:\.\d+)?$/.test(trimmed)) return Number(trimmed);
-  return trimmed;
-}
-
-function parseSimpleYaml(text) {
-  const root = {};
-  const stack = [{ indent: -1, value: root }];
-  const lines = text.split(/\r?\n/);
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const raw = lines[i];
-    if (!raw.trim() || raw.trimStart().startsWith('#')) continue;
-    const indent = raw.match(/^\s*/)[0].length;
-    const line = raw.trim();
-
-    while (stack.length > 1 && indent <= stack[stack.length - 1].indent) stack.pop();
-    const parent = stack[stack.length - 1].value;
-
-    if (line.startsWith('- ')) {
-      if (!Array.isArray(parent)) continue;
-      const itemText = line.slice(2).trim();
-      if (!itemText) {
-        const obj = {};
-        parent.push(obj);
-        stack.push({ indent, value: obj });
-      } else if (itemText.includes(': ')) {
-        const [key, ...rest] = itemText.split(':');
-        const obj = { [key.trim()]: parseScalar(rest.join(':')) };
-        parent.push(obj);
-        stack.push({ indent, value: obj });
-      } else {
-        parent.push(parseScalar(itemText));
-      }
-      continue;
-    }
-
-    const match = line.match(/^([^:]+):(.*)$/);
-    if (!match) continue;
-    const key = match[1].trim();
-    const rest = match[2].trim();
-
-    if (rest) {
-      parent[key] = parseScalar(rest);
-      continue;
-    }
-
-    const next = lines.slice(i + 1).find((candidate) => candidate.trim() && !candidate.trimStart().startsWith('#'));
-    const nextTrim = next?.trim() ?? '';
-    const container = nextTrim.startsWith('- ') ? [] : {};
-    parent[key] = container;
-    stack.push({ indent, value: container });
-  }
-
-  return root;
-}
 
 // --- workspace discovery (pnpm-workspace.yaml is the membership SSOT) ---
 
@@ -251,22 +186,20 @@ function main() {
     collectForRoot([], plan, { all: true });
   } else {
     const byWorkspace = new Map();
-    const rootPaths = [];
     for (const p of changed) {
       const posix = p.split(path.sep).join('/');
       const owner = workspaces
         .filter((ws) => posix.startsWith(`${ws}/`))
         .sort((a, b) => b.length - a.length)[0];
-      if (owner) {
-        if (!byWorkspace.has(owner)) byWorkspace.set(owner, []);
-        byWorkspace.get(owner).push(posix.slice(owner.length + 1));
-      } else {
-        rootPaths.push(posix);
-      }
+      if (!owner) continue;
+      if (!byWorkspace.has(owner)) byWorkspace.set(owner, []);
+      byWorkspace.get(owner).push(posix.slice(owner.length + 1));
     }
     affected = [...byWorkspace.keys()];
     for (const [ws, rels] of byWorkspace) collectForWorkspace(ws, rels, plan);
-    collectForRoot(rootPaths, plan);
+    // The root file is an overlay: its pathRules see every changed path
+    // (repo-relative), not just the ones outside any workspace.
+    collectForRoot(changed.map((p) => p.split(path.sep).join('/')), plan);
   }
 
   console.log(`Affected workspaces: ${affected.length ? affected.join(', ') : '(none)'}`);

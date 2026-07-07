@@ -42,8 +42,8 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Add a canvas node plugin | `packages/canvas-nodes/` |
 | Add/remove a workspace | `pnpm-workspace.yaml` + workspace `AGENTS.md` + workspace `harness/validate/validation.yaml` + root overlay if cross-workspace impact changes |
 | Update what to run for a workspace path | affected workspace `harness/validate/validation.yaml` |
-| Review changes (repo-aware) | affected workspace `AGENTS.md` + local validation + `node harness/tools/graph-viewer/server.mjs --once` |
-| Inspect harness coverage | `node harness/tools/graph-viewer/server.mjs --once` |
+| Review changes (repo-aware) | affected workspace `AGENTS.md` + `node scripts/harness/run-harness-check.mjs` |
+| Inspect harness coverage | `node scripts/harness/check-harness.mjs` |
 | Run bound checks for a change | `node scripts/harness/run-harness-check.mjs` |
 
 ## 2. Hard boundaries (real values)
@@ -63,7 +63,7 @@ Active pnpm workspaces = `packages/*` + `apps/remote-server` + `apps/teams-cli` 
 
 ## 4. Prerequisite gates (honest: none are mechanical)
 
-The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets + runtime counter gates on PRs touching that app. Beyond it there is NO CI for tests/typecheck, NO git hooks, and NO husky/lint-staged/commitlint. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are executed by the manual runner `node scripts/harness/run-harness-check.mjs` — nothing triggers it for you; run it yourself. Wired harness executables: `graph-viewer` and the runner. Other tool ideas are not on-disk tools until implemented.
+The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size ratchets + runtime counter gates on PRs touching that app. Beyond it there is NO CI for tests/typecheck, NO git hooks, and NO husky/lint-staged/commitlint. Workspace-local `harness/validate/validation.yaml` files and root `harness/validate/validation.yaml` are executed by the manual runner `node scripts/harness/run-harness-check.mjs` — nothing triggers it for you; run it yourself. Wired harness executables live in `scripts/harness/` (`run-harness-check.mjs`, `check-harness.mjs`). Other tool ideas are not on-disk tools until implemented.
 
 **Runtime skills are product config, not repo harness protocols:**
 
@@ -95,7 +95,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - Cross-package / contract change → also apply relevant escalation rules in root `harness/validate/validation.yaml`.
 - Full local sweep → `pnpm run build` (SKIP_DTS=1), then `pnpm run test:core`.
 - `canvas-workspace` is in `test:all`/`build:all` but NOT `build:core`/`test:core` — include it explicitly when you touch it.
-- Harness data change → `node harness/tools/graph-viewer/server.mjs --once` must report `harnessGaps:0`.
+- Harness data change → `node scripts/harness/check-harness.mjs` must report `harnessGaps: 0` (the runner triggers it automatically for harness paths).
 
 **Red command — do not promote:** `pnpm run test:apps` can exit 1 because `apps/coder-demo`'s test script is `echo Error && exit 1`. Use targeted `pnpm --filter <pkg> test`; do not treat a bare `test:apps` failure as a regression unless you've filtered out excluded apps. Likewise a green `pnpm test` is not proof for `plugin-kit`/`langfuse-plugin`/`orchestrator`/`teams-cli` (no real specs).
 
@@ -105,7 +105,7 @@ Run the commands the affected workspace's `harness/validate/validation.yaml` bin
 - **Blocking I/O froze the Electron host**: `bash` tool used `execSync`, blocking the event loop and freezing `canvas-workspace` UI. Guard: `bash.ts` now uses async `spawn` with `SIGTERM`→`SIGKILL`. Rule: never `execSync`/blocking I/O in `packages/engine/src/tools/*` — the engine runs on GUI main threads. (Two wrong-root-cause fixes — pulse-sandbox interrupt, PTY coalescing — were reverted; confirm the actual blocking call before patching adjacent paths.)
 - **UTF-8 chunk-split corruption**: async rewrite decoded each pipe chunk independently, corrupting multi-byte CJK. Guard: collect raw `Buffer`s and decode once.
 - **MCP reload stale/empty state**: reload didn't activate the target scope first. Guard: `activateScope` before reload, force fresh probe.
-- **Stale doc claimed canvas-workspace excluded**: `apps/EXPERIMENTAL.md` contradicts `pnpm-workspace.yaml:5`. Guard: `pnpm-workspace.yaml` owns workspace membership; run `graph-viewer --once` to detect coverage drift; do not trust prose workspace lists.
+- **Stale doc claimed canvas-workspace excluded**: `apps/EXPERIMENTAL.md` contradicts `pnpm-workspace.yaml:5`. Guard: `pnpm-workspace.yaml` owns workspace membership; run `check-harness.mjs` to detect coverage drift; do not trust prose workspace lists.
 - **Declared-but-unwired tests masked a real bug**: `remote-server` carried 6 Vitest files with no `test` script and no vitest dep; once wired, they exposed a ProxyAgent cache-key bug (cache stored the normalized URL but compared the raw env value — never hit, new agent per download). Guard: suite bound in the app's `harness/validate/validation.yaml` (`pretest` builds plugin-kit); when bootstrapping any workspace, cross-check test files × test script before trusting "no tests here".
 
 Failures are captured in fix commits + regression tests — debug via `git log -- <file>` and focused tests, not by grepping for TODOs.
