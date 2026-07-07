@@ -106,7 +106,7 @@ export function useRightDock(): {
   newTerminal: () => void;
   toggleTerminal: () => void;
   closeTerminal: (id?: string) => void;
-  setTerminalAgentType: (id: string, agentType: string, workspaceId?: string) => void;
+  setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) => void;
   collapse: () => void;
   notifyChatActivity: () => void;
 } {
@@ -121,7 +121,7 @@ export function useRightDock(): {
       newTerminal: () => store.newTerminal(),
       toggleTerminal: () => store.toggleTerminal(),
       closeTerminal: (id?: string) => store.closeTerminal(id),
-      setTerminalAgentType: (id: string, agentType: string, workspaceId?: string) =>
+      setTerminalAgentType: (id: string, agentType?: string, workspaceId?: string) =>
         store.setTerminalAgentType(id, agentType, workspaceId),
       collapse: () => store.collapse(),
       notifyChatActivity: () => store.notifyChatActivity(),

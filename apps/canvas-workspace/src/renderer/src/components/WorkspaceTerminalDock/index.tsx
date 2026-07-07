@@ -31,7 +31,7 @@ interface WorkspaceTerminalDockProps {
   nodes: CanvasNode[];
   open: boolean;
   onClose: () => void;
-  onAgentTypeDetected?: (agentType: string) => void;
+  onAgentTypeChange?: (agentType?: string) => void;
   placement?: 'bottom' | 'pane';
 }
 
@@ -76,7 +76,7 @@ export const WorkspaceTerminalDock = ({
   nodes,
   open,
   onClose,
-  onAgentTypeDetected,
+  onAgentTypeChange,
   placement = 'bottom',
 }: WorkspaceTerminalDockProps) => {
   const { t } = useI18n();
@@ -158,7 +158,8 @@ export const WorkspaceTerminalDock = ({
     codingAgentActiveRef.current = false;
     terminalOutputTailRef.current = '';
     setMentionHintVisible(false);
-  }, []);
+    onAgentTypeChange?.(undefined);
+  }, [onAgentTypeChange]);
 
   const startCodingAgentHint = useCallback(() => {
     if (codingAgentActiveRef.current) return;
@@ -182,7 +183,7 @@ export const WorkspaceTerminalDock = ({
         commandInputRef.current = '';
         const agentType = detectCodingAgentCommand(command);
         if (agentType) {
-          onAgentTypeDetected?.(agentType);
+          onAgentTypeChange?.(agentType);
           startCodingAgentHint();
         }
       } else if (ch === '\x7f' || ch === '\b') {
@@ -193,7 +194,7 @@ export const WorkspaceTerminalDock = ({
         commandInputRef.current += ch;
       }
     }
-  }, [onAgentTypeDetected, startCodingAgentHint]);
+  }, [onAgentTypeChange, startCodingAgentHint]);
 
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;

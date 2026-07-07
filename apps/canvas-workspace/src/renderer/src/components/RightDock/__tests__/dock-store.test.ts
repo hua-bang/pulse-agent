@@ -268,6 +268,8 @@ describe('DockStore', () => {
 
     dock.setActiveWorkspace('ws-a');
     expect(dock.getSnapshot().terminalTabs.map((tab) => tab.agentType)).toEqual(['claude-code', 'codex']);
+    dock.setTerminalAgentType(terminalTabId(2), undefined, 'ws-a');
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.agentType)).toEqual(['claude-code', undefined]);
   });
 
   it('renames terminal tabs and ignores blanks or non-terminal ids', () => {
