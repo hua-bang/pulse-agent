@@ -82,6 +82,6 @@ Important examples:
 
 - `src/core/loop.ts`: history pruning, retries, aborts, tool streaming, timeouts, and compaction are tightly coupled.
 - `src/tools/bash.ts`: must stay async and decode buffered UTF-8 safely.
-- `src/tools/grep.ts`: currently uses blocking `execSync`; treat as a known risk when changing tools.
+- `src/tools/grep.ts`: now uses async `execFile` with an arg array (was blocking `execSync` with a shell string — a command-injection + blocking-I/O bug, fixed with a regression test).
 - `src/built-in/index.ts`: plugin order and exports affect hosts.
 - `src/index.ts`: public exports affect downstream package builds.

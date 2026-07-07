@@ -68,4 +68,4 @@ Default checks are `test` and `typecheck`. Use `build` for public exports or pac
 ## Failure Capture
 
 - Engine-origin failures and their guards are recorded in root `AGENTS.md` §6 (history over-pruning, execSync freezing the Electron host, UTF-8 chunk-split corruption); regression tests live in `src/core/loop.test.ts`.
-- Known open risk: `src/tools/grep.ts` still uses blocking `execSync` — see `harness/knowledge/architecture.md` Risk Areas before touching tools.
+- Tools must be non-blocking and shell-safe: pass args as arrays to async `execFile`/`spawn`, never build shell strings (both `bash.ts` and `grep.ts` were fixed after blocking-I/O / injection bugs — see `harness/knowledge/architecture.md` Risk Areas).
