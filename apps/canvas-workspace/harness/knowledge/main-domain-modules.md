@@ -158,7 +158,7 @@ done. Still open:
 
 These directions are enforced by `src/main/__tests__/import-boundaries.test.ts`
 (run via `pnpm --filter canvas-workspace test` — there is no CI for it; see
-`docs/conventions/architecture-boundaries.md`).
+`harness/knowledge/conventions/architecture-boundaries.md`).
 
 ## Compatibility Rules
 

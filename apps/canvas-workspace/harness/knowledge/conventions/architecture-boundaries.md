@@ -56,7 +56,7 @@ Practical rules:
 
 ## Refactor discipline
 
-When restructuring (from `docs/main-domain-modules.md`):
+When restructuring (from `harness/knowledge/main-domain-modules.md`):
 
 - Prefer **domain folders** over technical buckets (`services/`, `utils/`,
   global `ipc/`). Only create a shared folder when a file is genuinely shared

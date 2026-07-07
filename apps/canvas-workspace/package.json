@@ -15,7 +15,7 @@
     "typecheck:renderer": "tsc --noEmit -p tsconfig.json",
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
-    "harness": "node ./harness/cli.mjs",
+    "harness": "node ./harness/tools/driver/cli.mjs",
     "package": "electron-vite build && electron-builder",
     "package:mac": "electron-vite build && electron-builder --mac",
     "package:mac:arm64": "electron-vite build && electron-builder --mac --arm64",

@@ -2,7 +2,7 @@
 
 Applies to `src/main/**` (and `src/plugins/main/**`). This is the privileged
 Electron main process. See [`architecture-boundaries.md`](./architecture-boundaries.md)
-for import rules and `docs/main-domain-modules.md` for the full module map.
+for import rules and `harness/knowledge/main-domain-modules.md` for the full module map.
 
 ## Domain modules
 

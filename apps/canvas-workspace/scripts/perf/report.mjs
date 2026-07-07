@@ -30,8 +30,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readSession } from '../../harness/src/session.mjs';
-import { waitFor } from '../../harness/src/utils.mjs';
+import { readSession } from '../../harness/tools/driver/src/session.mjs';
+import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const args = process.argv.slice(2);
@@ -53,7 +53,7 @@ const step = (label) => console.log(`\n\x1b[1m▸ ${label}\x1b[0m`);
 const node = (script, scriptArgs = []) =>
   spawnSync(process.execPath, [join(appRoot, script), ...scriptArgs], { cwd: appRoot, stdio: 'inherit' });
 const harness = (harnessArgs, extraEnv = {}) =>
-  spawnSync(process.execPath, [join(appRoot, 'harness/cli.mjs'), ...harnessArgs], {
+  spawnSync(process.execPath, [join(appRoot, 'harness/tools/driver/cli.mjs'), ...harnessArgs], {
     cwd: appRoot,
     stdio: 'inherit',
     env: { ...process.env, ...extraEnv },

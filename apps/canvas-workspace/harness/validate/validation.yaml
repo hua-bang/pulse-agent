@@ -12,14 +12,13 @@ pathRules:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
 
-  # The product harness (headless Electron driver) carries its own vitest
-  # suite (harness/src/__tests__/headless.test.mjs), picked up by the default
-  # vitest include. Without this rule a cdp/launch/session change triggers
-  # nothing.
+  # The headless Electron driver (harness Tool face) carries its own vitest
+  # suite (harness/tools/driver/src/__tests__/headless.test.mjs), picked up by
+  # the default vitest include. Without this rule a cdp/launch/session change
+  # triggers nothing.
   - name: product-harness
     paths:
-      - harness/src/**
-      - harness/cli.mjs
+      - harness/tools/driver/**
     required:
       - pnpm --filter canvas-workspace test
 

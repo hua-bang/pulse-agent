@@ -4,7 +4,7 @@
  *
  * Prereq: a live harness session (the app already running):
  *   pnpm --filter canvas-workspace build
- *   node harness/cli.mjs start --profile temp        # DISPLAY required (xvfb ok)
+ *   node harness/tools/driver/cli.mjs start --profile temp   # DISPLAY required (xvfb ok)
  *   pnpm --filter canvas-workspace perf:scenarios [--seed-nodes 100] [--seed-webpages 30]
  *
  * `--seed-webpages N` (opt-in, default 0): N of the `--seed-nodes` total are
@@ -39,9 +39,9 @@
 import { promises as fs } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { requireLiveSession } from '../../harness/src/session.mjs';
-import { withPage } from '../../harness/src/cdp.mjs';
-import { waitFor } from '../../harness/src/utils.mjs';
+import { requireLiveSession } from '../../harness/tools/driver/src/session.mjs';
+import { withPage } from '../../harness/tools/driver/src/cdp.mjs';
+import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const baselinesPath = join(appRoot, 'perf/baselines.json');
