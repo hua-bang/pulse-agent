@@ -38,10 +38,10 @@ Expect `alive: true`, `cdpReady: true`, and a `Pulse Canvas` page target.
 4. Read the renderer text before judging the screenshot:
 
 ```bash
-pnpm --filter canvas-workspace harness eval-renderer "(() => { const text = document.body.innerText || ''; return { title: document.title, hasWelcome: text.includes('Welcome to Pulse Canvas'), hasOverview: text.includes('Overview'), hasExamples: text.includes('Examples'), hasHowToBegin: text.includes('How to Begin'), sample: text.slice(0, 800) }; })()" --json
+pnpm --filter canvas-workspace harness eval-renderer "(() => { const text = document.body.innerText || ''; return { title: document.title, hasWelcome: text.includes('Welcome to Pulse Canvas') || text.includes('欢迎使用 Pulse Canvas'), frames: ['01 ·','02 ·','03 ·','04 ·','05 ·'].every(n => text.includes(n)), layers: (text.match(/LAYERS\n(\d+)/) || [])[1], sample: text.slice(0, 800) }; })()" --json
 ```
 
-Adjust the text probes to the expected onboarding for the current branch. For example, older seed code may show `Welcome to Pulse Canvas`, while a product-intro workspace may show `Overview`, `Examples`, `Concept`, and `How to Begin`.
+Adjust the text probes to the expected onboarding for the current branch. The current seed is a five-frame course canvas (`01 · Welcome` … `05 · Power Workflow`, zh: `01 · 欢迎` … `05 · 进阶工作流`) with 30 nodes narrated by a guide character (Riley / 小舟); the welcome note keeps the stable id `node-welcome-note` and heading `Welcome to Pulse Canvas` / `欢迎使用 Pulse Canvas`. Older seed code shows only 3 nodes (welcome note, download iframe, detail note). Seed language follows `app.getLocale()` (zh → Chinese, otherwise English), so a headless Linux container normally renders the English content.
 
 5. Capture screenshot evidence through CDP:
 
