@@ -64,7 +64,7 @@ export const Canvas = ({
   chatPanelOpen, onChatToggle, onChatOpen,
   referenceDrawerOpen,
   onReferenceToggle,
-  onPinReferenceNode, onAddToChat, onAddDomSelectionToChat,
+  onPinReferenceNode, onAddToChat, onAddDomSelectionToChat, onSubmitDomReviewComments,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -654,7 +654,7 @@ export const Canvas = ({
       onFitSelection={handleFitSelection}
       onDuplicateSelection={handleDuplicateSelection}
       onOpenReferenceSource={onOpenReferenceSource}
-      onPinReferenceNode={onPinReferenceNode} onAddToChat={onAddToChat} onAddDomSelectionToChat={onAddDomSelectionToChat}
+      onPinReferenceNode={onPinReferenceNode} onAddToChat={onAddToChat} onAddDomSelectionToChat={onAddDomSelectionToChat} onSubmitDomReviewComments={onSubmitDomReviewComments}
       onReferenceToggle={onReferenceToggle}
       onUpdateReferenceSource={onUpdateReferenceSource}
       onRemoveNodesLocally={handleRemoveNodesLocally}

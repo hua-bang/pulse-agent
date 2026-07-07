@@ -10,7 +10,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import { DynamicAppNodeBody } from '../DynamicAppNodeBody';
 import { IframeNodeBody } from '../IframeNodeBody';
 import { PluginNodeBody } from '../PluginNodeBody';
@@ -56,6 +56,7 @@ interface DefaultCanvasNodeProps {
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   onSelect: (id: string, mods?: { shift?: boolean; meta?: boolean }) => void;
   onRemoveNodes?: (ids: string[]) => void;
   onUngroupSelectedGroups?: () => void;
@@ -96,6 +97,7 @@ export const DefaultCanvasNode = ({
   onReference,
   onAddToChat,
   onAddDomSelectionToChat,
+  onSubmitDomReviewComments,
   onSelect,
   onRemoveNodes,
   onUngroupSelectedGroups,
@@ -259,6 +261,7 @@ export const DefaultCanvasNode = ({
             onUpdate={onUpdate}
             isResizing={isResizing}
             onAddDomSelectionToChat={onAddDomSelectionToChat}
+            onSubmitDomReviewComments={onSubmitDomReviewComments}
             readOnly={readOnly}
           />
         ) : node.type === 'dynamic-app' ? (

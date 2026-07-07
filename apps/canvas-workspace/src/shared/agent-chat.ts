@@ -194,6 +194,12 @@ export interface AgentContextDomSelectionRef {
   snapshot?: AgentContextDomSnapshotMeta;
 }
 
+export interface AgentContextDomReviewComment {
+  id: string;
+  text: string;
+  selection: AgentContextDomSelectionRef;
+}
+
 export interface AgentContextDomNodeSnapshot {
   tagName: string;
   selector?: string;

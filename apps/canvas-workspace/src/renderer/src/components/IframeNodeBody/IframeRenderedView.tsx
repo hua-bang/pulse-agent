@@ -14,6 +14,7 @@ interface IframeRenderedViewProps {
   handleOpenExternal: () => void;
   handleKeyDown: KeyboardEventHandler<HTMLInputElement>;
   handlePickDomElement: () => Promise<void> | void;
+  handlePickReviewElement: () => Promise<void> | void;
   handleRegenerate: () => Promise<void> | void;
   handleReload: () => void;
   html: string;
@@ -24,6 +25,7 @@ interface IframeRenderedViewProps {
   mode: string;
   openArtifact: (workspaceId: string, artifactId: string) => void;
   domPickerActive: boolean;
+  reviewPickerActive: boolean;
   readOnly: boolean;
   savedPrompt: string;
   setDraftUrl: (value: string) => void;
@@ -47,6 +49,7 @@ export const IframeRenderedView = ({
   handleOpenExternal,
   handleKeyDown,
   handlePickDomElement,
+  handlePickReviewElement,
   handleRegenerate,
   handleReload,
   html,
@@ -57,6 +60,7 @@ export const IframeRenderedView = ({
   mode,
   openArtifact,
   domPickerActive,
+  reviewPickerActive,
   readOnly,
   savedPrompt,
   setDraftUrl,
@@ -118,9 +122,20 @@ export const IframeRenderedView = ({
             className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
             onClick={() => void handlePickDomElement()}
             title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
-            disabled={generating || domPickerActive || !workspaceId}
+            disabled={generating || domPickerActive || reviewPickerActive || !workspaceId}
           >
             <InspectIcon />
+          </button>
+        )}
+
+        {mode === 'url' && (
+          <button
+            className={`iframe-bar-btn${reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
+            onClick={() => void handlePickReviewElement()}
+            title={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+            disabled={generating || domPickerActive || reviewPickerActive || !workspaceId || readOnly}
+          >
+            <ReviewIcon />
           </button>
         )}
 
@@ -348,6 +363,18 @@ const InspectIcon = () => (
       d="M2 2.5A.5.5 0 012.5 2h7a.5.5 0 01.5.5v7a.5.5 0 01-.5.5h-7a.5.5 0 01-.5-.5v-7zM4.2 5L3.2 6l1 1M7.8 5l1 1-1 1M5.4 8l1.2-4"
       stroke="currentColor"
       strokeWidth="1.1"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const ReviewIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    <path
+      d="M2.5 2h7a1 1 0 011 1v4.2a1 1 0 01-1 1H6.2L3.4 10V8.2h-.9a1 1 0 01-1-1V3a1 1 0 011-1zM3.5 4.2h5M3.5 6h3.2"
+      stroke="currentColor"
+      strokeWidth="1.15"
       strokeLinecap="round"
       strokeLinejoin="round"
     />

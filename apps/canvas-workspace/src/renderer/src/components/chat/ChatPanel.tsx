@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEventHandler } from 'react';
+import { DOM_MENTION_PREFIX } from './constants';
 import { ChatAnchors } from './ChatAnchors';
 import { ChatHeader } from './ChatHeader';
 import './ChatPanel.css';
@@ -8,11 +9,37 @@ import { SessionBackBar, type SessionBackEntry } from './SessionBackBar';
 import { useChatComposerState } from './hooks/useChatComposerState';
 import { useAppShell } from '../AppShellProvider';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
-import type { AgentContextNodeRef, AgentRequestContext } from '../../types';
+import type { AgentContextDomReviewComment, AgentContextNodeRef, AgentRequestContext } from '../../types';
 import type { AgentScope, ChatPanelProps, SelectedContextChip } from './types';
 import { buildAnchorElementId, buildChatAnchors } from './utils/anchors';
 import { useI18n } from '../../i18n';
 import { isImeComposing } from '../../utils/ime';
+
+function escapeDomMentionPart(value: string): string {
+  return value.replace(/[\[\]]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function buildDomReviewPrompt(comments: AgentContextDomReviewComment[]): string {
+  const lines = [
+    `Apply these ${comments.length} DOM review comments to the selected web UI elements.`,
+    '',
+  ];
+
+  comments.forEach((comment, index) => {
+    const selection = comment.selection;
+    const label = escapeDomMentionPart(selection.label || `DOM selection ${index + 1}`);
+    const marker = `@[${DOM_MENTION_PREFIX}${selection.id}|${label}]`;
+    lines.push(`${index + 1}. ${marker}`);
+    lines.push(`   Comment: ${comment.text.trim()}`);
+    lines.push(`   Selector: ${selection.selector}`);
+    if (selection.text) {
+      const excerpt = selection.text.replace(/\s+/g, ' ').trim().slice(0, 220);
+      if (excerpt) lines.push(`   Element text: ${excerpt}`);
+    }
+  });
+
+  return lines.join('\n');
+}
 
 export const ChatPanel = ({
   workspaceId,
@@ -34,6 +61,7 @@ export const ChatPanel = ({
   onOpenWorkspaceSettings,
   onRegisterInsertMention,
   onRegisterInsertDomSelectionMention,
+  onRegisterSubmitDomReviewComments,
   onTurnComplete,
 }: ChatPanelProps) => {
   const { t } = useI18n();
@@ -219,6 +247,31 @@ export const ChatPanel = ({
       autoCloseMs: 2200,
     });
   }, [notify, onOpenAppSettings, t]);
+
+  const submitDomReviewComments = useCallback(async (comments: AgentContextDomReviewComment[]) => {
+    const validComments = comments.filter((comment) => comment.text.trim());
+    if (validComments.length === 0) {
+      focusInput();
+      return false;
+    }
+    if (notConfigured) {
+      openModelSettingsWithHint();
+      return false;
+    }
+
+    const domSelections = validComments.map((comment) => comment.selection);
+    const context: AgentRequestContext = {
+      ...requestContext,
+      domSelections: [...(requestContext.domSelections ?? []), ...domSelections],
+      scope: 'selected_nodes',
+    };
+    return sendMessage(buildDomReviewPrompt(validComments), context);
+  }, [focusInput, notConfigured, openModelSettingsWithHint, requestContext, sendMessage]);
+
+  useEffect(() => {
+    if (!onRegisterSubmitDomReviewComments) return;
+    return onRegisterSubmitDomReviewComments(submitDomReviewComments);
+  }, [onRegisterSubmitDomReviewComments, submitDomReviewComments]);
 
   const openModelSettingsFromSwitcher = useCallback(() => {
     if (notConfigured) {

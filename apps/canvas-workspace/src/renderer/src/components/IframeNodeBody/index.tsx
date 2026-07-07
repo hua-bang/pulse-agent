@@ -5,6 +5,8 @@ import { useAppShell } from '../AppShellProvider';
 import { useRightDock } from '../RightDock';
 import { IframeEditor } from './IframeEditor';
 import { IframeRenderedView } from './IframeRenderedView';
+import { IframeReviewLayer } from './IframeReviewLayer';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef } from '../../types';
 import type { IframeNodeBodyProps } from './types';
 import { useIframeNodeState } from './useIframeNodeState';
 
@@ -14,11 +16,17 @@ export const IframeNodeBody = ({
   onUpdate,
   isResizing,
   onAddDomSelectionToChat,
+  onSubmitDomReviewComments,
   readOnly = false,
 }: IframeNodeBodyProps) => {
   const { openArtifact } = useRightDock();
   const { notify } = useAppShell();
   const [domPickerActive, setDomPickerActive] = useState(false);
+  const [reviewPickerActive, setReviewPickerActive] = useState(false);
+  const [reviewComments, setReviewComments] = useState<AgentContextDomReviewComment[]>([]);
+  const [draftSelection, setDraftSelection] = useState<AgentContextDomSelectionRef | null>(null);
+  const [draftText, setDraftText] = useState('');
+  const [reviewSending, setReviewSending] = useState(false);
   const state = useIframeNodeState({
     node,
     workspaceId,
@@ -58,6 +66,72 @@ export const IframeNodeBody = ({
     }
   };
 
+  const handlePickReviewElement = async () => {
+    if (!workspaceId || state.mode !== 'url' || readOnly) return;
+    setReviewPickerActive(true);
+    try {
+      const result = await window.canvasWorkspace.iframe.pickDomElement(workspaceId, node.id);
+      if (result.ok && result.selection) {
+        setDraftSelection({
+          ...result.selection,
+          workspaceId,
+          nodeId: node.id,
+          nodeTitle: node.title,
+        });
+        setDraftText('');
+      } else if (!result.cancelled) {
+        notify({
+          tone: 'error',
+          title: 'Could not select DOM',
+          description: result.error ?? 'The page did not return a selected element.',
+          autoCloseMs: 3600,
+        });
+      }
+    } finally {
+      setReviewPickerActive(false);
+    }
+  };
+
+  const handleSaveDraftReview = () => {
+    if (!draftSelection || !draftText.trim()) return;
+    setReviewComments((current) => [
+      ...current,
+      {
+        id: `review-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+        text: draftText.trim(),
+        selection: draftSelection,
+      },
+    ]);
+    setDraftSelection(null);
+    setDraftText('');
+  };
+
+  const handleCancelDraftReview = () => {
+    setDraftSelection(null);
+    setDraftText('');
+  };
+
+  const handleSubmitReviews = async () => {
+    const ready = reviewComments.filter((comment) => comment.text.trim());
+    if (!ready.length || !onSubmitDomReviewComments) return;
+    setReviewSending(true);
+    try {
+      const ok = await onSubmitDomReviewComments(ready);
+      if (!ok) return;
+      setReviewComments([]);
+      setDraftSelection(null);
+      setDraftText('');
+      notify({
+        tone: 'success',
+        title: 'Review sent to Chat',
+        description: `${ready.length} comment${ready.length === 1 ? '' : 's'} sent as one request.`,
+        autoCloseMs: 1800,
+      });
+    } finally {
+      setReviewSending(false);
+    }
+  };
+
   // Keep the rendered view (and therefore the <webview>) mounted at all times;
   // toggle the editor as an overlay so the guest WebContents survives URL
   // edits and never reloads just because the user opened the address bar.
@@ -74,6 +148,7 @@ export const IframeNodeBody = ({
         handleOpenExternal={state.handleOpenExternal}
         handleKeyDown={state.handleKeyDown}
         handlePickDomElement={handlePickDomElement}
+        handlePickReviewElement={handlePickReviewElement}
         handleRegenerate={state.handleRegenerate}
         handleReload={state.handleReload}
         html={state.html}
@@ -84,6 +159,7 @@ export const IframeNodeBody = ({
         mode={state.mode}
         openArtifact={openArtifact}
         domPickerActive={domPickerActive}
+        reviewPickerActive={reviewPickerActive}
         readOnly={readOnly}
         savedPrompt={state.savedPrompt}
         setDraftUrl={state.setDraftUrl}
@@ -95,6 +171,30 @@ export const IframeNodeBody = ({
         webviewKey={state.webviewKey}
         workspaceId={workspaceId}
       />
+      {(draftSelection || reviewComments.length > 0) && (
+        <IframeReviewLayer
+          comments={reviewComments}
+          draftSelection={draftSelection}
+          draftText={draftText}
+          sending={reviewSending}
+          onDraftTextChange={setDraftText}
+          onSaveDraft={handleSaveDraftReview}
+          onCancelDraft={handleCancelDraftReview}
+          onUpdateComment={(id, text) => {
+            setReviewComments((current) => current.map((comment) => (
+              comment.id === id ? { ...comment, text } : comment
+            )));
+          }}
+          onRemoveComment={(id) => {
+            setReviewComments((current) => current.filter((comment) => comment.id !== id));
+          }}
+          onSubmit={() => void handleSubmitReviews()}
+          onClear={() => {
+            setReviewComments([]);
+            handleCancelDraftReview();
+          }}
+        />
+      )}
       {state.editing && (
         <IframeEditor
           cancel={state.cancel}

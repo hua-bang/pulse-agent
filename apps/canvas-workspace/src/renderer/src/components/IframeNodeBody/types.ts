@@ -1,4 +1,4 @@
-import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../types';
 
 export type EditMode = 'url' | 'html' | 'ai';
 export type LoadState = 'idle' | 'loading' | 'ready' | 'failed';
@@ -9,6 +9,7 @@ export interface IframeNodeBodyProps {
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   isResizing?: boolean;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   readOnly?: boolean;
 }
 

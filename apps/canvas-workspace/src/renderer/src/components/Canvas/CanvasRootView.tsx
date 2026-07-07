@@ -21,6 +21,7 @@ type CanvasRootViewProps = Pick<
   | 'onPinReferenceNode'
   | 'onAddToChat'
   | 'onAddDomSelectionToChat'
+  | 'onSubmitDomReviewComments'
   | 'resolveReferenceNode'
   | 'onOpenReferenceSource'
   | 'onUpdateReferenceSource'
@@ -138,6 +139,7 @@ export const CanvasRootView = ({
   onPinReferenceNode,
   onAddToChat,
   onAddDomSelectionToChat,
+  onSubmitDomReviewComments,
   onReferenceToggle,
   onUpdateReferenceSource,
   onOpenAppSettings,
@@ -251,6 +253,7 @@ export const CanvasRootView = ({
         onReference={onPinReferenceNode}
         onAddToChat={onAddToChat}
         onAddDomSelectionToChat={onAddDomSelectionToChat}
+        onSubmitDomReviewComments={onSubmitDomReviewComments}
         resolveReferenceNode={resolveReferenceNode}
         onOpenReferenceSource={onOpenReferenceSource}
         onUpdateReferenceSource={onUpdateReferenceSource}
