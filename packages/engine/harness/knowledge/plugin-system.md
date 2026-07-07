@@ -57,4 +57,4 @@ Pitfalls (all evidenced):
 ## Registration Sources & Config Paths
 
 - Engine plugin disk scan (`scan !== false`): `.pulse-coder/engine-plugins`, `.coder/engine-plugins`, `~/.pulse-coder/engine-plugins`, `~/.coder/engine-plugins`, `./plugins/engine` — pattern `**/*.plugin.{js,ts}`.
-- User-config plugins: `config.{json,yaml,yml}` / `*.config.{json,yaml,yml}` under `.pulse-coder/config`, `.coder/config` and home equivalents; supports `${VAR}` / `${VAR:-default}` env resolution; can declare tools, MCP servers, prompts, sub-agents, skills, env, conditions.
+- User-config plugins: `config.{json,yaml,yml}` / `*.config.{json,yaml,yml}` under `.pulse-coder/config`, `.coder/config` and home equivalents. HONEST STATUS: the schema admits tools/MCP servers/prompts/sub-agents/skills, and files are scanned and validated — but `applyUserConfig` (`PluginManager.ts`) is an unimplemented stub that only logs each entry; nothing is instantiated or registered. The `${VAR}` resolver is also constructed without `process.env`, so substitutions never see real env values. Treat declarative user-config as NOT functional today.
