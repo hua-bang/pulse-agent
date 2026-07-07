@@ -34,6 +34,12 @@ This file records current implementation facts for `pulse-coder-engine`. It is a
 5. The AI adapter forwards `ToolExecutionContext`, including `runContext`, clarification handler, abort signal, and `toolCallId`.
 6. `loop()` handles text/tool chunks, response messages, finish reasons, retries, timeouts, aborts, and compaction callbacks.
 
+## Prompt Resolution
+
+- The base system prompt is `loadAgentsPrompt() ?? DEFAULT_PROMPT` (`src/prompt/system.ts`): a non-empty `agents.md`/`AGENTS.md` in the runtime `process.cwd()` REPLACES the built-in prompt entirely — the two never combine. Lookup is cwd-only, case-insensitive, mtime-cached (edits apply without restart), and an empty file counts as absent.
+- Plugin `SystemPromptOption.append` values stack on top of whichever base was selected (`resolveSystemPrompt` in `src/ai/index.ts`); a string or function option replaces even that base.
+- Consequence: running any engine host from a directory with a root `AGENTS.md` (this repository included) silently swaps the entire built-in prompt for that file's content.
+
 ## Built-In Plugin Order
 
 Defined in `src/built-in/index.ts`:
