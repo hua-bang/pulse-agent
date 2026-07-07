@@ -10,6 +10,9 @@
 //                          and every pathRule has paths + required
 //   - validation matrix:   every `pnpm --filter <name>` in harness data
 //                          references a real workspace package name
+//   - routing links:       backticked concrete repo paths in root AGENTS.md,
+//                          harness/*.md, and workspace AGENTS.md files exist
+//                          on disk (placeholders and globs are skipped)
 // Plus the root overlay file, same shape rules.
 //
 // Prints a summary and exits non-zero when gaps exist. The runner
@@ -99,6 +102,35 @@ for (const ws of workspaces) {
   checkValidationFile(validationPath, { requireRules: true });
 }
 checkValidationFile('harness/validate/validation.yaml', { requireRules: true });
+
+// routing-links: a doc that points at a deleted/renamed file is worse than no
+// doc. Only tokens that look like concrete repo paths are checked. Docs also
+// legitimately talk about paths that do not exist — honest-absence lists,
+// conditional/future references, runtime-created artifacts — and such lines
+// carry a lexical signal, so they are skipped rather than flagged.
+const ABSENCE_SIGNAL = /not exist|nonexistent|absent|if present|optional|opt-in|only when|only for|only after|only if|future|later|do not|deleted|retired|removed|runtime/i;
+
+function checkRoutingLinks(docRel, baseDirs) {
+  if (!exists(docRel)) return;
+  for (const line of read(docRel).split(/\r?\n/)) {
+    if (ABSENCE_SIGNAL.test(line)) continue;
+    for (const match of line.matchAll(/`([^`]+)`/g)) {
+      const token = match[1].replace(/\/$/, '');
+      if (/[<>{}*?$|\s]/.test(token)) continue;
+      if (!/^(packages|apps|harness|scripts|docs|\.github|\.pulse-coder)\/[A-Za-z0-9._\/-]+$/.test(token)) continue;
+      const found = baseDirs.some((base) => exists(path.posix.join(base, token)));
+      if (!found) gaps.push(`${docRel}: dangling path reference \`${token}\``);
+    }
+  }
+}
+
+const docs = ['AGENTS.md'];
+for (const entry of fs.readdirSync(path.join(repoRoot, 'harness'), { recursive: true })) {
+  const rel = path.posix.join('harness', String(entry).split(path.sep).join('/'));
+  if (rel.endsWith('.md')) docs.push(rel);
+}
+for (const doc of docs) checkRoutingLinks(doc, ['.', ...workspaces]);
+for (const ws of workspaces) checkRoutingLinks(path.posix.join(ws, 'AGENTS.md'), [ws, '.']);
 
 console.log(JSON.stringify({
   workspaces: workspaces.length,

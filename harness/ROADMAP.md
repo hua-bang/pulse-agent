@@ -30,7 +30,7 @@ Every constraint in this harness is currently carried by agent discipline. The s
 
 1. **Manual runner first.** ✅ DONE (2026-07-07, `scripts/harness/run-harness-check.mjs`).
    Original goal: `node scripts/harness/run-harness-check.mjs [--path <glob>|--all]`. Reads local and root validation YAML, runs the bound `pnpm --filter` commands, prints a pass/fail report. No git integration yet. This alone makes validation executable and lets agents/humans verify changes without remembering the matrix.
-2. **Wire candidate checks.** ✅ PARTIAL (2026-07-07): `check-harness.mjs` covers `workspace-coverage`, `agents-coverage`, and `validation-matrix`, and the runner invokes it via the root `harness-data` path rule. Remaining idea: `routing-links` (doc path liveness), only if drift recurs.
+2. **Wire candidate checks.** ✅ DONE (2026-07-07): `check-harness.mjs` covers `workspace-coverage`, `agents-coverage`, `validation-matrix`, and `routing-links` (doc path liveness with absence-signal skipping — honest-absence lists, conditional/future references, and runtime-artifact mentions are not flagged). The runner invokes it via the root `harness-data` path rule.
 3. **Optional pre-push hook.** Only after step 1–2 are stable in manual use, add an opt-in `scripts/harness/pre-push.mjs` that runs affected-workspace checks on `git push`. Do not make it mandatory until the false-positive rate is near zero.
 4. **Optional CI.** Only if/when a CI provider is chosen for this repo. Until then the manual runner is the source of truth.
 
@@ -57,5 +57,7 @@ The comparison against the reference sample (B / `ec_channel_lynx_x`) surfaced i
 - Honest test-reality in hard boundaries (root `AGENTS.md` §2).
 - Named failure-capture with guards (root `AGENTS.md` §6).
 - Workspace-local `harness/validate/validation.yaml` files cover package-local default checks; root `harness/validate/validation.yaml` is now the root/cross-workspace overlay.
+- First full-sweep run exposed that root `pnpm test` had been structurally red since v1 (`plugin-kit`/`langfuse-plugin`: `vitest run` with zero test files exits 1); fixed with `--passWithNoTests`. Lesson: a required command nobody has ever executed can be broken from day one — run the sweep once before binding it.
+- Root script aliases: `pnpm run harness` (runner) and `pnpm run harness:drift` (drift check).
 - Keystone phase 1: manual validation runner `scripts/harness/run-harness-check.mjs` (git-status/`--since`/`--path`/`--all` modes, dry-run, escalation reminders; verified against the remote-server change replay and a full `--all --dry-run` plan).
 - Knowledge/Validate surface alignment with the finalized `Harness = AGENTS.md + Knowledge + Tool + Validate + Skills` model: elevated Skills to an explicit fourth surface, renamed Know -> Knowledge, renamed Verify -> Validate, and added `harness/knowledge/README.md` + `harness/validate/README.md` as routing indexes.
