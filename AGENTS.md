@@ -50,7 +50,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 
 - **Package manager**: `pnpm@10.28.0` (`packageManager`). Never npm/yarn.
 - **Node**: unpinned (no `.nvmrc`/`engines`). Do not assume a version; adding a pin is an open gap.
-- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/teams-cli` + `apps/canvas-workspace` use standalone tsconfigs — root changes do not reach them. `plugin-kit`/`memory-plugin`/`langfuse-plugin`/`teams-cli` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there.
+- **TypeScript**: `strict:true` from root `tsconfig.json`. Keep strict ON. `apps/teams-cli` + `apps/canvas-workspace` use standalone tsconfigs — root changes do not reach them. `plugin-kit`/`memory-plugin`/`langfuse-plugin`/`teams-cli` typecheck hits TS6059 rootDir errors locally — default to `build` as the JS smoke check there. (`engine` had the same class from its agent-teams plugin importing orchestrator source; fixed by dropping `rootDir` from its tsconfig — `rootDir` is emit-layout config that `tsc --noEmit` and tsup do not need. Same fix likely applies to the four.)
 - **Module format**: ESM repo-wide (`"type":"module"`). CommonJS holdouts: `packages/cli`, `packages/canvas-cli`, `apps/teams-cli` — match each package's `"type"`.
 - **Tests**: `vitest run` (sole runner, no config file — defaults apply). Honest test reality: `plugin-kit`/`langfuse-plugin`/`orchestrator`/`teams-cli` use `--passWithNoTests` with ZERO real specs → green ≠ coverage. `remote-server` has NO typecheck (runtime app; its Vitest helper suites run via `test`, with `pretest` building plugin-kit). `cli` has NO typecheck.
 - **Build**: `tsup`; root `build` uses `SKIP_DTS=1`.
