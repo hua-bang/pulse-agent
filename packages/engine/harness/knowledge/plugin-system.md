@@ -54,6 +54,27 @@ Pitfalls (all evidenced):
 - `registerService` and tool registration overwrite silently on name collision; later registration wins (`Engine.ts` tool merge: built-ins < plugin tools < `options.tools`).
 - `beforeRun`/`beforeLLMCall` results merge only the keys you return; returning `void`/`{}` is safe and does nothing.
 
+## Plugin Facts Worth Knowing
+
+- **Construction is fail-fast**: `PluginManager.initialize` rethrows and `Engine.ts` has no try/catch around it, so ANY single plugin's init failure aborts the entire Engine build — one bad plugin means MCP/skills/plan-mode that would have loaded fine never do. Common cause: a misspelled `dependencies` entry (throws `Dependency not found` at init).
+- **MCP registers statically at init only**: config changes need a full Engine rebuild (the `closeAll()`/reload path is a code comment, not an implementation); OAuth applies to `http`/`sse` transports only, never `stdio`; a `disabledTools` entry is still listed in `status.tools` with `enabled:false`.
+- **Skills precedence**: project before user, `.pulse-coder` before other roots; dedup is realpath-based then case-insensitive-name with FIRST-scanned winning. Skills support `rescan()` hot-reload; sub-agents do NOT, and sub-agents only scan `.pulse-coder/agents`/`.coder/agents` (no home-dir location, unlike skills/MCP).
+- **Sub-agent frontmatter is regex-parsed, not YAML**: `.md` agent configs use a hand-rolled `key: value` line matcher — quotes, multi-line, and nested YAML constructs silently mis-parse; `deferLoading` must be the literal string `'true'`/`'false'`.
+
+## The Tools Pipeline (keystone)
+
+During each LLM call the loop threads ONE mutable `tools` object through every `beforeLLMCall` hook in plugin registration order (`core/loop.ts`): `tools = result.tools` reassigns it per hook, so each plugin sees only what earlier plugins left and can add, remove, or hide entries. It is a pipeline, not a merge. The built-in order (`built-in/index.ts`) is: MCP → Skills → ToolSearch → PlanMode → TaskTracking → SubAgent → AgentTeams → RoleSoul → PTC.
+
+This one mechanism explains most "gating weaker than its name" behavior:
+
+| Stage | What it does to `tools` |
+|---|---|
+| ToolSearch | Visibility gate: hides `defer_loading` tools (MCP, Tavily, sub-agent, generate_image) until a `tool_search_*` call loads them on the NEXT LLM call. `PULSE_CODER_TOOL_SEARCH_VARIANT` is inert — both bm25 and regex tools are always registered regardless. |
+| PlanMode | Removes only `write`/`edit` in planning mode (`DISALLOWED_TOOLS_IN_PLANNING`); `bash`, MCP, and sub-agent tools stay callable. It never auto-enters planning (only `Engine.setMode('planning')` does), and policy violations are passive logs, never throws. |
+| PTC | Caller-allowlist filter. It UNIONS the typed `Tool.allowed_callers` with the untyped `tool.ptc.allowed_callers` convention, so declaring both BROADENS access, not narrows it. Registered last, so it only sees what every earlier stage left. |
+
+Because it is sequential, a tool a downstream plugin relies on may already be gone; nothing re-checks what a later stage removed.
+
 ## Registration Sources & Config Paths
 
 - Engine plugin disk scan (`scan !== false`): `.pulse-coder/engine-plugins`, `.coder/engine-plugins`, `~/.pulse-coder/engine-plugins`, `~/.coder/engine-plugins`, `./plugins/engine` — pattern `**/*.plugin.{js,ts}`.

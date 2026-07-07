@@ -22,6 +22,12 @@ One `Engine.run()` → `loop()` turn, end to end. Verified against `src/core/loo
 11. On thrown error: abort check → `afterLLMCall` (if the call had started) → retry policy (below) or formatted error return.
 12. `afterRun` hooks (once, in `Engine.run()`).
 
+## Host-Visible Context Mutations & Step Accounting
+
+- The loop silently rewrites the host's `context.messages` in TWO places, not just compaction: before every LLM call `pruneIncompleteToolExchanges` strips dangling tool-call parts and reassigns `context.messages` in place; and the compaction path replaces it. A host persisting `Context` must expect both.
+- `onResponse` is dispatched fire-and-forget inside the step loop (not awaited). If your handler persists-then-mutates asynchronously, the next turn can start before it lands — do not rely on ordering.
+- `MAX_STEPS` (500) counts AI-SDK internal sub-steps (`totalSteps += steps.length`), and the engine passes no `stopWhen` to `streamText`, so the cap is NOT 1:1 with LLM turns — budget accordingly when tuning it.
+
 ## Timeout & Abort Model
 
 | Timer | Default | Env knob | Cleared by |
