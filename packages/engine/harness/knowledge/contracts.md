@@ -11,7 +11,7 @@ Engine code should stay host-agnostic. Prefer an extension point before changing
 - Package exports: `.`, `./src`, `./types`, and `./built-in`.
 - Main exports: `Engine`, `PulseAgent`, `loop`, AI helpers, compaction helpers, provider builders, shared runtime types, built-in tools, and built-in plugins.
 - Public types include `EngineOptions`, `LoopOptions`, `LoopHooks`, `CompactionEvent`, `EnginePlugin`, `EnginePluginContext`, `Tool`, `ToolExecutionContext`, `Context`, and `ClarificationRequest`.
-- Built-in plugin exports under `pulse-coder-engine/built-in` are consumed directly by canvas and other hosts.
+- Built-in plugin exports under `pulse-coder-engine/built-in` are consumed directly by canvas and other hosts. The two barrels are asymmetric: `src/index.ts` re-exports 8 plugin instances but NOT `builtInToolSearchPlugin` or `SubAgentPlugin`, which only `src/built-in/index.ts` exports. Consumers reach those two through `./built-in`; a public-surface change should not blindly pattern-match the existing top-level list.
 
 ## Runtime Contracts
 

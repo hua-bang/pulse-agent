@@ -69,7 +69,7 @@ This one mechanism explains most "gating weaker than its name" behavior:
 
 | Stage | What it does to `tools` |
 |---|---|
-| ToolSearch | Visibility gate: hides `defer_loading` tools (MCP, Tavily, sub-agent, generate_image) until a `tool_search_*` call loads them on the NEXT LLM call. `PULSE_CODER_TOOL_SEARCH_VARIANT` is inert — both bm25 and regex tools are always registered regardless. |
+| ToolSearch | Visibility gate: hides every `defer_loading` tool (MCP, Tavily, sub-agent, generate_image, role-soul `soul_*` ×7, `agent_teams_run`) until a `tool_search_*` call loads them on the NEXT LLM call. `PULSE_CODER_TOOL_SEARCH_VARIANT` is inert — both bm25 and regex tools are always registered regardless. |
 | PlanMode | Removes only `write`/`edit` in planning mode (`DISALLOWED_TOOLS_IN_PLANNING`); `bash`, MCP, and sub-agent tools stay callable. It never auto-enters planning (only `Engine.setMode('planning')` does), and policy violations are passive logs, never throws. |
 | PTC | Caller-allowlist filter. It UNIONS the typed `Tool.allowed_callers` with the untyped `tool.ptc.allowed_callers` convention, so declaring both BROADENS access, not narrows it. Registered last, so it only sees what every earlier stage left. |
 
