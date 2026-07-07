@@ -26,6 +26,7 @@ export interface DockTerminalTab {
   id: string;
   title?: string;
   ordinal: number;
+  agentType?: string;
 }
 
 export interface DockTerminalWorkspaceState {
@@ -333,6 +334,25 @@ export class DockStore {
       ...workspace,
       tabs: workspace.tabs.map((item) =>
         (item.id === id ? { ...item, title: trimmed } : item)),
+    });
+  }
+
+  setTerminalAgentType(id: string, agentType?: string, workspaceId = this.state.activeTerminalWorkspaceId): void {
+    const trimmed = agentType?.trim();
+    const workspace = this.getTerminalWorkspace(workspaceId);
+    const tab = workspace.tabs.find((item) => item.id === id);
+    if (!tab || tab.agentType === trimmed) return;
+    this.commitTerminalWorkspace(workspaceId, {
+      ...workspace,
+      tabs: workspace.tabs.map((item) => {
+        if (item.id !== id) return item;
+        if (!trimmed) {
+          const next = { ...item };
+          delete next.agentType;
+          return next;
+        }
+        return { ...item, agentType: trimmed };
+      }),
     });
   }
 

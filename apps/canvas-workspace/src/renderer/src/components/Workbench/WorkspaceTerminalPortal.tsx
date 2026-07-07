@@ -22,6 +22,7 @@ interface WorkspaceTerminalPortalProps {
   activeTerminalTabId?: string;
   open: boolean;
   onClose: (id?: string) => void;
+  onAgentTypeChange: (id: string, agentType: string | undefined, workspaceId: string) => void;
 }
 
 export const WorkspaceTerminalPortal = ({
@@ -33,6 +34,7 @@ export const WorkspaceTerminalPortal = ({
   activeTerminalTabId,
   open,
   onClose,
+  onAgentTypeChange,
 }: WorkspaceTerminalPortalProps) => {
   const terminalHost = useRightDockTerminalHost();
   if (!terminalHost) return null;
@@ -58,6 +60,7 @@ export const WorkspaceTerminalPortal = ({
               nodes={allNodes[ws.id] || []}
               open={visible && open}
               onClose={() => onClose(tab.id)}
+              onAgentTypeChange={(agentType) => onAgentTypeChange(tab.id, agentType, ws.id)}
               placement="pane"
             />
             </Suspense>
