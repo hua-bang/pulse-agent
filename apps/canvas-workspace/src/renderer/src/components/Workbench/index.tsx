@@ -86,7 +86,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     workspaces,
     dockState.terminalTabsByWorkspace,
   );
-
   useEffect(() => {
     for (const node of activeNodes) {
       const ref = node.ref;
@@ -505,6 +504,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
         activeTerminalTabId={dockState.activeTerminalTabId}
         open={terminalDockOpen}
         onClose={dock.closeTerminal}
+        onAgentTypeDetected={dock.setTerminalAgentType}
       />
       </FileNodeEditorRegistryProvider>
     </>

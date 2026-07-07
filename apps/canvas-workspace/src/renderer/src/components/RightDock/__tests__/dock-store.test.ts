@@ -251,6 +251,25 @@ describe('DockStore', () => {
     expect(dock.getSnapshot().terminalTabs.map((tab) => tab.title)).toEqual(['Claude', 'Codex']);
   });
 
+  it('stores terminal agent type per workspace tab', () => {
+    const dock = new DockStore();
+    dock.setActiveWorkspace('ws-a');
+    dock.openTerminal();
+    dock.setTerminalAgentType(TERMINAL_TAB_ID, 'claude-code', 'ws-a');
+    dock.newTerminal();
+    dock.setTerminalAgentType(terminalTabId(2), 'codex', 'ws-a');
+
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.agentType)).toEqual(['claude-code', 'codex']);
+
+    dock.setActiveWorkspace('ws-b');
+    dock.openTerminal();
+    dock.setTerminalAgentType(TERMINAL_TAB_ID, 'codex', 'ws-b');
+    expect(dock.getSnapshot().terminalTabs[0]).toMatchObject({ agentType: 'codex' });
+
+    dock.setActiveWorkspace('ws-a');
+    expect(dock.getSnapshot().terminalTabs.map((tab) => tab.agentType)).toEqual(['claude-code', 'codex']);
+  });
+
   it('renames terminal tabs and ignores blanks or non-terminal ids', () => {
     const dock = new DockStore();
     dock.openTerminal();
