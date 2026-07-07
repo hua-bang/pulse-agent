@@ -3,9 +3,8 @@ import type { AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNo
 import { CANVAS_MENTION_PREFIX, DOM_MENTION_PREFIX, FOLDER_MENTION_PREFIX, SESSION_MENTION_PREFIX, SKILL_MENTION_PREFIX, TAG_MENTION_PREFIX } from '../constants';
 import type { MentionItem, WorkspaceOption } from '../types';
 import { renderMarkdown, type RenderMarkdownOptions } from './markdown';
+import { MENTION_RE, encodeMentionPart, pipedMentionLabel } from './mentionMarkers';
 import { readDomSelectionDataset, writeDomSelectionDataset } from './domMentionData';
-
-const MENTION_RE = /@\[([^\]]+)\]/g;
 
 function escapeHtml(value: string): string {
   return value
@@ -187,7 +186,7 @@ export function createMentionChipElement(item: MentionItem, nodes?: CanvasNode[]
         : isTag
           ? `${TAG_MENTION_PREFIX}${item.label}`
           : isDom
-            ? `${DOM_MENTION_PREFIX}${item.domSelection?.id ?? item.label}|${item.label}`
+            ? `${DOM_MENTION_PREFIX}${item.domSelection?.id ?? item.label}|${encodeMentionPart(item.label)}`
             : item.label;
   chip.dataset.nodeType = nodeType;
 
@@ -365,7 +364,7 @@ export function renderUserContent(content: string, nodes?: CanvasNode[]): ReactN
     }
 
     if (rawLabel.startsWith(DOM_MENTION_PREFIX)) {
-      const domLabel = rawLabel.slice(DOM_MENTION_PREFIX.length).split('|').slice(1).join('|') || 'DOM selection';
+      const domLabel = pipedMentionLabel(rawLabel, DOM_MENTION_PREFIX, 'DOM selection');
       parts.push(
         createElement(
           'span',
@@ -443,7 +442,7 @@ export function renderMdWithMentions(
     }
 
     if (rawLabel.startsWith(DOM_MENTION_PREFIX)) {
-      const domLabel = rawLabel.slice(DOM_MENTION_PREFIX.length).split('|').slice(1).join('|') || 'DOM selection';
+      const domLabel = pipedMentionLabel(rawLabel, DOM_MENTION_PREFIX, 'DOM selection');
       return `<span class="chat-mention-chip chat-mention-chip--dom" data-node-type="dom"><span class="chat-mention-chip-icon"><svg width="12" height="12" viewBox="0 0 14 14" fill="none">${mentionIconSvg('dom')}</svg></span><span class="chat-mention-chip-label">${escapeHtml(domLabel)}</span></span>`;
     }
 
