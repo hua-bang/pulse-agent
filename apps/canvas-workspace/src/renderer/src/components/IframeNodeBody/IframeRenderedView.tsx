@@ -1,6 +1,7 @@
-import type { KeyboardEventHandler, RefObject } from 'react';
+import { useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
+import { appendDomPickerBridge } from './domPickerBridge';
 import type { LoadState } from './types';
 
 interface IframeRenderedViewProps {
@@ -28,6 +29,7 @@ interface IframeRenderedViewProps {
   savedPrompt: string;
   setDraftUrl: (value: string) => void;
   setEditing: (editing: boolean) => void;
+  renderIframeRef: RefObject<HTMLIFrameElement>;
   streamIframeRef: RefObject<HTMLIFrameElement>;
   streamingActive: boolean;
   url: string;
@@ -61,6 +63,7 @@ export const IframeRenderedView = ({
   savedPrompt,
   setDraftUrl,
   setEditing,
+  renderIframeRef,
   streamIframeRef,
   streamingActive,
   url,
@@ -70,6 +73,10 @@ export const IframeRenderedView = ({
 }: IframeRenderedViewProps) => {
   const renderMode = mode === 'url' ? 'url' : 'html';
   const renderedHtml = isArtifactMode ? artifactHtml : html;
+  const inspectableHtml = useMemo(
+    () => renderMode === 'html' ? appendDomPickerBridge(renderedHtml) : renderedHtml,
+    [renderMode, renderedHtml],
+  );
 
   return (
     <div className="iframe-body">
@@ -113,16 +120,14 @@ export const IframeRenderedView = ({
           </button>
         )}
 
-        {mode === 'url' && (
-          <button
-            className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
-            onClick={() => void handlePickDomElement()}
-            title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
-            disabled={generating || domPickerActive || !workspaceId}
-          >
-            <InspectIcon />
-          </button>
-        )}
+        <button
+          className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
+          onClick={() => void handlePickDomElement()}
+          title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
+          disabled={generating || domPickerActive || !workspaceId}
+        >
+          <InspectIcon />
+        </button>
 
         {mode === 'url' && (
           <button
@@ -178,9 +183,10 @@ export const IframeRenderedView = ({
           />
         ) : (
           <iframe
+            ref={renderIframeRef}
             key={isArtifactMode ? `artifact-${artifact?.currentVersionId ?? 'loading'}` : webviewKey}
             className="iframe-frame"
-            srcDoc={renderedHtml}
+            srcDoc={inspectableHtml}
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             title={
               isArtifactMode
