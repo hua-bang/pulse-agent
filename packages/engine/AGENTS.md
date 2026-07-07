@@ -30,10 +30,12 @@ It should stay host-agnostic. CLI, remote server, canvas, ACP, and teams-specifi
 
 - Prefer plugin, hook, tool, or service extension points over engine-loop hardcoding.
 - Preserve tool merge order: built-in tools, then plugin tools, then `EngineOptions.tools` as the highest-priority override layer.
-- Built-in plugins are loaded automatically unless `disableBuiltInPlugins` is set; adding, removing, or reordering them can affect CLI, remote server, canvas, and agent teams consumers.
+- Built-in plugins are loaded automatically unless `disableBuiltInPlugins` is set; adding, removing, or reordering them can affect CLI, remote server, canvas, and agent teams consumers. remote-server and canvas disable the defaults and hand-assemble their own ordered lists — new default plugins do NOT propagate to them automatically.
 - Keep source imports ESM-style and follow package-local TypeScript strictness.
 - Public exports, `EngineOptions`, hook signatures, service names, built-in tool schemas, and built-in plugin behavior are contracts; read `harness/knowledge/contracts.md` before changing them.
 - Preserve `.pulse-coder/*` paths and legacy `.coder/*` compatibility unless there is an explicit migration plan.
+- The public surface lives in TWO barrels: `src/index.ts` and `src/built-in/index.ts` (`./built-in` is wider). Export changes must consider both — remote-server and canvas import `./built-in` directly.
+- `tsconfig.json` has no `rootDir` on purpose: the agent-teams built-in imports orchestrator source through the root paths alias, and re-adding `rootDir` breaks `typecheck` with TS6059.
 - Durable engine guidance changes should update this file or the local `harness/` files instead of adding parallel notes.
 
 ## Common Commands
@@ -57,3 +59,8 @@ Default checks are `test` and `typecheck`. Use `build` for public exports or pac
 - `src/built-in/index.ts`: built-in plugin registration order and public built-in plugin exports.
 - `src/tools/index.ts`: built-in tool registry for file, shell, Tavily, image generation, clarification, and deferred demo tools.
 - `harness/knowledge/`, `harness/validate/`: package contract, architecture, and validation source of truth.
+
+## Failure Capture
+
+- Engine-origin failures and their guards are recorded in root `AGENTS.md` §6 (history over-pruning, execSync freezing the Electron host, UTF-8 chunk-split corruption); regression tests live in `src/core/loop.test.ts`.
+- Known open risk: `src/tools/grep.ts` still uses blocking `execSync` — see `harness/knowledge/architecture.md` Risk Areas before touching tools.
