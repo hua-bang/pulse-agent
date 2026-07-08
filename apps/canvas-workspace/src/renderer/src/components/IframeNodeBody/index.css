@@ -435,7 +435,7 @@
 
 .iframe-review-layer {
   position: absolute;
-  inset: 29px 0 0;
+  inset: 31px 0 0;
   z-index: 5;
   pointer-events: none;
 }

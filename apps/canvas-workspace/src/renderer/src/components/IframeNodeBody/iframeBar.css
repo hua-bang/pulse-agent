@@ -2,10 +2,23 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  height: 31px;
+  min-width: 0;
   padding: 4px 6px;
   border-bottom: 1px solid var(--border-light);
   background: var(--surface);
+  box-sizing: border-box;
   flex-shrink: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.iframe-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  min-width: max-content;
 }
 
 .canvas-node--iframe.canvas-node--selected .iframe-bar {
@@ -58,8 +71,8 @@
 }
 
 .iframe-bar-url {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 48px;
   height: 22px;
   border: 1px solid var(--border);
   background: var(--surface-subtle, rgba(0, 0, 0, 0.02));
