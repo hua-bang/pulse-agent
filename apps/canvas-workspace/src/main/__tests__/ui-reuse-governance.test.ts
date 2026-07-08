@@ -62,8 +62,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // slides from the right, right-dock-tab-rise is a selection micro-lift,
   // ui-drawer-in is the blessed Drawer's own slide, iframe-shimmer-slide is a
   // loading shimmer) or simply out of this backlog's flagged scope — so the
-  // practical floor is nonzero. Measured 14→12: reference-workspace-menu-in
-  // folded into menuAppear and agent-team-inspector-backdrop-in into fadeIn.
+  // practical floor is nonzero. Measured 14→12: agent-team-inspector-backdrop-in
+  // folded into fadeIn (byte-identical: opacity 0→1, review-verified) and
+  // reference-workspace-menu-in folded into menuAppear (a deliberate
+  // normalization, NOT byte-identical — old was translateY(-4px)/scale(0.985),
+  // menuAppear is translateY(-2px)/scale(0.97); review-verified as a real but
+  // imperceptible amplitude difference, same category as the earlier token
+  // convergence's dominant-value picks).
   privateEntranceKeyframes: 12,
   // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them.
   // 12→11: AppShell Confirm+Shortcuts (-2) now route through ui/Modal (+1).

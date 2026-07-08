@@ -37,6 +37,14 @@ interface Props {
  * double-fires. `className` lands on the root positioned `<div>` (the
  * element carrying `style={{ left, top }}`); put `position: fixed`, the
  * surface look, and any entrance animation there.
+ *
+ * Suppresses the native context-menu on right-click over the popover itself
+ * (e.g. right-clicking an already-open menu) — some callers previously
+ * hand-rolled this per-instance; Popover now owns it uniformly rather than
+ * relying on an ancestor's own contextmenu handler, which not every caller
+ * has (review finding, 2026-07-08: proven redundant for the canvas menus,
+ * which sit under a preventDefault-ing ancestor, but LayerContextMenu's
+ * Sidebar tree has no such ancestor).
  */
 export const Popover = ({ x, y, onClose, role = 'menu', className, children }: Props) => {
   const { ref, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
@@ -50,6 +58,7 @@ export const Popover = ({ x, y, onClose, role = 'menu', className, children }: P
       className={className}
       style={{ left: pos.left, top: pos.top }}
       onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
     >
       {children}
     </div>,
