@@ -203,10 +203,10 @@ export function buildWelcomeCanvas(
 
     // ---- 05 · Go deeper -----------------------------------------------------
     mkFrame('node-onboard-frame-05', frames.advanced, { x: 6980, y: 0, width: 1560, height: 1120 }, FRAME_COLORS.advanced, now),
-    mkCard('node-onboard-workflow', cards.workflow, { x: 7040, y: 100, width: 720, height: 480 }, now),
-    mkNote('node-onboard-project', notes.project, notePaths.project, { x: 7040, y: 640, width: 720, height: 380 }, now),
-    mkCard('node-onboard-shortcuts', cards.shortcuts, { x: 7820, y: 100, width: 660, height: 480 }, now),
-    mkText('node-onboard-multiws', texts.multiWorkspace, { x: 7820, y: 640, width: 660, height: 200 }, now, { fontSize: 15 }),
+    mkCard('node-onboard-workflow', cards.workflow, { x: 7040, y: 100, width: 720, height: 440 }, now),
+    mkNote('node-onboard-project', notes.project, notePaths.project, { x: 7040, y: 600, width: 720, height: 400 }, now),
+    mkCard('node-onboard-shortcuts', cards.shortcuts, { x: 7820, y: 100, width: 660, height: 400 }, now),
+    mkText('node-onboard-multiws', texts.multiWorkspace, { x: 7820, y: 560, width: 660, height: 220 }, now, { fontSize: 15 }),
   ];
 
   const edgeList: unknown[] = [

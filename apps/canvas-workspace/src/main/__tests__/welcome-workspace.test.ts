@@ -90,7 +90,7 @@ describe('welcome workspace seed', () => {
     // HTML-mode iframes carry inline HTML, URL-mode iframes carry URLs.
     const hero = nodes.find((node) => node.id === 'node-onboard-hero');
     expect(hero?.data?.mode).toBe('html');
-    expect(String(hero?.data?.html)).toContain('Pulse Canvas');
+    expect(String(hero?.data?.html)).toContain('Pulse <b>Canvas</b>');
 
     // Mindmap is the product capability map.
     const mindmap = nodes.find((node) => node.type === 'mindmap');

@@ -1,163 +1,113 @@
 import type { WelcomeContent } from './welcome-content-types';
+import {
+  chatMockCard,
+  conceptCard,
+  featureGrid,
+  heroCard,
+  kanbanCard,
+  tableCard,
+  workflowCard,
+} from './welcome-cards';
 
 const DOWNLOAD_URL = 'https://pulse-canvas-download.pages.dev/';
 
-/** Shared look for the HTML cards: same font stack, kbd chips, soft panels. */
-const BASE_CSS = `
-html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;-webkit-font-smoothing:antialiased}
-*{box-sizing:border-box}
-kbd{background:#f6f8fa;border:1px solid #d0d7de;border-bottom-width:3px;border-radius:6px;padding:2px 7px;font-size:12px;font-family:ui-monospace,SFMono-Regular,monospace;white-space:nowrap}
-.wrap{padding:22px 26px;background:#fff;height:100%;overflow:auto}
-.wrap h2{margin:0 0 14px;font-size:18px;color:#1f2328}
-.muted{font-size:12.5px;color:#57606a}
-`;
+const HERO_HTML = heroCard({
+  nameA: 'Pulse',
+  nameB: 'Canvas',
+  tagline: '和 AI 一起思考的画布',
+  chips: ['本地优先', '万物皆节点', 'AI 原生'],
+  frameLabel: 'FRAME',
+  nodeA: '📝 笔记',
+  nodeB: '🌐 网页',
+});
 
-const HERO_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-.hero{position:relative;height:100%;overflow:hidden;display:flex;flex-direction:column;justify-content:center;padding:0 48px;background:linear-gradient(135deg,#4f6ef7 0%,#7c4ff7 55%,#b44ff7 100%);color:#fff}
-.blob{position:absolute;border-radius:50%;background:rgba(255,255,255,.13);animation:float 9s ease-in-out infinite}
-.b1{width:200px;height:200px;right:-50px;top:-70px}
-.b2{width:130px;height:130px;right:140px;bottom:-56px;animation-delay:3s}
-.b3{width:70px;height:70px;left:-24px;bottom:30px;animation-delay:5s}
-@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(16px)}}
-h1{margin:0 0 10px;font-size:44px;letter-spacing:.5px}
-.tag{margin:0;font-size:18px;opacity:.95}
-.chips{display:flex;gap:10px;margin-top:20px}
-.chip{padding:6px 15px;border:1px solid rgba(255,255,255,.5);border-radius:999px;font-size:13px}
-</style></head><body><div class="hero"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
-<h1>Pulse Canvas</h1><p class="tag">和 AI 一起思考的画布</p>
-<div class="chips"><span class="chip">🏠 本地优先</span><span class="chip">🧩 万物皆节点</span><span class="chip">🤖 AI 原生</span></div>
-</div></body></html>`;
+const FEATURE_GRID_HTML = featureGrid('WHAT IT CAN DO', '它能做什么', [
+  { icon: 'note', title: '笔记即文件', desc: 'Note 的内容保存为本地 Markdown，数据永远是你的。' },
+  { icon: 'globe', title: '网页入画', desc: 'URL 或 HTML 都能成为节点——这张卡片本身就是。' },
+  { icon: 'mindmap', title: '思维导图', desc: '一个节点装下一棵树，AI 还能帮你继续扩展。' },
+  { icon: 'chat', title: 'AI Chat', desc: '整张画布就是它的上下文，选中什么就聊什么。' },
+  { icon: 'terminal', title: '终端与 Agent', desc: '命令行和 Claude Code / Codex 直接放上画布。' },
+  { icon: 'frame', title: '空间即组织', desc: 'Frame、连线、标签——位置本身就是信息。' },
+]);
 
-const FEATURE_GRID_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:22px;height:100%;background:#fafbfc;overflow:auto}
-.tile{background:#fff;border:1px solid #e6e8ec;border-radius:14px;padding:16px 18px;transition:transform .15s,box-shadow .15s}
-.tile:hover{transform:translateY(-3px);box-shadow:0 8px 20px rgba(31,35,40,.10)}
-.emoji{font-size:26px}
-.tile h3{margin:8px 0 4px;font-size:15px;color:#1f2328}
-.tile p{margin:0;font-size:12.5px;color:#57606a;line-height:1.55}
-</style></head><body><div class="grid">
-<div class="tile"><div class="emoji">📝</div><h3>笔记即文件</h3><p>Note 的内容保存为本地 Markdown，数据永远是你的。</p></div>
-<div class="tile"><div class="emoji">🌐</div><h3>网页入画</h3><p>URL 或 HTML 都能成为节点——这张卡片本身就是。</p></div>
-<div class="tile"><div class="emoji">🧠</div><h3>思维导图</h3><p>一个节点装下一棵树，AI 还能帮你继续扩展。</p></div>
-<div class="tile"><div class="emoji">💬</div><h3>AI Chat</h3><p>整张画布就是它的上下文，选中什么就聊什么。</p></div>
-<div class="tile"><div class="emoji">🖥</div><h3>终端与 Agent</h3><p>命令行和 Claude Code / Codex 直接放上画布。</p></div>
-<div class="tile"><div class="emoji">🗂</div><h3>空间即组织</h3><p>Frame、连线、标签——位置本身就是信息。</p></div>
-</div></body></html>`;
+const CONCEPT_HTML = conceptCard({
+  eyebrow: 'CANVAS ESSENTIALS',
+  heading: '画布三要素',
+  frameLabel: 'FRAME · 区域',
+  nodeA: '一个想法',
+  nodeB: '一份方案',
+  edgeLabel: 'EDGE · 连线',
+  caps: [
+    { term: '节点', desc: '承载内容' },
+    { term: '连线', desc: '表达关系' },
+    { term: 'Frame', desc: '收纳区域' },
+  ],
+});
 
-const CONCEPT_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-.wrap{background:#fafbfc}
-.cap{display:flex;gap:12px;margin-top:14px}
-.cap div{flex:1;background:#fff;border:1px solid #e6e8ec;border-radius:10px;padding:10px 12px;font-size:12.5px;color:#57606a;text-align:center}
-.cap b{display:block;color:#1f2328;font-size:13.5px;margin-bottom:3px}
-</style></head><body><div class="wrap">
-<h2>画布三要素</h2>
-<svg viewBox="0 0 640 210" width="100%" xmlns="http://www.w3.org/2000/svg">
-<rect x="10" y="12" width="620" height="186" rx="16" fill="#f1f3f6" stroke="#a5b4cf" stroke-width="2" stroke-dasharray="7 5"/>
-<text x="34" y="42" font-size="13" fill="#7a8699">区域 Frame</text>
-<rect x="70" y="76" width="160" height="76" rx="12" fill="#eef2ff" stroke="#5b7cbf" stroke-width="2"/>
-<text x="150" y="120" font-size="15" text-anchor="middle" fill="#1f2328">💡 一个想法</text>
-<rect x="410" y="76" width="160" height="76" rx="12" fill="#fff" stroke="#5b7cbf" stroke-width="2"/>
-<text x="490" y="120" font-size="15" text-anchor="middle" fill="#1f2328">📋 一份方案</text>
-<defs><marker id="ah" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0 0 L10 4 L0 8 z" fill="#7c4ff7"/></marker></defs>
-<path d="M230 114 C 300 114 340 114 405 114" stroke="#7c4ff7" stroke-width="2.5" fill="none" marker-end="url(#ah)"/>
-<text x="318" y="102" font-size="12.5" text-anchor="middle" fill="#7c4ff7">连线 Edge</text>
-</svg>
-<div class="cap">
-<div><b>节点</b>承载内容</div>
-<div><b>连线</b>表达关系</div>
-<div><b>Frame</b>收纳区域</div>
-</div>
-</div></body></html>`;
+const BASICS_HTML = tableCard(
+  'BASICS',
+  '画布操作速查',
+  [
+    { label: '移动节点', value: '按住节点拖动' },
+    { label: '调整大小', value: '拖动节点边角' },
+    { label: '重命名', value: '双击节点标题' },
+    { label: '复制节点', value: '<kbd>Cmd/Ctrl</kbd> + <kbd>D</kbd>' },
+    { label: '微调位置', value: '方向键（<kbd>Shift</kbd> 大步移动）' },
+    { label: '平移画布', value: '按住空白处拖动 / 滚轮' },
+    { label: '缩放画布', value: '<kbd>Cmd/Ctrl</kbd> + 滚轮 / 触控板捏合' },
+    { label: '聚焦选中节点', value: '<kbd>F</kbd>' },
+    { label: '退出聚焦 / 清空选择', value: '<kbd>Esc</kbd>' },
+  ],
+  '这张卡片本身是一个 HTML 网页节点——网页也可以住在画布上。',
+);
 
-const BASICS_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-table{width:100%;border-collapse:collapse;font-size:14px}
-td{padding:9px 12px;border-bottom:1px solid #eaeef2;color:#1f2328}
-td:first-child{width:46%;color:#57606a}
-</style></head><body><div class="wrap">
-<h2>🧭 画布操作速查</h2>
-<table>
-<tr><td>移动节点</td><td>按住节点拖动</td></tr>
-<tr><td>调整大小</td><td>拖动节点边角</td></tr>
-<tr><td>重命名</td><td>双击节点标题</td></tr>
-<tr><td>复制节点</td><td><kbd>Cmd/Ctrl</kbd> + <kbd>D</kbd></td></tr>
-<tr><td>微调位置</td><td>方向键（<kbd>Shift</kbd> 大步移动）</td></tr>
-<tr><td>平移画布</td><td>按住空白处拖动 / 滚轮</td></tr>
-<tr><td>缩放画布</td><td><kbd>Cmd/Ctrl</kbd> + 滚轮 / 触控板捏合</td></tr>
-<tr><td>聚焦选中节点</td><td><kbd>F</kbd></td></tr>
-<tr><td>退出聚焦 / 清空选择</td><td><kbd>Esc</kbd></td></tr>
-</table>
-</div></body></html>`;
+const KANBAN_HTML = kanbanCard(
+  'ORGANIZE',
+  '用三个 Frame 做轻量看板',
+  [
+    { dot: '#8B93A3', label: '资料区', items: ['竞品收藏', '灵感碎片'] },
+    { dot: '#3A63F2', label: '进行中', items: ['需求草稿', '项目脑图'] },
+    { dot: '#2F9E63', label: '已完成', items: ['目标对齐'] },
+  ],
+  '节点在 Frame 之间拖动，就是状态流转。Frame 支持重命名、折叠；选多个节点 <kbd>Cmd/Ctrl</kbd>+<kbd>G</kbd> 可先编组。',
+);
 
-const KANBAN_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-.wrap{background:#fafbfc;display:flex;flex-direction:column}
-.cols{display:flex;gap:12px;flex:1;min-height:0}
-.col{flex:1;background:#f1f3f6;border-radius:12px;padding:10px}
-.col h4{margin:2px 4px 10px;font-size:13px;color:#57606a}
-.card{background:#fff;border:1px solid #e6e8ec;border-radius:10px;padding:9px 11px;font-size:12.5px;color:#1f2328;margin-bottom:8px;box-shadow:0 1px 2px rgba(31,35,40,.05)}
-.hint{margin:12px 2px 0}
-</style></head><body><div class="wrap">
-<h2>用三个 Frame 做轻量看板</h2>
-<div class="cols">
-<div class="col"><h4>📚 资料区</h4><div class="card">🌐 竞品收藏</div><div class="card">📝 灵感碎片</div></div>
-<div class="col"><h4>🚧 进行中</h4><div class="card">📋 需求草稿</div><div class="card">🧠 项目脑图</div></div>
-<div class="col"><h4>✅ 已完成</h4><div class="card">🎯 目标对齐</div></div>
-</div>
-<p class="muted hint">节点在 Frame 之间拖动，就是状态流转。Frame 支持重命名、折叠，选多个节点 <kbd>Cmd/Ctrl</kbd>+<kbd>G</kbd> 可先编组。</p>
-</div></body></html>`;
+const CHAT_MOCK_HTML = chatMockCard(
+  'AI CHAT',
+  [
+    { who: 'user', html: '总结这张画布，给我一个下一步计划' },
+    {
+      who: 'ai',
+      html: '这张画布有 5 个区域：产品介绍、画布三要素、组织信息、AI 协作和进阶玩法。建议下一步：<ol><li>双击 02 区的便签，感受节点编辑</li><li>选中 04 区的两张素材卡，让我合并成结论</li><li>把「Pulse Canvas 全景」脑图再扩展一层</li></ol>',
+    },
+    { who: 'user', html: '你怎么知道我选中了什么？' },
+    { who: 'ai', html: '选中节点后，你的问题会带上它们作为上下文——这就是「选中即上下文」。' },
+  ],
+  '↑ 这是 AI Chat 的样子——按 <kbd>Cmd/Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> 和真的聊聊',
+);
 
-const CHAT_MOCK_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-.chat{display:flex;flex-direction:column;gap:12px;padding:20px 22px;background:#fafbfc;height:100%;overflow:auto;font-size:13.5px}
-.bubble{max-width:84%;padding:11px 15px;border-radius:16px;line-height:1.6}
-.user{align-self:flex-end;background:#4f6ef7;color:#fff;border-bottom-right-radius:5px}
-.ai{align-self:flex-start;background:#fff;border:1px solid #e6e8ec;border-bottom-left-radius:5px;color:#1f2328}
-.hint{align-self:center;margin-top:4px;text-align:center}
-</style></head><body><div class="chat">
-<div class="bubble user">总结这张画布，给我一个下一步计划</div>
-<div class="bubble ai">这张画布有 5 个区域：产品介绍、画布三要素、组织信息、AI 协作和进阶玩法。<br>建议下一步：<br>① 双击 02 区的便签，感受节点编辑<br>② 选中 04 区的两张素材卡，让我合并成结论<br>③ 把「Pulse Canvas 全景」脑图再扩展一层</div>
-<div class="bubble user">你怎么知道我选中了什么？</div>
-<div class="bubble ai">选中节点后，你的问题会带上它们作为上下文——这就是「选中即上下文」🎯</div>
-<p class="muted hint">↑ 这是 AI Chat 的样子 —— 按 <kbd>Cmd/Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> 和真的聊聊</p>
-</div></body></html>`;
+const WORKFLOW_HTML = workflowCard(
+  'WORKFLOW',
+  '一个完整的工作循环',
+  [
+    { n: '01', label: '记录目标' },
+    { n: '02', label: '收集资料' },
+    { n: '03', label: 'AI 总结' },
+    { n: '04', label: '落地执行' },
+    { n: '05', label: '沉淀复盘' },
+  ],
+  '↺ 结论回到 Note，进入下一轮',
+  ['信息在左、动作在右，AI 在中间穿针引线', '执行阶段可以在画布上打开终端或本机已安装的 CLI 工具'],
+);
 
-const WORKFLOW_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-.wrap{background:#fafbfc;display:flex;flex-direction:column}
-.flow{display:flex;align-items:stretch;gap:6px;margin-top:6px}
-.step{flex:1;background:#fff;border:1px solid #e6e8ec;border-radius:12px;padding:14px 8px;text-align:center;font-size:12.5px;color:#1f2328;line-height:1.5}
-.step .e{font-size:22px;display:block;margin-bottom:6px}
-.arr{align-self:center;color:#7c4ff7;font-size:16px}
-.loop{margin-top:14px;text-align:center;font-size:12.5px;color:#7c4ff7}
-ul{margin:14px 0 0;padding-left:18px;font-size:13px;color:#57606a;line-height:1.8}
-</style></head><body><div class="wrap">
-<h2>一个完整的工作循环</h2>
-<div class="flow">
-<div class="step"><span class="e">📝</span>记录目标</div><div class="arr">→</div>
-<div class="step"><span class="e">🌐</span>收集资料</div><div class="arr">→</div>
-<div class="step"><span class="e">💬</span>AI 总结</div><div class="arr">→</div>
-<div class="step"><span class="e">🖥</span>落地执行</div><div class="arr">→</div>
-<div class="step"><span class="e">📌</span>沉淀复盘</div>
-</div>
-<div class="loop">↺ 结论回到 Note，进入下一轮</div>
-<ul>
-<li>信息在左、动作在右，AI 在中间穿针引线</li>
-<li>执行阶段可以在画布上打开终端或本机已安装的 CLI 工具</li>
-</ul>
-</div></body></html>`;
-
-const SHORTCUTS_HTML = `<!doctype html><html><head><meta charset="utf-8"><style>${BASE_CSS}
-table{width:100%;border-collapse:collapse;font-size:14px}
-td{padding:9px 12px;border-bottom:1px solid #eaeef2;color:#1f2328}
-td:first-child{width:46%;color:#57606a}
-</style></head><body><div class="wrap">
-<h2>⌨️ 全局快捷键</h2>
-<table>
-<tr><td>命令面板</td><td><kbd>Cmd/Ctrl</kbd> + <kbd>K</kbd> 或 <kbd>Cmd/Ctrl</kbd> + <kbd>H</kbd></td></tr>
-<tr><td>搜索画布与笔记</td><td><kbd>Cmd/Ctrl</kbd> + <kbd>F</kbd></td></tr>
-<tr><td>打开 AI Chat</td><td><kbd>Cmd/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd></td></tr>
-<tr><td>编组 / 取消编组</td><td><kbd>Cmd/Ctrl</kbd> + <kbd>G</kbd> / + <kbd>Shift</kbd> + <kbd>G</kbd></td></tr>
-<tr><td>复制节点</td><td><kbd>Cmd/Ctrl</kbd> + <kbd>D</kbd></td></tr>
-<tr><td>聚焦 / 退出</td><td><kbd>F</kbd> / <kbd>Esc</kbd></td></tr>
-</table>
-</div></body></html>`;
+const SHORTCUTS_HTML = tableCard('SHORTCUTS', '全局快捷键', [
+  { label: '命令面板', value: '<kbd>Cmd/Ctrl</kbd> + <kbd>K</kbd> 或 <kbd>Cmd/Ctrl</kbd> + <kbd>H</kbd>' },
+  { label: '搜索画布与笔记', value: '<kbd>Cmd/Ctrl</kbd> + <kbd>F</kbd>' },
+  { label: '打开 AI Chat', value: '<kbd>Cmd/Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>A</kbd>' },
+  { label: '编组 / 取消编组', value: '<kbd>Cmd/Ctrl</kbd> + <kbd>G</kbd> / + <kbd>Shift</kbd> + <kbd>G</kbd>' },
+  { label: '复制节点', value: '<kbd>Cmd/Ctrl</kbd> + <kbd>D</kbd>' },
+  { label: '聚焦 / 退出', value: '<kbd>F</kbd> / <kbd>Esc</kbd>' },
+]);
 
 export const WELCOME_CONTENT_ZH: WelcomeContent = {
   frames: {
