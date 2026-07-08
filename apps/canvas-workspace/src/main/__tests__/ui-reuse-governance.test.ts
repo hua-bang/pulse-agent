@@ -18,11 +18,29 @@ const RENDERER_ROOT = join('src', 'renderer', 'src');
 const RATCHET_BASELINE: Record<string, number> = {
   // raw <button> tags in .tsx — falls as components/ui/Button absorbs them.
   // 402→399: WorkspaceSettings adopted ui/Button (-4); ui/Button itself (+1).
-  rawButtonTags: 399,
+  // 399→397: AgentTypeSelect migrated to ui/Select, dropping its bespoke
+  // trigger + option <button>s (-2). ui/Select itself moved, not added.
+  rawButtonTags: 397,
+  // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
+  // Baseline 55: ui/TextField's own <input> (+1) offset by WorkspaceSettings'
+  // name field adopting ui/TextField (-1), net flat over the pre-change 55.
+  rawInputTags: 55,
+  // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
+  // them. 13→14: ui/TextField's own <textarea> (+1); the blessed control's
+  // element counts here just as ui/Button's own <button> does above.
+  rawTextareaTags: 14,
+  // raw <select> tags in .tsx (incl. doc-comment mentions) — the blessed
+  // control is the ui/Select custom popover, NOT a native <select>. 2→1:
+  // AgentTypeSelect's migration removed its docstring's `<select>` mention;
+  // the sole remaining match is ui/Select's own "replaces the native <select>"
+  // doc line. No real native <select> elements remain.
+  rawSelectTags: 1,
   // border-radius declarations not using var(--radius*) — radius is the
   // first tokenization target per the spec decision. 435→431: ui/ CSS is
   // tokenized and the promoted Drawer + deleted CTA rules dropped 4 literals.
-  borderRadiusLiterals: 431,
+  // 431→425: ui/Select promotion tokenized its 3 radii (-3) and the retired
+  // agent-type-select CSS dropped 3 more literals (-3).
+  borderRadiusLiterals: 425,
   // independent 360°-rotate spinner @keyframes (names ending in "spin")
   spinnerKeyframes: 6,
   // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them.
@@ -90,6 +108,9 @@ const countMatches = (sources: SourceFile[], regex: RegExp): number =>
 describe('ui reuse governance (ratchet — counters may shrink, never grow)', () => {
   const measured: Record<string, number> = {
     rawButtonTags: countMatches(tsxFiles, /<button\b/g),
+    rawInputTags: countMatches(tsxFiles, /<input\b/g),
+    rawTextareaTags: countMatches(tsxFiles, /<textarea\b/g),
+    rawSelectTags: countMatches(tsxFiles, /<select\b/g),
     borderRadiusLiterals: cssFiles.reduce(
       (sum, f) =>
         sum +

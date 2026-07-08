@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import { Drawer, Button } from '../ui';
+import { Drawer, Button, TextField } from '../ui';
 import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { useAppShell } from '../AppShellProvider';
@@ -214,19 +214,16 @@ export const WorkspaceSettingsDrawer = ({
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.identity')}</div>
-          <label className="workspace-settings-field">
-            <span>{t('workspaceSettings.name')}</span>
-            <input
-              className="workspace-settings-input"
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onBlur={handleNameBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-              }}
-            />
-          </label>
-          <div className="workspace-settings-field-hint">id: {workspace.id}</div>
+          <TextField
+            label={t('workspaceSettings.name')}
+            hint={`id: ${workspace.id}`}
+            value={nameDraft}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={handleNameBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+          />
         </section>
 
         <section className="workspace-settings-section">

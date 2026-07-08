@@ -1,0 +1,60 @@
+/* ui/TextField — blessed labelled text control. Metrics from the dominant
+ * existing cluster (cfg-field / cfg-input / cfg-textarea): 34px inputs, 11px
+ * label, soft #2383e2 focus ring. Radius is tokenized (var(--radius)); colors
+ * stay literal for now (color tokens are measured but not yet gated). */
+
+.ui-textfield {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.ui-textfield__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(55, 53, 47, 0.55);
+  letter-spacing: 0.01em;
+}
+
+.ui-textfield__control {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(55, 53, 47, 0.12);
+  border-radius: var(--radius);
+  background: #fff;
+  color: #37352f;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+textarea.ui-textfield__control {
+  height: auto;
+  min-height: 140px;
+  padding: 10px 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.ui-textfield__control:focus-visible {
+  border-color: rgba(35, 131, 226, 0.45);
+  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  outline: none;
+}
+
+.ui-textfield__control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ui-textfield__hint {
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: rgba(55, 53, 47, 0.55);
+}

@@ -1,7 +1,9 @@
-/* Reusable dropdown that replaces native <select>. Neutral palette tuned to
- * the settings vocabulary (34px controls, 8px radii, soft #2383e2 focus ring)
- * so it sits cleanly next to `.cfg-input` fields, while staying generic enough
- * to reuse elsewhere. The open menu is app chrome, not an OS popup. */
+/* ui/Select — blessed dropdown that replaces native <select>. Neutral palette
+ * tuned to the settings vocabulary (34px controls, soft #2383e2 focus ring) so
+ * it sits cleanly next to `.cfg-input` fields, while staying generic enough to
+ * reuse elsewhere. The open menu is app chrome, not an OS popup. Radius is
+ * tokenized (var(--radius*)); colors stay literal for now (color tokens are
+ * measured but not yet gated). */
 
 .ui-select {
   position: relative;
@@ -18,7 +20,7 @@
   height: 34px;
   padding: 0 10px;
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius);
   background: #fff;
   color: #37352f;
   font: inherit;
@@ -43,6 +45,14 @@
 .ui-select__trigger:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.ui-select__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: rgba(55, 53, 47, 0.7);
 }
 
 .ui-select__value {
@@ -81,9 +91,15 @@
   overflow-y: auto;
   padding: 4px;
   border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: 9px;
+  border-radius: var(--radius-lg);
   background: #fff;
   box-shadow: 0 10px 28px rgba(15, 15, 15, 0.12), 0 0 0 1px rgba(15, 15, 15, 0.02);
+}
+
+/* Opens upward for triggers near the bottom of a clipped container. */
+.ui-select__menu--top {
+  top: auto;
+  bottom: calc(100% + 4px);
 }
 
 .ui-select__option {
@@ -93,7 +109,7 @@
   width: 100%;
   padding: 7px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: #37352f;
   font: inherit;
