@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useI18n } from '../../i18n';
+import { SpinnerIcon } from '../icons';
 import type { I18nKey } from '../../i18n/messages';
 import type { ToolCallStatus } from './types';
 
@@ -220,9 +221,7 @@ export const ChatToolCalls = ({
           <>
             <span className="chat-tool-call-icon">
               {tool.status === 'running' ? (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="chat-tool-call-spinner">
-                  <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" strokeDasharray="14 14" strokeLinecap="round" />
-                </svg>
+                <SpinnerIcon size={12} className="chat-tool-call-spinner" />
               ) : (
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                   <path d="M3 6l2 2 4-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />

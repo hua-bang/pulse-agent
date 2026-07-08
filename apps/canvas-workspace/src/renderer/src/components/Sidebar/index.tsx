@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback, type DragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { useClickOutside } from '../../hooks/useClickOutside';
-import { useEscapeClose } from '../../hooks/useEscapeClose';
 import type { NavItem } from '../../../../plugins/types';
 import type { WorkspaceEntry, FolderEntry } from '../../hooks/useWorkspaces';
 import type { CanvasNode } from '../../types';
@@ -137,16 +136,9 @@ export const Sidebar = ({
     setLayerContextMenu({ x: e.clientX, y: e.clientY, nodeId });
   }, []);
 
-  // A right-click context menu dismisses on the next press anywhere (no ref
-  // containment — clicking an item runs its handler, then this closes it).
-  // Escape goes through the shared IME-aware hook like every other overlay.
-  useEffect(() => {
-    if (!layerContextMenu) return;
-    const close = () => setLayerContextMenu(null);
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [layerContextMenu]);
-  useEscapeClose(!!layerContextMenu, () => setLayerContextMenu(null));
+  // Dismissal (outside-press + Escape) is owned by LayerContextMenu's
+  // Popover shell (useClickOutside + useMenuKeyboardNav/useEscapeClose), so
+  // no hand-rolled listeners live here anymore.
 
   const toggleLayerCollapse = useCallback((id: string) => {
     setCollapsedLayers((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });

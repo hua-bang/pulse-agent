@@ -75,13 +75,18 @@ counter may shrink but never grow):
 
 - **New code uses the blessed basics** from `components/ui/`: `Button`,
   `Modal` (the one overlay shell), `Drawer`, `Portal` (the one createPortal
-  exit), `Select` (the one dropdown; scope a density override rather than
-  forking it), `TextField` (labelled input/textarea), `useDragResize` — plus
-  `AppShellProvider.notify` for toasts and the canonical hooks
+  exit), `Popover` (the one point-anchored popover shell — portals + viewport
+  clamp + ESC/arrow-nav + click-outside for context-menu-style menus opened at
+  an x/y point), `Select` (the one dropdown; scope a density override rather
+  than forking it), `TextField` (labelled input/textarea), `useDragResize` —
+  plus `AppShellProvider.notify` for toasts and the canonical hooks
   `useEscapeClose` / `useMenuKeyboardNav` / `useClickOutside`. Do NOT
-  hand-roll a new overlay ESC listener, backdrop, portal call site, dropdown
-  popover, labelled form field, spinner keyframe, or raw CTA `<button>`
-  style pair — the ratchet will fail your PR.
+  hand-roll a new overlay ESC listener, backdrop, portal call site,
+  point-anchored popover shell, dropdown popover, labelled form field, spinner
+  keyframe, or raw CTA `<button>` style pair — the ratchet will fail your PR.
+  The blessed spinner element is `icons/SpinnerIcon` (drive its rotation with
+  a `spin`-named keyframe class, e.g. `chat-spin`); render it instead of
+  inlining a fresh spinner `<svg>`.
 - **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-sm|--radius|--radius-md|--radius-lg)`
   for radii, palette tokens for colors, `var(--shadow-*)` for shadows — all
   three are ratchet-gated (`borderRadiusLiterals`, `hardcodedColorLiterals`,

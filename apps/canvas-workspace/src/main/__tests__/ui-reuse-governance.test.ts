@@ -52,6 +52,19 @@ const RATCHET_BASELINE: Record<string, number> = {
   borderRadiusLiterals: 425,
   // independent 360°-rotate spinner @keyframes (names ending in "spin")
   spinnerKeyframes: 6,
+  // private entrance @keyframes whose NAME ends in an entrance-shaped suffix
+  // (-in / -appear / -rise / -slide), excluding the two blessed globals
+  // fadeIn + menuAppear (camelCase, so the hyphen-delimited regex skips them
+  // for free). Name-based like spinnerKeyframes; new code should reference
+  // the global menuAppear (opacity+scale+rise) or fadeIn (opacity) instead of
+  // minting a near-duplicate private keyframe. The remaining 12 are either
+  // meaningfully directional/distinct (e.g. agent-team-inspector-panel-in
+  // slides from the right, right-dock-tab-rise is a selection micro-lift,
+  // ui-drawer-in is the blessed Drawer's own slide, iframe-shimmer-slide is a
+  // loading shimmer) or simply out of this backlog's flagged scope — so the
+  // practical floor is nonzero. Measured 14→12: reference-workspace-menu-in
+  // folded into menuAppear and agent-team-inspector-backdrop-in into fadeIn.
+  privateEntranceKeyframes: 12,
   // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them.
   // 12→11: AppShell Confirm+Shortcuts (-2) now route through ui/Modal (+1).
   // 11→12: ui/Drawer gained role="dialog" + aria-modal (P3 a11y hardening —
@@ -59,9 +72,21 @@ const RATCHET_BASELINE: Record<string, number> = {
   // the dialog role consistently. A deliberate increase, not a regression.
   dialogRoles: 12,
   // files calling createPortal directly. ui/Portal is the one blessed exit;
-  // Modal/Drawer render through it, keeping the count flat at the original
-  // 10 (9 legacy callers + ui/Portal). Falls as legacy callers adopt <Portal>.
-  portalFiles: 10,
+  // Modal/Drawer render through it. Falls as legacy callers adopt <Portal> or
+  // the new point-anchored ui/Popover shell.
+  // 10→9: NodeContextMenu + EdgeContextMenu dropped their direct createPortal
+  // (-2) by moving onto ui/Popover; ui/Popover itself adds one shared exit
+  // (+1). Net -1. (LayerContextMenu also moved onto Popover but never called
+  // createPortal directly.)
+  portalFiles: 9,
+  // non-ui, non-test .tsx files that BOTH import useViewportClampedPosition
+  // AND call createPortal — the signature of a hand-rolled point-anchored
+  // popover shell living outside ui/Popover. Post-migration the three canvas
+  // context menus (Node/Edge/Layer) route through ui/Popover, so the only
+  // remaining two are NoteMentionMenu + SlashCommandMenu — combobox-style
+  // menus with index-driven arrow-nav coupled to filtering state, which
+  // Popover's DOM-focus useMenuKeyboardNav model deliberately does not serve.
+  bespokePopoverPositioning: 2,
   // Hand-rolled keydown listeners — overlay ESC belongs in useEscapeClose /
   // the ui/ shells. History as componentWindowKeydown (scoped to
   // components/, window.addEventListener('keydown' only): 10→7 —
@@ -180,8 +205,24 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
       0,
     ),
     spinnerKeyframes: countMatches(cssFiles, /@keyframes\s+\S*[sS]pin\s*\{/g),
+    // Same name-anchored style as spinnerKeyframes: an entrance-shaped suffix
+    // immediately before the block's `{`. Hyphen-delimited, so camelCase
+    // fadeIn / menuAppear (the blessed globals) never match.
+    privateEntranceKeyframes: countMatches(
+      cssFiles,
+      /@keyframes\s+\S*(?:-in|-appear|-rise|-slide)\s*\{/gi,
+    ),
     dialogRoles: countMatches(tsxFiles, /role="dialog"/g),
     portalFiles: tsLikeFiles.filter((f) => f.content.includes('createPortal(')).length,
+    // A hand-rolled point-anchored popover shell = viewport clamp + its own
+    // createPortal exit. ui/ is excluded (Popover IS the blessed shell); test
+    // files are already excluded by collectFiles.
+    bespokePopoverPositioning: tsxFiles.filter(
+      (f) =>
+        !f.path.includes('/components/ui/') &&
+        f.content.includes('useViewportClampedPosition') &&
+        f.content.includes('createPortal('),
+    ).length,
     // Widened 2026-07-08 (was componentWindowKeydown: window-only, scoped to
     // /components/) — now both window.addEventListener('keydown' AND
     // document.addEventListener('keydown', across ALL of src/renderer/src.

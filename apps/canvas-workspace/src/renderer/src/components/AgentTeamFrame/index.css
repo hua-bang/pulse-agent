@@ -921,7 +921,7 @@
   background: rgba(247, 250, 255, 0.72);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  animation: agent-team-inspector-backdrop-in 140ms ease-out;
+  animation: fadeIn 140ms ease-out;
 }
 
 .agent-team-dag-fullscreen__panel {
@@ -2365,7 +2365,7 @@
   background: rgba(247, 250, 255, 0.42);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
-  animation: agent-team-inspector-backdrop-in 140ms ease-out;
+  animation: fadeIn 140ms ease-out;
 }
 
 .agent-team-agent-inspector__panel {
@@ -2383,15 +2383,6 @@
   box-shadow: 0 18px 48px rgba(31, 54, 88, 0.16);
   padding: 12px;
   animation: agent-team-inspector-panel-in 180ms cubic-bezier(0.2, 0.9, 0.2, 1);
-}
-
-@keyframes agent-team-inspector-backdrop-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 @keyframes agent-team-inspector-panel-in {

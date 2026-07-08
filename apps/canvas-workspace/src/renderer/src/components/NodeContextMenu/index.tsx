@@ -1,8 +1,5 @@
 import "./index.css";
-import { createPortal } from "react-dom";
-import { useViewportClampedPosition } from "../../hooks/useViewportClampedPosition";
-import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
-import { useClickOutside } from "../../hooks/useClickOutside";
+import { Popover } from "../ui/Popover";
 import { useI18n } from "../../i18n";
 import type { CreatableCanvasNodeType } from "../../utils/nodeFactory";
 import { useRightDock } from "../RightDock";
@@ -114,21 +111,9 @@ const CreateMenuItem = ({
 export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage, onClose }: Props) => {
   const { t } = useI18n();
   const dock = useRightDock();
-  const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
 
-  // Arrow-key navigation + Escape; replaces the old window Escape
-  // listener so the menu is fully operable without a mouse.
-  useMenuKeyboardNav(menuRef, onClose);
-  useClickOutside(menuRef, onClose);
-
-  const menu = (
-    <div
-      ref={menuRef}
-      className="context-menu"
-      role="menu"
-      style={{ left: pos.left, top: pos.top }}
-      onClick={(e) => e.stopPropagation()}
-    >
+  return (
+    <Popover x={x} y={y} onClose={onClose} className="context-menu">
       {mode === "mindmap" ? (
         <>
           <div className="context-menu-title">{t('canvas.menu.mindmapTitle')}</div>
@@ -172,8 +157,6 @@ export const NodeContextMenu = ({ x, y, mode = "create", onCreate, onExportImage
           <CreateMenuItem type="mindmap" title={t('canvas.menu.mindmap')} description={t('canvas.menu.mindmapDesc')} onCreate={onCreate} />
         </>
       )}
-    </div>
+    </Popover>
   );
-
-  return createPortal(menu, document.body);
 };

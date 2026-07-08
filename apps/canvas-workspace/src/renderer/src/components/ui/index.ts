@@ -12,6 +12,7 @@ export { Button } from './Button';
 export { Modal } from './Modal';
 export { Drawer } from './Drawer';
 export { Portal } from './Portal';
+export { Popover } from './Popover';
 export { Select } from './Select';
 export type { SelectOption } from './Select';
 export { TextField } from './TextField';

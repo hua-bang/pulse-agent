@@ -1,5 +1,4 @@
-import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { Popover } from '../ui/Popover';
 import { useI18n } from '../../i18n';
 
 interface LayerContextMenuProps {
@@ -24,21 +23,9 @@ export const LayerContextMenu = ({
   onClose,
 }: LayerContextMenuProps) => {
   const { t } = useI18n();
-  const { ref, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
-
-  // Arrow keys cycle the items, Enter activates, Escape closes — the
-  // menu was previously mouse-only.
-  useMenuKeyboardNav(ref, onClose);
 
   return (
-  <div
-    ref={ref}
-    className="sidebar-layer-context-menu"
-    role="menu"
-    style={{ left: pos.left, top: pos.top }}
-    onMouseDown={(e) => e.stopPropagation()}
-    onContextMenu={(e) => e.preventDefault()}
-  >
+  <Popover x={x} y={y} onClose={onClose} className="sidebar-layer-context-menu">
     <button
       className="sidebar-layer-context-menu-item" role="menuitem"
       onClick={() => { onFocus(nodeId); onClose(); }}
@@ -80,6 +67,6 @@ export const LayerContextMenu = ({
       </svg>
       <span>{t('sidebar.layerContext.delete')}</span>
     </button>
-  </div>
+  </Popover>
   );
 };

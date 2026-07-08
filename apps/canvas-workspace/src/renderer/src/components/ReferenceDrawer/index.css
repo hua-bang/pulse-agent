@@ -299,7 +299,9 @@
   box-shadow:
     0 10px 26px rgba(15, 15, 15, 0.12),
     0 1px 2px rgba(15, 15, 15, 0.06);
-  animation: reference-workspace-menu-in 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+  /* Global menuAppear (opacity + scale + rise) — same intent as the old
+     private reference-workspace-menu-in; kept the drawer's own timing. */
+  animation: menuAppear 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .reference-workspace-option {
@@ -348,17 +350,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@keyframes reference-workspace-menu-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px) scale(0.985);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 .reference-picker-controls {
