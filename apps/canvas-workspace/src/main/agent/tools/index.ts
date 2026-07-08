@@ -19,6 +19,7 @@ import { createWebpageTools } from './webpage';
 import { createSkillTools } from './skills';
 import { createSessionTools } from './sessions';
 import { createPluginNodeTools } from './plugin-nodes';
+import { createHtmlPatchTools } from './html-patch';
 import { createLayoutTools } from './layout-tools';
 
 export type { CanvasTool, CanvasToolExecutionContext } from './types';
@@ -104,6 +105,7 @@ export function createCanvasTools(workspaceId: string): Record<string, CanvasToo
     ...createWebpageTools(workspaceId),
     ...createSkillTools(workspaceId),
     ...createSessionTools(workspaceId),
+    ...createHtmlPatchTools(workspaceId),
     ...createPluginNodeTools(workspaceId),
     ...createLayoutTools(workspaceId),
   };
