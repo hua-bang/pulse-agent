@@ -36,11 +36,13 @@ before that the directory held only the Electron driver):
   broken invoke or union/factory drift.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app (`canvas-harness`, `canvas-onboard-harness`, `add-canvas-node`).
-- `harness/spec/` — decision-pending intent (one entry: sanctioned
-  node-extension path). The UI-reuse entry completed its full lifecycle
-  2026-07-07 (decided → mechanized as `ui-reuse-governance.test.ts` +
-  `components/ui/` → deleted). Empty is the success state; surface
-  definition lives in `packages/engine/harness/spec/README.md`.
+- `harness/spec/` — decision-pending intent, currently **empty** (the
+  success state). Two entries completed their full lifecycle: UI-reuse
+  (2026-07-07: decided → mechanized as `ui-reuse-governance.test.ts` +
+  `components/ui/` → deleted) and node-extension-path (2026-07-08: decided
+  plugin-default → encoded in the `add-canvas-node` skill + this file's
+  node-type constraint above → deleted). Surface definition lives in
+  `packages/engine/harness/spec/README.md`.
 - `harness/validate/validation.yaml` — path→check bindings for the repo runner.
 
 **"skills" disambiguation** — `harness/skills/*/SKILL.md` are procedures for
@@ -64,7 +66,7 @@ installs the latter. Do not mix them.
 | Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
-| Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure, both paths); background: `harness/spec/node-extension-path.md` (host type vs plugin is undecided), `src/shared/canvas.ts` (type union + data shape), `src/renderer/src/utils/nodeFactory.ts` (creation defaults), `src/renderer/src/components/CanvasNodeView/` (type→body dispatch), `harness/knowledge/plugin-node-mf2.md` (plugin path) |
+| Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure — plugin is the default path, host type is the exception); background: `harness/knowledge/plugin-node-mf2.md` (plugin path), `src/shared/canvas.ts`, `src/renderer/src/utils/nodeFactory.ts`, `src/renderer/src/components/CanvasNodeView/` (host-type touch points) |
 | Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
@@ -103,8 +105,12 @@ installs the latter. Do not mix them.
   `terminal`, `frame`, `group`, `agent`, `text`, `iframe`, `image`, `shape`,
   `mindmap`, `reference`, `dynamic-app`, and `plugin`.
 - Plugin nodes use stable host type `plugin` with plugin-owned
-  `data.payload`. Host behavior should go through renderer/main plugin
-  registries and declared capabilities.
+  `data.payload`. **New node capabilities default to plugin nodes** (decided
+  2026-07-08); extending the host `CanvasNode['type']` union is the
+  exception, reserved for nodes needing main-process integration the plugin
+  capability registry can't cover (a persistent session/IPC channel like
+  PTY, or a dedicated storage-migration path) — see
+  `harness/skills/add-canvas-node/SKILL.md`.
 - The channel plugin is inert unless the experimental flag and channel config
   are enabled; keep channel credentials in local settings/env, not source.
 

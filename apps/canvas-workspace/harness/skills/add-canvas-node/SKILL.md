@@ -1,22 +1,30 @@
 ---
 name: add-canvas-node
-description: Use when adding a new canvas node capability to Pulse Canvas (apps/canvas-workspace) — either a first-class host node type or a plugin node type. Covers choosing the path, the exact touch points for each, and the landmines (union/factory desync, dispatch fallthrough, agent-tool contract surface).
+description: Use when adding a new canvas node capability to Pulse Canvas (apps/canvas-workspace). Plugin nodes are the default path; host types are the documented exception. Covers both paths' exact touch points and the landmines (union/factory desync, dispatch fallthrough, agent-tool contract surface).
 ---
 
 # Add a Canvas Node
 
 An ordered procedure for adding a new node capability. Gives the SEQUENCE and the landmines; FACTS live in the knowledge docs it points to — do not restate them here.
 
-## Step 0 — choose the path (read this before writing code)
+## Step 0 — plugin is the default; host type is the exception
 
-Two extension paths coexist and **the criterion for choosing between them is undecided** — see `../../spec/node-extension-path.md`. Until that spec is resolved:
+**Decided (owner, 2026-07-08):** new node capabilities are plugin nodes (Step 1) by default. Host-type extension (Step 2) is reserved for a node that needs genuine **main-process integration the plugin capability registry doesn't cover** — specifically a persistent session/IPC channel (the reason `terminal`/`agent` are host types: PTY sessions are an open, ongoing channel, not a request/response call) or a dedicated storage-migration path. The plugin capability model (`read`/`write`/`actions`) is request/response — it does not fit a node that needs to hold an open channel.
 
-- `AGENTS.md` Local Constraints leans **plugin-ward**: "Host behavior should go through renderer/main plugin registries and declared capabilities."
-- But the host union has kept growing anyway (`mindmap`, `shape`, `reference`, `dynamic-app` all became host types after the plugin mechanism existed) — so plugin-ward is a stated preference, not an enforced rule.
-- **Default to the plugin path (Step 2) unless you have a concrete reason the plugin capability model can't carry it** (e.g. the node needs a dedicated main-process subsystem like PTY sessions or its own storage-migration path — the shape terminal/agent nodes needed). If you take the host-type path, say why in your PR — you're taking on a heavier, schema-visible commitment (Step 1) that the repo's own guidance leans against.
-- If you hit a case that makes you genuinely unsure which path is right, that uncertainty IS the evidence the spec needs — add it to the spec's open question rather than silently picking one.
+If you're building a content/display/interaction node (the large majority of future node needs), use Step 1. If you hit a case that's genuinely ambiguous against the criterion above, that's new evidence — say so explicitly in your PR rather than defaulting to host type quietly; the criterion may need tightening.
 
-## Step 1 — host type (the heavy path)
+`AGENTS.md` Local Constraints already states the plugin-ward preference this formalizes.
+
+## Step 1 — plugin node (the default path)
+
+Full contract: `../../knowledge/plugin-node-mf2.md`. Summary of the shape (do not restate the doc's detail here, read it):
+
+- Host type stays the stable `'plugin'` sentinel; your node's identity is `data.nodeType` (e.g. `'figma.frame'`), resolved through renderer + main plugin registries — no touch to `shared/canvas.ts`, `nodeFactory.ts`'s union, or the `CanvasNodeView` dispatch chain at all.
+- Renderer: export a `RendererCanvasPlugin` that calls `ctx.registerNodeView('your.type', YourNodeView)`.
+- Main: export a plugin that calls `ctx.registerNodeCapabilities('your.type', { read, write, actions })` — this is what wires `canvas_plugin_node_read`/`_write`/`_action` for the Canvas Agent.
+- Dev-load your plugin via a local manifest under `canvas-plugins.json` (`pluginDirs`) before wiring a permanent built-in manifest under `src/plugins/*/manifest.json` — see the doc's "Dev Loading" section. `src/plugins/mock-node/` is the working reference implementation (two node types, both patterns).
+
+## Step 2 — host type (exception path — needs a stated reason)
 
 Four touch points, all required, in this order:
 
@@ -30,22 +38,13 @@ Four touch points, all required, in this order:
 
 Also touches the agent-tool contract surface if the Canvas Agent should be able to create/read/write the new type — see `harness/knowledge/tools-reference` equivalent for canvas: `src/main/agent/tools/nodes.ts` (`canvas_create_node`) and `node-read-tools.ts` (`canvas_read_node`) generally handle host types generically via the shared `data` shape, but check whether your new type needs a dedicated read/write branch.
 
-## Step 2 — plugin node (the light path)
-
-Full contract: `../../knowledge/plugin-node-mf2.md`. Summary of the shape (do not restate the doc's detail here, read it):
-
-- Host type stays the stable `'plugin'` sentinel; your node's identity is `data.nodeType` (e.g. `'figma.frame'`), resolved through renderer + main plugin registries — no touch to `shared/canvas.ts`, `nodeFactory.ts`'s union, or the `CanvasNodeView` dispatch chain at all.
-- Renderer: export a `RendererCanvasPlugin` that calls `ctx.registerNodeView('your.type', YourNodeView)`.
-- Main: export a plugin that calls `ctx.registerNodeCapabilities('your.type', { read, write, actions })` — this is what wires `canvas_plugin_node_read`/`_write`/`_action` for the Canvas Agent.
-- Dev-load your plugin via a local manifest under `canvas-plugins.json` (`pluginDirs`) before wiring a permanent built-in manifest under `src/plugins/*/manifest.json` — see the doc's "Dev Loading" section. `src/plugins/mock-node/` is the working reference implementation (two node types, both patterns).
-
 ## Step 3 (both paths) — verify against ground truth, not memory
 
 ```bash
 node apps/canvas-workspace/harness/tools/describe-canvas.mjs
 ```
 
-Confirms: the type union and `createNodeData` factory are in sync (host-type path — exits non-zero if not), and dumps the current agent-tool registry so you can check whether your new tool name collides or whether an existing generic tool already covers your type. Run this BEFORE you start, not just after — the tool/type inventory it prints is more current than any prose description of "current node types," including this skill.
+Confirms: the type union and `createNodeData` factory are in sync (Step 2, host-type path — exits non-zero if not), and dumps the current agent-tool registry so you can check whether your new tool name collides or whether an existing generic tool already covers your type. Run this BEFORE you start, not just after — the tool/type inventory it prints is more current than any prose description of "current node types," including this skill.
 
 ## Step 4 — run the checks
 
@@ -58,4 +57,4 @@ If the new type/plugin touches shared UI (buttons, menus, dialogs), it is govern
 
 ## Done when
 
-`describe-canvas.mjs` reports union/factory in sync (host-type path) or your plugin's tools appear in its registry dump (plugin path); the node renders via one of the two dispatch points and creates from the menu if it should; `typecheck` + `test` are green.
+Your plugin's tools appear in `describe-canvas.mjs`'s registry dump (Step 1, plugin path) or it reports union/factory in sync (Step 2, host-type path); the node renders via one of the two dispatch points and creates from the menu if it should; `typecheck` + `test` are green.
