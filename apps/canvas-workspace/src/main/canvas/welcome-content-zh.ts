@@ -5,6 +5,8 @@ import {
   featureGrid,
   heroCard,
   kanbanCard,
+  settingsMockCard,
+  stepListCard,
   tableCard,
   workflowCard,
 } from './welcome-cards';
@@ -21,13 +23,24 @@ const HERO_HTML = heroCard({
   nodeB: '🌐 网页',
 });
 
+const FIRST_MINUTE_HTML = stepListCard(
+  'FIRST MINUTE',
+  '第一分钟，先学会三件事',
+  [
+    { icon: 'pan', n: 'STEP 01', title: '移动画布', desc: '按住空白处拖动——往右走就能看到第 2 区' },
+    { icon: 'zoom', n: 'STEP 02', title: '缩放', desc: 'Cmd/Ctrl + 滚轮缩放；选中节点按 F 聚焦' },
+    { icon: 'edit', n: 'STEP 03', title: '编辑', desc: '双击左下角的黄便签，改几个字试试' },
+  ],
+  '✓ 三件都做完了？往右走 →',
+);
+
 const FEATURE_GRID_HTML = featureGrid('WHAT IT CAN DO', '它能做什么', [
-  { icon: 'note', title: '笔记即文件', desc: 'Note 的内容保存为本地 Markdown，数据永远是你的。' },
-  { icon: 'globe', title: '网页入画', desc: 'URL 或 HTML 都能成为节点——这张卡片本身就是。' },
-  { icon: 'mindmap', title: '思维导图', desc: '一个节点装下一棵树，AI 还能帮你继续扩展。' },
-  { icon: 'chat', title: 'AI Chat', desc: '整张画布就是它的上下文，选中什么就聊什么。' },
-  { icon: 'terminal', title: '终端与 Agent', desc: '命令行和 Claude Code / Codex 直接放上画布。' },
-  { icon: 'frame', title: '空间即组织', desc: 'Frame、连线、标签——位置本身就是信息。' },
+  { icon: 'note', title: '笔记即文件', desc: '内容是本地 Markdown' },
+  { icon: 'globe', title: '网页入画', desc: 'URL 和 HTML 都是节点' },
+  { icon: 'mindmap', title: '思维导图', desc: '一个节点装下一棵树' },
+  { icon: 'chat', title: 'AI Chat', desc: '画布就是它的上下文' },
+  { icon: 'terminal', title: '终端与 Agent', desc: '命令行直接上画布' },
+  { icon: 'frame', title: '空间即组织', desc: '位置本身就是信息' },
 ]);
 
 const CONCEPT_HTML = conceptCard({
@@ -71,6 +84,20 @@ const KANBAN_HTML = kanbanCard(
   ],
   '节点在 Frame 之间拖动，就是状态流转。Frame 支持重命名、折叠；选多个节点 <kbd>Cmd/Ctrl</kbd>+<kbd>G</kbd> 可先编组。',
 );
+
+const SETUP_HTML = settingsMockCard({
+  eyebrow: 'STEP 0 · SETUP',
+  heading: '先把模型配上',
+  nav: [{ label: 'General' }, { label: 'Models', on: true }, { label: 'Agent' }, { label: 'About' }],
+  fields: [
+    { label: 'Provider', value: 'Anthropic-compatible ▾' },
+    { label: 'Base URL', value: 'https://api.example.com/v1' },
+    { label: 'API Key', value: '••••••••••••' },
+  ],
+  button: '保存并测试',
+  steps: ['打开 Settings', '选 Models', '添加 provider 填 Key', '回来问 AI'],
+  hint: '上面是 Settings → Models 的样子——配好模型，右边的三句话才发得出去。',
+});
 
 const CHAT_MOCK_HTML = chatMockCard(
   'AI CHAT',
@@ -125,15 +152,11 @@ export const WELCOME_CONTENT_ZH: WelcomeContent = {
 
 Pulse Canvas 是一个本地优先的可视化工作区：笔记、网页、思维导图、终端和 AI Agent 都住在同一张画布上。
 
-**这张画布就是产品说明书**——五个区域由浅入深：
+**这张画布就是产品说明书**，五个区域由浅入深：
 
-1. 初识 Pulse Canvas（你在这里）
-2. 画布三要素：节点、连线、Frame
-3. 把信息组织起来
-4. 与 AI 协作
-5. 进阶玩法
+01 初识 → 02 三要素 → 03 组织 → 04 AI 协作 → 05 进阶
 
-所有节点都可以随便拖、随便改，玩坏了也没关系——这张画布只属于你。往右走 →
+先做右上角「第一分钟」的三件事，再往右逛。玩坏了也没关系——这张画布只属于你。
 `,
     },
     practice: {
@@ -182,7 +205,7 @@ Pulse Canvas 的答案：**网页、笔记、终端都变成节点**，放进同
 2. \`帮我把「Pulse Canvas 全景」思维导图再扩展一层\`
 3. 选中右边两张素材卡后问：\`把这两个节点的信息合并成一段产品介绍\`
 
-> 还没配置模型？打开 **Settings → Models**，添加 OpenAI-compatible 或 Anthropic-compatible provider，填好 API Key 即可。
+> 还没配置模型？看左边的「第 0 步」卡片。
 `,
     },
     context: {
@@ -217,10 +240,6 @@ Pulse Canvas 的答案：**网页、笔记、终端都变成节点**，放进同
     },
   },
   texts: {
-    guide: {
-      title: '开始',
-      content: '**从这里开始，往右走 →**\n\n5 个区域 · 由浅入深',
-    },
     practice: {
       title: '便签',
       content: '👋 双击我，改几个字试试',
@@ -238,10 +257,6 @@ Pulse Canvas 的答案：**网页、笔记、终端都变成节点**，放进同
       content:
         '你看到的这些彩色大框就是 **Frame**——把相关节点收进同一个区域。\n\n这一区示范 Pulse Canvas 的组织方式：脑图理结构、看板管推进、引用防丢失。',
     },
-    aiOpen: {
-      title: '打开 AI Chat',
-      content: '`Cmd/Ctrl+Shift+A` 打开右侧 AI Chat（或点左下角 Pulse 图标）',
-    },
     feedback: {
       title: '用户评价',
       content: '🗣 用户评价：「终于不用在窗口之间来回切了」「AI 能看到我选中的东西，太顺了」',
@@ -256,13 +271,15 @@ Pulse Canvas 的答案：**网页、笔记、终端都变成节点**，放进同
     title: 'Shape',
     text: '我是 Shape 节点，工具栏里还有圆形、菱形、星星',
   },
-  download: { title: 'Pulse Canvas 下载页', url: DOWNLOAD_URL },
+  download: { title: '下载页 · 分享给朋友', url: DOWNLOAD_URL },
   cards: {
     hero: { title: 'Pulse Canvas', html: HERO_HTML },
+    firstMinute: { title: '第一分钟', html: FIRST_MINUTE_HTML },
     featureGrid: { title: '它能做什么', html: FEATURE_GRID_HTML },
     concept: { title: '画布三要素', html: CONCEPT_HTML },
     basics: { title: '画布操作速查', html: BASICS_HTML },
     kanban: { title: '用 Frame 做看板', html: KANBAN_HTML },
+    setup: { title: '第 0 步 · 配置模型', html: SETUP_HTML },
     chatMock: { title: 'AI Chat 长什么样', html: CHAT_MOCK_HTML },
     workflow: { title: '一个完整的工作循环', html: WORKFLOW_HTML },
     shortcuts: { title: '全局快捷键', html: SHORTCUTS_HTML },

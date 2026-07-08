@@ -57,15 +57,20 @@ describe('welcome workspace seed', () => {
     const byType = (type: string): number => nodes.filter((node) => node.type === type).length;
     expect(nodes).toHaveLength(32);
     expect(byType('file')).toBe(8);
-    expect(byType('text')).toBe(8);
-    expect(byType('iframe')).toBe(9);
+    expect(byType('text')).toBe(6);
+    expect(byType('iframe')).toBe(11);
     expect(byType('mindmap')).toBe(1);
     expect(byType('shape')).toBe(1);
 
-    // Visual backbone: 8 styled HTML cards + 1 URL iframe (download page).
+    // Visual backbone: 10 styled HTML cards + 1 URL iframe (download page).
     const iframes = nodes.filter((node) => node.type === 'iframe');
-    expect(iframes.filter((node) => node.data?.mode === 'html')).toHaveLength(8);
+    expect(iframes.filter((node) => node.data?.mode === 'html')).toHaveLength(10);
     expect(iframes.filter((node) => node.data?.mode === 'url')).toHaveLength(1);
+
+    // The novice on-ramp: a do-this-now checklist in zone 01 and a mocked
+    // Settings → Models walkthrough in zone 04.
+    expect(nodes.find((node) => node.id === 'node-onboard-first-minute')?.data?.mode).toBe('html');
+    expect(nodes.find((node) => node.id === 'node-onboard-setup')?.data?.mode).toBe('html');
 
     expect(canvas.data?.transform).toEqual({ x: 90, y: 40, scale: 0.55 });
 

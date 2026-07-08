@@ -35,6 +35,9 @@ const ICONS: Record<string, string> = {
   chat: '<path d="M5 5.5h14a1 1 0 0 1 1 1V15a1 1 0 0 1-1 1H10l-5 4V6.5a1 1 0 0 1 1-1z"/>',
   terminal: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M7.5 9.5l3 3-3 3M13 15.5h4"/>',
   frame: '<path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><circle cx="12" cy="12" r="1.4"/>',
+  pan: '<path d="M12 3v18M3 12h18"/><path d="M12 3l-2.5 2.5M12 3l2.5 2.5M12 21l-2.5-2.5M12 21l2.5-2.5M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5M21 12l-2.5 2.5"/>',
+  zoom: '<circle cx="11" cy="11" r="6.5"/><path d="M15.8 15.8L20.5 20.5M11 8.5v5M8.5 11h5"/>',
+  edit: '<path d="M4 20l1.2-4.2L16 5a2.1 2.1 0 0 1 3 3L8.2 18.8 4 20z"/><path d="M14 7l3 3"/>',
 };
 
 const icon = (key: string): string =>
@@ -96,21 +99,90 @@ export interface FeatureItem {
 export const featureGrid = (eyebrow: string, heading: string, items: FeatureItem[]): string =>
   doc(
     `
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0}
-.tile{background:#fff;border:1px solid #E5E9F1;border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;transition:transform .15s,box-shadow .15s}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;flex:1;min-height:0}
+.tile{background:#fff;border:1px solid #E5E9F1;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:7px;transition:transform .15s,box-shadow .15s}
 .tile:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(27,33,48,.08)}
-.ic{flex:none;width:34px;height:34px;border-radius:9px;background:#EDF1FD;color:#3A63F2;display:flex;align-items:center;justify-content:center}
-.ic svg{width:18px;height:18px}
-.tile h3{font-size:14px;font-weight:650;margin-bottom:3px;letter-spacing:-.01em}
-.tile p{font-size:12.5px;color:#5B6472;line-height:1.5}
+.ic{flex:none;width:30px;height:30px;border-radius:8px;background:#EDF1FD;color:#3A63F2;display:flex;align-items:center;justify-content:center}
+.ic svg{width:16px;height:16px}
+.tile h3{font-size:13px;font-weight:650;letter-spacing:-.01em}
+.tile p{font-size:11.5px;color:#5B6472;line-height:1.45}
 `,
     `<div class="card"><div class="eyebrow">${eyebrow}</div><h2>${heading}</h2>
 <div class="grid">${items
       .map(
         (it) =>
-          `<div class="tile"><div class="ic">${icon(it.icon)}</div><div><h3>${it.title}</h3><p>${it.desc}</p></div></div>`,
+          `<div class="tile"><div class="ic">${icon(it.icon)}</div><h3>${it.title}</h3><p>${it.desc}</p></div>`,
       )
       .join('')}</div></div>`,
+  );
+
+export interface StepListItem {
+  icon: string;
+  n: string;
+  title: string;
+  desc: string;
+}
+
+/** Numbered do-this-now checklist — the first-minute card in zone 01. */
+export const stepListCard = (eyebrow: string, heading: string, steps: StepListItem[], footer: string): string =>
+  doc(
+    `
+.steps{display:flex;flex-direction:column;gap:12px;flex:1}
+.st{display:flex;gap:14px;align-items:flex-start;background:#fff;border:1px solid #E5E9F1;border-radius:12px;padding:14px 16px}
+.ic{flex:none;width:38px;height:38px;border-radius:10px;background:#EDF1FD;color:#3A63F2;display:flex;align-items:center;justify-content:center}
+.ic svg{width:20px;height:20px}
+.n{font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10.5px;font-weight:600;letter-spacing:.1em;color:#3A63F2;display:block;margin-bottom:2px}
+.st h3{font-size:14.5px;font-weight:650;letter-spacing:-.01em;margin-bottom:2px}
+.st p{font-size:12.5px;color:#5B6472;line-height:1.55}
+.foot{margin-top:12px;text-align:center;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11.5px;color:#3A63F2}
+`,
+    `<div class="card"><div class="eyebrow">${eyebrow}</div><h2>${heading}</h2>
+<div class="steps">${steps
+      .map(
+        (s) =>
+          `<div class="st"><div class="ic">${icon(s.icon)}</div><div><span class="n">${s.n}</span><h3>${s.title}</h3><p>${s.desc}</p></div></div>`,
+      )
+      .join('')}</div>
+<div class="foot">${footer}</div></div>`,
+  );
+
+export interface SettingsMockCopy {
+  eyebrow: string;
+  heading: string;
+  /** Sidebar entries of the mocked settings window; exactly one is `on`. */
+  nav: Array<{ label: string; on?: boolean }>;
+  fields: Array<{ label: string; value: string }>;
+  button: string;
+  /** Path breadcrumb steps rendered below the mock window. */
+  steps: string[];
+  hint: string;
+}
+
+/** Mocked Settings → Models window so the setup flow is visible before it is walkable. */
+export const settingsMockCard = (c: SettingsMockCopy): string =>
+  doc(
+    `
+.win{flex:1;min-height:0;display:flex;border:1px solid #E5E9F1;border-radius:12px;overflow:hidden;background:#fff}
+.nav{width:128px;flex:none;background:#F2F4F8;padding:10px 8px;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.nav div{padding:6px 10px;border-radius:7px;color:#5B6472}
+.nav .on{background:#fff;color:#3A63F2;font-weight:600;box-shadow:0 1px 2px rgba(27,33,48,.06)}
+.form{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.f label{display:block;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8B93A3;margin-bottom:3px}
+.in{border:1px solid #D7DCE5;border-radius:8px;padding:7px 10px;font-size:12.5px;background:#FBFBFC;color:#1B2130;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{align-self:flex-start;background:#3A63F2;color:#fff;border-radius:8px;padding:7px 16px;font-size:12.5px;font-weight:600;margin-top:2px}
+.path{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:12px;flex-wrap:wrap;font-family:ui-monospace,'SF Mono',Menlo,monospace;font-size:11px;color:#5B6472}
+.path b{color:#3A63F2;font-weight:600}
+.hint{margin-top:8px;text-align:center}
+`,
+    `<div class="card"><div class="eyebrow">${c.eyebrow}</div><h2>${c.heading}</h2>
+<div class="win"><div class="nav">${c.nav
+      .map((n) => `<div${n.on ? ' class="on"' : ''}>${n.label}</div>`)
+      .join('')}</div>
+<div class="form">${c.fields
+      .map((f) => `<div class="f"><label>${f.label}</label><div class="in">${f.value}</div></div>`)
+      .join('')}<div class="btn">${c.button}</div></div></div>
+<div class="path">${c.steps.map((s, i) => `<b>0${i + 1}</b> ${s}`).join(' <span>→</span> ')}</div>
+<p class="muted hint">${c.hint}</p></div>`,
   );
 
 export interface ConceptCopy {

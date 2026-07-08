@@ -5,6 +5,8 @@ import {
   featureGrid,
   heroCard,
   kanbanCard,
+  settingsMockCard,
+  stepListCard,
   tableCard,
   workflowCard,
 } from './welcome-cards';
@@ -21,13 +23,24 @@ const HERO_HTML = heroCard({
   nodeB: '🌐 Web',
 });
 
+const FIRST_MINUTE_HTML = stepListCard(
+  'FIRST MINUTE',
+  'Learn three things in your first minute',
+  [
+    { icon: 'pan', n: 'STEP 01', title: 'Pan the canvas', desc: 'Hold empty space and drag — zone 02 is to the right' },
+    { icon: 'zoom', n: 'STEP 02', title: 'Zoom', desc: 'Cmd/Ctrl + scroll to zoom; press F to focus a selection' },
+    { icon: 'edit', n: 'STEP 03', title: 'Edit', desc: 'Double-click the yellow sticky below and change a few words' },
+  ],
+  '✓ Done all three? Head right →',
+);
+
 const FEATURE_GRID_HTML = featureGrid('WHAT IT CAN DO', 'What it can do', [
-  { icon: 'note', title: 'Notes are files', desc: 'Note content is saved as local Markdown — your data stays yours.' },
-  { icon: 'globe', title: 'Web on canvas', desc: 'URLs or raw HTML become nodes — this card is one.' },
-  { icon: 'mindmap', title: 'Mindmaps', desc: 'A whole tree in one node, and AI can grow it further.' },
-  { icon: 'chat', title: 'AI Chat', desc: 'The canvas is its context — select things and just ask.' },
-  { icon: 'terminal', title: 'Terminals & agents', desc: 'Command lines and Claude Code / Codex live on the canvas.' },
-  { icon: 'frame', title: 'Space is structure', desc: 'Frames, edges, tags — position itself is information.' },
+  { icon: 'note', title: 'Notes are files', desc: 'Local Markdown on disk' },
+  { icon: 'globe', title: 'Web on canvas', desc: 'URLs & HTML as nodes' },
+  { icon: 'mindmap', title: 'Mindmaps', desc: 'A tree in one node' },
+  { icon: 'chat', title: 'AI Chat', desc: 'The canvas is its context' },
+  { icon: 'terminal', title: 'Terminals & agents', desc: 'CLIs on the canvas' },
+  { icon: 'frame', title: 'Space is structure', desc: 'Position carries meaning' },
 ]);
 
 const CONCEPT_HTML = conceptCard({
@@ -71,6 +84,20 @@ const KANBAN_HTML = kanbanCard(
   ],
   'Dragging nodes between Frames is your status flow. Frames rename and collapse; select nodes and press <kbd>Cmd/Ctrl</kbd>+<kbd>G</kbd> to group first.',
 );
+
+const SETUP_HTML = settingsMockCard({
+  eyebrow: 'STEP 0 · SETUP',
+  heading: 'Set up a model first',
+  nav: [{ label: 'General' }, { label: 'Models', on: true }, { label: 'Agent' }, { label: 'About' }],
+  fields: [
+    { label: 'Provider', value: 'Anthropic-compatible ▾' },
+    { label: 'Base URL', value: 'https://api.example.com/v1' },
+    { label: 'API Key', value: '••••••••••••' },
+  ],
+  button: 'Save & test',
+  steps: ['Open Settings', 'Pick Models', 'Add provider + key', 'Come back and ask'],
+  hint: 'This is Settings → Models — configure a model and the three prompts on the right will actually send.',
+});
 
 const CHAT_MOCK_HTML = chatMockCard(
   'AI CHAT',
@@ -130,13 +157,9 @@ Pulse Canvas is a local-first visual workspace: notes, web pages, mindmaps, term
 
 **This canvas is the product manual** — five zones, shallow to deep:
 
-1. Meet Pulse Canvas (you are here)
-2. Canvas essentials: nodes, edges, Frames
-3. Organize information
-4. Work with AI
-5. Go deeper
+01 Meet → 02 Essentials → 03 Organize → 04 Work with AI → 05 Go deeper
 
-Every node can be dragged and edited freely. You can't break anything — this canvas is yours. Head right →
+Do the three "first minute" steps at the top right, then head right. You can't break anything — this canvas is yours.
 `,
     },
     practice: {
@@ -185,7 +208,7 @@ Open the AI Chat on the right (\`Cmd/Ctrl+Shift+A\`) and paste one of these:
 2. \`Expand the “Pulse Canvas at a glance” mindmap one more level\`
 3. Select the two material cards on the right, then ask: \`Merge these two nodes into one product blurb\`
 
-> No model configured yet? Open **Settings → Models** and add an OpenAI-compatible or Anthropic-compatible provider with your API key.
+> No model configured yet? See the “Step 0” card on the left.
 `,
     },
     context: {
@@ -220,10 +243,6 @@ Select nodes before you ask — the input turns into “Ask about these nodes...
     },
   },
   texts: {
-    guide: {
-      title: 'Start here',
-      content: '**Start here, head right →**\n\n5 zones · shallow to deep',
-    },
     practice: {
       title: 'Sticky',
       content: '👋 Double-click me and change a few words',
@@ -241,10 +260,6 @@ Select nodes before you ask — the input turns into “Ask about these nodes...
       content:
         'These big colored boxes are **Frames** — regions that gather related nodes.\n\nThis zone shows how Pulse Canvas organizes: mindmaps for structure, kanban for progress, references so nothing gets lost.',
     },
-    aiOpen: {
-      title: 'Open AI Chat',
-      content: '`Cmd/Ctrl+Shift+A` opens the AI Chat on the right (or click the Pulse icon, bottom-left)',
-    },
     feedback: {
       title: 'User feedback',
       content: '🗣 From users: “Finally no more window juggling” · “The AI sees what I select — so smooth”',
@@ -259,13 +274,15 @@ Select nodes before you ask — the input turns into “Ask about these nodes...
     title: 'Shape',
     text: 'I am a Shape node — the toolbar also has ellipses, diamonds, and stars',
   },
-  download: { title: 'Pulse Canvas Download', url: DOWNLOAD_URL },
+  download: { title: 'Download · Share with a friend', url: DOWNLOAD_URL },
   cards: {
     hero: { title: 'Pulse Canvas', html: HERO_HTML },
+    firstMinute: { title: 'First minute', html: FIRST_MINUTE_HTML },
     featureGrid: { title: 'What it can do', html: FEATURE_GRID_HTML },
     concept: { title: 'Canvas essentials', html: CONCEPT_HTML },
     basics: { title: 'Canvas basics', html: BASICS_HTML },
     kanban: { title: 'Kanban with Frames', html: KANBAN_HTML },
+    setup: { title: 'Step 0 · Set up a model', html: SETUP_HTML },
     chatMock: { title: 'What AI Chat looks like', html: CHAT_MOCK_HTML },
     workflow: { title: 'A full work loop', html: WORKFLOW_HTML },
     shortcuts: { title: 'Global shortcuts', html: SHORTCUTS_HTML },

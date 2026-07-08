@@ -58,12 +58,10 @@ export interface WelcomeContent {
   };
   /** Free-form text labels. */
   texts: {
-    guide: WelcomeTextContent;
     practice: WelcomeTextContent;
     problem: WelcomeTextContent;
     edgeTeach: WelcomeTextContent;
     frameIntro: WelcomeTextContent;
-    aiOpen: WelcomeTextContent;
     feedback: WelcomeTextContent;
     multiWorkspace: WelcomeTextContent;
   };
@@ -73,10 +71,12 @@ export interface WelcomeContent {
   /** HTML-mode iframe cards — the visual backbone of the course. */
   cards: {
     hero: WelcomeHtmlCard;
+    firstMinute: WelcomeHtmlCard;
     featureGrid: WelcomeHtmlCard;
     concept: WelcomeHtmlCard;
     basics: WelcomeHtmlCard;
     kanban: WelcomeHtmlCard;
+    setup: WelcomeHtmlCard;
     chatMock: WelcomeHtmlCard;
     workflow: WelcomeHtmlCard;
     shortcuts: WelcomeHtmlCard;
