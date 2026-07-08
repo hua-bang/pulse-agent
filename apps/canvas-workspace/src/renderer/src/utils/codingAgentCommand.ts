@@ -5,6 +5,8 @@ const TERMINAL_OUTPUT_TAIL_LIMIT = 3000;
 const SHELL_PROMPT_PATTERNS = [
   /(?:^|\n)[^\n]*(?:╰|└)[^\n]*(?:❯|➜|›|\$|%|#)\s*$/,
   /(?:^|\n)(?:➜\s+\S[^\n]*|[~/][^\n]*)(?:❯|➜|›|\$|%|#)\s*$/,
+  /(?:^|\n)(?:\([^\n)]{1,40}\)\s*)?[\w.-]+@[\w.-]+:[^\n]*(?:\$|#)\s*$/,
+  /(?:^|\n)(?:\([^\n)]{1,40}\)\s*)?\[[^\n\]]+@[\w.-]+\s+[^\n\]]+\](?:\$|#)\s*$/,
 ];
 
 export const detectCodingAgentCommand = (command: string): 'claude-code' | 'codex' | undefined => {
