@@ -35,7 +35,7 @@ before that the directory held only the Electron driver):
   sync. Run before touching any of those registries; exits non-zero on a
   broken invoke or union/factory drift.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
-  app (`canvas-harness`, `canvas-onboard-harness`).
+  app (`canvas-harness`, `canvas-onboard-harness`, `add-canvas-node`).
 - `harness/spec/` — decision-pending intent (one entry: sanctioned
   node-extension path). The UI-reuse entry completed its full lifecycle
   2026-07-07 (decided → mechanized as `ui-reuse-governance.test.ts` +
@@ -64,7 +64,7 @@ installs the latter. Do not mix them.
 | Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
-| Add/change a node TYPE (renderer registration points) | FIRST `harness/spec/node-extension-path.md` (host type vs plugin is undecided), then `src/shared/canvas.ts` (type union + data shape), `src/renderer/src/utils/nodeFactory.ts` (creation defaults), `src/renderer/src/components/CanvasNodeView/` (type→body dispatch) |
+| Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure, both paths); background: `harness/spec/node-extension-path.md` (host type vs plugin is undecided), `src/shared/canvas.ts` (type union + data shape), `src/renderer/src/utils/nodeFactory.ts` (creation defaults), `src/renderer/src/components/CanvasNodeView/` (type→body dispatch), `harness/knowledge/plugin-node-mf2.md` (plugin path) |
 | Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
