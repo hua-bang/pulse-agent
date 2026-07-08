@@ -10,7 +10,7 @@ export interface SelectOption {
   disabled?: boolean;
 }
 
-interface SelectProps {
+interface Props {
   value: string;
   options: ReadonlyArray<SelectOption>;
   onChange: (value: string) => void;
@@ -52,7 +52,7 @@ export const Select = ({
   className,
   disabled,
   placeholder,
-}: SelectProps) => {
+}: Props) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const selected = options.find((opt) => opt.value === value);

@@ -7,7 +7,7 @@ import {
 } from '../../../../plugins/renderer';
 import './index.css';
 
-interface PluginNodeBodyProps {
+interface Props {
   node: CanvasNode;
   workspaceId?: string;
   workspaceName?: string;
@@ -44,7 +44,7 @@ export const PluginNodeBody = ({
   isSelected,
   onUpdate,
   readOnly,
-}: PluginNodeBodyProps) => {
+}: Props) => {
   useSyncExternalStore(
     subscribeRendererPluginRegistry,
     getRendererPluginRegistryVersion,

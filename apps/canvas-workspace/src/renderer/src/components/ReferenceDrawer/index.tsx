@@ -10,7 +10,7 @@ import { useReferenceDrawerState } from './useReferenceDrawerState';
 import { getReferenceId } from './utils';
 import { useI18n } from '../../i18n';
 
-interface ReferenceDrawerProps {
+interface Props {
   open: boolean;
   activeWorkspaceId: string;
   workspaces: WorkspaceEntry[];
@@ -50,7 +50,7 @@ export const ReferenceDrawer = ({
   onFocusNode,
   onAddReferenceToCanvas,
   onWorkspaceNodesRequest,
-}: ReferenceDrawerProps) => {
+}: Props) => {
   const { t } = useI18n();
   const state = useReferenceDrawerState({
     open,

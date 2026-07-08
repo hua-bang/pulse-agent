@@ -21,7 +21,7 @@ import "./index.css";
 import { DynamicAppInspector } from "./Inspector";
 import type { CanvasNode, DynamicAppNodeData } from "../../types";
 
-interface DynamicAppNodeBodyProps {
+interface Props {
   node: CanvasNode;
   workspaceId?: string;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
@@ -62,7 +62,7 @@ export function DynamicAppNodeBody({
   workspaceId,
   readOnly: _readOnly,
   isResizing: _isResizing,
-}: DynamicAppNodeBodyProps) {
+}: Props) {
   // The dispatcher only routes `type === 'dynamic-app'` here, so
   // node.data narrows to DynamicAppNodeData. Be defensive about the
   // shape in case canvas.json was hand-edited.
