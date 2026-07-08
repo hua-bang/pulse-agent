@@ -14,6 +14,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
  * Button — the blessed CTA button. Consolidates the `cfg-*-btn` and
  * `workspace-settings-*-btn` clusters (which differed only in height).
  * Passes standard button attributes through; `type` defaults to 'button'.
+ * `className` merges onto the `<button>` element itself.
  */
 export const Button = ({
   variant = 'secondary',

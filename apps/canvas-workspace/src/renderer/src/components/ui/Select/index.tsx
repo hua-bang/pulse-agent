@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
 import './index.css';
@@ -47,8 +47,11 @@ const CheckGlyph = () => (
  * ui/Select — the blessed dropdown that replaces the native `<select>` so the
  * open menu inherits the app's chrome instead of the OS popup. Closes on
  * outside press (via `useClickOutside`) or Escape, with ArrowUp/Down + Enter
- * handled inside the menu by `useMenuKeyboardNav`. Pass `className` to inherit
- * a surrounding form's metrics (e.g. `cfg-input` in the settings panels),
+ * handled inside the menu by `useMenuKeyboardNav`. The trigger's
+ * `aria-controls` points at the listbox id — derived from the `id` prop when
+ * given (`${id}-listbox`), otherwise a `useId()`-generated id. Pass
+ * `className` to inherit a surrounding form's metrics (e.g. `cfg-input` in
+ * the settings panels; it lands on the root wrapper div, not the trigger),
  * `icon` on options to carry a brand mark, and `menuPlacement="top"` when the
  * trigger sits near the bottom of a clipped container.
  */
@@ -65,6 +68,8 @@ export const Select = ({
 }: SelectProps) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const autoId = useId();
+  const listboxId = `${id ?? autoId}-listbox`;
   const selected = options.find((opt) => opt.value === value);
 
   useClickOutside(rootRef, () => setOpen(false), open);
@@ -82,6 +87,7 @@ export const Select = ({
         className="ui-select__trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={listboxId}
         aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
@@ -105,6 +111,7 @@ export const Select = ({
 
       {open && (
         <SelectMenu
+          id={listboxId}
           options={options}
           value={value}
           ariaLabel={ariaLabel}
@@ -118,6 +125,7 @@ export const Select = ({
 };
 
 const SelectMenu = ({
+  id,
   options,
   value,
   ariaLabel,
@@ -125,6 +133,7 @@ const SelectMenu = ({
   onPick,
   onClose,
 }: {
+  id: string;
   options: ReadonlyArray<SelectOption>;
   value: string;
   ariaLabel?: string;
@@ -138,6 +147,7 @@ const SelectMenu = ({
   return (
     <div
       ref={menuRef}
+      id={id}
       className={`ui-select__menu${placement === 'top' ? ' ui-select__menu--top' : ''}`}
       role="listbox"
       aria-label={ariaLabel}

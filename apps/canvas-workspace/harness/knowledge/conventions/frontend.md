@@ -82,10 +82,13 @@ counter may shrink but never grow):
   hand-roll a new overlay ESC listener, backdrop, portal call site, dropdown
   popover, labelled form field, spinner keyframe, or raw CTA `<button>`
   style pair — the ratchet will fail your PR.
-- **Radius and colors use tokens** in new CSS: `var(--radius-sm|--radius|--radius-md|--radius-lg)`
-  for radii, palette tokens for colors — both are ratchet-gated
-  (`borderRadiusLiterals`, `hardcodedColorLiterals`). Shadows are measured
-  but not yet gated. Which token to reach for:
+- **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-sm|--radius|--radius-md|--radius-lg)`
+  for radii, palette tokens for colors, `var(--shadow-*)` for shadows — all
+  three are ratchet-gated (`borderRadiusLiterals`, `hardcodedColorLiterals`,
+  `shadowLiterals`). Raw `z-index` literals >= 10 (the cross-surface
+  stacking band — low local stacking inside a single component is still
+  permitted) are also gated (`zIndexHighRaw`); prefer the `--layer-*` scale.
+  Which token to reach for:
 
   | Need | Token |
   |---|---|

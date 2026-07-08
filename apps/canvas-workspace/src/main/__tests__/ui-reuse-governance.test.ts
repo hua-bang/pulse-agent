@@ -15,6 +15,15 @@ import { extname, join, relative, sep } from 'path';
 
 const RENDERER_ROOT = join('src', 'renderer', 'src');
 
+// Known NON-gated channels (deliberately out of scope for this ratchet, and
+// why): tsx inline-style colors — dominated by legitimate content palettes
+// (shape/frame/edge color pickers, graph data-viz), not chrome literals;
+// dangerouslySetInnerHTML — renders untrusted/rich content, not component
+// chrome; canvas fillStyle — export-only drawing code, never on-screen UI
+// chrome; .ts createElement — no button/input is built that way today (all
+// current instances are non-form DOM plumbing), so gating it would be
+// measuring zero for no benefit. Revisit only if one of these channels
+// starts accumulating real chrome literals.
 const RATCHET_BASELINE: Record<string, number> = {
   // Tag counters below are measured on COMMENT-STRIPPED sources, so doc
   // mentions of an element never count and never force baseline churn.
@@ -45,21 +54,53 @@ const RATCHET_BASELINE: Record<string, number> = {
   spinnerKeyframes: 6,
   // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them.
   // 12→11: AppShell Confirm+Shortcuts (-2) now route through ui/Modal (+1).
-  dialogRoles: 11,
+  // 11→12: ui/Drawer gained role="dialog" + aria-modal (P3 a11y hardening —
+  // it previously had neither), so both blessed overlay shells now expose
+  // the dialog role consistently. A deliberate increase, not a regression.
+  dialogRoles: 12,
   // files calling createPortal directly. ui/Portal is the one blessed exit;
   // Modal/Drawer render through it, keeping the count flat at the original
   // 10 (9 legacy callers + ui/Portal). Falls as legacy callers adopt <Portal>.
   portalFiles: 10,
-  // hand-rolled window keydown listeners inside components/ — overlay ESC
-  // belongs in useEscapeClose / the ui/ shells. 10→7: SettingsDrawer→ui/Drawer
-  // and both AppShell dialogs dropped their ESC listeners for the shared hooks.
-  componentWindowKeydown: 7,
+  // Hand-rolled keydown listeners — overlay ESC belongs in useEscapeClose /
+  // the ui/ shells. History as componentWindowKeydown (scoped to
+  // components/, window.addEventListener('keydown' only): 10→7 —
+  // SettingsDrawer→ui/Drawer and both AppShell dialogs dropped their ESC
+  // listeners for the shared hooks.
+  // 2026-07-08: renamed handRolledKeydown and WIDENED to (a) also count
+  // document.addEventListener('keydown' — useEscapeClose, useClickOutside,
+  // and the new useFocusTrap all listen on `document` in the capture phase,
+  // which the old window-only regex missed entirely — and (b) scan ALL of
+  // src/renderer/src (components + hooks + App.tsx), not just components/.
+  // Honest widening, not a regression: 7→20. A census triaged the
+  // components-scope holdouts before the widening — ~4 are legitimately
+  // non-migratable (2 gesture-cancel: canvas drag-abort in
+  // useCanvasMouseHandlers.ts, mindmap reorder-abort in
+  // useMindmapController.ts; 2 mixed multi-key: lightbox arrows+ESC in
+  // ChatImageLightbox.tsx, GraphPage Cmd+F+ESC in GraphPage.tsx) — each of
+  // those listeners legitimately owns more than plain Escape-closes-overlay,
+  // so this counter's practical floor is nonzero; the goal is the
+  // migratable remainder, not zero.
+  handRolledKeydown: 20,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
   // lines are exempt: defining a token with a literal is the point). Falls as
   // colors move onto the palette; migration of the stock is deliberately
   // unscheduled.
   hardcodedColorLiterals: 1961,
+  // box-shadow declaration lines not using var(--shadow-*) — same
+  // line-based style as borderRadiusLiterals. frontend.md previously said
+  // "measured but not yet gated"; gated 2026-07-08 at the as-measured
+  // baseline (no migration performed — the stock is deliberately
+  // unscheduled, matching hardcodedColorLiterals).
+  shadowLiterals: 174,
+  // z-index declarations with a raw numeric value >= 10, not via var() —
+  // targets only the cross-surface stacking band. The documented rule
+  // permits low local stacking inside a single component (60 of 93 raw
+  // z-index literals are <=5 and legitimate); this counter ignores those
+  // and gates only the band that actually competes with the --layer-*
+  // scale for cross-surface stacking order.
+  zIndexHighRaw: 25,
 };
 
 // Design tokens referenced via var(--x) somewhere in the renderer but
@@ -128,9 +169,14 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
     spinnerKeyframes: countMatches(cssFiles, /@keyframes\s+\S*[sS]pin\s*\{/g),
     dialogRoles: countMatches(tsxFiles, /role="dialog"/g),
     portalFiles: tsLikeFiles.filter((f) => f.content.includes('createPortal(')).length,
-    componentWindowKeydown: tsLikeFiles
-      .filter((f) => f.path.includes('/components/'))
-      .reduce((sum, f) => sum + (f.content.match(/window\.addEventListener\('keydown'/g) ?? []).length, 0),
+    // Widened 2026-07-08 (was componentWindowKeydown: window-only, scoped to
+    // /components/) — now both window.addEventListener('keydown' AND
+    // document.addEventListener('keydown', across ALL of src/renderer/src.
+    // Comment-stripped like the tag counters, so doc mentions don't count.
+    handRolledKeydown: countStripped(
+      tsLikeFiles,
+      /(?:window|document)\.addEventListener\('keydown'/g,
+    ),
     hardcodedColorLiterals: cssFiles.reduce(
       (sum, f) =>
         sum +
@@ -138,6 +184,25 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
           .split('\n')
           .filter((line) => !/--[a-zA-Z0-9_-]+\s*:/.test(line))
           .reduce((n, line) => n + (line.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(/g) ?? []).length, 0),
+      0,
+    ),
+    shadowLiterals: cssFiles.reduce(
+      (sum, f) =>
+        sum +
+        f.content
+          .split('\n')
+          .filter((line) => /box-shadow\s*:/.test(line) && !line.includes('var('))
+          .length,
+      0,
+    ),
+    zIndexHighRaw: cssFiles.reduce(
+      (sum, f) =>
+        sum +
+        f.content.split('\n').filter((line) => {
+          if (line.includes('var(')) return false;
+          const match = line.match(/z-index\s*:\s*(-?\d+)/);
+          return match !== null && Number(match[1]) >= 10;
+        }).length,
       0,
     ),
   };
