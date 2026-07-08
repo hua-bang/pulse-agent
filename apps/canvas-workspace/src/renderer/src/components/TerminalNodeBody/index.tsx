@@ -6,7 +6,7 @@ import type { CanvasNode, TerminalNodeData } from '../../types';
 import { TERMINAL_OPTIONS } from '../../config/terminalTheme';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
-import { fitTerminalWithCanvasScale, syncTerminalFontSizeToCanvas } from '../AgentNodeBody/utils/terminal';
+import { createDebouncedTerminalRefit, fitTerminalWithCanvasScale, syncTerminalFontSizeToCanvas } from '../AgentNodeBody/utils/terminal';
 import { useI18n } from '../../i18n';
 import {
   appendTerminalOutputTail,
@@ -285,11 +285,17 @@ export const TerminalNodeBody = ({ node, getAllNodes, rootFolder, workspaceId, o
     // triggers a layout-size change on the container, which in turn fires
     // this ResizeObserver. We piggy-back on it to keep the xterm font
     // size proportional to the canvas zoom and re-fit cols/rows.
-    const observer = new ResizeObserver(() => {
+    // Debounced: bursts (canvas fit animation, node drag-resize) settle
+    // to a single refit instead of one per frame per terminal.
+    const refit = createDebouncedTerminalRefit(() => {
       fitTerminalWithCanvasScale(termRef.current, fitRef.current, containerRef.current);
     });
+    const observer = new ResizeObserver(refit.schedule);
     if (containerRef.current) observer.observe(containerRef.current);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      refit.cancel();
+    };
   }, []);
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {

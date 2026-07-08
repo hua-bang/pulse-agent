@@ -36,7 +36,7 @@ package internals directly.
 | Scene normalization/actions | `src/scene.ts` |
 | Tests | `src/__tests__/main.test.ts`, `src/__tests__/scene.test.ts` |
 | Agent-facing node guidance | `skills/excalidraw-node/SKILL.md` |
-| Canvas host plugin contract | `../../apps/canvas-workspace/docs/plugin-node-mf2.md`, `../../apps/canvas-workspace/AGENTS.md` |
+| Canvas host plugin contract | `../../apps/canvas-workspace/harness/knowledge/plugin-node-mf2.md`, `../../apps/canvas-workspace/AGENTS.md` |
 | Local validation | `harness/validate/validation.yaml` |
 
 There is no package-local documentation beyond the local validation file. Use

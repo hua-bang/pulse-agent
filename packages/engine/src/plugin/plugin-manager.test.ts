@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PluginManager } from './PluginManager.js';
 import type { EnginePlugin } from './EnginePlugin.js';
+import { builtInPlugins } from '../built-in/index.js';
 
 const createLogger = () => ({
   debug: vi.fn(),
@@ -111,5 +112,21 @@ describe('PluginManager', () => {
         },
       }),
     ).rejects.toThrow('Circular dependency detected');
+  });
+
+  // Guards the real built-in plugin array. Every Engine-construction test sets
+  // disableBuiltInPlugins:true and the other cases above use synthetic
+  // alpha/beta plugins, so the actual builtInPlugins dependency edges
+  // (agent-teams -> sub-agent, task-tracking -> built-in-skills) were never
+  // exercised — a misspelled dependency name aborts the entire Engine build
+  // at construction for every host, and nothing caught it until runtime.
+  it('every built-in plugin dependency resolves to a real built-in plugin name', () => {
+    const names = new Set(builtInPlugins.map((plugin) => plugin.name));
+    expect(names.size).toBe(builtInPlugins.length); // no duplicate names
+    for (const plugin of builtInPlugins) {
+      for (const dep of plugin.dependencies ?? []) {
+        expect(names, `${plugin.name} declares dependency "${dep}"`).toContain(dep);
+      }
+    }
   });
 });

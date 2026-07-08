@@ -19,9 +19,16 @@ pnpm --filter pulse-coder-engine build
 
 ## Impact Checks
 
-For public API, built-in plugin, tool contract, or runtime-loop changes, apply the root impact overlay in `../../../../harness/validate/validation.yaml` and pick relevant consumer checks such as CLI, remote-server, or canvas-workspace.
+Four kinds of engine change escalate to consumers. Each maps to a named rule in the root overlay `../../../../harness/validate/validation.yaml`; the runner prints the matching rule's commands as a reminder (never auto-run — the human decides which kind this change is). To know *who* breaks and *why*, see `../knowledge/contracts.md` "Known Consumers".
 
-Keep those impact decisions out of the local YAML until a runner exists and the semantics are stable.
+| Change kind | Trigger criterion | Root rule |
+|---|---|---|
+| Public API surface | `src/index.ts`, `src/built-in/index.ts` (both barrels), or `shared/` types change | `enginePublicApiChange` |
+| Built-in plugin set | add / remove / reorder in `src/built-in/**` | `engineBuiltInPluginChange` |
+| Core loop behavior | streaming / retry / abort / compaction in `src/core/**`, `src/context/**`, `src/ai/**` | `engineCoreLoopChange` |
+| Built-in tool contract | `Tool<Input,Output>` / `ToolExecutionContext` shape in `src/tools/**` | `engineToolSchemaChange` |
+
+Escalation stays reminder-only until the runner supports path-scoped matching; today any engine change prints all four reminders and you pick.
 
 ## Manual Evidence
 

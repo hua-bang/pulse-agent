@@ -17,8 +17,8 @@ import { useI18n } from '../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
 import {
   appendTerminalOutputTail,
+  detectCodingAgentCommand,
   hasLikelyReturnedToShellPrompt,
-  isCodingAgentCommand,
 } from '../../utils/codingAgentCommand';
 import './index.css';
 
@@ -31,6 +31,7 @@ interface WorkspaceTerminalDockProps {
   nodes: CanvasNode[];
   open: boolean;
   onClose: () => void;
+  onAgentTypeChange?: (agentType?: string) => void;
   placement?: 'bottom' | 'pane';
 }
 
@@ -75,6 +76,7 @@ export const WorkspaceTerminalDock = ({
   nodes,
   open,
   onClose,
+  onAgentTypeChange,
   placement = 'bottom',
 }: WorkspaceTerminalDockProps) => {
   const { t } = useI18n();
@@ -156,7 +158,8 @@ export const WorkspaceTerminalDock = ({
     codingAgentActiveRef.current = false;
     terminalOutputTailRef.current = '';
     setMentionHintVisible(false);
-  }, []);
+    onAgentTypeChange?.(undefined);
+  }, [onAgentTypeChange]);
 
   const startCodingAgentHint = useCallback(() => {
     if (codingAgentActiveRef.current) return;
@@ -178,7 +181,11 @@ export const WorkspaceTerminalDock = ({
       if (ch === '\r' || ch === '\n') {
         const command = commandInputRef.current;
         commandInputRef.current = '';
-        if (isCodingAgentCommand(command)) startCodingAgentHint();
+        const agentType = detectCodingAgentCommand(command);
+        if (agentType) {
+          onAgentTypeChange?.(agentType);
+          startCodingAgentHint();
+        }
       } else if (ch === '\x7f' || ch === '\b') {
         commandInputRef.current = commandInputRef.current.slice(0, -1);
       } else if (ch === '\x15') {
@@ -187,7 +194,7 @@ export const WorkspaceTerminalDock = ({
         commandInputRef.current += ch;
       }
     }
-  }, [startCodingAgentHint]);
+  }, [onAgentTypeChange, startCodingAgentHint]);
 
   const initTerminal = useCallback(async () => {
     if (!containerRef.current || termRef.current || spawnedRef.current) return;

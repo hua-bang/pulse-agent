@@ -1,6 +1,19 @@
 version: 1
 
 pathRules:
+  # Overlay rules see every changed path repo-wide (the runner matches them
+  # against repo-relative paths regardless of workspace ownership).
+  - name: harness-data
+    paths:
+      - harness/**
+      - AGENTS.md
+      - CLAUDE.md
+      - "**/AGENTS.md"
+      - "**/harness/**"
+      - pnpm-workspace.yaml
+    required:
+      - node scripts/harness/check-harness.mjs
+
   - name: root-workspace-config
     paths:
       - package.json
@@ -11,16 +24,48 @@ pathRules:
       - pnpm test
 
 escalationRules:
+  # Reminder-only (printed, never auto-run). The rule NAME must contain the
+  # affected workspace's dir slug as a substring — that is how the runner
+  # matches. Trigger criteria for each engine class live in
+  # packages/engine/harness/validate/README.md; consumer rationale in
+  # packages/engine/harness/knowledge/contracts.md "Known Consumers".
   enginePublicApiChange:
     required:
+      - pnpm --filter pulse-coder-engine build
       - pnpm --filter pulse-coder-cli test
+      - pnpm --filter pulse-coder-agent-teams typecheck
+      - pnpm --filter pulse-coder-acp typecheck
+      - pnpm --filter pulse-coder-plugin-kit build
+      - pnpm --filter pulse-coder-memory-plugin build
+      - pnpm --filter pulse-coder-langfuse-plugin build
       - pnpm --filter @pulse-coder/remote-server build
-      - pnpm --filter canvas-workspace build
+      - pnpm --filter canvas-workspace typecheck
 
   engineBuiltInPluginChange:
     required:
       - pnpm --filter pulse-coder-engine test
+      - pnpm --filter @pulse-coder/remote-server build
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter pulse-coder-plugin-kit build
+      - pnpm --filter pulse-coder-memory-plugin build
+      - pnpm --filter pulse-coder-langfuse-plugin build
+
+  engineCoreLoopChange:
+    required:
+      - pnpm --filter pulse-coder-engine test
       - pnpm --filter pulse-coder-cli test
+      - pnpm --filter pulse-coder-agent-teams test
+      - pnpm --filter @pulse-coder/remote-server test
+      - pnpm --filter canvas-workspace test
+      - pnpm --filter pulse-coder-memory-plugin test
+
+  engineToolSchemaChange:
+    required:
+      - pnpm --filter pulse-coder-engine test
+      - pnpm --filter pulse-coder-plugin-kit build
+      - pnpm --filter pulse-coder-memory-plugin test
+      - pnpm --filter @pulse-coder/remote-server build
+      - pnpm --filter canvas-workspace test
 
   agentTeamsRuntimeProtocolChange:
     required:

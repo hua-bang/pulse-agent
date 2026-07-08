@@ -32,6 +32,8 @@
     "test:packages": "pnpm -r --filter \"./packages/*\" test",
     "test:apps": "pnpm -r --filter \"./apps/*\" test",
     "test:all": "pnpm -r test",
+    "harness": "node scripts/harness/run-harness-check.mjs",
+    "harness:drift": "node scripts/harness/check-harness.mjs",
     "start": "pnpm --filter pulse-coder-cli start",
     "start:debug": "pnpm --filter pulse-coder-cli start:debug",
     "canvas:package:mac:arm64": "pnpm --filter canvas-workspace package:mac:arm64",

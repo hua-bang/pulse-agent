@@ -45,7 +45,7 @@
    * from this scale; never hardcode a z-index for a full-app surface.
    * Stacking that stays inside one component (node bodies, menus
    * anchored within a panel) keeps local values.
-   * See docs/renderer-surfaces.md for the surface inventory. */
+   * See harness/knowledge/renderer-surfaces.md for the surface inventory. */
   --layer-canvas-chrome: 500;        /* floating toolbar, zoom indicator */
   --layer-canvas-chrome-raised: 600; /* toolbar flyouts (shape picker) */
   --layer-status-pill: 950;          /* migration spinner */

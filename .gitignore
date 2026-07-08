@@ -177,3 +177,4 @@ worktrees/
 *.tiff
 *.avif
 *.ico
+tsup.config.bundled_*.mjs

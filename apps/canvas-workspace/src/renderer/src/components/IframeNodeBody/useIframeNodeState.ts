@@ -21,6 +21,7 @@ import {
 import { isImeComposing } from '../../utils/ime';
 import { useWebviewBackgroundThrottle } from './useWebviewBackgroundThrottle';
 import { useIframeArtifact } from './useIframeArtifact';
+import { pickDomElementFromHtmlIframe, type DomPickerResult } from './domPickerBridge';
 
 export const useIframeNodeState = ({
   node,
@@ -54,6 +55,7 @@ export const useIframeNodeState = ({
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
   const webviewHostRef = useRef<HTMLDivElement>(null);
+  const renderIframeRef = useRef<HTMLIFrameElement>(null);
   const streamIframeRef = useRef<HTMLIFrameElement>(null);
   const latestDataRef = useRef(data);
   const streamBuf = useRef('');
@@ -163,7 +165,7 @@ export const useIframeNodeState = ({
       el.removeEventListener('did-stop-loading', handleDidStopLoading);
       el.removeEventListener('did-fail-load', handleDidFailLoad);
     };
-  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, url, webviewKey]);
+  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, shouldMountWebview, url, webviewKey]);
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -232,7 +234,7 @@ export const useIframeNodeState = ({
       el.removeEventListener('dom-ready', tryRegister);
       if (registered) void api.unregisterWebview(workspaceId, node.id);
     };
-  }, [workspaceId, node.id, editing, url, mode, webviewKey]);
+  }, [workspaceId, node.id, editing, url, mode, shouldMountWebview, webviewKey]);
 
   // Drop the webview's paint frame rate when the node is parked outside the
   // canvas viewport long enough. Disabled during editing (no live webview to
@@ -415,6 +417,16 @@ export const useIframeNodeState = ({
     if (mode === 'url' && url) void window.canvasWorkspace.shell.openExternal(url);
   }, [mode, url]);
 
+  const pickDomElement = useCallback((): Promise<DomPickerResult> => {
+    if (!workspaceId) {
+      return Promise.resolve({ ok: false, error: 'This workspace is not ready yet.' });
+    }
+    if (mode === 'url') {
+      return window.canvasWorkspace.iframe.pickDomElement(workspaceId, node.id);
+    }
+    return pickDomElementFromHtmlIframe(renderIframeRef.current, workspaceId, node.id);
+  }, [mode, node.id, workspaceId]);
+
   const handleReload = useCallback(() => {
     setLoadState(mode === 'url' && url ? 'loading' : 'idle');
     setLoadError(null);
@@ -463,7 +475,9 @@ export const useIframeNodeState = ({
     loadState,
     mode,
     openBlankPage,
+    pickDomElement,
     promptRef,
+    renderIframeRef,
     savedPrompt,
     setDraftHtml,
     setDraftMode,

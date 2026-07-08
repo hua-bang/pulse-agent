@@ -36,10 +36,10 @@ export const IframeNodeBody = ({
   });
 
   const handlePickDomElement = async () => {
-    if (!workspaceId || state.mode !== 'url') return;
+    if (!workspaceId) return;
     setDomPickerActive(true);
     try {
-      const result = await window.canvasWorkspace.iframe.pickDomElement(workspaceId, node.id);
+      const result = await state.pickDomElement();
       if (result.ok && result.selection) {
         onAddDomSelectionToChat?.({
           ...result.selection,
@@ -164,6 +164,7 @@ export const IframeNodeBody = ({
         savedPrompt={state.savedPrompt}
         setDraftUrl={state.setDraftUrl}
         setEditing={state.setEditing}
+        renderIframeRef={state.renderIframeRef}
         streamIframeRef={state.streamIframeRef}
         streamingActive={state.streamingActive}
         url={state.url}
