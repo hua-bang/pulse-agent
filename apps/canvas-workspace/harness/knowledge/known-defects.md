@@ -9,22 +9,6 @@ test and delete its entry.
 
 ## LIVE (user-visible behavior is degraded today)
 
-### 13 phantom design tokens — referenced but defined nowhere
-The renderer references 13 custom properties via `var(--x)` that have no
-definition anywhere (no `--x:` in CSS, no quoted `'--x'` in TS/TSX):
-`--accent-muted`, `--accent-soft`, `--accent-soft-strong`,
-`--border-subtle`, `--frame-bg-alpha`, `--frame-title-gap`, `--note-paper`,
-`--surface-1`, `--surface-2`, `--surface-alt`, `--surface-subtle`,
-`--text-primary`, `--text-tertiary`. Each renders as its fallback where one
-exists, or the property's initial/inherited value where none does — even
-`AppShellProvider` (the shared toast/confirm primitive) colors text via the
-nonexistent `--text-primary`. Guard: the phantom-token check in
-`src/main/__tests__/ui-reuse-governance.test.ts` baselines these 13
-(shrink-only, stale entries flagged) and fails on any NEW phantom. Fix
-shape: define each token in `styles.css` `:root` or repoint references at
-existing tokens. (A 14th, `--radius-md`, was fixed 2026-07-07 — defined as
-8px — with the same check as its regression guard.)
-
 ### File-watcher sync is disabled — external edits to file nodes don't propagate
 `src/renderer/src/hooks/useNodes.ts:275-283`. The `fs.watch`-based watcher
 that pushed external file changes into open file nodes is commented out,

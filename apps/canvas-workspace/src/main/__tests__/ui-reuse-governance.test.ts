@@ -54,27 +54,24 @@ const RATCHET_BASELINE: Record<string, number> = {
   // belongs in useEscapeClose / the ui/ shells. 10→7: SettingsDrawer→ui/Drawer
   // and both AppShell dialogs dropped their ESC listeners for the shared hooks.
   componentWindowKeydown: 7,
+  // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
+  // NOT define a custom property — new-code color ratchet (token-definition
+  // lines are exempt: defining a token with a literal is the point). Falls as
+  // colors move onto the palette; migration of the stock is deliberately
+  // unscheduled.
+  hardcodedColorLiterals: 1961,
 };
 
 // Design tokens referenced via var(--x) somewhere in the renderer but
-// defined nowhere (no `--x:` in CSS, no quoted '--x' in TS/TSX). Each entry
-// renders as fallback-or-initial today. Shrink by defining the token or
-// repointing the references; a stale entry here (token now defined, or no
-// longer referenced) must be removed.
+// defined nowhere (no `--x:` in CSS, no quoted '--x' in TS/TSX). 11 of the
+// original 13 were CONVERGED 2026-07-07 (defined in styles.css :root from
+// their own fallback demand). The two survivors are the oklch frame-engine
+// dials — per-scope parameters read via fallback BY DESIGN (the engine is
+// deliberately isolated from the palette); they stay here so a definition
+// sneaking in gets flagged as a stale-baseline failure.
 const KNOWN_UNDEFINED_TOKENS = new Set([
-  '--accent-muted',
-  '--accent-soft',
-  '--accent-soft-strong',
-  '--border-subtle',
   '--frame-bg-alpha',
   '--frame-title-gap',
-  '--note-paper',
-  '--surface-1',
-  '--surface-2',
-  '--surface-alt',
-  '--surface-subtle',
-  '--text-primary',
-  '--text-tertiary',
 ]);
 
 interface SourceFile {
@@ -134,6 +131,15 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
     componentWindowKeydown: tsLikeFiles
       .filter((f) => f.path.includes('/components/'))
       .reduce((sum, f) => sum + (f.content.match(/window\.addEventListener\('keydown'/g) ?? []).length, 0),
+    hardcodedColorLiterals: cssFiles.reduce(
+      (sum, f) =>
+        sum +
+        f.content
+          .split('\n')
+          .filter((line) => !/--[a-zA-Z0-9_-]+\s*:/.test(line))
+          .reduce((n, line) => n + (line.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(/g) ?? []).length, 0),
+      0,
+    ),
   };
 
   for (const [counter, baseline] of Object.entries(RATCHET_BASELINE)) {

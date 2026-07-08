@@ -75,16 +75,34 @@ counter may shrink but never grow):
 
 - **New code uses the blessed basics** from `components/ui/`: `Button`,
   `Modal` (the one overlay shell), `Drawer`, `Portal` (the one createPortal
-  exit), `useDragResize` — plus `AppShellProvider.notify` for toasts and the
-  canonical hooks `useEscapeClose` / `useMenuKeyboardNav` / `useClickOutside`.
-  Do NOT hand-roll a new overlay ESC listener, backdrop, portal call site,
-  spinner keyframe, or raw CTA `<button>` style pair — the ratchet will fail
-  your PR.
-- **Radius uses tokens**: new CSS writes `var(--radius-sm|--radius|--radius-md|--radius-lg)`,
-  never raw px. (Radius is the first gated token category; colors/shadows are
-  measured but not yet gated.)
+  exit), `Select` (the one dropdown; scope a density override rather than
+  forking it), `TextField` (labelled input/textarea), `useDragResize` — plus
+  `AppShellProvider.notify` for toasts and the canonical hooks
+  `useEscapeClose` / `useMenuKeyboardNav` / `useClickOutside`. Do NOT
+  hand-roll a new overlay ESC listener, backdrop, portal call site, dropdown
+  popover, labelled form field, spinner keyframe, or raw CTA `<button>`
+  style pair — the ratchet will fail your PR.
+- **Radius and colors use tokens** in new CSS: `var(--radius-sm|--radius|--radius-md|--radius-lg)`
+  for radii, palette tokens for colors — both are ratchet-gated
+  (`borderRadiusLiterals`, `hardcodedColorLiterals`). Shadows are measured
+  but not yet gated. Which token to reach for:
+
+  | Need | Token |
+  |---|---|
+  | Text | `--text` (primary ink) · `--text-secondary` · `--text-muted`; aliases `--text-primary`/`--text-tertiary` |
+  | Fills | `--bg` · `--surface` · `--surface-1` (dark overlay) · `--surface-2` · `--surface-alt` · `--surface-subtle` · `--note-paper` |
+  | Accent | `--accent` family · `--accent-muted` · `--accent-soft` · `--accent-soft-strong` |
+  | Borders | `--border` · `--border-subtle` (dark-chrome) |
+  | Radius | `--radius-sm` 6 · `--radius`/`--radius-md` 8 · `--radius-lg` 10 |
+  | Shadow | `--shadow-sm/-card/-card-hover/-drag/-float` |
+  | Stacking | the 13-token `--layer-*` scale (see `../renderer-surfaces.md`) |
+
+  The oklch frame-tint engine (`FrameNodeBody`) is deliberately isolated from
+  this palette; its `--frame-*` dials are per-scope parameters, not tokens.
 - **Every `var(--x)` must resolve**: referencing an undefined token fails the
-  governance test (13 legacy phantoms are baselined, shrink-only).
+  governance test. (The original 13 phantoms were converged into real
+  definitions on 2026-07-07; only the two frame-engine dials remain
+  intentionally undefined, baselined in the test.)
 - Reducing a counter? Lower its baseline in the same PR — the test fails on
   unlocked improvements too.
 
