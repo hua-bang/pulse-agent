@@ -1,6 +1,7 @@
 import type { CanvasNode } from './storage';
 import type {
   WelcomeContent,
+  WelcomeHtmlCard,
   WelcomeMindmapTopicContent,
   WelcomeNoteContent,
   WelcomeTextContent,
@@ -9,12 +10,12 @@ import type {
 /**
  * Geometry + node assembly for the seeded onboarding canvas.
  *
- * Five frames laid out left to right as a progressive course:
- * 01 Welcome → 02 Canvas basics → 03 Organize → 04 Work with AI → 05 Power
- * workflow. Copy comes from the locale content modules; this file owns
- * coordinates, node ids, and node data shapes only. Frames contain nodes
- * spatially (no parent pointers), so every child rect must stay inside its
- * frame rect.
+ * Five frames laid out left to right as a progressive product course about
+ * Pulse Canvas itself: 01 Meet → 02 Essentials → 03 Organize → 04 Work with
+ * AI → 05 Go deeper. Visual weight comes from styled HTML iframe cards; copy
+ * comes from the locale content modules; this file owns coordinates, node
+ * ids, and node data shapes only. Frames contain nodes spatially (no parent
+ * pointers), so every child rect must stay inside its frame rect.
  */
 
 export type WelcomeNoteKey = keyof WelcomeContent['notes'];
@@ -96,33 +97,17 @@ const mkText = (
   updatedAt: now,
 });
 
-const mkUrlIframe = (
+const mkCard = (
   id: string,
-  title: string,
-  url: string,
+  card: WelcomeHtmlCard,
   rect: Rect,
   now: number,
 ): CanvasNode => ({
   id,
   type: 'iframe',
-  title,
+  title: card.title,
   ...rect,
-  data: { url, html: '', mode: 'url', prompt: '' },
-  updatedAt: now,
-});
-
-const mkHtmlIframe = (
-  id: string,
-  title: string,
-  html: string,
-  rect: Rect,
-  now: number,
-): CanvasNode => ({
-  id,
-  type: 'iframe',
-  title,
-  ...rect,
-  data: { url: '', html, mode: 'html', prompt: '' },
+  data: { url: '', html: card.html, mode: 'html', prompt: '' },
   updatedAt: now,
 });
 
@@ -140,27 +125,38 @@ export function buildWelcomeCanvas(
   notePaths: WelcomeNotePaths,
   now: number,
 ): WelcomeCanvasBuild {
-  const { frames, notes, texts, shape, iframes, mindmap, edges } = content;
+  const { frames, notes, texts, shape, download, cards, mindmap, edges } = content;
 
   const nodes: CanvasNode[] = [
-    // ---- 01 · Welcome -----------------------------------------------------
-    mkFrame('node-onboard-frame-01', frames.welcome, { x: 0, y: 0, width: 1500, height: 1080 }, FRAME_COLORS.welcome, now),
-    mkHtmlIframe('node-onboard-slogan', iframes.slogan.title, iframes.slogan.html, { x: 60, y: 100, width: 660, height: 260 }, now),
-    mkNote('node-welcome-note', notes.welcome, notePaths.welcome, { x: 60, y: 420, width: 660, height: 560 }, now),
-    mkUrlIframe('node-welcome-download', iframes.download.title, iframes.download.url, { x: 790, y: 100, width: 650, height: 700 }, now),
-    mkText('node-onboard-guide', texts.guide, { x: 790, y: 860, width: 500, height: 140 }, now, { fontSize: 24 }),
+    // ---- 01 · Meet Pulse Canvas -------------------------------------------
+    mkFrame('node-onboard-frame-01', frames.welcome, { x: 0, y: 0, width: 1560, height: 1120 }, FRAME_COLORS.welcome, now),
+    mkCard('node-onboard-hero', cards.hero, { x: 60, y: 100, width: 720, height: 300 }, now),
+    mkCard('node-onboard-features', cards.featureGrid, { x: 60, y: 460, width: 720, height: 520 }, now),
+    mkNote('node-welcome-note', notes.welcome, notePaths.welcome, { x: 840, y: 100, width: 640, height: 420 }, now),
+    {
+      id: 'node-welcome-download',
+      type: 'iframe',
+      title: download.title,
+      x: 840,
+      y: 560,
+      width: 640,
+      height: 420,
+      data: { url: download.url, html: '', mode: 'url', prompt: '' },
+      updatedAt: now,
+    },
+    mkText('node-onboard-guide', texts.guide, { x: 840, y: 1000, width: 640, height: 90 }, now, { fontSize: 22 }),
 
-    // ---- 02 · Canvas basics ----------------------------------------------
-    mkFrame('node-onboard-frame-02', frames.basics, { x: 1650, y: 0, width: 1560, height: 1080 }, FRAME_COLORS.basics, now),
-    mkText('node-onboard-practice-text', texts.practice, { x: 1710, y: 100, width: 340, height: 140 }, now, { backgroundColor: '#FFF8C5' }),
-    mkNote('node-onboard-practice-note', notes.practice, notePaths.practice, { x: 1710, y: 300, width: 400, height: 380 }, now),
+    // ---- 02 · Canvas essentials -------------------------------------------
+    mkFrame('node-onboard-frame-02', frames.basics, { x: 1680, y: 0, width: 1700, height: 1120 }, FRAME_COLORS.basics, now),
+    mkCard('node-onboard-concept', cards.concept, { x: 1740, y: 100, width: 760, height: 420 }, now),
+    mkText('node-onboard-practice-text', texts.practice, { x: 1740, y: 570, width: 340, height: 150 }, now, { backgroundColor: '#FFF8C5' }),
     {
       id: 'node-onboard-shape',
       type: 'shape',
       title: shape.title,
-      x: 1710,
-      y: 740,
-      width: 400,
+      x: 1740,
+      y: 770,
+      width: 340,
       height: 170,
       data: {
         kind: 'rounded-rect',
@@ -173,61 +169,62 @@ export function buildWelcomeCanvas(
       },
       updatedAt: now,
     },
-    mkText('node-onboard-idea', texts.idea, { x: 2190, y: 100, width: 340, height: 150 }, now, { backgroundColor: '#FFE9E3' }),
-    mkNote('node-onboard-solution', notes.solution, notePaths.solution, { x: 2690, y: 100, width: 460, height: 360 }, now),
-    mkText('node-onboard-edge-teach', texts.edgeTeach, { x: 2190, y: 310, width: 400, height: 130 }, now, { fontSize: 15 }),
-    mkHtmlIframe('node-onboard-basics-card', iframes.basicsCard.title, iframes.basicsCard.html, { x: 2190, y: 520, width: 960, height: 480 }, now),
+    mkNote('node-onboard-practice-note', notes.practice, notePaths.practice, { x: 2120, y: 570, width: 380, height: 370 }, now),
+    mkText('node-onboard-problem', texts.problem, { x: 2560, y: 100, width: 300, height: 170 }, now, { backgroundColor: '#FFE9E3', fontSize: 16 }),
+    mkNote('node-onboard-answer', notes.answer, notePaths.answer, { x: 2940, y: 100, width: 380, height: 330 }, now),
+    mkText('node-onboard-edge-teach', texts.edgeTeach, { x: 2560, y: 310, width: 360, height: 120 }, now, { fontSize: 15 }),
+    mkCard('node-onboard-basics-card', cards.basics, { x: 2560, y: 470, width: 760, height: 470 }, now),
 
     // ---- 03 · Organize information ----------------------------------------
-    mkFrame('node-onboard-frame-03', frames.organize, { x: 3330, y: 0, width: 1500, height: 1080 }, FRAME_COLORS.organize, now),
-    mkText('node-onboard-frame-intro', texts.frameIntro, { x: 3390, y: 100, width: 620, height: 190 }, now, { fontSize: 16 }),
+    mkFrame('node-onboard-frame-03', frames.organize, { x: 3500, y: 0, width: 1560, height: 1120 }, FRAME_COLORS.organize, now),
+    mkText('node-onboard-frame-intro', texts.frameIntro, { x: 3560, y: 100, width: 620, height: 170 }, now, { fontSize: 16 }),
     {
       id: 'node-onboard-mindmap',
       type: 'mindmap',
       title: mindmap.title,
-      x: 3390,
-      y: 350,
-      width: 680,
-      height: 480,
+      x: 3560,
+      y: 320,
+      width: 640,
+      height: 520,
       data: { root: toMindmapTopic(mindmap.root, 'wm-0'), layout: 'right', rev: 0 },
       updatedAt: now,
     },
-    mkNote('node-onboard-kanban', notes.kanban, notePaths.kanban, { x: 4090, y: 100, width: 680, height: 400 }, now),
-    mkNote('node-onboard-reference', notes.reference, notePaths.reference, { x: 4090, y: 560, width: 680, height: 380 }, now),
+    mkCard('node-onboard-kanban', cards.kanban, { x: 4260, y: 100, width: 740, height: 430 }, now),
+    mkNote('node-onboard-reference', notes.reference, notePaths.reference, { x: 4260, y: 570, width: 740, height: 380 }, now),
 
     // ---- 04 · Work with AI -------------------------------------------------
-    mkFrame('node-onboard-frame-04', frames.ai, { x: 4950, y: 0, width: 1620, height: 1160 }, FRAME_COLORS.ai, now),
-    mkText('node-onboard-ai-open', texts.aiOpen, { x: 5010, y: 100, width: 640, height: 130 }, now, { fontSize: 17 }),
-    mkNote('node-onboard-prompts', notes.prompts, notePaths.prompts, { x: 5010, y: 280, width: 640, height: 500 }, now),
-    mkNote('node-onboard-context', notes.context, notePaths.context, { x: 5010, y: 830, width: 640, height: 280 }, now),
-    mkNote('node-onboard-meeting', notes.meeting, notePaths.meeting, { x: 5730, y: 100, width: 780, height: 360 }, now),
-    mkText('node-onboard-feedback', texts.feedback, { x: 5730, y: 520, width: 780, height: 150 }, now, { backgroundColor: '#FFF8C5', fontSize: 16 }),
-    mkUrlIframe('node-onboard-refpage', iframes.referencePage.title, iframes.referencePage.url, { x: 5730, y: 720, width: 780, height: 400 }, now),
+    mkFrame('node-onboard-frame-04', frames.ai, { x: 5180, y: 0, width: 1680, height: 1120 }, FRAME_COLORS.ai, now),
+    mkText('node-onboard-ai-open', texts.aiOpen, { x: 5240, y: 100, width: 640, height: 120 }, now, { fontSize: 17 }),
+    mkCard('node-onboard-chat-mock', cards.chatMock, { x: 5240, y: 260, width: 640, height: 520 }, now),
+    mkNote('node-onboard-context', notes.context, notePaths.context, { x: 5240, y: 830, width: 640, height: 250 }, now),
+    mkNote('node-onboard-prompts', notes.prompts, notePaths.prompts, { x: 5960, y: 100, width: 780, height: 400 }, now),
+    mkNote('node-onboard-ideas', notes.ideas, notePaths.ideas, { x: 5960, y: 560, width: 780, height: 280 }, now),
+    mkText('node-onboard-feedback', texts.feedback, { x: 5960, y: 880, width: 780, height: 150 }, now, { backgroundColor: '#FFF8C5', fontSize: 16 }),
 
-    // ---- 05 · Power workflow ----------------------------------------------
-    mkFrame('node-onboard-frame-05', frames.advanced, { x: 6690, y: 0, width: 1500, height: 1080 }, FRAME_COLORS.advanced, now),
-    mkNote('node-onboard-project', notes.project, notePaths.project, { x: 6750, y: 100, width: 640, height: 430 }, now),
-    mkNote('node-onboard-loop', notes.loop, notePaths.loop, { x: 6750, y: 590, width: 640, height: 440 }, now),
-    mkHtmlIframe('node-onboard-shortcuts', iframes.shortcuts.title, iframes.shortcuts.html, { x: 7450, y: 100, width: 680, height: 540 }, now),
-    mkText('node-onboard-multiws', texts.multiWorkspace, { x: 7450, y: 700, width: 680, height: 190 }, now, { fontSize: 15 }),
+    // ---- 05 · Go deeper -----------------------------------------------------
+    mkFrame('node-onboard-frame-05', frames.advanced, { x: 6980, y: 0, width: 1560, height: 1120 }, FRAME_COLORS.advanced, now),
+    mkCard('node-onboard-workflow', cards.workflow, { x: 7040, y: 100, width: 720, height: 480 }, now),
+    mkNote('node-onboard-project', notes.project, notePaths.project, { x: 7040, y: 640, width: 720, height: 380 }, now),
+    mkCard('node-onboard-shortcuts', cards.shortcuts, { x: 7820, y: 100, width: 660, height: 480 }, now),
+    mkText('node-onboard-multiws', texts.multiWorkspace, { x: 7820, y: 640, width: 660, height: 200 }, now, { fontSize: 15 }),
   ];
 
   const edgeList: unknown[] = [
     {
-      id: 'edge-onboard-idea-solution',
-      source: { kind: 'node', nodeId: 'node-onboard-idea', anchor: 'right' },
-      target: { kind: 'node', nodeId: 'node-onboard-solution', anchor: 'left' },
+      id: 'edge-onboard-problem-answer',
+      source: { kind: 'node', nodeId: 'node-onboard-problem', anchor: 'right' },
+      target: { kind: 'node', nodeId: 'node-onboard-answer', anchor: 'left' },
       arrowHead: 'triangle',
-      label: edges.ideaToSolution,
+      label: edges.problemToAnswer,
       updatedAt: now,
     },
     {
-      id: 'edge-onboard-context-meeting',
+      id: 'edge-onboard-context-ideas',
       source: { kind: 'node', nodeId: 'node-onboard-context', anchor: 'right' },
-      target: { kind: 'node', nodeId: 'node-onboard-meeting', anchor: 'left' },
+      target: { kind: 'node', nodeId: 'node-onboard-ideas', anchor: 'left' },
       arrowHead: 'arrow',
       stroke: { style: 'dashed' },
-      label: edges.contextToMeeting,
+      label: edges.contextToIdeas,
       updatedAt: now,
     },
   ];

@@ -45,22 +45,27 @@ describe('welcome workspace seed', () => {
     const frames = nodes.filter((node) => node.type === 'frame');
     expect(frames).toHaveLength(5);
     expect(frames.map((frame) => frame.title)).toEqual([
-      '01 · 欢迎',
-      '02 · 画布基础',
+      '01 · 初识 Pulse Canvas',
+      '02 · 画布三要素',
       '03 · 组织信息',
       '04 · 与 AI 协作',
-      '05 · 进阶工作流',
+      '05 · 进阶玩法',
     ]);
 
     // Node-type variety: the onboarding canvas demonstrates the canvas, not
     // just documents. Counts are exact so accidental drops are caught.
     const byType = (type: string): number => nodes.filter((node) => node.type === type).length;
-    expect(nodes).toHaveLength(30);
-    expect(byType('file')).toBe(10);
+    expect(nodes).toHaveLength(32);
+    expect(byType('file')).toBe(8);
     expect(byType('text')).toBe(8);
-    expect(byType('iframe')).toBe(5);
+    expect(byType('iframe')).toBe(9);
     expect(byType('mindmap')).toBe(1);
     expect(byType('shape')).toBe(1);
+
+    // Visual backbone: 8 styled HTML cards + 1 URL iframe (download page).
+    const iframes = nodes.filter((node) => node.type === 'iframe');
+    expect(iframes.filter((node) => node.data?.mode === 'html')).toHaveLength(8);
+    expect(iframes.filter((node) => node.data?.mode === 'url')).toHaveLength(1);
 
     expect(canvas.data?.transform).toEqual({ x: 90, y: 40, scale: 0.55 });
 
@@ -68,7 +73,7 @@ describe('welcome workspace seed', () => {
     const welcome = nodes.find((node) => node.id === 'node-welcome-note');
     expect(welcome?.title).toBe('欢迎使用 Pulse Canvas');
     expect(String(welcome?.data?.content)).toContain('Pulse Canvas 是一个本地优先的可视化工作区');
-    expect(String(welcome?.data?.content)).toContain('小舟');
+    expect(String(welcome?.data?.content)).toContain('产品说明书');
 
     // Every seeded note is persisted as a real markdown file whose content
     // matches the node.
@@ -83,24 +88,24 @@ describe('welcome workspace seed', () => {
     expect(download?.data?.url).toBe('https://pulse-canvas-download.pages.dev/');
 
     // HTML-mode iframes carry inline HTML, URL-mode iframes carry URLs.
-    const slogan = nodes.find((node) => node.id === 'node-onboard-slogan');
-    expect(slogan?.data?.mode).toBe('html');
-    expect(String(slogan?.data?.html)).toContain('Pulse Canvas');
+    const hero = nodes.find((node) => node.id === 'node-onboard-hero');
+    expect(hero?.data?.mode).toBe('html');
+    expect(String(hero?.data?.html)).toContain('Pulse Canvas');
 
-    // Mindmap tells the guide character's project story.
+    // Mindmap is the product capability map.
     const mindmap = nodes.find((node) => node.type === 'mindmap');
     const mindmapRoot = mindmap?.data?.root as { text: string; children: unknown[] };
-    expect(mindmapRoot.text).toBe('官网改版');
-    expect(mindmapRoot.children).toHaveLength(3);
+    expect(mindmapRoot.text).toBe('Pulse Canvas');
+    expect(mindmapRoot.children).toHaveLength(4);
 
-    // Teaching edges: idea → solution (solid) and context → meeting (dashed).
+    // Teaching edges: problem → answer (solid) and context → ideas (dashed).
     expect(edges).toHaveLength(2);
-    const ideaEdge = edges.find((edge) => edge.id === 'edge-onboard-idea-solution');
-    expect(ideaEdge).toMatchObject({
-      source: { kind: 'node', nodeId: 'node-onboard-idea' },
-      target: { kind: 'node', nodeId: 'node-onboard-solution' },
+    const problemEdge = edges.find((edge) => edge.id === 'edge-onboard-problem-answer');
+    expect(problemEdge).toMatchObject({
+      source: { kind: 'node', nodeId: 'node-onboard-problem' },
+      target: { kind: 'node', nodeId: 'node-onboard-answer' },
     });
-    const contextEdge = edges.find((edge) => edge.id === 'edge-onboard-context-meeting');
+    const contextEdge = edges.find((edge) => edge.id === 'edge-onboard-context-ideas');
     expect(contextEdge).toMatchObject({ stroke: { style: 'dashed' } });
 
     // Spatial containment: every non-frame node sits inside exactly one frame.
@@ -128,20 +133,20 @@ describe('welcome workspace seed', () => {
     const welcome = nodes.find((node) => node.id === 'node-welcome-note');
     expect(welcome?.title).toBe('Welcome to Pulse Canvas');
     expect(String(welcome?.data?.content)).toContain('Pulse Canvas is a local-first visual workspace');
-    expect(String(welcome?.data?.content)).toContain('Riley');
+    expect(String(welcome?.data?.content)).toContain('product manual');
 
     const frames = nodes.filter((node) => node.type === 'frame');
     expect(frames.map((frame) => frame.title)).toEqual([
-      '01 · Welcome',
-      '02 · Canvas Basics',
+      '01 · Meet Pulse Canvas',
+      '02 · Canvas Essentials',
       '03 · Organize Information',
       '04 · Work with AI',
-      '05 · Power Workflow',
+      '05 · Go Deeper',
     ]);
 
     const mindmap = nodes.find((node) => node.type === 'mindmap');
     const mindmapRoot = mindmap?.data?.root as { text: string };
-    expect(mindmapRoot.text).toBe('Website revamp');
+    expect(mindmapRoot.text).toBe('Pulse Canvas');
   });
 
   it('does not seed when a manifest already has workspaces', async () => {
