@@ -16,7 +16,8 @@ interface AgentTypeSelectProps {
  * (`AgentIcon`) and opens the menu upward (agent cards sit at the bottom of
  * the frame, whose root clips overflow, so the room is above). Stops click /
  * keydown propagation so interacting with it never selects the surrounding
- * agent card.
+ * agent card. An unknown `value` falls back to the first option, matching the
+ * pre-migration contract (never renders a blank trigger).
  */
 export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange }: AgentTypeSelectProps) => (
   <div
@@ -25,7 +26,7 @@ export const AgentTypeSelect = ({ value, options, ariaLabel, disabled, onChange 
     onKeyDown={(event) => event.stopPropagation()}
   >
     <Select
-      value={value}
+      value={options.some((opt) => opt.id === value) ? value : options[0]?.id ?? value}
       options={options.map((opt) => ({
         value: opt.id,
         label: opt.label,

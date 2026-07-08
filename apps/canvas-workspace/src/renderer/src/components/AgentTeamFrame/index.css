@@ -1667,6 +1667,20 @@
   min-width: 0;
 }
 
+/* Frame-toolbar density override: the blessed ui/Select skin at compact
+   metrics — the default 34px trigger crowds the agent card row the old 28px
+   bespoke control was sized for. Palette/shape stay ui/Select's; only the
+   metrics are scoped down. */
+.agent-type-select .ui-select__trigger {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.agent-type-select .ui-select__menu {
+  font-size: 11px;
+}
+
 .agent-team-summary-agent__task {
   grid-column: 1 / -1;
   overflow: hidden;

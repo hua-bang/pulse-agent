@@ -16,25 +16,25 @@ import { extname, join, relative, sep } from 'path';
 const RENDERER_ROOT = join('src', 'renderer', 'src');
 
 const RATCHET_BASELINE: Record<string, number> = {
+  // Tag counters below are measured on COMMENT-STRIPPED sources, so doc
+  // mentions of an element never count and never force baseline churn.
   // raw <button> tags in .tsx — falls as components/ui/Button absorbs them.
   // 402→399: WorkspaceSettings adopted ui/Button (-4); ui/Button itself (+1).
   // 399→397: AgentTypeSelect migrated to ui/Select, dropping its bespoke
   // trigger + option <button>s (-2). ui/Select itself moved, not added.
   rawButtonTags: 397,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
-  // Baseline 55: ui/TextField's own <input> (+1) offset by WorkspaceSettings'
-  // name field adopting ui/TextField (-1), net flat over the pre-change 55.
-  rawInputTags: 55,
+  // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
+  // migrated (-1), and comment-stripping dropped one doc mention (-1).
+  rawInputTags: 54,
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
-  // them. 13→14: ui/TextField's own <textarea> (+1); the blessed control's
-  // element counts here just as ui/Button's own <button> does above.
-  rawTextareaTags: 14,
-  // raw <select> tags in .tsx (incl. doc-comment mentions) — the blessed
-  // control is the ui/Select custom popover, NOT a native <select>. 2→1:
-  // AgentTypeSelect's migration removed its docstring's `<select>` mention;
-  // the sole remaining match is ui/Select's own "replaces the native <select>"
-  // doc line. No real native <select> elements remain.
-  rawSelectTags: 1,
+  // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
+  // is offset by PromptSettings' custom-prompt field adopting TextField (-1).
+  rawTextareaTags: 13,
+  // real native <select> elements — the blessed control is the ui/Select
+  // custom popover. 0: none exist; this is a pure backstop against
+  // reintroduction (doc mentions no longer count — comment-stripped).
+  rawSelectTags: 0,
   // border-radius declarations not using var(--radius*) — radius is the
   // first tokenization target per the spec decision. 435→431: ui/ CSS is
   // tokenized and the promoted Drawer + deleted CTA rules dropped 4 literals.
@@ -105,12 +105,20 @@ const tsLikeFiles = files.filter((f) => /\.tsx?$/.test(f.path));
 const countMatches = (sources: SourceFile[], regex: RegExp): number =>
   sources.reduce((sum, f) => sum + (f.content.match(regex) ?? []).length, 0);
 
+// Strip /* */ and // comments so tag counters see real JSX only, not doc
+// prose (the [^:"'] guard keeps https:// and quoted slashes intact).
+const stripComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1');
+
+const countStripped = (sources: SourceFile[], regex: RegExp): number =>
+  sources.reduce((sum, f) => sum + (stripComments(f.content).match(regex) ?? []).length, 0);
+
 describe('ui reuse governance (ratchet — counters may shrink, never grow)', () => {
   const measured: Record<string, number> = {
-    rawButtonTags: countMatches(tsxFiles, /<button\b/g),
-    rawInputTags: countMatches(tsxFiles, /<input\b/g),
-    rawTextareaTags: countMatches(tsxFiles, /<textarea\b/g),
-    rawSelectTags: countMatches(tsxFiles, /<select\b/g),
+    rawButtonTags: countStripped(tsxFiles, /<button\b/g),
+    rawInputTags: countStripped(tsxFiles, /<input\b/g),
+    rawTextareaTags: countStripped(tsxFiles, /<textarea\b/g),
+    rawSelectTags: countStripped(tsxFiles, /<select\b/g),
     borderRadiusLiterals: cssFiles.reduce(
       (sum, f) =>
         sum +

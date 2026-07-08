@@ -2993,9 +2993,6 @@
   color: rgba(26, 100, 184, 0.78);
 }
 
-.chat-prompt-custom-field {
-  gap: 6px;
-}
 
 .chat-prompt-custom-textarea {
   min-height: 132px;
