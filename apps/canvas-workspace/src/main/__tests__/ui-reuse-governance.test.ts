@@ -81,19 +81,27 @@ const RATCHET_BASELINE: Record<string, number> = {
   // those listeners legitimately owns more than plain Escape-closes-overlay,
   // so this counter's practical floor is nonzero; the goal is the
   // migratable remainder, not zero.
-  handRolledKeydown: 20,
+  // 20→17 (2026-07-08, review): the three canonical keyboard primitives
+  // (useEscapeClose, useMenuKeyboardNav, ui/useFocusTrap) are now exempt —
+  // they ARE the blessed destination, and counting them forced a baseline
+  // raise whenever a new blessed hook landed.
+  handRolledKeydown: 17,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
   // lines are exempt: defining a token with a literal is the point). Falls as
   // colors move onto the palette; migration of the stock is deliberately
   // unscheduled.
   hardcodedColorLiterals: 1961,
-  // box-shadow declaration lines not using var(--shadow-*) — same
+  // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
   // baseline (no migration performed — the stock is deliberately
   // unscheduled, matching hardcodedColorLiterals).
-  shadowLiterals: 174,
+  // 174→200 (2026-07-08, review): NOT growth — the exemption was tightened
+  // from any-var( to var(--shadow specifically (a token-colored but
+  // literal-geometry shadow now counts, matching what frontend.md promises);
+  // 26 such lines moved inside the gate.
+  shadowLiterals: 200,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
@@ -120,16 +128,21 @@ interface SourceFile {
   content: string;
 }
 
+// Test files are excluded (same rule as file-size-governance): every counter
+// targets PRODUCTION chrome, and counting test harness markup would force
+// tests into unnatural contortions to avoid tripping the exact-match ratchet.
+const isTestFile = (path: string): boolean =>
+  path.includes('/__tests__/') || /\.(test|spec)\.(ts|tsx)$/.test(path);
+
 const collectFiles = (dir: string, out: SourceFile[] = []): SourceFile[] => {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
       collectFiles(full, out);
     } else if (['.css', '.ts', '.tsx'].includes(extname(entry.name))) {
-      out.push({
-        path: relative(process.cwd(), full).split(sep).join('/'),
-        content: readFileSync(full, 'utf-8'),
-      });
+      const path = relative(process.cwd(), full).split(sep).join('/');
+      if (isTestFile(path)) continue;
+      out.push({ path, content: readFileSync(full, 'utf-8') });
     }
   }
   return out;
@@ -173,8 +186,19 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
     // /components/) — now both window.addEventListener('keydown' AND
     // document.addEventListener('keydown', across ALL of src/renderer/src.
     // Comment-stripped like the tag counters, so doc mentions don't count.
+    // The CANONICAL keyboard primitives are exempt: they ARE the blessed
+    // implementation this counter pushes listeners toward — counting them
+    // would conflate the solution with the problem and force a baseline
+    // raise every time a new blessed hook lands.
     handRolledKeydown: countStripped(
-      tsLikeFiles,
+      tsLikeFiles.filter(
+        (f) =>
+          ![
+            'src/renderer/src/hooks/useEscapeClose.ts',
+            'src/renderer/src/hooks/useMenuKeyboardNav.ts',
+            'src/renderer/src/components/ui/hooks/useFocusTrap.ts',
+          ].includes(f.path),
+      ),
       /(?:window|document)\.addEventListener\('keydown'/g,
     ),
     hardcodedColorLiterals: cssFiles.reduce(
@@ -186,12 +210,16 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
           .reduce((n, line) => n + (line.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(|oklch\(/g) ?? []).length, 0),
       0,
     ),
+    // Exemption requires a SHADOW token specifically — a line like
+    // `box-shadow: 0 1px 2px var(--border)` is token-colored but
+    // literal-geometry and still counts (review finding: any-var( was too
+    // loose and did not match what conventions/frontend.md promises).
     shadowLiterals: cssFiles.reduce(
       (sum, f) =>
         sum +
         f.content
           .split('\n')
-          .filter((line) => /box-shadow\s*:/.test(line) && !line.includes('var('))
+          .filter((line) => /box-shadow\s*:/.test(line) && !line.includes('var(--shadow'))
           .length,
       0,
     ),
