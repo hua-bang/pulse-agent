@@ -221,6 +221,15 @@ Create body (`WorktreeCreateBody`): `id` (required), `repoRoot`, `worktreePath`,
 
 Run body (`WorktreeRunBody`): `backend` (`'host'` | `'docker'`, default `'host'`), `command` + `args` or `shell`, `timeoutMs`, `env`, and a `docker: { image, user, network, env, extraArgs }` block for the docker backend (image defaults to `PULSE_CODER_DOCKER_IMAGE` or `node:22-bookworm`).
 
+Host `worktree_run` injects shared dependency-cache defaults so validation installs reuse package payloads without symlinking one worktree's `node_modules` to another. Callers can override these through `env` if needed:
+
+- `npm_config_store_dir`: defaults to `~/.local/share/pnpm/store`
+- `npm_config_package_import_method`: defaults to `hardlink`
+- `npm_config_cache`: defaults to `~/.npm`
+- `ELECTRON_CACHE`, `PLAYWRIGHT_BROWSERS_PATH`, `PUPPETEER_CACHE_DIR`: default under `~/.cache`
+
+Each worktree still owns its own `node_modules` layout so workspace package links resolve to the current worktree source. Generated dependency folders can be inspected with `pnpm cleanup:worktrees` and removed with `pnpm cleanup:worktrees --apply`; the script only targets `wt-*/node_modules` and old devtools runs by default.
+
 ## Custom Tools
 
 Registered in `src/core/engine-singleton.ts`:

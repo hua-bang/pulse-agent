@@ -1,5 +1,5 @@
 import type { MouseEvent } from 'react';
-import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
+import type { AgentChatToolCall, AgentContextCanvasRef, AgentContextDomReviewComment, AgentContextDomSelectionRef, AgentContextNodeRef, AgentContextTagRef, AgentScope, AgentSessionInfo, CanvasNode, ChatImageAttachment } from '../../types';
 import type { SettingsSection } from '../Settings';
 import type { I18nKey } from '../../i18n';
 
@@ -68,6 +68,8 @@ export interface ChatPanelProps {
   onRegisterInsertMention?: (fn: (node: CanvasNode) => void) => () => void;
   /** Called once the DOM-selection mention inserter is ready; returns a cleanup fn. */
   onRegisterInsertDomSelectionMention?: (fn: (selection: AgentContextDomSelectionRef) => void) => () => void;
+  /** Called once the batch DOM review submitter is ready; returns a cleanup fn. */
+  onRegisterSubmitDomReviewComments?: (fn: (comments: AgentContextDomReviewComment[]) => Promise<boolean>) => () => void;
   /** Fires when a streaming turn finishes — hosts use it for unread badges. */
   onTurnComplete?: () => void;
 }

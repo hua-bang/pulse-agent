@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../types';
 
 interface UseChatInsertionBridgeOptions {
   allNodes: Record<string, CanvasNode[]>;
@@ -12,6 +12,7 @@ export function useChatInsertionBridge({
 }: UseChatInsertionBridgeOptions) {
   const insertMentionByWorkspaceRef = useRef<Map<string, (node: CanvasNode) => void>>(new Map());
   const insertDomSelectionByWorkspaceRef = useRef<Map<string, (selection: AgentContextDomSelectionRef) => void>>(new Map());
+  const submitDomReviewByWorkspaceRef = useRef<Map<string, (comments: AgentContextDomReviewComment[]) => Promise<boolean>>>(new Map());
 
   const registerInsertMention = useCallback((workspaceId: string, fn: (node: CanvasNode) => void) => {
     insertMentionByWorkspaceRef.current.set(workspaceId, fn);
@@ -24,6 +25,13 @@ export function useChatInsertionBridge({
     insertDomSelectionByWorkspaceRef.current.set(workspaceId, fn);
     return () => {
       insertDomSelectionByWorkspaceRef.current.delete(workspaceId);
+    };
+  }, []);
+
+  const registerSubmitDomReviewComments = useCallback((workspaceId: string, fn: (comments: AgentContextDomReviewComment[]) => Promise<boolean>) => {
+    submitDomReviewByWorkspaceRef.current.set(workspaceId, fn);
+    return () => {
+      submitDomReviewByWorkspaceRef.current.delete(workspaceId);
     };
   }, []);
 
@@ -59,10 +67,27 @@ export function useChatInsertionBridge({
     }
   }, [openChat]);
 
+  const handleSubmitDomReviewComments = useCallback((workspaceId: string, comments: AgentContextDomReviewComment[]) => {
+    openChat();
+    const trySubmit = () => {
+      const fn = submitDomReviewByWorkspaceRef.current.get(workspaceId);
+      return fn ? fn(comments) : null;
+    };
+    const submitted = trySubmit();
+    if (submitted) return submitted;
+    return new Promise<boolean>((resolve) => {
+      requestAnimationFrame(() => {
+        void (trySubmit() ?? Promise.resolve(false)).then(resolve);
+      });
+    });
+  }, [openChat]);
+
   return {
     handleAddDomSelectionToChat,
     handleAddNodeToChat,
+    handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
+    registerSubmitDomReviewComments,
   };
 }

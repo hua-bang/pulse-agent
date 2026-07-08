@@ -1,5 +1,5 @@
 import type React from 'react';
-import type { AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
@@ -136,6 +136,7 @@ interface CanvasSurfaceProps {
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
@@ -205,6 +206,7 @@ export const CanvasSurface = ({
   onReference,
   onAddToChat,
   onAddDomSelectionToChat,
+  onSubmitDomReviewComments,
   resolveReferenceNode,
   onOpenReferenceSource,
   onUpdateReferenceSource,
@@ -254,6 +256,7 @@ export const CanvasSurface = ({
       onReference={onReference}
       onAddToChat={onAddToChat}
       onAddDomSelectionToChat={onAddDomSelectionToChat}
+      onSubmitDomReviewComments={onSubmitDomReviewComments}
       resolveReferenceNode={resolveReferenceNode}
       onOpenReferenceSource={onOpenReferenceSource}
       onUpdateReferenceSource={onUpdateReferenceSource}

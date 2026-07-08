@@ -430,3 +430,145 @@
   gap: 6px;
   min-width: 0;
 }
+
+/* ── Review comments overlay ───────────────────────────────────────── */
+
+.iframe-review-layer {
+  position: absolute;
+  inset: 29px 0 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.iframe-review-selection {
+  position: absolute;
+  border: 2px solid #2383e2;
+  background: rgba(35, 131, 226, 0.08);
+  border-radius: 4px;
+  box-shadow: 0 0 0 99999px rgba(15, 23, 42, 0.04);
+  pointer-events: none;
+}
+
+.iframe-review-pin {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  background: #2383e2;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.iframe-review-pin--active {
+  background: #111827;
+}
+
+.iframe-review-popover {
+  position: absolute;
+  width: min(260px, calc(100% - 20px));
+  max-width: calc(100% - 20px);
+  padding: 9px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.2);
+  pointer-events: auto;
+}
+
+.iframe-review-popover--draft {
+  border-color: rgba(35, 131, 226, 0.36);
+}
+
+.iframe-review-popover__label {
+  margin-bottom: 6px;
+  overflow: hidden;
+  color: #111827;
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.iframe-review-textarea {
+  width: 100%;
+  min-height: 62px;
+  resize: vertical;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  border-radius: 6px;
+  padding: 7px;
+  color: #111827;
+  background: #fff;
+  font: 12px/1.4 inherit;
+  outline: none;
+}
+
+.iframe-review-textarea:focus {
+  border-color: #2383e2;
+  box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.14);
+}
+
+.iframe-review-popover__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.iframe-review-mini-btn {
+  height: 24px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: 5px;
+  padding: 0 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.iframe-review-mini-btn:hover:not(:disabled) {
+  border-color: rgba(17, 24, 39, 0.28);
+  background: #f9fafb;
+}
+
+.iframe-review-mini-btn:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.iframe-review-mini-btn--primary {
+  border-color: #2383e2;
+  background: #2383e2;
+  color: #fff;
+}
+
+.iframe-review-mini-btn--primary:hover:not(:disabled) {
+  border-color: #1d6fc1;
+  background: #1d6fc1;
+}
+
+.iframe-review-pending-bar {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  color: #111827;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: auto;
+}

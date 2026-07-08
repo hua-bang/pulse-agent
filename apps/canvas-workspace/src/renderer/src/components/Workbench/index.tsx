@@ -203,8 +203,10 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const {
     handleAddDomSelectionToChat,
     handleAddNodeToChat,
+    handleSubmitDomReviewComments,
     registerInsertDomSelectionMention,
     registerInsertMention,
+    registerSubmitDomReviewComments,
   } = useChatInsertionBridge({ allNodes, openChat: dock.openChat });
 
   const workspaceNameById = useCallback(
@@ -445,6 +447,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                     onPinReferenceNode={(nodeId) => pinReferenceNode(ws.id, nodeId)}
                     onAddToChat={(nodeId) => handleAddNodeToChat(ws.id, nodeId)}
                     onAddDomSelectionToChat={(selection) => handleAddDomSelectionToChat(ws.id, selection)}
+                    onSubmitDomReviewComments={(comments) => handleSubmitDomReviewComments(ws.id, comments)}
                     resolveReferenceNode={resolveReferenceNode}
                     onOpenReferenceSource={handleOpenReferenceSource}
                     onUpdateReferenceSource={updateReferenceSourceNode}
@@ -489,6 +492,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
                 onOpenWorkspaceSettings={onOpenWorkspaceSettings}
                 onRegisterInsertMention={(fn) => registerInsertMention(ws.id, fn)}
                 onRegisterInsertDomSelectionMention={(fn) => registerInsertDomSelectionMention(ws.id, fn)}
+                onRegisterSubmitDomReviewComments={(fn) => registerSubmitDomReviewComments(ws.id, fn)}
                 onTurnComplete={dock.notifyChatActivity}
               />
             </div>

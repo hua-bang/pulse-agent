@@ -1,5 +1,5 @@
 import type { MouseEvent, ReactNode } from 'react';
-import type { AgentContextDomSelectionRef, CanvasNode } from '../../types';
+import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasNode } from '../../types';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 import type { NodeDragOffset } from '../../hooks/useNodeDrag';
 
@@ -39,6 +39,7 @@ export interface CanvasNodeViewProps {
   onReference?: (nodeId: string) => void;
   onAddToChat?: (nodeId: string) => void;
   onAddDomSelectionToChat?: (selection: AgentContextDomSelectionRef) => void;
+  onSubmitDomReviewComments?: (comments: AgentContextDomReviewComment[]) => Promise<boolean>;
   resolveReferenceNode?: (node: CanvasNode) => { node?: CanvasNode; workspaceName?: string };
   onOpenReferenceSource?: (node: CanvasNode) => void;
   onUpdateReferenceSource?: (referenceNode: CanvasNode, patch: Partial<CanvasNode>) => void;
