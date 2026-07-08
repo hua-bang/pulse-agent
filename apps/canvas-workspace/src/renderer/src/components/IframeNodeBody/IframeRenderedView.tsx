@@ -114,45 +114,47 @@ export const IframeRenderedView = ({
           workspaceId={workspaceId}
         />
 
-        {mode === 'ai' && !generating && !readOnly && (
-          <button
-            className="iframe-bar-btn"
-            onClick={() => void handleRegenerate()}
-            title="Regenerate"
-          >
-            <SparkIcon />
-          </button>
-        )}
+        <div className="iframe-bar-actions">
+          {mode === 'ai' && !generating && !readOnly && (
+            <button
+              className="iframe-bar-btn"
+              onClick={() => void handleRegenerate()}
+              title="Regenerate"
+            >
+              <SparkIcon />
+            </button>
+          )}
 
-        <button
-          className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
-          onClick={() => void handlePickDomElement()}
-          title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
-          disabled={generating || domPickerActive || reviewPickerActive || !workspaceId}
-        >
-          <InspectIcon />
-        </button>
-
-        {mode === 'url' && (
           <button
-            className={`iframe-bar-btn${reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
-            onClick={() => void handlePickReviewElement()}
-            title={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
-            disabled={generating || domPickerActive || reviewPickerActive || !workspaceId || readOnly}
+            className={`iframe-bar-btn${domPickerActive ? ' iframe-bar-btn--active' : ''}`}
+            onClick={() => void handlePickDomElement()}
+            title={domPickerActive ? 'Selecting DOM...' : 'Select DOM for AI Chat'}
+            disabled={generating || domPickerActive || reviewPickerActive || !workspaceId}
           >
-            <ReviewIcon />
+            <InspectIcon />
           </button>
-        )}
 
-        {mode === 'url' && (
-          <button
-            className="iframe-bar-btn"
-            onClick={handleOpenExternal}
-            title="Open externally"
-          >
-            <OpenIcon />
-          </button>
-        )}
+          {mode === 'url' && (
+            <button
+              className={`iframe-bar-btn${reviewPickerActive ? ' iframe-bar-btn--active' : ''}`}
+              onClick={() => void handlePickReviewElement()}
+              title={reviewPickerActive ? 'Selecting review target...' : 'Add review comment'}
+              disabled={generating || domPickerActive || reviewPickerActive || !workspaceId || readOnly}
+            >
+              <ReviewIcon />
+            </button>
+          )}
+
+          {mode === 'url' && (
+            <button
+              className="iframe-bar-btn"
+              onClick={handleOpenExternal}
+              title="Open externally"
+            >
+              <OpenIcon />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className={`iframe-frame-wrapper${streamingActive ? ' iframe-frame-wrapper--streaming' : ''}`}>
