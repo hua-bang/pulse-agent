@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './index.css';
 
-interface SettingsDrawerProps {
+interface Props {
   open: boolean;
   onClose: () => void;
   kicker: string;
@@ -33,7 +33,7 @@ export const SettingsDrawer = ({
   width = 640,
   closeAriaLabel = 'Close',
   children,
-}: SettingsDrawerProps) => {
+}: Props) => {
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {

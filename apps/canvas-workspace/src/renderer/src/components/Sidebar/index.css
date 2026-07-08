@@ -924,12 +924,12 @@
 }
 
 .sidebar-layer-context-menu-item--danger {
-  color: #c0392b;
+  color: var(--error, #c0392b);
 }
 
 .sidebar-layer-context-menu-item--danger:hover {
   background: rgba(192, 57, 43, 0.08);
-  color: #c0392b;
+  color: var(--error, #c0392b);
 }
 
 .sidebar-layer-context-menu-separator {

@@ -164,7 +164,7 @@ function clampWidth(value: number): number {
   return Math.min(max, Math.max(MIN_WIDTH, value));
 }
 
-interface RightDockProps {
+interface Props {
   /** Target canvas for link tabs' "add to current canvas" action. */
   activeWorkspaceId: string;
   /** True on the canvas route: shows the pinned chat tab and reserves
@@ -178,7 +178,7 @@ interface TabIndicatorState {
   visible: boolean;
 }
 
-export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps) => {
+export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: Props) => {
   const { store, setChatHost, setTerminalHost } = useDockContext();
   const state = useRightDockState();
   const { t } = useI18n();

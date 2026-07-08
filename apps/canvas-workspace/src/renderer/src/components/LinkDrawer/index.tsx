@@ -22,7 +22,7 @@ interface WebviewTag extends HTMLElement {
   reload(): void;
 }
 
-interface LinkTabViewProps {
+interface Props {
   url: string;
   /** Active workspace id, used as the target for "add to current canvas". */
   activeWorkspaceId: string;
@@ -34,7 +34,7 @@ interface LinkTabViewProps {
   onRequestClose: () => void;
 }
 
-export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconChange, onRequestClose }: LinkTabViewProps) => {
+export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconChange, onRequestClose }: Props) => {
   const { t } = useI18n();
   const hostRef = useRef<HTMLDivElement>(null);
   const webviewRef = useRef<WebviewTag | null>(null);
