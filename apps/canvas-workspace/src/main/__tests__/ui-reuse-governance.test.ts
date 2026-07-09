@@ -31,7 +31,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 402→399: WorkspaceSettings adopted ui/Button (-4); ui/Button itself (+1).
   // 399→397: AgentTypeSelect migrated to ui/Select, dropping its bespoke
   // trigger + option <button>s (-2). ui/Select itself moved, not added.
-  rawButtonTags: 397,
+  // 397→390 (batch-A UI-reuse pass): AgentTeamFrame's 4 tablist-shaped
+  // clusters moved onto ui/SegmentedControl, dropping 7 bespoke <button>s
+  // (2 subtabs + 2 detail-tabs + 1 round-switch [a single .map <button>] + 2
+  // inspector-viewer-tabs — the one that was missing role="tab"/aria-selected
+  // entirely); SegmentedControl itself adds one shared <button> (its own
+  // .map body), net -6 there. LinkDrawer's reload icon button moved onto
+  // ui/Button's new icon variant (-1). Total -7.
+  rawButtonTags: 390,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -49,7 +56,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // tokenized and the promoted Drawer + deleted CTA rules dropped 4 literals.
   // 431→425: ui/Select promotion tokenized its 3 radii (-3) and the retired
   // agent-type-select CSS dropped 3 more literals (-3).
-  borderRadiusLiterals: 425,
+  // 425→416 (batch-A): ui/DropdownShell absorbed 2 hand-rolled popovers'
+  // hardcoded 8px radii (text-color-popover, frame-color-popover); the 4
+  // AgentTeamFrame SegmentedControl migrations dropped 6 more (subtab 0,
+  // detail-tab 6px, round-switch 8px + its tab 6px, inspector-viewer-tabs
+  // 7px + its button 5px); LinkDrawer's icon button (4px) moved onto
+  // ui/Button (tokenized). 9 literals removed net.
+  borderRadiusLiterals: 416,
   // independent 360°-rotate spinner @keyframes (names ending in "spin")
   spinnerKeyframes: 6,
   // private entrance @keyframes whose NAME ends in an entrance-shaped suffix
@@ -121,7 +134,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // lines are exempt: defining a token with a literal is the point). Falls as
   // colors move onto the palette; migration of the stock is deliberately
   // unscheduled.
-  hardcodedColorLiterals: 1961,
+  // 1961→1935 (batch-A): real deletions, not tokenization — the migrated
+  // sites' bespoke color rules (Settings section title/desc colors, the 2
+  // color-picker popovers, the 4 AgentTeamFrame tab-strip clusters,
+  // LinkDrawer's icon button) were removed outright; the new ui/ components
+  // use CSS vars for their own colors so they add nothing to this counter.
+  hardcodedColorLiterals: 1935,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -131,14 +149,59 @@ const RATCHET_BASELINE: Record<string, number> = {
   // from any-var( to var(--shadow specifically (a token-colored but
   // literal-geometry shadow now counts, matching what frontend.md promises);
   // 26 such lines moved inside the gate.
-  shadowLiterals: 200,
+  // 200→196 (batch-A): the 2 color-picker popovers (text/frame) and 2
+  // AgentTeamFrame active-tab box-shadows (detail-tab, round-switch__tab)
+  // now come from ui/DropdownShell (var(--shadow-float)) or a plain
+  // ui/SegmentedControl active state with no shadow.
+  shadowLiterals: 196,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
   // z-index literals are <=5 and legitimate); this counter ignores those
   // and gates only the band that actually competes with the --layer-*
   // scale for cross-surface stacking order.
-  zIndexHighRaw: 25,
+  // 25→23 (batch-A): the 2 color-picker popovers' raw z-index:20 now come
+  // from ui/DropdownShell's var(--layer-canvas-chrome-raised).
+  zIndexHighRaw: 23,
+
+  // --- batch-A new counters (measured post-migration) ---
+  // CSS rule-block openers outside ui/ matching the `*-section-(title|desc|
+  // body)` or `*-field` shape — the clusters ui/SectionHeader + ui/FieldRow
+  // exist to absorb (a rule OPENER is the base selector immediately
+  // followed by `{` — `.x-section-status-desc {` does not match, since
+  // "status" sits between "section" and "desc"). UpdateSection and
+  // LanguageSection's `-title`/`-field` rule openers, plus
+  // WorkspaceSettings' `-field` opener, are already gone post-migration;
+  // this is the first measurement of the counter, at the post-migration
+  // value. The remaining 14 (7 title/desc/body + 7 field, across
+  // AgentNodeBody, Sidebar, Settings/{AgentSection,ExperimentalSection},
+  // WorkspaceSettings, ChannelConfigPanel, BuiltInToolsSection, ChatPanel,
+  // settings-config) are frozen stock — new-code ratchet, not a sweep, per
+  // the deliverable's explicit scope limit.
+  sectionFieldCssClusters: 14,
+  // non-ui, non-test .tsx files whose content has BOTH useClickOutside( AND
+  // useMenuKeyboardNav( and NOT createPortal( — the signature of a
+  // hand-rolled trigger-anchored dropdown living outside ui/DropdownShell.
+  // 7 (census) minus 3 migrated (ShapeToolButton, TextColorPicker,
+  // FrameColorPicker) = 4 remaining: ShapeNodeBody (richer multi-row style
+  // picker, not a pick-and-close menu), chat/ChatAnchors + GraphPage's
+  // overflow menu (both distinguish click-outside-close from
+  // keyboard-close-with-focus-restore — a real behavior DropdownShell's
+  // single internal `close` can't express), FloatingToolbar/index.tsx's
+  // plugin menu (not evaluated this pass). NodeTagEditor is naturally
+  // excluded — it uses useEscapeClose, not useMenuKeyboardNav.
+  bespokeDropdownShells: 4,
+  // role="tablist"/role="radiogroup" outside ui/ — the shape
+  // ui/SegmentedControl absorbs. AgentTeamFrame's 4 (all migrated) are gone;
+  // 5 remain as frozen stock: AgentNodeBody/AgentPicker's tablist,
+  // RightDock's tab strip (excluded by design — glider/unread/closeable,
+  // not a plain pill), and 3 radiogroups (Settings/LanguageSection,
+  // chat/PromptSettings, chat/ModelProviderFields) — evaluated as optional
+  // migrations and flagged: both are card/grid-style choosers (2-col grid,
+  // bordered cards, box-shadow ring), a different visual language than
+  // SegmentedControl's compact pill, so migrating would be a visual
+  // downgrade rather than a clean unification.
+  segmentedRoles: 5,
 };
 
 // Design tokens referenced via var(--x) somewhere in the renderer but
@@ -278,6 +341,32 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
           return match !== null && Number(match[1]) >= 10;
         }).length,
       0,
+    ),
+    // CSS rule openers outside ui/ shaped like the `-section-{title,desc,
+    // body}` or `-field` clusters ui/SectionHeader + ui/FieldRow absorb.
+    sectionFieldCssClusters: cssFiles.filter((f) => !f.path.includes('/components/ui/')).reduce(
+      (sum, f) =>
+        sum +
+        (f.content.match(/^\.[a-z][a-z0-9-]*-section-(?:title|desc|body)\s*\{/gm) ?? []).length +
+        (f.content.match(/^\.[a-z][a-z0-9-]*-field\s*\{/gm) ?? []).length,
+      0,
+    ),
+    // A hand-rolled trigger-anchored dropdown shell = the useClickOutside +
+    // useMenuKeyboardNav pair without a createPortal exit (that combination
+    // WITH createPortal is a point-anchored shell — ui/Popover's territory,
+    // already excluded by portalFiles/bespokePopoverPositioning above).
+    bespokeDropdownShells: tsxFiles.filter(
+      (f) =>
+        !f.path.includes('/components/ui/') &&
+        f.content.includes('useClickOutside(') &&
+        f.content.includes('useMenuKeyboardNav(') &&
+        !f.content.includes('createPortal('),
+    ).length,
+    // role="tablist"/role="radiogroup" outside ui/ — the shape
+    // ui/SegmentedControl absorbs.
+    segmentedRoles: countStripped(
+      tsxFiles.filter((f) => !f.path.includes('/components/ui/')),
+      /role="(?:tablist|radiogroup)"/g,
     ),
   };
 

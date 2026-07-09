@@ -1,3 +1,5 @@
+import { clampIndexMove } from '../components/ui/hooks/useIndexNav';
+
 export interface NoteSlashMenuState {
   x: number;
   y: number;
@@ -47,8 +49,10 @@ export const createEmptyNoteInteractionState = (): NoteInteractionState => ({
 const nextValue = <T,>(current: T | null, value: NoteInteractionUpdater<T>): T =>
   typeof value === 'function' ? (value as (prev: T | null) => T)(current) : value;
 
+// Delegates to the shared ui/hooks/useIndexNav helper (clamp, not wrap —
+// the semantics this module always had; see clampIndexMove's docs).
 const clampMenuIndex = (index: number, delta: number, itemCount: number) =>
-  Math.max(0, Math.min(index + delta, itemCount - 1));
+  clampIndexMove(index, delta, itemCount);
 
 export const closeTransientNoteSurfaces = (
   state: NoteInteractionState,

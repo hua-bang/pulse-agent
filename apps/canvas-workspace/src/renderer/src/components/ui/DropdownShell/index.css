@@ -1,0 +1,41 @@
+/* ui/DropdownShell — trigger-anchored dropdown panel. No portal (in-flow);
+ * z-index reuses the toolbar-flyout layer since every current caller is
+ * canvas chrome (shape/text/frame pickers). */
+
+.ui-dropdown {
+  position: relative;
+}
+
+.ui-dropdown__panel {
+  position: absolute;
+  z-index: var(--layer-canvas-chrome-raised);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-float);
+}
+
+.ui-dropdown--bottom {
+  top: calc(100% + 6px);
+}
+
+.ui-dropdown--top {
+  bottom: calc(100% + 6px);
+}
+
+.ui-dropdown--align-start {
+  left: 0;
+}
+
+.ui-dropdown--align-end {
+  right: 0;
+}
+
+.ui-dropdown--align-center {
+  left: 50%;
+  transform: translateX(-50%);
+}

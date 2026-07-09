@@ -4,6 +4,7 @@ import { AgentNodeBody } from '../AgentNodeBody';
 import { AgentIcon } from '../AgentNodeBody/AgentIcon';
 import { AgentTypeSelect } from './AgentTypeSelect';
 import { NodeMentionPicker } from '../NodeMentionPicker';
+import { SegmentedControl } from '../ui';
 import { useAppShell } from '../AppShellProvider';
 import { AGENT_REGISTRY } from '../../config/agentRegistry';
 import { useTextareaMention } from '../../hooks/useTextareaMention';
@@ -1535,25 +1536,17 @@ export const AgentTeamFrame = ({
         </div>
 
         <div className={`agent-team-agent-detail__viewer${agentViewMode === 'terminal' ? ' agent-team-agent-detail__viewer--terminal' : ''}`}>
-          <div className="agent-team-subtabs" role="tablist" aria-label="Agent view">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={agentViewMode === 'activity'}
-              className={`agent-team-subtab${agentViewMode === 'activity' ? ' is-active' : ''}`}
-              onClick={() => setAgentViewMode('activity')}
-            >
-              Activity
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={agentViewMode === 'terminal'}
-              className={`agent-team-subtab${agentViewMode === 'terminal' ? ' is-active' : ''}`}
-              onClick={() => setAgentViewMode('terminal')}
-            >
-              Terminal
-            </button>
+          <div className="agent-team-subtabs">
+            <SegmentedControl
+              ariaPattern="tab"
+              ariaLabel="Agent view"
+              value={agentViewMode}
+              onChange={(id) => setAgentViewMode(id as 'activity' | 'terminal')}
+              options={[
+                { id: 'activity', label: 'Activity' },
+                { id: 'terminal', label: 'Terminal' },
+              ]}
+            />
             <button
               type="button"
               className="agent-team-subtab-expand"
@@ -1754,26 +1747,17 @@ export const AgentTeamFrame = ({
         className={`agent-team-graph-detail agent-team-graph-detail--tabbed${agentActive ? ' agent-team-graph-detail--agent' : ''}`}
         aria-label="Selected detail"
       >
-        <div className="agent-team-detail-tabs" role="tablist" aria-label="Detail view">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!agentActive}
-            className={`agent-team-detail-tab${!agentActive ? ' is-active' : ''}`}
-            onClick={() => setDetailPanelMode('task')}
-          >
-            Task
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={agentActive}
-            className={`agent-team-detail-tab${agentActive ? ' is-active' : ''}`}
-            onClick={() => setDetailPanelMode('agent')}
-          >
-            Agent
-          </button>
-        </div>
+        <SegmentedControl
+          className="agent-team-detail-tabs"
+          ariaPattern="tab"
+          ariaLabel="Detail view"
+          value={detailPanelMode}
+          onChange={(id) => setDetailPanelMode(id as 'task' | 'agent')}
+          options={[
+            { id: 'task', label: 'Task' },
+            { id: 'agent', label: 'Agent' },
+          ]}
+        />
         {agentActive ? renderAgentDetailContent() : renderTaskDetailContent()}
       </aside>
     );
@@ -1856,22 +1840,22 @@ export const AgentTeamFrame = ({
         </div>
         <div className="agent-team-graph-panel__actions">
           {roundOptions.length > 1 && (
-            <div className="agent-team-round-switch" role="tablist" aria-label="Rounds">
-              {roundOptions.map((option) => (
-                <button
-                  key={option.round}
-                  type="button"
-                  role="tab"
-                  aria-selected={option.round === activeRound}
-                  className={`agent-team-round-switch__tab${option.round === activeRound ? ' is-active' : ''}`}
-                  onClick={() => setSelectedRound(option.round)}
-                  title={`Round ${option.round} · ${option.doneCount}/${option.taskCount} done`}
-                >
-                  <span className={`agent-team-task-row__dot agent-team-task-row__dot--${option.status}`} />
-                  Round {option.round}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              ariaPattern="tab"
+              ariaLabel="Rounds"
+              value={String(activeRound)}
+              onChange={(id) => setSelectedRound(Number(id))}
+              options={roundOptions.map((option) => ({
+                id: String(option.round),
+                title: `Round ${option.round} · ${option.doneCount}/${option.taskCount} done`,
+                label: (
+                  <>
+                    <span className={`agent-team-task-row__dot agent-team-task-row__dot--${option.status}`} />
+                    Round {option.round}
+                  </>
+                ),
+              }))}
+            />
           )}
           {phase === 'plan_review' && plan?.integrationVerify && (
             <span className="agent-team-frame__hint" title={plan.integrationVerify}>
@@ -1997,22 +1981,17 @@ export const AgentTeamFrame = ({
                   <span className="agent-team-panel-heading__label">Coding Agent</span>
                   <strong>{agentInspectorMode === 'terminal' ? 'Terminal' : 'Activity'}</strong>
                 </div>
-                <div className="agent-team-agent-inspector__viewer-tabs" role="tablist" aria-label="Agent detail mode">
-                  <button
-                    type="button"
-                    className={agentInspectorMode === 'activity' ? 'is-active' : ''}
-                    onClick={() => setAgentInspectorMode('activity')}
-                  >
-                    Activity
-                  </button>
-                  <button
-                    type="button"
-                    className={agentInspectorMode === 'terminal' ? 'is-active' : ''}
-                    onClick={() => setAgentInspectorMode('terminal')}
-                  >
-                    Terminal
-                  </button>
-                </div>
+                <SegmentedControl
+                  className="agent-team-agent-inspector__viewer-tabs"
+                  ariaPattern="tab"
+                  ariaLabel="Agent detail mode"
+                  value={agentInspectorMode}
+                  onChange={(id) => setAgentInspectorMode(id as 'activity' | 'terminal')}
+                  options={[
+                    { id: 'activity', label: 'Activity' },
+                    { id: 'terminal', label: 'Terminal' },
+                  ]}
+                />
               </div>
               {agentInspectorMode === 'activity' ? (
                 <div className="agent-team-agent-inspector__activity">

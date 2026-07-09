@@ -507,24 +507,14 @@
   );
 }
 
+/* Positioning/surface/z-index now come from ui/DropdownShell's
+ * `.ui-dropdown__panel`; this rule only overrides its default flex column
+ * with the swatch row this picker needs. */
 .text-color-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: none;
+  flex-direction: row;
   gap: 4px;
   padding: 6px 8px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
-  z-index: 20;
   white-space: nowrap;
-}
-
-.text-color-popover--open {
-  display: flex;
 }
 
 .text-color-swatch {

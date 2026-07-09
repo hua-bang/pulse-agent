@@ -160,19 +160,12 @@
   position: relative;
 }
 
+/* Positioning/surface/z-index now come from ui/DropdownShell's
+ * `.ui-dropdown__panel`; this rule only overrides its default flex column
+ * with the shape grid. */
 .shape-tool-popover {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
   display: grid;
   grid-template-columns: repeat(4, 30px);
-  gap: 2px;
-  padding: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-float);
-  z-index: var(--layer-canvas-chrome-raised);
 }
 
 .shape-tool-option {

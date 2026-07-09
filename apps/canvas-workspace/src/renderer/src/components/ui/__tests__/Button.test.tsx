@@ -81,4 +81,27 @@ describe('Button', () => {
     });
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  describe('icon variant', () => {
+    it('applies the icon variant class', () => {
+      const btn = render(<Button variant="icon" aria-label="Reload">↻</Button>);
+      expect(btn.classList.contains('ui-btn--icon')).toBe(true);
+    });
+
+    it('sizes sm/md/lg to 24/28/32px via the size classes', () => {
+      const sm = render(<Button variant="icon" size="sm" aria-label="Reload">↻</Button>);
+      expect(sm.classList.contains('ui-btn--sm')).toBe(true);
+
+      const md = render(<Button variant="icon" aria-label="Reload">↻</Button>);
+      expect(md.classList.contains('ui-btn--md')).toBe(true);
+
+      const lg = render(<Button variant="icon" size="lg" aria-label="Reload">↻</Button>);
+      expect(lg.classList.contains('ui-btn--lg')).toBe(true);
+    });
+
+    it('passes an explicit aria-label through', () => {
+      const btn = render(<Button variant="icon" aria-label="Reload">↻</Button>);
+      expect(btn.getAttribute('aria-label')).toBe('Reload');
+    });
+  });
 });

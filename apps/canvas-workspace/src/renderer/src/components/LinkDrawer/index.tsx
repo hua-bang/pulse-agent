@@ -15,6 +15,7 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 import { useI18n } from "../../i18n";
 import { pickFaviconUrl } from "../IframeNodeBody/utils";
+import { Button } from "../ui";
 import "./index.css";
 
 interface WebviewTag extends HTMLElement {
@@ -105,11 +106,11 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
   return (
     <>
       <header className="link-drawer__header">
-        <button
-          type="button"
-          className="link-drawer__icon-btn"
+        <Button
+          variant="icon"
           onClick={handleReload}
           title={t('linkDrawer.reload')}
+          aria-label={t('linkDrawer.reload')}
         >
           <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
             <path
@@ -120,7 +121,7 @@ export const LinkTabView = ({ url, activeWorkspaceId, onTitleChange, onFaviconCh
               strokeLinejoin="round"
             />
           </svg>
-        </button>
+        </Button>
         <div className="link-drawer__url" title={url}>{url}</div>
       </header>
       <div ref={hostRef} className="link-drawer__webview-host" />

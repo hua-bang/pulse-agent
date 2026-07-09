@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceEntry } from '../../hooks/useWorkspaces';
-import { Drawer, Button, TextField } from '../ui';
+import { Drawer, Button, TextField, FieldRow } from '../ui';
 import { SkillsManager } from '../settings-config/SkillsManager';
 import { McpManager } from '../settings-config/McpManager';
 import { useAppShell } from '../AppShellProvider';
@@ -228,8 +228,7 @@ export const WorkspaceSettingsDrawer = ({
 
         <section className="workspace-settings-section">
           <div className="workspace-settings-section-title">{t('workspaceSettings.environment')}</div>
-          <div className="workspace-settings-field">
-            <span>{t('workspaceSettings.rootFolder')}</span>
+          <FieldRow label={t('workspaceSettings.rootFolder')} hint={t('workspaceSettings.rootFolderHint')}>
             <div className="workspace-settings-folder-row">
               <div className="workspace-settings-folder-path" title={workspace.rootFolder}>
                 {workspace.rootFolder ?? <em>{t('workspaceSettings.notSet')}</em>}
@@ -241,10 +240,7 @@ export const WorkspaceSettingsDrawer = ({
                 {workspace.rootFolder ? t('workspaceSettings.changeFolder') : t('workspaceSettings.setFolder')}
               </Button>
             </div>
-            <div className="workspace-settings-field-hint">
-              {t('workspaceSettings.rootFolderHint')}
-            </div>
-          </div>
+          </FieldRow>
         </section>
 
         <section className="workspace-settings-section">

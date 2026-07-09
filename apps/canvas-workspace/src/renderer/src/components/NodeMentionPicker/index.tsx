@@ -5,6 +5,7 @@ import { isImeComposing } from '../../utils/ime';
 import { useI18n } from '../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
 import { useEscapeClose } from '../../hooks/useEscapeClose';
+import { useIndexNav } from '../ui';
 
 interface Props {
   nodes: CanvasNode[];
@@ -17,7 +18,7 @@ const MAX_RESULTS = 20;
 export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const { index: selectedIndex, setIndex: setSelectedIndex, move, reset } = useIndexNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const listId = 'node-mention-results';
@@ -48,8 +49,8 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
     : undefined;
 
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
+    reset(0);
+  }, [query, reset]);
 
   useEffect(() => {
     const active = listRef.current?.querySelector(`[data-node-mention-index="${selectedIndex}"]`);
@@ -68,12 +69,12 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
       if (filtered.length === 0) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((i) => Math.min(i + 1, filtered.length - 1));
+        move(1, filtered.length);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((i) => Math.max(i - 1, 0));
+        move(-1, filtered.length);
         return;
       }
       if (e.key === 'Enter' && filtered[selectedIndex]) {
@@ -81,7 +82,7 @@ export const NodeMentionPicker = ({ nodes, onSelect, onClose }: Props) => {
         return;
       }
     },
-    [filtered, selectedIndex, onSelect, onClose],
+    [filtered, selectedIndex, onSelect, onClose, move],
   );
 
   return (

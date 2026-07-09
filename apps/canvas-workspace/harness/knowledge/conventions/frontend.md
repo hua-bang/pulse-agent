@@ -73,20 +73,36 @@ built, rules graduated here, entry deleted; evidence lives in git history of
 `src/main/__tests__/ui-reuse-governance.test.ts` (runs in `pnpm test`; a
 counter may shrink but never grow):
 
-- **New code uses the blessed basics** from `components/ui/`: `Button`,
-  `Modal` (the one overlay shell), `Drawer`, `Portal` (the one createPortal
-  exit), `Popover` (the one point-anchored popover shell — portals + viewport
-  clamp + ESC/arrow-nav + click-outside for context-menu-style menus opened at
-  an x/y point), `Select` (the one dropdown; scope a density override rather
-  than forking it), `TextField` (labelled input/textarea), `useDragResize` —
-  plus `AppShellProvider.notify` for toasts and the canonical hooks
-  `useEscapeClose` / `useMenuKeyboardNav` / `useClickOutside`. Do NOT
-  hand-roll a new overlay ESC listener, backdrop, portal call site,
-  point-anchored popover shell, dropdown popover, labelled form field, spinner
-  keyframe, or raw CTA `<button>` style pair — the ratchet will fail your PR.
-  The blessed spinner element is `icons/SpinnerIcon` (drive its rotation with
-  a `spin`-named keyframe class, e.g. `chat-spin`); render it instead of
-  inlining a fresh spinner `<svg>`.
+- **New code uses the blessed basics** from `components/ui/`: `Button`
+  (including `variant="icon"` for icon-only square buttons — pass
+  `aria-label`, sizes sm/md/lg = 24/28/32px), `Modal` (the one overlay
+  shell), `Drawer`, `Portal` (the one createPortal exit), `Popover` (the one
+  point-anchored popover shell — portals + viewport clamp + ESC/arrow-nav +
+  click-outside for context-menu-style menus opened at an x/y point),
+  `DropdownShell` (the one TRIGGER-anchored dropdown shell — in-flow, no
+  portal; owns click-outside/ESC/arrow-nav like Popover but stays next to
+  its trigger instead of portaling to an x/y point), `Select` (the one
+  dropdown; scope a density override rather than forking it), `TextField`
+  (labelled input/textarea), `SectionHeader` (title+description pair for a
+  settings-style section intro), `FieldRow` (generic label/control/hint
+  wrapper for any non-text control — Select, checkboxes, custom widgets;
+  TextField remains the blessed piece for TEXT controls), `SegmentedControl`
+  (the one "pick one of N" control — `ariaPattern="radio"` or `"tab"`),
+  `useDragResize`, `ui/hooks/useIndexNav` (+ its pure `clampIndexMove`
+  helper for externally-driven index state) — plus `AppShellProvider.notify`
+  for toasts and the canonical hooks `useEscapeClose` / `useMenuKeyboardNav`
+  / `useClickOutside`. Do NOT hand-roll a new overlay ESC listener, backdrop,
+  portal call site, point-anchored popover shell, trigger-anchored dropdown
+  (local `open` state + click-outside + arrow-nav wired by hand), dropdown
+  popover, labelled form field, section title/description CSS cluster
+  (`*-section-title`/`*-section-desc`/`*-field`), segmented/tab-strip
+  control, ArrowUp/Down index-clamp logic, spinner keyframe, or raw CTA
+  `<button>` style pair (including icon-only button chrome:
+  `border:none;background:transparent;border-radius;cursor:pointer` at a
+  fixed size) — the ratchet will fail your PR. The blessed spinner element
+  is `icons/SpinnerIcon` (drive its rotation with a `spin`-named keyframe
+  class, e.g. `chat-spin`); render it instead of inlining a fresh spinner
+  `<svg>`.
 - **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-sm|--radius|--radius-md|--radius-lg)`
   for radii, palette tokens for colors, `var(--shadow-*)` for shadows — all
   three are ratchet-gated (`borderRadiusLiterals`, `hardcodedColorLiterals`,
@@ -111,6 +127,13 @@ counter may shrink but never grow):
   governance test. (The original 13 phantoms were converged into real
   definitions on 2026-07-07; only the two frame-engine dials remain
   intentionally undefined, baselined in the test.)
+- Three more counters (added with the `SectionHeader`/`FieldRow`/
+  `DropdownShell`/`SegmentedControl` set): `sectionFieldCssClusters` (non-ui
+  CSS rule openers shaped like `*-section-title|desc|body` or `*-field`),
+  `bespokeDropdownShells` (non-ui `.tsx` files pairing `useClickOutside(` +
+  `useMenuKeyboardNav(` without `createPortal(` — a hand-rolled
+  trigger-anchored dropdown), `segmentedRoles` (non-ui
+  `role="tablist"`/`role="radiogroup"` occurrences).
 - Reducing a counter? Lower its baseline in the same PR — the test fails on
   unlocked improvements too.
 

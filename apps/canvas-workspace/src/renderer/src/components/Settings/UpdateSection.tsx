@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { UpdateCheckResult, UpdateManifestSummary } from '../../types';
 import { CheckIcon, ImportIcon, RefreshIcon, SpinnerIcon } from '../icons';
+import { SectionHeader } from '../ui';
 import { useI18n } from '../../i18n';
 import './UpdateSection.css';
 
@@ -162,10 +163,11 @@ export const UpdateSection = () => {
       <div className="updates-section-body">
         <div className="updates-section-card">
           <div className="updates-section-heading">
-            <div className="updates-section-intro">
-              <div className="updates-section-title">{t('settings.updates.introTitle')}</div>
-              <div className="updates-section-desc">{t('settings.updates.introDescription')}</div>
-            </div>
+            <SectionHeader
+              className="updates-section-intro"
+              title={t('settings.updates.introTitle')}
+              description={t('settings.updates.introDescription')}
+            />
             <button
               type="button"
               className="updates-section-secondary-btn"

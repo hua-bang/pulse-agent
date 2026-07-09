@@ -1,7 +1,6 @@
-import { useCallback, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, type MouseEvent as ReactMouseEvent } from "react";
 import type { CanvasNode, FrameNodeData } from "../../types";
-import { useClickOutside } from "../../hooks/useClickOutside";
-import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
+import { DropdownShell } from "../ui";
 import { useI18n } from "../../i18n";
 
 /**
@@ -131,67 +130,58 @@ const FrameToggleIcon = ({ collapsed }: { collapsed: boolean }) => (
 export const FrameColorPicker = ({ node, onUpdate }: ColorPickerProps) => {
   const { t } = useI18n();
   const data = node.data as FrameNodeData;
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
 
   const handleColorChange = useCallback(
     (color: string) => {
       onUpdate(node.id, { data: { ...data, color } });
-      setOpen(false);
     },
-    [node.id, data, onUpdate]
+    [data, onUpdate]
   );
 
-  const closePopover = useCallback(() => setOpen(false), []);
-  useClickOutside(triggerRef, closePopover, open);
-  useMenuKeyboardNav(popoverRef, closePopover, open);
-
   return (
-    <div
-      className={`frame-color-trigger${open ? ' frame-color-trigger--open' : ''}`}
-      ref={triggerRef}
-      title={t('canvas.frameStyle.color')}
-      onMouseDown={(e) => e.stopPropagation()}
-    >
-      <button
-        type="button"
-        className="frame-color-dot"
-        style={{ backgroundColor: data.color }}
-        title={t('canvas.frameStyle.color')}
-        aria-label={t('canvas.frameStyle.color')}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((v) => !v);
-        }}
-      />
-      {open && (
-        <div
-          ref={popoverRef}
-          className="frame-color-popover frame-color-popover--open"
-          role="menu"
+    <DropdownShell
+      className="frame-color-trigger"
+      panelClassName="frame-color-popover"
+      placement="top"
+      align="center"
+      role="menu"
+      trigger={({ open, toggle }) => (
+        <button
+          type="button"
+          className="frame-color-dot"
+          style={{ backgroundColor: data.color }}
+          title={t('canvas.frameStyle.color')}
           aria-label={t('canvas.frameStyle.color')}
-        >
-          {COLOR_PRESETS.map((preset) => (
-            <button
-              type="button"
-              key={preset.name}
-              className={`frame-color-swatch${data.color === preset.value ? ' frame-color-swatch--active' : ''}`}
-              style={{ backgroundColor: preset.value }}
-              role="menuitemradio"
-              aria-checked={data.color === preset.value}
-              title={t('canvas.frameStyle.colorOption', { name: preset.name })}
-              aria-label={t('canvas.frameStyle.colorOption', { name: preset.name })}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleColorChange(preset.value);
-              }}
-            />
-          ))}
-        </div>
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
+        />
       )}
-    </div>
+    >
+      {({ close }) =>
+        COLOR_PRESETS.map((preset) => (
+          <button
+            type="button"
+            key={preset.name}
+            className={`frame-color-swatch${data.color === preset.value ? ' frame-color-swatch--active' : ''}`}
+            style={{ backgroundColor: preset.value }}
+            role="menuitemradio"
+            aria-checked={data.color === preset.value}
+            title={t('canvas.frameStyle.colorOption', { name: preset.name })}
+            aria-label={t('canvas.frameStyle.colorOption', { name: preset.name })}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleColorChange(preset.value);
+              close();
+            }}
+          />
+        ))
+      }
+    </DropdownShell>
   );
 };

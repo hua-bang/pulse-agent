@@ -662,40 +662,6 @@
   flex-shrink: 0;
 }
 
-.agent-team-round-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.agent-team-frame .agent-team-round-switch__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #5b6573;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.agent-team-frame .agent-team-round-switch__tab:hover:not(.is-active) {
-  color: #1f2733;
-}
-
-.agent-team-frame .agent-team-round-switch__tab.is-active {
-  background: #ffffff;
-  color: #1f2733;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}
-
 .agent-team-frame .agent-team-graph-panel__fullscreen {
   border-color: #b8d4f3;
   background: #f3f8ff;
@@ -1231,28 +1197,6 @@
   background: rgba(238, 243, 250, 0.7);
 }
 
-.agent-team-frame .agent-team-detail-tab {
-  height: 24px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.agent-team-frame .agent-team-detail-tab:hover:not(.is-active) {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.agent-team-frame .agent-team-detail-tab.is-active {
-  background: #ffffff;
-  color: #1f4f86;
-  box-shadow: 0 1px 3px rgba(31, 54, 88, 0.12);
-}
-
 .agent-team-detail__empty {
   padding: 12px 4px;
 }
@@ -1287,27 +1231,6 @@
 .agent-team-frame .agent-team-subtab-expand:hover {
   color: var(--text);
   background: rgba(92, 128, 183, 0.12);
-}
-
-.agent-team-frame .agent-team-subtab {
-  height: 26px;
-  padding: 0 2px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.agent-team-frame .agent-team-subtab:hover:not(.is-active) {
-  color: var(--text);
-}
-
-.agent-team-frame .agent-team-subtab.is-active {
-  color: #1f4f86;
-  border-bottom-color: #438de1;
 }
 
 .agent-team-agent-detail__activity {
@@ -2553,28 +2476,8 @@
 }
 
 .agent-team-agent-inspector__viewer-tabs {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
   border: 1px solid rgba(92, 128, 183, 0.16);
-  border-radius: 7px;
   background: rgba(255, 255, 255, 0.9);
-}
-
-.agent-team-agent-inspector__viewer-tabs button {
-  height: 24px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 800;
-  padding: 0 8px;
-}
-
-.agent-team-agent-inspector__viewer-tabs button.is-active {
-  background: #e9f2ff;
-  color: #285b95;
 }
 
 .agent-team-agent-inspector__terminal-body {

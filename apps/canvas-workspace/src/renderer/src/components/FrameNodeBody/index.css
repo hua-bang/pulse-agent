@@ -454,7 +454,7 @@
 .canvas-node--frame.canvas-node--selected .frame-color-trigger,
 .node-header:hover .frame-color-trigger,
 .frame-color-trigger:focus-within,
-.frame-color-trigger--open {
+.frame-color-trigger.ui-dropdown--open {
   opacity: 1;
 }
 
@@ -482,26 +482,15 @@
   transform: scale(1.15);
 }
 
-/* Popover floats ABOVE the pill (not below), so it opens into empty
- * canvas space instead of overlapping child nodes inside the frame body. */
+/* Positioning/surface/z-index now come from ui/DropdownShell's
+ * `.ui-dropdown__panel` (placement="top" already floats it above the pill,
+ * into empty canvas space instead of overlapping child nodes); this rule
+ * only overrides the default flex column with the swatch row. */
 .frame-color-popover {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: none;
+  flex-direction: row;
   gap: 4px;
   padding: 6px 8px;
-  background: var(--surface, #fff);
-  border: 1px solid var(--border-light, rgba(0, 0, 0, 0.08));
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
-  z-index: 20;
   white-space: nowrap;
-}
-
-.frame-color-popover--open {
-  display: flex;
 }
 
 .frame-color-swatch {

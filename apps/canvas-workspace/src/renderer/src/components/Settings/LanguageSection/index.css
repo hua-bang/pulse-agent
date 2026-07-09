@@ -28,29 +28,10 @@
   gap: 6px;
 }
 
-.language-section-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: #2f2d28;
-}
-
-.language-section-desc,
 .language-section-hint {
   font-size: 12px;
   line-height: 1.5;
   color: rgba(55, 53, 47, 0.62);
-}
-
-.language-section-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.language-section-field > span {
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(55, 53, 47, 0.72);
 }
 
 .language-section-options {

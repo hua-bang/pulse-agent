@@ -43,18 +43,6 @@
   color: rgba(55, 53, 47, 0.55);
 }
 
-.workspace-settings-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.workspace-settings-field > span {
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba(55, 53, 47, 0.55);
-}
-
 .workspace-settings-field-hint {
   margin-top: 2px;
   font-size: 11px;

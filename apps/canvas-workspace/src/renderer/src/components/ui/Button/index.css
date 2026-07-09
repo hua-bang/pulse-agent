@@ -25,6 +25,38 @@
   height: 34px;
 }
 
+/* Icon variant overrides height/width to a square, so the size classes mean
+ * something different for it than for the text variants above — 24/28/32px
+ * consolidating the `iframe-bar-btn` / `link-drawer__icon-btn` /
+ * `channel-config-icon-btn`-shaped clusters (~7 repeats of border:none;
+ * background:transparent; border-radius; cursor:pointer at fixed sizes). */
+.ui-btn--icon {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ui-btn--icon.ui-btn--sm {
+  width: 24px;
+  height: 24px;
+}
+
+.ui-btn--icon.ui-btn--md {
+  width: 28px;
+  height: 28px;
+}
+
+.ui-btn--icon.ui-btn--lg {
+  width: 32px;
+  height: 32px;
+}
+
+.ui-btn--icon:hover:not(:disabled) {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
 .ui-btn--secondary {
   border: 1px solid rgba(55, 53, 47, 0.12);
   background: #fff;

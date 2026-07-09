@@ -1,0 +1,22 @@
+/* ui/FieldRow — generic label/control/hint column. Metrics match the
+ * `*-field` cluster it replaces (flex column, ~8px gap, 12px/700 label,
+ * 11px muted hint). */
+
+.ui-fieldrow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ui-fieldrow__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.ui-fieldrow__hint {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
