@@ -110,6 +110,7 @@ export const Canvas = ({
   const effectiveActiveTool = temporaryHandTool ? 'hand' : activeTool;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const transformLayerRef = useRef<HTMLDivElement>(null);
   const nodesRef = useRef<CanvasNode[]>([]);
   const visibleNodesRef = useRef<CanvasNode[]>([]);
   const hasAutoFittedRef = useRef(false);
@@ -121,7 +122,7 @@ export const Canvas = ({
     handleMouseMove: canvasMouseMove,
     handleMouseUp: canvasMouseUp,
     screenToCanvas, resetTransform,
-  } = useCanvas(effectiveActiveTool === 'hand');
+  } = useCanvas(effectiveActiveTool === 'hand', transformLayerRef);
 
   const { animating, handleFocusNode, fitAllNodes } = useCanvasFit(containerRef, setTransform);
 
@@ -593,6 +594,7 @@ export const Canvas = ({
 
   useCanvasSyncEffects({
     canvasId, loaded, nodes, transform, selectedNodeIds,
+    moving,
     autoFitNodes: visibleNodes,
     nodesRef,
     isDraggingRef: mouse.isDraggingRef,
@@ -682,6 +684,7 @@ export const Canvas = ({
       shapeToolActive={shapeToolActive}
       snapLines={snapLines}
       transform={transform}
+      transformLayerRef={transformLayerRef}
       updateEdge={updateEdge}
       updateNode={updateNode}
       onOpenAppSettings={onOpenAppSettings}

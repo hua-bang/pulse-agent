@@ -28,6 +28,9 @@ interface CanvasOverlaysProps {
   } | null;
   searchOpen: boolean;
   activeTool: string;
+  /** True while pan/zoom is in flight. Transform-sensitive overlays are
+   *  parked so the gesture path does not recompute screen-space DOM. */
+  moving?: boolean;
   scale: number;
   /** Reframe the viewport around every node. Surfaced next to the zoom chip. */
   onFitAll?: () => void;
@@ -96,11 +99,22 @@ interface CanvasOverlaysProps {
   onCancelEditEdgeLabel?: () => void;
 }
 
+export const shouldRenderEdgeLabels = ({
+  moving,
+  editingEdgeLabelId,
+}: {
+  moving: boolean;
+  editingEdgeLabelId?: string | null;
+}): boolean => !moving || editingEdgeLabelId != null;
+
+export const shouldRenderEdgeStylePanel = (moving: boolean): boolean => !moving;
+
 export const CanvasOverlays = ({
   nodes,
   contextMenu,
   searchOpen,
   activeTool,
+  moving = false,
   scale,
   onFitAll,
   chatPanelOpen,
@@ -149,6 +163,8 @@ export const CanvasOverlays = ({
   onCancelEditEdgeLabel,
 }: CanvasOverlaysProps) => {
   const { t } = useI18n();
+  const renderEdgeLabels = shouldRenderEdgeLabels({ moving, editingEdgeLabelId });
+  const renderEdgeStylePanel = shouldRenderEdgeStylePanel(moving);
 
   return (
     <>
@@ -211,7 +227,7 @@ export const CanvasOverlays = ({
         />
       )}
 
-      {selectedEdge && onUpdateEdge && onRemoveEdge && (
+      {renderEdgeStylePanel && selectedEdge && onUpdateEdge && onRemoveEdge && (
         <EdgeStylePanel
           edge={selectedEdge}
           nodes={nodes}
@@ -225,7 +241,7 @@ export const CanvasOverlays = ({
         non-empty label or is currently in edit mode. The edit-mode check
         lets us open the input on a freshly-dbl-clicked unlabeled edge
         without first persisting an empty string. */}
-      {edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
+      {renderEdgeLabels && edges && onStartEditEdgeLabel && onCommitEditEdgeLabel && onCancelEditEdgeLabel &&
         edges
           .filter((edge) => (edge.label && edge.label.length > 0) || editingEdgeLabelId === edge.id)
           .map((edge) => (
@@ -241,7 +257,7 @@ export const CanvasOverlays = ({
             />
           ))}
 
-      <div className="canvas-bottom-chrome">
+      <div className={`canvas-bottom-chrome${moving ? ' canvas-bottom-chrome--moving' : ''}`}>
         <FloatingToolbar
           activeTool={activeTool}
           onToolChange={onToolChange}

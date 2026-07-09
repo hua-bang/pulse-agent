@@ -24,12 +24,14 @@
  *    visible viewport, easing the "tile memory limits exceeded" pressure
  *    on large canvases.
  *
- * Carve-outs: node types whose internal engines read DOM dimensions on
- * init (Tiptap, xterm) or run a separate rendering pipeline (<webview>,
- * mindmap's force-graph) are excluded — those need to be visible when
- * they boot or they may compute a 0×0 layout and never recover. They
- * still benefit indirectly via .canvas-transform--moving (will-change is
- * only set during pan/zoom, see Canvas/index.css). */
+ * File nodes opt in only when they are not selected/focused/fullscreen:
+ * their wrapper has explicit dimensions, so Chromium can skip offscreen
+ * paint without remounting Tiptap or disturbing an active editor. Node
+ * types whose internal engines read DOM dimensions on init (xterm) or run
+ * a separate rendering pipeline (<webview>, mindmap's force-graph) remain
+ * excluded — those need to be visible when they boot or they may compute
+ * a 0×0 layout and never recover. They still benefit indirectly via
+ * .canvas-transform--moving and webview background throttling. */
 .canvas-node--frame,
 .canvas-node--group,
 .canvas-node--text,
@@ -37,6 +39,11 @@
 .canvas-node--image,
 .canvas-node--reference {
   content-visibility: auto;
+}
+
+.canvas-node--file:not(.canvas-node--selected):not(.canvas-node--fullscreen):not(:focus-within) {
+  content-visibility: auto;
+  contain-intrinsic-size: 520px 420px;
 }
 
 /* File / note nodes — Heptabase + Notion lean. The chrome is intentionally

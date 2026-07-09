@@ -10,6 +10,9 @@ interface Options {
    *  pass visible-only nodes while still syncing full canvas data upward. */
   autoFitNodes?: CanvasNode[];
   transform: CanvasTransform;
+  /** True while pan/zoom is active. Viewport persistence should wait until
+   *  the gesture settles so wheel ticks only move the compositor transform. */
+  moving?: boolean;
   selectedNodeIds: string[];
   nodesRef: MutableRefObject<CanvasNode[]>;
   /** True while a node drag/resize is in flight. Used to defer the
@@ -41,6 +44,9 @@ interface Options {
   onNodePatchComplete?: (requestId: number) => void;
 }
 
+export const shouldPersistViewportTransform = (loaded: boolean, moving: boolean): boolean =>
+  loaded && !moving;
+
 /**
  * Collects the canvas's lifecycle / parent-sync effects in one place:
  * flushing pending saves on unmount, persisting the viewport transform,
@@ -54,6 +60,7 @@ export const useCanvasSyncEffects = ({
   nodes,
   autoFitNodes = nodes,
   transform,
+  moving = false,
   selectedNodeIds,
   nodesRef,
   isDraggingRef,
@@ -90,9 +97,9 @@ export const useCanvasSyncEffects = ({
 
   // Only persist transform after data has loaded to avoid saving empty nodes
   useEffect(() => {
-    if (!loaded) return;
+    if (!shouldPersistViewportTransform(loaded, moving)) return;
     setTransformForSave(transform);
-  }, [loaded, transform, setTransformForSave]);
+  }, [loaded, moving, transform, setTransformForSave]);
 
   // Auto-fit all nodes into view on initial load
   useEffect(() => {

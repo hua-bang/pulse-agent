@@ -17,21 +17,23 @@ import { useCanvas } from './useCanvas';
  *  - `screenToCanvas` must stay identity-stable across transform
  *    changes (it used to recreate the downstream hook/effect graph on
  *    every tick) while still reading the LIVE transform when called.
- *  - transform updates within the same animation frame must coalesce
- *    into a single React commit (commitTransform in useCanvas.ts) —
- *    measured to cost ~0.14ms + ~0.0045ms/node per commit, so paying it
- *    once per raw input event (some trackpads/mice report well above
- *    60Hz) burns budget for a frame the browser can only paint once —
- *    while still compounding correctly against same-frame ticks and
- *    losing to an external one-shot setTransform (fit/focus/restore).
+ *  - transform updates within a gesture must update the transform layer
+ *    directly instead of committing React state once per display frame.
+ *    React participates at gesture start/end only; the hot path remains a
+ *    single compositor transform write while still compounding correctly
+ *    and losing to an external one-shot setTransform (fit/focus/restore).
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let hook: ReturnType<typeof useCanvas>;
+let transformLayer: HTMLElement;
+let transformLayerRef: { current: HTMLElement | null };
+let renderCount = 0;
 
 const Probe = () => {
-  hook = useCanvas();
+  renderCount += 1;
+  hook = useCanvas(false, transformLayerRef);
   return null;
 };
 
@@ -42,6 +44,10 @@ describe('useCanvas zoom gesture', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame', 'cancelAnimationFrame'] });
     host = document.createElement('div');
+    transformLayer = document.createElement('div');
+    transformLayerRef = { current: transformLayer };
+    renderCount = 0;
+    host.appendChild(transformLayer);
     document.body.appendChild(host);
     root = createRoot(host);
     flushSync(() => root.render(<Probe />));
@@ -83,22 +89,27 @@ describe('useCanvas zoom gesture', () => {
     });
   };
 
+  const transformLayerScale = () =>
+    Number(transformLayer.style.transform.match(/scale\(([^)]+)\)/)?.[1] ?? '1');
+
   it('freezes settledScale during the gesture and commits it on settle', () => {
     expect(hook.settledScale).toBe(1);
 
     wheelZoom(-50);
-    const midScale = hook.transform.scale;
+    const midScale = transformLayerScale();
     expect(midScale).toBeGreaterThan(1);
     expect(hook.moving).toBe(true);
     // Live scale moved, but the style-recalc-driving scale must not.
     expect(hook.settledScale).toBe(1);
 
     wheelZoom(-50);
-    expect(hook.transform.scale).toBeGreaterThan(midScale);
+    const liveScale = transformLayerScale();
+    expect(liveScale).toBeGreaterThan(midScale);
     expect(hook.settledScale).toBe(1);
 
     settleGesture();
     expect(hook.moving).toBe(false);
+    expect(hook.transform.scale).toBeCloseTo(liveScale);
     expect(hook.settledScale).toBe(hook.transform.scale);
   });
 
@@ -127,23 +138,27 @@ describe('useCanvas zoom gesture', () => {
     expect(point.y).toBeCloseTo((6 - y) / scale);
   });
 
-  it('coalesces multiple same-frame wheel ticks into a single commit', async () => {
+  it('updates the transform layer without a React render for every wheel tick', async () => {
+    const initialRenderCount = renderCount;
     // Three ticks with NO timer advance between them — simulates a
     // higher-than-display-refresh-rate input device firing several
     // events within one animation frame. transformRef must compound
-    // each tick correctly even though React hasn't committed yet.
+    // each tick correctly even though React state does not commit yet.
     await act(async () => {
       hook.handleWheel(wheelEvent(-50));
       hook.handleWheel(wheelEvent(-50));
       hook.handleWheel(wheelEvent(-50));
       vi.advanceTimersByTime(20);
     });
-    const afterThreeTicks = hook.transform.scale;
+    const afterThreeTicks = transformLayerScale();
+    expect(renderCount).toBe(initialRenderCount + 1);
 
-    // One further tick, its own frame — the running scale should
-    // continue compounding from the coalesced value above, not reset.
+    // One further tick, its own frame — the running scale should continue
+    // compounding from the coalesced value above, without another React
+    // render while the gesture is already marked moving.
     wheelZoom(-50);
-    expect(hook.transform.scale).toBeGreaterThan(afterThreeTicks);
+    expect(transformLayerScale()).toBeGreaterThan(afterThreeTicks);
+    expect(renderCount).toBe(initialRenderCount + 1);
   });
 
   it('lets an external one-shot setTransform win over a pending gesture commit', async () => {
