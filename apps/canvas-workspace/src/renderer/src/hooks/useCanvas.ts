@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { CanvasTransform } from "../types";
 
 const MIN_SCALE = 0.1;
@@ -15,7 +15,13 @@ const clampScale = (s: number) =>
 const safeNum = (n: number, fallback = 0) =>
   Number.isFinite(n) ? n : fallback;
 
-export const useCanvas = (isHandTool = false) => {
+export const canvasTransformToCss = (transform: CanvasTransform): string =>
+  `translate(${safeNum(transform.x)}px, ${safeNum(transform.y)}px) scale(${safeNum(transform.scale, 1)})`;
+
+export const useCanvas = (
+  isHandTool = false,
+  transformElementRef?: RefObject<HTMLElement>,
+) => {
   const [transform, setTransform] = useState<CanvasTransform>({
     x: 0,
     y: 0,
@@ -34,14 +40,16 @@ export const useCanvas = (isHandTool = false) => {
   // exceeded" warning once nested frames multiply the painted area.
   const [moving, setMoving] = useState(false);
   const movingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const movingRef = useRef(false);
 
-  // Latest transform, readable from identity-stable callbacks. Assigned
-  // every render so `screenToCanvas` can stay referentially stable — its
-  // old dependency on the `transform` state recreated it (and the large
-  // downstream useCallback/useMemo/effect graph across the canvas hooks)
-  // on EVERY wheel tick of a zoom gesture.
+  // Latest transform, readable from identity-stable callbacks. At rest it
+  // mirrors React state; during a gesture it becomes the live source of
+  // truth so `screenToCanvas` and follow-up wheel ticks see the compositor
+  // transform without requiring a React commit per frame.
   const transformRef = useRef(transform);
-  transformRef.current = transform;
+  if (!movingRef.current) {
+    transformRef.current = transform;
+  }
 
   // Scale as of the last moment the canvas was at rest. While a pan/zoom
   // gesture is in flight this intentionally lags behind `transform.scale`:
@@ -60,28 +68,35 @@ export const useCanvas = (isHandTool = false) => {
   const settledScale = settledScaleRef.current;
 
   const rafIdRef = useRef<number | null>(null);
+  const applyTransformStyle = useCallback(
+    (next: CanvasTransform) => {
+      const el = transformElementRef?.current;
+      if (el) {
+        el.style.transform = canvasTransformToCss(next);
+        return true;
+      }
+      return false;
+    },
+    [transformElementRef],
+  );
 
-  // Coalesces same-animation-frame transform updates into a single React
-  // commit. Measured (isolated re-render harness, this session): a
-  // CanvasSurface commit costs roughly 0.14ms + 0.0045ms per node — under
-  // a 16ms frame budget for ONE commit even at hundreds of nodes, but a
-  // wheel/pan gesture previously committed once per raw input event, and
-  // any input source faster than ~60Hz (many trackpads/mice report well
-  // above that) fires multiple events per animation frame — paying that
-  // per-commit cost several times over for a frame the browser can only
-  // ever paint once. `commitTransform` writes synchronously into
-  // `transformRef` (so same-frame ticks still compound correctly against
-  // each other and any other same-tick reader sees the latest value) and
-  // schedules at most one rAF per frame to flush the final accumulated
-  // value into React state.
+  // Coalesces same-animation-frame transform updates into one compositor
+  // write. During a wheel/pan gesture the hot path intentionally bypasses
+  // React state: `transformRef` is the live source of truth, rAF writes the
+  // accumulated value straight to `.canvas-transform`, and React receives
+  // the final transform when the gesture settles. This keeps pan/zoom close
+  // to a retained scene-graph operation: one root transform moves, while
+  // nodes, edges, overlays, and persistence stay parked.
   const commitTransform = useCallback((next: CanvasTransform) => {
     transformRef.current = next;
     if (rafIdRef.current != null) return;
     rafIdRef.current = requestAnimationFrame(() => {
       rafIdRef.current = null;
-      setTransform(transformRef.current);
+      if (!applyTransformStyle(transformRef.current)) {
+        setTransform(transformRef.current);
+      }
     });
-  }, []);
+  }, [applyTransformStyle]);
 
   // Wraps the raw setState so external one-shot callers (useCanvasFit's
   // fit/focus, workspace-load restore) can't be silently clobbered by a
@@ -93,6 +108,12 @@ export const useCanvas = (isHandTool = false) => {
         cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = null;
       }
+      if (movingTimer.current) {
+        clearTimeout(movingTimer.current);
+        movingTimer.current = null;
+      }
+      movingRef.current = false;
+      setMoving(false);
       setTransform((prev) => {
         const next = typeof value === 'function'
           ? (value as (p: CanvasTransform) => CanvasTransform)(prev)
@@ -111,13 +132,20 @@ export const useCanvas = (isHandTool = false) => {
   }, []);
 
   const markMoving = useCallback(() => {
-    setMoving(true);
+    if (!movingRef.current) {
+      movingRef.current = true;
+      setMoving(true);
+    }
     if (movingTimer.current) clearTimeout(movingTimer.current);
     movingTimer.current = setTimeout(() => {
+      const next = transformRef.current;
+      applyTransformStyle(next);
+      setTransform(next);
+      movingRef.current = false;
       setMoving(false);
       movingTimer.current = null;
     }, MOVING_IDLE_MS);
-  }, []);
+  }, [applyTransformStyle]);
 
   useEffect(() => {
     return () => {
@@ -215,8 +243,10 @@ export const useCanvas = (isHandTool = false) => {
     setTransformSafe({ x: 0, y: 0, scale: 1 });
   }, [setTransformSafe]);
 
+  const renderTransform = moving ? transformRef.current : transform;
+
   return {
-    transform,
+    transform: renderTransform,
     setTransform: setTransformSafe,
     settledScale,
     moving,

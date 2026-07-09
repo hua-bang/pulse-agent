@@ -130,6 +130,24 @@
   will-change: transform;
 }
 
+.canvas-container[data-moving="on"] .floating-toolbar,
+.canvas-container[data-moving="on"] .edge-style-panel,
+.canvas-container[data-moving="on"] .edge-label:not(.edge-label--editing) {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-header__actions,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-reference,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-add-to-chat,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-plugin-select,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-focus,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-fullscreen,
+.canvas-transform--moving .canvas-node:not(.canvas-node--fullscreen) > .node-header .node-close {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .canvas-gesture-hud {
   position: absolute;
   z-index: var(--layer-canvas-chrome);

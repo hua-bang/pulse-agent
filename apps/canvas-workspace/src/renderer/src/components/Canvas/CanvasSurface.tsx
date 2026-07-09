@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { RefObject } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
@@ -54,6 +55,7 @@ interface NodeRenderGroup {
 
 interface CanvasSurfaceProps {
   transform: { x: number; y: number; scale: number };
+  transformLayerRef: RefObject<HTMLDivElement>;
   /** Scale as of the last moment the canvas was at rest (useCanvas).
    *  Drives `--canvas-scale` and the `--small` class INSTEAD of the live
    *  `transform.scale`: both restyle/repaint content inside the promoted
@@ -167,6 +169,7 @@ interface CanvasSurfaceProps {
 
 export const CanvasSurface = ({
   transform,
+  transformLayerRef,
   settledScale,
   animating,
   moving,
@@ -270,6 +273,7 @@ export const CanvasSurface = ({
 
   return (
     <div
+      ref={transformLayerRef}
       className={`canvas-transform${moving || animating ? ' canvas-transform--moving' : ''}${settledScale < 0.6 ? ' canvas-transform--small' : ''}`}
       style={{
         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,

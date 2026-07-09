@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import type { RefObject } from 'react';
 import type { CanvasEdge, CanvasNode } from '../../types';
 import { CanvasSurface } from './CanvasSurface';
 import { CanvasOverlays } from './CanvasOverlays';
@@ -90,6 +91,7 @@ type CanvasRootViewProps = Pick<
   shapeToolActive: boolean;
   snapLines: any[];
   transform: any;
+  transformLayerRef: RefObject<HTMLDivElement>;
   updateEdge: (id: string, patch: any) => void;
   updateNode: (id: string, patch: Partial<CanvasNode>) => void;
   onRemoveNodesLocally: (ids: string[]) => void;
@@ -171,6 +173,7 @@ export const CanvasRootView = ({
   shapeToolActive,
   snapLines,
   transform,
+  transformLayerRef,
   updateEdge,
   updateNode,
 }: CanvasRootViewProps) => {
@@ -213,12 +216,14 @@ export const CanvasRootView = ({
       onClick={mouse.handleCanvasClick}
       data-focus-mode={focus.focusModeActive ? 'on' : undefined}
       data-fullscreen={focus.fullscreenNodeId ? 'on' : undefined}
+      data-moving={moving ? 'on' : undefined}
     >
       <div className="canvas-grid" />
 
       <CanvasSurface
         transform={transform}
         settledScale={settledScale}
+        transformLayerRef={transformLayerRef}
         animating={animating}
         moving={moving}
         renderGroups={renderGroups}
@@ -308,7 +313,8 @@ export const CanvasRootView = ({
         contextMenu={ctxMenu.contextMenu}
         searchOpen={searchOpen}
         activeTool={activeTool}
-        scale={transform.scale}
+        moving={moving}
+        scale={moving ? settledScale : transform.scale}
         onFitAll={onFitAll}
         chatPanelOpen={chatPanelOpen}
         onChatToggle={onChatToggle}
