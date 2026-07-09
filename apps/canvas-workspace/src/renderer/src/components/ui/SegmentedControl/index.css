@@ -28,7 +28,7 @@
 }
 
 .ui-segmented__option:hover:not(.ui-segmented__option--active) {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--surface-alt);
   color: var(--text);
 }
 

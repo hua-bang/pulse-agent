@@ -41,6 +41,10 @@ const TextColorTrigger = ({
       placement="bottom"
       align="center"
       role="menu"
+      // preventDefault across the WHOLE panel (padding and gaps included, not
+      // just the swatches) keeps the editor focused while picking a color —
+      // the pre-migration wrapper guarded the full surface.
+      onPanelMouseDown={(e) => e.preventDefault()}
       trigger={({ open, toggle }) => (
         <button
           type="button"

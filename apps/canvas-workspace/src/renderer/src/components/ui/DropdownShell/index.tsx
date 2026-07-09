@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
 import './index.css';
@@ -29,6 +29,12 @@ interface Props {
    */
   children: ReactNode | ((args: { open: boolean; close: () => void }) => ReactNode);
   onOpenChange?: (open: boolean) => void;
+  /**
+   * Extra mousedown handling on the panel, on top of the built-in
+   * stopPropagation (e.g. `preventDefault` to keep an editor focused while
+   * picking — see TextColorPicker). Runs before the built-in guard.
+   */
+  onPanelMouseDown?: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -53,6 +59,13 @@ interface Props {
  * The root wrapper carries `ui-dropdown--open` while the panel is open, so a
  * caller's own `className` can key off it (e.g. keeping a hover-revealed
  * trigger visible while its panel is open — see FrameColorPicker).
+ *
+ * The panel swallows `mousedown` (stopPropagation) over its ENTIRE surface —
+ * padding and gaps included — so pressing inside an open dropdown can never
+ * leak into canvas selection / node-drag handlers. Every pre-migration
+ * wrapper carried this guard; a review caught that per-button relocation
+ * silently dropped the padding coverage, hence it lives in the shell now.
+ * Callers needing more (e.g. `preventDefault`) add it via `onPanelMouseDown`.
  */
 export const DropdownShell = ({
   trigger,
@@ -63,6 +76,7 @@ export const DropdownShell = ({
   panelClassName,
   children,
   onOpenChange,
+  onPanelMouseDown,
 }: Props) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -92,7 +106,15 @@ export const DropdownShell = ({
     <div ref={rootRef} className={rootClass}>
       {trigger({ open, toggle })}
       {open && (
-        <div ref={panelRef} className={panelClass} role={role}>
+        <div
+          ref={panelRef}
+          className={panelClass}
+          role={role}
+          onMouseDown={(event) => {
+            onPanelMouseDown?.(event);
+            event.stopPropagation();
+          }}
+        >
           {typeof children === 'function' ? children({ open, close }) : children}
         </div>
       )}

@@ -137,9 +137,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1961→1935 (batch-A): real deletions, not tokenization — the migrated
   // sites' bespoke color rules (Settings section title/desc colors, the 2
   // color-picker popovers, the 4 AgentTeamFrame tab-strip clusters,
-  // LinkDrawer's icon button) were removed outright; the new ui/ components
-  // use CSS vars for their own colors so they add nothing to this counter.
-  hardcodedColorLiterals: 1935,
+  // LinkDrawer's icon button) were removed outright.
+  // 1935→1934 (batch-A review): the review caught that SegmentedControl's
+  // hover shipped a raw rgba() — the earlier "new ui/ components add nothing
+  // to this counter" claim was FALSE by one; now tokenized (--surface-alt)
+  // and the claim holds again.
+  hardcodedColorLiterals: 1934,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

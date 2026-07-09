@@ -157,4 +157,25 @@ describe('DropdownShell', () => {
     click(host!.querySelector('.pick')!);
     expect(host?.querySelector('.ui-dropdown__panel')).toBeNull();
   });
+
+  it('swallows mousedown across the whole panel surface and runs onPanelMouseDown first', () => {
+    // The pre-migration wrappers guarded padding/gaps too — a press inside
+    // the panel must never leak to canvas selection/drag handlers upstream.
+    const parentMouseDown = vi.fn();
+    const onPanelMouseDown = vi.fn();
+    render(
+      <div onMouseDown={parentMouseDown}>
+        <DropdownShell trigger={basicTrigger} onPanelMouseDown={onPanelMouseDown}>
+          <button type="button">Item</button>
+        </DropdownShell>
+      </div>,
+    );
+    click(host!.querySelector('.trigger')!);
+    const panel = host?.querySelector('.ui-dropdown__panel') as HTMLElement;
+    act(() => {
+      panel.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    });
+    expect(onPanelMouseDown).toHaveBeenCalledTimes(1);
+    expect(parentMouseDown).not.toHaveBeenCalled();
+  });
 });

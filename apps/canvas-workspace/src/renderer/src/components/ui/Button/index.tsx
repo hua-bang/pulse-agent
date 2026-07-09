@@ -1,6 +1,11 @@
 import { type ButtonHTMLAttributes } from 'react';
 import './index.css';
 
+// Once per session — a lint nudge for missing icon aria-labels, not a log
+// stream (fires per-render otherwise; import.meta.env.DEV doesn't typecheck
+// under this tsconfig, so the warn stays ungated but deduped).
+let warnedIconAriaLabel = false;
+
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'icon';
 /** sm/md apply to every variant; `lg` (32px) is icon-only for now — no CTA
  *  cluster needed a third text-button height when this was added. */
@@ -31,7 +36,8 @@ export const Button = ({
   className,
   ...rest
 }: Props) => {
-  if (variant === 'icon' && !rest['aria-label']) {
+  if (variant === 'icon' && !rest['aria-label'] && !warnedIconAriaLabel) {
+    warnedIconAriaLabel = true;
     console.warn('ui/Button variant="icon" is missing an aria-label — icon-only buttons need one.');
   }
   const classes = ['ui-btn', `ui-btn--${variant}`, `ui-btn--${size}`];
