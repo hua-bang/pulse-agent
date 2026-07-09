@@ -35,7 +35,10 @@ before that the directory held only the Electron driver):
   sync. Run before touching any of those registries; exits non-zero on a
   broken invoke or union/factory drift.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
-  app (`canvas-harness`, `canvas-onboard-harness`, `add-canvas-node`).
+  app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
+  `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
+  `extend-blessed-ui` (safe-change procedures for the four recurring
+  extension shapes).
 - `harness/spec/` — decision-pending intent, currently **empty** (the
   success state). Two entries completed their full lifecycle: UI-reuse
   (2026-07-07: decided → mechanized as `ui-reuse-governance.test.ts` +
