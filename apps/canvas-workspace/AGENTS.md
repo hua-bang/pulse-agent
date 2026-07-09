@@ -32,8 +32,10 @@ before that the directory held only the Electron driver):
   still points at it.
 - `harness/tools/describe-canvas.mjs` — static structure snapshot: agent-tool
   registry (45), IPC handle↔invoke contract diff, node-type union↔factory
-  sync. Run before touching any of those registries; exits non-zero on a
-  broken invoke or union/factory drift.
+  sync, and app↔canvas-cli parity (NodeType union subset + storage
+  schema-version constants). Run before touching any of those registries;
+  exits non-zero on a broken invoke, union/factory drift, a CLI-only node
+  type, an unallowlisted app-only type, or a schema-version mismatch.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
   `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
