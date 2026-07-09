@@ -11,7 +11,7 @@ import {
 import { DEFAULT_TOAST_DURATION_MS, SHORTCUT_SECTIONS } from '../../constants/interaction';
 import type { ConfirmOptions, ToastInput, ToastRecord } from '../../types/ui-interaction';
 import { useI18n } from '../../i18n';
-import { isImeComposing } from '../../utils/ime';
+import { Modal } from '../ui';
 import './index.css';
 
 interface AppShellContextValue {
@@ -282,117 +282,82 @@ const ConfirmDialog = ({
   onConfirm: () => void;
   t: ReturnType<typeof useI18n>['t'];
 }) => {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (isImeComposing(event)) return;
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCancel();
-        return;
-      }
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        onConfirm();
-      }
-    };
+  const confirmRef = useRef<HTMLButtonElement>(null);
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel, onConfirm]);
+  // Focus the confirm button on open so Enter accepts; Esc is handled by the
+  // Modal shell (useEscapeClose). Replaces the old hand-rolled window keydown.
+  useEffect(() => {
+    confirmRef.current?.focus();
+  }, []);
 
   const intent = options.intent ?? 'default';
 
   return (
-    <div
-      className="shell-dialog-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
-      <div className="shell-dialog" role="dialog" aria-modal="true" aria-labelledby="shell-confirm-title">
-        <div className="shell-dialog__header">
-          <div className={`shell-dialog__eyebrow${intent === 'danger' ? ' shell-dialog__eyebrow--danger' : ''}`}>
-            {intent === 'danger' ? t('shell.confirmDestructive') : t('shell.confirmAction')}
-          </div>
-          <h2 className="shell-dialog__title" id="shell-confirm-title">{options.title}</h2>
+    <Modal open onClose={onCancel} width={520} labelledBy="shell-confirm-title">
+      <div className="shell-dialog__header">
+        <div className={`shell-dialog__eyebrow${intent === 'danger' ? ' shell-dialog__eyebrow--danger' : ''}`}>
+          {intent === 'danger' ? t('shell.confirmDestructive') : t('shell.confirmAction')}
         </div>
-        {options.description && (
-          <div className="shell-dialog__description">{options.description}</div>
-        )}
-        <div className="shell-dialog__footer">
-          <button type="button" className="shell-dialog__button" onClick={onCancel}>
-            {options.cancelLabel ?? t('shell.cancel')}
-          </button>
-          <button
-            type="button"
-            className={`shell-dialog__button${intent === 'danger' ? ' shell-dialog__button--danger' : ' shell-dialog__button--primary'}`}
-            onClick={onConfirm}
-          >
-            {options.confirmLabel ?? t('shell.continue')}
-          </button>
-        </div>
+        <h2 className="shell-dialog__title" id="shell-confirm-title">{options.title}</h2>
       </div>
-    </div>
+      {options.description && (
+        <div className="shell-dialog__description">{options.description}</div>
+      )}
+      <div className="shell-dialog__footer">
+        <button type="button" className="shell-dialog__button" onClick={onCancel}>
+          {options.cancelLabel ?? t('shell.cancel')}
+        </button>
+        <button
+          ref={confirmRef}
+          type="button"
+          className={`shell-dialog__button${intent === 'danger' ? ' shell-dialog__button--danger' : ' shell-dialog__button--primary'}`}
+          onClick={onConfirm}
+        >
+          {options.confirmLabel ?? t('shell.continue')}
+        </button>
+      </div>
+    </Modal>
   );
 };
 
 const ShortcutsDialog = ({ onClose }: { onClose: () => void }) => {
   const { t } = useI18n();
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
   return (
-    <div
-      className="shell-dialog-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div className="shell-dialog shell-dialog--wide" role="dialog" aria-modal="true" aria-labelledby="shell-shortcuts-title">
-        <div className="shell-dialog__header">
-          <div className="shell-dialog__eyebrow">{t('shell.shortcutsKicker')}</div>
-          <h2 className="shell-dialog__title" id="shell-shortcuts-title">{t('shell.shortcutsTitle')}</h2>
-        </div>
-        <div className="shell-shortcuts__intro">
-          {t('shell.shortcutsIntro')}
-        </div>
-        <div className="shell-shortcuts">
-          <div className="shell-shortcuts__grid">
-            {SHORTCUT_SECTIONS.map((section) => (
-              <section key={section.titleKey} className="shell-shortcuts__section">
-                <div className="shell-shortcuts__section-title">{t(section.titleKey)}</div>
-                <div className="shell-shortcuts__list">
-                  {section.items.map((item) => (
-                    <div key={`${section.titleKey}-${item.combo}`} className="shell-shortcuts__item">
-                      <div className="shell-shortcuts__combo" aria-label={item.combo}>
-                        {item.combo.split(/\s*\+\s*/).map((part) => (
-                          <span key={`${item.combo}-${part}`} className="shell-shortcuts__key">{part}</span>
-                        ))}
-                      </div>
-                      <div className="shell-shortcuts__item-description">{t(item.descriptionKey)}</div>
+    <Modal open onClose={onClose} width={820} className="ui-modal--tall" labelledBy="shell-shortcuts-title">
+      <div className="shell-dialog__header">
+        <div className="shell-dialog__eyebrow">{t('shell.shortcutsKicker')}</div>
+        <h2 className="shell-dialog__title" id="shell-shortcuts-title">{t('shell.shortcutsTitle')}</h2>
+      </div>
+      <div className="shell-shortcuts__intro">
+        {t('shell.shortcutsIntro')}
+      </div>
+      <div className="shell-shortcuts">
+        <div className="shell-shortcuts__grid">
+          {SHORTCUT_SECTIONS.map((section) => (
+            <section key={section.titleKey} className="shell-shortcuts__section">
+              <div className="shell-shortcuts__section-title">{t(section.titleKey)}</div>
+              <div className="shell-shortcuts__list">
+                {section.items.map((item) => (
+                  <div key={`${section.titleKey}-${item.combo}`} className="shell-shortcuts__item">
+                    <div className="shell-shortcuts__combo" aria-label={item.combo}>
+                      {item.combo.split(/\s*\+\s*/).map((part) => (
+                        <span key={`${item.combo}-${part}`} className="shell-shortcuts__key">{part}</span>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
-        </div>
-        <div className="shell-dialog__footer">
-          <button type="button" className="shell-dialog__button shell-dialog__button--primary" onClick={onClose}>
-            {t('shell.close')}
-          </button>
+                    <div className="shell-shortcuts__item-description">{t(item.descriptionKey)}</div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       </div>
-    </div>
+      <div className="shell-dialog__footer">
+        <button type="button" className="shell-dialog__button shell-dialog__button--primary" onClick={onClose}>
+          {t('shell.close')}
+        </button>
+      </div>
+    </Modal>
   );
 };

@@ -4,6 +4,7 @@ import type { CanvasNode, FileNodeData, TextNodeData } from '../../types';
 import { isImeComposing } from '../../utils/ime';
 import { useI18n, type I18nKey } from '../../i18n';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
+import { useIndexNav } from '../ui';
 
 /**
  * A single executable entry in the palette. Commands are bound by the
@@ -84,7 +85,7 @@ const MAX_NODE_RESULTS = 20;
 export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props) => {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  const { index: selectedIndex, setIndex: setSelectedIndex, move, home, end, reset } = useIndexNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -211,8 +212,8 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
     : undefined;
 
   useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
+    reset(0);
+  }, [query, reset]);
 
   useEffect(() => {
     const container = resultsRef.current;
@@ -247,12 +248,12 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
       if (flatItems.length === 0) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((prev) => Math.min(prev + 1, flatItems.length - 1));
+        move(1, flatItems.length);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+        move(-1, flatItems.length);
         return;
       }
       if (e.key === 'Enter' && flatItems[selectedIndex]) {
@@ -260,7 +261,7 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
         return;
       }
     },
-    [flatItems, selectedIndex, runItem, onClose],
+    [flatItems, selectedIndex, runItem, onClose, move],
   );
 
   const handleResultsKeyDown = useCallback(
@@ -274,25 +275,25 @@ export const CommandPalette = ({ nodes, commands, onSelectNode, onClose }: Props
       if (flatItems.length === 0) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setSelectedIndex((prev) => Math.min(prev + 1, flatItems.length - 1));
+        move(1, flatItems.length);
         return;
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setSelectedIndex((prev) => Math.max(prev - 1, 0));
+        move(-1, flatItems.length);
         return;
       }
       if (e.key === 'Home') {
         e.preventDefault();
-        setSelectedIndex(0);
+        home();
         return;
       }
       if (e.key === 'End') {
         e.preventDefault();
-        setSelectedIndex(flatItems.length - 1);
+        end(flatItems.length);
       }
     },
-    [flatItems.length, onClose],
+    [flatItems.length, onClose, move, home, end],
   );
 
   let runningIndex = 0;

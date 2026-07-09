@@ -57,9 +57,10 @@ The workbench has exactly two side regions plus a modal tier:
   which portals its per-workspace `ChatPanel` instances into the dock's
   chat pane (`useRightDockChatHost`) — the portal escapes the keep-alive
   router's `display:none` wrapper, so chat state survives route switches.
-- **Modal tier.** Settings drawers (`SettingsDrawer` shell), the command
-  palette, and app-shell dialogs/toasts. These are modal with backdrops
-  and sit above both side regions.
+- **Modal tier.** Settings drawers (`ui/Drawer` shell, formerly
+  `SettingsDrawer`), the command palette, and app-shell dialogs/toasts (the
+  centered ones now share the `ui/Modal` shell). These are modal with
+  backdrops and sit above both side regions.
 
 ## Rules
 

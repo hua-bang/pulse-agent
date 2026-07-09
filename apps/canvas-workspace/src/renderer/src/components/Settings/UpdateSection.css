@@ -36,13 +36,6 @@
   min-width: 0;
 }
 
-.updates-section-title {
-  color: #2f2d28;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.updates-section-desc,
 .updates-section-status-desc {
   color: rgba(55, 53, 47, 0.62);
   font-size: 12px;

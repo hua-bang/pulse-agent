@@ -662,40 +662,6 @@
   flex-shrink: 0;
 }
 
-.agent-team-round-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.agent-team-frame .agent-team-round-switch__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #5b6573;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.agent-team-frame .agent-team-round-switch__tab:hover:not(.is-active) {
-  color: #1f2733;
-}
-
-.agent-team-frame .agent-team-round-switch__tab.is-active {
-  background: #ffffff;
-  color: #1f2733;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
-}
-
 .agent-team-frame .agent-team-graph-panel__fullscreen {
   border-color: #b8d4f3;
   background: #f3f8ff;
@@ -921,7 +887,7 @@
   background: rgba(247, 250, 255, 0.72);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
-  animation: agent-team-inspector-backdrop-in 140ms ease-out;
+  animation: fadeIn 140ms ease-out;
 }
 
 .agent-team-dag-fullscreen__panel {
@@ -1231,28 +1197,6 @@
   background: rgba(238, 243, 250, 0.7);
 }
 
-.agent-team-frame .agent-team-detail-tab {
-  height: 24px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.agent-team-frame .agent-team-detail-tab:hover:not(.is-active) {
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.7);
-}
-
-.agent-team-frame .agent-team-detail-tab.is-active {
-  background: #ffffff;
-  color: #1f4f86;
-  box-shadow: 0 1px 3px rgba(31, 54, 88, 0.12);
-}
-
 .agent-team-detail__empty {
   padding: 12px 4px;
 }
@@ -1287,27 +1231,6 @@
 .agent-team-frame .agent-team-subtab-expand:hover {
   color: var(--text);
   background: rgba(92, 128, 183, 0.12);
-}
-
-.agent-team-frame .agent-team-subtab {
-  height: 26px;
-  padding: 0 2px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.agent-team-frame .agent-team-subtab:hover:not(.is-active) {
-  color: var(--text);
-}
-
-.agent-team-frame .agent-team-subtab.is-active {
-  color: #1f4f86;
-  border-bottom-color: #438de1;
 }
 
 .agent-team-agent-detail__activity {
@@ -1659,149 +1582,26 @@
   letter-spacing: 0.02em;
 }
 
-/* Custom coding-agent dropdown (replaces the native <select> so options can
-   carry their brand icons). */
+/* Coding-agent dropdown wrapper — layout only; the control is ui/Select. The
+   wrapper stops click/keydown propagation so the picker never selects the
+   surrounding agent card. */
 .agent-type-select {
-  position: relative;
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.agent-team-frame .agent-type-select__trigger {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  width: 100%;
-  min-width: 0;
+/* Frame-toolbar density override: the blessed ui/Select skin at compact
+   metrics — the default 34px trigger crowds the agent card row the old 28px
+   bespoke control was sized for. Palette/shape stay ui/Select's; only the
+   metrics are scoped down. */
+.agent-type-select .ui-select__trigger {
   height: 28px;
   padding: 0 8px;
-  border: 1px solid rgba(92, 128, 183, 0.24);
-  border-radius: 7px;
-  background: linear-gradient(180deg, #ffffff, #f4f7fc);
-  color: #1f3a5f;
   font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 
-.agent-team-frame .agent-type-select__trigger:hover {
-  border-color: #86b7f1;
-  background: #ffffff;
-  box-shadow: 0 1px 3px rgba(31, 54, 88, 0.08);
-}
-
-.agent-team-frame .agent-type-select--open .agent-type-select__trigger {
-  border-color: #86b7f1;
-  background: #ffffff;
-  box-shadow: 0 0 0 2px rgba(134, 183, 241, 0.3);
-}
-
-.agent-team-frame .agent-type-select__trigger:focus-visible {
-  outline: 2px solid #86b7f1;
-  outline-offset: 1px;
-}
-
-.agent-type-select__logo {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 16px;
-  height: 16px;
-  color: #3d5071;
-}
-
-.agent-type-select__value {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-type-select__caret {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: #7488a8;
-  transition: transform 0.12s ease;
-}
-
-.agent-team-frame .agent-type-select--open .agent-type-select__caret {
-  transform: rotate(180deg);
-}
-
-/* Opens upward: agent cards sit at the bottom of the frame, and the frame
-   root clips overflow, so the DAG area above is where the menu has room. */
-.agent-type-select__menu {
-  position: absolute;
-  z-index: 50;
-  bottom: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 4px;
-  border: 1px solid rgba(92, 128, 183, 0.2);
-  border-radius: 9px;
-  background: #ffffff;
-  box-shadow: 0 -10px 28px rgba(31, 54, 88, 0.16);
-}
-
-.agent-team-frame .agent-type-select__option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 6px 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #1f3a5f;
-  text-align: left;
-  cursor: pointer;
-}
-
-.agent-team-frame .agent-type-select__option:hover,
-.agent-team-frame .agent-type-select__option:focus-visible {
-  background: #eef4ff;
-  outline: none;
-}
-
-.agent-team-frame .agent-type-select__option--active {
-  background: #f3f8ff;
-}
-
-.agent-type-select__option-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.agent-type-select__option-label {
-  overflow: hidden;
+.agent-type-select .ui-select__menu {
   font-size: 11px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agent-type-select__option-desc {
-  color: var(--text-secondary);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.agent-type-select__check {
-  display: inline-flex;
-  flex: 0 0 auto;
-  color: #2f7d52;
 }
 
 .agent-team-summary-agent__task {
@@ -2488,7 +2288,7 @@
   background: rgba(247, 250, 255, 0.42);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
-  animation: agent-team-inspector-backdrop-in 140ms ease-out;
+  animation: fadeIn 140ms ease-out;
 }
 
 .agent-team-agent-inspector__panel {
@@ -2506,15 +2306,6 @@
   box-shadow: 0 18px 48px rgba(31, 54, 88, 0.16);
   padding: 12px;
   animation: agent-team-inspector-panel-in 180ms cubic-bezier(0.2, 0.9, 0.2, 1);
-}
-
-@keyframes agent-team-inspector-backdrop-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 @keyframes agent-team-inspector-panel-in {
@@ -2685,28 +2476,8 @@
 }
 
 .agent-team-agent-inspector__viewer-tabs {
-  display: inline-flex;
-  gap: 2px;
-  padding: 2px;
   border: 1px solid rgba(92, 128, 183, 0.16);
-  border-radius: 7px;
   background: rgba(255, 255, 255, 0.9);
-}
-
-.agent-team-agent-inspector__viewer-tabs button {
-  height: 24px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 800;
-  padding: 0 8px;
-}
-
-.agent-team-agent-inspector__viewer-tabs button.is-active {
-  background: #e9f2ff;
-  color: #285b95;
 }
 
 .agent-team-agent-inspector__terminal-body {

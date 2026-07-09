@@ -1,4 +1,3 @@
-import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -13,6 +12,7 @@ import {
 import type { CanvasNode } from '../../types';
 import { buildNodeMentionInsertion } from '../../utils/nodeMention';
 import { NodeMentionPicker } from '../NodeMentionPicker';
+import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { TERMINAL_TAB_ID } from '../RightDock/dock-store';
 import {
@@ -322,38 +322,36 @@ export const WorkspaceTerminalDock = ({
     };
   }, []);
 
-  const handleResizeStart = useCallback((event: React.MouseEvent) => {
-    event.preventDefault();
-    const startY = event.clientY;
-    const startHeight = height;
-
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const nextHeight = clampHeight(startHeight + (startY - moveEvent.clientY));
-      heightRef.current = nextHeight;
-      setHeight(nextHeight);
+  // Drag the top edge to resize (shared useDragResize hook). Handle sits on
+  // the TOP edge of the bottom-anchored dock, so dragging up grows it (invert).
+  // Re-fit xterm on every move and on release; the resizing class disables
+  // transitions so the terminal tracks the handle. The hook owns the body
+  // cursor + selection lock and the move/up listeners.
+  const maxHeight = typeof window === 'undefined'
+    ? DEFAULT_HEIGHT * 2
+    : Math.max(MIN_HEIGHT, Math.round(window.innerHeight * MAX_VIEWPORT_RATIO));
+  const resize = useDragResize({
+    axis: 'y',
+    value: height,
+    min: MIN_HEIGHT,
+    max: maxHeight,
+    invert: true,
+    onChange: (next) => {
+      heightRef.current = next;
+      setHeight(next);
       scheduleFit();
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+    },
+    onDragStart: () => document.documentElement.classList.add(RESIZING_CLASS),
+    onDragEnd: (finalHeight) => {
       document.documentElement.classList.remove(RESIZING_CLASS);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
       try {
-        window.localStorage.setItem(HEIGHT_STORAGE_KEY, String(heightRef.current));
+        window.localStorage.setItem(HEIGHT_STORAGE_KEY, String(finalHeight));
       } catch {
         // Height preference is best-effort.
       }
       scheduleFit();
-    };
-
-    document.documentElement.classList.add(RESIZING_CLASS);
-    document.body.style.cursor = 'row-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, [height, scheduleFit]);
+    },
+  });
 
   const handleMentionSelect = useCallback((selected: CanvasNode) => {
     setPickerOpen(false);
@@ -388,7 +386,7 @@ export const WorkspaceTerminalDock = ({
         role="separator"
         aria-orientation="horizontal"
         aria-label={t('workspaceTerminal.resize')}
-        onMouseDown={handleResizeStart}
+        onMouseDown={resize.onMouseDown}
       />
       {placement === 'bottom' && (
         <div className="workspace-terminal-dock__header">

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useAppShell } from "../AppShellProvider";
 
 /** What the main-side `get-spec` IPC returns. */
 interface GetSpecOk {
@@ -178,30 +179,29 @@ function ActionsTab({
   kind: "polling" | "stateful" | undefined;
   onUrlChanged(url: string): void;
 }) {
+  const { notify } = useAppShell();
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; error?: boolean } | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   const run = useCallback(
     async (channel: "restart" | "reset-state", successMsg: string) => {
       setBusy(true);
-      setToast(null);
       try {
         const res = await invoke<ActionResult>(channel, workspaceId, dynamicAppId);
         if (res.ok) {
-          setToast({ msg: successMsg });
+          notify({ tone: "success", title: successMsg });
           onUrlChanged(res.url);
         } else {
-          setToast({ msg: res.error, error: true });
+          notify({ tone: "error", title: res.error });
         }
       } catch (err) {
-        setToast({ msg: String(err), error: true });
+        notify({ tone: "error", title: String(err) });
       } finally {
         setBusy(false);
         setConfirmingReset(false);
       }
     },
-    [workspaceId, dynamicAppId, onUrlChanged],
+    [workspaceId, dynamicAppId, onUrlChanged, notify],
   );
 
   return (
@@ -250,14 +250,6 @@ function ActionsTab({
             </p>
           </>
         ))}
-
-      {toast && (
-        <div
-          className={`dynamic-app-inspector-toast ${toast.error ? "error" : ""}`}
-        >
-          {toast.msg}
-        </div>
-      )}
     </div>
   );
 }

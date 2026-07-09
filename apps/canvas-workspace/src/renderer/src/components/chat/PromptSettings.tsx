@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PromptPreset, PromptProfile, PromptProfileStatus } from '../../types';
 import { useI18n, type I18nKey } from '../../i18n';
+import { TextField } from '../ui';
 
 interface UsePromptProfileResult {
   profile?: PromptProfileStatus;
@@ -192,20 +193,17 @@ export const ReplyStyleSection = ({
           </div>
         </div>
 
-        <label className="chat-model-field chat-prompt-custom-field">
-          <span>{t('prompt.customPrompt')}</span>
-          <textarea
-            className="chat-prompt-custom-textarea"
-            placeholder={t('prompt.customPlaceholder')}
-            value={customPrompt}
-            maxLength={MAX_CUSTOM_PROMPT_LENGTH}
-            rows={6}
-            onChange={event => setCustomPrompt(event.target.value)}
-          />
-          <span className="chat-model-field-hint">
-            {t('prompt.customHint', { count: customPrompt.trim().length, max: MAX_CUSTOM_PROMPT_LENGTH })}
-          </span>
-        </label>
+        <TextField
+          multiline
+          label={t('prompt.customPrompt')}
+          hint={t('prompt.customHint', { count: customPrompt.trim().length, max: MAX_CUSTOM_PROMPT_LENGTH })}
+          className="chat-prompt-custom-textarea"
+          placeholder={t('prompt.customPlaceholder')}
+          value={customPrompt}
+          maxLength={MAX_CUSTOM_PROMPT_LENGTH}
+          rows={6}
+          onChange={event => setCustomPrompt(event.target.value)}
+        />
       </div>
 
       <div className="chat-model-settings-footer">

@@ -1,9 +1,6 @@
-import { createPortal } from 'react-dom';
 import '../NodeContextMenu/index.css';
 import './index.css';
-import { useViewportClampedPosition } from '../../hooks/useViewportClampedPosition';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
-import { useClickOutside } from '../../hooks/useClickOutside';
+import { Popover } from '../ui/Popover';
 import { PencilIcon, SettingsIcon, TrashIcon } from '../icons';
 import { useI18n } from '../../i18n';
 
@@ -25,20 +22,9 @@ interface Props {
  */
 export const EdgeContextMenu = ({ x, y, edgeId, onEditLabel, onEditStyle, onDelete, onClose }: Props) => {
   const { t } = useI18n();
-  const { ref: menuRef, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
-  useMenuKeyboardNav(menuRef, onClose);
-  useClickOutside(menuRef, onClose);
 
-  const menu = (
-    <div
-      ref={menuRef}
-      className="context-menu"
-      role="menu"
-      style={{ left: pos.left, top: pos.top }}
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      onContextMenu={(e) => e.preventDefault()}
-    >
+  return (
+    <Popover x={x} y={y} onClose={onClose} className="context-menu">
       <div className="context-menu-title">{t('canvas.edgeMenu.title')}</div>
       <button
         className="context-menu-item" role="menuitem"
@@ -76,8 +62,6 @@ export const EdgeContextMenu = ({ x, y, edgeId, onEditLabel, onEditStyle, onDele
           <small>{t('canvas.edgeMenu.deleteDesc')}</small>
         </span>
       </button>
-    </div>
+    </Popover>
   );
-
-  return createPortal(menu, document.body);
 };

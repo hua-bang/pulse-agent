@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { SettingsDrawer } from '../SettingsDrawer';
+import { Drawer } from '../ui';
 import { ModelsSection, useCanvasModels } from '../chat/ModelSettings';
 import { ReplyStyleSection, usePromptProfile } from '../chat/PromptSettings';
 import { AgentSection } from './AgentSection';
@@ -125,7 +125,7 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
   const activeDef = SECTIONS.find((s) => s.id === activeSection) ?? SECTIONS[0];
 
   return (
-    <SettingsDrawer
+    <Drawer
       open={open}
       onClose={onClose}
       kicker={t('settings.kicker')}
@@ -193,6 +193,6 @@ export const Settings = ({ open, initialSection, onClose }: SettingsProps) => {
           {activeSection === 'language' && <LanguageSection />}
         </div>
       </div>
-    </SettingsDrawer>
+    </Drawer>
   );
 };

@@ -1,8 +1,8 @@
-/* Shared shell for right-side modal settings drawers
- * (WorkspaceSettings, ModelSettings, PromptSettings).
- * Notion-warm cream + #2383e2 accent + 8px radii. */
+/* ui/Drawer — shared shell for right-side modal settings drawers
+ * (Settings, WorkspaceSettings). Promoted from the former SettingsDrawer.
+ * Notion-warm cream + #2383e2 accent + tokenized radii. */
 
-.settings-drawer-backdrop {
+.ui-drawer-backdrop {
   position: fixed;
   inset: 0;
   z-index: var(--layer-modal);
@@ -12,7 +12,7 @@
   backdrop-filter: blur(2px);
 }
 
-.settings-drawer {
+.ui-drawer {
   height: 100vh;
   background: #fdfcfb;
   border-left: 1px solid rgba(55, 53, 47, 0.1);
@@ -21,15 +21,15 @@
   flex-direction: column;
   max-width: 100vw;
   min-width: 0;
-  animation: settings-drawer-in 0.16s cubic-bezier(0.2, 0.9, 0.2, 1);
+  animation: ui-drawer-in 0.16s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
-@keyframes settings-drawer-in {
+@keyframes ui-drawer-in {
   from { transform: translateX(16px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
 
-.settings-drawer-header {
+.ui-drawer-header {
   min-height: 58px;
   padding: 13px 16px 12px 18px;
   border-bottom: 1px solid rgba(55, 53, 47, 0.07);
@@ -39,11 +39,11 @@
   gap: 16px;
 }
 
-.settings-drawer-header > div {
+.ui-drawer-header > div {
   min-width: 0;
 }
 
-.settings-drawer-kicker {
+.ui-drawer-kicker {
   font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.07em;
@@ -51,7 +51,7 @@
   color: rgba(55, 53, 47, 0.42);
 }
 
-.settings-drawer-header h2 {
+.ui-drawer-header h2 {
   margin: 3px 0 0;
   font-size: 16px;
   line-height: 1.2;
@@ -59,11 +59,11 @@
   word-break: break-word;
 }
 
-.settings-drawer-close {
+.ui-drawer-close {
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: #9b9a97;
   font-size: 21px;
@@ -72,7 +72,7 @@
   flex-shrink: 0;
 }
 
-.settings-drawer-close:hover {
+.ui-drawer-close:hover {
   background: rgba(55, 53, 47, 0.07);
   color: #37352f;
 }

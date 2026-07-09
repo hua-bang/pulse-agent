@@ -45,6 +45,7 @@ import {
 // also re-exports chat cards that consume useRightDock from this module,
 // which would create an import cycle.
 import { ArtifactTabView } from '../artifacts/ArtifactTabView';
+import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { LinkTabView } from '../LinkDrawer';
 import { AppLogoIcon } from '../icons';
@@ -220,8 +221,6 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
   const terminalPaneActive = state.terminalTabs.some((tab) => tab.id === activePaneId);
 
   const [width, setWidth] = useState<number>(() => clampWidth(readStoredWidth() ?? DEFAULT_WIDTH));
-  const widthRef = useRef(width);
-  widthRef.current = width;
 
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -317,39 +316,31 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     return () => window.removeEventListener('keydown', onKey);
   }, [visible, store]);
 
-  // Drag the left edge to resize. Lock body cursor + selection during the
-  // drag; the resizing class disables the width/margin transitions so the
-  // canvas tracks the handle without rubber-banding.
-  const handleResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startWidth = widthRef.current;
-
-    const onMouseMove = (ev: MouseEvent) => {
-      // Handle sits on the LEFT edge of the right-anchored dock, so
-      // dragging left grows it.
-      setWidth(clampWidth(startWidth + (startX - ev.clientX)));
-    };
-
-    const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+  // Drag the left edge to resize (shared useDragResize hook). The handle sits
+  // on the LEFT edge of the right-anchored dock, so dragging left grows it
+  // (invert). The resizing class disables the width/margin transitions so the
+  // canvas tracks the handle without rubber-banding; the hook owns the body
+  // cursor + selection lock and the move/up listeners.
+  const maxWidth = typeof window === 'undefined'
+    ? width
+    : Math.max(MIN_WIDTH, Math.round(window.innerWidth * MAX_VIEWPORT_RATIO));
+  const resize = useDragResize({
+    axis: 'x',
+    value: width,
+    min: MIN_WIDTH,
+    max: maxWidth,
+    invert: true,
+    onChange: setWidth,
+    onDragStart: () => document.documentElement.classList.add(RESIZING_CLASS),
+    onDragEnd: (finalWidth) => {
       document.documentElement.classList.remove(RESIZING_CLASS);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
       try {
-        window.localStorage.setItem(WIDTH_STORAGE_KEY, String(widthRef.current));
+        window.localStorage.setItem(WIDTH_STORAGE_KEY, String(finalWidth));
       } catch {
         /* localStorage may be unavailable; preference simply won't persist. */
       }
-    };
-
-    document.documentElement.classList.add(RESIZING_CLASS);
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  }, []);
+    },
+  });
 
   return (
     <aside
@@ -361,7 +352,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
     >
       <div
         className="right-dock__resize-handle"
-        onMouseDown={handleResizeStart}
+        onMouseDown={resize.onMouseDown}
         role="separator"
         aria-orientation="vertical"
         aria-label={t('rightDock.resizePanel')}

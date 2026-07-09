@@ -14,26 +14,6 @@
   background: #fff;
 }
 
-.link-drawer__icon-btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  border-radius: 4px;
-  color: rgba(55, 53, 47, 0.6);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.1s, color 0.1s;
-}
-
-.link-drawer__icon-btn:hover {
-  background: rgba(55, 53, 47, 0.06);
-  color: #37352f;
-}
-
 .link-drawer__url {
   flex: 1;
   min-width: 0;

@@ -1,8 +1,6 @@
-import { useCallback, useRef, useState } from "react";
 import { BG_COLOR_PRESETS, TEXT_COLOR_PRESETS } from "./colorPresets";
 import type { CanvasNode, TextNodeData } from "../../types";
-import { useClickOutside } from "../../hooks/useClickOutside";
-import { useMenuKeyboardNav } from "../../hooks/useMenuKeyboardNav";
+import { DropdownShell } from "../ui";
 import { useI18n } from "../../i18n";
 
 /**
@@ -28,95 +26,83 @@ const TextColorTrigger = ({
 }) => {
   const { t } = useI18n();
   const data = node.data as TextNodeData;
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
 
   const currentValue = kind === "text" ? data.textColor : data.backgroundColor;
   const presets = kind === "text" ? TEXT_COLOR_PRESETS : BG_COLOR_PRESETS;
   const title = kind === "text" ? t('canvas.textStyle.textColor') : t('canvas.textStyle.backgroundColor');
   const optionLabelKey = kind === "text" ? 'canvas.textStyle.textColorOption' : 'canvas.textStyle.backgroundColorOption';
 
-  const handlePick = useCallback(
-    (value: string) => {
-      const patch: Partial<TextNodeData> =
-        kind === "text" ? { textColor: value } : { backgroundColor: value };
-      onUpdate(node.id, { data: { ...data, ...patch } });
-      setOpen(false);
-    },
-    [kind, node.id, data, onUpdate]
-  );
-
-  const closePopover = useCallback(() => setOpen(false), []);
-  useClickOutside(triggerRef, closePopover, open);
-  useMenuKeyboardNav(popoverRef, closePopover, open);
-
   const isTransparent = currentValue === "transparent";
 
   return (
-    <div
-      ref={triggerRef}
-      className={`text-color-trigger${open ? " text-color-trigger--open" : ""}`}
-      title={title}
-      // preventDefault on mousedown keeps the editor focused when the user
-      // reaches for a color while editing — no exit-and-re-enter ceremony.
-      onMouseDown={(e) => {
-        e.stopPropagation();
-        e.preventDefault();
-      }}
-    >
-      <button
-        type="button"
-        className={`text-color-dot${isTransparent ? " text-color-dot--transparent" : ""}`}
-        style={{ backgroundColor: isTransparent ? undefined : currentValue }}
-        title={title}
-        aria-label={title}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((v) => !v);
-        }}
-      >
-        {kind === "text" && <span className="text-color-dot-glyph">A</span>}
-      </button>
-      {open && (
-        <div
-          ref={popoverRef}
-          className="text-color-popover text-color-popover--open"
-          role="menu"
+    <DropdownShell
+      className="text-color-trigger"
+      panelClassName="text-color-popover"
+      placement="bottom"
+      align="center"
+      role="menu"
+      // preventDefault across the WHOLE panel (padding and gaps included, not
+      // just the swatches) keeps the editor focused while picking a color —
+      // the pre-migration wrapper guarded the full surface.
+      onPanelMouseDown={(e) => e.preventDefault()}
+      trigger={({ open, toggle }) => (
+        <button
+          type="button"
+          className={`text-color-dot${isTransparent ? " text-color-dot--transparent" : ""}`}
+          style={{ backgroundColor: isTransparent ? undefined : currentValue }}
+          title={title}
           aria-label={title}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          // preventDefault on mousedown keeps the editor focused when the
+          // user reaches for a color while editing — no exit-and-re-enter
+          // ceremony.
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggle();
+          }}
         >
-          {presets.map((preset) => {
-            const active = currentValue === preset.value;
-            const isNone = preset.value === "transparent";
-            return (
-              <button
-                type="button"
-                key={preset.name}
-                className={
-                  "text-color-swatch" +
-                  (active ? " text-color-swatch--active" : "") +
-                  (isNone ? " text-color-swatch--none" : "")
-                }
-                style={{
-                  backgroundColor: isNone ? undefined : preset.value,
-                }}
-                role="menuitemradio"
-                aria-checked={active}
-                title={t(optionLabelKey, { name: preset.name })}
-                aria-label={t(optionLabelKey, { name: preset.name })}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePick(preset.value);
-                }}
-              />
-            );
-          })}
-        </div>
+          {kind === "text" && <span className="text-color-dot-glyph">A</span>}
+        </button>
       )}
-    </div>
+    >
+      {({ close }) =>
+        presets.map((preset) => {
+          const active = currentValue === preset.value;
+          const isNone = preset.value === "transparent";
+          return (
+            <button
+              type="button"
+              key={preset.name}
+              className={
+                "text-color-swatch" +
+                (active ? " text-color-swatch--active" : "") +
+                (isNone ? " text-color-swatch--none" : "")
+              }
+              style={{
+                backgroundColor: isNone ? undefined : preset.value,
+              }}
+              role="menuitemradio"
+              aria-checked={active}
+              title={t(optionLabelKey, { name: preset.name })}
+              aria-label={t(optionLabelKey, { name: preset.name })}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={(e) => {
+                e.stopPropagation();
+                const patch: Partial<TextNodeData> =
+                  kind === "text" ? { textColor: preset.value } : { backgroundColor: preset.value };
+                onUpdate(node.id, { data: { ...data, ...patch } });
+                close();
+              }}
+            />
+          );
+        })
+      }
+    </DropdownShell>
   );
 };
 

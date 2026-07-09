@@ -1,4 +1,5 @@
 import { useI18n, type LanguageCode } from '../../../i18n';
+import { SectionHeader, FieldRow } from '../../ui';
 import './index.css';
 
 export const LanguageSection = () => {
@@ -8,13 +9,13 @@ export const LanguageSection = () => {
     <div className="language-section">
       <div className="language-section-body">
         <div className="language-section-card">
-          <div className="language-section-intro">
-            <div className="language-section-title">{t('settings.language.introTitle')}</div>
-            <div className="language-section-desc">{t('settings.language.introDescription')}</div>
-          </div>
+          <SectionHeader
+            className="language-section-intro"
+            title={t('settings.language.introTitle')}
+            description={t('settings.language.introDescription')}
+          />
 
-          <div className="language-section-field">
-            <span>{t('settings.language.current')}</span>
+          <FieldRow label={t('settings.language.current')}>
             <div className="language-section-options" role="radiogroup" aria-label={t('settings.language.current')}>
               {languageOptions.map((option) => {
                 const active = option.code === language;
@@ -33,7 +34,7 @@ export const LanguageSection = () => {
                 );
               })}
             </div>
-          </div>
+          </FieldRow>
 
           <div className="language-section-hint">{t('settings.language.persistedHint')}</div>
         </div>

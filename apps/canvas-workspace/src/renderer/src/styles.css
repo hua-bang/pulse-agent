@@ -16,6 +16,24 @@
   --text: #37352f;
   --text-secondary: #787774;
   --text-muted: #b4b0a8;
+  /* Converged 2026-07-07 from phantom-token demand: these names were already
+     referenced across the renderer (with fallbacks or, for --text-*, nothing).
+     Single-fallback tokens keep their exact fallback value (zero visual
+     change); divergent-fallback ones take the dominant value (deliberate
+     normalization); --text-primary/-tertiary alias the existing ink tiers.
+     The oklch frame-engine dials (--frame-bg-alpha, --frame-title-gap) stay
+     deliberately undefined — they are per-scope parameters, not palette. */
+  --text-primary: var(--text);
+  --text-tertiary: var(--text-muted);
+  --accent-muted: rgba(80, 120, 220, 0.16);
+  --accent-soft: rgba(59, 130, 246, 0.1);
+  --accent-soft-strong: rgba(59, 130, 246, 0.22);
+  --border-subtle: rgba(255, 255, 255, 0.14);
+  --note-paper: #fdfcf9;
+  --surface-1: rgba(0, 0, 0, 0.2);
+  --surface-2: rgba(255, 255, 255, 0.03);
+  --surface-alt: rgba(0, 0, 0, 0.05);
+  --surface-subtle: rgba(0, 0, 0, 0.02);
   --accent: #2383e2;
   --accent-light: rgba(35, 131, 226, 0.08);
   --accent-border: rgba(35, 131, 226, 0.45);
@@ -32,6 +50,7 @@
   --shadow-drag: 0 8px 28px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-float: 0 4px 24px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   --radius: 8px;
+  --radius-md: 8px; /* scale midpoint; was referenced 7x while undefined, with divergent fallbacks */
   --radius-lg: 10px;
   --radius-sm: 6px;
   --font: "SF Mono", "Fira Code", "Cascadia Code", Menlo, monospace;

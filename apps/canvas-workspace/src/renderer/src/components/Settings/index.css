@@ -1,6 +1,6 @@
 /* Settings drawer body — rail on the left, active section on the right.
  * The drawer shell (backdrop, aside, header, slide-in) comes from
- * components/SettingsDrawer/index.css. */
+ * components/ui/Drawer/index.css. */
 
 .settings-body {
   flex: 1;

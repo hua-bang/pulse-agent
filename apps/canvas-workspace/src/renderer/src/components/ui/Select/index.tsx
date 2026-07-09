@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { useId, useRef, useState, type ReactNode } from 'react';
+import { useClickOutside } from '../../../hooks/useClickOutside';
+import { useMenuKeyboardNav } from '../../../hooks/useMenuKeyboardNav';
 import './index.css';
 
 export interface SelectOption {
@@ -8,7 +8,13 @@ export interface SelectOption {
   label: string;
   description?: string;
   disabled?: boolean;
+  /** Optional leading mark rendered in the trigger + option row (e.g. a brand icon). */
+  icon?: ReactNode;
 }
+
+/** Menu opens below the trigger by default; 'top' opens upward for triggers
+ * near the bottom of a clipped container. */
+type MenuPlacement = 'bottom' | 'top';
 
 interface SelectProps {
   value: string;
@@ -21,6 +27,8 @@ interface SelectProps {
   disabled?: boolean;
   /** Shown on the trigger when `value` matches no option. */
   placeholder?: string;
+  /** Where the open menu unfolds relative to the trigger. Defaults to 'bottom'. */
+  menuPlacement?: MenuPlacement;
 }
 
 const CaretGlyph = () => (
@@ -36,12 +44,16 @@ const CheckGlyph = () => (
 );
 
 /**
- * Neutral, accessible dropdown that replaces the native `<select>` so the
- * open menu inherits the app's chrome instead of the OS popup. Mirrors the
- * `AgentTypeSelect` interaction model — closes on outside press (via
- * `useClickOutside`) or Escape, with ArrowUp/Down + Enter handled inside the
- * menu by `useMenuKeyboardNav`. Pass `className` to inherit a surrounding
- * form's metrics (e.g. `cfg-input` in the settings panels).
+ * ui/Select — the blessed dropdown that replaces the native `<select>` so the
+ * open menu inherits the app's chrome instead of the OS popup. Closes on
+ * outside press (via `useClickOutside`) or Escape, with ArrowUp/Down + Enter
+ * handled inside the menu by `useMenuKeyboardNav`. The trigger's
+ * `aria-controls` points at the listbox id — derived from the `id` prop when
+ * given (`${id}-listbox`), otherwise a `useId()`-generated id. Pass
+ * `className` to inherit a surrounding form's metrics (e.g. `cfg-input` in
+ * the settings panels; it lands on the root wrapper div, not the trigger),
+ * `icon` on options to carry a brand mark, and `menuPlacement="top"` when the
+ * trigger sits near the bottom of a clipped container.
  */
 export const Select = ({
   value,
@@ -52,9 +64,12 @@ export const Select = ({
   className,
   disabled,
   placeholder,
+  menuPlacement = 'bottom',
 }: SelectProps) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const autoId = useId();
+  const listboxId = `${id ?? autoId}-listbox`;
   const selected = options.find((opt) => opt.value === value);
 
   useClickOutside(rootRef, () => setOpen(false), open);
@@ -72,6 +87,7 @@ export const Select = ({
         className="ui-select__trigger"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={listboxId}
         aria-label={ariaLabel}
         disabled={disabled}
         onClick={() => setOpen((prev) => !prev)}
@@ -84,6 +100,7 @@ export const Select = ({
           setOpen(true);
         }}
       >
+        {selected?.icon && <span className="ui-select__icon" aria-hidden="true">{selected.icon}</span>}
         <span className={`ui-select__value${selected ? '' : ' ui-select__value--placeholder'}`}>
           {selected?.label ?? placeholder ?? ''}
         </span>
@@ -94,9 +111,11 @@ export const Select = ({
 
       {open && (
         <SelectMenu
+          id={listboxId}
           options={options}
           value={value}
           ariaLabel={ariaLabel}
+          placement={menuPlacement}
           onPick={pick}
           onClose={() => setOpen(false)}
         />
@@ -106,15 +125,19 @@ export const Select = ({
 };
 
 const SelectMenu = ({
+  id,
   options,
   value,
   ariaLabel,
+  placement,
   onPick,
   onClose,
 }: {
+  id: string;
   options: ReadonlyArray<SelectOption>;
   value: string;
   ariaLabel?: string;
+  placement: MenuPlacement;
   onPick: (value: string) => void;
   onClose: () => void;
 }) => {
@@ -122,7 +145,13 @@ const SelectMenu = ({
   useMenuKeyboardNav(menuRef, onClose);
 
   return (
-    <div ref={menuRef} className="ui-select__menu" role="listbox" aria-label={ariaLabel}>
+    <div
+      ref={menuRef}
+      id={id}
+      className={`ui-select__menu${placement === 'top' ? ' ui-select__menu--top' : ''}`}
+      role="listbox"
+      aria-label={ariaLabel}
+    >
       {options.map((opt) => {
         const isActive = opt.value === value;
         return (
@@ -136,6 +165,7 @@ const SelectMenu = ({
             className={`ui-select__option${isActive ? ' ui-select__option--active' : ''}`}
             onClick={() => onPick(opt.value)}
           >
+            {opt.icon && <span className="ui-select__icon" aria-hidden="true">{opt.icon}</span>}
             <span className="ui-select__option-copy">
               <span className="ui-select__option-label">{opt.label}</span>
               {opt.description && (
