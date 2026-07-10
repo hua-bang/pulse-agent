@@ -73,7 +73,19 @@ const RATCHET_BASELINE: Record<string, number> = {
   // ui/Button (tokenized). 9 literals removed net.
   // 416→421 (2026-07-10, drift recorded): perf/iframe-review CSS landed
   // off-ratchet (largely IframeNodeBody) — same recording as rawButtonTags.
-  borderRadiusLiterals: 421,
+  // 421→223 (C2 exact-value tokenization): minted --radius-xs/-md/-xl/-pill
+  // (4/8/12/999px) in styles.css :root and swapped every WHOLE single-value
+  // `border-radius: <literal>;` line at those four exact values onto the
+  // matching var() — 198 lines across 43 files (69×8px→--radius-md,
+  // 63×4px→--radius-xs, 54×999px→--radius-pill, 12×12px→--radius-xl).
+  // -xs/-xl (not the batch-plan's -sm/-lg) because --radius-sm (6px) and
+  // --radius-lg (10px) already existed and are load-bearing for ui/
+  // (Modal/DropdownShell/Select/SegmentedControl/Drawer) — reusing those
+  // names for 4px/12px would have redefined them and broken pixel-identity
+  // for every existing caller. Multi-value shorthands, corner-property
+  // variants, and 6px/7px/10px/5px/3px/50% all stay literal (untouched;
+  // normalization is C3).
+  borderRadiusLiterals: 223,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -179,7 +191,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 1934→1968 (2026-07-10, drift recorded): perf/iframe-review CSS landed
   // off-ratchet (+34, largely IframeNodeBody + review-comment chrome) —
   // same recording as rawButtonTags.
-  hardcodedColorLiterals: 1968,
+  // 1968→1959 (C2 exact-value tokenization): the 9 byte-identical
+  // `box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);` lines swapped onto
+  // `var(--shadow-focus)` each drop one rgba( match; the :root definition
+  // line itself is exempt (it defines a custom property). Not tokenization
+  // of a color per se — a side effect of minting --shadow-focus below.
+  hardcodedColorLiterals: 1959,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -215,7 +232,15 @@ const RATCHET_BASELINE: Record<string, number> = {
   // now get it from `.ui-dropdown__panel`'s `var(--shadow-float)`); only
   // ShapeNodeBody's `box-shadow: 0 6px 24px rgba(...)` was a counted
   // literal (FloatingToolbar's was already a `var(--shadow-float)` token).
-  shadowLiterals: 169,
+  // 169→160 (C2 exact-value tokenization): minted --shadow-focus
+  // (`0 0 0 3px rgba(35, 131, 226, 0.1)`, verified byte-identical to the
+  // literal it replaces) and swapped the 9 exact-match call sites
+  // (CanvasEmptyHint, WorkspaceSettings ×2, chat/ChatPanel ×3,
+  // settings-config, ui/Select, ui/TextField) onto `var(--shadow-focus)` —
+  // each now short-circuits the counter's `var(--shadow` exemption. Near
+  // variants (2px ring, other opacities) were left literal by design; they
+  // are C3 normalization judgments, not exact matches.
+  shadowLiterals: 160,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

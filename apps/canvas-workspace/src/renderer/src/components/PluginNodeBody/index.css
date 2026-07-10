@@ -48,7 +48,7 @@
   gap: 6px;
   padding: 4px 8px;
   border: 1px solid rgba(35, 131, 226, 0.16);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(35, 131, 226, 0.07);
   font-size: 11px;
   color: var(--text-secondary);
@@ -65,7 +65,7 @@
   padding: 10px;
   overflow: auto;
   border: 1px solid rgba(55, 53, 47, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.72);
   color: var(--text-secondary);
   font-size: 11px;

@@ -294,7 +294,7 @@
   height: 22px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   display: none;
   align-items: center;

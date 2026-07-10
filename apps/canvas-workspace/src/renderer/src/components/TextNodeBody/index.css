@@ -264,7 +264,7 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.9em;
   padding: 0.08em 0.35em;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: rgba(0, 0, 0, 0.06);
 }
 
@@ -320,7 +320,7 @@
   padding: 4px;
   background: var(--surface, #fff);
   border: 1px solid var(--border, rgba(0, 0, 0, 0.12));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-float, 0 8px 24px rgba(0, 0, 0, 0.16));
   pointer-events: auto;
   user-select: none;

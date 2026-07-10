@@ -119,7 +119,7 @@
   min-width: 0;
   max-width: 340px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(238, 242, 247, 0.92);
   color: #3d5071;
   font-family: inherit;
@@ -156,7 +156,7 @@
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   white-space: nowrap;
 }
 
@@ -220,7 +220,7 @@
 }
 
 .agent-team-agent-pill__role {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 2px 7px;
   font-size: 10px;
   font-weight: 900;
@@ -297,7 +297,7 @@
   min-width: 0;
   max-width: 420px;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #eef2f7;
   color: #3d5071;
   font-size: 11px;
@@ -377,7 +377,7 @@
   flex: 1;
   min-height: 220px;
   max-height: none;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border: 1.5px solid rgba(122, 167, 232, 0.28);
   padding: 16px 18px;
   font-size: 13.5px;
@@ -490,7 +490,7 @@
   min-width: 0;
   min-height: 0;
   border: 1px solid rgba(92, 128, 183, 0.16);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 12px 26px rgba(31, 54, 88, 0.045);
 }
@@ -499,7 +499,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border-color: rgba(92, 128, 183, 0.18);
   background:
     linear-gradient(180deg, rgba(244, 249, 255, 0.95), rgba(255, 255, 255, 0.92)),
@@ -545,7 +545,7 @@
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(35, 131, 226, 0.12);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: rgba(255, 255, 255, 0.92);
   box-shadow: 0 6px 16px rgba(31, 54, 88, 0.045);
 }
@@ -582,7 +582,7 @@
   gap: 6px;
   padding: 12px;
   border: 1px solid rgba(35, 131, 226, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.72);
 }
 
@@ -693,7 +693,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   border: 1px solid rgba(92, 128, 183, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background:
     linear-gradient(90deg, rgba(35, 131, 226, 0.035) 1px, transparent 1px),
     linear-gradient(180deg, rgba(35, 131, 226, 0.03) 1px, transparent 1px),
@@ -747,7 +747,7 @@
   gap: 7px;
   height: 30px;
   border: 1px solid rgba(122, 167, 232, 0.24);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(245, 249, 255, 0.94);
   color: var(--text-secondary);
   font-size: 11px;
@@ -762,7 +762,7 @@
   place-items: center;
   width: 21px;
   height: 21px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #dcecff;
   color: #285b95;
   font-size: 11px;
@@ -784,7 +784,7 @@
   height: 22px;
   padding: 0 11px;
   border: 1px solid rgba(122, 167, 232, 0.28);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(238, 245, 255, 0.96);
   color: #285b95;
   font-size: 11px;
@@ -898,7 +898,7 @@
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(92, 128, 183, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 18px 48px rgba(31, 54, 88, 0.16);
   padding: 12px;
@@ -945,7 +945,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   border: 1px solid rgba(92, 128, 183, 0.14);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background:
     linear-gradient(90deg, rgba(35, 131, 226, 0.035) 1px, transparent 1px),
     linear-gradient(180deg, rgba(35, 131, 226, 0.03) 1px, transparent 1px),
@@ -1000,7 +1000,7 @@
   width: 18px;
   height: 18px;
   border: 1px solid rgba(122, 167, 232, 0.24);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.92);
   color: #7fa8dd;
   content: "→";
@@ -1015,7 +1015,7 @@
   gap: 6px;
   width: max-content;
   border: 1px solid rgba(122, 167, 232, 0.22);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(238, 245, 255, 0.94);
   color: var(--text-secondary);
   font-size: 10px;
@@ -1029,7 +1029,7 @@
   place-items: center;
   width: 16px;
   height: 16px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #dcecff;
   color: #285b95;
   font-size: 9px;
@@ -1114,7 +1114,7 @@
   max-width: 100%;
   overflow: hidden;
   border: 1px solid #d8e4f2;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #eef5ff;
   color: #285b95;
   font-size: 10px;
@@ -1164,7 +1164,7 @@
 .agent-team-graph-task__deps span {
   max-width: 100%;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #edf4ff;
   color: #335c91;
   font-size: 10px;
@@ -1183,7 +1183,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   border: 1px solid rgba(92, 128, 183, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.76);
   padding: 10px;
 }
@@ -1193,7 +1193,7 @@
   gap: 2px;
   padding: 2px;
   border: 1px solid rgba(92, 128, 183, 0.18);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(238, 243, 250, 0.7);
 }
 
@@ -1249,7 +1249,7 @@
   min-height: 0;
   overflow: hidden;
   border: 1px solid rgba(92, 128, 183, 0.16);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #0f1115;
 }
 
@@ -1308,7 +1308,7 @@
   min-width: 0;
   max-width: 100%;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #eef2f7;
   color: #3d5071;
   font-family: inherit;
@@ -1528,7 +1528,7 @@
   padding: 0;
   text-align: left;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .agent-team-summary-agent__identity:focus-visible {
@@ -1622,7 +1622,7 @@
 
 .agent-team-summary-agent__stats span,
 .agent-team-agent-strip__empty {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #eef2f7;
   color: #3d5071;
   font-size: 10px;
@@ -1660,7 +1660,7 @@
   min-width: 0;
   min-height: 0;
   border: 1px solid rgba(92, 128, 183, 0.16);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.82);
   box-shadow: 0 10px 22px rgba(31, 54, 88, 0.035);
 }
@@ -1735,7 +1735,7 @@
 .agent-team-task-row__dot {
   width: 9px;
   height: 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #b8bdc7;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
@@ -1803,7 +1803,7 @@
 .agent-team-detail__status {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   white-space: nowrap;
 }
 
@@ -2080,7 +2080,7 @@
 }
 
 .agent-team-plan-preview__item-head span {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: #3d5071;
   background: #eef2f7;
   padding: 2px 6px;
@@ -2114,7 +2114,7 @@
   align-items: center;
   max-width: 100%;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: #285b95;
   background: #e9f2ff;
   font-size: 10px;
@@ -2244,7 +2244,7 @@
   gap: 12px;
   padding: 10px 14px;
   border: 1px solid #e3c577;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fef9ec;
   color: #6b5318;
 }
@@ -2301,7 +2301,7 @@
   justify-self: end;
   overflow: hidden;
   border: 1px solid rgba(92, 128, 183, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 18px 48px rgba(31, 54, 88, 0.16);
   padding: 12px;
@@ -2444,7 +2444,7 @@
   min-width: 0;
   min-height: 0;
   border: 1px solid rgba(35, 131, 226, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   overflow: hidden;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.72);
@@ -2512,7 +2512,7 @@
   gap: 6px;
   padding: 12px;
   border: 1px solid rgba(35, 131, 226, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background:
     linear-gradient(180deg, rgba(243, 248, 255, 0.95), rgba(255, 255, 255, 0.98)),
     #fff;
@@ -2568,7 +2568,7 @@
   min-width: 0;
   padding: 10px;
   border: 1px solid rgba(0, 0, 0, 0.06);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fbfcfe;
 }
 
@@ -2629,7 +2629,7 @@
   max-height: 100%;
   min-height: 0;
   border: 1px solid rgba(92, 128, 183, 0.2);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 18px 48px rgba(31, 54, 88, 0.16);
   padding: 12px;

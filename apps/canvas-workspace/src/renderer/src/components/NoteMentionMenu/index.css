@@ -34,7 +34,7 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--surface-alt, rgba(0, 0, 0, 0.05));
   color: var(--text-secondary);
 }

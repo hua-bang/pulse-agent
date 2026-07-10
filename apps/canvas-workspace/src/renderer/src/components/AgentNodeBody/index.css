@@ -176,7 +176,7 @@
 .agent-team-lead-console__status {
   flex-shrink: 0;
   border: 1px solid #b8d4f3;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #e9f2ff;
   color: #285b95;
   padding: 3px 8px;
@@ -271,7 +271,7 @@
   gap: 5px;
   flex: 0 0 auto;
   padding: 3px 9px 3px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(15, 23, 42, 0.05);
   color: var(--agent-muted);
   font-size: 10px;
@@ -386,7 +386,7 @@
   height: 30px;
   margin-top: 2px;
   border: 1px solid rgba(35, 131, 226, 0.22);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(35, 131, 226, 0.06);
   color: var(--agent-accent);
   font: 800 12px var(--agent-sans);
@@ -415,7 +415,7 @@
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 600;
   font-family: var(--agent-sans);
@@ -1370,7 +1370,7 @@
   font-size: 11px;
   line-height: 1;
   background: rgba(55, 53, 47, 0.06);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: rgba(55, 53, 47, 0.7);
 }

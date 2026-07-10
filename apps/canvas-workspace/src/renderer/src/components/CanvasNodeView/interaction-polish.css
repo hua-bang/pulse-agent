@@ -31,7 +31,7 @@
   width: 26px;
   height: 26px;
   border: 1px solid rgba(35, 131, 226, 0.18);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.88);
   box-shadow: 0 4px 12px rgba(22, 18, 36, 0.12);
   color: var(--accent);

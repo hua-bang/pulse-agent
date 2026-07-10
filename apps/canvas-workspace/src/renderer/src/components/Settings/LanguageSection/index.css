@@ -14,7 +14,7 @@
 
 .language-section-card {
   border: 1px solid rgba(55, 53, 47, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   padding: 18px;
   display: flex;
@@ -42,7 +42,7 @@
 
 .language-section-option {
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.86);
   color: #37352f;
   padding: 12px;

@@ -186,7 +186,7 @@
 .workspace-node-chip-dot {
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--nodes-dot);
 }
 
@@ -224,7 +224,7 @@
   width: 16px;
   height: 16px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: transparent;
   color: var(--nodes-faint);
   cursor: pointer;
@@ -486,7 +486,7 @@
   max-width: 960px;
   margin: 0 auto;
   border: 1px solid var(--nodes-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   min-height: 100%;
   box-shadow: var(--nodes-shadow);
 }
@@ -812,7 +812,7 @@
   text-align: left;
   font-size: 13px;
   padding: 8px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   color: inherit;
 }
@@ -877,7 +877,7 @@
   font: inherit;
   color: inherit;
   padding: 7px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
 }
 
@@ -941,7 +941,7 @@
   display: inline-block;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   margin-right: 6px;
 }
 

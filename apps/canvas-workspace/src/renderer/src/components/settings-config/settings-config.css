@@ -32,7 +32,7 @@
   position: absolute;
   inset: -4px;
   border: 2px dashed rgba(35, 131, 226, 0.5);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: rgba(35, 131, 226, 0.04);
   pointer-events: none;
   z-index: 1;
@@ -74,7 +74,7 @@
 .cfg-secondary-btn,
 .cfg-danger-btn {
   height: 30px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 0 12px;
   font-size: 12px;
   font-weight: 650;
@@ -160,7 +160,7 @@
   height: 34px;
   padding: 0 10px;
   border: 1px solid rgba(55, 53, 47, 0.12);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   color: #37352f;
   font: inherit;
@@ -172,7 +172,7 @@
 .cfg-input:focus,
 .cfg-textarea:focus {
   border-color: rgba(35, 131, 226, 0.45);
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  box-shadow: var(--shadow-focus);
 }
 
 .cfg-textarea {
@@ -261,7 +261,7 @@ select.cfg-input {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 9px 12px;
   background: transparent;
   transition: background 0.12s;
@@ -292,7 +292,7 @@ select.cfg-input {
   font-weight: 500;
   color: rgba(55, 53, 47, 0.55);
   background: rgba(55, 53, 47, 0.06);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 6px;
   text-transform: lowercase;
   letter-spacing: 0.02em;
@@ -304,7 +304,7 @@ select.cfg-input {
 .cfg-health {
   font-size: 10px;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 1px 6px;
   letter-spacing: 0.02em;
   flex-shrink: 0;
@@ -381,7 +381,7 @@ select.cfg-input {
   padding: 0;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: rgba(55, 53, 47, 0.4);
   font-size: 10px;
   line-height: 1;
@@ -644,7 +644,7 @@ select.cfg-input {
   color: rgba(180, 130, 0, 0.95);
   background: rgba(255, 196, 0, 0.1);
   border: 1px solid rgba(180, 130, 0, 0.2);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 2px 7px;
   white-space: nowrap;
   flex-shrink: 0;

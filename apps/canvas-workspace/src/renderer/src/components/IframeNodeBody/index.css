@@ -145,7 +145,7 @@
   max-width: 320px;
   padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
   text-align: center;
@@ -221,7 +221,7 @@
   align-self: flex-start;
   height: 24px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   padding: 0 8px;
   background: rgba(35, 131, 226, 0.08);
   color: var(--accent);
@@ -249,7 +249,7 @@
 .iframe-empty-btn {
   height: 26px;
   padding: 0 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
@@ -298,7 +298,7 @@
   height: 26px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 12px;
   font-weight: 500;
   color: var(--text-muted);
@@ -380,7 +380,7 @@
   color: #dc2626;
   padding: 4px 8px;
   background: rgba(220, 38, 38, 0.06);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 /* ── AI button ─────────────────────────────────────────────────────── */
@@ -440,7 +440,7 @@
   position: absolute;
   border: 2px solid #2383e2;
   background: rgba(35, 131, 226, 0.08);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   box-shadow: 0 0 0 99999px rgba(15, 23, 42, 0.04);
   pointer-events: none;
 }
@@ -450,7 +450,7 @@
   width: 22px;
   height: 22px;
   border: 1px solid rgba(255, 255, 255, 0.78);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: #2383e2;
   color: #fff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
@@ -472,7 +472,7 @@
   max-width: calc(100% - 20px);
   padding: 9px;
   border: 1px solid rgba(17, 24, 39, 0.14);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.98);
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.2);
   pointer-events: auto;
@@ -560,7 +560,7 @@
   min-height: 34px;
   padding: 5px 6px 5px 10px;
   border: 1px solid rgba(17, 24, 39, 0.14);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
   color: #111827;

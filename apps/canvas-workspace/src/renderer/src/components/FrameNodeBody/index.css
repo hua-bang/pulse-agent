@@ -31,7 +31,7 @@
 
   background: oklch(0.984 calc(var(--_c) * 0.10) var(--_h) / var(--_a));
   border: 1px solid oklch(0.88 calc(var(--_c) * 0.30) var(--_h));
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   box-shadow: none;
   /* Header pill floats above the body, so we mustn't clip it. */
   overflow: visible;
@@ -124,7 +124,7 @@
 
   background: oklch(0.945 calc(var(--_c) * 0.34) var(--_h));
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: oklch(0.42 calc(var(--_c) * 0.95) var(--_h));
 
   /* Soft tinted shadow — pill reads as floating, not glued to the body. */
@@ -157,7 +157,7 @@
 
 .canvas-node--frame .node-header .node-title:focus {
   background: rgba(255, 255, 255, 0.55);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 /* ---- Children-collapse toggle / count badge ----

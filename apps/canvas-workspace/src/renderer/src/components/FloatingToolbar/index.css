@@ -314,7 +314,7 @@
 
 .plugin-node-icon-media {
   display: block;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   object-fit: contain;
 }
 
@@ -361,7 +361,7 @@
     bottom: calc(100% + 8px);
     padding: 6px 9px;
     border: 1px solid rgba(35, 131, 226, 0.14);
-    border-radius: 8px;
+    border-radius: var(--radius-md);
     background: rgba(255, 255, 255, 0.98);
     color: var(--accent);
     font-size: 11px;

@@ -17,7 +17,7 @@
 .built-in-tools-summary,
 .built-in-tool-card {
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
 }
 
@@ -45,7 +45,7 @@
 
 .built-in-tools-count {
   flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(35, 131, 226, 0.08);
   color: #1f76cc;
   font-size: 12px;
@@ -126,7 +126,7 @@
 
 .built-in-tool-badge {
   flex-shrink: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 9px;
   font-size: 11.5px;
   font-weight: 600;
@@ -163,7 +163,7 @@
 .built-in-tool-meta code {
   background: rgba(55, 53, 47, 0.06);
   padding: 1px 5px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 11px;
   color: #37352f;
 }
@@ -180,7 +180,7 @@
   gap: 9px 10px;
   padding: 10px;
   border: 1px solid rgba(55, 53, 47, 0.07);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: linear-gradient(180deg, rgba(55, 53, 47, 0.025), rgba(55, 53, 47, 0.014));
   transition: border-color 0.12s, background 0.12s;
 }

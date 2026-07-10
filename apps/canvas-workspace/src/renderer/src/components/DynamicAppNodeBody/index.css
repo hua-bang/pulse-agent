@@ -189,7 +189,7 @@
 .dynamic-app-inspector-toast {
   margin-top: 6px;
   padding: 6px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   font-size: 11px;
   background: #ddf4ff;
   color: #0550ae;

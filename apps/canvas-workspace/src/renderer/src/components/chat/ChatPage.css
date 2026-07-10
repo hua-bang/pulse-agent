@@ -103,7 +103,7 @@
   padding: 6px 10px;
   border: none;
   background: transparent;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   font-size: 13px;
   color: #37352f;

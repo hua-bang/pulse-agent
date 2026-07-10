@@ -14,7 +14,7 @@
 
 .updates-section-card {
   border: 1px solid rgba(55, 53, 47, 0.08);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: #fff;
   padding: 18px;
   display: flex;
@@ -47,7 +47,7 @@
   align-items: flex-start;
   gap: 12px;
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(248, 248, 247, 0.72);
   padding: 14px;
 }
@@ -69,7 +69,7 @@
   width: 30px;
   height: 30px;
   flex: 0 0 auto;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: rgba(35, 131, 226, 0.09);
   color: #2383e2;
 }
@@ -109,7 +109,7 @@
 
 .updates-section-version-grid span {
   border: 1px solid rgba(55, 53, 47, 0.08);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.7);
   padding: 2px 8px;
 }

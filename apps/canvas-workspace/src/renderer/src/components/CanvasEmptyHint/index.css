@@ -181,7 +181,7 @@
 
 .canvas-empty-url-input:focus {
   border-color: rgba(35, 131, 226, 0.45);
-  box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);
+  box-shadow: var(--shadow-focus);
 }
 
 .canvas-empty-url-submit,
@@ -226,7 +226,7 @@
   height: 34px;
   padding: 0 12px 0 10px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(0, 0, 0, 0.04);
   color: var(--text-secondary);
   display: inline-flex;
@@ -245,7 +245,7 @@
   min-width: 20px;
   height: 20px;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(0, 0, 0, 0.08);
   display: inline-flex;
