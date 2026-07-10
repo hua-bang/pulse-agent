@@ -1,5 +1,6 @@
 import { useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
+import { Button } from '../ui/Button';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
 import type { LoadState } from './types';
@@ -178,12 +179,12 @@ export const IframeRenderedView = ({
                     It stays on the canvas as a reference.
                   </div>
                   <div className="iframe-load-error-actions">
-                    <button type="button" className="iframe-empty-btn iframe-empty-btn--primary" onClick={handleReload}>
+                    <Button type="button" variant="primary" size="sm" onClick={handleReload}>
                       Reload
-                    </button>
-                    <button type="button" className="iframe-empty-btn" onClick={handleOpenExternal}>
+                    </Button>
+                    <Button type="button" variant="secondary" size="sm" onClick={handleOpenExternal}>
                       Open externally
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>

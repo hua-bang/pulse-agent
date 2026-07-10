@@ -176,6 +176,55 @@ class of swap.
 multi-value shorthand radii remain — 6px and 10px are no longer part of
 C3's normalization scope; they were exact-value swaps, done here.
 
+## Pilot surface slice — IframeNodeBody family — DONE 2026-07-10
+
+The first execution of C3's "migrate `rawButtonTags`/`rawInputTags` by
+SURFACE SLICE, never as one global sweep" bullet — one component family,
+judgment per instance, not a mechanical pass. Slice: the iframe-review
+feature chrome that landed off-ratchet on 2026-07-10 (`IframeReviewLayer.tsx`
+composer, `IframeRenderedView.tsx` toolbar, `index.tsx`, `iframeBar.css` +
+the relevant slice of `index.css`).
+
+Unlike C2/C2b this is not byte-identical — no Electron/screenshot harness
+runs in this container (same constraint C1 worked under), so fit was judged
+by reading each target's positioning/interaction contract and comparing
+`ui/Button`'s/`ui/TextField`'s fixed chrome against it, per the C1 meta-lesson
+("check the contract, not the tag"). Verdicts:
+
+| Instance(s) | Location | Verdict |
+|---|---|---|
+| Reload, Open externally (`.iframe-empty-btn`(`--primary`)) | `IframeRenderedView.tsx` load-error card actions | **Migrated** → `ui/Button` `variant="primary"/"secondary"` `size="sm"`. Both already used `var(--border)`/`var(--surface)`/`var(--text)`/`var(--accent)` — the same tokens `ui/Button`'s literal colors resolve to in this light-only theme — and sit in a free-flowing 320px-wide centered error card with no fixed-height constraint, so `ui/Button`'s 30px floor (was 26px) and bolder weight (650 vs unset/400) are a minor, acceptable typographic normalization, the same class of change C1 accepted for its migrations. |
+| Reload, Regenerate, Inspect, Review-picker, Open-externally (`.iframe-bar-btn` ×5) | `IframeRenderedView.tsx` toolbar (`.iframe-bar`) | **Skipped.** Fixed 22×22px icon buttons inside a fixed `height: 31px` bar (`padding: 4px 6px`). `ui/Button`'s icon-variant floor is 24px (`size="sm"`) — that alone overflows the bar by more than the available padding allows without touching the bar's own metrics, which is out of this migration's scope. This is exactly the toolbar-icon-button risk the brief flagged; default keep. |
+| Address-bar trigger (artifact/AI/HTML modes, `.iframe-bar-url.iframe-bar-url--html`) | `IframeRenderedView.tsx` `IframeAddressButton` | **Skipped.** A compound trigger (badge span + truncated text span, sometimes a spinner) at the toolbar's fixed 22px row height — not a CTA/icon shape `ui/Button` expresses, and it lives in the same height-constrained bar as the icon buttons above. |
+| URL address input (`.iframe-bar-url-input`) | `IframeRenderedView.tsx` `IframeAddressButton`, url mode | **Skipped.** A chromeless `<input>` whose border/background/focus ring all come from its `.iframe-bar-url--editable` parent wrapper at 22px. `ui/TextField` supplies its own control chrome (border, 34px height, padding, `:focus-visible` ring) plus a `<label>` wrapper — adopting it would double the chrome (wrapper's box-shadow/border fighting the parent's) rather than replace it. |
+| Numbered review pins (`.iframe-review-pin`) | `IframeReviewLayer.tsx` | **Skipped.** Not button chrome — a `position: absolute`, DOM-coordinate-anchored circular marker rendered once per comment. `ui/Button`'s fixed square icon variant doesn't express a point-anchored badge; this is a different component shape entirely. |
+| Close, Delete, Cancel, Add, Clear, "Send to Chat" (`.iframe-review-mini-btn`(`--primary`) ×6) | `IframeReviewLayer.tsx` popovers + pending bar | **Skipped.** Two independent misfits: (1) size — `ui/Button`'s text-variant floor is 30px (`size="sm"`) vs. the popover's deliberately compact 24px, a 25% jump inside a `width: min(260px, …)` floating annotation box; (2) color — the review popover already commits to its own bespoke slate palette (`#111827` labels, `rgba(17,24,39,…)` borders) distinct from `ui/Button`'s warm-gray secondary chrome (`#37352f`/`rgba(55,53,47,…)`), so migrating would both inflate the footprint and introduce an in-popover color clash the load-error buttons above don't have. Default keep. |
+| Draft + active-comment textareas (`.iframe-review-textarea` ×2) | `IframeReviewLayer.tsx` | **Skipped.** `ui/TextField`'s multiline control has `min-height: 140px` (`textarea.ui-textfield__control`) vs. the popover's `min-height: 62px` — more than double, inside the same width-capped floating box as the buttons above. `ui/TextField`'s focus ring is also `:focus-visible`-only, which would likely drop the visible ring on the draft box's `autoFocus`-on-open (programmatic focus doesn't reliably trigger `:focus-visible`), a real behavior regression, not just a size one. |
+
+No bespoke CSS was deleted — `.iframe-empty-btn`/`.iframe-empty-btn--primary`
+are still used by `IframeEditor.tsx` (out of this slice's scope, per the
+brief), so the shared rule stays; only the two `IframeRenderedView.tsx`
+call sites changed their markup. No radius/color/shadow literals were
+removed, so only `rawButtonTags` moves this batch.
+
+Counter movement (baseline lowered in the same commit):
+
+| Counter | Before | After |
+|---|---|---|
+| `rawButtonTags` | 398 | 396 |
+
+18/18 governance tests green. A behavior test was added for
+`IframeReviewLayer`'s composer (`IframeReviewLayer.test.tsx`, co-located next
+to the component per this family's existing convention —
+`useIframeNodeState.test.tsx` — following `ChatImageLightbox.test.tsx`'s
+`createRoot`+`act` pattern, no testing-library): draft typing reports through
+`onDraftTextChange`, Cmd+Enter saves and Escape cancels, the Add button's
+disabled state gates on draft text, pin-click opens a comment's popover with
+working Close/Delete, and the pending bar's Clear/Send wire to `onClear`/
+`onSubmit`. `IframeRenderedView` (webview/Electron-coupled) and `index.tsx`
+(pure composition, no owned behavior) were not given new tests — nothing
+there is mountable or has logic worth pinning outside Electron.
+
 ## Batch C3 — normalization + the big two (visual gate first)
 
 Prerequisite: `ui/` showcase page + Playwright screenshot baseline

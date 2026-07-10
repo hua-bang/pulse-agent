@@ -44,7 +44,12 @@ const RATCHET_BASELINE: Record<string, number> = {
   // automatically (known root-AGENTS §4 gap; this is its first confirmed
   // bite). Raised to the honest measured value; the new raw buttons are
   // stock for a future burn-down batch, not an allowance.
-  rawButtonTags: 398,
+  // 398→396 (pilot surface slice, IframeNodeBody family): IframeRenderedView's
+  // load-error-actions pair (Reload/Open externally) moved onto ui/Button
+  // (primary/secondary, size sm) — the one clean fit found in this slice's
+  // per-instance review; see ui-reuse-burndown.md's "pilot slice" section for
+  // the fit and the (larger) skip list with verdicts.
+  rawButtonTags: 396,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
