@@ -96,19 +96,14 @@
   display: block;
 }
 
+/* Position/border/background/shadow/z-index come from ui/DropdownShell's
+ * base .ui-dropdown__panel + .ui-dropdown--bottom/--align-start (re-shelled
+ * from a bespoke click-outside/keydown popover, C1); this rule now only
+ * carries the layout specifics DropdownShell doesn't own. */
 .shape-style-popover {
-  position: absolute;
-  top: 32px;
-  left: 0;
   min-width: 240px;
   padding: 10px;
-  display: flex;
-  flex-direction: column;
   gap: 10px;
-  background: var(--surface, #ffffff);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 8px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
 }
 
 .shape-style-row {

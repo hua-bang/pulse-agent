@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import './index.css';
 import { inferPluginIcon, PluginNodeIcon } from './PluginNodeIcon';
 import { ShapeToolButton } from './ShapeToolButton';
 import { TerminalToolSplitButton } from './TerminalToolSplitButton';
 import { AppLogoIcon, CodingAgentIcon } from '../icons';
-import { useClickOutside } from '../../hooks/useClickOutside';
-import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { DropdownShell } from '../ui';
 import { useI18n, type I18nKey } from '../../i18n';
 import type { CreatableCanvasNodeType } from '../../utils/nodeFactory';
 import type { CanvasNode } from '../../types';
@@ -170,9 +169,6 @@ export const FloatingToolbar = ({
   const dockState = useRightDockState();
   const terminalDockOpen = dockState.expanded
     && dockState.terminalTabs.some((tab) => tab.id === dockState.activeTabId);
-  const pluginMenuRef = useRef<HTMLDivElement | null>(null);
-  const pluginPopoverRef = useRef<HTMLDivElement | null>(null);
-  const [pluginMenuOpen, setPluginMenuOpen] = useState(false);
   const [pluginStatus, setPluginStatus] = useState<CanvasPluginsStatus | undefined>();
   const [pluginLoading, setPluginLoading] = useState(false);
 
@@ -218,20 +214,7 @@ export const FloatingToolbar = ({
     };
   }, [loadPluginNodes]);
 
-  const closePluginMenu = useCallback(() => setPluginMenuOpen(false), []);
-  useClickOutside(pluginMenuRef, closePluginMenu, pluginMenuOpen);
-  useMenuKeyboardNav(pluginPopoverRef, closePluginMenu, pluginMenuOpen);
-
-  const togglePluginMenu = useCallback(() => {
-    setPluginMenuOpen((open) => {
-      const next = !open;
-      if (next) void loadPluginNodes();
-      return next;
-    });
-  }, [loadPluginNodes]);
-
   const createPluginNode = useCallback((option: PluginNodeOption) => {
-    setPluginMenuOpen(false);
     onAddNode('plugin', {
       label: option.title,
       nodePatch: option.nodePatch,
@@ -424,32 +407,41 @@ export const FloatingToolbar = ({
           </button>
         )}
         {showPluginTool && (
-          <div className="plugin-tool-menu" ref={pluginMenuRef}>
-            <button
-              className={`toolbar-btn toolbar-btn--create${pluginMenuOpen ? ' toolbar-btn--active' : ''}`}
-              onClick={togglePluginMenu}
-              aria-label={t('canvas.toolbar.addPluginNode')}
-              aria-haspopup="menu"
-              aria-expanded={pluginMenuOpen}
-              data-tooltip={t('canvas.toolbar.plugin')}
-            >
-              <PluginNodeIcon icon="plugin" />
-              <span className="toolbar-btn-label">{t('canvas.toolbar.plugin')}</span>
-            </button>
-            {pluginMenuOpen && (
-              <div
-                ref={pluginPopoverRef}
-                className="plugin-tool-popover"
-                role="menu"
-                aria-label={t('canvas.toolbar.plugin')}
+          <DropdownShell
+            className="plugin-tool-menu"
+            panelClassName="plugin-tool-popover"
+            placement="top"
+            align="end"
+            role="menu"
+            onOpenChange={(open) => {
+              if (open) void loadPluginNodes();
+            }}
+            trigger={({ open, toggle }) => (
+              <button
+                className={`toolbar-btn toolbar-btn--create${open ? ' toolbar-btn--active' : ''}`}
+                onClick={toggle}
+                aria-label={t('canvas.toolbar.addPluginNode')}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                data-tooltip={t('canvas.toolbar.plugin')}
               >
+                <PluginNodeIcon icon="plugin" />
+                <span className="toolbar-btn-label">{t('canvas.toolbar.plugin')}</span>
+              </button>
+            )}
+          >
+            {({ close }) => (
+              <>
                 {pluginOptions.map((option) => (
                   <button
                     key={option.key}
                     type="button"
                     className="plugin-tool-option"
                     role="menuitem"
-                    onClick={() => createPluginNode(option)}
+                    onClick={() => {
+                      close();
+                      createPluginNode(option);
+                    }}
                   >
                     <span className="plugin-tool-option__icon">
                       <PluginNodeIcon icon={option.icon ?? inferPluginIcon(option.nodeType)} />
@@ -462,9 +454,9 @@ export const FloatingToolbar = ({
                 {pluginLoading && (
                   <div className="plugin-tool-empty">{t('canvas.toolbar.pluginLoading')}</div>
                 )}
-              </div>
+              </>
             )}
-          </div>
+          </DropdownShell>
         )}
       </div>
     </div>

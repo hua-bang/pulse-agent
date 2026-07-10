@@ -248,24 +248,19 @@
 /* ---- Plugin node menu ---- */
 
 .plugin-tool-menu {
-  position: relative;
   display: inline-flex;
   align-items: center;
 }
 
+/* Position/border/shadow/z-index come from ui/DropdownShell's base
+ * .ui-dropdown__panel + .ui-dropdown--top/--align-end (re-shelled from a
+ * bespoke click-outside/keydown popover, C1); this rule now only carries
+ * the layout specifics DropdownShell doesn't own. */
 .plugin-tool-popover {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 8px);
   width: min(260px, calc(100vw - 32px));
   max-height: 340px;
   overflow: auto;
   padding: 5px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-float);
-  z-index: var(--layer-canvas-chrome-raised);
 }
 
 .plugin-tool-option {

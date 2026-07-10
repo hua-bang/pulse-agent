@@ -172,7 +172,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // before this batch ran — those 5 are real, still-uncounted drift, not a
   // false positive this batch's rule is meant to catch, so the true honest
   // floor is 170, not 165.
-  shadowLiterals: 170,
+  // 170→169 (C1, incidental): FloatingToolbar's plugin-menu popover and
+  // ShapeNodeBody's style-picker popover dropped their bespoke
+  // border/shadow/radius chrome when re-shelled onto ui/DropdownShell (both
+  // now get it from `.ui-dropdown__panel`'s `var(--shadow-float)`); only
+  // ShapeNodeBody's `box-shadow: 0 6px 24px rgba(...)` was a counted
+  // literal (FloatingToolbar's was already a `var(--shadow-float)` token).
+  shadowLiterals: 169,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
@@ -209,7 +215,19 @@ const RATCHET_BASELINE: Record<string, number> = {
   // single internal `close` can't express), FloatingToolbar/index.tsx's
   // plugin menu (not evaluated this pass). NodeTagEditor is naturally
   // excluded — it uses useEscapeClose, not useMenuKeyboardNav.
-  bespokeDropdownShells: 4,
+  // 4→2 (C1): the two "not evaluated"/"assumed misfit" cases both turned out
+  // to fit cleanly once actually attempted — DropdownShell's `open`/`toggle`
+  // render-prop and multi-row `children` don't require a flat pick-and-close
+  // menu, so ShapeNodeBody's 3-row style picker (fill/stroke/width) migrated
+  // intact, and FloatingToolbar's plugin menu (which already used a single
+  // `close` callback for both click-outside and keyboard-nav, unlike
+  // ChatAnchors/GraphPage) migrated too. chat/ChatAnchors + GraphPage's
+  // overflow menu remain: independently re-verified — both truly do
+  // distinguish click-outside-close (no focus restore) from
+  // keyboard-nav-close (restores focus to the trigger), which
+  // DropdownShell's single internal `close` genuinely cannot express. Floor
+  // is now these 2.
+  bespokeDropdownShells: 2,
   // role="tablist"/role="radiogroup" outside ui/ — the shape
   // ui/SegmentedControl absorbs. AgentTeamFrame's 4 (all migrated) are gone;
   // 5 remain as frozen stock: AgentNodeBody/AgentPicker's tablist,
