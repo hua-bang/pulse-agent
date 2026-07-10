@@ -172,7 +172,7 @@
   height: 36px;
   padding: 0 11px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.92);
   color: var(--text);
   font-size: 13px;
@@ -188,7 +188,7 @@
 .canvas-empty-url-cancel {
   height: 36px;
   padding: 0 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;

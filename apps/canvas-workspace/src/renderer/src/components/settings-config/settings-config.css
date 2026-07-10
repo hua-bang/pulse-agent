@@ -218,7 +218,7 @@ select.cfg-input {
 
 .cfg-empty {
   border: 1px dashed rgba(55, 53, 47, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 18px;
   text-align: center;
   font-size: 12px;
@@ -415,7 +415,7 @@ select.cfg-input {
   align-items: center;
   gap: 10px;
   padding: 3px 6px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-width: 0;
 }
 

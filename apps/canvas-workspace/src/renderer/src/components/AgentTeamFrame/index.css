@@ -30,7 +30,7 @@
 .agent-team-frame button {
   height: 30px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   cursor: pointer;
@@ -53,7 +53,7 @@
 .agent-team-frame textarea {
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   padding: 5px 8px;
@@ -355,7 +355,7 @@
   min-height: 38px;
   max-height: 72px;
   resize: none;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   border-color: rgba(122, 167, 232, 0.4);
   padding: 9px 11px;
   font-size: 12.5px;
@@ -466,7 +466,7 @@
 .agent-team-frame--briefing .agent-team-command--lead button {
   height: 38px;
   min-width: 140px;
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.02em;
@@ -1045,7 +1045,7 @@
   min-height: 96px;
   padding: 12px;
   border-color: rgba(92, 128, 183, 0.18);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.94)),
     rgba(255, 255, 255, 0.9);
@@ -1221,7 +1221,7 @@
   margin-left: auto;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-secondary);
   font-size: 13px;
@@ -1455,7 +1455,7 @@
   min-height: 104px;
   padding: 10px;
   border: 1px solid rgba(92, 128, 183, 0.16);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.9);
   color: var(--text);
   text-align: left;
@@ -2230,7 +2230,7 @@
 .agent-team-frame__error {
   padding: 5px 8px;
   border: 1px solid #edb8b2;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: #a2372a;
   background: #fdebea;
   white-space: nowrap;

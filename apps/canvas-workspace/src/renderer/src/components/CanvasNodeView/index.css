@@ -332,7 +332,7 @@
 .canvas-node--reference.canvas-node--selected .canvas-node--readonly,
 .canvas-node--reference.canvas-node--selected .canvas-node--embedded {
   box-shadow: 0 0 0 2px var(--accent-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
 }
 
 .node-body--reference {

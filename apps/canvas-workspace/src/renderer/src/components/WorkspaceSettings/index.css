@@ -145,7 +145,7 @@
 
 .workspace-settings-empty {
   border: 1px dashed rgba(55, 53, 47, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 12px;
   color: rgba(55, 53, 47, 0.48);
   font-size: 12px;

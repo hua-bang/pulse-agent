@@ -359,7 +359,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: #aaa6a0;
   font-size: 14px;
   line-height: 1;

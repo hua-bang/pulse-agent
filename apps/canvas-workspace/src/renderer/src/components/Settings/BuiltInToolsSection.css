@@ -58,7 +58,7 @@
   color: #b3261e;
   font-size: 12px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .built-in-tools-loading {
@@ -203,7 +203,7 @@
 .built-in-tool-field input {
   width: 100%;
   border: 1px solid rgba(55, 53, 47, 0.14);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.92);
   min-height: 34px;
   padding: 7px 10px;
@@ -240,7 +240,7 @@
 .built-in-tool-secondary-btn {
   font-size: 12.5px;
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-height: 32px;
   padding: 7px 13px;
   cursor: pointer;

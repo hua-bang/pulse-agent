@@ -136,7 +136,7 @@
   padding: 3px 4px;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(55, 53, 47, 0.1);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   opacity: 0;
@@ -328,7 +328,7 @@
 .chat-artifact-card {
   margin-top: 10px;
   border: 1px solid rgba(55, 53, 47, 0.14);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: #fff;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
@@ -370,7 +370,7 @@
 .chat-artifact-card__icon {
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: #f1efe8;
   display: flex;
   align-items: center;

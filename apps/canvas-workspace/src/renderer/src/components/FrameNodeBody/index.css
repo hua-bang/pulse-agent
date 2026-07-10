@@ -310,7 +310,7 @@
 .canvas-node--frame .node-header .node-header__actions .node-close {
   width: 24px;
   height: 24px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: oklch(0.48 calc(var(--_c) * 0.72) var(--_h));
 }
 

@@ -85,7 +85,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // for every existing caller. Multi-value shorthands, corner-property
   // variants, and 6px/7px/10px/5px/3px/50% all stay literal (untouched;
   // normalization is C3).
-  borderRadiusLiterals: 223,
+  // 223→124 (C2b): 6px/10px turned out to be exact-value swaps onto the
+  // PRE-EXISTING --radius-sm/--radius-lg (see C2's collision note) — not C3
+  // normalization judgments after all. 99 whole single-value lines (62×6px,
+  // 37×10px) swapped across 26 files; multi-value shorthands and
+  // corner-property variants (border-*-radius) stay literal — those remain
+  // C3's job. Remaining stock: 7px/5px/3px/0/multi-value.
+  borderRadiusLiterals: 124,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,

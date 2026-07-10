@@ -13,7 +13,7 @@
 
 .agent-section-card {
   border: 1px solid rgba(55, 53, 47, 0.09);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 16px 18px;
   background: #fff;
   display: flex;
@@ -60,7 +60,7 @@
   color: #fff;
   font-size: 12.5px;
   font-weight: 600;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 7px 14px;
   cursor: pointer;
   white-space: nowrap;
@@ -81,7 +81,7 @@
   color: #37352f;
   font-size: 12.5px;
   font-weight: 500;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 14px;
   cursor: pointer;
 }
@@ -95,7 +95,7 @@
   color: #b3261e;
   font-size: 12px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .agent-section-warning {
@@ -193,7 +193,7 @@
   color: #e6edf3;
   font-size: 11.5px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   word-break: break-all;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -212,7 +212,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: rgba(55, 53, 47, 0.03);
 }
 

@@ -285,7 +285,7 @@
   justify-content: center;
   border: none;
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
   transition: background 0.1s, color 0.1s;

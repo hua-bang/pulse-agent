@@ -129,13 +129,61 @@ Counter movement (baselines lowered in the same commit,
 table and UI-reuse section were updated with the four new tokens and the
 exact-value-only rule.
 
+## Batch C2b — exact-value radius extension — DONE 2026-07-10
+
+C2's own collision note (above) already established that `--radius-sm`
+(6px) and `--radius-lg` (10px) pre-existed `styles.css` and are load-bearing
+for `ui/`. What C2 didn't draw out: that pre-existence makes `border-radius:
+6px;` and `border-radius: 10px;` literals exact-value swaps onto those two
+tokens too — pixel-identical by construction, the same safety argument as
+C2's four minted tokens, not a normalization judgment. The plan's C3 bullet
+had deferred all of 6px/7px/10px/5px/3px as one undifferentiated
+"normalization" bucket on a stale assumption (a 4/8/12 scale where 6px/10px
+had no exact home); that assumption was wrong for 6px/10px specifically.
+
+Mint nothing — both tokens already exist in `styles.css` (`--radius-sm: 6px`
+at line 60, `--radius-lg: 10px` at line 59); this batch only swaps call
+sites. Every WHOLE single-value `border-radius: 6px;` line became
+`border-radius: var(--radius-sm);`, and every WHOLE single-value
+`border-radius: 10px;` line became `border-radius: var(--radius-lg);`,
+within the counter's scanned tree (`src/renderer/src` only — `src/plugins`
+is out of scope, matching C2's precedent). Multi-value shorthands and
+corner-property variants (`border-*-radius`) were left untouched — the
+counter's regex never counted them as `border-radius:` matches to begin
+with, so they weren't part of this batch's swap set.
+
+| Value | Token | Lines swapped | Files touched |
+|---|---|---|---|
+| `6px` | `var(--radius-sm)` | 62 | — |
+| `10px` | `var(--radius-lg)` | 37 | — |
+
+99 lines across 26 CSS files, verified via `git diff --stat` (99
+insertions/99 deletions, line-for-line).
+
+Counter movement (baseline lowered in the same commit,
+`src/main/__tests__/ui-reuse-governance.test.ts`):
+
+| Counter | Before | After |
+|---|---|---|
+| `borderRadiusLiterals` | 223 | 124 |
+
+18/18 governance tests green with the new baseline. `frontend.md` needed no
+change — its token table already lists `--radius-sm`/`--radius-lg` at
+6px/10px and the exact-value-tokenization note already covers this batch's
+class of swap.
+
+**C3's remaining-normalization list, corrected:** 7px / 5px / 3px / 0 /
+multi-value shorthand radii remain — 6px and 10px are no longer part of
+C3's normalization scope; they were exact-value swaps, done here.
+
 ## Batch C3 — normalization + the big two (visual gate first)
 
 Prerequisite: `ui/` showcase page + Playwright screenshot baseline
 (chromium works in-container for pure ui/ pieces; full-app panel baselines
 need local Electron). Then, in this order of tractability:
 
-- Radius/shadow NORMALIZATION (the 6px/7px/10px judgment calls), screenshot-
+- Radius/shadow NORMALIZATION (the 7px/5px/3px/0/multi-value judgment
+  calls — 6px/10px turned out to be exact-value swaps, done in C2b), screenshot-
   diffed per surface.
 - `rawButtonTags` (390) / `rawInputTags` (54): migrate by SURFACE SLICE
   (one panel or component family per batch), never as one global sweep —
