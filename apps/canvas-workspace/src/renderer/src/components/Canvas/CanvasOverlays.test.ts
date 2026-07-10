@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   shouldRenderEdgeLabels,
   shouldRenderEdgeStylePanel,
 } from './CanvasOverlays';
+
+const canvasCss = readFileSync(new URL('./index.css', import.meta.url), 'utf8');
 
 describe('CanvasOverlays movement gating', () => {
   it('parks edge labels during pan and zoom gestures', () => {
@@ -20,5 +23,9 @@ describe('CanvasOverlays movement gating', () => {
   it('parks the edge style panel during movement', () => {
     expect(shouldRenderEdgeStylePanel(true)).toBe(false);
     expect(shouldRenderEdgeStylePanel(false)).toBe(true);
+  });
+
+  it('keeps the bottom floating toolbar visible during movement', () => {
+    expect(canvasCss).not.toContain('.canvas-container[data-moving="on"] .floating-toolbar');
   });
 });
