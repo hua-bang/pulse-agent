@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ElementType, ReactNode } from 'react';
 import './index.css';
 
 interface Props {
@@ -8,6 +8,11 @@ interface Props {
   icon?: ReactNode;
   /** Primary heading. */
   title: ReactNode;
+  /** Element rendered for the title. Defaults to 'div' (level-agnostic);
+   *  pass 'h3'/'h2' when the surface's document outline should keep a real
+   *  heading (review finding: the ReferenceEmptyState migration silently
+   *  demoted an existing <h3> — screen-reader heading navigation lost it). */
+  titleAs?: ElementType;
   /** Supporting copy under the title. Omit when there's nothing more to
    *  say (see ChatEmptyState's SKIP verdict in docs/ui-reuse-burndown.md —
    *  it has no description at all, among other misfits). */
@@ -51,12 +56,12 @@ interface Props {
  * everything below is a bespoke action-grid/form, and it wasn't one of the
  * two evidence sites named for this batch).
  */
-export const EmptyState = ({ icon, title, description, action, className }: Props) => {
+export const EmptyState = ({ icon, title, titleAs: TitleAs = 'div', description, action, className }: Props) => {
   const classes = ['ui-emptystate', className].filter(Boolean).join(' ');
   return (
     <div className={classes}>
       {icon != null && <div className="ui-emptystate__icon">{icon}</div>}
-      <div className="ui-emptystate__title">{title}</div>
+      <TitleAs className="ui-emptystate__title">{title}</TitleAs>
       {description != null && <div className="ui-emptystate__desc">{description}</div>}
       {action != null && <div className="ui-emptystate__action">{action}</div>}
     </div>

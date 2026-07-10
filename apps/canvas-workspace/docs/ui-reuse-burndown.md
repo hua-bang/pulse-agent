@@ -318,7 +318,9 @@ inside a menu ancestor, or `aria-pressed` for a toolbar ancestor via
 `ariaLabel?`, `ariaPattern?`.
 
 **Interaction-contract check (the C1 meta-lesson) — per-swatch mousedown
-handling turned out to be dead code at 3 of 4 sites.** TextColorPicker's
+handling turned out to be dead code at the 2 sites that had it (the other
+2 never did — review corrected an earlier "3 of 4" miscount here).**
+TextColorPicker's
 swatches called `e.preventDefault()` on mousedown, but `DropdownShell`'s
 `onPanelMouseDown={(e) => e.preventDefault()}` (set on that same
 DropdownShell instance) already covers the WHOLE panel surface — redundant.
@@ -452,6 +454,20 @@ addition, not specific to this batch — recorded in the showcase's own
 `README.md`/inline comments (the `pinScrollForModalTrio` helper and the
 spacer) rather than only here, since the next piece added to this page will
 hit it again if it doesn't know to look.
+
+**Independent-review fixes (Opus, 2026-07-10)**: (1) the
+`data-menu-autofocus` marker had been INERT since introduction —
+`useMenuKeyboardNav`'s single comma-selector returned the first DOM-order
+button, never prioritizing the marked one, silently defeating
+selected-item-focus in ui/Select, EdgeStylePanel, and the SwatchRow hosts;
+fixed with a two-step lookup + a Select test whose selected option is LAST
+(a first-option test cannot distinguish the behaviors). Menus that mark a
+selected item now genuinely open with focus on it. (2) EmptyState gained
+`titleAs` (default `div`); ReferenceEmptyState restores its pre-migration
+`<h3>` so the drawer's document outline keeps its heading (LayersPanel's
+old `<strong>` was presentational emphasis, already carried by the title's
+font-weight — stays on the default). (3) the mousedown "3 of 4" miscount
+above was corrected to 2-of-4.
 
 ## Batch C3 — normalization + the big two (visual gate first)
 

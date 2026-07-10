@@ -23,6 +23,7 @@ export const ReferenceEmptyState = ({ selectedNode }: { selectedNode?: CanvasNod
         </div>
       }
       title={t('reference.noPinnedTitle')}
+      titleAs="h3"
       description={t('reference.noPinnedDescription')}
       action={
         selectedNode ? (

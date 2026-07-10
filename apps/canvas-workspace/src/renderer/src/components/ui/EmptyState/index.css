@@ -22,6 +22,9 @@
 }
 
 .ui-emptystate__title {
+  /* margin reset so titleAs="h3" (heading semantics restored per review)
+   * renders identically to the default div. */
+  margin: 0;
   font-size: 14px;
   font-weight: 650;
   color: var(--text);
