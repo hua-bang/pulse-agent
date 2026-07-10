@@ -89,20 +89,32 @@ counter may shrink but never grow):
   TextField remains the blessed piece for TEXT controls), `SegmentedControl`
   (the one "pick one of N" control — `ariaPattern="radio"` or `"tab"`),
   `useDragResize`, `ui/hooks/useIndexNav` (+ its pure `clampIndexMove`
-  helper for externally-driven index state) — plus `AppShellProvider.notify`
+  helper for externally-driven index state), `SwatchRow` (the one row of
+  pick-a-color swatches — `ariaPattern="menuitemradio"` default for rows
+  inside a `role="menu"` panel, `"toggle"` for a toolbar-shaped ancestor;
+  an option's `isNone: true` renders the diagonal "no color" slash instead
+  of a fill), `EmptyState` (the minimal icon+title+description+action
+  empty-state shell — icon/action are optional `ReactNode` slots; business
+  copy, illustrations, and per-surface border/background/alignment stay
+  with the caller via `className`) — plus `AppShellProvider.notify`
   for toasts and the canonical hooks `useEscapeClose` / `useMenuKeyboardNav`
   / `useClickOutside`. Do NOT hand-roll a new overlay ESC listener, backdrop,
   portal call site, point-anchored popover shell, trigger-anchored dropdown
   (local `open` state + click-outside + arrow-nav wired by hand), dropdown
   popover, labelled form field, section title/description CSS cluster
   (`*-section-title`/`*-section-desc`/`*-field`), segmented/tab-strip
-  control, ArrowUp/Down index-clamp logic, spinner keyframe, or raw CTA
-  `<button>` style pair (including icon-only button chrome:
+  control, ArrowUp/Down index-clamp logic, spinner keyframe, row of
+  pick-a-color swatch buttons, or raw CTA `<button>` style pair (including
+  icon-only button chrome:
   `border:none;background:transparent;border-radius;cursor:pointer` at a
   fixed size) — the ratchet will fail your PR. The blessed spinner element
   is `icons/SpinnerIcon` (drive its rotation with a `spin`-named keyframe
   class, e.g. `chat-spin`); render it instead of inlining a fresh spinner
-  `<svg>`.
+  `<svg>`. An icon+title+description block that is NOT a row of solid-fill
+  swatches and NOT dominated by a bespoke action list/form (see
+  `ChatEmptyState`'s and `CanvasEmptyHint`'s SKIP verdicts in
+  `docs/ui-reuse-burndown.md`) should reach for `EmptyState` rather than a
+  hand-rolled `strong`/`span` or `h*`/`p` pair.
 - **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-xs|--radius-sm|--radius|--radius-md|--radius-lg|--radius-xl|--radius-pill)`
   for radii, palette tokens for colors, `var(--shadow-*)` for shadows — all
   three are ratchet-gated (`borderRadiusLiterals`, `hardcodedColorLiterals`,

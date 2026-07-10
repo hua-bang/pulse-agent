@@ -298,6 +298,161 @@ caller's own external keyboard ownership. Check the primitive's FULL
 behavior surface against the caller's FULL keyboard contract, not just the
 named symptom, before promising an unlock.
 
+## Blessed-set expansion — SwatchRow + EmptyState — DONE 2026-07-10
+
+Not a stock-burndown batch — an EXPANSION of the blessed set itself
+(`harness/skills/extend-blessed-ui/SKILL.md`'s procedure, run twice), adding
+two new `components/ui/` pieces and migrating their exemplar call sites.
+
+### ui/SwatchRow
+
+Evidence read in full before designing: `TextNodeBody/TextColorPicker.tsx`
+(+ `TextSelectionBubble.tsx`), `FrameNodeBody/FrameHeaderControls.tsx`,
+`ShapeNodeBody/index.tsx` (fill + stroke rows), `EdgeStylePanel/index.tsx`
+(color row). The real common shape: a `role="group"` row of small circular
+swatch buttons, one active at a time (`role="menuitemradio"`/`aria-checked`
+inside a menu ancestor, or `aria-pressed` for a toolbar ancestor via
+`ariaPattern="toggle"`), an optional `isNone` slot rendered as a diagonal
+"no color" slash, click picks and always `stopPropagation()`s. API:
+`options: {value, label, isNone?}[]`, `value`, `onChange(value)`,
+`ariaLabel?`, `ariaPattern?`.
+
+**Interaction-contract check (the C1 meta-lesson) — per-swatch mousedown
+handling turned out to be dead code at 3 of 4 sites.** TextColorPicker's
+swatches called `e.preventDefault()` on mousedown, but `DropdownShell`'s
+`onPanelMouseDown={(e) => e.preventDefault()}` (set on that same
+DropdownShell instance) already covers the WHOLE panel surface — redundant.
+FrameHeaderControls' swatches called `e.stopPropagation()` on mousedown, but
+`DropdownShell`'s panel unconditionally `stopPropagation()`s every mousedown
+over its own surface regardless of `onPanelMouseDown` — also redundant.
+ShapeNodeBody and EdgeStylePanel never had per-swatch mousedown handling to
+begin with (an ancestor wrapper already covered it). Net: `SwatchRow` needs
+NO mousedown handling of its own; every migrated site's existing ancestor
+already owns it. `onClick` DOES need `stopPropagation()` internally, however
+— unlike mousedown, two of the four sites relied on it specifically to keep
+a color pick from reaching a canvas node's own click-to-select handler, and
+no ancestor already covers `click` the way `DropdownShell`'s panel covers
+`mousedown`.
+
+| Site | Verdict |
+|---|---|
+| `TextNodeBody/TextColorPicker.tsx` (text + bg color rows) | **Migrated.** Both `TextColorTrigger` instances' preset `.map()` now render `SwatchRow`; the bg row's "None" preset becomes `isNone`. |
+| `FrameNodeBody/FrameHeaderControls.tsx` (`FrameColorPicker`) | **Migrated.** No `isNone` preset in this row. |
+| `ShapeNodeBody/index.tsx` (`ShapeStylePicker`'s fill + stroke rows) | **Migrated**, fill + stroke rows only. The THIRD row (`STROKE_WIDTHS`) is a bar-chart-shaped width picker, not color swatches — correctly out of `SwatchRow`'s scope, left bespoke. Pre-migration these swatches were SQUARE (`--radius-xs`); `SwatchRow`'s one canonical shape is circular (matching the other three sites) — a deliberate visual unification, same class of minor normalization Batch C1 accepted for cross-site Button height differences. |
+| `EdgeStylePanel/index.tsx` (color row only) | **Migrated**, color row only. The width/style/head/tail rows are SVG line/dash/cap PREVIEWS, not color fills — a different component shape, correctly left bespoke. EdgeStylePanel keeps its own hand-rolled chip+popover shell (`useMenuKeyboardNav` called directly, not via `DropdownShell`) — `SwatchRow` only replaced the row of buttons inside it, proving the piece works standalone, not just inside `DropdownShell`. |
+| `chat/TextNodeBody/TextSelectionBubble.tsx` | **SKIPPED.** Two independent misfits found on close reading: (1) its "text color" row isn't solid-fill swatches at all — each button shows a colored letter glyph (`style={{color: preset.value}}` on the text, neutral `rgba(0,0,0,0.04)` background), a fundamentally different visual shape `SwatchRow` doesn't express; (2) its "highlight" row IS solid-fill swatches, but shares its wrapper markup/CSS classes and a trailing non-preset "clear" action button with the (non-fitting) text-color row — carving out only the highlight half would fragment one visually-matched toolbar into a migrated half and a bespoke half, a worse outcome than leaving both bespoke. No counter movement from this site. |
+
+Counter movement (baselines lowered in the same commit, with provenance
+comments in `src/main/__tests__/ui-reuse-governance.test.ts`):
+
+| Counter | Before | After | Why |
+|---|---|---|---|
+| `rawButtonTags` | 396 | 392 | 5 per-site preset `<button>` declarations (Text, Frame, Shape×2, Edge) collapsed onto SwatchRow's one; +1 for SwatchRow itself. |
+| `borderRadiusLiterals` | 124 | 122 | 3 `border-radius: 50%;` swatch declarations (Text, Frame, Edge) collapsed onto SwatchRow's one; +1 for SwatchRow itself. (Shape's swatch was already `var(--radius-xs)`, no change either way.) |
+| `hardcodedColorLiterals` | 1959 | 1952 | 11 rgba()/hex literals across the four sites' swatch CSS (mostly `rgba(0,0,0,alpha)` borders/rings) tokenized onto `var(--border)`/`var(--text-muted)`/the existing `var(--surface)`+`var(--accent)` active ring; SwatchRow's own CSS adds only its 3-line `--none` diagonal-slash rule (no existing token for that red — same "content palette, not chrome" class the ratchet's own top comment already carves out). |
+| `shadowLiterals` | 160 | 157 | 4 counted `box-shadow` lines (Text/Frame's literal active rings, EdgeStylePanel's base ring + its ALREADY-token-only active ring — still counted because the exemption requires the substring `var(--shadow` specifically) collapse onto SwatchRow's one reused declaration. |
+
+No new counter minted for "bespoke swatch row" shape. Unlike
+`bespokeDropdownShells` (a precise function-call signature —
+`useClickOutside(` + `useMenuKeyboardNav(` without `createPortal(`), a
+swatch row's signature would be something like ".map() rendering a
+`<button>` with a `background`/`backgroundColor` style" — indistinguishable
+by regex from many unrelated buttons (tinted icon buttons, status badges,
+…). Per the skill's guidance, noted here rather than adding a flaky counter.
+
+### ui/EmptyState
+
+Evidence read: `chat/ChatEmptyState.tsx`, `ReferenceDrawer/ReferenceEmptyState.tsx`
+(the two named sites), plus a grep for other inline empty-state layouts
+across `components/**/*.css` (`grep -rn "\-empty\b\|Empty"`). That grep
+surfaced several MORE candidates: `Sidebar/LayersPanel.tsx`'s
+`sidebar-layers-empty` (title+description, no icon), `WorkspaceNodes`'
+`NodesPage.tsx`/`GraphPage.tsx` (`h2`+`p`, no icon, ALREADY sharing one CSS
+selector — real, demonstrated 2-site duplication), `CanvasEmptyHint/index.tsx`
+(icon+title+description PREAMBLE, then a much larger bespoke action-grid +
+URL form + shortcuts button), and several single-line "no results" messages
+(`chat/ModelSwitcher.tsx`, `NodeMentionPicker`, `CommandPalette`) with no
+icon/title/description structure at all — too thin to be this shell's
+concern.
+
+API: `icon?`, `title`, `description?`, `action?` (all `ReactNode` except
+`className`), rendered as a bare `display:flex; flex-direction:column`
+column with NO forced `align-items`/`text-align` — flex `stretch` makes
+every child a full-width block, so a caller's own `text-align:center`
+(ReferenceEmptyState) or the browser default `left` (LayersPanel, which
+sets neither) both fall out of ONE shared layout for free, with zero
+override CSS needed for either. Title/description typography is fixed
+(14px/650/`--text`, 12px/1.6/`--text-secondary` — ReferenceEmptyState's
+exact pre-migration values); icon/action styling and business copy stay
+with callers.
+
+| Site | Verdict |
+|---|---|
+| `ReferenceDrawer/ReferenceEmptyState.tsx` | **Migrated.** icon (its own `.reference-empty-icon` tile, passed as the `icon` prop, untouched) + title + description + action (the conditional `.reference-selected-hint` block). `.reference-empty h3`/`p` typography rules deleted (now `ui/EmptyState`'s own, byte-identical values); the icon's own `margin-bottom: 14px` and the hint's own `margin-top: 16px` both normalize onto `EmptyState`'s uniform `gap: 8px` (a minor, documented spacing normalization — no screenshot harness reaches full-app panels in this container, so this follows the same "read the contract, accept minor normalization" precedent Batch C1 used for Button height differences). |
+| `Sidebar/LayersPanel.tsx` (`sidebar-layers-empty`) | **Migrated.** Title + description only, no icon, no action. Its decorative dashed-border box (`margin`/`padding`/`border`/`border-radius`) stays as its own class, layered on top of `ui/EmptyState` via a compound selector (`.ui-emptystate.sidebar-layers-empty`, same override pattern as `.ui-dropdown__panel.text-color-popover`) so it wins regardless of CSS import order. Pre-migration typography (`strong` 12px/`--text-secondary`, `span` 11px/`--text-muted`) normalizes up ~1-2px and a shade darker onto `EmptyState`'s fixed values — the same class of minor, documented normalization as the icon/action spacing above. |
+| `chat/ChatEmptyState.tsx` | **SKIPPED.** Two real misfits, not a forced-in judgment call: (1) no description at all — just an icon and a one-line greeting, then the empty state's actual CONTENT is a repeating quick-actions list plus a conditional configure-banner, not a small trailing "action" appendage; (2) its layout is bottom-anchored and left-aligned (`justify-content: flex-end; align-items: flex-start` on the pre-existing wrapper) — inverted from every other candidate's centered-column shape. Squeezing the quick-actions list into `action` would pass ~90% of the component's real content through one opaque slot, reducing no real duplication. |
+| `CanvasEmptyHint/index.tsx` | **SKIPPED.** Only its preamble (icon 56px tile + title + description inside a bordered/shadowed card) matches; everything below — a primary-actions grid, two more action-grid sections, a URL composer form, a shortcuts button — is bespoke onboarding UI with no equivalent in `EmptyState`'s minimal contract. Also not one of the two originally-named evidence sites for this batch; a future batch could still carve out just its preamble if that specific duplication becomes worth it on its own evidence. |
+| `WorkspaceNodes/NodesPage.tsx` + `GraphPage.tsx` (`h2`+`p`, sharing one CSS selector) | **SKIPPED, scale mismatch.** A real, demonstrated 2-site duplication, but a page-level empty state, not a compact-panel one: pre-migration the `h2`/`p` used NO explicit font-size at all (pure browser UA default, ≈21px bold / 14px normal against this app's 14px body base) — a full head-and-a-half larger than `ReferenceEmptyState`'s pre-migration 14px/12px. `EmptyState`'s sibling pieces (`SectionHeader`, `FieldRow`) each ship exactly ONE fixed typography scale, no size variant — matching that house convention here would force a page-level heading down to drawer-hint size, the same "visual downgrade" reasoning the governance test's own `segmentedRoles` baseline comment already used to keep 3 card-style radiogroups off `SegmentedControl`. Left as frozen stock; revisit only alongside an explicit size variant, not by forcing today's fixed scale. |
+| `chat/ModelSwitcher.tsx`, `NodeMentionPicker`, `CommandPalette` (single-line "no results" messages) | **Not evidence — too thin.** A single `<div>{message}</div>`, no icon/title/description split. Forcing the full shell onto a one-liner would be the abstraction-for-its-own-sake the Occam rule warns against. |
+
+No ratchet counter moved from this piece — the deleted CSS (title/description
+typography, spacing) contained zero radius/color/shadow literals, so
+`hardcodedColorLiterals`/`borderRadiusLiterals`/`shadowLiterals` are
+untouched by this half of the batch (confirmed: governance stayed 18/18
+green with no `EmptyState`-caused baseline change needed).
+
+### Showcase / visual-gate defect found and fixed
+
+Adding two new sections to `harness/tools/ui-showcase/src/Showcase.tsx`
+initially perturbed FIVE pre-existing, untouched baselines
+(TextField/Select/DropdownShell sections showed sub-pixel text
+anti-aliasing diffs; Modal/Drawer/Popover's full-viewport screenshots showed
+visibly different background content). Root-caused, not blessed as
+"expected churn":
+
+1. Inserting the new sections BEFORE existing ones shifted every later
+   section's on-page Y position, which changes the scroll offset Playwright
+   lands on when scrolling a section locator into view for its screenshot —
+   confirmed via diff images (pure text-antialiasing noise). Fix: append
+   new sections LAST, after every pre-existing one, so no existing section's
+   position changes.
+2. Modal/Drawer/Popover assert on a full VIEWPORT screenshot (they portal to
+   `document.body`, so their own section's bounding box doesn't contain
+   them). Their trigger buttons' `.click()`-driven auto-scroll was landing
+   at the page's max-scroll CLAMP (`document.scrollHeight - viewport
+   height`), confirmed by directly probing `window.scrollY` before and
+   after this batch's changes (795px both times, coincidentally, until
+   proven otherwise — see below). Appending ANY content anywhere in the
+   page raises max scroll and un-clamps that landing spot, changing what's
+   visible. Fixed with an explicit, self-computing scroll pin
+   (`pinScrollForModalTrio` in `ui-showcase.visual.ts`) derived from
+   `section-popover`'s OWN geometry plus the showcase root's pre-existing
+   120px trailing padding — a value that depends only on content up to and
+   including Popover, never on what's appended after it.
+3. Even with the pin, Popover's screenshot still showed the new SwatchRow
+   section's heading peeking into the bottom of the viewport: the pinned
+   scroll's viewport window happened to land exactly where the OLD page's
+   blank trailing padding used to be, and the new sections now occupy part
+   of that same window. Fixed with an explicit 200px spacer
+   (`.showcase-modal-trio-spacer`, documented in both `Showcase.tsx` and
+   `showcase.css`) between `PopoverSection` and the new sections — a
+   generous margin above the measured ~92px shortfall.
+
+`full-page.png` legitimately changed (the page is taller — two new sections
+plus the spacer) and is the intended new baseline. Every other pre-existing
+PNG (`button.png`, `section-header.png`, `field-row.png`,
+`segmented-control.png`, `text-field.png`, `select-closed.png`,
+`select-open.png`, `dropdown-shell.png`, `modal-open.png`, `drawer-open.png`,
+`popover-open.png`) is verified byte-identical (`pnpm run visual` green,
+zero diff, before adding the two new PNGs). `swatch-row.png` and
+`empty-state.png` are the only new baseline files.
+
+**Skill write-back**: this is a reusable landmine for any FUTURE showcase
+addition, not specific to this batch — recorded in the showcase's own
+`README.md`/inline comments (the `pinScrollForModalTrio` helper and the
+spacer) rather than only here, since the next piece added to this page will
+hit it again if it doesn't know to look.
+
 ## Batch C3 — normalization + the big two (visual gate first)
 
 **Prerequisite — DONE 2026-07-10**: `ui/` showcase page + Playwright
