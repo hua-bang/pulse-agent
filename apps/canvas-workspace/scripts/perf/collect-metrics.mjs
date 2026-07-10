@@ -9,7 +9,7 @@
 import { execSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { hostname, platform, cpus } from 'node:os';
+import { arch, hostname, platform, cpus } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -111,8 +111,12 @@ export const collectChatStreamMetrics = (scenarios) => {
   const entries = [
     { id: 'chat.stream.frames_over20_pct', value: chatStream.report.frames.over20msPct, runs: 1 },
     { id: 'chat.stream.md_render_count', value: chatStream.markdownRenders, runs: 1 },
-    { id: 'chat.stream.tail_burst_ms', value: chatStream.tailBurstMs, runs: 1 },
   ];
+  const commitCount = chatStream.report.counters?.['chat-stream-commit'];
+  if (Number.isFinite(commitCount)) {
+    entries.push({ id: 'chat.stream.commit_count', value: commitCount, runs: 1 });
+  }
+  entries.push({ id: 'chat.stream.tail_burst_ms', value: chatStream.tailBurstMs, runs: 1 });
   const renderGate = scenarios.gates?.find(
     entry => entry.scenario === 'chat-stream' && entry.counter === 'chat-md-stream-render',
   );
@@ -121,6 +125,17 @@ export const collectChatStreamMetrics = (scenarios) => {
       ...entries[1],
       pass: renderGate.pass,
       limit: renderGate.max,
+    };
+  }
+  const commitGate = scenarios.gates?.find(
+    entry => entry.scenario === 'chat-stream' && entry.counter === 'chat-stream-commit',
+  );
+  const commitEntryIndex = entries.findIndex((entry) => entry.id === 'chat.stream.commit_count');
+  if (commitGate && commitEntryIndex >= 0) {
+    entries[commitEntryIndex] = {
+      ...entries[commitEntryIndex],
+      pass: commitGate.pass,
+      limit: commitGate.max,
     };
   }
   const cacheProbe = chatStream.cacheProbe;
@@ -299,6 +314,13 @@ export const collectWorkspaceCycleMetrics = (scenarios) => {
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
+  const inferredRepeat = scenarios
+    ? Math.max(
+        scenarios.repeat ?? 1,
+        scenarios.scenarios?.startup?.mainPhasesRuns ?? 1,
+        ...Object.values(scenarios.scenarios ?? {}).map((scenario) => scenario?.report?.runs ?? 1),
+      )
+    : undefined;
   const metrics = [];
   const push = (id, value, extra = {}) => {
     if (value === undefined || value === null || Number.isNaN(value)) return;
@@ -320,7 +342,7 @@ export const collectMetrics = () => {
     push('bundle.heavy_in_entry_count', heavyInEntry.length, {
       detail: heavyInEntry.length > 0
         ? `${heavyInEntry.length}/${bundle.probes.length} probes · ${heavyInEntry.map((p) => p.lib).join(' · ')}`
-        : `0/${bundle.probes.length} probes · target 0 · all watched heavy libraries stay lazy`,
+        : `0/${bundle.probes.length} probes · all watched heavy libraries stay lazy`,
     });
     // bundle.lazy_boundary_watchlist: passes iff EVERY watched lib is out of
     // the entry chunk. All six probe libs are lazied as of C2/C3/C7/chain-B
@@ -427,7 +449,16 @@ export const collectMetrics = () => {
     commit,
     timestamp: new Date().toISOString(),
     machineId: createHash('sha256').update(hostname()).digest('hex').slice(0, 8),
-    env: { os: platform(), cores: cpus().length, seedNodes: scenarios?.seedNodes },
+    env: {
+      os: platform(),
+      arch: arch(),
+      cores: cpus().length,
+      seedNodes: scenarios?.seedNodes,
+      seedWebpages: scenarios?.seedWebpages,
+      repeat: inferredRepeat,
+      fixtureVersion: scenarios?.fixtureVersion,
+      headless: scenarios?.session?.headless,
+    },
     metrics,
   };
 };

@@ -15,7 +15,7 @@ pnpm --filter canvas-workspace perf:report
 Runs the whole pipeline — build → bundle gate → launch the app headless →
 runtime scenarios → close → assemble the report — prints the verdict, and
 writes `out/dashboard.html` (open in a browser) + `out/report.json` (verdict +
-alerts + metrics, for agents/CI). Exit 1 if any gate failed or a full report
+target/Gate summaries + alerts + metrics, for agents/CI). Exit 1 if any Gate failed or a full report
 does not cover every **core** metric in `metrics.json` (`--bundle-only` is
 exempt). Optional CDP-trace diagnostics have their own coverage status and do
 not make the core report fail when the browser protocol is unavailable.
@@ -45,7 +45,7 @@ pnpm --filter canvas-workspace perf:bundle
 ```
 
 Measures the built renderer (entry raw/gzip, total JS, heavy-lib probes),
-compares against `baselines.json → bundle`, writes `out/bundle-report.{json,html}`.
+compares against the bundle-scoped policies in `baselines.json`, writes `out/bundle-report.{json,html}`.
 Exit 1 on regression. The static companion gate `src/main/__tests__/bundle-boundaries.test.ts`
 runs with the normal test suite and keeps mermaid dynamic-only.
 
@@ -172,19 +172,24 @@ when driving a manually-started session (see below).
 
 ## Baseline policy
 
-- Counter gates are deterministic (exact event counts) — tolerance lives in the
-  recorded `max`. Today's maxima document the known amplifiers; when a fix
-  lands (e.g. debounced editor sync, ephemeral drag/resize geometry), lower the max in
-  the same PR to lock the win in.
-- Timing metrics (INP p95, frames >20ms, LoAF, startup phases) are median'd
-  across `--repeat` runs (see above) but stay informational until enough
-  same-machine history establishes variance; they are recorded in
-  `out/scenarios-report.json`.
-- Renderer trace metrics are diagnostic coverage, never gates. Promote one to
-  warn only after at least five stable runs with the same Electron/Chromium,
-  viewport, DPR, headless/GPU mode, and machine.
-- Bundle gates fail at `baseline × (1 + tolerancePct/100)`; lower baselines
-  when a splitting fix lands.
+- `baselines.json → policies` is the only numeric SSOT. `target` is the desired
+  product level, `warning` marks a material miss, and `gate` is an independent
+  regression guard. A metric can therefore be “未达标” while its Gate still
+  passes; only Gate failures make the command exit 1.
+- `metrics.json` stores stable semantics (`direction`, `measurementProfile`,
+  runtime counter source), never threshold numbers. Configuration validation
+  fails closed when a `level:gate` metric has no executable policy Gate.
+- Same-machine timing targets apply only when machine id, OS, architecture,
+  node/webpage counts, repeat count, fixture version, and actual headless mode
+  match the named profile. A mismatch renders
+  as “不适用”, not PASS or FAIL. Deterministic counters and build artifacts use
+  the global profile.
+- Counter Gates use `max`/`min`/`true`; bundle Gates use
+  `baseline × (1 + tolerancePct/100)` ratchets. Lower the relevant target or
+  Gate in the same PR when a fix creates durable headroom.
+- Renderer trace targets remain diagnostic and do not gate CI. Promote one to
+  a Gate only after at least five stable runs with the same Electron/Chromium,
+  viewport, DPR, headless/GPU mode, machine, and measurement profile.
 
 Reference numbers (2026-07-04, in-sandbox xvfb, temp profile):
 startup whenReady→domReady 1598→2358 ms; typing@100 nodes INP p95 48 ms with

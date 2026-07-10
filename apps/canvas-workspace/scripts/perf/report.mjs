@@ -207,7 +207,7 @@ const finalReport = runFinalReportStep({
   gatesFailed,
   runDashboard: () => {
     step('生成报告(perf:dashboard)');
-    return node('scripts/perf/dashboard.mjs').status;
+    return node('scripts/perf/dashboard.mjs', bundleOnly ? ['--bundle-only'] : []).status;
   },
 });
 gatesFailed = finalReport.gatesFailed;

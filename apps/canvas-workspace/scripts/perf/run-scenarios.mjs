@@ -28,7 +28,7 @@
  *   drag     – drags the first node by its header; guards A2 via the same
  *              counter (today: ≈1 replacement per pointer-move)
  *
- * Counter gates compare against perf/baselines.json → "runtime". Timing
+ * Counter Gates compare against runtime-scoped policies in perf/baselines.json. Timing
  * metrics (INP p95, frame stats) are recorded as informational until enough
  * runs exist to set tolerances. Exit 1 on counter-gate failure.
  *
@@ -934,8 +934,11 @@ const main = async () => {
   const gateResults = compareCounterGates(baselines, scenarios, only, dictionary);
   const report = {
     generatedAt: new Date().toISOString(),
-    session: { id: session.id, profile: session.profile },
+    fixtureVersion: 'perf-v1',
+    repeat,
+    session: { id: session.id, profile: session.profile, headless: session.headless === true },
     seedNodes: seedNodes || undefined,
+    seedWebpages,
     scenarios,
     gates: gateResults,
   };
@@ -1017,7 +1020,7 @@ const main = async () => {
   console.log('[perf:scenarios] report: perf/out/scenarios-report.json');
   if (gateResults.some((gate) => !gate.pass)) process.exit(1);
   if (gateResults.length === 0) {
-    console.log('[perf:scenarios] record mode: no "runtime" gates in perf/baselines.json yet — use this run to set them.');
+    console.log('[perf:scenarios] record mode: no runtime-scoped policy Gates — use this run to calibrate them.');
   }
 };
 

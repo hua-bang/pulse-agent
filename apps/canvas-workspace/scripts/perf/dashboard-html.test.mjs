@@ -18,6 +18,7 @@ const dictionary = {
     {
       id: 'interact.primary', aspect: 'interact', dimension: 'phase', displayPriority: 'primary',
       label: '关键结果', unit: 'ms', comparability: '同机', level: 'warn', instrumented: true,
+      direction: 'lower', measurementProfile: 'local-test',
     },
     {
       id: 'interact.supporting', aspect: 'interact', dimension: 'phase', displayPriority: 'supporting',
@@ -31,14 +32,24 @@ const dictionary = {
   ],
 };
 
-const snapshot = (supportingPass = true) => ({
+const snapshot = (supportingPass = true, primaryStatus = 'met') => ({
   commit: 'abc1234',
   timestamp: '2026-07-10T12:00:00.000Z',
   machineId: 'machine',
   env: { cores: 8, os: 'darwin', seedNodes: 100 },
   metrics: [
-    { id: 'interact.primary', value: 10, runs: 3, detail: 'primary sample evidence' },
-    { id: 'interact.supporting', value: 2, pass: supportingPass, limit: 3, detail: 'support detail' },
+    {
+      id: 'interact.primary', value: 10, runs: 3, detail: 'primary sample evidence',
+      policy: {
+        target: 12, warning: 20, status: primaryStatus,
+        headroom: primaryStatus === 'met' ? 2 : -2,
+        applicable: true, confidence: 'medium', profile: 'local-test', gateStatus: 'not-configured',
+      },
+    },
+    {
+      id: 'interact.supporting', value: 2, pass: supportingPass, limit: 3,
+      gateOperator: 'max', detail: 'support detail',
+    },
   ],
 });
 
@@ -47,9 +58,9 @@ const previous = {
   metrics: [{ id: 'interact.primary', value: 9 }],
 };
 
-const render = (supportingPass = true) => renderDashboardHtml(
+const render = (supportingPass = true, primaryStatus = 'met') => renderDashboardHtml(
   dictionary,
-  snapshot(supportingPass),
+  snapshot(supportingPass, primaryStatus),
   null,
   { alerts: [], previous },
   '测试结论',
@@ -75,6 +86,12 @@ describe('performance dashboard metric hierarchy', () => {
     expect(html).toContain('repeat 3');
     expect(html).toContain('核心 2/2 · CDP trace 诊断 0/1');
     expect(html).toContain('dot dot-good');
+    expect(html).toContain('目标 / 余量');
+    expect(html).toContain('目标状态');
+    expect(html).toContain('Gate');
+    expect(html).toContain('≤ 12');
+    expect(html).toContain('余量 2 ms');
+    expect(html).toContain('✓ 达标');
 
     const supportingOpening = html.match(/<details class="metric-dimension metric-dimension-supporting"[\s\S]*?>/)?.[0];
     const diagnosticOpening = html.match(/<details class="metric-dimension metric-dimension-diagnostic"[\s\S]*?>/)?.[0];
@@ -87,7 +104,45 @@ describe('performance dashboard metric hierarchy', () => {
     const supportingOpening = html.match(/<details class="metric-dimension metric-dimension-supporting"[\s\S]*?>/)?.[0];
 
     expect(supportingOpening).toContain(' open');
-    expect(html).toContain('1 项失败');
+    expect(html).toContain('1 项 Gate 失败');
     expect(html).toContain('✗ FAIL ≤ 3');
+    expect(html).toContain('dot dot-good');
+  });
+
+  it.each([
+    ['near-warning', 'warn', '△ 接近预警'],
+    ['missed', 'critical', '✗ 未达标'],
+  ])('derives aspect health from the P0 target status %s', (status, health, label) => {
+    const html = render(true, status);
+
+    expect(html).toContain(`<span class="dot dot-${health}"></span>交互`);
+    expect(html).toContain(`data-target-status="${status}"`);
+    expect(html).toContain(label);
+  });
+
+  it('shows an applicable but unmeasured policy Gate as missing data', () => {
+    const missingGateSnapshot = snapshot();
+    missingGateSnapshot.metrics = missingGateSnapshot.metrics.filter(
+      (metric) => metric.id !== 'interact.supporting',
+    );
+    const html = renderDashboardHtml(
+      dictionary,
+      missingGateSnapshot,
+      null,
+      { alerts: [], previous },
+      '测试结论',
+      [],
+      {
+        policiesById: {
+          'interact.supporting': {
+            target: 3, warning: 4, status: 'pending', headroom: null,
+            gateStatus: 'unavailable', gateLimit: 3, gateOperator: 'max',
+          },
+        },
+      },
+    );
+
+    expect(html).toContain('data-gate-status="unavailable"');
+    expect(html).toContain('✗ 缺测');
   });
 });

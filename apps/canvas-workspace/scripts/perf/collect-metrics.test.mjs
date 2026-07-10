@@ -116,19 +116,25 @@ describe('collectMetrics chat stream', () => {
         'chat-stream': {
           report: {
             frames: { over20msPct: 0.3 },
-            counters: { 'chat-md-render': 2, 'chat-md-cache-hit': 2 },
+            counters: {
+              'chat-md-render': 2,
+              'chat-md-cache-hit': 2,
+              'chat-stream-commit': 65,
+            },
           },
           cacheProbe: { hits: 2, renders: 2, opportunities: 4, ratio: 99 },
           markdownRenders: 64,
           tailBurstMs: 0.8,
         },
       },
-      gates: [{
-        scenario: 'chat-stream', counter: 'chat-md-stream-render', max: 80, value: 64, pass: true,
-      }],
+      gates: [
+        { scenario: 'chat-stream', counter: 'chat-md-stream-render', max: 80, value: 64, pass: true },
+        { scenario: 'chat-stream', counter: 'chat-stream-commit', max: 80, value: 65, pass: true },
+      ],
     })).toEqual([
       { id: 'chat.stream.frames_over20_pct', value: 0.3, runs: 1 },
       { id: 'chat.stream.md_render_count', value: 64, runs: 1, pass: true, limit: 80 },
+      { id: 'chat.stream.commit_count', value: 65, runs: 1, pass: true, limit: 80 },
       { id: 'chat.stream.tail_burst_ms', value: 0.8, runs: 1 },
       { id: 'chat.stream.md_cache_hit_ratio', value: 50, runs: 1, detail: '2 hits / 4 settled render opportunities' },
       { id: 'chat.stream.md_cache_hit_count', value: 2, runs: 1 },

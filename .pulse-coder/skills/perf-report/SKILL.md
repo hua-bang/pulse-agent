@@ -9,9 +9,9 @@ Drive one round of the canvas-workspace performance evaluation and deliver the
 result three ways: a structured summary, a deployed static dashboard, and PNG
 screenshots that remote-server can send back to Feishu.
 
-The pipeline is fully deterministic (no LLM at report time). Definitions live
-in `apps/canvas-workspace/perf/program.md` + `perf/metrics.json`; thresholds in
-`perf/baselines.json`.
+The pipeline is fully deterministic (no LLM at report time). Stable definitions
+live in `apps/canvas-workspace/perf/program.md` + `perf/metrics.json`; all target,
+warning, and Gate numbers live only in `perf/baselines.json → policies`.
 
 ## One Command
 
@@ -85,9 +85,18 @@ back to Feishu when the run is triggered from Feishu.
 Read `apps/canvas-workspace/perf/out/report.json`:
 
 - `verdict` — one-line machine-generated conclusion
+- `policyVersion` — target/Gate contract version
+- `targetSummary` — configured/applicable/measured counts plus
+  `met`/`nearWarning`/`missed`/`pending`/`notApplicable`
+- `p0Targets[]` — P0-only id/value/target/warning/headroom/status details;
+  use this list for the headline target readout instead of inferring priority
+- `gateSummary` — independent `passed`/`failed`/`total` Gate counts
+- `policyEvaluations` — target, warning, confidence, profile, headroom, target
+  status, and Gate status by metric id (including configured-but-unmeasured ids)
 - `alerts[]` — severity (`high`/`medium`/`info`), `title`, `evidence`,
   `suggestion` (the actionable fix), `ref` (finding id, e.g. `I-1`, `A2`)
-- `metrics[]` — metric id → value (+ `pass`/`limit` for gated ones)
+- `metrics[]` — metric id → value + resolved `policy`; `pass`/`limit`/
+  `gateOperator` refer only to the independent Gate
 - `coverage.measured/total` — required core metrics only
 - `coverage.diagnostic` — optional CDP trace metrics; unavailable diagnostics
   do not make the core report fail
@@ -96,18 +105,22 @@ Read `apps/canvas-workspace/perf/out/report.json`:
 
 ## Reply
 
-Report, in this order: the `verdict` verbatim → `high` alerts (if any) →
-`medium` alerts with their `suggestion` and `ref` → coverage → deployed URL →
-screenshot path. Keep it short; the dashboard carries the detail.
+Report, in this order: the `verdict` verbatim → missed/near-warning P0 targets →
+`high` Gate alerts (if any) → other `medium` alerts with their `suggestion` and
+`ref` → coverage → deployed URL → screenshot path. Keep it short; the dashboard
+carries the detail. Never describe a passing Gate as “目标达成”.
 
 ## Rules
 
 - Never edit `report.json`/`dashboard.html` by hand — regenerate.
 - Never claim the screenshot was sent unless `dashboard.png` exists and the
   remote-server image markers were printed or uploaded.
-- Timing metrics are per-machine; do not compare absolute values across
-  machines or declare regressions from a single run (the variance alert
-  exists for this). Counter metrics are deterministic and safe to act on.
+- Target status and Gate status are independent. A target miss identifies
+  improvement work but does not fail the command; an applicable Gate fail or
+  unavailable value fails closed. Never collapse the two into one green/red.
+- Timing targets apply only to their exact measurement profile (machineId, OS,
+  arch, seedNodes, seedWebpages, repeat, fixture, headless). Do not compare across profiles; report a mismatch
+  as `not-applicable`. Counter metrics use the global deterministic profile.
 - `startup.renderer_reload.*` is record-only Electron `file://` lab evidence,
   not field Core Web Vitals. Report LCP/CLS reference ratings with the warm
   reload/profile qualifier. Keep FCP→Canvas shell blocking separate from

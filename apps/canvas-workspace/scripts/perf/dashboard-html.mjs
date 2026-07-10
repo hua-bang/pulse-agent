@@ -17,25 +17,63 @@ const fmt = (n) => (typeof n === 'number' ? n.toLocaleString('en-US') : String(n
 const LEVEL_LABEL = { gate: '门禁', warn: '观测', record: '记录' };
 const SEV_LABEL = { high: 'HIGH', medium: 'MED', info: 'INFO' };
 
-const aspectHealth = (aspect, defs, valueOf) => {
-  const measured = defs.filter((d) => valueOf(d.id) !== undefined);
-  if (measured.length === 0) return 'muted';
-  if (measured.some((d) => valueOf(d.id)?.pass === false)) return 'critical';
-  return measured.length === defs.length ? 'good' : 'warn';
+const aspectHealth = (defs, policyOf) => {
+  const statuses = defs.map((definition) => policyOf(definition.id)?.status).filter(Boolean);
+  if (statuses.length === 0 || statuses.every((status) => ['pending', 'not-applicable'].includes(status))) {
+    return 'muted';
+  }
+  if (statuses.includes('missed')) return 'critical';
+  if (statuses.includes('near-warning')) return 'warn';
+  return statuses.length === defs.length && statuses.every((status) => status === 'met') ? 'good' : 'warn';
 };
 
-const statusCell = (def, entry) => {
-  if (!entry) return '<span class="muted">—</span>';
-  if (def.unit === 'bool') {
-    return entry.value
-      ? '<span class="status-good">✓ 保持</span>'
-      : '<span class="status-critical">✗ 被破坏</span>';
-  }
-  if (entry.pass === undefined) return '<span class="muted">—</span>';
-  const limit = entry.limit !== undefined ? ` ≤ ${fmt(entry.limit)}` : '';
-  return entry.pass
+const gateStatusOf = (entry, policy) => {
+  if (entry?.pass === true) return 'pass';
+  if (entry?.pass === false) return 'fail';
+  return policy?.gateStatus ?? 'not-configured';
+};
+
+const gateStatusCell = (entry, policy) => {
+  const status = gateStatusOf(entry, policy);
+  if (status === 'unavailable') return '<span class="status-critical">✗ 缺测</span>';
+  if (status === 'not-applicable') return '<span class="muted">不适用</span>';
+  if (status === 'not-required') return '<span class="muted">本次不要求</span>';
+  const pass = entry?.pass ?? policy?.gatePass;
+  if (pass === undefined) return '<span class="muted">—</span>';
+  const operator = {
+    max: '≤', ratchet: '≤', min: '≥', exact: '=', true: '=',
+  }[entry?.gateOperator ?? policy?.gateOperator] ?? '≤';
+  const gateLimit = entry?.limit ?? policy?.gateLimit;
+  const limit = gateLimit !== undefined ? ` ${operator} ${fmt(gateLimit)}` : '';
+  return pass
     ? `<span class="status-good">✓ PASS${limit}</span>`
     : `<span class="status-critical">✗ FAIL${limit}</span>`;
+};
+
+const targetOperator = (direction) => ({ lower: '≤', higher: '≥', exact: '=', true: '=' }[direction] ?? '');
+
+const targetCell = (def, policy) => {
+  if (!policy || policy.target === null || policy.target === undefined) {
+    return '<span class="muted">待校准</span>';
+  }
+  const target = def.direction === 'true' ? '保持 true' : `${targetOperator(def.direction)} ${fmt(policy.target)}`;
+  const unit = def.unit === 'bool' ? '' : ` ${esc(def.unit)}`;
+  const headroom = typeof policy.headroom === 'number'
+    ? `<div class="target-headroom ${policy.headroom >= 0 ? 'positive' : 'negative'}">${policy.headroom >= 0 ? '余量' : '差'} ${fmt(Math.abs(policy.headroom))}${unit}</div>`
+    : '';
+  return `<span class="target-threshold">${target}${unit}</span>${headroom}`;
+};
+
+const targetStatusCell = (policy) => {
+  const status = policy?.status ?? 'pending';
+  const presentation = {
+    met: ['status-good', '✓ 达标'],
+    'near-warning': ['status-warning', '△ 接近预警'],
+    missed: ['status-critical', '✗ 未达标'],
+    pending: ['muted', '待校准'],
+    'not-applicable': ['muted', '不适用'],
+  }[status] ?? ['muted', '待校准'];
+  return `<span class="${presentation[0]}" data-target-status="${status}">${presentation[1]}</span>`;
 };
 
 const valueCell = (def, entry, prevValue) => {
@@ -87,9 +125,18 @@ const trendRow = (label, unit, values, lowerIsBetter) => {
   </div>`;
 };
 
-export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts, previous }, verdict, series = []) => {
+export const renderDashboardHtml = (
+  dictionary,
+  snapshot,
+  bundleReport,
+  { alerts, previous },
+  verdict,
+  series = [],
+  policyContext = {},
+) => {
   const byId = new Map(snapshot.metrics.map((m) => [m.id, m]));
   const valueOf = (id) => byId.get(id);
+  const policyOf = (id) => valueOf(id)?.policy ?? policyContext.policiesById?.[id];
   const prevOf = (id) => previous?.metrics.find((m) => m.id === id)?.value;
   const metricsOf = (aspectId) => dictionary.metrics.filter((m) => m.aspect === aspectId);
   const aspectName = (id) => dictionary.aspects.find((a) => a.id === id)?.name ?? id;
@@ -98,9 +145,8 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
 
   const tabs = dictionary.aspects.map((a) => {
     const health = aspectHealth(
-      a,
-      metricsOf(a.id).filter((definition) => definition.coverageClass !== 'diagnostic'),
-      valueOf,
+      metricsOf(a.id).filter((definition) => definition.displayPriority === 'primary'),
+      policyOf,
     );
     const count = alerts.filter((x) => x.aspect === a.id && x.severity !== 'info').length;
     return `<button class="tab" role="tab" id="tab-${a.id}" aria-selected="false" data-panel="${a.id}">
@@ -109,9 +155,8 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
 
   const healthTiles = dictionary.aspects.map((a) => {
     const health = aspectHealth(
-      a,
-      metricsOf(a.id).filter((definition) => definition.coverageClass !== 'diagnostic'),
-      valueOf,
+      metricsOf(a.id).filter((definition) => definition.displayPriority === 'primary'),
+      policyOf,
     );
     const star = dictionary.metrics.find((m) => m.id === a.northStar);
     const entry = star ? valueOf(star.id) : undefined;
@@ -129,8 +174,8 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
   const overviewAlerts = alerts.map((a) => alertCard(a, aspectName(a.aspect))).join('')
     || '<div class="muted" style="padding:6px 0">本次运行未触发任何告警。</div>';
 
-  // Trend sparklines (same-machine series). All headline metrics are
-  // lower-is-better, so a downward line = improvement (e.g. B1's typing fix).
+  // Trend sparklines use the metric direction; cache-hit style metrics are
+  // higher-is-better while latency/size metrics are lower-is-better.
   const HEADLINE = [
     ['interact.typing.counter.nodes_array_replace', '打字 整数组替换'],
     ['interact.typing.inp_p95_ms', '打字 INP p95'],
@@ -142,10 +187,10 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
   const trendRows = HEADLINE.map(([id, label]) => {
     const def = dictionary.metrics.find((m) => m.id === id);
     const values = seriesOf(id);
-    return values.length >= 2 ? trendRow(label, def?.unit ?? '', values, true) : '';
+    return values.length >= 2 ? trendRow(label, def?.unit ?? '', values, def?.direction !== 'higher') : '';
   }).filter(Boolean).join('');
   const trendCard = trendRows
-    ? `<div class="card"><h2>关键指标趋势(同机 · ${series.length} 次运行,越低越好)</h2>${trendRows}</div>`
+    ? `<div class="card"><h2>关键指标趋势(同机 · ${series.length} 次运行,按各指标方向判断)</h2>${trendRows}</div>`
     : '';
 
   const interactionRuns = Math.max(
@@ -167,29 +212,30 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
 
     const row = (def) => {
       const entry = valueOf(def.id);
+      const policy = policyOf(def.id);
       const star = def.id === a.northStar ? '<span class="star">北极星</span> ' : '';
       const detail = entry?.detail ? `<div class="detail">${esc(entry.detail)}</div>` : '';
       return `<tr data-metric-id="${esc(def.id)}">
         <td>${star}${esc(def.label)} <span class="lvl">${LEVEL_LABEL[def.level] ?? esc(def.level)}</span>
           <div class="mid">${esc(def.id)} · ${esc(def.comparability)}</div>${detail}</td>
         <td class="num">${valueCell(def, entry, prevOf(def.id))}</td>
-        <td>${statusCell(def, entry)}</td>
+        <td class="target">${targetCell(def, policy)}</td>
+        <td>${targetStatusCell(policy)}</td>
+        <td data-gate-status="${gateStatusOf(entry, policy)}">${gateStatusCell(entry, policy)}</td>
       </tr>`;
     };
 
     const table = (definitions) => `<div class="table-scroll metric-table"><table>
-      <thead><tr><th>指标</th><th class="num">当前值</th><th>状态</th></tr></thead>
+      <thead><tr><th>指标</th><th class="num">当前值</th><th>目标 / 余量</th><th>目标状态</th><th>Gate</th></tr></thead>
       <tbody>${definitions.map(row).join('')}</tbody>
     </table></div>`;
 
     const primaryCards = presentation.primary.map((def) => {
       const entry = valueOf(def.id);
+      const policy = policyOf(def.id);
       const detail = entry?.detail
         ? `<div class="metric-kpi-detail">${esc(entry.detail)}</div>`
         : '';
-      const status = entry && (def.unit === 'bool' || entry.pass !== undefined)
-        ? statusCell(def, entry)
-        : `<span class="metric-kpi-scope">${esc(def.comparability)}</span>`;
       return `<article class="metric-kpi" data-summary-metric="${esc(def.id)}">
         <div class="metric-kpi-top">
           <span class="metric-kpi-dimension">${esc(dimensionNames.get(def.dimension) ?? '关键结果')}</span>
@@ -197,7 +243,9 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
         </div>
         <div class="metric-kpi-label">${esc(def.label)}</div>
         <div class="metric-kpi-value">${valueCell(def, entry, prevOf(def.id))}</div>
-        <div class="metric-kpi-meta"><span class="lvl">${LEVEL_LABEL[def.level] ?? esc(def.level)}</span>${status}</div>
+        <div class="metric-kpi-target">${targetCell(def, policy)}</div>
+        <div class="metric-kpi-meta"><span class="lvl">${LEVEL_LABEL[def.level] ?? esc(def.level)}</span>${targetStatusCell(policy)}</div>
+        ${gateStatusOf(entry, policy) !== 'not-configured' ? `<div class="metric-kpi-gate">Gate ${gateStatusCell(entry, policy)}</div>` : ''}
         ${detail}
       </article>`;
     }).join('');
@@ -216,11 +264,21 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
       if (groups.length === 0) return '';
       const groupHtml = groups.map((group) => {
         const measuredCount = group.definitions.filter((def) => valueOf(def.id) !== undefined).length;
-        const failingCount = group.definitions.filter((def) => valueOf(def.id)?.pass === false).length;
+        const failingCount = group.definitions.filter(
+          (def) => ['fail', 'unavailable'].includes(gateStatusOf(valueOf(def.id), policyOf(def.id))),
+        ).length;
+        const missedCount = group.definitions.filter((def) => policyOf(def.id)?.status === 'missed').length;
+        const nearWarningCount = group.definitions.filter((def) => policyOf(def.id)?.status === 'near-warning').length;
         const needsAttention = failingCount > 0
+          || missedCount > 0
+          || nearWarningCount > 0
           || group.definitions.some((def) => attentionRefs.has(def.id));
         const countLabel = failingCount > 0
-          ? `${failingCount} 项失败`
+          ? `${failingCount} 项 Gate 失败`
+          : missedCount > 0
+            ? `${missedCount} 项未达标`
+            : nearWarningCount > 0
+              ? `${nearWarningCount} 项接近预警`
           : `${measuredCount}/${group.definitions.length} 已采`;
         return `<details class="metric-dimension metric-dimension-${priority}"
             data-priority="${priority}" data-dimension="${esc(group.id)}"${needsAttention ? ' open' : ''}>
@@ -229,7 +287,7 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
               <span class="metric-dimension-name">${esc(group.name)}</span>
               <span class="metric-dimension-description">${esc(group.description ?? '')}</span>
             </span>
-            <span class="metric-dimension-count${failingCount > 0 ? ' issue' : ''}">${countLabel}</span>
+            <span class="metric-dimension-count${failingCount > 0 || missedCount > 0 ? ' issue' : ''}">${countLabel}</span>
           </summary>
           ${table(group.definitions)}
         </details>`;
@@ -447,6 +505,8 @@ const css = () => `
   .metric-kpi-value > b { font-weight:680; }
   .metric-kpi-value .unit { font-size:11.5px; }
   .metric-kpi-value .prev { display:inline; margin-left:8px; }
+  .metric-kpi-target { color:var(--ink-2); font-size:11.5px; margin-top:7px; min-height:34px; }
+  .metric-kpi-gate { color:var(--muted); font-size:10.5px; margin-top:5px; }
   .metric-kpi-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:18px; margin-top:8px; }
   .metric-kpi-detail { color:var(--muted); font-size:10.5px; line-height:1.4; margin-top:5px; }
   .metric-kpi-scope { color:var(--muted); font-size:10.5px; }
@@ -463,7 +523,7 @@ const css = () => `
   .metric-dimension-count.issue { color:var(--critical); font-weight:650; }
   .metric-table { padding:2px 13px 8px; }
   .table-scroll { overflow-x:auto; }
-  table { width:100%; border-collapse:collapse; font-size:13px; min-width:480px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; min-width:760px; }
   th { text-align:left; color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:0 12px 7px 0; border-bottom:1px solid var(--grid); }
   td { padding:8px 12px 8px 0; border-bottom:1px solid var(--grid); vertical-align:top; }
   tr:last-child td { border-bottom:none; }
@@ -472,9 +532,15 @@ const css = () => `
   .mid { font-size:11px; color:var(--muted); font-family:ui-monospace,monospace; margin-top:1px; }
   .detail { font-size:11.5px; color:var(--muted); margin-top:2px; }
   .prev { font-size:11px; color:var(--muted); font-weight:400; }
+  .target { min-width:110px; font-variant-numeric:tabular-nums; }
+  .target-threshold { white-space:nowrap; }
+  .target-headroom { font-size:10.5px; margin-top:2px; white-space:nowrap; }
+  .target-headroom.positive { color:var(--good-text); }
+  .target-headroom.negative { color:var(--critical); }
   .lvl { font-size:10px; color:var(--muted); border:1px solid var(--grid); border-radius:4px; padding:0 5px; vertical-align:1px; }
   .star { color:var(--warning); border:1px solid color-mix(in srgb,var(--warning) 45%,transparent); border-radius:4px; padding:0 4px; font-size:9.5px; font-weight:650; }
   .status-good { color:var(--good-text); font-weight:600; white-space:nowrap; }
+  .status-warning { color:var(--warning); font-weight:600; white-space:nowrap; }
   .status-critical { color:var(--critical); font-weight:600; white-space:nowrap; }
   .next { font-size:12.5px; color:var(--ink-2); }
   .next b { color:var(--ink); font-weight:600; }

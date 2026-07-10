@@ -21,6 +21,40 @@ const dictionary = {
 };
 
 describe('compareCounterGates', () => {
+  it('uses policy Gate values as the SSOT when runtimeCounter metadata is present', () => {
+    const policyBaselines = {
+      policies: {
+        'chat.stream.md_render_count': {
+          gate: { kind: 'max', value: 80, scope: 'runtime' },
+        },
+        'chat.stream.commit_count': {
+          gate: { kind: 'max', value: 80, scope: 'runtime' },
+        },
+      },
+    };
+    const policyDictionary = {
+      metrics: [
+        {
+          id: 'chat.stream.md_render_count', level: 'gate',
+          runtimeCounter: { scenario: 'chat-stream', counter: 'chat-md-stream-render' },
+        },
+        {
+          id: 'chat.stream.commit_count', level: 'gate',
+          runtimeCounter: { scenario: 'chat-stream', counter: 'chat-stream-commit' },
+        },
+      ],
+    };
+
+    expect(compareCounterGates(policyBaselines, {
+      'chat-stream': {
+        report: { counters: { 'chat-md-stream-render': 64, 'chat-stream-commit': 65 } },
+      },
+    }, ['chat-stream'], policyDictionary)).toEqual([
+      { scenario: 'chat-stream', counter: 'chat-md-stream-render', max: 80, value: 64, pass: true },
+      { scenario: 'chat-stream', counter: 'chat-stream-commit', max: 80, value: 65, pass: true },
+    ]);
+  });
+
   it('passes selected resize counters within their deterministic budgets', () => {
     expect(compareCounterGates(baselines, {
       resize: { report: { counters: { 'nodes-array-replace': 2, 'canvas-save-ipc': 1 } } },

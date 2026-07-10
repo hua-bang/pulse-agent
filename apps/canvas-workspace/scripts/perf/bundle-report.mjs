@@ -1,30 +1,34 @@
 #!/usr/bin/env node
 /**
- * Bundle size evaluation: measure the built renderer, ratchet against
- * perf/baselines.json, and emit machine (JSON) + human (HTML) reports.
+ * Bundle evaluation: measure the built renderer, evaluate every bundle-scoped
+ * policy Gate in perf/baselines.json, and emit machine (JSON) + human reports.
  *
  *   pnpm --filter canvas-workspace build     # produce dist/
  *   pnpm --filter canvas-workspace perf:bundle
  *
  * Outputs: perf/out/bundle-report.json, perf/out/bundle-report.html
- * Exit 1 when a gated metric exceeds its baseline tolerance.
+ * Exit 1 when any bundle policy Gate fails.
  */
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
+import { buildBundleGates } from './bundle-gates.mjs';
 import { renderBundleReportHtml } from './bundle-report-html.mjs';
+import { validatePerformancePolicies } from './metric-policy.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const assetsDir = join(appRoot, 'dist/renderer/assets');
 const baselinesPath = join(appRoot, 'perf/baselines.json');
+const metricsPath = join(appRoot, 'perf/metrics.json');
 const outDir = join(appRoot, 'perf/out');
 const depStatsPath = join(outDir, 'entry-dep-stats.json');
 
-// Heuristic, informational-only probes: distinctive strings that indicate a
-// heavy library is folded into the eagerly-parsed entry chunk. The hard gates
-// are the size ratchets + the static import-graph test (bundle-boundaries).
+// Built-output probes: distinctive strings that indicate a heavy library is
+// folded into the eagerly-parsed entry chunk. Together they drive the
+// bundle.lazy_boundary_watchlist boolean Gate; the source-level import graph
+// test remains a second, independent guard.
 const ENTRY_PROBES = [
   { lib: 'xterm', probe: 'xterm-helper-textarea' },
   // 'prosemirror-view' survives minification (package-name string inside the
@@ -74,21 +78,20 @@ const main = () => {
     /* not a git checkout — fine */
   }
 
-  const baselines = JSON.parse(readFileSync(baselinesPath, 'utf-8')).bundle;
-  const current = { entryRawKB: entry.rawKB, entryGzipKB, totalJsKB };
-  const gates = Object.entries(baselines).map(([metric, { baseline, tolerancePct }]) => {
-    const value = current[metric];
-    const limit = Math.round(baseline * (1 + tolerancePct / 100));
-    return {
-      metric,
-      baseline,
-      tolerancePct,
-      limit,
-      current: value,
-      deltaPct: Math.round(((value - baseline) / baseline) * 1000) / 10,
-      pass: value <= limit,
-    };
-  });
+  const baselines = JSON.parse(readFileSync(baselinesPath, 'utf-8'));
+  const dictionary = JSON.parse(readFileSync(metricsPath, 'utf-8'));
+  const policyErrors = validatePerformancePolicies(dictionary, baselines);
+  if (policyErrors.length > 0) {
+    console.error(`[perf:bundle] invalid performance policy:\n- ${policyErrors.join('\n- ')}`);
+    process.exit(2);
+  }
+  const current = {
+    entryRawKB: entry.rawKB,
+    entryGzipKB,
+    totalJsKB,
+    lazyBoundaryWatchlist: probes.every((probe) => !probe.inEntry),
+  };
+  const gates = buildBundleGates(baselines, current);
 
   // A5: per-dependency attribution inside the entry chunk. Only present
   // when the build ran with PULSE_CANVAS_PERF_ANALYZE=1 (electron.vite.config.ts's
@@ -126,6 +129,12 @@ const main = () => {
 
   const failed = gates.filter((gate) => !gate.pass);
   for (const gate of gates) {
+    if (gate.kind === 'true') {
+      console.log(
+        `[perf:bundle] ${gate.pass ? 'PASS' : 'FAIL'} ${gate.metric}: ${String(gate.current)} (required true)`,
+      );
+      continue;
+    }
     const sign = gate.deltaPct > 0 ? '+' : '';
     console.log(
       `[perf:bundle] ${gate.pass ? 'PASS' : 'FAIL'} ${gate.metric}: ${gate.current} KB `

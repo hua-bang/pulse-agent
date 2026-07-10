@@ -16,14 +16,24 @@ import { fileURLToPath } from 'node:url';
 import { collectMetrics } from './collect-metrics.mjs';
 import { summarizeCoverage } from './coverage.mjs';
 import { renderDashboardHtml } from './dashboard-html.mjs';
+import {
+  applyMetricPolicies,
+  buildP0TargetDetails,
+  isCompatibleHistorySnapshot,
+} from './metric-policy.mjs';
 import { buildVerdict, evaluateRules } from './rules.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const outDir = join(appRoot, 'perf/out');
 const historyDir = join(appRoot, 'perf/history');
+const bundleOnly = process.argv.includes('--bundle-only');
 
 const dictionary = JSON.parse(readFileSync(join(appRoot, 'perf/metrics.json'), 'utf-8'));
-const snapshot = collectMetrics();
+const baselines = JSON.parse(readFileSync(join(appRoot, 'perf/baselines.json'), 'utf-8'));
+const policyResult = applyMetricPolicies(dictionary, baselines, collectMetrics(), {
+  gateScopes: bundleOnly ? ['bundle'] : ['bundle', 'runtime'],
+});
+const snapshot = policyResult.snapshot;
 const bundleReport = existsSync(join(outDir, 'bundle-report.json'))
   ? JSON.parse(readFileSync(join(outDir, 'bundle-report.json'), 'utf-8'))
   : null;
@@ -31,16 +41,17 @@ const rendererTrace = existsSync(join(outDir, 'renderer-trace-summary.json'))
   ? JSON.parse(readFileSync(join(outDir, 'renderer-trace-summary.json'), 'utf-8'))
   : null;
 
-// Same-machine history only — timing baselines never cross machines.
+// Same-machine, same-run-profile history only — timing comparisons never mix
+// seed size, repeat protocol, fixture version, OS, or architecture.
 const history = existsSync(historyDir)
   ? readdirSync(historyDir)
     .filter((f) => f.endsWith('.json'))
     .map((f) => JSON.parse(readFileSync(join(historyDir, f), 'utf-8')))
-    .filter((h) => h.machineId === snapshot.machineId)
+    .filter((historySnapshot) => isCompatibleHistorySnapshot(snapshot, historySnapshot))
   : [];
 
-const ruleResult = evaluateRules(dictionary, snapshot, history);
-const verdict = buildVerdict(dictionary, snapshot, ruleResult.alerts);
+const ruleResult = evaluateRules(dictionary, snapshot, history, policyResult);
+const verdict = buildVerdict(dictionary, snapshot, ruleResult.alerts, policyResult);
 const coverage = summarizeCoverage(dictionary, snapshot);
 
 mkdirSync(outDir, { recursive: true });
@@ -55,7 +66,7 @@ writeFileSync(
 const series = [...history, snapshot].sort((a, b) => (a.timestamp < b.timestamp ? -1 : 1));
 writeFileSync(
   join(outDir, 'dashboard.html'),
-  renderDashboardHtml(dictionary, snapshot, bundleReport, ruleResult, verdict, series),
+  renderDashboardHtml(dictionary, snapshot, bundleReport, ruleResult, verdict, series, policyResult),
 );
 
 // Machine-consumable contract (agents/skills read this single file):
@@ -66,6 +77,11 @@ writeFileSync(join(outDir, 'report.json'), JSON.stringify({
   timestamp: snapshot.timestamp,
   machineId: snapshot.machineId,
   env: snapshot.env,
+  policyVersion: baselines.policyVersion,
+  targetSummary: policyResult.targetSummary,
+  gateSummary: policyResult.gateSummary,
+  p0Targets: buildP0TargetDetails(dictionary, snapshot, policyResult.policiesById),
+  policyEvaluations: policyResult.policiesById,
   coverage,
   alerts: ruleResult.alerts,
   metrics: snapshot.metrics,
@@ -92,3 +108,7 @@ console.log(
   + `${ruleResult.alerts.length} alerts → perf/out/dashboard.html + report.json`,
 );
 console.log(`[perf:dashboard] verdict: ${verdict}`);
+if (policyResult.gateSummary.failed > 0) {
+  console.error(`[perf:dashboard] ${policyResult.gateSummary.failed} policy Gate(s) failed or unavailable`);
+  process.exitCode = 1;
+}

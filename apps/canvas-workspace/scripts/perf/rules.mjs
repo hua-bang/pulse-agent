@@ -10,14 +10,13 @@
  * planned) · 'info' (context: coverage gaps, unstable samples).
  */
 
-const ENTRY_TARGET_KB = 1500;
 const INTERACTION_CONTEXT = {
   typing: { label: '打字', event: '按键' },
   drag: { label: '拖拽', event: '指针移动' },
   resize: { label: '调整尺寸', event: '指针移动' },
 };
 
-export const evaluateRules = (dictionary, snapshot, history) => {
+export const evaluateRules = (dictionary, snapshot, history, policyContext = {}) => {
   const alerts = [];
   const byId = new Map(snapshot.metrics.map((m) => [m.id, m]));
   const previous = history
@@ -29,13 +28,14 @@ export const evaluateRules = (dictionary, snapshot, history) => {
   for (const def of dictionary.metrics) {
     const entry = byId.get(def.id);
     if (entry?.pass === false) {
+      const gateOperator = { min: '≥', max: '≤', ratchet: '≤', exact: '=', true: '=' }[entry.gateOperator] ?? '≤';
       const evidence = entry.missingConfig
         ? '门禁阈值配置缺失'
         : entry.missing
           ? '场景未产出计数器值'
-          : `当前 ${entry.value}${def.unit !== 'bool' ? ` ${def.unit}` : ''},上限 ${entry.limit ?? '—'}`;
+          : `当前 ${entry.value}${def.unit !== 'bool' ? ` ${def.unit}` : ''},Gate ${gateOperator} ${entry.limit ?? '—'}`;
       const suggestion = entry.missingConfig
-        ? '恢复 metrics.json 中 gate 指标对应的 baselines.runtime 阈值配置。'
+        ? '恢复 metrics.json 中 gate 指标对应的 baselines.json policy.gate 配置。'
         : entry.missing
           ? '检查场景是否执行完整、计数器是否启用,不得用缺失值代替 0。'
           : '定位引入回归的提交(对比 perf/history),修复或在有充分理由时同 PR 调整基线。';
@@ -48,8 +48,37 @@ export const evaluateRules = (dictionary, snapshot, history) => {
       });
     }
   }
+  for (const def of dictionary.metrics) {
+    if (byId.has(def.id)) continue;
+    const policy = policyContext.policiesById?.[def.id];
+    if (policy?.gateStatus !== 'unavailable') continue;
+    alerts.push({
+      severity: 'high', aspect: def.aspect,
+      title: `门禁失败:${def.label}`,
+      evidence: '适用 Gate 指标未产出',
+      suggestion: '检查本次报告 scope、场景执行和指标采集映射;缺失值不得当作 0 或跳过 Gate。',
+      ref: def.id,
+    });
+  }
 
-  // 2. Unstable timing samples — protect consumers from single-run noise.
+  // 2. Product targets — independent from regression Gates. Only P0 misses
+  // become alerts; supporting targets stay visible in their metric rows.
+  for (const def of dictionary.metrics.filter(
+    (metric) => metric.displayPriority === 'primary' && ['warn', 'gate'].includes(metric.level),
+  )) {
+    const entry = byId.get(def.id);
+    if (!entry || entry.pass === false || entry.policy?.status !== 'missed') continue;
+    const policy = entry.policy;
+    alerts.push({
+      severity: 'medium', aspect: def.aspect,
+      title: `目标未达:${def.label}`,
+      evidence: `当前 ${entry.value}${def.unit !== 'bool' ? ` ${def.unit}` : ''},目标 ${policy.target}${def.unit !== 'bool' ? ` ${def.unit}` : ''},差 ${Math.abs(policy.headroom ?? 0)}${def.unit !== 'bool' ? ` ${def.unit}` : ''}`,
+      suggestion: `先定位该指标的主要耗时/体积来源;目标依据:${policy.basis ?? '见 perf/baselines.json'}。目标不等同于 Gate,不自动阻断提交。`,
+      ref: def.id,
+    });
+  }
+
+  // 3. Unstable timing samples — protect consumers from single-run noise.
   for (const def of dictionary.metrics.filter(
     (d) => d.comparability === '同机' && d.coverageClass !== 'diagnostic',
   )) {
@@ -66,19 +95,6 @@ export const evaluateRules = (dictionary, snapshot, history) => {
         ref: def.id,
       });
     }
-  }
-
-  // 3. Entry chunk vs target — the C-dimension headline.
-  const entryKb = byId.get('bundle.entry_raw_kb');
-  if (entryKb && entryKb.value > ENTRY_TARGET_KB) {
-    const heavy = byId.get('bundle.heavy_in_entry_count');
-    alerts.push({
-      severity: 'medium', aspect: 'bundle',
-      title: `入口 chunk ${(entryKb.value / ENTRY_TARGET_KB).toFixed(1)}× 于目标(${ENTRY_TARGET_KB} KB)`,
-      evidence: `${entryKb.value.toLocaleString()} KB 启动时全量 parse;入口内重依赖:${heavy?.detail ?? '见探针'}`,
-      suggestion: '按 C 维方案拆分:节点 body React.lazy + manualChunks;每拆一个依赖升 WATCHLIST 并下调基线。',
-      ref: 'C1-C9',
-    });
   }
 
   // 4. Known amplifiers still active — counter ≈ event count.
@@ -134,11 +150,20 @@ export const evaluateRules = (dictionary, snapshot, history) => {
 };
 
 /** One-line machine-generated verdict for the overview header. */
-export const buildVerdict = (dictionary, snapshot, alerts) => {
+export const buildVerdict = (dictionary, snapshot, alerts, policyContext = {}) => {
   const high = alerts.filter((a) => a.severity === 'high').length;
-  const medium = alerts.filter((a) => a.severity === 'medium').length;
+  const byId = new Map(snapshot.metrics.map((metric) => [metric.id, metric]));
+  const p0Statuses = dictionary.metrics
+    .filter((definition) => definition.displayPriority === 'primary')
+    .map((definition) => byId.get(definition.id)?.policy?.status)
+    .filter((status) => ['met', 'near-warning', 'missed'].includes(status));
+  const met = p0Statuses.filter((status) => status === 'met').length;
+  const nearWarning = p0Statuses.filter((status) => status === 'near-warning').length;
+  const missed = p0Statuses.filter((status) => status === 'missed').length;
   const gated = snapshot.metrics.filter((m) => m.pass !== undefined);
-  const passed = gated.filter((m) => m.pass).length;
-  if (high > 0) return `⚠ ${high} 项门禁失败 — 优先处理下方 high 告警。`;
-  return `门禁 ${passed}/${gated.length} 通过,无回归;${medium} 项已知成本待修(medium),详见告警。`;
+  const passed = policyContext.gateSummary?.passed ?? gated.filter((m) => m.pass).length;
+  const gateTotal = policyContext.gateSummary?.total ?? gated.length;
+  const summary = `P0 目标 ${met}/${p0Statuses.length} 达标(${nearWarning} 接近预警,${missed} 未达标) · Gate ${passed}/${gateTotal} 通过`;
+  if (high > 0) return `⚠ ${summary};${high} 项 high 回归需优先处理。`;
+  return `${summary};无 high 回归。`;
 };
