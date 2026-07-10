@@ -809,6 +809,9 @@
   padding: 4px;
   display: flex;
   flex-direction: column;
+  /* Pre-migration menu had no inter-item gap — undo the shell's gap:2px
+   * base so pixels stay byte-identical (review finding). */
+  gap: 0;
   z-index: 6;
 }
 

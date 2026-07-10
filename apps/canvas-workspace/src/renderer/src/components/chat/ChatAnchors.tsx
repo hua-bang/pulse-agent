@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { ListLinesIcon } from '../icons';
 import { useI18n } from '../../i18n';
 import { DropdownShell } from '../ui';
@@ -22,6 +22,7 @@ const HOVER_CLOSE_DELAY = 220;
  */
 export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
   const { t } = useI18n();
+  const menuId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openRef = useRef(false);
   const toggleRef = useRef<() => void>(() => {});
@@ -59,6 +60,7 @@ export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
         align="end"
         role="menu"
         ariaLabel={t('chat.anchorsMenuLabel')}
+        panelId={menuId}
         panelClassName="chat-anchors-menu"
         onOpenChange={(open, reason) => {
           // Keyboard (Escape) close restores focus to the trigger; a
@@ -78,6 +80,7 @@ export const ChatAnchors = ({ anchors, onJump }: ChatAnchorsProps) => {
               aria-label={anchorLabel}
               aria-haspopup="menu"
               aria-expanded={open}
+              aria-controls={open ? menuId : undefined}
               onFocus={openNow}
               onClick={toggle}
               onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {

@@ -128,6 +128,17 @@ describe('DropdownShell', () => {
     expect(panel?.getAttribute('aria-label')).toBe('Shape style');
   });
 
+  it('renders panelId as the panel id so a caller trigger can wire aria-controls', () => {
+    render(
+      <DropdownShell trigger={basicTrigger} panelId="anchors-menu">
+        <button type="button">Item</button>
+      </DropdownShell>,
+    );
+    click(host!.querySelector('.trigger')!);
+    const panel = host?.querySelector('.ui-dropdown__panel');
+    expect(panel?.getAttribute('id')).toBe('anchors-menu');
+  });
+
   it('calls onOpenChange with the new open state', () => {
     const onOpenChange = vi.fn();
     render(

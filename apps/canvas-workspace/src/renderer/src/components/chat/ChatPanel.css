@@ -3053,6 +3053,10 @@
  * same "extend, don't force-normalize" precedent as ShapeNodeBody's/
  * FloatingToolbar's panelClassName overrides. */
 .ui-dropdown__panel.chat-anchors-menu {
+  /* Pre-migration panel was a plain block with no gap — undo the shell's
+   * flex/gap:2px base so pixels stay byte-identical (review finding). */
+  display: block;
+  gap: 0;
   top: calc(100% + 4px);
   right: 0;
   z-index: 120;

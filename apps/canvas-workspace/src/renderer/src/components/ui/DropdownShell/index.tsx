@@ -31,6 +31,10 @@ interface Props {
    *  unnamed menu, so pass one whenever the menu's purpose isn't obvious
    *  from its items. */
   ariaLabel?: string;
+  /** `id` rendered on the panel so the caller's trigger can point
+   *  `aria-controls` at it (the trigger is caller-rendered, so the shell
+   *  can't wire the linkage itself). */
+  panelId?: string;
   /** Extra class on the ROOT wrapper (the `position: relative` element). */
   className?: string;
   /** Extra class on the anchored panel. */
@@ -96,6 +100,7 @@ export const DropdownShell = ({
   align = 'start',
   role = 'menu',
   ariaLabel,
+  panelId,
   className,
   panelClassName,
   children,
@@ -140,6 +145,7 @@ export const DropdownShell = ({
           className={panelClass}
           role={role}
           aria-label={ariaLabel}
+          id={panelId}
           onMouseDown={(event) => {
             onPanelMouseDown?.(event);
             event.stopPropagation();

@@ -223,6 +223,7 @@ export const GraphPage = ({
   // stale/orphan records) are hidden by default; toggle to reveal them.
   const [showOffCanvas, setShowOffCanvas] = useState(false);
   const searchListboxId = useId();
+  const overflowMenuId = useId();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchListboxRef = useRef<HTMLDivElement>(null);
   // ui/DropdownShell owns the overflow menu's open state, click-outside,
@@ -559,6 +560,7 @@ export const GraphPage = ({
             align="end"
             role="menu"
             ariaLabel={t('workspaceGraph.moreMenuLabel')}
+            panelId={overflowMenuId}
             onOpenChange={(open, reason) => {
               // Escape restores focus to the trigger; an outside-press does
               // not — same distinction ChatAnchors uses this shell for.
@@ -584,6 +586,7 @@ export const GraphPage = ({
                 aria-label={t('workspaceGraph.moreOptions')}
                 aria-haspopup="menu"
                 aria-expanded={open}
+                aria-controls={open ? overflowMenuId : undefined}
               >
                 {t('workspaceGraph.more')}
               </button>
