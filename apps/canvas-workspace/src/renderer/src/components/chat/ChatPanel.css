@@ -3045,8 +3045,14 @@
   position: relative;
 }
 
-.chat-anchors-menu {
-  position: absolute;
+/* Compound selector (.ui-dropdown__panel.chat-anchors-menu) so this wins on
+ * specificity over ui/DropdownShell's own base panel chrome regardless of
+ * CSS import/bundle order — the panel now renders through DropdownShell
+ * (ui-reuse-burndown.md's API-extension batch: bespokeDropdownShells 2→1),
+ * but keeps its pre-migration pixels exactly (own radius/shadow/bg/z-index),
+ * same "extend, don't force-normalize" precedent as ShapeNodeBody's/
+ * FloatingToolbar's panelClassName overrides. */
+.ui-dropdown__panel.chat-anchors-menu {
   top: calc(100% + 4px);
   right: 0;
   z-index: 120;

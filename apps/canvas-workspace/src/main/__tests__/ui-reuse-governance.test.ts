@@ -300,7 +300,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // keyboard-nav-close (restores focus to the trigger), which
   // DropdownShell's single internal `close` genuinely cannot express. Floor
   // is now these 2.
-  bespokeDropdownShells: 2,
+  // 2→1 (API-extension batch): DropdownShell's `onOpenChange` now carries an
+  // optional 'escape'|'outside' reason (see DropdownShell/index.tsx), which
+  // is exactly the distinction that blocked ChatAnchors.tsx — migrated.
+  // GraphPage's overflow menu is the one remaining case (next commit).
+  bespokeDropdownShells: 1,
   // role="tablist"/role="radiogroup" outside ui/ — the shape
   // ui/SegmentedControl absorbs. AgentTeamFrame's 4 (all migrated) are gone;
   // 5 remain as frozen stock: AgentNodeBody/AgentPicker's tablist,
