@@ -21,6 +21,8 @@
  *   startup  – main-process phase marks + renderer first-frame/canvas marks + FCP
  *   typing   – types into the first file node; guards I-1 via the
  *              nodes-array-replace counter (today: ≈1 replacement per keystroke)
+ *   resize   – resizes the first node from its bottom-right corner; records
+ *              the same per-pointer-move interaction and frame metrics
  *   drag     – drags the first node by its header; guards A2 via the same
  *              counter (today: ≈1 replacement per pointer-move)
  *
@@ -28,7 +30,7 @@
  * metrics (INP p95, frame stats) are recorded as informational until enough
  * runs exist to set tolerances. Exit 1 on counter-gate failure.
  *
- * `--repeat N` (A3): typing/drag are re-driven N times against the same live
+ * `--repeat N` (A3): typing/resize/drag are re-driven N times against the same live
  * session (each iteration resets via __pulsePerf.begin/end); the reported
  * interactions.p95 / frames.over20msPct become the median across runs (raw[]
  * kept alongside) so a single noisy sample can't misfire the dashboard's
@@ -42,9 +44,11 @@ import { fileURLToPath } from 'node:url';
 import { requireLiveSession } from '../../harness/tools/driver/src/session.mjs';
 import { withPage } from '../../harness/tools/driver/src/cdp.mjs';
 import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
+import { compareCounterGates } from './runtime-gates.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const baselinesPath = join(appRoot, 'perf/baselines.json');
+const metricsPath = join(appRoot, 'perf/metrics.json');
 const outDir = join(appRoot, 'perf/out');
 
 const args = process.argv.slice(2);
@@ -54,10 +58,15 @@ const readFlag = (name) => {
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
 const seedWebpages = Number(readFlag('--seed-webpages') ?? 0);
-const only = (readFlag('--scenario') ?? 'startup,typing,drag,panzoom,ws-cycle').split(',');
+const only = (readFlag('--scenario') ?? 'startup,typing,resize,drag,panzoom,ws-cycle').split(',');
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Covers the editor's 200ms writeback debounce plus useNodes' 800ms save
+// debounce, with margin for a busy renderer. Counter windows must start with
+// no prior save pending and end only after the measured gesture's save fires.
+const SAVE_DRAIN_MS = 1_200;
+const drainCanvasSave = () => sleep(SAVE_DRAIN_MS);
 
 const median = (nums) => {
   const sorted = [...nums].sort((a, b) => a - b);
@@ -80,14 +89,27 @@ const aggregateReports = (reports) => {
   for (const name of counterNames) {
     counters[name] = Math.max(...reports.map((r) => r.counters[name] ?? 0));
   }
+  const counterRaw = reports.map((report) => Object.fromEntries(
+    [...counterNames].map((name) => [name, report.counters[name] ?? 0]),
+  ));
   return {
     ...last,
     counters,
     interactions: { ...last.interactions, p95: median(p95Raw) },
     frames: { ...last.frames, over20msPct: median(over20Raw) },
     runs: reports.length,
-    raw: { interactionsP95: p95Raw, framesOver20Pct: over20Raw },
+    raw: { interactionsP95: p95Raw, framesOver20Pct: over20Raw, counters: counterRaw },
   };
+};
+
+const requireCounterInEveryRun = (scenario, reports, counter) => {
+  const emptyRuns = reports
+    .map((report, index) => ({ index, value: report.counters[counter] ?? 0 }))
+    .filter(({ value }) => value <= 0);
+  if (emptyRuns.length > 0) {
+    const runs = emptyRuns.map(({ index }) => index + 1).join(', ');
+    throw new Error(`${scenario} did not produce ${counter} in run(s): ${runs}`);
+  }
 };
 
 const evaluate = async (cdp, expression) => {
@@ -249,6 +271,7 @@ const typingScenario = async (cdp, repeatCount = 1) => {
 
   const chars = 'The quick brown fox jumps over the lazy dog while we measure per-keystroke costs on the canvas. '.repeat(2).slice(0, 120);
   const reports = [];
+  await drainCanvasSave();
   for (let run = 0; run < repeatCount; run++) {
     await beginPerf(cdp, 'typing');
     for (const ch of chars) {
@@ -256,25 +279,69 @@ const typingScenario = async (cdp, repeatCount = 1) => {
       await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch });
       await sleep(25);
     }
-    await sleep(300); // let trailing work land inside the window
+    await drainCanvasSave();
     reports.push(await endPerf(cdp));
     if (run < repeatCount - 1) await waitForCalmFrames(cdp);
   }
+  requireCounterInEveryRun('typing', reports, 'nodes-array-replace');
+  requireCounterInEveryRun('typing', reports, 'canvas-save-ipc');
   return { chars: chars.length, report: aggregateReports(reports) };
+};
+
+const resizeScenario = async (cdp, repeatCount = 1) => {
+  const handleSel = '.canvas-node .resize-handle--corner';
+  const moves = 90;
+  const reports = [];
+  // Re-query the live handle each run: resize/re-render can shift it by a
+  // rounding pixel, and a stale coordinate silently turns later repeats into
+  // no-ops. Reset outside the measured window so every run covers one delta.
+  await drainCanvasSave();
+  for (let run = 0; run < repeatCount; run++) {
+    const point = await hittablePointIn(cdp, handleSel);
+    if (!point) throw new Error(`no unobstructed node resize handle found (${handleSel})`);
+    await waitForCalmFrames(cdp);
+    const startX = point.x;
+    const startY = point.y;
+    const stepX = startX > moves + 24 ? -1 : 1;
+    const stepY = startY > moves / 2 + 24 ? -0.5 : 0.5;
+
+    await beginPerf(cdp, 'resize');
+    await mouse(cdp, 'mousePressed', startX, startY, { button: 'left', buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= moves; i++) {
+      await mouse(cdp, 'mouseMoved', startX + i * stepX, startY + Math.round(i * stepY), { buttons: 1 });
+      await sleep(16);
+    }
+    const endX = startX + moves * stepX;
+    const endY = startY + Math.round(moves * stepY);
+    await mouse(cdp, 'mouseReleased', endX, endY, { button: 'left', buttons: 0, clickCount: 1 });
+    await drainCanvasSave();
+    reports.push(await endPerf(cdp));
+
+    if (run < repeatCount - 1) {
+      const resetPoint = await hittablePointIn(cdp, handleSel);
+      if (!resetPoint) throw new Error(`resize handle unavailable for reset (${handleSel})`);
+      await mouse(cdp, 'mousePressed', resetPoint.x, resetPoint.y, { button: 'left', buttons: 1, clickCount: 1 });
+      await mouse(cdp, 'mouseMoved', startX, startY, { buttons: 1 });
+      await mouse(cdp, 'mouseReleased', startX, startY, { button: 'left', buttons: 0, clickCount: 1 });
+      await drainCanvasSave();
+    }
+  }
+  requireCounterInEveryRun('resize', reports, 'nodes-array-replace');
+  requireCounterInEveryRun('resize', reports, 'canvas-save-ipc');
+  return { moves, report: aggregateReports(reports) };
 };
 
 const dragScenario = async (cdp, repeatCount = 1) => {
   const headerSel = '.canvas-node .node-header';
   const moves = 90;
   const reports = [];
-  // Anchor to the first run's point and drag the node back there between
-  // repeats (unmeasured) — otherwise each repeat's displacement compounds
-  // and eventually walks the node off the (fixed-size headless) viewport.
-  let anchor = null;
+  // Re-query the live header each run and after every measured drag. A fixed
+  // coordinate can miss after a re-render and silently turn repeats into
+  // no-ops. The reset stays outside the measured window.
+  await drainCanvasSave();
   for (let run = 0; run < repeatCount; run++) {
-    const point = anchor ?? await hittablePointIn(cdp, headerSel);
+    const point = await hittablePointIn(cdp, headerSel);
     if (!point) throw new Error(`no unobstructed node header found (${headerSel})`);
-    anchor ??= point;
     await waitForCalmFrames(cdp);
     const startX = point.x;
     const startY = point.y;
@@ -288,16 +355,20 @@ const dragScenario = async (cdp, repeatCount = 1) => {
     const endX = startX + moves * 3;
     const endY = startY + moves * 2;
     await mouse(cdp, 'mouseReleased', endX, endY, { button: 'left', buttons: 0, clickCount: 1 });
-    await sleep(300);
+    await drainCanvasSave();
     reports.push(await endPerf(cdp));
 
     if (run < repeatCount - 1) {
-      await mouse(cdp, 'mousePressed', endX, endY, { button: 'left', buttons: 1, clickCount: 1 });
+      const resetPoint = await hittablePointIn(cdp, headerSel);
+      if (!resetPoint) throw new Error(`node header unavailable for reset (${headerSel})`);
+      await mouse(cdp, 'mousePressed', resetPoint.x, resetPoint.y, { button: 'left', buttons: 1, clickCount: 1 });
       await mouse(cdp, 'mouseMoved', startX, startY, { buttons: 1 });
       await mouse(cdp, 'mouseReleased', startX, startY, { button: 'left', buttons: 0, clickCount: 1 });
-      await sleep(200);
+      await drainCanvasSave();
     }
   }
+  requireCounterInEveryRun('drag', reports, 'nodes-array-replace');
+  requireCounterInEveryRun('drag', reports, 'canvas-save-ipc');
   return { moves, report: aggregateReports(reports) };
 };
 
@@ -485,27 +556,12 @@ const seedExtraNodes = async (cdp, count, webpageCount = 0) => {
   throw new Error('seeded nodes did not appear after reload');
 };
 
-// ── gates ────────────────────────────────────────────────────────────────────
-
-const compareCounterGates = (baselines, scenarios) => {
-  const runtime = baselines.runtime ?? {};
-  const results = [];
-  for (const [scenario, gatesForScenario] of Object.entries(runtime)) {
-    const report = scenarios[scenario]?.report;
-    if (!report) continue;
-    for (const [counter, { max }] of Object.entries(gatesForScenario.counters ?? {})) {
-      const value = report.counters?.[counter] ?? 0;
-      results.push({ scenario, counter, max, value, pass: value <= max });
-    }
-  }
-  return results;
-};
-
 // ── main ─────────────────────────────────────────────────────────────────────
 
 const main = async () => {
   const session = await requireLiveSession();
   const baselines = JSON.parse(await fs.readFile(baselinesPath, 'utf-8'));
+  const dictionary = JSON.parse(await fs.readFile(metricsPath, 'utf-8'));
   const scenarios = {};
 
   await withPage(session, async (cdp) => {
@@ -519,6 +575,7 @@ const main = async () => {
     }
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
     if (only.includes('typing')) scenarios.typing = await typingScenario(cdp, repeat);
+    if (only.includes('resize')) scenarios.resize = await resizeScenario(cdp, repeat);
     if (only.includes('drag')) scenarios.drag = await dragScenario(cdp, repeat);
     if (only.includes('panzoom')) scenarios.panzoom = await panzoomScenario(cdp, repeat);
     // ws-cycle runs last — it seeds extra workspaces and reloads, so it must
@@ -552,7 +609,7 @@ const main = async () => {
     scenarios.main = main;
   }
 
-  const gateResults = compareCounterGates(baselines, scenarios);
+  const gateResults = compareCounterGates(baselines, scenarios, only, dictionary);
   const report = {
     generatedAt: new Date().toISOString(),
     session: { id: session.id, profile: session.profile },
@@ -566,7 +623,7 @@ const main = async () => {
   if (scenarios.startup?.mainPhases) {
     console.log('[perf:scenarios] startup phases (ms):', JSON.stringify(scenarios.startup.mainPhases));
   }
-  for (const name of ['typing', 'drag', 'panzoom']) {
+  for (const name of ['typing', 'resize', 'drag', 'panzoom']) {
     const entry = scenarios[name];
     if (!entry) continue;
     const r = entry.report;

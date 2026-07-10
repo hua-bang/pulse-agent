@@ -12,7 +12,7 @@
     {
       "id": "interact",
       "name": "交互",
-      "question": "打字 / 拖拽 / 平移卡不卡?多大画布开始卡?修复 I-1/A2 的收益能不能守住?",
+      "question": "打字 / 调整尺寸 / 拖拽 / 平移卡不卡?多大画布开始卡?修复 I-1/A2 的收益能不能守住?",
       "findings": "A/I/G 维 · 24 条 · 已修 1(A6)",
       "northStar": "interact.typing.inp_p95_ms",
       "next": "M1:--repeat 中位数 + pan/zoom 场景 → M3:修 I-1/A2 后下调计数器 max"
@@ -67,6 +67,10 @@
     { "id": "interact.drag.frames_over20_pct", "aspect": "interact", "label": "拖拽 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "interact.drag.counter.nodes_array_replace", "aspect": "interact", "label": "拖拽 整数组替换次数(A2 守卫)", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "interact.drag.counter.canvas_save_ipc", "aspect": "interact", "label": "拖拽 保存 IPC 次数", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
+    { "id": "interact.resize.inp_p95_ms", "aspect": "interact", "label": "调整尺寸 INP p95(仅离散事件,不覆盖连续 move)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
+    { "id": "interact.resize.frames_over20_pct", "aspect": "interact", "label": "调整尺寸 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
+    { "id": "interact.resize.counter.nodes_array_replace", "aspect": "interact", "label": "调整尺寸 整数组替换次数(A2 resize 守卫)", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
+    { "id": "interact.resize.counter.canvas_save_ipc", "aspect": "interact", "label": "调整尺寸 保存 IPC 次数", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "interact.panzoom.inp_p95_ms", "aspect": "interact", "label": "平移/缩放 INP p95(结构性恒为 0,见 A4 说明)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "interact.panzoom.frames_over20_pct", "aspect": "interact", "label": "平移/缩放 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
 

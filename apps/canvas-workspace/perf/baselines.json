@@ -5,7 +5,7 @@
     "entryGzipKB": { "baseline": 270, "tolerancePct": 5 },
     "totalJsKB": { "baseline": 10556, "tolerancePct": 10 }
   },
-  "runtimeNote": "Counter gates for perf:scenarios (deterministic, node-count independent). typing.nodes-array-replace ratcheted 132 → 10 after B1 fixed I-1 (200ms editor writeback debounce): measured 3 replacements for 120 keys (was 121), frames>20ms 43% → 1.2%, INP p95 48 → 32ms. drag.nodes-array-replace ratcheted 100 → 10 after B7 (2026-07-05): useNodeDrag no longer calls moveNode/moveNodes on every pointer-move — the gesture renders from an ephemeral `dragOffset` applied in getNodeWrapperStyle (CanvasNodeView's memo comparator gates re-render to only the dragged node(s)), and commits the real nodes array exactly once on drag end. Measured 2 replacements for 3×90 pointer-moves (was 91 for 90 moves, ~1:1). Verified visually via a real CDP-driven drag (mid-drag transform matches the committed post-drop transform exactly — no snap-back). Timing metrics (INP/frames/LoAF) stay informational — per-machine.",
+  "runtimeNote": "Counter gates for perf:scenarios (deterministic, node-count independent). typing.nodes-array-replace ratcheted 132 → 10 after B1 fixed I-1 (200ms editor writeback debounce): measured 3 replacements for 120 keys (was 121), frames>20ms 43% → 1.2%, INP p95 48 → 32ms. drag.nodes-array-replace ratcheted 100 → 10 after B7 (2026-07-05): useNodeDrag no longer calls moveNode/moveNodes on every pointer-move — the gesture renders from an ephemeral `dragOffset` applied in getNodeWrapperStyle (CanvasNodeView's memo comparator gates re-render to only the dragged node(s)), and commits the real nodes array exactly once on drag end. Measured 2 replacements for 3×90 pointer-moves (was 91 for 90 moves, ~1:1). Verified visually via a real CDP-driven drag (mid-drag transform matches the committed post-drop transform exactly — no snap-back). resize counter gates were added after the A2 resize fix (2026-07-10): the scenario drives 90 pointer-moves; movement updates only ephemeral `resizePreview` geometry, and gesture end commits the canonical nodes array once. Across 3×90 moves the per-run raw counters were nodes-array-replace [1,1,1] and canvas-save-ipc [2,1,1], so gate maxima are 1 and 2; frames>20ms median was 0%. Budgets are nodes-array-replace ≤10 and canvas-save-ipc ≤3. Timing metrics (INP/frames/LoAF) stay informational — per-machine.",
   "runtime": {
     "typing": {
       "counters": {
@@ -14,6 +14,12 @@
       }
     },
     "drag": {
+      "counters": {
+        "nodes-array-replace": { "max": 10 },
+        "canvas-save-ipc": { "max": 3 }
+      }
+    },
+    "resize": {
       "counters": {
         "nodes-array-replace": { "max": 10 },
         "canvas-save-ipc": { "max": 3 }

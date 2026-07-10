@@ -11,6 +11,11 @@
  */
 
 const ENTRY_TARGET_KB = 1500;
+const INTERACTION_CONTEXT = {
+  typing: { label: '打字', event: '按键' },
+  drag: { label: '拖拽', event: '指针移动' },
+  resize: { label: '调整尺寸', event: '指针移动' },
+};
 
 export const evaluateRules = (dictionary, snapshot, history) => {
   const alerts = [];
@@ -24,11 +29,21 @@ export const evaluateRules = (dictionary, snapshot, history) => {
   for (const def of dictionary.metrics) {
     const entry = byId.get(def.id);
     if (entry?.pass === false) {
+      const evidence = entry.missingConfig
+        ? '门禁阈值配置缺失'
+        : entry.missing
+          ? '场景未产出计数器值'
+          : `当前 ${entry.value}${def.unit !== 'bool' ? ` ${def.unit}` : ''},上限 ${entry.limit ?? '—'}`;
+      const suggestion = entry.missingConfig
+        ? '恢复 metrics.json 中 gate 指标对应的 baselines.runtime 阈值配置。'
+        : entry.missing
+          ? '检查场景是否执行完整、计数器是否启用,不得用缺失值代替 0。'
+          : '定位引入回归的提交(对比 perf/history),修复或在有充分理由时同 PR 调整基线。';
       alerts.push({
         severity: 'high', aspect: def.aspect,
         title: `门禁失败:${def.label}`,
-        evidence: `当前 ${entry.value}${def.unit !== 'bool' ? ` ${def.unit}` : ''},上限 ${entry.limit ?? '—'}`,
-        suggestion: '定位引入回归的提交(对比 perf/history),修复或在有充分理由时同 PR 调整基线。',
+        evidence,
+        suggestion,
         ref: def.id,
       });
     }
@@ -68,13 +83,15 @@ export const evaluateRules = (dictionary, snapshot, history) => {
   for (const [scenario, events, finding, expect] of [
     ['typing', 120, 'I-1(每 keystroke 全文序列化 + 整数组替换)', '< 20'],
     ['drag', 90, 'A2(每 pointer-move 整数组替换)', '< 10'],
+    ['resize', 90, 'A2 resize(每 pointer-move 整数组替换)', '< 10'],
   ]) {
     const counter = byId.get(`interact.${scenario}.counter.nodes_array_replace`);
     if (counter && counter.value >= events * 0.9) {
+      const context = INTERACTION_CONTEXT[scenario];
       alerts.push({
         severity: 'medium', aspect: 'interact',
-        title: `放大器仍在:${scenario === 'typing' ? '打字' : '拖拽'}每次输入都全量替换 nodes 数组`,
-        evidence: `${counter.value} 次替换 / ${events} 次输入 ≈ 1:1 — 实证 ${finding}`,
+        title: `放大器仍在:${context.label}每次${context.event}都全量替换 nodes 数组`,
+        evidence: `${counter.value} 次替换 / ${events} 次${context.event} ≈ 1:1 — 实证 ${finding}`,
         suggestion: `修复后(debounce / 手势期 ephemeral 几何)预期 ${expect},同 PR 下调计数器 max 锁定收益。`,
         ref: finding.split('(')[0],
       });
@@ -82,14 +99,14 @@ export const evaluateRules = (dictionary, snapshot, history) => {
   }
 
   // 5. Frame budget blown during interaction.
-  for (const scenario of ['typing', 'drag']) {
+  for (const scenario of ['typing', 'drag', 'resize']) {
     const frames = byId.get(`interact.${scenario}.frames_over20_pct`);
     if (frames && frames.value > 20) {
       alerts.push({
         severity: 'medium', aspect: 'interact',
-        title: `${scenario === 'typing' ? '打字' : '拖拽'}期间 ${frames.value}% 的帧超 20ms`,
+        title: `${INTERACTION_CONTEXT[scenario].label}期间 ${frames.value}% 的帧超 20ms`,
         evidence: `场景条件:${snapshot.env.seedNodes ?? '默认'} 节点画布;同场景 3 节点画布为 ~0%`,
-        suggestion: '规模放大来自 nodes 数组全量替换的下游重渲(见放大器告警);修 I-1/A2 是根因解。',
+        suggestion: '规模放大来自 nodes 数组全量替换的下游重渲(见放大器告警);修 I-1 / A2(拖拽、调整尺寸)是根因解。',
         ref: `interact.${scenario}.frames_over20_pct`,
       });
     }

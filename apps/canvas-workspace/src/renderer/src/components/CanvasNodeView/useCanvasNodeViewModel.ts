@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
-import type { CanvasNode, TextNodeData } from '../../types';
+import type { CanvasNode } from '../../types';
 import type { ResizeEdge } from '../../hooks/useNodeResize';
 import { isImeComposing } from '../../utils/ime';
 import { collectContainerDescendants } from '../../utils/frameHierarchy';
@@ -222,16 +222,12 @@ export const useCanvasNodeViewModel = ({
   const makeResizeHandler = useCallback(
     (edge: ResizeEdge) => (e: MouseEvent) => {
       if (node.type === 'text') {
-        const data = node.data as TextNodeData;
-        if (data.autoSize !== false) {
-          onUpdate(node.id, { data: { ...data, autoSize: false } });
-        }
         onResizeStart(e, node.id, node.width, node.height, edge, 40, 28);
         return;
       }
       onResizeStart(e, node.id, node.width, node.height, edge);
     },
-    [onResizeStart, onUpdate, node.id, node.type, node.width, node.height, node.data],
+    [onResizeStart, node.id, node.type, node.width, node.height],
   );
 
   const handleReferenceSourceUpdate = useCallback(

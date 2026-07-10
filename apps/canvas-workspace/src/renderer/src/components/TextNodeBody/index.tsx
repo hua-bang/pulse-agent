@@ -11,6 +11,7 @@ interface Props {
   node: CanvasNode;
   onUpdate: (id: string, patch: Partial<CanvasNode>) => void;
   isSelected: boolean;
+  isResizing: boolean;
   onSelect: (id: string) => void;
   onDragStart: (e: React.MouseEvent, node: CanvasNode) => void;
   readOnly?: boolean;
@@ -41,7 +42,15 @@ interface Props {
  *    .node-body clips overflow.
  * ------------------------------------------------------------------------- */
 
-export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart, readOnly = false }: Props) => {
+export const TextNodeBody = ({
+  node,
+  onUpdate,
+  isSelected,
+  isResizing,
+  onSelect,
+  onDragStart,
+  readOnly = false,
+}: Props) => {
   const { t } = useI18n();
   const data = node.data as TextNodeData;
   const autoSize = data.autoSize !== false;
@@ -161,6 +170,7 @@ export const TextNodeBody = ({ node, onUpdate, isSelected, onSelect, onDragStart
   // content-driven only while `autoSize` is true; once the user drags the
   // right handle it becomes the authoritative wrap width.
   useLayoutEffect(() => {
+    if (isResizing) return;
     const el = wrapperRef.current;
     if (!el) return;
     if (!autoSize && node.height === el.offsetHeight) return;

@@ -1,11 +1,15 @@
 import type React from 'react';
-import type { RefObject } from 'react';
+import { useMemo, type RefObject } from 'react';
 import type { AgentContextDomReviewComment, AgentContextDomSelectionRef, CanvasEdge, CanvasNode } from '../../types';
 import { CanvasNodeView } from '../CanvasNodeView';
 import { CanvasEdgesLayer } from '../CanvasEdgesLayer';
 import { CanvasAlignmentGuides } from '../CanvasAlignmentGuides';
-import type { ResizeEdge } from '../../hooks/useNodeResize';
-import type { NodeResizePreview } from '../../hooks/useNodeResize';
+import {
+  applyNodeResizePreview,
+  applyResizePreviewToNodes,
+  type NodeResizePreview,
+  type ResizeEdge,
+} from '../../hooks/useNodeResize';
 import type { NodeDragOffset, NodeDragPreview } from '../../hooks/useNodeDrag';
 import type { EdgeInteractionState, Point } from '../../hooks/useEdgeInteraction';
 import type { ShapeDraft } from '../../hooks/useShapeDraw';
@@ -226,12 +230,17 @@ export const CanvasSurface = ({
 }: CanvasSurfaceProps) => {
   // Startup metric: first canvas render (idempotent, Map lookup after that).
   markOnce('canvas:first-render');
+  const edgeNodes = useMemo(
+    () => applyResizePreviewToNodes(nodes, resizePreview),
+    [nodes, resizePreview],
+  );
   const renderNode = (node: CanvasNode, renderMode: CanvasNodeRenderMode = 'full') => {
     const nodeIsDragging = draggingIds.has(node.id) || draggingId === node.id;
+    const renderedNode = applyNodeResizePreview(node, resizePreview);
     return (
     <CanvasNodeView
       key={`${node.id}:${renderMode}`}
-      node={node}
+      node={renderedNode}
       getAllNodes={getAllNodes}
       rootFolder={rootFolder}
       workspaceId={canvasId}
@@ -309,7 +318,7 @@ export const CanvasSurface = ({
       ))}
       <CanvasEdgesLayer
         edges={edges}
-        nodes={nodes}
+        nodes={edgeNodes}
         selectedEdgeId={selectedEdgeId}
         onSelectEdge={onSelectEdge}
         interactionState={edgeInteractionState}
@@ -334,7 +343,6 @@ export const CanvasSurface = ({
       {(dragPreview || resizePreview) && (
         <CanvasGestureHud
           dragPreview={dragPreview}
-          nodes={nodes}
           resizePreview={resizePreview}
           scale={transform.scale}
         />
@@ -413,13 +421,11 @@ const ShapeDraftPreview = ({ draft, scale }: { draft: ShapeDraft; scale: number 
 interface GestureHudProps {
   dragPreview?: NodeDragPreview | null;
   resizePreview?: NodeResizePreview | null;
-  nodes: CanvasNode[];
   scale: number;
 }
 
-const CanvasGestureHud = ({ dragPreview, resizePreview, nodes, scale }: GestureHudProps) => {
+const CanvasGestureHud = ({ dragPreview, resizePreview, scale }: GestureHudProps) => {
   const { t } = useI18n();
-  const resizeNode = resizePreview ? nodes.find((node) => node.id === resizePreview.id) : null;
   const preview = dragPreview
     ? {
         x: dragPreview.x,
@@ -427,10 +433,10 @@ const CanvasGestureHud = ({ dragPreview, resizePreview, nodes, scale }: GestureH
         width: dragPreview.width,
         height: dragPreview.height,
       }
-    : resizePreview && resizeNode
+    : resizePreview
       ? {
-          x: resizeNode.x,
-          y: resizeNode.y,
+          x: resizePreview.x,
+          y: resizePreview.y,
           width: resizePreview.width,
           height: resizePreview.height,
         }

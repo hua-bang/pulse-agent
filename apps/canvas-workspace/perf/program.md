@@ -11,7 +11,7 @@
 | # | 专项 | 回答的问题 | 关联发现 | 北极星指标 |
 |---|---|---|---|---|
 | ① | 启动 | 点开到画布可交互要多久?最慢一段在哪? | D 维(8) | `startup.cold.dom_ready_ms` |
-| ② | 交互 | 打字/拖拽/平移卡不卡?多大画布开始卡? | A/I/G 维(24) | `interact.*.inp_p95_ms` + 计数器 |
+| ② | 交互 | 打字/调整尺寸/拖拽/平移卡不卡?多大画布开始卡? | A/I/G 维(24) | `interact.*.inp_p95_ms` + 计数器 |
 | ③ | 体积 | 启动 parse 多少 JS?懒边界会不会被破坏? | C 维(9) | `bundle.entry_raw_kb` |
 | ④ | 内存驻留 | 切 N 个 workspace 后内存回落吗? | H/L 维+K-1(11) | `memory.ws_cycle.heap_slope` |
 | ⑤ | 主进程健康 | IPC 最多被卡多久、被谁卡? | B/E/J 维(24) | `main.loop_delay_p99_ms` |
@@ -34,17 +34,19 @@
 | `startup.renderer.entry_eval_ms` | entry chunk V8 compile+eval(CDP tracing) | ms | 同机 | record | ○ 定期一次 |
 | `startup.welcome_webview_ms` | 开窗 → welcome webview did-finish-load(D1) | ms | 同机 | record | ○ |
 
-### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
+### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `resize`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
 
 | 指标 ID | 定义(口径) | 单位 | 可比性 | 等级 | 状态 |
 |---|---|---|---|---|---|
-| `interact.<s>.inp_p95_ms` | 场景窗口内 Event Timing(含 interactionId)duration p95 | ms | 同机 | warn→gate | ✅ typing 48 / drag 128 @100节点 |
-| `interact.<s>.frames_over20_pct` | rAF 帧间隔 >20ms 占比 | % | 同机 | warn | ✅ typing 43% @100节点 |
+| `interact.<s>.inp_p95_ms` | 场景窗口内 Event Timing(含 interactionId)duration p95 | ms | 同机 | warn→gate | ✅ typing 16 / resize 32(record) / drag 32 @100节点(2026-07-10) |
+| `interact.<s>.frames_over20_pct` | rAF 帧间隔 >20ms 占比 | % | 同机 | warn | ✅ typing 0.2% / resize 0% / drag 0% @100节点(2026-07-10) |
 | `interact.<s>.loaf_blocking_ms` | 长动画帧 blockingDuration 合计 | ms | 同机 | record | ✅ |
-| `interact.<s>.counter.nodes_array_replace` | 场景内整 nodes 数组替换次数(A2/I-1 守卫) | 次 | **全局** | **gate** | ✅ typing 120≤132 / drag 91≤100 |
-| `interact.<s>.counter.canvas_save_ipc` | 场景内 canvas:save 发起次数 | 次 | **全局** | **gate** | ✅ ≤3 |
+| `interact.<s>.counter.nodes_array_replace` | 场景内整 nodes 数组替换次数(A2/I-1 守卫) | 次 | **全局** | **gate** | ✅ typing 2 / resize 1 / drag 1,均≤10(2026-07-10) |
+| `interact.<s>.counter.canvas_save_ipc` | 场景内 canvas:save 发起次数 | 次 | **全局** | **gate** | ✅ typing 2 / resize 2 / drag 1,均≤3(2026-07-10) |
 | `interact.<s>.counter.terminal_fit` | 场景内 xterm refit 次数(E2/E9 守卫) | 次 | **全局** | gate | ◐ 已埋,待含终端场景 |
 | `interact.scale.inp_ratio_100_3` | 同场景 100 节点 / 3 节点 INP p95 之比(规模退化系数) | 倍 | 全局(近似) | warn | ○ 由 repeat 派生 |
+
+`resize` 的 Event Timing 只覆盖离散 pointerdown/up,不覆盖连续 pointer-move;因此 `interact.resize.inp_p95_ms` 为 record 级,连续手感以 `interact.resize.frames_over20_pct` 及每轮 raw 值为准。
 
 ### ③ 体积(采集:`perf:bundle`,构建产物静态度量;全部机器无关)
 

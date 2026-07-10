@@ -18,6 +18,58 @@ const outDir = join(appRoot, 'perf/out');
 
 const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf-8')) : null);
 
+export const collectInteractionScenarioMetrics = (scenarios, name) => {
+  const report = scenarios?.scenarios?.[name]?.report;
+  const entries = [];
+  const add = (id, value, extra = {}) => {
+    if (value === undefined || value === null || Number.isNaN(value)) return;
+    entries.push({ id, value, runs: 1, ...extra });
+  };
+  if (report) {
+    const repeatExtra = report.runs > 1
+      ? { runs: report.runs, raw: report.raw?.interactionsP95 }
+      : {};
+    const frameExtra = report.runs > 1
+      ? { runs: report.runs, raw: report.raw?.framesOver20Pct }
+      : {};
+    add(`interact.${name}.inp_p95_ms`, report.interactions.p95, repeatExtra);
+    add(`interact.${name}.frames_over20_pct`, report.frames.over20msPct, frameExtra);
+  }
+  for (const counter of ['nodes-array-replace', 'canvas-save-ipc']) {
+    const gate = scenarios?.gates?.find((entry) => entry.scenario === name && entry.counter === counter);
+    const value = report?.counters?.[counter];
+    const id = `interact.${name}.counter.${counter.replaceAll('-', '_')}`;
+    const counterExtra = report?.runs > 1
+      ? {
+          runs: report.runs,
+          raw: report.raw?.counters?.map((run) => run[counter] ?? 0),
+        }
+      : {};
+    if (typeof value === 'number') {
+      add(id, value, {
+        ...counterExtra,
+        ...(gate ? {
+          pass: gate.pass,
+          limit: gate.max,
+          ...(gate.missingConfig ? { missingConfig: true } : {}),
+        } : {}),
+      });
+    } else if (gate) {
+      entries.push({
+        id,
+        value: typeof gate.value === 'number' ? gate.value : null,
+        runs: 1,
+        ...counterExtra,
+        pass: gate.pass,
+        limit: gate.max,
+        ...(gate.missing ? { missing: true } : {}),
+        ...(gate.missingConfig ? { missingConfig: true } : {}),
+      });
+    }
+  }
+  return entries;
+};
+
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
@@ -119,27 +171,11 @@ export const collectMetrics = () => {
     push('memory.ws_cycle.peak_heap_mb', wsc.peakHeapMB);
   }
 
-  for (const name of ['typing', 'drag']) {
-    const report = scenarios?.scenarios?.[name]?.report;
-    if (!report) continue;
+  for (const name of ['typing', 'drag', 'resize']) {
     // A3: --repeat N folds multiple in-session runs into a median (see
     // run-scenarios.mjs aggregateReports); runs/raw follow the schema in
     // program.md §3 so history entries carry sample counts, not just values.
-    const repeatExtra = report.runs > 1
-      ? { runs: report.runs, raw: report.raw?.interactionsP95 }
-      : {};
-    const frameExtra = report.runs > 1
-      ? { runs: report.runs, raw: report.raw?.framesOver20Pct }
-      : {};
-    push(`interact.${name}.inp_p95_ms`, report.interactions.p95, repeatExtra);
-    push(`interact.${name}.frames_over20_pct`, report.frames.over20msPct, frameExtra);
-    for (const [counter, id] of [
-      ['nodes-array-replace', `interact.${name}.counter.nodes_array_replace`],
-      ['canvas-save-ipc', `interact.${name}.counter.canvas_save_ipc`],
-    ]) {
-      const gate = scenarios.gates?.find((g) => g.scenario === name && g.counter === counter);
-      push(id, report.counters[counter] ?? 0, gate ? { pass: gate.pass, limit: gate.max } : {});
-    }
+    metrics.push(...collectInteractionScenarioMetrics(scenarios, name));
   }
 
   // A4: panzoom has no nodes-array-replace counter (pan/zoom never touch
