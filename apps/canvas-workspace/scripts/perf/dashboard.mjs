@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectMetrics } from './collect-metrics.mjs';
+import { summarizeCoverage } from './coverage.mjs';
 import { renderDashboardHtml } from './dashboard-html.mjs';
 import { buildVerdict, evaluateRules } from './rules.mjs';
 
@@ -26,6 +27,9 @@ const snapshot = collectMetrics();
 const bundleReport = existsSync(join(outDir, 'bundle-report.json'))
   ? JSON.parse(readFileSync(join(outDir, 'bundle-report.json'), 'utf-8'))
   : null;
+const rendererTrace = existsSync(join(outDir, 'renderer-trace-summary.json'))
+  ? JSON.parse(readFileSync(join(outDir, 'renderer-trace-summary.json'), 'utf-8'))
+  : null;
 
 // Same-machine history only — timing baselines never cross machines.
 const history = existsSync(historyDir)
@@ -37,6 +41,7 @@ const history = existsSync(historyDir)
 
 const ruleResult = evaluateRules(dictionary, snapshot, history);
 const verdict = buildVerdict(dictionary, snapshot, ruleResult.alerts);
+const coverage = summarizeCoverage(dictionary, snapshot);
 
 mkdirSync(outDir, { recursive: true });
 mkdirSync(historyDir, { recursive: true });
@@ -61,11 +66,29 @@ writeFileSync(join(outDir, 'report.json'), JSON.stringify({
   timestamp: snapshot.timestamp,
   machineId: snapshot.machineId,
   env: snapshot.env,
-  coverage: { measured: snapshot.metrics.length, total: dictionary.metrics.length },
+  coverage,
   alerts: ruleResult.alerts,
   metrics: snapshot.metrics,
+  diagnostics: {
+    rendererTrace: rendererTrace
+      ? {
+          status: rendererTrace.status,
+          reason: rendererTrace.reason,
+          capture: rendererTrace.capture,
+          vitals: rendererTrace.vitals,
+          window: rendererTrace.window,
+          blocking: rendererTrace.blocking,
+          cpu: rendererTrace.cpu,
+          artifact: rendererTrace.artifact,
+        }
+      : { status: 'unavailable', reason: 'renderer trace was not captured in this run' },
+  },
   dashboardHtml: 'perf/out/dashboard.html',
 }, null, 2));
 
-console.log(`[perf:dashboard] ${snapshot.metrics.length}/${dictionary.metrics.length} metrics, ${ruleResult.alerts.length} alerts → perf/out/dashboard.html + report.json`);
+console.log(
+  `[perf:dashboard] core ${coverage.measured}/${coverage.total}, `
+  + `diagnostic ${coverage.diagnostic.measured}/${coverage.diagnostic.total}, `
+  + `${ruleResult.alerts.length} alerts → perf/out/dashboard.html + report.json`,
+);
 console.log(`[perf:dashboard] verdict: ${verdict}`);

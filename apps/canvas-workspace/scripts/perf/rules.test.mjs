@@ -35,3 +35,31 @@ describe('evaluateRules missing gates', () => {
     });
   });
 });
+
+describe('evaluateRules diagnostic profiles', () => {
+  it('does not compare optional trace timings without an identical trace profile', () => {
+    const diagnosticDictionary = {
+      aspects: [],
+      metrics: [{
+        id: 'startup.renderer_reload.lcp_ms',
+        aspect: 'startup',
+        label: 'renderer reload LCP',
+        unit: 'ms',
+        comparability: '同机',
+        coverageClass: 'diagnostic',
+      }],
+    };
+    const snapshot = {
+      timestamp: '2026-07-10T00:01:00.000Z',
+      env: { seedNodes: 100 },
+      metrics: [{ id: 'startup.renderer_reload.lcp_ms', value: 600 }],
+    };
+    const history = [{
+      timestamp: '2026-07-10T00:00:00.000Z',
+      env: { seedNodes: 10 },
+      metrics: [{ id: 'startup.renderer_reload.lcp_ms', value: 100 }],
+    }];
+
+    expect(evaluateRules(diagnosticDictionary, snapshot, history).alerts).toEqual([]);
+  });
+});

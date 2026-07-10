@@ -50,7 +50,9 @@ export const evaluateRules = (dictionary, snapshot, history) => {
   }
 
   // 2. Unstable timing samples — protect consumers from single-run noise.
-  for (const def of dictionary.metrics.filter((d) => d.comparability === '同机')) {
+  for (const def of dictionary.metrics.filter(
+    (d) => d.comparability === '同机' && d.coverageClass !== 'diagnostic',
+  )) {
     const entry = byId.get(def.id);
     const prev = prevOf(def.id);
     if (!entry || typeof entry.value !== 'number' || typeof prev !== 'number' || prev === 0) continue;

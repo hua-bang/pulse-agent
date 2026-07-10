@@ -67,6 +67,7 @@ node "${CODEX_HOME:-$HOME/.codex}/skills/perf-report/scripts/publish-dashboard.m
 
 - `perf/out/dashboard.html` → `/data/www/sites/default/current/canvas-perf/index.html`
 - `report.json`, `scenarios-report.json`, `bundle-report.json`
+- `renderer-trace-summary.json`, `renderer-trace.json.gz` when CDP tracing is available
 - dashboard screenshot → `apps/canvas-workspace/perf/out/dashboard.png`
 - Electron startup screenshot → `apps/canvas-workspace/perf/out/electron-startup.png`
 
@@ -87,7 +88,11 @@ Read `apps/canvas-workspace/perf/out/report.json`:
 - `alerts[]` — severity (`high`/`medium`/`info`), `title`, `evidence`,
   `suggestion` (the actionable fix), `ref` (finding id, e.g. `I-1`, `A2`)
 - `metrics[]` — metric id → value (+ `pass`/`limit` for gated ones)
-- `coverage` — how many dictionary metrics have values
+- `coverage.measured/total` — required core metrics only
+- `coverage.diagnostic` — optional CDP trace metrics; unavailable diagnostics
+  do not make the core report fail
+- `diagnostics.rendererTrace` — warm renderer reload trace status/profile and
+  `perf/out/renderer-trace.json.gz` artifact metadata
 
 ## Reply
 
@@ -103,6 +108,14 @@ screenshot path. Keep it short; the dashboard carries the detail.
 - Timing metrics are per-machine; do not compare absolute values across
   machines or declare regressions from a single run (the variance alert
   exists for this). Counter metrics are deterministic and safe to act on.
+- `startup.renderer_reload.*` is record-only Electron `file://` lab evidence,
+  not field Core Web Vitals. Report LCP/CLS reference ratings with the warm
+  reload/profile qualifier. Keep FCP→Canvas shell blocking separate from
+  Canvas→LCP blocking and Long Task evidence; neither is Lighthouse TBT.
+- Never interpret a numeric zero without its sample contract. Pan/zoom uses
+  wheel→next-frame latency (wheel INP is N/A), frame medians must be paired
+  with their single-run max, and cache hit ratio is valid only when the report
+  includes a non-zero settled-render opportunity count.
 - If you fix a finding an alert points to (e.g. `I-1`), lower the matching
   baseline/max in `perf/baselines.json` in the same change — the alert
   disappearing on the next run is the proof of the fix.

@@ -4,6 +4,8 @@
  * layer; raw metrics are the evidence layer below. Pure function of
  * (dictionary, snapshot, bundleReport, rules output) → self-contained HTML.
  */
+import { summarizeCoverage } from './coverage.mjs';
+import { organizeAspectMetrics } from './metric-presentation.mjs';
 
 const esc = (value) =>
   String(value).replace(/[&<>"']/g, (ch) => (
@@ -92,17 +94,25 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
   const metricsOf = (aspectId) => dictionary.metrics.filter((m) => m.aspect === aspectId);
   const aspectName = (id) => dictionary.aspects.find((a) => a.id === id)?.name ?? id;
 
-  const measuredCount = dictionary.metrics.filter((m) => valueOf(m.id) !== undefined).length;
+  const coverage = summarizeCoverage(dictionary, snapshot);
 
   const tabs = dictionary.aspects.map((a) => {
-    const health = aspectHealth(a, metricsOf(a.id), valueOf);
+    const health = aspectHealth(
+      a,
+      metricsOf(a.id).filter((definition) => definition.coverageClass !== 'diagnostic'),
+      valueOf,
+    );
     const count = alerts.filter((x) => x.aspect === a.id && x.severity !== 'info').length;
     return `<button class="tab" role="tab" id="tab-${a.id}" aria-selected="false" data-panel="${a.id}">
       <span class="dot dot-${health}"></span>${esc(a.name)}${count ? `<span class="tab-badge">${count}</span>` : ''}</button>`;
   }).join('');
 
   const healthTiles = dictionary.aspects.map((a) => {
-    const health = aspectHealth(a, metricsOf(a.id), valueOf);
+    const health = aspectHealth(
+      a,
+      metricsOf(a.id).filter((definition) => definition.coverageClass !== 'diagnostic'),
+      valueOf,
+    );
     const star = dictionary.metrics.find((m) => m.id === a.northStar);
     const entry = star ? valueOf(star.id) : undefined;
     const value = entry
@@ -125,7 +135,7 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
     ['interact.typing.counter.nodes_array_replace', '打字 整数组替换'],
     ['interact.typing.inp_p95_ms', '打字 INP p95'],
     ['bundle.entry_raw_kb', '入口 chunk raw'],
-    ['memory.ws_cycle.heap_slope', 'workspace 堆斜率'],
+    ['memory.ws_cycle.post_capacity_heap_slope', 'LRU 容量后堆斜率'],
     ['main.loop_delay_p99_ms', '主进程 loop-delay p99'],
   ];
   const seriesOf = (id) => series.map((s) => s.metrics.find((m) => m.id === id)?.value).filter((v) => typeof v === 'number');
@@ -138,21 +148,28 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
     ? `<div class="card"><h2>关键指标趋势(同机 · ${series.length} 次运行,越低越好)</h2>${trendRows}</div>`
     : '';
 
+  const interactionRuns = Math.max(
+    1,
+    ...snapshot.metrics
+      .filter((metric) => metric.id.startsWith('interact.') && Number.isFinite(metric.runs))
+      .map((metric) => metric.runs),
+  );
   const scenarioConditions = snapshot.env.seedNodes
-    ? `场景条件:@${snapshot.env.seedNodes} 节点画布 · 打字 120 字符(25ms 间隔)· 拖拽 90 步 · n=1(时间类指标单样本,结论以多轮中位数为准)`
-    : '场景条件:默认画布 · n=1';
+    ? `场景条件:@${snapshot.env.seedNodes} 节点画布 · 打字 120 字符(25ms 间隔) · 调整尺寸/拖拽各 90 步 · Pan/Zoom 50 wheel/run · repeat ${interactionRuns}(时间取中位数并保留 raw,帧另保留单轮最差值)`
+    : `场景条件:默认画布 · repeat ${interactionRuns}`;
 
   const aspectPanels = dictionary.aspects.map((a) => {
     const defs = metricsOf(a.id);
-    const measured = defs.filter((d) => valueOf(d.id) !== undefined);
-    const unmeasured = defs.filter((d) => valueOf(d.id) === undefined);
     const aspectAlerts = alerts.filter((x) => x.aspect === a.id);
+    const presentation = organizeAspectMetrics(a, defs);
+    const dimensionNames = new Map((a.dimensions ?? []).map((dimension) => [dimension.id, dimension.name]));
+    const attentionRefs = new Set(aspectAlerts.map((alert) => alert.ref));
 
     const row = (def) => {
       const entry = valueOf(def.id);
-      const star = def.id === a.northStar ? '<span class="star" title="北极星指标">★</span> ' : '';
+      const star = def.id === a.northStar ? '<span class="star">北极星</span> ' : '';
       const detail = entry?.detail ? `<div class="detail">${esc(entry.detail)}</div>` : '';
-      return `<tr>
+      return `<tr data-metric-id="${esc(def.id)}">
         <td>${star}${esc(def.label)} <span class="lvl">${LEVEL_LABEL[def.level] ?? esc(def.level)}</span>
           <div class="mid">${esc(def.id)} · ${esc(def.comparability)}</div>${detail}</td>
         <td class="num">${valueCell(def, entry, prevOf(def.id))}</td>
@@ -160,26 +177,93 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
       </tr>`;
     };
 
-    const measuredTable = measured.length
-      ? `<div class="table-scroll"><table>
-          <thead><tr><th>指标</th><th class="num">当前值</th><th>状态</th></tr></thead>
-          <tbody>${measured.map(row).join('')}</tbody>
-        </table></div>`
-      : '<div class="muted">该专项尚无实测数据。</div>';
+    const table = (definitions) => `<div class="table-scroll metric-table"><table>
+      <thead><tr><th>指标</th><th class="num">当前值</th><th>状态</th></tr></thead>
+      <tbody>${definitions.map(row).join('')}</tbody>
+    </table></div>`;
 
-    const unmeasuredBlock = unmeasured.length
-      ? `<details class="unbuilt"><summary>未建 / 待采 ${unmeasured.length} 项</summary>
-          <div class="table-scroll"><table><tbody>${unmeasured.map(row).join('')}</tbody></table></div>
-        </details>`
+    const primaryCards = presentation.primary.map((def) => {
+      const entry = valueOf(def.id);
+      const detail = entry?.detail
+        ? `<div class="metric-kpi-detail">${esc(entry.detail)}</div>`
+        : '';
+      const status = entry && (def.unit === 'bool' || entry.pass !== undefined)
+        ? statusCell(def, entry)
+        : `<span class="metric-kpi-scope">${esc(def.comparability)}</span>`;
+      return `<article class="metric-kpi" data-summary-metric="${esc(def.id)}">
+        <div class="metric-kpi-top">
+          <span class="metric-kpi-dimension">${esc(dimensionNames.get(def.dimension) ?? '关键结果')}</span>
+          ${def.id === a.northStar ? '<span class="north-star">北极星</span>' : ''}
+        </div>
+        <div class="metric-kpi-label">${esc(def.label)}</div>
+        <div class="metric-kpi-value">${valueCell(def, entry, prevOf(def.id))}</div>
+        <div class="metric-kpi-meta"><span class="lvl">${LEVEL_LABEL[def.level] ?? esc(def.level)}</span>${status}</div>
+        ${detail}
+      </article>`;
+    }).join('');
+
+    const primaryBlock = presentation.primary.length
+      ? `<section class="metric-tier metric-tier-primary" data-role="metric-summary">
+          <div class="metric-tier-head">
+            <span class="priority-chip priority-primary">P0</span>
+            <div><h2>关键结果</h2><p>先看这些，判断该专题是否健康。</p></div>
+          </div>
+          <div class="metric-summary">${primaryCards}</div>
+        </section>`
       : '';
+
+    const renderTier = (priority, heading, description, groups) => {
+      if (groups.length === 0) return '';
+      const groupHtml = groups.map((group) => {
+        const measuredCount = group.definitions.filter((def) => valueOf(def.id) !== undefined).length;
+        const failingCount = group.definitions.filter((def) => valueOf(def.id)?.pass === false).length;
+        const needsAttention = failingCount > 0
+          || group.definitions.some((def) => attentionRefs.has(def.id));
+        const countLabel = failingCount > 0
+          ? `${failingCount} 项失败`
+          : `${measuredCount}/${group.definitions.length} 已采`;
+        return `<details class="metric-dimension metric-dimension-${priority}"
+            data-priority="${priority}" data-dimension="${esc(group.id)}"${needsAttention ? ' open' : ''}>
+          <summary>
+            <span class="metric-dimension-copy">
+              <span class="metric-dimension-name">${esc(group.name)}</span>
+              <span class="metric-dimension-description">${esc(group.description ?? '')}</span>
+            </span>
+            <span class="metric-dimension-count${failingCount > 0 ? ' issue' : ''}">${countLabel}</span>
+          </summary>
+          ${table(group.definitions)}
+        </details>`;
+      }).join('');
+      return `<section class="metric-tier metric-tier-${priority}" data-role="metric-${priority}">
+        <div class="metric-tier-head">
+          <span class="priority-chip priority-${priority}">${priority === 'supporting' ? 'P1' : 'P2'}</span>
+          <div><h2>${esc(heading)}</h2><p>${esc(description)}</p></div>
+        </div>
+        <div class="metric-dimensions">${groupHtml}</div>
+      </section>`;
+    };
+
+    const supportingBlock = renderTier(
+      'supporting',
+      '分项观测',
+      '按维度展开，解释关键结果由哪一段产生。',
+      presentation.supporting,
+    );
+    const diagnosticBlock = renderTier(
+      'diagnostic',
+      '深入诊断',
+      '排障时再看；其中部分指标不参与核心门禁。',
+      presentation.diagnostic,
+    );
 
     return `<section class="panel" id="panel-${a.id}" role="tabpanel" aria-labelledby="tab-${a.id}">
       <div class="q">${esc(a.question)}<span class="muted">(${esc(a.findings)})</span></div>
       ${aspectAlerts.map((x) => alertCard(x)).join('')}
-      <div class="card">
+      <div class="card metric-card">
         ${a.id === 'interact' ? `<div class="cond">${esc(scenarioConditions)}</div>` : ''}
-        ${measuredTable}
-        ${unmeasuredBlock}
+        ${primaryBlock}
+        ${supportingBlock}
+        ${diagnosticBlock}
       </div>
       ${a.id === 'bundle' && bundleReport ? renderChunkBars(bundleReport) : ''}
       ${a.id === 'bundle' ? renderEntryDepBars(bundleReport) : ''}
@@ -206,7 +290,7 @@ export const renderDashboardHtml = (dictionary, snapshot, bundleReport, { alerts
     ${tabs}
   </nav>
   <section class="panel active" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
-    <div class="verdict card">${esc(verdict)}<span class="verdict-sub">${measuredCount}/${dictionary.metrics.length} 指标有实测值 · 87 条发现已修 4</span></div>
+    <div class="verdict card">${esc(verdict)}<span class="verdict-sub">核心 ${coverage.measured}/${coverage.total} · CDP trace 诊断 ${coverage.diagnostic.measured}/${coverage.diagnostic.total} · 87 条发现已修 4</span></div>
     <div class="health">${healthTiles}</div>
     <div class="card"><h2>告警(规则引擎,按严重度)</h2>${overviewAlerts}</div>
     ${trendCard}
@@ -343,6 +427,41 @@ const css = () => `
   .alert-fix { font-size:12.5px; color:var(--ink-2); margin-top:2px; }
   .alert-fix .ref { color:var(--muted); font-size:11px; }
   .cond { font-size:12px; color:var(--muted); margin-bottom:10px; }
+  .metric-card { display:flex; flex-direction:column; gap:18px; }
+  .metric-tier { display:flex; flex-direction:column; gap:10px; }
+  .metric-tier + .metric-tier { padding-top:16px; border-top:1px solid var(--grid); }
+  .metric-tier-head { display:flex; align-items:flex-start; gap:9px; }
+  .metric-tier-head h2 { color:var(--ink); font-size:13px; margin:0; }
+  .metric-tier-head p { color:var(--muted); font-size:11.5px; margin-top:1px; }
+  .priority-chip { flex:none; min-width:30px; border-radius:5px; padding:2px 6px; font-size:10px; font-weight:700; text-align:center; letter-spacing:0.04em; }
+  .priority-primary { color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,transparent); }
+  .priority-supporting { color:var(--ink-2); background:var(--chip-muted-bg); }
+  .priority-diagnostic { color:var(--muted); border:1px solid var(--grid); }
+  .metric-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:9px; }
+  .metric-kpi { min-width:0; border:1px solid var(--grid); border-radius:8px; padding:12px 13px; background:color-mix(in srgb,var(--surface) 94%,var(--accent)); }
+  .metric-kpi-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:7px; }
+  .metric-kpi-dimension { color:var(--muted); font-size:10.5px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
+  .north-star { color:var(--warning); font-size:10px; font-weight:650; }
+  .metric-kpi-label { color:var(--ink-2); font-size:11.5px; min-height:36px; }
+  .metric-kpi-value { margin-top:3px; font-size:21px; font-variant-numeric:tabular-nums; }
+  .metric-kpi-value > b { font-weight:680; }
+  .metric-kpi-value .unit { font-size:11.5px; }
+  .metric-kpi-value .prev { display:inline; margin-left:8px; }
+  .metric-kpi-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:18px; margin-top:8px; }
+  .metric-kpi-detail { color:var(--muted); font-size:10.5px; line-height:1.4; margin-top:5px; }
+  .metric-kpi-scope { color:var(--muted); font-size:10.5px; }
+  .metric-dimensions { display:flex; flex-direction:column; gap:7px; }
+  .metric-dimension { border:1px solid var(--grid); border-radius:8px; overflow:hidden; background:color-mix(in srgb,var(--surface) 97%,var(--ink)); }
+  .metric-dimension summary { cursor:pointer; padding:10px 13px; color:var(--ink-2); }
+  .metric-dimension summary:hover { color:var(--ink); }
+  .metric-dimension summary:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+  .metric-dimension[open] summary { border-bottom:1px solid var(--grid); }
+  .metric-dimension-copy { display:inline-flex; width:calc(100% - 108px); flex-direction:column; vertical-align:middle; margin-left:3px; }
+  .metric-dimension-name { color:var(--ink); font-size:12.5px; font-weight:600; }
+  .metric-dimension-description { color:var(--muted); font-size:11px; }
+  .metric-dimension-count { float:right; margin-top:7px; color:var(--muted); font-size:10.5px; font-variant-numeric:tabular-nums; }
+  .metric-dimension-count.issue { color:var(--critical); font-weight:650; }
+  .metric-table { padding:2px 13px 8px; }
   .table-scroll { overflow-x:auto; }
   table { width:100%; border-collapse:collapse; font-size:13px; min-width:480px; }
   th { text-align:left; color:var(--muted); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:0.05em; padding:0 12px 7px 0; border-bottom:1px solid var(--grid); }
@@ -354,7 +473,7 @@ const css = () => `
   .detail { font-size:11.5px; color:var(--muted); margin-top:2px; }
   .prev { font-size:11px; color:var(--muted); font-weight:400; }
   .lvl { font-size:10px; color:var(--muted); border:1px solid var(--grid); border-radius:4px; padding:0 5px; vertical-align:1px; }
-  .star { color:var(--warning); }
+  .star { color:var(--warning); border:1px solid color-mix(in srgb,var(--warning) 45%,transparent); border-radius:4px; padding:0 4px; font-size:9.5px; font-weight:650; }
   .status-good { color:var(--good-text); font-weight:600; white-space:nowrap; }
   .status-critical { color:var(--critical); font-weight:600; white-space:nowrap; }
   .next { font-size:12.5px; color:var(--ink-2); }
@@ -383,7 +502,7 @@ const css = () => `
   .trend-flat, .trend-flat .spark { color:var(--muted); }
   .trend-delta.trend-good b { color:var(--good-text); }
   .trend-delta.trend-bad b { color:var(--critical); }
-  @media (max-width:560px) { .app { padding:14px 12px 40px; } .mb-row { grid-template-columns:minmax(90px,130px) 1fr 56px; } .trend-row { grid-template-columns:1fr 70px 120px; } }
+  @media (max-width:560px) { .app { padding:14px 12px 40px; } .metric-summary { grid-template-columns:1fr; } .metric-dimension-copy { width:calc(100% - 84px); } .mb-row { grid-template-columns:minmax(90px,130px) 1fr 56px; } .trend-row { grid-template-columns:1fr 70px 120px; } }
 `;
 
 const js = () => `

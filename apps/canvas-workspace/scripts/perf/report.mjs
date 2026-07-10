@@ -177,7 +177,7 @@ if (!bundleOnly) {
       }
 
       step(
-        `运行时场景(打字 / 缩放节点 / 拖拽 / 启动,@${seedNodes} 节点`
+        `运行时场景(打字 / 缩放节点 / 拖拽 / 启动 / renderer trace,@${seedNodes} 节点`
         + (Number(seedWebpages) > 0 ? `(含 ${seedWebpages} 网页)` : '')
         + `,--repeat ${repeat})`,
       );
@@ -230,7 +230,11 @@ if (report) {
   const medium = report.alerts.filter((a) => a.severity === 'medium');
   if (high.length) console.log(`⚠ HIGH ×${high.length}: ${high.map((a) => a.title).join(' / ')}`);
   if (medium.length) console.log(`  MED  ×${medium.length}: ${medium.map((a) => a.title).join(' / ')}`);
-  console.log(`覆盖: ${report.coverage.measured}/${report.coverage.total} 指标${scenariosRan ? '' : ' · 仅体积(运行时场景已跳过)'}`);
+  console.log(
+    `覆盖:核心 ${report.coverage.measured}/${report.coverage.total}`
+    + ` · CDP诊断 ${report.coverage.diagnostic?.measured ?? 0}/${report.coverage.diagnostic?.total ?? 0}`
+    + `${scenariosRan ? '' : ' · 仅体积(运行时场景已跳过)'}`,
+  );
 }
 console.log('看板: apps/canvas-workspace/perf/out/dashboard.html');
 console.log('契约: apps/canvas-workspace/perf/out/report.json');

@@ -16,11 +16,15 @@ describe('performance report artifacts', () => {
     dir = mkdtempSync(join(tmpdir(), 'canvas-perf-report-'));
     writeFileSync(join(dir, 'scenarios-report.json'), '{"stale":true}');
     writeFileSync(join(dir, 'bundle-report.json'), '{"current":true}');
+    writeFileSync(join(dir, 'renderer-trace-summary.json'), '{"stale":true}');
+    writeFileSync(join(dir, 'renderer-trace.json.gz'), 'stale');
 
     prepareReportArtifacts(dir);
 
     expect(runtimeScenariosExist(dir)).toBe(false);
     expect(readFileSync(join(dir, 'bundle-report.json'), 'utf-8')).toBe('{"current":true}');
+    expect(() => readFileSync(join(dir, 'renderer-trace-summary.json'))).toThrow();
+    expect(() => readFileSync(join(dir, 'renderer-trace.json.gz'))).toThrow();
   });
 
   it('rejects a current runtime report that contains no scenarios', () => {
