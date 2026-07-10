@@ -147,6 +147,13 @@ function findSourceFiles(root: string): string[] {
         continue;
       }
       if (entry.isFile() && /\.(ts|tsx)$/.test(entry.name)) {
+        // Test files run under vitest's node environment, never inside a
+        // real process surface, so the boundary contract does not govern
+        // them (e.g. a renderer unit test may read its CSS via node:fs).
+        // Same exclusion the file-size and ui-reuse suites apply.
+        if (/\.test\.(ts|tsx)$/.test(entry.name) || path.includes(`${sep}__tests__${sep}`)) {
+          continue;
+        }
         files.push(path);
       }
     }

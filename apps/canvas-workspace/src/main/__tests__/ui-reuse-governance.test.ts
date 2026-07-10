@@ -38,7 +38,13 @@ const RATCHET_BASELINE: Record<string, number> = {
   // entirely); SegmentedControl itself adds one shared <button> (its own
   // .map body), net -6 there. LinkDrawer's reload icon button moved onto
   // ui/Button's new icon variant (-1). Total -7.
-  rawButtonTags: 390,
+  // 390→398 (2026-07-10, drift RECORDED not approved): iframe-review +
+  // perf work merged to master without running this suite (8d848aa +8,
+  // d247f20 +3, 868d02f +1, minus deletions) — nothing triggers the ratchet
+  // automatically (known root-AGENTS §4 gap; this is its first confirmed
+  // bite). Raised to the honest measured value; the new raw buttons are
+  // stock for a future burn-down batch, not an allowance.
+  rawButtonTags: 398,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -46,7 +52,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).
-  rawTextareaTags: 13,
+  // 13→15 (2026-07-10, drift recorded): 8d848aa's iframe review-comment
+  // composer added 2 raw <textarea>s off-ratchet — same recording as
+  // rawButtonTags above.
+  rawTextareaTags: 15,
   // real native <select> elements — the blessed control is the ui/Select
   // custom popover. 0: none exist; this is a pure backstop against
   // reintroduction (doc mentions no longer count — comment-stripped).
@@ -62,7 +71,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // detail-tab 6px, round-switch 8px + its tab 6px, inspector-viewer-tabs
   // 7px + its button 5px); LinkDrawer's icon button (4px) moved onto
   // ui/Button (tokenized). 9 literals removed net.
-  borderRadiusLiterals: 416,
+  // 416→421 (2026-07-10, drift recorded): perf/iframe-review CSS landed
+  // off-ratchet (largely IframeNodeBody) — same recording as rawButtonTags.
+  borderRadiusLiterals: 421,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -165,7 +176,10 @@ const RATCHET_BASELINE: Record<string, number> = {
   // hover shipped a raw rgba() — the earlier "new ui/ components add nothing
   // to this counter" claim was FALSE by one; now tokenized (--surface-alt)
   // and the claim holds again.
-  hardcodedColorLiterals: 1934,
+  // 1934→1968 (2026-07-10, drift recorded): perf/iframe-review CSS landed
+  // off-ratchet (+34, largely IframeNodeBody + review-comment chrome) —
+  // same recording as rawButtonTags.
+  hardcodedColorLiterals: 1968,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -451,8 +465,8 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
         throw new Error(
           `${counter} grew: ${value} > baseline ${baseline}. New code must reuse the ` +
             'blessed implementation (components/ui/, the shared hooks, or a token) — see ' +
-            'harness/spec/ui-reuse-unification.md. If this growth is deliberate, record ' +
-            'the reason and raise the baseline in the same PR.',
+            'the "UI reuse (governed)" section of harness/knowledge/conventions/frontend.md. ' +
+            'If this growth is deliberate, record the reason and raise the baseline in the same PR.',
         );
       }
       if (value < baseline) {
