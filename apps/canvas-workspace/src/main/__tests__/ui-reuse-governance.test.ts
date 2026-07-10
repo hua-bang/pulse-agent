@@ -156,7 +156,23 @@ const RATCHET_BASELINE: Record<string, number> = {
   // AgentTeamFrame active-tab box-shadows (detail-tab, round-switch__tab)
   // now come from ui/DropdownShell (var(--shadow-float)) or a plain
   // ui/SegmentedControl active state with no shadow.
-  shadowLiterals: 196,
+  // 196→170 (C0, counter hygiene — production CSS untouched): the counter
+  // was inflated by two false positives — `box-shadow: none;` (26 lines) is
+  // not a shadow literal at all, and a whole-value reference to a
+  // shadow-purpose token that isn't spelled `var(--shadow...)` (5 lines, all
+  // `var(--nodes-shadow)` in WorkspaceNodes/index.css) is already tokenized.
+  // Both are now exempt WHEN THEY ARE THE ENTIRE VALUE; a line mixing
+  // geometry with an unrelated var (e.g. `var(--border)`) or even a
+  // shadow-purpose var (e.g. `0 0 0 1px var(--accent-border),
+  // var(--nodes-shadow)`) still counts — the review lesson holds. Net -26.
+  // Note for the record: the plan doc (ui-reuse-burndown.md) estimated the
+  // honest count at "~165" from a 196 starting point, but 5 unrelated
+  // box-shadow literals landed in IframeNodeBody/index.css via intervening
+  // perf commits (084be2c/ccfd629 et al., after the 196 baseline was set)
+  // before this batch ran — those 5 are real, still-uncounted drift, not a
+  // false positive this batch's rule is meant to catch, so the true honest
+  // floor is 170, not 165.
+  shadowLiterals: 170,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
@@ -325,13 +341,27 @@ describe('ui reuse governance (ratchet — counters may shrink, never grow)', ()
     // Exemption requires a SHADOW token specifically — a line like
     // `box-shadow: 0 1px 2px var(--border)` is token-colored but
     // literal-geometry and still counts (review finding: any-var( was too
-    // loose and did not match what conventions/frontend.md promises).
+    // loose and did not match what conventions/frontend.md promises). C0
+    // hygiene fix: also exempt a line whose value is WHOLLY `none` (not a
+    // shadow at all) or WHOLLY a shadow-purpose token reference that isn't
+    // spelled `var(--shadow...)` (e.g. `var(--nodes-shadow)`) — a mixed line
+    // (geometry plus any var, shadow-purpose or not) still counts.
     shadowLiterals: cssFiles.reduce(
       (sum, f) =>
         sum +
         f.content
           .split('\n')
-          .filter((line) => /box-shadow\s*:/.test(line) && !line.includes('var(--shadow'))
+          .filter((line) => {
+            if (!/box-shadow\s*:/.test(line)) return false;
+            if (line.includes('var(--shadow')) return false;
+            const value = line
+              .replace(/.*box-shadow\s*:\s*/, '')
+              .replace(/;.*$/, '')
+              .trim();
+            if (value === 'none') return false;
+            if (/^var\(--[a-zA-Z0-9_-]*shadow[a-zA-Z0-9_-]*\)$/i.test(value)) return false;
+            return true;
+          })
           .length,
       0,
     ),
