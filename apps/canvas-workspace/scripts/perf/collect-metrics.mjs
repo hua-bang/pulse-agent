@@ -18,6 +18,117 @@ const outDir = join(appRoot, 'perf/out');
 
 const readJson = (path) => (existsSync(path) ? JSON.parse(readFileSync(path, 'utf-8')) : null);
 
+export const collectInteractionScenarioMetrics = (scenarios, name) => {
+  const report = scenarios?.scenarios?.[name]?.report;
+  const entries = [];
+  const add = (id, value, extra = {}) => {
+    if (value === undefined || value === null || Number.isNaN(value)) return;
+    entries.push({ id, value, runs: 1, ...extra });
+  };
+  if (report) {
+    const repeatExtra = report.runs > 1
+      ? { runs: report.runs, raw: report.raw?.interactionsP95 }
+      : {};
+    const frameExtra = report.runs > 1
+      ? { runs: report.runs, raw: report.raw?.framesOver20Pct }
+      : {};
+    add(`interact.${name}.inp_p95_ms`, report.interactions.p95, repeatExtra);
+    add(`interact.${name}.frames_over20_pct`, report.frames.over20msPct, frameExtra);
+  }
+  for (const counter of ['nodes-array-replace', 'canvas-save-ipc']) {
+    const gate = scenarios?.gates?.find((entry) => entry.scenario === name && entry.counter === counter);
+    const value = report?.counters?.[counter];
+    const id = `interact.${name}.counter.${counter.replaceAll('-', '_')}`;
+    const counterExtra = report?.runs > 1
+      ? {
+          runs: report.runs,
+          raw: report.raw?.counters?.map((run) => run[counter] ?? 0),
+        }
+      : {};
+    if (typeof value === 'number') {
+      add(id, value, {
+        ...counterExtra,
+        ...(gate ? {
+          pass: gate.pass,
+          limit: gate.max,
+          ...(gate.missingConfig ? { missingConfig: true } : {}),
+        } : {}),
+      });
+    } else if (gate) {
+      entries.push({
+        id,
+        value: typeof gate.value === 'number' ? gate.value : null,
+        runs: 1,
+        ...counterExtra,
+        pass: gate.pass,
+        limit: gate.max,
+        ...(gate.missing ? { missing: true } : {}),
+        ...(gate.missingConfig ? { missingConfig: true } : {}),
+      });
+    }
+  }
+  return entries;
+};
+
+export const collectImageMemoryMetric = (scenarios) => {
+  const imageMemory = scenarios?.scenarios?.['image-memory'];
+  if (!imageMemory || typeof imageMemory.decodedMB !== 'number') return null;
+  return {
+    id: 'memory.image.decoded_mb',
+    value: imageMemory.decodedMB,
+    runs: 1,
+    detail: `${imageMemory.images}×4K · original ${imageMemory.originalDecodedMB} MB · ${imageMemory.reductionRatio}× reduction`,
+  };
+};
+
+export const collectChatStreamMetrics = (scenarios) => {
+  const chatStream = scenarios?.scenarios?.['chat-stream'];
+  if (!chatStream?.report) return [];
+  const entries = [
+    { id: 'chat.stream.frames_over20_pct', value: chatStream.report.frames.over20msPct, runs: 1 },
+    { id: 'chat.stream.md_render_count', value: chatStream.markdownRenders, runs: 1 },
+    { id: 'chat.stream.tail_burst_ms', value: chatStream.tailBurstMs, runs: 1 },
+  ];
+  const renderGate = scenarios.gates?.find(
+    entry => entry.scenario === 'chat-stream' && entry.counter === 'chat-md-stream-render',
+  );
+  if (renderGate) {
+    entries[1] = {
+      ...entries[1],
+      pass: renderGate.pass,
+      limit: renderGate.max,
+    };
+  }
+  const hits = chatStream.report.counters?.['chat-md-cache-hit'] ?? 0;
+  const renders = chatStream.report.counters?.['chat-md-render'] ?? 0;
+  if (hits + renders > 0) {
+    entries.push({
+      id: 'chat.stream.md_cache_hit_ratio',
+      value: Math.round((hits / (hits + renders)) * 1000) / 10,
+      runs: 1,
+    });
+  }
+  return entries;
+};
+
+export const collectWelcomeWebviewMetric = (scenarios) => {
+  const value = scenarios?.scenarios?.startup?.welcomeWebviewMs;
+  return typeof value === 'number'
+    ? { id: 'startup.welcome_webview_ms', value, runs: 1 }
+    : null;
+};
+
+export const collectPtyStreamMetric = (scenarios) => {
+  const ptyStream = scenarios?.scenarios?.['pty-stream'];
+  if (!ptyStream || typeof ptyStream.ipcPerSec !== 'number') return null;
+  return {
+    id: 'main.pty.ipc_per_sec',
+    value: ptyStream.ipcPerSec,
+    runs: 1,
+    detail: `${ptyStream.terminals} terminals · ${ptyStream.events} IPC events · ${ptyStream.durationMs} ms`,
+  };
+};
+
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
@@ -93,6 +204,8 @@ export const collectMetrics = () => {
     // compile + eval up to that point (the mark is set at module load).
     push('startup.renderer.entry_eval_ms', Math.round(rendererMarks['renderer:main-start']));
   }
+  const welcomeWebviewMetric = collectWelcomeWebviewMetric(scenarios);
+  if (welcomeWebviewMetric) metrics.push(welcomeWebviewMetric);
 
   const mainProc = scenarios?.scenarios?.main;
   if (mainProc) {
@@ -119,27 +232,19 @@ export const collectMetrics = () => {
     push('memory.ws_cycle.peak_heap_mb', wsc.peakHeapMB);
   }
 
-  for (const name of ['typing', 'drag']) {
-    const report = scenarios?.scenarios?.[name]?.report;
-    if (!report) continue;
+  const ptyStreamMetric = collectPtyStreamMetric(scenarios);
+  if (ptyStreamMetric) metrics.push(ptyStreamMetric);
+
+  const imageMemoryMetric = collectImageMemoryMetric(scenarios);
+  if (imageMemoryMetric) metrics.push(imageMemoryMetric);
+
+  metrics.push(...collectChatStreamMetrics(scenarios));
+
+  for (const name of ['typing', 'drag', 'resize']) {
     // A3: --repeat N folds multiple in-session runs into a median (see
     // run-scenarios.mjs aggregateReports); runs/raw follow the schema in
     // program.md §3 so history entries carry sample counts, not just values.
-    const repeatExtra = report.runs > 1
-      ? { runs: report.runs, raw: report.raw?.interactionsP95 }
-      : {};
-    const frameExtra = report.runs > 1
-      ? { runs: report.runs, raw: report.raw?.framesOver20Pct }
-      : {};
-    push(`interact.${name}.inp_p95_ms`, report.interactions.p95, repeatExtra);
-    push(`interact.${name}.frames_over20_pct`, report.frames.over20msPct, frameExtra);
-    for (const [counter, id] of [
-      ['nodes-array-replace', `interact.${name}.counter.nodes_array_replace`],
-      ['canvas-save-ipc', `interact.${name}.counter.canvas_save_ipc`],
-    ]) {
-      const gate = scenarios.gates?.find((g) => g.scenario === name && g.counter === counter);
-      push(id, report.counters[counter] ?? 0, gate ? { pass: gate.pass, limit: gate.max } : {});
-    }
+    metrics.push(...collectInteractionScenarioMetrics(scenarios, name));
   }
 
   // A4: panzoom has no nodes-array-replace counter (pan/zoom never touch

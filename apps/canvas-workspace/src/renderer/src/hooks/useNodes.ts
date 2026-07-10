@@ -555,10 +555,21 @@ export const useNodes = (
   );
 
   const resizeNode = useCallback(
-    (id: string, width: number, height: number, x?: number, y?: number) => {
-      const resizedNodes = nodesRef.current.map((n) =>
-        n.id === id ? { ...n, width, height, x: x ?? n.x, y: y ?? n.y, updatedAt: Date.now() } : n,
-      );
+    (
+      id: string,
+      width: number,
+      height: number,
+      x?: number,
+      y?: number,
+      options?: { disableTextAutoSize?: boolean },
+    ) => {
+      const resizedNodes = nodesRef.current.map((n) => {
+        if (n.id !== id) return n;
+        const data = options?.disableTextAutoSize && n.type === 'text'
+          ? { ...(n.data as TextNodeData), autoSize: false }
+          : n.data;
+        return { ...n, width, height, x: x ?? n.x, y: y ?? n.y, data, updatedAt: Date.now() };
+      });
       applyNodes(resizeGroupsToChildren(resizedNodes), false);
     },
     [applyNodes, nodesRef]

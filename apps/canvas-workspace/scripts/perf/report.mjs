@@ -17,14 +17,15 @@
  * `--repeat N` (A3, default 3): the app is launched N times — the first
  * N-1 boots are startup-only (launch, read the "[perf] startup" phase log,
  * close) and only the Nth stays alive for the interactive scenarios
- * (typing/drag get their own in-session --repeat via run-scenarios.mjs).
+ * (typing/resize/drag get their own in-session --repeat via run-scenarios.mjs).
  * Startup phases are folded into a same-machine median across all N
  * launches (mergeStartupMedians below) — this is what a single boot cannot
  * do, and is why it lives here rather than in run-scenarios.mjs.
  *
- * Degrades gracefully: if the app can't launch (no Xvfb / Electron binary),
- * runtime scenarios are skipped with a hint and a bundle-only report is
- * still produced.
+ * A full report requires the runtime scenarios. If the app can't launch, the
+ * dashboard is still produced from the available bundle data, but the command
+ * exits non-zero. Use --bundle-only when a runtime run is intentionally out of
+ * scope.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -32,8 +33,11 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readSession } from '../../harness/tools/driver/src/session.mjs';
 import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
+import { prepareReportArtifacts, runtimeScenariosExist } from './report-artifacts.mjs';
+import { metricCoverageFailure, runFinalReportStep } from './report-policy.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const outDir = join(appRoot, 'perf/out');
 const args = process.argv.slice(2);
 const has = (flag) => args.includes(flag);
 const flagValue = (name, fallback) => {
@@ -110,6 +114,11 @@ const mergeStartupMedians = (samples) => {
 
 let gatesFailed = false;
 let scenariosRan = false;
+let runtimeLaunchFailed = false;
+
+// A dashboard must never reuse runtime metrics from an earlier invocation.
+// The current run recreates this file only after its CDP scenarios execute.
+prepareReportArtifacts(outDir);
 
 // 1. Build (unless reusing a fresh dist).
 if (!noBuild || !distExists) {
@@ -138,11 +147,10 @@ if (!bundleOnly) {
   const bootLabel = repeat > 1 ? `×${repeat}(前 ${repeat - 1} 次仅取 startup 样本)` : '×1';
   step(`启动应用(harness, headless, ${bootLabel})`);
   const startupSamples = [];
-  let launchFailed = false;
   for (let boot = 0; boot < repeat; boot++) {
     // PULSE_CANVAS_PERF activates the main-process loop-delay sampler + the startup summary log for this run.
     const started = harness(['start', '--profile', 'temp', '--headless', '--force'], { PULSE_CANVAS_PERF: '1' });
-    if (started.status !== 0) { launchFailed = true; break; }
+    if (started.status !== 0) { runtimeLaunchFailed = true; break; }
     // eslint-disable-next-line no-await-in-loop
     const session = await readSession().catch(() => null);
     // eslint-disable-next-line no-await-in-loop
@@ -151,7 +159,8 @@ if (!bundleOnly) {
     const isLastBoot = boot === repeat - 1;
     if (!isLastBoot) harness(['close', '--cleanup']);
   }
-  if (launchFailed) {
+  if (runtimeLaunchFailed) {
+    harness(['close', '--cleanup']);
     console.warn(
       '\n[perf:report] 应用启动失败,跳过运行时场景,仅出体积报告。\n'
       + '  无头运行需要 Xvfb(apt-get install -y xvfb)与 Electron 二进制\n'
@@ -168,18 +177,19 @@ if (!bundleOnly) {
       }
 
       step(
-        `运行时场景(打字 / 拖拽 / 启动,@${seedNodes} 节点`
+        `运行时场景(打字 / 缩放节点 / 拖拽 / 启动,@${seedNodes} 节点`
         + (Number(seedWebpages) > 0 ? `(含 ${seedWebpages} 网页)` : '')
         + `,--repeat ${repeat})`,
       );
-      if (node('scripts/perf/run-scenarios.mjs', [
+      const scenarioRun = node('scripts/perf/run-scenarios.mjs', [
         '--seed-nodes', seedNodes,
         '--seed-webpages', seedWebpages,
         '--repeat', String(repeat),
-      ]).status !== 0) {
+      ]);
+      if (scenarioRun.status !== 0) {
         gatesFailed = true;
       }
-      scenariosRan = true;
+      scenariosRan = runtimeScenariosExist(outDir);
       mergeStartupMedians(startupSamples);
     } finally {
       step('关闭应用');
@@ -188,13 +198,31 @@ if (!bundleOnly) {
   }
 }
 
-// 4. Assemble the report.
-step('生成报告(perf:dashboard)');
-if (node('scripts/perf/dashboard.mjs').status !== 0) gatesFailed = true;
+// 4. Assemble the report before finalizing the runtime requirement so failed
+// runs still leave a useful bundle-only artifact for diagnosis.
+const finalReport = runFinalReportStep({
+  bundleOnly,
+  launchFailed: runtimeLaunchFailed,
+  scenariosRan,
+  gatesFailed,
+  runDashboard: () => {
+    step('生成报告(perf:dashboard)');
+    return node('scripts/perf/dashboard.mjs').status;
+  },
+});
+gatesFailed = finalReport.gatesFailed;
+if (finalReport.runtimeFailure) {
+  console.error(`[perf:report] incomplete runtime report: ${finalReport.runtimeFailure}`);
+}
 
 // 5. Summary.
 const reportPath = join(appRoot, 'perf/out/report.json');
 const report = existsSync(reportPath) ? JSON.parse(readFileSync(reportPath, 'utf-8')) : null;
+const coverageFailure = metricCoverageFailure({ bundleOnly, coverage: report?.coverage });
+if (coverageFailure) {
+  gatesFailed = true;
+  console.error(`[perf:report] ${coverageFailure}`);
+}
 console.log('\n\x1b[1m─ 性能报告 ─────────────────────────\x1b[0m');
 if (report) {
   console.log(`结论: ${report.verdict}`);

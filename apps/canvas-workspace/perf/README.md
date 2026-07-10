@@ -15,13 +15,20 @@ pnpm --filter canvas-workspace perf:report
 Runs the whole pipeline — build → bundle gate → launch the app headless →
 runtime scenarios → close → assemble the report — prints the verdict, and
 writes `out/dashboard.html` (open in a browser) + `out/report.json` (verdict +
-alerts + metrics, for agents/CI). Exit 1 if any gate failed.
+alerts + metrics, for agents/CI). Exit 1 if any gate failed or a full report
+does not cover every metric in `metrics.json` (`--bundle-only` is exempt).
 
 Variants: `--bundle-only` (fast, no app launch), `--no-build` (reuse `dist/`),
 `--seed-nodes 300` (larger canvas), `--repeat 1` (single boot — faster but
-noisier; default is 3, see below). Degrades to a bundle-only report if the app
-can't launch. First run on a display-less host needs `apt-get install -y xvfb`
-and, if the Electron binary is missing, `pnpm --filter canvas-workspace setup:electron`.
+noisier; default is 3, see below). A full report deletes any stale
+`out/scenarios-report.json` before launch and exits non-zero if the app can't
+launch or the replacement runtime report is missing or invalid; use
+`--bundle-only` when a runtime run is intentionally out of scope. First run on a display-less host
+needs `apt-get install -y xvfb` and, if the Electron binary is missing,
+`pnpm --filter canvas-workspace setup:electron`.
+The CDP driver also needs a Node runtime with a global `WebSocket`; Node 20
+fails with `WebSocket is not defined`, while the repository's current Node 24
+runtime works.
 
 Agents use the same command via the `perf-report` skill
 (`.pulse-coder/skills/perf-report/SKILL.md`).
@@ -82,9 +89,17 @@ Scenarios drive input via CDP and read `window.__pulsePerf`:
 | Scenario | What it does | Gate |
 |---|---|---|
 | `startup` | parses the `[perf] startup` main-process phase line + renderer marks | informational |
+| `image-memory` | mounts 10 unique 4000×3000 image nodes and sums decoded pixel bytes | `memory.image.decoded_mb` record |
+| `chat-stream` | replays 521 deterministic code/Markdown deltas through the real IPC + chat UI | frame rate, Markdown render count gate, Mermaid tail |
 | `typing` | types 120 chars into the first file node | `nodes-array-replace` counter (finding I-1) |
+| `resize` | resizes a node from its bottom-right corner over 90 steps | `nodes-array-replace` + `canvas-save-ipc` counters (finding A2 resize) |
 | `drag` | drags the first node header 90 steps | `nodes-array-replace` counter (finding A2) |
 | `panzoom` | pans (plain wheel) + zooms (ctrl+wheel) over blank canvas | informational (no nodes-array touch) |
+| `pty-stream` | streams deterministic output through two real PTYs and counts renderer `pty:data` events | `main.pty.ipc_per_sec` record |
+
+Resize's Event Timing value only covers discrete pointerdown/up events; it
+does not measure continuous pointer-move latency. Treat it as record-only and
+use `frames_over20_pct` plus its per-run raw values for resize smoothness.
 
 `--seed-nodes N` grows the welcome canvas to N nodes (text nodes, persisted +
 reload) so timing metrics reflect a loaded canvas.
@@ -99,13 +114,13 @@ mechanisms so timing metrics stop being single-sample noise:
   and closes; only the Nth stays alive for the interactive scenarios below.
   Phases are folded into a same-machine median (`mergeStartupMedians`) with
   `runs`/`raw[]` recorded per program.md §3's schema.
-- **`run-scenarios.mjs --repeat N`** re-drives `typing`/`drag` N times against
+- **`run-scenarios.mjs --repeat N`** re-drives `typing`/`resize`/`drag` N times against
   that one live session (cheap — no relaunch needed) and medians
   `interactions.p95` / `frames.over20msPct`; counters take the max across runs
   (they're deterministic, so max is a safety net, not smoothing).
 
 `main.loop_delay_p99_ms` gets a smaller, incidental benefit: repeating
-typing/drag extends the session, giving the loop-delay sampler more 2s
+typing/resize/drag extends the session, giving the loop-delay sampler more 2s
 windows to draw its percentile from. `main.loop_delay_max_ms` is not
 repeat-stabilized — it's inherently a single worst-case reading, and the
 dashboard's variance alert already suggests re-running to confirm outliers on
@@ -118,7 +133,7 @@ when driving a manually-started session (see below).
 
 - Counter gates are deterministic (exact event counts) — tolerance lives in the
   recorded `max`. Today's maxima document the known amplifiers; when a fix
-  lands (e.g. debounced editor sync, ephemeral drag geometry), lower the max in
+  lands (e.g. debounced editor sync, ephemeral drag/resize geometry), lower the max in
   the same PR to lock the win in.
 - Timing metrics (INP p95, frames >20ms, LoAF, startup phases) are median'd
   across `--repeat` runs (see above) but stay informational until enough
@@ -131,3 +146,8 @@ Reference numbers (2026-07-04, in-sandbox xvfb, temp profile):
 startup whenReady→domReady 1598→2358 ms; typing@100 nodes INP p95 48 ms with
 43% frames >20 ms; drag@100 nodes INP p95 ~130 ms. Counters: typing 120
 replacements /120 keys, drag 91 /90 moves — the I-1/A2 amplifiers, measured.
+
+Current resize result (2026-07-10, macOS headless, 100 nodes, 3 repeats):
+per-run node-array replacements `[1,1,1]`, save IPCs `[2,1,1]`; gate maxima
+`1` / `2`, and median frames over 20ms = 0%. Both counter gates pass against
+their `10` / `3` limits.

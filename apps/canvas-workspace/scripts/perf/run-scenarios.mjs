@@ -21,6 +21,8 @@
  *   startup  – main-process phase marks + renderer first-frame/canvas marks + FCP
  *   typing   – types into the first file node; guards I-1 via the
  *              nodes-array-replace counter (today: ≈1 replacement per keystroke)
+ *   resize   – resizes the first node from its bottom-right corner; records
+ *              the same per-pointer-move interaction and frame metrics
  *   drag     – drags the first node by its header; guards A2 via the same
  *              counter (today: ≈1 replacement per pointer-move)
  *
@@ -28,7 +30,7 @@
  * metrics (INP p95, frame stats) are recorded as informational until enough
  * runs exist to set tolerances. Exit 1 on counter-gate failure.
  *
- * `--repeat N` (A3): typing/drag are re-driven N times against the same live
+ * `--repeat N` (A3): typing/resize/drag are re-driven N times against the same live
  * session (each iteration resets via __pulsePerf.begin/end); the reported
  * interactions.p95 / frames.over20msPct become the median across runs (raw[]
  * kept alongside) so a single noisy sample can't misfire the dashboard's
@@ -42,9 +44,11 @@ import { fileURLToPath } from 'node:url';
 import { requireLiveSession } from '../../harness/tools/driver/src/session.mjs';
 import { withPage } from '../../harness/tools/driver/src/cdp.mjs';
 import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
+import { compareCounterGates } from './runtime-gates.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const baselinesPath = join(appRoot, 'perf/baselines.json');
+const metricsPath = join(appRoot, 'perf/metrics.json');
 const outDir = join(appRoot, 'perf/out');
 
 const args = process.argv.slice(2);
@@ -54,10 +58,15 @@ const readFlag = (name) => {
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
 const seedWebpages = Number(readFlag('--seed-webpages') ?? 0);
-const only = (readFlag('--scenario') ?? 'startup,typing,drag,panzoom,ws-cycle').split(',');
+const only = (readFlag('--scenario') ?? 'startup,chat-stream,image-memory,typing,resize,drag,panzoom,pty-stream,ws-cycle').split(',');
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Covers the editor's 200ms writeback debounce plus useNodes' 800ms save
+// debounce, with margin for a busy renderer. Counter windows must start with
+// no prior save pending and end only after the measured gesture's save fires.
+const SAVE_DRAIN_MS = 1_200;
+const drainCanvasSave = () => sleep(SAVE_DRAIN_MS);
 
 const median = (nums) => {
   const sorted = [...nums].sort((a, b) => a - b);
@@ -80,14 +89,27 @@ const aggregateReports = (reports) => {
   for (const name of counterNames) {
     counters[name] = Math.max(...reports.map((r) => r.counters[name] ?? 0));
   }
+  const counterRaw = reports.map((report) => Object.fromEntries(
+    [...counterNames].map((name) => [name, report.counters[name] ?? 0]),
+  ));
   return {
     ...last,
     counters,
     interactions: { ...last.interactions, p95: median(p95Raw) },
     frames: { ...last.frames, over20msPct: median(over20Raw) },
     runs: reports.length,
-    raw: { interactionsP95: p95Raw, framesOver20Pct: over20Raw },
+    raw: { interactionsP95: p95Raw, framesOver20Pct: over20Raw, counters: counterRaw },
   };
+};
+
+const requireCounterInEveryRun = (scenario, reports, counter) => {
+  const emptyRuns = reports
+    .map((report, index) => ({ index, value: report.counters[counter] ?? 0 }))
+    .filter(({ value }) => value <= 0);
+  if (emptyRuns.length > 0) {
+    const runs = emptyRuns.map(({ index }) => index + 1).join(', ');
+    throw new Error(`${scenario} did not produce ${counter} in run(s): ${runs}`);
+  }
 };
 
 const evaluate = async (cdp, expression) => {
@@ -224,6 +246,133 @@ const startupScenario = async (cdp, session) => {
   };
 };
 
+const chatStreamScenario = async (cdp) => {
+  const inputSel = '.chat-panel .chat-input[contenteditable="true"]';
+  const sendSel = '.chat-panel .chat-send-btn:not(.chat-send-btn--stop)';
+  await evaluate(cdp, `document.querySelector('.ui-drawer-close')?.click()`);
+  await waitFor(() => evaluate(cdp, `!!document.querySelector(${JSON.stringify(inputSel)})`), 10_000);
+  const initialAssistantCount = await evaluate(
+    cdp,
+    `document.querySelectorAll('.chat-panel .chat-message-assistant').length`,
+  );
+  await evaluate(cdp, `(() => {
+    const input = document.querySelector(${JSON.stringify(inputSel)});
+    if (!(input instanceof HTMLElement)) throw new Error('chat perf input missing');
+    input.textContent = '__pulse_perf_chat_stream__';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+  })()`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector(${JSON.stringify(sendSel)})?.hasAttribute('disabled')`),
+    5_000,
+  );
+  await waitForCalmFrames(cdp);
+  await beginPerf(cdp, 'chat-stream');
+  await evaluate(cdp, `document.querySelector(${JSON.stringify(sendSel)})?.click()`);
+  await waitFor(
+    () => evaluate(cdp, `!!document.querySelector('.chat-panel .chat-send-btn--stop')`),
+    5_000,
+  );
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.chat-panel .chat-send-btn--stop')`),
+    30_000,
+  );
+  const streamEndedAt = await evaluate(cdp, 'performance.now()');
+  await waitFor(
+    () => evaluate(cdp, `(() => {
+      const messages = document.querySelectorAll('.chat-panel .chat-message-assistant');
+      if (messages.length <= ${initialAssistantCount}) return false;
+      const latest = messages[messages.length - 1];
+      const mermaid = latest.querySelector('.chat-mermaid');
+      return mermaid?.getAttribute('data-rendered') === 'true';
+    })()`),
+    30_000,
+  );
+  const tailBurstMs = await evaluate(
+    cdp,
+    `Math.round((performance.now() - ${streamEndedAt}) * 10) / 10`,
+  );
+  const report = await endPerf(cdp);
+  if ((report.counters['chat-md-stream-render'] ?? 0) <= 0) {
+    throw new Error('chat-stream replay produced no streaming markdown renders');
+  }
+  return {
+    report,
+    tailBurstMs,
+    markdownRenders: report.counters['chat-md-stream-render'],
+  };
+};
+
+const ptyStreamScenario = async (cdp) => {
+  await beginPerf(cdp, 'pty-stream');
+  const result = await evaluate(cdp, `(async () => {
+    const api = window.canvasWorkspace.pty;
+    const ids = ['perf-pty-a', 'perf-pty-b'];
+    const spawned = await Promise.all(ids.map(id => api.spawn(id, 80, 24)));
+    const failed = spawned.find(entry => !entry?.ok);
+    if (failed) throw new Error('PTY spawn failed: ' + (failed.error || 'unknown error'));
+    await new Promise(resolve => setTimeout(resolve, 250));
+    ids.forEach(id => api.write(id, 'stty -echo\\r'));
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    const run = (id, index) => new Promise((resolve, reject) => {
+      const marker = '__PULSE_PTY_PERF_DONE_' + index + '__';
+      let events = 0;
+      let bytes = 0;
+      const startedAt = performance.now();
+      let unsubscribeData = () => {};
+      let unsubscribeExit = () => {};
+      const timer = setTimeout(() => {
+        unsubscribeData();
+        unsubscribeExit();
+        reject(new Error('PTY stream timed out: ' + id));
+      }, 15_000);
+      const finish = () => {
+        clearTimeout(timer);
+        unsubscribeData();
+        unsubscribeExit();
+        resolve({ events, bytes, startedAt, endedAt: performance.now() });
+      };
+      unsubscribeData = api.onData(id, data => {
+        events++;
+        bytes += data.length;
+        if (data.includes(marker)) finish();
+      });
+      unsubscribeExit = api.onExit(id, code => {
+        clearTimeout(timer);
+        unsubscribeData();
+        unsubscribeExit();
+        reject(new Error('PTY exited early (' + code + '): ' + id));
+      });
+      const command = 'i=0; while [ $i -lt 200 ]; do printf "pulse-perf-%04d-xxxxxxxx\\n" "$i"; i=$((i+1)); sleep 0.005; done; '
+        + 'm="__PULSE_PTY_PERF_DONE_"; printf "%s%d__\\n" "$m" ' + index;
+      api.write(id, command + '\\r');
+    });
+
+    try {
+      const results = await Promise.all(ids.map((id, index) => run(id, index)));
+      const startedAt = Math.min(...results.map(entry => entry.startedAt));
+      const endedAt = Math.max(...results.map(entry => entry.endedAt));
+      const durationMs = endedAt - startedAt;
+      const events = results.reduce((sum, entry) => sum + entry.events, 0);
+      const bytes = results.reduce((sum, entry) => sum + entry.bytes, 0);
+      return {
+        terminals: ids.length,
+        events,
+        bytes,
+        durationMs: Math.round(durationMs * 10) / 10,
+        ipcPerSec: Math.round((events / durationMs) * 10000) / 10,
+      };
+    } finally {
+      ids.forEach(id => api.kill(id));
+    }
+  })()`);
+  const report = await endPerf(cdp);
+  if (!result || result.events <= 0 || result.durationMs <= 0) {
+    throw new Error('pty-stream produced no measurable IPC traffic');
+  }
+  return { ...result, report };
+};
+
 const typingScenario = async (cdp, repeatCount = 1) => {
   const editorSel = '.canvas-node--file .ProseMirror';
   // C1/C6 made FileNodeBody React.lazy — wait for the lazy chunk to load +
@@ -249,6 +398,7 @@ const typingScenario = async (cdp, repeatCount = 1) => {
 
   const chars = 'The quick brown fox jumps over the lazy dog while we measure per-keystroke costs on the canvas. '.repeat(2).slice(0, 120);
   const reports = [];
+  await drainCanvasSave();
   for (let run = 0; run < repeatCount; run++) {
     await beginPerf(cdp, 'typing');
     for (const ch of chars) {
@@ -256,25 +406,69 @@ const typingScenario = async (cdp, repeatCount = 1) => {
       await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: ch });
       await sleep(25);
     }
-    await sleep(300); // let trailing work land inside the window
+    await drainCanvasSave();
     reports.push(await endPerf(cdp));
     if (run < repeatCount - 1) await waitForCalmFrames(cdp);
   }
+  requireCounterInEveryRun('typing', reports, 'nodes-array-replace');
+  requireCounterInEveryRun('typing', reports, 'canvas-save-ipc');
   return { chars: chars.length, report: aggregateReports(reports) };
+};
+
+const resizeScenario = async (cdp, repeatCount = 1) => {
+  const handleSel = '.canvas-node .resize-handle--corner';
+  const moves = 90;
+  const reports = [];
+  // Re-query the live handle each run: resize/re-render can shift it by a
+  // rounding pixel, and a stale coordinate silently turns later repeats into
+  // no-ops. Reset outside the measured window so every run covers one delta.
+  await drainCanvasSave();
+  for (let run = 0; run < repeatCount; run++) {
+    const point = await hittablePointIn(cdp, handleSel);
+    if (!point) throw new Error(`no unobstructed node resize handle found (${handleSel})`);
+    await waitForCalmFrames(cdp);
+    const startX = point.x;
+    const startY = point.y;
+    const stepX = startX > moves + 24 ? -1 : 1;
+    const stepY = startY > moves / 2 + 24 ? -0.5 : 0.5;
+
+    await beginPerf(cdp, 'resize');
+    await mouse(cdp, 'mousePressed', startX, startY, { button: 'left', buttons: 1, clickCount: 1 });
+    for (let i = 1; i <= moves; i++) {
+      await mouse(cdp, 'mouseMoved', startX + i * stepX, startY + Math.round(i * stepY), { buttons: 1 });
+      await sleep(16);
+    }
+    const endX = startX + moves * stepX;
+    const endY = startY + Math.round(moves * stepY);
+    await mouse(cdp, 'mouseReleased', endX, endY, { button: 'left', buttons: 0, clickCount: 1 });
+    await drainCanvasSave();
+    reports.push(await endPerf(cdp));
+
+    if (run < repeatCount - 1) {
+      const resetPoint = await hittablePointIn(cdp, handleSel);
+      if (!resetPoint) throw new Error(`resize handle unavailable for reset (${handleSel})`);
+      await mouse(cdp, 'mousePressed', resetPoint.x, resetPoint.y, { button: 'left', buttons: 1, clickCount: 1 });
+      await mouse(cdp, 'mouseMoved', startX, startY, { buttons: 1 });
+      await mouse(cdp, 'mouseReleased', startX, startY, { button: 'left', buttons: 0, clickCount: 1 });
+      await drainCanvasSave();
+    }
+  }
+  requireCounterInEveryRun('resize', reports, 'nodes-array-replace');
+  requireCounterInEveryRun('resize', reports, 'canvas-save-ipc');
+  return { moves, report: aggregateReports(reports) };
 };
 
 const dragScenario = async (cdp, repeatCount = 1) => {
   const headerSel = '.canvas-node .node-header';
   const moves = 90;
   const reports = [];
-  // Anchor to the first run's point and drag the node back there between
-  // repeats (unmeasured) — otherwise each repeat's displacement compounds
-  // and eventually walks the node off the (fixed-size headless) viewport.
-  let anchor = null;
+  // Re-query the live header each run and after every measured drag. A fixed
+  // coordinate can miss after a re-render and silently turn repeats into
+  // no-ops. The reset stays outside the measured window.
+  await drainCanvasSave();
   for (let run = 0; run < repeatCount; run++) {
-    const point = anchor ?? await hittablePointIn(cdp, headerSel);
+    const point = await hittablePointIn(cdp, headerSel);
     if (!point) throw new Error(`no unobstructed node header found (${headerSel})`);
-    anchor ??= point;
     await waitForCalmFrames(cdp);
     const startX = point.x;
     const startY = point.y;
@@ -288,16 +482,20 @@ const dragScenario = async (cdp, repeatCount = 1) => {
     const endX = startX + moves * 3;
     const endY = startY + moves * 2;
     await mouse(cdp, 'mouseReleased', endX, endY, { button: 'left', buttons: 0, clickCount: 1 });
-    await sleep(300);
+    await drainCanvasSave();
     reports.push(await endPerf(cdp));
 
     if (run < repeatCount - 1) {
-      await mouse(cdp, 'mousePressed', endX, endY, { button: 'left', buttons: 1, clickCount: 1 });
+      const resetPoint = await hittablePointIn(cdp, headerSel);
+      if (!resetPoint) throw new Error(`node header unavailable for reset (${headerSel})`);
+      await mouse(cdp, 'mousePressed', resetPoint.x, resetPoint.y, { button: 'left', buttons: 1, clickCount: 1 });
       await mouse(cdp, 'mouseMoved', startX, startY, { buttons: 1 });
       await mouse(cdp, 'mouseReleased', startX, startY, { button: 'left', buttons: 0, clickCount: 1 });
-      await sleep(200);
+      await drainCanvasSave();
     }
   }
+  requireCounterInEveryRun('drag', reports, 'nodes-array-replace');
+  requireCounterInEveryRun('drag', reports, 'canvas-save-ipc');
   return { moves, report: aggregateReports(reports) };
 };
 
@@ -485,20 +683,73 @@ const seedExtraNodes = async (cdp, count, webpageCount = 0) => {
   throw new Error('seeded nodes did not appear after reload');
 };
 
-// ── gates ────────────────────────────────────────────────────────────────────
-
-const compareCounterGates = (baselines, scenarios) => {
-  const runtime = baselines.runtime ?? {};
-  const results = [];
-  for (const [scenario, gatesForScenario] of Object.entries(runtime)) {
-    const report = scenarios[scenario]?.report;
-    if (!report) continue;
-    for (const [counter, { max }] of Object.entries(gatesForScenario.counters ?? {})) {
-      const value = report.counters?.[counter] ?? 0;
-      results.push({ scenario, counter, max, value, pass: value <= max });
+const imageMemoryScenario = async (cdp) => {
+  const imageCount = 10;
+  const originalWidth = 4000;
+  const originalHeight = 3000;
+  await evaluate(cdp, `(async () => {
+    const store = window.canvasWorkspace.store;
+    const list = await store.list();
+    const wsId = list.ids[0];
+    const canvas = document.createElement('canvas');
+    canvas.width = ${originalWidth};
+    canvas.height = ${originalHeight};
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#325d88';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#f4f7fb';
+    ctx.font = '160px system-ui';
+    ctx.fillText('Pulse Canvas perf image', 240, 420);
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    const filePaths = [];
+    for (let i = 0; i < ${imageCount}; i++) {
+      const saved = await window.canvasWorkspace.file.saveImage(wsId, base64, 'png');
+      if (!saved.ok || !saved.filePath) throw new Error(saved.error || 'failed to save perf image');
+      filePaths.push(saved.filePath);
     }
+    const loaded = await store.load(wsId);
+    const data = loaded.data ?? {};
+    const nodes = (data.nodes ?? []).filter((node) => !node.id.startsWith('perf-image-'));
+    const now = Date.now();
+    for (let index = 0; index < filePaths.length; index++) {
+      nodes.push({
+        id: 'perf-image-' + index,
+        type: 'image',
+        title: 'perf 4K image ' + index,
+        x: 80 + (index % 5) * 220,
+        y: 540 + Math.floor(index / 5) * 180,
+        width: 200,
+        height: 150,
+        updatedAt: now,
+        data: { filePath: filePaths[index] },
+      });
+    }
+    await store.save(wsId, { ...data, nodes, transform: { x: 250, y: 20, scale: 0.5 } });
+  })()`);
+  await evaluate(cdp, 'location.reload()').catch(() => {});
+
+  let images = [];
+  for (let i = 0; i < 100; i++) {
+    await sleep(100);
+    images = await evaluate(cdp, `([...document.querySelectorAll('.canvas-node--image img')]
+      .filter((img) => img.complete && img.naturalWidth > 0)
+      .map((img) => ({ width: img.naturalWidth, height: img.naturalHeight, src: img.currentSrc || img.src })))`)
+      .catch(() => []);
+    if (images.length >= imageCount && images.every((image) => image.width <= 960)) break;
   }
-  return results;
+  if (images.length < imageCount || images.some((image) => image.width > 960)) {
+    const maxWidth = images.length > 0 ? Math.max(...images.map((image) => image.width)) : 0;
+    throw new Error(`image-memory preview readiness failed: ${images.length}/${imageCount}, max width ${maxWidth}`);
+  }
+  const decodedBytes = images.reduce((sum, image) => sum + image.width * image.height * 4, 0);
+  const originalDecodedBytes = imageCount * originalWidth * originalHeight * 4;
+  return {
+    images: imageCount,
+    decodedMB: Math.round(decodedBytes / 1024 / 1024 * 10) / 10,
+    originalDecodedMB: Math.round(originalDecodedBytes / 1024 / 1024 * 10) / 10,
+    maxDecodedWidth: Math.max(...images.map((image) => image.width)),
+    reductionRatio: Math.round(originalDecodedBytes / decodedBytes * 10) / 10,
+  };
 };
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -506,6 +757,7 @@ const compareCounterGates = (baselines, scenarios) => {
 const main = async () => {
   const session = await requireLiveSession();
   const baselines = JSON.parse(await fs.readFile(baselinesPath, 'utf-8'));
+  const dictionary = JSON.parse(await fs.readFile(metricsPath, 'utf-8'));
   const scenarios = {};
 
   await withPage(session, async (cdp) => {
@@ -518,9 +770,13 @@ const main = async () => {
       );
     }
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
+    if (only.includes('chat-stream')) scenarios['chat-stream'] = await chatStreamScenario(cdp);
+    if (only.includes('image-memory')) scenarios['image-memory'] = await imageMemoryScenario(cdp);
     if (only.includes('typing')) scenarios.typing = await typingScenario(cdp, repeat);
+    if (only.includes('resize')) scenarios.resize = await resizeScenario(cdp, repeat);
     if (only.includes('drag')) scenarios.drag = await dragScenario(cdp, repeat);
     if (only.includes('panzoom')) scenarios.panzoom = await panzoomScenario(cdp, repeat);
+    if (only.includes('pty-stream')) scenarios['pty-stream'] = await ptyStreamScenario(cdp);
     // ws-cycle runs last — it seeds extra workspaces and reloads, so it must
     // not disturb the single-workspace typing/drag/panzoom scenarios above.
     if (only.includes('ws-cycle')) scenarios['ws-cycle'] = await wsCycleScenario(cdp);
@@ -532,6 +788,14 @@ const main = async () => {
   const loopDelays = [...stdout.matchAll(/\[perf\] loop-delay (\{.*\})/g)].map((m) => JSON.parse(m[1]));
   const canvasSaves = [...stdout.matchAll(/\[perf\] canvas-save (\{.*\})/g)].map((m) => JSON.parse(m[1]));
   const sessionPersists = [...stdout.matchAll(/\[perf\] session-persist (\{.*\})/g)].map((m) => JSON.parse(m[1]));
+  const welcomeWebviews = [...stdout.matchAll(/\[perf\] welcome-webview (\{.*\})/g)].map((m) => JSON.parse(m[1]));
+  if (scenarios.startup?.mainPhases && welcomeWebviews.length > 0) {
+    const firstLoad = welcomeWebviews[0];
+    const openWindowAt = scenarios.startup.mainPhases.openWindow;
+    if (typeof firstLoad.at === 'number' && typeof openWindowAt === 'number' && firstLoad.at >= openWindowAt) {
+      scenarios.startup.welcomeWebviewMs = firstLoad.at - openWindowAt;
+    }
+  }
   if (loopDelays.length || canvasSaves.length || sessionPersists.length) {
     const main = { windows: loopDelays.length };
     if (loopDelays.length) {
@@ -552,7 +816,7 @@ const main = async () => {
     scenarios.main = main;
   }
 
-  const gateResults = compareCounterGates(baselines, scenarios);
+  const gateResults = compareCounterGates(baselines, scenarios, only, dictionary);
   const report = {
     generatedAt: new Date().toISOString(),
     session: { id: session.id, profile: session.profile },
@@ -566,7 +830,7 @@ const main = async () => {
   if (scenarios.startup?.mainPhases) {
     console.log('[perf:scenarios] startup phases (ms):', JSON.stringify(scenarios.startup.mainPhases));
   }
-  for (const name of ['typing', 'drag', 'panzoom']) {
+  for (const name of ['typing', 'resize', 'drag', 'panzoom']) {
     const entry = scenarios[name];
     if (!entry) continue;
     const r = entry.report;
@@ -582,6 +846,21 @@ const main = async () => {
     console.log(
       `[perf:scenarios] ws-cycle: ${wsc.workspaces} workspaces, heap ${JSON.stringify(wsc.heapsMB)} MB, `
       + `slope=${wsc.heapSlopeMB} MB/ws, peak=${wsc.peakHeapMB} MB`,
+    );
+  }
+  const imageMemory = scenarios['image-memory'];
+  if (imageMemory) {
+    console.log(
+      `[perf:scenarios] image-memory: ${imageMemory.images} images, `
+      + `${imageMemory.decodedMB} MB decoded vs ${imageMemory.originalDecodedMB} MB original `
+      + `(${imageMemory.reductionRatio}× reduction, max width ${imageMemory.maxDecodedWidth})`,
+    );
+  }
+  const ptyStream = scenarios['pty-stream'];
+  if (ptyStream) {
+    console.log(
+      `[perf:scenarios] pty-stream: ${ptyStream.terminals} terminals, `
+      + `${ptyStream.events} IPC events / ${ptyStream.durationMs}ms = ${ptyStream.ipcPerSec}/s`,
     );
   }
   if (scenarios.main) {

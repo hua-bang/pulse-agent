@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow, clipboard, nativeImage } from "electron
 import { promises as fs } from "fs";
 import { join, basename } from "path";
 import { homedir } from "os";
+import { ensureImagePreview } from './image-preview';
 
 const IGNORED_DIRS = new Set([
   'node_modules', '.git', '.DS_Store', 'dist', '.next', '.nuxt', '__pycache__', '.venv',
@@ -44,6 +45,7 @@ const listDirRecursive = async (
 };
 
 const STORE_DIR = join(homedir(), ".pulse-coder", "canvas");
+const IMAGE_PREVIEW_DIR = join(STORE_DIR, 'image-previews');
 
 const getNotesDir = (workspaceId: string) =>
   join(STORE_DIR, workspaceId, "notes");
@@ -178,6 +180,22 @@ export const setupFileManagerIpc = () => {
         return { ok: false, error: String(err) };
       }
     }
+  );
+
+  ipcMain.handle(
+    'file:getImagePreview',
+    async (_event, payload: { filePath: string; maxDimension?: number }) => {
+      try {
+        if (!payload.filePath) return { ok: false, error: 'Missing image path' };
+        const preview = await ensureImagePreview(payload.filePath, {
+          cacheDir: IMAGE_PREVIEW_DIR,
+          maxDimension: payload.maxDimension,
+        });
+        return { ok: true, preview };
+      } catch (err) {
+        return { ok: false, error: String(err) };
+      }
+    },
   );
 
   // Export an image (base64) via save dialog

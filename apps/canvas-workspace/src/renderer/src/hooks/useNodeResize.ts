@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { CanvasNode } from "../types";
+import type { CanvasNode, TextNodeData } from "../types";
 
 const DEFAULT_MIN_WIDTH = 200;
 const DEFAULT_MIN_HEIGHT = 120;
@@ -25,10 +25,97 @@ const hasTopEdge = (edge: ResizeEdge): boolean =>
 
 export interface NodeResizePreview {
   id: string;
+  x: number;
+  y: number;
   width: number;
   height: number;
   edge: ResizeEdge;
 }
+
+export interface NodeResizeOrigin {
+  id: string;
+  startPointerX: number;
+  startPointerY: number;
+  startWidth: number;
+  startHeight: number;
+  startNodeX: number;
+  startNodeY: number;
+  minWidth: number;
+  minHeight: number;
+  edge: ResizeEdge;
+}
+
+export const computeNodeResizeGeometry = (
+  origin: NodeResizeOrigin,
+  clientX: number,
+  clientY: number,
+  scale: number,
+): NodeResizePreview => {
+  const safeScale = Math.max(scale, 0.0001);
+  const dx = (clientX - origin.startPointerX) / safeScale;
+  const dy = (clientY - origin.startPointerY) / safeScale;
+  const rightEdge = origin.startNodeX + origin.startWidth;
+  const bottomEdge = origin.startNodeY + origin.startHeight;
+
+  let width = origin.startWidth;
+  let height = origin.startHeight;
+  let x = origin.startNodeX;
+  let y = origin.startNodeY;
+
+  if (hasRightEdge(origin.edge)) {
+    width = Math.max(origin.minWidth, Math.round(origin.startWidth + dx));
+  }
+  if (hasLeftEdge(origin.edge)) {
+    x = Math.round(Math.min(origin.startNodeX + dx, rightEdge - origin.minWidth));
+    width = rightEdge - x;
+  }
+  if (hasBottomEdge(origin.edge)) {
+    height = Math.max(origin.minHeight, Math.round(origin.startHeight + dy));
+  }
+  if (hasTopEdge(origin.edge)) {
+    y = Math.round(Math.min(origin.startNodeY + dy, bottomEdge - origin.minHeight));
+    height = bottomEdge - y;
+  }
+
+  return { id: origin.id, x, y, width, height, edge: origin.edge };
+};
+
+export const applyNodeResizePreview = (
+  node: CanvasNode,
+  preview: NodeResizePreview | null | undefined,
+): CanvasNode => {
+  if (preview?.id !== node.id) return node;
+  const data = node.type === 'text'
+    ? { ...(node.data as TextNodeData), autoSize: false }
+    : node.data;
+  return {
+    ...node,
+    x: preview.x,
+    y: preview.y,
+    width: preview.width,
+    height: preview.height,
+    data,
+  };
+};
+
+export const applyResizePreviewToNodes = (
+  nodes: CanvasNode[],
+  preview: NodeResizePreview | null | undefined,
+): CanvasNode[] => {
+  if (!preview) return nodes;
+  const index = nodes.findIndex((node) => node.id === preview.id);
+  if (index < 0) return nodes;
+  const projected = [...nodes];
+  projected[index] = applyNodeResizePreview(nodes[index], preview);
+  return projected;
+};
+
+const resizeGeometryChanged = (origin: NodeResizeOrigin, next: NodeResizePreview): boolean => (
+  next.x !== origin.startNodeX ||
+  next.y !== origin.startNodeY ||
+  next.width !== origin.startWidth ||
+  next.height !== origin.startHeight
+);
 
 export const useNodeResize = (
   resizeNode: (id: string, width: number, height: number, x?: number, y?: number) => void,
@@ -41,18 +128,7 @@ export const useNodeResize = (
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
 
-  const resizing = useRef<{
-    id: string;
-    startX: number;
-    startY: number;
-    startW: number;
-    startH: number;
-    startNodeX: number;
-    startNodeY: number;
-    minW: number;
-    minH: number;
-    edge: ResizeEdge;
-  } | null>(null);
+  const resizing = useRef<NodeResizeOrigin | null>(null);
   const lastMoveEvent = useRef<React.MouseEvent | MouseEvent | null>(null);
   const moveFrame = useRef<number | null>(null);
   const [resizingId, setResizingId] = useState<string | null>(null);
@@ -74,19 +150,22 @@ export const useNodeResize = (
       const node = nodesRef.current.find((n) => n.id === nodeId);
       resizing.current = {
         id: nodeId,
-        startX: e.clientX,
-        startY: e.clientY,
-        startW: width,
-        startH: height,
+        startPointerX: e.clientX,
+        startPointerY: e.clientY,
+        startWidth: width,
+        startHeight: height,
         startNodeX: node?.x ?? 0,
         startNodeY: node?.y ?? 0,
-        minW: minWidth ?? DEFAULT_MIN_WIDTH,
-        minH: minHeight ?? DEFAULT_MIN_HEIGHT,
+        minWidth: minWidth ?? DEFAULT_MIN_WIDTH,
+        minHeight: minHeight ?? DEFAULT_MIN_HEIGHT,
         edge
       };
+      lastMoveEvent.current = null;
       setResizingId(nodeId);
       setResizePreview({
         id: nodeId,
+        x: node?.x ?? 0,
+        y: node?.y ?? 0,
         width: Math.round(width),
         height: Math.round(height),
         edge,
@@ -96,74 +175,47 @@ export const useNodeResize = (
   );
 
   const flushResizeMove = useCallback(
-    (e: React.MouseEvent | MouseEvent) => {
-      if (!resizing.current) return;
+    (e: React.MouseEvent | MouseEvent, commit: boolean) => {
+      if (!resizing.current) return false;
       const r = resizing.current;
-      const dx = (e.clientX - r.startX) / scale;
-      const dy = (e.clientY - r.startY) / scale;
-
-      // The edges opposite the dragged ones stay anchored.
-      const rightEdge = r.startNodeX + r.startW;
-      const bottomEdge = r.startNodeY + r.startH;
-
-      let newW = r.startW;
-      let newH = r.startH;
-      let newX = r.startNodeX;
-      let newY = r.startNodeY;
-
-      if (hasRightEdge(r.edge)) {
-        // Left edge anchored: only width grows, origin unchanged.
-        newW = Math.max(r.minW, Math.round(r.startW + dx));
-      }
-      if (hasLeftEdge(r.edge)) {
-        // Right edge anchored: round the moving (left) edge and derive width
-        // from it so the anchored edge never drifts by a rounding pixel. The
-        // clamp keeps width >= minW (left edge can't cross right - minW).
-        newX = Math.round(Math.min(r.startNodeX + dx, rightEdge - r.minW));
-        newW = rightEdge - newX;
-      }
-      if (hasBottomEdge(r.edge)) {
-        // Top edge anchored: only height grows, origin unchanged.
-        newH = Math.max(r.minH, Math.round(r.startH + dy));
-      }
-      if (hasTopEdge(r.edge)) {
-        // Bottom edge anchored: round the moving (top) edge, derive height.
-        newY = Math.round(Math.min(r.startNodeY + dy, bottomEdge - r.minH));
-        newH = bottomEdge - newY;
-      }
-
-      const width = newW;
-      const height = newH;
-      const x = newX;
-      const y = newY;
+      const next = computeNodeResizeGeometry(r, e.clientX, e.clientY, scale);
       setResizePreview((prev) => {
         if (
           prev &&
-          prev.id === r.id &&
-          prev.width === width &&
-          prev.height === height &&
-          prev.edge === r.edge
+          prev.id === next.id &&
+          prev.x === next.x &&
+          prev.y === next.y &&
+          prev.width === next.width &&
+          prev.height === next.height &&
+          prev.edge === next.edge
         ) {
           return prev;
         }
-        return { id: r.id, width, height, edge: r.edge };
+        return next;
       });
-      resizeNode(r.id, width, height, x, y);
+      const changed = resizeGeometryChanged(r, next);
+      if (commit && changed) resizeNode(r.id, next.width, next.height, next.x, next.y);
+      return changed;
     },
     [resizeNode, scale]
   );
 
   const onResizeMove = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
+      const r = resizing.current;
+      if (!r) return false;
       lastMoveEvent.current = e;
-      if (moveFrame.current !== null) return;
+      if (moveFrame.current !== null) {
+        return resizeGeometryChanged(r, computeNodeResizeGeometry(r, e.clientX, e.clientY, scale));
+      }
       moveFrame.current = requestAnimationFrame(() => {
         moveFrame.current = null;
         const nextEvent = lastMoveEvent.current;
-        if (nextEvent) flushResizeMove(nextEvent);
+        if (nextEvent) flushResizeMove(nextEvent, false);
       });
+      return resizeGeometryChanged(r, computeNodeResizeGeometry(r, e.clientX, e.clientY, scale));
     },
-    [flushResizeMove]
+    [flushResizeMove, scale]
   );
 
   const onResizeEnd = useCallback(() => {
@@ -172,33 +224,29 @@ export const useNodeResize = (
       moveFrame.current = null;
     }
     const nextEvent = lastMoveEvent.current;
+    let committed = false;
     if (nextEvent) {
-      flushResizeMove(nextEvent);
+      committed = flushResizeMove(nextEvent, true);
       lastMoveEvent.current = null;
     }
     resizing.current = null;
     setResizingId(null);
     setResizePreview(null);
+    return committed;
   }, [flushResizeMove]);
 
-  /** Abort the gesture (Escape): restore the node's pre-drag dimensions and
-   *  origin, then drop all resize state. Skips the restore when no resize tick
-   *  was ever applied so a press-and-Escape doesn't dirty the node. */
+  /** Abort the gesture (Escape): drop ephemeral geometry without committing.
+   *  The real nodes array stays untouched throughout the gesture. */
   const onResizeCancel = useCallback(() => {
     if (moveFrame.current !== null) {
       cancelAnimationFrame(moveFrame.current);
       moveFrame.current = null;
     }
-    const moved = lastMoveEvent.current !== null;
     lastMoveEvent.current = null;
-    const r = resizing.current;
-    if (r && moved) {
-      resizeNode(r.id, Math.round(r.startW), Math.round(r.startH), r.startNodeX, r.startNodeY);
-    }
     resizing.current = null;
     setResizingId(null);
     setResizePreview(null);
-  }, [resizeNode]);
+  }, []);
 
   useEffect(() => {
     return () => {

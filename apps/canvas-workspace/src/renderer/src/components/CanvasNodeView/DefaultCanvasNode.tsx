@@ -250,6 +250,7 @@ export const DefaultCanvasNode = ({
             node={node}
             onUpdate={onUpdate}
             isSelected={isSelected}
+            isResizing={isResizing}
             onSelect={onSelect}
             onDragStart={onDragStart}
             readOnly={readOnly}

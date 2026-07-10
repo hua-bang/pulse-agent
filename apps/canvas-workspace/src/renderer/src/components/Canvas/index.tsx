@@ -454,8 +454,14 @@ export const Canvas = ({
   } = useNodeDrag(
     moveNode, moveNodes, transform.scale, nodes, selectedNodeIds,
   );
+  const commitNodeResize = useCallback(
+    (id: string, width: number, height: number, x?: number, y?: number) => {
+      resizeNode(id, width, height, x, y, { disableTextAutoSize: true });
+    },
+    [resizeNode],
+  );
   const { resizingId, resizePreview, onResizeStart, onResizeMove, onResizeEnd, onResizeCancel } =
-    useNodeResize(resizeNode, transform.scale, nodes);
+    useNodeResize(commitNodeResize, transform.scale, nodes);
 
   const { sortedNodes, renderGroups } = useCanvasRenderOrder(visibleNodes);
 
@@ -577,7 +583,7 @@ export const Canvas = ({
   });
 
   const mouse = useCanvasMouseHandlers({
-    canvasId, activeTool: effectiveActiveTool, containerRef, nodesRef,
+    canvasId, activeTool: effectiveActiveTool, containerRef,
     suppressBlankClickRef,
     setSelectedNodeIds, setSelectedEdgeId,
     contextMenu: ctxMenu.contextMenu,

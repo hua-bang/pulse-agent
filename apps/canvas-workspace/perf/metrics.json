@@ -12,7 +12,7 @@
     {
       "id": "interact",
       "name": "交互",
-      "question": "打字 / 拖拽 / 平移卡不卡?多大画布开始卡?修复 I-1/A2 的收益能不能守住?",
+      "question": "打字 / 调整尺寸 / 拖拽 / 平移卡不卡?多大画布开始卡?修复 I-1/A2 的收益能不能守住?",
       "findings": "A/I/G 维 · 24 条 · 已修 1(A6)",
       "northStar": "interact.typing.inp_p95_ms",
       "next": "M1:--repeat 中位数 + pan/zoom 场景 → M3:修 I-1/A2 后下调计数器 max"
@@ -39,15 +39,15 @@
       "question": "任何时刻 IPC 最多被卡多久、被谁卡?持久化每次写多少字节?",
       "findings": "B/E/J 维 · 24 条 · 已修 2(E1、B3)",
       "northStar": "main.loop_delay_p99_ms",
-      "next": "M1:loop-delay 采样器 + 写字节计数 → M3:终端流式场景(解 node-pty ABI)"
+      "next": "积累双 PTY IPC/s 与 session persist 历史,再决定 record→warn/gate 阈值"
     },
     {
       "id": "chat",
       "name": "AI 流式",
       "question": "代码密集的长回复流式时掉不掉帧?流末 mermaid burst 多长?F1/F2 收益守住了吗?",
-      "findings": "F 维 + K-2~4 · 11 条 · 已修 1(F1/F2)",
+      "findings": "F 维 + K-2~4 · 11 条 · 已修 2(F1/F2、流式批处理)",
       "northStar": "chat.stream.frames_over20_pct",
-      "next": "M3:mock 流回放入口(先评审侵入面)→ 场景 + 门禁"
+      "next": "积累同机帧率历史;后续评估 Mermaid 重图的分帧渲染"
     }
   ],
   "metrics": [
@@ -57,7 +57,7 @@
     { "id": "startup.dom_ready_ms", "aspect": "startup", "label": "进程启动 → 首窗 dom-ready", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "startup.renderer.fcp_ms", "aspect": "startup", "label": "renderer FCP", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "startup.renderer.entry_eval_ms", "aspect": "startup", "label": "entry chunk V8 compile+eval", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
-    { "id": "startup.welcome_webview_ms", "aspect": "startup", "label": "welcome webview 加载(D1)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": false },
+    { "id": "startup.welcome_webview_ms", "aspect": "startup", "label": "welcome webview DOM ready(D1)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
 
     { "id": "interact.typing.inp_p95_ms", "aspect": "interact", "label": "打字 INP p95", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "interact.typing.frames_over20_pct", "aspect": "interact", "label": "打字 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
@@ -67,6 +67,10 @@
     { "id": "interact.drag.frames_over20_pct", "aspect": "interact", "label": "拖拽 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "interact.drag.counter.nodes_array_replace", "aspect": "interact", "label": "拖拽 整数组替换次数(A2 守卫)", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "interact.drag.counter.canvas_save_ipc", "aspect": "interact", "label": "拖拽 保存 IPC 次数", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
+    { "id": "interact.resize.inp_p95_ms", "aspect": "interact", "label": "调整尺寸 INP p95(仅离散事件,不覆盖连续 move)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
+    { "id": "interact.resize.frames_over20_pct", "aspect": "interact", "label": "调整尺寸 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
+    { "id": "interact.resize.counter.nodes_array_replace", "aspect": "interact", "label": "调整尺寸 整数组替换次数(A2 resize 守卫)", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
+    { "id": "interact.resize.counter.canvas_save_ipc", "aspect": "interact", "label": "调整尺寸 保存 IPC 次数", "unit": "次", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "interact.panzoom.inp_p95_ms", "aspect": "interact", "label": "平移/缩放 INP p95(结构性恒为 0,见 A4 说明)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "interact.panzoom.frames_over20_pct", "aspect": "interact", "label": "平移/缩放 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
 
@@ -80,16 +84,17 @@
     { "id": "memory.ws_cycle.heap_slope", "aspect": "memory", "label": "每多挂一个 workspace 的常驻 JS 堆增长(H1 守卫,B8 LRU 后趋 0)", "unit": "MB/ws", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "memory.ws_cycle.peak_heap_mb", "aspect": "memory", "label": "切换循环 JS 堆峰值(挂满 5 个 workspace)", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "memory.n100.total_rss_mb", "aspect": "memory", "label": "100 节点画布稳态 RSS(单点)", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": true },
-    { "id": "memory.image.decoded_mb", "aspect": "memory", "label": "10×4K 图解码内存(K-1 守卫)", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": false },
+    { "id": "memory.image.decoded_mb", "aspect": "memory", "label": "10×4K 图解码内存(K-1 守卫)", "unit": "MB", "comparability": "全局", "level": "record", "instrumented": true },
 
     { "id": "main.loop_delay_p99_ms", "aspect": "main", "label": "事件循环延迟 p99(E/J 维总汇)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "main.loop_delay_max_ms", "aspect": "main", "label": "事件循环延迟 max(单次冻结上限)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "main.canvas_save.files_written", "aspect": "main", "label": "单次保存写文件数(B3 守卫)", "unit": "个", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "main.session_persist.bytes_per_turn", "aspect": "main", "label": "每 turn 会话持久化字节(J-1 标尺)", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true },
-    { "id": "main.pty.ipc_per_sec", "aspect": "main", "label": "双终端流式 IPC 条数/秒(E3 标尺)", "unit": "条/s", "comparability": "全局", "level": "record", "instrumented": false },
+    { "id": "main.pty.ipc_per_sec", "aspect": "main", "label": "双终端流式 IPC 条数/秒(E3 标尺)", "unit": "条/s", "comparability": "全局", "level": "record", "instrumented": true },
 
-    { "id": "chat.stream.frames_over20_pct", "aspect": "chat", "label": "流式期帧超率", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": false },
+    { "id": "chat.stream.frames_over20_pct", "aspect": "chat", "label": "流式期帧超率", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
+    { "id": "chat.stream.md_render_count", "aspect": "chat", "label": "流式 Markdown 渲染次数", "unit": "count", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "chat.stream.md_cache_hit_ratio", "aspect": "chat", "label": "markdown 缓存命中率(F1/F2 守卫)", "unit": "%", "comparability": "全局", "level": "gate", "instrumented": true },
-    { "id": "chat.stream.tail_burst_ms", "aspect": "chat", "label": "流末 mermaid burst 时长", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": false }
+    { "id": "chat.stream.tail_burst_ms", "aspect": "chat", "label": "流末 mermaid burst 时长", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true }
   ]
 }

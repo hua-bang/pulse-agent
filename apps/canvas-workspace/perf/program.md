@@ -11,7 +11,7 @@
 | # | 专项 | 回答的问题 | 关联发现 | 北极星指标 |
 |---|---|---|---|---|
 | ① | 启动 | 点开到画布可交互要多久?最慢一段在哪? | D 维(8) | `startup.cold.dom_ready_ms` |
-| ② | 交互 | 打字/拖拽/平移卡不卡?多大画布开始卡? | A/I/G 维(24) | `interact.*.inp_p95_ms` + 计数器 |
+| ② | 交互 | 打字/调整尺寸/拖拽/平移卡不卡?多大画布开始卡? | A/I/G 维(24) | `interact.*.inp_p95_ms` + 计数器 |
 | ③ | 体积 | 启动 parse 多少 JS?懒边界会不会被破坏? | C 维(9) | `bundle.entry_raw_kb` |
 | ④ | 内存驻留 | 切 N 个 workspace 后内存回落吗? | H/L 维+K-1(11) | `memory.ws_cycle.heap_slope` |
 | ⑤ | 主进程健康 | IPC 最多被卡多久、被谁卡? | B/E/J 维(24) | `main.loop_delay_p99_ms` |
@@ -32,19 +32,21 @@
 | `startup.renderer.fcp_ms` | renderer 起点 → first-contentful-paint | ms | 同机 | record | ◐ observer 已埋 |
 | `startup.renderer.first_canvas_ms` | renderer 起点 → CanvasSurface 首次渲染 | ms | 同机 | record | ◐ mark 已埋 |
 | `startup.renderer.entry_eval_ms` | entry chunk V8 compile+eval(CDP tracing) | ms | 同机 | record | ○ 定期一次 |
-| `startup.welcome_webview_ms` | 开窗 → welcome webview did-finish-load(D1) | ms | 同机 | record | ○ |
+| `startup.welcome_webview_ms` | 开窗 → welcome webview guest DOM ready(D1) | ms | 同机 | record | ✅ |
 
-### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
+### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `resize`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
 
 | 指标 ID | 定义(口径) | 单位 | 可比性 | 等级 | 状态 |
 |---|---|---|---|---|---|
-| `interact.<s>.inp_p95_ms` | 场景窗口内 Event Timing(含 interactionId)duration p95 | ms | 同机 | warn→gate | ✅ typing 48 / drag 128 @100节点 |
-| `interact.<s>.frames_over20_pct` | rAF 帧间隔 >20ms 占比 | % | 同机 | warn | ✅ typing 43% @100节点 |
+| `interact.<s>.inp_p95_ms` | 场景窗口内 Event Timing(含 interactionId)duration p95 | ms | 同机 | warn→gate | ✅ typing 16 / resize 32(record) / drag 32 @100节点(2026-07-10) |
+| `interact.<s>.frames_over20_pct` | rAF 帧间隔 >20ms 占比 | % | 同机 | warn | ✅ typing 0.2% / resize 0% / drag 0% @100节点(2026-07-10) |
 | `interact.<s>.loaf_blocking_ms` | 长动画帧 blockingDuration 合计 | ms | 同机 | record | ✅ |
-| `interact.<s>.counter.nodes_array_replace` | 场景内整 nodes 数组替换次数(A2/I-1 守卫) | 次 | **全局** | **gate** | ✅ typing 120≤132 / drag 91≤100 |
-| `interact.<s>.counter.canvas_save_ipc` | 场景内 canvas:save 发起次数 | 次 | **全局** | **gate** | ✅ ≤3 |
+| `interact.<s>.counter.nodes_array_replace` | 场景内整 nodes 数组替换次数(A2/I-1 守卫) | 次 | **全局** | **gate** | ✅ typing 2 / resize 1 / drag 1,均≤10(2026-07-10) |
+| `interact.<s>.counter.canvas_save_ipc` | 场景内 canvas:save 发起次数 | 次 | **全局** | **gate** | ✅ typing 2 / resize 2 / drag 1,均≤3(2026-07-10) |
 | `interact.<s>.counter.terminal_fit` | 场景内 xterm refit 次数(E2/E9 守卫) | 次 | **全局** | gate | ◐ 已埋,待含终端场景 |
 | `interact.scale.inp_ratio_100_3` | 同场景 100 节点 / 3 节点 INP p95 之比(规模退化系数) | 倍 | 全局(近似) | warn | ○ 由 repeat 派生 |
+
+`resize` 的 Event Timing 只覆盖离散 pointerdown/up,不覆盖连续 pointer-move;因此 `interact.resize.inp_p95_ms` 为 record 级,连续手感以 `interact.resize.frames_over20_pct` 及每轮 raw 值为准。
 
 ### ③ 体积(采集:`perf:bundle`,构建产物静态度量;全部机器无关)
 
@@ -78,14 +80,15 @@
 | `main.loop_delay_max_ms` | 同窗口最大值(单次冻结上限) | ms | 同机 | warn | ○ |
 | `main.canvas_save.write_bytes` | 单次 canvas:save 实际落盘字节(B3 修复标尺) | KB | 全局 | gate | ○ M1 |
 | `main.canvas_save.files_written` | 单次 save 写文件数(未变更应跳过) | 个 | **全局** | **gate** | ○ M1 |
-| `main.session_persist.bytes_per_turn` | 每 agent turn 会话持久化字节(J-1 标尺,修复后应 O(增量)) | KB | 全局 | gate | ○ |
-| `main.pty.ipc_per_sec` | 双终端流式时 pty:data IPC 条数/秒(E3 合并 flush 标尺) | 条/s | 全局 | record | ○ 待 node-pty ABI |
+| `main.session_persist.bytes_per_turn` | 每 agent turn 会话持久化字节(J-1 标尺,修复后应 O(增量)) | KB | 全局 | gate | ✅ mock turn 走真实 SessionStore |
+| `main.pty.ipc_per_sec` | 双终端流式时 pty:data IPC 条数/秒(E3 合并 flush 标尺) | 条/s | 全局 | record | ✅ 双真实 PTY 场景 |
 
 ### ⑥ AI 流式(采集:mock 回放场景〔M3,需先评审侵入面〕+ 已埋计数器;fixture:3 代码块 + 1 mermaid 定速回放)
 
 | 指标 ID | 定义(口径) | 单位 | 可比性 | 等级 | 状态 |
 |---|---|---|---|---|---|
 | `chat.stream.frames_over20_pct` | 回放期帧超率(北极星) | % | 同机 | warn→gate | ○ |
+| `chat.stream.md_render_count` | 回放期流式 Markdown 全量渲染次数 | count | **全局** | **gate** | ● |
 | `chat.stream.md_cache_hit_ratio` | cache-hit /(hit+render)(F1/F2 修复守卫) | % | **全局** | **gate** | ◐ 计数器已埋 |
 | `chat.stream.tail_burst_ms` | 流结束 → 全部 mermaid 渲染完(F4/F5 守卫) | ms | 同机 | warn | ○ |
 | `chat.mermaid.render_ms` | 单图 mermaid.render 耗时 | ms | 同机 | record | ○ |

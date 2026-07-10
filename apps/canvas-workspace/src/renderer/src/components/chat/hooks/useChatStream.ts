@@ -3,6 +3,8 @@ import type { AgentChatMessage, AgentRequestContext, ChatImageAttachment } from 
 import type { AgentScope, PendingClarification, ToolCallStatus, WorkspaceOption } from '../types';
 import { extractMentionedWorkspaceIds } from '../utils/mentions';
 import { markToolResult, settleRunningTools, upsertToolInputStart } from './toolStreamState';
+import { createTextDeltaBatcher } from './textDeltaBatcher';
+import { count } from '../../../perf/counters';
 
 interface UseChatStreamOptions {
   agentScope: AgentScope;
@@ -147,6 +149,25 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         }
       };
 
+      const textDeltaBatcher = createTextDeltaBatcher({
+        // A fixed visual cadence avoids turning 120Hz+ displays back into
+        // hundreds of whole-message Markdown parses per response. 32ms is
+        // still perceptually continuous for generated text while leaving
+        // most frames free for input, scrolling, and canvas work.
+        schedule: callback => window.setTimeout(callback, 32),
+        cancelScheduled: handle => window.clearTimeout(handle),
+        onFlush: (delta) => {
+          count('chat-stream-commit');
+          setMessages(prev => {
+            const index = assistantIndex.current;
+            if (index < 0 || index >= prev.length) return prev;
+            const next = [...prev];
+            next[index] = { ...next[index], content: next[index].content + delta };
+            return next;
+          });
+        },
+      });
+
       const findTool = (toolCallId: string | undefined, name?: string) => {
         if (toolCallId) {
           const byId = toolCalls.find(t => t.toolCallId === toolCallId);
@@ -239,13 +260,8 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
 
       const unsubscribeDelta = window.canvasWorkspace.agent.onTextDelta(sessionId, delta => {
         ensureAssistantMessage();
-        setMessages(prev => {
-          const index = assistantIndex.current;
-          if (index < 0 || index >= prev.length) return prev;
-          const next = [...prev];
-          next[index] = { ...next[index], content: next[index].content + delta };
-          return next;
-        });
+        count('chat-stream-delta');
+        textDeltaBatcher.push(delta);
       });
 
       const unsubscribeClarify = window.canvasWorkspace.agent.onClarifyRequest(sessionId, request => {
@@ -255,6 +271,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
       });
 
       const unsubscribeComplete = window.canvasWorkspace.agent.onChatComplete(sessionId, completeResult => {
+        textDeltaBatcher.flush();
         cleanupTurn();
         settleRunningTools(toolCalls);
         if (assistantIndex.current >= 0 && toolCalls.length > 0) {
@@ -342,6 +359,7 @@ export function useChatStream({ agentScope, allWorkspaces }: UseChatStreamOption
         unsubscribeDelta,
         unsubscribeComplete,
         unsubscribeClarify,
+        textDeltaBatcher.cancel,
       );
 
       return true;
