@@ -130,7 +130,6 @@
   will-change: transform;
 }
 
-.canvas-container[data-moving="on"] .floating-toolbar,
 .canvas-container[data-moving="on"] .edge-style-panel,
 .canvas-container[data-moving="on"] .edge-label:not(.edge-label--editing) {
   opacity: 0;
