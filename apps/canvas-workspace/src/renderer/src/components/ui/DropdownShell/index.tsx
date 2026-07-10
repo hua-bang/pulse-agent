@@ -16,6 +16,10 @@ interface Props {
   align?: Align;
   /** ARIA role on the panel. Default 'menu'. */
   role?: string;
+  /** Accessible name for the panel — a bare role="menu" announces as an
+   *  unnamed menu, so pass one whenever the menu's purpose isn't obvious
+   *  from its items. */
+  ariaLabel?: string;
   /** Extra class on the ROOT wrapper (the `position: relative` element). */
   className?: string;
   /** Extra class on the anchored panel. */
@@ -72,6 +76,7 @@ export const DropdownShell = ({
   placement = 'bottom',
   align = 'start',
   role = 'menu',
+  ariaLabel,
   className,
   panelClassName,
   children,
@@ -110,6 +115,7 @@ export const DropdownShell = ({
           ref={panelRef}
           className={panelClass}
           role={role}
+          aria-label={ariaLabel}
           onMouseDown={(event) => {
             onPanelMouseDown?.(event);
             event.stopPropagation();

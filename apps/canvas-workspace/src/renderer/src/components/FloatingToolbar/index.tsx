@@ -413,6 +413,7 @@ export const FloatingToolbar = ({
             placement="top"
             align="end"
             role="menu"
+            ariaLabel={t('canvas.toolbar.plugin')}
             onOpenChange={(open) => {
               if (open) void loadPluginNodes();
             }}

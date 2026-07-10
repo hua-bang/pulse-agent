@@ -117,6 +117,17 @@ describe('DropdownShell', () => {
     expect(panel?.classList.contains('ui-dropdown--align-start')).toBe(true);
   });
 
+  it('forwards ariaLabel to the panel so role="menu" is not unnamed', () => {
+    render(
+      <DropdownShell trigger={basicTrigger} ariaLabel="Shape style">
+        <button type="button">Item</button>
+      </DropdownShell>,
+    );
+    click(host!.querySelector('.trigger')!);
+    const panel = host?.querySelector('.ui-dropdown__panel');
+    expect(panel?.getAttribute('aria-label')).toBe('Shape style');
+  });
+
   it('calls onOpenChange with the new open state', () => {
     const onOpenChange = vi.fn();
     render(

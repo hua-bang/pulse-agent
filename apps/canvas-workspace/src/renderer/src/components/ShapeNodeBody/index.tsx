@@ -259,6 +259,7 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
         placement="bottom"
         align="start"
         role="menu"
+        ariaLabel={t('canvas.shapeStyle.title')}
         trigger={({ open, toggle }) => (
           <button
             type="button"
