@@ -1,0 +1,34 @@
+/* ui/EmptyState — blessed minimal empty-state shell: icon + title +
+ * description + action, stacked with one uniform gap (same `gap:8px` flex
+ * column convention as ui/FieldRow/ui/SectionHeader). No `align-items` or
+ * `text-align` here on purpose — flex's default `stretch` makes every
+ * child a full-width block, so a caller's OWN `text-align:center` (see
+ * ReferenceDrawer/index.css's `.reference-empty`) or the browser default
+ * `left` (LayersPanel sets neither) both fall out of this one shared
+ * layout for free. Title/description sizes match
+ * ReferenceEmptyState's pre-migration `h3`/`p` values exactly; LayersPanel's
+ * pre-migration `strong`/`span` (12px/11px) normalize up to these by ~1-2px
+ * — a minor, documented typographic unification, the same class of
+ * cross-site difference Batch C1 accepted for Button heights. */
+
+.ui-emptystate {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ui-emptystate__icon {
+  display: flex;
+}
+
+.ui-emptystate__title {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.ui-emptystate__desc {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}

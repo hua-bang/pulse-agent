@@ -12,6 +12,7 @@ import { LayerItem } from './LayerItem';
 import { CloseIcon } from '../icons';
 import { getNodeDisplayLabel } from '../../utils/nodeLabel';
 import { CANVAS_NODE_TYPE_LABEL_KEY } from '../../utils/nodeTypeI18n';
+import { EmptyState } from '../ui';
 import { useI18n } from '../../i18n';
 
 interface LayersPanelProps {
@@ -226,10 +227,13 @@ export const LayersPanel = ({
       </div>
       <div className="sidebar-layers-scroll">
         {displayedLayerTree.length === 0 ? (
-          <div className="sidebar-layers-empty">
-            <strong>{hasLayerQuery ? t('sidebar.layersSearchNoResultsTitle') : t('sidebar.layersEmptyTitle')}</strong>
-            <span>{hasLayerQuery ? t('sidebar.layersSearchNoResultsDescription') : t('sidebar.layersEmptyDescription')}</span>
-          </div>
+          <EmptyState
+            className="sidebar-layers-empty"
+            title={hasLayerQuery ? t('sidebar.layersSearchNoResultsTitle') : t('sidebar.layersEmptyTitle')}
+            description={
+              hasLayerQuery ? t('sidebar.layersSearchNoResultsDescription') : t('sidebar.layersEmptyDescription')
+            }
+          />
         ) : (
           displayedLayerTree.map((tree) => (
             <LayerItem

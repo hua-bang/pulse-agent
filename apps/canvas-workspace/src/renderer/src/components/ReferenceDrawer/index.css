@@ -825,10 +825,16 @@
   color: var(--text-secondary);
 }
 
+/* Icon size/tile stay here (per-surface styling — see ui/EmptyState's own
+ * doc comment); the spacing below it now comes from ui/EmptyState's
+ * `gap: 8px` flex column instead of this rule's own bottom margin (a minor,
+ * documented normalization: 14px -> 8px, same class of difference Batch C1
+ * accepted for Button heights). `margin: 0 auto` still self-centers the
+ * icon horizontally regardless of the flex column's `stretch` sizing. */
 .reference-empty-icon {
   width: 36px;
   height: 36px;
-  margin: 0 auto 14px;
+  margin: 0 auto;
   border-radius: var(--radius-md);
   display: grid;
   place-items: center;
@@ -837,21 +843,13 @@
   font-size: 18px;
 }
 
-.reference-empty h3 {
-  color: var(--text);
-  font-size: 14px;
-  font-weight: 650;
-  margin-bottom: 7px;
-}
-
-.reference-empty p {
-  font-size: 12px;
-  line-height: 1.6;
-  margin: 0;
-}
-
+/* Title/description typography moved to ui/EmptyState's
+ * `.ui-emptystate__title`/`.ui-emptystate__desc` (byte-identical values —
+ * see its index.css). This hint block keeps its own spacing/border/
+ * background (per-surface styling stays with the caller); its top margin
+ * moved to ui/EmptyState's `gap: 8px` (was 16px — same normalization as
+ * the icon above). */
 .reference-selected-hint {
-  margin-top: 16px;
   padding: 9px 10px;
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);

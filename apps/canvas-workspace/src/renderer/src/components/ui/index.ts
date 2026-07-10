@@ -23,6 +23,7 @@ export { SegmentedControl } from './SegmentedControl';
 export type { SegmentedControlOption } from './SegmentedControl';
 export { SwatchRow } from './SwatchRow';
 export type { SwatchRowOption } from './SwatchRow';
+export { EmptyState } from './EmptyState';
 export { useDragResize } from './hooks/useDragResize';
 export type { DragResizeOptions, DragResizeHandlers } from './hooks/useDragResize';
 export { useIndexNav, clampIndexMove, indexNavHome, indexNavEnd } from './hooks/useIndexNav';
