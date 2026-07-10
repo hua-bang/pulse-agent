@@ -50,6 +50,8 @@ verified in code by builder AND spot-confirmed by the independent reviewer):
   close-by-keyboard (restore focus to trigger); DropdownShell's single
   internal `close` cannot express a close REASON. Unlock = add a
   close-reason to DropdownShell's API (extend-blessed-ui skill applies).
+  **RESOLVED 2026-07-10 — see "API-extension batch" below; both migrated,
+  `bespokeDropdownShells` 2→0.**
 - `NoteMentionMenu`, `SlashCommandMenu`, `FileNodeBubbleMenu`,
   `chat/ModelSwitcher` → Popover: Popover force-autofocuses its first
   button on mount with NO opt-out (`useMenuKeyboardNav` autoFocus default),
@@ -57,6 +59,12 @@ verified in code by builder AND spot-confirmed by the independent reviewer):
   needs live reanchoring on scroll/resize which Popover's one-shot x/y
   cannot do. Unlock = `autoFocus` opt-out prop (combobox pattern) and/or
   rect-anchored live positioning.
+  **PARTIALLY RESOLVED 2026-07-10 — the `autoFocus` prop landed, but
+  re-verifying all four against the unlocked API surfaced a DEEPER,
+  previously-unrecorded blocker for three of them (Home/End focus-steal,
+  not just autofocus-on-mount) and confirmed the fourth's positioning gap
+  still holds. All four remain bespoke — see "API-extension batch" below
+  for the per-target reasoning; no counter movement.**
 - `NodeMentionPicker`, `NodeTagEditor` → Modal / `NodeDetailDrawer` →
   Drawer / `AgentTeamFrame` ×3 → Modal: ALL are in-context anchored or
   in-flow surfaces (`position:absolute` in a local stacking context, or a
@@ -224,6 +232,71 @@ working Close/Delete, and the pending bar's Clear/Send wire to `onClear`/
 `onSubmit`. `IframeRenderedView` (webview/Electron-coupled) and `index.tsx`
 (pure composition, no owned behavior) were not given new tests — nothing
 there is mountable or has logic worth pinning outside Electron.
+
+## API-extension batch — DONE 2026-07-10
+
+Implements the two C1 "Unlock = API change" bullets, then re-attempts the
+misfits they name — per the C1 meta-lesson, each target's actual contract
+was re-read before migrating rather than trusting the old verdict.
+
+**API 1 — DropdownShell close-reason.** `onOpenChange` now carries an
+optional second argument, `reason?: 'escape' | 'outside'`, set ONLY for the
+two dismissal paths a caller might treat differently (omitted — same
+single-arg call as before this option existed — for opening, a trigger
+re-click close, and an item-pick close via the render-prop `close()`).
+Internally this required splitting the shell's one `close` function (which
+`useClickOutside` AND `useMenuKeyboardNav` were BOTH wired to — the actual
+root cause of "DropdownShell's single internal `close` cannot express a
+reason") into two: `closeFromOutside` and `closeFromEscape`, each calling
+the shared `applyOpen(false, reason)`. Fully backward compatible: every
+existing caller (ShapeNodeBody, FloatingToolbar, TextColorPicker,
+FrameHeaderControls) and the pre-existing `onOpenChange` unit test compile
+and pass unchanged.
+
+**API 2 — Popover `autoFocus`.** A `boolean` prop, default `true`, passed
+straight through to `useMenuKeyboardNav`'s existing `autoFocus` option.
+One-line implementation; the hook already supported this, Popover just
+never exposed it.
+
+Both extensions default to prior behavior — `pnpm run visual` (11/11) is
+byte-identical, unregenerated.
+
+### Migrated
+
+| Target | Outcome |
+|---|---|
+| `chat/ChatAnchors.tsx` → DropdownShell | **Migrated.** `onOpenChange`'s `reason === 'escape'` check restores focus to the trigger; outside-press and item-pick closes don't. The hover-driven open/close (mouseenter/mouseleave with a debounced close) is layered on top of the shell's own `open`/`toggle` via refs mirrored during the trigger render-prop call (an established ref-during-render pattern already used by `useClickOutside` itself), gated so hover only ever opens-when-closed or closes-when-open. A bonus simplification fell out: the shell's own arrow-key nav is GLOBAL-scope (not gated on focus being inside the panel), so the pre-migration "if already open, manually refocus the first/last item" branch on the trigger's keydown handler became dead code and was deleted — the shell's own capture-phase listener now handles it, having already run (and stopped propagation) before the trigger's own bubble-phase handler would fire. Panel CSS kept its exact pre-migration chrome (radius/shadow/background/z-index/animation/min-max-width) via a specificity-guaranteed compound selector (`.ui-dropdown__panel.chat-anchors-menu`) rather than relying on CSS import order — this is a structural move only, not a visual one. 7 new behavior tests. |
+| `WorkspaceNodes/GraphPage.tsx` overflow menu → DropdownShell | **Migrated.** Same close-reason wiring. The pre-migration behavior where Pause/Resume and Density clicks deliberately leave the menu open (only Refresh explicitly closes it, via `close()`) is preserved exactly — verified by test. GraphPage.tsx **shrank**, 811→801 lines (still under its 812 must-not-grow file-size baseline), by dropping the now-redundant `useClickOutside`/`useMenuKeyboardNav` wiring, the `overflowOpen`/`overflowMenuId`/`overflowRef`/`overflowMenuRef` state, and the same now-dead "already open" arrow-key branch. Panel CSS override follows the same compound-selector pattern; `position`/`top`/`right` needed NO override at all — the shell's own `align="end"` + default `placement="bottom"` already produce byte-identical `top: calc(100% + 6px); right: 0`. 5 new behavior tests (react-force-graph-2d mocked out — a third-party canvas-rendering dependency happy-dom can't run, and one the overflow menu's own logic doesn't touch). |
+
+`bespokeDropdownShells`: 2 → 0 (both migrated; baseline lowered in the same
+commits as each migration, with provenance comments in
+`src/main/__tests__/ui-reuse-governance.test.ts`).
+
+### Re-verified — still SKIP (autoFocus alone doesn't unlock these)
+
+All four were re-read against their FULL keyboard contract, not just the
+autofocus symptom the original misfit note named. Three turned out to share
+a landmine the `autoFocus` prop cannot fix at all, because it only gates
+`useMenuKeyboardNav`'s FIRST effect (initial-mount focus) — its SECOND
+effect (global-scope ArrowUp/Down/Home/End → DOM-focus a panel button) is
+unconditional and fires regardless of `autoFocus`.
+
+| Target | Verdict |
+|---|---|
+| `NoteMentionMenu` | **SKIP, deeper reason found.** Not a Popover-shaped menu at all: `role="listbox"`/`aria-selected` items with an externally-owned "active" index (`useNoteMentions.ts`'s own `window.addEventListener('keydown', ..., true)`, mounted on the editor, driving `moveMentionSelection`) — the menu itself only calls `useClickOutside`, never `useMenuKeyboardNav`, and DOM focus never enters it. That editor-level handler intercepts ArrowDown/ArrowUp/Enter/Escape with `stopImmediatePropagation()`, so adopting Popover wouldn't double-fire on THOSE keys (the editor's handler, registered first, wins). But it does **not** handle Home/End — so Popover's own unconditional Home/End branch would be the only listener left standing for those keys, and would yank DOM focus from the note's contentEditable into a menu button mid-typing. That's a real regression (Home/End inside an active `@mention` query currently does the caret's native line-start/end move), not present today, and `autoFocus={false}` does nothing to prevent it. Combined with the role/selection-model mismatch, this is a controlled-listbox shape Popover's contract doesn't serve — same conclusion `bespokePopoverPositioning`'s existing baseline comment already drew, now with the concrete mechanism. |
+| `SlashCommandMenu` | **SKIP, same reason.** Structurally identical to NoteMentionMenu — `useFileNodeEditor.ts`'s own capture-phase handler owns ArrowDown/Up/Enter/Escape via `moveSlashSelection`/`closeSlashMenu`; the menu itself never calls `useMenuKeyboardNav`. Same Home/End focus-steal gap, same `role="listbox"` mismatch. |
+| `FileNodeBubbleMenu` | **SKIP, original blocker re-confirmed, plus a second one found.** Re-read `useViewportClampedPosition` (the hook both DropdownShell... no, both Popover and the mention/slash menus share): it only clamps a top-left point back from the viewport edges — it does not flip above/below an anchor, nor center horizontally around one. FileNodeBubbleMenu needs both (`translate(-50%, ...)` horizontal centering around the selection midpoint, plus a measured flip-below when there's no room above) — Popover still lacks this, so the original verdict holds. Newly found: the bubble menu opens on EVERY non-empty text selection (`onSelectionUpdate` in `useFileNodeEditor.ts`) and today hand-rolls no keyboard nav at all (no `useClickOutside`, no `useMenuKeyboardNav`, no Escape). Popover's unconditional Home/End handling would hijack the browser's native "collapse selection to line start/end" — an extremely common edit action — every time ANY text is selected in the note editor, a severe regression, not a corner case. |
+| `chat/ModelSwitcher.tsx` → Popover | **SKIP, re-confirmed unchanged.** Still hand-rolls its own `updateMenuPosition` (measures the trigger rect, flips above/below based on available space, re-runs on `resize` and capture-phase `scroll`) — exactly the live-reanchoring Popover's one-shot `useViewportClampedPosition` clamp cannot do. Also doesn't match `bespokePopoverPositioning`'s file signature (no `useViewportClampedPosition` import), so this was never actually counted by the ratchet either way — no counter movement possible regardless of verdict. |
+
+No counter movement from this sub-batch (all four skips); `bespokePopoverPositioning` stays at 2 (NoteMentionMenu + SlashCommandMenu — unchanged, its existing baseline comment's reasoning is now independently re-confirmed with the specific mechanism above).
+
+**Skill write-back**: `extend-blessed-ui/SKILL.md` gained a 6th landmine —
+a narrow opt-out prop only disables the ONE effect it's wired to; a shared
+hook's OTHER unconditional effects (here, `useMenuKeyboardNav`'s Home/End
+arrow-nav, independent of its `autoFocus` gate) can still conflict with a
+caller's own external keyboard ownership. Check the primitive's FULL
+behavior surface against the caller's FULL keyboard contract, not just the
+named symptom, before promising an unlock.
 
 ## Batch C3 — normalization + the big two (visual gate first)
 
