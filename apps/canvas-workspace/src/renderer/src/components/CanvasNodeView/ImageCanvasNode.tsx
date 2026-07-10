@@ -79,7 +79,13 @@ export const ImageCanvasNode = ({
   return (
     <div className={classes} style={wrapperStyle} onClick={handleNodeClick}>
       <div className="node-body node-body--image" onMouseDown={(e) => e.stopPropagation()}>
-        <ImageNodeBody node={node} onSelect={onSelect} onDragStart={onDragStart} readOnly={readOnly} />
+        <ImageNodeBody
+          node={node}
+          isFullscreen={isFullscreen}
+          onSelect={onSelect}
+          onDragStart={onDragStart}
+          readOnly={readOnly}
+        />
       </div>
       {imageFilePath ? <CopyImageButton onClick={handleCopyImage} /> : null}
       {supportsFullscreen ? (

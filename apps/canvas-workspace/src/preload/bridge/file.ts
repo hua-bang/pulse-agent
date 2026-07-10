@@ -28,6 +28,9 @@ export const createFileApi = (ipcRenderer: IpcRenderer): FileApi => ({
   saveImage: (workspaceId, data, ext) =>
     ipcRenderer.invoke("file:saveImage", { workspaceId, data, ext }),
 
+  getImagePreview: (filePath, maxDimension) =>
+    ipcRenderer.invoke('file:getImagePreview', { filePath, maxDimension }),
+
   exportImage: (defaultName, data, ext) =>
     ipcRenderer.invoke("file:exportImage", { defaultName, data, ext }),
 

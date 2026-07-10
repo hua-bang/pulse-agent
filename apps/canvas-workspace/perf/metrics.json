@@ -84,7 +84,7 @@
     { "id": "memory.ws_cycle.heap_slope", "aspect": "memory", "label": "每多挂一个 workspace 的常驻 JS 堆增长(H1 守卫,B8 LRU 后趋 0)", "unit": "MB/ws", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "memory.ws_cycle.peak_heap_mb", "aspect": "memory", "label": "切换循环 JS 堆峰值(挂满 5 个 workspace)", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "memory.n100.total_rss_mb", "aspect": "memory", "label": "100 节点画布稳态 RSS(单点)", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": true },
-    { "id": "memory.image.decoded_mb", "aspect": "memory", "label": "10×4K 图解码内存(K-1 守卫)", "unit": "MB", "comparability": "同机", "level": "record", "instrumented": false },
+    { "id": "memory.image.decoded_mb", "aspect": "memory", "label": "10×4K 图解码内存(K-1 守卫)", "unit": "MB", "comparability": "全局", "level": "record", "instrumented": true },
 
     { "id": "main.loop_delay_p99_ms", "aspect": "main", "label": "事件循环延迟 p99(E/J 维总汇)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "main.loop_delay_max_ms", "aspect": "main", "label": "事件循环延迟 max(单次冻结上限)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },

@@ -41,6 +41,21 @@ export interface FileApi {
     data: string,
     ext?: string,
   ) => Promise<{ ok: boolean; filePath?: string; fileName?: string; error?: string }>;
+  getImagePreview: (
+    filePath: string,
+    maxDimension?: number,
+  ) => Promise<{
+    ok: boolean;
+    preview?: {
+      path: string;
+      generated: boolean;
+      width: number;
+      height: number;
+      originalWidth: number;
+      originalHeight: number;
+    };
+    error?: string;
+  }>;
   exportImage: (
     defaultName: string,
     data: string,

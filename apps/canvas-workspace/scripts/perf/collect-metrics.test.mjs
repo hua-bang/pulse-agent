@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectInteractionScenarioMetrics } from './collect-metrics.mjs';
+import { collectImageMemoryMetric, collectInteractionScenarioMetrics } from './collect-metrics.mjs';
 
 describe('collectInteractionScenarioMetrics', () => {
   it('normalizes resize timing, counters, repeat samples, and gate results', () => {
@@ -69,5 +69,25 @@ describe('collectInteractionScenarioMetrics', () => {
       limit: 3,
       missing: true,
     }]);
+  });
+});
+
+describe('collectMetrics image memory', () => {
+  it('maps the image-memory scenario into the metric dictionary id', () => {
+    expect(collectImageMemoryMetric({
+      scenarios: {
+        'image-memory': {
+          images: 10,
+          decodedMB: 26.4,
+          originalDecodedMB: 457.8,
+          reductionRatio: 17.4,
+        },
+      },
+    })).toEqual({
+      id: 'memory.image.decoded_mb',
+      value: 26.4,
+      runs: 1,
+      detail: '10×4K · original 457.8 MB · 17.4× reduction',
+    });
   });
 });

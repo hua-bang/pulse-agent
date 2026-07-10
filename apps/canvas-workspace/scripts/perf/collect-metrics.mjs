@@ -70,6 +70,17 @@ export const collectInteractionScenarioMetrics = (scenarios, name) => {
   return entries;
 };
 
+export const collectImageMemoryMetric = (scenarios) => {
+  const imageMemory = scenarios?.scenarios?.['image-memory'];
+  if (!imageMemory || typeof imageMemory.decodedMB !== 'number') return null;
+  return {
+    id: 'memory.image.decoded_mb',
+    value: imageMemory.decodedMB,
+    runs: 1,
+    detail: `${imageMemory.images}×4K · original ${imageMemory.originalDecodedMB} MB · ${imageMemory.reductionRatio}× reduction`,
+  };
+};
+
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
@@ -170,6 +181,9 @@ export const collectMetrics = () => {
     });
     push('memory.ws_cycle.peak_heap_mb', wsc.peakHeapMB);
   }
+
+  const imageMemoryMetric = collectImageMemoryMetric(scenarios);
+  if (imageMemoryMetric) metrics.push(imageMemoryMetric);
 
   for (const name of ['typing', 'drag', 'resize']) {
     // A3: --repeat N folds multiple in-session runs into a median (see

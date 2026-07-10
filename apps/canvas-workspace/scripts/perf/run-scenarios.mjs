@@ -58,7 +58,7 @@ const readFlag = (name) => {
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
 const seedWebpages = Number(readFlag('--seed-webpages') ?? 0);
-const only = (readFlag('--scenario') ?? 'startup,typing,resize,drag,panzoom,ws-cycle').split(',');
+const only = (readFlag('--scenario') ?? 'startup,image-memory,typing,resize,drag,panzoom,ws-cycle').split(',');
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -556,6 +556,75 @@ const seedExtraNodes = async (cdp, count, webpageCount = 0) => {
   throw new Error('seeded nodes did not appear after reload');
 };
 
+const imageMemoryScenario = async (cdp) => {
+  const imageCount = 10;
+  const originalWidth = 4000;
+  const originalHeight = 3000;
+  await evaluate(cdp, `(async () => {
+    const store = window.canvasWorkspace.store;
+    const list = await store.list();
+    const wsId = list.ids[0];
+    const canvas = document.createElement('canvas');
+    canvas.width = ${originalWidth};
+    canvas.height = ${originalHeight};
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#325d88';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#f4f7fb';
+    ctx.font = '160px system-ui';
+    ctx.fillText('Pulse Canvas perf image', 240, 420);
+    const base64 = canvas.toDataURL('image/png').split(',')[1];
+    const filePaths = [];
+    for (let i = 0; i < ${imageCount}; i++) {
+      const saved = await window.canvasWorkspace.file.saveImage(wsId, base64, 'png');
+      if (!saved.ok || !saved.filePath) throw new Error(saved.error || 'failed to save perf image');
+      filePaths.push(saved.filePath);
+    }
+    const loaded = await store.load(wsId);
+    const data = loaded.data ?? {};
+    const nodes = (data.nodes ?? []).filter((node) => !node.id.startsWith('perf-image-'));
+    const now = Date.now();
+    for (let index = 0; index < filePaths.length; index++) {
+      nodes.push({
+        id: 'perf-image-' + index,
+        type: 'image',
+        title: 'perf 4K image ' + index,
+        x: 80 + (index % 5) * 220,
+        y: 540 + Math.floor(index / 5) * 180,
+        width: 200,
+        height: 150,
+        updatedAt: now,
+        data: { filePath: filePaths[index] },
+      });
+    }
+    await store.save(wsId, { ...data, nodes, transform: { x: 250, y: 20, scale: 0.5 } });
+  })()`);
+  await evaluate(cdp, 'location.reload()').catch(() => {});
+
+  let images = [];
+  for (let i = 0; i < 100; i++) {
+    await sleep(100);
+    images = await evaluate(cdp, `([...document.querySelectorAll('.canvas-node--image img')]
+      .filter((img) => img.complete && img.naturalWidth > 0)
+      .map((img) => ({ width: img.naturalWidth, height: img.naturalHeight, src: img.currentSrc || img.src })))`)
+      .catch(() => []);
+    if (images.length >= imageCount && images.every((image) => image.width <= 960)) break;
+  }
+  if (images.length < imageCount || images.some((image) => image.width > 960)) {
+    const maxWidth = images.length > 0 ? Math.max(...images.map((image) => image.width)) : 0;
+    throw new Error(`image-memory preview readiness failed: ${images.length}/${imageCount}, max width ${maxWidth}`);
+  }
+  const decodedBytes = images.reduce((sum, image) => sum + image.width * image.height * 4, 0);
+  const originalDecodedBytes = imageCount * originalWidth * originalHeight * 4;
+  return {
+    images: imageCount,
+    decodedMB: Math.round(decodedBytes / 1024 / 1024 * 10) / 10,
+    originalDecodedMB: Math.round(originalDecodedBytes / 1024 / 1024 * 10) / 10,
+    maxDecodedWidth: Math.max(...images.map((image) => image.width)),
+    reductionRatio: Math.round(originalDecodedBytes / decodedBytes * 10) / 10,
+  };
+};
+
 // ── main ─────────────────────────────────────────────────────────────────────
 
 const main = async () => {
@@ -574,6 +643,7 @@ const main = async () => {
       );
     }
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
+    if (only.includes('image-memory')) scenarios['image-memory'] = await imageMemoryScenario(cdp);
     if (only.includes('typing')) scenarios.typing = await typingScenario(cdp, repeat);
     if (only.includes('resize')) scenarios.resize = await resizeScenario(cdp, repeat);
     if (only.includes('drag')) scenarios.drag = await dragScenario(cdp, repeat);
@@ -639,6 +709,14 @@ const main = async () => {
     console.log(
       `[perf:scenarios] ws-cycle: ${wsc.workspaces} workspaces, heap ${JSON.stringify(wsc.heapsMB)} MB, `
       + `slope=${wsc.heapSlopeMB} MB/ws, peak=${wsc.peakHeapMB} MB`,
+    );
+  }
+  const imageMemory = scenarios['image-memory'];
+  if (imageMemory) {
+    console.log(
+      `[perf:scenarios] image-memory: ${imageMemory.images} images, `
+      + `${imageMemory.decodedMB} MB decoded vs ${imageMemory.originalDecodedMB} MB original `
+      + `(${imageMemory.reductionRatio}× reduction, max width ${imageMemory.maxDecodedWidth})`,
     );
   }
   if (scenarios.main) {
