@@ -23,46 +23,61 @@ here are opportunity-ordered, not scheduled. Counter numbers below are the
   reviewer (different model) → adjudication → commit. AGENTS.md failure
   guards apply (regression test for any loop/history-shaped change).
 
-## Batch C0 — counter hygiene (small, independent, do first)
+## Batch C0 — counter hygiene — DONE 2026-07-10
 
-`shadowLiterals` (196) is inflated: 26 lines are `box-shadow: none` (not a
-shadow literal) and ~5 use a real shadow token that misses the `var(--shadow`
-prefix check (`var(--nodes-shadow)`). Refine the counter to exempt
-whole-value `none` and whole-value shadow-purpose tokens (keep the review
-lesson: geometry lines with an unrelated `var(--border)` still count).
-Baseline drops honestly to ~165. Acceptance: governance suite green with new
-baseline; no production CSS touched.
+Landed as planned (whole-value `none` + whole-value shadow-purpose tokens
+exempt; geometry lines with an unrelated `var(--border)` still count).
+Honest floor turned out to be 170, not ~165 — the plan's estimate was
+computed against a stale baseline; 5 unrelated literals had drifted in via
+master perf commits. Independent review confirmed the filter and the
+arithmetic (200→169 at HEAD after C1's incidental deletion).
 
-## Batch C1 — structural sweep (no visual gate needed)
+## Batch C1 — structural sweep — DONE 2026-07-10 (yield lower than projected, by evidence)
 
-Re-shell bespoke implementations onto blessed pieces. Behavior-testable;
-pixel changes are acceptable-by-review (shells carry their own chrome).
+What landed (builder: Sonnet; independent review: Opus; both CONFIRMED):
 
-| Item | Targets (verified 2026-07-10) | Counter movement |
+| Item | Outcome | Counter movement |
 |---|---|---|
-| DropdownShell tail | `ShapeNodeBody/index.tsx`, `chat/ChatAnchors.tsx`, `FloatingToolbar/index.tsx`, `WorkspaceNodes/GraphPage.tsx` | bespokeDropdownShells 4 → 0 |
-| Menu portals → Popover | `NoteMentionMenu/`, `FileNodeBubbleMenu/`, `chat/ModelSwitcher.tsx`, `SlashCommandMenu/` | portalFiles 9 → ~5 |
-| Lightbox → Modal | `chat/ChatImageLightbox.tsx` (clears a portal + a dialog role + a keydown listener) | portalFiles −1, dialogRoles −1, handRolledKeydown −1 |
-| Dialog adoption, case-by-case | `NodeMentionPicker/` and `WorkspaceNodes/NodeTagEditor.tsx` → Modal; `WorkspaceNodes/NodeDetailDrawer.tsx` → Drawer; `AgentTeamFrame/index.tsx` ×3 → Modal (re-shell ONLY — file is an over-500 baseline file, may shrink, must not grow) | dialogRoles 12 → ~5 |
-| Spinner dedupe | 6 private `@keyframes *spin` (WorkspaceTerminalDock, MigrationSpinner, UpdateSection, ChatPanel, IframeNodeBody, AppShellProvider) → one blessed global, same pattern as fadeIn/menuAppear | spinnerKeyframes 6 → 1 |
+| DropdownShell — `ShapeNodeBody`, `FloatingToolbar` | migrated (review added: `ariaLabel` passthrough so the shell keeps the menu's accessible name) | bespokeDropdownShells 4 → 2 |
+| Lightbox → Modal — `chat/ChatImageLightbox.tsx` | migrated + 5 behavior tests | portalFiles 9→8, dialogRoles 12→11, handRolledKeydown 17→16 |
+| Spinner dedupe | one blessed global `@keyframes spin` in styles.css; 6 private copies deleted, per-site durations kept | spinnerKeyframes 6→1, privateEntranceKeyframes 12→11 |
 
-**Pinned exclusions (do NOT migrate):**
-- `Workbench/index.tsx` + `Workbench/WorkspaceTerminalPortal.tsx` — these
-  portals are terminal-DOM reparenting (keeps PTY alive across remounts),
-  not popover shells. Architectural; out of scope.
-- `CommandPalette`, `ReferenceDrawer/ReferencePicker.tsx`,
-  `ReferenceDrawer/ReferenceUrlEditor.tsx` — palette/popover-shaped
-  surfaces; builder states a verdict per case in the PR, default keep.
-- Most `handRolledKeydown` entries (`useCanvasKeyboard`, `useMarqueeSelect`,
-  `useShapeDraw`, `useEdgeInteraction`, `useTemporaryHandTool`,
-  `useCanvasMouseHandlers`, `useMindmapController`, `useNoteKeyboard`,
-  `useNoteMentions`, `useFileNodeEditor`, `App.tsx` global shortcuts) are
-  canvas-level keyboard systems, NOT popover ESC handling. That counter is a
-  no-grow ratchet, not a to-zero list. Floor after C1 ≈ 14–16, and that is
-  fine.
+**Adjudicated misfits — do NOT retry these without an API change** (each
+verified in code by builder AND spot-confirmed by the independent reviewer):
 
-Counter floors are structural: dialogRoles/portalFiles include the blessed
-primitives themselves (Modal, Drawer, Portal, Popover self-count).
+- `chat/ChatAnchors.tsx`, `GraphPage` overflow menu → DropdownShell:
+  they distinguish close-by-click-outside (no focus restore) from
+  close-by-keyboard (restore focus to trigger); DropdownShell's single
+  internal `close` cannot express a close REASON. Unlock = add a
+  close-reason to DropdownShell's API (extend-blessed-ui skill applies).
+- `NoteMentionMenu`, `SlashCommandMenu`, `FileNodeBubbleMenu`,
+  `chat/ModelSwitcher` → Popover: Popover force-autofocuses its first
+  button on mount with NO opt-out (`useMenuKeyboardNav` autoFocus default),
+  which would steal focus from the editor/filter input; ModelSwitcher also
+  needs live reanchoring on scroll/resize which Popover's one-shot x/y
+  cannot do. Unlock = `autoFocus` opt-out prop (combobox pattern) and/or
+  rect-anchored live positioning.
+- `NodeMentionPicker`, `NodeTagEditor` → Modal / `NodeDetailDrawer` →
+  Drawer / `AgentTeamFrame` ×3 → Modal: ALL are in-context anchored or
+  in-flow surfaces (`position:absolute` in a local stacking context, or a
+  non-modal split-view panel); Modal/Drawer's body-portal + viewport-fixed +
+  focus-trap contract would CHANGE their scope, not just their chrome.
+  These keep `role="dialog"` legitimately — dialogRoles' structural floor
+  is ~11, not ~5 as first projected.
+
+**Pinned exclusions (unchanged from planning, still binding):** Workbench's
+two terminal-reparenting portals; CommandPalette/ReferencePicker/
+ReferenceUrlEditor; the canvas-level keyboard systems in handRolledKeydown
+(that counter is no-grow, not to-zero; its floor ≈ 16 = GraphPage Cmd+F+ESC
++ 2 gesture-cancel listeners + the rest of the census in the ratchet's
+comments).
+
+**Meta-lesson recorded**: the planning scan projected counter movements
+(9→~5, 12→~5) from SHAPE (role/portal grep) without reading each target's
+positioning contract. Actual yield: the misfit rate on "looks like a
+dialog/menu" targets was 8/13. Future batch briefs must include the
+positioning contract (fixed-viewport vs in-context) per target, not just
+the counter hit list.
 
 ## Batch C2 — token minting + exact-value swap (pixel-identical by construction)
 
@@ -100,6 +115,19 @@ need local Electron). Then, in this order of tractability:
   one reviewable batch.
 - `hardcodedColorLiterals` (1934): wait for a theming/dark-mode style
   forcing function and burn once with leverage. Do not start on its own.
+
+## Drift recording (2026-07-10)
+
+While C0/C1 ran, the ratchet caught real off-ratchet drift merged to master
+(iframe-review feature `8d848aa`/`d247f20` and the perf series): raw
+buttons 390→398, textareas 13→15, radius 416→421, colors 1934→1968, plus
+Workbench/index.tsx 512→516 (file-size) and a renderer unit test tripping
+import-boundaries (fixed: test files are now excluded from the boundary
+scan, matching the sibling suites). Baselines were raised to measured with
+provenance comments — RECORDED as new stock, not approved as allowance.
+This is the first confirmed bite of the known "no automatic trigger" gap
+(root AGENTS.md §4): nothing runs these suites for work that doesn't know
+about them.
 
 ## Standing rules
 
