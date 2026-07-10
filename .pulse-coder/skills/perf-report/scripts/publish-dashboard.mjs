@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, copyFileSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { syncOptionalArtifacts } from './publish-artifacts.mjs';
 
 const skillDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cwd = process.cwd();
@@ -34,10 +35,13 @@ for (const file of required) {
 
 mkdirSync(deployDir, { recursive: true });
 copyFileSync(join(outDir, 'dashboard.html'), join(deployDir, 'index.html'));
-for (const file of ['report.json', 'scenarios-report.json', 'bundle-report.json']) {
-  const source = join(outDir, file);
-  if (existsSync(source)) copyFileSync(source, join(deployDir, file));
-}
+copyFileSync(join(outDir, 'report.json'), join(deployDir, 'report.json'));
+syncOptionalArtifacts(outDir, deployDir, [
+  'scenarios-report.json',
+  'bundle-report.json',
+  'renderer-trace-summary.json',
+  'renderer-trace.json.gz',
+]);
 if (existsSync(startupScreenshotPath)) {
   copyFileSync(startupScreenshotPath, join(deployDir, 'electron-startup.png'));
 }

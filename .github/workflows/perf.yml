@@ -67,6 +67,8 @@ jobs:
           path: |
             apps/canvas-workspace/perf/out/dashboard.html
             apps/canvas-workspace/perf/out/report.json
+            apps/canvas-workspace/perf/out/renderer-trace-summary.json
+            apps/canvas-workspace/perf/out/renderer-trace.json.gz
           if-no-files-found: warn
 
       - name: Comment verdict on the PR
@@ -89,7 +91,7 @@ jobs:
               '',
               `**${r.verdict}**`,
               '',
-              `覆盖 ${r.coverage.measured}/${r.coverage.total} 指标 · commit \`${r.commit}\``,
+              `核心覆盖 ${r.coverage.measured}/${r.coverage.total} · CDP trace 诊断 ${r.coverage.diagnostic?.measured ?? 0}/${r.coverage.diagnostic?.total ?? 0} · commit \`${r.commit}\``,
               high.length ? '\n#### ⚠ HIGH\n' + high.map(line).join('\n') : '',
               med.length ? '\n#### MEDIUM\n' + med.map(line).join('\n') : '',
               '\n<sub>完整看板见本次运行的 `perf-report` artifact(dashboard.html)。</sub>',

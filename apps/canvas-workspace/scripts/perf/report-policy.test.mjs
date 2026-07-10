@@ -69,4 +69,15 @@ describe('metricCoverageFailure', () => {
     expect(metricCoverageFailure({ bundleOnly: true, coverage: { measured: 6, total: 40 } }))
       .toBeNull();
   });
+
+  it('keeps optional diagnostic coverage outside the core failure contract', () => {
+    expect(metricCoverageFailure({
+      bundleOnly: false,
+      coverage: {
+        measured: 40,
+        total: 40,
+        diagnostic: { measured: 0, total: 7, status: 'unavailable' },
+      },
+    })).toBeNull();
+  });
 });

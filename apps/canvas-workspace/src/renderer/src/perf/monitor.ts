@@ -40,7 +40,13 @@ export interface PerfScenarioReport {
   interactions: { count: number; p75: number; p95: number; max: number };
   longAnimationFrames: { count: number; blockingMs: number; maxMs: number };
   longTasks: { count: number; totalMs: number };
-  frames: { count: number; over20msPct: number; p95DeltaMs: number };
+  frames: {
+    count: number;
+    over20msCount: number;
+    over20msPct: number;
+    p95DeltaMs: number;
+    windowDurationMs: number;
+  };
   jsHeapMB: { begin: number; end: number };
 }
 
@@ -83,6 +89,7 @@ class ScenarioSession {
   private observers: PerformanceObserver[] = [];
   private rafId = 0;
   private lastFrameAt = 0;
+  private frameWindowEndedAt: number | null = null;
   private readonly startedAt = performance.now();
   private readonly heapAtBegin = readHeapMB();
 
@@ -127,18 +134,26 @@ class ScenarioSession {
     }
   }
 
-  finish(): PerfScenarioReport {
+  markActiveEnd(): void {
+    if (this.frameWindowEndedAt !== null) return;
+    this.frameWindowEndedAt = performance.now();
     cancelAnimationFrame(this.rafId);
+    this.rafId = 0;
+  }
+
+  finish(): PerfScenarioReport {
+    if (this.rafId) cancelAnimationFrame(this.rafId);
     for (const observer of this.observers) observer.disconnect();
     this.observers = [];
     setCountersEnabled(false);
+    const finishedAt = performance.now();
 
     const interactions = [...this.interactionDurations].sort((a, b) => a - b);
     const deltas = [...this.frameDeltas].sort((a, b) => a - b);
     const over20 = this.frameDeltas.filter((d) => d > 20).length;
     return {
       scenario: this.scenario,
-      durationMs: round1(performance.now() - this.startedAt),
+      durationMs: round1(finishedAt - this.startedAt),
       marks: Object.fromEntries(marks),
       counters: snapshotCounters(),
       paint: readPaintEntries(),
@@ -156,10 +171,14 @@ class ScenarioSession {
       longTasks: { count: this.longTaskCount, totalMs: round1(this.longTaskTotal) },
       frames: {
         count: this.frameDeltas.length,
+        over20msCount: over20,
         over20msPct: this.frameDeltas.length
           ? round1((over20 / this.frameDeltas.length) * 100)
           : 0,
         p95DeltaMs: percentile(deltas, 95),
+        windowDurationMs: round1(
+          (this.frameWindowEndedAt ?? finishedAt) - this.startedAt,
+        ),
       },
       jsHeapMB: { begin: this.heapAtBegin, end: readHeapMB() },
     };
@@ -174,6 +193,7 @@ export interface PulsePerfApi {
   end: () => PerfScenarioReport | null;
   dump: () => PerfScenarioReport | null;
   mark: (name: string) => void;
+  markActiveEnd: () => void;
 }
 
 declare global {
@@ -198,5 +218,6 @@ export const installPerfMonitor = (): void => {
     },
     dump: () => lastReport,
     mark: markOnce,
+    markActiveEnd: () => activeSession?.markActiveEnd(),
   };
 };

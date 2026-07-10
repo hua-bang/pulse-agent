@@ -15,8 +15,10 @@ pnpm --filter canvas-workspace perf:report
 Runs the whole pipeline — build → bundle gate → launch the app headless →
 runtime scenarios → close → assemble the report — prints the verdict, and
 writes `out/dashboard.html` (open in a browser) + `out/report.json` (verdict +
-alerts + metrics, for agents/CI). Exit 1 if any gate failed or a full report
-does not cover every metric in `metrics.json` (`--bundle-only` is exempt).
+target/Gate summaries + alerts + metrics, for agents/CI). Exit 1 if any Gate failed or a full report
+does not cover every **core** metric in `metrics.json` (`--bundle-only` is
+exempt). Optional CDP-trace diagnostics have their own coverage status and do
+not make the core report fail when the browser protocol is unavailable.
 
 Variants: `--bundle-only` (fast, no app launch), `--no-build` (reuse `dist/`),
 `--seed-nodes 300` (larger canvas), `--repeat 1` (single boot — faster but
@@ -43,7 +45,7 @@ pnpm --filter canvas-workspace perf:bundle
 ```
 
 Measures the built renderer (entry raw/gzip, total JS, heavy-lib probes),
-compares against `baselines.json → bundle`, writes `out/bundle-report.{json,html}`.
+compares against the bundle-scoped policies in `baselines.json`, writes `out/bundle-report.{json,html}`.
 Exit 1 on regression. The static companion gate `src/main/__tests__/bundle-boundaries.test.ts`
 runs with the normal test suite and keeps mermaid dynamic-only.
 
@@ -77,7 +79,12 @@ Normalizes whatever reports exist in `out/` into the recording schema
 trends), runs the rule engine, and emits two artifacts: `out/dashboard.html`
 for humans and `out/report.json` (verdict + alerts + metrics) for agents.
 Metric definitions come from `metrics.json`; metrics without values render as
-未建/已埋待采 so coverage gaps stay visible.
+未建/已埋待采 so coverage gaps stay visible. Within each topic, the dashboard
+shows `primary` metrics as P0 summary cards, groups `supporting` metrics by
+dimension under P1, and keeps `diagnostic` evidence under P2. P1/P2 groups are
+collapsed by default, but a failed or directly-alerted metric opens its group
+automatically. `level` (gate behavior), `coverageClass` (report completeness),
+and `displayPriority` (visual hierarchy) are deliberately independent.
 
 Coding agents consume this via the `perf-report` runtime skill
 (`.pulse-coder/skills/perf-report/SKILL.md`): run the pipeline, read
@@ -89,20 +96,51 @@ Scenarios drive input via CDP and read `window.__pulsePerf`:
 | Scenario | What it does | Gate |
 |---|---|---|
 | `startup` | parses the `[perf] startup` main-process phase line + renderer marks | informational |
+| `renderer-trace` | reloads the built renderer once under CDP, records lab LCP/CLS, shift count, FCP→Canvas and Canvas→LCP blocking, Long Tasks + CPU counters, and saves a compressed Chrome trace | diagnostic/record-only |
 | `image-memory` | mounts 10 unique 4000×3000 image nodes and sums decoded pixel bytes | `memory.image.decoded_mb` record |
-| `chat-stream` | replays 521 deterministic code/Markdown deltas through the real IPC + chat UI | frame rate, Markdown render count gate, Mermaid tail |
+| `chat-stream` | replays 521 deterministic code/Markdown deltas, then forces one same-content settled rerender | frame rate, Markdown render/cache evidence, Mermaid tail |
 | `typing` | types 120 chars into the first file node | `nodes-array-replace` counter (finding I-1) |
 | `resize` | resizes a node from its bottom-right corner over 90 steps | `nodes-array-replace` + `canvas-save-ipc` counters (finding A2 resize) |
 | `drag` | drags the first node header 90 steps | `nodes-array-replace` counter (finding A2) |
-| `panzoom` | pans (plain wheel) + zooms (ctrl+wheel) over blank canvas | informational (no nodes-array touch) |
+| `panzoom` | pans (plain wheel) + zooms (ctrl+wheel) over blank canvas, verifies transform change, and measures wheel→next-frame latency | response/frame evidence (no nodes-array touch) |
 | `pty-stream` | streams deterministic output through two real PTYs and counts renderer `pty:data` events | `main.pty.ipc_per_sec` record |
 
 Resize's Event Timing value only covers discrete pointerdown/up events; it
 does not measure continuous pointer-move latency. Treat it as record-only and
-use `frames_over20_pct` plus its per-run raw values for resize smoothness.
+use `frames_over20_pct` plus `frames_over20_pct_max` for resize smoothness.
+Pan/zoom no longer reports a structural zero INP: wheel is outside the Event
+Timing discrete-interaction set, so its response metric is a verified
+wheel→next-frame p95 instead. Frame windows freeze after the action's final
+double-rAF while save/counter collection continues separately.
 
 `--seed-nodes N` grows the welcome canvas to N nodes (text nodes, persisted +
 reload) so timing metrics reflect a loaded canvas.
+
+### CDP trace and Web Vitals diagnostics
+
+The full report also captures `perf/out/renderer-trace.json.gz` plus
+`renderer-trace-summary.json`. This uses the harness's existing Electron CDP
+connection directly, so CI stays deterministic and does not depend on an MCP
+server. The trace is a **warm renderer reload** after the normal 100-node
+interaction scenarios, not a cold Electron process launch. The metric ids are
+therefore namespaced under `startup.renderer_reload.*` and remain record-only.
+
+LCP and CLS here are desktop Electron `file://` lab signals. They are useful
+for detecting renderer loading and layout-stability regressions, but they are
+not CrUX/field Core Web Vitals. The existing `interact.*.inp_p95_ms` values are
+scenario-scoped Event Timing measurements rather than whole-page field INP.
+The trace also separates shell-first-render blocking from Canvas→LCP blocking;
+the former can be zero while a later Long Task still delays meaningful content.
+Top-level TTFB, cache, render-blocking-network, and Speed Index metrics are not
+included because a local `file://` Electron shell does not give them the same
+product meaning as a hosted website. Remote webviews should be audited as
+separate CDP targets when network behavior is the question.
+
+Chrome DevTools MCP remains useful for interactive drill-down of a live trace,
+but the upstream project officially supports Chrome/Chrome for Testing; an
+Electron target is best-effort. When configured, connect it to the harness's
+dynamic `cdpPort` with `--browser-url=http://127.0.0.1:<port>` rather than
+starting an unrelated Chrome profile.
 
 ### Repeat / medians (A3)
 
@@ -114,13 +152,16 @@ mechanisms so timing metrics stop being single-sample noise:
   and closes; only the Nth stays alive for the interactive scenarios below.
   Phases are folded into a same-machine median (`mergeStartupMedians`) with
   `runs`/`raw[]` recorded per program.md §3's schema.
-- **`run-scenarios.mjs --repeat N`** re-drives `typing`/`resize`/`drag` N times against
-  that one live session (cheap — no relaunch needed) and medians
-  `interactions.p95` / `frames.over20msPct`; counters take the max across runs
-  (they're deterministic, so max is a safety net, not smoothing).
+- **`run-scenarios.mjs --repeat N`** re-drives
+  `typing`/`resize`/`drag`/`panzoom` N times against that one live session
+  (cheap — no relaunch needed). It records the median and raw repeat samples
+  for Event Timing, frame smoothness, and the Pan/Zoom wheel→next-frame probe;
+  it also keeps the worst single-run frame percentage/count so a median `0%`
+  cannot hide a real slow-frame sample. Deterministic counters take the max
+  across runs as a safety net rather than noise smoothing.
 
 `main.loop_delay_p99_ms` gets a smaller, incidental benefit: repeating
-typing/resize/drag extends the session, giving the loop-delay sampler more 2s
+typing/resize/drag/panzoom extends the session, giving the loop-delay sampler more 2s
 windows to draw its percentile from. `main.loop_delay_max_ms` is not
 repeat-stabilized — it's inherently a single worst-case reading, and the
 dashboard's variance alert already suggests re-running to confirm outliers on
@@ -131,16 +172,24 @@ when driving a manually-started session (see below).
 
 ## Baseline policy
 
-- Counter gates are deterministic (exact event counts) — tolerance lives in the
-  recorded `max`. Today's maxima document the known amplifiers; when a fix
-  lands (e.g. debounced editor sync, ephemeral drag/resize geometry), lower the max in
-  the same PR to lock the win in.
-- Timing metrics (INP p95, frames >20ms, LoAF, startup phases) are median'd
-  across `--repeat` runs (see above) but stay informational until enough
-  same-machine history establishes variance; they are recorded in
-  `out/scenarios-report.json`.
-- Bundle gates fail at `baseline × (1 + tolerancePct/100)`; lower baselines
-  when a splitting fix lands.
+- `baselines.json → policies` is the only numeric SSOT. `target` is the desired
+  product level, `warning` marks a material miss, and `gate` is an independent
+  regression guard. A metric can therefore be “未达标” while its Gate still
+  passes; only Gate failures make the command exit 1.
+- `metrics.json` stores stable semantics (`direction`, `measurementProfile`,
+  runtime counter source), never threshold numbers. Configuration validation
+  fails closed when a `level:gate` metric has no executable policy Gate.
+- Same-machine timing targets apply only when machine id, OS, architecture,
+  node/webpage counts, repeat count, fixture version, and actual headless mode
+  match the named profile. A mismatch renders
+  as “不适用”, not PASS or FAIL. Deterministic counters and build artifacts use
+  the global profile.
+- Counter Gates use `max`/`min`/`true`; bundle Gates use
+  `baseline × (1 + tolerancePct/100)` ratchets. Lower the relevant target or
+  Gate in the same PR when a fix creates durable headroom.
+- Renderer trace targets remain diagnostic and do not gate CI. Promote one to
+  a Gate only after at least five stable runs with the same Electron/Chromium,
+  viewport, DPR, headless/GPU mode, machine, and measurement profile.
 
 Reference numbers (2026-07-04, in-sandbox xvfb, temp profile):
 startup whenReady→domReady 1598→2358 ms; typing@100 nodes INP p95 48 ms with
