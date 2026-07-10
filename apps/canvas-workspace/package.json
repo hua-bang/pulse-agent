@@ -16,6 +16,8 @@
     "typecheck:main": "tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "harness": "node ./harness/tools/driver/cli.mjs",
+    "visual": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts",
+    "visual:update": "playwright test --config=harness/tools/ui-showcase/playwright.config.ts --update-snapshots",
     "package": "electron-vite build && electron-builder",
     "package:mac": "electron-vite build && electron-builder --mac",
     "package:mac:arm64": "electron-vite build && electron-builder --mac --arm64",
@@ -138,6 +140,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
+    "@playwright/test": "^1.61.1",
     "@types/markdown-it": "^14.1.0",
     "@types/node": "^20.14.9",
     "@types/react": "^18.3.3",
@@ -149,6 +152,7 @@
     "picocolors": "^1.1.1",
     "rollup-plugin-visualizer": "^7.0.1",
     "typescript": "^5.6.3",
+    "vite": "^5.4.21",
     "vitest": "^1.0.0"
   }
 }

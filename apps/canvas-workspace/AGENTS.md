@@ -36,6 +36,14 @@ before that the directory held only the Electron driver):
   schema-version constants). Run before touching any of those registries;
   exits non-zero on a broken invoke, union/factory drift, a CLI-only node
   type, an unallowlisted app-only type, or a schema-version mismatch.
+- `harness/tools/ui-showcase/` — Playwright screenshot baseline for
+  `components/ui/` (the blessed design-system set): a plain-React vite page
+  (zero Electron/preload imports) mounting every `ui/` piece in its
+  meaningful variants/states, plus the one Playwright spec that captures
+  and compares against committed baselines. `pnpm run visual` /
+  `visual:update` from this package; Linux-rendered baselines only (fonts
+  differ per OS) — see `harness/tools/ui-showcase/README.md`. Built as the
+  prerequisite for `docs/ui-reuse-burndown.md`'s Batch C3.
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
   `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
@@ -74,6 +82,7 @@ installs the latter. Do not mix them.
 | Canvas node/edge schema | `src/shared/canvas.ts` |
 | Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure — plugin is the default path, host type is the exception); background: `harness/knowledge/plugin-node-mf2.md` (plugin path), `src/shared/canvas.ts`, `src/renderer/src/utils/nodeFactory.ts`, `src/renderer/src/components/CanvasNodeView/` (host-type touch points) |
 | Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
+| Visual-regression baseline for ui/ pieces | `harness/tools/ui-showcase/README.md`; run `pnpm run visual` / `pnpm run visual:update` |
 | Canvas persistence and migration | `src/main/canvas/store.ts`, `src/main/canvas/storage.ts`, `src/main/canvas/nodes/` (NB: `nodes/` here = knowledge-node records + tags, NOT node types) |
 | Canvas Agent and tools | `src/main/agent/`, `src/main/agent/tools/`, `src/renderer/src/components/chat/` |
 | Agent teams | `src/main/agent-teams/`, `src/renderer/src/components/AgentTeamFrame/` |

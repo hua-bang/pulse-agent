@@ -227,9 +227,41 @@ there is mountable or has logic worth pinning outside Electron.
 
 ## Batch C3 — normalization + the big two (visual gate first)
 
-Prerequisite: `ui/` showcase page + Playwright screenshot baseline
-(chromium works in-container for pure ui/ pieces; full-app panel baselines
-need local Electron). Then, in this order of tractability:
+**Prerequisite — DONE 2026-07-10**: `ui/` showcase page + Playwright
+screenshot baseline, at `apps/canvas-workspace/harness/tools/ui-showcase/`
+(full detail: its own `README.md`). A plain-React vite page (zero
+Electron/preload imports, confirmed by construction — every `ui/` piece
+only imports React/DOM/local hooks/CSS) mounts all 10 visual pieces (Button,
+Modal, Drawer, Popover, DropdownShell, Select, TextField, SectionHeader,
+FieldRow, SegmentedControl — `Portal` and the `useDragResize`/`useIndexNav`
+hooks have no chrome of their own, exercised implicitly/covered by existing
+unit tests) in their meaningful variants/states. One Playwright spec
+(`@playwright/test` 1.61.1, added as a canvas-workspace devDependency)
+boots a production build (`vite build` + `vite preview` — more
+deterministic than the dev server) and captures 12 baseline PNGs (per-piece
+sections + one full-page shot) against a fixed 1200×900 viewport with
+animation/transition/caret-blink disabled. Two full clean-state runs
+(killed server, deleted `dist/`, rebuilt from scratch each time) produced
+**zero diffs** against the same baselines — confirms the setup is
+reproducible, not just "usually passes."
+
+Run it: `pnpm run visual` (compare) / `pnpm run visual:update` (regenerate)
+from `apps/canvas-workspace`. **Linux-only** — screenshots are
+Linux-rendered (fonts differ per OS); a macOS run will diff on font metrics
+alone and that is not a regression. Kept out of `pnpm test` (vitest) on
+purpose — it's platform-bound, so it must stay opt-in, not part of the
+default gate every contributor runs.
+
+**What this does NOT cover**: full-app panels (Settings drawers, canvas
+context menus, chat UI, …) that compose `ui/` pieces with app state and
+Electron IPC — those still need a real Electron app and
+`harness/tools/driver/` locally; there is no Electron binary in this
+container. This showcase only proves the `ui/` pieces themselves render
+deterministically in isolation, which is exactly what C3's screenshot-diffed
+normalization work below needs (before/after a radius/shadow literal swap,
+diff the piece that owns it — not a full app screen).
+
+Then, in this order of tractability:
 
 - Radius/shadow NORMALIZATION (the 7px/5px/3px/0/multi-value judgment
   calls — 6px/10px turned out to be exact-value swaps, done in C2b), screenshot-
