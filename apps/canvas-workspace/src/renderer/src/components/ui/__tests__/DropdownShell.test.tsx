@@ -141,6 +141,61 @@ describe('DropdownShell', () => {
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
   });
 
+  it('reports reason "escape" on Escape-close so a caller can restore focus to the trigger', () => {
+    const onOpenChange = vi.fn();
+    render(
+      <DropdownShell trigger={basicTrigger} onOpenChange={onOpenChange}>
+        <button type="button">Item</button>
+      </DropdownShell>,
+    );
+    click(host!.querySelector('.trigger')!);
+    onOpenChange.mockClear();
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(onOpenChange).toHaveBeenLastCalledWith(false, 'escape');
+  });
+
+  it('reports reason "outside" on an outside-press close, distinct from escape', () => {
+    const onOpenChange = vi.fn();
+    render(
+      <DropdownShell trigger={basicTrigger} onOpenChange={onOpenChange}>
+        <button type="button">Item</button>
+      </DropdownShell>,
+    );
+    click(host!.querySelector('.trigger')!);
+    onOpenChange.mockClear();
+
+    act(() => {
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    });
+    expect(onOpenChange).toHaveBeenLastCalledWith(false, 'outside');
+  });
+
+  it('omits the reason (single-arg call) for a trigger-toggle close and an item-pick close, unchanged from before the API existed', () => {
+    const onOpenChange = vi.fn();
+    render(
+      <DropdownShell trigger={basicTrigger} onOpenChange={onOpenChange}>
+        {({ close }) => (
+          <button type="button" className="pick" onClick={close}>
+            Pick
+          </button>
+        )}
+      </DropdownShell>,
+    );
+    click(host!.querySelector('.trigger')!);
+    click(host!.querySelector('.trigger')!);
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(onOpenChange.mock.calls.at(-1)).toEqual([false]);
+
+    click(host!.querySelector('.trigger')!);
+    onOpenChange.mockClear();
+    click(host!.querySelector('.pick')!);
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(onOpenChange.mock.calls.at(-1)).toEqual([false]);
+  });
+
   it('adds the ui-dropdown--open modifier to the root while open', () => {
     render(
       <DropdownShell trigger={basicTrigger} className="frame-color-trigger">

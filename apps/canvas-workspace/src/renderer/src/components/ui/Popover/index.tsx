@@ -16,6 +16,16 @@ interface Props {
    *  left/top land on). Bring the surface/animation/`position: fixed`
    *  styling here — Popover only owns geometry, not appearance. */
   className?: string;
+  /**
+   * Whether opening the popover moves focus to its first focusable item.
+   * Default `true` (menu behavior). Set `false` for combobox-style callers
+   * that anchor a menu next to a live editor/filter `<input>` — keeping
+   * focus in that input while the popover is open is the whole point (a
+   * forced autofocus would yank focus out of it on every open). Passed
+   * straight through to `useMenuKeyboardNav`'s own `autoFocus` option; the
+   * Escape-close and arrow-key nav behaviors are unaffected either way.
+   */
+  autoFocus?: boolean;
   children: ReactNode;
 }
 
@@ -46,9 +56,9 @@ interface Props {
  * which sit under a preventDefault-ing ancestor, but LayerContextMenu's
  * Sidebar tree has no such ancestor).
  */
-export const Popover = ({ x, y, onClose, role = 'menu', className, children }: Props) => {
+export const Popover = ({ x, y, onClose, role = 'menu', className, autoFocus = true, children }: Props) => {
   const { ref, pos } = useViewportClampedPosition<HTMLDivElement>(x, y);
-  useMenuKeyboardNav(ref, onClose);
+  useMenuKeyboardNav(ref, onClose, { autoFocus });
   useClickOutside(ref, onClose);
 
   return createPortal(

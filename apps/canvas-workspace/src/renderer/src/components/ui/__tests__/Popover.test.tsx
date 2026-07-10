@@ -108,4 +108,52 @@ describe('Popover', () => {
     });
     expect(document.activeElement).toBe(buttons[1]);
   });
+
+  it('autofocuses the first menuitem on mount by default', () => {
+    render(
+      <Popover x={0} y={0} onClose={vi.fn()} className="test-popover">
+        <button role="menuitem">First</button>
+        <button role="menuitem">Second</button>
+      </Popover>,
+    );
+    const buttons = document.querySelectorAll('[role="menuitem"]');
+    expect(document.activeElement).toBe(buttons[0]);
+  });
+
+  it('autoFocus={false} leaves focus untouched, for combobox-style callers anchoring next to a live filter input', () => {
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    expect(document.activeElement).toBe(input);
+
+    render(
+      <Popover x={0} y={0} onClose={vi.fn()} className="test-popover" autoFocus={false}>
+        <button role="menuitem">First</button>
+        <button role="menuitem">Second</button>
+      </Popover>,
+    );
+    expect(document.activeElement).toBe(input);
+    input.remove();
+  });
+
+  it('autoFocus={false} still closes on Escape and still navigates via ArrowDown', () => {
+    const onClose = vi.fn();
+    render(
+      <Popover x={0} y={0} onClose={onClose} className="test-popover" autoFocus={false}>
+        <button role="menuitem">First</button>
+        <button role="menuitem">Second</button>
+      </Popover>,
+    );
+    const buttons = document.querySelectorAll('[role="menuitem"]');
+    (buttons[0] as HTMLElement).focus();
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    });
+    expect(document.activeElement).toBe(buttons[1]);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });
