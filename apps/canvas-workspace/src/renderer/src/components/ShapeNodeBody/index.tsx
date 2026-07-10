@@ -3,7 +3,7 @@ import './index.css';
 import type { CanvasNode, ShapeNodeData } from '../../types';
 import { ShapePrimitive } from '../../utils/shapeGeometry';
 import { isImeComposing } from '../../utils/ime';
-import { DropdownShell } from '../ui';
+import { DropdownShell, SwatchRow } from '../ui';
 import { useI18n } from '../../i18n';
 
 interface Props {
@@ -283,49 +283,31 @@ export const ShapeStylePicker = ({ node, onUpdate }: StylePickerProps) => {
           </button>
         )}
       >
-        <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.fill')}>
+        <div className="shape-style-row">
           <span className="shape-style-label">{t('canvas.shapeStyle.fill')}</span>
-          <div className="shape-style-swatches">
-            {FILL_PRESETS.map((p) => (
-              <button
-                type="button"
-                key={p.name}
-                className={`shape-style-swatch-btn${data.fill === p.value ? ' shape-style-swatch-btn--active' : ''}`}
-                role="menuitemradio"
-                aria-checked={data.fill === p.value}
-                title={t('canvas.shapeStyle.fillOption', { name: p.name })}
-                aria-label={t('canvas.shapeStyle.fillOption', { name: p.name })}
-                style={{
-                  background: p.value === 'transparent' ? 'none' : p.value,
-                }}
-                onClick={() => patch({ fill: p.value })}
-              >
-                {p.value === 'transparent' && <span className="shape-style-none-slash" />}
-              </button>
-            ))}
-          </div>
+          <SwatchRow
+            ariaLabel={t('canvas.shapeStyle.fill')}
+            options={FILL_PRESETS.map((p) => ({
+              value: p.value,
+              label: t('canvas.shapeStyle.fillOption', { name: p.name }),
+              isNone: p.value === 'transparent',
+            }))}
+            value={data.fill}
+            onChange={(next) => patch({ fill: next })}
+          />
         </div>
-        <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.stroke')}>
+        <div className="shape-style-row">
           <span className="shape-style-label">{t('canvas.shapeStyle.stroke')}</span>
-          <div className="shape-style-swatches">
-            {STROKE_PRESETS.map((p) => (
-              <button
-                type="button"
-                key={p.name}
-                className={`shape-style-swatch-btn${data.stroke === p.value ? ' shape-style-swatch-btn--active' : ''}`}
-                role="menuitemradio"
-                aria-checked={data.stroke === p.value}
-                title={t('canvas.shapeStyle.strokeOption', { name: p.name })}
-                aria-label={t('canvas.shapeStyle.strokeOption', { name: p.name })}
-                style={{
-                  background: p.value === 'transparent' ? 'none' : p.value,
-                }}
-                onClick={() => patch({ stroke: p.value })}
-              >
-                {p.value === 'transparent' && <span className="shape-style-none-slash" />}
-              </button>
-            ))}
-          </div>
+          <SwatchRow
+            ariaLabel={t('canvas.shapeStyle.stroke')}
+            options={STROKE_PRESETS.map((p) => ({
+              value: p.value,
+              label: t('canvas.shapeStyle.strokeOption', { name: p.name }),
+              isNone: p.value === 'transparent',
+            }))}
+            value={data.stroke}
+            onChange={(next) => patch({ stroke: next })}
+          />
         </div>
         <div className="shape-style-row" role="group" aria-label={t('canvas.shapeStyle.width')}>
           <span className="shape-style-label">{t('canvas.shapeStyle.width')}</span>

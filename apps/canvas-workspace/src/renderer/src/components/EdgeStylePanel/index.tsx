@@ -13,6 +13,7 @@ import {
   resolveEndpointToward,
 } from '../../utils/edgeFactory';
 import { useMenuKeyboardNav } from '../../hooks/useMenuKeyboardNav';
+import { SwatchRow } from '../ui';
 import { useI18n, type I18nKey } from '../../i18n';
 
 /**
@@ -356,22 +357,12 @@ export const EdgeStylePanel = ({
           aria-label={t('edgeStyle.options')}
         >
           {openSection === 'color' && (
-            <div className="edge-style-row">
-              {COLORS.map((c) => (
-                <button
-                  type="button"
-                  key={c}
-                  role="menuitemradio"
-                  aria-checked={c === color}
-                  data-menu-autofocus={c === color ? 'true' : undefined}
-                  className={`edge-style-swatch${c === color ? ' edge-style-swatch--active' : ''}`}
-                  style={{ background: c }}
-                  onClick={() => choose(() => setStroke({ color: c }))}
-                  title={t('edgeStyle.colorOption', { color: c })}
-                  aria-label={t('edgeStyle.colorOption', { color: c })}
-                />
-              ))}
-            </div>
+            <SwatchRow
+              ariaLabel={t('edgeStyle.color', { color })}
+              options={COLORS.map((c) => ({ value: c, label: t('edgeStyle.colorOption', { color: c }) }))}
+              value={color}
+              onChange={(next) => choose(() => setStroke({ color: next }))}
+            />
           )}
 
           {openSection === 'width' && (

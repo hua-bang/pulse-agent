@@ -482,33 +482,12 @@
   transform: scale(1.15);
 }
 
-/* Positioning/surface/z-index now come from ui/DropdownShell's
+/* Positioning/surface/z-index come from ui/DropdownShell's
  * `.ui-dropdown__panel` (placement="top" already floats it above the pill,
  * into empty canvas space instead of overlapping child nodes); this rule
- * only overrides the default flex column with the swatch row. */
+ * only carries the padding this picker's ui/SwatchRow child needs (the
+ * panel's own `flex-direction`/`gap` are moot now that it has a single
+ * child). */
 .frame-color-popover {
-  flex-direction: row;
-  gap: 4px;
   padding: 6px 8px;
-  white-space: nowrap;
-}
-
-.frame-color-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.08);
-  cursor: pointer;
-  padding: 0;
-  transition: transform 0.1s ease, border-color 0.1s ease;
-}
-
-.frame-color-swatch:hover {
-  transform: scale(1.25);
-  border-color: rgba(0, 0, 0, 0.25);
-}
-
-.frame-color-swatch--active {
-  border-color: rgba(0, 0, 0, 0.45);
-  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.12);
 }

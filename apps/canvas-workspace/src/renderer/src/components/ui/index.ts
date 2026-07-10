@@ -21,6 +21,8 @@ export { FieldRow } from './FieldRow';
 export { DropdownShell } from './DropdownShell';
 export { SegmentedControl } from './SegmentedControl';
 export type { SegmentedControlOption } from './SegmentedControl';
+export { SwatchRow } from './SwatchRow';
+export type { SwatchRowOption } from './SwatchRow';
 export { useDragResize } from './hooks/useDragResize';
 export type { DragResizeOptions, DragResizeHandlers } from './hooks/useDragResize';
 export { useIndexNav, clampIndexMove, indexNavHome, indexNavEnd } from './hooks/useIndexNav';

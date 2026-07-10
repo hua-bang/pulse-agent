@@ -120,32 +120,6 @@
   color: var(--text-muted, #6e7681);
 }
 
-.shape-style-swatches {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.shape-style-swatch-btn {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  overflow: hidden;
-}
-
-.shape-style-swatch-btn:hover {
-  transform: scale(1.1);
-}
-
-.shape-style-swatch-btn--active {
-  outline: 2px solid var(--accent, #2383e2);
-  outline-offset: 1px;
-}
-
 .shape-style-widths {
   display: flex;
   gap: 5px;

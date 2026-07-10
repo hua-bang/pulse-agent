@@ -92,7 +92,6 @@
 }
 
 .edge-chip:focus-visible,
-.edge-style-swatch:focus-visible,
 .edge-style-btn:focus-visible {
   outline: 1px solid rgba(35, 131, 226, 0.38);
   outline-offset: 2px;
@@ -128,29 +127,6 @@
   height: 18px;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
-}
-
-.edge-style-swatch {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-  transition: transform 0.1s, box-shadow 0.1s;
-}
-
-.edge-style-swatch:hover,
-.edge-style-swatch:focus-visible {
-  transform: scale(1.08);
-}
-
-.edge-style-swatch--active {
-  /* Accent ring around the chosen color so it reads as selected without
-     relying on the color value itself (which can be identical to the
-     ring). */
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--accent);
 }
 
 .edge-style-btn {

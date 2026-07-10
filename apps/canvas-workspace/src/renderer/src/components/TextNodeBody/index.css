@@ -494,9 +494,12 @@
   border-color: rgba(0, 0, 0, 0.35);
 }
 
-/* "None" bg + transparent dot — diagonal slash reads as "no color". */
-.text-color-dot--transparent,
-.text-color-swatch--none {
+/* "None" dot — diagonal slash reads as "no color". The swatch row's own
+ * equivalent ("None" bg preset) now lives in ui/SwatchRow's
+ * `.ui-swatchrow__swatch--none` — this trigger dot is a different element
+ * (the picker's always-visible current-value preview, not a row item), so
+ * it keeps its own copy of the same idiom. */
+.text-color-dot--transparent {
   background-color: #ffffff;
   background-image: linear-gradient(
     to top right,
@@ -507,32 +510,10 @@
   );
 }
 
-/* Positioning/surface/z-index now come from ui/DropdownShell's
- * `.ui-dropdown__panel`; this rule only overrides its default flex column
- * with the swatch row this picker needs. */
+/* Positioning/surface/z-index come from ui/DropdownShell's
+ * `.ui-dropdown__panel`; this rule only carries the padding this picker's
+ * ui/SwatchRow child needs (the panel's own `flex-direction`/`gap` are
+ * moot now that it has a single child). */
 .text-color-popover {
-  flex-direction: row;
-  gap: 4px;
   padding: 6px 8px;
-  white-space: nowrap;
-}
-
-.text-color-swatch {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.12);
-  cursor: pointer;
-  padding: 0;
-  transition: transform 0.1s ease, border-color 0.1s ease;
-}
-
-.text-color-swatch:hover {
-  transform: scale(1.25);
-  border-color: rgba(0, 0, 0, 0.3);
-}
-
-.text-color-swatch--active {
-  border-color: rgba(0, 0, 0, 0.5);
-  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.12);
 }

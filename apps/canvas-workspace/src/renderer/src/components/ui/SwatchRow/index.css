@@ -1,0 +1,55 @@
+/* ui/SwatchRow — blessed row of pick-a-color swatches. One circular,
+ * token-bordered shape for all callers; 16px sits inside the pre-migration
+ * range (16-20px). ShapeNodeBody's swatches were square (`--radius-xs`)
+ * pre-migration — a deliberate visual unification with the other three
+ * (already circular) pickers, the same class of minor normalization Batch
+ * C1 accepted for cross-site Button height differences. */
+
+.ui-swatchrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ui-swatchrow__swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.ui-swatchrow__swatch:hover {
+  transform: scale(1.2);
+  border-color: var(--text-muted);
+}
+
+/* Double ring: a surface-colored gap so the accent ring reads clearly
+ * against any swatch color, light or dark — lifted verbatim from
+ * EdgeStylePanel's own pre-migration `--active` treatment (the one site of
+ * the four that already used tokens here instead of a literal rgba()). */
+.ui-swatchrow__swatch--active {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--accent);
+}
+
+.ui-swatchrow__swatch:focus-visible {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 2px;
+}
+
+/* "None"/transparent slot — diagonal red slash, the same idiom the
+ * pre-migration `.text-color-swatch--none` / `.shape-style-none-slash`
+ * rules used (both still deleted/kept per-site; this is the one shared
+ * definition new call sites reach for). */
+.ui-swatchrow__swatch--none {
+  background-color: #ffffff;
+  background-image: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    #e03131 calc(50% - 0.5px),
+    #e03131 calc(50% + 0.5px),
+    transparent calc(50% + 1px)
+  );
+}

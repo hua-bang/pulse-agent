@@ -49,7 +49,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (primary/secondary, size sm) — the one clean fit found in this slice's
   // per-instance review; see ui-reuse-burndown.md's "pilot slice" section for
   // the fit and the (larger) skip list with verdicts.
-  rawButtonTags: 396,
+  // 396→392 (blessed-set expansion, ui/SwatchRow): TextColorPicker.tsx,
+  // FrameHeaderControls.tsx, ShapeNodeBody.tsx (fill + stroke rows), and
+  // EdgeStylePanel.tsx (color row) each had their OWN `.map()`-declared
+  // preset `<button>` (one JSX declaration per file, regardless of preset
+  // count) — 5 such declarations (Shape had two: fill + stroke) collapsed
+  // onto ui/SwatchRow's one shared `<button>` declaration. -5 removed, +1
+  // for SwatchRow itself (landmine #2) = -4 net.
+  rawButtonTags: 392,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -96,7 +103,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 37×10px) swapped across 26 files; multi-value shorthands and
   // corner-property variants (border-*-radius) stay literal — those remain
   // C3's job. Remaining stock: 7px/5px/3px/0/multi-value.
-  borderRadiusLiterals: 124,
+  // 124→122 (blessed-set expansion, ui/SwatchRow): the migrated
+  // `border-radius: 50%;` swatch declarations in TextNodeBody/index.css,
+  // FrameNodeBody/index.css, and EdgeStylePanel/index.css (one each; 50% is
+  // not `var(...)` so each counted) collapsed onto ui/SwatchRow's own single
+  // `border-radius: 50%;` — -3 removed, +1 for SwatchRow itself = -2 net.
+  // (ShapeNodeBody's pre-migration swatch already used `var(--radius-xs)`,
+  // so it didn't move this counter either way.)
+  borderRadiusLiterals: 122,
   // independent 360°-rotate spinner @keyframes (names ending in "spin").
   // 6→1 (C1 spinner dedupe): all 6 were byte-identical
   // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
@@ -207,7 +221,18 @@ const RATCHET_BASELINE: Record<string, number> = {
   // `var(--shadow-focus)` each drop one rgba( match; the :root definition
   // line itself is exempt (it defines a custom property). Not tokenization
   // of a color per se — a side effect of minting --shadow-focus below.
-  hardcodedColorLiterals: 1959,
+  // 1959→1952 (blessed-set expansion, ui/SwatchRow): the migrated swatch
+  // CSS (`.text-color-swatch`/`.frame-color-swatch`/`.edge-style-swatch`
+  // base+hover+active rules, `.shape-style-swatch-btn`'s border+active-
+  // outline-fallback) carried 11 rgba(/hex literals total across the four
+  // sites (mostly rgba(0,0,0,alpha) borders/rings); ui/SwatchRow's own CSS
+  // tokenizes border/hover/active onto `var(--border)`/`var(--text-muted)`/
+  // the existing `var(--surface)`+`var(--accent)` ring EdgeStylePanel's
+  // active state already used pre-migration, adding only the 3-line
+  // `--none` diagonal-slash rule (no existing token for that red; same
+  // "content palette, not chrome" reasoning this suite's own top comment
+  // already carves out for tsx inline-style color pickers). Net -7.
+  hardcodedColorLiterals: 1952,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -251,7 +276,16 @@ const RATCHET_BASELINE: Record<string, number> = {
   // each now short-circuits the counter's `var(--shadow` exemption. Near
   // variants (2px ring, other opacities) were left literal by design; they
   // are C3 normalization judgments, not exact matches.
-  shadowLiterals: 160,
+  // 160→157 (blessed-set expansion, ui/SwatchRow): 4 migrated `box-shadow`
+  // lines counted pre-migration — TextNodeBody/FrameNodeBody's
+  // `--active` rings (literal rgba() geometry), and EdgeStylePanel's base
+  // `inset` ring PLUS its `--active` ring (the latter already
+  // `var(--surface)`/`var(--accent)`-only, but still counted: this
+  // counter's exemption requires the substring `var(--shadow`
+  // specifically, not just "any var"). ui/SwatchRow reuses EdgeStylePanel's
+  // exact active-ring declaration once (+1 counted, same reason) and adds
+  // no other box-shadow. Net -3.
+  shadowLiterals: 157,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw
