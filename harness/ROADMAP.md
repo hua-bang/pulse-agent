@@ -13,17 +13,17 @@ The harness pilot has a real, populated foundation:
 - `scripts/harness/run-harness-check.mjs` is the validation runner (keystone phase 1, landed 2026-07-07): resolves changed paths (or `--since <ref>` / `--path` / `--all`) to the bound workspace-local + root-overlay commands and executes them with a pass/fail report; escalation rules are printed as reminders, never auto-run.
 - Root `AGENTS.md` carries the meta-rules layer (precedence + SSOT-no-copies + mechanism-over-doc + first-principles + Occam + 5-step self-check), the L0/L1/L2 doc taxonomy, the intent navigation table, hard boundaries with honest test-reality, workspace-local validation routing, and named failure-capture with guards.
 
-What is **honestly absent**: apart from `.github/workflows/perf.yml` (canvas-workspace perf gates), there is NO CI for tests/typecheck, NO git hooks, NO husky/lint-staged/commitlint, and NO automatic trigger for the runner — invoking it is still discipline. Candidate mechanical checks (`workspace-coverage`, `routing-links`, …) are not implemented. `harness/skills/`, `harness/feedback/`, `harness/templates/`, and `harness/checks/` do not exist today.
+What is **honestly absent**: apart from `.github/workflows/perf.yml` (canvas-workspace perf gates), there is NO CI for tests/typecheck, NO git hooks, NO husky/lint-staged/commitlint, and NO automatic trigger for the runner — invoking it is still discipline. Structural checks (`workspace-coverage`, `routing-links`, …) exist, but semantic contradiction and test-effectiveness checks do not. `harness/feedback/`, `harness/templates/`, and `harness/checks/` do not exist today.
 
 ## The keystone: turn the declarative SSOT into a runnable mechanism (phase 1 DONE)
 
-Every constraint in this harness is currently carried by agent discipline. The single highest-value next step is to give the existing SSOT an executor.
+The keystone was to move validation-command selection from agent memory into an executor. Phase 1 is complete; qualification of reminder-only escalation rules and invocation of the manual runner still rely on agent discipline.
 
 **Goal:** `scripts/harness/run-harness-check.mjs` — a runner that reads workspace-local `harness/validate/validation.yaml` files plus the root overlay and executes the check(s) bound to a changed path (or `--all`).
 
 **Why this is the keystone:**
 - It converts "honesty-about-absence" into "honesty-with-a-mechanism" (the root `AGENTS.md` §4 already admits the gap; this closes it).
-- It plays to an existing strength: validation YAML is already a path→check SSOT. The missing layer is the runner, not the data.
+- It played to an existing strength: validation YAML was already a path→check SSOT. The missing layer was the runner, not the data.
 - It is the one move that closes the largest lead the reference sample (B) has — mechanical enforcement — without copying B's domain-specifics.
 
 **Phased rollout (mechanism matures only after the rule proves stable — per `harness/README.md` principles):**
@@ -38,7 +38,7 @@ Every constraint in this harness is currently carried by agent discipline. The s
 
 ## Other open items (breadth, lower priority than the keystone)
 
-- **Repo action protocols.** Root `harness/skills/` does not exist today (add only when a recurring workflow is stable enough). Note: the first WORKSPACE-local surfaces now exist — `packages/engine/harness/tools/describe-engine.mjs` (structure snapshot) and `packages/engine/harness/skills/add-builtin-plugin.md` (safe-change procedure) — covering engine's orient/iterate needs that the repo runner does not.
+- **Repo action protocols.** Root `harness/skills/visualize-harness/` now owns the recurring workflow for turning root/package/app harness evidence into an interactive reading graph. Add further protocols only when a workflow is equally stable and repeated. Workspace-local surfaces include `packages/engine/harness/tools/describe-engine.mjs` and its safe-change skills.
 - **Candidate harness tools.** `harness/tools/README.md` lists remaining tool ideas (repo-profiler, ssot-resolver, feedback-router). Implement candidates only when they become useful enough to run.
 
 ## Deliberately deferred (not gaps — out of scope for this repo)
@@ -62,3 +62,4 @@ The comparison against the reference sample (B / `ec_channel_lynx_x`) surfaced i
 - Keystone phase 1: manual validation runner `scripts/harness/run-harness-check.mjs` (git-status/`--since`/`--path`/`--all` modes, dry-run, escalation reminders; verified against the remote-server change replay and a full `--all --dry-run` plan).
 - Knowledge/Validate surface alignment with the finalized `Harness = AGENTS.md + Knowledge + Tool + Validate + Skills` model: elevated Skills to an explicit fourth surface, renamed Know -> Knowledge, renamed Verify -> Validate, and added `harness/knowledge/README.md` + `harness/validate/README.md` as routing indexes.
 - canvas-workspace governance pass (2026-07-07): the five surfaces had all grown ORGANICALLY there (docs/ = Knowledge, product `harness/` CLI = Tool, boundary/size tests + perf CI = Validate, `skills/*/SKILL.md` = Skills) — the work was governance, not construction: a ~105-claim two-scanner drift audit (all drift concentrated in the duplicated CLAUDE.md → thinned to an @AGENTS.md shell; two docs falsely claimed tests "gate CI"), a docs metabolism pass (7 zero-reference dead records deleted), one validation binding gap closed (product-harness rule), and the overloaded local terms "harness"/"skills" pinned in the workspace AGENTS.md. Lesson: for doc-rich workspaces the harness playbook inverts — audit-and-metabolize before building anything new.
+- First root repo action skill: `harness/skills/visualize-harness/` combines agent-led progressive evidence gathering with a tested, schema-driven standalone HTML renderer for root/package/app scopes.
