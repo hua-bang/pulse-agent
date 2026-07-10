@@ -45,9 +45,9 @@
       "id": "chat",
       "name": "AI 流式",
       "question": "代码密集的长回复流式时掉不掉帧?流末 mermaid burst 多长?F1/F2 收益守住了吗?",
-      "findings": "F 维 + K-2~4 · 11 条 · 已修 1(F1/F2)",
+      "findings": "F 维 + K-2~4 · 11 条 · 已修 2(F1/F2、流式批处理)",
       "northStar": "chat.stream.frames_over20_pct",
-      "next": "M3:mock 流回放入口(先评审侵入面)→ 场景 + 门禁"
+      "next": "积累同机帧率历史;后续评估 Mermaid 重图的分帧渲染"
     }
   ],
   "metrics": [
@@ -92,8 +92,9 @@
     { "id": "main.session_persist.bytes_per_turn", "aspect": "main", "label": "每 turn 会话持久化字节(J-1 标尺)", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "main.pty.ipc_per_sec", "aspect": "main", "label": "双终端流式 IPC 条数/秒(E3 标尺)", "unit": "条/s", "comparability": "全局", "level": "record", "instrumented": false },
 
-    { "id": "chat.stream.frames_over20_pct", "aspect": "chat", "label": "流式期帧超率", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": false },
+    { "id": "chat.stream.frames_over20_pct", "aspect": "chat", "label": "流式期帧超率", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
+    { "id": "chat.stream.md_render_count", "aspect": "chat", "label": "流式 Markdown 渲染次数", "unit": "count", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "chat.stream.md_cache_hit_ratio", "aspect": "chat", "label": "markdown 缓存命中率(F1/F2 守卫)", "unit": "%", "comparability": "全局", "level": "gate", "instrumented": true },
-    { "id": "chat.stream.tail_burst_ms", "aspect": "chat", "label": "流末 mermaid burst 时长", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": false }
+    { "id": "chat.stream.tail_burst_ms", "aspect": "chat", "label": "流末 mermaid burst 时长", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true }
   ]
 }

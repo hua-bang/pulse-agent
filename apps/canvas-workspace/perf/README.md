@@ -89,6 +89,7 @@ Scenarios drive input via CDP and read `window.__pulsePerf`:
 |---|---|---|
 | `startup` | parses the `[perf] startup` main-process phase line + renderer marks | informational |
 | `image-memory` | mounts 10 unique 4000×3000 image nodes and sums decoded pixel bytes | `memory.image.decoded_mb` record |
+| `chat-stream` | replays 521 deterministic code/Markdown deltas through the real IPC + chat UI | frame rate, Markdown render count gate, Mermaid tail |
 | `typing` | types 120 chars into the first file node | `nodes-array-replace` counter (finding I-1) |
 | `resize` | resizes a node from its bottom-right corner over 90 steps | `nodes-array-replace` + `canvas-save-ipc` counters (finding A2 resize) |
 | `drag` | drags the first node header 90 steps | `nodes-array-replace` counter (finding A2) |

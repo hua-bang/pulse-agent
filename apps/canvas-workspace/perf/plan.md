@@ -22,7 +22,7 @@
 
 | 判据 | 状态 | 证据 |
 |---|---|---|
-| 1. 六专项全有实测 | **5/6** | 仅「AI 流式」全灰(chat.stream.* ×3 未建,需 mock 回放评审);覆盖 26/34 指标 |
+| 1. 六专项全有实测 | **6/6** | AI 流式确定性回放已接入;六专项均有真实链路实测 |
 | 2. CI 每 PR 跑门禁 | **已建,待绿灯确认** | perf.yml 在跑;经 4 轮修复(--no-sandbox → stderr 透出 → build:core → lazy 等待)后最新一轮结果未确认 |
 | 3. 七个头部修复 | **3/5 项达标** | 入口 4618→**1329KB**(超额达成 ≤1500)✅;打字 121→**3** ✅;B5 welcome 占位 ✅;拖拽 91 ❌(B7);隐藏轮询 ❌(B3);会话持久化 ❌(B4,测量已就位) |
 | 4. 看板团队消费 | **部分** | 趋势区(D1)✅、PR verdict 评论 ✅;固定 URL(D3 Pages)❌、skill 端到端(D4)❌ |
@@ -38,6 +38,8 @@
 **A4 完成记录(2026-07-05)**:`run-scenarios.mjs` 新增 `panzoomScenario`——平移用无修饰键的 wheel(app 的 `useCanvas.ts handleWheel` 把无 ctrl/meta 的 wheel delta 直接当 transform 平移量),缩放用 ctrl+wheel(CDP Input 域 modifiers 位 2 = Ctrl)。**踩了一个坑**:100 节点场景下 seed 完会自动 fit-to-view,缩放到能塞下所有节点的比例——此时随手挑的 5 个角落候选点全部踩在某个节点/webview 上,wheel 事件被节点自己的滚动/webview 内部处理"吃掉"、根本到不了画布级 handler(用真实 CDP 会话确认:同样坐标下,直接对 `.canvas-container` 原生 dispatchEvent 能让 transform 变化,但走节点覆盖的坐标就不行)。改用真正的网格扫描(`findBlankCanvasPoint`,一次 evaluate 里扫 viewport 网格找 `elementFromPoint` 不落在任何 `.canvas-node`/webview/sidebar 上的点)才稳定找到空白区。**另一个诚实的发现**:wheel/scroll 事件不在 Event Timing API 的"离散交互"集合里(规范只认 pointerdown/up、click、keydown/up 等),所以 `interactions.p95`(INP)对纯 wheel 手势**结构性恒为 0**——不是 bug,是这个指标定义本身对这类交互不适用。已经把 `interact.panzoom.inp_p95_ms` 降级为 record 级(不再是 warn)并如实写了原因,新增 `interact.panzoom.frames_over20_pct`(warn 级)作为这个场景真正有信号的指标——实测帧超率在首次手势后能稳定捕捉到非零值(受 JIT/首次布局的冷启动影响,首个 repeat 明显更高,和 typing/drag 已有的模式一致)。覆盖率 26→28/35。674 测试全过。
 
 **B2 完成记录(2026-07-10,S+M 完成)**:`ImageNodeBody` 保留 `decoding="async"` + `loading="lazy"`,并新增主进程 `nativeImage.resize` sidecar 管线。普通画布等待 960px preview 就绪后才挂 `<img>`(不先瞬时解码原图),全屏切回原图;源路径 + size + mtime 指纹负责失效,metadata 让 cache hit 不再打开原图,旧指纹 sidecar 自动清理,生成失败回退原图。并发生成串行且每张之间让出 event loop,10 图 burst 的 main loop-delay max 从 246.7ms 降到 55.6ms。新增自包含 `image-memory` 场景与 `memory.image.decoded_mb`:10×4000×3000 原图估算 457.8MB,preview 实测 26.4MB,下降 17.4×;真实 CDP 另验证普通画布 natural size 960×720、全屏恢复 4000×3000。
+
+**AI 流式完成记录(2026-07-10)**:新增仅在 `PULSE_CANVAS_PERF=1` 可触发的本地确定性回放,521 个 delta 走真实 IPC、`useChatStream` 和 Markdown/Mermaid 渲染链路。文本 delta 以 32ms 视觉窗口合并,流式 Markdown 全量渲染从 374 次降到 64 次(下降 82.9%),frames>20ms 从 0.7% 降到 0.3%,Mermaid tail 0.8ms;`chat-md-stream-render ≤80` 与 commit 同步设为 gate。
 
 **B4 完成记录(2026-07-05)**:`session-store.ts` 的 `persist()` 之前直接 `writeFile(currentPath, ...)`——非原子(无 tmp+rename)、多次调用互相竞态(尤其 `loadCrossWorkspaceSession` 循环对每条历史消息都调一次 `addMessage`→`persist()`,N 条消息 = N 个几乎同时的整文件写并发抢占同一路径)。参照仓库已有的 `agent-teams/store.ts` persistQueue 模式:加 `persistQueue: Promise<void>` 串行链(`writeSessionFile` 用 `${path}.${pid}.${uuid}.tmp` 唯一临时名 + `rename` 原子提交);`archiveCurrentIfExists`(被 `startSession`/`archiveSession` 调用)现在会先 `await` 这个队列再读/删 current.json,避免旧 session 的迟到写入在归档后把文件复活。`loadCrossWorkspaceSession` 循环里的 N 次 `addMessage` 改成新增的 `setMessages()` 批量赋值+单次 persist,N 次整文件写降为 1 次。**顺手做的可测试性改进**:`STORE_DIR` 从模块顶层 const(基于 `homedir()`,导入时就固定,没法 mock)改成读环境变量 `PULSE_CANVAS_SESSION_STORE_DIR` 的惰性函数——之前这个文件零测试覆盖,改完直接可以用临时目录跑真实文件系统测试,不用引入新的 mock 基建。新增 `src/main/agent/__tests__/session-store.test.ts`(3 个用例,覆盖并发 addMessage 不丢消息/无残留 tmp 文件、setMessages 单次持久化、以及归档时序不被迟到写入破坏),全部通过。`main.session_persist.bytes_per_turn` 这个指标本身仍未取得稳定实测值(需要真实 agent turn,当前沙箱没有可用的模型 API key,超出本次修复范围)。674 测试全过(baseline `session-store.ts` 561→605 行)。
 
@@ -82,7 +84,7 @@
 16. **D5 · AI 总结层**(可选,默认关,永不进门禁)。
 
 **深水区(先要决策,勿直接开工)**
-- **AI 流式专项**(chat.stream.* ×3):唯一全灰专项;需先评审 mock 流回放的侵入面并取得用户同意。
+- **AI 流式专项**:确定性 mock 仅在 `PULSE_CANVAS_PERF=1` 激活,真实 IPC/UI 链路、帧超率、Markdown 渲染次数与 Mermaid tail 均已覆盖。
 - `main.pty.ipc_per_sec`:被 node-pty Electron ABI 阻塞,与终端流式场景一起评估。
 - 视口裁剪完全体:决策 #1 已出专项,不在本期。
 

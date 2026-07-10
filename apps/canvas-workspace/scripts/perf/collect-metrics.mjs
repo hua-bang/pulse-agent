@@ -81,6 +81,36 @@ export const collectImageMemoryMetric = (scenarios) => {
   };
 };
 
+export const collectChatStreamMetrics = (scenarios) => {
+  const chatStream = scenarios?.scenarios?.['chat-stream'];
+  if (!chatStream?.report) return [];
+  const entries = [
+    { id: 'chat.stream.frames_over20_pct', value: chatStream.report.frames.over20msPct, runs: 1 },
+    { id: 'chat.stream.md_render_count', value: chatStream.markdownRenders, runs: 1 },
+    { id: 'chat.stream.tail_burst_ms', value: chatStream.tailBurstMs, runs: 1 },
+  ];
+  const renderGate = scenarios.gates?.find(
+    entry => entry.scenario === 'chat-stream' && entry.counter === 'chat-md-stream-render',
+  );
+  if (renderGate) {
+    entries[1] = {
+      ...entries[1],
+      pass: renderGate.pass,
+      limit: renderGate.max,
+    };
+  }
+  const hits = chatStream.report.counters?.['chat-md-cache-hit'] ?? 0;
+  const renders = chatStream.report.counters?.['chat-md-render'] ?? 0;
+  if (hits + renders > 0) {
+    entries.push({
+      id: 'chat.stream.md_cache_hit_ratio',
+      value: Math.round((hits / (hits + renders)) * 1000) / 10,
+      runs: 1,
+    });
+  }
+  return entries;
+};
+
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
@@ -184,6 +214,8 @@ export const collectMetrics = () => {
 
   const imageMemoryMetric = collectImageMemoryMetric(scenarios);
   if (imageMemoryMetric) metrics.push(imageMemoryMetric);
+
+  metrics.push(...collectChatStreamMetrics(scenarios));
 
   for (const name of ['typing', 'drag', 'resize']) {
     // A3: --repeat N folds multiple in-session runs into a median (see

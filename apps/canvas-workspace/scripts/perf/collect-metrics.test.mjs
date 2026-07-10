@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { collectImageMemoryMetric, collectInteractionScenarioMetrics } from './collect-metrics.mjs';
+import {
+  collectChatStreamMetrics,
+  collectImageMemoryMetric,
+  collectInteractionScenarioMetrics,
+} from './collect-metrics.mjs';
 
 describe('collectInteractionScenarioMetrics', () => {
   it('normalizes resize timing, counters, repeat samples, and gate results', () => {
@@ -89,5 +93,30 @@ describe('collectMetrics image memory', () => {
       runs: 1,
       detail: '10×4K · original 457.8 MB · 17.4× reduction',
     });
+  });
+});
+
+describe('collectMetrics chat stream', () => {
+  it('maps timing and render-count gates from the deterministic replay', () => {
+    expect(collectChatStreamMetrics({
+      scenarios: {
+        'chat-stream': {
+          report: {
+            frames: { over20msPct: 0.3 },
+            counters: { 'chat-md-render': 2, 'chat-md-cache-hit': 2 },
+          },
+          markdownRenders: 64,
+          tailBurstMs: 0.8,
+        },
+      },
+      gates: [{
+        scenario: 'chat-stream', counter: 'chat-md-stream-render', max: 80, value: 64, pass: true,
+      }],
+    })).toEqual([
+      { id: 'chat.stream.frames_over20_pct', value: 0.3, runs: 1 },
+      { id: 'chat.stream.md_render_count', value: 64, runs: 1, pass: true, limit: 80 },
+      { id: 'chat.stream.tail_burst_ms', value: 0.8, runs: 1 },
+      { id: 'chat.stream.md_cache_hit_ratio', value: 50, runs: 1 },
+    ]);
   });
 });

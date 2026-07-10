@@ -17,7 +17,16 @@ import {
 export function setupCanvasModelIpc(): void {
   ipcMain.handle('canvas-model:status', async () => {
     try {
-      return { ok: true, status: await getCanvasModelStatus() };
+      const status = await getCanvasModelStatus();
+      // The perf harness replays a deterministic local stream and never
+      // contacts a provider. Let that isolated run exercise the real chat UI
+      // even on clean machines that intentionally have no API key configured.
+      return {
+        ok: true,
+        status: process.env.PULSE_CANVAS_PERF === '1'
+          ? { ...status, apiKeyPresent: true }
+          : status,
+      };
     } catch (err) {
       return { ok: false, error: String(err) };
     }

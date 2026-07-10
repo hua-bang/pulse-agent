@@ -88,6 +88,7 @@
 | 指标 ID | 定义(口径) | 单位 | 可比性 | 等级 | 状态 |
 |---|---|---|---|---|---|
 | `chat.stream.frames_over20_pct` | 回放期帧超率(北极星) | % | 同机 | warn→gate | ○ |
+| `chat.stream.md_render_count` | 回放期流式 Markdown 全量渲染次数 | count | **全局** | **gate** | ● |
 | `chat.stream.md_cache_hit_ratio` | cache-hit /(hit+render)(F1/F2 修复守卫) | % | **全局** | **gate** | ◐ 计数器已埋 |
 | `chat.stream.tail_burst_ms` | 流结束 → 全部 mermaid 渲染完(F4/F5 守卫) | ms | 同机 | warn | ○ |
 | `chat.mermaid.render_ms` | 单图 mermaid.render 耗时 | ms | 同机 | record | ○ |

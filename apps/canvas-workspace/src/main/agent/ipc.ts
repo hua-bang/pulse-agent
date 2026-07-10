@@ -29,6 +29,7 @@ import { CanvasAgentService } from './service';
 import { streamWorkspaceDoc } from './workspace-doc-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentRequestContext, AgentScope, AgentScopeRef } from './types';
+import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
 
 let service: CanvasAgentService | null = null;
 
@@ -79,6 +80,10 @@ export function setupCanvasAgentIpc(): void {
       const sessionId = randomUUID();
       const sender = event.sender;
       const scope = resolveAgentScope(payload);
+      if (isPerfChatReplayRequest(payload.message, process.env.PULSE_CANVAS_PERF === '1')) {
+        void replayPerfChatStream(sender, sessionId);
+        return { ok: true, sessionId };
+      }
       sessionScopeMap.set(sessionId, scope);
 
       // Fire-and-forget: run the agent asynchronously, streaming text deltas

@@ -58,7 +58,7 @@ const readFlag = (name) => {
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
 const seedWebpages = Number(readFlag('--seed-webpages') ?? 0);
-const only = (readFlag('--scenario') ?? 'startup,image-memory,typing,resize,drag,panzoom,ws-cycle').split(',');
+const only = (readFlag('--scenario') ?? 'startup,chat-stream,image-memory,typing,resize,drag,panzoom,ws-cycle').split(',');
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -243,6 +243,62 @@ const startupScenario = async (cdp, session) => {
     mainPhases,
     rendererMarks: probe.marks,
     paint: probe.paint,
+  };
+};
+
+const chatStreamScenario = async (cdp) => {
+  const inputSel = '.chat-panel .chat-input[contenteditable="true"]';
+  const sendSel = '.chat-panel .chat-send-btn:not(.chat-send-btn--stop)';
+  await evaluate(cdp, `document.querySelector('.ui-drawer-close')?.click()`);
+  await waitFor(() => evaluate(cdp, `!!document.querySelector(${JSON.stringify(inputSel)})`), 10_000);
+  const initialAssistantCount = await evaluate(
+    cdp,
+    `document.querySelectorAll('.chat-panel .chat-message-assistant').length`,
+  );
+  await evaluate(cdp, `(() => {
+    const input = document.querySelector(${JSON.stringify(inputSel)});
+    if (!(input instanceof HTMLElement)) throw new Error('chat perf input missing');
+    input.textContent = '__pulse_perf_chat_stream__';
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText' }));
+  })()`);
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector(${JSON.stringify(sendSel)})?.hasAttribute('disabled')`),
+    5_000,
+  );
+  await waitForCalmFrames(cdp);
+  await beginPerf(cdp, 'chat-stream');
+  await evaluate(cdp, `document.querySelector(${JSON.stringify(sendSel)})?.click()`);
+  await waitFor(
+    () => evaluate(cdp, `!!document.querySelector('.chat-panel .chat-send-btn--stop')`),
+    5_000,
+  );
+  await waitFor(
+    () => evaluate(cdp, `!document.querySelector('.chat-panel .chat-send-btn--stop')`),
+    30_000,
+  );
+  const streamEndedAt = await evaluate(cdp, 'performance.now()');
+  await waitFor(
+    () => evaluate(cdp, `(() => {
+      const messages = document.querySelectorAll('.chat-panel .chat-message-assistant');
+      if (messages.length <= ${initialAssistantCount}) return false;
+      const latest = messages[messages.length - 1];
+      const mermaid = latest.querySelector('.chat-mermaid');
+      return mermaid?.getAttribute('data-rendered') === 'true';
+    })()`),
+    30_000,
+  );
+  const tailBurstMs = await evaluate(
+    cdp,
+    `Math.round((performance.now() - ${streamEndedAt}) * 10) / 10`,
+  );
+  const report = await endPerf(cdp);
+  if ((report.counters['chat-md-stream-render'] ?? 0) <= 0) {
+    throw new Error('chat-stream replay produced no streaming markdown renders');
+  }
+  return {
+    report,
+    tailBurstMs,
+    markdownRenders: report.counters['chat-md-stream-render'],
   };
 };
 
@@ -643,6 +699,7 @@ const main = async () => {
       );
     }
     if (only.includes('startup')) scenarios.startup = await startupScenario(cdp, session);
+    if (only.includes('chat-stream')) scenarios['chat-stream'] = await chatStreamScenario(cdp);
     if (only.includes('image-memory')) scenarios['image-memory'] = await imageMemoryScenario(cdp);
     if (only.includes('typing')) scenarios.typing = await typingScenario(cdp, repeat);
     if (only.includes('resize')) scenarios.resize = await resizeScenario(cdp, repeat);
