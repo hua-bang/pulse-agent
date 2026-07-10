@@ -791,10 +791,16 @@
   position: relative;
 }
 
-.workspace-graph-toolbar__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+/* Renders through ui/DropdownShell now (API-extension batch — see
+ * ui-reuse-burndown.md); position/top/right come from the shell's own base
+ * + bottom/align-end modifier classes (top: calc(100% + 6px); right: 0 —
+ * the same values this rule used, so no override needed for those). The
+ * panel keeps its own chrome (background/border/radius/shadow/z-index) via
+ * a compound selector so it wins on specificity over the shell's base
+ * chrome regardless of CSS import order — same "extend, don't force-
+ * normalize" precedent as ChatAnchors'/ShapeNodeBody's panelClassName
+ * overrides. */
+.ui-dropdown__panel.workspace-graph-toolbar__menu {
   min-width: 180px;
   background: #fff;
   border: 1px solid var(--nodes-border);
