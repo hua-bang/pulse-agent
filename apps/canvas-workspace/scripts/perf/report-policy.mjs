@@ -5,6 +5,16 @@ export const runtimeReportFailure = ({ bundleOnly, launchFailed, scenariosRan })
   return null;
 };
 
+export const metricCoverageFailure = ({ bundleOnly, coverage }) => {
+  if (bundleOnly) return null;
+  if (!coverage) return 'metric coverage is unavailable';
+  const { measured, total } = coverage;
+  if (typeof measured !== 'number' || typeof total !== 'number') {
+    return 'metric coverage is unavailable';
+  }
+  return measured < total ? `metric coverage is incomplete (${measured}/${total})` : null;
+};
+
 export const runFinalReportStep = ({
   bundleOnly,
   launchFailed,

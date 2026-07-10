@@ -47,6 +47,7 @@ let unregisterWebview: ReturnType<typeof vi.fn>;
 let setFrameRate: ReturnType<typeof vi.fn>;
 let createElementSpy: { mockRestore: () => void };
 let originalIntersectionObserver: typeof IntersectionObserver | undefined;
+let mockWebview: HTMLElement | null;
 
 beforeEach(() => {
   MockIntersectionObserver.instances = [];
@@ -56,6 +57,7 @@ beforeEach(() => {
   registerWebview = vi.fn().mockResolvedValue({ ok: true });
   unregisterWebview = vi.fn().mockResolvedValue({ ok: true });
   setFrameRate = vi.fn().mockResolvedValue({ ok: true });
+  mockWebview = null;
   Object.defineProperty(window, 'canvasWorkspace', {
     configurable: true,
     value: {
@@ -79,6 +81,7 @@ beforeEach(() => {
     };
     el.getWebContentsId = () => 123;
     el.reload = vi.fn();
+    mockWebview = el;
     return el;
   }) as typeof document.createElement);
 });
@@ -111,6 +114,9 @@ describe('useIframeNodeState', () => {
     await flushEffects();
 
     expect(registerWebview).toHaveBeenCalledWith('workspace-1', 'node-1', 123);
+
+    mockWebview?.dispatchEvent(new Event('dom-ready'));
+    expect(registerWebview).toHaveBeenLastCalledWith('workspace-1', 'node-1', 123, true);
   });
 });
 

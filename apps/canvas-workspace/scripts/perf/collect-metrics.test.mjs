@@ -3,6 +3,8 @@ import {
   collectChatStreamMetrics,
   collectImageMemoryMetric,
   collectInteractionScenarioMetrics,
+  collectPtyStreamMetric,
+  collectWelcomeWebviewMetric,
 } from './collect-metrics.mjs';
 
 describe('collectInteractionScenarioMetrics', () => {
@@ -118,5 +120,30 @@ describe('collectMetrics chat stream', () => {
       { id: 'chat.stream.tail_burst_ms', value: 0.8, runs: 1 },
       { id: 'chat.stream.md_cache_hit_ratio', value: 50, runs: 1 },
     ]);
+  });
+});
+
+describe('collectMetrics remaining scenario coverage', () => {
+  it('maps welcome webview completion and dual-PTY IPC throughput', () => {
+    const scenarios = {
+      scenarios: {
+        startup: { welcomeWebviewMs: 438 },
+        'pty-stream': {
+          terminals: 2,
+          events: 96,
+          durationMs: 1200,
+          ipcPerSec: 80,
+        },
+      },
+    };
+    expect(collectWelcomeWebviewMetric(scenarios)).toEqual({
+      id: 'startup.welcome_webview_ms', value: 438, runs: 1,
+    });
+    expect(collectPtyStreamMetric(scenarios)).toEqual({
+      id: 'main.pty.ipc_per_sec',
+      value: 80,
+      runs: 1,
+      detail: '2 terminals · 96 IPC events · 1200 ms',
+    });
   });
 });

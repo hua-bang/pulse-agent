@@ -212,13 +212,14 @@ export const useIframeNodeState = ({
     const api = window.canvasWorkspace.iframe;
     let registered = false;
 
-    const tryRegister = () => {
-      if (registered) return;
+    const tryRegister = (ready = false) => {
+      if (registered && !ready) return;
       try {
         const id = el.getWebContentsId();
         if (typeof id === 'number') {
           registered = true;
-          void api.registerWebview(workspaceId, node.id, id);
+          if (ready) void api.registerWebview(workspaceId, node.id, id, true);
+          else void api.registerWebview(workspaceId, node.id, id);
         }
       } catch {
         // WebContents id is not available until Electron attaches the guest.
@@ -226,12 +227,14 @@ export const useIframeNodeState = ({
     };
 
     tryRegister();
-    el.addEventListener('did-attach', tryRegister);
-    el.addEventListener('dom-ready', tryRegister);
+    const handleAttach = () => tryRegister(false);
+    const handleReady = () => tryRegister(true);
+    el.addEventListener('did-attach', handleAttach);
+    el.addEventListener('dom-ready', handleReady);
 
     return () => {
-      el.removeEventListener('did-attach', tryRegister);
-      el.removeEventListener('dom-ready', tryRegister);
+      el.removeEventListener('did-attach', handleAttach);
+      el.removeEventListener('dom-ready', handleReady);
       if (registered) void api.unregisterWebview(workspaceId, node.id);
     };
   }, [workspaceId, node.id, editing, url, mode, shouldMountWebview, webviewKey]);

@@ -39,7 +39,7 @@
       "question": "任何时刻 IPC 最多被卡多久、被谁卡?持久化每次写多少字节?",
       "findings": "B/E/J 维 · 24 条 · 已修 2(E1、B3)",
       "northStar": "main.loop_delay_p99_ms",
-      "next": "M1:loop-delay 采样器 + 写字节计数 → M3:终端流式场景(解 node-pty ABI)"
+      "next": "积累双 PTY IPC/s 与 session persist 历史,再决定 record→warn/gate 阈值"
     },
     {
       "id": "chat",
@@ -57,7 +57,7 @@
     { "id": "startup.dom_ready_ms", "aspect": "startup", "label": "进程启动 → 首窗 dom-ready", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "startup.renderer.fcp_ms", "aspect": "startup", "label": "renderer FCP", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "startup.renderer.entry_eval_ms", "aspect": "startup", "label": "entry chunk V8 compile+eval", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
-    { "id": "startup.welcome_webview_ms", "aspect": "startup", "label": "welcome webview 加载(D1)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": false },
+    { "id": "startup.welcome_webview_ms", "aspect": "startup", "label": "welcome webview DOM ready(D1)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
 
     { "id": "interact.typing.inp_p95_ms", "aspect": "interact", "label": "打字 INP p95", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "interact.typing.frames_over20_pct", "aspect": "interact", "label": "打字 帧超 20ms 占比", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
@@ -90,7 +90,7 @@
     { "id": "main.loop_delay_max_ms", "aspect": "main", "label": "事件循环延迟 max(单次冻结上限)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "main.canvas_save.files_written", "aspect": "main", "label": "单次保存写文件数(B3 守卫)", "unit": "个", "comparability": "全局", "level": "gate", "instrumented": true },
     { "id": "main.session_persist.bytes_per_turn", "aspect": "main", "label": "每 turn 会话持久化字节(J-1 标尺)", "unit": "KB", "comparability": "全局", "level": "gate", "instrumented": true },
-    { "id": "main.pty.ipc_per_sec", "aspect": "main", "label": "双终端流式 IPC 条数/秒(E3 标尺)", "unit": "条/s", "comparability": "全局", "level": "record", "instrumented": false },
+    { "id": "main.pty.ipc_per_sec", "aspect": "main", "label": "双终端流式 IPC 条数/秒(E3 标尺)", "unit": "条/s", "comparability": "全局", "level": "record", "instrumented": true },
 
     { "id": "chat.stream.frames_over20_pct", "aspect": "chat", "label": "流式期帧超率", "unit": "%", "comparability": "同机", "level": "warn", "instrumented": true },
     { "id": "chat.stream.md_render_count", "aspect": "chat", "label": "流式 Markdown 渲染次数", "unit": "count", "comparability": "全局", "level": "gate", "instrumented": true },

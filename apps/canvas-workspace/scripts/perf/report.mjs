@@ -34,7 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { readSession } from '../../harness/tools/driver/src/session.mjs';
 import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
 import { prepareReportArtifacts, runtimeScenariosExist } from './report-artifacts.mjs';
-import { runFinalReportStep } from './report-policy.mjs';
+import { metricCoverageFailure, runFinalReportStep } from './report-policy.mjs';
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const outDir = join(appRoot, 'perf/out');
@@ -218,6 +218,11 @@ if (finalReport.runtimeFailure) {
 // 5. Summary.
 const reportPath = join(appRoot, 'perf/out/report.json');
 const report = existsSync(reportPath) ? JSON.parse(readFileSync(reportPath, 'utf-8')) : null;
+const coverageFailure = metricCoverageFailure({ bundleOnly, coverage: report?.coverage });
+if (coverageFailure) {
+  gatesFailed = true;
+  console.error(`[perf:report] ${coverageFailure}`);
+}
 console.log('\n\x1b[1m─ 性能报告 ─────────────────────────\x1b[0m');
 if (report) {
   console.log(`结论: ${report.verdict}`);

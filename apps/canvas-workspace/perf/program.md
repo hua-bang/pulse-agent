@@ -32,7 +32,7 @@
 | `startup.renderer.fcp_ms` | renderer 起点 → first-contentful-paint | ms | 同机 | record | ◐ observer 已埋 |
 | `startup.renderer.first_canvas_ms` | renderer 起点 → CanvasSurface 首次渲染 | ms | 同机 | record | ◐ mark 已埋 |
 | `startup.renderer.entry_eval_ms` | entry chunk V8 compile+eval(CDP tracing) | ms | 同机 | record | ○ 定期一次 |
-| `startup.welcome_webview_ms` | 开窗 → welcome webview did-finish-load(D1) | ms | 同机 | record | ○ |
+| `startup.welcome_webview_ms` | 开窗 → welcome webview guest DOM ready(D1) | ms | 同机 | record | ✅ |
 
 ### ② 交互(采集:`perf:scenarios` 经 CDP 驱动 + `__pulsePerf`;场景:`typing`✅ `resize`✅ `drag`✅ `panzoom`✅ `mindmap_drag`○)
 
@@ -80,8 +80,8 @@
 | `main.loop_delay_max_ms` | 同窗口最大值(单次冻结上限) | ms | 同机 | warn | ○ |
 | `main.canvas_save.write_bytes` | 单次 canvas:save 实际落盘字节(B3 修复标尺) | KB | 全局 | gate | ○ M1 |
 | `main.canvas_save.files_written` | 单次 save 写文件数(未变更应跳过) | 个 | **全局** | **gate** | ○ M1 |
-| `main.session_persist.bytes_per_turn` | 每 agent turn 会话持久化字节(J-1 标尺,修复后应 O(增量)) | KB | 全局 | gate | ○ |
-| `main.pty.ipc_per_sec` | 双终端流式时 pty:data IPC 条数/秒(E3 合并 flush 标尺) | 条/s | 全局 | record | ○ 待 node-pty ABI |
+| `main.session_persist.bytes_per_turn` | 每 agent turn 会话持久化字节(J-1 标尺,修复后应 O(增量)) | KB | 全局 | gate | ✅ mock turn 走真实 SessionStore |
+| `main.pty.ipc_per_sec` | 双终端流式时 pty:data IPC 条数/秒(E3 合并 flush 标尺) | 条/s | 全局 | record | ✅ 双真实 PTY 场景 |
 
 ### ⑥ AI 流式(采集:mock 回放场景〔M3,需先评审侵入面〕+ 已埋计数器;fixture:3 代码块 + 1 mermaid 定速回放)
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runFinalReportStep, runtimeReportFailure } from './report-policy.mjs';
+import { metricCoverageFailure, runFinalReportStep, runtimeReportFailure } from './report-policy.mjs';
 
 describe('runtimeReportFailure', () => {
   it('rejects a full report when the app failed to launch', () => {
@@ -54,5 +54,19 @@ describe('runFinalReportStep', () => {
     });
 
     expect(result).toEqual({ gatesFailed: true, runtimeFailure: null });
+  });
+});
+
+describe('metricCoverageFailure', () => {
+  it('requires complete metric coverage for a full report', () => {
+    expect(metricCoverageFailure({ bundleOnly: false, coverage: { measured: 39, total: 40 } }))
+      .toBe('metric coverage is incomplete (39/40)');
+    expect(metricCoverageFailure({ bundleOnly: false, coverage: { measured: 40, total: 40 } }))
+      .toBeNull();
+  });
+
+  it('allows partial coverage for an explicit bundle-only report', () => {
+    expect(metricCoverageFailure({ bundleOnly: true, coverage: { measured: 6, total: 40 } }))
+      .toBeNull();
   });
 });

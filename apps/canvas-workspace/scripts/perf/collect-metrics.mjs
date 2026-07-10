@@ -111,6 +111,24 @@ export const collectChatStreamMetrics = (scenarios) => {
   return entries;
 };
 
+export const collectWelcomeWebviewMetric = (scenarios) => {
+  const value = scenarios?.scenarios?.startup?.welcomeWebviewMs;
+  return typeof value === 'number'
+    ? { id: 'startup.welcome_webview_ms', value, runs: 1 }
+    : null;
+};
+
+export const collectPtyStreamMetric = (scenarios) => {
+  const ptyStream = scenarios?.scenarios?.['pty-stream'];
+  if (!ptyStream || typeof ptyStream.ipcPerSec !== 'number') return null;
+  return {
+    id: 'main.pty.ipc_per_sec',
+    value: ptyStream.ipcPerSec,
+    runs: 1,
+    detail: `${ptyStream.terminals} terminals · ${ptyStream.events} IPC events · ${ptyStream.durationMs} ms`,
+  };
+};
+
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
@@ -186,6 +204,8 @@ export const collectMetrics = () => {
     // compile + eval up to that point (the mark is set at module load).
     push('startup.renderer.entry_eval_ms', Math.round(rendererMarks['renderer:main-start']));
   }
+  const welcomeWebviewMetric = collectWelcomeWebviewMetric(scenarios);
+  if (welcomeWebviewMetric) metrics.push(welcomeWebviewMetric);
 
   const mainProc = scenarios?.scenarios?.main;
   if (mainProc) {
@@ -211,6 +231,9 @@ export const collectMetrics = () => {
     });
     push('memory.ws_cycle.peak_heap_mb', wsc.peakHeapMB);
   }
+
+  const ptyStreamMetric = collectPtyStreamMetric(scenarios);
+  if (ptyStreamMetric) metrics.push(ptyStreamMetric);
 
   const imageMemoryMetric = collectImageMemoryMetric(scenarios);
   if (imageMemoryMetric) metrics.push(imageMemoryMetric);

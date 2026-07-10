@@ -15,7 +15,8 @@ pnpm --filter canvas-workspace perf:report
 Runs the whole pipeline — build → bundle gate → launch the app headless →
 runtime scenarios → close → assemble the report — prints the verdict, and
 writes `out/dashboard.html` (open in a browser) + `out/report.json` (verdict +
-alerts + metrics, for agents/CI). Exit 1 if any gate failed.
+alerts + metrics, for agents/CI). Exit 1 if any gate failed or a full report
+does not cover every metric in `metrics.json` (`--bundle-only` is exempt).
 
 Variants: `--bundle-only` (fast, no app launch), `--no-build` (reuse `dist/`),
 `--seed-nodes 300` (larger canvas), `--repeat 1` (single boot — faster but
@@ -94,6 +95,7 @@ Scenarios drive input via CDP and read `window.__pulsePerf`:
 | `resize` | resizes a node from its bottom-right corner over 90 steps | `nodes-array-replace` + `canvas-save-ipc` counters (finding A2 resize) |
 | `drag` | drags the first node header 90 steps | `nodes-array-replace` counter (finding A2) |
 | `panzoom` | pans (plain wheel) + zooms (ctrl+wheel) over blank canvas | informational (no nodes-array touch) |
+| `pty-stream` | streams deterministic output through two real PTYs and counts renderer `pty:data` events | `main.pty.ipc_per_sec` record |
 
 Resize's Event Timing value only covers discrete pointerdown/up events; it
 does not measure continuous pointer-move latency. Treat it as record-only and

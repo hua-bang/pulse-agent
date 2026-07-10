@@ -24,7 +24,8 @@ describe('perf chat replay', () => {
       send: (channel: string, payload: unknown) => sent.push({ channel, payload }),
     };
 
-    const replay = replayPerfChatStream(sender, 'perf-session', { intervalMs: 4 });
+    const onComplete = vi.fn();
+    const replay = replayPerfChatStream(sender, 'perf-session', { intervalMs: 4, onComplete });
     await vi.runAllTimersAsync();
     await replay;
 
@@ -33,5 +34,7 @@ describe('perf chat replay', () => {
     expect(deltas.length).toBeGreaterThan(200);
     expect(deltas.map((entry) => entry.payload).join('')).toContain('```mermaid');
     expect(completion?.payload).toMatchObject({ ok: true });
+    expect(onComplete).toHaveBeenCalledOnce();
+    expect(onComplete.mock.calls[0]?.[0]).toContain('```typescript');
   });
 });

@@ -58,7 +58,7 @@ const readFlag = (name) => {
 };
 const seedNodes = Number(readFlag('--seed-nodes') ?? 0);
 const seedWebpages = Number(readFlag('--seed-webpages') ?? 0);
-const only = (readFlag('--scenario') ?? 'startup,chat-stream,image-memory,typing,resize,drag,panzoom,ws-cycle').split(',');
+const only = (readFlag('--scenario') ?? 'startup,chat-stream,image-memory,typing,resize,drag,panzoom,pty-stream,ws-cycle').split(',');
 const repeat = Math.max(1, Number(readFlag('--repeat') ?? 1));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -300,6 +300,77 @@ const chatStreamScenario = async (cdp) => {
     tailBurstMs,
     markdownRenders: report.counters['chat-md-stream-render'],
   };
+};
+
+const ptyStreamScenario = async (cdp) => {
+  await beginPerf(cdp, 'pty-stream');
+  const result = await evaluate(cdp, `(async () => {
+    const api = window.canvasWorkspace.pty;
+    const ids = ['perf-pty-a', 'perf-pty-b'];
+    const spawned = await Promise.all(ids.map(id => api.spawn(id, 80, 24)));
+    const failed = spawned.find(entry => !entry?.ok);
+    if (failed) throw new Error('PTY spawn failed: ' + (failed.error || 'unknown error'));
+    await new Promise(resolve => setTimeout(resolve, 250));
+    ids.forEach(id => api.write(id, 'stty -echo\\r'));
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    const run = (id, index) => new Promise((resolve, reject) => {
+      const marker = '__PULSE_PTY_PERF_DONE_' + index + '__';
+      let events = 0;
+      let bytes = 0;
+      const startedAt = performance.now();
+      let unsubscribeData = () => {};
+      let unsubscribeExit = () => {};
+      const timer = setTimeout(() => {
+        unsubscribeData();
+        unsubscribeExit();
+        reject(new Error('PTY stream timed out: ' + id));
+      }, 15_000);
+      const finish = () => {
+        clearTimeout(timer);
+        unsubscribeData();
+        unsubscribeExit();
+        resolve({ events, bytes, startedAt, endedAt: performance.now() });
+      };
+      unsubscribeData = api.onData(id, data => {
+        events++;
+        bytes += data.length;
+        if (data.includes(marker)) finish();
+      });
+      unsubscribeExit = api.onExit(id, code => {
+        clearTimeout(timer);
+        unsubscribeData();
+        unsubscribeExit();
+        reject(new Error('PTY exited early (' + code + '): ' + id));
+      });
+      const command = 'i=0; while [ $i -lt 200 ]; do printf "pulse-perf-%04d-xxxxxxxx\\n" "$i"; i=$((i+1)); sleep 0.005; done; '
+        + 'm="__PULSE_PTY_PERF_DONE_"; printf "%s%d__\\n" "$m" ' + index;
+      api.write(id, command + '\\r');
+    });
+
+    try {
+      const results = await Promise.all(ids.map((id, index) => run(id, index)));
+      const startedAt = Math.min(...results.map(entry => entry.startedAt));
+      const endedAt = Math.max(...results.map(entry => entry.endedAt));
+      const durationMs = endedAt - startedAt;
+      const events = results.reduce((sum, entry) => sum + entry.events, 0);
+      const bytes = results.reduce((sum, entry) => sum + entry.bytes, 0);
+      return {
+        terminals: ids.length,
+        events,
+        bytes,
+        durationMs: Math.round(durationMs * 10) / 10,
+        ipcPerSec: Math.round((events / durationMs) * 10000) / 10,
+      };
+    } finally {
+      ids.forEach(id => api.kill(id));
+    }
+  })()`);
+  const report = await endPerf(cdp);
+  if (!result || result.events <= 0 || result.durationMs <= 0) {
+    throw new Error('pty-stream produced no measurable IPC traffic');
+  }
+  return { ...result, report };
 };
 
 const typingScenario = async (cdp, repeatCount = 1) => {
@@ -705,6 +776,7 @@ const main = async () => {
     if (only.includes('resize')) scenarios.resize = await resizeScenario(cdp, repeat);
     if (only.includes('drag')) scenarios.drag = await dragScenario(cdp, repeat);
     if (only.includes('panzoom')) scenarios.panzoom = await panzoomScenario(cdp, repeat);
+    if (only.includes('pty-stream')) scenarios['pty-stream'] = await ptyStreamScenario(cdp);
     // ws-cycle runs last — it seeds extra workspaces and reloads, so it must
     // not disturb the single-workspace typing/drag/panzoom scenarios above.
     if (only.includes('ws-cycle')) scenarios['ws-cycle'] = await wsCycleScenario(cdp);
@@ -716,6 +788,14 @@ const main = async () => {
   const loopDelays = [...stdout.matchAll(/\[perf\] loop-delay (\{.*\})/g)].map((m) => JSON.parse(m[1]));
   const canvasSaves = [...stdout.matchAll(/\[perf\] canvas-save (\{.*\})/g)].map((m) => JSON.parse(m[1]));
   const sessionPersists = [...stdout.matchAll(/\[perf\] session-persist (\{.*\})/g)].map((m) => JSON.parse(m[1]));
+  const welcomeWebviews = [...stdout.matchAll(/\[perf\] welcome-webview (\{.*\})/g)].map((m) => JSON.parse(m[1]));
+  if (scenarios.startup?.mainPhases && welcomeWebviews.length > 0) {
+    const firstLoad = welcomeWebviews[0];
+    const openWindowAt = scenarios.startup.mainPhases.openWindow;
+    if (typeof firstLoad.at === 'number' && typeof openWindowAt === 'number' && firstLoad.at >= openWindowAt) {
+      scenarios.startup.welcomeWebviewMs = firstLoad.at - openWindowAt;
+    }
+  }
   if (loopDelays.length || canvasSaves.length || sessionPersists.length) {
     const main = { windows: loopDelays.length };
     if (loopDelays.length) {
@@ -774,6 +854,13 @@ const main = async () => {
       `[perf:scenarios] image-memory: ${imageMemory.images} images, `
       + `${imageMemory.decodedMB} MB decoded vs ${imageMemory.originalDecodedMB} MB original `
       + `(${imageMemory.reductionRatio}× reduction, max width ${imageMemory.maxDecodedWidth})`,
+    );
+  }
+  const ptyStream = scenarios['pty-stream'];
+  if (ptyStream) {
+    console.log(
+      `[perf:scenarios] pty-stream: ${ptyStream.terminals} terminals, `
+      + `${ptyStream.events} IPC events / ${ptyStream.durationMs}ms = ${ptyStream.ipcPerSec}/s`,
     );
   }
   if (scenarios.main) {

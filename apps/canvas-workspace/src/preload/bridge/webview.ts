@@ -9,8 +9,8 @@ import type {
 import { subscribe } from "./ipc";
 
 export const createIframeApi = (ipcRenderer: IpcRenderer): IframeApi => ({
-  registerWebview: (workspaceId, nodeId, webContentsId) =>
-    ipcRenderer.invoke("iframe:register-webview", { workspaceId, nodeId, webContentsId }),
+  registerWebview: (workspaceId, nodeId, webContentsId, ready) =>
+    ipcRenderer.invoke("iframe:register-webview", { workspaceId, nodeId, webContentsId, ready }),
 
   unregisterWebview: (workspaceId, nodeId) =>
     ipcRenderer.invoke("iframe:unregister-webview", { workspaceId, nodeId }),

@@ -8,6 +8,7 @@ interface ReplaySender {
 interface ReplayOptions {
   intervalMs?: number;
   startupDelayMs?: number;
+  onComplete?: (content: string) => Promise<void> | void;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -60,6 +61,7 @@ export const replayPerfChatStream = async (
     await sleep(options.intervalMs ?? 4);
   }
   if (!sender.isDestroyed()) {
+    await options.onComplete?.(content);
     sender.send(`canvas-agent:chat-complete:${sessionId}`, {
       ok: true,
       response: content,

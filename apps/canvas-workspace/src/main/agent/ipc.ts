@@ -30,6 +30,7 @@ import { streamWorkspaceDoc } from './workspace-doc-generator';
 import { appendImageNodeToCanvas } from '../canvas/service';
 import type { AgentRequestContext, AgentScope, AgentScopeRef } from './types';
 import { isPerfChatReplayRequest, replayPerfChatStream } from './perf-chat-replay';
+import { GLOBAL_CHAT_SESSION_STORE_ID, SessionStore } from './session-store';
 
 let service: CanvasAgentService | null = null;
 
@@ -81,7 +82,28 @@ export function setupCanvasAgentIpc(): void {
       const sender = event.sender;
       const scope = resolveAgentScope(payload);
       if (isPerfChatReplayRequest(payload.message, process.env.PULSE_CANVAS_PERF === '1')) {
-        void replayPerfChatStream(sender, sessionId);
+        void replayPerfChatStream(sender, sessionId, {
+          onComplete: async (content) => {
+            const storeId = scope.kind === 'workspace'
+              ? scope.workspaceId
+              : GLOBAL_CHAT_SESSION_STORE_ID;
+            const store = new SessionStore(storeId, scope);
+            await store.startSession();
+            const timestamp = Date.now();
+            store.setMessages([
+              { role: 'user', content: payload.message, timestamp },
+              {
+                role: 'assistant',
+                content,
+                timestamp,
+                runId: `perf-replay-${sessionId}`,
+              },
+            ]);
+            // archiveSession waits for the persist queue, ensuring the
+            // perf log is present before the completion event reaches the UI.
+            await store.archiveSession();
+          },
+        });
         return { ok: true, sessionId };
       }
       sessionScopeMap.set(sessionId, scope);
