@@ -39,8 +39,8 @@ before that the directory held only the Electron driver):
 - `harness/skills/` — SKILL.md procedures for coding agents operating this
   app: `canvas-harness`, `canvas-onboard-harness` (drive the real app),
   `add-canvas-node`, `add-agent-tool`, `add-builtin-main-plugin`,
-  `extend-blessed-ui` (safe-change procedures for the four recurring
-  extension shapes).
+  `extend-blessed-ui`, `add-ipc-surface` (safe-change procedures for the
+  five recurring extension shapes).
 - `harness/spec/` — decision-pending intent, currently **empty** (the
   success state). Two entries completed their full lifecycle: UI-reuse
   (2026-07-07: decided → mechanized as `ui-reuse-governance.test.ts` +
@@ -70,6 +70,7 @@ installs the latter. Do not mix them.
 | Main domain map | `harness/knowledge/main-domain-modules.md`, `src/main/index.ts`, `src/main/app/bootstrap.ts` |
 | Renderer routes and full-app surfaces | `harness/knowledge/renderer-surfaces.md`, `src/renderer/src/App.tsx`, `src/renderer/src/components/Workbench/`, `src/renderer/src/components/RightDock/` |
 | Cross-process API bridge | `src/preload/index.ts`, `src/preload/bridge/`, `src/renderer/src/types.ts`, `src/shared/` |
+| Add a capability spanning main + preload + renderer | `harness/skills/add-ipc-surface/SKILL.md` (ordered procedure — contract placement, streaming pattern, bootstrap wire, lockstep rule) |
 | Canvas node/edge schema | `src/shared/canvas.ts` |
 | Add a new canvas node capability | `harness/skills/add-canvas-node/SKILL.md` (ordered procedure — plugin is the default path, host type is the exception); background: `harness/knowledge/plugin-node-mf2.md` (plugin path), `src/shared/canvas.ts`, `src/renderer/src/utils/nodeFactory.ts`, `src/renderer/src/components/CanvasNodeView/` (host-type touch points) |
 | Current registries (agent tools / IPC pairs / node types) | run `node harness/tools/describe-canvas.mjs` (from this dir; `--json` for machines) |
