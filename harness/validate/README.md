@@ -13,9 +13,9 @@ This directory is an index plus optional root impact rules. Package-level valida
 | Acceptance standards, reproducible commands | Root `AGENTS.md` §5 |
 | Named failure captures and their guards | Root `AGENTS.md` §6 |
 | Manual runner | `scripts/harness/run-harness-check.mjs` |
-| Honest gap: no automatic trigger (CI/hooks), no mechanical checks | Root `AGENTS.md` §4 ("Gap to close") + `harness/ROADMAP.md` |
-| Candidate mechanical checks | Future checks protocol once the rules are stable enough to mechanize |
-| Runner phases remaining (mechanical checks, opt-in pre-push, CI) | `harness/ROADMAP.md` |
+| Honest gap: no automatic trigger (CI/hooks), no semantic contradiction/test-effectiveness checks | Root `AGENTS.md` §4 ("Gap to close") + `harness/ROADMAP.md` |
+| Structural mechanical checks | `scripts/harness/check-harness.mjs` |
+| Runner phases remaining (opt-in pre-push, CI) | `harness/ROADMAP.md` |
 
 ## Honest reality
 

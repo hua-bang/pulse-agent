@@ -45,6 +45,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 | Review changes (repo-aware) | affected workspace `AGENTS.md` + `node scripts/harness/run-harness-check.mjs` |
 | Inspect harness coverage | `node scripts/harness/check-harness.mjs` |
 | Run bound checks for a change | `node scripts/harness/run-harness-check.mjs` |
+| Visualize root/package/app harness | `harness/skills/visualize-harness/SKILL.md` |
 
 ## 2. Hard boundaries (real values)
 
@@ -70,7 +71,7 @@ The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size rat
 | Tier | Location | Role | Loaded how |
 |---|---|---|---|
 | Runtime task skills | `.pulse-coder/skills/*/SKILL.md` | On-demand task knowledge/procedures for the product runtime | engine skills plugin → `skill` tool |
-| Repo action protocols | Not currently materialized | Future stable workflow docs only when the workflow justifies a file | Manual, if added later |
+| Repo action protocols | `harness/skills/*/SKILL.md` when present | Stable workflows for agents maintaining this repository | Manual from the owning `AGENTS.md` route |
 
 **Action → required pre-read** (manual, no runtime enforcement):
 
@@ -83,9 +84,9 @@ The only CI is `.github/workflows/perf.yml` — canvas-workspace bundle-size rat
 | Review a diff (repo-aware) | affected workspace `AGENTS.md`, local validation, and root impact overlay when relevant |
 | Quality self-check / acceptance gate | local validation first, then root overlay for root/cross-workspace impact |
 
-Do not route required work to nonexistent `harness/skills/*` files. Add a repo action protocol only when the workflow is stable enough and the file removes real ambiguity.
+Route only to repo action protocols that exist on disk. Add one only when the workflow is stable enough and the file removes real ambiguity.
 
-**Gap to close (aspirational, not present):** the manual runner exists; still missing are candidate mechanical checks (add only when their rules are stable enough to mechanize) and any automatic trigger (opt-in pre-push, CI) — defer those until the runner's false-positive rate is proven near zero. Do not claim these exist today.
+**Gap to close:** the manual runner and structural drift checks exist; still missing are semantic checks for contradictions/test effectiveness and any automatic trigger (opt-in pre-push, CI). Defer automatic enforcement until the runner's false-positive rate is proven near zero.
 
 ## 5. Acceptance (reproducible + verifiable)
 

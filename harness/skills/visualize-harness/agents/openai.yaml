@@ -1,0 +1,4 @@
+interface:
+  display_name: "Visualize Harness"
+  short_description: "Generate progressive harness reading graphs"
+  default_prompt: "Use $visualize-harness to map the requested root, package, or app harness as an interactive reading graph."

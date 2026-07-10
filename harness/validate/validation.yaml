@@ -14,6 +14,12 @@ pathRules:
     required:
       - node scripts/harness/check-harness.mjs
 
+  - name: harness-visualizer
+    paths:
+      - harness/skills/visualize-harness/**
+    required:
+      - pnpm exec vitest run harness/skills/visualize-harness/scripts/render-harness-graph.test.mjs
+
   - name: root-workspace-config
     paths:
       - package.json

@@ -26,12 +26,13 @@ AGENTS.md / CLAUDE.md
 | Area | Path | Purpose |
 |---|---|---|
 | Harness design | `DESIGN.md` | Target shape for AGENTS.md + Knowledge / Tool / Validate / Skills across global and module scopes. |
-| Pilot status | `ROADMAP.md` | Current pilot status, honest gaps (no CI / no git hooks / no executable checks), and the keystone rollout plan. |
+| Pilot status | `ROADMAP.md` | Current pilot status, honest gaps (no automatic trigger or semantic checks), and the keystone rollout plan. |
 | Workspace membership | `../pnpm-workspace.yaml` | Machine-readable active workspace set. |
 | Root validation rules | `validate/validation.yaml` | Machine-readable root validation routing and escalation rules. |
 | Knowledge index | `knowledge/` | Index for the Knowledge surface — routes to existing knowledge SSOTs (root AGENTS, workspace AGENTS, workspace docs/contracts). |
 | Validate index | `validate/` | Index for the Validate surface — routes to root validation rules, workspace validation, checks, and run evidence. |
 | Tools | `tools/` | Harness tool index; wired executables live in `scripts/harness/` (runner + drift check). |
+| Skills | `skills/` | Stable repo action protocols; currently includes interactive harness visualization for root/package/app scopes. |
 
 ## Knowledge Routing
 
