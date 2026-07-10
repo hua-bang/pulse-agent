@@ -32,7 +32,7 @@
   border-radius: 50%;
   border: 2px solid rgba(37, 99, 235, 0.25);
   border-top-color: #2563eb;
-  animation: migration-spinner-spin 800ms linear infinite;
+  animation: spin 800ms linear infinite;
 }
 
 .migration-spinner__label {
@@ -43,12 +43,6 @@
   font-family: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
   font-size: 11.5px;
   color: #6b7280;
-}
-
-@keyframes migration-spinner-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @keyframes migration-spinner-in {

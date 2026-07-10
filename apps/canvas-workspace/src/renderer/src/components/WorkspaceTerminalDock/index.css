@@ -305,11 +305,7 @@
   border-radius: 50%;
   border: 2px solid rgba(55, 53, 47, 0.16);
   border-top-color: #5f5d58;
-  animation: workspace-terminal-spin 0.7s linear infinite;
-}
-
-@keyframes workspace-terminal-spin {
-  to { transform: rotate(360deg); }
+  animation: spin 0.7s linear infinite;
 }
 
 @keyframes workspace-terminal-fade-in {

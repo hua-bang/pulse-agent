@@ -117,3 +117,13 @@ textarea {
     transform: scale(1) translateY(0);
   }
 }
+
+/* Blessed global 360°-rotate spinner keyframe (C1 dedupe — was 6 private
+ * `*-spin`/`*Spin` copies, all byte-identical `to { transform:
+ * rotate(360deg); }`). Each call site keeps its own animation-duration and
+ * timing-function; only the @keyframes definition is shared. */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -80,7 +80,7 @@
 }
 
 .updates-section-status-icon--loading svg {
-  animation: updates-section-spin 0.82s linear infinite;
+  animation: spin 0.82s linear infinite;
 }
 
 .updates-section-status-copy {
@@ -154,12 +154,6 @@
 .updates-section-secondary-btn:disabled {
   cursor: progress;
   opacity: 0.58;
-}
-
-@keyframes updates-section-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 @media (max-width: 640px) {

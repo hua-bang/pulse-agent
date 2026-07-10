@@ -1,15 +1,24 @@
 /**
  * ChatImageLightbox — fullscreen preview for images in the chat transcript.
  *
- * Renders through a portal (matching ui/Drawer / context menus) so the
- * overlay escapes the chat panel's stacking + overflow. Supports keyboard
- * (Esc to close, ←/→ to page when a message has several images), backdrop
- * click-to-close, and an on-screen prev/next + counter for galleries.
+ * Re-shelled onto ui/Modal (C1): Modal owns the portal, ESC close, backdrop
+ * mechanics, dialog role/aria, and focus trap. The card is stretched to
+ * `position: fixed; inset: 0` (via className) so it fully covers the
+ * viewport like the original bespoke overlay did — action buttons and
+ * prev/next nav stay anchored to the screen corners regardless of image
+ * size, matching the pre-migration layout. Because the card visually IS the
+ * dim backdrop here, it carries its own backdrop-click-to-close (Modal's own
+ * backdrop still closes on click too, but sits fully behind the card and is
+ * never actually the click target). Only the arrow-key paging listener
+ * remains bespoke — it's coupled to gallery paging state Modal doesn't
+ * know about, so it lives as a plain `onKeyDown` on the card (a React
+ * synthetic handler, not a raw `addEventListener('keydown'`) rather than
+ * ESC, which Modal's `useEscapeClose` now owns outright.
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useEffect, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { CheckIcon, CloseIcon, CopyIcon } from '../icons';
+import { Modal } from '../ui';
 import { useI18n } from '../../i18n';
 import { copyTextToClipboard } from '../../utils/clipboard';
 import { toFileUrl } from '../../utils/fileUrl';
@@ -65,105 +74,113 @@ export const ChatImageLightbox = ({ images, startIndex, onClose }: ChatImageLigh
     }
   }, [count, images, index]);
 
+  // ESC is Modal's job now (useEscapeClose); this only locks background
+  // scroll while the viewer is open — no keydown listener left here.
   useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-      } else if (event.key === 'ArrowLeft' && count > 1) {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  const handleArrowNav = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'ArrowLeft' && count > 1) {
         event.preventDefault();
         goPrev();
       } else if (event.key === 'ArrowRight' && count > 1) {
         event.preventDefault();
         goNext();
       }
-    };
-    window.addEventListener('keydown', handler);
-    // Lock background scroll while the viewer is open.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handler);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [count, goPrev, goNext, onClose]);
+    },
+    [count, goPrev, goNext],
+  );
 
   useEffect(() => {
     setCopied(false);
   }, [index]);
 
+  const titleId = useId();
   const safeIndex = Math.min(Math.max(index, 0), Math.max(count - 1, 0));
   const current = images[safeIndex];
   if (!current) return null;
 
-  return createPortal(
-    <div
-      className="chat-image-lightbox-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={current.caption ?? t('chat.imageViewer')}
-      onClick={(event) => {
-        // Only a click on the dim backdrop itself dismisses; clicks on the
-        // image, caption, or controls fall through to their own handlers.
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <button
-        type="button"
-        className="chat-image-lightbox-action chat-image-lightbox-copy"
-        onClick={() => void handleCopy()}
-        aria-label="Copy image"
-        title={copied ? 'Copied!' : 'Copy image'}
+  return (
+    <Modal open onClose={onClose} labelledBy={titleId} className="chat-image-lightbox-card">
+      <div
+        className="chat-image-lightbox-surface"
+        onKeyDown={handleArrowNav}
+        onClick={(event) => {
+          // Only a click on the dim surface itself dismisses (not a
+          // mousedown, so a text-selection drag that ends over empty space
+          // doesn't accidentally close it); clicks on the image, caption, or
+          // controls fall through to their own handlers. The card fully
+          // covers Modal's own backdrop (this IS the visible dim area), so
+          // it needs its own copy of the click-outside-the-image-to-close
+          // pattern Modal's backdrop uses.
+          if (event.target === event.currentTarget) onClose();
+        }}
       >
-        {copied ? <CheckIcon size={18} strokeWidth={1.8} /> : <CopyIcon size={18} />}
-      </button>
-
-      <button
-        type="button"
-        className="chat-image-lightbox-action chat-image-lightbox-close"
-        onClick={onClose}
-        aria-label={t('chat.closeImage')}
-        title={t('chat.closeImage')}
-      >
-        <CloseIcon size={18} />
-      </button>
-
-      {count > 1 && (
+        <h2 id={titleId} className="chat-image-lightbox-visually-hidden">
+          {current.caption ?? t('chat.imageViewer')}
+        </h2>
         <button
           type="button"
-          className="chat-image-lightbox-nav chat-image-lightbox-nav--prev"
-          onClick={goPrev}
-          aria-label={t('chat.previousImage')}
-          title={t('chat.previousImage')}
+          className="chat-image-lightbox-action chat-image-lightbox-copy"
+          onClick={() => void handleCopy()}
+          aria-label="Copy image"
+          title={copied ? 'Copied!' : 'Copy image'}
         >
-          ‹
+          {copied ? <CheckIcon size={18} strokeWidth={1.8} /> : <CopyIcon size={18} />}
         </button>
-      )}
 
-      <figure className="chat-image-lightbox-figure">
-        <img src={current.src} alt={current.caption ?? t('chat.imageViewer')} draggable={false} />
-        {(current.caption || count > 1) && (
-          <figcaption className="chat-image-lightbox-caption">
-            {current.caption && <span>{current.caption}</span>}
-            {count > 1 && (
-              <span className="chat-image-lightbox-counter">{safeIndex + 1} / {count}</span>
-            )}
-          </figcaption>
+        <button
+          type="button"
+          className="chat-image-lightbox-action chat-image-lightbox-close"
+          onClick={onClose}
+          aria-label={t('chat.closeImage')}
+          title={t('chat.closeImage')}
+        >
+          <CloseIcon size={18} />
+        </button>
+
+        {count > 1 && (
+          <button
+            type="button"
+            className="chat-image-lightbox-nav chat-image-lightbox-nav--prev"
+            onClick={goPrev}
+            aria-label={t('chat.previousImage')}
+            title={t('chat.previousImage')}
+          >
+            ‹
+          </button>
         )}
-      </figure>
 
-      {count > 1 && (
-        <button
-          type="button"
-          className="chat-image-lightbox-nav chat-image-lightbox-nav--next"
-          onClick={goNext}
-          aria-label={t('chat.nextImage')}
-          title={t('chat.nextImage')}
-        >
-          ›
-        </button>
-      )}
-    </div>,
-    document.body,
+        <figure className="chat-image-lightbox-figure">
+          <img src={current.src} alt={current.caption ?? t('chat.imageViewer')} draggable={false} />
+          {(current.caption || count > 1) && (
+            <figcaption className="chat-image-lightbox-caption">
+              {current.caption && <span>{current.caption}</span>}
+              {count > 1 && (
+                <span className="chat-image-lightbox-counter">{safeIndex + 1} / {count}</span>
+              )}
+            </figcaption>
+          )}
+        </figure>
+
+        {count > 1 && (
+          <button
+            type="button"
+            className="chat-image-lightbox-nav chat-image-lightbox-nav--next"
+            onClick={goNext}
+            aria-label={t('chat.nextImage')}
+            title={t('chat.nextImage')}
+          >
+            ›
+          </button>
+        )}
+      </div>
+    </Modal>
   );
 };

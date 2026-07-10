@@ -119,7 +119,7 @@
   border-radius: 999px;
   border: 1.6px solid rgba(35, 131, 226, 0.22);
   border-top-color: currentColor;
-  animation: shellSpin 0.7s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
 /* The centered dialog shell (backdrop, card, sizing, entrance animation)
@@ -298,15 +298,6 @@
 
   .shell-shortcuts__grid {
     grid-template-columns: 1fr;
-  }
-}
-
-@keyframes shellSpin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
   }
 }
 

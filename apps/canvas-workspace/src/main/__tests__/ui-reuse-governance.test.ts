@@ -63,8 +63,16 @@ const RATCHET_BASELINE: Record<string, number> = {
   // 7px + its button 5px); LinkDrawer's icon button (4px) moved onto
   // ui/Button (tokenized). 9 literals removed net.
   borderRadiusLiterals: 416,
-  // independent 360°-rotate spinner @keyframes (names ending in "spin")
-  spinnerKeyframes: 6,
+  // independent 360°-rotate spinner @keyframes (names ending in "spin").
+  // 6→1 (C1 spinner dedupe): all 6 were byte-identical
+  // `to { transform: rotate(360deg); }` — WorkspaceTerminalDock,
+  // MigrationSpinner, Settings/UpdateSection, chat/ChatPanel (2 call sites,
+  // 1 keyframe), IframeNodeBody, AppShellProvider now all reference one
+  // blessed global `@keyframes spin` in styles.css (camelCase-adjacent
+  // simple name, same shelf as fadeIn/menuAppear); each call site kept its
+  // own animation-duration/timing-function. The counter still counts the
+  // survivor (its name ends in "spin"), hence floor 1, not 0.
+  spinnerKeyframes: 1,
   // private entrance @keyframes whose NAME ends in an entrance-shaped suffix
   // (-in / -appear / -rise / -slide), excluding the two blessed globals
   // fadeIn + menuAppear (camelCase, so the hyphen-delimited regex skips them
@@ -82,13 +90,19 @@ const RATCHET_BASELINE: Record<string, number> = {
   // menuAppear is translateY(-2px)/scale(0.97); review-verified as a real but
   // imperceptible amplitude difference, same category as the earlier token
   // convergence's dominant-value picks).
-  privateEntranceKeyframes: 12,
+  // 12→11 (C1 lightbox re-shell): chat-image-lightbox-in (opacity-only fade,
+  // `-in` suffix) is gone — ChatImageLightbox now re-shells onto ui/Modal,
+  // whose own `uiModalAppear` (camelCase, doesn't match this counter's
+  // hyphen-anchored regex) drives the entrance instead.
+  privateEntranceKeyframes: 11,
   // role="dialog" occurrences — falls as the ui/ overlay shell absorbs them.
   // 12→11: AppShell Confirm+Shortcuts (-2) now route through ui/Modal (+1).
   // 11→12: ui/Drawer gained role="dialog" + aria-modal (P3 a11y hardening —
   // it previously had neither), so both blessed overlay shells now expose
   // the dialog role consistently. A deliberate increase, not a regression.
-  dialogRoles: 12,
+  // 12→11 (C1 lightbox re-shell): ChatImageLightbox's own `role="dialog"`
+  // div is gone — that role now comes from ui/Modal's card.
+  dialogRoles: 11,
   // files calling createPortal directly. ui/Portal is the one blessed exit;
   // Modal/Drawer render through it. Falls as legacy callers adopt <Portal> or
   // the new point-anchored ui/Popover shell.
@@ -96,7 +110,9 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (-2) by moving onto ui/Popover; ui/Popover itself adds one shared exit
   // (+1). Net -1. (LayerContextMenu also moved onto Popover but never called
   // createPortal directly.)
-  portalFiles: 9,
+  // 9→8 (C1 lightbox re-shell): ChatImageLightbox's own `createPortal(...,
+  // document.body)` call is gone — ui/Modal's internal <Portal> owns it now.
+  portalFiles: 8,
   // non-ui, non-test .tsx files that BOTH import useViewportClampedPosition
   // AND call createPortal — the signature of a hand-rolled point-anchored
   // popover shell living outside ui/Popover. Post-migration the three canvas
@@ -128,7 +144,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (useEscapeClose, useMenuKeyboardNav, ui/useFocusTrap) are now exempt —
   // they ARE the blessed destination, and counting them forced a baseline
   // raise whenever a new blessed hook landed.
-  handRolledKeydown: 17,
+  // 17→16 (C1 lightbox re-shell): ChatImageLightbox's mixed Escape+arrow
+  // `window.addEventListener('keydown'` is gone — Escape is now ui/Modal's
+  // `useEscapeClose` (exempt, as above), and the arrow-paging half moved to
+  // a plain React `onKeyDown` on the card content (not an addEventListener
+  // call, so this regex never saw it). GraphPage's Cmd+F+ESC listener is
+  // the one survivor of the "2 mixed multi-key" note above; floor is now
+  // effectively that single case plus the 2 gesture-cancel listeners.
+  handRolledKeydown: 16,
   // hardcoded color literals (hex/rgb/oklch) in renderer CSS on lines that do
   // NOT define a custom property — new-code color ratchet (token-definition
   // lines are exempt: defining a token with a literal is the point). Falls as
