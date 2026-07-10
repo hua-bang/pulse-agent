@@ -10,14 +10,17 @@ import {
   FieldRow,
   DropdownShell,
   SegmentedControl,
+  SwatchRow,
+  EmptyState,
   type SelectOption,
   type SegmentedControlOption,
+  type SwatchRowOption,
 } from '../../../../src/renderer/src/components/ui';
 import { I18nProvider } from '../../../../src/renderer/src/i18n';
 
 /**
- * ui/ showcase — mounts every blessed `components/ui/` piece (the 13
- * exports in `src/renderer/src/components/ui/index.ts`: 11 components +
+ * ui/ showcase — mounts every blessed `components/ui/` piece (the 15
+ * value exports in `src/renderer/src/components/ui/index.ts`: 13 components +
  * `useDragResize`/`useIndexNav` hooks) in a deterministic grid for the
  * Playwright screenshot baseline (C3 prerequisite, see
  * `docs/ui-reuse-burndown.md`).
@@ -37,10 +40,10 @@ import { I18nProvider } from '../../../../src/renderer/src/i18n';
  * under it). So those three stay CLOSED by default (a plain trigger
  * button) and the Playwright spec opens/screenshots/closes them one at a
  * time. Everything else here (Button, Select, DropdownShell, TextField,
- * SectionHeader, FieldRow, SegmentedControl) is either static or an
- * in-flow `position: absolute` panel (Select/DropdownShell — per their
- * own doc comments, neither one portals), so it renders in its
- * interesting state without needing a click.
+ * SectionHeader, FieldRow, SegmentedControl, SwatchRow, EmptyState) is
+ * either static or an in-flow `position: absolute` panel (Select/
+ * DropdownShell — per their own doc comments, neither one portals), so it
+ * renders in its interesting state without needing a click.
  */
 export const Showcase = () => (
   <I18nProvider>
@@ -63,6 +66,29 @@ export const Showcase = () => (
       <ModalSection />
       <DrawerSection />
       <PopoverSection />
+      {/* SwatchRow/EmptyState are appended LAST, after every pre-existing
+          section, on purpose: inserting them earlier pushes every later
+          section down the page, changing its scroll offset when Playwright
+          scrolls it into view for a per-section screenshot — confirmed
+          empirically to produce sub-pixel text anti-aliasing diffs against
+          the committed baselines (a real render difference, not a
+          tolerance/flakiness issue) even though the crop itself is
+          otherwise identical. Appending at the end leaves every
+          pre-existing section's scroll position, and therefore its
+          baseline, untouched. */}
+      {/* Modal/Drawer/Popover's OWN tests assert on a full-viewport
+          screenshot pinned to a scroll position computed from
+          `section-popover`'s geometry (see ui-showcase.visual.ts's
+          `pinScrollForModalTrio`) — that pin reproduces the page's
+          pre-existing max-scroll clamp, whose viewport window used to end
+          in this root's trailing padding (blank). Any section placed
+          within ~92px of Popover's bottom edge would intrude into that
+          still-visible strip and reopen the same baseline churn this
+          spacer exists to prevent — 200px is a deliberate, generous
+          margin above the measured ~92px shortfall. */}
+      <div className="showcase-modal-trio-spacer" aria-hidden="true" />
+      <SwatchRowSection />
+      <EmptyStateSection />
     </div>
   </I18nProvider>
 );
@@ -190,6 +216,76 @@ const SegmentedControlSection = () => {
     </section>
   );
 };
+
+// ── SwatchRow ───────────────────────────────────────────────────────────
+const SWATCH_OPTIONS: SwatchRowOption[] = [
+  { value: 'transparent', label: 'None', isNone: true },
+  { value: '#e5484d', label: 'Red' },
+  { value: '#f76808', label: 'Orange' },
+  { value: '#30a46c', label: 'Green' },
+  { value: '#0091ff', label: 'Blue' },
+  { value: '#8e4ec6', label: 'Purple' },
+];
+
+const SwatchRowSection = () => {
+  const [menuValue, setMenuValue] = useState('#30a46c');
+  const [toggleValue, setToggleValue] = useState('#e5484d');
+  return (
+    <section className="showcase-section" data-testid="section-swatchrow">
+      <h2>SwatchRow</h2>
+      <div className="showcase-columns">
+        <div className="showcase-cell">
+          <span className="showcase-cell-label">ariaPattern=&quot;menuitemradio&quot; (default), with a &quot;none&quot; slot</span>
+          <SwatchRow options={SWATCH_OPTIONS} value={menuValue} onChange={setMenuValue} ariaLabel="Fill" />
+        </div>
+        <div className="showcase-cell">
+          <span className="showcase-cell-label">ariaPattern=&quot;toggle&quot;</span>
+          <SwatchRow
+            options={SWATCH_OPTIONS}
+            value={toggleValue}
+            onChange={setToggleValue}
+            ariaPattern="toggle"
+            ariaLabel="Text color"
+          />
+        </div>
+      </div>
+    </section>
+  );
+};
+
+// ── EmptyState ──────────────────────────────────────────────────────────
+const EmptyIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+    <path
+      d="M5.2 2.8h7.6a1.4 1.4 0 011.4 1.4v10.6L9 11.8l-5.2 3V4.2a1.4 1.4 0 011.4-1.4z"
+      stroke="currentColor"
+      strokeWidth="1.35"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const EmptyStateSection = () => (
+  <section className="showcase-section" data-testid="section-emptystate">
+    <h2>EmptyState</h2>
+    <div className="showcase-columns">
+      <div className="showcase-cell" style={{ width: 260 }}>
+        <span className="showcase-cell-label">icon + title + description + action</span>
+        <EmptyState
+          className="showcase-emptystate-card"
+          icon={<EmptyIcon />}
+          title="No pinned references"
+          description="Pin a node from the canvas to see it here."
+          action={<button type="button" className="showcase-menu-item">Browse nodes</button>}
+        />
+      </div>
+      <div className="showcase-cell" style={{ width: 260 }}>
+        <span className="showcase-cell-label">title + description only (no icon, no action)</span>
+        <EmptyState title="No layers match" description="Try a different search term." />
+      </div>
+    </div>
+  </section>
+);
 
 // ── TextField ───────────────────────────────────────────────────────────
 // The third field is deliberately focused by the Playwright spec (a real

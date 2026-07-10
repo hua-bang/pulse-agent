@@ -41,6 +41,41 @@ test.beforeEach(async ({ page }) => {
   await waitForFontsReady(page);
 });
 
+/**
+ * Modal/Drawer/Popover's tests below assert on a full VIEWPORT screenshot
+ * (not a section locator — see each test's own comment for why), so the
+ * page's SCROLL POSITION when the trigger is clicked is part of what gets
+ * captured. Playwright's `.click()` auto-scrolls a not-fully-visible target
+ * into view; empirically (confirmed by probing `window.scrollY` directly)
+ * these three triggers were all landing at the page's max scroll —
+ * `document.scrollHeight - viewport height`, CLAMPED, not a value
+ * intrinsic to the triggers' own position. Appending ANY new section after
+ * `PopoverSection` (the page's last section — see Showcase.tsx) raises max
+ * scroll, un-clamps that click-driven auto-scroll, and lands each trigger
+ * at a different, unclamped position: a real, confirmed source of baseline
+ * churn having nothing to do with these three components' own chrome.
+ *
+ * Pinning to a hardcoded scroll value would only trade one fragility for
+ * another (correct today, silently wrong the next time a section is
+ * inserted anywhere before Popover). Instead this computes the SAME target
+ * Popover's own section geometry produces — `section-popover`'s bottom
+ * edge, plus the showcase root's own 120px bottom padding (its trailing
+ * space when Popover was the last section), minus the viewport height —
+ * which depends only on content UP TO AND INCLUDING Popover, never on
+ * what's appended after it. Confirmed to reproduce the pre-existing 795px
+ * clamp exactly against today's baselines.
+ */
+const SHOWCASE_ROOT_BOTTOM_PADDING = 120;
+const VIEWPORT_HEIGHT = 900;
+
+const pinScrollForModalTrio = async (page: Page) => {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const box = await page.getByTestId('section-popover').boundingBox();
+  if (!box) throw new Error('pinScrollForModalTrio: section-popover has no bounding box');
+  const target = Math.max(0, box.y + box.height + SHOWCASE_ROOT_BOTTOM_PADDING - VIEWPORT_HEIGHT);
+  await page.evaluate((y) => window.scrollTo(0, y), target);
+};
+
 test('full page — default at-rest state', async ({ page }) => {
   // Modal/Drawer/Popover are closed here by construction (see Showcase.tsx's
   // top comment) — this shot is the static grid, not "everything open at
@@ -98,6 +133,7 @@ test('DropdownShell — open, with items', async ({ page }) => {
 });
 
 test('Modal — open, with title/labelledBy', async ({ page }) => {
+  await pinScrollForModalTrio(page);
   await page.getByTestId('showcase-modal-trigger').click();
   await expect(page.locator('.showcase-target-modal')).toBeVisible();
   // Viewport screenshot (not the section locator) — Modal portals to
@@ -110,6 +146,7 @@ test('Modal — open, with title/labelledBy', async ({ page }) => {
 });
 
 test('Drawer — open', async ({ page }) => {
+  await pinScrollForModalTrio(page);
   await page.getByTestId('showcase-drawer-trigger').click();
   await expect(page.locator('.showcase-target-drawer')).toBeVisible();
   await expect(page).toHaveScreenshot('drawer-open.png');
@@ -119,10 +156,24 @@ test('Drawer — open', async ({ page }) => {
 });
 
 test('Popover — open at fixed x/y', async ({ page }) => {
+  await pinScrollForModalTrio(page);
   await page.getByTestId('showcase-popover-trigger').click();
   await expect(page.locator('.showcase-popover-panel')).toBeVisible();
   await expect(page).toHaveScreenshot('popover-open.png');
 
   await page.keyboard.press('Escape');
   await expect(page.locator('.showcase-popover-panel')).toBeHidden();
+});
+
+// SwatchRow/EmptyState are appended LAST in Showcase.tsx (see its own
+// comment) so every earlier section keeps its exact pre-existing scroll
+// position/baseline — these two tests intentionally come last here too,
+// matching source order, though test EXECUTION order doesn't itself affect
+// screenshots (each test gets a fresh `page.goto('/')` in beforeEach).
+test('SwatchRow — menuitemradio + toggle ariaPattern, a "none" slot', async ({ page }) => {
+  await expect(page.getByTestId('section-swatchrow')).toHaveScreenshot('swatch-row.png');
+});
+
+test('EmptyState — icon+title+description+action, and title+description only', async ({ page }) => {
+  await expect(page.getByTestId('section-emptystate')).toHaveScreenshot('empty-state.png');
 });

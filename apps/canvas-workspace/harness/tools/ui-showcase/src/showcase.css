@@ -160,3 +160,27 @@ body {
   font-size: 11px;
   color: var(--text-muted);
 }
+
+/* Exists ONLY to keep the Modal/Drawer/Popover pinned-scroll screenshots
+ * stable — see the comment above this element's usage in Showcase.tsx and
+ * `pinScrollForModalTrio` in ui-showcase.visual.ts. Not a real showcase
+ * section; renders nothing visible. */
+.showcase-modal-trio-spacer {
+  height: 200px;
+}
+
+/* ui/EmptyState ships zero decorative chrome by design (see its own doc
+ * comment) — this mirrors a real caller's own bordered-card treatment
+ * (e.g. ReferenceEmptyState's `.reference-empty`) so the showcase looks
+ * representative, without importing feature-component CSS. */
+.showcase-emptystate-card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.showcase-emptystate-card .ui-emptystate__icon {
+  justify-content: center;
+}

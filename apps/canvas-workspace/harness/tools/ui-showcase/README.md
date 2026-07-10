@@ -87,6 +87,22 @@ What makes that true here:
   on the section crops the panel out. `tests/ui-showcase.visual.ts`'s
   `screenshotUnion()` helper unions the section's and panel's bounding
   boxes and clips a `page.screenshot()` to that instead.
+- **Adding a new section touches every later section's scroll position —
+  read this before appending one.** Confirmed empirically (blessed-set
+  expansion batch, 2026-07-10; full account in `docs/ui-reuse-burndown.md`):
+  inserting a section BEFORE an existing one shifts that existing section's
+  on-page Y offset, which changes the scroll amount Playwright uses to bring
+  it into view, which produces sub-pixel text-antialiasing diffs against its
+  committed baseline even though the crop is otherwise identical. Always
+  append new sections LAST, after every existing one, in `Showcase.tsx`.
+  Separately, Modal/Drawer/Popover assert on a full VIEWPORT screenshot (not
+  a section locator, since they portal to `document.body`) at a scroll
+  position pinned by `pinScrollForModalTrio()` in `ui-showcase.visual.ts` —
+  that pin is computed from `section-popover`'s own geometry so it survives
+  future additions, but it also means any new section must land AFTER the
+  `.showcase-modal-trio-spacer` div in `Showcase.tsx` (a deliberate 200px
+  buffer) or it will intrude into the pinned viewport window and reopen the
+  same baseline churn.
 
 Verified: two full `pnpm run visual` runs from a clean state (killed
 preview server, deleted `dist/`, fresh `vite build` each time) produced
