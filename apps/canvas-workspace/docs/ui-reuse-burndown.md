@@ -79,27 +79,55 @@ dialog/menu" targets was 8/13. Future batch briefs must include the
 positioning contract (fixed-viewport vs in-context) per target, not just
 the counter hit list.
 
-## Batch C2 — token minting + exact-value swap (pixel-identical by construction)
+## Batch C2 — token minting + exact-value swap — DONE 2026-07-10
 
 Replacing a literal with a token that RESOLVES TO THE SAME VALUE cannot
-change rendering, so this batch needs no visual gate — only typecheck +
-ratchet + spot-check that each minted token's value equals the literal it
-replaces.
+change rendering, so this batch needed no visual gate — typecheck + ratchet
++ a byte-equal spot-check that each minted token's value equals every
+literal it replaced.
 
-Radius histogram (416 literals): 8px ×74, 4px ×63, 6px ×62, 999px ×61,
-10px ×38, 50% ×31, 7px ×27, 5px ×20, 12px ×14, 3px ×13, rest long-tail.
+**Plan-vs-reality correction (found by the builder, not pre-cleared):** the
+plan's proposed radius scale reused the names `--radius-sm: 4px` and
+`--radius-lg: 12px`. Both names already existed in `styles.css` — converged
+earlier at 6px and 10px respectively — and are load-bearing for `ui/`
+(`Modal`, `DropdownShell`, `Select`, `SegmentedControl`, `Drawer` all
+reference them). Minting over them with new values would have redefined
+those tokens and silently changed ~54 already-tokenized call sites' pixels,
+violating this batch's entire safety argument. Landed as `--radius-xs: 4px`
+/ `--radius-xl: 12px` instead (natural extension of the existing xs<sm<md<
+lg<xl ladder); `--radius-pill: 999px` had no prior name collision and landed
+as planned. `--radius-md`/`8px` reused the existing token as planned.
 
-1. **Decision slot (needs owner sign-off):** the radius scale. Proposed:
-   `--radius-sm: 4px`, `--radius-md: 8px` (exists), `--radius-lg: 12px`,
-   `--radius-pill: 999px`; `50%` stays literal (circle geometry, not a
-   design token).
-2. Mechanical swap of EXACT matches only: ~212 radius instances
-   (74+63+61+14) plus the focus-ring shadow cluster
-   (`0 0 0 2-3px rgba(35, 131, 226, …)` ×~19 → `--shadow-focus`).
-3. **Explicitly out of scope:** normalizing 6px/7px/10px/5px/3px to scale
-   values — that CHANGES pixels and waits for C3's visual gate (or per-case
-   owner approval). Do not mint tokens for every stray value either —
-   token-washing without convergence is the failure mode.
+What landed:
+
+| Token | Value | Lines swapped | Files touched |
+|---|---|---|---|
+| `--radius-md` (existing) | `8px` | 69 | — |
+| `--radius-xs` (new) | `4px` | 63 | — |
+| `--radius-pill` (new) | `999px` | 54 | — |
+| `--radius-xl` (new) | `12px` | 12 | — |
+| `--shadow-focus` (new) | `0 0 0 3px rgba(35, 131, 226, 0.1)` | 9 | — |
+
+198 radius lines + 9 shadow lines across 43 CSS files (plus `styles.css`
+for the token definitions) = 44 files touched. Every swap was a whole
+single-value `border-radius: <literal>;` or byte-exact
+`box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.1);` line; multi-value
+shorthands, corner-property variants (`border-*-radius`), and near-variant
+shadows (2px ring, other opacities) were left untouched by design —
+normalizing those is C3's visual-gated job, not this batch's.
+
+Counter movement (baselines lowered in the same commit,
+`src/main/__tests__/ui-reuse-governance.test.ts`):
+
+| Counter | Before | After |
+|---|---|---|
+| `borderRadiusLiterals` | 421 | 223 |
+| `hardcodedColorLiterals` | 1968 | 1959 (side effect of the 9 rgba( swaps) |
+| `shadowLiterals` | 169 | 160 |
+
+18/18 governance tests green with the new baselines. `frontend.md`'s token
+table and UI-reuse section were updated with the four new tokens and the
+exact-value-only rule.
 
 ## Batch C3 — normalization + the big two (visual gate first)
 

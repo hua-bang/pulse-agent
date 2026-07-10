@@ -103,7 +103,7 @@ counter may shrink but never grow):
   is `icons/SpinnerIcon` (drive its rotation with a `spin`-named keyframe
   class, e.g. `chat-spin`); render it instead of inlining a fresh spinner
   `<svg>`.
-- **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-sm|--radius|--radius-md|--radius-lg)`
+- **Radius, colors, and shadows use tokens** in new CSS: `var(--radius-xs|--radius-sm|--radius|--radius-md|--radius-lg|--radius-xl|--radius-pill)`
   for radii, palette tokens for colors, `var(--shadow-*)` for shadows — all
   three are ratchet-gated (`borderRadiusLiterals`, `hardcodedColorLiterals`,
   `shadowLiterals`). Raw `z-index` literals >= 10 (the cross-surface
@@ -117,9 +117,21 @@ counter may shrink but never grow):
   | Fills | `--bg` · `--surface` · `--surface-1` (dark overlay) · `--surface-2` · `--surface-alt` · `--surface-subtle` · `--note-paper` |
   | Accent | `--accent` family · `--accent-muted` · `--accent-soft` · `--accent-soft-strong` |
   | Borders | `--border` · `--border-subtle` (dark-chrome) |
-  | Radius | `--radius-sm` 6 · `--radius`/`--radius-md` 8 · `--radius-lg` 10 |
-  | Shadow | `--shadow-sm/-card/-card-hover/-drag/-float` |
+  | Radius | `--radius-xs` 4 · `--radius-sm` 6 · `--radius`/`--radius-md` 8 · `--radius-lg` 10 · `--radius-xl` 12 · `--radius-pill` 999 |
+  | Shadow | `--shadow-sm/-card/-card-hover/-drag/-float/-focus` |
   | Stacking | the 13-token `--layer-*` scale (see `../renderer-surfaces.md`) |
+
+  **Exact-value tokenization only (C2, 2026-07-10):** `--radius-xs`/`--radius-xl`/
+  `--radius-pill` and `--shadow-focus` were minted by replacing a literal with
+  a token that resolves to the identical value — pixel-identical by
+  construction, no visual review needed. `--radius-xs`/`--radius-xl` (not
+  `-sm`/`-lg` as an earlier plan draft proposed) because `--radius-sm` (6px)
+  and `--radius-lg` (10px) already existed and are load-bearing for `ui/`;
+  reusing those names for 4px/12px would have silently changed their
+  resolved value. Normalizing near-miss literals (6px/7px/10px/5px/3px/50%
+  radii; 2px-ring or other-opacity shadows) onto an existing token is a
+  **different, pixel-changing operation** gated behind a visual diff — do
+  not fold those into a "just use the token" edit without one.
 
   The oklch frame-tint engine (`FrameNodeBody`) is deliberately isolated from
   this palette; its `--frame-*` dials are per-scope parameters, not tokens.
