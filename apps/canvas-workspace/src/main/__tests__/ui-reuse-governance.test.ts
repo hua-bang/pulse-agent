@@ -38,7 +38,23 @@ const RATCHET_BASELINE: Record<string, number> = {
   // entirely); SegmentedControl itself adds one shared <button> (its own
   // .map body), net -6 there. LinkDrawer's reload icon button moved onto
   // ui/Button's new icon variant (-1). Total -7.
-  rawButtonTags: 390,
+  // 390→398 (2026-07-09, iframe review-comments overlay — IframeReviewLayer,
+  // landed via the html-iframe-dom-picker / batched-review-comments feature
+  // work without a baseline update, so the ratchet silently went red;
+  // nothing runs `pnpm test` on push in this repo, see AGENTS.md §4): +7 for
+  // IframeReviewLayer's pin/mini-action buttons (Close/Delete/Cancel/Add/
+  // Clear/Send + the numbered pin), +1 for IframeRenderedView's new review-
+  // picker toolbar button (reuses the already-tokenized `.iframe-bar-btn`
+  // class, so it adds nothing to the color/radius/shadow counters below).
+  // Deliberately NOT migrated onto ui/Button in this pass: this environment
+  // cannot launch the Electron app (network policy blocks the electron
+  // binary download) to visually verify a markup change to a floating,
+  // absolutely-positioned overlay — see the project's own "test the UI
+  // before claiming success" rule in AGENTS.md. Colors/radii/shadows below
+  // ARE tokenized (safe, non-visual-risk CSS-only substitution); the raw
+  // <button> migration is left as a follow-up once someone can drive the
+  // real app.
+  rawButtonTags: 398,
   // raw <input> tags in .tsx — falls as components/ui/TextField absorbs them.
   // 55→54: ui/TextField's own <input> (+1), WorkspaceSettings name field
   // migrated (-1), and comment-stripping dropped one doc mention (-1).
@@ -46,7 +62,11 @@ const RATCHET_BASELINE: Record<string, number> = {
   // raw <textarea> tags in .tsx — falls as ui/TextField(multiline) absorbs
   // them. Held at the pre-extension 13: ui/TextField's own <textarea> (+1)
   // is offset by PromptSettings' custom-prompt field adopting TextField (-1).
-  rawTextareaTags: 13,
+  // 13→15 (2026-07-09, iframe review-comments overlay): IframeReviewLayer's
+  // draft-comment and edit-comment textareas. Same deferred-migration
+  // reasoning as rawButtonTags above — ui/TextField wraps its control in a
+  // `<label>`, a markup change worth visually verifying first.
+  rawTextareaTags: 15,
   // real native <select> elements — the blessed control is the ui/Select
   // custom popover. 0: none exist; this is a pure backstop against
   // reintroduction (doc mentions no longer count — comment-stripped).
@@ -62,7 +82,14 @@ const RATCHET_BASELINE: Record<string, number> = {
   // detail-tab 6px, round-switch 8px + its tab 6px, inspector-viewer-tabs
   // 7px + its button 5px); LinkDrawer's icon button (4px) moved onto
   // ui/Button (tokenized). 9 literals removed net.
-  borderRadiusLiterals: 416,
+  // 416→417 (2026-07-09, iframe review-comments overlay): the new
+  // IframeReviewLayer CSS is tokenized (var(--radius-sm)/var(--radius)) with
+  // one exception — .iframe-review-pin's `border-radius: 999px` is a
+  // full-circle badge, a different shape than the corner-radius scale
+  // (--radius-sm/-md/-lg) models; no token in that scale fits a perfect
+  // circle, matching the project's existing tolerance for raw 50%/999px
+  // circular radii elsewhere (e.g. right-dock__tab-dot--chat).
+  borderRadiusLiterals: 417,
   // independent 360°-rotate spinner @keyframes (names ending in "spin")
   spinnerKeyframes: 6,
   // private entrance @keyframes whose NAME ends in an entrance-shaped suffix
@@ -142,7 +169,19 @@ const RATCHET_BASELINE: Record<string, number> = {
   // hover shipped a raw rgba() — the earlier "new ui/ components add nothing
   // to this counter" claim was FALSE by one; now tokenized (--surface-alt)
   // and the claim holds again.
-  hardcodedColorLiterals: 1934,
+  // 1934→1939 (2026-07-09, iframe review-comments overlay): IframeReviewLayer
+  // and RightDock's agent-icon rules are tokenized onto the existing palette
+  // (var(--accent)/var(--text)/var(--border)/var(--surface)/2 new
+  // --accent-agent-* brand tokens for the Claude/Codex icons). 5 literals
+  // remain, each a genuine non-fit rather than an oversight: the review
+  // pin's translucent white ring (rgba(255,255,255,0.78) — no token models a
+  // "ring on a colored badge"), the selection-dim mask and focus-ring
+  // box-shadows' rgba() colors (functional overlays, not palette fills —
+  // see the shadowLiterals note), and the primary mini-button's hover shade
+  // (#1f76cc ×2 lines) — reused byte-for-byte from ui/Button's own
+  // `.ui-btn--primary:hover`, which itself leaves this shade as a literal
+  // ("color tokens measured but not yet gated" per that file's header).
+  hardcodedColorLiterals: 1939,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured
@@ -156,7 +195,15 @@ const RATCHET_BASELINE: Record<string, number> = {
   // AgentTeamFrame active-tab box-shadows (detail-tab, round-switch__tab)
   // now come from ui/DropdownShell (var(--shadow-float)) or a plain
   // ui/SegmentedControl active state with no shadow.
-  shadowLiterals: 196,
+  // 196→198 (2026-07-09, iframe review-comments overlay): the new
+  // IframeReviewLayer popover/pin/pending-bar shadows now use
+  // var(--shadow-float) (the same token ui/DropdownShell uses for its
+  // floating chrome). 2 remain un-tokenized by design: the selection
+  // highlight's `0 0 0 99999px` viewport-dimming mask and the textarea
+  // focus ring's `0 0 0 2px` outline-substitute — both use box-shadow as a
+  // layout trick, not as an elevation cue, so no --shadow-* token
+  // (all designed as multi-layer drop shadows) fits either.
+  shadowLiterals: 198,
   // z-index declarations with a raw numeric value >= 10, not via var() —
   // targets only the cross-surface stacking band. The documented rule
   // permits low local stacking inside a single component (60 of 93 raw

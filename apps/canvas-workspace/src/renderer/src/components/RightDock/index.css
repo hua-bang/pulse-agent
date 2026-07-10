@@ -299,7 +299,7 @@
 }
 
 .right-dock__tab-icon--agent {
-  color: #202123;
+  color: var(--accent-agent-codex);
 }
 
 .right-dock__tab-icon--agent svg {
@@ -309,11 +309,11 @@
 }
 
 .right-dock__tab-icon--agent-claude-code {
-  color: #d97757;
+  color: var(--accent-agent-claude-code);
 }
 
 .right-dock__tab-icon--agent-codex {
-  color: #202123;
+  color: var(--accent-agent-codex);
 }
 
 .right-dock__tab-icon--link {
@@ -330,11 +330,11 @@
 }
 
 .right-dock__tab--active .right-dock__tab-icon--agent-claude-code {
-  color: #d97757;
+  color: var(--accent-agent-claude-code);
 }
 
 .right-dock__tab--active .right-dock__tab-icon--agent-codex {
-  color: #202123;
+  color: var(--accent-agent-codex);
 }
 
 .right-dock__tab-title {
