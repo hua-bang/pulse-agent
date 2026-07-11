@@ -254,7 +254,9 @@ const chatStreamScenario = async (cdp) => {
   const inputSel = '.chat-panel .chat-input[contenteditable="true"]';
   const sendSel = '.chat-panel .chat-send-btn:not(.chat-send-btn--stop)';
   await evaluate(cdp, `document.querySelector('.ui-drawer-close')?.click()`);
-  await waitFor(() => evaluate(cdp, `!!document.querySelector(${JSON.stringify(inputSel)})`), 10_000);
+  await evaluate(cdp, `document.querySelector('.chat-floating-button')?.click()`);
+  await waitFor(() => evaluate(cdp, `!!document.querySelector(${JSON.stringify(inputSel)})`), 10_000)
+    .catch(() => { throw new Error('chat panel did not mount after opening the right dock'); });
   const initialAssistantCount = await evaluate(
     cdp,
     `document.querySelectorAll('.chat-panel .chat-message-assistant').length`,
@@ -417,13 +419,18 @@ const ptyStreamScenario = async (cdp) => {
 
 const typingScenario = async (cdp, repeatCount = 1) => {
   const editorSel = '.canvas-node--file .ProseMirror';
-  // C1/C6 made FileNodeBody React.lazy — wait for the lazy chunk to load +
-  // ProseMirror to mount before targeting it. On CI the chunk lands slower
-  // than on dev macOS, so a one-shot query races the lazy boundary.
+  const previewSel = '.canvas-node--file .file-preview--editable';
+  await waitFor(
+    () => evaluate(cdp, `!!document.querySelector(${JSON.stringify(previewSel)})`),
+    10_000,
+  ).catch(() => { throw new Error(`file preview did not mount (${previewSel})`); });
+  await evaluate(cdp, `document.querySelector(${JSON.stringify(previewSel)})?.click()`);
+  // File nodes now mount a lightweight Markdown preview. The first click
+  // crosses the editor boundary; wait for Tiptap before measuring typing.
   await waitFor(
     () => evaluate(cdp, `!!document.querySelector(${JSON.stringify(editorSel)})`),
     10_000,
-  );
+  ).catch(() => { throw new Error(`file editor did not mount after preview activation (${editorSel})`); });
   const point = await hittablePointIn(cdp, editorSel);
   if (!point) throw new Error(`no unobstructed editor found (${editorSel}) — file nodes missing or fully covered`);
   await waitForCalmFrames(cdp);

@@ -17,6 +17,7 @@ import { isReferenceableNode, isReferenceableNodeType } from '../../utils/refere
 import { useMountedWorkspaceIds } from './useMountedWorkspaceIds';
 import { useChatInsertionBridge } from './useChatInsertionBridge';
 import { WorkspaceTerminalPortal } from './WorkspaceTerminalPortal';
+import { useLoadedChatWorkspaceIds } from './useLoadedChatWorkspaceIds';
 export { useWorkbenchState } from './useWorkbenchState';
 export type { WorkbenchController } from './useWorkbenchState';
 const EMPTY_REFERENCES: ReferenceEntry[] = [];
@@ -58,7 +59,6 @@ export const Workbench: React.FC<WorkbenchProps> = ({
     clearDeleteRequest,
     clearRenameRequest,
   } = controller;
-
   // Chat lives in the right dock as its pinned tab; Workbench keeps owning
   // the per-workspace ChatPanel instances (sessions, mentions, keep-alive)
   // and portals them into the dock's chat pane.
@@ -66,9 +66,9 @@ export const Workbench: React.FC<WorkbenchProps> = ({
   const dockState = useRightDockState();
   const chatHost = useRightDockChatHost();
   const chatPanelOpen = dockState.expanded && dockState.activeTabId === CHAT_TAB_ID;
+  const loadedChatWorkspaceIds = useLoadedChatWorkspaceIds(chatPanelOpen, activeWorkspaceId);
   const terminalDockOpen = dockState.expanded
     && dockState.terminalTabs.some((tab) => tab.id === dockState.activeTabId);
-
   const [referenceDrawerOpen, setReferenceDrawerOpen] = useState(false);
   const [referenceDrawerLoaded, setReferenceDrawerLoaded] = useState(false);
   const [referencesByWorkspace, setReferencesByWorkspace] = useState<Record<string, ReferenceEntry[]>>({});
@@ -474,7 +474,7 @@ export const Workbench: React.FC<WorkbenchProps> = ({
             so chat stays usable from any route while its state and handlers
             keep living here next to the canvases. */}
         {chatHost && createPortal(
-          workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id)).map((ws) => (
+          workspaces.filter((ws) => mountedWorkspaceIds.has(ws.id) && loadedChatWorkspaceIds.has(ws.id)).map((ws) => (
             <div
               key={ws.id}
               className="right-dock__chat-instance"

@@ -255,6 +255,15 @@ Mermaid、Tiptap、Graph、MF remote。源码 build 通过不能证明 packaged 
 
 ### Phase 3：真实首屏——File preview/editor 分层
 
+> 实施状态：2026-07-11 已完成 File Markdown 安全预览/Tiptap 首次编辑分层，
+> 并处理同源的 Text 编辑器与关闭状态 ChatPanel；Canvas Search 仅在搜索实际
+> 打开且有查询时加载 ProseMirror 高亮扩展。编辑器首次加载后保持挂载，性能
+> 场景也改为显式跨越 preview→editor 边界后再测打字。warm reload 实测首个
+> Canvas 资源 1,650.7→961.2 KB、LCP 资源 2,071.6→966.1 KB，LCP 约
+> 471–626→213 ms，Long Task 从 1 个/114–127 ms 降为 0；8×100 节点循环
+> 峰值堆从约 169 MB 降至 21.9 MB。完整报告 70/70 核心、13/13 诊断、
+> 20/20 Gate 通过。
+
 **问题**：欢迎画布的 File 节点一挂载就创建完整 Tiptap editor；仅移动它
 到 dynamic chunk 并未消除首屏成本。
 
