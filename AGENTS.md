@@ -14,7 +14,7 @@ This file orients agents working in the Coder repository. It is a thin routing +
 1. Is the problem real, with evidence from this repo or a reproducible case?
 2. Can an existing entry / module / skill / script carry this — if not, why?
 3. What is the minimal change that avoids parallel entries and duplicate rules?
-4. Where is the SSOT for any rule I'm touching, and how do引用方 stay in sync?
+4. Where is the SSOT for any rule I'm touching, and how do referencing parties stay in sync?
 5. Can this be a mechanism (type / lint / test / hook / script) rather than a doc line? If only doc, is the reason stated?
 
 ## 1. Routing

@@ -10,3 +10,15 @@ pathRules:
     required:
       - pnpm --filter pulse-coder-engine test
       - pnpm --filter pulse-coder-engine typecheck
+  - name: plugin-registry-parity
+    # describe-engine hard-errors (--json exit 1) on a dangling plugin
+    # dependency — a plugin declaring a by-NAME dependency on an unregistered
+    # plugin, which aborts Engine construction at runtime. A fast static
+    # registry check with a clearer message than a runtime test abort; binds
+    # the built-in registry so the runner fires it, matching the describe-tool
+    # binding pattern in the other three stations.
+    paths:
+      - src/built-in/**
+      - src/tools/index.ts
+    required:
+      - node harness/tools/describe-engine.mjs --json
