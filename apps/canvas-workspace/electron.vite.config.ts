@@ -185,6 +185,8 @@ export default defineConfig({
     root: "src/renderer",
     build: {
       outDir: "dist/renderer",
+      minify: "esbuild",
+      cssMinify: "esbuild",
       // Emit Vite's official manifest (entry → static/dynamic imports) for
       // either interactive treemap analysis or the automated perf report.
       // Chunk output is byte-identical with/without it; only manifest.json differs.

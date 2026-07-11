@@ -139,19 +139,19 @@
     },
 
     "bundle.entry_raw_kb": {
-      "profile": "global-deterministic", "target": 1300, "warning": 1350,
-      "confidence": "high", "basis": "启动入口产品预算与构建产物 ratchet;2026-07-11 基线记账:UI 治理轮(blessed set 16 件 + xs 档)净增,PR #765", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 1374, "tolerancePct": 5, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 680, "warning": 780,
+      "confidence": "high", "basis": "Renderer esbuild minify 后实测 780KB；目标要求继续拆首屏功能边界", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 780, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.entry_gzip_kb": {
-      "profile": "global-deterministic", "target": 270, "warning": 280,
-      "confidence": "high", "basis": "构建产物历史;2026-07-11 基线记账:UI 治理轮净增 +14KB gzip(CI 曾在 285 门槛上 286 红、G 批删减回落到 285)——刻意投资,按门禁自身规则同 PR 上调,PR #765", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 285, "tolerancePct": 5, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 185, "warning": 210,
+      "confidence": "high", "basis": "Renderer esbuild minify 后实测 224KB；目标要求继续拆首屏功能边界", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 224, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.total_js_kb": {
-      "profile": "global-deterministic", "target": 10000, "warning": 11000,
-      "confidence": "high", "basis": "总体积预算与构建产物历史;2026-07-11 基线记账同 entry 两项,PR #765", "asOf": "2026-07-11",
-      "gate": { "kind": "ratchet", "baseline": 10595, "tolerancePct": 10, "scope": "bundle" }
+      "profile": "global-deterministic", "target": 5300, "warning": 5600,
+      "confidence": "high", "basis": "Renderer esbuild minify 后实测 5546KB；后续通过 grammar 去重收敛到推荐态", "asOf": "2026-07-11",
+      "gate": { "kind": "ratchet", "baseline": 5546, "tolerancePct": 3, "scope": "bundle" }
     },
     "bundle.heavy_in_entry_count": {
       "profile": "global-deterministic", "target": 0,
