@@ -14,20 +14,32 @@
   background: #fff;
 }
 
-.link-drawer__url {
+.link-drawer__address-form {
   flex: 1;
   min-width: 0;
+}
+
+.link-drawer__url {
+  box-sizing: border-box;
+  width: 100%;
   height: 28px;
   padding: 0 10px;
   border-radius: var(--radius-xs);
-  background: rgba(55, 53, 47, 0.04);
-  display: flex;
-  align-items: center;
+  background: var(--surface-subtle);
+  border: 1px solid transparent;
+  outline: none;
   font-size: 12px;
   color: rgba(55, 53, 47, 0.65);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.link-drawer__url:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-focus);
+  color: var(--text);
 }
 
 /* ── Webview host ───────────────────────────────────────────────────── */

@@ -1,21 +1,11 @@
 /**
  * RightDock — the right-side panel of the workbench. Its first tab is the
  * pinned chat; preview surfaces (artifacts, intercepted links) open as
- * additional tabs. With no preview tabs the strip is hidden and the dock
- * looks like a plain chat panel.
+ * additional tabs. The strip stays visible on canvas routes so users can
+ * create a web tab directly from chat.
  *
- * Architecture:
- *  - `DockStore` (dock-store.ts) owns tabs / active pointer / expanded /
- *    chat-unread and the dedup policies;
- *  - `RightDockProvider` creates the store; `useRightDock()` exposes the
- *    actions; `useRightDockState()` subscribes to state;
- *  - the chat pane is a portal outlet: `useRightDockChatHost()` hands its
- *    DOM element to Workbench, which portals its per-workspace ChatPanels
- *    into it — chat logic, sessions and keep-alive stay where they always
- *    lived, only the DOM target moved;
- *  - `<RightDock>` is mounted once (AppContent) and STAYS mounted while
- *    collapsed so chat and preview tabs keep their state.
- *
+ * DockStore owns state and deduping. Workbench portals persistent chat panels
+ * into the chat pane, while previews stay mounted across tab switches.
  * Layout: the dock is a fixed right-side element on `--layer-dock`. On
  * the canvas route (`chatTabEnabled`) it reserves its width through the
  * `--right-dock-inset` custom property consumed by `.app-body`, so it
@@ -28,7 +18,6 @@
  * contents in Electron, and keeping artifacts mounted preserves scroll
  * position and rendered mermaid SVG.
  */
-
 import {
   createContext,
   lazy,
@@ -43,7 +32,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { useDragResize } from '../ui';
+import { Button, useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
@@ -104,6 +93,7 @@ const useDockContext = (): RightDockContextValue => {
 export function useRightDock(): {
   openArtifact: (workspaceId: string, artifactId: string) => void;
   openLink: (url: string) => void;
+  newLink: () => void;
   openChat: () => void;
   toggleChat: () => void;
   openTerminal: () => void;
@@ -119,6 +109,7 @@ export function useRightDock(): {
     () => ({
       openArtifact: (workspaceId: string, artifactId: string) => store.openArtifact(workspaceId, artifactId),
       openLink: (url: string) => store.openLink(url),
+      newLink: () => store.newLink(),
       openChat: () => store.openChat(),
       toggleChat: () => store.toggleChat(),
       openTerminal: () => store.openTerminal(),
@@ -213,7 +204,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
   const terminalTabsVisible = chatTabEnabled && state.terminalTabs.length > 0;
   const terminalHostMounted = chatTabEnabled
     && Object.values(state.terminalTabsByWorkspace).some((workspace) => workspace.tabs.length > 0);
-  const tabStripVisible = hasPreviews || terminalTabsVisible;
+  const tabStripVisible = chatTabEnabled || hasPreviews || terminalTabsVisible;
   const visible = state.expanded && (chatTabEnabled || hasPreviews);
   // While the chat tab is unavailable a transient 'chat' active pointer
   // (route guard hasn't run yet) should highlight nothing.
@@ -444,6 +435,16 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             );
           })}
         </div>
+        <Button
+          variant="icon"
+          size="sm"
+          className="right-dock__new-link"
+          aria-label={t('rightDock.newWebTab')}
+          title={t('rightDock.newWebTab')}
+          onClick={() => store.newLink(t('rightDock.newTabTitle'))}
+        >
+          <span aria-hidden="true">+</span>
+        </Button>
         <button
           type="button"
           className="right-dock__collapse"
@@ -486,6 +487,7 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
                   activeWorkspaceId={activeWorkspaceId}
                   onTitleChange={(title) => store.setTitle(tab.id, title)}
                   onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
+                  onNavigate={(url) => store.navigateLink(tab.id, url)}
                   onRequestClose={() => store.close(tab.id)}
                 />
               </Suspense>

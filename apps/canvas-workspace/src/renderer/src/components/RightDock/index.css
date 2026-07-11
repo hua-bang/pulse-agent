@@ -404,6 +404,7 @@
   animation: right-dock-unread-pulse 1.8s ease-out infinite;
 }
 
+.right-dock__new-link,
 .right-dock__collapse {
   appearance: none;
   border: none;
@@ -429,11 +430,21 @@
     transform 0.2s var(--tab-ease);
 }
 
+.right-dock__new-link {
+  font-size: 18px;
+  font-weight: 350;
+}
+
+.right-dock__new-link:hover,
 .right-dock__collapse:hover {
   background: rgba(55, 53, 47, 0.08);
   box-shadow: 0 0 0 1px rgba(55, 53, 47, 0.05);
   color: #37352f;
   transform: translateX(1px);
+}
+
+.right-dock__new-link:hover {
+  transform: translateY(-1px);
 }
 
 @keyframes right-dock-tab-rise {
