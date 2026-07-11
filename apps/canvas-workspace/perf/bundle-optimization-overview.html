@@ -372,14 +372,14 @@
     <header>
       <p class="eyebrow">Canvas Workspace / Bundle Program</p>
       <h1>体积优化，不只是让 entry 数字变小</h1>
-      <p class="lead">从构建产物、真实启动闭包到发布安装包，分五步消除未压缩代码、首屏重型能力和重复依赖。</p>
+      <p class="lead">从构建产物、真实启动闭包到发布安装包，五类动作已经完成并通过最终验收。</p>
       <div class="hero-meta">
         <div class="switcher" aria-label="目标档位">
-          <button type="button" data-mode="recommended" aria-pressed="true">推荐完成态</button>
-          <button type="button" data-mode="aggressive" aria-pressed="false">激进目标</button>
+          <button type="button" data-mode="recommended" aria-pressed="true">本次实际完成态</button>
+          <button type="button" data-mode="aggressive" aria-pressed="false">剩余激进空间</button>
         </div>
         <span>审计基线：2026-07-11 · commit 0eb7a4a4</span>
-        <span>第一期承诺以推荐完成态为准</span>
+        <span>最终验收：23 / 23 Gate 通过</span>
       </div>
     </header>
 
@@ -387,8 +387,8 @@
 
     <section>
       <div class="section-head">
-        <h2>最终能缩到什么程度</h2>
-        <p class="section-note">条形长度表示优化后相对当前的剩余比例；越短，体积收益越大。</p>
+        <h2>最终缩到了什么程度</h2>
+        <p class="section-note">实际完成态的条形长度表示最终值相对原始审计基线的剩余比例。</p>
       </div>
       <div class="comparison" id="comparison"></div>
     </section>
@@ -403,73 +403,73 @@
           <span class="phase-no">01</span>
           <h3>修正测量口径</h3>
           <p>从单 entry 升级为 manifest 启动闭包、功能首用和安装包分层指标。</p>
-          <span class="phase-impact">避免虚假收益</span>
+          <span class="phase-impact">23 / 23 Gate 通过</span>
         </article>
         <article class="phase">
           <span class="phase-no">02</span>
           <h3>开启生产压缩</h3>
           <p>Renderer 显式启用 esbuild 与 CSS minify，Main 单独评估。</p>
-          <span class="phase-impact">Total JS 先降约 50%</span>
+          <span class="phase-impact">Total JS 降低 47.6%</span>
         </article>
         <article class="phase">
           <span class="phase-no">03</span>
           <h3>清理发布包重复依赖</h3>
           <p>迁移 Renderer-only 依赖，精简 locales、无用 SDK 和打包资源。</p>
-          <span class="phase-impact">DMG 减少 46–61 MB</span>
+          <span class="phase-impact">DMG 减少 64.3 MB</span>
         </article>
         <article class="phase">
           <span class="phase-no">04</span>
           <h3>拆分首屏功能边界</h3>
           <p>Settings、DevTools、Drawer、搜索、非默认节点和词典按需加载。</p>
-          <span class="phase-impact">Entry 再降至 600–680 KB</span>
+          <span class="phase-impact">Entry 降至 619 KB</span>
         </article>
         <article class="phase">
           <span class="phase-no">05</span>
           <h3>File 预览与编辑分层</h3>
           <p>只读态使用轻量预览，进入编辑后再初始化 Tiptap 和 grammar。</p>
-          <span class="phase-impact">启动闭包最多降低 77%</span>
+          <span class="phase-impact">启动闭包降低约 72.9%</span>
         </article>
       </div>
     </section>
 
     <section>
       <div class="section-head">
-        <h2>现状、动作与预期收益</h2>
+        <h2>基线、动作与实际收益</h2>
         <p class="section-note">每一项都绑定真实问题和可验收结果，避免只优化报表数字。</p>
       </div>
       <div class="matrix">
         <div class="matrix-row matrix-head" aria-hidden="true">
-          <div>专题</div><div>现状</div><div>动作</div><div>预期收益</div>
+          <div>专题</div><div>审计基线</div><div>已完成动作</div><div>实际收益</div>
         </div>
         <article class="matrix-row">
           <div><h3>Renderer 构建</h3><p>产物压缩</p></div>
           <p>生产构建没有启用 minify。<span class="current-value">Total JS 10.60 MB</span></p>
           <p>Renderer 显式启用 esbuild minify，并确认 CSS minify；检查 name 依赖与生产错误栈。</p>
-          <p class="benefit">Total JS → 5.1–5.3 MB<br />降低 50%–52%</p>
+          <p class="benefit">Total JS → 5.56 MB<br />降低 47.6%</p>
         </article>
         <article class="matrix-row">
           <div><h3>首屏入口</h3><p>应用功能边界</p></div>
           <p>Entry 以应用代码为主，Settings、实验页、Drawer 等仍在首屏。<span class="current-value">Entry 1,380 KB</span></p>
           <p>按用户首用拆功能，同时迁移对应 CSS；i18n 只加载当前语言词典。</p>
-          <p class="benefit">Entry → 600–680 KB<br />降低 51%–57%</p>
+          <p class="benefit">Entry → 619 KB<br />降低 55.1%</p>
         </article>
         <article class="matrix-row">
           <div><h3>真实启动</h3><p>File / Tiptap</p></div>
           <p>欢迎画布的 File 节点挂载即创建完整编辑器。<span class="current-value">启动闭包约 3.22 MB</span></p>
           <p>只读 Markdown preview 与编辑器分层，进入编辑态后再加载 Tiptap，收敛 grammar 集合。</p>
-          <p class="benefit">启动闭包 → 0.75–0.95 MB<br />降低 70%–77%</p>
+          <p class="benefit">Canvas / LCP → 888.1 / 892.9 KB<br />降低约 72.9%</p>
         </article>
         <article class="matrix-row">
           <div><h3>发布安装包</h3><p>依赖去重</p></div>
           <p>Renderer 依赖既进入 Vite bundle，又被 Builder 复制进 node_modules。<span class="current-value">DMG 160.8 MB</span></p>
           <p>迁移 Renderer-only 依赖、删除无引用 Requesty、精简 Electron locales 与发布资源。</p>
-          <p class="benefit">DMG → 100–115 MB<br />降低 29%–38%</p>
+          <p class="benefit">DMG → 96.5 MB<br />降低 40.0%</p>
         </article>
         <article class="matrix-row">
           <div><h3>Main 进程</h3><p>插件按需加载</p></div>
           <p>Feishu、Agent Teams、happy-dom、MF runtime 进入默认主进程路径。<span class="current-value">Main 953 KB</span></p>
           <p>保留轻量注册 shell，命中功能开关或首次调用后再动态加载实现。</p>
-          <p class="benefit">Main → 约 550 KB<br />降低约 42%</p>
+          <p class="benefit">Main → 495 KB<br />降低 48.1%</p>
         </article>
       </div>
     </section>
@@ -488,7 +488,7 @@
     </aside>
 
     <footer>
-      <span>数据来源：真实 build、Rollup module graph、manifest、esbuild 实验与 arm64 发布包审计</span>
+      <span>数据来源：最终 build、CDP 启动追踪、Rollup module graph、manifest 与 arm64 packaged-app smoke</span>
       <span>规划文档：bundle-optimization-plan.md</span>
     </footer>
   </main>
@@ -497,18 +497,18 @@
     const modes = {
       recommended: {
         headline: [
-          ['Renderer 总 JS', '5.1–5.3 MB', '较当前降低 50%–52%'],
-          ['真实启动资源闭包', '0.75–0.95 MB', '较当前降低 70%–77%'],
-          ['arm64 DMG', '100–115 MB', '减少 46–61 MB'],
-          ['解压应用体积', '255–275 MiB', '减少 197–217 MiB']
+          ['Renderer entry JS', '619 KB', '较基线降低 55.1%'],
+          ['真实启动资源闭包', '892.9 KB', '较基线降低约 72.9%'],
+          ['arm64 DMG', '96.5 MB', '较基线降低 40.0%'],
+          ['解压应用体积', '234.9 MiB', '较基线降低 50.2%']
         ],
         rows: [
-          ['Renderer entry JS', '当前 1,380 KB', '600–680 KB', 46.4, '降低 51%–57%'],
-          ['启动 CSS', '当前 284 KB', '120–140 KB', 45.8, '降低 51%–58%'],
-          ['Renderer total JS', '当前 10.60 MB', '5.1–5.3 MB', 49.1, '降低 50%–52%'],
-          ['欢迎画布启动闭包', '当前约 3.22 MB', '0.75–0.95 MB', 26.4, '降低 70%–77%'],
-          ['arm64 DMG', '当前 160.8 MB', '100–115 MB', 66.8, '降低 29%–38%'],
-          ['解压 .app', '当前 471.7 MiB', '255–275 MiB', 56.2, '降低 42%–46%']
+          ['Renderer entry JS', '基线 1,380 KB', '619 KB', 44.9, '降低 55.1%'],
+          ['启动 CSS', '基线 284 KB', '105 KB', 37.0, '降低 63.0%'],
+          ['Renderer total JS', '基线 10.60 MB', '5.56 MB', 52.4, '降低 47.6%'],
+          ['Canvas / LCP 资源闭包', '基线约 3.22 MB', '888.1 / 892.9 KB', 27.1, '降低约 72.9%'],
+          ['arm64 DMG', '基线 160.8 MB', '96.5 MB', 60.0, '降低 40.0%'],
+          ['解压 .app', '基线 471.7 MiB', '234.9 MiB', 49.8, '降低 50.2%']
         ]
       },
       aggressive: {

@@ -1,6 +1,6 @@
 # Canvas Workspace 体积专项执行交接
 
-> 状态：规划就绪，尚未实施。
+> 状态：已完成并通过最终验收（2026-07-11）。
 >
 > 审计基线：2026-07-11，commit `0eb7a4a4`。当前数值来自真实
 > `electron-vite build`、Rollup module graph、Vite manifest、同版本
@@ -34,6 +34,24 @@
 
 “激进上限”依赖 File 轻量预览、Main 深度按需加载或 limited Mermaid，
 不是默认承诺。第一期应以“推荐完成态”为验收边界。
+
+最终实测结果：
+
+| 指标 | 审计基线 | 最终实测 | 相对基线 |
+|---|---:|---:|---:|
+| Renderer entry JS raw | 1,380 KB | 619 KB | -55.1% |
+| Renderer entry JS gzip | 285 KB | 185 KB | -35.1% |
+| 启动 CSS raw | 284 KB | 105 KB | -63.0% |
+| Renderer total JS raw | 10.60 MB | 5.56 MB | -47.6% |
+| Canvas / LCP 前真实资源闭包 | 约 3.22 MB | 888.1 / 892.9 KB | 约 -72.9% |
+| Main bundle raw | 953 KB | 495 KB | -48.1% |
+| arm64 DMG | 160.8 MB | 96.5 MB | -40.0% |
+| 解压 `.app` | 471.7 MiB | 234.9 MiB | -50.2% |
+
+除 Renderer total JS 略高于原推荐预测外，其余推荐完成态均达到或超过；
+总 JS 的剩余空间主要是 limited Mermaid / grammar 等会改变能力边界的可选项，
+不纳入本期默认承诺。最终 Gate 为 23/23，packaged app 已验证首屏、File
+预览与编辑器动态加载。
 
 ## 2. 已验证事实
 
