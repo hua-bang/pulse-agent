@@ -31,6 +31,8 @@
 
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -41,13 +43,8 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-// Imported from the source modules (not the artifacts barrel): the barrel
-// also re-exports chat cards that consume useRightDock from this module,
-// which would create an import cycle.
-import { ArtifactTabView } from '../artifacts/ArtifactTabView';
 import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
-import { LinkTabView } from '../LinkDrawer';
 import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
@@ -63,6 +60,12 @@ const DEFAULT_WIDTH = 480;
 const MIN_WIDTH = 320;
 const MAX_VIEWPORT_RATIO = 0.95;
 const RESIZING_CLASS = 'right-dock-resizing';
+const ArtifactTabView = lazy(() =>
+  import('../artifacts/ArtifactTabView').then((module) => ({ default: module.ArtifactTabView })),
+);
+const LinkTabView = lazy(() =>
+  import('../LinkDrawer').then((module) => ({ default: module.LinkTabView })),
+);
 
 interface RightDockContextValue {
   store: DockStore;
@@ -469,19 +472,23 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             className={`right-dock__pane${tab.id === activePaneId ? ' right-dock__pane--active' : ''}`}
           >
             {tab.kind === 'artifact' ? (
-              <ArtifactTabView
-                workspaceId={tab.workspaceId}
-                artifactId={tab.artifactId}
-                onTitleChange={(title) => store.setTitle(tab.id, title)}
-              />
+              <Suspense fallback={null}>
+                <ArtifactTabView
+                  workspaceId={tab.workspaceId}
+                  artifactId={tab.artifactId}
+                  onTitleChange={(title) => store.setTitle(tab.id, title)}
+                />
+              </Suspense>
             ) : (
-              <LinkTabView
-                url={tab.url}
-                activeWorkspaceId={activeWorkspaceId}
-                onTitleChange={(title) => store.setTitle(tab.id, title)}
-                onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
-                onRequestClose={() => store.close(tab.id)}
-              />
+              <Suspense fallback={null}>
+                <LinkTabView
+                  url={tab.url}
+                  activeWorkspaceId={activeWorkspaceId}
+                  onTitleChange={(title) => store.setTitle(tab.id, title)}
+                  onFaviconChange={(faviconUrl) => store.setFavicon(tab.id, faviconUrl)}
+                  onRequestClose={() => store.close(tab.id)}
+                />
+              </Suspense>
             )}
           </div>
         ))}

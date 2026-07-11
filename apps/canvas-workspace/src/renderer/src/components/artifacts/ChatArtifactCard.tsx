@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useI18n } from '../../i18n';
 import type { Artifact, ArtifactType } from '../../types';
 import { useRightDock } from '../RightDock';
+import './artifacts.css';
 
 export interface ArtifactCardPayload {
   artifactId: string;

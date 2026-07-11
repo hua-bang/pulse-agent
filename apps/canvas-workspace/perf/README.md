@@ -6,6 +6,19 @@ System design — the six aspects, the full metric dictionary (IDs, definitions,
 gate levels), recording schema, and roadmap — lives in **`program.md`** (SSOT);
 this file only covers how to run things.
 
+The bundle/install-size workstream has a self-contained execution handoff in
+**`bundle-optimization-plan.md`**: verified baselines, achievable targets,
+phased task cards, risks, and acceptance commands. Agents changing build
+minification, lazy boundaries, dependency classification, or packaging should
+read it before implementation.
+
+For a presentation-friendly view of the current state, actions, and expected
+benefits, open **`bundle-optimization-overview.html`** directly in a browser.
+
+After producing a macOS arm64 release, run `pnpm --filter canvas-workspace
+perf:package` to record DMG, unpacked app, ASAR, native unpacked, and Electron
+locale metrics in `perf/out/package-report.json`.
+
 ## One command (start here)
 
 ```bash

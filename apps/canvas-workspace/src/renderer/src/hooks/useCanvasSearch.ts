@@ -190,6 +190,9 @@ export const useCanvasSearch = ({ nodes }: Args) => {
       apply(noteSearchModule);
       return;
     }
+    // A closed/empty canvas search has no inline highlights to apply. Do not
+    // wake the Tiptap/ProseMirror search extension on every Canvas mount.
+    if (!open || deferredQuery.trim() === '') return;
     // Nothing to clear before the module ever loaded (highlights can only
     // have been set through `apply`), so a skipped stale run is harmless.
     let cancelled = false;

@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
 
@@ -80,6 +81,22 @@ const cleanupRendererTraceObservers = async (cdp) => {
   })()`).catch(() => false);
 };
 
+const hydrateFileResourceSizes = async (entries) => Promise.all((entries ?? []).map(async (entry) => {
+  if (Math.max(entry.decodedBodySize ?? 0, entry.encodedBodySize ?? 0, entry.transferSize ?? 0) > 0) {
+    return entry;
+  }
+  try {
+    const url = new URL(entry.name);
+    if (url.protocol !== 'file:') return entry;
+    url.search = '';
+    url.hash = '';
+    const stat = await fs.stat(fileURLToPath(url));
+    return { ...entry, decodedBodySize: stat.size, sizeSource: 'filesystem' };
+  } catch {
+    return entry;
+  }
+}));
+
 const metricsMap = (result) => new Map((result?.metrics ?? []).map((entry) => [entry.name, entry.value]));
 
 const durationDeltaMs = (before, after, name) => {
@@ -130,7 +147,49 @@ const blockingTimeWithin = (tasks, startAt, endAt) => round1((tasks ?? []).reduc
   return total + Math.max(0, overlapEnd - overlapStart);
 }, 0));
 
-export const summarizeRendererReload = ({ vitals, marks, beforeMetrics, afterMetrics }) => {
+const summarizeLoadedResources = (resources, firstCanvasMs, lcpMs) => {
+  let documentUrl;
+  try {
+    documentUrl = new URL(resources?.documentUrl ?? '');
+  } catch {
+    return {
+      loadedToCanvasKB: null,
+      loadedToLcpKB: null,
+      loadedToCanvasCount: null,
+      loadedToLcpCount: null,
+    };
+  }
+  const localEntries = (resources?.entries ?? []).filter((entry) => {
+    try {
+      const url = new URL(entry.name);
+      return url.protocol === 'file:' || url.origin === documentUrl.origin;
+    } catch {
+      return false;
+    }
+  });
+  const summarizeBefore = (deadline) => {
+    if (!Number.isFinite(deadline)) return { kb: null, count: null };
+    const loaded = localEntries.filter((entry) => (
+      Number.isFinite(entry.responseEnd) && entry.responseEnd <= deadline
+    ));
+    const bytes = loaded.reduce((total, entry) => total + Math.max(
+      Number(entry.decodedBodySize) || 0,
+      Number(entry.encodedBodySize) || 0,
+      Number(entry.transferSize) || 0,
+    ), 0);
+    return { kb: round1(bytes / 1024), count: loaded.length };
+  };
+  const canvas = summarizeBefore(firstCanvasMs);
+  const lcp = summarizeBefore(lcpMs);
+  return {
+    loadedToCanvasKB: canvas.kb,
+    loadedToLcpKB: lcp.kb,
+    loadedToCanvasCount: canvas.count,
+    loadedToLcpCount: lcp.count,
+  };
+};
+
+export const summarizeRendererReload = ({ vitals, marks, resources, beforeMetrics, afterMetrics }) => {
   const before = metricsMap(beforeMetrics);
   const after = metricsMap(afterMetrics);
   const paint = vitals?.paint ?? {};
@@ -193,6 +252,7 @@ export const summarizeRendererReload = ({ vitals, marks, beforeMetrics, afterMet
           }))
         : [],
     },
+    resources: summarizeLoadedResources(resources, firstCanvasMs, lcpMs),
     cpu: {
       taskMs: durationDeltaMs(before, after, 'TaskDuration'),
       scriptMs: durationDeltaMs(before, after, 'ScriptDuration'),
@@ -246,8 +306,36 @@ export const captureRendererReloadTrace = async (cdp, {
   let captureError = null;
   let complete = null;
   let rawTrace = null;
+  let navigationTimestamp = null;
+  const networkRequests = new Map();
+  const networkUnsubscribe = [
+    cdp.on('Network.requestWillBeSent', (event) => {
+      if (event.type === 'Document') navigationTimestamp = event.timestamp;
+      networkRequests.set(event.requestId, {
+        name: event.request?.url ?? '',
+        initiatorType: String(event.type ?? 'other').toLowerCase(),
+        startedAt: event.timestamp,
+      });
+    }),
+    cdp.on('Network.responseReceived', (event) => {
+      const request = networkRequests.get(event.requestId);
+      if (!request) return;
+      request.name = event.response?.url ?? request.name;
+      request.encodedBodySize = Number(event.response?.encodedDataLength ?? 0);
+    }),
+    cdp.on('Network.loadingFinished', (event) => {
+      const request = networkRequests.get(event.requestId);
+      if (!request) return;
+      request.finishedAt = event.timestamp;
+      request.encodedBodySize = Math.max(
+        request.encodedBodySize ?? 0,
+        Number(event.encodedDataLength ?? 0),
+      );
+    }),
+  ];
 
   try {
+    await cdp.send('Network.enable');
     await cdp.send('Tracing.start', {
       transferMode: 'ReturnAsStream',
       streamFormat: 'json',
@@ -291,6 +379,7 @@ export const captureRendererReloadTrace = async (cdp, {
     if (injected.identifier) {
       await cdp.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: injected.identifier }).catch(() => {});
     }
+    for (const unsubscribe of networkUnsubscribe) unsubscribe();
   }
 
   if (captureError) {
@@ -318,11 +407,39 @@ export const captureRendererReloadTrace = async (cdp, {
         marks: probe?.marks || {},
         url: location.href,
         viewport: { width: innerWidth, height: innerHeight, dpr: devicePixelRatio },
+        resources: [
+          ...performance.getEntriesByType('navigation'),
+          ...performance.getEntriesByType('resource'),
+        ].map((entry) => ({
+          name: entry.name,
+          initiatorType: entry.initiatorType || 'navigation',
+          startTime: entry.startTime,
+          responseEnd: entry.responseEnd,
+          transferSize: entry.transferSize || 0,
+          encodedBodySize: entry.encodedBodySize || 0,
+          decodedBodySize: entry.decodedBodySize || 0,
+        })),
       };
     })()`);
+    const networkResources = [...networkRequests.values()]
+      .filter((entry) => Number.isFinite(entry.finishedAt) && Number.isFinite(navigationTimestamp))
+      .map((entry) => ({
+        name: entry.name,
+        initiatorType: entry.initiatorType,
+        startTime: Math.max(0, (entry.startedAt - navigationTimestamp) * 1000),
+        responseEnd: Math.max(0, (entry.finishedAt - navigationTimestamp) * 1000),
+        transferSize: entry.encodedBodySize ?? 0,
+        encodedBodySize: entry.encodedBodySize ?? 0,
+        decodedBodySize: 0,
+        sizeSource: 'cdp-network',
+      }));
+    const resources = await hydrateFileResourceSizes(
+      networkResources.length > 1 ? networkResources : observed.resources,
+    );
     const summary = summarizeRendererReload({
       vitals: observed,
       marks: observed.marks,
+      resources: { documentUrl: observed.url, entries: resources },
       beforeMetrics,
       afterMetrics,
     });
@@ -347,6 +464,7 @@ export const captureRendererReloadTrace = async (cdp, {
       ...summary,
       diagnostics: {
         supportedEntryTypes: observed.supported,
+        resources,
       },
       artifact: {
         path: relativeTracePath,

@@ -52,7 +52,7 @@ const history = existsSync(historyDir)
 
 const ruleResult = evaluateRules(dictionary, snapshot, history, policyResult);
 const verdict = buildVerdict(dictionary, snapshot, ruleResult.alerts, policyResult);
-const coverage = summarizeCoverage(dictionary, snapshot);
+const coverage = summarizeCoverage(dictionary, snapshot, policyResult.policiesById);
 
 mkdirSync(outDir, { recursive: true });
 mkdirSync(historyDir, { recursive: true });

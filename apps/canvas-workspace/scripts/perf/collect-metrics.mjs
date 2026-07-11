@@ -183,6 +183,23 @@ export const collectPtyStreamMetric = (scenarios) => {
   };
 };
 
+export const collectPackageMetrics = (packageReport) => [
+  ['dmgMB', 'package.dmg_mb'],
+  ['appUnpackedMiB', 'package.app_unpacked_mib'],
+  ['asarMiB', 'package.asar_mib'],
+  ['nativeUnpackedMiB', 'package.native_unpacked_mib'],
+  ['electronLocaleCount', 'package.electron_locale_count'],
+].flatMap(([reportKey, id]) => {
+  const value = packageReport?.metrics?.[reportKey];
+  if (!Number.isFinite(value)) return [];
+  return [{
+    id,
+    value,
+    runs: 1,
+    detail: `${packageReport.platform}/${packageReport.arch} · commit ${packageReport.commit}`,
+  }];
+});
+
 export const collectRendererTraceMetrics = (scenarios) => {
   const trace = scenarios?.scenarios?.['renderer-trace'];
   if (trace?.status !== 'measured') return [];
@@ -230,6 +247,18 @@ export const collectRendererTraceMetrics = (scenarios) => {
       value: trace.blocking?.longTaskMaxMs,
       runs: 1,
       detail: longTaskDetail,
+    },
+    {
+      id: 'startup.loaded_to_canvas_kb',
+      value: trace.resources?.loadedToCanvasKB,
+      runs: 1,
+      detail: `${trace.resources?.loadedToCanvasCount ?? 'unknown'} local resources completed by first Canvas · ${detail}`,
+    },
+    {
+      id: 'startup.loaded_to_lcp_kb',
+      value: trace.resources?.loadedToLcpKB,
+      runs: 1,
+      detail: `${trace.resources?.loadedToLcpCount ?? 'unknown'} local resources completed by LCP · ${detail}`,
     },
     { id: 'startup.renderer_reload.task_ms', value: trace.cpu?.taskMs, runs: 1, detail },
     { id: 'startup.renderer_reload.script_ms', value: trace.cpu?.scriptMs, runs: 1, detail },
@@ -313,6 +342,7 @@ export const collectWorkspaceCycleMetrics = (scenarios) => {
 
 export const collectMetrics = () => {
   const bundle = readJson(join(outDir, 'bundle-report.json'));
+  const packageReport = readJson(join(outDir, 'package-report.json'));
   const scenarios = readJson(join(outDir, 'scenarios-report.json'));
   const inferredRepeat = scenarios
     ? Math.max(
@@ -333,11 +363,28 @@ export const collectMetrics = () => {
       ['entryRawKB', 'bundle.entry_raw_kb'],
       ['entryGzipKB', 'bundle.entry_gzip_kb'],
       ['totalJsKB', 'bundle.total_js_kb'],
+      ['startupJsRawKB', 'bundle.startup_js_raw_kb'],
+      ['startupJsGzipKB', 'bundle.startup_js_gzip_kb'],
+      ['startupCssRawKB', 'bundle.startup_css_raw_kb'],
+      ['startupCssGzipKB', 'bundle.startup_css_gzip_kb'],
+      ['startupRequestCount', 'bundle.startup_request_count'],
+      ['totalCssRawKB', 'bundle.total_css_raw_kb'],
+      ['mainRawKB', 'bundle.main_raw_kb'],
+      ['preloadRawKB', 'bundle.preload_raw_kb'],
     ]) {
       const gate = gateFor(reportKey);
       push(id, bundle.metrics[reportKey], gate ? { pass: gate.pass, limit: gate.limit } : {});
     }
     push('bundle.chunk_count', bundle.metrics.chunkCount);
+    for (const feature of ['file', 'chat', 'terminal', 'graph', 'mermaid', 'mf']) {
+      push(
+        `bundle.feature_first_load.${feature}_raw_kb`,
+        bundle.metrics.featureFirstLoad?.[feature]?.rawKB,
+        bundle.metrics.featureFirstLoad?.[feature]
+          ? { detail: `${bundle.metrics.featureFirstLoad[feature].requestCount} incremental requests` }
+          : {},
+      );
+    }
     const heavyInEntry = bundle.probes.filter((p) => p.inEntry);
     push('bundle.heavy_in_entry_count', heavyInEntry.length, {
       detail: heavyInEntry.length > 0
@@ -364,6 +411,10 @@ export const collectMetrics = () => {
       pass: watchlistPass,
       ...(regressed.length ? { detail: regressed.join(' · ') } : {}),
     });
+  }
+
+  if (packageReport) {
+    metrics.push(...collectPackageMetrics(packageReport));
   }
 
   const phases = scenarios?.scenarios?.startup?.mainPhases;

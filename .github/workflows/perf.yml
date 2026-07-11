@@ -8,10 +8,10 @@ name: Performance
 
 on:
   pull_request:
-    paths: ['apps/canvas-workspace/**']
+    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml']
   push:
     branches: [master]
-    paths: ['apps/canvas-workspace/**']
+    paths: ['apps/canvas-workspace/**', '.github/workflows/perf.yml']
 
 permissions:
   contents: read
@@ -109,3 +109,41 @@ jobs:
                 owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body,
               });
             }
+
+  package-macos-arm64:
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure Electron binary
+        run: pnpm --filter canvas-workspace setup:electron
+
+      - name: Build workspace dependencies
+        run: pnpm run build:core
+
+      - name: Build arm64 package
+        run: pnpm --filter canvas-workspace package:mac:arm64
+
+      - name: Evaluate package Gates
+        run: pnpm --filter canvas-workspace perf:package
+
+      - name: Upload package report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-package-macos-arm64
+          path: apps/canvas-workspace/perf/out/package-report.json
+          if-no-files-found: warn

@@ -1,9 +1,14 @@
+import { lazy, Suspense } from 'react';
 import { useLocation } from 'wouter';
 import { SettingsIcon } from '../../../renderer/src/components/icons';
 import type { AgentDebugTrace } from '../../../renderer/src/types';
 import type { RendererCanvasPlugin, RendererCtx } from '../../types';
-import { AgentDebugPage } from './AgentDebugPage';
-import { ChatDebugTrace } from './ChatDebugTrace';
+const AgentDebugPage = lazy(() =>
+  import('./AgentDebugPage').then((module) => ({ default: module.AgentDebugPage })),
+);
+const ChatDebugTrace = lazy(() =>
+  import('./ChatDebugTrace').then((module) => ({ default: module.ChatDebugTrace })),
+);
 
 // Read URL query off the wouter hash location (location is the path
 // after '#', which may itself contain a '?<query>' suffix).
@@ -17,14 +22,16 @@ const DebugRoute = ({ invoke }: { invoke: RendererCtx['invoke'] }) => {
   const runId = parseQuery(location).get('runId');
 
   return (
-    <AgentDebugPage
-      invoke={invoke}
-      selectedRunId={runId}
-      onSelectRun={(r) =>
-        setLocation(`/debug?${new URLSearchParams({ runId: r }).toString()}`)
-      }
-      onBackToCanvas={() => setLocation('/')}
-    />
+    <Suspense fallback={null}>
+      <AgentDebugPage
+        invoke={invoke}
+        selectedRunId={runId}
+        onSelectRun={(r) =>
+          setLocation(`/debug?${new URLSearchParams({ runId: r }).toString()}`)
+        }
+        onBackToCanvas={() => setLocation('/')}
+      />
+    </Suspense>
   );
 };
 
@@ -63,7 +70,11 @@ export const DevtoolsRendererPlugin: RendererCanvasPlugin = {
         const detail = await ctx.invoke<{ trace: AgentDebugTrace }>('get-run', ref.runId);
         return detail.trace;
       },
-      Component: ({ payload }) => <ChatDebugTrace trace={payload} />,
+      Component: ({ payload }) => (
+        <Suspense fallback={null}>
+          <ChatDebugTrace trace={payload} />
+        </Suspense>
+      ),
     });
   },
 };

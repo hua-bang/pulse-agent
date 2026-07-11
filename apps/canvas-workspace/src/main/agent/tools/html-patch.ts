@@ -8,10 +8,14 @@ import { broadcastUpdate } from './_shared/broadcast';
 import { loadCanvas, saveCanvas } from './_shared/canvas-io';
 import {
   htmlPatchOperationSchema,
-  patchHtmlContent,
   type HtmlPatchOperation,
-} from './_shared/html-patch';
+} from './_shared/html-patch-schema';
 import type { CanvasTool } from './types';
+
+const patchHtmlContent = async (html: string, operations: HtmlPatchOperation[]) => {
+  const patcher = await import('./_shared/html-patch');
+  return patcher.patchHtmlContent(html, operations);
+};
 
 const targetSchema = z.object({
   nodeId: z.string().optional().describe('Patch an iframe HTML node. Artifact-backed iframe nodes patch the artifact.'),
@@ -69,7 +73,7 @@ async function patchArtifact(
     return JSON.stringify({ ok: false, error: `artifact is not html: ${artifactId}` });
   }
 
-  const result = patchHtmlContent(current.content, operations);
+  const result = await patchHtmlContent(current.content, operations);
   const artifact = await addArtifactVersion(workspaceId, artifactId, {
     content: result.html,
     prompt,
@@ -114,7 +118,7 @@ async function patchNode(
     return JSON.stringify({ ok: false, error: `iframe node has no local HTML to patch: ${nodeId}` });
   }
 
-  const result = patchHtmlContent(currentHtml, operations);
+  const result = await patchHtmlContent(currentHtml, operations);
 
   const fresh = (await loadCanvas(workspaceId)) ?? initial;
   const idx = fresh.nodes.findIndex(node => node.id === nodeId);

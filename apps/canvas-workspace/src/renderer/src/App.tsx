@@ -1,20 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import './App.css';
 import { AppShellProvider, useAppShell } from './components/AppShellProvider';
-import './components/artifacts/artifacts.css';
+import { DeferredSettings, NodeDetailPageLazy as NodeDetailPage, NodesPageLazy as NodesPage } from './components/AppLazyBoundaries';
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
 import { MigrationSpinner } from './components/MigrationSpinner';
 import { RightDock, RightDockProvider } from './components/RightDock';
-import { Settings, type SettingsSection } from './components/Settings';
+import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
-import { WorkspaceSettingsDrawer } from './components/WorkspaceSettings';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
 import { Workbench, useWorkbenchState } from './components/Workbench';
 import { GraphPageLazy as GraphPage } from './components/WorkspaceNodes/GraphPageLazy';
-import { NodeDetailPage } from './components/WorkspaceNodes/NodeDetailPage';
-import { NodesPage } from './components/WorkspaceNodes/NodesPage';
-import './components/WorkspaceNodes/index.css';
 import { useWorkspaces } from './hooks/useWorkspaces';
 import { parseCanvasLocation } from './utils/canvasLinks';
 import { PulseRouter, PulseRouterView } from './components/router';
@@ -24,14 +20,12 @@ import {
 } from '../../shared/experimental-features';
 import { I18nProvider, useI18n } from './i18n';
 type SelectedWorkspaceNode = { workspaceId: string; nodeId: string };
-
 const ROUTE_CANVAS = '/';
 const ROUTE_CHAT = '/chat';
 const ROUTE_NODES = '/nodes';
 const ROUTE_GRAPH = '/graph';
 const SIDEBAR_COLLAPSED_KEY = 'pulse-canvas.sidebar-collapsed';
 const EMPTY_SELECTED_NODE_IDS: string[] = [];
-
 const readSidebarCollapsedPreference = (): boolean => {
   if (typeof window === 'undefined') return false;
   try {
@@ -100,14 +94,21 @@ const AppContent = () => {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readSidebarCollapsedPreference);
   const [settingsWorkspaceId, setSettingsWorkspaceId] = useState<string | null>(null);
+  const [workspaceSettingsLoaded, setWorkspaceSettingsLoaded] = useState(false);
   const [selectedNode, setSelectedNode] = useState<SelectedWorkspaceNode | null>(null);
   // null = global Settings drawer closed. Setting to a section name opens
   // the drawer focused on that section.
   const [appSettingsSection, setAppSettingsSection] = useState<SettingsSection | null>(null);
+  const [appSettingsLoaded, setAppSettingsLoaded] = useState(false);
   const openAppSettings = useCallback((section: SettingsSection) => {
+    setAppSettingsLoaded(true);
     setAppSettingsSection(section);
   }, []);
   const closeAppSettings = useCallback(() => setAppSettingsSection(null), []);
+  const openWorkspaceSettings = useCallback((workspaceId: string) => {
+    setWorkspaceSettingsLoaded(true);
+    setSettingsWorkspaceId(workspaceId);
+  }, []);
 
   const handleSidebarToggle = useCallback(() => {
     setSidebarCollapsed((collapsed) => {
@@ -484,7 +485,7 @@ const AppContent = () => {
           onRename={handleRenameWorkspace}
           onDelete={handleDeleteWorkspace}
           onExport={handleExportWorkspace}
-          onOpenSettings={setSettingsWorkspaceId}
+          onOpenSettings={openWorkspaceSettings}
           onOpenAppSettings={() => openAppSettings('models')}
           onImport={handleImportWorkspace}
           onCreateFolder={handleCreateFolder}
@@ -517,7 +518,7 @@ const AppContent = () => {
               controller={workbench}
               onSelectWorkspace={handleSelectWorkspace}
               onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={setSettingsWorkspaceId}
+              onOpenWorkspaceSettings={openWorkspaceSettings}
               onSetActiveRootFolder={handleSetActiveRootFolder}
             />
           </PulseRouterView>
@@ -530,28 +531,32 @@ const AppContent = () => {
               onExit={exitChatView}
               onNodeFocus={handleNodeFocusFromChatPage}
               onOpenAppSettings={openAppSettings}
-              onOpenWorkspaceSettings={setSettingsWorkspaceId}
+              onOpenWorkspaceSettings={openWorkspaceSettings}
             />
           </PulseRouterView>
           {NODES_ENABLED && (
             <PulseRouterView name="nodes">
-              <NodesPage
-                workspaces={workspaces}
-                selectedNode={selectedNode}
-                onSelectNode={setSelectedNode}
-                onOpenNode={openNodePage}
-                onOpenAppSettings={openAppSettings}
-              />
+              <Suspense fallback={null}>
+                <NodesPage
+                  workspaces={workspaces}
+                  selectedNode={selectedNode}
+                  onSelectNode={setSelectedNode}
+                  onOpenNode={openNodePage}
+                  onOpenAppSettings={openAppSettings}
+                />
+              </Suspense>
             </PulseRouterView>
           )}
           {NODES_ENABLED && (
             <PulseRouterView name="node-detail">
-              <NodeDetailPage
-                workspaceId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[1]) : ''}
-                nodeId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[2]) : null}
-                workspaces={workspaces}
-                onBack={enterNodesView}
-              />
+              <Suspense fallback={null}>
+                <NodeDetailPage
+                  workspaceId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[1]) : ''}
+                  nodeId={detailNodeMatch ? decodeURIComponent(detailNodeMatch[2]) : null}
+                  workspaces={workspaces}
+                  onBack={enterNodesView}
+                />
+              </Suspense>
             </PulseRouterView>
           )}
           {GRAPH_ENABLED && (
@@ -576,25 +581,20 @@ const AppContent = () => {
       </div>
       <RightDock activeWorkspaceId={activeId} chatTabEnabled={activeView === 'canvas'} />
       <MigrationSpinner />
-      <WorkspaceSettingsDrawer
-        workspace={
-          settingsWorkspaceId
-            ? workspaces.find((ws) => ws.id === settingsWorkspaceId) ?? null
-            : null
-        }
-        onClose={() => setSettingsWorkspaceId(null)}
-        onRename={renameWorkspace}
+      <DeferredSettings
+        appLoaded={appSettingsLoaded}
+        appSection={appSettingsSection}
+        workspaceLoaded={workspaceSettingsLoaded}
+        workspaceId={settingsWorkspaceId}
+        workspaces={workspaces}
+        onCloseApp={closeAppSettings}
+        onCloseWorkspace={() => setSettingsWorkspaceId(null)}
+        onRenameWorkspace={renameWorkspace}
         onSetRootFolder={setRootFolder}
-      />
-      <Settings
-        open={appSettingsSection !== null}
-        initialSection={appSettingsSection ?? 'models'}
-        onClose={closeAppSettings}
       />
     </div>
   );
 };
-
 const App = () => (
   <I18nProvider>
     <AppShellProvider>
@@ -604,5 +604,4 @@ const App = () => (
     </AppShellProvider>
   </I18nProvider>
 );
-
 export default App;

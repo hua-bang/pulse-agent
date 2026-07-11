@@ -30,6 +30,15 @@ describe('renderer trace summary', () => {
         settledAt: 200,
       },
       marks: { 'canvas:first-render': 120 },
+      resources: {
+        documentUrl: 'file:///app/index.html',
+        entries: [
+          { name: 'file:///app/index.html', responseEnd: 15, decodedBodySize: 200 },
+          { name: 'file:///app/assets/index.js', responseEnd: 80, decodedBodySize: 1000 },
+          { name: 'file:///app/assets/index.css', responseEnd: 130, decodedBodySize: 500 },
+          { name: 'https://remote.example/embed.js', responseEnd: 60, decodedBodySize: 10_000 },
+        ],
+      },
       beforeMetrics: { metrics: [
         { name: 'TaskDuration', value: 1.8 },
         { name: 'ScriptDuration', value: 1.2 },
@@ -57,6 +66,12 @@ describe('renderer trace summary', () => {
         timeCanvasToLcpMs: 0,
         longTaskCount: 2,
         longTaskMaxMs: 80,
+      },
+      resources: {
+        loadedToCanvasKB: 1.2,
+        loadedToLcpKB: 1.7,
+        loadedToCanvasCount: 2,
+        loadedToLcpCount: 3,
       },
       cpu: {
         taskMs: 200,

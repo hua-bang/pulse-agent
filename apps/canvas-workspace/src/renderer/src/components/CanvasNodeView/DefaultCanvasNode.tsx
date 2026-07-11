@@ -25,10 +25,10 @@ import type { CanvasNodeRenderMode, ResizeHandlerFactory } from './types';
 // type; the canvas is keepAlive, so subsequent same-type nodes render
 // synchronously. Light bodies (iframe/dynamic-app/plugin) stay static.
 const AgentNodeBody = lazy(() => import('../AgentNodeBody').then((m) => ({ default: m.AgentNodeBody })));
-const FileNodeBody = lazy(() => import('../FileNodeBody').then((m) => ({ default: m.FileNodeBody })));
+const FileNodeBody = lazy(() => import('../FileNodeBodyLazy').then((m) => ({ default: m.FileNodeBodyLazy })));
 const FrameNodeBody = lazy(() => import('../FrameNodeBody').then((m) => ({ default: m.FrameNodeBody })));
 const TerminalNodeBody = lazy(() => import('../TerminalNodeBody').then((m) => ({ default: m.TerminalNodeBody })));
-const TextNodeBody = lazy(() => import('../TextNodeBody').then((m) => ({ default: m.TextNodeBody })));
+const TextNodeBody = lazy(() => import('../TextNodeBodyLazy').then((m) => ({ default: m.TextNodeBodyLazy })));
 
 interface DefaultCanvasNodeProps {
   classes: string;

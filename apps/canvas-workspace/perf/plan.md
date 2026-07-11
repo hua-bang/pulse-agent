@@ -2,6 +2,9 @@
 
 > 交接文档:任务卡自包含,执行者(人或 Coding Agent)无需全局上下文即可开工。
 > 体系与指标口径见 `program.md`(SSOT);发现明细见 `../docs/performance-analysis-consolidated.md`(+round3,含 file:line 与修法);操作流见 `.pulse-coder/skills/perf-report/SKILL.md`。
+> 2026-07-11 新增体积专项交接:`bundle-optimization-plan.md`。涉及 minify、
+> lazy boundary、Renderer/Main 依赖分类或安装包瘦身时，以该文档的当前审计与
+> 任务拆分为入口；正式指标/阈值仍分别回写 `program.md`/`baselines.json`。
 > 计划制定于 2026-07-04,基线 commit `4c937bb`。
 
 ## 目标与完成判据
