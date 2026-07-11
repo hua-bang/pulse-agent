@@ -40,7 +40,7 @@
 | `startup.renderer.fcp_ms` | renderer navigation → first-contentful-paint | ms | 同机 | record | ✅ |
 | `startup.renderer.first_canvas_ms` | renderer navigation → CanvasSurface 首次渲染 | ms | 同机 | warn | ✅ |
 | `startup.renderer.entry_eval_ms` | navigation → `renderer:main-start` mark;包含导航前段,**不是纯 V8 compile/eval** | ms | 同机 | record | ✅ |
-| `startup.welcome_webview_ms` | 开窗 → welcome webview guest DOM ready(D1) | ms | 同机 | warn | ✅ |
+| `startup.welcome_local_content_ms` | Renderer 导航 → Welcome 本地下载卡片 ready(D1) | ms | 同机 | warn | ✅ |
 | `startup.renderer_reload.lcp_ms` / `.cls` | warm renderer reload 的 lab LCP/CLS;Electron `file://`,不是 CrUX/field CWV | ms/score | 同机同 profile | record·diagnostic | ✅ CDP |
 | `startup.renderer_reload.layout_shift_count` | 无近期输入的 layout-shift entry 数;top 5 shift 同存 summary | 次 | 同机同 profile | record·diagnostic | ✅ CDP |
 | `startup.renderer_reload.blocking_time_to_canvas_ms` | warm reload 的 FCP→Canvas 壳层 mark 阻塞交集;不是完整加载 TBT | ms | 同机同 profile | record·diagnostic | ✅ CDP |

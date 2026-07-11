@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { app } from 'electron';
-import { STORE_DIR, atomicWriteJson, getWorkspaceDir } from './storage';
+import { STORE_DIR, atomicWriteJson, getWorkspaceDir, readCanvasFull } from './storage';
 import { saveCanvas } from './service';
 import {
   WORKSPACES_MANIFEST_FILENAME,
@@ -28,6 +28,9 @@ export type WelcomeLanguage = 'zh' | 'en';
 interface WelcomeStrings {
   noteTitle: string;
   detailTitle: string;
+  downloadTitle: string;
+  downloadBody: string;
+  downloadAction: string;
   noteContent: string;
   detailContent: string;
 }
@@ -36,6 +39,9 @@ const WELCOME_STRINGS: Record<WelcomeLanguage, WelcomeStrings> = {
   zh: {
     noteTitle: '欢迎使用 Pulse Canvas',
     detailTitle: 'Pulse Canvas 使用详细',
+    downloadTitle: '获取最新版 Pulse Canvas',
+    downloadBody: '下载页面将在系统浏览器中打开，不会阻塞工作区启动。',
+    downloadAction: '查看最新版与下载',
     noteContent: `# 欢迎使用 Pulse Canvas
 
 Pulse Canvas 是一个本地优先的可视化工作区：你可以把笔记、网页、文件、终端和 AI Agent 放在同一张画布上，一边整理信息，一边推进动作。
@@ -97,6 +103,9 @@ Pulse Canvas 是一个本地优先的可视化工作区：你可以把笔记、�
   en: {
     noteTitle: 'Welcome to Pulse Canvas',
     detailTitle: 'Pulse Canvas — Detailed Usage',
+    downloadTitle: 'Get the latest Pulse Canvas',
+    downloadBody: 'The download page opens in your browser without delaying workspace startup.',
+    downloadAction: 'View latest release and download',
     noteContent: `# Welcome to Pulse Canvas
 
 Pulse Canvas is a local-first visual workspace: you can place notes, web pages, files, terminals, and AI agents on the same canvas — organizing information on one side while moving work forward on the other.
@@ -157,6 +166,12 @@ Suggested workflow: write goals and to-dos in a Note first, drag key web pages i
   },
 };
 
+const makeWelcomeDownloadHtml = (strings: WelcomeStrings): string => `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:48px;background:linear-gradient(145deg,#f7f9fc,#edf3ff);font:16px/1.6 system-ui,-apple-system,sans-serif;color:#172033}.card{width:min(680px,100%);padding:48px;border:1px solid #dbe4f2;border-radius:24px;background:rgba(255,255,255,.92);box-shadow:0 24px 70px rgba(39,72,122,.12)}.eyebrow{color:#3974d5;font-weight:700;letter-spacing:.08em;text-transform:uppercase}h1{margin:.35em 0 .4em;font-size:clamp(32px,5vw,52px);line-height:1.08}p{color:#566176;font-size:18px}.button{display:inline-block;margin-top:20px;padding:13px 20px;border-radius:12px;background:#1769e0;color:#fff;text-decoration:none;font-weight:700}.button:focus-visible{outline:3px solid #8db9f8;outline-offset:3px}
+</style></head><body><main class="card"><div class="eyebrow">Pulse Canvas</div><h1>${strings.downloadTitle}</h1><p>${strings.downloadBody}</p><a class="button" href="${DOWNLOAD_URL}" target="_blank" rel="noopener noreferrer">${strings.downloadAction}</a></main></body></html>`;
+
 /**
  * Resolve the welcome content language. An explicit override wins; otherwise
  * we follow the OS locale via Electron's `app.getLocale()` — which matches the
@@ -211,9 +226,9 @@ const makeWelcomeNodes = (
       width: 1191,
       height: 1369,
       data: {
-        url: DOWNLOAD_URL,
-        html: '',
-        mode: 'url',
+        url: '',
+        html: makeWelcomeDownloadHtml(strings),
+        mode: 'html',
         prompt: '',
       },
       updatedAt: now,
@@ -256,10 +271,28 @@ export async function ensureWelcomeWorkspaceSeeded(
   root: string = STORE_DIR,
   language?: WelcomeLanguage,
 ): Promise<WelcomeWorkspaceSeedResult> {
-  const existing = await listWorkspaces(root);
-  if (existing.workspaces.length > 0) return { seeded: false };
-
   const strings = WELCOME_STRINGS[resolveWelcomeLanguage(language)];
+  const existing = await listWorkspaces(root);
+  if (existing.workspaces.length > 0) {
+    if (existing.workspaces.some((workspace) => workspace.id === WELCOME_WORKSPACE_ID)) {
+      const current = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
+      const nodes = current.data?.nodes ?? [];
+      const index = nodes.findIndex((node) => node.id === WELCOME_DOWNLOAD_NODE_ID);
+      const node = index >= 0 ? nodes[index] : null;
+      const data = node?.data as { mode?: string; url?: string } | undefined;
+      if (node && data?.mode === 'url' && data.url === DOWNLOAD_URL && current.data) {
+        const nextNodes = [...nodes];
+        nextNodes[index] = {
+          ...node,
+          data: { ...node.data, mode: 'html', url: '', html: makeWelcomeDownloadHtml(strings) },
+          updatedAt: Date.now(),
+        };
+        await saveCanvas(WELCOME_WORKSPACE_ID, { ...current.data, nodes: nextNodes }, { root });
+      }
+    }
+    return { seeded: false };
+  }
+
   const now = Date.now();
   const seededAt = new Date(now).toISOString();
   const workspaceDir = getWorkspaceDir(WELCOME_WORKSPACE_ID, root);

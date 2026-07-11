@@ -44,7 +44,7 @@
 
 **AI 流式完成记录(2026-07-10)**:新增仅在 `PULSE_CANVAS_PERF=1` 可触发的本地确定性回放,521 个 delta 走真实 IPC、`useChatStream` 和 Markdown/Mermaid 渲染链路。文本 delta 以 32ms 视觉窗口合并,流式 Markdown 全量渲染从 374 次降到 64 次(下降 82.9%),frames>20ms 从 0.7% 降到 0.3%,Mermaid tail 0.8ms;`chat-md-stream-render ≤80` 与 commit 同步设为 gate。
 
-**指标补全记录(2026-07-10)**:dashboard 最后 3 个缺口已接通。welcome webview 由 guest `dom-ready` 上报主进程并计算开窗后耗时;AI mock turn 在 temp HOME 中走真实 `SessionStore` 持久化,稳定产生 `main.session_persist.bytes_per_turn`;新增双真实 PTY 定速流场景,统计 renderer 收到的 `pty:data` IPC/s。完整 `perf:report --repeat 3` 实测分别为 896ms、26KB/turn、181.1 IPC/s;覆盖率 40/40,门禁 11/11 通过,0 alerts。
+**指标补全记录(2026-07-10)**:dashboard 最后 3 个缺口已接通。Welcome 内容最初由 guest `dom-ready` 计算开窗后耗时，2026-07-11 已改为本地 HTML 的 `welcome:local-content-ready`；AI mock turn 在 temp HOME 中走真实 `SessionStore` 持久化,稳定产生 `main.session_persist.bytes_per_turn`;新增双真实 PTY 定速流场景,统计 renderer 收到的 `pty:data` IPC/s。
 
 **CDP trace 诊断补全(2026-07-10)**:复用现有 Electron harness 的动态 CDP 端口,完整报告在 100 节点业务场景之后额外执行一次明确命名的 warm renderer reload。采集 lab LCP/CLS、FCP→Canvas blocking time、Task/Script/RecalcStyle/Layout duration,并产出 `renderer-trace-summary.json` + 可由 DevTools/Perfetto 下钻的 `renderer-trace.json.gz`。核心 coverage 与 diagnostic coverage 已拆开:trace 不支持/丢数据会如实显示 unavailable/invalid,但不会伪造 0 或打红现有核心报告。MCP 只作为交互式分析层,不进入 CI 的可复现采集链。
 
@@ -81,7 +81,7 @@
 
 **P2 · 测量补全(当前字典 50 项 core + 11 项 diagnostic)**
 8. ~~**A4 · pan/zoom 场景**~~ → 见下方「A4 完成记录」。
-9. ~~**M1(新)· welcome webview 指标**~~:`iframe:register-webview` 在 guest `dom-ready` 二次上报 ready,main 记录开窗后耗时;真实 Electron 场景已采。
+9. ~~**M1(新)· Welcome 内容指标**~~:本地 HTML iframe `load` 记录 `welcome:local-content-ready`，隔离启动实测 120.1ms；远程下载页仅在用户点击时打开。
 10. **M2(新)· RSS 隔离**:`memory.n100.total_rss_mb` 目前是跨窗口 run-peak(含 ws-cycle 5 workspace,c296930 已注明);把采样窗口限定到 100 节点单 workspace 段,或拆独立场景。
 11. ~~**A5 · treemap 归因**~~:见下方「A5 完成记录」。**C8 评估**(i18n zh 文案是否值得 lazy):A5 数据显示入口内 app own code 高达 1090KB(远超所有 node_modules 依赖总和 ~160KB),i18n 文案只是这 1090KB 里的一小部分——C8 单独做收益有限,真正的下一刀应该是分析 app own code 内部构成(路由级代码分割),而不是挑 i18n 一个文件下手。
 
@@ -163,7 +163,7 @@
 ### B5 · 修 D1:welcome webview 占首屏 〔S-M〕★首发
 - **背景**:D1(high)。`main/canvas/welcome-workspace.ts:205` 首启画布挂外部 URL live webview(沙箱截图可见其错误卡)。
 - **做法**:默认渲染占位卡片,IntersectionObserver 进视口或 idle 后再挂真 webview。
-- **验收**:`startup.welcome_webview_ms` 移出关键路径;冷启 dom-ready 不回归(A3 中位数对比)。
+- **验收**:`startup.welcome_local_content_ms` 使用本地 HTML，移除 Guest WebContents 与远程导航启动依赖。
 
 ### B6 · C 维第一批:重依赖出 entry 〔M-L,依赖 A5〕
 - **背景**:C1-C6(入口 4,618KB,目标 ≤1,500)。全仓唯一懒边界是 mermaid,模式可复制(`chat/utils/mermaid.ts`)。

@@ -157,6 +157,7 @@ export const IframeNodeBody = ({
         loadError={state.loadError}
         loadState={state.loadState}
         mode={state.mode}
+        nodeId={node.id}
         openArtifact={openArtifact}
         domPickerActive={domPickerActive}
         reviewPickerActive={reviewPickerActive}

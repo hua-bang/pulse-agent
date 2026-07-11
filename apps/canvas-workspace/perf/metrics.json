@@ -10,7 +10,7 @@
       "dimensions": [
         { "id": "app-lifecycle", "name": "应用就绪", "description": "主进程启动到首窗 ready" },
         { "id": "canvas-readiness", "name": "画布首帧", "description": "Renderer 首屏与 Canvas 首次渲染" },
-        { "id": "welcome-content", "name": "Welcome 内容", "description": "嵌入 welcome webview 的可用时间" },
+        { "id": "welcome-content", "name": "Welcome 内容", "description": "本地 Welcome 下载卡片的可用时间" },
         { "id": "reload-vitals", "name": "Warm reload 体验", "description": "实验室 LCP、CLS 与首画布前阻塞" },
         { "id": "reload-cpu", "name": "Warm reload CPU", "description": "脚本、样式与布局耗时" }
       ],
@@ -96,7 +96,7 @@
     { "id": "startup.renderer.fcp_ms", "aspect": "startup", "dimension": "canvas-readiness", "displayPriority": "supporting", "label": "renderer FCP", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
     { "id": "startup.renderer.first_canvas_ms", "aspect": "startup", "dimension": "canvas-readiness", "displayPriority": "primary", "label": "renderer 起点 → Canvas 首次渲染", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
     { "id": "startup.renderer.entry_eval_ms", "aspect": "startup", "dimension": "canvas-readiness", "displayPriority": "diagnostic", "label": "导航起点 → renderer main 模块执行点(非纯 compile/eval)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true },
-    { "id": "startup.welcome_webview_ms", "aspect": "startup", "dimension": "welcome-content", "displayPriority": "primary", "label": "welcome webview DOM ready(D1)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
+    { "id": "startup.welcome_local_content_ms", "aspect": "startup", "dimension": "welcome-content", "displayPriority": "primary", "label": "Welcome 本地内容 ready(D1)", "unit": "ms", "comparability": "同机", "level": "warn", "instrumented": true, "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3" },
     { "id": "startup.renderer_reload.lcp_ms", "aspect": "startup", "dimension": "reload-vitals", "displayPriority": "diagnostic", "label": "CDP trace · warm renderer reload LCP(lab)", "unit": "ms", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3-warm-trace" },
     { "id": "startup.renderer_reload.cls", "aspect": "startup", "dimension": "reload-vitals", "displayPriority": "diagnostic", "label": "CDP trace · warm renderer reload CLS(lab)", "unit": "score", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic", "direction": "lower", "measurementProfile": "local-darwin-arm64-n100-r3-warm-trace" },
     { "id": "startup.renderer_reload.layout_shift_count", "aspect": "startup", "dimension": "reload-vitals", "displayPriority": "diagnostic", "label": "CDP trace · unexpected layout shift 数", "unit": "次", "comparability": "同机", "level": "record", "instrumented": true, "coverageClass": "diagnostic" },

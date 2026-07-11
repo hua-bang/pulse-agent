@@ -247,6 +247,7 @@ const startupScenario = async (cdp, session) => {
     mainPhases,
     rendererMarks: probe.marks,
     paint: probe.paint,
+    welcomeLocalContentMs: probe.marks['welcome:local-content-ready'],
   };
 };
 

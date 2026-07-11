@@ -8,6 +8,7 @@ import {
   ensureWelcomeWorkspaceSeeded,
 } from '../canvas/welcome-workspace';
 import { readCanvasFull } from '../canvas/storage';
+import { saveCanvas } from '../canvas/service';
 import { listWorkspaces, WORKSPACES_MANIFEST_FILENAME } from '../canvas/workspaces';
 
 let root: string;
@@ -26,7 +27,7 @@ async function writeManifest(payload: unknown): Promise<void> {
 }
 
 describe('welcome workspace seed', () => {
-  it('seeds a first-run workspace with welcome notes and download page iframe', async () => {
+  it('seeds a first-run workspace with welcome notes and a local download card', async () => {
     const result = await ensureWelcomeWorkspaceSeeded(root, 'zh');
 
     expect(result).toEqual({ seeded: true, workspaceId: WELCOME_WORKSPACE_ID });
@@ -57,7 +58,12 @@ describe('welcome workspace seed', () => {
 
     expect(iframe?.title).toBe('Pulse Canvas Download');
     expect(iframe).toMatchObject({ x: 648, y: 80, width: 1191, height: 1369 });
-    expect(iframe?.data?.url).toBe('https://pulse-canvas-download.pages.dev/');
+    expect(iframe?.data).toMatchObject({
+      mode: 'html',
+      url: '',
+    });
+    expect(iframe?.data?.html).toContain('https://pulse-canvas-download.pages.dev/');
+    expect(iframe?.data?.html).toContain('target="_blank"');
 
     expect(detail).toMatchObject({ x: 56, y: 584.5, width: 502, height: 853 });
     expect(detail?.data?.content).toContain('## 1. 先把工作区连到项目');
@@ -78,6 +84,22 @@ describe('welcome workspace seed', () => {
     expect(note?.data?.content).toContain('Pulse Canvas is a local-first visual workspace');
     expect(detail?.title).toBe('Pulse Canvas — Detailed Usage');
     expect(detail?.data?.content).toContain('## 1. Connect the workspace to your project');
+  });
+
+  it('migrates the untouched remote Welcome download node to local HTML', async () => {
+    await ensureWelcomeWorkspaceSeeded(root, 'zh');
+    const before = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
+    const nodes = (before.data?.nodes ?? []).map((node) => node.id === 'node-welcome-download'
+      ? { ...node, data: { ...node.data, mode: 'url', url: 'https://pulse-canvas-download.pages.dev/', html: '' } }
+      : node);
+    await saveCanvas(WELCOME_WORKSPACE_ID, { ...before.data!, nodes }, { root });
+
+    await expect(ensureWelcomeWorkspaceSeeded(root, 'zh')).resolves.toEqual({ seeded: false });
+
+    const after = await readCanvasFull(WELCOME_WORKSPACE_ID, root);
+    const download = after.data?.nodes?.find((node) => node.id === 'node-welcome-download');
+    expect(download?.data).toMatchObject({ mode: 'html', url: '' });
+    expect(download?.data?.html).toContain('查看最新版与下载');
   });
 
   it('does not seed when a manifest already has workspaces', async () => {

@@ -4,6 +4,7 @@ import { Button } from '../ui/Button';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
 import type { LoadState } from './types';
+import { markOnce } from '../../perf/monitor';
 
 interface IframeRenderedViewProps {
   artifact: Artifact | null;
@@ -25,6 +26,7 @@ interface IframeRenderedViewProps {
   loadError: string | null;
   loadState: LoadState;
   mode: string;
+  nodeId: string;
   openArtifact: (workspaceId: string, artifactId: string) => void;
   domPickerActive: boolean;
   reviewPickerActive: boolean;
@@ -61,6 +63,7 @@ export const IframeRenderedView = ({
   loadError,
   loadState,
   mode,
+  nodeId,
   openArtifact,
   domPickerActive,
   reviewPickerActive,
@@ -225,6 +228,9 @@ export const IframeRenderedView = ({
             key={isArtifactMode ? `artifact-${artifact?.currentVersionId ?? 'loading'}` : webviewKey}
             className="iframe-frame"
             srcDoc={inspectableHtml}
+            onLoad={nodeId === 'node-welcome-download'
+              ? () => markOnce('welcome:local-content-ready')
+              : undefined}
             sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
             title={
               isArtifactMode
