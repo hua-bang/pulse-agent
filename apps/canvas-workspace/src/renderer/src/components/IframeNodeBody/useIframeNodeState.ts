@@ -1,14 +1,14 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
 } from 'react';
 import type { IframeNodeData } from '../../types';
+import { useEmbeddedBrowser } from '../EmbeddedBrowser/useEmbeddedBrowser';
 import { useDeferredVisibleMount } from './useDeferredVisibleMount';
-import type { EditMode, IframeNodeBodyProps, LoadState, WebviewTag } from './types';
+import type { EditMode, IframeNodeBodyProps } from './types';
 import {
   BLANK_PAGE_URL,
   getFriendlyLoadErrorMessage,
@@ -49,13 +49,9 @@ export const useIframeNodeState = ({
   const [genError, setGenError] = useState<string | null>(null);
   const [streamingActive, setStreamingActive] = useState(false);
   const [webviewKey, setWebviewKey] = useState(0);
-  const [loadState, setLoadState] = useState<LoadState>('idle');
-  const [loadError, setLoadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
-  const webviewRef = useRef<WebviewTag | null>(null);
-  const webviewHostRef = useRef<HTMLDivElement>(null);
   const renderIframeRef = useRef<HTMLIFrameElement>(null);
   const streamIframeRef = useRef<HTMLIFrameElement>(null);
   const latestDataRef = useRef(data);
@@ -68,31 +64,47 @@ export const useIframeNodeState = ({
     latestDataRef.current = data;
   }, [data]);
 
+  const webviewHostRef = useRef<HTMLDivElement>(null);
   const shouldMountWebview = useDeferredVisibleMount(webviewHostRef);
-  useLayoutEffect(() => {
-    if (mode !== 'url' || !shouldMountWebview) return;
-    const host = webviewHostRef.current;
-    if (!host) return;
 
-    const webview = document.createElement('webview') as WebviewTag;
-    webview.setAttribute('allowpopups', '');
-    if (url) webview.setAttribute('src', url);
-    webview.className = 'iframe-frame';
-    host.appendChild(webview);
-    webviewRef.current = webview;
+  const handleBrowserTitleChange = useCallback((title: string) => {
+    if (editing || readOnly) return;
+    const rawTitle = sanitizePageTitle(title);
+    const nextTitle = url === BLANK_PAGE_URL && rawTitle === BLANK_PAGE_URL ? 'Blank page' : rawTitle;
+    if (!nextTitle || nextTitle === node.title) return;
+    const latestData = latestDataRef.current;
+    if (!shouldSyncIframeTitle(node.title, latestData, url)) return;
 
-    return () => {
-      webview.remove();
-      if (webviewRef.current === webview) webviewRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, webviewKey, shouldMountWebview]);
+    const nextData = { ...latestData, pageTitle: nextTitle };
+    latestDataRef.current = nextData;
+    onUpdate(node.id, { title: nextTitle, data: nextData });
+  }, [editing, node.id, node.title, onUpdate, readOnly, url]);
 
-  useEffect(() => {
-    const el = webviewRef.current;
-    if (!el || mode !== 'url') return;
-    if (el.getAttribute('src') !== url) el.setAttribute('src', url);
-  }, [url, mode]);
+  const handleBrowserFaviconChange = useCallback((favicons: string[]) => {
+    if (editing || readOnly) return;
+    const faviconUrl = pickFaviconUrl(favicons);
+    if (!faviconUrl) return;
+    const latestData = latestDataRef.current;
+    if (latestData.faviconUrl === faviconUrl) return;
+    const nextData = { ...latestData, faviconUrl };
+    latestDataRef.current = nextData;
+    onUpdate(node.id, { data: nextData });
+  }, [editing, node.id, onUpdate, readOnly]);
+
+  const browser = useEmbeddedBrowser({
+    className: 'iframe-frame',
+    enabled: mode === 'url' && shouldMountWebview,
+    hostRef: webviewHostRef,
+    mountKey: webviewKey,
+    onFaviconChange: handleBrowserFaviconChange,
+    onTitleChange: handleBrowserTitleChange,
+    url,
+  });
+
+  const loadState = editing || mode !== 'url' ? 'idle' : browser.loadState;
+  const loadError = browser.loadError
+    ? getFriendlyLoadErrorMessage(browser.loadError.description, browser.loadError.code)
+    : null;
 
   useEffect(() => { setDraftUrl(url); }, [url]);
   useEffect(() => { setDraftHtml(html); }, [html]);
@@ -103,70 +115,6 @@ export const useIframeNodeState = ({
     if (readOnly || isArtifactMode) setEditing(false);
   }, [readOnly, isArtifactMode]);
 
-  useEffect(() => {
-    if (mode !== 'url' || editing) {
-      setLoadState('idle');
-      setLoadError(null);
-      return;
-    }
-    setLoadState(url ? 'loading' : 'idle');
-    setLoadError(null);
-  }, [editing, mode, url, webviewKey]);
-
-  useEffect(() => {
-    if (mode !== 'url' || editing || readOnly) return;
-    const el = webviewRef.current;
-    if (!el) return;
-
-    const handlePageTitleUpdated = (event: Event) => {
-      const rawTitle = sanitizePageTitle((event as Event & { title?: string }).title);
-      const nextTitle = url === BLANK_PAGE_URL && rawTitle === BLANK_PAGE_URL ? 'Blank page' : rawTitle;
-      if (!nextTitle || nextTitle === node.title) return;
-      const latestData = latestDataRef.current;
-      if (!shouldSyncIframeTitle(node.title, latestData, url)) return;
-
-      const nextData = { ...latestData, pageTitle: nextTitle };
-      latestDataRef.current = nextData;
-      onUpdate(node.id, {
-        title: nextTitle,
-        data: nextData,
-      });
-    };
-    const handlePageFaviconUpdated = (event: Event) => {
-      const faviconUrl = pickFaviconUrl((event as Event & { favicons?: string[] }).favicons);
-      if (!faviconUrl) return;
-      const latestData = latestDataRef.current;
-      if (latestData.faviconUrl === faviconUrl) return;
-      const nextData = { ...latestData, faviconUrl };
-      latestDataRef.current = nextData;
-      onUpdate(node.id, { data: nextData });
-    };
-    const handleDidStartLoading = () => {
-      setLoadState('loading');
-      setLoadError(null);
-    };
-    const handleDidStopLoading = () => setLoadState((current) => current === 'failed' ? current : 'ready');
-    const handleDidFailLoad = (event: Event) => {
-      const detail = event as Event & { errorCode?: number; errorDescription?: string; isMainFrame?: boolean };
-      if (detail.isMainFrame === false) return;
-      if (detail.errorCode === -3) return;
-      setLoadState('failed');
-      setLoadError(getFriendlyLoadErrorMessage(detail.errorDescription, detail.errorCode));
-    };
-
-    el.addEventListener('page-title-updated', handlePageTitleUpdated);
-    el.addEventListener('page-favicon-updated', handlePageFaviconUpdated);
-    el.addEventListener('did-start-loading', handleDidStartLoading);
-    el.addEventListener('did-stop-loading', handleDidStopLoading);
-    el.addEventListener('did-fail-load', handleDidFailLoad);
-    return () => {
-      el.removeEventListener('page-title-updated', handlePageTitleUpdated);
-      el.removeEventListener('page-favicon-updated', handlePageFaviconUpdated);
-      el.removeEventListener('did-start-loading', handleDidStartLoading);
-      el.removeEventListener('did-stop-loading', handleDidStopLoading);
-      el.removeEventListener('did-fail-load', handleDidFailLoad);
-    };
-  }, [data, editing, mode, node.id, node.title, onUpdate, readOnly, shouldMountWebview, url, webviewKey]);
 
   useEffect(() => {
     if (!editing) return undefined;
@@ -207,7 +155,7 @@ export const useIframeNodeState = ({
   useEffect(() => {
     if (editing || mode !== 'url') return;
     if (!workspaceId) return;
-    const el = webviewRef.current;
+    const el = browser.webview;
     if (!el) return;
 
     const api = window.canvasWorkspace.iframe;
@@ -238,7 +186,7 @@ export const useIframeNodeState = ({
       el.removeEventListener('dom-ready', handleReady);
       if (registered) void api.unregisterWebview(workspaceId, node.id);
     };
-  }, [workspaceId, node.id, editing, url, mode, shouldMountWebview, webviewKey]);
+  }, [browser.webview, workspaceId, node.id, editing, url, mode]);
 
   // Drop the webview's paint frame rate when the node is parked outside the
   // canvas viewport long enough. Disabled during editing (no live webview to
@@ -246,7 +194,7 @@ export const useIframeNodeState = ({
   // use a <webview>). readOnly iframes still register a webview and should
   // still benefit. See useWebviewBackgroundThrottle for the rationale.
   useWebviewBackgroundThrottle({
-    hostRef: webviewHostRef,
+    hostRef: browser.hostRef,
     workspaceId,
     nodeId: node.id,
     disabled: editing || mode !== 'url',
@@ -432,28 +380,19 @@ export const useIframeNodeState = ({
   }, [mode, node.id, workspaceId]);
 
   const handleReload = useCallback(() => {
-    setLoadState(mode === 'url' && url ? 'loading' : 'idle');
-    setLoadError(null);
     if (mode !== 'url') {
       setWebviewKey((key) => key + 1);
       return;
     }
-    const el = webviewRef.current;
-    if (el && typeof el.reload === 'function') {
-      try {
-        el.reload();
-        return;
-      } catch {
-        // Fall back to a webview remount.
-      }
-    }
-    setWebviewKey((key) => key + 1);
-  }, [mode, url]);
+    browser.reload();
+  }, [browser, mode]);
 
   return {
     artifact,
     artifactHtml,
     artifactId,
+    canGoBack: browser.canGoBack,
+    canGoForward: browser.canGoForward,
     cancel,
     commit,
     data,
@@ -465,6 +404,8 @@ export const useIframeNodeState = ({
     genError,
     generating,
     handleGenerate,
+    handleGoBack: browser.goBack,
+    handleGoForward: browser.goForward,
     handleKeyDown,
     handleOpenExternal,
     handlePromptKeyDown,

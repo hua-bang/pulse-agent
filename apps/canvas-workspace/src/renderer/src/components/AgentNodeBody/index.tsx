@@ -1,4 +1,5 @@
 import './index.css';
+import '@xterm/xterm/css/xterm.css';
 import { useEffect, useMemo, useState } from 'react';
 import { NodeMentionPicker } from '../NodeMentionPicker';
 import { AgentPicker } from './AgentPicker';

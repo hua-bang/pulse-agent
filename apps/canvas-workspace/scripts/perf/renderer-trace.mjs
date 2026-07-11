@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { waitFor } from '../../harness/tools/driver/src/utils.mjs';
+import { CdpClient } from '../../harness/tools/driver/src/cdp.mjs';
 
 const round1 = (value) => Math.round(value * 10) / 10;
 
@@ -306,6 +307,7 @@ export const captureRendererReloadTrace = async (cdp, {
   let captureError = null;
   let complete = null;
   let rawTrace = null;
+  let postReloadCdp = cdp;
   let navigationTimestamp = null;
   const networkRequests = new Map();
   const networkUnsubscribe = [
@@ -355,8 +357,14 @@ export const captureRendererReloadTrace = async (cdp, {
     traceStarted = true;
     traceComplete = cdp.waitForEvent('Tracing.tracingComplete', 60_000);
     await cdp.send('Page.reload', { ignoreCache: true }, 30_000);
-    await waitForRendererReady(cdp, expectedNodes);
-    await evaluate(cdp, 'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
+    // Electron can leave the pre-navigation page socket open but inert. Keep
+    // it solely for Tracing/Network events and observe the new document over
+    // a fresh connection.
+    postReloadCdp = new CdpClient(cdp.url);
+    await postReloadCdp.connect();
+    await postReloadCdp.send('Performance.enable', { timeDomain: 'timeTicks' });
+    await waitForRendererReady(postReloadCdp, expectedNodes);
+    await evaluate(postReloadCdp, 'new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
     await new Promise((resolveWait) => setTimeout(resolveWait, 750));
   } catch (err) {
     captureError = err;
@@ -383,17 +391,19 @@ export const captureRendererReloadTrace = async (cdp, {
   }
 
   if (captureError) {
-    await cleanupRendererTraceObservers(cdp);
+    await cleanupRendererTraceObservers(postReloadCdp);
+    if (postReloadCdp !== cdp) postReloadCdp.close();
     throw captureError;
   }
   if (!rawTrace) {
-    await cleanupRendererTraceObservers(cdp);
+    await cleanupRendererTraceObservers(postReloadCdp);
+    if (postReloadCdp !== cdp) postReloadCdp.close();
     throw new Error('renderer trace completed without a readable stream');
   }
 
   try {
-    const afterMetrics = await cdp.send('Performance.getMetrics');
-    const observed = await evaluate(cdp, `(() => {
+    const afterMetrics = await postReloadCdp.send('Performance.getMetrics');
+    const observed = await evaluate(postReloadCdp, `(() => {
       const state = window.__pulseRendererTrace || {};
       window.__pulsePerf.begin('_renderer_reload_trace_probe');
       const probe = window.__pulsePerf.end();
@@ -474,6 +484,7 @@ export const captureRendererReloadTrace = async (cdp, {
       },
     };
   } finally {
-    await cleanupRendererTraceObservers(cdp);
+    await cleanupRendererTraceObservers(postReloadCdp);
+    if (postReloadCdp !== cdp) postReloadCdp.close();
   }
 };

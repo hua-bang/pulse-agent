@@ -34,4 +34,19 @@ describe('CdpClient events', () => {
     await expect(event).rejects.toThrow('CDP client closed');
     expect(client.listeners.size).toBe(0);
   });
+
+  it('replaces an inert page socket without letting its close affect the new connection', async () => {
+    const client = new CdpClient('ws://example.test');
+    const previous = { readyState: WebSocket.OPEN, close: vi.fn() };
+    client.socket = previous;
+    const replacement = {};
+    vi.spyOn(client, 'connect').mockImplementation(async () => {
+      client.socket = replacement;
+    });
+
+    await client.reconnect();
+
+    expect(previous.close).toHaveBeenCalledOnce();
+    expect(client.socket).toBe(replacement);
+  });
 });

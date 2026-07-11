@@ -181,6 +181,15 @@ describe('bundle boundaries (static import graph from renderer entry)', () => {
     expect(mermaidUtil).toMatch(/import\(\s*['"]mermaid['"]\s*\)/);
   });
 
+  it.each([
+    'renderer/src/components/WorkspaceTerminalDock/index.tsx',
+    'renderer/src/components/AgentNodeBody/index.tsx',
+    'renderer/src/components/TerminalNodeBody/index.tsx',
+  ])('%s loads the xterm base styles with its lazy chunk', (path) => {
+    const entry = readFileSync(join(srcRoot, path), 'utf-8');
+    expect(entry).toContain("import '@xterm/xterm/css/xterm.css';");
+  });
+
 });
 
 describe('packaged dependency boundary', () => {

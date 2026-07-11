@@ -11,27 +11,39 @@ export class CdpClient {
   }
 
   async connect() {
-    this.socket = new WebSocket(this.url);
+    const socket = new WebSocket(this.url);
+    this.socket = socket;
     await new Promise((resolveOpen, rejectOpen) => {
       const timer = setTimeout(() => rejectOpen(new Error('Timed out connecting to CDP WebSocket')), 10_000);
-      this.socket.addEventListener('open', () => {
+      socket.addEventListener('open', () => {
         clearTimeout(timer);
         resolveOpen();
       }, { once: true });
-      this.socket.addEventListener('error', () => {
+      socket.addEventListener('error', () => {
         clearTimeout(timer);
         rejectOpen(new Error(`Could not connect to CDP WebSocket: ${this.url}`));
       }, { once: true });
     });
 
-    this.socket.addEventListener('message', (event) => {
+    socket.addEventListener('message', (event) => {
+      if (this.socket !== socket) return;
       this.handleMessage(JSON.parse(String(event.data)));
     });
-    this.socket.addEventListener('close', () => {
+    socket.addEventListener('close', () => {
+      if (this.socket !== socket) return;
       const err = new Error(`CDP socket closed: ${this.url}`);
       this.failOutstanding(err);
       this.listeners.clear();
     });
+  }
+
+  /** Reload boundaries can leave Electron's page WebSocket open but inert. */
+  async reconnect() {
+    const previous = this.socket;
+    this.socket = null;
+    this.failOutstanding(new Error(`CDP client reconnecting: ${this.url}`));
+    if (previous && previous.readyState === WebSocket.OPEN) previous.close();
+    await this.connect();
   }
 
   failOutstanding(error) {
