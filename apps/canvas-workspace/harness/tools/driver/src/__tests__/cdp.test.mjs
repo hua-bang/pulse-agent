@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { CdpClient } from '../cdp.mjs';
+import { CdpClient, getTargets } from '../cdp.mjs';
 
 describe('CdpClient events', () => {
   it('routes protocol events and supports unsubscribe', () => {
@@ -48,5 +48,16 @@ describe('CdpClient events', () => {
 
     expect(previous.close).toHaveBeenCalledOnce();
     expect(client.socket).toBe(replacement);
+  });
+});
+
+describe('getTargets', () => {
+  it('returns renderer and guest WebView targets for scenario selection', async () => {
+    const targets = [{ type: 'page', url: 'app://renderer' }, { type: 'webview', url: 'file:///fixture.html' }];
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => targets })));
+
+    await expect(getTargets({ cdpPort: 9222 })).resolves.toEqual(targets);
+
+    vi.unstubAllGlobals();
   });
 });

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { HARNESS_DIR, STORE_RELATIVE_DIR } from './config.mjs';
 import { HarnessError } from './errors.mjs';
 
@@ -65,6 +66,14 @@ async function seedDemoHome(home) {
     '- Use clone or real profiles when a specific workspace is needed.',
   ].join('\n');
   await fs.writeFile(notePath, noteContent, 'utf8');
+  const webviewFixturePath = join(workspaceDir, 'webview-input-fixture.html');
+  await fs.writeFile(webviewFixturePath, [
+    '<!doctype html>',
+    '<meta charset="utf-8">',
+    '<title>Harness WebView Input Fixture</title>',
+    '<label for="guest-input">Guest input</label>',
+    '<input id="guest-input" autocomplete="off">',
+  ].join('\n'), 'utf8');
   await fs.writeFile(join(storeDir, '__workspaces__.json'), JSON.stringify({
     workspaces: [{ id: workspaceId, name: 'Harness Demo' }],
     folders: [],
@@ -99,12 +108,12 @@ async function seedDemoHome(home) {
       {
         id: 'node-harness-web',
         type: 'iframe',
-        title: 'Example Webview',
+        title: 'WebView Input Fixture',
         x: 680,
         y: 150,
         width: 560,
         height: 320,
-        data: { url: 'https://example.com', html: '', mode: 'url', prompt: '' },
+        data: { url: pathToFileURL(webviewFixturePath).href, html: '', mode: 'url', prompt: '' },
         updatedAt: now,
       },
     ],

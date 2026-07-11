@@ -11,6 +11,7 @@ import {
   pressCommand,
   snapshotUiCommand,
   statusCommand,
+  verifyWebviewInputFocusCommand,
 } from './commands.mjs';
 
 export const HELP = `
@@ -28,6 +29,7 @@ Usage:
   pnpm --filter canvas-workspace harness click --xy <x,y>
   pnpm --filter canvas-workspace harness fill --selector <css> <text>
   pnpm --filter canvas-workspace harness press <key-or-combo>
+  pnpm --filter canvas-workspace harness verify-webview-input-focus [--json]
   pnpm --filter canvas-workspace harness logs [--lines 80]
   pnpm --filter canvas-workspace harness close [--cleanup]
 
@@ -43,6 +45,12 @@ Start options:
   --flag <id>                   enable an experimental flag, repeatable
   --enable-webview-page-control shortcut for --flag webview-page-control
   --json                        print machine-readable output
+
+WebView focus verification options:
+  --host-selector <css>         focused host input (default: layer search)
+  --guest-selector <css>        guest input (default: #guest-input)
+  --target <url-or-title-part>  guest target match (default: webview-input-fixture)
+  --text <value>                inserted sentinel text
 `;
 
 export async function main(args) {
@@ -82,6 +90,9 @@ export async function main(args) {
         break;
       case 'press':
         await pressCommand(rawArgs);
+        break;
+      case 'verify-webview-input-focus':
+        await verifyWebviewInputFocusCommand(rawArgs);
         break;
       case 'logs':
         await logsCommand(rawArgs);
