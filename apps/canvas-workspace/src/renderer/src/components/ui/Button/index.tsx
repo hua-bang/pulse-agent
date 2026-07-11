@@ -7,14 +7,16 @@ import './index.css';
 let warnedIconAriaLabel = false;
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'icon';
-/** sm/md apply to every variant; `lg` (32px) is icon-only for now — no CTA
- *  cluster needed a third text-button height when this was added. */
-type ButtonSize = 'sm' | 'md' | 'lg';
+/** xs/sm/md apply to every variant; `lg` (32px) is icon-only for now — no
+ *  CTA cluster needed a third text-button height when that was added. */
+type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
-  /** sm = 30px (cfg-* metrics) / 24px icon, md = 34px (workspace-settings-*
-   *  metrics) / 28px icon, lg = 32px icon (icon-only). */
+  /** xs = 24px (iframe review-popover `.iframe-review-mini-btn` metrics) /
+   *  22px icon (iframe toolbar `.iframe-bar-btn` metrics), sm = 30px
+   *  (cfg-* metrics) / 24px icon, md = 34px (workspace-settings-* metrics) /
+   *  28px icon, lg = 32px icon (icon-only). */
   size?: ButtonSize;
 }
 

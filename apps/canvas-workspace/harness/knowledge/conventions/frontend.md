@@ -75,7 +75,8 @@ counter may shrink but never grow):
 
 - **New code uses the blessed basics** from `components/ui/`: `Button`
   (including `variant="icon"` for icon-only square buttons — pass
-  `aria-label`, sizes sm/md/lg = 24/28/32px), `Modal` (the one overlay
+  `aria-label`, sizes xs/sm/md/lg = 22/24/28/32px; xs also applies to the
+  text variants at 24px), `Modal` (the one overlay
   shell), `Drawer`, `Portal` (the one createPortal exit), `Popover` (the one
   popover shell that portals to `document.body`; two anchoring modes —
   default `x`/`y` one-shot point anchor with a viewport clamp, for

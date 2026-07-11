@@ -98,8 +98,8 @@ export const Showcase = () => (
 // icon-only for now — so the grid follows that constraint rather than
 // rendering a cross product that doesn't occur in the real app.
 const TEXT_VARIANTS = ['primary', 'secondary', 'danger'] as const;
-const TEXT_SIZES = ['sm', 'md'] as const;
-const ICON_SIZES = ['sm', 'md', 'lg'] as const;
+const TEXT_SIZES = ['xs', 'sm', 'md'] as const;
+const ICON_SIZES = ['xs', 'sm', 'md', 'lg'] as const;
 
 const DotIcon = () => (
   <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
