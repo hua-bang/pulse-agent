@@ -64,6 +64,17 @@ Both halves are load-bearing here: "as simple as possible" is the Occam/reuse-fi
 - Add mechanical checks only after a rule proves stable enough to enforce.
 - Package-local harness directories are optional extension points, not required boilerplate.
 
+## Validation Levels
+
+The manual runner defaults to `--level quick` during iteration. Use
+`--level standard` when a workspace change is functionally complete and
+`--level release` for final performance or release evidence. `--all` defaults
+to `release`, so an explicit full sweep remains genuinely full.
+
+Workspace rules may provide `quick`, `required` (standard), and `release`
+command tiers. Untiered legacy rules keep their previous behavior at every
+level until that workspace deliberately adopts tiering.
+
 ## Pilot Coverage
 
 The pilot is no longer limited to an initial representative set. `pnpm-workspace.yaml` defines the active workspace set, workspace `AGENTS.md` files own local role/navigation, and every active workspace has a local `harness/validate/validation.yaml`. Root `harness/validate/validation.yaml` is now reserved for root config checks and cross-workspace impact rules.

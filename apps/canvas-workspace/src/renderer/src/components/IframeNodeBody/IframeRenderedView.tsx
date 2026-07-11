@@ -1,6 +1,7 @@
 import { useEffect, useMemo, type KeyboardEventHandler, type RefObject } from 'react';
 import type { Artifact } from '../../types';
 import { Button } from '../ui/Button';
+import { BrowserNavigationButtons } from '../EmbeddedBrowser/BrowserNavigationButtons';
 import { STREAMING_SHELL } from '../artifacts/streamingShell';
 import { appendDomPickerBridge } from './domPickerBridge';
 import type { LoadState } from './types';
@@ -11,11 +12,15 @@ interface IframeRenderedViewProps {
   artifactHtml: string;
   artifactId: string | null;
   cancel: () => void;
+  canGoBack: boolean;
+  canGoForward: boolean;
   commit: () => void;
   draftUrl: string;
   generating: boolean;
   handleOpenExternal: () => void;
   handleKeyDown: KeyboardEventHandler<HTMLInputElement>;
+  handleGoBack: () => void;
+  handleGoForward: () => void;
   handlePickDomElement: () => Promise<void> | void;
   handlePickReviewElement: () => Promise<void> | void;
   handleRegenerate: () => Promise<void> | void;
@@ -49,11 +54,15 @@ export const IframeRenderedView = ({
   artifactHtml,
   artifactId,
   cancel,
+  canGoBack,
+  canGoForward,
   commit,
   draftUrl,
   generating,
   handleOpenExternal,
   handleKeyDown,
+  handleGoBack,
+  handleGoForward,
   handlePickDomElement,
   handlePickReviewElement,
   handleRegenerate,
@@ -103,18 +112,15 @@ export const IframeRenderedView = ({
   return (
     <div className="iframe-body">
       <div className="iframe-bar">
-        <Button
-          type="button"
-          variant="icon"
-          size="xs"
-          className="iframe-bar-btn"
-          onClick={handleReload}
-          title="Reload"
-          aria-label="Reload"
+        <BrowserNavigationButtons
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
           disabled={generating}
-        >
-          <ReloadIcon />
-        </Button>
+          onBack={handleGoBack}
+          onForward={handleGoForward}
+          onReload={handleReload}
+          showHistory={mode === 'url'}
+        />
 
         <IframeAddressButton
           artifact={artifact}
@@ -388,18 +394,6 @@ const IframeAddressButton = ({
     </button>
   );
 };
-
-const ReloadIcon = () => (
-  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-    <path
-      d="M2 6a4 4 0 016.9-2.8L10 4M10 2v2.5H7.5M10 6a4 4 0 01-6.9 2.8L2 8M2 10V7.5h2.5"
-      stroke="currentColor"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </svg>
-);
 
 const SparkIcon = () => (
   <svg width="12" height="12" viewBox="0 0 16 16" fill="none">

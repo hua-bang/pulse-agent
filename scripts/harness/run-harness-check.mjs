@@ -9,6 +9,7 @@
 //   node scripts/harness/run-harness-check.mjs --since <ref>   # paths from ref...HEAD
 //   node scripts/harness/run-harness-check.mjs --path <p...>   # explicit repo-relative paths
 //   node scripts/harness/run-harness-check.mjs --all           # every bound check (full sweep)
+//   Add --level quick|standard|release (default: quick; --all: release).
 //   Add --dry-run to print the plan without executing.
 //
 // escalateWhen / escalationRules need human judgement (is this a public API
@@ -21,6 +22,23 @@ import { fileURLToPath } from 'node:url';
 import { parseSimpleYaml } from './simple-yaml.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const LEVELS = ['quick', 'standard', 'release'];
+
+function addRuleCommands(rule, plan, source, level) {
+  const quick = Array.isArray(rule.quick) ? rule.quick : null;
+  if (quick) {
+    for (const cmd of quick) plan.addCommand(cmd, `${source} · quick`);
+  } else if (level === 'quick') {
+    // Validation files without tiered commands retain their old behavior.
+    for (const cmd of rule.required || []) plan.addCommand(cmd, source);
+  }
+  if (level !== 'quick') {
+    for (const cmd of rule.required || []) plan.addCommand(cmd, source);
+  }
+  if (level === 'release') {
+    for (const cmd of rule.release || []) plan.addCommand(cmd, `${source} · release`);
+  }
+}
 
 // --- workspace discovery (pnpm-workspace.yaml is the membership SSOT) ---
 
@@ -90,7 +108,7 @@ function loadValidation(relFile) {
   return parseSimpleYaml(fs.readFileSync(abs, 'utf8'));
 }
 
-function collectForWorkspace(workspace, relPaths, plan, { all = false } = {}) {
+function collectForWorkspace(workspace, relPaths, plan, { all = false, level = 'quick' } = {}) {
   const file = path.posix.join(workspace, 'harness/validate/validation.yaml');
   const validation = loadValidation(file);
   if (!validation) {
@@ -100,19 +118,19 @@ function collectForWorkspace(workspace, relPaths, plan, { all = false } = {}) {
   for (const rule of validation.pathRules || []) {
     const hit = all || relPaths.some((p) => matchesAny(p, rule.paths));
     if (!hit) continue;
-    for (const cmd of rule.required || []) plan.addCommand(cmd, `${workspace} · ${rule.name}`);
+    addRuleCommands(rule, plan, `${workspace} · ${rule.name}`, level);
     for (const note of rule.manual || []) plan.notes.push(`${workspace} · ${rule.name} (manual): ${note}`);
     for (const note of rule.optional || []) plan.notes.push(`${workspace} · ${rule.name} (optional): ${note}`);
   }
 }
 
-function collectForRoot(rootPaths, plan, { all = false } = {}) {
+function collectForRoot(rootPaths, plan, { all = false, level = 'quick' } = {}) {
   const validation = loadValidation('harness/validate/validation.yaml');
   if (!validation) return;
   for (const rule of validation.pathRules || []) {
     const hit = all || rootPaths.some((p) => matchesAny(p, rule.paths));
     if (!hit) continue;
-    for (const cmd of rule.required || []) plan.addCommand(cmd, `root · ${rule.name}`);
+    addRuleCommands(rule, plan, `root · ${rule.name}`, level);
     for (const note of rule.manual || []) plan.notes.push(`root · ${rule.name} (manual): ${note}`);
   }
 }
@@ -133,21 +151,27 @@ function escalationReminders(affectedWorkspaces) {
 // --- main ---
 
 function parseArgs(argv) {
-  const options = { paths: [], all: false, dryRun: false, since: null };
+  const options = { paths: [], all: false, dryRun: false, since: null, level: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--all') options.all = true;
+    else if (arg === '--level') options.level = argv[++i];
     else if (arg === '--dry-run' || arg === '--list') options.dryRun = true;
     else if (arg === '--since') options.since = argv[++i];
     else if (arg === '--path') {
       while (argv[i + 1] && !argv[i + 1].startsWith('--')) options.paths.push(argv[++i]);
     } else if (arg === '--help' || arg === '-h') {
-      console.log('Usage: run-harness-check.mjs [--all] [--since <ref>] [--path <p...>] [--dry-run]');
+      console.log('Usage: run-harness-check.mjs [--all] [--since <ref>] [--path <p...>] [--level quick|standard|release] [--dry-run]');
       process.exit(0);
     } else {
       console.error(`Unknown argument: ${arg}`);
       process.exit(2);
     }
+  }
+  options.level ??= options.all ? 'release' : 'quick';
+  if (!LEVELS.includes(options.level)) {
+    console.error(`Invalid --level: ${options.level}. Expected ${LEVELS.join(', ')}.`);
+    process.exit(2);
   }
   return options;
 }
@@ -182,8 +206,8 @@ function main() {
   let affected = [];
   if (options.all) {
     affected = workspaces;
-    for (const ws of workspaces) collectForWorkspace(ws, [], plan, { all: true });
-    collectForRoot([], plan, { all: true });
+    for (const ws of workspaces) collectForWorkspace(ws, [], plan, { all: true, level: options.level });
+    collectForRoot([], plan, { all: true, level: options.level });
   } else {
     const byWorkspace = new Map();
     for (const p of changed) {
@@ -196,12 +220,13 @@ function main() {
       byWorkspace.get(owner).push(posix.slice(owner.length + 1));
     }
     affected = [...byWorkspace.keys()];
-    for (const [ws, rels] of byWorkspace) collectForWorkspace(ws, rels, plan);
+    for (const [ws, rels] of byWorkspace) collectForWorkspace(ws, rels, plan, { level: options.level });
     // The root file is an overlay: its pathRules see every changed path
     // (repo-relative), not just the ones outside any workspace.
-    collectForRoot(changed.map((p) => p.split(path.sep).join('/')), plan);
+    collectForRoot(changed.map((p) => p.split(path.sep).join('/')), plan, { level: options.level });
   }
 
+  console.log(`Validation level: ${options.level}`);
   console.log(`Affected workspaces: ${affected.length ? affected.join(', ') : '(none)'}`);
   for (const warning of plan.warnings) console.log(`! ${warning}`);
 

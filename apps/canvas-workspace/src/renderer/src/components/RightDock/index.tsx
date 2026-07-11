@@ -32,12 +32,13 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { Button, useDragResize } from '../ui';
+import { useDragResize } from '../ui';
 import { useI18n } from '../../i18n';
 import { AppLogoIcon } from '../icons';
 import { CHAT_TAB_ID, DockStore, isTerminalTabId, type DockState } from './dock-store';
 import { LinkTabIcon } from './LinkTabIcon';
 import { TerminalDockTab } from './TerminalDockTab';
+import { NewDockTabMenu } from './NewDockTabMenu';
 import './index.css';
 import './terminal-tab.css';
 
@@ -435,16 +436,11 @@ export const RightDock = ({ activeWorkspaceId, chatTabEnabled }: RightDockProps)
             );
           })}
         </div>
-        <Button
-          variant="icon"
-          size="sm"
-          className="right-dock__new-link"
-          aria-label={t('rightDock.newWebTab')}
-          title={t('rightDock.newWebTab')}
-          onClick={() => store.newLink(t('rightDock.newTabTitle'))}
-        >
-          <span aria-hidden="true">+</span>
-        </Button>
+        <NewDockTabMenu
+          showTerminal={chatTabEnabled}
+          onNewWebTab={() => store.newLink(t('rightDock.newTabTitle'))}
+          onNewTerminalTab={() => store.newTerminal()}
+        />
         <button
           type="button"
           className="right-dock__collapse"

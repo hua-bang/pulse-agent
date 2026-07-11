@@ -8,6 +8,9 @@ pathRules:
       - tsconfig.json
       - tsconfig.node.json
       - electron.vite.config.ts
+    quick:
+      - pnpm --filter canvas-workspace typecheck
+      - pnpm --filter canvas-workspace exec vitest run src/main/__tests__/ui-reuse-governance.test.ts src/main/__tests__/file-size-governance.test.ts
     required:
       - pnpm --filter canvas-workspace typecheck
       - pnpm --filter canvas-workspace test
@@ -19,6 +22,8 @@ pathRules:
   - name: product-harness
     paths:
       - harness/tools/driver/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run harness/tools/driver/src/__tests__
     required:
       - pnpm --filter canvas-workspace test
 
@@ -47,6 +52,13 @@ pathRules:
     manual:
       - pnpm --filter canvas-workspace visual
 
+  - name: performance-unit
+    paths:
+      - perf/**
+      - scripts/perf/**
+    quick:
+      - pnpm --filter canvas-workspace exec vitest run scripts/perf
+
   # Bundle + runtime perf gates (perf/program.md). Run by CI
   # (.github/workflows/perf.yml) on every canvas-workspace PR; runnable
   # locally with the same command.
@@ -56,5 +68,5 @@ pathRules:
       - electron.vite.config.ts
       - perf/**
       - scripts/perf/**
-    required:
+    release:
       - pnpm --filter canvas-workspace perf:report

@@ -55,22 +55,6 @@
   color: inherit;
 }
 
-.chat-panel-brand-mark {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #1d1d1f;
-}
-
-.chat-panel-brand-mark svg,
-.chat-panel-brand-mark img {
-  display: block;
-  filter: drop-shadow(0 1px 1px rgba(55, 53, 47, 0.08));
-}
-
 .chat-panel-title-text {
   min-width: 0;
   overflow: hidden;

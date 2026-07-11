@@ -20,6 +20,13 @@ pathRules:
     required:
       - pnpm exec vitest run harness/skills/visualize-harness/scripts/render-harness-graph.test.mjs
 
+  - name: harness-runner
+    paths:
+      - scripts/harness/run-harness-check.mjs
+      - scripts/harness/run-harness-check.test.mjs
+    required:
+      - pnpm exec vitest run scripts/harness/run-harness-check.test.mjs
+
   - name: root-workspace-config
     paths:
       - package.json

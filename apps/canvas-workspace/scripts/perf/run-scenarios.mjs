@@ -650,6 +650,7 @@ const wsCycleScenario = async (cdp, requestedNodesPerWorkspace = 0) => {
     await store.save('__workspaces__', data);
   })()`);
   await evaluate(cdp, 'location.reload()').catch(() => {});
+  await cdp.reconnect();
   await waitFor(
     () => evaluate(cdp, `window.__pulsePerf
       && [...document.querySelectorAll('.sidebar-item')]
@@ -763,6 +764,7 @@ const seedExtraNodes = async (cdp, count, webpageCount = 0) => {
     await store.save(wsId, { ...data, nodes });
   })()`);
   await evaluate(cdp, 'location.reload()').catch(() => {});
+  await cdp.reconnect();
   for (let i = 0; i < 60; i++) {
     await sleep(500);
     const ready = await evaluate(
@@ -828,6 +830,7 @@ const imageMemoryScenario = async (cdp) => {
     await store.save(wsId, { ...data, nodes, transform: { x: 250, y: 20, scale: 0.5 } });
   })()`);
   await evaluate(cdp, 'location.reload()').catch(() => {});
+  await cdp.reconnect();
 
   let images = [];
   for (let i = 0; i < 100; i++) {
@@ -895,6 +898,10 @@ const main = async () => {
         };
         console.warn(`[perf:scenarios] renderer trace unavailable: ${scenarios['renderer-trace'].reason}`);
       }
+      // captureRendererReloadTrace navigates the page. Its original connection
+      // remains dedicated to trace events, so subsequent scenarios need a
+      // fresh page socket even when trace capture degrades.
+      await cdp.reconnect();
       await fs.writeFile(
         rendererTraceSummaryPath,
         JSON.stringify(scenarios['renderer-trace'], null, 2),

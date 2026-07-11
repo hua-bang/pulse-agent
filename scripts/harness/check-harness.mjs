@@ -7,7 +7,7 @@
 // Checks, per active workspace (membership SSOT: pnpm-workspace.yaml):
 //   - entry coverage:      AGENTS.md exists
 //   - validation coverage: harness/validate/validation.yaml exists, parses,
-//                          and every pathRule has paths + required
+//                          and every pathRule has paths + at least one command tier
 //   - validation matrix:   every `pnpm --filter <name>` in harness data
 //                          references a real workspace package name
 //   - routing links:       backticked concrete repo paths in root AGENTS.md,
@@ -76,8 +76,10 @@ function checkValidationFile(rel, { requireRules }) {
   for (const rule of rules) {
     const label = `${rel} · ${rule.name || '(unnamed rule)'}`;
     if (!Array.isArray(rule.paths) || rule.paths.length === 0) gaps.push(`${label}: empty paths`);
-    if (!Array.isArray(rule.required) || rule.required.length === 0) gaps.push(`${label}: empty required`);
-    for (const cmd of rule.required || []) checkFilterNames(String(cmd), label);
+    const commands = ['quick', 'required', 'release']
+      .flatMap((tier) => (Array.isArray(rule[tier]) ? rule[tier] : []));
+    if (commands.length === 0) gaps.push(`${label}: no quick, required, or release commands`);
+    for (const cmd of commands) checkFilterNames(String(cmd), label);
   }
   for (const [name, rule] of Object.entries(data.escalationRules || {})) {
     for (const cmd of rule.required || []) checkFilterNames(String(cmd), `${rel} · ${name}`);

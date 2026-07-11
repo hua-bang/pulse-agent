@@ -311,7 +311,8 @@ const RATCHET_BASELINE: Record<string, number> = {
   // (which is not color-value-aware, only literal-vs-token-aware) drops by
   // 1 even though the rendered hover color is unchanged.
   // 1882→1881: LinkDrawer's new editable address focus state uses palette tokens.
-  hardcodedColorLiterals: 1881,
+  // 1881→1879: the duplicate ChatHeader brand mark and its two color literals were removed.
+  hardcodedColorLiterals: 1879,
   // box-shadow declaration lines not using a var(--shadow-*) token — same
   // line-based style as borderRadiusLiterals. frontend.md previously said
   // "measured but not yet gated"; gated 2026-07-08 at the as-measured

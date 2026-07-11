@@ -430,11 +430,6 @@
     transform 0.2s var(--tab-ease);
 }
 
-.right-dock__new-link {
-  font-size: 18px;
-  font-weight: 350;
-}
-
 .right-dock__new-link:hover,
 .right-dock__collapse:hover {
   background: rgba(55, 53, 47, 0.08);
