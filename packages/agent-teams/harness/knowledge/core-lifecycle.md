@@ -21,7 +21,7 @@ The two surfaces share NO code — they independently reimplement task
 records, dependency readiness, mailbox, and event unions with **same-named,
 incompatible** types (`TaskStatus`/`TeamStatus`/`TeamEventType` differ
 between `types.ts` and `runtime/types.ts`). **The runtime is the forward
-direction** (the maturity roadmap `docs/07-agent-teams-maturity-roadmap.md`
+direction** (the maturity roadmap `../../docs/07-agent-teams-maturity-roadmap.md`
 lists "converge the three multi-agent implementations" as debt; every newer
 protocol concept lives only in the runtime). When you extend "the task
 state machine," know which surface you're in — a change to one never
