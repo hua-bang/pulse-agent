@@ -6,6 +6,7 @@ import { DeferredSettings, NodeDetailPageLazy as NodeDetailPage, NodesPageLazy a
 import { ChatPageLazy as ChatPage } from './components/chat/lazy';
 import { MigrationSpinner } from './components/MigrationSpinner';
 import { RightDock, RightDockProvider } from './components/RightDock';
+import { GlobalChatLauncher } from './components/RightDock/GlobalChatLauncher';
 import type { SettingsSection } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { getRegisteredNavItems, getRegisteredRoutes } from '../../plugins/renderer';
@@ -542,7 +543,6 @@ const AppContent = () => {
                   selectedNode={selectedNode}
                   onSelectNode={setSelectedNode}
                   onOpenNode={openNodePage}
-                  onOpenAppSettings={openAppSettings}
                 />
               </Suspense>
             </PulseRouterView>
@@ -566,7 +566,6 @@ const AppContent = () => {
                 selectedNode={selectedNode}
                 onSelectNode={setSelectedNode}
                 onOpenNode={openNodePage}
-                onOpenAppSettings={openAppSettings}
               />
             </PulseRouterView>
           )}
@@ -579,7 +578,8 @@ const AppContent = () => {
           })}
         </PulseRouter>
       </div>
-      <RightDock activeWorkspaceId={activeId} chatTabEnabled={activeView === 'canvas'} />
+      <GlobalChatLauncher visible={activeView !== 'canvas' && activeView !== 'chat'} />
+      <RightDock activeWorkspaceId={activeId} chatTabEnabled={activeView !== 'chat'} />
       <MigrationSpinner />
       <DeferredSettings
         appLoaded={appSettingsLoaded}

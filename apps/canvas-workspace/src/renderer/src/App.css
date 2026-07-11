@@ -20,6 +20,15 @@
   transition: margin-right 0.26s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.chat-floating-button.app-global-chat-launcher {
+  position: fixed;
+  right: calc(var(--right-dock-inset, 0px) + 20px);
+  bottom: 20px;
+  z-index: var(--layer-canvas-chrome);
+  transition: right 220ms ease, transform 160ms ease, box-shadow 160ms ease,
+    background-color 160ms ease, border-color 160ms ease;
+}
+
 .right-dock-resizing .app-body {
   transition: none;
 }
