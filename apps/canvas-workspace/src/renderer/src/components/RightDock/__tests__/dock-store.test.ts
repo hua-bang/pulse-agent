@@ -71,6 +71,28 @@ describe('DockStore', () => {
     expect(tabs.find((t) => t.kind === 'link' && t.url === 'https://a.example')?.title).toBe('Page title');
   });
 
+  it('creates independent blank web tabs and navigates one in place', () => {
+    const dock = new DockStore();
+    dock.newLink('New tab');
+    const firstId = dock.getSnapshot().activeTabId;
+    dock.newLink('New tab');
+    const secondId = dock.getSnapshot().activeTabId;
+
+    expect(firstId).not.toBe(secondId);
+    expect(dock.getSnapshot().tabs).toMatchObject([
+      { id: firstId, kind: 'link', title: 'New tab', url: '' },
+      { id: secondId, kind: 'link', title: 'New tab', url: '' },
+    ]);
+
+    dock.navigateLink(firstId, 'https://example.com');
+    expect(dock.getSnapshot().tabs[0]).toMatchObject({
+      id: firstId,
+      title: 'https://example.com',
+      url: 'https://example.com',
+    });
+    expect(dock.getSnapshot().tabs[1]).toMatchObject({ id: secondId, url: '' });
+  });
+
   it('activate switches between chat and previews and ignores unknown ids', () => {
     const dock = new DockStore();
     dock.openArtifact('ws1', 'a1');
